@@ -1,0 +1,41 @@
+{
+  "name": "@symm-frontier/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./base": {
+      "types": "./dist/base.d.ts",
+      "import": "./dist/base.js"
+    },
+    "./react-library": {
+      "types": "./dist/react-library.d.ts",
+      "import": "./dist/react-library.js"
+    },
+    "./next-js": {
+      "types": "./dist/next-js.d.ts",
+      "import": "./dist/next-js.js"
+    }
+  },
+  "peerDependencies": {
+    "eslint": "^9.22.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "echo \"no lint for config package\"",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@next/eslint-plugin-next": "^16.2.4",
+    "@symm-frontier/typescript-config": "workspace:*",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-turbo": "^2.9.8",
+    "globals": "^17.6.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.1"
+  }
+}

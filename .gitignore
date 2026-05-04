@@ -1,0 +1,36 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Dependencies
+node_modules
+.pnpm-store
+
+# Env
+.env
+.env*.local
+
+# Build
+dist
+build
+.next
+out
+storybook-static
+.turbo
+
+
+# Debug / IDE
+*.log
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Testing
+coverage
+
+# Misc
+.DS_Store
+*.pem

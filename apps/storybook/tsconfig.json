@@ -1,0 +1,8 @@
+{
+  "extends": "@symm-frontier/typescript-config/react-library.json",
+  "compilerOptions": {
+    "rootDir": "."
+  },
+  "include": [".storybook/**/*.ts", "vite.config.ts"],
+  "exclude": ["node_modules", "storybook-static"]
+}
