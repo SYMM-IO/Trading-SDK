@@ -1,0 +1,9 @@
+pre-commit:
+  jobs:
+    - name: eslint and typecheck
+      run: pnpm exec turbo run lint check-types
+
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: pnpm exec commitlint --edit {1}
