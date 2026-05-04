@@ -1,0 +1,6 @@
+{
+  "tabWidth": 2,
+  "printWidth": 120,
+  "tailwindFunctions": ["clsx", "cn", "cva"],
+  "plugins": ["prettier-plugin-organize-imports", "prettier-plugin-tailwindcss"]
+}

@@ -21,6 +21,7 @@ pnpm dev
 The docs will be available at `http://localhost:3002`.
 
 **Note:** If you encounter port permission errors, you may need to:
+
 - Run with sudo (not recommended)
 - Change the port in `package.json` to a higher number (e.g., 8002)
 - Or run from the monorepo root: `pnpm dev` (Turborepo will handle all apps)

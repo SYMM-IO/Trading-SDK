@@ -1,6 +1,6 @@
+import pluginNext from "@next/eslint-plugin-next";
 import type { Linter } from "eslint";
 import { defineConfig, globalIgnores } from "eslint/config";
-import pluginNext from "@next/eslint-plugin-next";
 import { reactLibraryConfig } from "./react-library.js";
 
 export const nextJsConfig = defineConfig(

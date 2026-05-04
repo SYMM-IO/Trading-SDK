@@ -1,5 +1,8 @@
 pre-commit:
+  parallel: true
   jobs:
+    - name: prettier
+      run: pnpm exec prettier --check --ignore-unknown {staged_files}
     - name: eslint and typecheck
       run: pnpm exec turbo run lint check-types
 

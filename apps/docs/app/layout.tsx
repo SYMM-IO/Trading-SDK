@@ -9,11 +9,7 @@ const banner = <Banner storageKey="some-key">Nextra 4.0 is released 🎉</Banner
 const navbar = <Navbar logo={<b>Nextra</b>} />;
 const footer = <Footer>MIT {new Date().getFullYear()} © My Docs.</Footer>;
 
-export default async function RootLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" dir="ltr" suppressHydrationWarning>
       <Head />
