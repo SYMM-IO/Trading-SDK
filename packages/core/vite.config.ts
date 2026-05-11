@@ -26,7 +26,7 @@ export default defineConfig({
       formats: ["es"],
     },
     rollupOptions: {
-      external: ["react", "react-dom", "react/jsx-runtime"],
+      external: ["react", "react-dom", "react/jsx-runtime", "viem", "wagmi"],
       output: {
         dir: path.resolve(dirname, "dist"),
         preserveModules: true,
