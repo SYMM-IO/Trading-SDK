@@ -10,10 +10,13 @@
     "check-types": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@symm-frontier/core": "workspace:*",
     "@symm-frontier/ui": "workspace:*",
     "next": "16.2.4",
     "react": "19.2.5",
-    "react-dom": "19.2.5"
+    "react-dom": "19.2.5",
+    "viem": "^2.45.1",
+    "wagmi": "^3.4.2"
   },
   "devDependencies": {
     "@symm-frontier/eslint-config": "workspace:*",

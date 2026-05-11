@@ -12,6 +12,18 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./provider": {
+      "types": "./dist/provider/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./wallet": {
+      "types": "./dist/wallet/index.d.ts",
+      "import": "./dist/index.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"
@@ -28,7 +40,9 @@
   },
   "peerDependencies": {
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "viem": "^2.45.1",
+    "wagmi": "^3.4.2"
   },
   "devDependencies": {
     "@symm-frontier/eslint-config": "workspace:*",
@@ -41,7 +55,9 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "typescript": "^6.0.3",
+    "viem": "^2.45.1",
     "vite": "^8.0.10",
-    "vite-plugin-dts": "^4.5.4"
+    "vite-plugin-dts": "^4.5.4",
+    "wagmi": "^3.4.2"
   }
 }
