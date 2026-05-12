@@ -2,7 +2,7 @@
 
 import { createContext, type ReactNode, useContext } from "react";
 
-import type { SymmioClientConfig } from "../config";
+import { resolveSymmioConfig, type SymmioClientConfig, type SymmioClientConfigInput } from "../config";
 
 const SymmioConfigContext = createContext<SymmioClientConfig | null>(null);
 
@@ -10,8 +10,8 @@ const SymmioConfigContext = createContext<SymmioClientConfig | null>(null);
  * Props for the SYMMIO SDK React provider.
  */
 export interface SymmioProviderProps {
-  /** SDK configuration used to create the shared SYMMIO client. */
-  config: SymmioClientConfig;
+  /** SDK configuration used to resolve selected SYMMIO defaults and overrides. */
+  config: SymmioClientConfigInput;
   /** React subtree that can access the SYMMIO client through SDK hooks. */
   children: ReactNode;
 }
@@ -20,7 +20,7 @@ export interface SymmioProviderProps {
  * Provides SYMMIO SDK configuration to React hooks.
  */
 export function SymmioProvider({ config, children }: SymmioProviderProps) {
-  return <SymmioConfigContext.Provider value={config}>{children}</SymmioConfigContext.Provider>;
+  return <SymmioConfigContext.Provider value={resolveSymmioConfig(config)}>{children}</SymmioConfigContext.Provider>;
 }
 
 /**
