@@ -1,6 +1,6 @@
 "use client";
 
-import { SymmioProvider } from "@symm-frontier/core";
+import { SymmioProvider } from "@symm-frontier/react";
 import type { ReactNode } from "react";
 import { WagmiProvider } from "wagmi";
 

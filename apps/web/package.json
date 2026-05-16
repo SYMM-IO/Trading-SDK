@@ -10,7 +10,7 @@
     "check-types": "next typegen && tsc --noEmit"
   },
   "dependencies": {
-    "@symm-frontier/core": "workspace:*",
+    "@symm-frontier/react": "workspace:*",
     "@symm-frontier/ui": "workspace:*",
     "next": "16.2.4",
     "react": "19.2.5",

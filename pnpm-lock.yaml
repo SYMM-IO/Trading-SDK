@@ -129,9 +129,9 @@ importers:
 
   apps/web:
     dependencies:
-      '@symm-frontier/core':
+      '@symm-frontier/react':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/react
       '@symm-frontier/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -179,7 +179,43 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  packages/core:
+  packages/eslint-config:
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.39.4
+        version: 9.39.4
+      '@next/eslint-plugin-next':
+        specifier: ^16.2.4
+        version: 16.2.4
+      '@symm-frontier/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.6.1)
+      eslint-config-prettier:
+        specifier: ^10.1.8
+        version: 10.1.8(eslint@9.39.4(jiti@2.6.1))
+      eslint-plugin-react:
+        specifier: ^7.37.5
+        version: 7.37.5(eslint@9.39.4(jiti@2.6.1))
+      eslint-plugin-react-hooks:
+        specifier: ^5.2.0
+        version: 5.2.0(eslint@9.39.4(jiti@2.6.1))
+      eslint-plugin-turbo:
+        specifier: ^2.9.8
+        version: 2.9.8(eslint@9.39.4(jiti@2.6.1))(turbo@2.9.8)
+      globals:
+        specifier: ^17.6.0
+        version: 17.6.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      typescript-eslint:
+        specifier: ^8.59.1
+        version: 8.59.1(eslint@9.39.4(jiti@2.6.1))(typescript@6.0.3)
+
+  packages/react:
     devDependencies:
       '@symm-frontier/eslint-config':
         specifier: workspace:*
@@ -223,42 +259,6 @@ importers:
       wagmi:
         specifier: ^3.4.2
         version: 3.6.11(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.5))(@types/react@19.2.14)(react@19.2.5)(typescript@6.0.3)(viem@2.48.11(typescript@6.0.3)(zod@4.4.3))
-
-  packages/eslint-config:
-    devDependencies:
-      '@eslint/js':
-        specifier: ^9.39.4
-        version: 9.39.4
-      '@next/eslint-plugin-next':
-        specifier: ^16.2.4
-        version: 16.2.4
-      '@symm-frontier/typescript-config':
-        specifier: workspace:*
-        version: link:../typescript-config
-      eslint:
-        specifier: ^9.39.4
-        version: 9.39.4(jiti@2.6.1)
-      eslint-config-prettier:
-        specifier: ^10.1.8
-        version: 10.1.8(eslint@9.39.4(jiti@2.6.1))
-      eslint-plugin-react:
-        specifier: ^7.37.5
-        version: 7.37.5(eslint@9.39.4(jiti@2.6.1))
-      eslint-plugin-react-hooks:
-        specifier: ^5.2.0
-        version: 5.2.0(eslint@9.39.4(jiti@2.6.1))
-      eslint-plugin-turbo:
-        specifier: ^2.9.8
-        version: 2.9.8(eslint@9.39.4(jiti@2.6.1))(turbo@2.9.8)
-      globals:
-        specifier: ^17.6.0
-        version: 17.6.0
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-      typescript-eslint:
-        specifier: ^8.59.1
-        version: 8.59.1(eslint@9.39.4(jiti@2.6.1))(typescript@6.0.3)
 
   packages/typescript-config: {}
 
