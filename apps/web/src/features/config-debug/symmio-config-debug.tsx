@@ -1,12 +1,12 @@
 "use client";
 
-import { useSymmioConfig } from "@symm-frontier/core";
+import { useSymmioConfig } from "@symm-frontier/react";
 
 function ConfigRow({ label, value }: { label: string; value?: string | number }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-zinc-200 py-3 last:border-b-0 dark:border-zinc-800">
       <dt className="shrink-0 text-sm font-medium text-zinc-500 dark:text-zinc-400">{label}</dt>
-      <dd className="max-w-[70%] break-all text-right font-mono text-sm text-zinc-950 dark:text-zinc-50">
+      <dd className="max-w-[70%] text-right font-mono text-sm break-all text-zinc-950 dark:text-zinc-50">
         {value ?? "Not configured"}
       </dd>
     </div>
@@ -19,9 +19,7 @@ export function SymmioConfigDebug() {
   return (
     <section className="w-full max-w-5xl rounded-lg border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
       <div className="mb-6">
-        <p className="text-sm font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">
-          Symmio Core
-        </p>
+        <p className="text-sm font-semibold tracking-wide text-blue-600 uppercase dark:text-blue-400">Symmio Core</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
           Resolved VibeCaps Config
         </h1>

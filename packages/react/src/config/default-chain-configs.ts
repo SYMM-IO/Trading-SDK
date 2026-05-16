@@ -46,7 +46,8 @@ export const DEFAULT_SYMMIO_CHAIN_CONFIGS = {
       subgraphs: {
         analytics:
           "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_analytics/latest/gn",
-        events: "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_events/latest/gn",
+        events:
+          "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_events/latest/gn",
         vibe: "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/vibe-back-hyperevm/latest/gn",
       },
       solver: {

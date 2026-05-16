@@ -8,12 +8,10 @@ These are non-negotiable. Violating any of them is a defect.
 
 1. Use **pnpm**. Never run `yarn` or `npm install` in this repo.
 2. **Vibe-ui is read-only reference.** Never edit, create, or delete files in the vibe-ui repo.
-3. **`packages/core` is a React SDK package in this phase.** React hooks, providers, and SDK logic can live in domain-focused folders. Do not force all React code into a single `react` folder.
-4. **Current phase is VibeCaps only.** Do not implement Majors trading logic. If a task seems to require it, stop and ask.
-5. **Output a design proposal and wait for human approval before writing implementation code.** See "Design Proposal Gate" below. The only exceptions are listed there.
-6. **Do not optimize for pure JS extraction in this phase.** Do not recommend or design alternative pure JS SDK paths unless the user explicitly asks. Treat `packages/core` as the React SDK package for current work.
-7. When scope, package placement, or intent is unclear, **stop and ask the user.** Do not guess.
-8. Do not add new dependencies without a stated reason and user approval.
+3. **Current phase is VibeCaps only.** Do not implement Majors trading logic. If a task seems to require it, stop and ask.
+4. **Output a design proposal and wait for human approval before writing implementation code.** See "Design Proposal Gate" below. The only exceptions are listed there.
+5. When scope, package placement, or intent is unclear, **stop and ask the user.** Do not guess.
+6. Do not add new dependencies without a stated reason and user approval.
 
 ## Project Vocabulary
 
