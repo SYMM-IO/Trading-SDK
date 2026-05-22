@@ -1,6 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalEnv": ["CI", "E2E_SEED_PHRASE", "SYMM_TEST_PRIVATE_KEY", "SYMM_RUN_INTEGRATION"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -11,7 +12,11 @@
       "dependsOn": ["^build", "^lint"]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
     },
     "dev": {
       "cache": false,

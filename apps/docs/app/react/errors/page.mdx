@@ -1,0 +1,77 @@
+# Errors
+
+Every SYMMIO React hook surfaces failures as a single error class — `SymmioRequestError` — with a `kind` discriminator the UI switches on.
+
+## `SymmioRequestError`
+
+```ts
+class SymmioRequestError extends Error {
+  readonly name = "SymmioRequestError";
+  readonly kind: "user-rejected" | "contract-revert" | "insufficient-funds" | "rpc" | "sdk" | "unknown";
+  readonly reason?: string; // populated for kind === "contract-revert"
+  readonly shortMessage?: string; // viem short message for kind === "rpc"
+  // ...standard Error fields, including `cause`
+}
+```
+
+### Kinds, with intent
+
+| `kind`               | When                                                                                                               | Typical UI                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| `user-rejected`      | Wallet popup dismissed.                                                                                            | Silent — no toast, no banner.            |
+| `contract-revert`    | On-chain call reverted. `reason` carries the Solidity revert string.                                               | Show the reason inline.                  |
+| `insufficient-funds` | Signing EOA had not enough native gas.                                                                             | "Top up your wallet" prompt.             |
+| `rpc`                | Transport-layer failure (network, node unreachable, bad response). `shortMessage` is the viem human-readable form. | Generic "Try again later."               |
+| `sdk`                | SDK precondition failed (unknown chain, missing wallet, missing config).                                           | Fix the app's wiring; usually a bug.     |
+| `unknown`            | Fell through every classifier.                                                                                     | Show the message; treat as a bug to fix. |
+
+## Branching in the UI
+
+```tsx
+import { useEditAccountName } from "@symm-frontier/react";
+
+function RenameButton() {
+  const { mutate, error } = useEditAccountName();
+
+  return (
+    <>
+      <button onClick={() => mutate({ account, name })}>Rename</button>
+
+      {error?.kind === "user-rejected" ? null : null /* silent */}
+      {error?.kind === "contract-revert" && <p className="error">Reverted: {error.reason}</p>}
+      {error?.kind === "insufficient-funds" && <p className="warn">Top up your wallet to cover gas.</p>}
+      {error?.kind === "rpc" && <p className="warn">{error.shortMessage}</p>}
+      {error?.kind === "sdk" && <p className="error">SDK error: {error.message}</p>}
+      {error?.kind === "unknown" && <p className="error">{error.message}</p>}
+    </>
+  );
+}
+```
+
+## `normalizeSymmError(err)`
+
+The classifier the hooks use internally. Convert any thrown value (viem error, `SymmError`, plain `Error`, anything) into a `SymmioRequestError`.
+
+```ts
+import { normalizeSymmError } from "@symm-frontier/react";
+
+try {
+  await someThirdPartyCall();
+} catch (err) {
+  const normalized = normalizeSymmError(err);
+  showToast(normalized.kind, normalized.message);
+}
+```
+
+Useful when:
+
+- You're calling `core` functions directly (outside the hooks) and want the same UI-shaped errors.
+- You're handling errors from a non-SDK source (a custom contract call, a fetch) and want one branching shape.
+
+## Re-exported `SymmError`
+
+`@symm-frontier/react` re-exports `SymmError` from `core` for convenience. `normalizeSymmError(symmError).kind` is always `"sdk"`.
+
+```ts
+import { SymmError } from "@symm-frontier/react"; // same as `from "@symm-frontier/core"`
+```

@@ -1,0 +1,78 @@
+# AccountLayer hooks
+
+React-query wrappers over `@symm-frontier/core`'s AccountLayer slice.
+
+## `useUserSubAccounts(params)`
+
+Read a user's subaccounts. Returns react-query's full `UseQueryResult` shape.
+
+```tsx
+import { useUserSubAccounts, useWalletAccount } from "@symm-frontier/react";
+
+const { address } = useWalletAccount();
+const { data, isLoading, error, refetch } = useUserSubAccounts({ user: address });
+
+if (!address) return <p>Connect a wallet.</p>;
+if (isLoading) return <Spinner />;
+if (error) return <ErrorView kind={error.kind} message={error.message} />;
+
+return (
+  <ul>
+    {data?.map((sub) => (
+      <li key={sub.accountAddress}>{sub.name}</li>
+    ))}
+  </ul>
+);
+```
+
+### Parameters
+
+| Name                  | Type       | Default               | Notes                                                                                                                                                        |
+| --------------------- | ---------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `user`                | `Address?` | `undefined`           | EOA whose subaccounts to fetch. **The query is disabled while this is `undefined`**, so you can pass the connected address without a manual `enabled` guard. |
+| `offset`              | `bigint?`  | `0n`                  | Pagination offset.                                                                                                                                           |
+| `limit`               | `bigint?`  | `200n`                | Pagination cap.                                                                                                                                              |
+| `accountLayerAddress` | `Address?` | from `SymmioProvider` | Per-call override.                                                                                                                                           |
+| `enabled`             | `boolean?` | `true`                | Disable unconditionally.                                                                                                                                     |
+
+### Return type
+
+`UseQueryResult<readonly SubAccountDetail[], SymmioRequestError>` — every field react-query exposes, with the SDK error type.
+
+## `useEditAccountName(options?)`
+
+Submit a rename transaction. Returns react-query's `UseMutationResult` shape.
+
+```tsx
+import { useEditAccountName } from "@symm-frontier/react";
+
+const { mutate, isPending, isSuccess, data, error } = useEditAccountName();
+
+<button onClick={() => mutate({ account: "0xsub...", name: "Trading bot" })} disabled={isPending}>
+  {isPending ? "Sending…" : "Rename"}
+</button>;
+
+{
+  isSuccess && <p>tx: {data.hash}</p>;
+}
+{
+  error?.kind === "user-rejected" ? null : error && <p>{error.message}</p>;
+}
+```
+
+### Options
+
+```ts
+interface UseEditAccountNameOptions {
+  waitForReceipt?: boolean; // default true — mutation resolves only after the receipt is mined
+  confirmations?: number; // default 1
+}
+```
+
+### Cache invalidation
+
+On success, the hook invalidates every cached `useUserSubAccounts` query in the active `QueryClient`, so mounted lists rerender with the new name automatically. No manual invalidation needed.
+
+### Why this hook needs a connected wallet
+
+The hook reads `useSymmioWalletClient()` under the hood. If the user is disconnected or on the wrong chain, calling `mutate` throws a `SymmioRequestError` with `kind: "sdk"` before any contract call is made. UIs typically gate the button on `useWalletAccount().isOnExpectedChain` to avoid the error path entirely.

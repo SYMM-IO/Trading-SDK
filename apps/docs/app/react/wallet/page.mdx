@@ -1,0 +1,61 @@
+# Wallet hooks
+
+Thin wrappers over wagmi's wallet hooks, with the SDK's chain-awareness and error normalization layered on top.
+
+## `useWalletAccount()`
+
+Read the connected wallet's state plus an `isOnExpectedChain` flag.
+
+```tsx
+import { useWalletAccount } from "@symm-frontier/react";
+
+const { address, chainId, isConnected, isReconnecting, isOnExpectedChain } = useWalletAccount();
+
+if (!isConnected) return <ConnectButton />;
+if (!isOnExpectedChain) return <SwitchNetworkPrompt />;
+return <Dashboard address={address} />;
+```
+
+`isOnExpectedChain` is `true` iff the wallet's chainId matches `useSymmioConfig().chainId` — saves you from manually comparing in every component.
+
+## `useConnectWallet()`
+
+```tsx
+import { useConnectWallet } from "@symm-frontier/react";
+
+const { connectors, connect, status, error } = useConnectWallet();
+
+return connectors.map((connector) => (
+  <button key={connector.uid} onClick={() => connect(connector)} disabled={status === "pending"}>
+    Connect {connector.name}
+  </button>
+));
+```
+
+`connectors` is whatever the host's wagmi config registered (`injected()`, `walletConnect()`, `mock()`, …). The SDK does not pick connectors for you. Errors thrown from `connect()` are already normalized to `SymmioRequestError`.
+
+## `useDisconnectWallet()`
+
+```tsx
+const { disconnect } = useDisconnectWallet();
+<button onClick={disconnect}>Disconnect</button>;
+```
+
+## `useSwitchToSymmioChain()`
+
+Ask the wallet to switch to the chain configured in `SymmioProvider`. Convenience wrapper over wagmi's `useSwitchChain` that pulls the target chain id from the SDK config.
+
+```tsx
+const { isOnExpectedChain } = useWalletAccount();
+const { switchChain, status } = useSwitchToSymmioChain();
+
+if (!isOnExpectedChain) {
+  return (
+    <button onClick={switchChain} disabled={status === "pending"}>
+      Switch to {/* chain name from config */} HyperEVM
+    </button>
+  );
+}
+```
+
+Errors are normalized — `error?.kind === "user-rejected"` when the user dismisses the prompt.

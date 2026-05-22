@@ -1,0 +1,63 @@
+# Errors
+
+`@symm-frontier/core` exposes exactly one error class — and otherwise lets viem's errors pass through unwrapped. That's a deliberate choice: viem already has a rich hierarchy (`ContractFunctionExecutionError`, `CallExecutionError`, `BaseError`, …) and rewrapping every viem error in our own type would force consumers to learn two error vocabularies.
+
+## `SymmError`
+
+Thrown for **SDK-level** failures — unknown chain, missing config, validation, registry lookup miss. Anything that isn't an on-chain or transport failure.
+
+```ts
+import { SymmError } from "@symm-frontier/core";
+
+try {
+  await getUserSubAccounts(publicClient, { user: "0xabc..." });
+} catch (err) {
+  if (err instanceof SymmError) {
+    // SDK didn't know how to satisfy the call.
+    // e.g. "No AccountLayer address registered for chain 137."
+    console.error(err.message);
+    return;
+  }
+  // Otherwise it's a viem error — handle with the viem hierarchy.
+  throw err;
+}
+```
+
+### Class
+
+```ts
+class SymmError extends Error {
+  readonly name = "SymmError";
+  constructor(message: string, options?: ErrorOptions);
+}
+```
+
+It's a thin subclass — no extra fields. The `name` is always `"SymmError"` so `err.name === "SymmError"` works if you'd rather avoid `instanceof` (e.g. across realms).
+
+## On-chain & transport errors
+
+Everything else — contract reverts, gas estimation failures, wallet rejections, RPC unreachable — surfaces as a viem error. Use viem's `BaseError.walk()` to inspect the cause chain.
+
+```ts
+import { BaseError, ContractFunctionRevertedError, UserRejectedRequestError } from "viem";
+
+try {
+  await editAccountName(walletClient, { account, name });
+} catch (err) {
+  if (err instanceof BaseError) {
+    const revert = err.walk((e) => e instanceof ContractFunctionRevertedError);
+    if (revert instanceof ContractFunctionRevertedError) {
+      console.log("revert reason:", revert.reason);
+      return;
+    }
+    const rejected = err.walk((e) => e instanceof UserRejectedRequestError);
+    if (rejected) {
+      // user dismissed the wallet popup — UI typically goes silent
+      return;
+    }
+  }
+  throw err;
+}
+```
+
+If you're building on React, **[`@symm-frontier/react`](/react/errors)** does this classification for you and gives you a single discriminated union (`SymmioRequestError.kind`) to switch on.

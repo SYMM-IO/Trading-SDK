@@ -1,27 +1,38 @@
 # Introduction
 
-SYMM Frontier is a modern application built with cutting-edge technologies.
+SYMM Frontier is an SDK-first workspace for [SYMMIO](https://symm.io). The underlying product is built by many vendors with different architectures and tools. Building UIs against that raw surface is complex, so this SDK hides the complexity behind a small, correct, reliable API.
 
-## What is SYMM Frontier?
+## The two layers
 
-SYMM Frontier provides a robust foundation for building scalable applications.
+The SDK is split along the lines a framework imposes:
 
-## Key Concepts
+### `@symm-frontier/core`
 
-### Architecture
+Framework-agnostic. Contract calls, ABI fragments, calculations, transformations. No React. No Vue. No DOM.
 
-The project follows a monorepo structure with:
+You'd use `core` directly when you're writing:
 
-- **Apps**: Individual applications
-- **Packages**: Shared libraries and configurations
+- A Node.js script (deposit bot, indexer)
+- A different framework layer (Vue, Solid)
+- An advanced React app that wants to bypass the hook layer
 
-### Technology Stack
+### `@symm-frontier/react`
 
-- **Next.js**: React framework
-- **TypeScript**: Type-safe development
-- **Turborepo**: Monorepo management
-- **pnpm**: Fast package manager
+A thin React layer on top of `core`. Hooks, providers, `react-query`-shaped wrappers. Stateful flows and framework-bound ergonomics that don't fit in `core` live here.
 
-## Learn More
+You'd use `react` when you're building a React UI — which is most of the time.
 
-Continue reading to explore more features and capabilities.
+## And a companion: `@symm-frontier/utils`
+
+Framework-agnostic helpers that don't fit in `core` because they pull in non-`viem` dependencies (Decimal.js). Format token amounts, parse user input, shorten addresses for display, do precise UI math.
+
+`@symm-frontier/react` re-exports the most-used utils helpers (`formatTokenAmount`, `shortenAddress`, etc.) so React apps don't need to add a second dependency just to format a number.
+
+## Design rules
+
+- **viem is the only crypto-stack dependency.** No ethers, no web3.js, no wagmi inside `core`.
+- **No top-level state in `core`.** Everything is stateless and takes a client as a parameter.
+- **`react` is a wrapper, never a re-implementation.** If a hook duplicates `core` logic, it's a bug.
+- **One error shape across `react`.** Every hook surfaces failures as `SymmioRequestError` with a `kind` discriminator the UI switches on.
+
+Continue to **[Getting Started](/getting-started)** to install and wire the providers, or jump straight to a library above.

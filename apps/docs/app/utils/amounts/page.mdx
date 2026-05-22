@@ -1,0 +1,75 @@
+# Amounts (bigint)
+
+Viem-backed helpers for converting between raw on-chain `bigint` amounts and human-readable strings, plus a bridge into Decimal.js when you need UI-side math.
+
+```ts
+import { formatTokenAmount, parseTokenAmount, rawToDecimal, decimalToRaw } from "@symm-frontier/utils/amounts";
+```
+
+## `formatTokenAmount(raw, decimals, opts?)`
+
+Format a raw `bigint` amount for human display.
+
+```ts
+formatTokenAmount(1_234_567_890_000n, 6); // "1234567.89"
+formatTokenAmount(1_234_567_890n, 6, { maxFractionDigits: 2 }); // "1234.56"
+formatTokenAmount(1_000_000n, 6, { maxFractionDigits: 4, trimTrailingZeros: false }); // "1.0000"
+formatTokenAmount(1n, 18); // "0.000000000000000001"
+```
+
+Internally uses Decimal.js for the divide-by-`10^decimals` step, so there's no JS float drift at 18 decimals. Truncates (does not round up) when `maxFractionDigits` is given — matches on-chain integer math.
+
+### Options
+
+```ts
+interface FormatTokenAmountOptions {
+  maxFractionDigits?: number;
+  trimTrailingZeros?: boolean; // default true
+}
+```
+
+## `parseTokenAmount(value, decimals)`
+
+Parse a user-typed decimal string into a raw `bigint`.
+
+```ts
+parseTokenAmount("1234.5", 6); // 1_234_500_000n
+parseTokenAmount("1,5", 6); // 1_500_000n — comma accepted
+parseTokenAmount("", 18); // 0n
+```
+
+Throws viem's `InvalidDecimalNumberError` when the input is not a valid number.
+
+## `rawToDecimal(raw, decimals)`
+
+Convert a raw `bigint` to a `Decimal`. Use when you need to chain math (multiply, percentage, comparison) on the result.
+
+```ts
+import Decimal from "decimal.js";
+import { rawToDecimal } from "@symm-frontier/utils/amounts";
+
+const balance = rawToDecimal(1_500_000n, 6); // Decimal("1.5")
+balance.times("0.997").toFixed(4); // "1.4955"
+```
+
+## `decimalToRaw(value, decimals)`
+
+Counterpart to `rawToDecimal`: convert a `Decimal` back into a raw `bigint`.
+
+```ts
+import Decimal from "decimal.js";
+import { decimalToRaw } from "@symm-frontier/utils/amounts";
+
+decimalToRaw(new Decimal("1.5"), 6); // 1_500_000n
+decimalToRaw(new Decimal("1.234567891"), 6); // 1_234_567n — truncated, not rounded
+```
+
+## When to use which
+
+| Have              | Want               | Use                                                                                    |
+| ----------------- | ------------------ | -------------------------------------------------------------------------------------- |
+| `bigint`          | display string     | `formatTokenAmount`                                                                    |
+| user input string | `bigint`           | `parseTokenAmount`                                                                     |
+| `bigint`          | `Decimal` for math | `rawToDecimal`                                                                         |
+| `Decimal`         | `bigint`           | `decimalToRaw`                                                                         |
+| `Decimal`         | display string     | `formatDynamicDecimals` / `formatWithCommas` from **[`/utils/format`](/utils/format)** |

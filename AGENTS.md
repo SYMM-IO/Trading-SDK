@@ -1,0 +1,245 @@
+# SYMM Frontier — Monorepo Agent Guide
+
+Rules for AI coding agents (Claude Code, Cursor, Codex, etc.) working anywhere in this repository.
+
+Subprojects under `apps/*` and `packages/*` may add their own `AGENTS.md`. Those rules apply **on top of** the ones in this file; they do not replace it.
+
+## Mission
+
+SYMM Frontier is an **SDK-first** workspace for SYMMIO. The underlying product is built by many vendors with different architectures and tools. Building UIs against that raw surface is complex, so we ship an SDK that hides the complexity behind a **simple, correct, reliable** API.
+
+The SDK has two layers:
+
+- **`packages/core`** — the framework-agnostic SDK. Contract calls, API calls, GraphQL, calculations, transformations. No framework assumptions.
+- **`packages/react`** — a thin React layer on top of `core`. Stateful flows and framework-bound ergonomics (hooks, providers) that cannot live in `core` go here.
+
+The split must keep `core` reusable so that **Vue, Solid, or other framework layers** can be added later without rewriting `core`.
+
+Third-party developers will consume `@symm-frontier/core` and `@symm-frontier/react` to build their own UIs. Our own `apps/web` is one such consumer.
+
+## Hard Rules
+
+Non-negotiable. Violating any of them is a defect.
+
+1. **Use pnpm.** Never run `yarn` or `npm install` in this repo. Every package in the workspace follows this.
+2. **Stop and ask when anything is unclear.** Scope, package placement, intent, API shape, naming — if you are not sure, ask. Ask anything that helps you produce a correct result. Do not guess. The cost of a question is small; the cost of unwinding wrong work is large.
+3. **Do not add new dependencies without a stated reason and explicit user approval.** This applies to runtime, dev, and peer dependencies in any package.
+4. **All apps and packages are written in TypeScript.** Do not add `.js` source files to any package under `apps/*` or `packages/*`. Config files that conventionally ship as JavaScript (e.g. `postcss.config.js`, `next.config.*` when a project requires it) are the only exception; everything else — source, tests, scripts — must be TypeScript.
+5. **`packages/core` is framework-agnostic.** No React, Vue, or any other framework imports. No browser-only globals at module scope. If a flow needs framework state, put it in `packages/react` (or a future framework layer), not in `core`.
+6. **`apps/web` must not depend on `@symm-frontier/core` directly.** It consumes the SDK only through `@symm-frontier/react`. If a piece of `core` API is not exposed by `react`, expose it through `react` first, then use it.
+7. **Majors trading logic requires explicit user approval.** The phase scope for Majors has not been decided. If a task appears to touch Majors flows, stop and confirm with the user before doing any work.
+8. **Honor the Design Proposal Gate.** For any non-trivial work in `packages/core` or `packages/react`, output a design proposal and wait for explicit user approval before writing implementation code. See [Design Proposal Gate](#design-proposal-gate) below.
+
+## Project Vocabulary
+
+- **SYMM / SYMMIO** — the underlying trading protocol and product surface.
+- **SYMM Frontier** — this monorepo. The SDK and its consumers live here.
+- **SDK** — `@symm-frontier/core` together with `@symm-frontier/react` (and future framework layers).
+- **core** — `packages/core`. Framework-agnostic SDK. Does not exist on disk yet; see [Current Package State](#current-package-state).
+- **react** — `packages/react`. React layer on top of `core`.
+- **VibeCaps** — lowcap trading flow.
+- **Majors** — blue-chip trading flow. Out of scope without explicit approval (Hard Rule 7).
+- **Vibe-ui** — separate reference repo: full Next.js UI built against the raw product surface. See [Reference Repos](#reference-repos).
+- **Explorer** — separate reference repo: lower-level data display UI. Contains an **Inspector** section that is the closest existing analogue to the SDK boundary.
+- **vendors** — the multiple teams that produce and manage the product data the SDK wraps. Specifics are not yet documented here; see [Vendors & Data Sources](#vendors--data-sources).
+
+When a task says "this repo" it means SYMM Frontier unless the user explicitly names another repo.
+
+## Repository Layout
+
+### `apps/`
+
+- **`apps/web`** — the production app, the spiritual successor to Vibe-ui built on modern stack. Built with `@symm-frontier/react` (and `@symm-frontier/ui` for design primitives). **Must not import `@symm-frontier/core` directly** (Hard Rule 6).
+- **`apps/docs`** — Nextra documentation site. Documents every public API in `@symm-frontier/core` and `@symm-frontier/react`. Use Nextra's full feature set: detailed prose, categorization, cross-links, well-organized structure.
+- **`apps/storybook`** — Storybook host. **Stories themselves live next to the code they document**, not inside this app. `.stories.tsx` files are colocated in their owning package (e.g. `packages/ui/src/button.stories.tsx`). This app only configures and serves them.
+
+### `packages/`
+
+- **`packages/core`** — framework-agnostic SDK. Contract calls, API/GraphQL clients, calculations, transformations, typed errors, validation. **Does not exist on disk yet** — will be created from scratch.
+- **`packages/react`** — React layer on top of `core`. Hooks, providers, framework-bound flows. Currently contains throwaway scaffolding from a previous rename; will be rebuilt fresh once `core` exists. See [Current Package State](#current-package-state).
+- **`packages/ui`** — design system / reusable UI primitives (Button, etc.) for `apps/web` and `apps/storybook`. **Not part of the SDK.** Consumers of `@symm-frontier/core` / `@symm-frontier/react` are not expected to depend on `@symm-frontier/ui`.
+- **`packages/eslint-config`** — shared ESLint config consumed by every workspace package.
+- **`packages/typescript-config`** — shared TS config consumed by every workspace package.
+
+### Current Package State
+
+- `packages/core` — **does not exist yet**. The folder will be created when implementation starts (after Design Proposal approval).
+- `packages/react` — exists but contents are **throwaway scaffolding** from a prior `core` → `react` rename. Will be rebuilt as a real React layer on top of `core`. Do not invest in the current files.
+- `packages/ui` — exists and is kept as the design system.
+- `apps/web`, `apps/docs`, `apps/storybook` — exist as scaffolding.
+
+## Reference Repos
+
+Both reference repos live outside this monorepo. Treat them as **read-only**. Never edit, create, or delete files in them while doing SYMM Frontier work.
+
+- **Vibe-ui** — primary source of truth for **end-to-end user flows** (quote → trade → confirm, account management, withdraw, etc.). Consult it to understand _what the user experience looks like_ and _which behaviors the SDK must enable_.
+- **Explorer (with the Inspector section)** — primary source of truth for **raw data shapes, contract reads, and inspection patterns**. The Inspector section sits closer to the SDK boundary than the rest of Vibe-ui, so it is often the cleanest reference for what `core` should expose.
+
+For any slice, consult whichever reference fits the question. They are complementary, not ranked.
+
+The user provides the local paths to these repos through the workspace's `additionalDirectories` or in the task itself.
+
+## Workflow
+
+### Design Proposal Gate
+
+Before writing any implementation code for a non-trivial task in `packages/core` or `packages/react`, output a design proposal in the format below and **stop**. Do not create files, do not run write commands, do not continue to implementation. Wait for the user to reply with `approved`, `approved with changes: …`, or feedback.
+
+Read-only exploration (viewing files, searching the repo, reading Vibe-ui or Explorer) is allowed and encouraged before writing the proposal.
+
+#### Required format
+
+````
+### Design Proposal: <short title>
+
+**Goal**: one sentence describing what this slice delivers.
+
+**Reference**: file paths in Vibe-ui and/or Explorer this derives from.
+
+**Public API** (exports from `@symm-frontier/core` and/or `@symm-frontier/react`):
+```ts
+// signatures only, with JSDoc
+```
+
+**Internal modules**: list of new files and their responsibilities.
+
+**Package placement**: which files go in `core` / `react` / `ui` / `web` and why. Justify the core-vs-react split: explain why each piece is framework-agnostic or framework-bound.
+
+**Out of scope**: what this slice deliberately does not cover.
+
+**Open questions**: anything that needs the user's input.
+````
+
+#### Exceptions (no proposal required)
+
+Skip the design proposal only for:
+
+- typo and comment fixes;
+- formatting-only changes;
+- dependency version bumps the user explicitly requested;
+- edits to a single file under 20 lines that do not change any public API;
+- edits limited to `apps/docs` content (text/MDX), `apps/storybook` configuration, or `packages/ui` non-SDK primitives.
+
+When in doubt, write the proposal.
+
+### When to stop and ask
+
+- **Scope unclear** (VibeCaps vs Majors, this phase vs later)? Ask.
+- **Package placement unclear** (`core` vs `react` vs `ui` vs `web`)? Ask.
+- **A Vibe-ui or Explorer pattern seems wrong for the SDK**? Ask before copying.
+- **Public API shape unclear**? Propose two options in the design proposal and let the user pick.
+- **Vendor specifics required and not documented**? Ask. Do not invent vendor names, URLs, or contract addresses.
+
+### PR scope
+
+- Keep increments small and reviewable. One SDK slice per change; do not bundle unrelated refactors.
+- Preserve user changes. Do not stash, reset, or discard uncommitted work without an explicit ask.
+
+## Coding Style
+
+Repo-wide "handwriting". Applies to every package and app.
+
+- **Name all files in kebab-case.** Use lowercase words joined by hyphens for every file in the repo, regardless of what the file exports. A component file is `button.tsx`, not `Button.tsx`; a hook file is `use-wallet-account.ts`, not `useWalletAccount.ts`. The export inside the file still follows its own convention (PascalCase for components, camelCase for hooks).
+
+- **Use the `function` keyword at module scope.** Components, hooks, and any helper defined at module scope must be declared with `function`, not an arrow function bound to a `const`. Arrow functions are fine for inline callbacks, event handlers in JSX, and any function defined inside another function.
+
+  ```ts
+  // good
+  export function useWalletAccount() {
+    /* ... */
+  }
+  export function Button(props: Props) {
+    /* ... */
+  }
+  function formatAmount(value: bigint) {
+    /* ... */
+  }
+
+  // bad
+  export const useWalletAccount = () => {
+    /* ... */
+  };
+  export const Button = (props: Props) => {
+    /* ... */
+  };
+  ```
+
+- **Keep files small — but split by meaning, not by line count.** A file should hold one cohesive responsibility. Split a file when a clear boundary appears (a second concept, a reusable helper, an independent hook), not just because the line count has grown.
+
+- **Name component props interfaces `Props` by default.** When the props type stays local to the component's file, call it `Props`. If the type is exported (consumed by another file), rename it to `{ComponentName}Props` so it is unambiguous at the call site.
+
+  ```ts
+  // local — not exported
+  interface Props {
+    label: string;
+  }
+  export function Button(props: Props) {
+    /* ... */
+  }
+
+  // exported — name it after the component
+  export interface ButtonProps {
+    label: string;
+  }
+  export function Button(props: ButtonProps) {
+    /* ... */
+  }
+  ```
+
+- **Document every public SDK export.** Each exported function, hook, type, and interface in `@symm-frontier/core` and `@symm-frontier/react` must have JSDoc — purpose, parameters, return value, and a short usage example where the API is not self-evident. The goal is for IDE hover-tooltips to be useful on their own.
+
+- **Do not break a string literal across multiple lines with `+` concatenation.** Keep the string on one line and let Prettier wrap the call site. If the message is genuinely too long to live on one line, use a template literal (backticks) — never glue two quoted fragments together with `+` just to dodge line length.
+
+  ```ts
+  // bad
+  throw new SymmError(
+    "viem client has no `chain` bound. Pass `accountLayerAddress` explicitly " +
+      "or recreate the client with a `chain` set.",
+  );
+
+  // good — one literal; the formatter handles the wrap
+  throw new SymmError(
+    "viem client has no `chain` bound. Pass `accountLayerAddress` explicitly or recreate the client with a `chain` set.",
+  );
+  ```
+
+- **Colocate Storybook stories with their source.** A `*.stories.tsx` file lives next to the file it documents (e.g. `packages/ui/src/button.tsx` ↔ `packages/ui/src/button.stories.tsx`). Do not collect stories into `apps/storybook`.
+
+## Tooling
+
+- **Package manager**: pnpm (workspace defined in `pnpm-workspace.yaml`).
+- **Task runner**: Turborepo (`turbo.json`).
+- **Common commands**, all run from the repo root:
+  - `pnpm install` — install workspace dependencies.
+  - `pnpm dev` — `turbo run dev` across packages that define it.
+  - `pnpm build` — `turbo run build`.
+  - `pnpm lint` — `turbo run lint`.
+  - `pnpm check-types` — `turbo run check-types`.
+  - `pnpm format` — Prettier across the repo.
+- **Hooks**: Lefthook (`lefthook.yml`).
+- **Commits**: Conventional Commits enforced by `commitlint`.
+- **Formatter**: Prettier with `prettier-plugin-organize-imports` and `prettier-plugin-tailwindcss` (see `.prettierrc`).
+
+### Completion checklist
+
+Before declaring a task done, run the relevant subset of:
+
+- `pnpm lint`
+- `pnpm check-types`
+- Any package-specific `build` / `test` commands for the touched packages.
+
+Report the output. If any fail, fix before declaring complete.
+
+## Vendors & Data Sources
+
+> **TODO** — fill in vendor list and reference URLs.
+>
+> The product is composed of data from multiple vendors with different architectures and tools. Until this section is filled in, agents must **ask** before assuming any vendor specifics (names, endpoints, schemas, contract addresses, auth models). Do not invent them and do not derive them from training data.
+>
+> When vendor-specific behavior is needed for a slice and this section is empty, surface it as an open question in the Design Proposal.
+
+## Learned Rules
+
+One line each, added from real mistakes. Keep the lesson visible.
+
+_(none yet)_

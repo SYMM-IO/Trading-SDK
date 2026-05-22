@@ -1,0 +1,33 @@
+# Utils
+
+`@symm-frontier/utils` is a framework-agnostic helper layer for SYMMIO SDK consumers. No React, no wagmi, no DOM — works in Node scripts, browser bundles, and any framework.
+
+## Install
+
+```sh
+pnpm add @symm-frontier/utils viem
+```
+
+`viem` is a peer dependency. `decimal.js` is a direct dependency the package brings with it.
+
+## Sections
+
+- **[Amounts (bigint)](/utils/amounts)** — viem-backed `bigint ↔ string` token amount helpers + a Decimal.js bridge.
+- **[Decimal helpers](/utils/decimal)** — chainable Decimal-based math (`toDecimal`, `safeDivide`, `formatUnits` returning `Decimal`, …).
+- **[Display formatters](/utils/format)** — thousand separators, compact (K/M/B/T), currency, percentage, dynamic precision.
+- **[Address & hash](/utils/address)** — `shortenAddress` (checksummed), `minifyHash` (any string).
+
+## Naming overlap with viem
+
+This package exposes `formatUnits` / `parseUnits` / `formatEther` / `parseEther` under `@symm-frontier/utils/decimal`. They **return / accept Decimal**, not strings — that's the key difference from viem's same-named functions. To avoid ambiguity, the root barrel (`@symm-frontier/utils`) does **not** re-export them. Use the deep import:
+
+```ts
+import { formatUnits, parseUnits } from "@symm-frontier/utils/decimal"; // Decimal-based
+import { formatUnits, parseUnits } from "viem"; // string/bigint-based
+```
+
+## Already using `@symm-frontier/react`?
+
+`react` re-exports the most-used helpers (`formatTokenAmount`, `parseTokenAmount`, `rawToDecimal`, `decimalToRaw`, `shortenAddress`) so you don't have to install `@symm-frontier/utils` separately just to format a balance.
+
+If you want the full surface — Decimal helpers, compact-currency, dynamic decimals — add `@symm-frontier/utils` as a direct dependency.

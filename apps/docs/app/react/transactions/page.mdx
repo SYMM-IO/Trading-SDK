@@ -1,0 +1,68 @@
+# Transactions store
+
+A small, opt-in [zustand](https://github.com/pmndrs/zustand) store for tracking in-flight tx hashes in the UI — the data backing pending-tx badges, post-confirmation toasts, and "view in explorer" links.
+
+The SDK's mutation hooks (`useEditAccountName`, future writes) do **not** populate this store automatically. You wire it up where it makes sense for your app.
+
+## API
+
+```ts
+interface TrackedTx {
+  hash: Hash;
+  chainId: number;
+  label: string; // human-readable: "Rename account"
+  status: "pending" | "confirmed" | "failed";
+  createdAt: number; // Date.now() at insertion
+}
+
+interface TransactionsStoreState {
+  txs: readonly TrackedTx[];
+  add: (tx: Omit<TrackedTx, "status" | "createdAt">) => void;
+  markConfirmed: (hash: Hash) => void;
+  markFailed: (hash: Hash) => void;
+  clear: () => void;
+}
+```
+
+## Usage
+
+### Subscribe
+
+Standard zustand. Pass a selector for fine-grained subscriptions:
+
+```tsx
+import { useTransactionsStore } from "@symm-frontier/react";
+
+function PendingBadge() {
+  const pendingCount = useTransactionsStore((s) => s.txs.filter((t) => t.status === "pending").length);
+  if (pendingCount === 0) return null;
+  return <span className="badge">{pendingCount} pending</span>;
+}
+```
+
+### Track a tx from a mutation
+
+```tsx
+const { mutateAsync } = useEditAccountName({ waitForReceipt: false });
+const add = useTransactionsStore((s) => s.add);
+const markConfirmed = useTransactionsStore((s) => s.markConfirmed);
+const markFailed = useTransactionsStore((s) => s.markFailed);
+
+async function rename() {
+  const { hash } = await mutateAsync({ account, name });
+  add({ hash, chainId, label: "Rename account" });
+
+  try {
+    await publicClient.waitForTransactionReceipt({ hash });
+    markConfirmed(hash);
+  } catch {
+    markFailed(hash);
+  }
+}
+```
+
+If you'd rather have the hook await the receipt for you and skip the store, set `waitForReceipt: true` (the default) and ignore this whole section.
+
+## Why opt-in
+
+Tx tracking is UI plumbing — every app's needs differ (toast positioning, persistence, deduplication). The store is small enough that you can replace it with your own zustand or Redux slice without changing the hooks that produce tx hashes.

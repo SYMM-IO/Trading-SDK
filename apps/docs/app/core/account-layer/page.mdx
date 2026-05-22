@@ -1,0 +1,113 @@
+# AccountLayer
+
+The `AccountLayer` contract is where SYMMIO subaccounts live. Each EOA can own multiple subaccounts; each subaccount holds margin and routes trades into Virtual Accounts (VAs).
+
+Today `core` ships two methods for AccountLayer v0.8.5. More land slice by slice — see the changelog when in doubt.
+
+## Reads
+
+### `getUserSubAccounts(publicClient, params)`
+
+List a user's subaccounts.
+
+```ts
+import { getUserSubAccounts } from "@symm-frontier/core";
+
+const subs = await getUserSubAccounts(publicClient, {
+  user: "0xabc...",
+  offset: 0n,
+  limit: 200n,
+});
+```
+
+**Parameters**
+
+| Name                  | Type      | Default       | Notes                                                                             |
+| --------------------- | --------- | ------------- | --------------------------------------------------------------------------------- |
+| `user`                | `Address` | —             | EOA whose subaccounts to list.                                                    |
+| `offset`              | `bigint`  | `0n`          | Pagination offset.                                                                |
+| `limit`               | `bigint`  | `200n`        | Max number of subaccounts to return. Matches the Explorer Inspector page default. |
+| `accountLayerAddress` | `Address` | from registry | Override the per-chain address (staging, new deployments).                        |
+
+**Returns** — `readonly SubAccountDetail[]`.
+
+```ts
+interface SubAccountDetail {
+  accountAddress: Address; // proxy address on chain
+  owner: Address; // EOA that created this subaccount
+  name: string; // editable via editAccountName
+  isExists: boolean; // false if deleted
+  singleVAMode: boolean;
+  affiliate: Address;
+  symmioCore: Address;
+  metadata: Hex;
+  isolationType: SubAccountIsolationType;
+}
+```
+
+### `SubAccountIsolationType`
+
+```ts
+enum SubAccountIsolationType {
+  POSITION = 0, // one VA per trade
+  MARKET = 1, // one VA per market
+  MARKET_DIRECTION = 2, // one VA per market + direction
+  CUSTOM = 3, // no automatic VA creation
+}
+```
+
+## Writes
+
+### `editAccountName(walletClient, params)`
+
+Rename a subaccount.
+
+```ts
+import { editAccountName } from "@symm-frontier/core";
+
+const hash = await editAccountName(walletClient, {
+  account: "0xsub...",
+  name: "Trading bot",
+});
+
+const receipt = await publicClient.waitForTransactionReceipt({ hash });
+```
+
+**Parameters**
+
+| Name                  | Type       | Notes                                                                                  |
+| --------------------- | ---------- | -------------------------------------------------------------------------------------- |
+| `account`             | `Address`  | The subaccount being renamed. The signer must equal the subaccount's `owner` on chain. |
+| `name`                | `string`   | New display name.                                                                      |
+| `accountLayerAddress` | `Address?` | Per-call override.                                                                     |
+
+**Returns** — `Hash` (the broadcast tx hash). The caller is responsible for awaiting the receipt — see the example above.
+
+## Action factories
+
+```ts
+import { accountLayerReadActions, accountLayerWriteActions } from "@symm-frontier/core";
+
+const reader = createPublicClient({ chain: hyperEvm, transport: http() }).extend(accountLayerReadActions);
+await reader.getUserSubAccounts({ user: "0xabc..." });
+
+const writer = createWalletClient({ chain: hyperEvm, account, transport: custom(window.ethereum) }).extend(
+  accountLayerWriteActions,
+);
+await writer.editAccountName({ account: "0xsub...", name: "Main" });
+```
+
+## Raw ABI
+
+For consumers that want to call viem directly:
+
+```ts
+import { accountLayerAbi } from "@symm-frontier/core";
+
+await publicClient.readContract({
+  abi: accountLayerAbi,
+  address: getAccountLayerAddress(hyperEvm.id),
+  functionName: "getUserSubAccounts",
+  args: ["0xabc...", 0n, 200n],
+});
+```

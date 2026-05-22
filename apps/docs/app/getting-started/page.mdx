@@ -1,61 +1,105 @@
 # Getting Started
 
-Get up and running with SYMM Frontier in minutes.
+The fastest path to a working React app that reads from SYMMIO.
 
-## Prerequisites
+## 1. Install
 
-Before you begin, ensure you have:
-
-- Node.js 20 or higher
-- pnpm 10.10.0 or higher
-
-## Installation
-
-```bash
-# Clone the repository
-git clone <repository-url>
-
-# Install dependencies
-pnpm install
-
-# Start development server
-pnpm dev
+```sh
+pnpm add @symm-frontier/react viem wagmi @tanstack/react-query
 ```
 
-## Project Structure
+`@symm-frontier/react` is the umbrella package — it pulls in `@symm-frontier/core`, `@symm-frontier/utils`, and `zustand` transitively. The other four are peer dependencies you control.
 
+## 2. Mount providers
+
+The React SDK assumes the host app mounts wagmi and `@tanstack/react-query` itself. That keeps the host in control of connectors, RPC URLs, and the shared `QueryClient`.
+
+```tsx
+"use client";
+
+import { SymmioProvider, SymmioSupportedChainId } from "@symm-frontier/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
+import { http } from "viem";
+import { hyperEvm } from "viem/chains";
+import { createConfig, WagmiProvider } from "wagmi";
+import { injected } from "wagmi/connectors";
+
+const wagmiConfig = createConfig({
+  chains: [hyperEvm],
+  transports: { [hyperEvm.id]: http("https://rpc.hyperliquid.xyz/evm") },
+  connectors: [injected()],
+});
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
+
+  return (
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <SymmioProvider
+          config={{
+            environment: "production",
+            chainId: SymmioSupportedChainId.HYPER_EVM,
+            affiliateAddress: "0xYourAffiliateAddress",
+          }}
+        >
+          {children}
+        </SymmioProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
+  );
+}
 ```
-symm-frontier/
-├── apps/
-│   ├── web/          # Main web application
-│   ├── docs/         # Documentation site
-│   └── storybook/    # Component library
-├── packages/
-│   ├── ui/           # Shared UI components
-│   └── config/       # Shared configurations
-└── turbo.json        # Turborepo configuration
+
+The order of providers matters. **Wagmi outside `QueryClient` outside `SymmioProvider`** — the SDK reads both wagmi and `QueryClient` from context.
+
+## 3. Read on-chain data
+
+```tsx
+"use client";
+
+import { useUserSubAccounts, useWalletAccount } from "@symm-frontier/react";
+
+export function Subaccounts() {
+  const { address } = useWalletAccount();
+  const { data, isLoading, error } = useUserSubAccounts({ user: address });
+
+  if (!address) return <p>Connect a wallet first.</p>;
+  if (isLoading) return <p>Loading…</p>;
+  if (error) return <p>{error.message}</p>;
+
+  return (
+    <ul>
+      {data?.map((sub) => (
+        <li key={sub.accountAddress}>{sub.name}</li>
+      ))}
+    </ul>
+  );
+}
 ```
 
-## Development
+## 4. Send a transaction
 
-Run the development server:
+```tsx
+"use client";
 
-```bash
-pnpm dev
+import { useEditAccountName } from "@symm-frontier/react";
+
+export function RenameButton({ account }: { account: `0x${string}` }) {
+  const { mutate, isPending, error } = useEditAccountName();
+  return (
+    <>
+      <button onClick={() => mutate({ account, name: "Trading bot" })} disabled={isPending}>
+        {isPending ? "Sending…" : "Rename"}
+      </button>
+      {error?.kind === "user-rejected" ? null : error && <p>{error.message}</p>}
+    </>
+  );
+}
 ```
 
-This will start all applications in development mode.
+## Next steps
 
-## Building
-
-Build all applications:
-
-```bash
-pnpm build
-```
-
-## Next Steps
-
-- Explore the [Introduction](/introduction)
-- Learn about the architecture
-- Start building your features
+- Skim the library indexes to see what's available: **[Core](/core)**, **[React](/react)**, **[Utils](/utils)**.
+- The Inspector app in `apps/web` (route `/inspector/account-layer`) is a live, working integration target.

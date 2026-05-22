@@ -1,0 +1,95 @@
+# Display formatters
+
+Decimal-backed string formatters for UI output. Every formatter accepts `Decimal.Value` (string, number, bigint, Decimal) so call sites don't need to convert.
+
+```ts
+import {
+  formatCompact,
+  formatCompactCurrency,
+  formatCurrency,
+  formatDynamicDecimals,
+  formatPercentage,
+  formatWithCommas,
+} from "@symm-frontier/utils/format";
+```
+
+## `formatWithCommas(value, opts?)`
+
+Thousand separators with configurable decimal handling.
+
+```ts
+formatWithCommas(1234.4, { fixedDecimals: 4 }); // "1,234.4000"
+formatWithCommas(1234.123456, { maxDecimals: 5 }); // "1,234.12345"
+formatWithCommas(0.000123, { dynamicDecimals: 2 }); // "0.00012"
+formatWithCommas(undefined); // "0"
+```
+
+### Options
+
+```ts
+interface FormatWithCommasOptions {
+  maxDecimals?: number; // cap; trailing zeros stripped
+  fixedDecimals?: number; // exact, padded with zeros — wins over maxDecimals
+  dynamicDecimals?: number; // significant digits after first non-zero
+  rounding?: RoundingMode; // default ROUND_DOWN
+}
+```
+
+## `formatCurrency(value, opts?)`
+
+USD currency wrapper around `formatWithCommas`.
+
+```ts
+formatCurrency(1234.5); // "$1,234.5"
+formatCurrency(1234.5, { display: "code" }); // "1,234.5 USD"
+formatCurrency(1234.5, { display: "symbol-code" }); // "$1,234.5 USD"
+formatCurrency(0.000123, { dynamicDecimals: 2 }); // "$0.00012"
+```
+
+## `formatCompact(value, opts?)`
+
+K / M / B / T / Q notation.
+
+```ts
+formatCompact(1500); // "1.5K"
+formatCompact(1_500_000); // "1.5M"
+formatCompact(12_345_678, { maxDecimals: 1 }); // "12.3M"
+formatCompact(1500, { threshold: "M" }); // "1,500" — under threshold
+```
+
+## `formatCompactCurrency(value, opts?)`
+
+Compact notation plus the `$` / `USD` decoration.
+
+```ts
+formatCompactCurrency(1_500_000); // "$1.5M"
+formatCompactCurrency(1_500_000, { display: "code" }); // "1.5M USD"
+formatCompactCurrency(-1_234_567, { maxDecimals: 1 }); // "-$1.2M"
+```
+
+## `formatPercentage(value, opts?)`
+
+Percentage with optional sign and thousand separators. **Input is the percentage itself** (`54` for "54%"), not a ratio.
+
+```ts
+formatPercentage(54); // "54%"
+formatPercentage(54, { withSign: true }); // "+54%"
+formatPercentage(-54, { withSign: true }); // "-54%"
+formatPercentage(54.1, { fixedDecimals: 2 }); // "54.10%"
+formatPercentage(12345.6, { fixedDecimals: 2 }); // "12,345.60%"
+formatPercentage(0); // "0%"
+```
+
+## `formatDynamicDecimals(value, sig, opts?)`
+
+Adaptive precision: show `sig` significant digits after the first non-zero, no trailing zeros.
+
+```ts
+formatDynamicDecimals(0.000123, 2); // "0.00012"
+formatDynamicDecimals(0.000001223, 2); // "0.0000012"
+formatDynamicDecimals(1223.12321, 2); // "1223.12"
+formatDynamicDecimals(0.1, 2); // "0.1"
+formatDynamicDecimals(0.0000123456, 3, { maxDecimals: 6 }); // "0.000012"
+```
+
+Useful for prices that span many orders of magnitude (think shitcoin tickers and stablecoins in the same UI).
