@@ -2,25 +2,40 @@
 
 import type { Address } from "viem";
 import { useAccount } from "wagmi";
+import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /**
- * Wallet account state exposed by the SYMMIO React SDK.
+ * Wallet account state surfaced by the SYMMIO React SDK.
  */
-export interface SymmioWalletAccount {
-  /** Connected EVM wallet address, if a wallet is connected. */
+export interface UseWalletAccountResult {
+  /** Connected EVM wallet address, if any. */
   address?: Address;
-  /** Active wallet chain id reported by Wagmi. */
+  /** Wagmi's active chain id, or `undefined` before connect. */
   chainId?: number;
-  /** Whether Wagmi currently has a connected wallet account. */
+  /** Whether wagmi reports a currently connected wallet. */
   isConnected: boolean;
-  /** Whether Wagmi is currently reconnecting to a wallet account. */
+  /** Whether wagmi is mid-reconnect after a page reload. */
   isReconnecting: boolean;
+  /**
+   * Whether the connected wallet's chain matches the SDK's configured chain.
+   * `false` when disconnected.
+   */
+  isOnExpectedChain: boolean;
 }
 
 /**
- * Reads the active user wallet account from Wagmi.
+ * Read the active wallet's connection state, normalized to the SDK shape. Adds
+ * `isOnExpectedChain` on top of wagmi's `useAccount` so UIs can decide whether
+ * to render a "switch network" prompt without re-comparing chain ids in every
+ * component.
+ *
+ * @example
+ * const { address, isOnExpectedChain } = useWalletAccount();
+ * if (!address) return <ConnectButton />;
+ * if (!isOnExpectedChain) return <SwitchNetworkPrompt />;
  */
-export function useWalletAccount(): SymmioWalletAccount {
+export function useWalletAccount(): UseWalletAccountResult {
+  const config = useSymmioConfig();
   const { address, chainId, isConnected, isReconnecting } = useAccount();
 
   return {
@@ -28,5 +43,6 @@ export function useWalletAccount(): SymmioWalletAccount {
     chainId,
     isConnected,
     isReconnecting,
+    isOnExpectedChain: isConnected && chainId === config.chainId,
   };
 }

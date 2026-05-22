@@ -1,0 +1,46 @@
+{
+  "name": "@symm-frontier/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Framework-agnostic SYMMIO SDK. Contract calls, calculations, and transformations with no framework assumptions.",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "viem": "^2.49.0"
+  },
+  "devDependencies": {
+    "@symm-frontier/eslint-config": "workspace:*",
+    "@symm-frontier/typescript-config": "workspace:*",
+    "@types/node": "^25.6.0",
+    "eslint": "^9.39.4",
+    "typescript": "^6.0.3",
+    "viem": "^2.49.0",
+    "vite": "^8.0.13",
+    "vite-plugin-dts": "^5.0.0",
+    "vitest": "^4.1.6"
+  }
+}

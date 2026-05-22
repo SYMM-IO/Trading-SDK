@@ -1,0 +1,3 @@
+Read AGENTS.md in the repository root before responding to any task.
+
+If the file you are editing lives inside a subdirectory under apps/ or packages/ that has its own AGENTS.md, read that file as well. Subproject rules apply on top of the root rules.

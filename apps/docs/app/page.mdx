@@ -1,23 +1,25 @@
-# Welcome to SYMM Frontier Documentation
+# SYMM Frontier
 
-Welcome to the official documentation for SYMM Frontier.
+The SDK and reference apps for SYMMIO. Build trading UIs against SYMMIO without re-implementing contract calls, chain plumbing, or wallet UX from scratch.
 
-## Getting Started
+## What's in this docs site
 
-This documentation will help you understand and work with SYMM Frontier.
+Pick a library from the top nav:
 
-### Quick Links
+- **[Core](/core)** — `@symm-frontier/core`: framework-agnostic SDK. Contract calls, ABI fragments, the per-chain address registry, typed errors.
+- **[React](/react)** — `@symm-frontier/react`: React adapter. Hooks, providers, and `react-query`-shaped wrappers on top of `core`.
+- **[Utils](/utils)** — `@symm-frontier/utils`: framework-agnostic helpers — amount formatting, Decimal.js math, display formatters, address helpers.
 
-- [Introduction](/introduction)
-- [Getting Started](/getting-started)
+If this is your first time here, start with **[Introduction](/introduction)**, then walk through **[Getting Started](/getting-started)**.
 
-## Features
+## Install
 
-- **Modern Stack**: Built with the latest technologies
-- **Type-Safe**: Full TypeScript support
-- **Fast**: Optimized for performance
-- **Developer Friendly**: Great DX with hot reload and more
+```sh
+# everything you need to ship a React UI
+pnpm add @symm-frontier/react @symm-frontier/utils viem wagmi @tanstack/react-query
 
-## Next Steps
+# or just the framework-agnostic SDK (for Node scripts, Vue, Solid)
+pnpm add @symm-frontier/core viem
+```
 
-Explore the documentation to learn more about SYMM Frontier.
+`viem` is a peer dependency of every SYMM Frontier package; bring your own copy.

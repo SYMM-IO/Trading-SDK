@@ -1,0 +1,99 @@
+# Decimal helpers
+
+Chainable Decimal-based math built on [decimal.js](https://mikemcl.github.io/decimal.js/). Use these when you have a string or number that you want to do precise UI-side arithmetic on without round-tripping through `bigint`.
+
+```ts
+import {
+  configureSymmDecimal,
+  formatEther,
+  formatUnits,
+  parseEther,
+  parseUnits,
+  RoundingMode,
+  safeDivide,
+  toDecimal,
+  ZERO_DECIMAL,
+} from "@symm-frontier/utils/decimal";
+```
+
+> **Naming overlap with viem.** `formatUnits` / `parseUnits` / `formatEther` / `parseEther` here **return / accept `Decimal`**, not strings. The root `@symm-frontier/utils` barrel intentionally does not re-export them so they never collide with viem's same-named functions. Always import from the `/decimal` subpath.
+
+## `toDecimal(value?)`
+
+Cast any `Decimal.Value` (string, number, bigint, Decimal) — including nullish or empty-string inputs — to a `Decimal`.
+
+```ts
+toDecimal("1.234").toFixed(); // "1.234"
+toDecimal(undefined); // ZERO_DECIMAL
+toDecimal(""); // ZERO_DECIMAL
+```
+
+## `safeDivide(a, b)`
+
+Divide two `Decimal.Value`s, returning `0` when the divisor is zero or nullish.
+
+```ts
+safeDivide(10, 2).toString(); // "5"
+safeDivide(10, 0).toString(); // "0"
+safeDivide(10, null).toString(); // "0"
+```
+
+## `formatUnits(value, decimals = 18)`
+
+Convert a fixed-point integer (wei) to a human-readable `Decimal`.
+
+```ts
+formatUnits("1000000000000000000", 18).toString(); // "1"
+formatUnits(1_230_000, 6).toString(); // "1.23"
+formatUnits(undefined, 18).toString(); // "0"
+```
+
+## `parseUnits(value, decimals = 18)`
+
+Reverse direction: human-readable to fixed-point.
+
+```ts
+parseUnits("1", 18).toFixed(0); // "1000000000000000000"
+parseUnits("1.23", 6).toFixed(0); // "1230000"
+```
+
+## `formatEther` / `parseEther`
+
+Convenience aliases for `formatUnits(..., 18)` / `parseUnits(..., 18)`.
+
+```ts
+formatEther("2000000000000000000").toString(); // "2"
+parseEther("2").toFixed(0); // "2000000000000000000"
+```
+
+## `RoundingMode` enum
+
+Typed names for Decimal.js's rounding constants. Pass them to `decimal.toFixed(places, mode)` or to any utils formatter that accepts a `rounding` option.
+
+```ts
+import { RoundingMode } from "@symm-frontier/utils/decimal";
+
+new Decimal("0.129").toFixed(2, RoundingMode.ROUND_FLOOR); // "0.12"
+new Decimal("0.129").toFixed(2, RoundingMode.ROUND_CEIL); // "0.13"
+```
+
+## `configureSymmDecimal(options?)`
+
+Apply SYMMIO SDK-recommended Decimal.js settings globally.
+
+```ts
+import { configureSymmDecimal } from "@symm-frontier/utils/decimal";
+
+// Once, at app startup
+configureSymmDecimal();
+// or
+configureSymmDecimal({ precision: 40, rounding: RoundingMode.ROUND_HALF_EVEN });
+```
+
+> **Side effect warning** — this mutates the global Decimal config; every Decimal instance in the host app (not just SDK uses) will see the new settings. Skip if your app already has its own Decimal config.
+
+The SDK's own formatters do **not** depend on this — they pass explicit precision and rounding to every `.toFixed()` call.
+
+## `ZERO_DECIMAL`
+
+A shared `Decimal(0)` instance. Use as a comparison target (`.eq(ZERO_DECIMAL)`) or as a default to avoid repeat allocations.
