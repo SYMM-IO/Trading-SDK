@@ -59,14 +59,23 @@ export {
 } from "./account-layer";
 
 /**
- * Address registry
- * ----------------
- * Per-chain contract address lookups baked into the SDK. `getAccountLayerAddress`
- * returns the canonical deployment for a given chain id; `listAccountLayerChains`
- * enumerates which chains the SDK knows about. Each call site can still override
- * the address via `{ accountLayerAddress: "0x..." }` for staging or new deployments.
+ * Chain config registry
+ * ---------------------
+ * Built-in SYMMIO deployment configs (addresses, subgraphs, solver) keyed by
+ * chain ID and environment. Use `getChainConfig()` to resolve a complete config,
+ * or access individual addresses directly from the result.
  */
-export { getAccountLayerAddress, listAccountLayerChains } from "./chains/account-layer-addresses";
+export {
+  SymmioSupportedChainId,
+  getChainConfig,
+  isChainSupported,
+  listSupportedChains,
+  type SymmioChainConfig,
+  type SymmioContractAddresses,
+  type SymmioEnvironment,
+  type SymmioSolverConfig,
+  type SymmioSubgraphUrls,
+} from "./chains";
 
 /**
  * Errors

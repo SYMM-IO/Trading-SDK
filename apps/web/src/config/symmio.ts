@@ -1,4 +1,5 @@
-import { type SymmioClientConfigInput, SymmioSupportedChainId } from "@symm-frontier/react";
+import { SymmioSupportedChainId } from "@symm-frontier/core";
+import type { SymmioClientConfigInput } from "@symm-frontier/react";
 import { IS_TEST_ENVIRONMENT } from "./environment";
 
 const VIBE_AFFILIATE_BY_CHAIN = {

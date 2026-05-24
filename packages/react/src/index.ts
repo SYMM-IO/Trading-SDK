@@ -5,7 +5,7 @@
  * normalized to the same error type (`SymmioRequestError`) and the same
  * configuration source (`SymmioProvider`). Sub-entries
  * (`@symm-frontier/react/provider`, `/account-layer`, `/wallet`, `/errors`,
- * `/amounts`, `/transactions`) are exposed for tree-shakable deep imports.
+ * `/transactions`) are exposed for tree-shakable deep imports.
  *
  * @remarks
  * Every re-export below is **explicit** rather than `export *`, so adding a
@@ -25,18 +25,15 @@ export { SymmioProvider, useSymmioConfig, type SymmioProviderProps } from "./pro
 /**
  * Config
  * ------
- * Types and enums describing the resolved SDK config exposed by the provider.
+ * React-specific config types. Chain configs (addresses, subgraphs, solver)
+ * live in `@symm-frontier/core` — import `SymmioSupportedChainId`, `getChainConfig`,
+ * and related types from there.
  */
 export {
-  SymmioSupportedChainId,
   resolveSymmioConfig,
   type SymmioClientConfig,
   type SymmioClientConfigInput,
-  type SymmioContractAddresses,
-  type SymmioEnvironment,
   type SymmioResolvedChainConfig,
-  type SymmioSolverConfig,
-  type SymmioSubgraphUrls,
 } from "./config";
 
 /**
@@ -71,22 +68,6 @@ export {
 } from "./account-layer";
 
 /**
- * Core re-exports
- * ---------------
- * Types and enums the SDK consumes from `@symm-frontier/core`. Re-exported so
- * apps that already depend on `@symm-frontier/react` don't have to add a
- * second dependency on `core` just to import a type. `apps/web` cannot depend
- * on `core` directly (Hard Rule 6) and must come through here.
- */
-export {
-  SubAccountIsolationType,
-  SymmError,
-  type EditAccountNameParams,
-  type GetUserSubAccountsParams,
-  type SubAccountDetail,
-} from "@symm-frontier/core";
-
-/**
  * Errors
  * ------
  * Normalized error type every SDK hook surfaces, plus the classifier the
@@ -98,28 +79,6 @@ export {
   type SymmioNormalizedErrorKind,
   type SymmioRequestErrorOptions,
 } from "./errors";
-
-/**
- * Amounts
- * -------
- * Re-export of the `@symm-frontier/utils/amounts` helpers — convenience so apps
- * don't have to add `@symm-frontier/utils` to their `package.json` just to
- * format a balance.
- */
-export {
-  decimalToRaw,
-  formatTokenAmount,
-  parseTokenAmount,
-  rawToDecimal,
-  type FormatTokenAmountOptions,
-} from "./amounts";
-
-/**
- * Address helpers
- * ---------------
- * Re-export of the `@symm-frontier/utils/address` helpers.
- */
-export { shortenAddress, type ShortenAddressOptions } from "./address";
 
 /**
  * Transactions

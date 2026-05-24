@@ -2,12 +2,12 @@ import type { Account, Address, Chain, Hash, Transport, WalletClient } from "vie
 import { hyperEvm } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 import { accountLayerAbi } from "../../../abi/v0.8.5/account-layer";
-import { getAccountLayerAddress } from "../../../chains/account-layer-addresses";
+import { getChainConfig } from "../../../chains";
 import { SymmError } from "../../../errors";
 import { editAccountName } from "./edit-account-name";
 
 const HYPEREVM_ID = hyperEvm.id;
-const HYPEREVM_ACCOUNT_LAYER = getAccountLayerAddress(HYPEREVM_ID);
+const HYPEREVM_ACCOUNT_LAYER = getChainConfig(HYPEREVM_ID, "production").addresses.accountLayerAddress;
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const OWNER_EOA: Address = "0x1111111111111111111111111111111111111111";
 const OVERRIDE_ADDRESS: Address = "0x9999999999999999999999999999999999999999";
