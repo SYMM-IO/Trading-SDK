@@ -47,7 +47,6 @@ export function SymmioConfigDebug() {
             <ConfigRow label="Instant Layer" value={config.addresses.instantLayerAddress} />
             <ConfigRow label="Account Layer" value={config.addresses.accountLayerAddress} />
             <ConfigRow label="Affiliates" value={config.addresses.affiliatesAddress} />
-            <ConfigRow label="Backed Withdraw Bridge" value={config.addresses.backedWithdrawBridgeAddress} />
             <ConfigRow label="Collateral" value={config.addresses.collateralAddress} />
             <ConfigRow label="Collateral Decimals" value={config.addresses.collateralDecimals} />
           </dl>
@@ -58,8 +57,6 @@ export function SymmioConfigDebug() {
         <h2 className="mb-2 text-sm font-semibold text-zinc-950 dark:text-zinc-50">Subgraphs</h2>
         <dl className="rounded-md border border-zinc-200 px-4 dark:border-zinc-800">
           <ConfigRow label="Analytics" value={config.subgraphs.analytics} />
-          <ConfigRow label="Events" value={config.subgraphs.events} />
-          <ConfigRow label="Vibe" value={config.subgraphs.vibe} />
         </dl>
       </div>
     </section>

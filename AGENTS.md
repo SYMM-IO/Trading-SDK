@@ -26,7 +26,7 @@ Non-negotiable. Violating any of them is a defect.
 3. **Do not add new dependencies without a stated reason and explicit user approval.** This applies to runtime, dev, and peer dependencies in any package.
 4. **All apps and packages are written in TypeScript.** Do not add `.js` source files to any package under `apps/*` or `packages/*`. Config files that conventionally ship as JavaScript (e.g. `postcss.config.js`, `next.config.*` when a project requires it) are the only exception; everything else — source, tests, scripts — must be TypeScript.
 5. **`packages/core` is framework-agnostic.** No React, Vue, or any other framework imports. No browser-only globals at module scope. If a flow needs framework state, put it in `packages/react` (or a future framework layer), not in `core`.
-6. **`apps/web` must not depend on `@symm-frontier/core` directly.** It consumes the SDK only through `@symm-frontier/react`. If a piece of `core` API is not exposed by `react`, expose it through `react` first, then use it.
+6. **`apps/web` consumes hooks and providers from `@symm-frontier/react`, types and chain config from `@symm-frontier/core`.** Import runtime functionality (hooks, providers) from `react`. Import types, enums, and chain config (`SymmioSupportedChainId`, `getChainConfig`, etc.) from `core`. Do not re-export `core` types through `react`.
 7. **Majors trading logic requires explicit user approval.** The phase scope for Majors has not been decided. If a task appears to touch Majors flows, stop and confirm with the user before doing any work.
 8. **Honor the Design Proposal Gate.** For any non-trivial work in `packages/core` or `packages/react`, output a design proposal and wait for explicit user approval before writing implementation code. See [Design Proposal Gate](#design-proposal-gate) below.
 
@@ -242,4 +242,4 @@ Report the output. If any fail, fix before declaring complete.
 
 One line each, added from real mistakes. Keep the lesson visible.
 
-_(none yet)_
+- **Remove unused imports and variables.** After any edit, check that all imports and variables are still used; delete dead code immediately.

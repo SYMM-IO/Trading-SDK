@@ -16,7 +16,8 @@ import { http } from "viem";
 import { hyperEvm } from "viem/chains";
 import { createConfig, WagmiProvider, type Config } from "wagmi";
 import { mock } from "wagmi/connectors";
-import { SymmioSupportedChainId, type SymmioClientConfigInput } from "../config";
+import { SymmioSupportedChainId } from "@symm-frontier/core";
+import type { SymmioClientConfigInput } from "../config";
 import { SymmioProvider } from "../provider/symmio-provider";
 
 /**

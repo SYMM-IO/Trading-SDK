@@ -1,18 +1,15 @@
-import { DEFAULT_SYMMIO_CHAIN_CONFIGS } from "./default-chain-configs";
+import { getChainConfig } from "@symm-frontier/core";
 import type { SymmioClientConfig, SymmioClientConfigInput } from "./symmio-config";
 
 /**
- * Resolves user-provided SYMMIO config against built-in chain defaults.
+ * Resolves user-provided SYMMIO config against built-in chain defaults from core.
  */
 export function resolveSymmioConfig(input: SymmioClientConfigInput): SymmioClientConfig {
-  const defaultConfig = DEFAULT_SYMMIO_CHAIN_CONFIGS[input.environment]?.[input.chainId];
-
-  if (!defaultConfig) {
-    throw new Error(`Unsupported SYMMIO config for environment "${input.environment}" and chain "${input.chainId}"`);
-  }
+  const defaultConfig = getChainConfig(input.chainId, input.environment);
 
   return {
     ...defaultConfig,
+    chainId: input.chainId,
     input,
     addresses: {
       ...defaultConfig.addresses,

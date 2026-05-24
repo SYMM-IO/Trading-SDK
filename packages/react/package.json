@@ -29,14 +29,6 @@
       "types": "./dist/errors/index.d.ts",
       "import": "./dist/errors/index.js"
     },
-    "./amounts": {
-      "types": "./dist/amounts/index.d.ts",
-      "import": "./dist/amounts/index.js"
-    },
-    "./address": {
-      "types": "./dist/address/index.d.ts",
-      "import": "./dist/address/index.js"
-    },
     "./transactions": {
       "types": "./dist/transactions/index.d.ts",
       "import": "./dist/transactions/index.js"
@@ -60,7 +52,6 @@
   },
   "dependencies": {
     "@symm-frontier/core": "workspace:*",
-    "@symm-frontier/utils": "workspace:*",
     "@tanstack/react-query": "^5.100.0",
     "decimal.js": "^10.4.3",
     "zustand": "^5.0.0"
