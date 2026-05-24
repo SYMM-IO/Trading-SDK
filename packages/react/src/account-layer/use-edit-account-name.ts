@@ -8,7 +8,6 @@ import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 import { useSymmioPublicClient } from "../provider/use-symmio-public-client";
 import { useSymmioWalletClient } from "../provider/use-symmio-wallet-client";
-import { accountLayerQueryKeys } from "./query-keys";
 
 /**
  * Options accepted by {@link useEditAccountName}.
@@ -89,8 +88,20 @@ export function useEditAccountName(
       }
     },
     onSuccess: () => {
+      const user = walletClientQuery.data?.account.address;
+      if (!user) return;
+
       void queryClient.invalidateQueries({
-        queryKey: [...accountLayerQueryKeys.all, "getUserSubAccounts"],
+        predicate: (query) => {
+          const key = query.queryKey;
+          if (key[0] !== "symmio" || key[1] !== "account-layer" || key[2] !== "getUserSubAccounts") {
+            return false;
+          }
+          const params = key[3];
+          if (typeof params !== "object" || params === null) return false;
+          const { user: queryUser, chainId } = params as { user?: string; chainId?: number };
+          return queryUser === user && chainId === config.chainId;
+        },
       });
     },
   });

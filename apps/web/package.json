@@ -12,8 +12,10 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@symm-frontier/core": "workspace:*",
     "@symm-frontier/react": "workspace:*",
     "@symm-frontier/ui": "workspace:*",
+    "@symm-frontier/utils": "workspace:*",
     "@tanstack/react-query": "^5.100.0",
     "next": "16.2.4",
     "react": "19.2.5",

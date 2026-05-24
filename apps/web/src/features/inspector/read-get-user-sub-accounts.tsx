@@ -1,6 +1,7 @@
 "use client";
 
-import { shortenAddress, useUserSubAccounts, useWalletAccount } from "@symm-frontier/react";
+import { useUserSubAccounts, useWalletAccount } from "@symm-frontier/react";
+import { shortenAddress } from "@symm-frontier/utils/address";
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 import { isAddress } from "viem";
