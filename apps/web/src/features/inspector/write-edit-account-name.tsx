@@ -1,6 +1,10 @@
 "use client";
 
 import { useEditAccountName, useWalletAccount } from "@symm-frontier/react";
+import { Badge } from "@symm-frontier/ui/components/badge";
+import { Button } from "@symm-frontier/ui/components/button";
+import { Input } from "@symm-frontier/ui/components/input";
+import { Label } from "@symm-frontier/ui/components/label";
 import { useState } from "react";
 import type { Address } from "viem";
 import { isAddress } from "viem";
@@ -23,42 +27,41 @@ export function WriteEditAccountName() {
       mutability="nonpayable"
       description="Rename one of the connected user's subaccounts."
     >
-      <label className="block">
-        <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          account (subaccount address)
-        </span>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="input-subaccount-address">account (subaccount address)</Label>
+        <Input
+          id="input-subaccount-address"
           data-testid="input-subaccount-address"
           value={account}
           onChange={(e) => setAccount(e.target.value)}
           placeholder="0x…"
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm shadow-inner focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+          className="font-mono"
         />
-      </label>
+      </div>
 
-      <label className="block">
-        <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">name (new display name)</span>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="input-subaccount-name">name (new display name)</Label>
+        <Input
+          id="input-subaccount-name"
           data-testid="input-subaccount-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="My Trading Account"
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm shadow-inner focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
         />
-      </label>
+      </div>
 
-      <button
+      <Button
         type="button"
+        size="sm"
         disabled={!canSubmit || mutation.isPending}
         onClick={() => {
           if (!validAccount) return;
           mutation.mutate({ account: validAccount, name });
         }}
         data-testid="button-send-rename"
-        className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
       >
         {mutation.isPending ? "Sending…" : "Send transaction"}
-      </button>
+      </Button>
 
       <WritePanel mutation={mutation} />
     </MethodCard>
@@ -68,7 +71,7 @@ export function WriteEditAccountName() {
 function WritePanel({ mutation }: { mutation: ReturnType<typeof useEditAccountName> }) {
   if (mutation.isPending) {
     return (
-      <div data-testid="result-editAccountName-pending" className="text-sm text-zinc-500 dark:text-zinc-400">
+      <div data-testid="result-editAccountName-pending" className="text-muted-foreground text-sm">
         Submitting transaction… waiting for wallet, then receipt.
       </div>
     );
@@ -77,11 +80,11 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useEditAccountNa
     return (
       <div
         data-testid="result-editAccountName-error"
-        className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+        className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
       >
-        <span className="mr-2 inline-flex items-center rounded bg-red-100 px-1.5 py-0.5 font-mono text-xs text-red-700 dark:bg-red-900 dark:text-red-200">
+        <Badge variant="destructive" className="mr-2 font-mono">
           {mutation.error.kind}
-        </span>
+        </Badge>
         {mutation.error.message}
       </div>
     );
@@ -90,7 +93,7 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useEditAccountNa
     return (
       <div
         data-testid="result-editAccountName-success"
-        className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
+        className="border-primary/30 bg-primary/10 text-primary rounded-md border px-3 py-2 text-sm"
       >
         <div>Submitted.</div>
         <div className="mt-1 font-mono text-xs break-all">tx: {mutation.data.hash}</div>
@@ -103,7 +106,7 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useEditAccountNa
     );
   }
   return (
-    <div data-testid="result-editAccountName-idle" className="text-sm text-zinc-500 dark:text-zinc-400">
+    <div data-testid="result-editAccountName-idle" className="text-muted-foreground text-sm">
       Fill the fields above and submit.
     </div>
   );

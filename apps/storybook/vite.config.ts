@@ -1,15 +1,23 @@
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
+const uiSrc = path.resolve(dirname, "../../packages/ui/src");
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "@symm-frontier/ui": path.resolve(dirname, "../../packages/ui/src"),
+      /**
+       * `@symm-frontier/ui/globals.css` lives at `src/styles/globals.css` in
+       * the package, so it needs its own alias entry — the broader directory
+       * alias below would otherwise resolve it to `src/globals.css`.
+       */
+      "@symm-frontier/ui/globals.css": path.resolve(uiSrc, "styles/globals.css"),
+      "@symm-frontier/ui": uiSrc,
     },
   },
 });

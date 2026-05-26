@@ -3,6 +3,6 @@
   "compilerOptions": {
     "rootDir": "."
   },
-  "include": [".storybook/**/*.ts", "vite.config.ts"],
+  "include": [".storybook/**/*.ts", "vite.config.ts", "globals.d.ts"],
   "exclude": ["node_modules", "storybook-static"]
 }

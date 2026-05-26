@@ -1,6 +1,10 @@
 "use client";
 
 import { useUserSubAccounts, useWalletAccount } from "@symm-frontier/react";
+import { Badge } from "@symm-frontier/ui/components/badge";
+import { Button } from "@symm-frontier/ui/components/button";
+import { Input } from "@symm-frontier/ui/components/input";
+import { Label } from "@symm-frontier/ui/components/label";
 import { shortenAddress } from "@symm-frontier/utils";
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
@@ -23,31 +27,32 @@ export function ReadGetUserSubAccounts() {
       mutability="view"
       description="List a user's subaccounts on AccountLayer."
     >
-      <label className="block">
-        <span className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">user (address)</span>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="input-user-address">user (address)</Label>
+        <Input
+          id="input-user-address"
           data-testid="input-user-address"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={address ?? "0x…"}
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm shadow-inner focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+          className="font-mono"
         />
-        <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="text-muted-foreground text-xs">
           {validAddress
             ? `Reading subaccounts for ${shortenAddress(validAddress)}.`
             : "Enter a valid address (defaults to connected wallet)."}
-        </span>
-      </label>
+        </p>
+      </div>
 
-      <button
+      <Button
         type="button"
+        size="sm"
         disabled={!validAddress || query.isFetching}
         onClick={() => void query.refetch()}
         data-testid="button-read-subaccounts"
-        className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
       >
         {query.isFetching ? "Reading…" : "Read"}
-      </button>
+      </Button>
 
       <ResultPanel testId="result-getUserSubAccounts" query={query} />
     </MethodCard>
@@ -57,7 +62,7 @@ export function ReadGetUserSubAccounts() {
 function ResultPanel({ testId, query }: { testId: string; query: ReturnType<typeof useUserSubAccounts> }) {
   if (query.isLoading) {
     return (
-      <div data-testid={`${testId}-loading`} className="text-sm text-zinc-500 dark:text-zinc-400">
+      <div data-testid={`${testId}-loading`} className="text-muted-foreground text-sm">
         Loading…
       </div>
     );
@@ -66,25 +71,25 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
     return (
       <div
         data-testid={`${testId}-error`}
-        className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+        className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
       >
-        <span className="mr-2 inline-flex items-center rounded bg-red-100 px-1.5 py-0.5 font-mono text-xs text-red-700 dark:bg-red-900 dark:text-red-200">
+        <Badge variant="destructive" className="mr-2 font-mono">
           {query.error.kind}
-        </span>
+        </Badge>
         {query.error.message}
       </div>
     );
   }
   if (!query.data) {
     return (
-      <div data-testid={`${testId}-idle`} className="text-sm text-zinc-500 dark:text-zinc-400">
+      <div data-testid={`${testId}-idle`} className="text-muted-foreground text-sm">
         Run the read to see subaccounts.
       </div>
     );
   }
   if (query.data.length === 0) {
     return (
-      <div data-testid={`${testId}-empty`} className="text-sm text-zinc-500 dark:text-zinc-400">
+      <div data-testid={`${testId}-empty`} className="text-muted-foreground text-sm">
         No subaccounts found for this address.
       </div>
     );
@@ -93,7 +98,7 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
     <div data-testid={`${testId}-data`} className="overflow-x-auto">
       <table className="w-full table-auto border-collapse text-sm">
         <thead>
-          <tr className="border-b border-zinc-200 text-left text-xs font-medium tracking-wide text-zinc-500 uppercase dark:border-zinc-800 dark:text-zinc-400">
+          <tr className="border-border text-muted-foreground border-b text-left text-xs font-medium tracking-wide uppercase">
             <th className="py-2 pr-4">Account</th>
             <th className="py-2 pr-4">Name</th>
             <th className="py-2 pr-4">Isolation</th>
@@ -105,17 +110,17 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
             <tr
               key={sub.accountAddress}
               data-account-address={sub.accountAddress}
-              className="border-b border-zinc-100 last:border-b-0 dark:border-zinc-900"
+              className="border-border/50 border-b last:border-b-0"
             >
-              <td className="py-2 pr-4 font-mono text-zinc-950 dark:text-zinc-50">
+              <td className="text-foreground py-2 pr-4 font-mono">
                 <span className="inline-flex items-center gap-2">
                   {shortenAddress(sub.accountAddress)}
                   <CopyAddressButton address={sub.accountAddress} />
                 </span>
               </td>
-              <td className="py-2 pr-4 text-zinc-800 dark:text-zinc-100">{sub.name}</td>
-              <td className="py-2 pr-4 text-zinc-600 dark:text-zinc-400">{sub.isolationType}</td>
-              <td className="py-2 text-zinc-600 dark:text-zinc-400">{String(sub.isExists)}</td>
+              <td className="text-foreground py-2 pr-4">{sub.name}</td>
+              <td className="text-muted-foreground py-2 pr-4">{sub.isolationType}</td>
+              <td className="text-muted-foreground py-2">{String(sub.isExists)}</td>
             </tr>
           ))}
         </tbody>
@@ -143,7 +148,7 @@ function CopyAddressButton(props: { address: Address }) {
       aria-label={copied ? "Address copied" : `Copy ${props.address}`}
       title={copied ? "Copied" : "Copy address"}
       data-testid={`copy-address-${props.address}`}
-      className="inline-flex h-6 w-6 items-center justify-center rounded text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+      className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-6 w-6 items-center justify-center rounded"
     >
       {copied ? (
         <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5" aria-hidden>
