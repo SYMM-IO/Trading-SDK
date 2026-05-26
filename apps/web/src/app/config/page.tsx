@@ -6,9 +6,5 @@ export const metadata = {
 };
 
 export default function ConfigPage() {
-  return (
-    <main className="flex min-h-dvh flex-1 items-center justify-center bg-zinc-50 p-6 dark:bg-black">
-      <SymmioConfigDebug />
-    </main>
-  );
+  return <SymmioConfigDebug />;
 }

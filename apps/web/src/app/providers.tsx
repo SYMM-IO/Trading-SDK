@@ -4,6 +4,7 @@ import { symmioConfig } from "@/config/symmio";
 import { wagmiConfig } from "@/config/wagmi";
 import { SymmioProvider } from "@symm-frontier/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { WagmiProvider } from "wagmi";
@@ -28,10 +29,12 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   return (
-    <WagmiProvider config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        <SymmioProvider config={symmioConfig}>{children}</SymmioProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <WagmiProvider config={wagmiConfig}>
+        <QueryClientProvider client={queryClient}>
+          <SymmioProvider config={symmioConfig}>{children}</SymmioProvider>
+        </QueryClientProvider>
+      </WagmiProvider>
+    </ThemeProvider>
   );
 }

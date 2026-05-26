@@ -1,3 +1,5 @@
+import { Badge } from "@symm-frontier/ui/components/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symm-frontier/ui/components/card";
 import Link from "next/link";
 
 interface HomeCard {
@@ -24,13 +26,13 @@ const cards: HomeCard[] = [
 
 export function HomePanel() {
   return (
-    <section className="w-full max-w-5xl">
-      <header className="mb-6">
-        <p className="text-sm font-semibold tracking-wide text-blue-600 uppercase dark:text-blue-400">
+    <section className="mx-auto w-full max-w-5xl px-6 py-10">
+      <header className="mb-8">
+        <Badge variant="outline" className="mb-4">
           Symmio Frontier
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">Web app</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+        </Badge>
+        <h1 className="text-foreground text-3xl font-semibold tracking-tight sm:text-4xl">Web app</h1>
+        <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-6">
           Entry points for the SDK&apos;s consumer surface. Pick a panel to drill in.
         </p>
       </header>
@@ -44,22 +46,26 @@ export function HomePanel() {
   );
 }
 
-function HomeCardLink(props: { card: HomeCard }) {
-  const { card } = props;
+function HomeCardLink({ card }: { card: HomeCard }) {
   return (
-    <Link
-      href={card.href}
-      className="group rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-blue-400 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-blue-500"
-    >
-      <p className="text-xs font-semibold tracking-wide text-blue-600 uppercase dark:text-blue-400">{card.eyebrow}</p>
-      <h2 className="mt-2 text-lg font-semibold text-zinc-950 dark:text-zinc-50">{card.title}</h2>
-      <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">{card.description}</p>
-      <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400">
-        Open
-        <span aria-hidden className="transition group-hover:translate-x-0.5">
-          →
-        </span>
-      </span>
+    <Link href={card.href} className="group block">
+      <Card className="h-full transition-shadow hover:shadow-lg">
+        <CardHeader>
+          <CardDescription className="text-primary text-xs font-semibold tracking-wide uppercase">
+            {card.eyebrow}
+          </CardDescription>
+          <CardTitle className="text-lg">{card.title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground text-sm leading-6">{card.description}</p>
+          <span className="text-primary mt-4 inline-flex items-center gap-1 text-sm font-medium">
+            Open
+            <span aria-hidden className="transition-transform group-hover:translate-x-0.5">
+              →
+            </span>
+          </span>
+        </CardContent>
+      </Card>
     </Link>
   );
 }
