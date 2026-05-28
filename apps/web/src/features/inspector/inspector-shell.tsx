@@ -1,12 +1,7 @@
 "use client";
 
-import {
-  useConnectWallet,
-  useDisconnectWallet,
-  useSwitchToSymmioChain,
-  useWalletAccount,
-} from "@symm-frontier/react";
-import { shortenAddress } from "@symm-frontier/utils/address";
+import { useConnectWallet, useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@symm-frontier/react";
+import { shortenAddress } from "@symm-frontier/utils";
 import { ReadGetUserSubAccounts } from "./read-get-user-sub-accounts";
 import { WriteEditAccountName } from "./write-edit-account-name";
 
