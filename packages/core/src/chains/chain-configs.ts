@@ -21,7 +21,8 @@ const CHAIN_CONFIGS: Record<SymmioEnvironment, Record<number, SymmioChainConfig>
         collateralDecimals: 6,
       },
       subgraphs: {
-        analytics: "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_mainnet_analytics/latest/gn",
+        analytics:
+          "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_mainnet_analytics/latest/gn",
       },
       solver: {
         name: "Enigma",
@@ -42,7 +43,8 @@ const CHAIN_CONFIGS: Record<SymmioEnvironment, Record<number, SymmioChainConfig>
         collateralDecimals: 18,
       },
       subgraphs: {
-        analytics: "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_analytics/latest/gn",
+        analytics:
+          "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_analytics/latest/gn",
       },
       solver: {
         name: "Superflow",
@@ -83,7 +85,7 @@ export function getChainConfig(chainId: number, environment: SymmioEnvironment):
  * @returns Array of supported chain IDs
  */
 export function listSupportedChains(): SymmioSupportedChainId[] {
-  return Object.values(SymmioSupportedChainId).filter((v): v is SymmioSupportedChainId => typeof v === "number");
+  return Object.values(SymmioSupportedChainId) as SymmioSupportedChainId[];
 }
 
 /**

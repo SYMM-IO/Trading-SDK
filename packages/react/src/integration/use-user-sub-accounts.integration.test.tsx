@@ -1,3 +1,4 @@
+import { SymmioSupportedChainId } from "@symm-frontier/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { type PropsWithChildren } from "react";
@@ -6,7 +7,7 @@ import { hyperEvm } from "viem/chains";
 import { describe, expect, it } from "vitest";
 import { createConfig, WagmiProvider } from "wagmi";
 import { useUserSubAccounts } from "../account-layer/use-user-sub-accounts";
-import { SymmioSupportedChainId, type SymmioClientConfigInput } from "../config";
+import { type SymmioClientConfigInput } from "../config";
 import { SymmioProvider } from "../provider/symmio-provider";
 import { TEST_EOA } from "../test/test-utils";
 

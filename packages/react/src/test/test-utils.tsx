@@ -2,6 +2,7 @@
  * Test-only render helpers. Compiled out of the published bundle by
  * `vite.config.ts`'s dts `exclude` and is not exported from `src/index.ts`.
  */
+import { SymmioSupportedChainId } from "@symm-frontier/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   render,
@@ -16,7 +17,6 @@ import { http } from "viem";
 import { hyperEvm } from "viem/chains";
 import { createConfig, WagmiProvider, type Config } from "wagmi";
 import { mock } from "wagmi/connectors";
-import { SymmioSupportedChainId } from "@symm-frontier/core";
 import type { SymmioClientConfigInput } from "../config";
 import { SymmioProvider } from "../provider/symmio-provider";
 

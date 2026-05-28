@@ -63,9 +63,18 @@ export {
   useEditAccountName,
   useUserSubAccounts,
   type EditAccountNameResult,
+  type GetUserSubAccountsKeyArgs,
   type UseEditAccountNameOptions,
   type UseUserSubAccountsParams,
 } from "./account-layer";
+
+/**
+ * Query
+ * -----
+ * Helpers for building tagged React-Query keys and turning them into
+ * `invalidateQueries` predicates without hand-writing key arrays.
+ */
+export { defineQueryKey, predicateMatch, type TaggedQueryKey } from "./utils";
 
 /**
  * Errors
