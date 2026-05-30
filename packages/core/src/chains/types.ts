@@ -1,11 +1,6 @@
 import type { Address } from "viem";
 
 /**
- * Deployment environments supported by the SDK.
- */
-export type SymmioEnvironment = "production" | "stage";
-
-/**
  * Contract addresses for a SYMMIO chain deployment.
  */
 export interface SymmioContractAddresses {
@@ -39,14 +34,14 @@ export interface SymmioSolverConfig {
   name: string;
   /** Solver's on-chain address */
   address: Address;
+  /** Solver API base URL for fetching markets */
+  url: string;
 }
 
 /**
  * Complete resolved configuration for a SYMMIO chain deployment.
  */
 export interface SymmioChainConfig {
-  /** Deployment environment */
-  environment: SymmioEnvironment;
   /** Chain ID */
   chainId: number;
   /** Contract addresses */

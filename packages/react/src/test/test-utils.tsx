@@ -30,11 +30,9 @@ export const TEST_EOA = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as const;
 
 /**
  * Default SDK config the test wrapper passes to `SymmioProvider`. Targets
- * HyperEVM staging so the live test addresses match the in-config defaults
- * exposed by `default-chain-configs.ts`.
+ * HyperEVM so the live test addresses match the in-config defaults.
  */
 export const TEST_SYMMIO_CONFIG: SymmioClientConfigInput = {
-  environment: "production",
   chainId: SymmioSupportedChainId.HYPER_EVM,
   affiliateAddress: "0xBcB033C9154401fA000a1Ae60843f79f45741b7c",
 };

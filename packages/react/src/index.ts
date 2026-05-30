@@ -15,12 +15,13 @@
  */
 
 /**
- * Provider
- * --------
+ * Provider & Client
+ * -----------------
  * The single context every other hook consumes. Mount inside a
  * `WagmiProvider` and `QueryClientProvider` (the host's, shared with wagmi).
+ * Access config via `useSymmioClient()?.config`.
  */
-export { SymmioProvider, useSymmioConfig, type SymmioProviderProps } from "./provider";
+export { SymmioProvider, useSymmioClient, type SymmioProviderProps } from "./provider";
 
 /**
  * Config
@@ -29,12 +30,7 @@ export { SymmioProvider, useSymmioConfig, type SymmioProviderProps } from "./pro
  * live in `@symm-frontier/core` — import `SymmioSupportedChainId`, `getChainConfig`,
  * and related types from there.
  */
-export {
-  resolveSymmioConfig,
-  type SymmioClientConfig,
-  type SymmioClientConfigInput,
-  type SymmioResolvedChainConfig,
-} from "./config";
+export { type SymmioClientConfigInput } from "./config";
 
 /**
  * Wallet
@@ -62,6 +58,7 @@ export {
   accountLayerQueryKeys,
   useEditAccountName,
   useUserSubAccounts,
+  type EditAccountNameMutationParams,
   type EditAccountNameResult,
   type GetUserSubAccountsKeyArgs,
   type UseEditAccountNameOptions,

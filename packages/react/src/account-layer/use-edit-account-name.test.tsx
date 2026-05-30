@@ -3,27 +3,33 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHookWithProviders, TEST_EOA } from "../test/test-utils";
 import { useEditAccountName } from "./use-edit-account-name";
 
+const mockEditAccountName = vi.fn();
+
 vi.mock("@symm-frontier/core", async () => {
   const actual = await vi.importActual<typeof import("@symm-frontier/core")>("@symm-frontier/core");
   return {
     ...actual,
-    editAccountName: vi.fn(),
+    createSymmioClient: vi.fn(() => ({
+      config: actual.getChainConfig(actual.SymmioSupportedChainId.HYPER_EVM),
+      publicClient: {},
+      walletClient: undefined, // No wallet connected in tests by default
+      getUserSubAccounts: vi.fn(),
+      getMarkets: vi.fn(),
+      editAccountName: mockEditAccountName,
+    })),
   };
 });
 
-const core = await import("@symm-frontier/core");
-const mockedEditAccountName = vi.mocked(core.editAccountName);
-
 beforeEach(() => {
-  mockedEditAccountName.mockReset();
+  mockEditAccountName.mockReset();
 });
 
 describe("useEditAccountName", () => {
-  it("rejects with kind 'sdk' when no wallet is connected, without calling core", async () => {
+  it("rejects with kind 'sdk' when no wallet is connected, without calling client", async () => {
     /**
      * The test wrapper does not auto-connect the mock connector, so
-     * `useWalletClient` resolves with `data: undefined`. The hook must
-     * normalize that into a `sdk`-kind error rather than silently no-op-ing.
+     * the client has no walletClient. The hook must normalize that into
+     * a `sdk`-kind error rather than silently no-op-ing.
      */
     const { result } = renderHookWithProviders(() => useEditAccountName({ waitForReceipt: false }));
 
@@ -38,7 +44,7 @@ describe("useEditAccountName", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect((error as { kind: string }).kind).toBe("sdk");
-    expect(mockedEditAccountName).not.toHaveBeenCalled();
+    expect(mockEditAccountName).not.toHaveBeenCalled();
   });
 
   it("exposes a stable mutate function across renders (referential identity)", () => {

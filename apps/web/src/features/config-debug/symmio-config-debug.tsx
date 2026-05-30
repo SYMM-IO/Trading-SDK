@@ -1,6 +1,6 @@
 "use client";
 
-import { useSymmioConfig } from "@symm-frontier/react";
+import { useSymmioClient } from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@symm-frontier/ui/components/card";
 
@@ -29,7 +29,13 @@ function ConfigGroup({ title, children }: { title: string; children: React.React
 }
 
 export function SymmioConfigDebug() {
-  const config = useSymmioConfig();
+  const client = useSymmioClient();
+
+  if (!client) {
+    return <p className="text-muted-foreground p-6">SDK client not ready (chain not configured in wagmi).</p>;
+  }
+
+  const { config } = client;
 
   return (
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-10">
@@ -46,9 +52,7 @@ export function SymmioConfigDebug() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ConfigGroup title="Runtime">
-          <ConfigRow label="Environment" value={config.environment} />
           <ConfigRow label="Chain ID" value={config.chainId} />
-          <ConfigRow label="Input affiliate" value={config.input.affiliateAddress} />
           <ConfigRow label="Solver" value={`${config.solver.name} (${config.solver.address})`} />
         </ConfigGroup>
 

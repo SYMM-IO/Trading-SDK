@@ -1,10 +1,11 @@
 "use client";
 
+import { SymmError } from "@symm-frontier/core";
 import { useMemo } from "react";
 import { useSwitchChain } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
-import { useSymmioConfig } from "../provider/use-symmio-config";
+import { useSymmioClient } from "../provider/use-symmio-client";
 
 /**
  * Result shape returned by {@link useSwitchToSymmioChain}.
@@ -24,7 +25,7 @@ export interface UseSwitchToSymmioChainResult {
 
 /**
  * Asks the connected wallet to switch to the SDK's configured chain. The chain
- * id comes from `useSymmioConfig()` so callers don't repeat it.
+ * id comes from the SDK client so callers don't repeat it.
  *
  * @example
  * const { isOnExpectedChain } = useWalletAccount();
@@ -34,7 +35,7 @@ export interface UseSwitchToSymmioChainResult {
  * }
  */
 export function useSwitchToSymmioChain(): UseSwitchToSymmioChainResult {
-  const config = useSymmioConfig();
+  const client = useSymmioClient();
   const { switchChainAsync, status, error } = useSwitchChain();
 
   const normalized = useMemo(() => (error ? normalizeSymmError(error) : undefined), [error]);
@@ -43,8 +44,11 @@ export function useSwitchToSymmioChain(): UseSwitchToSymmioChainResult {
     status,
     error: normalized,
     switchChain: async () => {
+      if (!client) {
+        throw normalizeSymmError(new SymmError("SDK client not ready."));
+      }
       try {
-        await switchChainAsync({ chainId: config.chainId });
+        await switchChainAsync({ chainId: client.config.chainId });
       } catch (err) {
         throw normalizeSymmError(err);
       }

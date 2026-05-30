@@ -8,7 +8,7 @@ import { SubAccountIsolationType } from "../../types";
 import { getUserSubAccounts, type SubAccountDetail } from "./get-user-sub-accounts";
 
 const HYPEREVM_ID = hyperEvm.id;
-const HYPEREVM_ACCOUNT_LAYER = getChainConfig(HYPEREVM_ID, "production").addresses.accountLayerAddress;
+const HYPEREVM_ACCOUNT_LAYER = getChainConfig(HYPEREVM_ID).addresses.accountLayerAddress;
 const USER: Address = "0x1111111111111111111111111111111111111111";
 const OVERRIDE_ADDRESS: Address = "0x9999999999999999999999999999999999999999";
 

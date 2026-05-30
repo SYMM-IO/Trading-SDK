@@ -7,7 +7,7 @@ import { SymmError } from "../../../errors";
 import { editAccountName } from "./edit-account-name";
 
 const HYPEREVM_ID = hyperEvm.id;
-const HYPEREVM_ACCOUNT_LAYER = getChainConfig(HYPEREVM_ID, "production").addresses.accountLayerAddress;
+const HYPEREVM_ACCOUNT_LAYER = getChainConfig(HYPEREVM_ID).addresses.accountLayerAddress;
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const OWNER_EOA: Address = "0x1111111111111111111111111111111111111111";
 const OVERRIDE_ADDRESS: Address = "0x9999999999999999999999999999999999999999";
