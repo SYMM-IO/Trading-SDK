@@ -1,12 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmError } from "../errors";
+import type { ApiContractSymbolsResponse } from "../solver/enigma-solver";
 import { getMarkets } from "./get-markets";
-import type { ContractSymbolsResponse } from "./types";
 import { MarketState } from "./types";
+
+vi.mock("../solver/axios-client", () => ({
+  setSolverBaseUrl: vi.fn(),
+  axiosClient: vi.fn(),
+}));
+
+vi.mock("../solver/enigma-solver", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../solver/enigma-solver")>();
+  return {
+    ...original,
+    getLowCapSolverAPI: vi.fn(),
+  };
+});
+
+import { setSolverBaseUrl } from "../solver/axios-client";
+import { getLowCapSolverAPI } from "../solver/enigma-solver";
 
 const SOLVER_URL = "https://solver.example.com/api";
 
-const SAMPLE_RESPONSE: ContractSymbolsResponse = {
+const SAMPLE_RESPONSE: ApiContractSymbolsResponse = {
   count: 1,
   symbols: [
     {
@@ -19,12 +35,12 @@ const SAMPLE_RESPONSE: ContractSymbolsResponse = {
       rfq_allowed: true,
       price_precision: 2,
       quantity_precision: 3,
-      trading_fee: 0.0006,
-      max_leverage: 125,
+      trading_fee: "0.0006",
+      max_leverage: "125",
       max_notional_value: 1000000,
-      max_funding_rate: 0.001,
-      min_acceptable_quote_value: 10,
-      min_acceptable_portion_lf: 0.1,
+      max_funding_rate: "0.001",
+      min_acceptable_quote_value: "10",
+      min_acceptable_portion_lf: "0.1",
       hedger_fee_open: "0.0001",
       hedger_fee_close: "0.0001",
       min_notional_value: "5",
@@ -34,23 +50,25 @@ const SAMPLE_RESPONSE: ContractSymbolsResponse = {
 };
 
 describe("getMarkets", () => {
+  const mockGetContractSymbols = vi.fn();
+
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.mocked(getLowCapSolverAPI).mockReturnValue({
+      getContractSymbols: mockGetContractSymbols,
+    } as unknown as ReturnType<typeof getLowCapSolverAPI>);
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.clearAllMocks();
   });
 
-  it("fetches and transforms contract symbols", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(SAMPLE_RESPONSE),
-    } as Response);
+  it("sets solver base URL and fetches contract symbols", async () => {
+    mockGetContractSymbols.mockResolvedValue(SAMPLE_RESPONSE);
 
     const markets = await getMarkets(SOLVER_URL);
 
-    expect(fetch).toHaveBeenCalledWith(`${SOLVER_URL}/contract-symbols`);
+    expect(setSolverBaseUrl).toHaveBeenCalledWith(SOLVER_URL);
+    expect(mockGetContractSymbols).toHaveBeenCalled();
     expect(markets).toHaveLength(1);
     expect(markets[0]).toEqual({
       id: 1,
@@ -75,56 +93,22 @@ describe("getMarkets", () => {
     });
   });
 
-  it("handles trailing slash in solver URL", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ count: 0, symbols: [] }),
-    } as Response);
-
-    await getMarkets(`${SOLVER_URL}/`);
-
-    expect(fetch).toHaveBeenCalledWith(`${SOLVER_URL}/contract-symbols`);
-  });
-
   it("throws SymmError on network failure", async () => {
-    vi.mocked(fetch).mockRejectedValue(new Error("Network error"));
+    mockGetContractSymbols.mockRejectedValue(new Error("Network error"));
 
     await expect(getMarkets(SOLVER_URL)).rejects.toBeInstanceOf(SymmError);
     await expect(getMarkets(SOLVER_URL)).rejects.toThrow("Failed to fetch markets");
   });
 
-  it("throws SymmError on non-ok response", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      status: 500,
-    } as Response);
-
-    await expect(getMarkets(SOLVER_URL)).rejects.toBeInstanceOf(SymmError);
-    await expect(getMarkets(SOLVER_URL)).rejects.toThrow("500");
-  });
-
-  it("throws SymmError on invalid JSON", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.reject(new Error("Invalid JSON")),
-    } as Response);
-
-    await expect(getMarkets(SOLVER_URL)).rejects.toBeInstanceOf(SymmError);
-    await expect(getMarkets(SOLVER_URL)).rejects.toThrow("Invalid JSON");
-  });
-
   it("throws SymmError when symbols array is missing", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ count: 0 }),
-    } as Response);
+    mockGetContractSymbols.mockResolvedValue({ count: 0 });
 
     await expect(getMarkets(SOLVER_URL)).rejects.toBeInstanceOf(SymmError);
     await expect(getMarkets(SOLVER_URL)).rejects.toThrow("missing symbols array");
   });
 
   it("handles missing optional fields with defaults", async () => {
-    const responseWithMissing: ContractSymbolsResponse = {
+    const responseWithMissing: ApiContractSymbolsResponse = {
       count: 1,
       symbols: [
         {
@@ -132,17 +116,17 @@ describe("getMarkets", () => {
           name: "ETHUSDT",
           symbol: "ETH",
           asset: "ETH",
-          state: undefined as unknown as MarketState,
+          state: undefined,
           is_valid: true,
-          rfq_allowed: undefined as unknown as boolean,
+          rfq_allowed: undefined,
           price_precision: 2,
           quantity_precision: 4,
-          trading_fee: 0.0005,
-          max_leverage: 100,
+          trading_fee: "0.0005",
+          max_leverage: "100",
           max_notional_value: 500000,
-          max_funding_rate: 0.0005,
-          min_acceptable_quote_value: 5,
-          min_acceptable_portion_lf: 0.1,
+          max_funding_rate: "0.0005",
+          min_acceptable_quote_value: "5",
+          min_acceptable_portion_lf: "0.1",
           hedger_fee_open: "0.0001",
           hedger_fee_close: "0.0001",
           min_notional_value: "10",
@@ -150,10 +134,7 @@ describe("getMarkets", () => {
       ],
     };
 
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(responseWithMissing),
-    } as Response);
+    mockGetContractSymbols.mockResolvedValue(responseWithMissing);
 
     const markets = await getMarkets(SOLVER_URL);
 
