@@ -28,7 +28,6 @@ const INTEGRATION_WAGMI = createConfig({
 });
 
 const INTEGRATION_SYMMIO: SymmioClientConfigInput = {
-  environment: "production",
   chainId: SymmioSupportedChainId.HYPER_EVM,
   affiliateAddress: "0xBcB033C9154401fA000a1Ae60843f79f45741b7c",
 };

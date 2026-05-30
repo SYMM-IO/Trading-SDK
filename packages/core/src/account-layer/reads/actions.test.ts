@@ -6,7 +6,7 @@ import { accountLayerReadActions } from "./actions";
 import type { SubAccountDetail } from "./methods/get-user-sub-accounts";
 
 const HYPEREVM_ID = hyperEvm.id;
-const HYPEREVM_ACCOUNT_LAYER = getChainConfig(HYPEREVM_ID, "production").addresses.accountLayerAddress;
+const HYPEREVM_ACCOUNT_LAYER = getChainConfig(HYPEREVM_ID).addresses.accountLayerAddress;
 const USER: Address = "0x1111111111111111111111111111111111111111";
 
 const SAMPLE_LIST: readonly SubAccountDetail[] = [];

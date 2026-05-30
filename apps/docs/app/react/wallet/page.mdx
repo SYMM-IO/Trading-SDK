@@ -16,7 +16,7 @@ if (!isOnExpectedChain) return <SwitchNetworkPrompt />;
 return <Dashboard address={address} />;
 ```
 
-`isOnExpectedChain` is `true` iff the wallet's chainId matches `useSymmioConfig().chainId` — saves you from manually comparing in every component.
+`isOnExpectedChain` is `true` iff the wallet's chainId matches the SDK's configured chain — saves you from manually comparing in every component.
 
 ## `useConnectWallet()`
 

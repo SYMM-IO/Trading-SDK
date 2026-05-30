@@ -72,10 +72,31 @@ export {
   listSupportedChains,
   type SymmioChainConfig,
   type SymmioContractAddresses,
-  type SymmioEnvironment,
   type SymmioSolverConfig,
   type SymmioSubgraphUrls,
 } from "./chains";
+
+/**
+ * Markets
+ * -------
+ * Fetch tradable markets from solver's `/contract-symbols` endpoint.
+ */
+export { MarketState, getMarkets, type Market } from "./markets";
+
+/**
+ * Client factory
+ * --------------
+ * `createSymmioClient()` is the main entry point for most consumers. It returns
+ * a client with bound read/write actions — no need to pass config or addresses
+ * per call.
+ */
+export {
+  createSymmioClient,
+  type CreateSymmioClientParams,
+  type EditAccountNameClientParams,
+  type GetUserSubAccountsClientParams,
+  type SymmioClient,
+} from "./client";
 
 /**
  * Errors

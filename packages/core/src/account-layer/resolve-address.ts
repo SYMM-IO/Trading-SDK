@@ -19,6 +19,6 @@ export function resolveAccountLayerAddress(client: Pick<Client, "chain">, overri
     );
   }
 
-  const config = getChainConfig(chainId, "production");
+  const config = getChainConfig(chainId);
   return config.addresses.accountLayerAddress;
 }

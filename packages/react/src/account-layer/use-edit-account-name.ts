@@ -1,13 +1,11 @@
 "use client";
 
-import { editAccountName, SymmError, type EditAccountNameParams } from "@symm-frontier/core";
+import { SymmError } from "@symm-frontier/core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
-import type { Account, Chain, Hash, Transport, WalletClient } from "viem";
+import type { Address, Hash } from "viem";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
-import { useSymmioConfig } from "../provider/use-symmio-config";
-import { useSymmioPublicClient } from "../provider/use-symmio-public-client";
-import { useSymmioWalletClient } from "../provider/use-symmio-wallet-client";
+import { useSymmioClient } from "../provider/use-symmio-client";
 import { predicateMatch } from "../utils";
 import { accountLayerQueryKeys } from "./query-keys";
 
@@ -29,22 +27,31 @@ export interface UseEditAccountNameOptions {
 }
 
 /**
+ * Parameters for editAccountName mutation.
+ */
+export interface EditAccountNameMutationParams {
+  /** Subaccount address to rename */
+  account: Address;
+  /** New name for the subaccount */
+  name: string;
+}
+
+/**
  * Result returned by {@link useEditAccountName}'s mutation.
  */
 export interface EditAccountNameResult {
   /** The submitted transaction hash. */
   hash: Hash;
   /** The mined receipt, present when `waitForReceipt` is enabled. */
-  receipt?: Awaited<ReturnType<NonNullable<ReturnType<typeof useSymmioPublicClient>>["waitForTransactionReceipt"]>>;
+  receipt?: Awaited<ReturnType<import("viem").PublicClient["waitForTransactionReceipt"]>>;
 }
 
 /**
  * Submit an `editAccountName` transaction for the user's subaccount.
  *
- * The mutation grabs a wallet client for the SDK's configured chain via the
- * host's wagmi config; you do not pass a client. After success, the
- * `getUserSubAccounts` query is invalidated for the SDK's active chain so any
- * mounted list rerenders with the new name on the next refetch.
+ * The mutation uses the SDK client created from the host's wagmi config.
+ * After success, the `getUserSubAccounts` query is invalidated for the SDK's
+ * active chain so any mounted list rerenders with the new name on the next refetch.
  *
  * @example
  * const { mutate, status, error } = useEditAccountName();
@@ -54,47 +61,42 @@ export interface EditAccountNameResult {
  */
 export function useEditAccountName(
   options?: UseEditAccountNameOptions,
-): UseMutationResult<EditAccountNameResult, SymmioRequestError, EditAccountNameParams> {
-  const config = useSymmioConfig();
-  const walletClientQuery = useSymmioWalletClient();
-  const publicClient = useSymmioPublicClient();
+): UseMutationResult<EditAccountNameResult, SymmioRequestError, EditAccountNameMutationParams> {
+  const client = useSymmioClient();
   const queryClient = useQueryClient();
 
   const waitForReceipt = options?.waitForReceipt ?? true;
   const confirmations = options?.confirmations ?? 1;
 
-  return useMutation<EditAccountNameResult, SymmioRequestError, EditAccountNameParams>({
+  return useMutation<EditAccountNameResult, SymmioRequestError, EditAccountNameMutationParams>({
     mutationFn: async (params) => {
-      const walletClient = walletClientQuery.data;
-
-      if (!walletClient) {
-        throw normalizeSymmError(new SymmError("Wallet not connected, or wallet is on a different chain."));
-      }
-      if (!publicClient) {
+      if (!client) {
         throw normalizeSymmError(new SymmError("No public client available for the configured chain."));
+      }
+      if (!client.walletClient) {
+        throw normalizeSymmError(new SymmError("Wallet not connected, or wallet is on a different chain."));
       }
 
       try {
-        const hash = await editAccountName(walletClient as WalletClient<Transport, Chain, Account>, {
+        const hash = await client.editAccountName({
           account: params.account,
           name: params.name,
-          accountLayerAddress: params.accountLayerAddress ?? config.addresses.accountLayerAddress,
         });
 
         if (!waitForReceipt) return { hash };
 
-        const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations });
+        const receipt = await client.publicClient.waitForTransactionReceipt({ hash, confirmations });
         return { hash, receipt };
       } catch (err) {
         throw normalizeSymmError(err);
       }
     },
     onSuccess: () => {
-      const user = walletClientQuery.data?.account.address;
-      if (!user) return;
+      const user = client?.walletClient?.account.address;
+      if (!user || !client) return;
 
       void queryClient.invalidateQueries({
-        predicate: predicateMatch(accountLayerQueryKeys.getUserSubAccounts, { user, chainId: config.chainId }),
+        predicate: predicateMatch(accountLayerQueryKeys.getUserSubAccounts, { user, chainId: client.config.chainId }),
       });
     },
   });

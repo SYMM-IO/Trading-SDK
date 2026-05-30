@@ -9,7 +9,6 @@ import { SymmioProvider, SymmioSupportedChainId } from "@symm-frontier/react";
 
 <SymmioProvider
   config={{
-    environment: "production",
     chainId: SymmioSupportedChainId.HYPER_EVM,
     affiliateAddress: "0xYourAffiliateAddress",
   }}
@@ -24,7 +23,6 @@ import { SymmioProvider, SymmioSupportedChainId } from "@symm-frontier/react";
 
 ```ts
 interface SymmioClientConfigInput {
-  environment: "production" | "stage";
   chainId: SymmioSupportedChainId;
   affiliateAddress: Address;
 
@@ -35,37 +33,41 @@ interface SymmioClientConfigInput {
 }
 ```
 
-The provider merges your input with the built-in defaults for `{ environment, chainId }`, then exposes the resolved config via `useSymmioConfig()`.
+The provider merges your input with the built-in defaults for the chain, creates a `SymmioClient`, and exposes it via `useSymmioClient()`.
 
-## `useSymmioConfig()`
+## `useSymmioClient()`
 
-Read the resolved config from context.
+Access the SDK client from context. Returns `undefined` if wagmi has no transport for the configured chain.
 
 ```tsx
-import { useSymmioConfig } from "@symm-frontier/react";
+import { useSymmioClient } from "@symm-frontier/react";
 
 function Banner() {
-  const config = useSymmioConfig();
+  const client = useSymmioClient();
+  if (!client) return <p>Chain not configured</p>;
+
   return (
     <p>
-      Trading against {config.solver.name} on chain {config.chainId}.
+      Trading against {client.config.solver.name} on chain {client.config.chainId}.
     </p>
   );
 }
 ```
 
-The hook throws if used outside `SymmioProvider`.
+The client provides bound methods (`getUserSubAccounts`, `getMarkets`, `editAccountName`) and the resolved config at `client.config`.
 
-## Resolved shape
+## Client shape
 
 ```ts
-interface SymmioClientConfig {
-  environment: SymmioEnvironment;
-  chainId: SymmioSupportedChainId;
-  addresses: SymmioContractAddresses; // symmio, instantLayer, accountLayer, …
-  subgraphs: SymmioSubgraphUrls;
-  solver: SymmioSolverConfig;
-  input: SymmioClientConfigInput; // your original input, before defaults
+interface SymmioClient {
+  config: SymmioChainConfig;      // resolved addresses, subgraphs, solver
+  publicClient: PublicClient;     // viem public client
+  walletClient?: WalletClient;    // viem wallet client (if connected)
+
+  // Bound methods
+  getUserSubAccounts(params: { user: Address }): Promise<SubAccountDetail[]>;
+  getMarkets(): Promise<Market[]>;
+  editAccountName(params: { account: Address; name: string }): Promise<Hash>;
 }
 ```
 

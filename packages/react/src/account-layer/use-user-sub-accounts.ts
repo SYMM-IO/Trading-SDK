@@ -1,12 +1,11 @@
 "use client";
 
-import { getUserSubAccounts, SymmError, type SubAccountDetail } from "@symm-frontier/core";
+import { SymmError, type SubAccountDetail } from "@symm-frontier/core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { Address } from "viem";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
-import { useSymmioConfig } from "../provider/use-symmio-config";
-import { useSymmioPublicClient } from "../provider/use-symmio-public-client";
+import { useSymmioClient } from "../provider/use-symmio-client";
 import { accountLayerQueryKeys } from "./query-keys";
 
 /**
@@ -23,11 +22,6 @@ export interface UseUserSubAccountsParams {
   offset?: bigint;
   /** Pagination limit, in subaccounts. Defaults to `200n` (matches Explorer Inspector). */
   limit?: bigint;
-  /**
-   * Override the `AccountLayer` contract address. Defaults to the address
-   * baked into `SymmioProvider`'s resolved config for the active chain.
-   */
-  accountLayerAddress?: Address;
   /**
    * Disable the query unconditionally. Use when the UI gates the fetch on
    * something other than wallet presence (e.g. a feature flag).
@@ -55,23 +49,21 @@ export interface UseUserSubAccountsParams {
 export function useUserSubAccounts(
   params: UseUserSubAccountsParams,
 ): UseQueryResult<readonly SubAccountDetail[], SymmioRequestError> {
-  const config = useSymmioConfig();
-  const publicClient = useSymmioPublicClient();
-  const accountLayerAddress = params.accountLayerAddress ?? config.addresses.accountLayerAddress;
+  const client = useSymmioClient();
 
-  const enabled = (params.enabled ?? true) && params.user !== undefined && publicClient !== undefined;
+  const enabled = (params.enabled ?? true) && params.user !== undefined && client !== undefined;
 
   return useQuery<readonly SubAccountDetail[], SymmioRequestError>({
     queryKey: accountLayerQueryKeys.getUserSubAccounts({
-      chainId: config.chainId,
-      accountLayerAddress,
+      chainId: client?.config.chainId ?? 0,
+      accountLayerAddress: client?.config.addresses.accountLayerAddress ?? ZERO_ADDRESS,
       user: params.user ?? ZERO_ADDRESS,
       offset: params.offset,
       limit: params.limit,
     }),
     enabled,
     queryFn: async () => {
-      if (!publicClient) {
+      if (!client) {
         throw normalizeSymmError(new SymmError("No public client available for the configured chain."));
       }
       if (!params.user) {
@@ -79,11 +71,10 @@ export function useUserSubAccounts(
       }
 
       try {
-        return await getUserSubAccounts(publicClient, {
+        return await client.getUserSubAccounts({
           user: params.user,
           offset: params.offset,
           limit: params.limit,
-          accountLayerAddress,
         });
       } catch (err) {
         throw normalizeSymmError(err);
