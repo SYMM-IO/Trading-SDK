@@ -17,6 +17,12 @@ const cards: HomeCard[] = [
     description: "Run live reads and writes against the AccountLayer slice on HyperEVM.",
   },
   {
+    href: "/inspector/markets",
+    eyebrow: "Inspector",
+    title: "Markets",
+    description: "Fetch and display tradable markets (contract symbols) from the solver.",
+  },
+  {
     href: "/config",
     eyebrow: "Config",
     title: "Resolved VibeCaps Config",

@@ -1,30 +1,32 @@
 import { SymmError } from "../errors";
-import type { ContractSymbol, ContractSymbolsResponse, Market } from "./types";
+import { getLowCapSolverAPI, type SymbolContractSymbol } from "../solver/enigma-solver";
+import { setSolverBaseUrl } from "../solver/axios-client";
+import type { Market } from "./types";
 import { MarketState } from "./types";
 
 /**
  * Transform raw solver response to normalized Market shape.
  */
-function transformContractSymbol(raw: ContractSymbol): Market {
+function transformContractSymbol(raw: SymbolContractSymbol): Market {
   return {
-    id: raw.symbol_id,
-    name: raw.name,
-    symbol: raw.symbol,
-    asset: raw.asset,
+    id: raw.symbol_id ?? 0,
+    name: raw.name ?? "",
+    symbol: raw.symbol ?? "",
+    asset: raw.asset ?? "",
     state: raw.state ?? MarketState.FullyEnabled,
-    pricePrecision: raw.price_precision,
-    quantityPrecision: raw.quantity_precision,
-    isValid: raw.is_valid,
+    pricePrecision: raw.price_precision ?? 0,
+    quantityPrecision: raw.quantity_precision ?? 0,
+    isValid: raw.is_valid ?? false,
     rfqAllowed: raw.rfq_allowed ?? false,
-    tradingFee: raw.trading_fee,
-    maxLeverage: raw.max_leverage,
-    maxNotionalValue: raw.max_notional_value,
-    maxFundingRate: String(raw.max_funding_rate),
-    minAcceptableQuoteValue: raw.min_acceptable_quote_value,
-    minAcceptablePortionLF: raw.min_acceptable_portion_lf,
-    hedgerFeeOpen: raw.hedger_fee_open,
-    hedgerFeeClose: raw.hedger_fee_close,
-    minNotionalValue: Number(raw.min_notional_value),
+    tradingFee: Number(raw.trading_fee ?? 0),
+    maxLeverage: Number(raw.max_leverage ?? 0),
+    maxNotionalValue: raw.max_notional_value ?? 0,
+    maxFundingRate: String(raw.max_funding_rate ?? "0"),
+    minAcceptableQuoteValue: Number(raw.min_acceptable_quote_value ?? 0),
+    minAcceptablePortionLF: Number(raw.min_acceptable_portion_lf ?? 0),
+    hedgerFeeOpen: raw.hedger_fee_open ?? "0",
+    hedgerFeeClose: raw.hedger_fee_close ?? "0",
+    minNotionalValue: Number(raw.min_notional_value ?? 0),
     lotSize: raw.lot_size !== undefined ? Number(raw.lot_size) : undefined,
   };
 }
@@ -43,31 +45,20 @@ function transformContractSymbol(raw: ContractSymbol): Market {
  * ```
  */
 export async function getMarkets(solverUrl: string): Promise<Market[]> {
-  const endpoint = solverUrl.endsWith("/")
-    ? `${solverUrl}contract-symbols`
-    : `${solverUrl}/contract-symbols`;
+  setSolverBaseUrl(solverUrl);
 
-  let response: Response;
+  const api = getLowCapSolverAPI();
+
   try {
-    response = await fetch(endpoint);
+    const response = await api.getContractSymbols();
+
+    if (!response.symbols || !Array.isArray(response.symbols)) {
+      throw new SymmError(`Unexpected response shape from ${solverUrl}: missing symbols array`);
+    }
+
+    return response.symbols.map(transformContractSymbol);
   } catch (err) {
-    throw new SymmError(`Failed to fetch markets from ${endpoint}: ${err instanceof Error ? err.message : String(err)}`);
+    if (err instanceof SymmError) throw err;
+    throw new SymmError(`Failed to fetch markets from ${solverUrl}: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  if (!response.ok) {
-    throw new SymmError(`Solver returned ${response.status} from ${endpoint}`);
-  }
-
-  let data: ContractSymbolsResponse;
-  try {
-    data = (await response.json()) as ContractSymbolsResponse;
-  } catch {
-    throw new SymmError(`Invalid JSON response from ${endpoint}`);
-  }
-
-  if (!Array.isArray(data.symbols)) {
-    throw new SymmError(`Unexpected response shape from ${endpoint}: missing symbols array`);
-  }
-
-  return data.symbols.map(transformContractSymbol);
 }

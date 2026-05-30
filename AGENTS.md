@@ -209,6 +209,8 @@ Repo-wide "handwriting". Applies to every package and app.
 
 - **Package manager**: pnpm (workspace defined in `pnpm-workspace.yaml`).
 - **Task runner**: Turborepo (`turbo.json`).
+- **HTTP client**: axios. Use axios for all REST API calls in `packages/core`. Do not use native fetch.
+- **API code generation**: Orval. Generate typed API clients from OpenAPI/Swagger specs. Config lives in `packages/core/orval.config.ts`. Run `pnpm generate:api` in `packages/core` to regenerate.
 - **Common commands**, all run from the repo root:
   - `pnpm install` — install workspace dependencies.
   - `pnpm dev` — `turbo run dev` across packages that define it.

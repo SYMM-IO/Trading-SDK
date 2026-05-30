@@ -33,6 +33,10 @@
       "types": "./dist/transactions/index.d.ts",
       "import": "./dist/transactions/index.js"
     },
+    "./markets": {
+      "types": "./dist/markets/index.d.ts",
+      "import": "./dist/markets/index.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"

@@ -4,6 +4,22 @@ import { getChainConfig, SymmioSupportedChainId } from "../chains";
 import { SymmError } from "../errors";
 import { createSymmioClient } from "./create-symmio-client";
 
+vi.mock("../solver/axios-client", () => ({
+  setSolverBaseUrl: vi.fn(),
+  axiosClient: vi.fn(),
+}));
+
+vi.mock("../solver/enigma-solver", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../solver/enigma-solver")>();
+  return {
+    ...original,
+    getLowCapSolverAPI: vi.fn(),
+  };
+});
+
+import { setSolverBaseUrl } from "../solver/axios-client";
+import { getLowCapSolverAPI } from "../solver/enigma-solver";
+
 const HYPEREVM_ID = SymmioSupportedChainId.HYPER_EVM;
 const DEFAULT_CONFIG = getChainConfig(HYPEREVM_ID);
 const USER: Address = "0x1111111111111111111111111111111111111111";
@@ -32,12 +48,16 @@ function mockWalletClient() {
 }
 
 describe("createSymmioClient", () => {
+  const mockGetContractSymbols = vi.fn();
+
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.mocked(getLowCapSolverAPI).mockReturnValue({
+      getContractSymbols: mockGetContractSymbols,
+    } as unknown as ReturnType<typeof getLowCapSolverAPI>);
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.clearAllMocks();
   });
 
   it("creates client with default config", () => {
@@ -113,10 +133,7 @@ describe("createSymmioClient", () => {
 
   it("getMarkets uses bound solver URL", async () => {
     const { client: publicClient } = mockPublicClient();
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ count: 0, symbols: [] }),
-    } as Response);
+    mockGetContractSymbols.mockResolvedValue({ count: 0, symbols: [] });
 
     const symmioClient = createSymmioClient({
       chainId: HYPEREVM_ID,
@@ -125,7 +142,8 @@ describe("createSymmioClient", () => {
 
     await symmioClient.getMarkets();
 
-    expect(fetch).toHaveBeenCalledWith(`${DEFAULT_CONFIG.solver.url}/contract-symbols`);
+    expect(setSolverBaseUrl).toHaveBeenCalledWith(DEFAULT_CONFIG.solver.url);
+    expect(mockGetContractSymbols).toHaveBeenCalled();
   });
 
   it("editAccountName uses bound walletClient", async () => {

@@ -66,6 +66,18 @@ export {
 } from "./account-layer";
 
 /**
+ * Markets hooks
+ * -------------
+ * Fetch tradable markets (contract symbols) from the solver.
+ */
+export {
+  marketsQueryKeys,
+  useMarkets,
+  type GetMarketsKeyArgs,
+  type UseMarketsParams,
+} from "./markets";
+
+/**
  * Query
  * -----
  * Helpers for building tagged React-Query keys and turning them into
