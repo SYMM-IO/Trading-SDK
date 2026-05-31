@@ -1,13 +1,66 @@
+import type { Config } from "../config";
 import { SymmError } from "../errors";
-import { getLowCapSolverAPI, type SymbolContractSymbol } from "../solver/enigma-solver";
-import { setSolverBaseUrl } from "../solver/axios-client";
-import type { Market } from "./types";
-import { MarketState } from "./types";
+import { axiosClient } from "../solver/axios-client";
+import type { ApiContractSymbolsResponse, SymbolContractSymbol } from "../solver/enigma-solver";
+import type { ChainIdParameter, Compute } from "../types/properties";
+import { MarketState, type Market } from "./types";
 
 /**
- * Transform raw solver response to normalized Market shape.
+ * Parameters for {@link getMarkets}.
  */
-function transformContractSymbol(raw: SymbolContractSymbol): Market {
+export type GetMarketsParameters = Compute<ChainIdParameter>;
+
+/** Return type of {@link getMarkets}. */
+export type GetMarketsReturnType = Market[];
+
+/**
+ * Fetch all tradable markets from the chain's solver `/contract-symbols`
+ * endpoint. The solver base URL is resolved from `config` per call, so multiple
+ * chains never clobber each other.
+ *
+ * @param config - The SDK config.
+ * @param parameters - Optional chain id (defaults to the config's default chain).
+ * @returns Normalized markets.
+ * @throws {SymmError} when the chain is unsupported or the request fails.
+ *
+ * @example
+ * ```ts
+ * const markets = await getMarkets(config, {});
+ * console.log(markets[0]?.name); // "BTCUSDT"
+ * ```
+ */
+export async function getMarkets(config: Config, parameters: GetMarketsParameters = {}): Promise<GetMarketsReturnType> {
+  const { solver } = config.getChainConfig(parameters.chainId);
+  return fetchMarkets(solver.url);
+}
+
+/**
+ * Call the solver's `/contract-symbols` endpoint with a per-call base URL and
+ * normalize the raw symbols into {@link Market}s.
+ *
+ * @internal
+ */
+async function fetchMarkets(baseURL: string): Promise<Market[]> {
+  try {
+    const response = await axiosClient<ApiContractSymbolsResponse>({
+      baseURL,
+      url: "/contract-symbols",
+      method: "GET",
+    });
+    return response.symbols?.map(toMarket) ?? [];
+  } catch (err) {
+    if (err instanceof SymmError) throw err;
+    throw new SymmError(`Failed to fetch markets from ${baseURL}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * Transform a raw solver `SymbolContractSymbol` into the normalized
+ * {@link Market} shape, filling defaults for missing fields.
+ *
+ * @internal
+ */
+function toMarket(raw: SymbolContractSymbol): Market {
   return {
     id: raw.symbol_id ?? 0,
     name: raw.name ?? "",
@@ -29,36 +82,4 @@ function transformContractSymbol(raw: SymbolContractSymbol): Market {
     minNotionalValue: Number(raw.min_notional_value ?? 0),
     lotSize: raw.lot_size !== undefined ? Number(raw.lot_size) : undefined,
   };
-}
-
-/**
- * Fetch tradable markets from a solver's `/contract-symbols` endpoint.
- *
- * @param solverUrl - Base URL of the solver (e.g. "https://solver.example.com/api")
- * @returns Array of normalized Market objects
- * @throws {SymmError} on network or parsing errors
- *
- * @example
- * ```ts
- * const markets = await getMarkets("https://solver.enigma.bz/api");
- * console.log(markets[0].name); // "BTCUSDT"
- * ```
- */
-export async function getMarkets(solverUrl: string): Promise<Market[]> {
-  setSolverBaseUrl(solverUrl);
-
-  const api = getLowCapSolverAPI();
-
-  try {
-    const response = await api.getContractSymbols();
-
-    if (!response.symbols || !Array.isArray(response.symbols)) {
-      throw new SymmError(`Unexpected response shape from ${solverUrl}: missing symbols array`);
-    }
-
-    return response.symbols.map(transformContractSymbol);
-  } catch (err) {
-    if (err instanceof SymmError) throw err;
-    throw new SymmError(`Failed to fetch markets from ${solverUrl}: ${err instanceof Error ? err.message : String(err)}`);
-  }
 }

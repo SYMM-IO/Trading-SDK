@@ -1,5 +1,5 @@
-import { editAccountName, getUserSubAccounts } from "@symm-frontier/core";
-import { createPublicClient, createWalletClient, http } from "viem";
+import { createConfig, editAccountName, getUserSubAccounts, type SymmioWalletClient } from "@symm-frontier/core";
+import { createPublicClient, createWalletClient, http, type PublicClient } from "viem";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import { hyperEvm } from "viem/chains";
 import { describe, expect, it } from "vitest";
@@ -15,12 +15,9 @@ loadIntegrationEnv();
  * `SYMM_TEST_PRIVATE_KEY` is set, so the default test run requires zero
  * credentials.
  *
- * This test deliberately bypasses the React layer (no wagmi, no hooks). The
- * wagmi `mock` connector cannot sign transactions — it forwards
- * `eth_sendTransaction` to the underlying RPC, which a public RPC will
- * reject. Driving `core` directly with a viem `WalletClient` is the only
- * reliable way to broadcast a real tx in CI. The hook integration is
- * covered by the read-side `use-user-sub-accounts.integration.test.tsx`.
+ * This test deliberately bypasses the React layer (no wagmi, no hooks). It
+ * drives `core` directly with a viem `WalletClient` wired into a `Config` via
+ * the resolver — the same shape `@symm-frontier/react` builds from wagmi.
  */
 
 const HYPER_EVM_RPC = "https://rpc.hyperliquid.xyz/evm";
@@ -51,7 +48,12 @@ maybe("editAccountName — integration (real broadcast on HyperEVM)", () => {
       transport: http(HYPER_EVM_RPC),
     });
 
-    const subs = await getUserSubAccounts(publicClient, { user: account.address });
+    const config = createConfig({
+      getClient: () => publicClient as PublicClient,
+      getWalletClient: async () => walletClient as unknown as SymmioWalletClient,
+    });
+
+    const subs = await getUserSubAccounts(config, { user: account.address });
 
     const first = subs[0];
     if (!first) {
@@ -60,7 +62,7 @@ maybe("editAccountName — integration (real broadcast on HyperEVM)", () => {
     }
 
     const newName = `SDK-${Date.now()}`;
-    const hash = await editAccountName(walletClient, {
+    const hash = await editAccountName(config, {
       account: first.accountAddress,
       name: newName,
     });
@@ -69,12 +71,7 @@ maybe("editAccountName — integration (real broadcast on HyperEVM)", () => {
     const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
     expect(receipt.status).toBe("success");
 
-    /**
-     * Read back to verify the name is what we set. The contract's natural
-     * read returns subaccounts in insertion order, so the same `first.accountAddress`
-     * row should now carry the new name.
-     */
-    const refreshed = await getUserSubAccounts(publicClient, { user: account.address });
+    const refreshed = await getUserSubAccounts(config, { user: account.address });
     const updated = refreshed.find((sub) => sub.accountAddress === first.accountAddress);
     expect(updated?.name).toBe(newName);
   });

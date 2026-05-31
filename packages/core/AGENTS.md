@@ -8,49 +8,44 @@ A future React layer (`@symm-frontier/react`), Vue layer, or any other framework
 
 ## Architecture
 
-- **Free functions per slice** are the canonical primitive. A read is `function getXyz(client: PublicClient, params): Promise<T>`. A write is `function doXyz(client: WalletClient, params): Promise<Hash>`. Tree-shakable, idiomatic viem.
-- **Action factories** bundle the free functions for `.extend()` ergonomics: `client.extend(accountLayerReadActions)` adds typed methods to a viem client without us inventing a new client abstraction.
-- **Address registry** is built into the package per chain. Consumers can override the address per call via `{ accountLayerAddress: '0x...' }` for staging or new deployments.
-- **No top-level state.** Everything is stateless and takes the client as a parameter. No global config, no module-level singletons.
-- **viem is a peer dependency.** Consumers bring their own viem version; we never bundle viem.
+This package follows **wagmi's shape**: a single immutable config, passed as the first argument of every standalone action, plus matching TanStack Query/Mutation option factories.
+
+- **`createConfig` + standalone actions** are the canonical primitive. `createConfig({ getClient, getWalletClient?, chains?, defaultChainId? })` returns an immutable `Config`. Every action takes the config first: `getXyz(config, params)` (reads) / `doXyz(config, params)` (writes). The action resolves its viem client with `config.getClient({ chainId })` (or `config.getWalletClient({ chainId })` for writes) and its addresses with `config.getChainConfig(chainId)`.
+- **Injected client resolvers.** The config does **not** create viem clients itself; the consumer/framework layer injects `getClient` / `getWalletClient`. `@symm-frontier/react` bridges these to wagmi's `getPublicClient` / `getWalletClient`; a plain Node script passes its own viem clients. This is why core stays framework- **and** wagmi-agnostic.
+- **Query/mutation option factories** ship next to each action: `getXyzQueryOptions(config, options)` and `xyzMutationOptions(config)` return TanStack option bags (typed via `@tanstack/query-core`) with the `queryKey`, `queryFn`, and `enabled` filled in. Framework layers feed them straight into `useQuery` / `useMutation`.
+- **`chainId` override pattern.** `params.chainId` is optional; when omitted, the config falls back to its `defaultChainId` (mirrors wagmi's `parameters.chainId ?? chainId`).
+- **No connection state in core.** Which wallet is connected, and the active chain, belong to the framework layer. Core only ever receives resolvers and an explicit (or default) `chainId`.
+- **Address registry** is built in per chain; `createConfig({ chains })` deep-merges per-chain overrides onto the defaults.
+- **viem is a peer dependency** (never bundled). `@tanstack/query-core` is a runtime dependency used **only for types** in the option factories.
 
 ## Rules
 
 - **No framework imports.** No React, Vue, or any framework. No browser-only globals at module scope (`window`, `document`, `localStorage`).
-- **viem is the only crypto-stack dependency.** Do not introduce ethers, web3.js, or wagmi here.
+- **viem is the only crypto-stack dependency.** Do not introduce ethers, web3.js, or **wagmi** here — core stays wagmi-free so non-React framework layers can build on it. `@tanstack/query-core` is allowed (types only) for the query/mutation option factories.
 - **Honor the Design Proposal Gate** for any non-trivial change to the public surface (see root `AGENTS.md`).
 - **Every public export gets JSDoc** with purpose, parameters, return, and a short example for non-obvious APIs.
 - **ABI fragments live under `src/abi/<version>/`.** The current version is `v0.8.5`. When we support a second version, add a sibling folder and route via the registry.
 - **Address registry lives under `src/chains/`** — one file per contract family (e.g. `account-layer-addresses.ts`).
+- **Config & shared helpers live at `src/` root:** `config/` (`createConfig`, `Config`, chain-config merge), `types/properties.ts` (parameter-helper types — `ChainIdParameter`, `Compute`, …), `types/query.ts` (`QueryParameter`, `SymmioQueryOptions`), and `query/utils.ts` (`filterQueryOptions`).
 - **Domain code lives under `src/<domain>/`** with this layout per slice:
 
   ```
   <domain>/
-    reads/
-      methods/
-        <kebab-case-method-name>.ts          ← one file per read function
-        <kebab-case-method-name>.test.ts
-      actions.ts                             ← AccountLayerReadActions-style factory
-      actions.test.ts                        ← factory-wiring tests
-      index.ts                               ← sub-barrel (export * from ./actions; export * from ./methods/<name>)
-    writes/
-      methods/
-        <kebab-case-method-name>.ts          ← one file per write function
-        <kebab-case-method-name>.test.ts
-      actions.ts                             ← AccountLayerWriteActions-style factory
-      actions.test.ts
-      index.ts
+    actions/
+      <kebab-case-action-name>.ts          ← one file per action: getX(config, params) / doX(config, params)
+      <kebab-case-action-name>.test.ts
+    query/
+      <kebab-case-action-name>.ts          ← getXQueryOptions / xMutationOptions + getXQueryKey for that action
+      <kebab-case-action-name>.test.ts
     types.ts                                 ← shared types/enums for the slice
-    <shared-helper>.ts                       ← e.g. resolve-address.ts; flat at slice root
-    index.ts                                 ← slice barrel (export * from ./reads; ./writes; ./types)
+    index.ts                                 ← slice barrel (export * from ./actions/*; ./query/*; ./types)
   ```
 
-  - The read/write split is the axis viem already imposes (`PublicClient` vs `WalletClient`); group methods accordingly.
-  - The `methods/` subfolder keeps `actions.ts` / `index.ts` scannable as the slice grows; never inline a method beside `actions.ts`.
-  - If a slice currently has only reads or only writes, still use the same capability folder — the other simply doesn't exist yet.
+  - One file per action (read or write). Its matching `query/` file holds the action's TanStack option factory and query-key builder.
+  - Reads use `config.getClient`; writes use `config.getWalletClient`. There is no `reads/` vs `writes/` folder split — the action's signature makes its kind clear.
 
-- **Barrel re-export style:** `src/index.ts` (the package root) uses **explicit named re-exports** to curate the public surface. Every barrel below it (slice `index.ts`, capability `index.ts`) uses `export *` — the package root is the boundary, the lower barrels are plumbing.
-- **Unit tests are colocated** (`foo.ts` ↔ `foo.test.ts`). Tests mock the viem client with `vi.fn()` — no real network in this slice.
+- **Barrel re-export style:** `src/index.ts` (the package root) uses **explicit named re-exports** to curate the public surface. Every barrel below it (slice `index.ts`) uses `export *` — the package root is the boundary, the lower barrels are plumbing.
+- **Unit tests are colocated** (`foo.ts` ↔ `foo.test.ts`). Build a stub `Config` with `src/test/mock-config.ts` (its `getClient` / `getWalletClient` return `vi.fn()`-backed viem clients) — no real network in unit tests.
 
 ## Public Surface
 
@@ -59,6 +54,7 @@ Re-export from `src/index.ts`. Sub-entries (`./abi`, `./account-layer`, `./chain
 ## Coding Style
 
 - Follow repo-wide rules (kebab-case filenames, `function` keyword at module scope).
-- Function parameters use a `params` object except for the client (which is always positional first). This is for forward compatibility — new fields can be added without breaking call sites.
+- The **`config` is the first positional argument** of every action and option factory; remaining inputs go in a `params` / `options` object (forward-compatible — new fields don't break call sites).
+- Follow wagmi's type-naming convention: `{Name}Parameters`, `{Name}ReturnType`, `Get{Name}QueryOptions` / `...QueryKey` / `...Data`.
 - Return raw viem types where possible; only introduce SDK-specific types when the contract output needs an enum/discriminant the consumer should not have to compute themselves.
 - Throw `SymmError` (from `src/errors`) for SDK-level failures (unknown chain, missing config). Let viem's own errors pass through for on-chain failures.

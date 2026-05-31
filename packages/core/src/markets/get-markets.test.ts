@@ -1,26 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PublicClient } from "viem";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getChainConfig, SymmioSupportedChainId } from "../chains";
+import { createConfig } from "../config";
 import { SymmError } from "../errors";
 import type { ApiContractSymbolsResponse } from "../solver/enigma-solver";
-import { getMarkets } from "./get-markets";
 import { MarketState } from "./types";
 
-vi.mock("../solver/axios-client", () => ({
-  setSolverBaseUrl: vi.fn(),
-  axiosClient: vi.fn(),
-}));
+vi.mock("../solver/axios-client", () => ({ axiosClient: vi.fn() }));
 
-vi.mock("../solver/enigma-solver", async (importOriginal) => {
-  const original = await importOriginal<typeof import("../solver/enigma-solver")>();
-  return {
-    ...original,
-    getLowCapSolverAPI: vi.fn(),
-  };
-});
+import { axiosClient } from "../solver/axios-client";
+import { getMarkets } from "./get-markets";
 
-import { setSolverBaseUrl } from "../solver/axios-client";
-import { getLowCapSolverAPI } from "../solver/enigma-solver";
-
-const SOLVER_URL = "https://solver.example.com/api";
+const SOLVER_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solver.url;
+const config = createConfig({ getClient: () => ({}) as PublicClient });
 
 const SAMPLE_RESPONSE: ApiContractSymbolsResponse = {
   count: 1,
@@ -50,25 +42,18 @@ const SAMPLE_RESPONSE: ApiContractSymbolsResponse = {
 };
 
 describe("getMarkets", () => {
-  const mockGetContractSymbols = vi.fn();
-
   beforeEach(() => {
-    vi.mocked(getLowCapSolverAPI).mockReturnValue({
-      getContractSymbols: mockGetContractSymbols,
-    } as unknown as ReturnType<typeof getLowCapSolverAPI>);
+    vi.mocked(axiosClient).mockReset();
   });
 
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
+  it("requests the config's solver base URL and normalizes symbols", async () => {
+    vi.mocked(axiosClient).mockResolvedValue(SAMPLE_RESPONSE);
 
-  it("sets solver base URL and fetches contract symbols", async () => {
-    mockGetContractSymbols.mockResolvedValue(SAMPLE_RESPONSE);
+    const markets = await getMarkets(config, {});
 
-    const markets = await getMarkets(SOLVER_URL);
-
-    expect(setSolverBaseUrl).toHaveBeenCalledWith(SOLVER_URL);
-    expect(mockGetContractSymbols).toHaveBeenCalled();
+    expect(axiosClient).toHaveBeenCalledWith(
+      expect.objectContaining({ baseURL: SOLVER_URL, url: "/contract-symbols", method: "GET" }),
+    );
     expect(markets).toHaveLength(1);
     expect(markets[0]).toEqual({
       id: 1,
@@ -93,21 +78,18 @@ describe("getMarkets", () => {
     });
   });
 
-  it("throws SymmError on network failure", async () => {
-    mockGetContractSymbols.mockRejectedValue(new Error("Network error"));
-
-    await expect(getMarkets(SOLVER_URL)).rejects.toBeInstanceOf(SymmError);
-    await expect(getMarkets(SOLVER_URL)).rejects.toThrow("Failed to fetch markets");
+  it("returns an empty array when the solver omits symbols", async () => {
+    vi.mocked(axiosClient).mockResolvedValue({ count: 0 });
+    expect(await getMarkets(config, {})).toEqual([]);
   });
 
-  it("throws SymmError when symbols array is missing", async () => {
-    mockGetContractSymbols.mockResolvedValue({ count: 0 });
-
-    await expect(getMarkets(SOLVER_URL)).rejects.toBeInstanceOf(SymmError);
-    await expect(getMarkets(SOLVER_URL)).rejects.toThrow("missing symbols array");
+  it("wraps request failures in a SymmError", async () => {
+    vi.mocked(axiosClient).mockRejectedValue(new Error("Network error"));
+    await expect(getMarkets(config, {})).rejects.toBeInstanceOf(SymmError);
+    await expect(getMarkets(config, {})).rejects.toThrow("Failed to fetch markets");
   });
 
-  it("handles missing optional fields with defaults", async () => {
+  it("fills defaults for missing optional fields", async () => {
     const responseWithMissing: ApiContractSymbolsResponse = {
       count: 1,
       symbols: [
@@ -133,10 +115,9 @@ describe("getMarkets", () => {
         },
       ],
     };
+    vi.mocked(axiosClient).mockResolvedValue(responseWithMissing);
 
-    mockGetContractSymbols.mockResolvedValue(responseWithMissing);
-
-    const markets = await getMarkets(SOLVER_URL);
+    const markets = await getMarkets(config, {});
 
     expect(markets[0]?.state).toBe(MarketState.FullyEnabled);
     expect(markets[0]?.rfqAllowed).toBe(false);

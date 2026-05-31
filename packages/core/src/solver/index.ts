@@ -1,2 +1,2 @@
-export * from "./enigma-solver"
-export { axiosClient, setSolverBaseUrl, default as axiosInstance } from "./axios-client"
+export { axiosClient, default as axiosInstance } from "./axios-client";
+export * from "./enigma-solver";

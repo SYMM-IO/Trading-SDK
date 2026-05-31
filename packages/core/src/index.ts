@@ -1,60 +1,66 @@
 /**
  * `@symm-frontier/core` — framework-agnostic SYMMIO SDK.
  *
- * The public surface is intentionally flat: free functions per slice, plus
- * viem `.extend()` action factories for ergonomic per-client method attachment.
- * Sub-entries (`@symm-frontier/core/abi`, `/account-layer`, `/chains`) are
- * also exposed for tree-shakable deep imports.
- */
-
-/**
- * Re-export convention used throughout this file.
+ * The shape follows wagmi: a single immutable {@link Config} (created with
+ * {@link createConfig}) is the first argument of every standalone action
+ * (`getMarkets(config, params)`), and each read/write ships a matching TanStack
+ * Query / Mutation options factory (`getMarketsQueryOptions(config, options)`).
+ * `core` depends only on viem and `@tanstack/query-core` — no framework, no
+ * wagmi. Framework layers (`@symm-frontier/react`, a future Vue layer) inject
+ * the viem-client resolvers the config needs.
  *
  * @remarks
- * Every re-export below uses **explicit named exports**, not `export *`, even
- * when the underlying barrel lists exactly the same symbols. The cost of a
- * curated public surface is small and the upside is real:
- *
- * - **Deliberate boundary** — adding a symbol to a slice's `index.ts` does not
- *   automatically publish it from the package root. New public APIs require
- *   editing this file, which forces a conscious "yes, this is public" decision.
- * - **No accidental leaks** — a helper added to a slice barrel so a sibling
- *   slice can import it won't silently surface to consumers.
- * - **Tooling clarity** — API extractors, typedoc, and IDE "go to definition"
- *   resolve named re-exports more predictably than transitive `export *` chains.
- * - **Readability** — this file is the single, scannable list of the SDK's
- *   public API; no need to follow barrels to see what consumers get.
- *
- * When adding a new export, list each symbol explicitly (values first, then
- * `type` re-exports), matching the style of the blocks below.
- *
- * @internal
+ * Every re-export below uses **explicit named exports**, not `export *`, so the
+ * package root is the single curated public surface. Adding a symbol to a slice
+ * barrel does not auto-publish it; it must be listed here.
  */
 
 /**
  * ABI fragments
  * -------------
- * Raw viem-style `Abi` arrays for SYMMIO contracts. Exposed for consumers who
- * want to call viem directly (e.g. `readContract({ abi: accountLayerAbi })`)
+ * Raw viem-style `Abi` arrays for SYMMIO contracts, for consumers who call viem
+ * directly (e.g. `readContract({ abi: accountLayerAbi })`).
  */
 export { accountLayerAbi } from "./abi/v0.8.5/account-layer";
 
 /**
+ * Config
+ * ------
+ * `createConfig()` is the entry point. The returned `Config` resolves viem
+ * clients (via injected resolvers) and the per-chain address/solver registry,
+ * and is passed to every action and query factory.
+ */
+export {
+  createConfig,
+  type Config,
+  type ConfigParameter,
+  type CreateConfigParameters,
+  type GetClientFn,
+  type GetWalletClientFn,
+  type SymmioWalletClient,
+} from "./config";
+
+/**
  * AccountLayer slice
  * ------------------
- * Read and write surface for the AccountLayer contract. Also exposes the
- * `.extend()` action factories (`accountLayerReadActions`, `accountLayerWriteActions`)
+ * Read/write actions for the AccountLayer contract plus their query/mutation
+ * options factories.
  */
 export {
   SubAccountIsolationType,
-  accountLayerReadActions,
-  accountLayerWriteActions,
   editAccountName,
+  editAccountNameMutationOptions,
   getUserSubAccounts,
-  type AccountLayerReadActions,
-  type AccountLayerWriteActions,
-  type EditAccountNameParams,
-  type GetUserSubAccountsParams,
+  getUserSubAccountsQueryKey,
+  getUserSubAccountsQueryOptions,
+  type EditAccountNameParameters,
+  type EditAccountNameReturnType,
+  type GetUserSubAccountsData,
+  type GetUserSubAccountsOptions,
+  type GetUserSubAccountsParameters,
+  type GetUserSubAccountsQueryKey,
+  type GetUserSubAccountsQueryOptions,
+  type GetUserSubAccountsReturnType,
   type SubAccountDetail,
 } from "./account-layer";
 
@@ -62,8 +68,7 @@ export {
  * Chain config registry
  * ---------------------
  * Built-in SYMMIO deployment configs (addresses, subgraphs, solver) keyed by
- * chain ID and environment. Use `getChainConfig()` to resolve a complete config,
- * or access individual addresses directly from the result.
+ * chain id. Used internally by `createConfig`; also exposed directly.
  */
 export {
   SymmioSupportedChainId,
@@ -79,32 +84,37 @@ export {
 /**
  * Markets
  * -------
- * Fetch tradable markets from solver's `/contract-symbols` endpoint.
- */
-export { MarketState, getMarkets, type Market } from "./markets";
-
-/**
- * Client factory
- * --------------
- * `createSymmioClient()` is the main entry point for most consumers. It returns
- * a client with bound read/write actions — no need to pass config or addresses
- * per call.
+ * Fetch tradable markets from the chain's solver `/contract-symbols` endpoint.
  */
 export {
-  createSymmioClient,
-  type CreateSymmioClientParams,
-  type EditAccountNameClientParams,
-  type GetUserSubAccountsClientParams,
-  type SymmioClient,
-} from "./client";
+  MarketState,
+  getMarkets,
+  getMarketsQueryKey,
+  getMarketsQueryOptions,
+  type GetMarketsData,
+  type GetMarketsOptions,
+  type GetMarketsParameters,
+  type GetMarketsQueryKey,
+  type GetMarketsQueryOptions,
+  type GetMarketsReturnType,
+  type Market,
+} from "./markets";
+
+/**
+ * Shared types & query helpers
+ * ----------------------------
+ * Parameter-helper types (mirroring wagmi's conventions) and the query-key
+ * filter used by the options factories.
+ */
+export { filterQueryOptions } from "./query/utils";
+export type { ChainIdParameter, Compute, DeepPartial, ExactPartial, ScopeKeyParameter } from "./types/properties";
+export type { QueryParameter, SymmioQueryOptions } from "./types/query";
 
 /**
  * Errors
  * ------
  * `SymmError` is the base class for SDK-level failures (unknown chain, missing
- * config, validation, etc.). On-chain failures are **not** wrapped — they
- * surface as viem's native errors (`ContractFunctionExecutionError`,
- * `CallExecutionError`, ...) so consumers can handle them with viem's own
- * error hierarchy.
+ * wallet resolver, validation). On-chain failures surface as viem's native
+ * errors and are not wrapped.
  */
 export { SymmError } from "./errors";

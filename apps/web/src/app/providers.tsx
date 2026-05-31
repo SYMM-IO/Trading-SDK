@@ -1,6 +1,6 @@
 "use client";
 
-import { symmioConfig } from "@/config/symmio";
+import { symmioChains } from "@/config/symmio";
 import { wagmiConfig } from "@/config/wagmi";
 import { SymmioProvider } from "@symm-frontier/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -32,7 +32,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          <SymmioProvider config={symmioConfig}>{children}</SymmioProvider>
+          <SymmioProvider chains={symmioChains}>{children}</SymmioProvider>
         </QueryClientProvider>
       </WagmiProvider>
     </ThemeProvider>
