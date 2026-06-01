@@ -28,7 +28,7 @@
     "check-types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate:api": "orval"
+    "generate-types": "orval"
   },
   "peerDependencies": {
     "viem": "^2.49.0"

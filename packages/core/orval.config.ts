@@ -1,4 +1,4 @@
-import { defineConfig } from "orval"
+import { defineConfig } from "orval";
 
 export default defineConfig({
   enigmaSolver: {
@@ -9,12 +9,6 @@ export default defineConfig({
       target: "./src/solver/enigma-solver.ts",
       client: "axios",
       mode: "single",
-      override: {
-        mutator: {
-          path: "./src/solver/axios-client.ts",
-          name: "axiosClient",
-        },
-      },
     },
   },
-})
+});

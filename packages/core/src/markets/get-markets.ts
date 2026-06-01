@@ -1,7 +1,6 @@
 import type { Config } from "../config";
 import { SymmError } from "../errors";
-import { axiosClient } from "../solver/axios-client";
-import type { ApiContractSymbolsResponse, SymbolContractSymbol } from "../solver/enigma-solver";
+import { getLowCapSolverAPI, type SymbolContractSymbol } from "../solver/enigma-solver";
 import type { ChainIdParameter, Compute } from "../types/properties";
 import { MarketState, type Market } from "./types";
 
@@ -42,11 +41,7 @@ export async function getMarkets(config: Config, parameters: GetMarketsParameter
  */
 async function fetchMarkets(baseURL: string): Promise<Market[]> {
   try {
-    const response = await axiosClient<ApiContractSymbolsResponse>({
-      baseURL,
-      url: "/contract-symbols",
-      method: "GET",
-    });
+    const response = await getLowCapSolverAPI().getContractSymbols({ baseURL });
     return response.symbols?.map(toMarket) ?? [];
   } catch (err) {
     if (err instanceof SymmError) throw err;
