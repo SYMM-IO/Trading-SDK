@@ -60,9 +60,9 @@ The client provides bound methods (`getUserSubAccounts`, `getMarkets`, `editAcco
 
 ```ts
 interface SymmioClient {
-  config: SymmioChainConfig;      // resolved addresses, subgraphs, solver
-  publicClient: PublicClient;     // viem public client
-  walletClient?: WalletClient;    // viem wallet client (if connected)
+  config: SymmioChainConfig; // resolved addresses, subgraphs, solver
+  publicClient: PublicClient; // viem public client
+  walletClient?: WalletClient; // viem wallet client (if connected)
 
   // Bound methods
   getUserSubAccounts(params: { user: Address }): Promise<SubAccountDetail[]>;

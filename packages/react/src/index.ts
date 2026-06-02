@@ -1,36 +1,31 @@
 /**
  * `@symm-frontier/react` — React adapter for the SYMMIO SDK.
  *
- * The public surface is intentionally flat: one hook per concept, all
- * normalized to the same error type (`SymmioRequestError`) and the same
- * configuration source (`SymmioProvider`). Sub-entries
- * (`@symm-frontier/react/provider`, `/account-layer`, `/wallet`, `/errors`,
- * `/transactions`) are exposed for tree-shakable deep imports.
+ * Mirrors wagmi's react layer: a {@link SymmioProvider} supplies the core
+ * `Config` (its viem clients sourced from the host's wagmi config), and thin
+ * hooks read it via `useSymmioConfig` / `useSymmioChainId` before delegating to
+ * `@symm-frontier/core`'s query/mutation option factories. Every hook normalizes
+ * failures to the same `SymmioRequestError`.
  *
  * @remarks
  * Every re-export below is **explicit** rather than `export *`, so adding a
- * symbol to a slice's barrel does not automatically publish it from the
- * package root. Same pattern `@symm-frontier/core` uses — see that file for
- * the longer rationale.
+ * symbol to a slice barrel does not automatically publish it from the root.
  */
 
 /**
- * Provider & Client
- * -----------------
- * The single context every other hook consumes. Mount inside a
- * `WagmiProvider` and `QueryClientProvider` (the host's, shared with wagmi).
- * Access config via `useSymmioClient()?.config`.
+ * Provider & config access
+ * ------------------------
+ * Mount `SymmioProvider` inside a `WagmiProvider` and `QueryClientProvider`.
+ * `useSymmioConfig` / `useSymmioChainId` are the wagmi-style primitives every
+ * other hook builds on.
  */
-export { SymmioProvider, useSymmioClient, type SymmioProviderProps } from "./provider";
-
-/**
- * Config
- * ------
- * React-specific config types. Chain configs (addresses, subgraphs, solver)
- * live in `@symm-frontier/core` — import `SymmioSupportedChainId`, `getChainConfig`,
- * and related types from there.
- */
-export { type SymmioClientConfigInput } from "./config";
+export {
+  SymmioProvider,
+  useSymmioChainId,
+  useSymmioConfig,
+  type SymmioProviderProps,
+  type UseSymmioConfigParameters,
+} from "./provider";
 
 /**
  * Wallet
@@ -55,14 +50,13 @@ export {
  * Mutations invalidate the relevant queries on success.
  */
 export {
-  accountLayerQueryKeys,
   useEditAccountName,
   useUserSubAccounts,
-  type EditAccountNameMutationParams,
   type EditAccountNameResult,
-  type GetUserSubAccountsKeyArgs,
-  type UseEditAccountNameOptions,
-  type UseUserSubAccountsParams,
+  type UseEditAccountNameParameters,
+  type UseEditAccountNameReturnType,
+  type UseUserSubAccountsParameters,
+  type UseUserSubAccountsReturnType,
 } from "./account-layer";
 
 /**
@@ -70,26 +64,21 @@ export {
  * -------------
  * Fetch tradable markets (contract symbols) from the solver.
  */
-export {
-  marketsQueryKeys,
-  useMarkets,
-  type GetMarketsKeyArgs,
-  type UseMarketsParams,
-} from "./markets";
+export { useMarkets, type UseMarketsParameters, type UseMarketsReturnType } from "./markets";
 
 /**
- * Query
- * -----
- * Helpers for building tagged React-Query keys and turning them into
- * `invalidateQueries` predicates without hand-writing key arrays.
+ * Query helpers
+ * -------------
+ * Turn a core query-key factory into an `invalidateQueries` predicate that
+ * matches on a field subset (e.g. every subaccount query for one user).
  */
-export { defineQueryKey, predicateMatch, type TaggedQueryKey } from "./utils";
+export { predicateMatch } from "./utils";
 
 /**
  * Errors
  * ------
- * Normalized error type every SDK hook surfaces, plus the classifier the
- * hooks use internally. UIs branch on `error.kind`.
+ * Normalized error type every SDK hook surfaces, plus the classifier the hooks
+ * use internally. UIs branch on `error.kind`.
  */
 export {
   SymmioRequestError,

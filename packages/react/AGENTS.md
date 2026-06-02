@@ -17,11 +17,16 @@ What this package does **not** own:
 - Design system components (Button, Modal, etc.). Those live in `@symm-frontier/ui`.
 - Product screens or routes. Those live in `apps/web`.
 
-## Current State
+## Architecture
 
-The contents on disk are **throwaway scaffolding** carried over from a prior `packages/core` → `packages/react` rename. Do not invest in the current files. Once `packages/core` exists and a Design Proposal is approved, this package is rebuilt from scratch as a thin React layer on top of `core`.
+This is the **implemented** React layer (no longer scaffolding). It mirrors wagmi's react package:
 
-Until then, treat any change here that goes beyond removing scaffolding as **non-trivial** and subject to the [Design Proposal Gate](../../AGENTS.md#design-proposal-gate).
+- **`SymmioProvider`** builds the core `Config` once (memoized over the host's stable wagmi config) and supplies it via context. Its viem-client resolvers are wagmi's `getPublicClient` / `getWalletClient` (from `wagmi/actions`) — **this is the only place the SDK touches wagmi.** Mount it inside the host's `WagmiProvider` and `QueryClientProvider`.
+- **`useSymmioConfig(parameters)`** = `parameters.config ?? context` (mirrors wagmi's `useConfig`). **`useSymmioChainId()`** reads the connected chain from wagmi.
+- **Hooks are thin.** Pattern: `const config = useSymmioConfig(parameters); const chainId = useSymmioChainId(); return useQuery(getXQueryOptions(config, { ...parameters, chainId: parameters.chainId ?? chainId }))`. Mutations use `useMutation(xMutationOptions(config))`. The query/mutation logic lives in `core`; the hook only wires config + chainId, error normalization, and cache invalidation.
+- **Error normalization.** Every hook wraps the core `queryFn` / `mutationFn` and runs failures through `normalizeSymmError` → `SymmioRequestError` (discriminated by `kind`).
+- **Invalidation.** `predicateMatch(coreQueryKeyFn, partial)` turns a core query-key factory into an `invalidateQueries` predicate that matches on a field subset (e.g. every subaccount query for one user, any chain).
+- **Wagmi is a peer dependency.** Connection state (account, chain, wallet client) comes from the host's wagmi config; the SDK never creates its own. Non-trivial changes still honor the [Design Proposal Gate](../../AGENTS.md#design-proposal-gate).
 
 ## Public API
 

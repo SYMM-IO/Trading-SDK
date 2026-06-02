@@ -1,18 +1,17 @@
 "use client";
 
-import { SymmError } from "@symm-frontier/core";
 import { useMemo } from "react";
 import { useSwitchChain } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
-import { useSymmioClient } from "../provider/use-symmio-client";
+import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /**
  * Result shape returned by {@link useSwitchToSymmioChain}.
  */
 export interface UseSwitchToSymmioChainResult {
   /**
-   * Ask the connected wallet to switch to the SDK's configured chain. Resolves
+   * Ask the connected wallet to switch to the SDK's default chain. Resolves
    * after the wallet confirms; rejects with a {@link SymmioRequestError} (kind
    * `"user-rejected"` when the popup was dismissed).
    */
@@ -24,8 +23,8 @@ export interface UseSwitchToSymmioChainResult {
 }
 
 /**
- * Asks the connected wallet to switch to the SDK's configured chain. The chain
- * id comes from the SDK client so callers don't repeat it.
+ * Asks the connected wallet to switch to the SDK's default chain. The chain id
+ * comes from the SDK config so callers don't repeat it.
  *
  * @example
  * const { isOnExpectedChain } = useWalletAccount();
@@ -35,7 +34,7 @@ export interface UseSwitchToSymmioChainResult {
  * }
  */
 export function useSwitchToSymmioChain(): UseSwitchToSymmioChainResult {
-  const client = useSymmioClient();
+  const config = useSymmioConfig();
   const { switchChainAsync, status, error } = useSwitchChain();
 
   const normalized = useMemo(() => (error ? normalizeSymmError(error) : undefined), [error]);
@@ -44,11 +43,8 @@ export function useSwitchToSymmioChain(): UseSwitchToSymmioChainResult {
     status,
     error: normalized,
     switchChain: async () => {
-      if (!client) {
-        throw normalizeSymmError(new SymmError("SDK client not ready."));
-      }
       try {
-        await switchChainAsync({ chainId: client.config.chainId });
+        await switchChainAsync({ chainId: config.defaultChainId });
       } catch (err) {
         throw normalizeSymmError(err);
       }

@@ -1,124 +1,48 @@
+import { getMarketsQueryKey, getUserSubAccountsQueryKey } from "@symm-frontier/core";
 import type { Query, QueryKey } from "@tanstack/react-query";
+import { hyperEvm, mainnet } from "viem/chains";
 import { describe, expect, it } from "vitest";
-import { defineQueryKey } from "./define-query-key";
 import { predicateMatch } from "./predicate-match";
+
+const USER = "0x1111111111111111111111111111111111111111";
+const OTHER = "0x2222222222222222222222222222222222222222";
 
 /**
  * `predicateMatch` only reads `query.queryKey`, so a minimal stub cast to
- * `Query` is enough — building a real `Query` would drag in QueryClient
- * machinery that adds nothing to what we are testing.
+ * `Query` is enough.
  */
 function queryWith(key: QueryKey): Query<unknown, Error, unknown, QueryKey> {
   return { queryKey: key } as Query<unknown, Error, unknown, QueryKey>;
 }
 
-interface SingleArg {
-  chainId: number;
-  user: string;
-  offset?: bigint;
-}
-
-interface FirstArg {
-  chainId: number;
-}
-
-interface SecondArg {
-  user: string;
-}
-
-const ROOT = ["symmio", "account-layer"] as const;
-
 describe("predicateMatch", () => {
-  const builder = defineQueryKey<[SingleArg]>([...ROOT, "getUserSubAccounts"], (args) => [
-    {
-      chainId: args.chainId,
-      user: args.user,
-      offset: (args.offset ?? 0n).toString(),
-    },
-  ]);
-
-  describe("prefix matching", () => {
-    it("matches an entry produced by the builder when no partials are given", () => {
-      const predicate = predicateMatch(builder);
-      expect(predicate(queryWith(builder({ chainId: 1, user: "0xabc" })))).toBe(true);
-    });
-
-    it("rejects an entry whose prefix differs at any position", () => {
-      const predicate = predicateMatch(builder);
-      expect(predicate(queryWith(["symmio", "account-layer", "somethingElse", {}]))).toBe(false);
-      expect(predicate(queryWith(["symmio", "other-slice", "getUserSubAccounts", {}]))).toBe(false);
-    });
-
-    it("rejects a key shorter than the prefix", () => {
-      const predicate = predicateMatch(builder);
-      expect(predicate(queryWith(["symmio", "account-layer"]))).toBe(false);
-    });
-
-    it("matches a key whose length equals the prefix when no partials are given", () => {
-      const prefixOnly = defineQueryKey<[]>([...ROOT, "ping"], () => []);
-      const predicate = predicateMatch(prefixOnly);
-      expect(predicate(queryWith([...ROOT, "ping"]))).toBe(true);
-    });
+  it("matches any query with the same tag when no partial is given", () => {
+    const predicate = predicateMatch(getUserSubAccountsQueryKey);
+    expect(predicate(queryWith(getUserSubAccountsQueryKey({ user: USER, chainId: hyperEvm.id })))).toBe(true);
   });
 
-  describe("partial field matching", () => {
-    it("matches when every partial field equals the segment field", () => {
-      const predicate = predicateMatch(builder, { user: "0xabc" });
-      expect(predicate(queryWith(builder({ chainId: 1, user: "0xabc" })))).toBe(true);
-      expect(predicate(queryWith(builder({ chainId: 999, user: "0xabc" })))).toBe(true);
-    });
-
-    it("rejects when a partial field differs from the segment field", () => {
-      const predicate = predicateMatch(builder, { user: "0xabc" });
-      expect(predicate(queryWith(builder({ chainId: 1, user: "0xdef" })))).toBe(false);
-    });
-
-    it("treats omitted partial fields as wildcards", () => {
-      const predicate = predicateMatch(builder, { chainId: 1 });
-      expect(predicate(queryWith(builder({ chainId: 1, user: "0xabc" })))).toBe(true);
-      expect(predicate(queryWith(builder({ chainId: 1, user: "0xdef" })))).toBe(true);
-    });
-
-    it("treats `undefined` partial fields as wildcards", () => {
-      const predicate = predicateMatch(builder, { chainId: 1, user: undefined });
-      expect(predicate(queryWith(builder({ chainId: 1, user: "0xabc" })))).toBe(true);
-      expect(predicate(queryWith(builder({ chainId: 2, user: "0xabc" })))).toBe(false);
-    });
-
-    it("compares bigint partial values as their decimal string form", () => {
-      const predicate = predicateMatch(builder, { offset: 42n });
-      expect(predicate(queryWith(builder({ chainId: 1, user: "0xabc", offset: 42n })))).toBe(true);
-      expect(predicate(queryWith(builder({ chainId: 1, user: "0xabc", offset: 7n })))).toBe(false);
-    });
-
-    it("rejects when the matching segment is not a plain object", () => {
-      const predicate = predicateMatch(builder, { user: "0xabc" });
-      expect(predicate(queryWith([...ROOT, "getUserSubAccounts", "not-an-object"]))).toBe(false);
-      expect(predicate(queryWith([...ROOT, "getUserSubAccounts", null]))).toBe(false);
-      expect(predicate(queryWith([...ROOT, "getUserSubAccounts"]))).toBe(false);
-    });
+  it("rejects a query produced by a different key factory", () => {
+    const predicate = predicateMatch(getUserSubAccountsQueryKey);
+    expect(predicate(queryWith(getMarketsQueryKey({ chainId: hyperEvm.id })))).toBe(false);
   });
 
-  describe("multi-arg builders", () => {
-    const twoArg = defineQueryKey<[FirstArg, SecondArg]>([...ROOT, "two"], (a, b) => [a, b]);
+  it("matches by a field subset, ignoring pagination and chain", () => {
+    const predicate = predicateMatch(getUserSubAccountsQueryKey, { user: USER });
+    expect(
+      predicate(queryWith(getUserSubAccountsQueryKey({ user: USER, chainId: hyperEvm.id, offset: 0n, limit: 200n }))),
+    ).toBe(true);
+    expect(predicate(queryWith(getUserSubAccountsQueryKey({ user: USER, chainId: mainnet.id, offset: 5n })))).toBe(
+      true,
+    );
+  });
 
-    it("lines up partials with cache-key segments by index", () => {
-      const predicate = predicateMatch(twoArg, { chainId: 1 }, { user: "0xabc" });
-      expect(predicate(queryWith(twoArg({ chainId: 1 }, { user: "0xabc" })))).toBe(true);
-      expect(predicate(queryWith(twoArg({ chainId: 2 }, { user: "0xabc" })))).toBe(false);
-      expect(predicate(queryWith(twoArg({ chainId: 1 }, { user: "0xdef" })))).toBe(false);
-    });
+  it("rejects when a partial field differs", () => {
+    const predicate = predicateMatch(getUserSubAccountsQueryKey, { user: USER });
+    expect(predicate(queryWith(getUserSubAccountsQueryKey({ user: OTHER, chainId: hyperEvm.id })))).toBe(false);
+  });
 
-    it("treats an `undefined` partial slot as a wildcard for that segment", () => {
-      const predicate = predicateMatch(twoArg, undefined, { user: "0xabc" });
-      expect(predicate(queryWith(twoArg({ chainId: 1 }, { user: "0xabc" })))).toBe(true);
-      expect(predicate(queryWith(twoArg({ chainId: 999 }, { user: "0xabc" })))).toBe(true);
-      expect(predicate(queryWith(twoArg({ chainId: 1 }, { user: "0xdef" })))).toBe(false);
-    });
-
-    it("ignores trailing segments beyond the partials provided", () => {
-      const predicate = predicateMatch(twoArg, { chainId: 1 });
-      expect(predicate(queryWith(twoArg({ chainId: 1 }, { user: "0xanything" })))).toBe(true);
-    });
+  it("rejects when the trailing segment is not a plain object", () => {
+    const predicate = predicateMatch(getUserSubAccountsQueryKey, { user: USER });
+    expect(predicate(queryWith(["getUserSubAccounts", "not-an-object"]))).toBe(false);
   });
 });

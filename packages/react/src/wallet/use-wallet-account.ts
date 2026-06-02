@@ -2,7 +2,7 @@
 
 import type { Address } from "viem";
 import { useAccount } from "wagmi";
-import { useSymmioClient } from "../provider/use-symmio-client";
+import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /**
  * Wallet account state surfaced by the SYMMIO React SDK.
@@ -17,8 +17,8 @@ export interface UseWalletAccountResult {
   /** Whether wagmi is mid-reconnect after a page reload. */
   isReconnecting: boolean;
   /**
-   * Whether the connected wallet's chain matches the SDK's configured chain.
-   * `false` when disconnected or client not ready.
+   * Whether the connected wallet's chain is one the SDK supports. `false` when
+   * disconnected or on an unsupported chain.
    */
   isOnExpectedChain: boolean;
 }
@@ -35,7 +35,7 @@ export interface UseWalletAccountResult {
  * if (!isOnExpectedChain) return <SwitchNetworkPrompt />;
  */
 export function useWalletAccount(): UseWalletAccountResult {
-  const client = useSymmioClient();
+  const config = useSymmioConfig();
   const { address, chainId, isConnected, isReconnecting } = useAccount();
 
   return {
@@ -43,6 +43,6 @@ export function useWalletAccount(): UseWalletAccountResult {
     chainId,
     isConnected,
     isReconnecting,
-    isOnExpectedChain: isConnected && !!client && chainId === client.config.chainId,
+    isOnExpectedChain: isConnected && chainId !== undefined && config.chains.includes(chainId),
   };
 }

@@ -41,7 +41,7 @@ export default defineConfig({
        * Tests are not part of the public surface; excluding them keeps test-only
        * types and helpers out of the shipped declarations.
        */
-      exclude: ["**/*.test.ts"],
+      exclude: ["**/*.test.ts", "**/test/**"],
     }),
   ],
   build: {
@@ -81,7 +81,7 @@ export default defineConfig({
        * and we don't ship a duplicate. The regex covers viem sub-paths like
        * `viem/chains`, `viem/actions`, etc.
        */
-      external: ["viem", /^viem\//],
+      external: ["viem", /^viem\//, "@tanstack/query-core"],
       output: {
         dir: path.resolve(dirname, "dist"),
         /**
@@ -105,6 +105,13 @@ export default defineConfig({
     },
   },
   test: {
+    /**
+     * The worker-thread pool. Vitest's default `forks` pool serializes worker
+     * messages in a way that throws on `BigInt`; SDK tests assert on `bigint`
+     * args (pagination offsets/limits), so `threads` (structured clone) is
+     * required for them to run.
+     */
+    pool: "threads",
     /**
      * Explicit imports from `vitest` are preferred over global `describe`/`it`
      * so test files are self-contained and editor tooling can resolve symbols.
