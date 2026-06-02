@@ -87,7 +87,6 @@ export {
  * Fetch tradable markets from the chain's solver `/contract-symbols` endpoint.
  */
 export {
-  MarketState,
   getMarkets,
   getMarketsQueryKey,
   getMarketsQueryOptions,
@@ -97,7 +96,7 @@ export {
   type GetMarketsQueryKey,
   type GetMarketsQueryOptions,
   type GetMarketsReturnType,
-  type Market,
+  type SymbolContractSymbol,
 } from "./solvers/markets";
 
 /**
@@ -123,4 +122,4 @@ export { filterQueryOptions } from "./shared/utils/query";
  * wallet resolver, validation). On-chain failures surface as viem's native
  * errors and are not wrapped.
  */
-export { SymmError } from "./shared/errors/symm-error";
+export { SymmApiError, SymmError, type SymmErrorKind } from "./shared/errors/symm-error";

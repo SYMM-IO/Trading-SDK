@@ -81,15 +81,19 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
         </thead>
         <tbody>
           {query.data.map((market) => (
-            <tr key={market.id} data-market-id={market.id} className="border-border/50 border-b last:border-b-0">
-              <td className="text-foreground py-2 pr-4 font-mono">{market.id}</td>
+            <tr
+              key={market.symbol_id}
+              data-market-id={market.symbol_id}
+              className="border-border/50 border-b last:border-b-0"
+            >
+              <td className="text-foreground py-2 pr-4 font-mono">{market.symbol_id}</td>
               <td className="text-foreground py-2 pr-4 font-mono">{market.symbol}</td>
               <td className="text-foreground py-2 pr-4">{market.name}</td>
               <td className="py-2 pr-4">
                 <MarketStateBadge state={market.state} />
               </td>
-              <td className="text-muted-foreground py-2 pr-4">{market.maxLeverage}x</td>
-              <td className="text-muted-foreground py-2">{market.tradingFee}</td>
+              <td className="text-muted-foreground py-2 pr-4">{market.max_leverage}x</td>
+              <td className="text-muted-foreground py-2">{market.trading_fee}</td>
             </tr>
           ))}
         </tbody>
@@ -98,7 +102,7 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
   );
 }
 
-function MarketStateBadge({ state }: { state: number }) {
+function MarketStateBadge({ state }: { state: number | undefined }) {
   const stateLabels: Record<number, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
     0: { label: "Disabled", variant: "destructive" },
     1: { label: "Close Only", variant: "secondary" },
@@ -106,7 +110,7 @@ function MarketStateBadge({ state }: { state: number }) {
     3: { label: "Enabled", variant: "default" },
   };
 
-  const { label, variant } = stateLabels[state] ?? { label: `Unknown (${state})`, variant: "outline" as const };
+  const { label, variant } = stateLabels[state ?? -1] ?? { label: `Unknown (${state})`, variant: "outline" as const };
 
   return <Badge variant={variant}>{label}</Badge>;
 }

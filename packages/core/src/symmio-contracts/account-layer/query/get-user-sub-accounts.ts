@@ -70,7 +70,7 @@ export function getUserSubAccountsQueryOptions(
     queryFn: () => {
       const { chainId, user, offset, limit } = options;
       if (!user) {
-        throw new SymmError("getUserSubAccounts: `user` is required.");
+        throw new SymmError("validation", "MISSING_USER", "getUserSubAccounts: `user` is required.");
       }
       return getUserSubAccounts(config, { chainId, user, offset, limit });
     },

@@ -1,6 +1,6 @@
 "use client";
 
-import { getMarketsQueryOptions, type ConfigParameter, type GetMarketsOptions, type Market } from "@symm-frontier/core";
+import { getMarketsQueryOptions, type ConfigParameter, type GetMarketsOptions, type SymbolContractSymbol } from "@symm-frontier/core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
@@ -14,7 +14,7 @@ import { useSymmioConfig } from "../provider/use-symmio-config";
 export type UseMarketsParameters = GetMarketsOptions & ConfigParameter;
 
 /** Return type of {@link useMarkets}. */
-export type UseMarketsReturnType = UseQueryResult<Market[], SymmioRequestError>;
+export type UseMarketsReturnType = UseQueryResult<SymbolContractSymbol[], SymmioRequestError>;
 
 /**
  * Fetch all tradable markets (contract symbols) from the chain's solver.

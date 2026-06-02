@@ -104,14 +104,14 @@ export function createConfig(parameters: CreateConfigParameters): Config {
   const chainConfigs = buildChainConfigs(chainOverrides);
 
   const chainIds = Object.keys(chainConfigs).map(Number);
-  if (chainIds.length === 0) throw new SymmError("createConfig: no supported chains are configured.");
+  if (chainIds.length === 0) throw new SymmError("config", "NO_CHAINS_CONFIGURED", "createConfig: no supported chains are configured.");
   const resolvedDefaultChainId = defaultChainId ?? chainIds[0]!;
 
   function getChainConfig(chainId?: number): SymmioChainConfig {
     const id = chainId ?? resolvedDefaultChainId;
     const config = chainConfigs[id];
 
-    if (!config) throw new SymmError(`Unsupported chain id: ${id}.`);
+    if (!config) throw new SymmError("config", "UNSUPPORTED_CHAIN", `Unsupported chain id: ${id}.`);
     return config;
   }
 
@@ -124,7 +124,7 @@ export function createConfig(parameters: CreateConfigParameters): Config {
     },
     async getWalletClient(clientParameters) {
       if (!getWalletClient) {
-        throw new SymmError("createConfig: no `getWalletClient` resolver was provided; write actions are unavailable.");
+        throw new SymmError("config", "NO_WALLET_CLIENT", "createConfig: no `getWalletClient` resolver was provided; write actions are unavailable.");
       }
 
       return getWalletClient({ chainId: clientParameters?.chainId ?? resolvedDefaultChainId });

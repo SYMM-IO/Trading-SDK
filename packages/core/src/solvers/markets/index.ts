@@ -1,3 +1,3 @@
 export * from "./get-markets";
 export * from "./query";
-export * from "./types";
+export type { SymbolContractSymbol } from "../solver/enigma-solver";

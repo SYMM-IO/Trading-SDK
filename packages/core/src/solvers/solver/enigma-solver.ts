@@ -5,7 +5,12 @@
  * API for Low Cap Solver trading system
  * OpenAPI spec version: 1.0
  */
-import axios, { type AxiosRequestConfig } from "axios";
+import axios from 'axios';
+import type {
+  AxiosInstance,
+  AxiosRequestConfig,
+  AxiosResponse
+} from 'axios';
 
 export interface SymbolContractSymbol {
   asset?: string;
@@ -42,7 +47,7 @@ export interface ApiContractSymbolsResponse {
   symbols?: SymbolContractSymbol[];
 }
 
-export type ApiCustomTableDataItem = { [key: string]: unknown };
+export type ApiCustomTableDataItem = {[key: string]: unknown};
 
 export interface ApiCustomTableHeader {
   key?: string;
@@ -55,31 +60,25 @@ export interface ApiCustomTable {
   title?: string;
 }
 
-export interface ApiFundingInfoResponse {
-  [key: string]: {
-    funding_rate_epoch_duration?: number;
-    next_funding_rate_long?: string;
-    next_funding_rate_short?: string;
-    next_funding_time?: number;
-  };
+export interface ApiFundingInfoResponse {[key: string]: {
+  funding_rate_epoch_duration?: number;
+  next_funding_rate_long?: string;
+  next_funding_rate_short?: string;
+  next_funding_time?: number;
+}}
+
+export enum ApiGaslessAction {
+  GaslessActionAddMargin= 'add_margin',
+  GaslessActionRemoveMargin= 'remove_margin',
+  GaslessActionDelegate= 'delegate_access_for_session_key',
+
 }
+export enum ApiGaslessRequestAction {
+  add_margin= 'add_margin',
+  remove_margin= 'remove_margin',
+  delegate_access_for_session_key= 'delegate_access_for_session_key',
 
-export type ApiGaslessAction = (typeof ApiGaslessAction)[keyof typeof ApiGaslessAction];
-
-export const ApiGaslessAction = {
-  GaslessActionAddMargin: "add_margin",
-  GaslessActionRemoveMargin: "remove_margin",
-  GaslessActionDelegate: "delegate_access_for_session_key",
-} as const;
-
-export type ApiGaslessRequestAction = (typeof ApiGaslessRequestAction)[keyof typeof ApiGaslessRequestAction];
-
-export const ApiGaslessRequestAction = {
-  add_margin: "add_margin",
-  remove_margin: "remove_margin",
-  delegate_access_for_session_key: "delegate_access_for_session_key",
-} as const;
-
+}
 export interface Eip712AccountJSON {
   addr: string;
   isPartyB?: boolean;
@@ -216,17 +215,17 @@ export interface ApiGetQuotesResponse {
 }
 
 export interface ApiPeriodStats {
-  "1h"?: number;
-  "1w"?: number;
-  "24h"?: number;
-  "5m"?: number;
+  '1h'?: number;
+  '1w'?: number;
+  '24h'?: number;
+  '5m'?: number;
 }
 
 export interface ApiStatsMetrics {
-  "Completed Closes"?: ApiPeriodStats;
-  "Completed Opens"?: ApiPeriodStats;
-  "Instant Closes"?: ApiPeriodStats;
-  "Instant Opens"?: ApiPeriodStats;
+  'Completed Closes'?: ApiPeriodStats;
+  'Completed Opens'?: ApiPeriodStats;
+  'Instant Closes'?: ApiPeriodStats;
+  'Instant Opens'?: ApiPeriodStats;
 }
 
 export interface ApiGetStatsResponse {
@@ -236,6 +235,14 @@ export interface ApiGetStatsResponse {
 
 export interface ApiGetTempQuoteStatusResponse {
   cva?: string;
+  error_category?: string;
+  /** Populated only when State is "Failed" or "Cancelled". ErrorCode mirrors
+   * the synchronous /instant_trade contract; ErrorCategory is the stable
+   * bucket the frontend maps to user-facing copy. See
+   * docs/v2/INSTANT_TRADE_ERRORS.md. */
+  error_code?: number;
+  error_detail?: string;
+  error_message?: string;
   lf?: string;
   margin?: string;
   max_funding_rate?: string;
@@ -287,6 +294,23 @@ export interface ApiPostInstantOpenResponse {
   temp_quote_id?: number;
 }
 
+export interface ApiRevenueBySymbolItem {
+  funding_revenue?: string;
+  hedger_fee_revenue?: string;
+  record_count?: number;
+  symbol?: string;
+  symbol_id?: number;
+  total_revenue?: string;
+}
+
+export interface ApiRevenueBatchPerSymbolResponse {
+  funding_revenue?: string;
+  hedger_fee_revenue?: string;
+  record_count?: number;
+  symbols?: ApiRevenueBySymbolItem[];
+  total_revenue?: string;
+}
+
 export interface ApiRevenueResponse {
   funding_revenue?: string;
   hedger_fee_revenue?: string;
@@ -296,9 +320,9 @@ export interface ApiRevenueResponse {
 
 export interface ApiV2InstantCloseRequest {
   /**
-   * @minItems 1
-   * @maxItems 100
-   */
+     * @minItems 1
+     * @maxItems 100
+     */
   operations: Eip712OperationWithSigJSON[];
 }
 
@@ -307,49 +331,69 @@ export interface ApiV2InstantOpenRequest {
   sendQuote: Eip712OperationWithSigJSON;
 }
 
+export enum ClientErrorCategory {
+  CategoryValidation= 'validation',
+  CategoryAuthentication= 'authentication',
+  CategoryAuthorization= 'authorization',
+  CategorySlippage= 'slippage',
+  CategoryLiquidity= 'liquidity',
+  CategoryAccountState= 'account_state',
+  CategorySymbolState= 'symbol_state',
+  CategoryRateLimit= 'rate_limit',
+  CategoryInternal= 'internal',
+  CategoryUnavailable= 'unavailable',
+
+}
+export interface ClientErrorCodeInfo {
+  category?: ClientErrorCategory;
+  code?: number;
+  http_status?: number;
+  message?: string;
+}
+
 export interface XfiberErrorResponse {
   code?: number;
   error_detail?: string;
   error_message?: string;
 }
 
-export type GetErrorCodes200 = { [key: string]: string };
+export type GetErrorCodes200 = {[key: string]: string};
 
 export type GetEstimatedPriceParams = {
-  /**
-   * Symbol ID
-   */
-  symbol_id: number;
-  /**
-   * Order quantity
-   */
-  quantity: string;
-  /**
-   * Position type (long/short)
-   */
-  position_type: string;
-  /**
-   * Entry type (open/close)
-   */
-  entry: string;
-  /**
-   * Price
-   */
-  price: string;
+/**
+ * Symbol ID
+ */
+symbol_id: number;
+/**
+ * Order quantity
+ */
+quantity: string;
+/**
+ * Position type (long/short)
+ */
+position_type: string;
+/**
+ * Entry type (open/close)
+ */
+entry: string;
+/**
+ * Price
+ */
+price: string;
 };
 
 export type GetGetFundingInfoParams = {
-  /**
-   * Symbol names (omit for all)
-   */
-  symbols?: string[];
+/**
+ * Symbol names (omit for all)
+ */
+symbols?: string[];
 };
 
 export type GetGetLockedParamsSymbolParams = {
-  /**
-   * Leverage
-   */
-  leverage: number;
+/**
+ * Leverage
+ */
+leverage: number;
 };
 
 export type GetGetMarketInfo200 = { [key: string]: unknown };
@@ -357,477 +401,475 @@ export type GetGetMarketInfo200 = { [key: string]: unknown };
 export type GetInstantTradeEip712Config200 = { [key: string]: unknown };
 
 export type GetNotionalCapParams = {
-  /**
-   * Limit results (max 500, default 100)
-   */
-  limit?: number;
-  /**
-   * Offset for pagination (default 0)
-   */
-  offset?: number;
+/**
+ * Limit results (max 500, default 100)
+ */
+limit?: number;
+/**
+ * Offset for pagination (default 0)
+ */
+offset?: number;
 };
 
 export type GetNotionalCapBatchParams = {
-  /**
-   * Symbol IDs (max 100)
-   */
-  symbol_ids: number[];
+/**
+ * Symbol IDs (max 100)
+ */
+symbol_ids: number[];
 };
 
 export type GetQuotesParams = {
-  /**
-   * Symbol ID filter
-   */
-  symbol_id?: number;
-  /**
-   * Party A address filter
-   */
-  party_a?: string;
-  /**
-   * Quote status filter (1-7)
-   */
-  status?: number;
-  /**
-   * Limit results (max 500, default 100)
-   */
-  limit?: number;
-  /**
-   * Offset for pagination (default 0)
-   */
-  offset?: number;
+/**
+ * Symbol ID filter
+ */
+symbol_id?: number;
+/**
+ * Party A address filter
+ */
+party_a?: string;
+/**
+ * Quote status filter (1-7)
+ */
+status?: number;
+/**
+ * Limit results (max 500, default 100)
+ */
+limit?: number;
+/**
+ * Offset for pagination (default 0)
+ */
+offset?: number;
 };
 
 export type GetRevenueParams = {
-  /**
-   * Preset range (1h, 24h, 7d, 30d, lifetime)
-   */
-  time_range?: string;
-  /**
-   * Revenue type filter (HedgerFee, FundingRate)
-   */
-  type?: string;
-  /**
-   * Unix timestamp start (overrides time_range)
-   */
-  start_time?: number;
-  /**
-   * Unix timestamp end
-   */
-  end_time?: number;
+/**
+ * Preset range (1h, 24h, 7d, 30d, lifetime)
+ */
+time_range?: string;
+/**
+ * Revenue type filter (HedgerFee, FundingRate)
+ */
+type?: string;
+/**
+ * Unix timestamp start (overrides time_range)
+ */
+start_time?: number;
+/**
+ * Unix timestamp end
+ */
+end_time?: number;
 };
 
 export type GetRevenueBatchParams = {
-  /**
-   * Symbol IDs (max 100)
-   */
-  symbol_ids: number[];
-  /**
-   * Preset range (1h, 24h, 7d, 30d, lifetime)
-   */
-  time_range?: string;
-  /**
-   * Revenue type filter (HedgerFee, FundingRate)
-   */
-  type?: string;
-  /**
-   * Unix timestamp start (overrides time_range)
-   */
-  start_time?: number;
-  /**
-   * Unix timestamp end
-   */
-  end_time?: number;
+/**
+ * Symbol IDs (max 100)
+ */
+symbol_ids: number[];
+/**
+ * Preset range (1h, 24h, 7d, 30d, lifetime)
+ */
+time_range?: string;
+/**
+ * Revenue type filter (HedgerFee, FundingRate)
+ */
+type?: string;
+/**
+ * Unix timestamp start (overrides time_range)
+ */
+start_time?: number;
+/**
+ * Unix timestamp end
+ */
+end_time?: number;
+};
+
+export type GetRevenuePerSymbolParams = {
+/**
+ * Symbol IDs (max 100)
+ */
+symbol_ids: number[];
+/**
+ * Preset range (1h, 24h, 7d, 30d, lifetime)
+ */
+time_range?: string;
+/**
+ * Revenue type filter (HedgerFee, FundingRate)
+ */
+type?: string;
+/**
+ * Unix timestamp start (overrides time_range)
+ */
+start_time?: number;
+/**
+ * Unix timestamp end
+ */
+end_time?: number;
 };
 
 export type GetRevenueSymbolIdParams = {
-  /**
-   * Preset range (1h, 24h, 7d, 30d, lifetime)
-   */
-  time_range?: string;
-  /**
-   * Revenue type filter (HedgerFee, FundingRate)
-   */
-  type?: string;
-  /**
-   * Unix timestamp start (overrides time_range)
-   */
-  start_time?: number;
-  /**
-   * Unix timestamp end
-   */
-  end_time?: number;
+/**
+ * Preset range (1h, 24h, 7d, 30d, lifetime)
+ */
+time_range?: string;
+/**
+ * Revenue type filter (HedgerFee, FundingRate)
+ */
+type?: string;
+/**
+ * Unix timestamp start (overrides time_range)
+ */
+start_time?: number;
+/**
+ * Unix timestamp end
+ */
+end_time?: number;
 };
 
 export type GetStatsParams = {
-  /**
-   * Filter response to specific stat types (periodic_stats, single_metrics, custom_tables, alerts)
-   */
-  include?: string[];
+/**
+ * Filter response to specific stat types (periodic_stats, single_metrics, custom_tables, alerts)
+ */
+include?: string[];
 };
 
-export const getLowCapSolverAPI = () => {
-  /**
-   * @summary Get contract symbols
-   */
-  const getContractSymbols = (options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiContractSymbolsResponse>({ url: `/contract-symbols`, method: "GET", ...options })
-      .then(({ data }) => data);
-  };
+export const getLowCapSolverAPI = (axiosInstance: AxiosInstance = axios) => {
+/**
+ * @summary Get contract symbols
+ */
+const getContractSymbols = (
+     options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiContractSymbolsResponse>> => {
+    return axiosInstance.get(
+      `/contract-symbols`,options
+    );
+  }
 
-  /**
-   * @summary Get API error codes
-   */
-  const getErrorCodes = (options?: AxiosRequestConfig) => {
-    return axios.request<GetErrorCodes200>({ url: `/error_codes`, method: "GET", ...options }).then(({ data }) => data);
-  };
+/**
+ * @summary Get API error codes
+ */
+const getErrorCodes = (
+     options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<GetErrorCodes200>> => {
+    return axiosInstance.get(
+      `/error_codes`,options
+    );
+  }
 
-  /**
-   * Get estimated execution price from inventory service (dry-run mode)
-   * @summary Get estimated price for order
-   */
-  const getEstimatedPrice = (params: GetEstimatedPriceParams, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiGetEstimatedPriceResponse>({ url: `/estimated-price`, method: "GET", params, ...options })
-      .then(({ data }) => data);
-  };
+/**
+ * Returns solver-registered error codes (>= 3000) with message, category, and http_status. Use the flat /error_codes endpoint for backward-compatible code→message lookups.
+ * @summary Get detailed API error codes
+ */
+const getErrorCodesDetailed = (
+     options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ClientErrorCodeInfo[]>> => {
+    return axiosInstance.get(
+      `/error_codes/detailed`,options
+    );
+  }
 
-  /**
-   * @summary Get funding info
-   */
-  const getGetFundingInfo = (params?: GetGetFundingInfoParams, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiFundingInfoResponse>({ url: `/get_funding_info`, method: "GET", params, ...options })
-      .then(({ data }) => data);
-  };
+/**
+ * Get estimated execution price from inventory service (dry-run mode)
+ * @summary Get estimated price for order
+ */
+const getEstimatedPrice = (
+    params: GetEstimatedPriceParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiGetEstimatedPriceResponse>> => {
+    return axiosInstance.get(
+      `/estimated-price`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
 
-  /**
-   * @summary Get locked params by symbol
-   */
-  const getGetLockedParamsSymbol = (
+/**
+ * @summary Get funding info
+ */
+const getGetFundingInfo = (
+    params?: GetGetFundingInfoParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiFundingInfoResponse>> => {
+    return axiosInstance.get(
+      `/get_funding_info`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
+
+/**
+ * @summary Get locked params by symbol
+ */
+const getGetLockedParamsSymbol = (
     symbol: string,
-    params: GetGetLockedParamsSymbolParams,
-    options?: AxiosRequestConfig,
-  ) => {
-    return axios
-      .request<ApiLockedParamsBySymbolIdResponse>({
-        url: `/get_locked_params/${symbol}`,
-        method: "GET",
-        params,
-        ...options,
-      })
-      .then(({ data }) => data);
-  };
+    params: GetGetLockedParamsSymbolParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiLockedParamsBySymbolIdResponse>> => {
+    return axiosInstance.get(
+      `/get_locked_params/${symbol}`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
 
-  /**
-   * Returns a JSON object whose keys are symbol names (dynamic — sourced from contract-symbol data) mapping to {trading_volume, lifetime_value}, plus top-level aggregate fields total_value_24h and total_lifetime_value.
-   * @summary Get 24h market info
-   */
-  const getGetMarketInfo = (options?: AxiosRequestConfig) => {
-    return axios
-      .request<GetGetMarketInfo200>({ url: `/get_market_info`, method: "GET", ...options })
-      .then(({ data }) => data);
-  };
+/**
+ * Returns a JSON object whose keys are symbol names (dynamic — sourced from contract-symbol data) mapping to {trading_volume, lifetime_value}, plus top-level aggregate fields total_value_24h and total_lifetime_value.
+ * @summary Get 24h market info
+ */
+const getGetMarketInfo = (
+     options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<GetGetMarketInfo200>> => {
+    return axiosInstance.get(
+      `/get_market_info`,options
+    );
+  }
 
-  /**
-   * Returns all pending instant close orders for a given SubAccount address.
-   * @summary Get pending instant close orders
-   */
-  const getInstantCloseAccountAddress = (accountAddress: string, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiGetInstantCloseResponse[]>({
-        url: `/instant_close/${accountAddress}`,
-        method: "GET",
-        ...options,
-      })
-      .then(({ data }) => data);
-  };
+/**
+ * Returns all pending instant close orders for a given SubAccount address.
+ * @summary Get pending instant close orders
+ */
+const getInstantCloseAccountAddress = (
+    accountAddress: string, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiGetInstantCloseResponse[]>> => {
+    return axiosInstance.get(
+      `/instant_close/${accountAddress}`,options
+    );
+  }
 
-  /**
-   * Returns all pending instant open orders for a given SubAccount address.
-   * @summary Get pending instant open orders
-   */
-  const getInstantOpenAccountAddress = (accountAddress: string, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiGetInstantOpenResponse[]>({
-        url: `/instant_open/${accountAddress}`,
-        method: "GET",
-        ...options,
-      })
-      .then(({ data }) => data);
-  };
+/**
+ * Returns all pending instant open orders for a given SubAccount address.
+ * @summary Get pending instant open orders
+ */
+const getInstantOpenAccountAddress = (
+    accountAddress: string, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiGetInstantOpenResponse[]>> => {
+    return axiosInstance.get(
+      `/instant_open/${accountAddress}`,options
+    );
+  }
 
-  /**
-   * @summary Get quote ID by temp ID
-   */
-  const getInstantQuoteIdTempQuoteId = (tempQuoteId: number, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiGetQuoteIdResponse>({
-        url: `/instant_quote_id/${tempQuoteId}`,
-        method: "GET",
-        ...options,
-      })
-      .then(({ data }) => data);
-  };
+/**
+ * @summary Get quote ID by temp ID
+ */
+const getInstantQuoteIdTempQuoteId = (
+    tempQuoteId: number, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiGetQuoteIdResponse>> => {
+    return axiosInstance.get(
+      `/instant_quote_id/${tempQuoteId}`,options
+    );
+  }
 
-  /**
-   * Returns the EIP-712 domain, domain separator, type hashes, and full type definitions that clients must use when constructing signatures for V2 instant open/close operations. No authentication required.
-   * @summary Get V2 EIP-712 signing config
-   */
-  const getInstantTradeEip712Config = (options?: AxiosRequestConfig) => {
-    return axios
-      .request<GetInstantTradeEip712Config200>({
-        url: `/instant_trade/eip712-config`,
-        method: "GET",
-        ...options,
-      })
-      .then(({ data }) => data);
-  };
+/**
+ * Returns the EIP-712 domain, domain separator, type hashes, and full type definitions that clients must use when constructing signatures for V2 instant open/close operations. No authentication required.
+ * @summary Get V2 EIP-712 signing config
+ */
+const getInstantTradeEip712Config = (
+     options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<GetInstantTradeEip712Config200>> => {
+    return axiosInstance.get(
+      `/instant_trade/eip712-config`,options
+    );
+  }
 
-  /**
-   * Relay a single user-signed EIP-712 operation so the solver wallet executes it on-chain. The user pays no native gas. Identity is proven by EIP-712 signature recovery; no JWT required. Synchronous — returns the on-chain tx hash on success or a clear error on failure.
-   *
-   * **Supported actions** (set via the `action` field):
-   * - `add_margin` — pre-fund the next VirtualAccount via AccountLayer.addMarginToNextVA. Requires `operation`.
-   * - `remove_margin` — withdraw allocated margin from an existing VirtualAccount via AccountLayer.removeMargin. Requires `operation`.
-   * - `delegate_access_for_session_key` — grant a delegate signer access for one or more allowlisted selectors via InstantLayer.grantBatchDelegationBySig. Requires `delegation`.
-   *
-   * Exactly one of `operation` or `delegation` must be present per request. Delegation selectors are restricted to the V2 instant-action set: `sendQuoteWithAffiliateAndData`, `requestToClosePosition`, `addMarginToNextVA`, `removeMargin`.
-   *
-   * Each PartyA is limited to `GASLESS_DAILY_MAX` accepted attempts per UTC day (default 5). The counter is consumed on every attempt past basic validation, regardless of downstream success or failure; the `dailyRemaining` field in the response reports the user's remaining quota.
-   * @summary Submit a gasless operation
-   */
-  const postInstantTradeExecuteOperation = (apiGaslessRequest: ApiGaslessRequest, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiGaslessResponse>({
-        url: `/instant_trade/execute-operation`,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        data: apiGaslessRequest,
-        ...options,
-      })
-      .then(({ data }) => data);
-  };
+/**
+ * Relay a single user-signed EIP-712 operation so the solver wallet executes it on-chain. The user pays no native gas. Identity is proven by EIP-712 signature recovery; no JWT required. Synchronous — returns the on-chain tx hash on success or a clear error on failure.
+ *
+ * **Supported actions** (set via the `action` field):
+ * - `add_margin` — top up the allocated balance of an existing VirtualAccount via AccountLayer.addMargin. The signer must own the VA (its parent SubAccount must equal the signer's SubAccount). Requires `operation`.
+ * - `remove_margin` — withdraw allocated margin from an existing VirtualAccount via AccountLayer.removeMargin. Requires `operation`.
+ * - `delegate_access_for_session_key` — grant a delegate signer access for one or more allowlisted selectors via InstantLayer.grantBatchDelegationBySig. Requires `delegation`.
+ *
+ * Exactly one of `operation` or `delegation` must be present per request. Delegation selectors are restricted to: `sendQuoteWithAffiliateAndData`, `requestToClosePosition`, `addMarginToNextVA`, `addMargin`, `removeMargin`.
+ *
+ * Each PartyA is limited to `GASLESS_DAILY_MAX` accepted attempts per UTC day (default 5). The counter is consumed on every attempt past basic validation, regardless of downstream success or failure; the `dailyRemaining` field in the response reports the user's remaining quota.
+ * @summary Submit a gasless operation
+ */
+const postInstantTradeExecuteOperation = (
+    apiGaslessRequest: ApiGaslessRequest, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiGaslessResponse>> => {
+    return axiosInstance.post(
+      `/instant_trade/execute-operation`,
+      apiGaslessRequest,options
+    );
+  }
 
-  /**
-   * Submit one or more V2 close operations (requestToClosePosition), one per quote. No JWT required — identity is proven by EIP-712 signature recovery. On any failure the whole request is rejected. Processing happens asynchronously.
-   * @summary Submit V2 instant close
-   */
-  const postInstantTradeInstantClose = (
-    apiV2InstantCloseRequest: ApiV2InstantCloseRequest,
-    options?: AxiosRequestConfig,
-  ) => {
-    return axios
-      .request<void>({
-        url: `/instant_trade/instant_close`,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        data: apiV2InstantCloseRequest,
-        ...options,
-      })
-      .then(({ data }) => data);
-  };
+/**
+ * Submit one or more V2 close operations (requestToClosePosition), one per quote. No JWT required — identity is proven by EIP-712 signature recovery. On any failure the whole request is rejected. Processing happens asynchronously.
+ * @summary Submit V2 instant close
+ */
+const postInstantTradeInstantClose = (
+    apiV2InstantCloseRequest: ApiV2InstantCloseRequest, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<void>> => {
+    return axiosInstance.post(
+      `/instant_trade/instant_close`,
+      apiV2InstantCloseRequest,options
+    );
+  }
 
-  /**
-   * Submit a V2 instant open request with pre-signed EIP-712 PartyA operations (addMargin + sendQuote). No JWT required — identity is proven by EIP-712 signature recovery. Processing (hedge, muon sigs, symmio-api call) happens asynchronously.
-   * @summary Submit V2 instant open
-   */
-  const postInstantTradeInstantOpen = (
-    apiV2InstantOpenRequest: ApiV2InstantOpenRequest,
-    options?: AxiosRequestConfig,
-  ) => {
-    return axios
-      .request<ApiPostInstantOpenResponse>({
-        url: `/instant_trade/instant_open`,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        data: apiV2InstantOpenRequest,
-        ...options,
-      })
-      .then(({ data }) => data);
-  };
+/**
+ * Submit a V2 instant open request with pre-signed EIP-712 PartyA operations (addMargin + sendQuote). No JWT required — identity is proven by EIP-712 signature recovery. Processing (hedge, muon sigs, symmio-api call) happens asynchronously.
+ * @summary Submit V2 instant open
+ */
+const postInstantTradeInstantOpen = (
+    apiV2InstantOpenRequest: ApiV2InstantOpenRequest, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiPostInstantOpenResponse>> => {
+    return axiosInstance.post(
+      `/instant_trade/instant_open`,
+      apiV2InstantOpenRequest,options
+    );
+  }
 
-  /**
-   * @summary Get notional caps for all symbols
-   */
-  const getNotionalCap = (params?: GetNotionalCapParams, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiNotionalCapAllSymbolsResponse>({ url: `/notional_cap`, method: "GET", params, ...options })
-      .then(({ data }) => data);
-  };
+/**
+ * @summary Get notional caps for all symbols
+ */
+const getNotionalCap = (
+    params?: GetNotionalCapParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiNotionalCapAllSymbolsResponse>> => {
+    return axiosInstance.get(
+      `/notional_cap`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
 
-  /**
-   * @summary Get notional caps for multiple symbols
-   */
-  const getNotionalCapBatch = (params: GetNotionalCapBatchParams, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiNotionalCapAllSymbolsResponse>({
-        url: `/notional_cap/batch`,
-        method: "GET",
-        params,
-        ...options,
-      })
-      .then(({ data }) => data);
-  };
+/**
+ * @summary Get notional caps for multiple symbols
+ */
+const getNotionalCapBatch = (
+    params: GetNotionalCapBatchParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiNotionalCapAllSymbolsResponse>> => {
+    return axiosInstance.get(
+      `/notional_cap/batch`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
 
-  /**
-   * @summary Get notional cap by symbol
-   */
-  const getNotionalCapSymbolId = (symbolId: number, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiNotionalCapBySymbolResponse>({
-        url: `/notional_cap/${symbolId}`,
-        method: "GET",
-        ...options,
-      })
-      .then(({ data }) => data);
-  };
+/**
+ * @summary Get notional cap by symbol
+ */
+const getNotionalCapSymbolId = (
+    symbolId: number, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiNotionalCapBySymbolResponse>> => {
+    return axiosInstance.get(
+      `/notional_cap/${symbolId}`,options
+    );
+  }
 
-  /**
-   * Get quotes from the event listener database with optional filters
-   * @summary Get quotes from event listener
-   */
-  const getQuotes = (params?: GetQuotesParams, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiGetQuotesResponse>({ url: `/quotes`, method: "GET", params, ...options })
-      .then(({ data }) => data);
-  };
+/**
+ * Get quotes from the event listener database with optional filters
+ * @summary Get quotes from event listener
+ */
+const getQuotes = (
+    params?: GetQuotesParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiGetQuotesResponse>> => {
+    return axiosInstance.get(
+      `/quotes`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
 
-  /**
-   * Returns total, hedger-fee, and funding-rate revenue. Filterable by time_range or custom start/end timestamps.
-   * @summary Get aggregated revenue for all symbols
-   */
-  const getRevenue = (params?: GetRevenueParams, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiRevenueResponse>({ url: `/revenue`, method: "GET", params, ...options })
-      .then(({ data }) => data);
-  };
+/**
+ * Returns total, hedger-fee, and funding-rate revenue. Filterable by time_range or custom start/end timestamps.
+ * @summary Get aggregated revenue for all symbols
+ */
+const getRevenue = (
+    params?: GetRevenueParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiRevenueResponse>> => {
+    return axiosInstance.get(
+      `/revenue`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
 
-  /**
-   * Returns total, hedger-fee, and funding-rate revenue for a set of symbols. Pass symbol_ids as a comma-separated list or repeated query params (max 100).
-   * @summary Get aggregated revenue for multiple symbols
-   */
-  const getRevenueBatch = (params: GetRevenueBatchParams, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiRevenueResponse>({ url: `/revenue/batch`, method: "GET", params, ...options })
-      .then(({ data }) => data);
-  };
+/**
+ * Returns total, hedger-fee, and funding-rate revenue for a set of symbols. Pass symbol_ids as a comma-separated list or repeated query params (max 100).
+ * @summary Get aggregated revenue for multiple symbols
+ */
+const getRevenueBatch = (
+    params: GetRevenueBatchParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiRevenueResponse>> => {
+    return axiosInstance.get(
+      `/revenue/batch`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
 
-  /**
-   * Returns total, hedger-fee, and funding-rate revenue for one symbol. Filterable by time_range or custom timestamps.
-   * @summary Get aggregated revenue for a specific symbol
-   */
-  const getRevenueSymbolId = (symbolId: number, params?: GetRevenueSymbolIdParams, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiRevenueResponse>({ url: `/revenue/${symbolId}`, method: "GET", params, ...options })
-      .then(({ data }) => data);
-  };
+/**
+ * Returns aggregated revenue totals AND a per-symbol breakdown for the requested symbol_ids. Each item in `symbols` carries symbol_id, symbol name, and the same revenue dimensions returned at the top level. Symbols with no rows in the filter window are omitted; entries follow the request's symbol_ids order. Pass symbol_ids as a comma-separated list or repeated query params (max 100).
+ * @summary Get aggregated revenue plus per-symbol breakdown
+ */
+const getRevenuePerSymbol = (
+    params: GetRevenuePerSymbolParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiRevenueBatchPerSymbolResponse>> => {
+    return axiosInstance.get(
+      `/revenue/per-symbol`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
 
-  /**
-   * Get instant trading statistics for different time periods (5m, 1h, 24h, 1w) grouped by metric type
-   * @summary Get trading statistics
-   */
-  const getStats = (params?: GetStatsParams, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiGetStatsResponse>({ url: `/stats`, method: "GET", params, ...options })
-      .then(({ data }) => data);
-  };
+/**
+ * Returns total, hedger-fee, and funding-rate revenue for one symbol. Filterable by time_range or custom timestamps.
+ * @summary Get aggregated revenue for a specific symbol
+ */
+const getRevenueSymbolId = (
+    symbolId: number,
+    params?: GetRevenueSymbolIdParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiRevenueResponse>> => {
+    return axiosInstance.get(
+      `/revenue/${symbolId}`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
 
-  /**
-   * @summary Get temp quote status
-   */
-  const getTempQuoteStatusTempQuoteId = (tempQuoteId: number, options?: AxiosRequestConfig) => {
-    return axios
-      .request<ApiGetTempQuoteStatusResponse>({
-        url: `/temp_quote_status/${tempQuoteId}`,
-        method: "GET",
-        ...options,
-      })
-      .then(({ data }) => data);
-  };
+/**
+ * Get instant trading statistics for different time periods (5m, 1h, 24h, 1w) grouped by metric type
+ * @summary Get trading statistics
+ */
+const getStats = (
+    params?: GetStatsParams, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiGetStatsResponse>> => {
+    return axiosInstance.get(
+      `/stats`,{
+    ...options,
+        params: {...params, ...options?.params},}
+    );
+  }
 
-  return {
-    getContractSymbols,
-    getErrorCodes,
-    getEstimatedPrice,
-    getGetFundingInfo,
-    getGetLockedParamsSymbol,
-    getGetMarketInfo,
-    getInstantCloseAccountAddress,
-    getInstantOpenAccountAddress,
-    getInstantQuoteIdTempQuoteId,
-    getInstantTradeEip712Config,
-    postInstantTradeExecuteOperation,
-    postInstantTradeInstantClose,
-    postInstantTradeInstantOpen,
-    getNotionalCap,
-    getNotionalCapBatch,
-    getNotionalCapSymbolId,
-    getQuotes,
-    getRevenue,
-    getRevenueBatch,
-    getRevenueSymbolId,
-    getStats,
-    getTempQuoteStatusTempQuoteId,
-  };
-};
-export type GetContractSymbolsResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getContractSymbols"]>>
->;
-export type GetErrorCodesResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getErrorCodes"]>>
->;
-export type GetEstimatedPriceResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getEstimatedPrice"]>>
->;
-export type GetGetFundingInfoResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getGetFundingInfo"]>>
->;
-export type GetGetLockedParamsSymbolResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getGetLockedParamsSymbol"]>>
->;
-export type GetGetMarketInfoResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getGetMarketInfo"]>>
->;
-export type GetInstantCloseAccountAddressResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getInstantCloseAccountAddress"]>>
->;
-export type GetInstantOpenAccountAddressResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getInstantOpenAccountAddress"]>>
->;
-export type GetInstantQuoteIdTempQuoteIdResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getInstantQuoteIdTempQuoteId"]>>
->;
-export type GetInstantTradeEip712ConfigResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getInstantTradeEip712Config"]>>
->;
-export type PostInstantTradeExecuteOperationResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["postInstantTradeExecuteOperation"]>>
->;
-export type PostInstantTradeInstantCloseResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["postInstantTradeInstantClose"]>>
->;
-export type PostInstantTradeInstantOpenResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["postInstantTradeInstantOpen"]>>
->;
-export type GetNotionalCapResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getNotionalCap"]>>
->;
-export type GetNotionalCapBatchResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getNotionalCapBatch"]>>
->;
-export type GetNotionalCapSymbolIdResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getNotionalCapSymbolId"]>>
->;
-export type GetQuotesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getQuotes"]>>>;
-export type GetRevenueResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getRevenue"]>>>;
-export type GetRevenueBatchResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getRevenueBatch"]>>
->;
-export type GetRevenueSymbolIdResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getRevenueSymbolId"]>>
->;
-export type GetStatsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getStats"]>>>;
-export type GetTempQuoteStatusTempQuoteIdResult = NonNullable<
-  Awaited<ReturnType<ReturnType<typeof getLowCapSolverAPI>["getTempQuoteStatusTempQuoteId"]>>
->;
+/**
+ * @summary Get temp quote status
+ */
+const getTempQuoteStatusTempQuoteId = (
+    tempQuoteId: number, options?: AxiosRequestConfig
+ ): Promise<AxiosResponse<ApiGetTempQuoteStatusResponse>> => {
+    return axiosInstance.get(
+      `/temp_quote_status/${tempQuoteId}`,options
+    );
+  }
+
+return {getContractSymbols,getErrorCodes,getErrorCodesDetailed,getEstimatedPrice,getGetFundingInfo,getGetLockedParamsSymbol,getGetMarketInfo,getInstantCloseAccountAddress,getInstantOpenAccountAddress,getInstantQuoteIdTempQuoteId,getInstantTradeEip712Config,postInstantTradeExecuteOperation,postInstantTradeInstantClose,postInstantTradeInstantOpen,getNotionalCap,getNotionalCapBatch,getNotionalCapSymbolId,getQuotes,getRevenue,getRevenueBatch,getRevenuePerSymbol,getRevenueSymbolId,getStats,getTempQuoteStatusTempQuoteId}};
+export type GetContractSymbolsResult = AxiosResponse<ApiContractSymbolsResponse>
+export type GetErrorCodesResult = AxiosResponse<GetErrorCodes200>
+export type GetErrorCodesDetailedResult = AxiosResponse<ClientErrorCodeInfo[]>
+export type GetEstimatedPriceResult = AxiosResponse<ApiGetEstimatedPriceResponse>
+export type GetGetFundingInfoResult = AxiosResponse<ApiFundingInfoResponse>
+export type GetGetLockedParamsSymbolResult = AxiosResponse<ApiLockedParamsBySymbolIdResponse>
+export type GetGetMarketInfoResult = AxiosResponse<GetGetMarketInfo200>
+export type GetInstantCloseAccountAddressResult = AxiosResponse<ApiGetInstantCloseResponse[]>
+export type GetInstantOpenAccountAddressResult = AxiosResponse<ApiGetInstantOpenResponse[]>
+export type GetInstantQuoteIdTempQuoteIdResult = AxiosResponse<ApiGetQuoteIdResponse>
+export type GetInstantTradeEip712ConfigResult = AxiosResponse<GetInstantTradeEip712Config200>
+export type PostInstantTradeExecuteOperationResult = AxiosResponse<ApiGaslessResponse>
+export type PostInstantTradeInstantCloseResult = AxiosResponse<void>
+export type PostInstantTradeInstantOpenResult = AxiosResponse<ApiPostInstantOpenResponse>
+export type GetNotionalCapResult = AxiosResponse<ApiNotionalCapAllSymbolsResponse>
+export type GetNotionalCapBatchResult = AxiosResponse<ApiNotionalCapAllSymbolsResponse>
+export type GetNotionalCapSymbolIdResult = AxiosResponse<ApiNotionalCapBySymbolResponse>
+export type GetQuotesResult = AxiosResponse<ApiGetQuotesResponse>
+export type GetRevenueResult = AxiosResponse<ApiRevenueResponse>
+export type GetRevenueBatchResult = AxiosResponse<ApiRevenueResponse>
+export type GetRevenuePerSymbolResult = AxiosResponse<ApiRevenueBatchPerSymbolResponse>
+export type GetRevenueSymbolIdResult = AxiosResponse<ApiRevenueResponse>
+export type GetStatsResult = AxiosResponse<ApiGetStatsResponse>
+export type GetTempQuoteStatusTempQuoteIdResult = AxiosResponse<ApiGetTempQuoteStatusResponse>

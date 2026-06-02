@@ -1,4 +1,4 @@
-import { SymmError } from "@symm-frontier/core";
+import { SymmApiError, SymmError } from "@symm-frontier/core";
 import {
   BaseError,
   ContractFunctionRevertedError,
@@ -25,10 +25,21 @@ import { SymmioRequestError } from "./symmio-request-error";
 export function normalizeSymmError(err: unknown): SymmioRequestError {
   if (err instanceof SymmioRequestError) return err;
 
+  if (err instanceof SymmApiError) {
+    return new SymmioRequestError({
+      kind: "api",
+      message: err.message,
+      code: err.code,
+      status: err.status,
+      cause: err,
+    });
+  }
+
   if (err instanceof SymmError) {
     return new SymmioRequestError({
       kind: "sdk",
       message: err.message,
+      code: err.code,
       cause: err,
     });
   }
