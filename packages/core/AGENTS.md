@@ -21,6 +21,8 @@ This package follows **wagmi's shape**: a single immutable config, passed as the
 ## Rules
 
 - **No framework imports.** No React, Vue, or any framework. No browser-only globals at module scope (`window`, `document`, `localStorage`).
+- **HTTP client**: axios. Use axios for all REST API calls in `packages/core`. Do not use native fetch.
+- **API code generation**: Orval. Generate typed API clients from OpenAPI/Swagger specs. Config lives in `packages/core/orval.config.ts`. Run `pnpm generate-types` in `packages/core` to regenerate.
 - **viem is the only crypto-stack dependency.** Do not introduce ethers, web3.js, or **wagmi** here — core stays wagmi-free so non-React framework layers can build on it. `@tanstack/query-core` is allowed (types only) for the query/mutation option factories.
 - **Honor the Design Proposal Gate** for any non-trivial change to the public surface (see root `AGENTS.md`).
 - **Every public export gets JSDoc** with purpose, parameters, return, and a short example for non-obvious APIs.

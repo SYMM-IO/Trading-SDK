@@ -5,7 +5,8 @@
  * API for Low Cap Solver trading system
  * OpenAPI spec version: 1.0
  */
-import { axiosClient } from "./axios-client";
+import axios, { type AxiosRequestConfig } from "axios";
+
 export interface SymbolContractSymbol {
   asset?: string;
   funding_rate_epoch_duration?: string;
@@ -468,80 +469,119 @@ export const getLowCapSolverAPI = () => {
   /**
    * @summary Get contract symbols
    */
-  const getContractSymbols = () => {
-    return axiosClient<ApiContractSymbolsResponse>({ url: `/contract-symbols`, method: "GET" });
+  const getContractSymbols = (options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiContractSymbolsResponse>({ url: `/contract-symbols`, method: "GET", ...options })
+      .then(({ data }) => data);
   };
 
   /**
    * @summary Get API error codes
    */
-  const getErrorCodes = () => {
-    return axiosClient<GetErrorCodes200>({ url: `/error_codes`, method: "GET" });
+  const getErrorCodes = (options?: AxiosRequestConfig) => {
+    return axios.request<GetErrorCodes200>({ url: `/error_codes`, method: "GET", ...options }).then(({ data }) => data);
   };
 
   /**
    * Get estimated execution price from inventory service (dry-run mode)
    * @summary Get estimated price for order
    */
-  const getEstimatedPrice = (params: GetEstimatedPriceParams) => {
-    return axiosClient<ApiGetEstimatedPriceResponse>({ url: `/estimated-price`, method: "GET", params });
+  const getEstimatedPrice = (params: GetEstimatedPriceParams, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiGetEstimatedPriceResponse>({ url: `/estimated-price`, method: "GET", params, ...options })
+      .then(({ data }) => data);
   };
 
   /**
    * @summary Get funding info
    */
-  const getGetFundingInfo = (params?: GetGetFundingInfoParams) => {
-    return axiosClient<ApiFundingInfoResponse>({ url: `/get_funding_info`, method: "GET", params });
+  const getGetFundingInfo = (params?: GetGetFundingInfoParams, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiFundingInfoResponse>({ url: `/get_funding_info`, method: "GET", params, ...options })
+      .then(({ data }) => data);
   };
 
   /**
    * @summary Get locked params by symbol
    */
-  const getGetLockedParamsSymbol = (symbol: string, params: GetGetLockedParamsSymbolParams) => {
-    return axiosClient<ApiLockedParamsBySymbolIdResponse>({
-      url: `/get_locked_params/${symbol}`,
-      method: "GET",
-      params,
-    });
+  const getGetLockedParamsSymbol = (
+    symbol: string,
+    params: GetGetLockedParamsSymbolParams,
+    options?: AxiosRequestConfig,
+  ) => {
+    return axios
+      .request<ApiLockedParamsBySymbolIdResponse>({
+        url: `/get_locked_params/${symbol}`,
+        method: "GET",
+        params,
+        ...options,
+      })
+      .then(({ data }) => data);
   };
 
   /**
    * Returns a JSON object whose keys are symbol names (dynamic — sourced from contract-symbol data) mapping to {trading_volume, lifetime_value}, plus top-level aggregate fields total_value_24h and total_lifetime_value.
    * @summary Get 24h market info
    */
-  const getGetMarketInfo = () => {
-    return axiosClient<GetGetMarketInfo200>({ url: `/get_market_info`, method: "GET" });
+  const getGetMarketInfo = (options?: AxiosRequestConfig) => {
+    return axios
+      .request<GetGetMarketInfo200>({ url: `/get_market_info`, method: "GET", ...options })
+      .then(({ data }) => data);
   };
 
   /**
    * Returns all pending instant close orders for a given SubAccount address.
    * @summary Get pending instant close orders
    */
-  const getInstantCloseAccountAddress = (accountAddress: string) => {
-    return axiosClient<ApiGetInstantCloseResponse[]>({ url: `/instant_close/${accountAddress}`, method: "GET" });
+  const getInstantCloseAccountAddress = (accountAddress: string, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiGetInstantCloseResponse[]>({
+        url: `/instant_close/${accountAddress}`,
+        method: "GET",
+        ...options,
+      })
+      .then(({ data }) => data);
   };
 
   /**
    * Returns all pending instant open orders for a given SubAccount address.
    * @summary Get pending instant open orders
    */
-  const getInstantOpenAccountAddress = (accountAddress: string) => {
-    return axiosClient<ApiGetInstantOpenResponse[]>({ url: `/instant_open/${accountAddress}`, method: "GET" });
+  const getInstantOpenAccountAddress = (accountAddress: string, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiGetInstantOpenResponse[]>({
+        url: `/instant_open/${accountAddress}`,
+        method: "GET",
+        ...options,
+      })
+      .then(({ data }) => data);
   };
 
   /**
    * @summary Get quote ID by temp ID
    */
-  const getInstantQuoteIdTempQuoteId = (tempQuoteId: number) => {
-    return axiosClient<ApiGetQuoteIdResponse>({ url: `/instant_quote_id/${tempQuoteId}`, method: "GET" });
+  const getInstantQuoteIdTempQuoteId = (tempQuoteId: number, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiGetQuoteIdResponse>({
+        url: `/instant_quote_id/${tempQuoteId}`,
+        method: "GET",
+        ...options,
+      })
+      .then(({ data }) => data);
   };
 
   /**
    * Returns the EIP-712 domain, domain separator, type hashes, and full type definitions that clients must use when constructing signatures for V2 instant open/close operations. No authentication required.
    * @summary Get V2 EIP-712 signing config
    */
-  const getInstantTradeEip712Config = () => {
-    return axiosClient<GetInstantTradeEip712Config200>({ url: `/instant_trade/eip712-config`, method: "GET" });
+  const getInstantTradeEip712Config = (options?: AxiosRequestConfig) => {
+    return axios
+      .request<GetInstantTradeEip712Config200>({
+        url: `/instant_trade/eip712-config`,
+        method: "GET",
+        ...options,
+      })
+      .then(({ data }) => data);
   };
 
   /**
@@ -557,107 +597,153 @@ export const getLowCapSolverAPI = () => {
    * Each PartyA is limited to `GASLESS_DAILY_MAX` accepted attempts per UTC day (default 5). The counter is consumed on every attempt past basic validation, regardless of downstream success or failure; the `dailyRemaining` field in the response reports the user's remaining quota.
    * @summary Submit a gasless operation
    */
-  const postInstantTradeExecuteOperation = (apiGaslessRequest: ApiGaslessRequest) => {
-    return axiosClient<ApiGaslessResponse>({
-      url: `/instant_trade/execute-operation`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: apiGaslessRequest,
-    });
+  const postInstantTradeExecuteOperation = (apiGaslessRequest: ApiGaslessRequest, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiGaslessResponse>({
+        url: `/instant_trade/execute-operation`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        data: apiGaslessRequest,
+        ...options,
+      })
+      .then(({ data }) => data);
   };
 
   /**
    * Submit one or more V2 close operations (requestToClosePosition), one per quote. No JWT required — identity is proven by EIP-712 signature recovery. On any failure the whole request is rejected. Processing happens asynchronously.
    * @summary Submit V2 instant close
    */
-  const postInstantTradeInstantClose = (apiV2InstantCloseRequest: ApiV2InstantCloseRequest) => {
-    return axiosClient<void>({
-      url: `/instant_trade/instant_close`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: apiV2InstantCloseRequest,
-    });
+  const postInstantTradeInstantClose = (
+    apiV2InstantCloseRequest: ApiV2InstantCloseRequest,
+    options?: AxiosRequestConfig,
+  ) => {
+    return axios
+      .request<void>({
+        url: `/instant_trade/instant_close`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        data: apiV2InstantCloseRequest,
+        ...options,
+      })
+      .then(({ data }) => data);
   };
 
   /**
    * Submit a V2 instant open request with pre-signed EIP-712 PartyA operations (addMargin + sendQuote). No JWT required — identity is proven by EIP-712 signature recovery. Processing (hedge, muon sigs, symmio-api call) happens asynchronously.
    * @summary Submit V2 instant open
    */
-  const postInstantTradeInstantOpen = (apiV2InstantOpenRequest: ApiV2InstantOpenRequest) => {
-    return axiosClient<ApiPostInstantOpenResponse>({
-      url: `/instant_trade/instant_open`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: apiV2InstantOpenRequest,
-    });
+  const postInstantTradeInstantOpen = (
+    apiV2InstantOpenRequest: ApiV2InstantOpenRequest,
+    options?: AxiosRequestConfig,
+  ) => {
+    return axios
+      .request<ApiPostInstantOpenResponse>({
+        url: `/instant_trade/instant_open`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        data: apiV2InstantOpenRequest,
+        ...options,
+      })
+      .then(({ data }) => data);
   };
 
   /**
    * @summary Get notional caps for all symbols
    */
-  const getNotionalCap = (params?: GetNotionalCapParams) => {
-    return axiosClient<ApiNotionalCapAllSymbolsResponse>({ url: `/notional_cap`, method: "GET", params });
+  const getNotionalCap = (params?: GetNotionalCapParams, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiNotionalCapAllSymbolsResponse>({ url: `/notional_cap`, method: "GET", params, ...options })
+      .then(({ data }) => data);
   };
 
   /**
    * @summary Get notional caps for multiple symbols
    */
-  const getNotionalCapBatch = (params: GetNotionalCapBatchParams) => {
-    return axiosClient<ApiNotionalCapAllSymbolsResponse>({ url: `/notional_cap/batch`, method: "GET", params });
+  const getNotionalCapBatch = (params: GetNotionalCapBatchParams, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiNotionalCapAllSymbolsResponse>({
+        url: `/notional_cap/batch`,
+        method: "GET",
+        params,
+        ...options,
+      })
+      .then(({ data }) => data);
   };
 
   /**
    * @summary Get notional cap by symbol
    */
-  const getNotionalCapSymbolId = (symbolId: number) => {
-    return axiosClient<ApiNotionalCapBySymbolResponse>({ url: `/notional_cap/${symbolId}`, method: "GET" });
+  const getNotionalCapSymbolId = (symbolId: number, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiNotionalCapBySymbolResponse>({
+        url: `/notional_cap/${symbolId}`,
+        method: "GET",
+        ...options,
+      })
+      .then(({ data }) => data);
   };
 
   /**
    * Get quotes from the event listener database with optional filters
    * @summary Get quotes from event listener
    */
-  const getQuotes = (params?: GetQuotesParams) => {
-    return axiosClient<ApiGetQuotesResponse>({ url: `/quotes`, method: "GET", params });
+  const getQuotes = (params?: GetQuotesParams, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiGetQuotesResponse>({ url: `/quotes`, method: "GET", params, ...options })
+      .then(({ data }) => data);
   };
 
   /**
    * Returns total, hedger-fee, and funding-rate revenue. Filterable by time_range or custom start/end timestamps.
    * @summary Get aggregated revenue for all symbols
    */
-  const getRevenue = (params?: GetRevenueParams) => {
-    return axiosClient<ApiRevenueResponse>({ url: `/revenue`, method: "GET", params });
+  const getRevenue = (params?: GetRevenueParams, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiRevenueResponse>({ url: `/revenue`, method: "GET", params, ...options })
+      .then(({ data }) => data);
   };
 
   /**
    * Returns total, hedger-fee, and funding-rate revenue for a set of symbols. Pass symbol_ids as a comma-separated list or repeated query params (max 100).
    * @summary Get aggregated revenue for multiple symbols
    */
-  const getRevenueBatch = (params: GetRevenueBatchParams) => {
-    return axiosClient<ApiRevenueResponse>({ url: `/revenue/batch`, method: "GET", params });
+  const getRevenueBatch = (params: GetRevenueBatchParams, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiRevenueResponse>({ url: `/revenue/batch`, method: "GET", params, ...options })
+      .then(({ data }) => data);
   };
 
   /**
    * Returns total, hedger-fee, and funding-rate revenue for one symbol. Filterable by time_range or custom timestamps.
    * @summary Get aggregated revenue for a specific symbol
    */
-  const getRevenueSymbolId = (symbolId: number, params?: GetRevenueSymbolIdParams) => {
-    return axiosClient<ApiRevenueResponse>({ url: `/revenue/${symbolId}`, method: "GET", params });
+  const getRevenueSymbolId = (symbolId: number, params?: GetRevenueSymbolIdParams, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiRevenueResponse>({ url: `/revenue/${symbolId}`, method: "GET", params, ...options })
+      .then(({ data }) => data);
   };
 
   /**
    * Get instant trading statistics for different time periods (5m, 1h, 24h, 1w) grouped by metric type
    * @summary Get trading statistics
    */
-  const getStats = (params?: GetStatsParams) => {
-    return axiosClient<ApiGetStatsResponse>({ url: `/stats`, method: "GET", params });
+  const getStats = (params?: GetStatsParams, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiGetStatsResponse>({ url: `/stats`, method: "GET", params, ...options })
+      .then(({ data }) => data);
   };
 
   /**
    * @summary Get temp quote status
    */
-  const getTempQuoteStatusTempQuoteId = (tempQuoteId: number) => {
-    return axiosClient<ApiGetTempQuoteStatusResponse>({ url: `/temp_quote_status/${tempQuoteId}`, method: "GET" });
+  const getTempQuoteStatusTempQuoteId = (tempQuoteId: number, options?: AxiosRequestConfig) => {
+    return axios
+      .request<ApiGetTempQuoteStatusResponse>({
+        url: `/temp_quote_status/${tempQuoteId}`,
+        method: "GET",
+        ...options,
+      })
+      .then(({ data }) => data);
   };
 
   return {
