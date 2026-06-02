@@ -1,33 +1,26 @@
 "use client";
 
-import { SymmError, type Market } from "@symm-frontier/core";
+import { getMarketsQueryOptions, type ConfigParameter, type GetMarketsOptions, type Market } from "@symm-frontier/core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
-import { useSymmioClient } from "../provider/use-symmio-client";
-import { marketsQueryKeys } from "./query-keys";
+import { useSymmioChainId } from "../provider/use-symmio-chain-id";
+import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /**
- * Parameters accepted by {@link useMarkets}.
+ * Parameters for {@link useMarkets}: the core query options (chain id, TanStack
+ * `query` overrides) plus an optional `config`.
  */
-export interface UseMarketsParams {
-  /**
-   * Disable the query unconditionally. Use when the UI gates the fetch on
-   * something other than client presence (e.g. a feature flag).
-   */
-  enabled?: boolean;
-}
+export type UseMarketsParameters = GetMarketsOptions & ConfigParameter;
+
+/** Return type of {@link useMarkets}. */
+export type UseMarketsReturnType = UseQueryResult<Market[], SymmioRequestError>;
 
 /**
- * Fetch all tradable markets (contract symbols) from the solver.
+ * Fetch all tradable markets (contract symbols) from the chain's solver.
  *
- * Returns react-query's full {@link UseQueryResult} shape — `data`, `error`,
- * `isLoading`, `refetch`, etc. — so the consumer can render loading and error
- * states without learning a custom SDK shape.
- *
- * Errors are normalized to {@link SymmioRequestError} before they reach
- * react-query, so `error?.kind` is always one of the documented discriminator
- * values.
+ * Returns react-query's full {@link UseQueryResult}. Errors are normalized to
+ * {@link SymmioRequestError} so `error.kind` is always a documented value.
  *
  * @example
  * ```tsx
@@ -37,29 +30,22 @@ export interface UseMarketsParams {
  * return <MarketList items={markets ?? []} />;
  * ```
  */
-export function useMarkets(
-  params: UseMarketsParams = {},
-): UseQueryResult<Market[], SymmioRequestError> {
-  const client = useSymmioClient();
+export function useMarkets(parameters: UseMarketsParameters = {}): UseMarketsReturnType {
+  const config = useSymmioConfig(parameters);
+  const chainId = useSymmioChainId();
+  const options = getMarketsQueryOptions(config, {
+    ...parameters,
+    chainId: parameters.chainId ?? chainId,
+  });
 
-  const enabled = (params.enabled ?? true) && client !== undefined;
-
-  return useQuery<Market[], SymmioRequestError>({
-    queryKey: marketsQueryKeys.getMarkets({
-      chainId: client?.config.chainId ?? 0,
-      solverUrl: client?.config.solver.url ?? "",
-    }),
-    enabled,
+  return useQuery({
+    ...options,
     queryFn: async () => {
-      if (!client) {
-        throw normalizeSymmError(new SymmError("No client available. Ensure SymmioProvider is mounted."));
-      }
-
       try {
-        return await client.getMarkets();
+        return await options.queryFn();
       } catch (err) {
         throw normalizeSymmError(err);
       }
     },
-  });
+  }) as UseMarketsReturnType;
 }

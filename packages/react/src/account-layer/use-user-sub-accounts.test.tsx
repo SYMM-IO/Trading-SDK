@@ -1,25 +1,8 @@
 import { SubAccountIsolationType, type SubAccountDetail } from "@symm-frontier/core";
 import { waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { renderHookWithProviders, TEST_EOA } from "../test/test-utils";
+import { describe, expect, it } from "vitest";
+import { createMockSymmioConfig, renderHookWithProviders, TEST_EOA } from "../test/test-utils";
 import { useUserSubAccounts } from "./use-user-sub-accounts";
-
-const mockGetUserSubAccounts = vi.fn();
-
-vi.mock("@symm-frontier/core", async () => {
-  const actual = await vi.importActual<typeof import("@symm-frontier/core")>("@symm-frontier/core");
-  return {
-    ...actual,
-    createSymmioClient: vi.fn(() => ({
-      config: actual.getChainConfig(actual.SymmioSupportedChainId.HYPER_EVM),
-      publicClient: {},
-      walletClient: undefined,
-      getUserSubAccounts: mockGetUserSubAccounts,
-      getMarkets: vi.fn(),
-      editAccountName: vi.fn(),
-    })),
-  };
-});
 
 const SAMPLE: SubAccountDetail = {
   owner: TEST_EOA,
@@ -33,61 +16,59 @@ const SAMPLE: SubAccountDetail = {
   accountAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 };
 
-beforeEach(() => {
-  mockGetUserSubAccounts.mockReset();
-});
-
 describe("useUserSubAccounts", () => {
-  it("is disabled while `user` is undefined and never calls client", async () => {
-    const { result } = renderHookWithProviders(() => useUserSubAccounts({ user: undefined }));
+  it("is disabled while `user` is undefined and never reads", () => {
+    const { config, readContract } = createMockSymmioConfig();
+    const { result } = renderHookWithProviders(() => useUserSubAccounts({ config }));
 
     expect(result.current.isFetching).toBe(false);
     expect(result.current.status).toBe("pending");
-    expect(mockGetUserSubAccounts).not.toHaveBeenCalled();
+    expect(readContract).not.toHaveBeenCalled();
   });
 
-  it("calls client.getUserSubAccounts with the user and resolves data", async () => {
-    mockGetUserSubAccounts.mockResolvedValueOnce([SAMPLE]);
+  it("reads subaccounts for the user and resolves data", async () => {
+    const { config, readContract } = createMockSymmioConfig();
+    readContract.mockResolvedValueOnce([SAMPLE]);
 
-    const { result } = renderHookWithProviders(() => useUserSubAccounts({ user: TEST_EOA }));
+    const { result } = renderHookWithProviders(() => useUserSubAccounts({ user: TEST_EOA, config }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual([SAMPLE]);
-    expect(mockGetUserSubAccounts).toHaveBeenCalledTimes(1);
-    expect(mockGetUserSubAccounts).toHaveBeenCalledWith(expect.objectContaining({ user: TEST_EOA }));
+    expect(readContract).toHaveBeenCalledWith(
+      expect.objectContaining({ functionName: "getUserSubAccounts", args: [TEST_EOA, 0n, 200n] }),
+    );
   });
 
-  it("forwards offset and limit params", async () => {
-    mockGetUserSubAccounts.mockResolvedValueOnce([]);
+  it("forwards offset and limit", async () => {
+    const { config, readContract } = createMockSymmioConfig();
+    readContract.mockResolvedValueOnce([]);
 
     const { result } = renderHookWithProviders(() =>
-      useUserSubAccounts({ user: TEST_EOA, offset: 5n, limit: 10n }),
+      useUserSubAccounts({ user: TEST_EOA, offset: 5n, limit: 10n, config }),
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockGetUserSubAccounts).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user: TEST_EOA,
-        offset: 5n,
-        limit: 10n,
-      }),
-    );
+    expect(readContract).toHaveBeenCalledWith(expect.objectContaining({ args: [TEST_EOA, 5n, 10n] }));
   });
 
   it("normalizes thrown errors into a SymmioRequestError", async () => {
-    mockGetUserSubAccounts.mockRejectedValueOnce(new Error("kaboom"));
+    const { config, readContract } = createMockSymmioConfig();
+    readContract.mockRejectedValueOnce(new Error("kaboom"));
 
-    const { result } = renderHookWithProviders(() => useUserSubAccounts({ user: TEST_EOA }));
+    const { result } = renderHookWithProviders(() => useUserSubAccounts({ user: TEST_EOA, config }));
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error?.kind).toBe("unknown");
     expect(result.current.error?.message).toBe("kaboom");
   });
 
-  it("respects an explicit enabled: false", async () => {
-    const { result } = renderHookWithProviders(() => useUserSubAccounts({ user: TEST_EOA, enabled: false }));
+  it("respects query.enabled: false", () => {
+    const { config, readContract } = createMockSymmioConfig();
+    const { result } = renderHookWithProviders(() =>
+      useUserSubAccounts({ user: TEST_EOA, config, query: { enabled: false } }),
+    );
 
     expect(result.current.isFetching).toBe(false);
-    expect(mockGetUserSubAccounts).not.toHaveBeenCalled();
+    expect(readContract).not.toHaveBeenCalled();
   });
 });

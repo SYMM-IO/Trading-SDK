@@ -9,8 +9,19 @@ export function ReadMarkets() {
   const query = useMarkets();
 
   return (
-    <MethodCard testId="method-getMarkets" name="getMarkets" mutability="view" description="Fetch all tradable markets (contract symbols) from the solver.">
-      <Button type="button" size="sm" disabled={query.isFetching} onClick={() => void query.refetch()} data-testid="button-read-markets">
+    <MethodCard
+      testId="method-getMarkets"
+      name="getMarkets"
+      mutability="view"
+      description="Fetch all tradable markets (contract symbols) from the solver."
+    >
+      <Button
+        type="button"
+        size="sm"
+        disabled={query.isFetching}
+        onClick={() => void query.refetch()}
+        data-testid="button-read-markets"
+      >
         {query.isFetching ? "Fetching..." : "Fetch Markets"}
       </Button>
 
@@ -29,7 +40,10 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
   }
   if (query.error) {
     return (
-      <div data-testid={`${testId}-error`} className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm">
+      <div
+        data-testid={`${testId}-error`}
+        className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
+      >
         <Badge variant="destructive" className="mr-2 font-mono">
           {query.error.kind}
         </Badge>

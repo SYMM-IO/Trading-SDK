@@ -63,6 +63,13 @@ export default defineConfig({
   },
   test: {
     /**
+     * The worker-thread pool. Vitest's default `forks` pool serializes worker
+     * messages in a way that throws on `BigInt`; SDK tests assert on `bigint`
+     * args (pagination offsets/limits), so `threads` (structured clone) is
+     * required for them to run.
+     */
+    pool: "threads",
+    /**
      * Two Vitest projects: `unit` runs colocated `*.test.ts(x)` files in a
      * happy-dom environment with mocked wagmi; `integration` runs `*.integration.test.ts`
      * files in node against real Hyperliquid RPC. CI runs `unit` by default;

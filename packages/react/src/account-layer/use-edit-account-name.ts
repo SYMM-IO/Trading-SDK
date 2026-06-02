@@ -1,102 +1,93 @@
 "use client";
 
-import { SymmError } from "@symm-frontier/core";
+import {
+  editAccountNameMutationOptions,
+  getUserSubAccountsQueryKey,
+  type ConfigParameter,
+  type EditAccountNameParameters,
+} from "@symm-frontier/core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
-import type { Address, Hash } from "viem";
+import type { Hash, TransactionReceipt } from "viem";
+import { useAccount } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
-import { useSymmioClient } from "../provider/use-symmio-client";
+import { useSymmioChainId } from "../provider/use-symmio-chain-id";
+import { useSymmioConfig } from "../provider/use-symmio-config";
 import { predicateMatch } from "../utils";
-import { accountLayerQueryKeys } from "./query-keys";
 
 /**
- * Options accepted by {@link useEditAccountName}.
+ * Parameters for {@link useEditAccountName}.
  */
-export interface UseEditAccountNameOptions {
+export interface UseEditAccountNameParameters extends ConfigParameter {
   /**
-   * If `true` (the default) the mutation resolves only after the receipt is
-   * mined. Set to `false` to resolve as soon as the tx hash is broadcast —
-   * useful for optimistic UIs that handle confirmation separately.
+   * Resolve only after the receipt is mined (default `true`). Set `false` to
+   * resolve as soon as the tx hash is broadcast — useful for optimistic UIs.
    */
   waitForReceipt?: boolean;
-  /**
-   * Number of confirmations to wait for when `waitForReceipt` is true. Defaults
-   * to `1`. HyperEVM finality is fast, so the default suits most UIs.
-   */
+  /** Confirmations to wait for when `waitForReceipt` is true. Defaults to `1`. */
   confirmations?: number;
 }
 
 /**
- * Parameters for editAccountName mutation.
- */
-export interface EditAccountNameMutationParams {
-  /** Subaccount address to rename */
-  account: Address;
-  /** New name for the subaccount */
-  name: string;
-}
-
-/**
- * Result returned by {@link useEditAccountName}'s mutation.
+ * Result returned by the {@link useEditAccountName} mutation.
  */
 export interface EditAccountNameResult {
   /** The submitted transaction hash. */
   hash: Hash;
   /** The mined receipt, present when `waitForReceipt` is enabled. */
-  receipt?: Awaited<ReturnType<import("viem").PublicClient["waitForTransactionReceipt"]>>;
+  receipt?: TransactionReceipt;
 }
 
+/** Return type of {@link useEditAccountName}. */
+export type UseEditAccountNameReturnType = UseMutationResult<
+  EditAccountNameResult,
+  SymmioRequestError,
+  EditAccountNameParameters
+>;
+
 /**
- * Submit an `editAccountName` transaction for the user's subaccount.
- *
- * The mutation uses the SDK client created from the host's wagmi config.
- * After success, the `getUserSubAccounts` query is invalidated for the SDK's
- * active chain so any mounted list rerenders with the new name on the next refetch.
+ * Submit an `editAccountName` transaction for a subaccount. On success, every
+ * `getUserSubAccounts` query for the connected wallet is invalidated so mounted
+ * lists refetch with the new name.
  *
  * @example
+ * ```tsx
  * const { mutate, status, error } = useEditAccountName();
- * <button onClick={() => mutate({ account: "0xsub...", name: "Trading Bot" })}>
- *   Rename
- * </button>
+ * <button onClick={() => mutate({ account: "0xsub…", name: "Trading Bot" })}>Rename</button>
+ * ```
  */
-export function useEditAccountName(
-  options?: UseEditAccountNameOptions,
-): UseMutationResult<EditAccountNameResult, SymmioRequestError, EditAccountNameMutationParams> {
-  const client = useSymmioClient();
+export function useEditAccountName(parameters: UseEditAccountNameParameters = {}): UseEditAccountNameReturnType {
+  const config = useSymmioConfig(parameters);
+  const chainId = useSymmioChainId();
+  const { address } = useAccount();
   const queryClient = useQueryClient();
 
-  const waitForReceipt = options?.waitForReceipt ?? true;
-  const confirmations = options?.confirmations ?? 1;
+  const waitForReceipt = parameters.waitForReceipt ?? true;
+  const confirmations = parameters.confirmations ?? 1;
+  const base = editAccountNameMutationOptions(config);
 
-  return useMutation<EditAccountNameResult, SymmioRequestError, EditAccountNameMutationParams>({
-    mutationFn: async (params) => {
-      if (!client) {
-        throw normalizeSymmError(new SymmError("No public client available for the configured chain."));
-      }
-      if (!client.walletClient) {
-        throw normalizeSymmError(new SymmError("Wallet not connected, or wallet is on a different chain."));
-      }
-
+  return useMutation<EditAccountNameResult, SymmioRequestError, EditAccountNameParameters>({
+    mutationKey: base.mutationKey,
+    mutationFn: async (variables) => {
       try {
-        const hash = await client.editAccountName({
-          account: params.account,
-          name: params.name,
+        const resolvedChainId = variables.chainId ?? chainId;
+        const hash = await base.mutationFn({
+          account: variables.account,
+          name: variables.name,
+          chainId: resolvedChainId,
         });
-
         if (!waitForReceipt) return { hash };
-
-        const receipt = await client.publicClient.waitForTransactionReceipt({ hash, confirmations });
+        const receipt = await config
+          .getClient({ chainId: resolvedChainId })
+          .waitForTransactionReceipt({ hash, confirmations });
         return { hash, receipt };
       } catch (err) {
         throw normalizeSymmError(err);
       }
     },
     onSuccess: () => {
-      const user = client?.walletClient?.account.address;
-      if (!user || !client) return;
-
       void queryClient.invalidateQueries({
-        predicate: predicateMatch(accountLayerQueryKeys.getUserSubAccounts, { user, chainId: client.config.chainId }),
+        predicate: predicateMatch(getUserSubAccountsQueryKey, address ? { user: address } : undefined),
       });
     },
   });

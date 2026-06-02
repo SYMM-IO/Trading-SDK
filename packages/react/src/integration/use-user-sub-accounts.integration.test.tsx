@@ -1,4 +1,3 @@
-import { SymmioSupportedChainId } from "@symm-frontier/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { type PropsWithChildren } from "react";
@@ -7,7 +6,6 @@ import { hyperEvm } from "viem/chains";
 import { describe, expect, it } from "vitest";
 import { createConfig, WagmiProvider } from "wagmi";
 import { useUserSubAccounts } from "../account-layer/use-user-sub-accounts";
-import { type SymmioClientConfigInput } from "../config";
 import { SymmioProvider } from "../provider/symmio-provider";
 import { TEST_EOA } from "../test/test-utils";
 
@@ -27,11 +25,6 @@ const INTEGRATION_WAGMI = createConfig({
   multiInjectedProviderDiscovery: false,
 });
 
-const INTEGRATION_SYMMIO: SymmioClientConfigInput = {
-  chainId: SymmioSupportedChainId.HYPER_EVM,
-  affiliateAddress: "0xBcB033C9154401fA000a1Ae60843f79f45741b7c",
-};
-
 function IntegrationProviders({ children }: PropsWithChildren) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
@@ -39,7 +32,7 @@ function IntegrationProviders({ children }: PropsWithChildren) {
   return (
     <WagmiProvider config={INTEGRATION_WAGMI}>
       <QueryClientProvider client={queryClient}>
-        <SymmioProvider config={INTEGRATION_SYMMIO}>{children}</SymmioProvider>
+        <SymmioProvider>{children}</SymmioProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
@@ -53,11 +46,6 @@ describe("useUserSubAccounts — integration (real HyperEVM RPC)", () => {
       timeout: 25_000,
     });
 
-    /**
-     * Network or RPC errors aren't worth flagging — when offline, the test
-     * shouldn't crash the suite. We assert: when it does come back, it comes
-     * back with the expected shape.
-     */
     if (result.current.status === "success") {
       expect(Array.isArray(result.current.data)).toBe(true);
       for (const sub of result.current.data ?? []) {
@@ -66,10 +54,6 @@ describe("useUserSubAccounts — integration (real HyperEVM RPC)", () => {
         expect(typeof sub.isExists).toBe("boolean");
       }
     } else {
-      /**
-       * Surface RPC failures as a soft-warn but don't fail the suite — keep
-       * CI green when Hyperliquid RPC blips. Re-run locally to investigate.
-       */
       console.warn("[integration] Hyperliquid RPC returned an error:", result.current.error?.message);
     }
   });
