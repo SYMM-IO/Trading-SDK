@@ -6,9 +6,12 @@ export default defineConfig({
       target: "https://solver.enigma.bz/api/swagger/doc.json",
     },
     output: {
-      target: "./src/solver/enigma-solver.ts",
+      target: "./src/solvers/solver/enigma-solver.ts",
       client: "axios",
       mode: "single",
+      override: {
+        enumGenerationType: 'enum',
+      },
     },
   },
 });

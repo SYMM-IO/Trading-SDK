@@ -19,7 +19,7 @@ export function getChainConfig(chainId: number): SymmioChainConfig {
   const config = CHAIN_CONFIGS[chainId];
 
   if (!config) {
-    throw new SymmError(`No config registered for chain ${chainId}.`);
+    throw new SymmError("config", "UNSUPPORTED_CHAIN", `No config registered for chain ${chainId}.`);
   }
 
   return config;

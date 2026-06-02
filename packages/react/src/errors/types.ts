@@ -11,9 +11,10 @@
  *   revert reason and the remediation is "top up the wallet".
  * - `rpc` — a transport-layer failure (network, RPC node unreachable, bad
  *   response). `shortMessage` carries viem's human-readable form.
+ * - `api` — an HTTP/REST API failure (solver, price service, etc). `status`
+ *   carries the HTTP status code, `code` carries the SDK error code.
  * - `sdk` — an SDK-level precondition failed: unknown chain, missing config,
- *   missing wallet, etc. The `cause` is the underlying `SymmError` from
- *   `@symm-frontier/core`.
+ *   missing wallet, etc. `code` carries the SDK error code.
  * - `unknown` — fell through every classifier. Treat as a real bug to fix.
  */
 export type SymmioNormalizedErrorKind =
@@ -21,5 +22,6 @@ export type SymmioNormalizedErrorKind =
   | "contract-revert"
   | "insufficient-funds"
   | "rpc"
+  | "api"
   | "sdk"
   | "unknown";

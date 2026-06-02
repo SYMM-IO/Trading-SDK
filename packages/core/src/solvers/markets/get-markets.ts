@@ -1,8 +1,8 @@
+import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
-import { SymmError } from "../../shared/errors/symm-error";
+import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { getLowCapSolverAPI, type SymbolContractSymbol } from "../solver/enigma-solver";
-import { MarketState, type Market } from "./types";
 
 /**
  * Parameters for {@link getMarkets}.
@@ -10,7 +10,7 @@ import { MarketState, type Market } from "./types";
 export type GetMarketsParameters = Compute<ChainIdParameter>;
 
 /** Return type of {@link getMarkets}. */
-export type GetMarketsReturnType = Market[];
+export type GetMarketsReturnType = SymbolContractSymbol[];
 
 /**
  * Fetch all tradable markets from the chain's solver `/contract-symbols`
@@ -19,8 +19,9 @@ export type GetMarketsReturnType = Market[];
  *
  * @param config - The SDK config.
  * @param parameters - Optional chain id (defaults to the config's default chain).
- * @returns Normalized markets.
- * @throws {SymmError} when the chain is unsupported or the request fails.
+ * @returns Raw contract symbols from solver.
+ * @throws {SymmApiError} when the API request fails.
+ * @throws {SymmError} when the chain is unsupported.
  *
  * @example
  * ```ts
@@ -34,47 +35,30 @@ export async function getMarkets(config: Config, parameters: GetMarketsParameter
 }
 
 /**
- * Call the solver's `/contract-symbols` endpoint with a per-call base URL and
- * normalize the raw symbols into {@link Market}s.
+ * Call the solver's `/contract-symbols` endpoint with a per-call base URL.
  *
  * @internal
  */
-async function fetchMarkets(baseURL: string): Promise<Market[]> {
+async function fetchMarkets(baseURL: string): Promise<SymbolContractSymbol[]> {
   try {
     const response = await getLowCapSolverAPI().getContractSymbols({ baseURL });
-    return response.symbols?.map(toMarket) ?? [];
+    return response.data.symbols ?? [];
   } catch (err) {
     if (err instanceof SymmError) throw err;
-    throw new SymmError(`Failed to fetch markets from ${baseURL}: ${err instanceof Error ? err.message : String(err)}`);
-  }
-}
 
-/**
- * Transform a raw solver `SymbolContractSymbol` into the normalized
- * {@link Market} shape, filling defaults for missing fields.
- *
- * @internal
- */
-function toMarket(raw: SymbolContractSymbol): Market {
-  return {
-    id: raw.symbol_id ?? 0,
-    name: raw.name ?? "",
-    symbol: raw.symbol ?? "",
-    asset: raw.asset ?? "",
-    state: raw.state ?? MarketState.FullyEnabled,
-    pricePrecision: raw.price_precision ?? 0,
-    quantityPrecision: raw.quantity_precision ?? 0,
-    isValid: raw.is_valid ?? false,
-    rfqAllowed: raw.rfq_allowed ?? false,
-    tradingFee: Number(raw.trading_fee ?? 0),
-    maxLeverage: Number(raw.max_leverage ?? 0),
-    maxNotionalValue: raw.max_notional_value ?? 0,
-    maxFundingRate: String(raw.max_funding_rate ?? "0"),
-    minAcceptableQuoteValue: Number(raw.min_acceptable_quote_value ?? 0),
-    minAcceptablePortionLF: Number(raw.min_acceptable_portion_lf ?? 0),
-    hedgerFeeOpen: raw.hedger_fee_open ?? "0",
-    hedgerFeeClose: raw.hedger_fee_close ?? "0",
-    minNotionalValue: Number(raw.min_notional_value ?? 0),
-    lotSize: raw.lot_size !== undefined ? Number(raw.lot_size) : undefined,
-  };
+    if (isAxiosError(err)) {
+      throw new SymmApiError({
+        code: "FETCH_MARKETS_FAILED",
+        message: err.message,
+        status: err.response?.status ?? 0,
+        statusText: err.response?.statusText ?? "Unknown",
+        responseData: err.response?.data,
+        url: err.config?.url ? `${baseURL}${err.config.url}` : baseURL,
+        method: err.config?.method?.toUpperCase() ?? "GET",
+        cause: err,
+      });
+    }
+
+    throw new SymmError("api", "FETCH_MARKETS_FAILED", `Failed to fetch markets: ${err instanceof Error ? err.message : String(err)}`, { cause: err instanceof Error ? err : undefined });
+  }
 }

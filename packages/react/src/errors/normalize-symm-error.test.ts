@@ -18,7 +18,7 @@ describe("normalizeSymmError", () => {
   });
 
   it("classifies SymmError as kind 'sdk'", () => {
-    const err = new SymmError("no chain bound");
+    const err = new SymmError("config", "NO_CHAIN_BOUND", "no chain bound");
     const out = normalizeSymmError(err);
     expect(out.kind).toBe("sdk");
     expect(out.message).toBe("no chain bound");
