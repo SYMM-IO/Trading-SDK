@@ -35,7 +35,7 @@ export interface UseSwitchToSymmioChainResult {
  */
 export function useSwitchToSymmioChain(): UseSwitchToSymmioChainResult {
   const config = useSymmioConfig();
-  const { switchChainAsync, status, error } = useSwitchChain();
+  const { mutateAsync, status, error } = useSwitchChain();
 
   const normalized = useMemo(() => (error ? normalizeSymmError(error) : undefined), [error]);
 
@@ -44,7 +44,7 @@ export function useSwitchToSymmioChain(): UseSwitchToSymmioChainResult {
     error: normalized,
     switchChain: async () => {
       try {
-        await switchChainAsync({ chainId: config.defaultChainId });
+        await mutateAsync({ chainId: config.defaultChainId });
       } catch (err) {
         throw normalizeSymmError(err);
       }

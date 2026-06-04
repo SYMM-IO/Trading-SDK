@@ -1,10 +1,12 @@
 "use client";
 
+import { Field } from "@/components/field";
+import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
+import { TxReceipt } from "@/components/tx-result";
 import { useEditAccountName, useWalletAccount } from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
-import { Label } from "@symm-frontier/ui/components/label";
+import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { useState } from "react";
 import type { Address } from "viem";
 import { isAddress } from "viem";
@@ -27,8 +29,7 @@ export function WriteEditAccountName() {
       mutability="nonpayable"
       description="Rename one of the connected user's subaccounts."
     >
-      <div className="space-y-2">
-        <Label htmlFor="input-subaccount-address">account (subaccount address)</Label>
+      <Field label="account (subaccount address)" htmlFor="input-subaccount-address">
         <Input
           id="input-subaccount-address"
           data-testid="input-subaccount-address"
@@ -36,11 +37,11 @@ export function WriteEditAccountName() {
           onChange={(e) => setAccount(e.target.value)}
           placeholder="0x…"
           className="font-mono"
+          aria-invalid={account.length > 0 && !validAccount}
         />
-      </div>
+      </Field>
 
-      <div className="space-y-2">
-        <Label htmlFor="input-subaccount-name">name (new display name)</Label>
+      <Field label="name (new display name)" htmlFor="input-subaccount-name">
         <Input
           id="input-subaccount-name"
           data-testid="input-subaccount-name"
@@ -48,7 +49,7 @@ export function WriteEditAccountName() {
           onChange={(e) => setName(e.target.value)}
           placeholder="My Trading Account"
         />
-      </div>
+      </Field>
 
       <Button
         type="button"
@@ -60,7 +61,13 @@ export function WriteEditAccountName() {
         }}
         data-testid="button-send-rename"
       >
-        {mutation.isPending ? "Sending…" : "Send transaction"}
+        {mutation.isPending ? (
+          <>
+            <Spinner className="size-4" /> Sending…
+          </>
+        ) : (
+          "Send transaction"
+        )}
       </Button>
 
       <WritePanel mutation={mutation} />
@@ -71,43 +78,30 @@ export function WriteEditAccountName() {
 function WritePanel({ mutation }: { mutation: ReturnType<typeof useEditAccountName> }) {
   if (mutation.isPending) {
     return (
-      <div data-testid="result-editAccountName-pending" className="text-muted-foreground text-sm">
+      <ResultNote testId="result-editAccountName-pending" loading>
         Submitting transaction… waiting for wallet, then receipt.
-      </div>
+      </ResultNote>
     );
   }
   if (mutation.error) {
     return (
-      <div
-        data-testid="result-editAccountName-error"
-        className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
-      >
-        <Badge variant="destructive" className="mr-2 font-mono">
-          {mutation.error.kind}
-        </Badge>
-        {mutation.error.message}
-      </div>
+      <ResultError testId="result-editAccountName-error" kind={mutation.error.kind} message={mutation.error.message} />
     );
   }
   if (mutation.isSuccess) {
     return (
-      <div
-        data-testid="result-editAccountName-success"
-        className="border-primary/30 bg-primary/10 text-primary rounded-md border px-3 py-2 text-sm"
-      >
-        <div>Submitted.</div>
-        <div className="mt-1 font-mono text-xs break-all">tx: {mutation.data.hash}</div>
-        {mutation.data.receipt && (
-          <div className="mt-1 text-xs">
-            mined in block {String(mutation.data.receipt.blockNumber)} · status {mutation.data.receipt.status}
-          </div>
-        )}
-      </div>
+      <ResultSuccess testId="result-editAccountName-success">
+        <span className="text-foreground">Submitted.</span>
+        <TxReceipt
+          hash={mutation.data.hash}
+          receipt={
+            mutation.data.receipt
+              ? { blockNumber: mutation.data.receipt.blockNumber, status: String(mutation.data.receipt.status) }
+              : undefined
+          }
+        />
+      </ResultSuccess>
     );
   }
-  return (
-    <div data-testid="result-editAccountName-idle" className="text-muted-foreground text-sm">
-      Fill the fields above and submit.
-    </div>
-  );
+  return <ResultNote testId="result-editAccountName-idle">Fill the fields above and submit.</ResultNote>;
 }

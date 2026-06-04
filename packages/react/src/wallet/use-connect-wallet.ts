@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useConnect, type Connector } from "wagmi";
+import { useConnect, useConnectors, type Connector } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 
@@ -37,17 +37,18 @@ export interface UseConnectWalletResult {
  * ));
  */
 export function useConnectWallet(): UseConnectWalletResult {
-  const { connectAsync, connectors, status, error } = useConnect();
+  const { mutateAsync, status, error } = useConnect();
+  const connectors = useConnectors();
 
   const normalized = useMemo(() => (error ? normalizeSymmError(error) : undefined), [error]);
 
   return {
-    connectors,
     status,
+    connectors,
     error: normalized,
     connect: async (connector) => {
       try {
-        await connectAsync({ connector });
+        await mutateAsync({ connector });
       } catch (err) {
         throw normalizeSymmError(err);
       }
