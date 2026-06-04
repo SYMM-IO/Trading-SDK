@@ -1,5 +1,6 @@
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symm-frontier/ui/components/card";
+import { cn } from "@symm-frontier/ui/lib/utils";
 import type { ReactNode } from "react";
 
 interface Props {
@@ -8,22 +9,32 @@ interface Props {
   mutability: "view" | "nonpayable";
   description: string;
   children: ReactNode;
+  /** Span both columns in the methods grid (for wide table results). */
+  wide?: boolean;
 }
 
 /**
- * Visual frame for a single AccountLayer method on the Inspector page.
- * Mirrors Explorer's `MethodRow` + form pairing: header (name + mut pill +
- * blurb), body (inputs + result panel).
+ * Visual frame for a single AccountLayer method on the Inspector page. A tinted
+ * status dot and read/write chip distinguish view methods from writes; the body
+ * holds the inputs and the result panel.
  */
-export function MethodCard({ testId, name, mutability, description, children }: Props) {
+export function MethodCard({ testId, name, mutability, description, children, wide = false }: Props) {
+  const isWrite = mutability === "nonpayable";
+
   return (
-    <Card data-testid={testId}>
+    <Card
+      data-testid={testId}
+      className={cn("transition-all duration-200 hover:shadow-md hover:ring-border", wide && "lg:col-span-2")}
+    >
       <CardHeader>
-        <div className="flex flex-wrap items-center gap-3">
-          <CardTitle className="font-mono text-base">{name}</CardTitle>
-          <Badge variant={mutability === "view" ? "secondary" : "default"}>{mutability}</Badge>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className={cn("size-2 rounded-full", isWrite ? "bg-warning" : "bg-info")} aria-hidden />
+          <CardTitle className="font-mono text-[0.95rem] font-medium tracking-tight">{name}</CardTitle>
+          <Badge variant={isWrite ? "warning" : "info"} className="ml-auto tracking-wide uppercase">
+            {isWrite ? "write" : "read"}
+          </Badge>
         </div>
-        <CardDescription>{description}</CardDescription>
+        <CardDescription className="leading-6">{description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">{children}</CardContent>
     </Card>

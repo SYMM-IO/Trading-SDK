@@ -50,11 +50,27 @@ export {
  * Mutations invalidate the relevant queries on success.
  */
 export {
+  useCreateSubAccounts,
   useEditAccountName,
+  useSubAccount,
+  useSubAccountVirtualNonce,
+  useSubAccountsCountOfUser,
   useUserSubAccounts,
+  useUserSubAccountsAddresses,
+  type CreateSubAccountsResult,
   type EditAccountNameResult,
+  type UseCreateSubAccountsParameters,
+  type UseCreateSubAccountsReturnType,
   type UseEditAccountNameParameters,
   type UseEditAccountNameReturnType,
+  type UseSubAccountParameters,
+  type UseSubAccountReturnType,
+  type UseSubAccountVirtualNonceParameters,
+  type UseSubAccountVirtualNonceReturnType,
+  type UseSubAccountsCountOfUserParameters,
+  type UseSubAccountsCountOfUserReturnType,
+  type UseUserSubAccountsAddressesParameters,
+  type UseUserSubAccountsAddressesReturnType,
   type UseUserSubAccountsParameters,
   type UseUserSubAccountsReturnType,
 } from "./account-layer";
@@ -90,6 +106,13 @@ export {
 /**
  * Transactions
  * ------------
- * Optional zustand store for tracking in-flight tx hashes in the UI.
+ * Shared shape for write hooks (`WriteParameters` / `WriteResult`), plus an
+ * optional zustand store for tracking in-flight tx hashes in the UI.
  */
-export { useTransactionsStore, type TrackedTx, type TransactionsStoreState } from "./transactions";
+export {
+  useTransactionsStore,
+  type TrackedTx,
+  type TransactionsStoreState,
+  type WriteParameters,
+  type WriteResult,
+} from "./transactions";

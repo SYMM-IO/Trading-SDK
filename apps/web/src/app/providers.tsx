@@ -1,13 +1,22 @@
 "use client";
 
-import { symmioChains } from "@/config/symmio";
 import { wagmiConfig } from "@/config/wagmi";
+import { SymmioOverridesProvider, useSymmioOverrides } from "@/features/config/symmio-overrides-store";
 import { SymmioProvider } from "@symm-frontier/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { WagmiProvider } from "wagmi";
+
+/**
+ * Feeds the runtime overrides store into `SymmioProvider`, so editing config in
+ * the panel rebuilds the SDK config and re-runs every dependent read/write.
+ */
+function SymmioConfigBridge({ children }: { children: ReactNode }) {
+  const { overrides } = useSymmioOverrides();
+  return <SymmioProvider chainOverrides={overrides}>{children}</SymmioProvider>;
+}
 
 export function Providers({ children }: { children: ReactNode }) {
   /**
@@ -30,11 +39,13 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <WagmiProvider config={wagmiConfig}>
-        <QueryClientProvider client={queryClient}>
-          <SymmioProvider chainOverrides={symmioChains}>{children}</SymmioProvider>
-        </QueryClientProvider>
-      </WagmiProvider>
+      <SymmioOverridesProvider>
+        <WagmiProvider config={wagmiConfig}>
+          <QueryClientProvider client={queryClient}>
+            <SymmioConfigBridge>{children}</SymmioConfigBridge>
+          </QueryClientProvider>
+        </WagmiProvider>
+      </SymmioOverridesProvider>
     </ThemeProvider>
   );
 }

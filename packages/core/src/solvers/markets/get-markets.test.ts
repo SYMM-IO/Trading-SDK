@@ -3,15 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
 import { createConfig } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
-import type { ApiContractSymbolsResponse } from "../solver/enigma-solver";
+import type { ApiContractSymbolsResponse } from "../types/generated/enigma-solver";
 
 const getContractSymbols = vi.hoisted(() => vi.fn());
 
-vi.mock("../solver/enigma-solver", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../solver/enigma-solver")>();
+vi.mock("../types/generated/enigma-solver", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../types/generated/enigma-solver")>();
   return {
     ...actual,
-    getLowCapSolverAPI: () => ({ getContractSymbols }),
+    getContractSymbols,
   };
 });
 

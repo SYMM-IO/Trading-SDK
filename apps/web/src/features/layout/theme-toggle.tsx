@@ -1,12 +1,14 @@
 "use client";
 
+import { cn } from "@symm-frontier/ui/lib/utils";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
 /**
  * Header control that flips the app between light and dark via `next-themes`.
- * Renders a placeholder until mounted to avoid a hydration mismatch — the
- * resolved theme is only known on the client.
+ * The sun/moon icons crossfade and rotate on change. Renders a stable
+ * placeholder until mounted to avoid a hydration mismatch — the resolved theme
+ * is only known on the client.
  */
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -16,7 +18,7 @@ export function ThemeToggle() {
     setMounted(true);
   }, []);
 
-  const isDark = resolvedTheme === "dark";
+  const isDark = mounted && resolvedTheme === "dark";
   const nextTheme = isDark ? "light" : "dark";
   const label = mounted ? `Switch to ${nextTheme} mode` : "Toggle theme";
 
@@ -26,14 +28,25 @@ export function ThemeToggle() {
       aria-label={label}
       title={label}
       onClick={() => setTheme(nextTheme)}
-      className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+      className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring/40 border-border/70 relative inline-flex size-9 items-center justify-center overflow-hidden rounded-xl border bg-transparent outline-none transition-colors focus-visible:ring-3"
     >
-      {!mounted ? <SunIcon /> : isDark ? <SunIcon /> : <MoonIcon />}
+      <SunIcon
+        className={cn(
+          "absolute size-[18px] transition-all duration-300",
+          isDark ? "scale-100 rotate-0 opacity-100" : "scale-50 -rotate-90 opacity-0",
+        )}
+      />
+      <MoonIcon
+        className={cn(
+          "absolute size-[18px] transition-all duration-300",
+          isDark ? "scale-50 rotate-90 opacity-0" : "scale-100 rotate-0 opacity-100",
+        )}
+      />
     </button>
   );
 }
 
-function SunIcon() {
+function SunIcon({ className }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -43,7 +56,7 @@ function SunIcon() {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="size-4"
+      className={className}
       aria-hidden="true"
     >
       <circle cx="12" cy="12" r="4" />
@@ -59,7 +72,7 @@ function SunIcon() {
   );
 }
 
-function MoonIcon() {
+function MoonIcon({ className }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -69,7 +82,7 @@ function MoonIcon() {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="size-4"
+      className={className}
       aria-hidden="true"
     >
       <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />

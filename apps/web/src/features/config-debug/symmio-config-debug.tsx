@@ -1,28 +1,24 @@
 "use client";
 
+import { AddressTag } from "@/components/address-tag";
+import { DataList, DataRow } from "@/components/data-list";
+import { PageHeader } from "@/components/page-header";
+import { ConfigPanel } from "@/features/config/config-panel";
+import { useSymmioOverrides } from "@/features/config/symmio-overrides-store";
 import { useSymmioChainId, useSymmioConfig } from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
+import { Button } from "@symm-frontier/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@symm-frontier/ui/components/card";
+import { useState, type ReactNode } from "react";
 
-function ConfigRow({ label, value }: { label: string; value?: string | number }) {
+function ConfigGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="border-border/60 flex items-start justify-between gap-4 border-b py-3 last:border-b-0">
-      <dt className="text-muted-foreground shrink-0 text-sm font-medium">{label}</dt>
-      <dd className="text-foreground max-w-[70%] text-right font-mono text-sm break-all">
-        {value ?? "Not configured"}
-      </dd>
-    </div>
-  );
-}
-
-function ConfigGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <Card size="sm">
+    <Card size="sm" className="animate-enter-up">
       <CardHeader>
-        <CardTitle className="text-sm">{title}</CardTitle>
+        <CardTitle className="text-muted-foreground text-xs font-medium tracking-[0.18em] uppercase">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <dl>{children}</dl>
+        <DataList>{children}</DataList>
       </CardContent>
     </Card>
   );
@@ -31,6 +27,8 @@ function ConfigGroup({ title, children }: { title: string; children: React.React
 export function SymmioConfigDebug() {
   const config = useSymmioConfig();
   const chainId = useSymmioChainId();
+  const { overrideCount } = useSymmioOverrides();
+  const [editing, setEditing] = useState(false);
 
   let chainConfig: ReturnType<typeof config.getChainConfig> | null;
   try {
@@ -39,42 +37,76 @@ export function SymmioConfigDebug() {
     chainConfig = null;
   }
 
-  if (!chainConfig) {
-    return <p className="text-muted-foreground p-6">Connected chain {chainId} is not a supported SYMMIO chain.</p>;
-  }
-
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-10">
-      <header className="flex flex-col gap-3">
-        <Badge variant="outline" className="self-start">
-          Symmio Core
-        </Badge>
-        <h1 className="text-foreground text-3xl font-semibold tracking-tight sm:text-4xl">Resolved VibeCaps Config</h1>
-        <p className="text-muted-foreground max-w-2xl text-sm leading-6">
-          This page verifies that the web app initializes Wagmi and the Symmio core provider, then reads the resolved
-          chain config from core.
-        </p>
-      </header>
+    <section className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+      <PageHeader
+        eyebrow="Runtime · Symmio Core"
+        title="Resolved VibeCaps Config"
+        description="Verifies that the web app initializes Wagmi and the Symmio core provider, then reads the resolved chain config from core."
+        actions={
+          <Button onClick={() => setEditing(true)}>
+            Edit config
+            {overrideCount > 0 ? (
+              <span className="bg-primary-foreground/20 ml-0.5 rounded-full px-1.5 py-px font-mono text-[11px] font-semibold">
+                {overrideCount}
+              </span>
+            ) : null}
+          </Button>
+        }
+      />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ConfigGroup title="Runtime">
-          <ConfigRow label="Chain ID" value={chainConfig.chainId} />
-          <ConfigRow label="Solver" value={`${chainConfig.solver.name} (${chainConfig.solver.address})`} />
-        </ConfigGroup>
+      <ConfigPanel open={editing} onOpenChange={setEditing} />
 
-        <ConfigGroup title="Addresses">
-          <ConfigRow label="Symmio" value={chainConfig.addresses.symmioAddress} />
-          <ConfigRow label="Instant Layer" value={chainConfig.addresses.instantLayerAddress} />
-          <ConfigRow label="Account Layer" value={chainConfig.addresses.accountLayerAddress} />
-          <ConfigRow label="Affiliates" value={chainConfig.addresses.affiliatesAddress} />
-          <ConfigRow label="Collateral" value={chainConfig.addresses.collateralAddress} />
-          <ConfigRow label="Collateral Decimals" value={chainConfig.addresses.collateralDecimals} />
-        </ConfigGroup>
-      </div>
+      {!chainConfig ? (
+        <Card className="animate-enter-up">
+          <CardContent className="py-2">
+            <p className="text-muted-foreground text-sm">
+              Connected chain <span className="text-foreground font-mono">{chainId}</span> is not a supported SYMMIO
+              chain.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ConfigGroup title="Runtime">
+              <DataRow label="Chain ID" value={<Badge variant="info">{chainConfig.chainId}</Badge>} />
+              <DataRow label="Solver" value={chainConfig.solver.name} />
+              <DataRow label="Solver address" value={<AddressTag address={chainConfig.solver.address} chars={6} />} />
+            </ConfigGroup>
 
-      <ConfigGroup title="Subgraphs">
-        <ConfigRow label="Analytics" value={chainConfig.subgraphs.analytics} />
-      </ConfigGroup>
+            <ConfigGroup title="Addresses">
+              <DataRow label="Symmio" value={<AddressTag address={chainConfig.addresses.symmioAddress} chars={6} />} />
+              <DataRow
+                label="Instant Layer"
+                value={<AddressTag address={chainConfig.addresses.instantLayerAddress} chars={6} />}
+              />
+              <DataRow
+                label="Account Layer"
+                value={<AddressTag address={chainConfig.addresses.accountLayerAddress} chars={6} />}
+              />
+              <DataRow
+                label="Affiliates"
+                value={<AddressTag address={chainConfig.addresses.affiliatesAddress} chars={6} />}
+              />
+              <DataRow
+                label="Collateral"
+                value={<AddressTag address={chainConfig.addresses.collateralAddress} chars={6} />}
+              />
+              <DataRow label="Collateral decimals" mono value={chainConfig.addresses.collateralDecimals} />
+            </ConfigGroup>
+          </div>
+
+          <ConfigGroup title="Subgraphs">
+            <DataRow
+              label="Analytics"
+              mono
+              value={<span className="truncate">{chainConfig.subgraphs.analytics}</span>}
+              copyValue={chainConfig.subgraphs.analytics}
+            />
+          </ConfigGroup>
+        </>
+      )}
     </section>
   );
 }

@@ -2,7 +2,7 @@ import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
-import { getLowCapSolverAPI, type SymbolContractSymbol } from "../solver/enigma-solver";
+import { getContractSymbols, type SymbolContractSymbol } from "../types/generated/enigma-solver";
 
 /**
  * Parameters for {@link getMarkets}.
@@ -41,7 +41,7 @@ export async function getMarkets(config: Config, parameters: GetMarketsParameter
  */
 async function fetchMarkets(baseURL: string): Promise<SymbolContractSymbol[]> {
   try {
-    const response = await getLowCapSolverAPI().getContractSymbols({ baseURL });
+    const response = await getContractSymbols({ baseURL });
     return response.data.symbols ?? [];
   } catch (err) {
     if (err instanceof SymmError) throw err;
@@ -59,6 +59,11 @@ async function fetchMarkets(baseURL: string): Promise<SymbolContractSymbol[]> {
       });
     }
 
-    throw new SymmError("api", "FETCH_MARKETS_FAILED", `Failed to fetch markets: ${err instanceof Error ? err.message : String(err)}`, { cause: err instanceof Error ? err : undefined });
+    throw new SymmError(
+      "api",
+      "FETCH_MARKETS_FAILED",
+      `Failed to fetch markets: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err instanceof Error ? err : undefined },
+    );
   }
 }

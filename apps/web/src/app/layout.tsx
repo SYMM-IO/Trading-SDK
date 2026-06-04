@@ -1,22 +1,37 @@
+import { SiteFooter } from "@/features/layout/site-footer";
 import { SiteHeader } from "@/features/layout/site-header";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+/** Editorial display face — headings, the wordmark, and large figures. */
+const display = Bricolage_Grotesque({
+  variable: "--font-bricolage",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+/** UI / body face — labels, descriptions, controls. */
+const sans = Hanken_Grotesk({
+  variable: "--font-hanken",
   subsets: ["latin"],
+  display: "swap",
+});
+
+/** Data face — addresses, tx hashes, figures, ABI names. */
+const mono = JetBrains_Mono({
+  variable: "--font-jetbrains",
+  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "SYMM Frontier",
-  description: "VibeCaps frontend boundary for SYMMIO.",
+  title: {
+    default: "Symmio Frontier",
+    template: "%s · Symmio Frontier",
+  },
+  description: "The VibeCaps SDK surface for SYMMIO — connect, inspect, and trade on HyperEVM.",
 };
 
 export default function RootLayout({
@@ -28,12 +43,13 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col font-sans">
+      <body className="font-sans flex min-h-full flex-col">
         <Providers>
           <SiteHeader />
           <main className="flex-1">{children}</main>
+          <SiteFooter />
         </Providers>
       </body>
     </html>

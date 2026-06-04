@@ -1,7 +1,7 @@
 "use client";
 
 import type { Address } from "viem";
-import { useAccount } from "wagmi";
+import { useConnection } from "wagmi";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /**
@@ -25,7 +25,7 @@ export interface UseWalletAccountResult {
 
 /**
  * Read the active wallet's connection state, normalized to the SDK shape. Adds
- * `isOnExpectedChain` on top of wagmi's `useAccount` so UIs can decide whether
+ * `isOnExpectedChain` on top of wagmi's `useConnection` so UIs can decide whether
  * to render a "switch network" prompt without re-comparing chain ids in every
  * component.
  *
@@ -36,7 +36,7 @@ export interface UseWalletAccountResult {
  */
 export function useWalletAccount(): UseWalletAccountResult {
   const config = useSymmioConfig();
-  const { address, chainId, isConnected, isReconnecting } = useAccount();
+  const { address, chainId, isConnected, isReconnecting } = useConnection();
 
   return {
     address,

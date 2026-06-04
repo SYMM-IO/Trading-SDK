@@ -23,13 +23,13 @@ export interface UseDisconnectWalletResult {
  * <button onClick={() => disconnect()}>Disconnect</button>;
  */
 export function useDisconnectWallet(): UseDisconnectWalletResult {
-  const { disconnectAsync, status } = useDisconnect();
+  const { mutateAsync, status } = useDisconnect();
 
   return {
     status,
     disconnect: async () => {
       try {
-        await disconnectAsync();
+        await mutateAsync();
       } catch (err) {
         throw normalizeSymmError(err);
       }

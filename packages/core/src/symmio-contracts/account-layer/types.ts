@@ -78,3 +78,39 @@ export interface SubAccountDetail {
    */
   isolationType: SubAccountIsolationType;
 }
+
+/**
+ * Input parameters for creating one subaccount via `createSubAccounts`.
+ *
+ * Field shapes and ordering mirror the on-chain `SubAccountCreationData` struct
+ * in `AccountStorage.sol` (perps-core v0.8.5) exactly, so the object encodes
+ * directly as the contract tuple without translation.
+ *
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/storages/AccountStorage.sol}
+ */
+export interface SubAccountCreationData {
+  /**
+   * Display name for the subaccount. Validated on-chain to 1-100 characters.
+   */
+  name: string;
+  /**
+   * Free-form metadata blob forwarded to the affiliate's `onAccountCreation`
+   * hook. Pass `0x` when unused.
+   */
+  metadata: Hex;
+  /**
+   * The Symmio core (diamond) the subaccount trades against. Must be whitelisted
+   * on the AccountLayer and registered for `affiliate`.
+   */
+  symmioCore: Address;
+  /**
+   * Strategy the AccountLayer uses to create VAs for this subaccount's trades.
+   */
+  isolationType: SubAccountIsolationType;
+  /**
+   * Route successive same-market quotes into the existing active VA instead of
+   * creating a fresh VA per `sendQuote`. Only valid with `MARKET` or
+   * `MARKET_DIRECTION` isolation; the contract reverts otherwise.
+   */
+  singleVAMode: boolean;
+}
