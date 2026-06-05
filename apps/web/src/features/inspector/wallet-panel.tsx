@@ -1,102 +1,18 @@
 "use client";
 
 import { AddressTag } from "@/components/address-tag";
-import { PageHeader } from "@/components/page-header";
 import { StatusDot } from "@/components/status-dot";
 import { useConnectWallet, useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Card } from "@symm-frontier/ui/components/card";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { cn } from "@symm-frontier/ui/lib/utils";
-import { useState, type ReactNode } from "react";
-import { ReadGetSubAccount } from "./read-get-sub-account";
-import { ReadGetSubAccountVirtualNonce } from "./read-get-sub-account-virtual-nonce";
-import { ReadGetSubAccountsCountOfUser } from "./read-get-sub-accounts-count-of-user";
-import { ReadGetUserSubAccounts } from "./read-get-user-sub-accounts";
-import { ReadGetUserSubAccountsAddresses } from "./read-get-user-sub-accounts-addresses";
-import { WriteCreateSubAccounts } from "./write-create-sub-accounts";
-import { WriteEditAccountName } from "./write-edit-account-name";
 
 /**
- * Top-level shell for the Inspector page. Mirrors Explorer's `AccountLayerView`
- * shape — header with connection status, then read methods, then write methods.
+ * Connection panel shared by the Inspector shells: shows the connected address
+ * and network state, and the connect / switch-chain / disconnect actions.
  */
-export function InspectorShell() {
-  return (
-    <section className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-      <PageHeader
-        eyebrow="Inspector · React SDK"
-        title="AccountLayer · HyperEVM"
-        description="Live integration target for the SYMMIO React SDK. Connect a wallet, pick a method, and run it against the production AccountLayer deployment."
-      />
-
-      <WalletPanel />
-
-      <MethodGroup label="Reads" count={5}>
-        <ReadGetSubAccount />
-        <ReadGetSubAccountsCountOfUser />
-        <ReadGetSubAccountVirtualNonce />
-        <ReadGetUserSubAccounts />
-        <ReadGetUserSubAccountsAddresses />
-      </MethodGroup>
-
-      <MethodGroup label="Writes" count={2}>
-        <WriteCreateSubAccounts />
-        <WriteEditAccountName />
-      </MethodGroup>
-    </section>
-  );
-}
-
-function MethodGroup({ label, count, children }: { label: string; count: number; children: ReactNode }) {
-  const [open, setOpen] = useState(true);
-  const contentId = `methods-${label.toLowerCase()}`;
-
-  return (
-    <div className="animate-enter-up flex flex-col">
-      <h2 className="text-xs font-medium tracking-[0.18em] uppercase">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-controls={contentId}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/40 group/sec flex w-full items-center gap-3 rounded-md py-1 transition-colors outline-none focus-visible:ring-2 motion-reduce:transition-none"
-        >
-          <ChevronIcon
-            className={cn(
-              "size-3.5 shrink-0 transition-transform duration-300 motion-reduce:transition-none",
-              open ? "rotate-0" : "-rotate-90",
-            )}
-          />
-          {label}
-          <span className="bg-border/80 h-px flex-1" aria-hidden />
-          <span className="font-mono text-xs tracking-normal normal-case">{count}</span>
-        </button>
-      </h2>
-
-      <div
-        id={contentId}
-        className="grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
-        style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
-      >
-        <div className="min-h-0 overflow-hidden" inert={!open}>
-          <div className="grid grid-cols-1 items-stretch gap-4 pt-4 lg:grid-cols-2">{children}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChevronIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" className={className} aria-hidden>
-      <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function WalletPanel() {
+export function WalletPanel() {
   const { address, isConnected, isOnExpectedChain } = useWalletAccount();
   const { connectors, connect, status: connectStatus } = useConnectWallet();
   const { disconnect } = useDisconnectWallet();

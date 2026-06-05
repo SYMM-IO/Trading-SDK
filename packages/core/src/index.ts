@@ -22,6 +22,7 @@
  * directly (e.g. `readContract({ abi: accountLayerAbi })`).
  */
 export { accountLayerAbi } from "./symmio-contracts/abi/v0.8.5/account-layer";
+export { symmioAbi } from "./symmio-contracts/abi/v0.8.5/symmio";
 
 /**
  * Config
@@ -50,6 +51,10 @@ export {
   SubAccountIsolationType,
   createSubAccounts,
   createSubAccountsMutationOptions,
+  depositAndAllocateForAccount,
+  depositAndAllocateForAccountMutationOptions,
+  depositForAccount,
+  depositForAccountMutationOptions,
   editAccountName,
   editAccountNameMutationOptions,
   getSubAccount,
@@ -69,6 +74,10 @@ export {
   getUserSubAccountsQueryOptions,
   type CreateSubAccountsParameters,
   type CreateSubAccountsReturnType,
+  type DepositAndAllocateForAccountParameters,
+  type DepositAndAllocateForAccountReturnType,
+  type DepositForAccountParameters,
+  type DepositForAccountReturnType,
   type EditAccountNameParameters,
   type EditAccountNameReturnType,
   type GetSubAccountData,
@@ -104,6 +113,101 @@ export {
   type SubAccountCreationData,
   type SubAccountDetail,
 } from "./symmio-contracts/account-layer";
+
+/**
+ * Collateral slice
+ * ----------------
+ * ERC20 approval and balance reads for the chain's collateral token. Deposits
+ * pull collateral from the user via the SYMMIO core, so `approveCollateral`
+ * targets the core (`symmioAddress`).
+ */
+export {
+  approveCollateral,
+  approveCollateralMutationOptions,
+  getCollateralAllowance,
+  getCollateralAllowanceQueryKey,
+  getCollateralAllowanceQueryOptions,
+  getCollateralBalance,
+  getCollateralBalanceQueryKey,
+  getCollateralBalanceQueryOptions,
+  type ApproveCollateralParameters,
+  type ApproveCollateralReturnType,
+  type GetCollateralAllowanceData,
+  type GetCollateralAllowanceOptions,
+  type GetCollateralAllowanceParameters,
+  type GetCollateralAllowanceQueryKey,
+  type GetCollateralAllowanceQueryOptions,
+  type GetCollateralAllowanceReturnType,
+  type GetCollateralBalanceData,
+  type GetCollateralBalanceOptions,
+  type GetCollateralBalanceParameters,
+  type GetCollateralBalanceQueryKey,
+  type GetCollateralBalanceQueryOptions,
+  type GetCollateralBalanceReturnType,
+} from "./symmio-contracts/collateral";
+
+/**
+ * Withdraw slice
+ * --------------
+ * The request-based withdraw system on the SYMMIO core. The write wrappers hide
+ * the AccountLayer `_call` proxying where the core attributes the call to the
+ * subaccount (`initiateWithdraw`, `requestCancelWithdraw`);
+ * `finalizeWithdrawRequest` is permissionless and calls the core directly.
+ */
+export {
+  WithdrawStatus,
+  createClassicWithdrawPart,
+  finalizeWithdrawRequest,
+  finalizeWithdrawRequestMutationOptions,
+  getLastWithdrawRequestId,
+  getLastWithdrawRequestIdQueryKey,
+  getLastWithdrawRequestIdQueryOptions,
+  getPendingWithdrawRequests,
+  getPendingWithdrawRequestsQueryKey,
+  getPendingWithdrawRequestsQueryOptions,
+  getWithdrawRequests,
+  getWithdrawRequestsQueryKey,
+  getWithdrawRequestsQueryOptions,
+  getWithdrawableTime,
+  getWithdrawableTimeQueryKey,
+  getWithdrawableTimeQueryOptions,
+  initiateWithdraw,
+  initiateWithdrawMutationOptions,
+  requestCancelWithdraw,
+  requestCancelWithdrawMutationOptions,
+  type FinalizeWithdrawRequestParameters,
+  type FinalizeWithdrawRequestReturnType,
+  type GetLastWithdrawRequestIdData,
+  type GetLastWithdrawRequestIdOptions,
+  type GetLastWithdrawRequestIdParameters,
+  type GetLastWithdrawRequestIdQueryKey,
+  type GetLastWithdrawRequestIdQueryOptions,
+  type GetLastWithdrawRequestIdReturnType,
+  type GetPendingWithdrawRequestsData,
+  type GetPendingWithdrawRequestsOptions,
+  type GetPendingWithdrawRequestsParameters,
+  type GetPendingWithdrawRequestsQueryKey,
+  type GetPendingWithdrawRequestsQueryOptions,
+  type GetPendingWithdrawRequestsReturnType,
+  type GetWithdrawRequestsData,
+  type GetWithdrawRequestsOptions,
+  type GetWithdrawRequestsParameters,
+  type GetWithdrawRequestsQueryKey,
+  type GetWithdrawRequestsQueryOptions,
+  type GetWithdrawRequestsReturnType,
+  type GetWithdrawableTimeData,
+  type GetWithdrawableTimeOptions,
+  type GetWithdrawableTimeParameters,
+  type GetWithdrawableTimeQueryKey,
+  type GetWithdrawableTimeQueryOptions,
+  type GetWithdrawableTimeReturnType,
+  type InitiateWithdrawParameters,
+  type InitiateWithdrawReturnType,
+  type RequestCancelWithdrawParameters,
+  type RequestCancelWithdrawReturnType,
+  type WithdrawReceiverPart,
+  type WithdrawRequest,
+} from "./symmio-contracts/withdraw";
 
 /**
  * Chain config registry
