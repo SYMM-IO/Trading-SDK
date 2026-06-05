@@ -23,12 +23,17 @@ export interface ChainIdParameter {
 }
 
 /**
- * Optional cache-scoping mixin. `scopeKey` is folded into a query key so two
- * otherwise-identical queries can be cached and invalidated separately.
+ * Optional config-fingerprint mixin. `configKey` is folded into a query key so a
+ * runtime config override (which changes the resolved chain config but not the
+ * `chainId`) yields a fresh key — TanStack refetches with the new config instead
+ * of serving stale cache, and the previous config's data stays cached.
+ *
+ * The query option factories set this automatically from
+ * `config.getChainConfigKey(chainId)`; you do not normally pass it by hand.
  */
-export interface ScopeKeyParameter {
-  /** Extra key segment to scope an otherwise-identical query separately. */
-  scopeKey?: string;
+export interface ConfigKeyParameter {
+  /** Stable fingerprint of the resolved chain config; see {@link ConfigKeyParameter}. */
+  configKey?: string;
 }
 
 /**

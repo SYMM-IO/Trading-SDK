@@ -1,6 +1,11 @@
 "use client";
 
-import { getMarketsQueryOptions, type ConfigParameter, type GetMarketsOptions, type SymbolContractSymbol } from "@symm-frontier/core";
+import {
+  getMarketsQueryOptions,
+  type ConfigParameter,
+  type GetMarketsOptions,
+  type SymbolContractSymbol,
+} from "@symm-frontier/core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";

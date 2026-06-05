@@ -4,8 +4,14 @@ import { AddressTag } from "@/components/address-tag";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import { SubAccountIsolationType } from "@symm-frontier/core";
-import { useCreateSubAccounts, useSymmioConfig, useWalletAccount } from "@symm-frontier/react";
+import { SubAccountIsolationType, accountLayerAbi, type SubAccountCreationData } from "@symm-frontier/core";
+import {
+  normalizeSymmError,
+  useCreateSubAccounts,
+  useSymmioConfig,
+  useWalletAccount,
+  type SymmioRequestError,
+} from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
@@ -14,9 +20,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { Switch } from "@symm-frontier/ui/components/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/components/tooltip";
+import { useMutation } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { isAddress, type Address } from "viem";
 import { MethodCard } from "./method-card";
+import { SimulateResult } from "./simulate-result";
 
 const ISOLATION_OPTIONS = [
   {
@@ -47,8 +55,9 @@ function isSingleVaAllowed(isolation: SubAccountIsolationType): boolean {
 }
 
 export function WriteCreateSubAccounts() {
-  const { isConnected, isOnExpectedChain } = useWalletAccount();
-  const { addresses } = useSymmioConfig().getChainConfig();
+  const { address, chainId, isConnected, isOnExpectedChain } = useWalletAccount();
+  const config = useSymmioConfig();
+  const { addresses } = config.getChainConfig();
 
   const [name, setName] = useState<string>("");
   const [isolation, setIsolation] = useState<SubAccountIsolationType>(SubAccountIsolationType.MARKET_DIRECTION);
@@ -66,6 +75,33 @@ export function WriteCreateSubAccounts() {
   const effectiveSingleVA = vaAllowed && singleVAMode;
   const canSubmit =
     isConnected && isOnExpectedChain && name.trim().length > 0 && Boolean(validAffiliate) && Boolean(validSymmioCore);
+
+  /** Build the per-subaccount payload once so Simulate and Send can never drift. */
+  const buildAccountsData = (core: Address): readonly SubAccountCreationData[] => [
+    { name: name.trim(), metadata: "0x", symmioCore: core, isolationType: isolation, singleVAMode: effectiveSingleVA },
+  ];
+
+  /** Dry-run the call (`simulateContract`) so the user sees pass/revert before sending. */
+  const simulate = useMutation<
+    readonly Address[],
+    SymmioRequestError,
+    { affiliate: Address; accountsData: readonly SubAccountCreationData[] }
+  >({
+    mutationFn: async (variables) => {
+      try {
+        const { result } = await config.getClient({ chainId }).simulateContract({
+          address: addresses.accountLayerAddress,
+          abi: accountLayerAbi,
+          functionName: "createSubAccounts",
+          args: [variables.affiliate, variables.accountsData],
+          account: address,
+        });
+        return result;
+      } catch (err) {
+        throw normalizeSymmError(err);
+      }
+    },
+  });
 
   return (
     <MethodCard
@@ -116,8 +152,8 @@ export function WriteCreateSubAccounts() {
           <div className="flex items-center gap-1.5">
             <Label htmlFor="switch-single-va">singleVAMode</Label>
             <InfoTooltip label="What does single-VA mode do?" testId="tooltip-single-va">
-              When enabled, repeated quotes on the same market reuse its active Virtual Account instead of opening a fresh
-              VA per trade. Only available for MARKET and MARKET_DIRECTION isolation.
+              When enabled, repeated quotes on the same market reuse its active Virtual Account instead of opening a
+              fresh VA per trade. Only available for MARKET and MARKET_DIRECTION isolation.
             </InfoTooltip>
           </div>
           {!vaAllowed && (
@@ -144,35 +180,63 @@ export function WriteCreateSubAccounts() {
         symmioCoreValid={Boolean(validSymmioCore)}
       />
 
-      <Button
-        type="button"
-        size="sm"
-        disabled={!canSubmit || mutation.isPending}
-        onClick={() => {
-          if (!canSubmit || !validAffiliate || !validSymmioCore) return;
-          mutation.mutate({
-            affiliate: validAffiliate,
-            accountsData: [
-              {
-                name: name.trim(),
-                metadata: "0x",
-                symmioCore: validSymmioCore,
-                isolationType: isolation,
-                singleVAMode: effectiveSingleVA,
-              },
-            ],
-          });
-        }}
-        data-testid="button-send-create"
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!canSubmit || simulate.isPending}
+          onClick={() => {
+            if (!canSubmit || !validAffiliate || !validSymmioCore) return;
+            simulate.mutate({ affiliate: validAffiliate, accountsData: buildAccountsData(validSymmioCore) });
+          }}
+          data-testid="button-simulate-create"
+        >
+          {simulate.isPending ? (
+            <>
+              <Spinner className="size-4" /> Simulating…
+            </>
+          ) : (
+            "Simulate"
+          )}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          disabled={!canSubmit || mutation.isPending}
+          onClick={() => {
+            if (!canSubmit || !validAffiliate || !validSymmioCore) return;
+            mutation.mutate({ affiliate: validAffiliate, accountsData: buildAccountsData(validSymmioCore) });
+          }}
+          data-testid="button-send-create"
+        >
+          {mutation.isPending ? (
+            <>
+              <Spinner className="size-4" /> Sending…
+            </>
+          ) : (
+            "Send transaction"
+          )}
+        </Button>
+      </div>
+
+      <SimulateResult
+        isPending={simulate.isPending}
+        isSuccess={simulate.isSuccess}
+        error={simulate.error}
+        testId="result-simulate-createSubAccounts"
       >
-        {mutation.isPending ? (
-          <>
-            <Spinner className="size-4" /> Sending…
-          </>
-        ) : (
-          "Send transaction"
-        )}
-      </Button>
+        {simulate.data && simulate.data.length > 0 ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground text-xs">
+              Predicted subaccount {simulate.data.length === 1 ? "address" : "addresses"}:
+            </span>
+            {simulate.data.map((addr) => (
+              <AddressTag key={addr} address={addr} />
+            ))}
+          </div>
+        ) : null}
+      </SimulateResult>
 
       <WritePanel mutation={mutation} />
     </MethodCard>

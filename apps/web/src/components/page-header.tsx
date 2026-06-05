@@ -25,7 +25,7 @@ export function PageHeader({ eyebrow, title, description, actions }: Props) {
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-2.5">
-          <h1 className="font-display text-foreground text-pretty text-3xl font-semibold tracking-tight sm:text-[2.5rem] sm:leading-[1.05]">
+          <h1 className="font-display text-foreground text-3xl font-semibold tracking-tight text-pretty sm:text-[2.5rem] sm:leading-[1.05]">
             {title}
           </h1>
           {description ? (

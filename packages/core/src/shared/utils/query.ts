@@ -3,7 +3,7 @@
  * They are stripped before an options object is turned into a query key so two
  * calls that differ only in, say, `staleTime` still share a cache entry.
  */
-const NON_KEY_FIELDS = new Set(["query", "scopeKey", "enabled", "config"]);
+const NON_KEY_FIELDS = new Set(["query", "enabled", "config"]);
 
 /**
  * Turn an options object into the plain, hashable payload that trails a query

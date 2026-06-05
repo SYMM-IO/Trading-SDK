@@ -61,7 +61,7 @@ function MethodGroup({ label, count, children }: { label: string; count: number;
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-controls={contentId}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/40 group/sec flex w-full items-center gap-3 rounded-md py-1 outline-none transition-colors focus-visible:ring-2 motion-reduce:transition-none"
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/40 group/sec flex w-full items-center gap-3 rounded-md py-1 transition-colors outline-none focus-visible:ring-2 motion-reduce:transition-none"
         >
           <ChevronIcon
             className={cn(

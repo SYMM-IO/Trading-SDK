@@ -17,9 +17,9 @@ describe("getSubAccountsCountOfUserQueryOptions", () => {
 
   it("respects an explicit query.enabled override", () => {
     const { config } = mockConfig();
-    expect(
-      getSubAccountsCountOfUserQueryOptions(config, { user: TEST_USER, query: { enabled: false } }).enabled,
-    ).toBe(false);
+    expect(getSubAccountsCountOfUserQueryOptions(config, { user: TEST_USER, query: { enabled: false } }).enabled).toBe(
+      false,
+    );
   });
 
   it("queryFn delegates to the action", async () => {

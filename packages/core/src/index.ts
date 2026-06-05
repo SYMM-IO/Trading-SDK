@@ -149,9 +149,9 @@ export {
 export type {
   ChainIdParameter,
   Compute,
+  ConfigKeyParameter,
   DeepPartial,
   ExactPartial,
-  ScopeKeyParameter,
 } from "./shared/types/properties";
 export type { QueryParameter, SymmioQueryOptions } from "./shared/types/query";
 export { filterQueryOptions } from "./shared/utils/query";

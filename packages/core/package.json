@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@tanstack/query-core": "^5.90.5",
-    "axios": "^1.16.1"
+    "axios": "^1.16.1",
+    "ohash": "^2.0.11"
   }
 }

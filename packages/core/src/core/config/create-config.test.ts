@@ -57,4 +57,34 @@ describe("createConfig", () => {
     const config = createConfig({ getClient: () => stubClient });
     await expect(config.getWalletClient()).rejects.toThrow(SymmError);
   });
+
+  describe("getChainConfigKey", () => {
+    it("is stable for identical config across separate instances", () => {
+      const a = createConfig({ getClient: () => stubClient });
+      const b = createConfig({ getClient: () => stubClient });
+      expect(a.getChainConfigKey(HYPEREVM)).toBe(b.getChainConfigKey(HYPEREVM));
+    });
+
+    it("changes when any field of the resolved chain config changes", () => {
+      const base = createConfig({ getClient: () => stubClient });
+      const overridden = createConfig({
+        getClient: () => stubClient,
+        chainOverrides: {
+          [HYPEREVM]: { addresses: { collateralAddress: "0x9999999999999999999999999999999999999999" } },
+        },
+      });
+      expect(overridden.getChainConfigKey(HYPEREVM)).not.toBe(base.getChainConfigKey(HYPEREVM));
+    });
+
+    it("returns a stable sentinel for an unsupported chain instead of throwing", () => {
+      const config = createConfig({ getClient: () => stubClient });
+      expect(() => config.getChainConfigKey(mainnet.id)).not.toThrow();
+      expect(config.getChainConfigKey(mainnet.id)).toBe("unsupported");
+    });
+
+    it("uses the default chain when chainId is omitted", () => {
+      const config = createConfig({ getClient: () => stubClient });
+      expect(config.getChainConfigKey()).toBe(config.getChainConfigKey(HYPEREVM));
+    });
+  });
 });

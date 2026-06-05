@@ -28,7 +28,7 @@ export function ThemeToggle() {
       aria-label={label}
       title={label}
       onClick={() => setTheme(nextTheme)}
-      className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring/40 border-border/70 relative inline-flex size-9 items-center justify-center overflow-hidden rounded-xl border bg-transparent outline-none transition-colors focus-visible:ring-3"
+      className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring/40 border-border/70 relative inline-flex size-9 items-center justify-center overflow-hidden rounded-xl border bg-transparent transition-colors outline-none focus-visible:ring-3"
     >
       <SunIcon
         className={cn(

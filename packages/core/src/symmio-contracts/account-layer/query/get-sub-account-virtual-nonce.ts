@@ -1,6 +1,6 @@
 import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
-import type { Compute, ExactPartial, ScopeKeyParameter } from "../../../shared/types/properties";
+import type { Compute, ConfigKeyParameter, ExactPartial } from "../../../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../../../shared/types/query";
 import { filterQueryOptions } from "../../../shared/utils/query";
 import {
@@ -19,7 +19,7 @@ export type GetSubAccountVirtualNonceData = GetSubAccountVirtualNonceReturnType;
  * @returns A stable, hashable query key.
  */
 export function getSubAccountVirtualNonceQueryKey(
-  options: Compute<ExactPartial<GetSubAccountVirtualNonceParameters> & ScopeKeyParameter> = {},
+  options: Compute<ExactPartial<GetSubAccountVirtualNonceParameters> & ConfigKeyParameter> = {},
 ) {
   return ["getSubAccountVirtualNonce", filterQueryOptions(options)] as const;
 }
@@ -33,7 +33,6 @@ export type GetSubAccountVirtualNonceQueryKey = ReturnType<typeof getSubAccountV
  */
 export type GetSubAccountVirtualNonceOptions = Compute<
   ExactPartial<GetSubAccountVirtualNonceParameters> &
-    ScopeKeyParameter &
     QueryParameter<
       GetSubAccountVirtualNonceData,
       Error,
@@ -70,12 +69,16 @@ export function getSubAccountVirtualNonceQueryOptions(
 ): GetSubAccountVirtualNonceQueryOptions {
   return {
     ...options.query,
-    queryKey: getSubAccountVirtualNonceQueryKey(options),
+    queryKey: getSubAccountVirtualNonceQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
     enabled: Boolean(options.subAccount) && (options.query?.enabled ?? true),
     queryFn: () => {
       const { chainId, subAccount } = options;
       if (!subAccount) {
-        throw new SymmError("validation", "MISSING_SUB_ACCOUNT", "getSubAccountVirtualNonce: `subAccount` is required.");
+        throw new SymmError(
+          "validation",
+          "MISSING_SUB_ACCOUNT",
+          "getSubAccountVirtualNonce: `subAccount` is required.",
+        );
       }
       return getSubAccountVirtualNonce(config, { chainId, subAccount });
     },

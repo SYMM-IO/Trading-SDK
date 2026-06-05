@@ -1,6 +1,6 @@
 import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
-import type { Compute, ExactPartial, ScopeKeyParameter } from "../../../shared/types/properties";
+import type { Compute, ConfigKeyParameter, ExactPartial } from "../../../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../../../shared/types/query";
 import { filterQueryOptions } from "../../../shared/utils/query";
 import {
@@ -19,7 +19,7 @@ export type GetSubAccountsCountOfUserData = GetSubAccountsCountOfUserReturnType;
  * @returns A stable, hashable query key.
  */
 export function getSubAccountsCountOfUserQueryKey(
-  options: Compute<ExactPartial<GetSubAccountsCountOfUserParameters> & ScopeKeyParameter> = {},
+  options: Compute<ExactPartial<GetSubAccountsCountOfUserParameters> & ConfigKeyParameter> = {},
 ) {
   return ["getSubAccountsCountOfUser", filterQueryOptions(options)] as const;
 }
@@ -33,7 +33,6 @@ export type GetSubAccountsCountOfUserQueryKey = ReturnType<typeof getSubAccounts
  */
 export type GetSubAccountsCountOfUserOptions = Compute<
   ExactPartial<GetSubAccountsCountOfUserParameters> &
-    ScopeKeyParameter &
     QueryParameter<
       GetSubAccountsCountOfUserData,
       Error,
@@ -70,7 +69,7 @@ export function getSubAccountsCountOfUserQueryOptions(
 ): GetSubAccountsCountOfUserQueryOptions {
   return {
     ...options.query,
-    queryKey: getSubAccountsCountOfUserQueryKey(options),
+    queryKey: getSubAccountsCountOfUserQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
     enabled: Boolean(options.user) && (options.query?.enabled ?? true),
     queryFn: () => {
       const { chainId, user } = options;

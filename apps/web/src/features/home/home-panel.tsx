@@ -84,7 +84,7 @@ function HomeCardLink({ card, index }: { card: HomeCard; index: number }) {
       className="group animate-enter-up block focus-visible:outline-none"
       style={{ "--enter-delay": `${120 + index * 90}ms` } as CSSProperties}
     >
-      <Card className="group-focus-visible:ring-ring relative h-full transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg group-hover:ring-primary/40 group-focus-visible:ring-2">
+      <Card className="group-focus-visible:ring-ring group-hover:ring-primary/40 relative h-full transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg group-focus-visible:ring-2">
         <div
           className="bg-primary/15 pointer-events-none absolute -top-16 -right-12 size-40 rounded-full opacity-0 blur-3xl transition-opacity duration-300 group-hover:opacity-100"
           aria-hidden
@@ -115,7 +115,13 @@ function HomeCardLink({ card, index }: { card: HomeCard; index: number }) {
 function ArrowIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 16" fill="none" className={className ?? "size-4"} aria-hidden>
-      <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M3 8h10M9 4l4 4-4 4"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -124,7 +130,13 @@ function LayersIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
       <path d="M12 3 3 8l9 5 9-5-9-5Z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
-      <path d="m3 12 9 5 9-5M3 16l9 5 9-5" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" opacity="0.55" />
+      <path
+        d="m3 12 9 5 9-5M3 16l9 5 9-5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+        opacity="0.55"
+      />
     </svg>
   );
 }

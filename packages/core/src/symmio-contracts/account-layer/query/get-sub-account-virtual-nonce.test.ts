@@ -34,7 +34,10 @@ describe("getSubAccountVirtualNonceQueryOptions", () => {
   });
 
   it("builds a stable key", () => {
-    const key = getSubAccountVirtualNonceQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM, subAccount: SUB_ACCOUNT });
+    const key = getSubAccountVirtualNonceQueryKey({
+      chainId: SymmioSupportedChainId.HYPER_EVM,
+      subAccount: SUB_ACCOUNT,
+    });
     expect(key).toEqual([
       "getSubAccountVirtualNonce",
       { chainId: SymmioSupportedChainId.HYPER_EVM, subAccount: SUB_ACCOUNT },

@@ -7,10 +7,7 @@ import { cn } from "../lib/utils";
  * Wraps Radix's tooltip `Provider`. {@link Tooltip} already includes one, so you
  * only need this directly to share a single `delayDuration` across many tooltips.
  */
-function TooltipProvider({
-  delayDuration = 200,
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+function TooltipProvider({ delayDuration = 200, ...props }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return <TooltipPrimitive.Provider data-slot="tooltip-provider" delayDuration={delayDuration} {...props} />;
 }
 
