@@ -1,5 +1,5 @@
 import type { Config } from "../../core/config";
-import type { Compute, ScopeKeyParameter } from "../../shared/types/properties";
+import type { Compute, ConfigKeyParameter } from "../../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../../shared/types/query";
 import { filterQueryOptions } from "../../shared/utils/query";
 import { getMarkets, type GetMarketsParameters, type GetMarketsReturnType } from "./get-markets";
@@ -13,7 +13,7 @@ export type GetMarketsData = GetMarketsReturnType;
  * @param options - Partial query parameters (chain id, scope).
  * @returns A stable, hashable query key.
  */
-export function getMarketsQueryKey(options: Compute<GetMarketsParameters & ScopeKeyParameter> = {}) {
+export function getMarketsQueryKey(options: Compute<GetMarketsParameters & ConfigKeyParameter> = {}) {
   return ["getMarkets", filterQueryOptions(options)] as const;
 }
 
@@ -25,7 +25,7 @@ export type GetMarketsQueryKey = ReturnType<typeof getMarketsQueryKey>;
  * an optional cache scope, and TanStack overrides.
  */
 export type GetMarketsOptions = Compute<
-  GetMarketsParameters & ScopeKeyParameter & QueryParameter<GetMarketsData, Error, GetMarketsData, GetMarketsQueryKey>
+  GetMarketsParameters & QueryParameter<GetMarketsData, Error, GetMarketsData, GetMarketsQueryKey>
 >;
 
 /** TanStack Query options returned by {@link getMarketsQueryOptions}. */
@@ -47,7 +47,7 @@ export type GetMarketsQueryOptions = SymmioQueryOptions<GetMarketsData, Error, G
 export function getMarketsQueryOptions(config: Config, options: GetMarketsOptions = {}): GetMarketsQueryOptions {
   return {
     ...options.query,
-    queryKey: getMarketsQueryKey(options),
+    queryKey: getMarketsQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
     enabled: options.query?.enabled ?? true,
     queryFn: () => getMarkets(config, { chainId: options.chainId }),
   };

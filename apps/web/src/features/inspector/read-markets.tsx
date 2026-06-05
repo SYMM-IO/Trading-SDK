@@ -250,7 +250,13 @@ function MarketStateBadge({ state }: { state: Market["state"] }) {
 function RefreshIcon() {
   return (
     <svg viewBox="0 0 16 16" fill="none" className="size-4" aria-hidden>
-      <path d="M13 8a5 5 0 1 1-1.5-3.5M13 2v3h-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M13 8a5 5 0 1 1-1.5-3.5M13 2v3h-3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -268,9 +274,21 @@ function SortDirIcon({ dir }: { dir: "asc" | "desc" }) {
   return (
     <svg viewBox="0 0 16 16" fill="none" className="size-4" aria-hidden>
       {dir === "asc" ? (
-        <path d="M8 12.5V3.5M4.5 7 8 3.5 11.5 7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d="M8 12.5V3.5M4.5 7 8 3.5 11.5 7"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       ) : (
-        <path d="M8 3.5v9M4.5 9 8 12.5 11.5 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d="M8 3.5v9M4.5 9 8 12.5 11.5 9"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       )}
     </svg>
   );

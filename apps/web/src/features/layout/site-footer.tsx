@@ -1,6 +1,6 @@
+import { StatusDot } from "@/components/status-dot";
 import { LogoMark } from "@/features/layout/logo";
 import { navLinks } from "@/features/layout/nav";
-import { StatusDot } from "@/components/status-dot";
 import Link from "next/link";
 
 export function SiteFooter() {

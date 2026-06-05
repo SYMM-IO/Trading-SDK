@@ -109,7 +109,9 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
                 <td className="px-3 py-2.5">
                   <AddressTag address={sub.accountAddress} />
                 </td>
-                <td className="text-foreground px-3 py-2.5">{sub.name || <span className="text-muted-foreground">—</span>}</td>
+                <td className="text-foreground px-3 py-2.5">
+                  {sub.name || <span className="text-muted-foreground">—</span>}
+                </td>
                 <td className="px-3 py-2.5">
                   <Badge variant="secondary">{String(sub.isolationType)}</Badge>
                 </td>

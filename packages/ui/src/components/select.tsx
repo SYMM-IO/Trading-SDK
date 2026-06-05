@@ -145,7 +145,10 @@ function SelectScrollUpButton({ className, ...props }: React.ComponentProps<type
 }
 
 /** Scroll-down affordance shown when the content overflows downward. */
-function SelectScrollDownButton({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>) {
+function SelectScrollDownButton({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>) {
   return (
     <SelectPrimitive.ScrollDownButton
       data-slot="select-scroll-down-button"

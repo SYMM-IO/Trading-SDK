@@ -61,14 +61,24 @@ export function SymmioProvider({ children, chainOverrides, defaultChainId }: Sym
         getClient: ({ chainId } = {}): PublicClient => {
           const client = getPublicClient(wagmiConfig, { chainId });
 
-          if (!client) throw new SymmError("config", "NO_PUBLIC_CLIENT", `No public client available for chain ${chainId ?? "(default)"}.`);
+          if (!client)
+            throw new SymmError(
+              "config",
+              "NO_PUBLIC_CLIENT",
+              `No public client available for chain ${chainId ?? "(default)"}.`,
+            );
           return client;
         },
         getWalletClient: async ({ chainId } = {}): Promise<SymmioWalletClient> => {
           try {
             return await getWalletClient(wagmiConfig, { chainId });
           } catch (err) {
-            throw new SymmError("config", "NO_WALLET_CONNECTED", "No connected wallet. Connect a wallet before sending transactions.", { cause: err instanceof Error ? err : undefined });
+            throw new SymmError(
+              "config",
+              "NO_WALLET_CONNECTED",
+              "No connected wallet. Connect a wallet before sending transactions.",
+              { cause: err instanceof Error ? err : undefined },
+            );
           }
         },
       }),

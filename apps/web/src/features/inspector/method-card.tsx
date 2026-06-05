@@ -24,7 +24,7 @@ export function MethodCard({ testId, name, mutability, description, children, wi
   return (
     <Card
       data-testid={testId}
-      className={cn("transition-all duration-200 hover:shadow-md hover:ring-border", wide && "lg:col-span-2")}
+      className={cn("hover:ring-border transition-all duration-200 hover:shadow-md", wide && "lg:col-span-2")}
     >
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2.5">

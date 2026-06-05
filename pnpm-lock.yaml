@@ -217,6 +217,9 @@ importers:
       axios:
         specifier: ^1.16.1
         version: 1.16.1
+      ohash:
+        specifier: ^2.0.11
+        version: 2.0.11
     devDependencies:
       '@symm-frontier/eslint-config':
         specifier: workspace:*
@@ -301,7 +304,7 @@ importers:
         version: 10.6.0
       zustand:
         specifier: ^5.0.0
-        version: 5.0.12(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
+        version: 5.0.12(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.4.0(react@19.2.5))
     devDependencies:
       '@symm-frontier/eslint-config':
         specifier: workspace:*
@@ -329,7 +332,7 @@ importers:
         version: 6.0.1(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
       '@wagmi/connectors':
         specifier: ^8.0.0
-        version: 8.0.11(@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.14)(react@19.2.5)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.5))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)))(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
+        version: 8.0.11(@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.14)(react@19.2.5)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)))(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
       eslint:
         specifier: ^9.39.4
         version: 9.39.4(jiti@2.6.1)
@@ -5336,6 +5339,9 @@ packages:
   obug@2.1.1:
     resolution: {integrity: sha512-uTqF9MuPraAQ+IsnPf366RG4cP9RtUi7MLO1N3KEc+wb0a6yKpeL0lmk2IB1jY5KHPAlTc6T/JRdC/YqxHNwkQ==}
 
+  ohash@2.0.11:
+    resolution: {integrity: sha512-RdR9FQrFwNBNXAr4GixM8YaRZRJ5PUWbKYbE5eOsrwAjJW0q2REGcf79oYPsLyskQCZG1PLN+S/K1V00joZAoQ==}
+
   onetime@6.0.0:
     resolution: {integrity: sha512-1FlR+gjXK7X+AsAHso35MnyN5KqGwJRi/31ft6x0M194ht7S+rWAvd7PHss9xSKMzE0asv1pyIHaJYq+BbacAQ==}
     engines: {node: '>=12'}
@@ -9510,34 +9516,12 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
-  '@wagmi/connectors@8.0.11(@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.14)(react@19.2.5)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.5))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)))(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))':
-    dependencies:
-      '@wagmi/core': 3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.14)(react@19.2.5)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.5))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
-      viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
-    optionalDependencies:
-      typescript: 6.0.3
-
   '@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.14)(react@19.2.5)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.5))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))':
     dependencies:
       eventemitter3: 5.0.1
       mipd: 0.0.7(typescript@6.0.3)
       viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
       zustand: 5.0.0(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.4.0(react@19.2.5))
-    optionalDependencies:
-      '@tanstack/query-core': 5.100.9
-      typescript: 6.0.3
-    transitivePeerDependencies:
-      - '@types/react'
-      - immer
-      - react
-      - use-sync-external-store
-
-  '@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.14)(react@19.2.5)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.5))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))':
-    dependencies:
-      eventemitter3: 5.0.1
-      mipd: 0.0.7(typescript@6.0.3)
-      viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
-      zustand: 5.0.0(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
     optionalDependencies:
       '@tanstack/query-core': 5.100.9
       typescript: 6.0.3
@@ -12184,6 +12168,8 @@ snapshots:
 
   obug@2.1.1: {}
 
+  ohash@2.0.11: {}
+
   onetime@6.0.0:
     dependencies:
       mimic-fn: 4.0.0
@@ -13769,11 +13755,11 @@ snapshots:
       react: 19.2.5
       use-sync-external-store: 1.4.0(react@19.2.5)
 
-  zustand@5.0.0(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5)):
+  zustand@5.0.12(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.4.0(react@19.2.5)):
     optionalDependencies:
       '@types/react': 19.2.14
       react: 19.2.5
-      use-sync-external-store: 1.6.0(react@19.2.5)
+      use-sync-external-store: 1.4.0(react@19.2.5)
 
   zustand@5.0.12(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5)):
     optionalDependencies:

@@ -56,7 +56,7 @@ function CopyButton({
       aria-label={copied ? copiedLabel : label}
       data-copied={copied || undefined}
       className={cn(
-        "text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring/40 data-[copied]:text-positive inline-flex size-6 shrink-0 items-center justify-center rounded-md outline-none transition-[color,background-color] focus-visible:ring-2 [&_svg]:size-3.5",
+        "text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring/40 data-copied:text-positive inline-flex size-6 shrink-0 items-center justify-center rounded-md transition-[color,background-color] outline-none focus-visible:ring-2 [&_svg]:size-3.5",
         className,
       )}
       {...props}

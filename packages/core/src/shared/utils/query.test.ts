@@ -7,7 +7,6 @@ describe("filterQueryOptions", () => {
       chainId: 999,
       user: "0xabc",
       query: { staleTime: 1 },
-      scopeKey: "scope",
       enabled: true,
       select: () => 1,
     });

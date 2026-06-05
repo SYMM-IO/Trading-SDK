@@ -1,7 +1,8 @@
-import type { Address } from "viem";
+import type { Address, PublicClient } from "viem";
 import { mainnet } from "viem/chains";
 import { describe, expect, it } from "vitest";
 import { SymmioSupportedChainId } from "../../../core/chains";
+import { createConfig } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig } from "../../../shared/test/mock-config";
 import { getSubAccountQueryKey, getSubAccountQueryOptions } from "./get-sub-account";
@@ -38,5 +39,23 @@ describe("getSubAccountQueryOptions", () => {
   it("builds a stable key", () => {
     const key = getSubAccountQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM, account: SUB_ACCOUNT });
     expect(key).toEqual(["getSubAccount", { chainId: SymmioSupportedChainId.HYPER_EVM, account: SUB_ACCOUNT }]);
+  });
+
+  it("folds the chain config fingerprint into the factory key so overrides rekey", () => {
+    const { config: base } = mockConfig();
+    const overridden = createConfig({
+      getClient: () => ({}) as PublicClient,
+      chainOverrides: {
+        [SymmioSupportedChainId.HYPER_EVM]: {
+          addresses: { accountLayerAddress: "0x9999999999999999999999999999999999999999" },
+        },
+      },
+    });
+
+    const baseKey = getSubAccountQueryOptions(base, { account: SUB_ACCOUNT }).queryKey;
+    const overriddenKey = getSubAccountQueryOptions(overridden, { account: SUB_ACCOUNT }).queryKey;
+
+    expect((baseKey[1] as { configKey?: string }).configKey).toBe(base.getChainConfigKey());
+    expect(overriddenKey).not.toEqual(baseKey);
   });
 });
