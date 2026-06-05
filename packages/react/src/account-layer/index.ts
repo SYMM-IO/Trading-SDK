@@ -1,4 +1,6 @@
 export * from "./use-create-sub-accounts";
+export * from "./use-deposit";
+export * from "./use-deposit-and-allocate";
 export * from "./use-edit-account-name";
 export * from "./use-sub-account";
 export * from "./use-sub-account-virtual-nonce";

@@ -51,6 +51,8 @@ export {
  */
 export {
   useCreateSubAccounts,
+  useDeposit,
+  useDepositAndAllocate,
   useEditAccountName,
   useSubAccount,
   useSubAccountVirtualNonce,
@@ -58,9 +60,15 @@ export {
   useUserSubAccounts,
   useUserSubAccountsAddresses,
   type CreateSubAccountsResult,
+  type DepositAndAllocateResult,
+  type DepositResult,
   type EditAccountNameResult,
   type UseCreateSubAccountsParameters,
   type UseCreateSubAccountsReturnType,
+  type UseDepositAndAllocateParameters,
+  type UseDepositAndAllocateReturnType,
+  type UseDepositParameters,
+  type UseDepositReturnType,
   type UseEditAccountNameParameters,
   type UseEditAccountNameReturnType,
   type UseSubAccountParameters,
@@ -74,6 +82,59 @@ export {
   type UseUserSubAccountsParameters,
   type UseUserSubAccountsReturnType,
 } from "./account-layer";
+
+/**
+ * Collateral hooks
+ * ----------------
+ * Approve the collateral token for the SYMMIO core (the deposit prerequisite) and
+ * read the connected wallet's allowance and balance.
+ */
+export {
+  useApproveCollateral,
+  useCollateralAllowance,
+  useCollateralBalance,
+  type ApproveCollateralResult,
+  type UseApproveCollateralParameters,
+  type UseApproveCollateralReturnType,
+  type UseCollateralAllowanceParameters,
+  type UseCollateralAllowanceReturnType,
+  type UseCollateralBalanceParameters,
+  type UseCollateralBalanceReturnType,
+} from "./collateral";
+
+/**
+ * Withdraw hooks
+ * --------------
+ * The request-based withdraw flow: initiate / cancel / finalize mutations (the
+ * write wrappers hide the AccountLayer `_call` proxying) plus the read views for
+ * pending requests, ids, and the withdrawable time.
+ */
+export {
+  useFinalizeWithdrawRequest,
+  useInitiateWithdraw,
+  useLastWithdrawRequestId,
+  usePendingWithdrawRequests,
+  useRequestCancelWithdraw,
+  useWithdrawRequest,
+  useWithdrawableTime,
+  type FinalizeWithdrawRequestResult,
+  type InitiateWithdrawResult,
+  type RequestCancelWithdrawResult,
+  type UseFinalizeWithdrawRequestParameters,
+  type UseFinalizeWithdrawRequestReturnType,
+  type UseInitiateWithdrawParameters,
+  type UseInitiateWithdrawReturnType,
+  type UseLastWithdrawRequestIdParameters,
+  type UseLastWithdrawRequestIdReturnType,
+  type UsePendingWithdrawRequestsParameters,
+  type UsePendingWithdrawRequestsReturnType,
+  type UseRequestCancelWithdrawParameters,
+  type UseRequestCancelWithdrawReturnType,
+  type UseWithdrawRequestParameters,
+  type UseWithdrawRequestReturnType,
+  type UseWithdrawableTimeParameters,
+  type UseWithdrawableTimeReturnType,
+} from "./withdraw";
 
 /**
  * Markets hooks

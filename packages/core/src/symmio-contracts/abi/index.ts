@@ -4,3 +4,4 @@
  * here so consumers keep importing from `@symm-frontier/core/abi`.
  */
 export { accountLayerAbi } from "./v0.8.5/account-layer";
+export { symmioAbi } from "./v0.8.5/symmio";

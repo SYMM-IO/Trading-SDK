@@ -1,4 +1,6 @@
 export * from "./actions/create-sub-accounts";
+export * from "./actions/deposit-and-allocate-for-account";
+export * from "./actions/deposit-for-account";
 export * from "./actions/edit-account-name";
 export * from "./actions/get-sub-account";
 export * from "./actions/get-sub-account-virtual-nonce";
@@ -6,6 +8,8 @@ export * from "./actions/get-sub-accounts-count-of-user";
 export * from "./actions/get-user-sub-accounts";
 export * from "./actions/get-user-sub-accounts-addresses";
 export * from "./query/create-sub-accounts";
+export * from "./query/deposit-and-allocate-for-account";
+export * from "./query/deposit-for-account";
 export * from "./query/edit-account-name";
 export * from "./query/get-sub-account";
 export * from "./query/get-sub-account-virtual-nonce";

@@ -1,36 +1,35 @@
+import { LinkCard, type LinkCardProps } from "@/components/link-card";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@symm-frontier/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@symm-frontier/ui/components/card";
 import Link from "next/link";
-import type { CSSProperties, ReactNode } from "react";
 
-interface HomeCard {
-  href: string;
-  eyebrow: string;
-  title: string;
-  description: string;
-  icon: ReactNode;
-}
-
-const cards: HomeCard[] = [
+const cards: Omit<LinkCardProps, "index">[] = [
   {
-    href: "/inspector/account-layer",
-    eyebrow: "Inspector",
-    title: "AccountLayer",
-    description: "Run live reads and writes against the AccountLayer slice — subaccounts, nonces, and creation flows.",
+    href: "/contracts",
+    eyebrow: "Contracts",
+    title: "Contract methods",
+    description:
+      "Run live reads and writes against every method the SDK implements — browse by contract ABI or by flow.",
     icon: <LayersIcon />,
   },
   {
-    href: "/inspector/markets",
-    eyebrow: "Inspector",
-    title: "Markets",
-    description: "Fetch and filter tradable markets — symbols, leverage, fees, and state — straight from the solver.",
+    href: "/solvers",
+    eyebrow: "Solvers",
+    title: "Solver markets",
+    description: "Fetch tradable markets — symbols, leverage, fees, and state — straight from the chain's solver.",
     icon: <ChartIcon />,
+  },
+  {
+    href: "/integration",
+    eyebrow: "End to end",
+    title: "Integration flow",
+    description: "A production-grade deposit and withdraw console composed entirely from @symm-frontier/react hooks.",
+    icon: <FlowIcon />,
   },
   {
     href: "/config",
     eyebrow: "Runtime",
-    title: "Resolved Config",
+    title: "Resolved config",
     description: "Inspect the chain config the app resolves from @symm-frontier/react — addresses, solver, subgraphs.",
     icon: <SlidersIcon />,
   },
@@ -51,70 +50,35 @@ export function HomePanel() {
 
         <p className="text-muted-foreground max-w-2xl text-base leading-7 text-pretty">
           A reference console for the <span className="text-foreground font-medium">@symm-frontier</span> SDK. Run live
-          contract reads and writes, browse tradable markets, and verify the resolved chain config — every call goes
+          contract reads and writes, move collateral end to end, and verify the resolved chain config — every call goes
           through the same surface third-party builders use.
         </p>
 
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <Button asChild size="lg">
-            <Link href="/inspector/account-layer">
-              Open Inspector
+            <Link href="/contracts">
+              Browse contracts
               <ArrowIcon />
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg">
-            <Link href="/inspector/markets">Browse markets</Link>
+            <Link href="/integration">Integration demo</Link>
           </Button>
         </div>
       </div>
 
       <div className="mt-16 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map((card, i) => (
-          <HomeCardLink key={card.href} card={card} index={i} />
+        {cards.map((card, index) => (
+          <LinkCard key={card.href} {...card} index={index} />
         ))}
       </div>
     </section>
   );
 }
 
-function HomeCardLink({ card, index }: { card: HomeCard; index: number }) {
+function ArrowIcon() {
   return (
-    <Link
-      href={card.href}
-      className="group animate-enter-up block focus-visible:outline-none"
-      style={{ "--enter-delay": `${120 + index * 90}ms` } as CSSProperties}
-    >
-      <Card className="group-focus-visible:ring-ring group-hover:ring-primary/40 relative h-full transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg group-focus-visible:ring-2">
-        <div
-          className="bg-primary/15 pointer-events-none absolute -top-16 -right-12 size-40 rounded-full opacity-0 blur-3xl transition-opacity duration-300 group-hover:opacity-100"
-          aria-hidden
-        />
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <span className="bg-primary/10 text-primary ring-primary/15 flex size-11 items-center justify-center rounded-xl ring-1 transition-transform duration-300 group-hover:scale-105">
-              {card.icon}
-            </span>
-            <span className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">
-              {card.eyebrow}
-            </span>
-          </div>
-          <CardTitle className="font-display mt-4 text-lg tracking-tight">{card.title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm leading-6">{card.description}</p>
-          <span className="text-primary mt-5 inline-flex items-center gap-1.5 text-sm font-medium">
-            Open
-            <ArrowIcon className="transition-transform duration-300 group-hover:translate-x-1" />
-          </span>
-        </CardContent>
-      </Card>
-    </Link>
-  );
-}
-
-function ArrowIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" className={className ?? "size-4"} aria-hidden>
+    <svg viewBox="0 0 16 16" fill="none" className="size-4" aria-hidden>
       <path
         d="M3 8h10M9 4l4 4-4 4"
         stroke="currentColor"
@@ -146,6 +110,22 @@ function ChartIcon() {
     <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
       <path d="M4 20V4M4 20h16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
       <path d="M8 16v-3M12 16V9M16 16v-6M20 16V6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FlowIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      <circle cx="6" cy="6" r="2.5" stroke="currentColor" strokeWidth="1.75" />
+      <circle cx="18" cy="18" r="2.5" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M8.5 6H15a3 3 0 0 1 3 3v6.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        opacity="0.7"
+      />
     </svg>
   );
 }

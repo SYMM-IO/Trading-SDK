@@ -6,8 +6,9 @@ export interface NavLink {
 /** Primary navigation, shared by the header and footer. */
 export const navLinks: NavLink[] = [
   { href: "/", label: "Overview" },
-  { href: "/inspector/account-layer", label: "AccountLayer" },
-  { href: "/inspector/markets", label: "Markets" },
+  { href: "/contracts", label: "Contracts" },
+  { href: "/solvers", label: "Solvers" },
+  { href: "/integration", label: "Integration" },
   { href: "/config", label: "Config" },
 ];
 
