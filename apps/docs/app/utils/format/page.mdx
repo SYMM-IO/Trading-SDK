@@ -1,6 +1,6 @@
 # Display formatters
 
-Decimal-backed string formatters for UI output. Every formatter accepts `Decimal.Value` (string, number, bigint, Decimal) so call sites don't need to convert.
+String formatters for UI output. Numeric value formatters accept `Decimal.Value` (string, number, bigint, Decimal) so call sites don't need to convert.
 
 ```ts
 import {
@@ -9,6 +9,7 @@ import {
   formatCurrency,
   formatDynamicDecimals,
   formatPercentage,
+  formatRelativeTimestamp,
   formatWithCommas,
 } from "@symm-frontier/utils/format";
 ```
@@ -93,3 +94,23 @@ formatDynamicDecimals(0.0000123456, 3, { maxDecimals: 6 }); // "0.000012"
 ```
 
 Useful for prices that span many orders of magnitude (think shitcoin tickers and stablecoins in the same UI).
+
+## `formatRelativeTimestamp(timestampSeconds, opts?)`
+
+Short relative labels for Unix timestamps in seconds.
+
+```ts
+formatRelativeTimestamp(1_700_000_060n, { nowSeconds: 1_700_000_000 }); // "in 1m"
+formatRelativeTimestamp(1_699_999_940n, { nowSeconds: 1_700_000_000 }); // "1m ago"
+formatRelativeTimestamp(0n); // "Not set"
+```
+
+Use options for product-specific wording:
+
+```ts
+formatRelativeTimestamp(expiryTimestamp, {
+  nowLabel: "expires now",
+  formatFuture: (duration) => `expires in ${duration}`,
+  formatPast: (duration) => `expired ${duration} ago`,
+});
+```

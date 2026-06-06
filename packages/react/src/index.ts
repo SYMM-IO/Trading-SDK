@@ -109,6 +109,25 @@ export {
 } from "./collateral";
 
 /**
+ * InstantLayer hooks
+ * ------------------
+ * Delegated signer access reads and grant writes for the Instant Layer
+ * contract.
+ */
+export {
+  useDelegationExpiry,
+  useGrantDelegation,
+  useIsDelegationActive,
+  type GrantDelegationResult,
+  type UseDelegationExpiryParameters,
+  type UseDelegationExpiryReturnType,
+  type UseGrantDelegationParameters,
+  type UseGrantDelegationReturnType,
+  type UseIsDelegationActiveParameters,
+  type UseIsDelegationActiveReturnType,
+} from "./instant-layer";
+
+/**
  * Withdraw hooks
  * --------------
  * The request-based withdraw flow: initiate / cancel / finalize mutations (the

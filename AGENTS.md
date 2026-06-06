@@ -74,6 +74,7 @@ Both reference repos live outside this monorepo. Treat them as **read-only**. Ne
 
 - **Vibe-ui** — primary source of truth for **end-to-end user flows** (quote → trade → confirm, account management, withdraw, etc.). Consult it to understand _what the user experience looks like_ and _which behaviors the SDK must enable_.
 - **Explorer (with the Inspector section)** — primary source of truth for **raw data shapes, contract reads, and inspection patterns**. The Inspector section sits closer to the SDK boundary than the rest of Vibe-ui, so it is often the cleanest reference for what `core` should expose.
+- **Perps-core contract docs v0.8.5** — primary source of truth for **contract semantics, account/virtual-account behavior, events, lifecycle rules, and migration details**. Canonical docs live at https://github.com/SYMM-IO/perps-core/tree/version_0.8.5/docs/v0.8.5. Before implementing or reviewing contract/ABI behavior, read the relevant doc file(s) and cite them in the design proposal or explanation.
 
 For any slice, consult whichever reference fits the question. They are complementary, not ranked.
 

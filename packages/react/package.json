@@ -21,6 +21,10 @@
       "types": "./dist/account-layer/index.d.ts",
       "import": "./dist/account-layer/index.js"
     },
+    "./instant-layer": {
+      "types": "./dist/instant-layer/index.d.ts",
+      "import": "./dist/instant-layer/index.js"
+    },
     "./wallet": {
       "types": "./dist/wallet/index.d.ts",
       "import": "./dist/wallet/index.js"

@@ -44,6 +44,15 @@ export const ABI_PAGES: readonly ContractPage[] = [
     description: "The collateral token surface the SDK touches — approve the core, and read allowance and balance.",
     icon: <CoinIcon />,
   },
+  {
+    slug: "instant-layer",
+    kind: "abi",
+    abi: "instant-layer",
+    eyebrow: "ABI",
+    title: "InstantLayer",
+    description: "Delegated signer access for Instant Layer reads and writes.",
+    icon: <BoltIcon />,
+  },
 ];
 
 /** Usage section — one page per flow, gathering its methods across contracts. */
@@ -74,6 +83,15 @@ export const FLOW_PAGES: readonly ContractPage[] = [
     title: "Withdraw",
     description: "Open, finalize, and cancel withdraw requests, and read pending requests and cooldown timing.",
     icon: <WithdrawIcon />,
+  },
+  {
+    slug: "delegation",
+    kind: "flow",
+    group: "delegation",
+    eyebrow: "Flow",
+    title: "Delegation",
+    description: "Read and grant Instant Layer delegated signer access by selector.",
+    icon: <BoltIcon />,
   },
 ];
 
@@ -136,6 +154,19 @@ function CoinIcon() {
         stroke="currentColor"
         strokeWidth="1.6"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function BoltIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      <path
+        d="M13 2.75 5.5 13h5.75L11 21.25 18.5 11h-5.75L13 2.75Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
       />
     </svg>
   );

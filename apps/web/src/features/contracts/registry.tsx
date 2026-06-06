@@ -3,6 +3,7 @@ import { ReadAccountBalanceInfo } from "../inspector/read-account-balance-info";
 import { ReadAccountBalanceOf } from "../inspector/read-account-balance-of";
 import { ReadCollateralAllowance } from "../inspector/read-collateral-allowance";
 import { ReadCollateralBalance } from "../inspector/read-collateral-balance";
+import { ReadDelegationReads } from "../inspector/read-delegation-reads";
 import { ReadGetSubAccount } from "../inspector/read-get-sub-account";
 import { ReadGetSubAccountVirtualNonce } from "../inspector/read-get-sub-account-virtual-nonce";
 import { ReadGetSubAccountsCountOfUser } from "../inspector/read-get-sub-accounts-count-of-user";
@@ -18,14 +19,15 @@ import { WriteDeposit } from "../inspector/write-deposit";
 import { WriteDepositAndAllocate } from "../inspector/write-deposit-and-allocate";
 import { WriteEditAccountName } from "../inspector/write-edit-account-name";
 import { WriteFinalizeWithdrawRequest } from "../inspector/write-finalize-withdraw-request";
+import { WriteGrantDelegation } from "../inspector/write-grant-delegation";
 import { WriteInitiateWithdraw } from "../inspector/write-initiate-withdraw";
 import { WriteRequestCancelWithdraw } from "../inspector/write-request-cancel-withdraw";
 
 /** On-chain ABI a method belongs to. Solver (API) reads have no ABI. */
-export type AbiKey = "account-layer" | "symmio-core" | "collateral";
+export type AbiKey = "account-layer" | "symmio-core" | "collateral" | "instant-layer";
 
 /** Usability flow a method participates in. */
-export type GroupKey = "subaccounts" | "deposit" | "withdraw";
+export type GroupKey = "subaccounts" | "deposit" | "withdraw" | "delegation";
 
 /** One registered method-exerciser card with its taxonomy. */
 export interface MethodEntry {
@@ -102,6 +104,21 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     abi: "account-layer",
     groups: ["subaccounts"],
     Component: WriteEditAccountName,
+  },
+  // InstantLayer — delegation
+  {
+    id: "delegationReads",
+    kind: "read",
+    abi: "instant-layer",
+    groups: ["delegation"],
+    Component: ReadDelegationReads,
+  },
+  {
+    id: "grantDelegation",
+    kind: "write",
+    abi: "instant-layer",
+    groups: ["delegation"],
+    Component: WriteGrantDelegation,
   },
   // AccountLayer — deposits
   { id: "depositForAccount", kind: "write", abi: "account-layer", groups: ["deposit"], Component: WriteDeposit },
