@@ -50,6 +50,8 @@ export {
  * Mutations invalidate the relevant queries on success.
  */
 export {
+  useAccountBalanceInfo,
+  useAccountBalanceOf,
   useCreateSubAccounts,
   useDeposit,
   useDepositAndAllocate,
@@ -63,6 +65,10 @@ export {
   type DepositAndAllocateResult,
   type DepositResult,
   type EditAccountNameResult,
+  type UseAccountBalanceInfoParameters,
+  type UseAccountBalanceInfoReturnType,
+  type UseAccountBalanceOfParameters,
+  type UseAccountBalanceOfReturnType,
   type UseCreateSubAccountsParameters,
   type UseCreateSubAccountsReturnType,
   type UseDepositAndAllocateParameters,

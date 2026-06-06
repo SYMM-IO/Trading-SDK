@@ -80,6 +80,33 @@ export interface SubAccountDetail {
 }
 
 /**
+ * Raw balance fields returned by `balanceInfoOfPartyA(account)` on a SYMMIO
+ * core/diamond contract.
+ *
+ * Values are returned in the collateral token's raw units.
+ */
+export interface AccountBalanceInfo {
+  /** Total allocated balance. */
+  allocatedBalance: bigint;
+  /** Locked CVA margin. */
+  lockedCVA: bigint;
+  /** Locked LF margin. */
+  lockedLF: bigint;
+  /** Locked PartyA maintenance margin. */
+  lockedPartyAMM: bigint;
+  /** Locked PartyB maintenance margin. */
+  lockedPartyBMM: bigint;
+  /** Pending locked CVA margin. */
+  pendingLockedCVA: bigint;
+  /** Pending locked LF margin. */
+  pendingLockedLF: bigint;
+  /** Pending locked PartyA maintenance margin. */
+  pendingLockedPartyAMM: bigint;
+  /** Pending locked PartyB maintenance margin. */
+  pendingLockedPartyBMM: bigint;
+}
+
+/**
  * Input parameters for creating one subaccount via `createSubAccounts`.
  *
  * Field shapes and ordering mirror the on-chain `SubAccountCreationData` struct
