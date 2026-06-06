@@ -1,12 +1,12 @@
 /**
  * `@symm-frontier/core` — framework-agnostic SYMMIO SDK.
  *
- * The shape follows wagmi: a single immutable {@link Config} (created with
+ * a single immutable {@link Config} (created with
  * {@link createConfig}) is the first argument of every standalone action
  * (`getMarkets(config, params)`), and each read/write ships a matching TanStack
  * Query / Mutation options factory (`getMarketsQueryOptions(config, options)`).
- * `core` depends only on viem and `@tanstack/query-core` — no framework, no
- * wagmi. Framework layers (`@symm-frontier/react`, a future Vue layer) inject
+ * `core` depends only on viem and `@tanstack/query-core` — no framework.
+ * Framework layers (`@symm-frontier/react`, a future Vue layer) inject
  * the viem-client resolvers the config needs.
  *
  * @remarks
@@ -260,7 +260,7 @@ export {
   type RequestCancelWithdrawReturnType,
   type WithdrawReceiverPart,
   type WithdrawRequest,
-} from "./symmio-contracts/withdraw";
+} from "./symmio-contracts/symmio";
 
 /**
  * Chain config registry

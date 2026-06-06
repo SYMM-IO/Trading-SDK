@@ -16,7 +16,7 @@ export type DepositForAccountParameters = Compute<
     /**
      * Amount of collateral to deposit, in the collateral token's smallest unit
      * (e.g. `1_000000n` for 1 USDC at 6 decimals). The user must have approved at
-     * least this much collateral to the SYMMIO core first — see `approveCollateral`.
+     * least this much collateral to the SYMMIO core first — see {@link approveCollateral}.
      */
     amount: bigint;
   }
@@ -36,7 +36,7 @@ export type DepositForAccountReturnType = Hash;
  * @remarks
  * Requires a prior ERC20 approval of the collateral token to the **SYMMIO core**
  * (`symmioAddress`), which is the contract that pulls the funds. See
- * `approveCollateral` / `getCollateralAllowance`.
+ * {@link approveCollateral} / {@link getCollateralAllowance}.
  *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
  * @param parameters - Subaccount address, amount (collateral units), optional chain id.

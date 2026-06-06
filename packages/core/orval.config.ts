@@ -7,10 +7,10 @@ export default defineConfig({
     },
     output: {
       clean: true,
-      target: "./src/solvers/types/generated/enigma-solver.ts",
       mode: "single",
-      formatter: "prettier",
       httpClient: "axios",
+      formatter: "prettier",
+      target: "./src/solvers/types/generated/enigma-solver.ts",
       override: {
         enumGenerationType: "enum",
       },
