@@ -1,3 +1,5 @@
+export * from "./use-account-balance-info";
+export * from "./use-account-balance-of";
 export * from "./use-create-sub-accounts";
 export * from "./use-deposit";
 export * from "./use-deposit-and-allocate";

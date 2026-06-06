@@ -1,4 +1,6 @@
 import type { ComponentType } from "react";
+import { ReadAccountBalanceInfo } from "../inspector/read-account-balance-info";
+import { ReadAccountBalanceOf } from "../inspector/read-account-balance-of";
 import { ReadCollateralAllowance } from "../inspector/read-collateral-allowance";
 import { ReadCollateralBalance } from "../inspector/read-collateral-balance";
 import { ReadGetSubAccount } from "../inspector/read-get-sub-account";
@@ -72,6 +74,20 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     abi: "account-layer",
     groups: ["subaccounts"],
     Component: ReadGetUserSubAccountsAddresses,
+  },
+  {
+    id: "getAccountBalanceOf",
+    kind: "read",
+    abi: "symmio-core",
+    groups: ["subaccounts"],
+    Component: ReadAccountBalanceOf,
+  },
+  {
+    id: "getAccountBalanceInfo",
+    kind: "read",
+    abi: "symmio-core",
+    groups: ["subaccounts"],
+    Component: ReadAccountBalanceInfo,
   },
   {
     id: "createSubAccounts",
