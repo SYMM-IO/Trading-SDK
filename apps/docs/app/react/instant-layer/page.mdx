@@ -1,0 +1,139 @@
+# InstantLayer hooks
+
+React-query wrappers over `@symm-frontier/core`'s InstantLayer slice.
+
+Delegation reads are intentionally split into two hooks. `useDelegationExpiry` reads the raw `delegations` mapping value, and `useIsDelegationActive` reads the contract's computed active status.
+
+## `useDelegationExpiry(params)`
+
+Read the raw expiry timestamp for one account, delegate, and selector.
+
+```tsx
+import { useDelegationExpiry } from "@symm-frontier/react";
+
+const expiryQuery = useDelegationExpiry({
+  account,
+  delegate,
+  selector: "0x501e891f",
+});
+
+if (expiryQuery.data) {
+  console.log(expiryQuery.data.toString());
+}
+```
+
+### Parameters
+
+| Name       | Type      | Default        | Notes                             |
+| ---------- | --------- | -------------- | --------------------------------- |
+| `account`  | `Address` | required       | Account that owns the delegation. |
+| `delegate` | `Address` | required       | Delegated signer being checked.   |
+| `selector` | `Hex`     | required       | Function selector as `bytes4`.    |
+| `chainId`  | `number?` | config default | Optional chain override.          |
+| `query`    | `object?` | `undefined`    | TanStack Query overrides.         |
+| `config`   | `Config?` | provider value | Optional config override.         |
+
+### Return type
+
+`UseQueryResult<bigint, SymmioRequestError>`.
+
+## `useIsDelegationActive(params)`
+
+Read whether the contract considers a delegation active.
+
+```tsx
+import { useIsDelegationActive } from "@symm-frontier/react";
+
+const activeQuery = useIsDelegationActive({
+  account,
+  delegate,
+  selector: "0x501e891f",
+});
+
+if (activeQuery.data === true) {
+  console.log("Delegation is active");
+}
+```
+
+### Parameters
+
+| Name       | Type      | Default        | Notes                             |
+| ---------- | --------- | -------------- | --------------------------------- |
+| `account`  | `Address` | required       | Account that owns the delegation. |
+| `delegate` | `Address` | required       | Delegated signer being checked.   |
+| `selector` | `Hex`     | required       | Function selector as `bytes4`.    |
+| `chainId`  | `number?` | config default | Optional chain override.          |
+| `query`    | `object?` | `undefined`    | TanStack Query overrides.         |
+| `config`   | `Config?` | provider value | Optional config override.         |
+
+### Return type
+
+`UseQueryResult<boolean, SymmioRequestError>`.
+
+## Conditional UI
+
+Because the read inputs are required, gate the hook-calling component until the UI has valid values.
+
+```tsx
+function DelegationPanel({ account, delegate, selector }: Props) {
+  if (!account || !delegate || !selector) {
+    return <p>Enter account, delegate, and selector.</p>;
+  }
+
+  return <DelegationReads account={account} delegate={delegate} selector={selector} />;
+}
+
+function DelegationReads({ account, delegate, selector }: Required<Props>) {
+  const expiryQuery = useDelegationExpiry({ account, delegate, selector });
+  const activeQuery = useIsDelegationActive({ account, delegate, selector });
+
+  return (
+    <>
+      <p>Expiry: {expiryQuery.data?.toString()}</p>
+      <p>Active: {String(activeQuery.data)}</p>
+    </>
+  );
+}
+```
+
+## `useGrantDelegation(options?)`
+
+Submit an InstantLayer `grantDelegation` transaction.
+
+```tsx
+import { useGrantDelegation } from "@symm-frontier/react";
+
+const { mutate, isPending, data, error } = useGrantDelegation();
+
+<button
+  disabled={isPending}
+  onClick={() =>
+    mutate({
+      account: { addr: account, isPartyB: false },
+      delegatedSigner: delegate,
+      selectors: ["0x501e891f"],
+      expiryTimestamp: 1_766_000_000n,
+    })
+  }
+>
+  Grant
+</button>;
+```
+
+### Options
+
+```ts
+interface UseGrantDelegationParameters {
+  waitForReceipt?: boolean; // default true
+  confirmations?: number; // default 1
+}
+```
+
+### Cache invalidation
+
+On success, `useGrantDelegation` invalidates both read caches for the account and delegated signer:
+
+- `getDelegationExpiryQueryKey`
+- `getIsDelegationActiveQueryKey`
+
+Mounted `useDelegationExpiry` and `useIsDelegationActive` hooks refetch independently.

@@ -1,11 +1,12 @@
 "use client";
 
-import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
-import { TableSkeleton } from "@/components/skeletons";
 import { useUserSubAccounts, useWalletAccount } from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Input } from "@symm-frontier/ui/components/input";
+import {
+  AccountPicker,
+  type AccountPickerItem,
+  type AccountPickerListState,
+} from "@symm-frontier/ui/components/account-picker";
 import { shortenAddress } from "@symm-frontier/utils";
 import { useMemo, useState } from "react";
 import type { Address } from "viem";
@@ -20,10 +21,24 @@ interface Props {
   idPrefix: string;
   selected: SelectedSubAccount;
   onSelect: (selection: SelectedSubAccount) => void;
+  ownerLabel?: string;
+  ownerEmptyHint?: string;
+  accountLabel?: string;
+  accountEmptyHint?: string;
+  selectedHintLabel?: string;
 }
 
 /** User-address input plus clickable subaccount list for inspector read cards. */
-export function SubAccountPicker({ idPrefix, selected, onSelect }: Props) {
+export function SubAccountPicker({
+  idPrefix,
+  selected,
+  onSelect,
+  ownerLabel = "user (address)",
+  ownerEmptyHint = "Enter a wallet address to load subaccounts.",
+  accountLabel = "subAccount (address)",
+  accountEmptyHint = "Click a subaccount or enter one manually.",
+  selectedHintLabel = "Selected",
+}: Props) {
   const { address } = useWalletAccount();
   const [ownerInput, setOwnerInput] = useState("");
   const [subAccountInput, setSubAccountInput] = useState("");
@@ -33,115 +48,83 @@ export function SubAccountPicker({ idPrefix, selected, onSelect }: Props) {
   const subAccount = isAddress(subAccountInput) ? (subAccountInput as Address) : undefined;
   const query = useUserSubAccounts({ user: owner });
 
+  const items = useMemo(
+    () =>
+      query.data?.map(
+        (sub): AccountPickerItem => ({
+          id: sub.accountAddress,
+          title: sub.name || "Unnamed",
+          meta: shortenAddress(sub.accountAddress),
+          selected: sub.accountAddress === selected.subAccount,
+        }),
+      ) ?? [],
+    [query.data, selected.subAccount],
+  );
+
   const selectedName = useMemo(() => {
     return selected.name ?? query.data?.find((sub) => sub.accountAddress === selected.subAccount)?.name;
   }, [query.data, selected.name, selected.subAccount]);
 
   return (
-    <div className="space-y-4">
-      <Field
-        label="user (address)"
-        htmlFor={`${idPrefix}-owner`}
-        hint={
-          owner ? `Loading subaccounts for ${shortenAddress(owner)}.` : "Enter a wallet address to load subaccounts."
-        }
-      >
-        <Input
-          id={`${idPrefix}-owner`}
-          data-testid={`${idPrefix}-owner`}
-          value={ownerInput}
-          onChange={(event) => setOwnerInput(event.target.value)}
-          placeholder={address ?? "0x…"}
-          className="font-mono"
-          aria-invalid={ownerCandidate.length > 0 && !owner}
-        />
-      </Field>
-
-      <SubAccountList
-        testId={`${idPrefix}-list`}
-        query={query}
-        selected={selected.subAccount}
-        onSelect={(nextSubAccount, name) => {
-          setSubAccountInput(nextSubAccount);
-          onSelect({ subAccount: nextSubAccount, name });
-        }}
-      />
-
-      <Field
-        label="subAccount (address)"
-        htmlFor={`${idPrefix}-subaccount`}
-        hint={
-          subAccount
-            ? `Selected ${selectedName ? `${selectedName} · ` : ""}${shortenAddress(subAccount)}.`
-            : "Click a subaccount or enter one manually."
-        }
-      >
-        <Input
-          id={`${idPrefix}-subaccount`}
-          data-testid={`${idPrefix}-subaccount`}
-          value={subAccountInput}
-          onChange={(event) => {
-            const next = event.target.value;
-            setSubAccountInput(next);
-            onSelect({ subAccount: isAddress(next) ? (next as Address) : undefined });
-          }}
-          placeholder="0x…"
-          className="font-mono"
-          aria-invalid={subAccountInput.length > 0 && !subAccount}
-        />
-      </Field>
-    </div>
+    <AccountPicker
+      idPrefix={idPrefix}
+      ownerLabel={ownerLabel}
+      ownerHint={owner ? `Loading subaccounts for ${shortenAddress(owner)}.` : ownerEmptyHint}
+      ownerValue={ownerInput}
+      ownerPlaceholder={address ?? "0x..."}
+      ownerInvalid={ownerCandidate.length > 0 && !owner}
+      onOwnerValueChange={setOwnerInput}
+      accountLabel={accountLabel}
+      accountHint={
+        subAccount
+          ? `${selectedHintLabel} ${selectedName ? `${selectedName} · ` : ""}${shortenAddress(subAccount)}.`
+          : accountEmptyHint
+      }
+      accountValue={subAccountInput}
+      accountPlaceholder="0x..."
+      accountInvalid={subAccountInput.length > 0 && !subAccount}
+      onAccountValueChange={(next) => {
+        setSubAccountInput(next);
+        onSelect({ subAccount: isAddress(next) ? (next as Address) : undefined });
+      }}
+      listState={getListState(query)}
+      listMessage={<SubAccountListMessage idPrefix={idPrefix} query={query} />}
+      items={items}
+      onSelect={(item) => {
+        const nextSubAccount = item.id as Address;
+        setSubAccountInput(nextSubAccount);
+        onSelect({
+          subAccount: nextSubAccount,
+          name: typeof item.title === "string" ? item.title : undefined,
+        });
+      }}
+    />
   );
 }
 
-function SubAccountList({
-  testId,
+function getListState(query: ReturnType<typeof useUserSubAccounts>): AccountPickerListState {
+  if (query.isLoading) return "loading";
+  if (query.error) return "error";
+  if (!query.data) return "idle";
+  if (query.data.length === 0) return "empty";
+  return "ready";
+}
+
+function SubAccountListMessage({
+  idPrefix,
   query,
-  selected,
-  onSelect,
 }: {
-  testId: string;
+  idPrefix: string;
   query: ReturnType<typeof useUserSubAccounts>;
-  selected?: Address;
-  onSelect: (subAccount: Address, name?: string) => void;
 }) {
-  if (query.isLoading) {
-    return <TableSkeleton rows={3} columns={2} testId={`${testId}-loading`} />;
-  }
   if (query.error) {
-    return <ResultError testId={`${testId}-error`} kind={query.error.kind} message={query.error.message} />;
+    return <ResultError testId={`${idPrefix}-list-error`} kind={query.error.kind} message={query.error.message} />;
   }
   if (!query.data) {
-    return <ResultNote testId={`${testId}-idle`}>Connect a wallet or enter a user address.</ResultNote>;
+    return <ResultNote testId={`${idPrefix}-list-idle`}>Connect a wallet or enter a user address.</ResultNote>;
   }
   if (query.data.length === 0) {
-    return <ResultNote testId={`${testId}-empty`}>No subaccounts found for this address.</ResultNote>;
+    return <ResultNote testId={`${idPrefix}-list-empty`}>No subaccounts found for this address.</ResultNote>;
   }
-
-  return (
-    <div data-testid={testId} className="border-border/70 overflow-hidden rounded-md border">
-      <div className="divide-border/70 max-h-72 divide-y overflow-y-auto">
-        {query.data.map((sub) => {
-          const isSelected = sub.accountAddress === selected;
-          return (
-            <button
-              key={sub.accountAddress}
-              type="button"
-              data-testid={`${testId}-select`}
-              onClick={() => onSelect(sub.accountAddress, sub.name)}
-              className="hover:bg-muted/40 focus-visible:ring-ring flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2"
-            >
-              <span className="min-w-0">
-                <span className="text-foreground block truncate text-sm font-medium">{sub.name || "Unnamed"}</span>
-                <span className="text-muted-foreground mt-0.5 block font-mono text-xs">
-                  {shortenAddress(sub.accountAddress)}
-                </span>
-              </span>
-              {isSelected ? <Badge variant="positive">Selected</Badge> : <Badge variant="secondary">Select</Badge>}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
+  return null;
 }

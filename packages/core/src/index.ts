@@ -22,6 +22,7 @@
  * directly (e.g. `readContract({ abi: accountLayerAbi })`).
  */
 export { accountLayerAbi } from "./symmio-contracts/abi/v0.8.5/account-layer";
+export { instantLayerAbi } from "./symmio-contracts/abi/v0.8.5/instant-layer";
 export { symmioAbi } from "./symmio-contracts/abi/v0.8.5/symmio";
 
 /**
@@ -164,6 +165,39 @@ export {
   type GetCollateralBalanceQueryOptions,
   type GetCollateralBalanceReturnType,
 } from "./symmio-contracts/collateral";
+
+/**
+ * InstantLayer slice
+ * ------------------
+ * Delegated signer access on the Instant Layer contract. Reads expose both the
+ * raw mapping expiry and the contract's active status; writes submit
+ * `grantDelegation`.
+ */
+export {
+  getDelegationExpiry,
+  getDelegationExpiryQueryKey,
+  getDelegationExpiryQueryOptions,
+  getIsDelegationActive,
+  getIsDelegationActiveQueryKey,
+  getIsDelegationActiveQueryOptions,
+  grantDelegation,
+  grantDelegationMutationOptions,
+  type GetDelegationExpiryData,
+  type GetDelegationExpiryOptions,
+  type GetDelegationExpiryParameters,
+  type GetDelegationExpiryQueryKey,
+  type GetDelegationExpiryQueryOptions,
+  type GetDelegationExpiryReturnType,
+  type GetIsDelegationActiveData,
+  type GetIsDelegationActiveOptions,
+  type GetIsDelegationActiveParameters,
+  type GetIsDelegationActiveQueryKey,
+  type GetIsDelegationActiveQueryOptions,
+  type GetIsDelegationActiveReturnType,
+  type GrantDelegationParameters,
+  type GrantDelegationReturnType,
+  type InstantLayerAccount,
+} from "./symmio-contracts/instant-layer";
 
 /**
  * Withdraw slice

@@ -45,7 +45,8 @@ export {
  * Display formatters
  * ------------------
  * Decimal-backed string formatters for UI output: thousand separators,
- * compact (K/M/B/T/Q), currency, percentage, and adaptive precision.
+ * compact (K/M/B/T/Q), currency, percentage, adaptive precision, and relative
+ * timestamp labels.
  */
 export {
   formatCompact,
@@ -53,6 +54,7 @@ export {
   formatCurrency,
   formatDynamicDecimals,
   formatPercentage,
+  formatRelativeTimestamp,
   formatWithCommas,
   type CompactUnit,
   type CurrencyDisplay,
@@ -61,6 +63,7 @@ export {
   type FormatCurrencyOptions,
   type FormatDynamicDecimalsOptions,
   type FormatPercentageOptions,
+  type FormatRelativeTimestampOptions,
   type FormatWithCommasOptions,
 } from "./format";
 

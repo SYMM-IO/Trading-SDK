@@ -1,19 +1,19 @@
 # AccountLayer
 
-The `AccountLayer` contract is where SYMMIO subaccounts live. Each EOA can own multiple subaccounts; each subaccount holds margin and routes trades into Virtual Accounts (VAs).
+The `AccountLayer` contract is where SYMMIO subaccounts live. Each EOA can own multiple subaccounts; each subaccount can route trades into Virtual Accounts (VAs).
 
-Today `core` ships two methods for AccountLayer v0.8.5. More land slice by slice — see the changelog when in doubt.
+This slice also exposes SYMMIO core balance reads for accounts. The `account` input can be a subaccount or virtual account address depending on what the underlying SYMMIO method accepts.
 
 ## Reads
 
-### `getUserSubAccounts(publicClient, params)`
+### `getUserSubAccounts(config, params)`
 
 List a user's subaccounts.
 
 ```ts
 import { getUserSubAccounts } from "@symm-frontier/core";
 
-const subs = await getUserSubAccounts(publicClient, {
+const subs = await getUserSubAccounts(config, {
   user: "0xabc...",
   offset: 0n,
   limit: 200n,
@@ -22,12 +22,12 @@ const subs = await getUserSubAccounts(publicClient, {
 
 **Parameters**
 
-| Name                  | Type      | Default       | Notes                                                                             |
-| --------------------- | --------- | ------------- | --------------------------------------------------------------------------------- |
-| `user`                | `Address` | —             | EOA whose subaccounts to list.                                                    |
-| `offset`              | `bigint`  | `0n`          | Pagination offset.                                                                |
-| `limit`               | `bigint`  | `200n`        | Max number of subaccounts to return. Matches the Explorer Inspector page default. |
-| `accountLayerAddress` | `Address` | from registry | Override the per-chain address (staging, new deployments).                        |
+| Name      | Type      | Default        | Notes                                                                             |
+| --------- | --------- | -------------- | --------------------------------------------------------------------------------- |
+| `user`    | `Address` | —              | EOA whose subaccounts to list.                                                    |
+| `offset`  | `bigint`  | `0n`           | Pagination offset.                                                                |
+| `limit`   | `bigint`  | `200n`         | Max number of subaccounts to return. Matches the Explorer Inspector page default. |
+| `chainId` | `number?` | config default | Optional chain override.                                                          |
 
 **Returns** — `readonly SubAccountDetail[]`.
 
@@ -45,6 +45,66 @@ interface SubAccountDetail {
 }
 ```
 
+### `getAccountBalanceOf(config, params)`
+
+Read raw `balanceOf(account)` from the SYMMIO core/diamond contract.
+
+```ts
+import { getAccountBalanceOf } from "@symm-frontier/core";
+
+const balance = await getAccountBalanceOf(config, {
+  account: "0xaccount...",
+});
+```
+
+**Parameters**
+
+| Name      | Type      | Default        | Notes                                  |
+| --------- | --------- | -------------- | -------------------------------------- |
+| `account` | `Address` | required       | Account address passed to `balanceOf`. |
+| `chainId` | `number?` | config default | Optional chain override.               |
+
+**Returns** — `bigint`, in raw collateral token units. Use `formatUnits(value, 18)` / `formatEther(value)` or the utils package when displaying decimal values.
+
+### `getAccountBalanceInfo(config, params)`
+
+Read raw balance information from `balanceInfoOfPartyA(account)` on the SYMMIO core/diamond contract.
+
+```ts
+import { getAccountBalanceInfo } from "@symm-frontier/core";
+
+const info = await getAccountBalanceInfo(config, {
+  account: "0xaccount...",
+});
+
+console.log(info.allocatedBalance);
+```
+
+**Parameters**
+
+| Name      | Type      | Default        | Notes                                                      |
+| --------- | --------- | -------------- | ---------------------------------------------------------- |
+| `account` | `Address` | required       | Account address passed as PartyA to `balanceInfoOfPartyA`. |
+| `chainId` | `number?` | config default | Optional chain override.                                   |
+
+**Returns** — `AccountBalanceInfo`.
+
+```ts
+interface AccountBalanceInfo {
+  allocatedBalance: bigint;
+  lockedCVA: bigint;
+  lockedLF: bigint;
+  lockedPartyAMM: bigint;
+  lockedPartyBMM: bigint;
+  pendingLockedCVA: bigint;
+  pendingLockedLF: bigint;
+  pendingLockedPartyAMM: bigint;
+  pendingLockedPartyBMM: bigint;
+}
+```
+
+All fields are returned in raw collateral token units.
+
 ### `SubAccountIsolationType`
 
 ```ts
@@ -58,43 +118,41 @@ enum SubAccountIsolationType {
 
 ## Writes
 
-### `editAccountName(walletClient, params)`
+### `editAccountName(config, params)`
 
 Rename a subaccount.
 
 ```ts
 import { editAccountName } from "@symm-frontier/core";
 
-const hash = await editAccountName(walletClient, {
+const hash = await editAccountName(config, {
   account: "0xsub...",
   name: "Trading bot",
 });
-
-const receipt = await publicClient.waitForTransactionReceipt({ hash });
 ```
 
 **Parameters**
 
-| Name                  | Type       | Notes                                                                                  |
-| --------------------- | ---------- | -------------------------------------------------------------------------------------- |
-| `account`             | `Address`  | The subaccount being renamed. The signer must equal the subaccount's `owner` on chain. |
-| `name`                | `string`   | New display name.                                                                      |
-| `accountLayerAddress` | `Address?` | Per-call override.                                                                     |
+| Name      | Type      | Notes                                                                                  |
+| --------- | --------- | -------------------------------------------------------------------------------------- |
+| `account` | `Address` | The subaccount being renamed. The signer must equal the subaccount's `owner` on chain. |
+| `name`    | `string`  | New display name.                                                                      |
+| `chainId` | `number?` | Optional chain override.                                                               |
 
-**Returns** — `Hash` (the broadcast tx hash). The caller is responsible for awaiting the receipt — see the example above.
+**Returns** — `Hash` (the broadcast tx hash).
 
-## Action factories
+## Query options
 
 ```ts
-import { accountLayerReadActions, accountLayerWriteActions } from "@symm-frontier/core";
+import {
+  getAccountBalanceInfoQueryOptions,
+  getAccountBalanceOfQueryOptions,
+  getUserSubAccountsQueryOptions,
+} from "@symm-frontier/core";
 
-const reader = createPublicClient({ chain: hyperEvm, transport: http() }).extend(accountLayerReadActions);
-await reader.getUserSubAccounts({ user: "0xabc..." });
-
-const writer = createWalletClient({ chain: hyperEvm, account, transport: custom(window.ethereum) }).extend(
-  accountLayerWriteActions,
-);
-await writer.editAccountName({ account: "0xsub...", name: "Main" });
+useQuery(getAccountBalanceOfQueryOptions(config, { account }));
+useQuery(getAccountBalanceInfoQueryOptions(config, { account }));
+useQuery(getUserSubAccountsQueryOptions(config, { user }));
 ```
 
 ## Raw ABI
@@ -102,12 +160,19 @@ await writer.editAccountName({ account: "0xsub...", name: "Main" });
 For consumers that want to call viem directly:
 
 ```ts
-import { accountLayerAbi } from "@symm-frontier/core";
+import { accountLayerAbi, symmioAbi } from "@symm-frontier/core";
 
 await publicClient.readContract({
   abi: accountLayerAbi,
-  address: getAccountLayerAddress(hyperEvm.id),
+  address: accountLayerAddress,
   functionName: "getUserSubAccounts",
   args: ["0xabc...", 0n, 200n],
+});
+
+await publicClient.readContract({
+  abi: symmioAbi,
+  address: symmioAddress,
+  functionName: "balanceOf",
+  args: ["0xaccount..."],
 });
 ```

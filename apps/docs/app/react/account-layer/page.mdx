@@ -27,17 +27,90 @@ return (
 
 ### Parameters
 
-| Name                  | Type       | Default               | Notes                                                                                                                                                        |
-| --------------------- | ---------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `user`                | `Address?` | `undefined`           | EOA whose subaccounts to fetch. **The query is disabled while this is `undefined`**, so you can pass the connected address without a manual `enabled` guard. |
-| `offset`              | `bigint?`  | `0n`                  | Pagination offset.                                                                                                                                           |
-| `limit`               | `bigint?`  | `200n`                | Pagination cap.                                                                                                                                              |
-| `accountLayerAddress` | `Address?` | from `SymmioProvider` | Per-call override.                                                                                                                                           |
-| `enabled`             | `boolean?` | `true`                | Disable unconditionally.                                                                                                                                     |
+| Name      | Type       | Default        | Notes                                                                                                                                                        |
+| --------- | ---------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `user`    | `Address?` | `undefined`    | EOA whose subaccounts to fetch. **The query is disabled while this is `undefined`**, so you can pass the connected address without a manual `enabled` guard. |
+| `offset`  | `bigint?`  | `0n`           | Pagination offset.                                                                                                                                           |
+| `limit`   | `bigint?`  | `200n`         | Pagination cap.                                                                                                                                              |
+| `chainId` | `number?`  | config default | Optional chain override.                                                                                                                                     |
+| `query`   | `object?`  | `undefined`    | TanStack Query overrides, including `enabled`.                                                                                                               |
 
 ### Return type
 
 `UseQueryResult<readonly SubAccountDetail[], SymmioRequestError>` — every field react-query exposes, with the SDK error type.
+
+## `useAccountBalanceOf(params)`
+
+Read raw `balanceOf(account)` from the SYMMIO core/diamond contract.
+
+```tsx
+import { formatEther } from "viem";
+import { useAccountBalanceOf } from "@symm-frontier/react";
+
+const { data, isLoading, error } = useAccountBalanceOf({ account });
+
+if (isLoading) return <Spinner />;
+if (error) return <ErrorView kind={error.kind} message={error.message} />;
+
+return <span>{data === undefined ? "-" : formatEther(data)}</span>;
+```
+
+### Parameters
+
+| Name      | Type       | Default        | Notes                                                                         |
+| --------- | ---------- | -------------- | ----------------------------------------------------------------------------- |
+| `account` | `Address?` | `undefined`    | Account address passed to `balanceOf`. The query is disabled while undefined. |
+| `chainId` | `number?`  | config default | Optional chain override.                                                      |
+| `query`   | `object?`  | `undefined`    | TanStack Query overrides.                                                     |
+| `config`  | `Config?`  | provider value | Optional config override.                                                     |
+
+### Return type
+
+`UseQueryResult<bigint, SymmioRequestError>`.
+
+The value is in raw collateral token units. Divide by `1e18` / use `formatEther` when displaying the current deployments' 18-decimal collateral values.
+
+## `useAccountBalanceInfo(params)`
+
+Read raw `balanceInfoOfPartyA(account)` fields from the SYMMIO core/diamond contract.
+
+```tsx
+import { formatEther } from "viem";
+import { useAccountBalanceInfo } from "@symm-frontier/react";
+
+const { data } = useAccountBalanceInfo({ account });
+
+return <span>{data ? formatEther(data.allocatedBalance) : "-"}</span>;
+```
+
+### Parameters
+
+| Name      | Type       | Default        | Notes                                                                                             |
+| --------- | ---------- | -------------- | ------------------------------------------------------------------------------------------------- |
+| `account` | `Address?` | `undefined`    | Account address passed as PartyA to `balanceInfoOfPartyA`. The query is disabled while undefined. |
+| `chainId` | `number?`  | config default | Optional chain override.                                                                          |
+| `query`   | `object?`  | `undefined`    | TanStack Query overrides.                                                                         |
+| `config`  | `Config?`  | provider value | Optional config override.                                                                         |
+
+### Return type
+
+`UseQueryResult<AccountBalanceInfo, SymmioRequestError>`.
+
+```ts
+interface AccountBalanceInfo {
+  allocatedBalance: bigint;
+  lockedCVA: bigint;
+  lockedLF: bigint;
+  lockedPartyAMM: bigint;
+  lockedPartyBMM: bigint;
+  pendingLockedCVA: bigint;
+  pendingLockedLF: bigint;
+  pendingLockedPartyAMM: bigint;
+  pendingLockedPartyBMM: bigint;
+}
+```
+
+All fields are in raw collateral token units.
 
 ## `useEditAccountName(options?)`
 
