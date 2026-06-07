@@ -17,6 +17,7 @@
  * raw `bigint` or are writing values directly to a contract call.
  */
 export {
+  WEI_DECIMALS,
   decimalToRaw,
   formatTokenAmount,
   parseTokenAmount,

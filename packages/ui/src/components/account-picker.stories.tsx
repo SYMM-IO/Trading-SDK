@@ -3,9 +3,9 @@ import { useState } from "react";
 import { AccountPicker, type AccountPickerItem } from "./account-picker";
 
 const ITEMS: readonly AccountPickerItem[] = [
-  { id: "0x1111", title: "Main account", meta: "0x1111...aaaa" },
-  { id: "0x2222", title: "Trading account", meta: "0x2222...bbbb", selected: true },
-  { id: "0x3333", title: "Archive account", meta: "0x3333...cccc" },
+  { id: "0x1111", title: "Main account", meta: "0x1111...aaaa", detail: "$1,240.50" },
+  { id: "0x2222", title: "Trading account", meta: "0x2222...bbbb", detail: "$820.25", selected: true },
+  { id: "0x3333", title: "Archive account", meta: "0x3333...cccc", detail: "$0" },
 ];
 
 const meta = {
