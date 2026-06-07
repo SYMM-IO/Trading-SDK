@@ -1,0 +1,123 @@
+# Session Key Helpers
+
+Framework-agnostic helpers for local EVM session keys. Use them when an app needs a generated wallet that can stay loaded in memory and sign delegated messages or EIP-712 typed data.
+
+Session keys are normal EVM keys, so they are not tied to one chain. Use one session key for the owner across all supported chains unless your app has a product-specific reason to rotate or isolate it.
+
+`@symm-frontier/utils` does not own browser storage, localStorage, encryption, or decryption. It only defines the storage contract and manager. Your application decides where records live and how private-key material is protected before persistence.
+
+```ts
+import {
+  createSessionKey,
+  createSessionKeyManager,
+  decodeSessionKeyTransferPayload,
+  encodeSessionKeyTransferPayload,
+  sessionKeyFromPrivateKey,
+  SESSION_KEY_TRANSFER_PAYLOAD_VERSION,
+  type SessionKeyStorage,
+} from "@symm-frontier/utils/session-key";
+
+const storage: SessionKeyStorage = {
+  async load(owner) {
+    return loadRecordForOwner(owner);
+  },
+  async save(owner, record) {
+    await saveRecordForOwner(owner, record);
+  },
+  async remove(owner) {
+    await removeRecordForOwner(owner);
+  },
+  async getMetadata(owner) {
+    return loadMetadataForOwner(owner);
+  },
+};
+
+const manager = createSessionKeyManager({ storage });
+const state = await manager.initialize(owner);
+const signature = await manager.sign("hello");
+```
+
+## Storage Boundary
+
+`@symm-frontier/utils` exports the storage interface only:
+
+```ts
+interface SessionKeyStorage {
+  load(owner: Address): Promise<SessionKeyRecord | null>;
+  save(owner: Address, record: SessionKeyRecord): Promise<void>;
+  remove(owner: Address): Promise<void>;
+  getMetadata(owner: Address): Promise<SessionKeyMetadata | null>;
+}
+
+interface SessionKeyRecord {
+  owner: Address;
+  privateKey: Hex;
+  address: Address;
+  createdAt: number;
+  expiresAt: number;
+  label?: string;
+}
+```
+
+The manager passes a plain `SessionKeyRecord` to your adapter. For browser apps, encrypt `record.privateKey` before writing it to localStorage or IndexedDB, then decrypt it inside `load()`. For scripts or backend tools, the adapter can use memory, files, a remote store, or another secure key source.
+
+Storage should normally be keyed by owner address, not chain ID. A session key can sign for the same owner across chains, and chain-specific authorization belongs in the contracts or delegated permission layer.
+
+Only use `getPrivateKey()` for explicit device-transfer or export flows.
+
+## `createSessionKeyManager(options)`
+
+Create the runtime manager.
+
+```ts
+const manager = createSessionKeyManager({
+  storage,
+  defaultTtlMs: 365 * 24 * 60 * 60 * 1000,
+});
+```
+
+### Methods
+
+| Method                         | Notes                                                              |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `initialize(owner, options?)`  | Load an existing non-expired key or generate and store a new one.  |
+| `importPrivateKey(owner, key)` | Import a key from another device and store it through the adapter. |
+| `rotate(owner, options?)`      | Replace the current key with a newly generated one.                |
+| `sign(message)`                | Sign a raw message with the loaded key.                            |
+| `signTypedData(params)`        | Sign EIP-712 typed data with the loaded key.                       |
+| `destroy(owner?)`              | Clear memory; when `owner` is passed, remove the stored key.       |
+| `getState()` / `getSnapshot()` | Read runtime state for framework integrations.                     |
+| `getAddress()`                 | Read the loaded session key address.                               |
+| `getMetadata(owner)`           | Read stored public metadata through the adapter.                   |
+
+## Key Material Helpers
+
+Use `createSessionKey()` when you only need a fresh key pair and do not need manager state.
+
+```ts
+const key = createSessionKey();
+```
+
+Use `sessionKeyFromPrivateKey()` when importing a private key outside the manager.
+
+```ts
+const key = sessionKeyFromPrivateKey(privateKey);
+```
+
+## Transfer Payloads
+
+Use transfer payload helpers for explicit QR or deep-link handoff flows:
+
+```ts
+const raw = encodeSessionKeyTransferPayload({
+  version: SESSION_KEY_TRANSFER_PAYLOAD_VERSION,
+  owner,
+  sessionPrivateKey: manager.getPrivateKey(),
+  sessionAddress: manager.getAddress() ?? undefined,
+  createdAt: Date.now(),
+});
+
+const decoded = decodeSessionKeyTransferPayload(raw);
+```
+
+Payloads expire after two minutes by default.

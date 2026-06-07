@@ -14,6 +14,7 @@ import { formatRelativeTimestamp } from "@symm-frontier/utils";
 import { useState } from "react";
 import type { Address, Hex } from "viem";
 import { isAddress } from "viem";
+import { useSessionKey } from "../session-keys/use-session-key";
 import { getInstantLayerDelegateeSuggestions, toDelegateeComboboxItems } from "./instant-layer-delegatees";
 import { SelectorIcon, WalletIcon } from "./instant-layer-icons";
 import { toSelectorComboboxItems } from "./instant-layer-selectors";
@@ -23,6 +24,7 @@ import { SubAccountPicker } from "./subaccount-picker";
 export function ReadDelegationReads() {
   const config = useSymmioConfig();
   const { solver } = config.getChainConfig();
+  const { sessionKeyAddress } = useSessionKey();
   const [account, setAccount] = useState<string>("");
   const [delegate, setDelegate] = useState<string>("");
   const [selector, setSelector] = useState<string>("");
@@ -53,7 +55,10 @@ export function ReadDelegationReads() {
           value={delegate}
           onValueChange={setDelegate}
           onSelect={(item) => setDelegate(item.id)}
-          items={toDelegateeComboboxItems(getInstantLayerDelegateeSuggestions(solver), validDelegate)}
+          items={toDelegateeComboboxItems(
+            getInstantLayerDelegateeSuggestions(solver, sessionKeyAddress ?? undefined),
+            validDelegate,
+          )}
           placeholder="0x..."
           mono
           invalid={delegate.length > 0 && !validDelegate}

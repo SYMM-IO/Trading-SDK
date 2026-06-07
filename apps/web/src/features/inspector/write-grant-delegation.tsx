@@ -18,6 +18,7 @@ import { formatRelativeTimestamp } from "@symm-frontier/utils";
 import { useState } from "react";
 import type { Address, Hex } from "viem";
 import { isAddress } from "viem";
+import { useSessionKey } from "../session-keys/use-session-key";
 import { getInstantLayerDelegateeSuggestions, toDelegateeComboboxItems } from "./instant-layer-delegatees";
 import { SelectorIcon, WalletIcon } from "./instant-layer-icons";
 import { formatSelectorList, parseSelectorTokens, toSelectorComboboxItems } from "./instant-layer-selectors";
@@ -29,6 +30,7 @@ export function WriteGrantDelegation() {
   const { isConnected, isOnExpectedChain } = useWalletAccount();
   const config = useSymmioConfig();
   const { solver } = config.getChainConfig();
+  const { sessionKeyAddress } = useSessionKey();
   const [account, setAccount] = useState<string>("");
   const [isPartyB, setIsPartyB] = useState<boolean>(false);
   const [delegatedSigner, setDelegatedSigner] = useState<string>("");
@@ -95,7 +97,10 @@ export function WriteGrantDelegation() {
           value={delegatedSigner}
           onValueChange={setDelegatedSigner}
           onSelect={(item) => setDelegatedSigner(item.id)}
-          items={toDelegateeComboboxItems(getInstantLayerDelegateeSuggestions(solver), validDelegatedSigner)}
+          items={toDelegateeComboboxItems(
+            getInstantLayerDelegateeSuggestions(solver, sessionKeyAddress ?? undefined),
+            validDelegatedSigner,
+          )}
           placeholder="0x…"
           mono
           invalid={delegatedSigner.length > 0 && !validDelegatedSigner}

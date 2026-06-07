@@ -18,7 +18,7 @@ export function SiteFooter() {
               </span>
             </Link>
             <p className="text-muted-foreground text-sm leading-6">
-              The VibeCaps SDK surface for SYMMIO — connect a wallet, inspect contract state, and trade on HyperEVM.
+              The SYMMIO SDK surface for builders — connect a wallet, inspect contract state, and trade on HyperEVM.
             </p>
             <span className="border-border/70 bg-muted/40 text-muted-foreground inline-flex w-fit items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium">
               <StatusDot tone="positive" pulse />

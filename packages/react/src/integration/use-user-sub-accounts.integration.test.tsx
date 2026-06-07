@@ -10,7 +10,7 @@ import { SymmioProvider } from "../provider/symmio-provider";
 import { TEST_EOA } from "../test/test-utils";
 
 /**
- * Public Hyperliquid HTTP RPC used by Vibe-ui's production config. Anyone can
+ * Public Hyperliquid HTTP RPC used by the production config. Anyone can
  * hit this endpoint; no API key needed.
  */
 const HYPER_EVM_RPC = "https://rpc.hyperliquid.xyz/evm";

@@ -7,6 +7,7 @@
  * - `@symm-frontier/utils/decimal` — Decimal-based math (Decimal.js).
  * - `@symm-frontier/utils/format`  — display formatters (commas, compact, currency, %, dynamic).
  * - `@symm-frontier/utils/address` — checksummed and generic hex shorteners.
+ * - `@symm-frontier/utils/session-key` — encrypted local session-key helpers.
  */
 
 /**
@@ -74,3 +75,30 @@ export {
  * any hex-ish string (tx hashes, selectors).
  */
 export { minifyHash, shortenAddress, type MinifyHashOptions, type ShortenAddressOptions } from "./address";
+
+/**
+ * Session-key helpers
+ * -------------------
+ * Framework-agnostic helpers for generating local EVM session keys and signing
+ * messages or EIP-712 typed data with caller-provided storage.
+ */
+export {
+  SESSION_KEY_EXPIRY_MS,
+  SESSION_KEY_TRANSFER_MAX_AGE_MS,
+  SESSION_KEY_TRANSFER_PAYLOAD_VERSION,
+  createSessionKey,
+  createSessionKeyManager,
+  decodeSessionKeyTransferPayload,
+  encodeSessionKeyTransferPayload,
+  sessionKeyFromPrivateKey,
+  type CreateSessionKeyManagerOptions,
+  type SessionKeyManager,
+  type SessionKeyMaterial,
+  type SessionKeyMetadata,
+  type SessionKeyRecord,
+  type SessionKeySignature,
+  type SessionKeyState,
+  type SessionKeyStorage,
+  type SessionKeyTransferPayload,
+  type SessionKeyTypedDataParameters,
+} from "./session-key";
