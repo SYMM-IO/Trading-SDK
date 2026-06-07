@@ -379,6 +379,24 @@ export {
 } from "./solvers/markets";
 
 /**
+ * Locked params
+ * -------------
+ * Fetch solver lock percentages for a market/leverage pair.
+ */
+export {
+  getLockedParams,
+  getLockedParamsQueryKey,
+  getLockedParamsQueryOptions,
+  type GetLockedParamsData,
+  type GetLockedParamsOptions,
+  type GetLockedParamsParameters,
+  type GetLockedParamsQueryKey,
+  type GetLockedParamsQueryOptions,
+  type GetLockedParamsReturnType,
+  type SolverLockedParams,
+} from "./solvers/locked-params";
+
+/**
  * Shared types & query helpers
  * ----------------------------
  * Parameter-helper types (mirroring wagmi's conventions) and the query-key

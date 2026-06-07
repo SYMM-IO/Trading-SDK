@@ -1,0 +1,132 @@
+# Solvers
+
+The solver APIs are off-chain REST endpoints configured per chain in `createConfig`. `@symm-frontier/core` exposes them as framework-agnostic actions plus TanStack Query option factories.
+
+Use these APIs when you need solver metadata before building a trade flow: market lists, leverage limits, and locked percentages for a market/leverage pair.
+
+## Markets
+
+### `getMarkets(config, params?)`
+
+Fetch tradable markets from the chain solver's `/contract-symbols` endpoint.
+
+```ts
+import { getMarkets } from "@symm-frontier/core";
+
+const markets = await getMarkets(config);
+const btc = markets.find((market) => market.name === "BTCUSDT");
+```
+
+**Parameters**
+
+| Name      | Type      | Default        | Notes                    |
+| --------- | --------- | -------------- | ------------------------ |
+| `chainId` | `number?` | config default | Optional chain override. |
+
+**Returns** — `SymbolContractSymbol[]`.
+
+Important market fields:
+
+| Field          | Type      | Notes                                                     |
+| -------------- | --------- | --------------------------------------------------------- |
+| `symbol_id`    | `number?` | Contract symbol id.                                       |
+| `name`         | `string?` | Solver market name, often the value to pass as `symbol`.  |
+| `symbol`       | `string?` | Display symbol.                                           |
+| `state`        | `number?` | `0` disabled, `1` close only, `2` open only, `3` enabled. |
+| `max_leverage` | `string?` | Maximum leverage accepted for this market.                |
+
+### `getMarketsQueryOptions(config, options?)`
+
+Build TanStack Query options for `getMarkets`.
+
+```ts
+import { getMarketsQueryOptions } from "@symm-frontier/core";
+import { useQuery } from "@tanstack/react-query";
+
+const query = useQuery(getMarketsQueryOptions(config, { query: { staleTime: 30_000 } }));
+```
+
+## Locked Params
+
+### `getLockedParams(config, params)`
+
+Fetch locked params from the chain solver's `/get_locked_params/{symbol}` endpoint.
+
+The `symbol` parameter is the solver path value. In trade UIs, use the selected market's `name` when available, with `symbol` as a fallback.
+
+```ts
+import { getLockedParams } from "@symm-frontier/core";
+
+const locked = await getLockedParams(config, {
+  symbol: "BTCUSDT",
+  leverage: 5,
+});
+
+console.log(locked.cva, locked.lf, locked.partyAmm, locked.partyBmm);
+```
+
+**Parameters**
+
+| Name       | Type      | Default        | Notes                                     |
+| ---------- | --------- | -------------- | ----------------------------------------- |
+| `symbol`   | `string`  | required       | Solver market path value.                 |
+| `leverage` | `number`  | required       | Leverage used to calculate locked params. |
+| `chainId`  | `number?` | config default | Optional chain override.                  |
+
+**Returns** — `SolverLockedParams`.
+
+```ts
+interface SolverLockedParams {
+  cva?: string;
+  lf?: string;
+  partyAmm?: string;
+  partyBmm?: string;
+  leverage?: string;
+}
+```
+
+### `getLockedParamsQueryOptions(config, options)`
+
+Build TanStack Query options for `getLockedParams`.
+
+```ts
+import { getLockedParamsQueryOptions } from "@symm-frontier/core";
+import { useQuery } from "@tanstack/react-query";
+
+const options = getLockedParamsQueryOptions(config, {
+  symbol: "BTCUSDT",
+  leverage: 5,
+  query: { staleTime: 10_000 },
+});
+
+const query = useQuery(options);
+```
+
+`GetLockedParamsOptions` requires `symbol` and `leverage`. The query factory does not make required action inputs optional and does not validate missing inputs inside `queryFn`.
+
+For form UIs where values may be incomplete, gate the query outside the factory:
+
+```ts
+const ready = Boolean(symbol) && leverage > 0;
+
+const options = getLockedParamsQueryOptions(config, {
+  symbol: symbol ?? "",
+  leverage: leverage ?? 0,
+  query: { enabled: ready },
+});
+```
+
+### `getLockedParamsQueryKey(params)`
+
+Build a cache key for a locked-params query.
+
+```ts
+import { getLockedParamsQueryKey } from "@symm-frontier/core";
+
+const key = getLockedParamsQueryKey({
+  symbol: "BTCUSDT",
+  leverage: 5,
+});
+```
+
+`symbol` and `leverage` are part of the key, so each market/leverage pair caches independently.
