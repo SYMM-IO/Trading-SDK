@@ -3,18 +3,17 @@
 import { AddressTag } from "@/components/address-tag";
 import { BoolBadge } from "@/components/bool-badge";
 import { DataList, DataRow } from "@/components/data-list";
-import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import { DataRowsSkeleton } from "@/components/skeletons";
 import { useSubAccount } from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { useState } from "react";
 import type { Address } from "viem";
 import { isAddress } from "viem";
 import { MethodCard } from "./method-card";
+import { SubAccountField } from "./subaccount-field";
 
 export function ReadGetSubAccount() {
   const [input, setInput] = useState<string>("");
@@ -30,17 +29,13 @@ export function ReadGetSubAccount() {
       description="Read a single subaccount by its address."
       wide
     >
-      <Field label="account (subaccount address)" htmlFor="input-getsubaccount-address">
-        <Input
-          id="input-getsubaccount-address"
-          data-testid="input-getsubaccount-address"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="0x…"
-          className="font-mono"
-          aria-invalid={input.length > 0 && !validAddress}
-        />
-      </Field>
+      <SubAccountField
+        idPrefix="getsubaccount"
+        label="account (subaccount address)"
+        value={input}
+        onValueChange={setInput}
+        invalid={input.length > 0 && !validAddress}
+      />
 
       <Button
         type="button"

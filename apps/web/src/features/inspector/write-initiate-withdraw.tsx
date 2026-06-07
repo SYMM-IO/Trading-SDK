@@ -3,23 +3,22 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import { accountLayerAbi, createClassicWithdrawPart, symmioAbi } from "@symm-frontier/core";
+import { createClassicWithdrawPart } from "@symm-frontier/core";
 import {
-  normalizeSymmError,
   useInitiateWithdraw,
+  useSimulateInitiateWithdraw,
   useSymmioConfig,
   useWalletAccount,
-  type SymmioRequestError,
 } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { encodeFunctionData, isAddress, parseUnits, type Address } from "viem";
+import { isAddress, parseUnits, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
+import { SubAccountField } from "./subaccount-field";
 
 export function WriteInitiateWithdraw() {
   const { address, chainId, isConnected, isOnExpectedChain } = useWalletAccount();
@@ -43,32 +42,16 @@ export function WriteInitiateWithdraw() {
 
   const mutation = useInitiateWithdraw();
 
+  const validParts =
+    validReceiver && validAmount !== undefined && chainId !== undefined
+      ? [createClassicWithdrawPart({ id: 0n, amount: validAmount, receiver: validReceiver, chainId: BigInt(chainId) })]
+      : undefined;
+
   /** Dry-run the AccountLayer `_call` wrapping the core `initiateWithdraw`. */
-  const simulate = useMutation<void, SymmioRequestError, { account: Address; amount: bigint; receiver: Address }>({
-    mutationFn: async (variables) => {
-      try {
-        const part = createClassicWithdrawPart({
-          id: 0n,
-          amount: variables.amount,
-          receiver: variables.receiver,
-          chainId: BigInt(chainId!),
-        });
-        const data = encodeFunctionData({
-          abi: symmioAbi,
-          functionName: "initiateWithdraw",
-          args: [[part], false, "0x"],
-        });
-        await config.getClient({ chainId }).simulateContract({
-          address: addresses.accountLayerAddress,
-          abi: accountLayerAbi,
-          functionName: "_call",
-          args: [variables.account, [data]],
-          account: address,
-        });
-      } catch (err) {
-        throw normalizeSymmError(err);
-      }
-    },
+  const simulate = useSimulateInitiateWithdraw({
+    account: validAccount,
+    parts: validParts,
+    query: { enabled: false },
   });
 
   return (
@@ -78,21 +61,16 @@ export function WriteInitiateWithdraw() {
       mutability="nonpayable"
       description="Open a classic same-chain withdraw request for a subaccount (routed via AccountLayer _call)."
     >
-      <Field label="account (subaccount address)" htmlFor="input-withdraw-account">
-        <Input
-          id="input-withdraw-account"
-          data-testid="input-withdraw-account"
-          value={account}
-          onChange={(e) => {
-            setAccount(e.target.value);
-            simulate.reset();
-            mutation.reset();
-          }}
-          placeholder="0x…"
-          className="font-mono"
-          aria-invalid={account.length > 0 && !validAccount}
-        />
-      </Field>
+      <SubAccountField
+        idPrefix="withdraw-account"
+        label="account (subaccount address)"
+        value={account}
+        onValueChange={(next) => {
+          setAccount(next);
+          mutation.reset();
+        }}
+        invalid={account.length > 0 && !validAccount}
+      />
 
       <Field
         label={`amount (${addresses.collateralDecimals}-decimal collateral units)`}
@@ -104,7 +82,6 @@ export function WriteInitiateWithdraw() {
           value={amount}
           onChange={(e) => {
             setAmount(e.target.value);
-            simulate.reset();
             mutation.reset();
           }}
           placeholder="100.0"
@@ -130,7 +107,6 @@ export function WriteInitiateWithdraw() {
           value={receiver}
           onChange={(e) => {
             setReceiver(e.target.value);
-            simulate.reset();
             mutation.reset();
           }}
           placeholder="0x…"
@@ -144,14 +120,14 @@ export function WriteInitiateWithdraw() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isPending}
+          disabled={!canSubmit || simulate.isFetching}
           onClick={() => {
             if (!validAccount || !validReceiver || validAmount === undefined) return;
-            simulate.mutate({ account: validAccount, amount: validAmount, receiver: validReceiver });
+            simulate.refetch();
           }}
           data-testid="button-simulate-initiate-withdraw"
         >
-          {simulate.isPending ? (
+          {simulate.isFetching ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -186,7 +162,7 @@ export function WriteInitiateWithdraw() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isPending}
+        isPending={simulate.isFetching}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-initiateWithdraw"

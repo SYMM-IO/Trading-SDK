@@ -1,15 +1,14 @@
 "use client";
 
-import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import { Stat } from "@/components/stat";
 import { useWithdrawableTime } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { MethodCard } from "./method-card";
+import { SubAccountField } from "./subaccount-field";
 
 export function ReadWithdrawableTime() {
   const [input, setInput] = useState<string>("");
@@ -24,17 +23,13 @@ export function ReadWithdrawableTime() {
       mutability="view"
       description="Read the earliest time a withdrawal initiated now could be finalized for a subaccount."
     >
-      <Field label="user (subaccount address)" htmlFor="input-withdrawable-user">
-        <Input
-          id="input-withdrawable-user"
-          data-testid="input-withdrawable-user"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="0x…"
-          className="font-mono"
-          aria-invalid={input.length > 0 && !validUser}
-        />
-      </Field>
+      <SubAccountField
+        idPrefix="withdrawable-user"
+        label="user (subaccount address)"
+        value={input}
+        onValueChange={setInput}
+        invalid={input.length > 0 && !validUser}
+      />
 
       <Button
         type="button"

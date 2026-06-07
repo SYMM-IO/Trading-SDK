@@ -13,6 +13,7 @@ export interface MockConfigResult {
   config: Config;
   readContract: Mock;
   writeContract: Mock;
+  simulateContract: Mock;
 }
 
 /**
@@ -27,8 +28,9 @@ export interface MockConfigResult {
 export function mockConfig(options?: { withWallet?: boolean }): MockConfigResult {
   const readContract = vi.fn().mockResolvedValue([]);
   const writeContract = vi.fn().mockResolvedValue(TEST_TX_HASH);
+  const simulateContract = vi.fn().mockResolvedValue({ result: undefined, request: {} });
 
-  const publicClient = { readContract } as unknown as PublicClient;
+  const publicClient = { readContract, simulateContract } as unknown as PublicClient;
   const account = { address: TEST_USER, type: "json-rpc" } as Account;
   const walletClient = {
     account,
@@ -41,5 +43,5 @@ export function mockConfig(options?: { withWallet?: boolean }): MockConfigResult
     getWalletClient: options?.withWallet === false ? undefined : async () => walletClient,
   });
 
-  return { config, readContract, writeContract };
+  return { config, readContract, writeContract, simulateContract };
 }

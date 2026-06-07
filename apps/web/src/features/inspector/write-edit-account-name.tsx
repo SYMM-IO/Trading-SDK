@@ -3,28 +3,19 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import { accountLayerAbi } from "@symm-frontier/core";
-import {
-  normalizeSymmError,
-  useEditAccountName,
-  useSymmioConfig,
-  useWalletAccount,
-  type SymmioRequestError,
-} from "@symm-frontier/react";
+import { useEditAccountName, useSimulateEditAccountName, useWalletAccount } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Address } from "viem";
 import { isAddress } from "viem";
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
+import { SubAccountField } from "./subaccount-field";
 
 export function WriteEditAccountName() {
-  const { address, chainId, isConnected, isOnExpectedChain } = useWalletAccount();
-  const config = useSymmioConfig();
-  const { addresses } = config.getChainConfig();
+  const { isConnected, isOnExpectedChain } = useWalletAccount();
   const [account, setAccount] = useState<string>("");
   const [name, setName] = useState<string>("");
 
@@ -34,21 +25,7 @@ export function WriteEditAccountName() {
   const mutation = useEditAccountName();
 
   /** Dry-run the call (`simulateContract`) so the user sees pass/revert before sending. */
-  const simulate = useMutation<void, SymmioRequestError, { account: Address; name: string }>({
-    mutationFn: async (variables) => {
-      try {
-        await config.getClient({ chainId }).simulateContract({
-          address: addresses.accountLayerAddress,
-          abi: accountLayerAbi,
-          functionName: "editAccountName",
-          args: [variables.account, variables.name],
-          account: address,
-        });
-      } catch (err) {
-        throw normalizeSymmError(err);
-      }
-    },
-  });
+  const simulate = useSimulateEditAccountName({ account: validAccount, name, query: { enabled: false } });
 
   return (
     <MethodCard
@@ -57,17 +34,13 @@ export function WriteEditAccountName() {
       mutability="nonpayable"
       description="Rename one of the connected user's subaccounts."
     >
-      <Field label="account (subaccount address)" htmlFor="input-subaccount-address">
-        <Input
-          id="input-subaccount-address"
-          data-testid="input-subaccount-address"
-          value={account}
-          onChange={(e) => setAccount(e.target.value)}
-          placeholder="0x…"
-          className="font-mono"
-          aria-invalid={account.length > 0 && !validAccount}
-        />
-      </Field>
+      <SubAccountField
+        idPrefix="editname-account"
+        label="account (subaccount address)"
+        value={account}
+        onValueChange={setAccount}
+        invalid={account.length > 0 && !validAccount}
+      />
 
       <Field label="name (new display name)" htmlFor="input-subaccount-name">
         <Input
@@ -84,14 +57,14 @@ export function WriteEditAccountName() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isPending}
+          disabled={!canSubmit || simulate.isFetching}
           onClick={() => {
             if (!validAccount) return;
-            simulate.mutate({ account: validAccount, name });
+            simulate.refetch();
           }}
           data-testid="button-simulate-rename"
         >
-          {simulate.isPending ? (
+          {simulate.isFetching ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -120,7 +93,7 @@ export function WriteEditAccountName() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isPending}
+        isPending={simulate.isFetching}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-editAccountName"

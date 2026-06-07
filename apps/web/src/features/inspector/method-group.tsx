@@ -8,14 +8,17 @@ interface Props {
   label: string;
   /** Number of methods in the group, shown at the end of the heading row. */
   count: number;
+  /** Render cards in a single full-width column instead of the two-column grid. */
+  fullWidth?: boolean;
   children: ReactNode;
 }
 
 /**
  * Collapsible section grouping a set of {@link MethodCard}s into a two-column
  * grid, with a heading that toggles visibility. Shared by the Inspector shells.
+ * Pass {@link Props.fullWidth} to lay the cards out in one full-width column.
  */
-export function MethodGroup({ label, count, children }: Props) {
+export function MethodGroup({ label, count, fullWidth = false, children }: Props) {
   const [open, setOpen] = useState(true);
   const contentId = `methods-${label.toLowerCase().replace(/\s+/g, "-")}`;
 
@@ -47,7 +50,9 @@ export function MethodGroup({ label, count, children }: Props) {
         style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
       >
         <div className="min-h-0 overflow-hidden" inert={!open}>
-          <div className="grid grid-cols-1 items-stretch gap-4 pt-4 lg:grid-cols-2">{children}</div>
+          <div className={cn("grid grid-cols-1 items-stretch gap-4 pt-4", !fullWidth && "lg:grid-cols-2")}>
+            {children}
+          </div>
         </div>
       </div>
     </div>

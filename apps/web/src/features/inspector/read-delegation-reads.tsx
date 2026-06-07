@@ -8,14 +8,15 @@ import { ResultError, ResultNote } from "@/components/result";
 import { DataRowsSkeleton } from "@/components/skeletons";
 import { useDelegationExpiry, useIsDelegationActive, useSymmioConfig } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
+import { Combobox } from "@symm-frontier/ui/components/combobox";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { formatRelativeTimestamp } from "@symm-frontier/utils";
 import { useState } from "react";
 import type { Address, Hex } from "viem";
 import { isAddress } from "viem";
-import { getInstantLayerDelegateeSuggestions, InstantLayerDelegateeSuggestions } from "./instant-layer-delegatees";
-import { InstantLayerSelectorSuggestions } from "./instant-layer-selectors";
+import { getInstantLayerDelegateeSuggestions, toDelegateeComboboxItems } from "./instant-layer-delegatees";
+import { SelectorIcon, WalletIcon } from "./instant-layer-icons";
+import { toSelectorComboboxItems } from "./instant-layer-selectors";
 import { MethodCard } from "./method-card";
 import { SubAccountPicker } from "./subaccount-picker";
 
@@ -46,43 +47,39 @@ export function ReadDelegationReads() {
         selectedHintLabel="Account"
       />
 
-      <Field label="delegate" htmlFor="input-delegation-delegate" hint="The delegated signer address.">
-        <Input
-          id="input-delegation-delegate"
-          data-testid="input-delegation-delegate"
+      <Field label="delegate" htmlFor="delegation-delegate-field" hint="The delegated signer address.">
+        <Combobox
+          idPrefix="delegation-delegate"
           value={delegate}
-          onChange={(e) => setDelegate(e.target.value)}
+          onValueChange={setDelegate}
+          onSelect={(item) => setDelegate(item.id)}
+          items={toDelegateeComboboxItems(getInstantLayerDelegateeSuggestions(solver), validDelegate)}
           placeholder="0x..."
-          className="font-mono"
-          aria-invalid={delegate.length > 0 && !validDelegate}
+          mono
+          invalid={delegate.length > 0 && !validDelegate}
+          triggerIcon={<WalletIcon />}
+          triggerLabel="Browse delegatees"
         />
       </Field>
-      <InstantLayerDelegateeSuggestions
-        suggestions={getInstantLayerDelegateeSuggestions(solver)}
-        selected={validDelegate}
-        onPick={(nextDelegate) => setDelegate(nextDelegate)}
-      />
 
       <Field
         label="selector"
-        htmlFor="input-delegation-selector"
+        htmlFor="delegation-selector-field"
         hint="One function selector as bytes4, for example 0x12345678."
       >
-        <Input
-          id="input-delegation-selector"
-          data-testid="input-delegation-selector"
+        <Combobox
+          idPrefix="delegation-selector"
           value={selector}
-          onChange={(e) => setSelector(e.target.value)}
+          onValueChange={setSelector}
+          onSelect={(item) => setSelector(item.id)}
+          items={toSelectorComboboxItems(validSelector ? [validSelector] : [])}
           placeholder="0x12345678"
-          className="font-mono"
-          aria-invalid={selector.length > 0 && !validSelector}
+          mono
+          invalid={selector.length > 0 && !validSelector}
+          triggerIcon={<SelectorIcon />}
+          triggerLabel="Browse selectors"
         />
       </Field>
-      <InstantLayerSelectorSuggestions
-        mode="single"
-        selected={validSelector ? [validSelector] : []}
-        onPick={(nextSelector) => setSelector(nextSelector)}
-      />
 
       {validAccount && validDelegate && validSelector ? (
         <DelegationReadsResult account={validAccount} delegate={validDelegate} selector={validSelector} />

@@ -1,6 +1,5 @@
 "use client";
 
-import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import { TableSkeleton } from "@/components/skeletons";
 import { formatUsd } from "@/lib/format";
@@ -8,11 +7,11 @@ import { WithdrawStatus } from "@symm-frontier/core";
 import { usePendingWithdrawRequests, useSymmioConfig } from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { MethodCard } from "./method-card";
+import { SubAccountField } from "./subaccount-field";
 
 export function ReadPendingWithdrawRequests() {
   const { addresses } = useSymmioConfig().getChainConfig();
@@ -29,17 +28,13 @@ export function ReadPendingWithdrawRequests() {
       description="List a subaccount's active (non-terminal) withdraw requests."
       wide
     >
-      <Field label="user (subaccount address)" htmlFor="input-pending-user">
-        <Input
-          id="input-pending-user"
-          data-testid="input-pending-user"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="0x…"
-          className="font-mono"
-          aria-invalid={input.length > 0 && !validUser}
-        />
-      </Field>
+      <SubAccountField
+        idPrefix="pending-user"
+        label="user (subaccount address)"
+        value={input}
+        onValueChange={setInput}
+        invalid={input.length > 0 && !validUser}
+      />
 
       <Button
         type="button"

@@ -13,6 +13,7 @@ import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { MethodCard } from "./method-card";
+import { SubAccountField } from "./subaccount-field";
 
 function parseRequestId(value: string): bigint | undefined {
   if (!/^\d+$/.test(value.trim())) return undefined;
@@ -37,17 +38,13 @@ export function ReadGetWithdrawRequest() {
       mutability="view"
       description="Read a single withdraw request by subaccount and request id."
     >
-      <Field label="user (subaccount address)" htmlFor="input-request-user">
-        <Input
-          id="input-request-user"
-          data-testid="input-request-user"
-          value={user}
-          onChange={(e) => setUser(e.target.value)}
-          placeholder="0x…"
-          className="font-mono"
-          aria-invalid={user.length > 0 && !validUser}
-        />
-      </Field>
+      <SubAccountField
+        idPrefix="request-user"
+        label="user (subaccount address)"
+        value={user}
+        onValueChange={setUser}
+        invalid={user.length > 0 && !validUser}
+      />
 
       <Field label="requestId" htmlFor="input-request-id">
         <Input

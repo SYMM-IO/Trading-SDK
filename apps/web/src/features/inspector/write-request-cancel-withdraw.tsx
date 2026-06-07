@@ -3,23 +3,16 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import { accountLayerAbi, symmioAbi } from "@symm-frontier/core";
-import {
-  normalizeSymmError,
-  useRequestCancelWithdraw,
-  useSymmioConfig,
-  useWalletAccount,
-  type SymmioRequestError,
-} from "@symm-frontier/react";
+import { useRequestCancelWithdraw, useSimulateRequestCancelWithdraw, useWalletAccount } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { encodeFunctionData, isAddress, type Address } from "viem";
+import { isAddress, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
+import { SubAccountField } from "./subaccount-field";
 
 function parseRequestId(value: string): bigint | undefined {
   if (!/^\d+$/.test(value.trim())) return undefined;
@@ -27,9 +20,7 @@ function parseRequestId(value: string): bigint | undefined {
 }
 
 export function WriteRequestCancelWithdraw() {
-  const { address, chainId, isConnected, isOnExpectedChain } = useWalletAccount();
-  const config = useSymmioConfig();
-  const { addresses } = config.getChainConfig();
+  const { isConnected, isOnExpectedChain } = useWalletAccount();
   const [account, setAccount] = useState<string>("");
   const [requestId, setRequestId] = useState<string>("");
 
@@ -39,26 +30,10 @@ export function WriteRequestCancelWithdraw() {
 
   const mutation = useRequestCancelWithdraw();
 
-  /** Dry-run the AccountLayer `_call` wrapping the core `requestCancelWithdraw`. */
-  const simulate = useMutation<void, SymmioRequestError, { account: Address; requestId: bigint }>({
-    mutationFn: async (variables) => {
-      try {
-        const data = encodeFunctionData({
-          abi: symmioAbi,
-          functionName: "requestCancelWithdraw",
-          args: [variables.requestId],
-        });
-        await config.getClient({ chainId }).simulateContract({
-          address: addresses.accountLayerAddress,
-          abi: accountLayerAbi,
-          functionName: "_call",
-          args: [variables.account, [data]],
-          account: address,
-        });
-      } catch (err) {
-        throw normalizeSymmError(err);
-      }
-    },
+  const simulate = useSimulateRequestCancelWithdraw({
+    account: validAccount,
+    requestId: validRequestId,
+    query: { enabled: false },
   });
 
   return (
@@ -68,21 +43,16 @@ export function WriteRequestCancelWithdraw() {
       mutability="nonpayable"
       description="Cancel a pending withdraw request for a subaccount (routed via AccountLayer _call)."
     >
-      <Field label="account (subaccount address)" htmlFor="input-cancel-account">
-        <Input
-          id="input-cancel-account"
-          data-testid="input-cancel-account"
-          value={account}
-          onChange={(e) => {
-            setAccount(e.target.value);
-            simulate.reset();
-            mutation.reset();
-          }}
-          placeholder="0x…"
-          className="font-mono"
-          aria-invalid={account.length > 0 && !validAccount}
-        />
-      </Field>
+      <SubAccountField
+        idPrefix="cancel-account"
+        label="account (subaccount address)"
+        value={account}
+        onValueChange={(next) => {
+          setAccount(next);
+          mutation.reset();
+        }}
+        invalid={account.length > 0 && !validAccount}
+      />
 
       <Field label="requestId" htmlFor="input-cancel-request-id">
         <Input
@@ -91,7 +61,6 @@ export function WriteRequestCancelWithdraw() {
           value={requestId}
           onChange={(e) => {
             setRequestId(e.target.value);
-            simulate.reset();
             mutation.reset();
           }}
           placeholder="1"
@@ -105,14 +74,14 @@ export function WriteRequestCancelWithdraw() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isPending}
+          disabled={!canSubmit || simulate.isFetching}
           onClick={() => {
             if (!validAccount || validRequestId === undefined) return;
-            simulate.mutate({ account: validAccount, requestId: validRequestId });
+            simulate.refetch();
           }}
           data-testid="button-simulate-cancel"
         >
-          {simulate.isPending ? (
+          {simulate.isFetching ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -141,7 +110,7 @@ export function WriteRequestCancelWithdraw() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isPending}
+        isPending={simulate.isFetching}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-requestCancelWithdraw"

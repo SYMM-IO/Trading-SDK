@@ -39,7 +39,7 @@ export function ContractMethodsShell({ slug }: Props) {
       {writes.length > 0 ? <WalletPanel /> : null}
 
       {reads.length > 0 ? (
-        <MethodGroup label="Reads" count={reads.length}>
+        <MethodGroup label="Reads" count={reads.length} fullWidth={page.fullWidth}>
           {reads.map((entry) => (
             <entry.Component key={entry.id} />
           ))}
@@ -47,7 +47,7 @@ export function ContractMethodsShell({ slug }: Props) {
       ) : null}
 
       {writes.length > 0 ? (
-        <MethodGroup label="Writes" count={writes.length}>
+        <MethodGroup label="Writes" count={writes.length} fullWidth={page.fullWidth}>
           {writes.map((entry) => (
             <entry.Component key={entry.id} />
           ))}

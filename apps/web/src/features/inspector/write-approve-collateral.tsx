@@ -4,24 +4,22 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import {
-  normalizeSymmError,
   useApproveCollateral,
+  useSimulateApproveCollateral,
   useSymmioConfig,
   useWalletAccount,
-  type SymmioRequestError,
 } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { erc20Abi, parseUnits } from "viem";
+import { parseUnits } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
 
 export function WriteApproveCollateral() {
-  const { address, chainId, isConnected, isOnExpectedChain } = useWalletAccount();
+  const { isConnected, isOnExpectedChain } = useWalletAccount();
   const config = useSymmioConfig();
   const { addresses } = config.getChainConfig();
   const [amount, setAmount] = useState<string>("");
@@ -33,21 +31,7 @@ export function WriteApproveCollateral() {
   const mutation = useApproveCollateral();
 
   /** Dry-run the ERC20 approve before sending. */
-  const simulate = useMutation<void, SymmioRequestError, { amount: bigint }>({
-    mutationFn: async (variables) => {
-      try {
-        await config.getClient({ chainId }).simulateContract({
-          address: addresses.collateralAddress,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [addresses.symmioAddress, variables.amount],
-          account: address,
-        });
-      } catch (err) {
-        throw normalizeSymmError(err);
-      }
-    },
-  });
+  const simulate = useSimulateApproveCollateral({ amount: validAmount, query: { enabled: false } });
 
   return (
     <MethodCard
@@ -67,7 +51,6 @@ export function WriteApproveCollateral() {
           value={amount}
           onChange={(e) => {
             setAmount(e.target.value);
-            simulate.reset();
             mutation.reset();
           }}
           placeholder="100.0"
@@ -81,14 +64,14 @@ export function WriteApproveCollateral() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isPending}
+          disabled={!canSubmit || simulate.isFetching}
           onClick={() => {
             if (validAmount === undefined) return;
-            simulate.mutate({ amount: validAmount });
+            simulate.refetch();
           }}
           data-testid="button-simulate-approve"
         >
-          {simulate.isPending ? (
+          {simulate.isFetching ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -117,7 +100,7 @@ export function WriteApproveCollateral() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isPending}
+        isPending={simulate.isFetching}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-approveCollateral"
