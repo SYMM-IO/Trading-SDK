@@ -41,7 +41,7 @@ export function SymmioConfigDebug() {
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
       <PageHeader
         eyebrow="Runtime · Symmio Core"
-        title="Resolved VibeCaps Config"
+        title="Resolved SYMMIO Config"
         description="Verifies that the web app initializes Wagmi and the Symmio core provider, then reads the resolved chain config from core."
         actions={
           <Button onClick={() => setEditing(true)}>

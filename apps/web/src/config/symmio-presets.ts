@@ -15,14 +15,10 @@ export interface ConfigPreset {
 }
 
 /**
- * Staging deployment overrides, lifted from the Vibe-ui reference app's
- * `IS_TEST_ENVIRONMENT` branch (`src/constants/addresses.ts`, `constants/hedgers.ts`,
- * `apollo/client/apolloClients.ts`).
- *
- * Applying this points the SDK at the SYMMIO staging contracts, the Enigma
- * staging solver (partyB), and the staging analytics subgraph on HyperEVM. The
- * staging collateral is an 18-decimal mintable test token (Vibe-ui labels its
- * Base counterpart "FUSD").
+ * Staging deployment overrides. Applying this points the SDK at the SYMMIO
+ * staging contracts, the Enigma staging solver (partyB), and the staging
+ * analytics subgraph on HyperEVM. The staging collateral is an 18-decimal
+ * mintable test token.
  */
 export const STAGING_CHAIN_OVERRIDES = {
   [SymmioSupportedChainId.HYPER_EVM]: {
@@ -50,6 +46,6 @@ export const STAGING_CHAIN_OVERRIDES = {
 export const STAGING_PRESET: ConfigPreset = {
   id: "staging",
   label: "Staging",
-  description: "Vibe-ui staging contracts, the Enigma staging solver, and an 18-decimal test collateral.",
+  description: "SYMMIO staging contracts, the Enigma staging solver, and an 18-decimal test collateral.",
   overrides: STAGING_CHAIN_OVERRIDES,
 };

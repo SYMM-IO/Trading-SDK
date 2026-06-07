@@ -4,10 +4,9 @@ import { injected, mock } from "wagmi/connectors";
 import { E2E_ACCOUNT_ADDRESS, IS_E2E_MODE } from "./environment";
 
 /**
- * Public HTTP RPC endpoint for HyperEVM main chain (id 999). Same endpoint
- * Vibe-ui's production config uses. Wrapped in `fallback()` so we can add
- * more upstreams without changing call sites — single URL today, room to
- * grow tomorrow.
+ * Public HTTP RPC endpoint for HyperEVM main chain (id 999). Wrapped in
+ * `fallback()` so we can add more upstreams without changing call sites —
+ * single URL today, room to grow tomorrow.
  */
 const HYPER_EVM_RPC_URLS = ["https://rpc.hyperliquid.xyz/evm"] as const;
 
@@ -15,8 +14,8 @@ export const wagmiConfig = createConfig({
   chains: [hyperEvm],
   /**
    * Per-chain transport. `fallback` lets us add backup RPCs without a code
-   * change at call sites; per-URL `batch.wait` enables JSON-RPC batching that
-   * Vibe-ui uses to coalesce bursty multicall reads on HyperEVM.
+   * change at call sites; per-URL `batch.wait` enables JSON-RPC batching for
+   * bursty multicall reads on HyperEVM.
    */
   transports: {
     [hyperEvm.id]: fallback(HYPER_EVM_RPC_URLS.map((url) => http(url, { batch: { wait: 16 } }))),

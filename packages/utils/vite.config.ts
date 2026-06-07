@@ -34,6 +34,7 @@ export default defineConfig({
         "amounts/index": path.resolve(srcRoot, "amounts/index.ts"),
         "decimal/index": path.resolve(srcRoot, "decimal/index.ts"),
         "format/index": path.resolve(srcRoot, "format/index.ts"),
+        "session-key/index": path.resolve(srcRoot, "session-key/index.ts"),
       },
       formats: ["es"],
     },

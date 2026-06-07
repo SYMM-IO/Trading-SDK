@@ -4,4 +4,5 @@ export default {
   decimal: "Decimal helpers",
   format: "Display formatters",
   address: "Address & hash",
+  "session-key": "Session keys",
 };

@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     default: "Symmio Frontier",
     template: "%s · Symmio Frontier",
   },
-  description: "The VibeCaps SDK surface for SYMMIO — connect, inspect, and trade on HyperEVM.",
+  description: "The SYMMIO SDK surface for builders — connect, inspect, and trade on HyperEVM.",
 };
 
 export default function RootLayout({

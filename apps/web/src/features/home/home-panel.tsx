@@ -20,6 +20,13 @@ const cards: Omit<LinkCardProps, "index">[] = [
     icon: <ChartIcon />,
   },
   {
+    href: "/session-keys",
+    eyebrow: "Local signing",
+    title: "Session keys",
+    description: "Create an encrypted browser-local signing key for delegated flows and later device transfer.",
+    icon: <KeyIcon />,
+  },
+  {
     href: "/integration",
     eyebrow: "End to end",
     title: "Integration flow",
@@ -41,7 +48,7 @@ export function HomePanel() {
       <div className="animate-enter-up flex max-w-3xl flex-col gap-6">
         <span className="border-border/70 bg-muted/40 text-muted-foreground inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium tracking-wide">
           <StatusDot tone="positive" pulse />
-          VibeCaps SDK Console · HyperEVM
+          SYMMIO SDK Console · HyperEVM
         </span>
 
         <h1 className="font-display text-foreground text-4xl font-semibold tracking-tight text-balance sm:text-6xl sm:leading-[1.04]">
@@ -110,6 +117,21 @@ function ChartIcon() {
     <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
       <path d="M4 20V4M4 20h16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
       <path d="M8 16v-3M12 16V9M16 16v-6M20 16V6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function KeyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      <circle cx="8" cy="12" r="3.25" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M11.25 12H21m-4 0v3m-3-3v2"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

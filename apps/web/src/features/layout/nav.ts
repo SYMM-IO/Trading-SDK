@@ -8,6 +8,7 @@ export const navLinks: NavLink[] = [
   { href: "/", label: "Overview" },
   { href: "/contracts", label: "Contracts" },
   { href: "/solvers", label: "Solvers" },
+  { href: "/session-keys", label: "Session Keys" },
   { href: "/integration", label: "Integration" },
   { href: "/config", label: "Config" },
 ];
