@@ -196,6 +196,13 @@ export {
 export { useMarkets, type UseMarketsParameters, type UseMarketsReturnType } from "./markets";
 
 /**
+ * Locked params hooks
+ * -------------------
+ * Fetch solver lock percentages for a market/leverage pair.
+ */
+export { useLockedParams, type UseLockedParamsParameters, type UseLockedParamsReturnType } from "./locked-params";
+
+/**
  * Query helpers
  * -------------
  * Turn a core query-key factory into an `invalidateQueries` predicate that

@@ -1,0 +1,134 @@
+# Solvers hooks
+
+Solver hooks wrap the `@symm-frontier/core` solver REST actions with React Query and SDK provider state. They read the active chain from `SymmioProvider` unless you pass `chainId`.
+
+Use these hooks to build trade preparation UIs: market pickers, leverage controls, and locked-param previews before sending an instant action.
+
+## `useMarkets(params?)`
+
+Fetch tradable markets from the chain solver.
+
+```tsx
+import { useMarkets } from "@symm-frontier/react";
+
+function MarketList() {
+  const query = useMarkets({ query: { staleTime: 30_000 } });
+
+  if (query.isLoading) return <p>Loading markets...</p>;
+  if (query.error) return <p>{query.error.message}</p>;
+
+  return (
+    <ul>
+      {(query.data ?? []).map((market) => (
+        <li key={market.symbol_id}>
+          {market.name ?? market.symbol} · max {market.max_leverage}x
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Parameters
+
+| Name      | Type      | Default         | Notes                     |
+| --------- | --------- | --------------- | ------------------------- |
+| `chainId` | `number?` | connected chain | Optional chain override.  |
+| `query`   | `object?` | `undefined`     | TanStack Query overrides. |
+| `config`  | `Config?` | provider value  | Optional config override. |
+
+### Return type
+
+`UseQueryResult<SymbolContractSymbol[], SymmioRequestError>`.
+
+## `useLockedParams(params)`
+
+Fetch solver locked params for one market/leverage pair.
+
+`symbol` and `leverage` are required inputs. For market UIs, use the selected market's `name` when available, with `symbol` as a fallback.
+
+```tsx
+import { useLockedParams } from "@symm-frontier/react";
+
+function LockedParamsPreview({ symbol, leverage }: { symbol: string; leverage: number }) {
+  const query = useLockedParams({
+    symbol,
+    leverage,
+    query: { staleTime: 10_000 },
+  });
+
+  if (query.isLoading) return <p>Loading locked params...</p>;
+  if (query.error) return <p>{query.error.message}</p>;
+
+  return (
+    <dl>
+      <dt>CVA</dt>
+      <dd>{query.data?.cva}</dd>
+      <dt>LF</dt>
+      <dd>{query.data?.lf}</dd>
+      <dt>Party AMM</dt>
+      <dd>{query.data?.partyAmm}</dd>
+      <dt>Party BMM</dt>
+      <dd>{query.data?.partyBmm}</dd>
+    </dl>
+  );
+}
+```
+
+### Parameters
+
+| Name       | Type      | Default         | Notes                                     |
+| ---------- | --------- | --------------- | ----------------------------------------- |
+| `symbol`   | `string`  | required        | Solver market path value.                 |
+| `leverage` | `number`  | required        | Leverage used to calculate locked params. |
+| `chainId`  | `number?` | connected chain | Optional chain override.                  |
+| `query`    | `object?` | `undefined`     | TanStack Query overrides.                 |
+| `config`   | `Config?` | provider value  | Optional config override.                 |
+
+### Return type
+
+`UseQueryResult<SolverLockedParams, SymmioRequestError>`.
+
+```ts
+interface SolverLockedParams {
+  cva?: string;
+  lf?: string;
+  partyAmm?: string;
+  partyBmm?: string;
+  leverage?: string;
+}
+```
+
+## Conditional Forms
+
+Because `useLockedParams` requires inputs, keep incomplete form state outside the hook call. A simple pattern is to render a child only after the inputs are ready:
+
+```tsx
+function LockedParamsForm() {
+  const symbol = selectedMarket?.name ?? selectedMarket?.symbol;
+  const leverage = parsedLeverage;
+
+  if (!symbol || !leverage) {
+    return <p>Select a market and leverage.</p>;
+  }
+
+  return <LockedParamsPreview symbol={symbol} leverage={leverage} />;
+}
+```
+
+For manual "Read" buttons, pass placeholder values and disable the query until the button can refetch:
+
+```tsx
+const ready = Boolean(symbol) && Boolean(leverage);
+const query = useLockedParams({
+  symbol: symbol ?? "",
+  leverage: leverage ?? 0,
+  query: { enabled: false },
+});
+
+<button disabled={!ready || query.isFetching} onClick={() => void query.refetch()}>
+  Read locked params
+</button>;
+```
+
+The hook does not make required inputs optional and does not validate missing inputs inside `queryFn`.
