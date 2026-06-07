@@ -12,6 +12,8 @@ export interface ContractPage {
   title: string;
   description: string;
   icon: ReactNode;
+  /** Lay method cards out in one full-width column instead of the two-column grid. */
+  fullWidth?: boolean;
 }
 
 /** ABI section — one page per on-chain contract, listing every implemented method. */
@@ -52,6 +54,7 @@ export const ABI_PAGES: readonly ContractPage[] = [
     title: "InstantLayer",
     description: "Delegated signer access for Instant Layer reads and writes.",
     icon: <BoltIcon />,
+    fullWidth: true,
   },
 ];
 
@@ -92,6 +95,7 @@ export const FLOW_PAGES: readonly ContractPage[] = [
     title: "Delegation",
     description: "Read and grant Instant Layer delegated signer access by selector.",
     icon: <BoltIcon />,
+    fullWidth: true,
   },
 ];
 

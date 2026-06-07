@@ -4,13 +4,12 @@ import { AddressTag } from "@/components/address-tag";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import { SubAccountIsolationType, accountLayerAbi, type SubAccountCreationData } from "@symm-frontier/core";
+import { SubAccountIsolationType, type SubAccountCreationData } from "@symm-frontier/core";
 import {
-  normalizeSymmError,
   useCreateSubAccounts,
+  useSimulateCreateSubAccounts,
   useSymmioConfig,
   useWalletAccount,
-  type SymmioRequestError,
 } from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
@@ -20,7 +19,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { Switch } from "@symm-frontier/ui/components/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/components/tooltip";
-import { useMutation } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { isAddress, type Address } from "viem";
 import { MethodCard } from "./method-card";
@@ -55,9 +53,8 @@ function isSingleVaAllowed(isolation: SubAccountIsolationType): boolean {
 }
 
 export function WriteCreateSubAccounts() {
-  const { address, chainId, isConnected, isOnExpectedChain } = useWalletAccount();
-  const config = useSymmioConfig();
-  const { addresses } = config.getChainConfig();
+  const { isConnected, isOnExpectedChain } = useWalletAccount();
+  const { addresses } = useSymmioConfig().getChainConfig();
 
   const [name, setName] = useState<string>("");
   const [isolation, setIsolation] = useState<SubAccountIsolationType>(SubAccountIsolationType.MARKET_DIRECTION);
@@ -82,25 +79,10 @@ export function WriteCreateSubAccounts() {
   ];
 
   /** Dry-run the call (`simulateContract`) so the user sees pass/revert before sending. */
-  const simulate = useMutation<
-    readonly Address[],
-    SymmioRequestError,
-    { affiliate: Address; accountsData: readonly SubAccountCreationData[] }
-  >({
-    mutationFn: async (variables) => {
-      try {
-        const { result } = await config.getClient({ chainId }).simulateContract({
-          address: addresses.accountLayerAddress,
-          abi: accountLayerAbi,
-          functionName: "createSubAccounts",
-          args: [variables.affiliate, variables.accountsData],
-          account: address,
-        });
-        return result;
-      } catch (err) {
-        throw normalizeSymmError(err);
-      }
-    },
+  const simulate = useSimulateCreateSubAccounts({
+    affiliate: validAffiliate,
+    accountsData: validSymmioCore ? buildAccountsData(validSymmioCore) : undefined,
+    query: { enabled: false },
   });
 
   return (
@@ -185,14 +167,14 @@ export function WriteCreateSubAccounts() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isPending}
+          disabled={!canSubmit || simulate.isFetching}
           onClick={() => {
             if (!canSubmit || !validAffiliate || !validSymmioCore) return;
-            simulate.mutate({ affiliate: validAffiliate, accountsData: buildAccountsData(validSymmioCore) });
+            simulate.refetch();
           }}
           data-testid="button-simulate-create"
         >
-          {simulate.isPending ? (
+          {simulate.isFetching ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -221,17 +203,17 @@ export function WriteCreateSubAccounts() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isPending}
+        isPending={simulate.isFetching}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-createSubAccounts"
       >
-        {simulate.data && simulate.data.length > 0 ? (
+        {simulate.data?.result && simulate.data.result.length > 0 ? (
           <div className="flex flex-col gap-1">
             <span className="text-muted-foreground text-xs">
-              Predicted subaccount {simulate.data.length === 1 ? "address" : "addresses"}:
+              Predicted subaccount {simulate.data.result.length === 1 ? "address" : "addresses"}:
             </span>
-            {simulate.data.map((addr) => (
+            {simulate.data.result.map((addr) => (
               <AddressTag key={addr} address={addr} />
             ))}
           </div>

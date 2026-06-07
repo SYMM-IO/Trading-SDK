@@ -1,15 +1,14 @@
 "use client";
 
-import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import { Stat } from "@/components/stat";
 import { useLastWithdrawRequestId } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { MethodCard } from "./method-card";
+import { SubAccountField } from "./subaccount-field";
 
 export function ReadLastWithdrawRequestId() {
   const [input, setInput] = useState<string>("");
@@ -24,17 +23,13 @@ export function ReadLastWithdrawRequestId() {
       mutability="view"
       description="Read a subaccount's most recent withdraw request id (0 when there are none)."
     >
-      <Field label="user (subaccount address)" htmlFor="input-last-id-user">
-        <Input
-          id="input-last-id-user"
-          data-testid="input-last-id-user"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="0x…"
-          className="font-mono"
-          aria-invalid={input.length > 0 && !validUser}
-        />
-      </Field>
+      <SubAccountField
+        idPrefix="lastid-user"
+        label="user (subaccount address)"
+        value={input}
+        onValueChange={setInput}
+        invalid={input.length > 0 && !validUser}
+      />
 
       <Button
         type="button"

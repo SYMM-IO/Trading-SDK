@@ -3,23 +3,16 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import { symmioAbi } from "@symm-frontier/core";
-import {
-  normalizeSymmError,
-  useFinalizeWithdrawRequest,
-  useSymmioConfig,
-  useWalletAccount,
-  type SymmioRequestError,
-} from "@symm-frontier/react";
+import { useFinalizeWithdrawRequest, useSimulateFinalizeWithdrawRequest, useWalletAccount } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
+import { SubAccountField } from "./subaccount-field";
 
 function parseRequestId(value: string): bigint | undefined {
   if (!/^\d+$/.test(value.trim())) return undefined;
@@ -27,9 +20,7 @@ function parseRequestId(value: string): bigint | undefined {
 }
 
 export function WriteFinalizeWithdrawRequest() {
-  const { address, chainId, isConnected, isOnExpectedChain } = useWalletAccount();
-  const config = useSymmioConfig();
-  const { addresses } = config.getChainConfig();
+  const { isConnected, isOnExpectedChain } = useWalletAccount();
   const [user, setUser] = useState<string>("");
   const [requestId, setRequestId] = useState<string>("");
 
@@ -40,20 +31,10 @@ export function WriteFinalizeWithdrawRequest() {
   const mutation = useFinalizeWithdrawRequest();
 
   /** Dry-run `finalizeWithdrawRequest` directly on the SYMMIO core. */
-  const simulate = useMutation<void, SymmioRequestError, { user: Address; requestId: bigint }>({
-    mutationFn: async (variables) => {
-      try {
-        await config.getClient({ chainId }).simulateContract({
-          address: addresses.symmioAddress,
-          abi: symmioAbi,
-          functionName: "finalizeWithdrawRequest",
-          args: [variables.user, variables.requestId],
-          account: address,
-        });
-      } catch (err) {
-        throw normalizeSymmError(err);
-      }
-    },
+  const simulate = useSimulateFinalizeWithdrawRequest({
+    user: validUser,
+    requestId: validRequestId,
+    query: { enabled: false },
   });
 
   return (
@@ -63,21 +44,16 @@ export function WriteFinalizeWithdrawRequest() {
       mutability="nonpayable"
       description="Finalize a matured withdraw request, paying out to its receivers. Permissionless after cooldown."
     >
-      <Field label="user (subaccount address)" htmlFor="input-finalize-user">
-        <Input
-          id="input-finalize-user"
-          data-testid="input-finalize-user"
-          value={user}
-          onChange={(e) => {
-            setUser(e.target.value);
-            simulate.reset();
-            mutation.reset();
-          }}
-          placeholder="0x…"
-          className="font-mono"
-          aria-invalid={user.length > 0 && !validUser}
-        />
-      </Field>
+      <SubAccountField
+        idPrefix="finalize-user"
+        label="user (subaccount address)"
+        value={user}
+        onValueChange={(next) => {
+          setUser(next);
+          mutation.reset();
+        }}
+        invalid={user.length > 0 && !validUser}
+      />
 
       <Field label="requestId" htmlFor="input-finalize-request-id">
         <Input
@@ -86,7 +62,6 @@ export function WriteFinalizeWithdrawRequest() {
           value={requestId}
           onChange={(e) => {
             setRequestId(e.target.value);
-            simulate.reset();
             mutation.reset();
           }}
           placeholder="1"
@@ -100,14 +75,14 @@ export function WriteFinalizeWithdrawRequest() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isPending}
+          disabled={!canSubmit || simulate.isFetching}
           onClick={() => {
             if (!validUser || validRequestId === undefined) return;
-            simulate.mutate({ user: validUser, requestId: validRequestId });
+            simulate.refetch();
           }}
           data-testid="button-simulate-finalize"
         >
-          {simulate.isPending ? (
+          {simulate.isFetching ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -136,7 +111,7 @@ export function WriteFinalizeWithdrawRequest() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isPending}
+        isPending={simulate.isFetching}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-finalizeWithdrawRequest"

@@ -1,20 +1,11 @@
 import * as React from "react";
 
 import { cn } from "../lib/utils";
-import { Badge } from "./badge";
+import { AccountCombobox, type AccountPickerItem, type AccountPickerListState } from "./account-combobox";
 import { Input } from "./input";
 import { Label } from "./label";
-import { Skeleton } from "./skeleton";
 
-export interface AccountPickerItem {
-  id: string;
-  title: React.ReactNode;
-  meta?: React.ReactNode;
-  selected?: boolean;
-  disabled?: boolean;
-}
-
-export type AccountPickerListState = "idle" | "loading" | "error" | "empty" | "ready";
+export type { AccountPickerItem, AccountPickerListState };
 
 export interface AccountPickerProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
   idPrefix: string;
@@ -31,13 +22,38 @@ export interface AccountPickerProps extends Omit<React.ComponentProps<"div">, "o
   accountInvalid?: boolean;
   onAccountValueChange: (value: string) => void;
   listState?: AccountPickerListState;
+  /** Message shown inside the picker for non-ready states (idle / error / empty). */
   listMessage?: React.ReactNode;
   items?: readonly AccountPickerItem[];
   onSelect: (item: AccountPickerItem) => void;
+  /** Accessible label for the button that opens the picker. */
+  browseLabel?: string;
+  /** Placeholder for the picker's search field. */
+  searchPlaceholder?: string;
+  /** Shown when a search query matches none of the loaded accounts. */
+  emptyResultsLabel?: React.ReactNode;
   selectedLabel?: React.ReactNode;
-  actionLabel?: React.ReactNode;
 }
 
+/**
+ * Owner address input paired with an {@link AccountCombobox}. The owner field
+ * drives which accounts are offered; the account field accepts a pasted address
+ * or a selection made through the picker. Use this when the caller chooses the
+ * owner; for a standalone account field whose options come from a fixed source,
+ * use {@link AccountCombobox} directly.
+ *
+ * @example
+ * <AccountPicker
+ *   idPrefix="balance"
+ *   ownerValue={owner}
+ *   onOwnerValueChange={setOwner}
+ *   accountValue={account}
+ *   onAccountValueChange={setAccount}
+ *   listState="ready"
+ *   items={items}
+ *   onSelect={(item) => setAccount(item.id)}
+ * />
+ */
 function AccountPicker({
   idPrefix,
   ownerLabel = "owner",
@@ -56,8 +72,10 @@ function AccountPicker({
   listMessage,
   items = [],
   onSelect,
-  selectedLabel = "Selected",
-  actionLabel = "Select",
+  browseLabel,
+  searchPlaceholder,
+  emptyResultsLabel,
+  selectedLabel,
   className,
   ...props
 }: AccountPickerProps) {
@@ -75,25 +93,21 @@ function AccountPicker({
         />
       </AccountPickerField>
 
-      <AccountPickerList
-        idPrefix={idPrefix}
-        state={listState}
-        message={listMessage}
-        items={items}
-        onSelect={onSelect}
-        selectedLabel={selectedLabel}
-        actionLabel={actionLabel}
-      />
-
       <AccountPickerField label={accountLabel} htmlFor={`${idPrefix}-account`} hint={accountHint}>
-        <Input
-          id={`${idPrefix}-account`}
-          data-testid={`${idPrefix}-account`}
+        <AccountCombobox
+          idPrefix={idPrefix}
           value={accountValue}
-          onChange={(event) => onAccountValueChange(event.target.value)}
+          onValueChange={onAccountValueChange}
           placeholder={accountPlaceholder}
-          className="font-mono"
-          aria-invalid={accountInvalid}
+          invalid={accountInvalid}
+          listState={listState}
+          listMessage={listMessage}
+          items={items}
+          onSelect={onSelect}
+          browseLabel={browseLabel}
+          searchPlaceholder={searchPlaceholder}
+          emptyResultsLabel={emptyResultsLabel}
+          selectedLabel={selectedLabel}
         />
       </AccountPickerField>
     </div>
@@ -116,89 +130,6 @@ function AccountPickerField({
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
       {hint ? <p className="text-muted-foreground text-xs leading-5">{hint}</p> : null}
-    </div>
-  );
-}
-
-function AccountPickerList({
-  idPrefix,
-  state,
-  message,
-  items,
-  onSelect,
-  selectedLabel,
-  actionLabel,
-}: {
-  idPrefix: string;
-  state: AccountPickerListState;
-  message?: React.ReactNode;
-  items: readonly AccountPickerItem[];
-  onSelect: (item: AccountPickerItem) => void;
-  selectedLabel: React.ReactNode;
-  actionLabel: React.ReactNode;
-}) {
-  if (state === "loading") {
-    return <AccountPickerListSkeleton testId={`${idPrefix}-list-loading`} />;
-  }
-
-  if (state !== "ready") {
-    return message ? (
-      <div data-testid={`${idPrefix}-list-${state}`} className="text-muted-foreground text-sm">
-        {message}
-      </div>
-    ) : null;
-  }
-
-  return (
-    <div data-testid={`${idPrefix}-list`} className="border-border/70 overflow-hidden rounded-md border">
-      <div className="divide-border/70 max-h-72 divide-y overflow-y-auto">
-        {items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            data-testid={`${idPrefix}-list-select`}
-            disabled={item.disabled}
-            onClick={() => onSelect(item)}
-            className="hover:bg-muted/40 focus-visible:ring-ring disabled:bg-muted/20 disabled:text-muted-foreground flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors outline-none focus-visible:ring-2 disabled:cursor-not-allowed"
-          >
-            <span className="min-w-0">
-              <span className="text-foreground block truncate text-sm font-medium">{item.title}</span>
-              {item.meta ? (
-                <span className="text-muted-foreground mt-0.5 block font-mono text-xs">{item.meta}</span>
-              ) : null}
-            </span>
-            {item.selected ? (
-              <Badge variant="positive">{selectedLabel}</Badge>
-            ) : (
-              <Badge variant="secondary">{actionLabel}</Badge>
-            )}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AccountPickerListSkeleton({ testId }: { testId: string }) {
-  const rows = ["r0", "r1", "r2"];
-  return (
-    <div
-      data-testid={testId}
-      aria-busy="true"
-      aria-label="Loading accounts"
-      className="border-border/70 overflow-hidden rounded-md border"
-    >
-      <div className="divide-border/70 divide-y">
-        {rows.map((row) => (
-          <div key={row} className="flex items-center justify-between gap-3 px-3 py-2.5">
-            <span className="min-w-0 space-y-2">
-              <Skeleton className="h-4 w-36" />
-              <Skeleton className="h-3 w-24" />
-            </span>
-            <Skeleton className="h-5 w-14" />
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

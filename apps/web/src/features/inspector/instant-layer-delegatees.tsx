@@ -1,4 +1,4 @@
-import { SuggestionList, SuggestionListItem } from "@symm-frontier/ui/components/suggestion-list";
+import type { ComboboxItem } from "@symm-frontier/ui/components/combobox";
 import { shortenAddress } from "@symm-frontier/utils";
 import type { Address } from "viem";
 
@@ -33,34 +33,21 @@ export function getInstantLayerDelegateeSuggestions(solver: {
   ];
 }
 
-interface Props {
-  suggestions: readonly InstantLayerDelegateeSuggestion[];
-  selected?: Address;
-  onPick: (address: Address) => void;
-}
-
-/** Suggested Instant Layer delegatees from Vibe v1/v2 delegation flows. */
-export function InstantLayerDelegateeSuggestions({ suggestions, selected, onPick }: Props) {
-  return (
-    <SuggestionList layout="stack">
-      {suggestions.map((item) => {
-        const isSelected = Boolean(item.address && selected) && item.address?.toLowerCase() === selected?.toLowerCase();
-        return (
-          <SuggestionListItem
-            key={`${item.name}-${item.address ?? "manual"}`}
-            title={item.name}
-            description={item.description}
-            meta={item.address ? shortenAddress(item.address) : undefined}
-            selected={isSelected}
-            actionLabel="Use"
-            disabled={!item.address}
-            onClick={() => {
-              if (item.address) onPick(item.address);
-            }}
-            data-testid="button-delegatee-suggestion"
-          />
-        );
-      })}
-    </SuggestionList>
-  );
+/**
+ * Map delegatee suggestions to {@link ComboboxItem}s for the delegate field's
+ * picker. Suggestions without an address (e.g. the session key) are disabled —
+ * they have no value to fill, only guidance to paste one manually.
+ */
+export function toDelegateeComboboxItems(
+  suggestions: readonly InstantLayerDelegateeSuggestion[],
+  selected?: Address,
+): ComboboxItem[] {
+  return suggestions.map((item) => ({
+    id: item.address ?? `manual:${item.name}`,
+    title: item.name,
+    description: item.description,
+    meta: item.address ? shortenAddress(item.address) : "Paste manually",
+    selected: Boolean(item.address && selected && item.address.toLowerCase() === selected.toLowerCase()),
+    disabled: !item.address,
+  }));
 }

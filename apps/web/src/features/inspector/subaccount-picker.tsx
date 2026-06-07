@@ -1,16 +1,12 @@
 "use client";
 
-import { ResultError, ResultNote } from "@/components/result";
-import { useUserSubAccounts, useWalletAccount } from "@symm-frontier/react";
-import {
-  AccountPicker,
-  type AccountPickerItem,
-  type AccountPickerListState,
-} from "@symm-frontier/ui/components/account-picker";
+import { useWalletAccount } from "@symm-frontier/react";
+import { AccountPicker } from "@symm-frontier/ui/components/account-picker";
 import { shortenAddress } from "@symm-frontier/utils";
 import { useMemo, useState } from "react";
 import type { Address } from "viem";
 import { isAddress } from "viem";
+import { SubAccountListMessage, useSubAccountOptions } from "./subaccount-options";
 
 interface SelectedSubAccount {
   subAccount?: Address;
@@ -28,7 +24,7 @@ interface Props {
   selectedHintLabel?: string;
 }
 
-/** User-address input plus clickable subaccount list for inspector read cards. */
+/** User-address input plus a searchable subaccount picker for inspector cards. */
 export function SubAccountPicker({
   idPrefix,
   selected,
@@ -36,7 +32,7 @@ export function SubAccountPicker({
   ownerLabel = "user (address)",
   ownerEmptyHint = "Enter a wallet address to load subaccounts.",
   accountLabel = "subAccount (address)",
-  accountEmptyHint = "Click a subaccount or enter one manually.",
+  accountEmptyHint = "Pick a subaccount or enter one manually.",
   selectedHintLabel = "Selected",
 }: Props) {
   const { address } = useWalletAccount();
@@ -46,30 +42,27 @@ export function SubAccountPicker({
   const ownerCandidate = (ownerInput || address || "") as string;
   const owner = isAddress(ownerCandidate) ? (ownerCandidate as Address) : undefined;
   const subAccount = isAddress(subAccountInput) ? (subAccountInput as Address) : undefined;
-  const query = useUserSubAccounts({ user: owner });
-
-  const items = useMemo(
-    () =>
-      query.data?.map(
-        (sub): AccountPickerItem => ({
-          id: sub.accountAddress,
-          title: sub.name || "Unnamed",
-          meta: shortenAddress(sub.accountAddress),
-          selected: sub.accountAddress === selected.subAccount,
-        }),
-      ) ?? [],
-    [query.data, selected.subAccount],
-  );
+  const { query, items, listState } = useSubAccountOptions(owner);
 
   const selectedName = useMemo(() => {
     return selected.name ?? query.data?.find((sub) => sub.accountAddress === selected.subAccount)?.name;
   }, [query.data, selected.name, selected.subAccount]);
 
+  const ownerHint = useMemo(() => {
+    if (!owner) return ownerEmptyHint;
+    const short = shortenAddress(owner);
+    if (query.isLoading) return `Loading subaccounts for ${short}.`;
+    if (query.error) return `Could not load subaccounts for ${short}.`;
+    const count = query.data?.length ?? 0;
+    if (count === 0) return `No subaccounts for ${short}.`;
+    return `${count} subaccount${count === 1 ? "" : "s"} for ${short}.`;
+  }, [owner, ownerEmptyHint, query.data, query.error, query.isLoading]);
+
   return (
     <AccountPicker
       idPrefix={idPrefix}
       ownerLabel={ownerLabel}
-      ownerHint={owner ? `Loading subaccounts for ${shortenAddress(owner)}.` : ownerEmptyHint}
+      ownerHint={ownerHint}
       ownerValue={ownerInput}
       ownerPlaceholder={address ?? "0x..."}
       ownerInvalid={ownerCandidate.length > 0 && !owner}
@@ -87,7 +80,7 @@ export function SubAccountPicker({
         setSubAccountInput(next);
         onSelect({ subAccount: isAddress(next) ? (next as Address) : undefined });
       }}
-      listState={getListState(query)}
+      listState={listState}
       listMessage={<SubAccountListMessage idPrefix={idPrefix} query={query} />}
       items={items}
       onSelect={(item) => {
@@ -100,31 +93,4 @@ export function SubAccountPicker({
       }}
     />
   );
-}
-
-function getListState(query: ReturnType<typeof useUserSubAccounts>): AccountPickerListState {
-  if (query.isLoading) return "loading";
-  if (query.error) return "error";
-  if (!query.data) return "idle";
-  if (query.data.length === 0) return "empty";
-  return "ready";
-}
-
-function SubAccountListMessage({
-  idPrefix,
-  query,
-}: {
-  idPrefix: string;
-  query: ReturnType<typeof useUserSubAccounts>;
-}) {
-  if (query.error) {
-    return <ResultError testId={`${idPrefix}-list-error`} kind={query.error.kind} message={query.error.message} />;
-  }
-  if (!query.data) {
-    return <ResultNote testId={`${idPrefix}-list-idle`}>Connect a wallet or enter a user address.</ResultNote>;
-  }
-  if (query.data.length === 0) {
-    return <ResultNote testId={`${idPrefix}-list-empty`}>No subaccounts found for this address.</ResultNote>;
-  }
-  return null;
 }

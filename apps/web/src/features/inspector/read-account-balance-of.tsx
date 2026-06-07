@@ -32,29 +32,25 @@ export function ReadAccountBalanceOf() {
       description="Read balanceOf for a selected subaccount on its SYMMIO core."
       wide
     >
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <SubAccountPicker idPrefix="input-balance-of" selected={selection} onSelect={setSelection} />
+      <SubAccountPicker idPrefix="input-balance-of" selected={selection} onSelect={setSelection} />
 
-        <div className="space-y-4">
-          <Button
-            type="button"
-            size="sm"
-            disabled={!selection.subAccount || query.isFetching}
-            onClick={() => void query.refetch()}
-            data-testid="button-read-subaccount-balance-of"
-          >
-            {query.isFetching ? (
-              <>
-                <Spinner className="size-4" /> Reading…
-              </>
-            ) : (
-              "Read balanceOf"
-            )}
-          </Button>
+      <Button
+        type="button"
+        size="sm"
+        disabled={!selection.subAccount || query.isFetching}
+        onClick={() => void query.refetch()}
+        data-testid="button-read-subaccount-balance-of"
+      >
+        {query.isFetching ? (
+          <>
+            <Spinner className="size-4" /> Reading…
+          </>
+        ) : (
+          "Read balanceOf"
+        )}
+      </Button>
 
-          <ResultPanel testId="result-getAccountBalanceOf" query={query} />
-        </div>
-      </div>
+      <ResultPanel testId="result-getAccountBalanceOf" query={query} />
     </MethodCard>
   );
 }

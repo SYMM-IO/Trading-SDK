@@ -54,6 +54,7 @@ export interface MockSymmioConfig {
   config: Config;
   readContract: Mock;
   writeContract: Mock;
+  simulateContract: Mock;
   waitForTransactionReceipt: Mock;
 }
 
@@ -67,9 +68,10 @@ export interface MockSymmioConfig {
 export function createMockSymmioConfig(opts?: { withWallet?: boolean }): MockSymmioConfig {
   const readContract = vi.fn();
   const writeContract = vi.fn();
+  const simulateContract = vi.fn();
   const waitForTransactionReceipt = vi.fn();
 
-  const publicClient = { readContract, waitForTransactionReceipt } as unknown as PublicClient;
+  const publicClient = { readContract, simulateContract, waitForTransactionReceipt } as unknown as PublicClient;
   const account = { address: TEST_EOA, type: "json-rpc" } as Account;
   const walletClient = { account, chain: hyperEvm as Chain, writeContract } as unknown as SymmioWalletClient;
 
@@ -78,7 +80,7 @@ export function createMockSymmioConfig(opts?: { withWallet?: boolean }): MockSym
     getWalletClient: opts?.withWallet === false ? undefined : async () => walletClient,
   });
 
-  return { config, readContract, writeContract, waitForTransactionReceipt };
+  return { config, readContract, writeContract, simulateContract, waitForTransactionReceipt };
 }
 
 /**

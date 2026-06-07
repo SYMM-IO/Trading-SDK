@@ -4,6 +4,7 @@
  * surface reads the same way: single-property parameter mixins combined into an
  * action's parameter type via `Compute<A & B>`.
  */
+import type { Address } from "viem";
 
 /**
  * Flatten an intersection of object types into a single, readable object type.
@@ -20,6 +21,7 @@ export type Compute<type> = { [key in keyof type]: type[key] } & unknown;
 export interface ChainIdParameter {
   /** Target chain id. Defaults to the config's `defaultChainId` when omitted. */
   chainId?: number;
+  simulate?: boolean;
 }
 
 /**
@@ -34,6 +36,17 @@ export interface ChainIdParameter {
 export interface ConfigKeyParameter {
   /** Stable fingerprint of the resolved chain config; see {@link ConfigKeyParameter}. */
   configKey?: string;
+}
+
+/**
+ * Optional sender mixin for simulations. `from` is the address a dry-run
+ * (`simulateContract`) executes as — it becomes `msg.sender` for the call. When
+ * omitted, viem simulates from the zero address. Named `from` (not `account`) so
+ * it never collides with an action's own `account` / `user` parameter.
+ */
+export interface FromParameter {
+  /** Address the simulation runs as (becomes `msg.sender`). Defaults to the connected wallet in the React layer. */
+  from?: Address;
 }
 
 /**

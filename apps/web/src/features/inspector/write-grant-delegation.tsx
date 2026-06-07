@@ -3,33 +3,32 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import { instantLayerAbi } from "@symm-frontier/core";
 import {
-  normalizeSymmError,
   useGrantDelegation,
+  useSimulateGrantDelegation,
   useSymmioConfig,
   useWalletAccount,
-  type SymmioRequestError,
 } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
+import { Combobox } from "@symm-frontier/ui/components/combobox";
+import { DateTimePicker } from "@symm-frontier/ui/components/date-time-picker";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { Switch } from "@symm-frontier/ui/components/switch";
 import { formatRelativeTimestamp } from "@symm-frontier/utils";
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Address, Hex } from "viem";
 import { isAddress } from "viem";
-import { getInstantLayerDelegateeSuggestions, InstantLayerDelegateeSuggestions } from "./instant-layer-delegatees";
-import { formatSelectorList, InstantLayerSelectorSuggestions } from "./instant-layer-selectors";
+import { getInstantLayerDelegateeSuggestions, toDelegateeComboboxItems } from "./instant-layer-delegatees";
+import { SelectorIcon, WalletIcon } from "./instant-layer-icons";
+import { formatSelectorList, parseSelectorTokens, toSelectorComboboxItems } from "./instant-layer-selectors";
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
 import { SubAccountPicker } from "./subaccount-picker";
 
 export function WriteGrantDelegation() {
-  const { address, chainId, isConnected, isOnExpectedChain } = useWalletAccount();
+  const { isConnected, isOnExpectedChain } = useWalletAccount();
   const config = useSymmioConfig();
-  const { addresses, solver } = config.getChainConfig();
+  const { solver } = config.getChainConfig();
   const [account, setAccount] = useState<string>("");
   const [isPartyB, setIsPartyB] = useState<boolean>(false);
   const [delegatedSigner, setDelegatedSigner] = useState<string>("");
@@ -46,27 +45,12 @@ export function WriteGrantDelegation() {
 
   const mutation = useGrantDelegation();
 
-  const simulate = useMutation<void, SymmioRequestError, WriteVariables>({
-    mutationFn: async (variables) => {
-      try {
-        await config.getClient({ chainId }).simulateContract({
-          address: addresses.instantLayerAddress,
-          abi: instantLayerAbi,
-          functionName: "grantDelegation",
-          args: [
-            {
-              account: variables.account,
-              delegatedSigner: variables.delegatedSigner,
-              selectors: variables.selectors,
-              expiryTimestamp: variables.expiryTimestamp,
-            },
-          ],
-          account: address,
-        });
-      } catch (err) {
-        throw normalizeSymmError(err);
-      }
-    },
+  const simulate = useSimulateGrantDelegation({
+    account: validAccount ? { addr: validAccount, isPartyB } : undefined,
+    delegatedSigner: validDelegatedSigner,
+    selectors,
+    expiryTimestamp: expiry,
+    query: { enabled: false },
   });
 
   function getVariables(): WriteVariables | undefined {
@@ -105,64 +89,65 @@ export function WriteGrantDelegation() {
         <Switch checked={isPartyB} onCheckedChange={setIsPartyB} data-testid="switch-grant-delegation-ispartyb" />
       </div>
 
-      <Field label="delegatedSigner" htmlFor="input-grant-delegation-signer">
-        <Input
-          id="input-grant-delegation-signer"
-          data-testid="input-grant-delegation-signer"
+      <Field label="delegatedSigner" htmlFor="grant-delegation-signer-field">
+        <Combobox
+          idPrefix="grant-delegation-signer"
           value={delegatedSigner}
-          onChange={(e) => setDelegatedSigner(e.target.value)}
+          onValueChange={setDelegatedSigner}
+          onSelect={(item) => setDelegatedSigner(item.id)}
+          items={toDelegateeComboboxItems(getInstantLayerDelegateeSuggestions(solver), validDelegatedSigner)}
           placeholder="0x…"
-          className="font-mono"
-          aria-invalid={delegatedSigner.length > 0 && !validDelegatedSigner}
+          mono
+          invalid={delegatedSigner.length > 0 && !validDelegatedSigner}
+          triggerIcon={<WalletIcon />}
+          triggerLabel="Browse delegatees"
         />
       </Field>
-      <InstantLayerDelegateeSuggestions
-        suggestions={getInstantLayerDelegateeSuggestions(solver)}
-        selected={validDelegatedSigner}
-        onPick={(nextDelegate) => setDelegatedSigner(nextDelegate)}
-      />
 
       <Field
         label="selectors"
-        htmlFor="input-grant-delegation-selectors"
+        htmlFor="grant-delegation-selectors-field"
         hint="Comma or space separated bytes4 selectors, for example 0x12345678, 0xabcdef12."
       >
-        <Input
-          id="input-grant-delegation-selectors"
-          data-testid="input-grant-delegation-selectors"
+        <Combobox
+          idPrefix="grant-delegation-selectors"
+          mode="multiple"
           value={selectorsInput}
-          onChange={(e) => setSelectorsInput(e.target.value)}
+          onValueChange={setSelectorsInput}
+          onSelect={(item) => {
+            const picked = item.id.toLowerCase();
+            const tokens = parseSelectorTokens(selectorsInput);
+            const next = tokens.some((token) => token.toLowerCase() === picked)
+              ? tokens.filter((token) => token.toLowerCase() !== picked)
+              : [...tokens, item.id];
+            setSelectorsInput(formatSelectorList(next));
+          }}
+          items={toSelectorComboboxItems(parseSelectorTokens(selectorsInput))}
           placeholder="0x12345678, 0xabcdef12"
-          className="font-mono"
-          aria-invalid={selectorsInput.length > 0 && !selectors}
+          mono
+          invalid={selectorsInput.length > 0 && !selectors}
+          triggerIcon={<SelectorIcon />}
+          triggerLabel="Browse selectors"
         />
       </Field>
-      <InstantLayerSelectorSuggestions
-        mode="multiple"
-        selected={selectors ?? []}
-        onPick={(nextSelector) => {
-          const current = selectors ?? [];
-          const next = current.includes(nextSelector)
-            ? current.filter((selector) => selector !== nextSelector)
-            : [...current, nextSelector];
-          setSelectorsInput(formatSelectorList(next));
-        }}
-      />
 
       <Field
         label="expiryTimestamp"
-        htmlFor="input-grant-delegation-expiry"
+        htmlFor="grant-delegation-expiry-field"
         hint={expiry ? `Unix timestamp in seconds. ${formatExpiryTimestamp(expiry)}.` : "Unix timestamp in seconds."}
       >
-        <Input
-          id="input-grant-delegation-expiry"
-          data-testid="input-grant-delegation-expiry"
+        <DateTimePicker
+          idPrefix="grant-delegation-expiry"
           value={expiryTimestamp}
-          onChange={(e) => setExpiryTimestamp(e.target.value)}
+          onValueChange={setExpiryTimestamp}
+          date={expiry ? new Date(Number(expiry) * 1000) : undefined}
+          onDateChange={(next) => setExpiryTimestamp(Math.floor(next.getTime() / 1000).toString())}
           placeholder="1767225600"
           inputMode="numeric"
-          className="font-mono"
-          aria-invalid={expiryTimestamp.length > 0 && !expiry}
+          mono
+          invalid={expiryTimestamp.length > 0 && !expiry}
+          fromDate={startOfToday()}
+          footer={<ExpiryPresets onPick={(seconds) => setExpiryTimestamp(seconds.toString())} />}
         />
       </Field>
 
@@ -171,15 +156,14 @@ export function WriteGrantDelegation() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isPending}
+          disabled={!canSubmit || simulate.isFetching}
           onClick={() => {
-            const variables = getVariables();
-            if (!variables) return;
-            simulate.mutate(variables);
+            if (!validAccount || !validDelegatedSigner || !selectors || !expiry) return;
+            simulate.refetch();
           }}
           data-testid="button-simulate-grant-delegation"
         >
-          {simulate.isPending ? (
+          {simulate.isFetching ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -209,7 +193,7 @@ export function WriteGrantDelegation() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isPending}
+        isPending={simulate.isFetching}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-grantDelegation"
@@ -258,17 +242,48 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useGrantDelegati
   return <ResultNote testId="result-grantDelegation-idle">Fill the fields above and submit.</ResultNote>;
 }
 
-function parseSelectors(value: string): readonly Hex[] | undefined {
-  const selectors = value
-    .split(/[\s,]+/)
-    .map((part) => part.trim())
-    .filter(Boolean);
+const EXPIRY_PRESETS = [
+  { label: "1 day", days: 1 },
+  { label: "1 week", days: 7 },
+  { label: "1 month", days: 30 },
+  { label: "3 months", days: 90 },
+] as const;
 
-  if (selectors.length === 0 || selectors.some((selector) => !/^0x[0-9a-fA-F]{8}$/.test(selector))) {
+const SECONDS_PER_DAY = 86_400;
+
+/** Quick-set chips that fill the expiry with "now + N days", in unix seconds. */
+function ExpiryPresets({ onPick }: { onPick: (seconds: number) => void }) {
+  return (
+    <div className="space-y-2">
+      <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Quick set</span>
+      <div className="flex flex-wrap gap-1.5">
+        {EXPIRY_PRESETS.map((preset) => (
+          <button
+            key={preset.label}
+            type="button"
+            data-testid={`button-expiry-preset-${preset.days}`}
+            onClick={() => onPick(Math.floor(Date.now() / 1000) + preset.days * SECONDS_PER_DAY)}
+            className="border-border bg-background hover:bg-muted/60 focus-visible:ring-ring/40 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors outline-none focus-visible:ring-2"
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function startOfToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function parseSelectors(value: string): readonly Hex[] | undefined {
+  const tokens = parseSelectorTokens(value);
+  if (tokens.length === 0 || tokens.some((token) => !/^0x[0-9a-fA-F]{8}$/.test(token))) {
     return undefined;
   }
-
-  return selectors as Hex[];
+  return tokens as Hex[];
 }
 
 function parseExpiryTimestamp(value: string): bigint | undefined {

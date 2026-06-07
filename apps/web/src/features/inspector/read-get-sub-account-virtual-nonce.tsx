@@ -1,16 +1,15 @@
 "use client";
 
-import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import { Stat } from "@/components/stat";
 import { useSubAccountVirtualNonce } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { useState } from "react";
 import type { Address } from "viem";
 import { isAddress } from "viem";
 import { MethodCard } from "./method-card";
+import { SubAccountField } from "./subaccount-field";
 
 export function ReadGetSubAccountVirtualNonce() {
   const [input, setInput] = useState<string>("");
@@ -25,17 +24,13 @@ export function ReadGetSubAccountVirtualNonce() {
       mutability="view"
       description="Read a subaccount's Virtual Account nonce (seeds the next VA address)."
     >
-      <Field label="subAccount (address)" htmlFor="input-nonce-subaccount-address">
-        <Input
-          id="input-nonce-subaccount-address"
-          data-testid="input-nonce-subaccount-address"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="0x…"
-          className="font-mono"
-          aria-invalid={input.length > 0 && !validAddress}
-        />
-      </Field>
+      <SubAccountField
+        idPrefix="nonce-subaccount"
+        label="subAccount (address)"
+        value={input}
+        onValueChange={setInput}
+        invalid={input.length > 0 && !validAddress}
+      />
 
       <Button
         type="button"

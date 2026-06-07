@@ -33,9 +33,7 @@ interface Selection {
 
 export function ReadAccountBalanceInfo() {
   const [selection, setSelection] = useState<Selection>({});
-  const query = useAccountBalanceInfo({
-    account: selection.subAccount,
-  });
+  const query = useAccountBalanceInfo({ account: selection.subAccount });
 
   return (
     <MethodCard
@@ -45,29 +43,25 @@ export function ReadAccountBalanceInfo() {
       description="Read balanceInfoOfPartyA for a selected subaccount on its SYMMIO core."
       wide
     >
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <SubAccountPicker idPrefix="input-balance-info" selected={selection} onSelect={setSelection} />
+      <SubAccountPicker idPrefix="input-balance-info" selected={selection} onSelect={setSelection} />
 
-        <div className="space-y-4">
-          <Button
-            type="button"
-            size="sm"
-            disabled={!selection.subAccount || query.isFetching}
-            onClick={() => void query.refetch()}
-            data-testid="button-read-subaccount-balance-info"
-          >
-            {query.isFetching ? (
-              <>
-                <Spinner className="size-4" /> Reading…
-              </>
-            ) : (
-              "Read balance info"
-            )}
-          </Button>
+      <Button
+        type="button"
+        size="sm"
+        disabled={!selection.subAccount || query.isFetching}
+        onClick={() => void query.refetch()}
+        data-testid="button-read-subaccount-balance-info"
+      >
+        {query.isFetching ? (
+          <>
+            <Spinner className="size-4" /> Reading…
+          </>
+        ) : (
+          "Read balance info"
+        )}
+      </Button>
 
-          <ResultPanel testId="result-getAccountBalanceInfo" query={query} />
-        </div>
-      </div>
+      <ResultPanel testId="result-getAccountBalanceInfo" query={query} />
     </MethodCard>
   );
 }

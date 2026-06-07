@@ -1,0 +1,30 @@
+import type { Address } from "viem";
+import { describe, expect, it } from "vitest";
+import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
+import { mockConfig } from "../../../shared/test/mock-config";
+import { simulateRequestCancelWithdraw } from "./simulate-request-cancel-withdraw";
+
+const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const FROM: Address = "0x1111111111111111111111111111111111111111";
+
+describe("simulateRequestCancelWithdraw", () => {
+  it("simulates the routed AccountLayer `_call` carrying the encoded requestCancelWithdraw", async () => {
+    const { config, simulateContract } = mockConfig();
+    simulateContract.mockResolvedValueOnce({ result: ["0x"], request: {} });
+
+    await simulateRequestCancelWithdraw(config, { account: ACCOUNT, requestId: 2n, from: FROM });
+
+    const call = simulateContract.mock.calls[0]?.[0] as {
+      address: Address;
+      functionName: string;
+      args: readonly [Address, readonly `0x${string}`[]];
+      account?: Address;
+    };
+    expect(call.address).toBe(DEFAULT.addresses.accountLayerAddress);
+    expect(call.functionName).toBe("_call");
+    expect(call.args[0]).toBe(ACCOUNT);
+    expect(call.args[1]).toHaveLength(1);
+    expect(call.account).toBe(FROM);
+  });
+});
