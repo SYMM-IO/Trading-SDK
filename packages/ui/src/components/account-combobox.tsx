@@ -10,6 +10,8 @@ export interface AccountPickerItem {
   id: string;
   title: React.ReactNode;
   meta?: React.ReactNode;
+  /** Optional right-aligned detail for the row, such as a status or amount. */
+  detail?: React.ReactNode;
   /** Force the selected mark. When omitted, selection is derived from the field value. */
   selected?: boolean;
   disabled?: boolean;
@@ -205,16 +207,23 @@ function AccountComboboxList({
             onClick={() => onSelect(item)}
             className="hover:bg-muted/60 focus-visible:bg-muted/60 disabled:text-muted-foreground flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition-colors outline-none disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <span className="min-w-0">
+            <span className="min-w-0 flex-1">
               <span className="text-foreground block truncate text-sm font-medium">{item.title}</span>
               {item.meta ? (
                 <span className="text-muted-foreground mt-0.5 block font-mono text-xs">{item.meta}</span>
               ) : null}
             </span>
-            {isSelected ? (
-              <span className="text-primary inline-flex shrink-0 items-center">
-                <Check className="size-4" aria-hidden />
-                <span className="sr-only">{selectedLabel}</span>
+            {item.detail || isSelected ? (
+              <span className="inline-flex shrink-0 items-center gap-2">
+                {item.detail ? (
+                  <span className="text-muted-foreground max-w-32 truncate text-right text-xs">{item.detail}</span>
+                ) : null}
+                {isSelected ? (
+                  <span className="text-primary inline-flex shrink-0 items-center">
+                    <Check className="size-4" aria-hidden />
+                    <span className="sr-only">{selectedLabel}</span>
+                  </span>
+                ) : null}
               </span>
             ) : null}
           </button>

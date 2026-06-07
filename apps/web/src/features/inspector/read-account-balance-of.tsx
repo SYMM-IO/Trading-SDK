@@ -11,8 +11,6 @@ import type { Address } from "viem";
 import { MethodCard } from "./method-card";
 import { SubAccountPicker } from "./subaccount-picker";
 
-const WEI_DECIMALS = 18;
-
 interface Selection {
   subAccount?: Address;
   name?: string;
@@ -72,11 +70,7 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
 
   return (
     <div data-testid={`${testId}-data`}>
-      <Stat
-        label="Subaccount balanceOf"
-        value={formatUsd(query.data, WEI_DECIMALS)}
-        hint={`${String(query.data)} raw units`}
-      />
+      <Stat label="Subaccount balanceOf" value={formatUsd(query.data)} hint={`${String(query.data)} raw units`} />
     </div>
   );
 }

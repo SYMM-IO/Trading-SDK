@@ -3,9 +3,24 @@ import { useState } from "react";
 import { AccountCombobox, type AccountPickerItem } from "./account-combobox";
 
 const ITEMS: readonly AccountPickerItem[] = [
-  { id: "0x1111111111111111111111111111111111111111", title: "Main account", meta: "0x1111…1111" },
-  { id: "0x2222222222222222222222222222222222222222", title: "Trading account", meta: "0x2222…2222" },
-  { id: "0x3333333333333333333333333333333333333333", title: "Archive account", meta: "0x3333…3333" },
+  {
+    id: "0x1111111111111111111111111111111111111111",
+    title: "Main account",
+    meta: "0x1111…1111",
+    detail: "$1,240.50",
+  },
+  {
+    id: "0x2222222222222222222222222222222222222222",
+    title: "Trading account",
+    meta: "0x2222…2222",
+    detail: "$820.25",
+  },
+  {
+    id: "0x3333333333333333333333333333333333333333",
+    title: "Archive account",
+    meta: "0x3333…3333",
+    detail: "$0",
+  },
 ];
 
 const meta = {

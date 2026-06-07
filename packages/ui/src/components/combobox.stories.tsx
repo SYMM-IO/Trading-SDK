@@ -71,6 +71,8 @@ function SingleStory() {
         items={DELEGATEES.map((item) => ({ ...item, selected: item.id === value }))}
         placeholder="0x…"
         mono
+        searchable
+        searchPlaceholder="Search delegatees..."
         triggerLabel="Browse delegatees"
         onSelect={(item) => setValue(item.id)}
       />
@@ -91,6 +93,8 @@ function MultipleStory() {
         items={SELECTORS.map((item) => ({ ...item, selected: picked.includes(item.id) }))}
         placeholder="0x12345678, 0xabcdef12"
         mono
+        searchable
+        searchPlaceholder="Search selectors..."
         triggerLabel="Browse selectors"
         onSelect={(item) => {
           const next = picked.includes(item.id) ? picked.filter((id) => id !== item.id) : [...picked, item.id];

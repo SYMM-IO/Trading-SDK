@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import { ReadMarkets } from "../inspector/read-markets";
+import { EnigmaInstantOpenCard } from "./enigma-instant-open-card";
 
 /**
  * Solvers page. The solver is an off-chain API (not a contract), so it sits
@@ -13,6 +14,8 @@ export function SolversShell() {
         title="Solvers · HyperEVM"
         description="The solver is an off-chain service, not a contract. Fetch tradable markets (contract symbols) — symbols, leverage, fees, and state — straight from the chain's solver."
       />
+
+      <EnigmaInstantOpenCard />
 
       <ReadMarkets />
     </section>

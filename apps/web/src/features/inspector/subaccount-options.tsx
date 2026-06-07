@@ -1,7 +1,8 @@
 "use client";
 
 import { ResultError, ResultNote } from "@/components/result";
-import { useUserSubAccounts } from "@symm-frontier/react";
+import { formatUsd } from "@/lib/format";
+import { useAccountBalanceOf, useUserSubAccounts } from "@symm-frontier/react";
 import type { AccountPickerItem, AccountPickerListState } from "@symm-frontier/ui/components/account-combobox";
 import { shortenAddress } from "@symm-frontier/utils";
 import { useMemo } from "react";
@@ -23,11 +24,28 @@ export function useSubAccountOptions(owner?: Address) {
         id: sub.accountAddress,
         title: sub.name || "Unnamed",
         meta: shortenAddress(sub.accountAddress),
+        detail: <SubAccountBalance account={sub.accountAddress} />,
       })) ?? [],
     [query.data],
   );
 
   return { query, items, listState: getSubAccountListState(query) };
+}
+
+function SubAccountBalance({ account }: { account: Address }) {
+  const query = useAccountBalanceOf({ account });
+
+  if (query.isLoading) {
+    return <span>loading...</span>;
+  }
+  if (query.error) {
+    return <span>unavailable</span>;
+  }
+  if (query.data === undefined) {
+    return <span>balance --</span>;
+  }
+
+  return <span className="font-mono">{formatUsd(query.data)}</span>;
 }
 
 function getSubAccountListState(query: SubAccountsQuery): AccountPickerListState {

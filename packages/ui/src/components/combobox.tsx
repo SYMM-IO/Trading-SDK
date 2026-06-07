@@ -119,7 +119,12 @@ function Combobox({
             id={`${idPrefix}-field`}
             data-testid={`${idPrefix}-field`}
             value={value}
-            onChange={(event) => onValueChange(event.target.value)}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              onValueChange(nextValue);
+              if (searchable) setQuery(nextValue);
+              setOpen(true);
+            }}
             placeholder={placeholder}
             disabled={disabled}
             className={cn("pr-10", mono && "font-mono")}
@@ -143,6 +148,7 @@ function Combobox({
       <PopoverContent
         align="start"
         sideOffset={6}
+        onOpenAutoFocus={(event) => event.preventDefault()}
         className="w-(--radix-popover-trigger-width) overflow-hidden p-0"
         data-testid={`${idPrefix}-picker`}
       >
@@ -246,6 +252,7 @@ function filterItems(items: readonly ComboboxItem[], query: string): readonly Co
 function itemSearchText(item: ComboboxItem): string {
   const parts: string[] = [item.id];
   if (typeof item.title === "string") parts.push(item.title);
+  if (typeof item.description === "string") parts.push(item.description);
   if (typeof item.meta === "string") parts.push(item.meta);
   return parts.join(" ").toLowerCase();
 }

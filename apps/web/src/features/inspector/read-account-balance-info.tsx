@@ -12,8 +12,6 @@ import type { Address } from "viem";
 import { MethodCard } from "./method-card";
 import { SubAccountPicker } from "./subaccount-picker";
 
-const WEI_DECIMALS = 18;
-
 const BALANCE_FIELDS = [
   ["allocatedBalance", "allocatedBalance"],
   ["lockedCVA", "lockedCVA"],
@@ -85,7 +83,7 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
           <DataRow
             key={key}
             label={label}
-            value={formatUsd(raw, WEI_DECIMALS)}
+            value={formatUsd(raw)}
             mono
             copyValue={raw.toString()}
             className="items-start"

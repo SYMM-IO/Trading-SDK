@@ -1,4 +1,6 @@
-import { formatTokenAmount } from "@symm-frontier/utils";
+import { WEI_DECIMALS, formatTokenAmount } from "@symm-frontier/utils";
+
+export { WEI_DECIMALS };
 
 /** Max fractional digits shown for collateral / USD values across the app. */
 export const USD_MAX_DECIMALS = 4;
@@ -8,6 +10,6 @@ export const USD_MAX_DECIMALS = 4;
  * {@link USD_MAX_DECIMALS} fractional digits (truncated, trailing zeros stripped).
  * Use for every on-screen dollar / USDC figure.
  */
-export function formatUsd(raw: bigint, decimals: number): string {
+export function formatUsd(raw: bigint, decimals: number = WEI_DECIMALS): string {
   return formatTokenAmount(raw, decimals, { maxFractionDigits: USD_MAX_DECIMALS });
 }
