@@ -30,11 +30,7 @@ export function WriteRequestCancelWithdraw() {
 
   const mutation = useRequestCancelWithdraw();
 
-  const simulate = useSimulateRequestCancelWithdraw({
-    account: validAccount,
-    requestId: validRequestId,
-    query: { enabled: false },
-  });
+  const simulate = useSimulateRequestCancelWithdraw();
 
   return (
     <MethodCard
@@ -74,14 +70,14 @@ export function WriteRequestCancelWithdraw() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isFetching}
+          disabled={!canSubmit || simulate.isPending}
           onClick={() => {
             if (!validAccount || validRequestId === undefined) return;
-            simulate.refetch();
+            simulate.mutate({ account: validAccount, requestId: validRequestId });
           }}
           data-testid="button-simulate-cancel"
         >
-          {simulate.isFetching ? (
+          {simulate.isPending ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -110,7 +106,7 @@ export function WriteRequestCancelWithdraw() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isFetching}
+        isPending={simulate.isPending}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-requestCancelWithdraw"

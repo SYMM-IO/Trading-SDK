@@ -69,6 +69,7 @@ export function useCreateSubAccounts(parameters: UseCreateSubAccountsParameters 
         const hash = await base.mutationFn({
           affiliate: variables.affiliate,
           accountsData: variables.accountsData,
+          simulateBeforeWrite: variables.simulateBeforeWrite,
           chainId: resolvedChainId,
         });
         return resolveWriteResult(config, hash, {

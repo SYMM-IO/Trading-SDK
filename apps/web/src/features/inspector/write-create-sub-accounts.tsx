@@ -79,11 +79,7 @@ export function WriteCreateSubAccounts() {
   ];
 
   /** Dry-run the call (`simulateContract`) so the user sees pass/revert before sending. */
-  const simulate = useSimulateCreateSubAccounts({
-    affiliate: validAffiliate,
-    accountsData: validSymmioCore ? buildAccountsData(validSymmioCore) : undefined,
-    query: { enabled: false },
-  });
+  const simulate = useSimulateCreateSubAccounts();
 
   return (
     <MethodCard
@@ -167,14 +163,14 @@ export function WriteCreateSubAccounts() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isFetching}
+          disabled={!canSubmit || simulate.isPending}
           onClick={() => {
             if (!canSubmit || !validAffiliate || !validSymmioCore) return;
-            simulate.refetch();
+            simulate.mutate({ affiliate: validAffiliate, accountsData: buildAccountsData(validSymmioCore) });
           }}
           data-testid="button-simulate-create"
         >
-          {simulate.isFetching ? (
+          {simulate.isPending ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -203,7 +199,7 @@ export function WriteCreateSubAccounts() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isFetching}
+        isPending={simulate.isPending}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-createSubAccounts"

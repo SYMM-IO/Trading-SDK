@@ -47,13 +47,7 @@ export function WriteGrantDelegation() {
 
   const mutation = useGrantDelegation();
 
-  const simulate = useSimulateGrantDelegation({
-    account: validAccount ? { addr: validAccount, isPartyB } : undefined,
-    delegatedSigner: validDelegatedSigner,
-    selectors,
-    expiryTimestamp: expiry,
-    query: { enabled: false },
-  });
+  const simulate = useSimulateGrantDelegation();
 
   function getVariables(): WriteVariables | undefined {
     if (!validAccount || !validDelegatedSigner || !selectors || !expiry) return undefined;
@@ -161,14 +155,15 @@ export function WriteGrantDelegation() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isFetching}
+          disabled={!canSubmit || simulate.isPending}
           onClick={() => {
-            if (!validAccount || !validDelegatedSigner || !selectors || !expiry) return;
-            simulate.refetch();
+            const variables = getVariables();
+            if (!variables) return;
+            simulate.mutate(variables);
           }}
           data-testid="button-simulate-grant-delegation"
         >
-          {simulate.isFetching ? (
+          {simulate.isPending ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -198,7 +193,7 @@ export function WriteGrantDelegation() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isFetching}
+        isPending={simulate.isPending}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-grantDelegation"

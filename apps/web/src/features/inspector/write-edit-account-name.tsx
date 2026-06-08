@@ -25,7 +25,7 @@ export function WriteEditAccountName() {
   const mutation = useEditAccountName();
 
   /** Dry-run the call (`simulateContract`) so the user sees pass/revert before sending. */
-  const simulate = useSimulateEditAccountName({ account: validAccount, name, query: { enabled: false } });
+  const simulate = useSimulateEditAccountName();
 
   return (
     <MethodCard
@@ -57,14 +57,14 @@ export function WriteEditAccountName() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isFetching}
+          disabled={!canSubmit || simulate.isPending}
           onClick={() => {
             if (!validAccount) return;
-            simulate.refetch();
+            simulate.mutate({ account: validAccount, name });
           }}
           data-testid="button-simulate-rename"
         >
-          {simulate.isFetching ? (
+          {simulate.isPending ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -93,7 +93,7 @@ export function WriteEditAccountName() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isFetching}
+        isPending={simulate.isPending}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-editAccountName"

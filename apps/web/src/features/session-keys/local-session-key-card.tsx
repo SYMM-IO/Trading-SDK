@@ -44,7 +44,7 @@ export function LocalSessionKeyCard() {
   const validImportPrivateKey = parsePrivateKey(importValue);
 
   return (
-    <Card data-testid="card-local-session-key" className="max-w-3xl">
+    <Card data-testid="card-local-session-key">
       <CardHeader>
         <CardTitle>Local session key</CardTitle>
         <CardDescription>

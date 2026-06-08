@@ -1,3 +1,4 @@
+import type { SimulateContractReturnType } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, FromParameter } from "../../../shared/types/properties";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
@@ -8,6 +9,18 @@ import type { CreateSubAccountsParameters } from "./create-sub-accounts";
  * an optional `from` (the address the dry-run runs as).
  */
 export type SimulateCreateSubAccountsParameters = Compute<CreateSubAccountsParameters & FromParameter>;
+
+/**
+ * Return type of {@link simulateCreateSubAccounts}: viem's `{ request, result }`.
+ *
+ * Written as an explicit alias over `SimulateContractReturnType<typeof accountLayerAbi, …>`
+ * so the emitted declaration references the ABI by name instead of inlining the whole
+ * ABI (which would bloat the published `.d.ts` and degrade consumers' type-checking).
+ */
+export type SimulateCreateSubAccountsReturnType = SimulateContractReturnType<
+  typeof accountLayerAbi,
+  "createSubAccounts"
+>;
 
 /**
  * Dry-run {@link createSubAccounts} without sending a transaction.
@@ -33,7 +46,10 @@ export type SimulateCreateSubAccountsParameters = Compute<CreateSubAccountsParam
  * });
  * ```
  */
-export async function simulateCreateSubAccounts(config: Config, parameters: SimulateCreateSubAccountsParameters) {
+export async function simulateCreateSubAccounts(
+  config: Config,
+  parameters: SimulateCreateSubAccountsParameters,
+): Promise<SimulateCreateSubAccountsReturnType> {
   const { chainId, affiliate, accountsData, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
@@ -46,6 +62,3 @@ export async function simulateCreateSubAccounts(config: Config, parameters: Simu
     account: from,
   });
 }
-
-/** Return type of {@link simulateCreateSubAccounts}: viem's `{ request, result }`. */
-export type SimulateCreateSubAccountsReturnType = Awaited<ReturnType<typeof simulateCreateSubAccounts>>;

@@ -31,7 +31,7 @@ export function WriteApproveCollateral() {
   const mutation = useApproveCollateral();
 
   /** Dry-run the ERC20 approve before sending. */
-  const simulate = useSimulateApproveCollateral({ amount: validAmount, query: { enabled: false } });
+  const simulate = useSimulateApproveCollateral();
 
   return (
     <MethodCard
@@ -64,14 +64,14 @@ export function WriteApproveCollateral() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isFetching}
+          disabled={!canSubmit || simulate.isPending}
           onClick={() => {
             if (validAmount === undefined) return;
-            simulate.refetch();
+            simulate.mutate({ amount: validAmount });
           }}
           data-testid="button-simulate-approve"
         >
-          {simulate.isFetching ? (
+          {simulate.isPending ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -100,7 +100,7 @@ export function WriteApproveCollateral() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isFetching}
+        isPending={simulate.isPending}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-approveCollateral"

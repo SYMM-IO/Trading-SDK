@@ -21,7 +21,6 @@ export type Compute<type> = { [key in keyof type]: type[key] } & unknown;
 export interface ChainIdParameter {
   /** Target chain id. Defaults to the config's `defaultChainId` when omitted. */
   chainId?: number;
-  simulate?: boolean;
 }
 
 /**
@@ -47,6 +46,18 @@ export interface ConfigKeyParameter {
 export interface FromParameter {
   /** Address the simulation runs as (becomes `msg.sender`). Defaults to the connected wallet in the React layer. */
   from?: Address;
+}
+
+/**
+ * Opt-out mixin for the pre-send dry-run on write actions. When the resolved
+ * value is `true`, a write runs `simulateContract` first and aborts (throwing the
+ * decoded revert) if the transaction would fail — so nothing is signed or
+ * broadcast. Resolution is `parameters.simulateBeforeWrite ?? config.simulateBeforeWrite`,
+ * and `config.simulateBeforeWrite` itself defaults to `true`.
+ */
+export interface SimulateBeforeWriteParameter {
+  /** Dry-run via `simulateContract` before sending; abort if it would revert. Defaults to the config's `simulateBeforeWrite` (`true` by default). */
+  simulateBeforeWrite?: boolean;
 }
 
 /**

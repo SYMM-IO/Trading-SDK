@@ -2,7 +2,10 @@ import { encodeFunctionData } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, FromParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.5/symmio";
-import { simulateCallAsSubAccount } from "../internal/simulate-call-as-sub-account";
+import {
+  simulateCallAsSubAccount,
+  type SimulateCallAsSubAccountReturnType,
+} from "../internal/simulate-call-as-sub-account";
 import type { RequestCancelWithdrawParameters } from "./request-cancel-withdraw";
 
 /**
@@ -10,6 +13,12 @@ import type { RequestCancelWithdrawParameters } from "./request-cancel-withdraw"
  * plus an optional `from` (the address the dry-run runs as).
  */
 export type SimulateRequestCancelWithdrawParameters = Compute<RequestCancelWithdrawParameters & FromParameter>;
+
+/**
+ * Return type of {@link simulateRequestCancelWithdraw}: viem's `{ request, result }`
+ * for the routed AccountLayer `_call` (see {@link SimulateCallAsSubAccountReturnType}).
+ */
+export type SimulateRequestCancelWithdrawReturnType = SimulateCallAsSubAccountReturnType;
 
 /**
  * Dry-run {@link requestCancelWithdraw} without sending a transaction. Encodes the
@@ -25,7 +34,7 @@ export type SimulateRequestCancelWithdrawParameters = Compute<RequestCancelWithd
 export async function simulateRequestCancelWithdraw(
   config: Config,
   parameters: SimulateRequestCancelWithdrawParameters,
-) {
+): Promise<SimulateRequestCancelWithdrawReturnType> {
   const { chainId, account, requestId, from } = parameters;
 
   const data = encodeFunctionData({
@@ -36,6 +45,3 @@ export async function simulateRequestCancelWithdraw(
 
   return simulateCallAsSubAccount(config, { account, data, from, chainId });
 }
-
-/** Return type of {@link simulateRequestCancelWithdraw}: viem's `{ request, result }`. */
-export type SimulateRequestCancelWithdrawReturnType = Awaited<ReturnType<typeof simulateRequestCancelWithdraw>>;

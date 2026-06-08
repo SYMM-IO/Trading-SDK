@@ -59,6 +59,7 @@ export function useFinalizeWithdrawRequest(
         const hash = await base.mutationFn({
           user: variables.user,
           requestId: variables.requestId,
+          simulateBeforeWrite: variables.simulateBeforeWrite,
           chainId: resolvedChainId,
         });
         return resolveWriteResult(config, hash, {

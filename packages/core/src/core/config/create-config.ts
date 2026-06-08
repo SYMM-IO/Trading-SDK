@@ -42,6 +42,13 @@ export interface CreateConfigParameters {
    * built-in supported chain.
    */
   defaultChainId?: number;
+  /**
+   * Dry-run every write with `simulateContract` before sending it, aborting (and
+   * throwing the decoded revert) if the transaction would fail. Defaults to
+   * `true`. Override for a single call with the write's `simulateBeforeWrite`
+   * option; set `false` here to disable the pre-flight for all writes.
+   */
+  simulateBeforeWrite?: boolean;
 }
 
 /**
@@ -58,6 +65,12 @@ export interface Config {
   readonly chains: readonly number[];
   /** Chain used when an action or query omits `chainId`. */
   readonly defaultChainId: number;
+  /**
+   * Default for the pre-send dry-run on writes. When `true` (the default), a
+   * write runs `simulateContract` and aborts if it would revert, unless the call
+   * passes `simulateBeforeWrite: false`.
+   */
+  readonly simulateBeforeWrite: boolean;
   /**
    * Resolve the fully-merged config for a chain.
    * @throws {SymmError} when the chain is not supported.
@@ -112,7 +125,7 @@ export interface ConfigParameter {
  * ```
  */
 export function createConfig(parameters: CreateConfigParameters): Config {
-  const { getClient, getWalletClient, chainOverrides, defaultChainId } = parameters;
+  const { getClient, getWalletClient, chainOverrides, defaultChainId, simulateBeforeWrite = true } = parameters;
 
   const chainConfigs = buildChainConfigs(chainOverrides);
 
@@ -140,6 +153,7 @@ export function createConfig(parameters: CreateConfigParameters): Config {
 
   return {
     chains: chainIds,
+    simulateBeforeWrite,
     defaultChainId: resolvedDefaultChainId,
     getChainConfig,
     getChainConfigKey,

@@ -23,9 +23,11 @@ export interface MockConfigResult {
  * the contract calls without touching the network.
  *
  * @param options - `withWallet: false` omits the wallet resolver so write paths
- *   throw `SymmError`, simulating a disconnected wallet.
+ *   throw `SymmError`, simulating a disconnected wallet. `simulateBeforeWrite`
+ *   sets the config's global pre-flight default (defaults to `createConfig`'s own
+ *   default of `true`).
  */
-export function mockConfig(options?: { withWallet?: boolean }): MockConfigResult {
+export function mockConfig(options?: { withWallet?: boolean; simulateBeforeWrite?: boolean }): MockConfigResult {
   const readContract = vi.fn().mockResolvedValue([]);
   const writeContract = vi.fn().mockResolvedValue(TEST_TX_HASH);
   const simulateContract = vi.fn().mockResolvedValue({ result: undefined, request: {} });
@@ -41,6 +43,7 @@ export function mockConfig(options?: { withWallet?: boolean }): MockConfigResult
   const config = createConfig({
     getClient: () => publicClient,
     getWalletClient: options?.withWallet === false ? undefined : async () => walletClient,
+    simulateBeforeWrite: options?.simulateBeforeWrite,
   });
 
   return { config, readContract, writeContract, simulateContract };

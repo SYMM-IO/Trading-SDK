@@ -1,5 +1,5 @@
 import { SubAccountIsolationType, type SubAccountCreationData } from "@symm-frontier/core";
-import { waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { describe, expect, it } from "vitest";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
@@ -20,11 +20,11 @@ const ACCOUNTS_DATA: readonly SubAccountCreationData[] = [
 ];
 
 describe("useSimulateCreateSubAccounts", () => {
-  it("stays disabled until inputs are present", () => {
+  it("is idle until mutate is called", () => {
     const { config, simulateContract } = createMockSymmioConfig();
     const { result } = renderHookWithProviders(() => useSimulateCreateSubAccounts({ config }));
 
-    expect(result.current.fetchStatus).toBe("idle");
+    expect(result.current.isIdle).toBe(true);
     expect(simulateContract).not.toHaveBeenCalled();
   });
 
@@ -32,12 +32,14 @@ describe("useSimulateCreateSubAccounts", () => {
     const { config, simulateContract } = createMockSymmioConfig();
     simulateContract.mockResolvedValueOnce({ result: [SYMMIO_CORE], request: {} });
 
-    const { result } = renderHookWithProviders(() =>
-      useSimulateCreateSubAccounts({ config, affiliate: AFFILIATE, accountsData: ACCOUNTS_DATA }),
-    );
+    const { result } = renderHookWithProviders(() => useSimulateCreateSubAccounts({ config }));
 
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.result).toEqual([SYMMIO_CORE]);
+    let res: unknown;
+    await act(async () => {
+      res = await result.current.mutateAsync({ affiliate: AFFILIATE, accountsData: ACCOUNTS_DATA });
+    });
+
+    expect((res as { result: unknown }).result).toEqual([SYMMIO_CORE]);
     expect(simulateContract).toHaveBeenCalledWith(
       expect.objectContaining({ functionName: "createSubAccounts", args: [AFFILIATE, ACCOUNTS_DATA] }),
     );
@@ -47,11 +49,18 @@ describe("useSimulateCreateSubAccounts", () => {
     const { config, simulateContract } = createMockSymmioConfig();
     simulateContract.mockRejectedValueOnce(new Error("boom"));
 
-    const { result } = renderHookWithProviders(() =>
-      useSimulateCreateSubAccounts({ config, affiliate: AFFILIATE, accountsData: ACCOUNTS_DATA }),
-    );
+    const { result } = renderHookWithProviders(() => useSimulateCreateSubAccounts({ config }));
+
+    let error: unknown;
+    await act(async () => {
+      try {
+        await result.current.mutateAsync({ affiliate: AFFILIATE, accountsData: ACCOUNTS_DATA });
+      } catch (e) {
+        error = e;
+      }
+    });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
-    expect((result.current.error as SymmioRequestError).kind).toBe("unknown");
+    expect((error as SymmioRequestError).kind).toBe("unknown");
   });
 });

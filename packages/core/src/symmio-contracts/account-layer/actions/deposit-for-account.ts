@@ -1,25 +1,28 @@
 import type { Address, Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
+import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
+import { simulateDepositForAccount } from "./simulate-deposit-for-account";
 
 /**
  * Parameters for {@link depositForAccount}.
  */
 export type DepositForAccountParameters = Compute<
-  ChainIdParameter & {
-    /**
-     * The subaccount (or virtual account) to credit. The wallet's signing account
-     * must be the subaccount's on-chain `owner`; the contract reverts otherwise.
-     */
-    account: Address;
-    /**
-     * Amount of collateral to deposit, in the collateral token's smallest unit
-     * (e.g. `1_000000n` for 1 USDC at 6 decimals). The user must have approved at
-     * least this much collateral to the SYMMIO core first — see {@link approveCollateral}.
-     */
-    amount: bigint;
-  }
+  ChainIdParameter &
+    SimulateBeforeWriteParameter & {
+      /**
+       * The subaccount (or virtual account) to credit. The wallet's signing account
+       * must be the subaccount's on-chain `owner`; the contract reverts otherwise.
+       */
+      account: Address;
+      /**
+       * Amount of collateral to deposit, in the collateral token's smallest unit
+       * (e.g. `1_000000n` for 1 USDC at 6 decimals). The user must have approved at
+       * least this much collateral to the SYMMIO core first — see {@link approveCollateral}.
+       */
+      amount: bigint;
+    }
 >;
 
 /** Return type of {@link depositForAccount}: the submitted transaction hash. */
@@ -32,6 +35,9 @@ export type DepositForAccountReturnType = Hash;
  * connected wallet into the core and credits the subaccount. The funds land in
  * the available (withdrawable) balance, not in trading margin — use
  * {@link depositAndAllocateForAccount} to allocate in the same transaction.
+ *
+ * Dry-runs the call with {@link simulateDepositForAccount} first unless
+ * `simulateBeforeWrite` is `false` (per-call, falling back to the config default).
  *
  * @remarks
  * Requires a prior ERC20 approval of the collateral token to the **SYMMIO core**
@@ -57,6 +63,10 @@ export async function depositForAccount(
 
   const { addresses } = config.getChainConfig(chainId);
   const walletClient = await config.getWalletClient({ chainId });
+
+  if (shouldSimulateBeforeWrite(config, parameters)) {
+    await simulateDepositForAccount(config, { chainId, account, amount, from: walletClient.account.address });
+  }
 
   return walletClient.writeContract({
     address: addresses.accountLayerAddress,

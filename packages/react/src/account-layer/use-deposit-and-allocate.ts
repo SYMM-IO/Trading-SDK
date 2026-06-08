@@ -61,6 +61,7 @@ export function useDepositAndAllocate(
         const hash = await base.mutationFn({
           account: variables.account,
           amount: variables.amount,
+          simulateBeforeWrite: variables.simulateBeforeWrite,
           chainId: resolvedChainId,
         });
         return resolveWriteResult(config, hash, {

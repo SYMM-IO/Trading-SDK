@@ -1,12 +1,12 @@
 "use client";
 
 import {
-  getSimulateInitiateWithdrawQueryOptions,
+  simulateInitiateWithdrawMutationOptions,
   type ConfigParameter,
-  type SimulateInitiateWithdrawData,
-  type SimulateInitiateWithdrawOptions,
+  type SimulateInitiateWithdrawParameters,
+  type SimulateInitiateWithdrawReturnType,
 } from "@symm-frontier/core";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import { useConnection } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
@@ -14,25 +14,30 @@ import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /**
- * Parameters for {@link useSimulateInitiateWithdraw}: the core simulate options
- * (account, parts, speedUp, providerData, from, chain id, TanStack `query`
- * overrides) plus an optional `config`.
+ * Parameters for {@link useSimulateInitiateWithdraw}: an optional `config` override. The dry-run's
+ * inputs are passed as the mutation `variables`.
  */
-export type UseSimulateInitiateWithdrawParameters = SimulateInitiateWithdrawOptions & ConfigParameter;
+export type UseSimulateInitiateWithdrawParameters = ConfigParameter;
 
 /** Return type of {@link useSimulateInitiateWithdraw}. */
-export type UseSimulateInitiateWithdrawReturnType = UseQueryResult<SimulateInitiateWithdrawData, SymmioRequestError>;
+export type UseSimulateInitiateWithdrawReturnType = UseMutationResult<
+  SimulateInitiateWithdrawReturnType,
+  SymmioRequestError,
+  SimulateInitiateWithdrawParameters
+>;
 
 /**
- * Dry-run an `initiateWithdraw` transaction (`simulateContract` through the
- * AccountLayer `_call` proxy) without sending it. Disabled until `account` and a
- * non-empty `parts` are set; `from` defaults to the connected wallet. A would-be
- * revert surfaces as a normalized {@link SymmioRequestError}.
+ * On-demand dry-run (`simulateContract`) of an `initiateWithdraw` transaction
+ * (through the AccountLayer `_call` proxy). Call `mutate(args)` to run it; `data`
+ * holds viem's `{ request, result }` (a would-be revert surfaces as a normalized
+ * {@link SymmioRequestError}). `from` defaults to the connected wallet and
+ * `chainId` to the connected chain.
  *
  * @example
  * ```tsx
- * const sim = useSimulateInitiateWithdraw({ account, parts, query: { enabled: false } });
- * sim.refetch();
+ * const sim = useSimulateInitiateWithdraw();
+ * sim.mutate({ ...args });
+ * // sim.data?.result, sim.isPending, sim.error
  * ```
  */
 export function useSimulateInitiateWithdraw(
@@ -41,20 +46,20 @@ export function useSimulateInitiateWithdraw(
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const { address } = useConnection();
-  const options = getSimulateInitiateWithdrawQueryOptions(config, {
-    ...parameters,
-    chainId: parameters.chainId ?? chainId,
-    from: parameters.from ?? address,
-  });
+  const base = simulateInitiateWithdrawMutationOptions(config);
 
-  return useQuery({
-    ...options,
-    queryFn: async () => {
+  return useMutation<SimulateInitiateWithdrawReturnType, SymmioRequestError, SimulateInitiateWithdrawParameters>({
+    mutationKey: base.mutationKey,
+    mutationFn: async (variables) => {
       try {
-        return await options.queryFn();
+        return await base.mutationFn({
+          ...variables,
+          chainId: variables.chainId ?? chainId,
+          from: variables.from ?? address,
+        });
       } catch (err) {
         throw normalizeSymmError(err);
       }
     },
-  }) as UseSimulateInitiateWithdrawReturnType;
+  });
 }

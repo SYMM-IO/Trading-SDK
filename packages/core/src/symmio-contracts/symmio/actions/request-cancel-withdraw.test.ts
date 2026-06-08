@@ -36,4 +36,51 @@ describe("requestCancelWithdraw", () => {
 
     await expect(requestCancelWithdraw(config, { account: SUB_ACCOUNT, requestId: 1n })).rejects.toThrow(SymmError);
   });
+
+  describe("pre-flight simulation", () => {
+    it("dry-runs the routed `_call` before writing by default", async () => {
+      const { config, writeContract, simulateContract } = mockConfig();
+
+      await requestCancelWithdraw(config, { account: SUB_ACCOUNT, requestId: 1n });
+
+      const expectedData = encodeFunctionData({
+        abi: symmioAbi,
+        functionName: "requestCancelWithdraw",
+        args: [1n],
+      });
+
+      expect(simulateContract).toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: "_call", args: [SUB_ACCOUNT, [expectedData]] }),
+      );
+      expect(simulateContract.mock.invocationCallOrder[0]!).toBeLessThan(writeContract.mock.invocationCallOrder[0]!);
+    });
+
+    it("skips the dry-run when `simulateBeforeWrite` is false on the call", async () => {
+      const { config, writeContract, simulateContract } = mockConfig();
+
+      await requestCancelWithdraw(config, { account: SUB_ACCOUNT, requestId: 1n, simulateBeforeWrite: false });
+
+      expect(simulateContract).not.toHaveBeenCalled();
+      expect(writeContract).toHaveBeenCalled();
+    });
+
+    it("skips the dry-run when the config disables it globally", async () => {
+      const { config, writeContract, simulateContract } = mockConfig({ simulateBeforeWrite: false });
+
+      await requestCancelWithdraw(config, { account: SUB_ACCOUNT, requestId: 1n });
+
+      expect(simulateContract).not.toHaveBeenCalled();
+      expect(writeContract).toHaveBeenCalled();
+    });
+
+    it("aborts the write when the dry-run would revert", async () => {
+      const { config, writeContract, simulateContract } = mockConfig();
+      simulateContract.mockRejectedValueOnce(new Error("would revert"));
+
+      await expect(requestCancelWithdraw(config, { account: SUB_ACCOUNT, requestId: 1n })).rejects.toThrow(
+        "would revert",
+      );
+      expect(writeContract).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -29,11 +29,7 @@ export function WriteDeposit() {
   const mutation = useDeposit();
 
   /** Dry-run `depositForAccount` before sending. */
-  const simulate = useSimulateDeposit({
-    account: validAccount,
-    amount: validAmount,
-    query: { enabled: false },
-  });
+  const simulate = useSimulateDeposit();
 
   return (
     <MethodCard
@@ -73,14 +69,14 @@ export function WriteDeposit() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isFetching}
+          disabled={!canSubmit || simulate.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            simulate.refetch();
+            simulate.mutate({ account: validAccount, amount: validAmount });
           }}
           data-testid="button-simulate-deposit"
         >
-          {simulate.isFetching ? (
+          {simulate.isPending ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -109,7 +105,7 @@ export function WriteDeposit() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isFetching}
+        isPending={simulate.isPending}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-depositForAccount"
