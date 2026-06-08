@@ -4,6 +4,7 @@ import { ReadAccountBalanceOf } from "../inspector/read-account-balance-of";
 import { ReadCollateralAllowance } from "../inspector/read-collateral-allowance";
 import { ReadCollateralBalance } from "../inspector/read-collateral-balance";
 import { ReadDelegationReads } from "../inspector/read-delegation-reads";
+import { ReadFeeForUser } from "../inspector/read-fee-for-user";
 import { ReadGetSubAccount } from "../inspector/read-get-sub-account";
 import { ReadGetSubAccountVirtualNonce } from "../inspector/read-get-sub-account-virtual-nonce";
 import { ReadGetSubAccountsCountOfUser } from "../inspector/read-get-sub-accounts-count-of-user";
@@ -11,6 +12,7 @@ import { ReadGetUserSubAccounts } from "../inspector/read-get-user-sub-accounts"
 import { ReadGetUserSubAccountsAddresses } from "../inspector/read-get-user-sub-accounts-addresses";
 import { ReadGetWithdrawRequest } from "../inspector/read-get-withdraw-request";
 import { ReadLastWithdrawRequestId } from "../inspector/read-last-withdraw-request-id";
+import { ReadOnchainContractMarkets } from "../inspector/read-onchain-contract-markets";
 import { ReadPendingWithdrawRequests } from "../inspector/read-pending-withdraw-requests";
 import { ReadWithdrawableTime } from "../inspector/read-withdrawable-time";
 import { WriteApproveCollateral } from "../inspector/write-approve-collateral";
@@ -90,6 +92,20 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     abi: "symmio-core",
     groups: ["subaccounts"],
     Component: ReadAccountBalanceInfo,
+  },
+  {
+    id: "getFeeForUser",
+    kind: "read",
+    abi: "symmio-core",
+    groups: [],
+    Component: ReadFeeForUser,
+  },
+  {
+    id: "getOnchainContractMarkets",
+    kind: "read",
+    abi: "symmio-core",
+    groups: [],
+    Component: ReadOnchainContractMarkets,
   },
   {
     id: "createSubAccounts",

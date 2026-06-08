@@ -41,6 +41,10 @@
       "types": "./dist/markets/index.d.ts",
       "import": "./dist/markets/index.js"
     },
+    "./fees": {
+      "types": "./dist/fees/index.d.ts",
+      "import": "./dist/fees/index.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"
