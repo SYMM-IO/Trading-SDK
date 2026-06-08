@@ -45,6 +45,10 @@
       "types": "./dist/fees/index.d.ts",
       "import": "./dist/fees/index.js"
     },
+    "./price-service": {
+      "types": "./dist/price-service/index.d.ts",
+      "import": "./dist/price-service/index.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"

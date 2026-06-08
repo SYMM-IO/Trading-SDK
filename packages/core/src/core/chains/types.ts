@@ -39,6 +39,21 @@ export interface SymmioSolverConfig {
 }
 
 /**
+ * Supported price-service providers.
+ */
+export type SymmioPriceServiceType = "enigma";
+
+/**
+ * Price-service configuration for a SYMMIO chain deployment.
+ */
+export interface SymmioPriceServiceConfig {
+  /** Price-service provider type */
+  type: SymmioPriceServiceType;
+  /** Price-service API base URL */
+  url: string;
+}
+
+/**
  * Complete resolved configuration for a SYMMIO chain deployment.
  */
 export interface SymmioChainConfig {
@@ -50,4 +65,6 @@ export interface SymmioChainConfig {
   subgraphs: SymmioSubgraphUrls;
   /** Solver configuration */
   solver: SymmioSolverConfig;
+  /** Price-service configuration */
+  priceService: SymmioPriceServiceConfig;
 }

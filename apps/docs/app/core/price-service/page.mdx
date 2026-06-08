@@ -1,0 +1,109 @@
+# Price Service
+
+The price-service APIs read off-chain market data from the chain config. HyperEVM currently uses the Enigma price service:
+
+```ts
+const chain = config.getChainConfig();
+console.log(chain.priceService.type); // "enigma"
+console.log(chain.priceService.url); // "https://lowcap-price.enigma.bz"
+```
+
+The Orval-generated Enigma client is generated from the full OpenAPI document, but the public SDK surface exposes only prices, metadata, symbols info, and health.
+
+## Prices
+
+```ts
+import { getEnigmaPriceServicePrices } from "@symm-frontier/core";
+
+const prices = await getEnigmaPriceServicePrices(config, {
+  addresses: "0xTokenA,0xTokenB",
+});
+```
+
+```ts
+function getEnigmaPriceServicePrices(
+  config: Config,
+  parameters: {
+    chainId?: number;
+    addresses: readonly string[] | string;
+  },
+): Promise<EnigmaPricesByAddress>;
+```
+
+`addresses` accepts either an array or a comma-separated string. The service contract allows up to 50 addresses per request.
+
+## Metadata
+
+```ts
+import { getEnigmaPriceServiceMetadata } from "@symm-frontier/core";
+
+const metadata = await getEnigmaPriceServiceMetadata(config, {
+  addresses: ["0xTokenA", "0xTokenB"],
+});
+```
+
+```ts
+function getEnigmaPriceServiceMetadata(
+  config: Config,
+  parameters: {
+    chainId?: number;
+    addresses: readonly string[];
+  },
+): Promise<EnigmaMetadataByAddress>;
+```
+
+`addresses` is required and must be an array. Metadata includes pair identifiers, token refs, USD/native price strings, liquidity, price change, market cap, and source.
+
+## Symbols Info
+
+```ts
+import { getEnigmaPriceServiceSymbolsInfo } from "@symm-frontier/core";
+
+const symbols = await getEnigmaPriceServiceSymbolsInfo(config, {});
+```
+
+```ts
+function getEnigmaPriceServiceSymbolsInfo(
+  config: Config,
+  parameters?: {
+    chainId?: number;
+  },
+): Promise<EnigmaSymbolInfo[]>;
+```
+
+Each item includes `name`, `status`, and `address`.
+
+## Health
+
+```ts
+import { getEnigmaPriceServiceHealth } from "@symm-frontier/core";
+
+const health = await getEnigmaPriceServiceHealth(config, {});
+```
+
+```ts
+function getEnigmaPriceServiceHealth(
+  config: Config,
+  parameters?: {
+    chainId?: number;
+  },
+): Promise<EnigmaPriceServiceHealth>;
+```
+
+## Query Options
+
+Each read has a TanStack Query options factory:
+
+```ts
+import {
+  getEnigmaPriceServiceHealthQueryOptions,
+  getEnigmaPriceServiceMetadataQueryOptions,
+  getEnigmaPriceServicePricesQueryOptions,
+  getEnigmaPriceServiceSymbolsInfoQueryOptions,
+} from "@symm-frontier/core";
+
+useQuery(getEnigmaPriceServicePricesQueryOptions(config, { addresses: [symbolAddress] }));
+useQuery(getEnigmaPriceServiceMetadataQueryOptions(config, { addresses: [symbolAddress] }));
+useQuery(getEnigmaPriceServiceSymbolsInfoQueryOptions(config, {}));
+useQuery(getEnigmaPriceServiceHealthQueryOptions(config, {}));
+```

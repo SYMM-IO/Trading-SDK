@@ -26,8 +26,8 @@ export function buildChainConfigs(
 
 /**
  * Deep-merge a single chain's overrides onto its built-in defaults. Only the
- * known nested groups (`addresses`, `subgraphs`, `solver`) are merged; unknown
- * keys are ignored.
+ * known nested groups (`addresses`, `subgraphs`, `solver`, `priceService`) are
+ * merged; unknown keys are ignored.
  *
  * @internal
  */
@@ -38,5 +38,6 @@ function mergeChainConfig(base: SymmioChainConfig, override: DeepPartial<SymmioC
     addresses: { ...base.addresses, ...override.addresses },
     subgraphs: { ...base.subgraphs, ...override.subgraphs },
     solver: { ...base.solver, ...override.solver },
+    priceService: { ...base.priceService, ...override.priceService },
   };
 }

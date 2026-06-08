@@ -5,9 +5,10 @@
  * {@link createConfig}) is the first argument of every standalone action
  * (`getMarkets(config, params)`), and each read/write ships a matching TanStack
  * Query / Mutation options factory (`getMarketsQueryOptions(config, options)`).
- * `core` depends only on viem and `@tanstack/query-core` — no framework.
- * Framework layers (`@symm-frontier/react`, a future Vue layer) inject
- * the viem-client resolvers the config needs.
+ * `core` depends on viem for contracts, axios for REST APIs, and
+ * `@tanstack/query-core` for query option types — no framework. Framework
+ * layers (`@symm-frontier/react`, a future Vue layer) inject the viem-client
+ * resolvers the config needs.
  *
  * @remarks
  * Every re-export below uses **explicit named exports**, not `export *`, so the
@@ -384,9 +385,62 @@ export {
   listSupportedChains,
   type SymmioChainConfig,
   type SymmioContractAddresses,
+  type SymmioPriceServiceConfig,
+  type SymmioPriceServiceType,
   type SymmioSolverConfig,
   type SymmioSubgraphUrls,
 } from "./core/chains";
+
+/**
+ * Enigma price service
+ * --------------------
+ * REST reads for mark prices, symbol metadata, symbol listings, and health
+ * from the chain's configured Enigma price-service endpoint.
+ */
+export {
+  getEnigmaPriceServiceHealth,
+  getEnigmaPriceServiceHealthQueryKey,
+  getEnigmaPriceServiceHealthQueryOptions,
+  getEnigmaPriceServiceMetadata,
+  getEnigmaPriceServiceMetadataQueryKey,
+  getEnigmaPriceServiceMetadataQueryOptions,
+  getEnigmaPriceServicePrices,
+  getEnigmaPriceServicePricesQueryKey,
+  getEnigmaPriceServicePricesQueryOptions,
+  getEnigmaPriceServiceSymbolsInfo,
+  getEnigmaPriceServiceSymbolsInfoQueryKey,
+  getEnigmaPriceServiceSymbolsInfoQueryOptions,
+  type EnigmaMetadata,
+  type EnigmaMetadataByAddress,
+  type EnigmaPriceData,
+  type EnigmaPriceServiceHealth,
+  type EnigmaPricesByAddress,
+  type EnigmaSymbolInfo,
+  type GetEnigmaPriceServiceHealthData,
+  type GetEnigmaPriceServiceHealthOptions,
+  type GetEnigmaPriceServiceHealthParameters,
+  type GetEnigmaPriceServiceHealthQueryKey,
+  type GetEnigmaPriceServiceHealthQueryOptions,
+  type GetEnigmaPriceServiceHealthReturnType,
+  type GetEnigmaPriceServiceMetadataData,
+  type GetEnigmaPriceServiceMetadataOptions,
+  type GetEnigmaPriceServiceMetadataParameters,
+  type GetEnigmaPriceServiceMetadataQueryKey,
+  type GetEnigmaPriceServiceMetadataQueryOptions,
+  type GetEnigmaPriceServiceMetadataReturnType,
+  type GetEnigmaPriceServicePricesData,
+  type GetEnigmaPriceServicePricesOptions,
+  type GetEnigmaPriceServicePricesParameters,
+  type GetEnigmaPriceServicePricesQueryKey,
+  type GetEnigmaPriceServicePricesQueryOptions,
+  type GetEnigmaPriceServicePricesReturnType,
+  type GetEnigmaPriceServiceSymbolsInfoData,
+  type GetEnigmaPriceServiceSymbolsInfoOptions,
+  type GetEnigmaPriceServiceSymbolsInfoParameters,
+  type GetEnigmaPriceServiceSymbolsInfoQueryKey,
+  type GetEnigmaPriceServiceSymbolsInfoQueryOptions,
+  type GetEnigmaPriceServiceSymbolsInfoReturnType,
+} from "./price-service/enigma";
 
 /**
  * Markets

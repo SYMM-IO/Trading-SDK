@@ -16,4 +16,19 @@ export default defineConfig({
       },
     },
   },
+  enigmaPriceService: {
+    input: {
+      target: "https://lowcap-price.enigma.bz/openapi.json",
+    },
+    output: {
+      clean: true,
+      mode: "single",
+      httpClient: "axios",
+      formatter: "prettier",
+      target: "./src/price-service/enigma/types/generated/enigma-price-service.ts",
+      override: {
+        enumGenerationType: "enum",
+      },
+    },
+  },
 });

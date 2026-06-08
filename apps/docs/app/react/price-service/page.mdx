@@ -1,0 +1,73 @@
+# Price Service hooks
+
+Price-service hooks wrap the `@symm-frontier/core` Enigma price-service reads with React Query and SDK provider state. They read the active chain from `SymmioProvider` unless you pass `chainId`.
+
+## `useEnigmaPriceServicePrices(params)`
+
+Fetch mark prices by token addresses.
+
+```tsx
+import { useEnigmaPriceServicePrices } from "@symm-frontier/react";
+
+function Prices({ tokenAddress }: { tokenAddress: string }) {
+  const query = useEnigmaPriceServicePrices({
+    addresses: [tokenAddress],
+    query: { staleTime: 10_000 },
+  });
+
+  if (query.error) return <p>{query.error.message}</p>;
+  return <pre>{JSON.stringify(query.data, null, 2)}</pre>;
+}
+```
+
+`addresses` accepts either `readonly string[]` or a comma-separated `string`.
+
+## `useEnigmaPriceServiceMetadata(params)`
+
+Fetch metadata by token-address array.
+
+```tsx
+import { useEnigmaPriceServiceMetadata } from "@symm-frontier/react";
+
+const query = useEnigmaPriceServiceMetadata({
+  addresses: ["0xTokenA", "0xTokenB"],
+});
+```
+
+`addresses` is required and must be an array.
+
+## `useEnigmaPriceServiceSymbolsInfo(params?)`
+
+Fetch symbol names, statuses, and addresses.
+
+```tsx
+import { useEnigmaPriceServiceSymbolsInfo } from "@symm-frontier/react";
+
+const query = useEnigmaPriceServiceSymbolsInfo();
+```
+
+## `useEnigmaPriceServiceHealth(params?)`
+
+Read the service health endpoint.
+
+```tsx
+import { useEnigmaPriceServiceHealth } from "@symm-frontier/react";
+
+const query = useEnigmaPriceServiceHealth();
+```
+
+## Manual Read Buttons
+
+For forms, keep incomplete values outside the request and disable the query until the user clicks:
+
+```tsx
+const addresses = parsedAddresses;
+const query = useEnigmaPriceServiceMetadata({
+  addresses,
+  query: { enabled: false },
+});
+
+<button disabled={addresses.length === 0 || query.isFetching} onClick={() => void query.refetch()}>
+  Read metadata
+</button>;
+```

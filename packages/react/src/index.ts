@@ -218,6 +218,26 @@ export { useLockedParams, type UseLockedParamsParameters, type UseLockedParamsRe
 export { useFeeForUser, type UseFeeForUserParameters, type UseFeeForUserReturnType } from "./fees";
 
 /**
+ * Price-service hooks
+ * -------------------
+ * Read Enigma price-service prices, metadata, symbols info, and health.
+ */
+export {
+  useEnigmaPriceServiceHealth,
+  useEnigmaPriceServiceMetadata,
+  useEnigmaPriceServicePrices,
+  useEnigmaPriceServiceSymbolsInfo,
+  type UseEnigmaPriceServiceHealthParameters,
+  type UseEnigmaPriceServiceHealthReturnType,
+  type UseEnigmaPriceServiceMetadataParameters,
+  type UseEnigmaPriceServiceMetadataReturnType,
+  type UseEnigmaPriceServicePricesParameters,
+  type UseEnigmaPriceServicePricesReturnType,
+  type UseEnigmaPriceServiceSymbolsInfoParameters,
+  type UseEnigmaPriceServiceSymbolsInfoReturnType,
+} from "./price-service";
+
+/**
  * Query helpers
  * -------------
  * Turn a core query-key factory into an `invalidateQueries` predicate that
