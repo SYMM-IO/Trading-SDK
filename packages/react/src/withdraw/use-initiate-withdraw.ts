@@ -61,6 +61,7 @@ export function useInitiateWithdraw(parameters: UseInitiateWithdrawParameters = 
           parts: variables.parts,
           speedUp: variables.speedUp,
           providerData: variables.providerData,
+          simulateBeforeWrite: variables.simulateBeforeWrite,
           chainId: resolvedChainId,
         });
         return resolveWriteResult(config, hash, {

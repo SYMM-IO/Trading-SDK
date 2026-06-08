@@ -1,19 +1,22 @@
 import { erc20Abi, type Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
+import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
+import { simulateApproveCollateral } from "./simulate-approve-collateral";
 
 /**
  * Parameters for {@link approveCollateral}.
  */
 export type ApproveCollateralParameters = Compute<
-  ChainIdParameter & {
-    /**
-     * Allowance to grant, in the collateral token's smallest unit (e.g.
-     * `1_000000n` for 1 USDC at 6 decimals). Pass `maxUint256` to approve once and
-     * skip future approvals.
-     */
-    amount: bigint;
-  }
+  ChainIdParameter &
+    SimulateBeforeWriteParameter & {
+      /**
+       * Allowance to grant, in the collateral token's smallest unit (e.g.
+       * `1_000000n` for 1 USDC at 6 decimals). Pass `maxUint256` to approve once and
+       * skip future approvals.
+       */
+      amount: bigint;
+    }
 >;
 
 /** Return type of {@link approveCollateral}: the submitted transaction hash. */
@@ -27,6 +30,9 @@ export type ApproveCollateralReturnType = Hash;
  * `depositForAccount` / `depositAndAllocateForAccount`, so the deposit reverts
  * unless the user has approved at least the deposit amount here first. Check the
  * current allowance with `getCollateralAllowance`.
+ *
+ * Dry-runs the call with {@link simulateApproveCollateral} first unless
+ * `simulateBeforeWrite` is `false` (per-call, falling back to the config default).
  *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
  * @param parameters - Allowance amount (collateral units), optional chain id.
@@ -48,6 +54,10 @@ export async function approveCollateral(
 
   const { addresses } = config.getChainConfig(chainId);
   const walletClient = await config.getWalletClient({ chainId });
+
+  if (shouldSimulateBeforeWrite(config, parameters)) {
+    await simulateApproveCollateral(config, { chainId, amount, from: walletClient.account.address });
+  }
 
   return walletClient.writeContract({
     address: addresses.collateralAddress,

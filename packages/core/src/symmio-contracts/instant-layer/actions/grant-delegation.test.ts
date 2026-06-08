@@ -8,6 +8,12 @@ const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
 const ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DELEGATE: Address = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const SELECTOR: Hex = "0x12345678";
+const DELEGATION = {
+  account: { addr: ACCOUNT, isPartyB: false },
+  delegatedSigner: DELEGATE,
+  selectors: [SELECTOR],
+  expiryTimestamp: 456n,
+};
 
 describe("grantDelegation", () => {
   it("writes grantDelegation to the InstantLayer", async () => {
@@ -48,5 +54,44 @@ describe("grantDelegation", () => {
         expiryTimestamp: 456n,
       }),
     ).rejects.toThrow("no `getWalletClient` resolver");
+  });
+
+  describe("pre-flight simulation", () => {
+    it("dry-runs the call before writing by default", async () => {
+      const { config, writeContract, simulateContract } = mockConfig();
+
+      await grantDelegation(config, DELEGATION);
+
+      expect(simulateContract).toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: "grantDelegation", args: [DELEGATION] }),
+      );
+      expect(simulateContract.mock.invocationCallOrder[0]!).toBeLessThan(writeContract.mock.invocationCallOrder[0]!);
+    });
+
+    it("skips the dry-run when `simulateBeforeWrite` is false on the call", async () => {
+      const { config, writeContract, simulateContract } = mockConfig();
+
+      await grantDelegation(config, { ...DELEGATION, simulateBeforeWrite: false });
+
+      expect(simulateContract).not.toHaveBeenCalled();
+      expect(writeContract).toHaveBeenCalled();
+    });
+
+    it("skips the dry-run when the config disables it globally", async () => {
+      const { config, writeContract, simulateContract } = mockConfig({ simulateBeforeWrite: false });
+
+      await grantDelegation(config, DELEGATION);
+
+      expect(simulateContract).not.toHaveBeenCalled();
+      expect(writeContract).toHaveBeenCalled();
+    });
+
+    it("aborts the write when the dry-run would revert", async () => {
+      const { config, writeContract, simulateContract } = mockConfig();
+      simulateContract.mockRejectedValueOnce(new Error("would revert"));
+
+      await expect(grantDelegation(config, DELEGATION)).rejects.toThrow("would revert");
+      expect(writeContract).not.toHaveBeenCalled();
+    });
   });
 });

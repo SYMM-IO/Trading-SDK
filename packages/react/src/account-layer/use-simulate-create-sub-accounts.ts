@@ -1,12 +1,12 @@
 "use client";
 
 import {
-  getSimulateCreateSubAccountsQueryOptions,
+  simulateCreateSubAccountsMutationOptions,
   type ConfigParameter,
-  type SimulateCreateSubAccountsData,
-  type SimulateCreateSubAccountsOptions,
+  type SimulateCreateSubAccountsParameters,
+  type SimulateCreateSubAccountsReturnType,
 } from "@symm-frontier/core";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import { useConnection } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
@@ -14,27 +14,29 @@ import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /**
- * Parameters for {@link useSimulateCreateSubAccounts}: the core simulate options
- * (affiliate, accountsData, from, chain id, TanStack `query` overrides) plus an
- * optional `config`.
+ * Parameters for {@link useSimulateCreateSubAccounts}: an optional `config` override. The dry-run's
+ * inputs are passed as the mutation `variables`.
  */
-export type UseSimulateCreateSubAccountsParameters = SimulateCreateSubAccountsOptions & ConfigParameter;
+export type UseSimulateCreateSubAccountsParameters = ConfigParameter;
 
 /** Return type of {@link useSimulateCreateSubAccounts}. */
-export type UseSimulateCreateSubAccountsReturnType = UseQueryResult<SimulateCreateSubAccountsData, SymmioRequestError>;
+export type UseSimulateCreateSubAccountsReturnType = UseMutationResult<
+  SimulateCreateSubAccountsReturnType,
+  SymmioRequestError,
+  SimulateCreateSubAccountsParameters
+>;
 
 /**
- * Dry-run a `createSubAccounts` transaction (`simulateContract`) without sending
- * it. The query is disabled until `affiliate` and a non-empty `accountsData` are
- * set; `from` defaults to the connected wallet, and `chainId` to the connected
- * chain. `data.result` holds the predicted subaccount addresses; a would-be
- * revert surfaces as a normalized {@link SymmioRequestError}.
+ * On-demand dry-run (`simulateContract`) of `createSubAccounts`. Call `mutate(args)`
+ * to run it; `data` holds viem's `{ request, result }` (a would-be revert surfaces
+ * as a normalized {@link SymmioRequestError}). `from` defaults to the connected
+ * wallet and `chainId` to the connected chain.
  *
  * @example
  * ```tsx
- * const sim = useSimulateCreateSubAccounts({ affiliate, accountsData, query: { enabled: false } });
- * // run on demand:
- * sim.refetch();
+ * const sim = useSimulateCreateSubAccounts();
+ * sim.mutate({ ...args });
+ * // sim.data?.result, sim.isPending, sim.error
  * ```
  */
 export function useSimulateCreateSubAccounts(
@@ -43,20 +45,20 @@ export function useSimulateCreateSubAccounts(
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const { address } = useConnection();
-  const options = getSimulateCreateSubAccountsQueryOptions(config, {
-    ...parameters,
-    chainId: parameters.chainId ?? chainId,
-    from: parameters.from ?? address,
-  });
+  const base = simulateCreateSubAccountsMutationOptions(config);
 
-  return useQuery({
-    ...options,
-    queryFn: async () => {
+  return useMutation<SimulateCreateSubAccountsReturnType, SymmioRequestError, SimulateCreateSubAccountsParameters>({
+    mutationKey: base.mutationKey,
+    mutationFn: async (variables) => {
       try {
-        return await options.queryFn();
+        return await base.mutationFn({
+          ...variables,
+          chainId: variables.chainId ?? chainId,
+          from: variables.from ?? address,
+        });
       } catch (err) {
         throw normalizeSymmError(err);
       }
     },
-  }) as UseSimulateCreateSubAccountsReturnType;
+  });
 }

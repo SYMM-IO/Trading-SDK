@@ -1,3 +1,4 @@
+import type { SimulateContractReturnType } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, FromParameter } from "../../../shared/types/properties";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
@@ -9,6 +10,18 @@ import type { DepositAndAllocateForAccountParameters } from "./deposit-and-alloc
  */
 export type SimulateDepositAndAllocateForAccountParameters = Compute<
   DepositAndAllocateForAccountParameters & FromParameter
+>;
+
+/**
+ * Return type of {@link simulateDepositAndAllocateForAccount}: viem's `{ request, result }`.
+ *
+ * Written as an explicit alias over `SimulateContractReturnType<typeof accountLayerAbi, …>`
+ * so the emitted declaration references the ABI by name instead of inlining the whole
+ * ABI (which would bloat the published `.d.ts` and degrade consumers' type-checking).
+ */
+export type SimulateDepositAndAllocateForAccountReturnType = SimulateContractReturnType<
+  typeof accountLayerAbi,
+  "depositAndAllocateForAccount"
 >;
 
 /**
@@ -25,7 +38,7 @@ export type SimulateDepositAndAllocateForAccountParameters = Compute<
 export async function simulateDepositAndAllocateForAccount(
   config: Config,
   parameters: SimulateDepositAndAllocateForAccountParameters,
-) {
+): Promise<SimulateDepositAndAllocateForAccountReturnType> {
   const { chainId, account, amount, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
@@ -38,8 +51,3 @@ export async function simulateDepositAndAllocateForAccount(
     account: from,
   });
 }
-
-/** Return type of {@link simulateDepositAndAllocateForAccount}: viem's `{ request, result }`. */
-export type SimulateDepositAndAllocateForAccountReturnType = Awaited<
-  ReturnType<typeof simulateDepositAndAllocateForAccount>
->;

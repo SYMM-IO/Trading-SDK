@@ -1,4 +1,4 @@
-import { erc20Abi } from "viem";
+import { erc20Abi, type SimulateContractReturnType } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, FromParameter } from "../../../shared/types/properties";
 import type { ApproveCollateralParameters } from "./approve-collateral";
@@ -8,6 +8,15 @@ import type { ApproveCollateralParameters } from "./approve-collateral";
  * an optional `from` (the address the dry-run runs as).
  */
 export type SimulateApproveCollateralParameters = Compute<ApproveCollateralParameters & FromParameter>;
+
+/**
+ * Return type of {@link simulateApproveCollateral}: viem's `{ request, result }`.
+ *
+ * Written as an explicit alias over `SimulateContractReturnType<typeof erc20Abi, …>`
+ * so the emitted declaration references the ABI by name instead of inlining the whole
+ * ABI (which would bloat the published `.d.ts` and degrade consumers' type-checking).
+ */
+export type SimulateApproveCollateralReturnType = SimulateContractReturnType<typeof erc20Abi, "approve">;
 
 /**
  * Dry-run {@link approveCollateral} without sending a transaction. Runs
@@ -20,7 +29,10 @@ export type SimulateApproveCollateralParameters = Compute<ApproveCollateralParam
  * @throws {SymmError} when the chain is unsupported.
  * @throws Viem's call errors when the transaction would revert.
  */
-export async function simulateApproveCollateral(config: Config, parameters: SimulateApproveCollateralParameters) {
+export async function simulateApproveCollateral(
+  config: Config,
+  parameters: SimulateApproveCollateralParameters,
+): Promise<SimulateApproveCollateralReturnType> {
   const { chainId, amount, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
@@ -33,6 +45,3 @@ export async function simulateApproveCollateral(config: Config, parameters: Simu
     account: from,
   });
 }
-
-/** Return type of {@link simulateApproveCollateral}: viem's `{ request, result }`. */
-export type SimulateApproveCollateralReturnType = Awaited<ReturnType<typeof simulateApproveCollateral>>;

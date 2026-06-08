@@ -1,3 +1,4 @@
+import type { SimulateContractReturnType } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, FromParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.5/symmio";
@@ -8,6 +9,18 @@ import type { FinalizeWithdrawRequestParameters } from "./finalize-withdraw-requ
  * plus an optional `from` (the address the dry-run runs as).
  */
 export type SimulateFinalizeWithdrawRequestParameters = Compute<FinalizeWithdrawRequestParameters & FromParameter>;
+
+/**
+ * Return type of {@link simulateFinalizeWithdrawRequest}: viem's `{ request, result }`.
+ *
+ * Written as an explicit alias over `SimulateContractReturnType<typeof symmioAbi, …>`
+ * so the emitted declaration references the ABI by name instead of inlining the whole
+ * ABI (which would bloat the published `.d.ts` and degrade consumers' type-checking).
+ */
+export type SimulateFinalizeWithdrawRequestReturnType = SimulateContractReturnType<
+  typeof symmioAbi,
+  "finalizeWithdrawRequest"
+>;
 
 /**
  * Dry-run {@link finalizeWithdrawRequest} without sending a transaction. Calls
@@ -23,7 +36,7 @@ export type SimulateFinalizeWithdrawRequestParameters = Compute<FinalizeWithdraw
 export async function simulateFinalizeWithdrawRequest(
   config: Config,
   parameters: SimulateFinalizeWithdrawRequestParameters,
-) {
+): Promise<SimulateFinalizeWithdrawRequestReturnType> {
   const { chainId, user, requestId, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
@@ -36,6 +49,3 @@ export async function simulateFinalizeWithdrawRequest(
     account: from,
   });
 }
-
-/** Return type of {@link simulateFinalizeWithdrawRequest}: viem's `{ request, result }`. */
-export type SimulateFinalizeWithdrawRequestReturnType = Awaited<ReturnType<typeof simulateFinalizeWithdrawRequest>>;

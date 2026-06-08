@@ -48,11 +48,7 @@ export function WriteInitiateWithdraw() {
       : undefined;
 
   /** Dry-run the AccountLayer `_call` wrapping the core `initiateWithdraw`. */
-  const simulate = useSimulateInitiateWithdraw({
-    account: validAccount,
-    parts: validParts,
-    query: { enabled: false },
-  });
+  const simulate = useSimulateInitiateWithdraw();
 
   return (
     <MethodCard
@@ -120,14 +116,14 @@ export function WriteInitiateWithdraw() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isFetching}
+          disabled={!canSubmit || simulate.isPending}
           onClick={() => {
-            if (!validAccount || !validReceiver || validAmount === undefined) return;
-            simulate.refetch();
+            if (!validAccount || !validParts) return;
+            simulate.mutate({ account: validAccount, parts: validParts });
           }}
           data-testid="button-simulate-initiate-withdraw"
         >
-          {simulate.isFetching ? (
+          {simulate.isPending ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -162,7 +158,7 @@ export function WriteInitiateWithdraw() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isFetching}
+        isPending={simulate.isPending}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-initiateWithdraw"

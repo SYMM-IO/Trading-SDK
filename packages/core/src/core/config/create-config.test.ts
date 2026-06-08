@@ -58,6 +58,16 @@ describe("createConfig", () => {
     await expect(config.getWalletClient()).rejects.toThrow(SymmError);
   });
 
+  it("defaults simulateBeforeWrite to true", () => {
+    const config = createConfig({ getClient: () => stubClient });
+    expect(config.simulateBeforeWrite).toBe(true);
+  });
+
+  it("honors an explicit simulateBeforeWrite override", () => {
+    const config = createConfig({ getClient: () => stubClient, simulateBeforeWrite: false });
+    expect(config.simulateBeforeWrite).toBe(false);
+  });
+
   describe("getChainConfigKey", () => {
     it("is stable for identical config across separate instances", () => {
       const a = createConfig({ getClient: () => stubClient });

@@ -1,6 +1,6 @@
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
+import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.5/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 
@@ -8,15 +8,16 @@ import { callAsSubAccount } from "../internal/call-as-sub-account";
  * Parameters for {@link requestCancelWithdraw}.
  */
 export type RequestCancelWithdrawParameters = Compute<
-  ChainIdParameter & {
-    /**
-     * The subaccount that owns the request. The call is routed through the
-     * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
-     */
-    account: Address;
-    /** Id of the withdraw request to cancel. */
-    requestId: bigint;
-  }
+  ChainIdParameter &
+    SimulateBeforeWriteParameter & {
+      /**
+       * The subaccount that owns the request. The call is routed through the
+       * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
+       */
+      account: Address;
+      /** Id of the withdraw request to cancel. */
+      requestId: bigint;
+    }
 >;
 
 /** Return type of {@link requestCancelWithdraw}: the submitted transaction hash. */
@@ -30,6 +31,9 @@ export type RequestCancelWithdrawReturnType = Hash;
  * subaccount. For a classic (provider-free) request outside any blackout this
  * cancels immediately and returns the locked balance; for provider-backed
  * requests it may transition to `CANCEL_REQUESTED` pending provider approval.
+ *
+ * Dry-runs the call with {@link simulateRequestCancelWithdraw} first unless
+ * `simulateBeforeWrite` is `false` (per-call, falling back to the config default).
  *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
  * @param parameters - Subaccount, request id, optional chain id.
@@ -54,5 +58,10 @@ export async function requestCancelWithdraw(
     args: [requestId],
   });
 
-  return callAsSubAccount(config, { account, data, chainId });
+  return callAsSubAccount(config, {
+    account,
+    data,
+    chainId,
+    simulateBeforeWrite: parameters.simulateBeforeWrite,
+  });
 }

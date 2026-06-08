@@ -1,3 +1,4 @@
+import type { SimulateContractReturnType } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, FromParameter } from "../../../shared/types/properties";
 import { instantLayerAbi } from "../../abi/v0.8.5/instant-layer";
@@ -10,6 +11,15 @@ import type { GrantDelegationParameters } from "./grant-delegation";
 export type SimulateGrantDelegationParameters = Compute<GrantDelegationParameters & FromParameter>;
 
 /**
+ * Return type of {@link simulateGrantDelegation}: viem's `{ request, result }`.
+ *
+ * Written as an explicit alias over `SimulateContractReturnType<typeof instantLayerAbi, …>`
+ * so the emitted declaration references the ABI by name instead of inlining the whole
+ * ABI (which would bloat the published `.d.ts` and degrade consumers' type-checking).
+ */
+export type SimulateGrantDelegationReturnType = SimulateContractReturnType<typeof instantLayerAbi, "grantDelegation">;
+
+/**
  * Dry-run {@link grantDelegation} without sending a transaction. Runs
  * `simulateContract` against the InstantLayer via the public client; a would-be
  * revert (e.g. caller does not own the account) throws viem's call error.
@@ -20,7 +30,10 @@ export type SimulateGrantDelegationParameters = Compute<GrantDelegationParameter
  * @throws {SymmError} when the chain is unsupported.
  * @throws Viem's call errors when the transaction would revert.
  */
-export async function simulateGrantDelegation(config: Config, parameters: SimulateGrantDelegationParameters) {
+export async function simulateGrantDelegation(
+  config: Config,
+  parameters: SimulateGrantDelegationParameters,
+): Promise<SimulateGrantDelegationReturnType> {
   const { chainId, account, delegatedSigner, selectors, expiryTimestamp, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
@@ -33,6 +46,3 @@ export async function simulateGrantDelegation(config: Config, parameters: Simula
     account: from,
   });
 }
-
-/** Return type of {@link simulateGrantDelegation}: viem's `{ request, result }`. */
-export type SimulateGrantDelegationReturnType = Awaited<ReturnType<typeof simulateGrantDelegation>>;

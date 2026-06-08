@@ -56,4 +56,49 @@ describe("initiateWithdraw", () => {
 
     await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).rejects.toThrow(SymmError);
   });
+
+  describe("pre-flight simulation", () => {
+    it("dry-runs the routed `_call` before writing by default", async () => {
+      const { config, writeContract, simulateContract } = mockConfig();
+
+      await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
+
+      const expectedData = encodeFunctionData({
+        abi: symmioAbi,
+        functionName: "initiateWithdraw",
+        args: [PARTS, false, "0x"],
+      });
+
+      expect(simulateContract).toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: "_call", args: [SUB_ACCOUNT, [expectedData]] }),
+      );
+      expect(simulateContract.mock.invocationCallOrder[0]!).toBeLessThan(writeContract.mock.invocationCallOrder[0]!);
+    });
+
+    it("skips the dry-run when `simulateBeforeWrite` is false on the call", async () => {
+      const { config, writeContract, simulateContract } = mockConfig();
+
+      await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS, simulateBeforeWrite: false });
+
+      expect(simulateContract).not.toHaveBeenCalled();
+      expect(writeContract).toHaveBeenCalled();
+    });
+
+    it("skips the dry-run when the config disables it globally", async () => {
+      const { config, writeContract, simulateContract } = mockConfig({ simulateBeforeWrite: false });
+
+      await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
+
+      expect(simulateContract).not.toHaveBeenCalled();
+      expect(writeContract).toHaveBeenCalled();
+    });
+
+    it("aborts the write when the dry-run would revert", async () => {
+      const { config, writeContract, simulateContract } = mockConfig();
+      simulateContract.mockRejectedValueOnce(new Error("would revert"));
+
+      await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).rejects.toThrow("would revert");
+      expect(writeContract).not.toHaveBeenCalled();
+    });
+  });
 });

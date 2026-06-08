@@ -2,7 +2,10 @@ import { encodeFunctionData } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, FromParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.5/symmio";
-import { simulateCallAsSubAccount } from "../internal/simulate-call-as-sub-account";
+import {
+  simulateCallAsSubAccount,
+  type SimulateCallAsSubAccountReturnType,
+} from "../internal/simulate-call-as-sub-account";
 import type { InitiateWithdrawParameters } from "./initiate-withdraw";
 
 /**
@@ -10,6 +13,12 @@ import type { InitiateWithdrawParameters } from "./initiate-withdraw";
  * optional `from` (the address the dry-run runs as).
  */
 export type SimulateInitiateWithdrawParameters = Compute<InitiateWithdrawParameters & FromParameter>;
+
+/**
+ * Return type of {@link simulateInitiateWithdraw}: viem's `{ request, result }` for
+ * the routed AccountLayer `_call` (see {@link SimulateCallAsSubAccountReturnType}).
+ */
+export type SimulateInitiateWithdrawReturnType = SimulateCallAsSubAccountReturnType;
 
 /**
  * Dry-run {@link initiateWithdraw} without sending a transaction. Encodes the same
@@ -23,7 +32,10 @@ export type SimulateInitiateWithdrawParameters = Compute<InitiateWithdrawParamet
  * @throws {SymmError} when the chain is unsupported.
  * @throws Viem's call errors when the routed call would revert.
  */
-export async function simulateInitiateWithdraw(config: Config, parameters: SimulateInitiateWithdrawParameters) {
+export async function simulateInitiateWithdraw(
+  config: Config,
+  parameters: SimulateInitiateWithdrawParameters,
+): Promise<SimulateInitiateWithdrawReturnType> {
   const { chainId, account, parts, speedUp = false, providerData = "0x", from } = parameters;
 
   const data = encodeFunctionData({
@@ -34,6 +46,3 @@ export async function simulateInitiateWithdraw(config: Config, parameters: Simul
 
   return simulateCallAsSubAccount(config, { account, data, from, chainId });
 }
-
-/** Return type of {@link simulateInitiateWithdraw}: viem's `{ request, result }`. */
-export type SimulateInitiateWithdrawReturnType = Awaited<ReturnType<typeof simulateInitiateWithdraw>>;

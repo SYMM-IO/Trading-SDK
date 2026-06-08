@@ -58,6 +58,7 @@ export function useEditAccountName(parameters: UseEditAccountNameParameters = {}
         const hash = await base.mutationFn({
           account: variables.account,
           name: variables.name,
+          simulateBeforeWrite: variables.simulateBeforeWrite,
           chainId: resolvedChainId,
         });
         return resolveWriteResult(config, hash, {

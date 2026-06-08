@@ -1,6 +1,16 @@
-import type { Address, Hex } from "viem";
+import type { Address, Hex, SimulateContractReturnType } from "viem";
 import type { Config } from "../../../core/config";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
+
+/**
+ * Return type of {@link simulateCallAsSubAccount}: viem's `{ request, result }`
+ * for the AccountLayer `_call` proxy.
+ *
+ * Written as an explicit alias over `SimulateContractReturnType<typeof accountLayerAbi, "_call">`
+ * so the emitted declaration references the ABI by name instead of inlining the whole
+ * ABI (which would bloat the published `.d.ts` and degrade consumers' type-checking).
+ */
+export type SimulateCallAsSubAccountReturnType = SimulateContractReturnType<typeof accountLayerAbi, "_call">;
 
 /**
  * Dry-run pre-encoded SYMMIO-core calldata **as a subaccount**, mirroring
@@ -20,7 +30,7 @@ import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
 export async function simulateCallAsSubAccount(
   config: Config,
   parameters: { account: Address; data: Hex; from?: Address; chainId?: number },
-) {
+): Promise<SimulateCallAsSubAccountReturnType> {
   const { account, data, from, chainId } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);

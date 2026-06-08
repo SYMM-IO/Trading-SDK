@@ -1,12 +1,12 @@
 "use client";
 
 import {
-  getSimulateApproveCollateralQueryOptions,
+  simulateApproveCollateralMutationOptions,
   type ConfigParameter,
-  type SimulateApproveCollateralData,
-  type SimulateApproveCollateralOptions,
+  type SimulateApproveCollateralParameters,
+  type SimulateApproveCollateralReturnType,
 } from "@symm-frontier/core";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import { useConnection } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
@@ -14,24 +14,30 @@ import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /**
- * Parameters for {@link useSimulateApproveCollateral}: the core simulate options
- * (amount, from, chain id, TanStack `query` overrides) plus an optional `config`.
+ * Parameters for {@link useSimulateApproveCollateral}: an optional `config` override. The dry-run's
+ * inputs are passed as the mutation `variables`.
  */
-export type UseSimulateApproveCollateralParameters = SimulateApproveCollateralOptions & ConfigParameter;
+export type UseSimulateApproveCollateralParameters = ConfigParameter;
 
 /** Return type of {@link useSimulateApproveCollateral}. */
-export type UseSimulateApproveCollateralReturnType = UseQueryResult<SimulateApproveCollateralData, SymmioRequestError>;
+export type UseSimulateApproveCollateralReturnType = UseMutationResult<
+  SimulateApproveCollateralReturnType,
+  SymmioRequestError,
+  SimulateApproveCollateralParameters
+>;
 
 /**
- * Dry-run an `approveCollateral` (ERC20 `approve`) transaction
- * (`simulateContract`) without sending it. Disabled until `amount` is set; `from`
- * defaults to the connected wallet. A would-be revert surfaces as a normalized
- * {@link SymmioRequestError}.
+ * On-demand dry-run (`simulateContract`) of `approveCollateral` (the ERC20
+ * `approve`). Call `mutate(args)` to run it; `data` holds viem's
+ * `{ request, result }` (a would-be revert surfaces as a normalized
+ * {@link SymmioRequestError}). `from` defaults to the connected wallet and
+ * `chainId` to the connected chain.
  *
  * @example
  * ```tsx
- * const sim = useSimulateApproveCollateral({ amount, query: { enabled: false } });
- * sim.refetch();
+ * const sim = useSimulateApproveCollateral();
+ * sim.mutate({ ...args });
+ * // sim.data?.result, sim.isPending, sim.error
  * ```
  */
 export function useSimulateApproveCollateral(
@@ -40,20 +46,20 @@ export function useSimulateApproveCollateral(
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const { address } = useConnection();
-  const options = getSimulateApproveCollateralQueryOptions(config, {
-    ...parameters,
-    chainId: parameters.chainId ?? chainId,
-    from: parameters.from ?? address,
-  });
+  const base = simulateApproveCollateralMutationOptions(config);
 
-  return useQuery({
-    ...options,
-    queryFn: async () => {
+  return useMutation<SimulateApproveCollateralReturnType, SymmioRequestError, SimulateApproveCollateralParameters>({
+    mutationKey: base.mutationKey,
+    mutationFn: async (variables) => {
       try {
-        return await options.queryFn();
+        return await base.mutationFn({
+          ...variables,
+          chainId: variables.chainId ?? chainId,
+          from: variables.from ?? address,
+        });
       } catch (err) {
         throw normalizeSymmError(err);
       }
     },
-  }) as UseSimulateApproveCollateralReturnType;
+  });
 }

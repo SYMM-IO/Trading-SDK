@@ -31,11 +31,7 @@ export function WriteFinalizeWithdrawRequest() {
   const mutation = useFinalizeWithdrawRequest();
 
   /** Dry-run `finalizeWithdrawRequest` directly on the SYMMIO core. */
-  const simulate = useSimulateFinalizeWithdrawRequest({
-    user: validUser,
-    requestId: validRequestId,
-    query: { enabled: false },
-  });
+  const simulate = useSimulateFinalizeWithdrawRequest();
 
   return (
     <MethodCard
@@ -75,14 +71,14 @@ export function WriteFinalizeWithdrawRequest() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isFetching}
+          disabled={!canSubmit || simulate.isPending}
           onClick={() => {
             if (!validUser || validRequestId === undefined) return;
-            simulate.refetch();
+            simulate.mutate({ user: validUser, requestId: validRequestId });
           }}
           data-testid="button-simulate-finalize"
         >
-          {simulate.isFetching ? (
+          {simulate.isPending ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -111,7 +107,7 @@ export function WriteFinalizeWithdrawRequest() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isFetching}
+        isPending={simulate.isPending}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-finalizeWithdrawRequest"

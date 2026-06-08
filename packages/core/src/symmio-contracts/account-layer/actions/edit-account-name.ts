@@ -1,21 +1,24 @@
 import type { Address, Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
+import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
+import { simulateEditAccountName } from "./simulate-edit-account-name";
 
 /**
  * Parameters for {@link editAccountName}.
  */
 export type EditAccountNameParameters = Compute<
-  ChainIdParameter & {
-    /**
-     * The SYMMIO subaccount address being renamed. The wallet's signing account
-     * must be the subaccount's on-chain `owner`; the contract reverts otherwise.
-     */
-    account: Address;
-    /** New display name. */
-    name: string;
-  }
+  ChainIdParameter &
+    SimulateBeforeWriteParameter & {
+      /**
+       * The SYMMIO subaccount address being renamed. The wallet's signing account
+       * must be the subaccount's on-chain `owner`; the contract reverts otherwise.
+       */
+      account: Address;
+      /** New display name. */
+      name: string;
+    }
 >;
 
 /** Return type of {@link editAccountName}: the submitted transaction hash. */
@@ -26,6 +29,9 @@ export type EditAccountNameReturnType = Hash;
  *
  * Resolves the bound wallet client and `AccountLayer` address from `config`. The
  * bound EOA must equal the subaccount's on-chain `owner`.
+ *
+ * Dry-runs the call with {@link simulateEditAccountName} first unless
+ * `simulateBeforeWrite` is `false` (per-call, falling back to the config default).
  *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
  * @param parameters - Subaccount address, new name, optional chain id.
@@ -46,6 +52,10 @@ export async function editAccountName(
 
   const { addresses } = config.getChainConfig(chainId);
   const walletClient = await config.getWalletClient({ chainId });
+
+  if (shouldSimulateBeforeWrite(config, parameters)) {
+    await simulateEditAccountName(config, { chainId, account, name, from: walletClient.account.address });
+  }
 
   return walletClient.writeContract({
     address: addresses.accountLayerAddress,

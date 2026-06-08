@@ -1,12 +1,12 @@
 "use client";
 
 import {
-  getSimulateEditAccountNameQueryOptions,
+  simulateEditAccountNameMutationOptions,
   type ConfigParameter,
-  type SimulateEditAccountNameData,
-  type SimulateEditAccountNameOptions,
+  type SimulateEditAccountNameParameters,
+  type SimulateEditAccountNameReturnType,
 } from "@symm-frontier/core";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import { useConnection } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
@@ -14,25 +14,29 @@ import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /**
- * Parameters for {@link useSimulateEditAccountName}: the core simulate options
- * (account, name, from, chain id, TanStack `query` overrides) plus an optional
- * `config`.
+ * Parameters for {@link useSimulateEditAccountName}: an optional `config` override. The dry-run's
+ * inputs are passed as the mutation `variables`.
  */
-export type UseSimulateEditAccountNameParameters = SimulateEditAccountNameOptions & ConfigParameter;
+export type UseSimulateEditAccountNameParameters = ConfigParameter;
 
 /** Return type of {@link useSimulateEditAccountName}. */
-export type UseSimulateEditAccountNameReturnType = UseQueryResult<SimulateEditAccountNameData, SymmioRequestError>;
+export type UseSimulateEditAccountNameReturnType = UseMutationResult<
+  SimulateEditAccountNameReturnType,
+  SymmioRequestError,
+  SimulateEditAccountNameParameters
+>;
 
 /**
- * Dry-run an `editAccountName` transaction (`simulateContract`) without sending
- * it. Disabled until `account` and a non-empty `name` are set; `from` defaults to
- * the connected wallet. A would-be revert surfaces as a normalized
- * {@link SymmioRequestError}.
+ * On-demand dry-run (`simulateContract`) of `editAccountName`. Call
+ * `mutate(args)` to run it; `data` holds viem's `{ request, result }` (a would-be
+ * revert surfaces as a normalized {@link SymmioRequestError}). `from` defaults to
+ * the connected wallet and `chainId` to the connected chain.
  *
  * @example
  * ```tsx
- * const sim = useSimulateEditAccountName({ account, name, query: { enabled: false } });
- * sim.refetch();
+ * const sim = useSimulateEditAccountName();
+ * sim.mutate({ ...args });
+ * // sim.data?.result, sim.isPending, sim.error
  * ```
  */
 export function useSimulateEditAccountName(
@@ -41,20 +45,20 @@ export function useSimulateEditAccountName(
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const { address } = useConnection();
-  const options = getSimulateEditAccountNameQueryOptions(config, {
-    ...parameters,
-    chainId: parameters.chainId ?? chainId,
-    from: parameters.from ?? address,
-  });
+  const base = simulateEditAccountNameMutationOptions(config);
 
-  return useQuery({
-    ...options,
-    queryFn: async () => {
+  return useMutation<SimulateEditAccountNameReturnType, SymmioRequestError, SimulateEditAccountNameParameters>({
+    mutationKey: base.mutationKey,
+    mutationFn: async (variables) => {
       try {
-        return await options.queryFn();
+        return await base.mutationFn({
+          ...variables,
+          chainId: variables.chainId ?? chainId,
+          from: variables.from ?? address,
+        });
       } catch (err) {
         throw normalizeSymmError(err);
       }
     },
-  }) as UseSimulateEditAccountNameReturnType;
+  });
 }

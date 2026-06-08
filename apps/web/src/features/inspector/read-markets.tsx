@@ -21,6 +21,9 @@ const SORT_LABELS: Record<SortKey, string> = {
   trading_fee: "Trading fee",
 };
 
+const PAGE_SIZES = [5, 10, 25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 5;
+
 export function ReadMarkets() {
   const query = useMarkets();
   const [search, setSearch] = useState("");
@@ -117,6 +120,16 @@ function ResultPanel({
     return sorted;
   }, [query.data, search, stateFilter, sortKey, sortDir]);
 
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+  const [page, setPage] = useState(1);
+  /** Reset to the first page whenever the result set changes (filters, sort, or page size). */
+  const resultSig = `${search}|${stateFilter}|${sortKey}|${sortDir}|${pageSize}`;
+  const [prevSig, setPrevSig] = useState(resultSig);
+  if (resultSig !== prevSig) {
+    setPrevSig(resultSig);
+    setPage(1);
+  }
+
   if (query.isLoading) {
     return <TableSkeleton rows={6} columns={6} alignEndFrom={4} testId={`${testId}-loading`} />;
   }
@@ -129,6 +142,11 @@ function ResultPanel({
   if (query.data.length === 0) {
     return <ResultNote testId={`${testId}-empty`}>No markets found.</ResultNote>;
   }
+
+  const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const start = (safePage - 1) * pageSize;
+  const paged = visible.slice(start, start + pageSize);
 
   return (
     <div data-testid={`${testId}-data`} className="flex flex-col gap-3">
@@ -187,50 +205,167 @@ function ResultPanel({
         </div>
       </div>
 
-      <p className="text-muted-foreground text-xs">
-        Showing <span className="text-foreground font-medium">{visible.length}</span> of {query.data.length}
-      </p>
-
       {visible.length === 0 ? (
         <div className="border-border/60 bg-muted/20 text-muted-foreground rounded-xl border px-3 py-6 text-center text-sm">
           No markets match these filters.
         </div>
       ) : (
-        <div className="border-border/70 overflow-hidden rounded-xl border">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-muted/40 text-muted-foreground text-left text-xs font-medium tracking-wide uppercase">
-                  <th className="px-3 py-2.5">ID</th>
-                  <th className="px-3 py-2.5">Symbol</th>
-                  <th className="px-3 py-2.5">Name</th>
-                  <th className="px-3 py-2.5">State</th>
-                  <th className="px-3 py-2.5 text-right">Max leverage</th>
-                  <th className="px-3 py-2.5 text-right">Trading fee</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((market) => (
-                  <tr
-                    key={market.symbol_id}
-                    data-market-id={market.symbol_id}
-                    className="border-border/60 hover:bg-muted/30 border-t transition-colors"
-                  >
-                    <td className="text-muted-foreground px-3 py-2.5 font-mono">{market.symbol_id}</td>
-                    <td className="text-foreground px-3 py-2.5 font-mono font-medium">{market.symbol}</td>
-                    <td className="text-foreground px-3 py-2.5">{market.name}</td>
-                    <td className="px-3 py-2.5">
-                      <MarketStateBadge state={market.state} />
-                    </td>
-                    <td className="text-foreground px-3 py-2.5 text-right font-mono">{market.max_leverage}×</td>
-                    <td className="text-muted-foreground px-3 py-2.5 text-right font-mono">{market.trading_fee}</td>
+        <>
+          <div className="border-border/70 overflow-hidden rounded-xl border">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-muted/40 text-muted-foreground text-left text-xs font-medium tracking-wide uppercase">
+                    <th className="px-3 py-2.5">ID</th>
+                    <th className="px-3 py-2.5">Symbol</th>
+                    <th className="px-3 py-2.5">Name</th>
+                    <th className="px-3 py-2.5">State</th>
+                    <th className="px-3 py-2.5 text-right">Max leverage</th>
+                    <th className="px-3 py-2.5 text-right">Trading fee</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paged.map((market) => (
+                    <tr
+                      key={market.symbol_id}
+                      data-market-id={market.symbol_id}
+                      className="border-border/60 hover:bg-muted/30 border-t transition-colors"
+                    >
+                      <td className="text-muted-foreground px-3 py-2.5 font-mono">{market.symbol_id}</td>
+                      <td className="text-foreground px-3 py-2.5 font-mono font-medium">{market.symbol}</td>
+                      <td className="text-foreground px-3 py-2.5">{market.name}</td>
+                      <td className="px-3 py-2.5">
+                        <MarketStateBadge state={market.state} />
+                      </td>
+                      <td className="text-foreground px-3 py-2.5 text-right font-mono">{market.max_leverage}×</td>
+                      <td className="text-muted-foreground px-3 py-2.5 text-right font-mono">{market.trading_fee}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          <PaginationControls
+            page={safePage}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            total={visible.length}
+            grandTotal={query.data.length}
+            onPage={setPage}
+            onPageSize={setPageSize}
+          />
+        </>
       )}
+    </div>
+  );
+}
+
+interface PaginationControlsProps {
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  total: number;
+  grandTotal: number;
+  onPage: (page: number) => void;
+  onPageSize: (size: number) => void;
+}
+
+function PaginationControls({
+  page,
+  pageCount,
+  pageSize,
+  total,
+  grandTotal,
+  onPage,
+  onPageSize,
+}: PaginationControlsProps) {
+  const isFirst = page <= 1;
+  const isLast = page >= pageCount;
+  const start = (page - 1) * pageSize;
+  return (
+    <div
+      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+      data-testid="markets-pagination"
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground text-xs">Rows per page</span>
+        <Select value={String(pageSize)} onValueChange={(v) => onPageSize(Number(v))}>
+          <SelectTrigger className="w-[72px]" data-testid="markets-page-size" aria-label="Rows per page">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PAGE_SIZES.map((size) => (
+              <SelectItem key={size} value={String(size)}>
+                {size}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <span className="text-muted-foreground text-xs" data-testid="markets-range">
+        Showing{" "}
+        <span className="text-foreground font-medium">
+          {start + 1}–{Math.min(start + pageSize, total)}
+        </span>{" "}
+        of {total}
+        {total === grandTotal ? null : ` (filtered from ${grandTotal})`}
+      </span>
+
+      <div className="flex items-center gap-1">
+        <span className="text-muted-foreground mr-2 text-xs" data-testid="markets-page-indicator">
+          Page <span className="text-foreground font-medium">{page}</span> of {pageCount}
+        </span>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          disabled={isFirst}
+          onClick={() => onPage(1)}
+          aria-label="First page"
+          title="First page"
+          data-testid="markets-page-first"
+        >
+          <ChevronFirstIcon />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          disabled={isFirst}
+          onClick={() => onPage(page - 1)}
+          aria-label="Previous page"
+          title="Previous page"
+          data-testid="markets-page-prev"
+        >
+          <ChevronLeftIcon />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          disabled={isLast}
+          onClick={() => onPage(page + 1)}
+          aria-label="Next page"
+          title="Next page"
+          data-testid="markets-page-next"
+        >
+          <ChevronRightIcon />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          disabled={isLast}
+          onClick={() => onPage(pageCount)}
+          aria-label="Last page"
+          title="Last page"
+          data-testid="markets-page-last"
+        >
+          <ChevronLastIcon />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -266,6 +401,62 @@ function SearchIcon() {
     <svg viewBox="0 0 16 16" fill="none" className="size-4" aria-hidden>
       <circle cx="7" cy="7" r="4.25" stroke="currentColor" strokeWidth="1.6" />
       <path d="m10.5 10.5 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChevronLeftIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" className="size-4" aria-hidden>
+      <path
+        d="M10 3.5 5.5 8l4.5 4.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" className="size-4" aria-hidden>
+      <path
+        d="M6 3.5 10.5 8 6 12.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ChevronFirstIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" className="size-4" aria-hidden>
+      <path
+        d="M11.5 3.5 7 8l4.5 4.5M5 3.5v9"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ChevronLastIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" className="size-4" aria-hidden>
+      <path
+        d="M4.5 3.5 9 8l-4.5 4.5M11 3.5v9"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

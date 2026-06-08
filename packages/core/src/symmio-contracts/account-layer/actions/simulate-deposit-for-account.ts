@@ -1,3 +1,4 @@
+import type { SimulateContractReturnType } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, FromParameter } from "../../../shared/types/properties";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
@@ -10,6 +11,18 @@ import type { DepositForAccountParameters } from "./deposit-for-account";
 export type SimulateDepositForAccountParameters = Compute<DepositForAccountParameters & FromParameter>;
 
 /**
+ * Return type of {@link simulateDepositForAccount}: viem's `{ request, result }`.
+ *
+ * Written as an explicit alias over `SimulateContractReturnType<typeof accountLayerAbi, …>`
+ * so the emitted declaration references the ABI by name instead of inlining the whole
+ * ABI (which would bloat the published `.d.ts` and degrade consumers' type-checking).
+ */
+export type SimulateDepositForAccountReturnType = SimulateContractReturnType<
+  typeof accountLayerAbi,
+  "depositForAccount"
+>;
+
+/**
  * Dry-run {@link depositForAccount} without sending a transaction. Runs
  * `simulateContract` against the AccountLayer via the public client; a would-be
  * revert (e.g. insufficient collateral allowance) throws viem's call error.
@@ -20,7 +33,10 @@ export type SimulateDepositForAccountParameters = Compute<DepositForAccountParam
  * @throws {SymmError} when the chain is unsupported.
  * @throws Viem's call errors when the transaction would revert.
  */
-export async function simulateDepositForAccount(config: Config, parameters: SimulateDepositForAccountParameters) {
+export async function simulateDepositForAccount(
+  config: Config,
+  parameters: SimulateDepositForAccountParameters,
+): Promise<SimulateDepositForAccountReturnType> {
   const { chainId, account, amount, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
@@ -33,6 +49,3 @@ export async function simulateDepositForAccount(config: Config, parameters: Simu
     account: from,
   });
 }
-
-/** Return type of {@link simulateDepositForAccount}: viem's `{ request, result }`. */
-export type SimulateDepositForAccountReturnType = Awaited<ReturnType<typeof simulateDepositForAccount>>;

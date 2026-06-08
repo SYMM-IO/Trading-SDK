@@ -57,6 +57,7 @@ export function useRequestCancelWithdraw(
         const hash = await base.mutationFn({
           account: variables.account,
           requestId: variables.requestId,
+          simulateBeforeWrite: variables.simulateBeforeWrite,
           chainId: resolvedChainId,
         });
         return resolveWriteResult(config, hash, {

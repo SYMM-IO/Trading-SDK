@@ -34,11 +34,7 @@ export function WriteDepositAndAllocate() {
   const mutation = useDepositAndAllocate();
 
   /** Dry-run `depositAndAllocateForAccount` before sending. */
-  const simulate = useSimulateDepositAndAllocate({
-    account: validAccount,
-    amount: validAmount,
-    query: { enabled: false },
-  });
+  const simulate = useSimulateDepositAndAllocate();
 
   return (
     <MethodCard
@@ -81,14 +77,14 @@ export function WriteDepositAndAllocate() {
           type="button"
           size="sm"
           variant="outline"
-          disabled={!canSubmit || simulate.isFetching}
+          disabled={!canSubmit || simulate.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            simulate.refetch();
+            simulate.mutate({ account: validAccount, amount: validAmount });
           }}
           data-testid="button-simulate-deposit-allocate"
         >
-          {simulate.isFetching ? (
+          {simulate.isPending ? (
             <>
               <Spinner className="size-4" /> Simulating…
             </>
@@ -117,7 +113,7 @@ export function WriteDepositAndAllocate() {
       </div>
 
       <SimulateResult
-        isPending={simulate.isFetching}
+        isPending={simulate.isPending}
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-depositAndAllocateForAccount"
