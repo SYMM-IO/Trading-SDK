@@ -254,6 +254,24 @@ export {
 } from "./symmio-contracts/instant-layer";
 
 /**
+ * SYMMIO Core market reads
+ * ------------------------
+ * Direct on-chain contract-market reads from the SYMMIO core diamond.
+ */
+export {
+  getOnchainContractMarkets,
+  getOnchainContractMarketsQueryKey,
+  getOnchainContractMarketsQueryOptions,
+  type GetOnchainContractMarketsData,
+  type GetOnchainContractMarketsOptions,
+  type GetOnchainContractMarketsParameters,
+  type GetOnchainContractMarketsQueryKey,
+  type GetOnchainContractMarketsQueryOptions,
+  type GetOnchainContractMarketsReturnType,
+  type OnchainContractMarket,
+} from "./symmio-contracts/symmio";
+
+/**
  * Withdraw slice
  * --------------
  * The request-based withdraw system on the SYMMIO core. The write wrappers hide
@@ -266,6 +284,9 @@ export {
   createClassicWithdrawPart,
   finalizeWithdrawRequest,
   finalizeWithdrawRequestMutationOptions,
+  getFeeForUser,
+  getFeeForUserQueryKey,
+  getFeeForUserQueryOptions,
   getLastWithdrawRequestId,
   getLastWithdrawRequestIdQueryKey,
   getLastWithdrawRequestIdQueryOptions,
@@ -291,8 +312,15 @@ export {
   simulateFinalizeWithdrawRequest,
   simulateInitiateWithdraw,
   simulateRequestCancelWithdraw,
+  type FeeForUser,
   type FinalizeWithdrawRequestParameters,
   type FinalizeWithdrawRequestReturnType,
+  type GetFeeForUserData,
+  type GetFeeForUserOptions,
+  type GetFeeForUserParameters,
+  type GetFeeForUserQueryKey,
+  type GetFeeForUserQueryOptions,
+  type GetFeeForUserReturnType,
   type GetLastWithdrawRequestIdData,
   type GetLastWithdrawRequestIdOptions,
   type GetLastWithdrawRequestIdParameters,

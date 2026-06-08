@@ -191,9 +191,17 @@ export {
 /**
  * Markets hooks
  * -------------
- * Fetch tradable markets (contract symbols) from the solver.
+ * Fetch tradable markets from the solver and on-chain contract markets from
+ * SYMMIO core.
  */
-export { useMarkets, type UseMarketsParameters, type UseMarketsReturnType } from "./markets";
+export {
+  useMarkets,
+  useOnchainContractMarkets,
+  type UseMarketsParameters,
+  type UseMarketsReturnType,
+  type UseOnchainContractMarketsParameters,
+  type UseOnchainContractMarketsReturnType,
+} from "./markets";
 
 /**
  * Locked params hooks
@@ -201,6 +209,13 @@ export { useMarkets, type UseMarketsParameters, type UseMarketsReturnType } from
  * Fetch solver lock percentages for a market/leverage pair.
  */
 export { useLockedParams, type UseLockedParamsParameters, type UseLockedParamsReturnType } from "./locked-params";
+
+/**
+ * Fee hooks
+ * ---------
+ * Read SYMMIO fee settings for a user/account, affiliate, and symbol id.
+ */
+export { useFeeForUser, type UseFeeForUserParameters, type UseFeeForUserReturnType } from "./fees";
 
 /**
  * Query helpers

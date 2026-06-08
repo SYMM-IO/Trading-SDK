@@ -1,5 +1,7 @@
 export * from "./actions/finalize-withdraw-request";
+export * from "./actions/get-fee-for-user";
 export * from "./actions/get-last-withdraw-request-id";
+export * from "./actions/get-onchain-contract-markets";
 export * from "./actions/get-pending-withdraw-requests";
 export * from "./actions/get-withdraw-requests";
 export * from "./actions/get-withdrawable-time";
@@ -10,7 +12,9 @@ export * from "./actions/simulate-initiate-withdraw";
 export * from "./actions/simulate-request-cancel-withdraw";
 export * from "./parts";
 export * from "./query/finalize-withdraw-request";
+export * from "./query/get-fee-for-user";
 export * from "./query/get-last-withdraw-request-id";
+export * from "./query/get-onchain-contract-markets";
 export * from "./query/get-pending-withdraw-requests";
 export * from "./query/get-withdraw-requests";
 export * from "./query/get-withdrawable-time";
