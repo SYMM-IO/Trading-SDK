@@ -20,6 +20,13 @@ const cards: Omit<LinkCardProps, "index">[] = [
     icon: <ChartIcon />,
   },
   {
+    href: "/price-service",
+    eyebrow: "Price Service",
+    title: "Enigma prices",
+    description: "Read mark prices, token metadata, symbol listings, and service health from the Enigma price service.",
+    icon: <PriceIcon />,
+  },
+  {
     href: "/session-keys",
     eyebrow: "Local signing",
     title: "Session keys",
@@ -117,6 +124,22 @@ function ChartIcon() {
     <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
       <path d="M4 20V4M4 20h16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
       <path d="M8 16v-3M12 16V9M16 16v-6M20 16V6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PriceIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      <path
+        d="M5 18 10 13l3 3 6-7"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M16 9h3v3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 6h6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" opacity="0.6" />
     </svg>
   );
 }
