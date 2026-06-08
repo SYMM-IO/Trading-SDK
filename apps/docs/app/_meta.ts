@@ -17,4 +17,5 @@ export default {
   core: "Core",
   react: "React",
   utils: "Utils",
+  "session-key": "Session Key",
 };

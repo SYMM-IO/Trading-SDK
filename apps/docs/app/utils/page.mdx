@@ -16,7 +16,6 @@ pnpm add @symm-frontier/utils viem
 - **[Decimal helpers](/utils/decimal)** — chainable Decimal-based math (`toDecimal`, `safeDivide`, `formatUnits` returning `Decimal`, …).
 - **[Display formatters](/utils/format)** — thousand separators, compact (K/M/B/T), currency, percentage, dynamic precision, relative timestamps.
 - **[Address & hash](/utils/address)** — `shortenAddress` (checksummed), `minifyHash` (any string).
-- **[Session keys](/utils/session-key)** — local session-key generation, caller-provided persistence, and signing helpers.
 
 ## Naming overlap with viem
 
@@ -31,4 +30,4 @@ import { formatUnits, parseUnits } from "viem"; // string/bigint-based
 
 `react` re-exports the most-used helpers (`formatTokenAmount`, `parseTokenAmount`, `rawToDecimal`, `decimalToRaw`, `shortenAddress`) so you don't have to install `@symm-frontier/utils` separately just to format a balance.
 
-If you want the full surface — Decimal helpers, compact-currency, dynamic decimals, session keys — add `@symm-frontier/utils` as a direct dependency.
+If you want the full surface — Decimal helpers, compact-currency, and dynamic decimals — add `@symm-frontier/utils` as a direct dependency.

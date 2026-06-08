@@ -147,6 +147,9 @@ importers:
       '@symm-frontier/react':
         specifier: workspace:*
         version: link:../../packages/react
+      '@symm-frontier/session-key':
+        specifier: workspace:*
+        version: link:../../packages/session-key
       '@symm-frontier/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -363,6 +366,36 @@ importers:
       wagmi:
         specifier: ^3.4.2
         version: 3.6.11(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.5))(@types/react@19.2.14)(react@19.2.5)(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
+
+  packages/session-key:
+    devDependencies:
+      '@symm-frontier/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@symm-frontier/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.6.1)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      viem:
+        specifier: ^2.49.0
+        version: 2.49.3(typescript@6.0.3)(zod@4.4.3)
+      vite:
+        specifier: ^8.0.13
+        version: 8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4)
+      vite-plugin-dts:
+        specifier: ^5.0.0
+        version: 5.0.0(@microsoft/api-extractor@7.58.7(@types/node@25.6.0))(esbuild@0.28.0)(rolldown@1.0.1)(rollup@4.60.2)(typescript@6.0.3)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
+      vitest:
+        specifier: ^4.1.6
+        version: 4.1.6(@types/node@25.6.0)(happy-dom@16.8.1)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
 
   packages/typescript-config: {}
 
