@@ -14,6 +14,7 @@
   "dependencies": {
     "@symm-frontier/core": "workspace:*",
     "@symm-frontier/react": "workspace:*",
+    "@symm-frontier/session-key": "workspace:*",
     "@symm-frontier/ui": "workspace:*",
     "@symm-frontier/utils": "workspace:*",
     "@tanstack/react-query": "^5.100.0",

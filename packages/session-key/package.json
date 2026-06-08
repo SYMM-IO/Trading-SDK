@@ -1,8 +1,8 @@
 {
-  "name": "@symm-frontier/utils",
+  "name": "@symm-frontier/session-key",
   "version": "0.0.0",
   "private": true,
-  "description": "Framework-agnostic utility helpers for SYMMIO SDK consumers: amount formatting, address helpers, Decimal.js bridge.",
+  "description": "Framework-agnostic local EVM session-key helpers for SYMMIO SDK consumers.",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -12,22 +12,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./amounts": {
-      "types": "./dist/amounts/index.d.ts",
-      "import": "./dist/amounts/index.js"
-    },
-    "./address": {
-      "types": "./dist/address/index.d.ts",
-      "import": "./dist/address/index.js"
-    },
-    "./decimal": {
-      "types": "./dist/decimal/index.d.ts",
-      "import": "./dist/decimal/index.js"
-    },
-    "./format": {
-      "types": "./dist/format/index.d.ts",
-      "import": "./dist/format/index.js"
     },
     "./*": {
       "types": "./dist/*.d.ts",
@@ -45,10 +29,6 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "dependencies": {
-    "decimal.js": "^10.4.3",
-    "ramda": "^0.32.0"
-  },
   "peerDependencies": {
     "viem": "^2.49.0"
   },
@@ -56,7 +36,6 @@
     "@symm-frontier/eslint-config": "workspace:*",
     "@symm-frontier/typescript-config": "workspace:*",
     "@types/node": "^25.6.0",
-    "@types/ramda": "^0.31.1",
     "eslint": "^9.39.4",
     "typescript": "^6.0.3",
     "viem": "^2.49.0",
