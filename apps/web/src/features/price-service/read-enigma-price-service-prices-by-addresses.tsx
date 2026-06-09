@@ -1,7 +1,7 @@
 "use client";
 
 import { ResultError, ResultNote } from "@/components/result";
-import { useEnigmaPriceServicePrices } from "@symm-frontier/react";
+import { useEnigmaPriceServicePricesByAddresses } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { useState } from "react";
@@ -9,21 +9,21 @@ import { MethodCard } from "../inspector/method-card";
 import { JsonResult } from "./json-result";
 import { PriceServiceSymbolMultiSelect } from "./price-service-symbol-multi-select";
 
-export function ReadEnigmaPriceServicePrices() {
+export function ReadEnigmaPriceServicePricesByAddresses() {
   const [addresses, setAddresses] = useState<string[]>([]);
   const tokenCount = addresses.length;
-  const query = useEnigmaPriceServicePrices({ addresses, query: { enabled: false } });
+  const query = useEnigmaPriceServicePricesByAddresses({ addresses, query: { enabled: false } });
 
   return (
     <MethodCard
-      testId="method-getEnigmaPriceServicePrices"
-      name="getEnigmaPriceServicePrices"
+      testId="method-getEnigmaPriceServicePricesByAddresses"
+      name="getEnigmaPriceServicePricesByAddresses"
       mutability="view"
       description="Fetch mark prices by comma-separated token addresses."
       wide
     >
       <PriceServiceSymbolMultiSelect
-        idPrefix="input-enigma-price-service-prices-addresses"
+        idPrefix="input-enigma-price-service-prices-by-addresses"
         value={addresses}
         onValueChange={setAddresses}
         hint="Select symbols from price-service symbols info or paste comma-separated token addresses. Max 50 per request."
@@ -34,7 +34,7 @@ export function ReadEnigmaPriceServicePrices() {
         size="sm"
         disabled={tokenCount === 0 || query.isFetching}
         onClick={() => void query.refetch()}
-        data-testid="button-read-enigma-price-service-prices"
+        data-testid="button-read-enigma-price-service-prices-by-addresses"
       >
         {query.isFetching ? (
           <>
@@ -45,12 +45,18 @@ export function ReadEnigmaPriceServicePrices() {
         )}
       </Button>
 
-      <ResultPanel testId="result-getEnigmaPriceServicePrices" query={query} />
+      <ResultPanel testId="result-getEnigmaPriceServicePricesByAddresses" query={query} />
     </MethodCard>
   );
 }
 
-function ResultPanel({ testId, query }: { testId: string; query: ReturnType<typeof useEnigmaPriceServicePrices> }) {
+function ResultPanel({
+  testId,
+  query,
+}: {
+  testId: string;
+  query: ReturnType<typeof useEnigmaPriceServicePricesByAddresses>;
+}) {
   if (query.isFetching) {
     return (
       <ResultNote testId={`${testId}-loading`} loading>

@@ -14,12 +14,12 @@ vi.mock("../types/generated/enigma-price-service", async (importOriginal) => {
   };
 });
 
-import { getEnigmaPriceServicePrices } from "./get-enigma-price-service-prices";
+import { getEnigmaPriceServicePricesByAddresses } from "./get-enigma-price-service-prices-by-addresses";
 
 const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).priceService.url;
 const config = createConfig({ getClient: () => ({}) as PublicClient });
 
-describe("getEnigmaPriceServicePrices", () => {
+describe("getEnigmaPriceServicePricesByAddresses", () => {
   beforeEach(() => {
     getPricesBySymbolAddressesApiV1PricesGet.mockReset();
   });
@@ -28,7 +28,9 @@ describe("getEnigmaPriceServicePrices", () => {
     const data = { "0xabc": { name: "TEST", markPrice: 1.23, time: 123 } };
     getPricesBySymbolAddressesApiV1PricesGet.mockResolvedValue({ data });
 
-    await expect(getEnigmaPriceServicePrices(config, { addresses: ["0xabc", "0xdef"] })).resolves.toEqual(data);
+    await expect(
+      getEnigmaPriceServicePricesByAddresses(config, { addresses: ["0xabc", "0xdef"] }),
+    ).resolves.toEqual(data);
     expect(getPricesBySymbolAddressesApiV1PricesGet).toHaveBeenCalledWith(
       { addresses: "0xabc,0xdef" },
       { baseURL: PRICE_SERVICE_URL },
@@ -38,9 +40,11 @@ describe("getEnigmaPriceServicePrices", () => {
   it("wraps request failures in a SymmError", async () => {
     getPricesBySymbolAddressesApiV1PricesGet.mockRejectedValue(new Error("Network error"));
 
-    await expect(getEnigmaPriceServicePrices(config, { addresses: "0xabc" })).rejects.toBeInstanceOf(SymmError);
-    await expect(getEnigmaPriceServicePrices(config, { addresses: "0xabc" })).rejects.toThrow(
-      "Failed to fetch Enigma price-service prices",
-    );
+    await expect(
+      getEnigmaPriceServicePricesByAddresses(config, { addresses: ["0xabc"] }),
+    ).rejects.toBeInstanceOf(SymmError);
+    await expect(
+      getEnigmaPriceServicePricesByAddresses(config, { addresses: ["0xabc"] }),
+    ).rejects.toThrow("Failed to fetch Enigma price-service prices by addresses");
   });
 });
