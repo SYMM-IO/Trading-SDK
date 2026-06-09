@@ -3,37 +3,46 @@ import { describe, expect, it } from "vitest";
 import { SymmioSupportedChainId } from "../../../core/chains";
 import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig } from "../../../shared/test/mock-config";
-import { getEnigmaPriceServicePricesQueryKey, getEnigmaPriceServicePricesQueryOptions } from "./query";
+import {
+  getEnigmaPriceServicePricesByNamesQueryKey,
+  getEnigmaPriceServicePricesByNamesQueryOptions,
+} from "./query";
 
-describe("getEnigmaPriceServicePricesQueryOptions", () => {
+describe("getEnigmaPriceServicePricesByNamesQueryOptions", () => {
   it("respects an explicit query.enabled override", () => {
     const { config } = mockConfig();
     expect(
-      getEnigmaPriceServicePricesQueryOptions(config, { addresses: "0xabc", query: { enabled: false } }).enabled,
+      getEnigmaPriceServicePricesByNamesQueryOptions(config, {
+        names: ["BTCUSDT"],
+        query: { enabled: false },
+      }).enabled,
     ).toBe(false);
   });
 
   it("is enabled by default when parameters are provided", () => {
     const { config } = mockConfig();
-    expect(getEnigmaPriceServicePricesQueryOptions(config, { addresses: "0xabc" }).enabled).toBe(true);
+    expect(getEnigmaPriceServicePricesByNamesQueryOptions(config, { names: ["BTCUSDT"] }).enabled).toBe(true);
   });
 
   it("queryFn surfaces a SymmError for an unsupported chain", async () => {
     const { config } = mockConfig();
-    const options = getEnigmaPriceServicePricesQueryOptions(config, { addresses: "0xabc", chainId: mainnet.id });
+    const options = getEnigmaPriceServicePricesByNamesQueryOptions(config, {
+      names: ["BTCUSDT"],
+      chainId: mainnet.id,
+    });
     await expect(options.queryFn()).rejects.toThrow(SymmError);
   });
 
   it("builds a stable key", () => {
-    const key = getEnigmaPriceServicePricesQueryKey({
+    const key = getEnigmaPriceServicePricesByNamesQueryKey({
       chainId: SymmioSupportedChainId.HYPER_EVM,
-      addresses: ["0xabc", "0xdef"],
+      names: ["BTCUSDT", "ETHUSDT"],
     });
     expect(key).toEqual([
-      "getEnigmaPriceServicePrices",
+      "getEnigmaPriceServicePricesByNames",
       {
         chainId: SymmioSupportedChainId.HYPER_EVM,
-        addresses: ["0xabc", "0xdef"],
+        names: ["BTCUSDT", "ETHUSDT"],
       },
     ]);
   });
