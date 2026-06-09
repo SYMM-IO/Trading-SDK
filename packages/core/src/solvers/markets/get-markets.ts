@@ -47,16 +47,7 @@ async function fetchMarkets(baseURL: string): Promise<SymbolContractSymbol[]> {
     if (err instanceof SymmError) throw err;
 
     if (isAxiosError(err)) {
-      throw new SymmApiError({
-        code: "FETCH_MARKETS_FAILED",
-        message: err.message,
-        status: err.response?.status ?? 0,
-        statusText: err.response?.statusText ?? "Unknown",
-        responseData: err.response?.data,
-        url: err.config?.url ? `${baseURL}${err.config.url}` : baseURL,
-        method: err.config?.method?.toUpperCase() ?? "GET",
-        cause: err,
-      });
+      throw SymmApiError.fromAxios(err, { code: "FETCH_MARKETS_FAILED", baseURL });
     }
 
     throw new SymmError(
