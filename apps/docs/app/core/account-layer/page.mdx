@@ -118,6 +118,36 @@ enum SubAccountIsolationType {
 
 ## Writes
 
+### `allocate(config, params)`
+
+Move a subaccount's available balance into its allocated (tradeable) balance — the
+margin Party A trades against. The call is routed through the AccountLayer `_call`
+proxy so the SYMMIO core attributes it to the subaccount; the connected wallet must
+be the subaccount's on-chain `owner`. The subaccount must not be suspended or in
+liquidation as Party A.
+
+```ts
+import { allocate } from "@symm-frontier/core";
+
+const hash = await allocate(config, {
+  account: "0xsub...",
+  amount: 1_000000000000000000n, // 18 decimals
+});
+```
+
+**Parameters**
+
+| Name                  | Type       | Notes                                                                                              |
+| --------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
+| `account`             | `Address`  | The subaccount to allocate into. The signer must equal its on-chain `owner`.                       |
+| `amount`              | `bigint`   | Amount moved into allocated balance, in **18 decimals** (not collateral decimals).                 |
+| `chainId`             | `number?`  | Optional chain override.                                                                           |
+| `simulateBeforeWrite` | `boolean?` | Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default). |
+
+**Returns** — `Hash` (the broadcast tx hash).
+
+Dry-run without sending via `simulateAllocate(config, params)`.
+
 ### `editAccountName(config, params)`
 
 Rename a subaccount.

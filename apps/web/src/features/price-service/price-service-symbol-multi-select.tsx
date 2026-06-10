@@ -3,9 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError } from "@/components/result";
 import { useEnigmaPriceServiceSymbolsInfo } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
 import { Combobox, type ComboboxItem } from "@symm-frontier/ui/components/combobox";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { useMemo } from "react";
 import { parseAddressList } from "./price-service-utils";
 
@@ -49,17 +47,6 @@ export function PriceServiceSymbolMultiSelect({ idPrefix, value, onValueChange, 
       label="token addresses"
       htmlFor={`${idPrefix}-field`}
       hint={hint ?? "Search symbols from price-service symbols info or paste comma-separated token addresses."}
-      action={
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={symbolsQuery.isFetching}
-          onClick={() => void symbolsQuery.refetch()}
-        >
-          {symbolsQuery.isFetching ? <Spinner className="size-4" /> : "Reload"}
-        </Button>
-      }
     >
       <Combobox
         idPrefix={idPrefix}
@@ -69,6 +56,9 @@ export function PriceServiceSymbolMultiSelect({ idPrefix, value, onValueChange, 
         items={items}
         mode="multiple"
         searchable
+        onReload={() => void symbolsQuery.refetch()}
+        reloadPending={symbolsQuery.isFetching}
+        reloadLabel="Reload symbols"
         mono
         placeholder={symbolsQuery.isLoading ? "Loading price-service symbols..." : "Search or paste token addresses..."}
         searchPlaceholder="Search symbol or address..."

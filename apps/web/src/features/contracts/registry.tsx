@@ -15,6 +15,7 @@ import { ReadLastWithdrawRequestId } from "../inspector/read-last-withdraw-reque
 import { ReadOnchainContractMarkets } from "../inspector/read-onchain-contract-markets";
 import { ReadPendingWithdrawRequests } from "../inspector/read-pending-withdraw-requests";
 import { ReadWithdrawableTime } from "../inspector/read-withdrawable-time";
+import { WriteAllocate } from "../inspector/write-allocate";
 import { WriteApproveCollateral } from "../inspector/write-approve-collateral";
 import { WriteCreateSubAccounts } from "../inspector/write-create-sub-accounts";
 import { WriteDeposit } from "../inspector/write-deposit";
@@ -29,7 +30,7 @@ import { WriteRequestCancelWithdraw } from "../inspector/write-request-cancel-wi
 export type AbiKey = "account-layer" | "symmio-core" | "collateral" | "instant-layer";
 
 /** Usability flow a method participates in. */
-export type GroupKey = "subaccounts" | "deposit" | "withdraw" | "delegation";
+export type GroupKey = "subaccounts" | "deposit" | "margin" | "withdraw" | "delegation";
 
 /** One registered method-exerciser card with its taxonomy. */
 export interface MethodEntry {
@@ -161,6 +162,8 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     groups: ["deposit"],
     Component: ReadCollateralBalance,
   },
+  // SYMMIO core — margin
+  { id: "allocate", kind: "write", abi: "symmio-core", groups: ["margin"], Component: WriteAllocate },
   // SYMMIO core — withdraw system
   { id: "initiateWithdraw", kind: "write", abi: "symmio-core", groups: ["withdraw"], Component: WriteInitiateWithdraw },
   {
