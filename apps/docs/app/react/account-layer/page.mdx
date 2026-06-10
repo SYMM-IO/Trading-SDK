@@ -112,6 +112,43 @@ interface AccountBalanceInfo {
 
 All fields are in raw collateral token units.
 
+## `useAllocate(options?)`
+
+Allocate a subaccount's available balance into its allocated (tradeable) balance.
+Returns react-query's `UseMutationResult` shape. The call inputs (`account`,
+`amount`) are passed to `mutate`; `amount` is in **18 decimals**.
+
+```tsx
+import { useAllocate } from "@symm-frontier/react";
+
+const { mutate, isPending, isSuccess, data, error } = useAllocate();
+
+<button onClick={() => mutate({ account: "0xsub...", amount: 1_000000000000000000n })} disabled={isPending}>
+  {isPending ? "Sending…" : "Allocate"}
+</button>;
+
+{
+  isSuccess && <p>tx: {data.hash}</p>;
+}
+```
+
+### Options
+
+```ts
+interface UseAllocateParameters {
+  waitForReceipt?: boolean; // default true — mutation resolves only after the receipt is mined
+  confirmations?: number; // default 1
+}
+```
+
+### Cache invalidation
+
+On success, the hook invalidates the subaccount's `useAccountBalanceInfo` and `useAccountBalanceOf` queries in the active `QueryClient`, so allocated and available balances rerender automatically.
+
+### Dry run
+
+`useSimulateAllocate()` runs the same call through `simulateContract` without sending — useful to surface a would-be revert before prompting the wallet.
+
 ## `useEditAccountName(options?)`
 
 Submit a rename transaction. Returns react-query's `UseMutationResult` shape.

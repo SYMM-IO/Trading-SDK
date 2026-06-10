@@ -243,6 +243,24 @@ export {
 } from "./symmio-contracts/symmio";
 
 /**
+ * Allocate slice
+ * --------------
+ * Move a subaccount's available balance into its allocated (tradeable) balance
+ * on the SYMMIO core. The write wrapper hides the AccountLayer `_call` proxy so
+ * the core attributes the call to the subaccount.
+ */
+export {
+  allocate,
+  allocateMutationOptions,
+  simulateAllocate,
+  simulateAllocateMutationOptions,
+  type AllocateParameters,
+  type AllocateReturnType,
+  type SimulateAllocateParameters,
+  type SimulateAllocateReturnType,
+} from "./symmio-contracts/symmio";
+
+/**
  * Withdraw slice
  * --------------
  * The request-based withdraw system on the SYMMIO core. The write wrappers hide

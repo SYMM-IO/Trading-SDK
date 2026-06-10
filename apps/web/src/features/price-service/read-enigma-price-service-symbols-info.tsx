@@ -1,11 +1,51 @@
 "use client";
 
 import { ResultError, ResultNote } from "@/components/result";
+import { TableSkeleton } from "@/components/skeletons";
 import { useEnigmaPriceServiceSymbolsInfo } from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
+import { CopyButton } from "@symm-frontier/ui/components/copy-button";
+import { DataTable, type DataTableColumn } from "@symm-frontier/ui/components/data-table";
+import { SearchInput } from "@symm-frontier/ui/components/search-input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symm-frontier/ui/components/select";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useMemo, useState } from "react";
 import { MethodCard } from "../inspector/method-card";
+
+type SymbolRow = NonNullable<ReturnType<typeof useEnigmaPriceServiceSymbolsInfo>["data"]>[number];
+
+const COLUMNS: DataTableColumn<SymbolRow>[] = [
+  {
+    id: "name",
+    header: "Name",
+    cell: (symbol) => symbol.name,
+    sortAccessor: (symbol) => symbol.name,
+    cellClassName: "font-mono",
+  },
+  {
+    id: "status",
+    header: "Status",
+    cell: (symbol) => (
+      <Badge variant={String(symbol.status) === "TRADING" ? "positive" : "secondary"}>{symbol.status}</Badge>
+    ),
+    sortAccessor: (symbol) => String(symbol.status),
+  },
+  {
+    id: "address",
+    header: "Address",
+    cell: (symbol) => (
+      <span className="flex items-center gap-1.5">
+        <span className="max-w-96 truncate" title={symbol.address}>
+          {symbol.address}
+        </span>
+        <CopyButton value={symbol.address} label="Copy address" className="size-5 shrink-0" />
+      </span>
+    ),
+    sortAccessor: (symbol) => symbol.address,
+    cellClassName: "text-muted-foreground font-mono",
+  },
+];
 
 export function ReadEnigmaPriceServiceSymbolsInfo() {
   const query = useEnigmaPriceServiceSymbolsInfo({ query: { enabled: false } });
@@ -18,21 +58,28 @@ export function ReadEnigmaPriceServiceSymbolsInfo() {
       description="Fetch known symbols, statuses, and token addresses from the Enigma price service."
       wide
     >
-      <Button
-        type="button"
-        size="sm"
-        disabled={query.isFetching}
-        onClick={() => void query.refetch()}
-        data-testid="button-read-enigma-price-service-symbols-info"
-      >
-        {query.isFetching ? (
-          <>
-            <Spinner className="size-4" /> Reading...
-          </>
-        ) : (
-          "Read symbols info"
-        )}
-      </Button>
+      <div className="flex items-center gap-3">
+        <Button
+          type="button"
+          size="sm"
+          disabled={query.isFetching}
+          onClick={() => void query.refetch()}
+          data-testid="button-read-enigma-price-service-symbols-info"
+        >
+          {query.isFetching ? (
+            <>
+              <Spinner className="size-4" /> Reading...
+            </>
+          ) : (
+            "Read symbols info"
+          )}
+        </Button>
+        {query.data ? (
+          <span className="text-muted-foreground font-mono text-xs">
+            {query.data.length} symbol{query.data.length === 1 ? "" : "s"}
+          </span>
+        ) : null}
+      </div>
 
       <ResultPanel testId="result-getEnigmaPriceServiceSymbolsInfo" query={query} />
     </MethodCard>
@@ -46,12 +93,22 @@ function ResultPanel({
   testId: string;
   query: ReturnType<typeof useEnigmaPriceServiceSymbolsInfo>;
 }) {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const visible = useMemo(() => {
+    if (!query.data) return [];
+    const term = search.trim().toLowerCase();
+    return query.data.filter((symbol) => {
+      const matchesTerm =
+        term.length === 0 || symbol.name.toLowerCase().includes(term) || symbol.address.toLowerCase().includes(term);
+      const matchesStatus = statusFilter === "all" || String(symbol.status) === statusFilter;
+      return matchesTerm && matchesStatus;
+    });
+  }, [query.data, search, statusFilter]);
+
   if (query.isFetching) {
-    return (
-      <ResultNote testId={`${testId}-loading`} loading>
-        Loading...
-      </ResultNote>
-    );
+    return <TableSkeleton rows={6} columns={3} testId={`${testId}-loading`} />;
   }
   if (query.error) {
     return <ResultError testId={`${testId}-error`} kind={query.error.kind} message={query.error.message} />;
@@ -64,32 +121,38 @@ function ResultPanel({
   }
 
   return (
-    <div data-testid={`${testId}-data`} className="border-border/70 overflow-hidden rounded-xl border">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="bg-muted/40 text-muted-foreground text-left text-xs font-medium tracking-wide uppercase">
-              <th className="px-3 py-2.5">Name</th>
-              <th className="px-3 py-2.5">Status</th>
-              <th className="px-3 py-2.5">Address</th>
-            </tr>
-          </thead>
-          <tbody>
-            {query.data.map((symbol) => (
-              <tr
-                key={`${symbol.address}-${symbol.name}`}
-                className="border-border/60 hover:bg-muted/30 border-t transition-colors"
-              >
-                <td className="px-3 py-2.5 font-mono">{symbol.name}</td>
-                <td className="px-3 py-2.5">
-                  <Badge variant={symbol.status === "TRADING" ? "positive" : "secondary"}>{symbol.status}</Badge>
-                </td>
-                <td className="text-muted-foreground max-w-96 truncate px-3 py-2.5 font-mono">{symbol.address}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <DataTable
+      testId={`${testId}-data`}
+      columns={COLUMNS}
+      data={visible}
+      totalCount={query.data.length}
+      getRowId={(symbol) => `${symbol.address}-${symbol.name}`}
+      initialSort={{ columnId: "name", direction: "asc" }}
+      defaultPageSize={6}
+      emptyMessage="No symbols match these filters."
+      toolbar={
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <SearchInput
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search name or address…"
+            containerClassName="flex-1"
+            data-testid="symbols-search"
+            aria-label="Search symbols"
+          />
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="sm:w-40" data-testid="symbols-status-filter" aria-label="Filter by status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="TRADING">Trading</SelectItem>
+              <SelectItem value="SETTLING">Settling</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      }
+    />
   );
 }

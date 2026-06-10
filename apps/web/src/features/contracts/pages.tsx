@@ -34,7 +34,7 @@ export const ABI_PAGES: readonly ContractPage[] = [
     eyebrow: "ABI",
     title: "SYMMIO Core",
     description:
-      "The request-based withdraw system on the core diamond — initiate, finalize, cancel, and the read views.",
+      "Margin allocation and the request-based withdraw system on the core diamond — allocate, initiate, finalize, cancel, and the read views.",
     icon: <CoreIcon />,
   },
   {
@@ -77,6 +77,15 @@ export const FLOW_PAGES: readonly ContractPage[] = [
     title: "Deposit",
     description: "Approve collateral, then deposit — with or without allocating to margin — plus the balance reads.",
     icon: <DepositIcon />,
+  },
+  {
+    slug: "margin",
+    kind: "flow",
+    group: "margin",
+    eyebrow: "Flow",
+    title: "Margin",
+    description: "Move a subaccount's available balance into allocated (tradeable) margin on the SYMMIO core.",
+    icon: <MarginIcon />,
   },
   {
     slug: "withdraw",
@@ -207,6 +216,22 @@ function DepositIcon() {
         stroke="currentColor"
         strokeWidth="1.75"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function MarginIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      <rect x="3" y="6.5" width="6" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
+      <rect x="15" y="6.5" width="6" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.75" opacity="0.55" />
+      <path
+        d="M10 12h4m-1.75-1.75L14 12l-1.75 1.75"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

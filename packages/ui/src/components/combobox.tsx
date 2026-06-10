@@ -1,9 +1,10 @@
-import { Check, ChevronDown, Search } from "lucide-react";
+import { Check, ChevronDown, RefreshCw, Search } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../lib/utils";
 import { Input } from "./input";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "./popover";
+import { Spinner } from "./spinner";
 
 export interface ComboboxItem {
   /** Stable id, and the value written to the field when picked in single mode. */
@@ -43,6 +44,15 @@ export interface ComboboxProps {
   /** Render a search box that filters items by title, meta, or id. */
   searchable?: boolean;
   searchPlaceholder?: string;
+  /**
+   * When set (and `searchable`), a refresh button is shown at the end of the
+   * search row that calls this — for reloading the items from their source.
+   */
+  onReload?: () => void;
+  /** Show a spinner and disable the reload button while a refresh is in flight. */
+  reloadPending?: boolean;
+  /** Accessible label for the reload button. Defaults to `"Reload"`. */
+  reloadLabel?: string;
   /** Shown when a search query matches none of the items. */
   emptyResultsLabel?: React.ReactNode;
   /** Shown when there are no items to pick from at all. */
@@ -86,6 +96,9 @@ function Combobox({
   triggerLabel = "Browse suggestions",
   searchable = false,
   searchPlaceholder = "Search…",
+  onReload,
+  reloadPending = false,
+  reloadLabel = "Reload",
   emptyResultsLabel = "No matches.",
   emptyLabel = "Nothing to suggest.",
   selectedLabel = "Selected",
@@ -161,8 +174,21 @@ function Combobox({
               placeholder={searchPlaceholder}
               aria-label={searchPlaceholder}
               data-testid={`${idPrefix}-search`}
-              className="placeholder:text-muted-foreground/70 h-10 w-full bg-transparent text-sm outline-none"
+              className="placeholder:text-muted-foreground/70 h-10 min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
+            {onReload ? (
+              <button
+                type="button"
+                onClick={() => onReload()}
+                disabled={reloadPending}
+                aria-label={reloadLabel}
+                title={reloadLabel}
+                data-testid={`${idPrefix}-reload`}
+                className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring/40 -mr-1 inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50"
+              >
+                {reloadPending ? <Spinner className="size-4" /> : <RefreshCw className="size-4" aria-hidden />}
+              </button>
+            ) : null}
           </div>
         ) : null}
 
