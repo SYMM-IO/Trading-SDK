@@ -336,6 +336,7 @@ export enum ClientErrorCategory {
   CategoryAccountState = "account_state",
   CategorySymbolState = "symbol_state",
   CategoryRateLimit = "rate_limit",
+  CategoryTimeout = "timeout",
   CategoryInternal = "internal",
   CategoryUnavailable = "unavailable",
 }
