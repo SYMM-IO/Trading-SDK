@@ -2,8 +2,10 @@
 
 import { ConfigLauncher } from "@/features/config/config-launcher";
 import { LogoMark } from "@/features/layout/logo";
-import { isActivePath, navLinks } from "@/features/layout/nav";
+import { isActivePath, primaryNavLinks, secondaryNavLinks, type NavLink } from "@/features/layout/nav";
+import { NavMoreMenu } from "@/features/layout/nav-more-menu";
 import { ThemeToggle } from "@/features/layout/theme-toggle";
+import { SearchLauncher } from "@/features/search/search-launcher";
 import { cn } from "@symm-frontier/ui/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -27,7 +29,7 @@ export function SiteHeader() {
         </Link>
 
         <nav className="ml-2 hidden items-center gap-1 md:flex">
-          {navLinks.map((link) => {
+          {primaryNavLinks.map((link) => {
             const active = isActivePath(pathname, link.href);
             return (
               <Link
@@ -46,9 +48,11 @@ export function SiteHeader() {
               </Link>
             );
           })}
+          <NavMoreMenu />
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <SearchLauncher />
           <ConfigLauncher />
           <ThemeToggle />
           <button
@@ -72,27 +76,40 @@ export function SiteHeader() {
       {open ? (
         <nav className="border-border/60 bg-background/95 animate-enter-fade border-t backdrop-blur-xl md:hidden">
           <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3 sm:px-6">
-            {navLinks.map((link) => {
-              const active = isActivePath(pathname, link.href);
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setOpen(false)}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                    active ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  {link.label}
-                  {active ? <span className="bg-primary size-1.5 rounded-full" aria-hidden /> : null}
-                </Link>
-              );
-            })}
+            {primaryNavLinks.map((link) => (
+              <MobileNavLink key={link.href} link={link} pathname={pathname} onNavigate={() => setOpen(false)} />
+            ))}
+            <span className="text-muted-foreground px-3 pt-4 pb-1 text-[0.7rem] font-medium tracking-[0.18em] uppercase">
+              More
+            </span>
+            {secondaryNavLinks.map((link) => (
+              <MobileNavLink key={link.href} link={link} pathname={pathname} onNavigate={() => setOpen(false)} />
+            ))}
           </div>
         </nav>
       ) : null}
     </header>
+  );
+}
+
+/** One row in the mobile drawer: the label, an optional description, and the active marker. */
+function MobileNavLink({ link, pathname, onNavigate }: { link: NavLink; pathname: string; onNavigate: () => void }) {
+  const active = isActivePath(pathname, link.href);
+  return (
+    <Link
+      href={link.href}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition-colors",
+        active ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <span className="flex min-w-0 flex-col">
+        <span className="text-sm font-medium">{link.label}</span>
+        {link.description ? <span className="text-muted-foreground truncate text-xs">{link.description}</span> : null}
+      </span>
+      {active ? <span className="bg-primary size-1.5 shrink-0 rounded-full" aria-hidden /> : null}
+    </Link>
   );
 }
