@@ -30,5 +30,15 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
       type: "enigma",
       url: "https://lowcap-price.enigma.bz",
     },
+    muon: {
+      // Muon oracle gateways (https://docs.symm.io/api-endpoints-and-deployments/muon-api),
+      // tried in order until one returns a successful attestation.
+      urls: [
+        "https://muon-oracle1.rasa.capital/v1/",
+        "https://muon-oracle2.rasa.capital/v1/",
+        "https://muon-oracle3.rasa.capital/v1/",
+        "https://muon-oracle4.rasa.capital/v1/",
+      ],
+    },
   },
 };

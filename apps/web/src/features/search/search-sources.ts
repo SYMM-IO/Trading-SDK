@@ -45,7 +45,7 @@ function pageEntries(): SearchEntry[] {
 /** Every registered contract method, deep-linked to its card on the ABI page. */
 function methodEntries(): SearchEntry[] {
   return METHOD_REGISTRY.map((entry) => {
-    const abiLabel = entry.abi ? ABI_LABEL[entry.abi] : "Solver";
+    const abiLabel = entry.abi ? ABI_LABEL[entry.abi] : "Off-chain API";
     const pageSlug = entry.abi ?? entry.groups[0];
     return {
       id: `method:${entry.id}`,

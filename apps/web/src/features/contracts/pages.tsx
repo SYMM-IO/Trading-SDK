@@ -84,7 +84,8 @@ export const FLOW_PAGES: readonly ContractPage[] = [
     group: "margin",
     eyebrow: "Flow",
     title: "Margin",
-    description: "Move a subaccount's available balance into allocated (tradeable) margin on the SYMMIO core.",
+    description:
+      "Allocate a subaccount's balance into tradeable margin, and add or remove margin on a virtual account — including the Muon uPnL signature removeMargin requires.",
     icon: <MarginIcon />,
   },
   {

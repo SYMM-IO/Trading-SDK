@@ -3,6 +3,7 @@ import { ReadAccountBalanceInfo } from "../inspector/read-account-balance-info";
 import { ReadAccountBalanceOf } from "../inspector/read-account-balance-of";
 import { ReadCollateralAllowance } from "../inspector/read-collateral-allowance";
 import { ReadCollateralBalance } from "../inspector/read-collateral-balance";
+import { ReadDeallocateUpnlSig } from "../inspector/read-deallocate-upnl-sig";
 import { ReadDelegationReads } from "../inspector/read-delegation-reads";
 import { ReadFeeForUser } from "../inspector/read-fee-for-user";
 import { ReadGetPartyAOpenPositions } from "../inspector/read-get-party-a-open-positions";
@@ -19,6 +20,7 @@ import { ReadLastWithdrawRequestId } from "../inspector/read-last-withdraw-reque
 import { ReadOnchainContractMarkets } from "../inspector/read-onchain-contract-markets";
 import { ReadPendingWithdrawRequests } from "../inspector/read-pending-withdraw-requests";
 import { ReadWithdrawableTime } from "../inspector/read-withdrawable-time";
+import { WriteAddMargin } from "../inspector/write-add-margin";
 import { WriteAllocate } from "../inspector/write-allocate";
 import { WriteApproveCollateral } from "../inspector/write-approve-collateral";
 import { WriteCreateSubAccounts } from "../inspector/write-create-sub-accounts";
@@ -28,6 +30,7 @@ import { WriteEditAccountName } from "../inspector/write-edit-account-name";
 import { WriteFinalizeWithdrawRequest } from "../inspector/write-finalize-withdraw-request";
 import { WriteGrantDelegation } from "../inspector/write-grant-delegation";
 import { WriteInitiateWithdraw } from "../inspector/write-initiate-withdraw";
+import { WriteRemoveMargin } from "../inspector/write-remove-margin";
 import { WriteRequestCancelWithdraw } from "../inspector/write-request-cancel-withdraw";
 
 /** On-chain ABI a method belongs to. Solver (API) reads have no ABI. */
@@ -195,8 +198,12 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     groups: ["deposit"],
     Component: ReadCollateralBalance,
   },
-  // SYMMIO core — margin
+  // SYMMIO core + AccountLayer — margin
   { id: "allocate", kind: "write", abi: "symmio-core", groups: ["margin"], Component: WriteAllocate },
+  { id: "addMargin", kind: "write", abi: "account-layer", groups: ["margin"], Component: WriteAddMargin },
+  { id: "removeMargin", kind: "write", abi: "account-layer", groups: ["margin"], Component: WriteRemoveMargin },
+  // Muon oracle (off-chain API) — uPnL signature for removeMargin
+  { id: "getDeallocateUpnlSig", kind: "read", groups: ["margin"], Component: ReadDeallocateUpnlSig },
   // SYMMIO core — withdraw system
   { id: "initiateWithdraw", kind: "write", abi: "symmio-core", groups: ["withdraw"], Component: WriteInitiateWithdraw },
   {

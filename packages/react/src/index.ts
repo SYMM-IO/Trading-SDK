@@ -52,31 +52,40 @@ export {
 export {
   useAccountBalanceInfo,
   useAccountBalanceOf,
+  useAddMargin,
   useAllocate,
   useCreateSubAccounts,
   useDeposit,
   useDepositAndAllocate,
   useEditAccountName,
+  useRemoveMargin,
+  useSimulateAddMargin,
   useSimulateAllocate,
   useSimulateCreateSubAccounts,
   useSimulateDeposit,
   useSimulateDepositAndAllocate,
   useSimulateEditAccountName,
+  useSimulateRemoveMargin,
   useSubAccount,
   useSubAccountVirtualNonce,
   useSubAccountsCountOfUser,
   useUserSubAccounts,
   useUserSubAccountsAddresses,
   useVirtualAccountsAddressesOfSubAccount,
+  type AddMarginResult,
   type AllocateResult,
   type CreateSubAccountsResult,
   type DepositAndAllocateResult,
   type DepositResult,
   type EditAccountNameResult,
+  type RemoveMarginResult,
+  type RemoveMarginVariables,
   type UseAccountBalanceInfoParameters,
   type UseAccountBalanceInfoReturnType,
   type UseAccountBalanceOfParameters,
   type UseAccountBalanceOfReturnType,
+  type UseAddMarginParameters,
+  type UseAddMarginReturnType,
   type UseAllocateParameters,
   type UseAllocateReturnType,
   type UseCreateSubAccountsParameters,
@@ -87,6 +96,10 @@ export {
   type UseDepositReturnType,
   type UseEditAccountNameParameters,
   type UseEditAccountNameReturnType,
+  type UseRemoveMarginParameters,
+  type UseRemoveMarginReturnType,
+  type UseSimulateAddMarginParameters,
+  type UseSimulateAddMarginReturnType,
   type UseSimulateAllocateParameters,
   type UseSimulateAllocateReturnType,
   type UseSimulateCreateSubAccountsParameters,
@@ -97,6 +110,8 @@ export {
   type UseSimulateDepositReturnType,
   type UseSimulateEditAccountNameParameters,
   type UseSimulateEditAccountNameReturnType,
+  type UseSimulateRemoveMarginParameters,
+  type UseSimulateRemoveMarginReturnType,
   type UseSubAccountParameters,
   type UseSubAccountReturnType,
   type UseSubAccountVirtualNonceParameters,
@@ -268,6 +283,14 @@ export {
   type UseEnigmaPriceServiceSymbolsInfoParameters,
   type UseEnigmaPriceServiceSymbolsInfoReturnType,
 } from "./price-service";
+
+/**
+ * Muon hooks
+ * ----------
+ * Fetch the Muon uPnL signature `removeMargin` requires, on demand. `useRemoveMargin`
+ * already does this internally; use this hook only for the raw signature.
+ */
+export { useDeallocateUpnlSig, type UseDeallocateUpnlSigParameters, type UseDeallocateUpnlSigReturnType } from "./muon";
 
 /**
  * Query helpers
