@@ -12,7 +12,7 @@ import { isAddress, parseUnits, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
-import { SubAccountField } from "./subaccount-field";
+import { VirtualAccountField } from "./virtual-account-field";
 
 /** `addMargin` amounts are the SYMMIO core's internal 18-decimal margin units, not collateral-token decimals. */
 const MARGIN_DECIMALS = 18;
@@ -38,7 +38,7 @@ export function WriteAddMargin() {
       mutability="nonpayable"
       description="Add margin to a virtual account — move collateral from the parent subaccount's available balance into the VA. No signature required."
     >
-      <SubAccountField
+      <VirtualAccountField
         idPrefix="add-margin-va"
         label="virtualAccount (VA address)"
         value={virtualAccount}

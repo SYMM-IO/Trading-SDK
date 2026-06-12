@@ -9,7 +9,7 @@ import { useState } from "react";
 import { isAddress, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
-import { SubAccountField } from "./subaccount-field";
+import { VirtualAccountField } from "./virtual-account-field";
 
 export function ReadDeallocateUpnlSig() {
   const [virtualAccount, setVirtualAccount] = useState<string>("");
@@ -25,7 +25,7 @@ export function ReadDeallocateUpnlSig() {
       description="Fetch the Muon uPnl_A attestation removeMargin requires, assembled into a contract-ready SingleUpnlSig. Off-chain Muon oracle read — no ABI."
       wide
     >
-      <SubAccountField
+      <VirtualAccountField
         idPrefix="deallocate-upnl-sig-va"
         label="virtualAccount (VA address)"
         hint="The Muon partyA the uPnL attestation is for. The signature is short-lived — fetch it immediately before a removeMargin."

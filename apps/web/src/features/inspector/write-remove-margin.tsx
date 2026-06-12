@@ -12,7 +12,7 @@ import { isAddress, parseUnits, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
-import { SubAccountField } from "./subaccount-field";
+import { VirtualAccountField } from "./virtual-account-field";
 
 /** `removeMargin` amounts are the SYMMIO core's internal 18-decimal margin units, not collateral-token decimals. */
 const MARGIN_DECIMALS = 18;
@@ -52,7 +52,7 @@ export function WriteRemoveMargin() {
       mutability="nonpayable"
       description="Remove margin from a virtual account (deallocate). Sending fetches a fresh Muon uPnL signature automatically; subject to the on-chain deallocate debounce."
     >
-      <SubAccountField
+      <VirtualAccountField
         idPrefix="remove-margin-va"
         label="virtualAccount (VA address)"
         value={virtualAccount}
