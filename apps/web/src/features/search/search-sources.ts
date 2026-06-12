@@ -2,6 +2,7 @@ import type { useEnigmaPriceServiceSymbolsInfo, useMarkets } from "@symm-frontie
 import { ALL_PAGES } from "../contracts/pages";
 import { METHOD_REGISTRY, type AbiKey } from "../contracts/registry";
 import { navLinks } from "../layout/nav";
+import { MUON_METHODS } from "../muon/muon-registry";
 import type { SearchEntry } from "./search-entry";
 
 type Market = NonNullable<ReturnType<typeof useMarkets>["data"]>[number];
@@ -59,8 +60,26 @@ function methodEntries(): SearchEntry[] {
   });
 }
 
+/** Each Muon service card, deep-linked to its anchor on the Muon page. */
+function muonMethodEntries(): SearchEntry[] {
+  return MUON_METHODS.map((method) => ({
+    id: `muon:${method.id}`,
+    type: "method",
+    title: method.method,
+    subtitle: "Muon API",
+    kind: "read",
+    keywords: [method.action, "muon", "oracle", "off-chain api"],
+    href: `/muon#${method.id}`,
+  }));
+}
+
 /** Static entries that never change at runtime — built once at module load. */
-export const STATIC_ENTRIES: readonly SearchEntry[] = [...routeEntries(), ...pageEntries(), ...methodEntries()];
+export const STATIC_ENTRIES: readonly SearchEntry[] = [
+  ...routeEntries(),
+  ...pageEntries(),
+  ...methodEntries(),
+  ...muonMethodEntries(),
+];
 
 /** Solver markets, fetched lazily when the palette opens. Routes to the Solvers page. */
 export function marketEntries(markets: readonly Market[]): SearchEntry[] {

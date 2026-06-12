@@ -148,6 +148,39 @@ const hash = await allocate(config, {
 
 Dry-run without sending via `simulateAllocate(config, params)`.
 
+### `deallocate(config, params)`
+
+Move a subaccount's allocated (tradeable) balance back into its available balance
+— the reverse of `allocate`. Routed through the AccountLayer `_call` proxy; the
+connected wallet must be the subaccount's on-chain `owner`. Requires a fresh Muon
+uPnL attestation so the contract can verify the subaccount stays solvent, and is
+subject to the on-chain **deallocate debounce**.
+
+```ts
+import { deallocate, getDeallocateUpnlSig } from "@symm-frontier/core";
+
+const upnlSig = await getDeallocateUpnlSig(config, { virtualAccount: "0xsub..." });
+const hash = await deallocate(config, {
+  account: "0xsub...",
+  amount: 1_000000000000000000n, // 18 decimals
+  upnlSig,
+});
+```
+
+**Parameters**
+
+| Name                  | Type            | Notes                                                                                              |
+| --------------------- | --------------- | -------------------------------------------------------------------------------------------------- |
+| `account`             | `Address`       | The subaccount to deallocate from. The signer must equal its on-chain `owner`.                     |
+| `amount`              | `bigint`        | Amount moved back into available balance, in **18 decimals** (not collateral decimals).            |
+| `upnlSig`             | `SingleUpnlSig` | A fresh Muon uPnL attestation — fetch with `getDeallocateUpnlSig` right before submitting.         |
+| `chainId`             | `number?`       | Optional chain override.                                                                           |
+| `simulateBeforeWrite` | `boolean?`      | Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default). |
+
+**Returns** — `Hash` (the broadcast tx hash).
+
+Dry-run without sending via `simulateDeallocate(config, params)`.
+
 ### `editAccountName(config, params)`
 
 Rename a subaccount.

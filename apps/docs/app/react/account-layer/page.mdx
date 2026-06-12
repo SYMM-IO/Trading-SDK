@@ -149,6 +149,45 @@ On success, the hook invalidates the subaccount's `useAccountBalanceInfo` and `u
 
 `useSimulateAllocate()` runs the same call through `simulateContract` without sending — useful to surface a would-be revert before prompting the wallet.
 
+## `useDeallocate(options?)`
+
+Deallocate a subaccount's allocated (tradeable) balance back into its available
+balance — the reverse of `useAllocate`. Returns react-query's `UseMutationResult`
+shape. The hook **fetches a fresh Muon uPnL signature automatically** before
+submitting (the contract requires it to prove the subaccount stays solvent),
+unless you pass one as `upnlSig`. `amount` is in **18 decimals**.
+
+```tsx
+import { useDeallocate } from "@symm-frontier/react";
+
+const { mutate, isPending, isSuccess, data, error } = useDeallocate();
+
+<button onClick={() => mutate({ account: "0xsub...", amount: 1_000000000000000000n })} disabled={isPending}>
+  {isPending ? "Sending…" : "Deallocate"}
+</button>;
+
+{
+  isSuccess && <p>tx: {data.hash}</p>;
+}
+```
+
+### Options
+
+```ts
+interface UseDeallocateParameters {
+  waitForReceipt?: boolean; // default true — mutation resolves only after the receipt is mined
+  confirmations?: number; // default 1
+}
+```
+
+### Cache invalidation
+
+On success, the hook invalidates the subaccount's `useAccountBalanceInfo` and `useAccountBalanceOf` queries in the active `QueryClient`, so allocated and available balances rerender automatically.
+
+### Muon signature & cooldown
+
+The hook calls `getDeallocateUpnlSig` for you unless you pass a `upnlSig` variable. Deallocate is subject to the on-chain debounce — submitting too soon after a prior deallocate reverts — and the result must keep the subaccount solvent; both surface as a normalized `SymmioRequestError`. `useSimulateDeallocate()` dry-runs the call (supply a `upnlSig` there — it does not auto-fetch).
+
 ## `useEditAccountName(options?)`
 
 Submit a rename transaction. Returns react-query's `UseMutationResult` shape.

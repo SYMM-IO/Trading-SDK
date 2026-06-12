@@ -24,6 +24,7 @@ import { WriteAddMargin } from "../inspector/write-add-margin";
 import { WriteAllocate } from "../inspector/write-allocate";
 import { WriteApproveCollateral } from "../inspector/write-approve-collateral";
 import { WriteCreateSubAccounts } from "../inspector/write-create-sub-accounts";
+import { WriteDeallocate } from "../inspector/write-deallocate";
 import { WriteDeleteSubAccount } from "../inspector/write-delete-sub-account";
 import { WriteDeposit } from "../inspector/write-deposit";
 import { WriteDepositAndAllocate } from "../inspector/write-deposit-and-allocate";
@@ -208,6 +209,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   // SYMMIO core + AccountLayer — margin
   { id: "allocate", kind: "write", abi: "symmio-core", groups: ["margin"], Component: WriteAllocate },
+  { id: "deallocate", kind: "write", abi: "symmio-core", groups: ["margin"], Component: WriteDeallocate },
   { id: "addMargin", kind: "write", abi: "account-layer", groups: ["margin"], Component: WriteAddMargin },
   { id: "removeMargin", kind: "write", abi: "account-layer", groups: ["margin"], Component: WriteRemoveMargin },
   // Muon oracle (off-chain API) — uPnL signature for removeMargin
