@@ -88,6 +88,16 @@ export const FLOW_PAGES: readonly ContractPage[] = [
     icon: <MarginIcon />,
   },
   {
+    slug: "positions",
+    kind: "flow",
+    group: "positions",
+    eyebrow: "Flow",
+    title: "Positions",
+    description:
+      "Discover a subaccount's virtual accounts, then read its open positions and pending quote ids, and inspect any quote by id. For VibeCaps, partyA is the VA; for Majors it is the subaccount.",
+    icon: <PositionsIcon />,
+  },
+  {
     slug: "withdraw",
     kind: "flow",
     group: "withdraw",
@@ -233,6 +243,18 @@ function MarginIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function PositionsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      <path d="M3.5 20.5h17" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" opacity="0.55" />
+      <path d="M8 5v3M8 14v3.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <rect x="6" y="8" width="4" height="6" rx="1" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M16 3v3.5M16 12.5V17" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" opacity="0.55" />
+      <rect x="14" y="6.5" width="4" height="6" rx="1" stroke="currentColor" strokeWidth="1.75" opacity="0.55" />
     </svg>
   );
 }

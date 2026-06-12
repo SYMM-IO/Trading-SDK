@@ -67,6 +67,7 @@ export {
   useSubAccountsCountOfUser,
   useUserSubAccounts,
   useUserSubAccountsAddresses,
+  useVirtualAccountsAddressesOfSubAccount,
   type AllocateResult,
   type CreateSubAccountsResult,
   type DepositAndAllocateResult,
@@ -106,6 +107,8 @@ export {
   type UseUserSubAccountsAddressesReturnType,
   type UseUserSubAccountsParameters,
   type UseUserSubAccountsReturnType,
+  type UseVirtualAccountsAddressesOfSubAccountParameters,
+  type UseVirtualAccountsAddressesOfSubAccountReturnType,
 } from "./account-layer";
 
 /**
@@ -209,6 +212,25 @@ export {
   type UseOnchainContractMarketsParameters,
   type UseOnchainContractMarketsReturnType,
 } from "./markets";
+
+/**
+ * Quote hooks
+ * -----------
+ * Read open positions and quotes from the SYMMIO core. `usePartyAOpenPositions`
+ * returns full `Quote` structs; `usePartyAPendingQuotes` returns pending quote
+ * ids to hydrate with `useQuote`.
+ */
+export {
+  usePartyAOpenPositions,
+  usePartyAPendingQuotes,
+  useQuote,
+  type UsePartyAOpenPositionsParameters,
+  type UsePartyAOpenPositionsReturnType,
+  type UsePartyAPendingQuotesParameters,
+  type UsePartyAPendingQuotesReturnType,
+  type UseQuoteParameters,
+  type UseQuoteReturnType,
+} from "./quotes";
 
 /**
  * Locked params hooks

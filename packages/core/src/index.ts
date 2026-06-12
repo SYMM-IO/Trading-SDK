@@ -80,6 +80,9 @@ export {
   getUserSubAccountsAddressesQueryOptions,
   getUserSubAccountsQueryKey,
   getUserSubAccountsQueryOptions,
+  getVirtualAccountsAddressesOfSubAccount,
+  getVirtualAccountsAddressesOfSubAccountQueryKey,
+  getVirtualAccountsAddressesOfSubAccountQueryOptions,
   simulateCreateSubAccounts,
   simulateCreateSubAccountsMutationOptions,
   simulateDepositAndAllocateForAccount,
@@ -139,6 +142,12 @@ export {
   type GetUserSubAccountsQueryKey,
   type GetUserSubAccountsQueryOptions,
   type GetUserSubAccountsReturnType,
+  type GetVirtualAccountsAddressesOfSubAccountData,
+  type GetVirtualAccountsAddressesOfSubAccountOptions,
+  type GetVirtualAccountsAddressesOfSubAccountParameters,
+  type GetVirtualAccountsAddressesOfSubAccountQueryKey,
+  type GetVirtualAccountsAddressesOfSubAccountQueryOptions,
+  type GetVirtualAccountsAddressesOfSubAccountReturnType,
   type SimulateCreateSubAccountsParameters,
   type SimulateCreateSubAccountsReturnType,
   type SimulateDepositAndAllocateForAccountParameters,
@@ -240,6 +249,48 @@ export {
   type GetOnchainContractMarketsQueryOptions,
   type GetOnchainContractMarketsReturnType,
   type OnchainContractMarket,
+} from "./symmio-contracts/symmio";
+
+/**
+ * SYMMIO Core quote reads
+ * -----------------------
+ * On-chain reads of quotes and open positions from the SYMMIO core diamond.
+ * `getPartyAOpenPositions` returns full {@link Quote} structs; `getPartyAPendingQuotes`
+ * returns pending quote ids to hydrate one-by-one with `getQuote`.
+ */
+export {
+  OrderType,
+  PositionType,
+  QuoteStatus,
+  getPartyAOpenPositions,
+  getPartyAOpenPositionsQueryKey,
+  getPartyAOpenPositionsQueryOptions,
+  getPartyAPendingQuotes,
+  getPartyAPendingQuotesQueryKey,
+  getPartyAPendingQuotesQueryOptions,
+  getQuote,
+  getQuoteQueryKey,
+  getQuoteQueryOptions,
+  type GetPartyAOpenPositionsData,
+  type GetPartyAOpenPositionsOptions,
+  type GetPartyAOpenPositionsParameters,
+  type GetPartyAOpenPositionsQueryKey,
+  type GetPartyAOpenPositionsQueryOptions,
+  type GetPartyAOpenPositionsReturnType,
+  type GetPartyAPendingQuotesData,
+  type GetPartyAPendingQuotesOptions,
+  type GetPartyAPendingQuotesParameters,
+  type GetPartyAPendingQuotesQueryKey,
+  type GetPartyAPendingQuotesQueryOptions,
+  type GetPartyAPendingQuotesReturnType,
+  type GetQuoteData,
+  type GetQuoteOptions,
+  type GetQuoteParameters,
+  type GetQuoteQueryKey,
+  type GetQuoteQueryOptions,
+  type GetQuoteReturnType,
+  type LockedValues,
+  type Quote,
 } from "./symmio-contracts/symmio";
 
 /**

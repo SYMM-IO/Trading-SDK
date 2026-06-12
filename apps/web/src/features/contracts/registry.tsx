@@ -5,11 +5,15 @@ import { ReadCollateralAllowance } from "../inspector/read-collateral-allowance"
 import { ReadCollateralBalance } from "../inspector/read-collateral-balance";
 import { ReadDelegationReads } from "../inspector/read-delegation-reads";
 import { ReadFeeForUser } from "../inspector/read-fee-for-user";
+import { ReadGetPartyAOpenPositions } from "../inspector/read-get-party-a-open-positions";
+import { ReadGetPartyAPendingQuotes } from "../inspector/read-get-party-a-pending-quotes";
+import { ReadGetQuote } from "../inspector/read-get-quote";
 import { ReadGetSubAccount } from "../inspector/read-get-sub-account";
 import { ReadGetSubAccountVirtualNonce } from "../inspector/read-get-sub-account-virtual-nonce";
 import { ReadGetSubAccountsCountOfUser } from "../inspector/read-get-sub-accounts-count-of-user";
 import { ReadGetUserSubAccounts } from "../inspector/read-get-user-sub-accounts";
 import { ReadGetUserSubAccountsAddresses } from "../inspector/read-get-user-sub-accounts-addresses";
+import { ReadGetVirtualAccountsAddressesOfSubAccount } from "../inspector/read-get-virtual-accounts-addresses-of-sub-account";
 import { ReadGetWithdrawRequest } from "../inspector/read-get-withdraw-request";
 import { ReadLastWithdrawRequestId } from "../inspector/read-last-withdraw-request-id";
 import { ReadOnchainContractMarkets } from "../inspector/read-onchain-contract-markets";
@@ -30,7 +34,7 @@ import { WriteRequestCancelWithdraw } from "../inspector/write-request-cancel-wi
 export type AbiKey = "account-layer" | "symmio-core" | "collateral" | "instant-layer";
 
 /** Usability flow a method participates in. */
-export type GroupKey = "subaccounts" | "deposit" | "margin" | "withdraw" | "delegation";
+export type GroupKey = "subaccounts" | "deposit" | "margin" | "withdraw" | "delegation" | "positions";
 
 /** One registered method-exerciser card with its taxonomy. */
 export interface MethodEntry {
@@ -81,6 +85,13 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     Component: ReadGetUserSubAccountsAddresses,
   },
   {
+    id: "getVirtualAccountsAddressesOfSubAccount",
+    kind: "read",
+    abi: "account-layer",
+    groups: ["subaccounts", "positions"],
+    Component: ReadGetVirtualAccountsAddressesOfSubAccount,
+  },
+  {
     id: "getAccountBalanceOf",
     kind: "read",
     abi: "symmio-core",
@@ -107,6 +118,28 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     abi: "symmio-core",
     groups: [],
     Component: ReadOnchainContractMarkets,
+  },
+  // SYMMIO core — quotes & positions
+  {
+    id: "getPartyAOpenPositions",
+    kind: "read",
+    abi: "symmio-core",
+    groups: ["positions"],
+    Component: ReadGetPartyAOpenPositions,
+  },
+  {
+    id: "getPartyAPendingQuotes",
+    kind: "read",
+    abi: "symmio-core",
+    groups: ["positions"],
+    Component: ReadGetPartyAPendingQuotes,
+  },
+  {
+    id: "getQuote",
+    kind: "read",
+    abi: "symmio-core",
+    groups: ["positions"],
+    Component: ReadGetQuote,
   },
   {
     id: "createSubAccounts",
