@@ -1,10 +1,10 @@
-import axios, { isAxiosError } from "axios";
 import type { Address } from "viem";
 import type { Config } from "../../core/config";
-import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
+import { SymmError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import type { SingleUpnlSig } from "../../symmio-contracts/account-layer/types";
-import { MUON_APP, MUON_METHOD_UPNL, type MuonUpnlResponse, type MuonUpnlResult } from "../types";
+import { fetchMuon } from "../client";
+import { MUON_METHOD_UPNL_A, type MuonRawResult } from "../types";
 
 /**
  * Parameters for {@link getDeallocateUpnlSig}.
@@ -30,14 +30,14 @@ export type GetDeallocateUpnlSigReturnType = SingleUpnlSig;
  * @remarks
  * The attestation is timestamped and short-lived — fetch it immediately before
  * submitting `removeMargin`, not ahead of time. The `@symm-frontier/react`
- * `useRemoveMargin` hook does this for you.
+ * `useRemoveMargin` hook does this for you. For the raw, un-assembled attestation
+ * (all returned fields), use `getMuonUpnlA` instead.
  *
  * @param config - The SDK config.
  * @param parameters - Virtual account address and optional chain id.
  * @returns The assembled `SingleUpnlSig`.
- * @throws {SymmApiError} when every oracle request fails.
- * @throws {SymmError} when the chain is unsupported, every oracle returns an
- *   unsuccessful or malformed attestation, or no Muon URLs are configured.
+ * @throws {SymmError} when the chain is unsupported, no Muon URLs are configured,
+ *   or every oracle returns an unsuccessful or malformed attestation.
  *
  * @example
  * ```ts
@@ -50,70 +50,12 @@ export async function getDeallocateUpnlSig(
   parameters: GetDeallocateUpnlSigParameters,
 ): Promise<GetDeallocateUpnlSigReturnType> {
   const { chainId, addresses, muon } = config.getChainConfig(parameters.chainId);
-  return fetchDeallocateUpnlSig(muon.urls, parameters.virtualAccount, chainId, addresses.symmioAddress);
-}
-
-/**
- * GET the Muon `uPnl_A` attestation, trying each gateway URL in order until one
- * succeeds, then assemble the contract tuple.
- *
- * @internal
- */
-async function fetchDeallocateUpnlSig(
-  urls: readonly string[],
-  virtualAccount: Address,
-  chainId: number,
-  symmio: Address,
-): Promise<SingleUpnlSig> {
-  if (urls.length === 0) {
-    throw new SymmError("config", "MUON_URLS_NOT_CONFIGURED", "No Muon oracle URLs are configured for this chain.");
-  }
-
-  const params = {
-    app: MUON_APP,
-    method: MUON_METHOD_UPNL,
-    "params[partyA]": virtualAccount,
-    "params[chainId]": chainId.toString(),
-    "params[symmio]": symmio,
-  };
-
-  let lastError: unknown;
-
-  for (const baseURL of urls) {
-    try {
-      const response = await axios.get<MuonUpnlResponse>("", { baseURL, params });
-
-      if (!response.data.success) {
-        lastError = new SymmError(
-          "api",
-          "MUON_UPNL_SIG_UNSUCCESSFUL",
-          `Muon returned an unsuccessful uPnL attestation from ${baseURL}.`,
-        );
-        continue;
-      }
-
-      return toSingleUpnlSig(response.data.result);
-    } catch (err) {
-      if (err instanceof SymmError) {
-        lastError = err;
-        continue;
-      }
-      if (isAxiosError(err)) {
-        lastError = SymmApiError.fromAxios(err, { code: "FETCH_DEALLOCATE_UPNL_SIG_FAILED", baseURL });
-        continue;
-      }
-      lastError = err;
-    }
-  }
-
-  if (lastError instanceof SymmError) throw lastError;
-
-  throw new SymmError(
-    "api",
-    "FETCH_DEALLOCATE_UPNL_SIG_FAILED",
-    `Failed to fetch the Muon uPnL signature from all oracle URLs: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
-    { cause: lastError instanceof Error ? lastError : undefined },
-  );
+  const raw = await fetchMuon(muon.urls, MUON_METHOD_UPNL_A, {
+    partyA: parameters.virtualAccount,
+    chainId: chainId.toString(),
+    symmio: addresses.symmioAddress,
+  });
+  return toSingleUpnlSig(raw);
 }
 
 /**
@@ -123,7 +65,7 @@ async function fetchDeallocateUpnlSig(
  *
  * @internal
  */
-function toSingleUpnlSig(result: MuonUpnlResult): SingleUpnlSig {
+function toSingleUpnlSig(result: MuonRawResult): SingleUpnlSig {
   const sig = result.signatures[0];
 
   if (!sig) {
@@ -137,7 +79,7 @@ function toSingleUpnlSig(result: MuonUpnlResult): SingleUpnlSig {
   return {
     reqId: result.reqId,
     timestamp: BigInt(result.data.timestamp),
-    upnl: BigInt(result.data.result.uPnl),
+    upnl: BigInt(result.data.result.uPnl as string),
     gatewaySignature: result.nodeSignature,
     sigs: {
       signature: BigInt(sig.signature),
