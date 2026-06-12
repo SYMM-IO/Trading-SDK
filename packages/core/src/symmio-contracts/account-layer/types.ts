@@ -1,6 +1,52 @@
 import type { Address, Hex } from "viem";
 
 /**
+ * A single Schnorr signature produced by the Muon network's TSS, mirrored from
+ * the on-chain `ISymmio.SchnorrSign` struct field-for-field (same order).
+ *
+ * @remarks
+ * Both `owner` and `nonce` are `address` on-chain (not numbers) — `nonce` is the
+ * Muon nonce **address**, not a numeric nonce.
+ *
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/interfaces/ISymmio.sol}
+ */
+export interface SchnorrSign {
+  /** Aggregated Schnorr signature scalar. */
+  signature: bigint;
+  /** Signer (gateway) address. */
+  owner: Address;
+  /** Muon nonce address (an `address`, not a numeric nonce). */
+  nonce: Address;
+}
+
+/**
+ * A Muon uPnL attestation, mirrored from the on-chain `ISymmio.SingleUpnlSig`
+ * struct field-for-field (same order) so the object encodes directly as the
+ * contract tuple without translation.
+ *
+ * @remarks
+ * This is what {@link removeMargin} requires as its `upnlSig` argument: the
+ * contract verifies it to prove the virtual account stays solvent after the
+ * deallocation. Fetch a fresh one from the Muon service immediately before
+ * submitting — the attestation is timestamped and short-lived. Note there is
+ * **no** `price` field (this is the uPnL-only sig, not `SingleUpnlAndPriceSig`).
+ *
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/interfaces/ISymmio.sol}
+ */
+export interface SingleUpnlSig {
+  /** Muon request id (opaque bytes). */
+  reqId: Hex;
+  /** Attestation timestamp (seconds). */
+  timestamp: bigint;
+  /** Signed unrealized PnL of the party, `int256` (may be negative). */
+  upnl: bigint;
+  /** Muon gateway signature over the request (opaque bytes). */
+  gatewaySignature: Hex;
+  /** The Schnorr TSS signature pieces. */
+  sigs: SchnorrSign;
+}
+
+/**
  * Strategy the AccountLayer uses to create Virtual Accounts (VAs) for trades
  * placed through this subaccount.
  *

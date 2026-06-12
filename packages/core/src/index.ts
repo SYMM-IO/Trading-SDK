@@ -51,6 +51,8 @@ export {
  */
 export {
   SubAccountIsolationType,
+  addMargin,
+  addMarginMutationOptions,
   createSubAccounts,
   createSubAccountsMutationOptions,
   depositAndAllocateForAccount,
@@ -83,6 +85,10 @@ export {
   getVirtualAccountsAddressesOfSubAccount,
   getVirtualAccountsAddressesOfSubAccountQueryKey,
   getVirtualAccountsAddressesOfSubAccountQueryOptions,
+  removeMargin,
+  removeMarginMutationOptions,
+  simulateAddMargin,
+  simulateAddMarginMutationOptions,
   simulateCreateSubAccounts,
   simulateCreateSubAccountsMutationOptions,
   simulateDepositAndAllocateForAccount,
@@ -91,7 +97,11 @@ export {
   simulateDepositForAccountMutationOptions,
   simulateEditAccountName,
   simulateEditAccountNameMutationOptions,
+  simulateRemoveMargin,
+  simulateRemoveMarginMutationOptions,
   type AccountBalanceInfo,
+  type AddMarginParameters,
+  type AddMarginReturnType,
   type CreateSubAccountsParameters,
   type CreateSubAccountsReturnType,
   type DepositAndAllocateForAccountParameters,
@@ -148,6 +158,11 @@ export {
   type GetVirtualAccountsAddressesOfSubAccountQueryKey,
   type GetVirtualAccountsAddressesOfSubAccountQueryOptions,
   type GetVirtualAccountsAddressesOfSubAccountReturnType,
+  type RemoveMarginParameters,
+  type RemoveMarginReturnType,
+  type SchnorrSign,
+  type SimulateAddMarginParameters,
+  type SimulateAddMarginReturnType,
   type SimulateCreateSubAccountsParameters,
   type SimulateCreateSubAccountsReturnType,
   type SimulateDepositAndAllocateForAccountParameters,
@@ -156,6 +171,9 @@ export {
   type SimulateDepositForAccountReturnType,
   type SimulateEditAccountNameParameters,
   type SimulateEditAccountNameReturnType,
+  type SimulateRemoveMarginParameters,
+  type SimulateRemoveMarginReturnType,
+  type SingleUpnlSig,
   type SubAccountCreationData,
   type SubAccountDetail,
 } from "./symmio-contracts/account-layer";
@@ -409,6 +427,7 @@ export {
   listSupportedChains,
   type SymmioChainConfig,
   type SymmioContractAddresses,
+  type SymmioMuonConfig,
   type SymmioPriceServiceConfig,
   type SymmioPriceServiceType,
   type SymmioSolverConfig,
@@ -511,6 +530,29 @@ export {
   type GetLockedParamsReturnType,
   type SolverLockedParams,
 } from "./solvers/locked-params";
+
+/**
+ * Muon oracle service
+ * -------------------
+ * Fetch the Muon `uPnl_A` attestation `removeMargin` requires, assembled into a
+ * contract-ready `SingleUpnlSig`. The gateway is a query-param REST endpoint
+ * with no OpenAPI spec, so its request/response types are hand-written.
+ */
+export {
+  MUON_APP,
+  MUON_METHOD_UPNL,
+  getDeallocateUpnlSig,
+  getDeallocateUpnlSigQueryKey,
+  getDeallocateUpnlSigQueryOptions,
+  type GetDeallocateUpnlSigData,
+  type GetDeallocateUpnlSigOptions,
+  type GetDeallocateUpnlSigParameters,
+  type GetDeallocateUpnlSigQueryKey,
+  type GetDeallocateUpnlSigQueryOptions,
+  type GetDeallocateUpnlSigReturnType,
+  type MuonUpnlResponse,
+  type MuonUpnlResult,
+} from "./muon";
 
 /**
  * Shared types & query helpers

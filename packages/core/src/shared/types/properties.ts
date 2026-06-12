@@ -71,5 +71,13 @@ export type ExactPartial<type> = {
 /**
  * Recursive `Partial`. Used for per-chain config overrides passed to
  * {@link createConfig}, where a consumer may override a single nested address.
+ *
+ * Arrays are treated as leaves: an array-valued field stays optional but its
+ * element type is left untouched (no `| undefined` is injected into items), so
+ * an overriding array is replaced wholesale rather than partially patched.
  */
-export type DeepPartial<type> = type extends object ? { [key in keyof type]?: DeepPartial<type[key]> } : type;
+export type DeepPartial<type> = type extends readonly unknown[]
+  ? type
+  : type extends object
+    ? { [key in keyof type]?: DeepPartial<type[key]> }
+    : type;

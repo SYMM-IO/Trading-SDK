@@ -54,6 +54,21 @@ export interface SymmioPriceServiceConfig {
 }
 
 /**
+ * Muon oracle configuration for a SYMMIO chain deployment.
+ *
+ * The Muon network signs off-chain values (e.g. a party's unrealized PnL) that
+ * the contracts verify on-chain — `removeMargin` requires such a signature. The
+ * gateway is a query-param REST endpoint with no OpenAPI spec; `urls` are tried
+ * in order until one returns a successful attestation.
+ *
+ * @see {@link https://docs.symm.io/api-endpoints-and-deployments/muon-api}
+ */
+export interface SymmioMuonConfig {
+  /** Muon oracle gateway base URLs, tried in order (fallback on failure). */
+  urls: readonly string[];
+}
+
+/**
  * Complete resolved configuration for a SYMMIO chain deployment.
  */
 export interface SymmioChainConfig {
@@ -67,4 +82,6 @@ export interface SymmioChainConfig {
   solver: SymmioSolverConfig;
   /** Price-service configuration */
   priceService: SymmioPriceServiceConfig;
+  /** Muon oracle configuration */
+  muon: SymmioMuonConfig;
 }
