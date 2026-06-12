@@ -12,9 +12,11 @@ interface Props {
 
 /**
  * Renders a single Contracts sub-page: the methods belonging to one ABI or flow,
- * split into Reads and Writes. A wallet panel appears only when the page has
- * write methods (a connected wallet to act with). Contents are derived from the
- * shared method registry via the page's slug.
+ * split into Reads and Writes, beneath a wallet panel. The connection is used by
+ * writes to send and by reads to derive partyA / subaccount inputs from the
+ * connected address, so the panel appears on every page — including read-only
+ * flows like Positions. Contents are derived from the shared method registry via
+ * the page's slug.
  */
 export function ContractMethodsShell({ slug }: Props) {
   const page = getContractPage(slug);
@@ -36,7 +38,7 @@ export function ContractMethodsShell({ slug }: Props) {
 
       <PageHeader eyebrow={`Contracts · ${page.eyebrow}`} title={page.title} description={page.description} />
 
-      {writes.length > 0 ? <WalletPanel /> : null}
+      <WalletPanel />
 
       {reads.length > 0 ? (
         <MethodGroup label="Reads" count={reads.length} fullWidth={page.fullWidth}>

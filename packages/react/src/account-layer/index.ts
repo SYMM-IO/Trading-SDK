@@ -15,3 +15,4 @@ export * from "./use-sub-account-virtual-nonce";
 export * from "./use-sub-accounts-count-of-user";
 export * from "./use-user-sub-accounts";
 export * from "./use-user-sub-accounts-addresses";
+export * from "./use-virtual-accounts-addresses-of-sub-account";
