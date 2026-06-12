@@ -24,6 +24,7 @@ import { WriteAddMargin } from "../inspector/write-add-margin";
 import { WriteAllocate } from "../inspector/write-allocate";
 import { WriteApproveCollateral } from "../inspector/write-approve-collateral";
 import { WriteCreateSubAccounts } from "../inspector/write-create-sub-accounts";
+import { WriteDeleteSubAccount } from "../inspector/write-delete-sub-account";
 import { WriteDeposit } from "../inspector/write-deposit";
 import { WriteDepositAndAllocate } from "../inspector/write-deposit-and-allocate";
 import { WriteEditAccountName } from "../inspector/write-edit-account-name";
@@ -157,6 +158,13 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     abi: "account-layer",
     groups: ["subaccounts"],
     Component: WriteEditAccountName,
+  },
+  {
+    id: "deleteSubAccount",
+    kind: "write",
+    abi: "account-layer",
+    groups: ["subaccounts"],
+    Component: WriteDeleteSubAccount,
   },
   // InstantLayer — delegation
   {

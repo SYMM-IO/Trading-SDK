@@ -22,6 +22,13 @@ interface Props {
   invalid?: boolean;
   /** Owner whose subaccounts populate the picker. Defaults to the connected wallet. */
   owner?: Address;
+  /**
+   * Which rows are selectable as the field value. `"both"` (default) lets the
+   * user pick the subaccount itself or any of its VAs — a true partyA. `"va"`
+   * makes only Virtual Accounts selectable; subaccount rows become expandable
+   * groups used purely to reach their VAs.
+   */
+  selectable?: "both" | "va";
 }
 
 type PartyAKind = "sub" | "va";
@@ -31,7 +38,8 @@ type PartyAKind = "sub" | "va";
  * of its Virtual Accounts (VibeCaps). The picker lists the owner's subaccounts as
  * expandable groups; expanding a subaccount lazily loads its VA addresses so the
  * user can select the subaccount itself or any of its VAs. A pasted/typed address
- * is still accepted directly.
+ * is still accepted directly. Pass `selectable="va"` to restrict selection to
+ * Virtual Accounts only (see {@link VirtualAccountField}).
  */
 export function PartyAField({
   idPrefix,
@@ -42,6 +50,7 @@ export function PartyAField({
   placeholder = "0x…",
   invalid,
   owner,
+  selectable = "both",
 }: Props) {
   const { address } = useWalletAccount();
   const effectiveOwner = owner ?? address;
@@ -159,6 +168,7 @@ export function PartyAField({
                     subAccount={sub.accountAddress}
                     value={value}
                     search={term}
+                    selectable={selectable}
                     expanded={expanded.has(sub.accountAddress)}
                     onToggle={() => toggle(sub.accountAddress)}
                     onSelect={selectValue}
@@ -197,6 +207,7 @@ function SubAccountGroup({
   subAccount,
   value,
   search,
+  selectable,
   expanded,
   onToggle,
   onSelect,
@@ -206,12 +217,14 @@ function SubAccountGroup({
   subAccount: Address;
   value: string;
   search: string;
+  selectable: "both" | "va";
   expanded: boolean;
   onToggle: () => void;
   onSelect: (addr: string, kind: PartyAKind, parent?: string) => void;
 }) {
   const normalizedValue = value.trim().toLowerCase();
   const subSelected = subAccount.toLowerCase() === normalizedValue;
+  const subSelectable = selectable === "both";
 
   const vaQuery = useVirtualAccountsAddressesOfSubAccount({ subAccount, query: { enabled: expanded } });
   const vas = useMemo(() => vaQuery.data ?? [], [vaQuery.data]);
@@ -225,9 +238,10 @@ function SubAccountGroup({
       <div className="flex items-stretch gap-1">
         <button
           type="button"
-          data-testid={`${idPrefix}-sub-select`}
+          data-testid={subSelectable ? `${idPrefix}-sub-select` : `${idPrefix}-sub-expand`}
           data-sub-address={subAccount}
-          onClick={() => onSelect(subAccount, "sub", name)}
+          aria-expanded={subSelectable ? undefined : expanded}
+          onClick={subSelectable ? () => onSelect(subAccount, "sub", name) : onToggle}
           className="hover:bg-muted/60 focus-visible:bg-muted/60 flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition-colors outline-none"
         >
           <span className="flex min-w-0 items-center gap-2">
@@ -237,7 +251,7 @@ function SubAccountGroup({
               <span className="text-muted-foreground mt-0.5 block font-mono text-xs">{shortenAddress(subAccount)}</span>
             </span>
           </span>
-          {subSelected ? <CheckIcon className="text-primary size-4 shrink-0" /> : null}
+          {subSelectable && subSelected ? <CheckIcon className="text-primary size-4 shrink-0" /> : null}
         </button>
 
         <button
@@ -260,7 +274,13 @@ function SubAccountGroup({
             <p className="text-destructive px-2.5 py-2 text-xs">{vaQuery.error.message}</p>
           ) : vas.length === 0 ? (
             <p className="text-muted-foreground px-2.5 py-2 text-xs">
-              No virtual accounts — select the subaccount itself as <span className="text-foreground">partyA</span>.
+              {selectable === "va" ? (
+                "No virtual accounts for this subaccount."
+              ) : (
+                <>
+                  No virtual accounts — select the subaccount itself as <span className="text-foreground">partyA</span>.
+                </>
+              )}
             </p>
           ) : visibleVas.length === 0 ? (
             <p className="text-muted-foreground px-2.5 py-2 text-xs">No VAs match this search.</p>
