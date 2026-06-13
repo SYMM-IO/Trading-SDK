@@ -61,6 +61,24 @@ export interface SimulateBeforeWriteParameter {
 }
 
 /**
+ * Standard mixin set every on-chain write action accepts.
+ *
+ * Bundles the three mixins every write supports — optional chain id, optional
+ * signer/from override, and the dry-run opt-out — into one alias so an action's
+ * parameter type stays focused on its action-specific fields:
+ *
+ * ```ts
+ * export type DepositForAccountParameters = Compute<
+ *   WriteContractParameter & {
+ *     account: Address;
+ *     amount: bigint;
+ *   }
+ * >;
+ * ```
+ */
+export type WriteContractParameter = ChainIdParameter & FromParameter & SimulateBeforeWriteParameter;
+
+/**
  * Like `Partial<T>`, but each property is also explicitly `| undefined`. Used
  * for query-options shapes where every action parameter becomes optional.
  */

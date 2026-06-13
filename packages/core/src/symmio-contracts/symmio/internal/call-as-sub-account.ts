@@ -25,12 +25,12 @@ import { simulateCallAsSubAccount } from "./simulate-call-as-sub-account";
  */
 export async function callAsSubAccount(
   config: Config,
-  parameters: { account: Address; data: Hex; chainId?: number; simulateBeforeWrite?: boolean },
+  parameters: { account: Address; data: Hex; chainId?: number; from?: Address; simulateBeforeWrite?: boolean },
 ): Promise<Hash> {
-  const { account, data, chainId } = parameters;
+  const { account, data, chainId, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
-  const walletClient = await config.getWalletClient({ chainId });
+  const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
     await simulateCallAsSubAccount(config, { account, data, chainId, from: walletClient.account.address });

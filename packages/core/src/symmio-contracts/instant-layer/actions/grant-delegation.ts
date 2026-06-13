@@ -1,6 +1,6 @@
 import type { Address, Hash, Hex } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { instantLayerAbi } from "../../abi/v0.8.5/instant-layer";
 import type { InstantLayerAccount } from "../types";
@@ -10,8 +10,7 @@ import { simulateGrantDelegation } from "./simulate-grant-delegation";
  * Parameters for {@link grantDelegation}.
  */
 export type GrantDelegationParameters = Compute<
-  ChainIdParameter &
-    SimulateBeforeWriteParameter & {
+  WriteContractParameter & {
       /** Account that grants the delegation. The wallet must own this account. */
       account: InstantLayerAccount;
       /** Signer that may call the selected Instant Layer functions. */
@@ -55,10 +54,10 @@ export async function grantDelegation(
   config: Config,
   parameters: GrantDelegationParameters,
 ): Promise<GrantDelegationReturnType> {
-  const { chainId, account, delegatedSigner, selectors, expiryTimestamp } = parameters;
+  const { chainId, account, delegatedSigner, selectors, expiryTimestamp, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
-  const walletClient = await config.getWalletClient({ chainId });
+  const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
     await simulateGrantDelegation(config, {

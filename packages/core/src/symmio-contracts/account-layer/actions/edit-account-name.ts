@@ -1,6 +1,6 @@
 import type { Address, Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
 import { simulateEditAccountName } from "./simulate-edit-account-name";
@@ -9,8 +9,7 @@ import { simulateEditAccountName } from "./simulate-edit-account-name";
  * Parameters for {@link editAccountName}.
  */
 export type EditAccountNameParameters = Compute<
-  ChainIdParameter &
-    SimulateBeforeWriteParameter & {
+  WriteContractParameter & {
       /**
        * The SYMMIO subaccount address being renamed. The wallet's signing account
        * must be the subaccount's on-chain `owner`; the contract reverts otherwise.
@@ -48,10 +47,10 @@ export async function editAccountName(
   config: Config,
   parameters: EditAccountNameParameters,
 ): Promise<EditAccountNameReturnType> {
-  const { chainId, account, name } = parameters;
+  const { chainId, account, name, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
-  const walletClient = await config.getWalletClient({ chainId });
+  const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
     await simulateEditAccountName(config, { chainId, account, name, from: walletClient.account.address });

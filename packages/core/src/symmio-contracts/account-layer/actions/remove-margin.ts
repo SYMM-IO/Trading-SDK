@@ -1,6 +1,6 @@
 import type { Address, Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
 import type { SingleUpnlSig } from "../types";
@@ -10,8 +10,7 @@ import { simulateRemoveMargin } from "./simulate-remove-margin";
  * Parameters for {@link removeMargin}.
  */
 export type RemoveMarginParameters = Compute<
-  ChainIdParameter &
-    SimulateBeforeWriteParameter & {
+  WriteContractParameter & {
       /**
        * The virtual account (VA) to remove margin from. The connected wallet must
        * be the VA's on-chain owner; the contract reverts (`onlyAccountOwner`) otherwise.
@@ -70,10 +69,10 @@ export async function removeMargin(
   config: Config,
   parameters: RemoveMarginParameters,
 ): Promise<RemoveMarginReturnType> {
-  const { chainId, virtualAccount, amount, upnlSig } = parameters;
+  const { chainId, virtualAccount, amount, upnlSig, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
-  const walletClient = await config.getWalletClient({ chainId });
+  const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
     await simulateRemoveMargin(config, {

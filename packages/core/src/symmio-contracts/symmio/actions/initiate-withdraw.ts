@@ -1,6 +1,6 @@
 import { encodeFunctionData, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.5/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 import type { WithdrawReceiverPart } from "../types";
@@ -9,8 +9,7 @@ import type { WithdrawReceiverPart } from "../types";
  * Parameters for {@link initiateWithdraw}.
  */
 export type InitiateWithdrawParameters = Compute<
-  ChainIdParameter &
-    SimulateBeforeWriteParameter & {
+  WriteContractParameter & {
       /**
        * The subaccount initiating the withdrawal. The call is routed through the
        * AccountLayer `_call` proxy so the core sees this subaccount as the caller;
@@ -88,6 +87,7 @@ export async function initiateWithdraw(
     account,
     data,
     chainId,
+    from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
   });
 }

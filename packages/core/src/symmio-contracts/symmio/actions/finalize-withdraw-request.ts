@@ -1,6 +1,6 @@
 import type { Address, Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { symmioAbi } from "../../abi/v0.8.5/symmio";
 import { simulateFinalizeWithdrawRequest } from "./simulate-finalize-withdraw-request";
@@ -9,8 +9,7 @@ import { simulateFinalizeWithdrawRequest } from "./simulate-finalize-withdraw-re
  * Parameters for {@link finalizeWithdrawRequest}.
  */
 export type FinalizeWithdrawRequestParameters = Compute<
-  ChainIdParameter &
-    SimulateBeforeWriteParameter & {
+  WriteContractParameter & {
       /** The subaccount that owns the request (the request's on-chain `user`). */
       user: Address;
       /** Id of the withdraw request to finalize. */
@@ -49,10 +48,10 @@ export async function finalizeWithdrawRequest(
   config: Config,
   parameters: FinalizeWithdrawRequestParameters,
 ): Promise<FinalizeWithdrawRequestReturnType> {
-  const { chainId, user, requestId } = parameters;
+  const { chainId, user, requestId, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
-  const walletClient = await config.getWalletClient({ chainId });
+  const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
     await simulateFinalizeWithdrawRequest(config, { chainId, user, requestId, from: walletClient.account.address });

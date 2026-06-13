@@ -1,6 +1,6 @@
 import type { Address, Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
 import { simulateDepositAndAllocateForAccount } from "./simulate-deposit-and-allocate-for-account";
@@ -9,8 +9,7 @@ import { simulateDepositAndAllocateForAccount } from "./simulate-deposit-and-all
  * Parameters for {@link depositAndAllocateForAccount}.
  */
 export type DepositAndAllocateForAccountParameters = Compute<
-  ChainIdParameter &
-    SimulateBeforeWriteParameter & {
+  WriteContractParameter & {
       /**
        * The subaccount (or virtual account) to credit and allocate for. The wallet's
        * signing account must be the subaccount's on-chain `owner`; the contract
@@ -62,10 +61,10 @@ export async function depositAndAllocateForAccount(
   config: Config,
   parameters: DepositAndAllocateForAccountParameters,
 ): Promise<DepositAndAllocateForAccountReturnType> {
-  const { chainId, account, amount } = parameters;
+  const { chainId, account, amount, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
-  const walletClient = await config.getWalletClient({ chainId });
+  const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
     await simulateDepositAndAllocateForAccount(config, {

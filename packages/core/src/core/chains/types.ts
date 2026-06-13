@@ -27,14 +27,18 @@ export interface SymmioSubgraphUrls {
 }
 
 /**
- * Solver configuration for a SYMMIO chain deployment.
+ * Solver / hedger configuration for a SYMMIO chain deployment.
+ *
+ * In this SDK a "solver" is the same actor that fronts the lowcap hedger REST
+ * API (`/instant_trade/instant_open`, `/contract-symbols`, …) and acts as
+ * `partyB` on-chain. Its `url` is the API base URL, its `address` is partyB.
  */
 export interface SymmioSolverConfig {
   /** Human-readable solver name */
   name: string;
-  /** Solver's on-chain address */
+  /** Solver's on-chain address (used as `partyB` in `sendQuoteWithAffiliateAndData`) */
   address: Address;
-  /** Solver API base URL for fetching markets */
+  /** Solver / hedger API base URL */
   url: string;
 }
 
@@ -78,7 +82,7 @@ export interface SymmioChainConfig {
   addresses: SymmioContractAddresses;
   /** Subgraph endpoints */
   subgraphs: SymmioSubgraphUrls;
-  /** Solver configuration */
+  /** Solver / hedger configuration */
   solver: SymmioSolverConfig;
   /** Price-service configuration */
   priceService: SymmioPriceServiceConfig;

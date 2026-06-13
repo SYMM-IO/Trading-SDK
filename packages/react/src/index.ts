@@ -26,6 +26,8 @@ export {
   type SymmioProviderProps,
   type UseSymmioConfigParameters,
 } from "./provider";
+export { OrderType, PositionType, QuoteStatus, SymmError, SymmApiError, type SymmErrorKind } from "@symm-frontier/core";
+export type { GetWalletClientFn, SymmioWalletClient } from "@symm-frontier/core";
 
 /**
  * Wallet
@@ -172,6 +174,8 @@ export {
 export {
   useDelegationExpiry,
   useGrantDelegation,
+  useInstantOpen,
+  useInstantOpenAuto,
   useIsDelegationActive,
   useSimulateGrantDelegation,
   type GrantDelegationResult,
@@ -179,6 +183,10 @@ export {
   type UseDelegationExpiryReturnType,
   type UseGrantDelegationParameters,
   type UseGrantDelegationReturnType,
+  type UseInstantOpenAutoParameters,
+  type UseInstantOpenAutoReturnType,
+  type UseInstantOpenParameters,
+  type UseInstantOpenReturnType,
   type UseIsDelegationActiveParameters,
   type UseIsDelegationActiveReturnType,
   type UseSimulateGrantDelegationParameters,

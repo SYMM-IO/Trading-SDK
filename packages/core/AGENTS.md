@@ -29,22 +29,30 @@ This package follows **wagmi's shape**: a single immutable config, passed as the
 - **ABI fragments live under `src/abi/<version>/`.** The current version is `v0.8.5`. When we support a second version, add a sibling folder and route via the registry.
 - **Address registry lives under `src/chains/`** — one file per contract family (e.g. `account-layer-addresses.ts`).
 - **Config & shared helpers live at `src/` root:** `config/` (`createConfig`, `Config`, chain-config merge), `types/properties.ts` (parameter-helper types — `ChainIdParameter`, `Compute`, …), `types/query.ts` (`QueryParameter`, `SymmioQueryOptions`), and `query/utils.ts` (`filterQueryOptions`).
-- **Domain code lives under `src/<domain>/`** with this layout per slice:
+- **Domain code lives under `src/<domain>/` with one folder per action.** Each action is a self-contained unit: action function, its TanStack option factory, any private sub-units (helpers, resolvers), and the action's `index.ts` barrel. Shared utilities used by ≥2 actions live at slice root.
 
   ```
   <domain>/
-    actions/
-      <kebab-case-action-name>.ts          ← one file per action: getX(config, params) / doX(config, params)
-      <kebab-case-action-name>.test.ts
-    query/
-      <kebab-case-action-name>.ts          ← getXQueryOptions / xMutationOptions + getXQueryKey for that action
-      <kebab-case-action-name>.test.ts
-    types.ts                                 ← shared types/enums for the slice
-    index.ts                                 ← slice barrel (export * from ./actions/*; ./query/*; ./types)
+    <action-name>/                            ← one folder per action (kebab-case)
+      <action-name>.ts                        ← getX(config, params) / doX(config, params)
+      <action-name>.test.ts
+      query.ts                                ← getXQueryOptions / xMutationOptions + getXQueryKey
+      query.test.ts
+      <sub-units>/                            ← optional — private helpers scoped to this action
+        <helper>.ts
+        <helper>.test.ts
+        index.ts
+      index.ts                                ← action-folder barrel (export * from "./<action-name>"; "./query"; …)
+    <shared-utility>.ts                       ← optional — utilities used by ≥2 actions in this slice
+    <shared-utility>.test.ts
+    types.ts                                  ← shared types/enums for the slice
+    index.ts                                  ← slice barrel (export * from each action-folder + shared utilities + ./types)
   ```
 
-  - One file per action (read or write). Its matching `query/` file holds the action's TanStack option factory and query-key builder.
-  - Reads use `config.getClient`; writes use `config.getWalletClient`. There is no `reads/` vs `writes/` folder split — the action's signature makes its kind clear.
+  - One folder per action (read or write). Reads use `config.getClient`; writes use `config.getWalletClient`. The action signature makes its kind clear — no `reads/` vs `writes/` split.
+  - **Do not** split actions into a slice-wide `actions/` + `query/` folder pair (the legacy pattern). Group everything an action owns inside its own folder; share via slice-root files.
+  - Private helpers (resolvers, calldata encoders, signing wrappers) that serve a single action live inside that action's folder. When the same helper is shared by ≥2 actions, lift it to the slice root.
+  - Reference layout: `src/solvers/instant-open/` (one folder per `instant-open`, `prepare-instant-open-params`, `instant-open-auto`; shared `calldata.ts`, `eip712.ts`, `operations.ts`, `hedger-api.ts`, `trade-math.ts`, `types.ts` at slice root).
 
 - **Barrel re-export style:** `src/index.ts` (the package root) uses **explicit named re-exports** to curate the public surface. Every barrel below it (slice `index.ts`) uses `export *` — the package root is the boundary, the lower barrels are plumbing.
 - **Unit tests are colocated** (`foo.ts` ↔ `foo.test.ts`). Build a stub `Config` with `src/test/mock-config.ts` (its `getClient` / `getWalletClient` return `vi.fn()`-backed viem clients) — no real network in unit tests.

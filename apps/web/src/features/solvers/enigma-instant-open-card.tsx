@@ -1,18 +1,29 @@
 "use client";
 
 import { Field } from "@/components/field";
-import { ResultNote } from "@/components/result";
+import { ResultError, ResultNote } from "@/components/result";
 import { formatUsd } from "@/lib/format";
-import { useAccountBalanceOf, useMarkets } from "@symm-frontier/react";
+import {
+  PositionType,
+  useAccountBalanceOf,
+  useEnigmaPriceServicePricesByNames,
+  useFeeForUser,
+  useInstantOpenAuto,
+  useLockedParams,
+  useMarkets,
+} from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
 import { MarketSelect, type MarketSelectItem } from "@symm-frontier/ui/components/market-select";
+import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { cn } from "@symm-frontier/ui/lib/utils";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Address } from "viem";
 import { MethodCard } from "../inspector/method-card";
 import { SubAccountPicker } from "../inspector/subaccount-picker";
+import { useSessionKey } from "../session-keys/use-session-key";
 
 type Market = NonNullable<ReturnType<typeof useMarkets>["data"]>[number];
 type TradeSide = "long" | "short";
@@ -37,9 +48,7 @@ export function EnigmaInstantOpenCard() {
   const [initialMargin, setInitialMargin] = useState("");
   const [leverage, setLeverage] = useState(1);
   const [slippage, setSlippage] = useState("5");
-  const balanceQuery = useAccountBalanceOf({
-    account: selectedAccount.subAccount,
-  });
+  const balanceQuery = useAccountBalanceOf({ account: selectedAccount.subAccount });
 
   const selectedMarket = useMemo(
     () => markets.find((market) => String(market.symbol_id) === marketId),
@@ -49,17 +58,83 @@ export function EnigmaInstantOpenCard() {
   const validInitialMargin = parsePositiveNumber(initialMargin);
   const validSlippage = parseNonNegativeNumber(slippage);
   const notional = validInitialMargin === undefined ? undefined : validInitialMargin * leverage;
+  const marketName = selectedMarket?.name;
 
   useEffect(() => {
     setLeverage((current) => clampLeverage(current, maxLeverage));
   }, [maxLeverage]);
+
+  const priceQuery = useEnigmaPriceServicePricesByNames({
+    names: marketName ? [marketName] : [],
+    query: { enabled: Boolean(marketName), staleTime: 5_000 },
+  });
+
+  const lockedParamsQuery = useLockedParams({
+    symbol: marketName ?? "",
+    leverage,
+    query: { enabled: Boolean(marketName) && leverage > 0, staleTime: 30_000 },
+  });
+
+  const feeQuery = useFeeForUser({
+    user: selectedAccount.subAccount ?? "0x0000000000000000000000000000000000000000",
+    symbolId: selectedMarket?.symbol_id !== undefined ? BigInt(selectedMarket.symbol_id) : 0n,
+    query: { enabled: Boolean(selectedAccount.subAccount && selectedMarket?.symbol_id), staleTime: 30_000 },
+  });
+
+  const mutation = useInstantOpenAuto();
+  const { sessionKeyAddress, owner: sessionKeyOwner } = useSessionKey();
+
+  const readyChecks = {
+    market: Boolean(selectedMarket && marketName),
+    account: Boolean(selectedAccount.subAccount),
+    margin: validInitialMargin !== undefined,
+    slippage: validSlippage !== undefined,
+    session: Boolean(sessionKeyAddress),
+  };
+  const allReady = Object.values(readyChecks).every(Boolean);
+  const canSubmit = allReady && !mutation.isPending;
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    const cachedMarkPrice = marketName ? priceQuery.data?.[marketName]?.markPrice : undefined;
+    const cachedLocked = lockedParamsQuery.data;
+    const cachedFees = feeQuery.data;
+    if (
+      !selectedMarket ||
+      !marketName ||
+      !selectedAccount.subAccount ||
+      validInitialMargin === undefined ||
+      validSlippage === undefined ||
+      !sessionKeyAddress
+    ) {
+      return;
+    }
+
+    await mutation.mutateAsync({
+      subAccountAddress: selectedAccount.subAccount,
+      from: sessionKeyAddress,
+      market: {
+        id: Number(selectedMarket.symbol_id ?? 0),
+        name: marketName,
+        pricePrecision: Number(selectedMarket.price_precision ?? 0),
+        quantityPrecision: Number(selectedMarket.quantity_precision ?? 0),
+      },
+      positionType: side === "long" ? PositionType.LONG : PositionType.SHORT,
+      initialMargin,
+      leverage,
+      slippage: validSlippage,
+      lockedParamPercent: cachedLocked,
+      markPrice: cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined,
+      feeRates: cachedFees,
+    });
+  }
 
   return (
     <MethodCard
       testId="method-enigma-instant-open"
       name="instantOpen"
       mutability="nonpayable"
-      description="Prepare an Enigma instant open order with a selected market, trading account, margin, side, and leverage."
+      description="Open a lowcap instant position via the InstantLayer v2 flow."
       wide
     >
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
@@ -162,18 +237,116 @@ export function EnigmaInstantOpenCard() {
           leverage={leverage}
           slippage={validSlippage}
           notional={notional}
+          markPrice={marketName ? priceQuery.data?.[marketName]?.markPrice : undefined}
         />
       </div>
 
+      <SessionKeyRow address={sessionKeyAddress} owner={sessionKeyOwner} />
+
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" size="sm" disabled data-testid="button-enigma-instant-open-submit">
-          Send instant open
+        <Button
+          type="button"
+          size="sm"
+          disabled={!canSubmit}
+          onClick={() => void handleSubmit()}
+          data-testid="button-enigma-instant-open-submit"
+        >
+          {mutation.isPending ? (
+            <>
+              <Spinner className="size-4" /> Sending...
+            </>
+          ) : (
+            "Send instant open"
+          )}
         </Button>
-        <ResultNote testId="result-enigma-instant-open-idle">
-          Price, locked params, fee data, delegation, and signed operation submit are next.
-        </ResultNote>
+        <SubmitStatus ready={allReady} readyChecks={readyChecks} mutation={mutation} />
       </div>
     </MethodCard>
+  );
+}
+
+function SubmitStatus({
+  ready,
+  readyChecks,
+  mutation,
+}: {
+  ready: boolean;
+  readyChecks: Record<string, boolean>;
+  mutation: ReturnType<typeof useInstantOpenAuto>;
+}) {
+  if (mutation.isPending) {
+    return (
+      <ResultNote testId="result-enigma-instant-open-loading" loading>
+        Signing operations and submitting to hedger...
+      </ResultNote>
+    );
+  }
+  if (mutation.error) {
+    return (
+      <ResultError
+        testId="result-enigma-instant-open-error"
+        kind={mutation.error.kind}
+        message={mutation.error.message}
+      />
+    );
+  }
+  if (mutation.data?.success) {
+    const tempQuoteId = mutation.data.tempQuoteId ?? "(none)";
+    return (
+      <ResultNote testId="result-enigma-instant-open-success">
+        Submitted. tempQuoteId: <span className="font-mono">{tempQuoteId}</span>
+      </ResultNote>
+    );
+  }
+  if (!ready) {
+    const missing = Object.entries(readyChecks)
+      .filter(([, ok]) => !ok)
+      .map(([key]) => key)
+      .join(", ");
+    return (
+      <ResultNote testId="result-enigma-instant-open-idle">
+        Missing: <span className="font-mono">{missing}</span>
+      </ResultNote>
+    );
+  }
+  return <ResultNote testId="result-enigma-instant-open-ready">Ready to submit.</ResultNote>;
+}
+
+function SessionKeyRow({ address, owner }: { address: Address | null | undefined; owner: Address | undefined }) {
+  const ready = Boolean(address);
+
+  return (
+    <div
+      data-testid="enigma-instant-open-session-key"
+      className="border-border/70 bg-muted/20 flex flex-wrap items-center gap-3 rounded-xl border p-3 text-sm"
+    >
+      <span
+        className={cn("size-2 rounded-full", ready ? "bg-positive" : "bg-warning")}
+        aria-hidden
+      />
+      <span className="text-muted-foreground font-medium tracking-wide uppercase text-xs">sessionKey</span>
+      <Badge variant={ready ? "positive" : "warning"} className="tracking-wide uppercase">
+        {ready ? "ready" : "missing"}
+      </Badge>
+
+      {ready ? (
+        <span
+          className="text-foreground ml-auto max-w-[60%] truncate font-mono"
+          data-testid="enigma-instant-open-session-key-address"
+        >
+          {address}
+        </span>
+      ) : (
+        <span className="text-muted-foreground ml-auto inline-flex items-center gap-2">
+          {owner ? "Not initialized for the connected wallet." : "Connect a wallet to initialize."}
+          <Button asChild type="button" size="sm" variant="ghost" disabled={!owner}>
+            <Link href="/session-keys" data-testid="enigma-instant-open-session-key-init">
+              Initialize
+            </Link>
+          </Button>
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -219,6 +392,7 @@ function TradeDraftSummary({
   leverage,
   slippage,
   notional,
+  markPrice,
 }: {
   market?: Market;
   account?: Address;
@@ -227,6 +401,7 @@ function TradeDraftSummary({
   leverage: number;
   slippage?: number;
   notional?: number;
+  markPrice?: number;
 }) {
   return (
     <div className="border-border/70 bg-muted/20 flex flex-col gap-3 rounded-xl border p-4">
@@ -240,6 +415,11 @@ function TradeDraftSummary({
         value={market ? (market.symbol ?? market.name ?? String(market.symbol_id)) : "Not selected"}
       />
       <SummaryRow label="subaccount" value={account ?? "Not selected"} mono={Boolean(account)} />
+      <SummaryRow
+        label="markPrice"
+        value={markPrice === undefined ? "Not loaded" : formatUsdNumber(markPrice)}
+        mono={markPrice !== undefined}
+      />
       <SummaryRow
         label="initialMargin"
         value={initialMargin === undefined ? "0.00" : formatUsdNumber(initialMargin)}
