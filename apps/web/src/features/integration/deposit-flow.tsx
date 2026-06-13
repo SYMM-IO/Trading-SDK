@@ -24,6 +24,7 @@ import { SubaccountStep } from "./subaccount-step";
 interface Props {
   owner?: Address;
   subAccount?: Address;
+  subAccountName?: string;
   onSelectSubAccount: (account: Address) => void;
   decimals: number;
   balance: UseCollateralBalanceReturnType;
@@ -37,7 +38,7 @@ interface Props {
  * own step. The deposit step auto-detects whether an approval is still needed and
  * flips its action between Approve and Deposit.
  */
-export function DepositFlow({ owner, subAccount, onSelectSubAccount, decimals, balance, ready }: Props) {
+export function DepositFlow({ owner, subAccount, subAccountName, onSelectSubAccount, decimals, balance, ready }: Props) {
   const [step, setStep] = useState(0);
   const [amount, setAmount] = useState<string>("");
   const [allocate, setAllocate] = useState<boolean>(false);
@@ -80,7 +81,7 @@ export function DepositFlow({ owner, subAccount, onSelectSubAccount, decimals, b
     { label: "Connect wallet", hint: ready && owner ? shortenAddress(owner) : "Connect your wallet", done: ready },
     {
       label: "Select subaccount",
-      hint: subAccount ? shortenAddress(subAccount) : "Choose where to deposit",
+      hint: subAccount ? (subAccountName ?? shortenAddress(subAccount)) : "Choose where to deposit",
       done: Boolean(subAccount),
     },
     {

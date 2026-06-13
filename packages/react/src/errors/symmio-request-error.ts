@@ -11,6 +11,12 @@ export interface SymmioRequestErrorOptions {
   code?: string;
   /** HTTP status code. Only meaningful when `kind === "api"`. */
   status?: number;
+  /**
+   * Raw response body returned by the server. Only meaningful when `kind === "api"`.
+   * Forwarded verbatim from `SymmApiError.responseData` so the UI can render the
+   * server's structured error fields without unwrapping `cause`.
+   */
+  responseData?: unknown;
   /** Solidity revert reason. Only meaningful when `kind === "contract-revert"`. */
   reason?: string;
   /** viem's human-readable short message. Only meaningful when `kind === "rpc"`. */
@@ -39,6 +45,8 @@ export class SymmioRequestError extends Error {
   readonly code?: string;
   /** HTTP status code when `kind === "api"`. */
   readonly status?: number;
+  /** Raw response body returned by the server when `kind === "api"`. */
+  readonly responseData?: unknown;
   /** Solidity revert reason when `kind === "contract-revert"`. */
   readonly reason?: string;
   /** viem's short message when `kind === "rpc"`. */
@@ -49,6 +57,7 @@ export class SymmioRequestError extends Error {
     this.kind = options.kind;
     this.code = options.code;
     this.status = options.status;
+    this.responseData = options.responseData;
     this.reason = options.reason;
     this.shortMessage = options.shortMessage;
   }
