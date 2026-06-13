@@ -31,6 +31,7 @@ export function normalizeSymmError(err: unknown): SymmioRequestError {
       message: err.message,
       code: err.code,
       status: err.status,
+      responseData: err.responseData,
       cause: err,
     });
   }

@@ -2,15 +2,6 @@ import { parseEther, RoundingMode, toDecimal } from "@symm-frontier/utils/decima
 import { PositionType } from "./types";
 
 /**
- * Lowcap SHORT-side margin premium multiplier (10% premium on mark price).
- *
- * The lowcap isolation model bills SHORT positions at `markPrice × this` when
- * computing locked margin, to account for the asymmetric loss distribution on
- * lowcap markets.
- */
-export const SHORT_MARGIN_PREMIUM_MULTIPLIER = 1.1;
-
-/**
  * Unix-seconds remaining for a MARKET-order deadline (5 minutes).
  */
 export const MARKET_ORDER_DEADLINE_SECONDS = 300n;
@@ -181,7 +172,7 @@ export interface CalculateMarginParameters {
  * Compute the `addMargin` amount for lowcap isolation.
  *
  * - **LONG**: `margin = cva + lf + partyAmm + platformFee`.
- * - **SHORT**: recompute the locked values at `markPrice × SHORT_MARGIN_PREMIUM_MULTIPLIER`,
+ * - **SHORT**: recompute the locked values at `markPrice`,
  *   then sum + `platformFee`.
  *
  * @returns Margin as decimal string.
@@ -194,7 +185,7 @@ export function calculateMargin(parameters: CalculateMarginParameters): string {
     return toDecimal(cva).plus(lf).plus(partyAmm).plus(platformFee).toString();
   }
 
-  const marginPrice = toDecimal(markPrice).times(SHORT_MARGIN_PREMIUM_MULTIPLIER);
+  const marginPrice = toDecimal(markPrice);
   const notionalBasicMargin = toDecimal(quantityBasic).times(marginPrice).toString();
   const cvaMargin = toDecimal(notionalBasicMargin).times(toDecimal(cvaPercent)).div(100).toString();
   const lfMargin = toDecimal(notionalBasicMargin).times(toDecimal(lfPercent)).div(100).toString();

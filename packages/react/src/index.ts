@@ -26,7 +26,20 @@ export {
   type SymmioProviderProps,
   type UseSymmioConfigParameters,
 } from "./provider";
-export { OrderType, PositionType, QuoteStatus, SymmError, SymmApiError, type SymmErrorKind } from "@symm-frontier/core";
+export {
+  ADD_MARGIN_TO_NEXT_VA_SELECTOR,
+  INSTANT_TRADE_REQUIRED_SELECTORS,
+  OrderType,
+  PositionType,
+  QuoteStatus,
+  REQUEST_TO_CLOSE_POSITION_SELECTOR,
+  SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
+  SubAccountIsolationType,
+  SymmApiError,
+  SymmError,
+  type SubAccountCreationData,
+  type SymmErrorKind,
+} from "@symm-frontier/core";
 export type { GetWalletClientFn, SymmioWalletClient } from "@symm-frontier/core";
 
 /**

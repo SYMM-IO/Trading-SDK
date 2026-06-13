@@ -28,6 +28,7 @@ import { SubaccountStep } from "./subaccount-step";
 interface Props {
   owner?: Address;
   subAccount?: Address;
+  subAccountName?: string;
   onSelectSubAccount: (account: Address) => void;
   decimals: number;
   chainId?: number;
@@ -40,7 +41,7 @@ interface Props {
  * The withdraw step initiates a classic same-chain request, shows the cooldown
  * timing, and lists pending requests with inline finalize / cancel actions.
  */
-export function WithdrawFlow({ owner, subAccount, onSelectSubAccount, decimals, chainId, ready }: Props) {
+export function WithdrawFlow({ owner, subAccount, subAccountName, onSelectSubAccount, decimals, chainId, ready }: Props) {
   const [step, setStep] = useState(0);
   const [amount, setAmount] = useState<string>("");
   const [receiver, setReceiver] = useState<string>("");
@@ -74,7 +75,7 @@ export function WithdrawFlow({ owner, subAccount, onSelectSubAccount, decimals, 
     { label: "Connect wallet", hint: ready && owner ? shortenAddress(owner) : "Connect your wallet", done: ready },
     {
       label: "Select subaccount",
-      hint: subAccount ? shortenAddress(subAccount) : "Choose where to withdraw from",
+      hint: subAccount ? (subAccountName ?? shortenAddress(subAccount)) : "Choose where to withdraw from",
       done: Boolean(subAccount),
     },
     {

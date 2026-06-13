@@ -730,7 +730,6 @@ export {
   type SendInstantOpenReturnType,
   // trade math
   MARKET_ORDER_DEADLINE_SECONDS,
-  SHORT_MARGIN_PREMIUM_MULTIPLIER,
   calculateTradeParams,
   calculateMargin,
   computePlatformFee,
@@ -765,6 +764,11 @@ export {
   type ResolveMarkPriceParameters,
   type ResolvedLockedParams,
   type ResolvedMarket,
+  // selectors
+  ADD_MARGIN_TO_NEXT_VA_SELECTOR,
+  INSTANT_TRADE_REQUIRED_SELECTORS,
+  REQUEST_TO_CLOSE_POSITION_SELECTOR,
+  SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
   // types / constants
   ORDER_TYPE_MARKET,
   VIRTUAL_ACCOUNT_ISOLATION_TYPE,

@@ -47,7 +47,14 @@ export class SymmApiError extends SymmError {
   /** HTTP status text (e.g., "Bad Request", "Unauthorized"). */
   readonly statusText: string;
 
-  /** Response body from the server, if any. */
+  /**
+   * Raw response body from the server.
+   *
+   * For solver/hedger endpoints this is typically the documented
+   * `XfiberErrorResponse`-style payload: `{code?, error_category?,
+   * error_message?, error_detail?}`. Consumers cast it to the shape they expect
+   * and render whatever fields they care about.
+   */
   readonly responseData: unknown;
 
   /** Request URL that failed. */
