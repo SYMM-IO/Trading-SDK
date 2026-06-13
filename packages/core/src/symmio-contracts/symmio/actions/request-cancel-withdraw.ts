@@ -9,14 +9,14 @@ import { callAsSubAccount } from "../internal/call-as-sub-account";
  */
 export type RequestCancelWithdrawParameters = Compute<
   WriteContractParameter & {
-      /**
-       * The subaccount that owns the request. The call is routed through the
-       * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
-       */
-      account: Address;
-      /** Id of the withdraw request to cancel. */
-      requestId: bigint;
-    }
+    /**
+     * The subaccount that owns the request. The call is routed through the
+     * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
+     */
+    account: Address;
+    /** Id of the withdraw request to cancel. */
+    requestId: bigint;
+  }
 >;
 
 /** Return type of {@link requestCancelWithdraw}: the submitted transaction hash. */

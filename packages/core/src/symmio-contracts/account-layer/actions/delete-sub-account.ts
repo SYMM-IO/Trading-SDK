@@ -10,13 +10,13 @@ import { simulateDeleteSubAccount } from "./simulate-delete-sub-account";
  */
 export type DeleteSubAccountParameters = Compute<
   WriteContractParameter & {
-      /**
-       * The subaccount to delete. The bound wallet's signing account must be the
-       * subaccount's on-chain `owner`; the contract reverts (`onlyAccountOwner`)
-       * otherwise.
-       */
-      subAccount: Address;
-    }
+    /**
+     * The subaccount to delete. The bound wallet's signing account must be the
+     * subaccount's on-chain `owner`; the contract reverts (`onlyAccountOwner`)
+     * otherwise.
+     */
+    subAccount: Address;
+  }
 >;
 
 /** Return type of {@link deleteSubAccount}: the submitted transaction hash. */

@@ -10,14 +10,14 @@ import { simulateEditAccountName } from "./simulate-edit-account-name";
  */
 export type EditAccountNameParameters = Compute<
   WriteContractParameter & {
-      /**
-       * The SYMMIO subaccount address being renamed. The wallet's signing account
-       * must be the subaccount's on-chain `owner`; the contract reverts otherwise.
-       */
-      account: Address;
-      /** New display name. */
-      name: string;
-    }
+    /**
+     * The SYMMIO subaccount address being renamed. The wallet's signing account
+     * must be the subaccount's on-chain `owner`; the contract reverts otherwise.
+     */
+    account: Address;
+    /** New display name. */
+    name: string;
+  }
 >;
 
 /** Return type of {@link editAccountName}: the submitted transaction hash. */

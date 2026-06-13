@@ -9,13 +9,13 @@ import { simulateApproveCollateral } from "./simulate-approve-collateral";
  */
 export type ApproveCollateralParameters = Compute<
   WriteContractParameter & {
-      /**
-       * Allowance to grant, in the collateral token's smallest unit (e.g.
-       * `1_000000n` for 1 USDC at 6 decimals). Pass `maxUint256` to approve once and
-       * skip future approvals.
-       */
-      amount: bigint;
-    }
+    /**
+     * Allowance to grant, in the collateral token's smallest unit (e.g.
+     * `1_000000n` for 1 USDC at 6 decimals). Pass `maxUint256` to approve once and
+     * skip future approvals.
+     */
+    amount: bigint;
+  }
 >;
 
 /** Return type of {@link approveCollateral}: the submitted transaction hash. */

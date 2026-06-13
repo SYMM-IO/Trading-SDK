@@ -56,9 +56,7 @@ export function EnigmaInstantOpenCard() {
         />
       ) : (
         <ResultNote testId="enigma-instant-open-gate">
-          {!selectedAccount.subAccount
-            ? "Pick a subaccount to continue."
-            : "Initialize a session key to continue."}
+          {!selectedAccount.subAccount ? "Pick a subaccount to continue." : "Initialize a session key to continue."}
         </ResultNote>
       )}
     </MethodCard>

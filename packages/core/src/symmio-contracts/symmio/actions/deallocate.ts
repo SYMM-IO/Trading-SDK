@@ -10,24 +10,24 @@ import { callAsSubAccount } from "../internal/call-as-sub-account";
  */
 export type DeallocateParameters = Compute<
   WriteContractParameter & {
-      /**
-       * The subaccount to deallocate from. The call is routed through the
-       * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
-       */
-      account: Address;
-      /**
-       * Amount to move from the allocated balance back into the available balance,
-       * in **18 decimals** (not the collateral token's decimals).
-       */
-      amount: bigint;
-      /**
-       * A fresh Muon uPnL (`uPnl_A`) attestation for `account`. The contract
-       * verifies it to prove the subaccount stays solvent after the deallocation.
-       * Fetch one right before submitting (it is timestamped and short-lived) — see
-       * {@link getDeallocateUpnlSig}.
-       */
-      upnlSig: SingleUpnlSig;
-    }
+    /**
+     * The subaccount to deallocate from. The call is routed through the
+     * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
+     */
+    account: Address;
+    /**
+     * Amount to move from the allocated balance back into the available balance,
+     * in **18 decimals** (not the collateral token's decimals).
+     */
+    amount: bigint;
+    /**
+     * A fresh Muon uPnL (`uPnl_A`) attestation for `account`. The contract
+     * verifies it to prove the subaccount stays solvent after the deallocation.
+     * Fetch one right before submitting (it is timestamped and short-lived) — see
+     * {@link getDeallocateUpnlSig}.
+     */
+    upnlSig: SingleUpnlSig;
+  }
 >;
 
 /** Return type of {@link deallocate}: the submitted transaction hash. */

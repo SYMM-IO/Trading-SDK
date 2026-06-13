@@ -178,8 +178,18 @@ export interface CalculateMarginParameters {
  * @returns Margin as decimal string.
  */
 export function calculateMargin(parameters: CalculateMarginParameters): string {
-  const { positionType, markPrice, quantityBasic, cva, lf, partyAmm, cvaPercent, lfPercent, partyAmmPercent, platformFee } =
-    parameters;
+  const {
+    positionType,
+    markPrice,
+    quantityBasic,
+    cva,
+    lf,
+    partyAmm,
+    cvaPercent,
+    lfPercent,
+    partyAmmPercent,
+    platformFee,
+  } = parameters;
 
   if (positionType === PositionType.LONG) {
     return toDecimal(cva).plus(lf).plus(partyAmm).plus(platformFee).toString();

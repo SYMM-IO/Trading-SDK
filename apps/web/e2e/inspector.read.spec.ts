@@ -1,4 +1,15 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+/**
+ * Open the "Connect Wallet" modal and pick the mock connector. No-op if the
+ * trigger isn't visible (e.g. the wallet already auto-connected).
+ */
+async function connectMockWallet(page: Page) {
+  const trigger = page.getByTestId("connect-wallet");
+  if (!(await trigger.isVisible())) return;
+  await trigger.click();
+  await page.getByTestId("connect-mock").click();
+}
 
 test.describe("/inspector/account-layer · reads", () => {
   test("loads the Inspector shell and renders the wallet panel", async ({ page }) => {
@@ -11,14 +22,11 @@ test.describe("/inspector/account-layer · reads", () => {
     await page.goto("/inspector/account-layer");
 
     /**
-     * In E2E mode the wagmi config only registers the `mock` connector, so
-     * "Connect Mock Connector" is the sole connect button. Clicking it
-     * resolves immediately — no popup, no extension.
+     * The single "Connect Wallet" button opens a modal listing the connectors.
+     * In E2E mode the wagmi config only registers the `mock` connector, so the
+     * modal has one row — clicking it resolves immediately, no popup.
      */
-    const connectButton = page.getByTestId("connect-mock");
-    if (await connectButton.isVisible()) {
-      await connectButton.click();
-    }
+    await connectMockWallet(page);
 
     /**
      * `wallet-address` switches from "Not connected" to a shortened
@@ -30,10 +38,7 @@ test.describe("/inspector/account-layer · reads", () => {
   test("runs getUserSubAccounts against real Hyperliquid RPC and renders a result", async ({ page }) => {
     await page.goto("/inspector/account-layer");
 
-    const connectButton = page.getByTestId("connect-mock");
-    if (await connectButton.isVisible()) {
-      await connectButton.click();
-    }
+    await connectMockWallet(page);
 
     await page.getByTestId("button-read-subaccounts").click();
 

@@ -23,10 +23,7 @@ export interface ResolveMarketParameters {
  * @throws {SymmError} `INSTANT_OPEN_MARKET_METADATA_INCOMPLETE` when the
  *   solver record is missing required fields.
  */
-export async function resolveMarket(
-  config: Config,
-  parameters: ResolveMarketParameters,
-): Promise<ResolvedMarket> {
+export async function resolveMarket(config: Config, parameters: ResolveMarketParameters): Promise<ResolvedMarket> {
   const { marketName, pricePrecision, quantityPrecision } = parameters;
   if (marketName !== undefined && pricePrecision !== undefined && quantityPrecision !== undefined) {
     return { name: marketName, pricePrecision, quantityPrecision };
@@ -45,11 +42,7 @@ export async function resolveMarket(
   const name = marketName ?? match.name;
   const resolvedPricePrecision = pricePrecision ?? match.price_precision;
   const resolvedQuantityPrecision = quantityPrecision ?? match.quantity_precision;
-  if (
-    name === undefined ||
-    resolvedPricePrecision === undefined ||
-    resolvedQuantityPrecision === undefined
-  ) {
+  if (name === undefined || resolvedPricePrecision === undefined || resolvedQuantityPrecision === undefined) {
     throw new SymmError(
       "api",
       "INSTANT_OPEN_MARKET_METADATA_INCOMPLETE",

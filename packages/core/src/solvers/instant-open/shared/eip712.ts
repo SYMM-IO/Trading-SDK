@@ -53,10 +53,7 @@ export const INSTANT_LAYER_EIP712_DOMAIN_VERSION = "1" as const;
  * {@link INSTANT_LAYER_EIP712_DOMAIN_VERSION}). `verifyingContract` is the
  * chain's `instantLayerAddress`.
  */
-export function getInstantLayerEip712Domain(
-  config: Config,
-  options: { chainId?: number },
-): TypedDataDomain {
+export function getInstantLayerEip712Domain(config: Config, options: { chainId?: number }): TypedDataDomain {
   const chainConfig = config.getChainConfig(options.chainId);
   return {
     name: INSTANT_LAYER_EIP712_DOMAIN_NAME,

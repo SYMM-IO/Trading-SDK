@@ -24,9 +24,7 @@ export function getEnigmaPriceServicePricesByNamesQueryKey(
 }
 
 /** Query-key type produced by {@link getEnigmaPriceServicePricesByNamesQueryKey}. */
-export type GetEnigmaPriceServicePricesByNamesQueryKey = ReturnType<
-  typeof getEnigmaPriceServicePricesByNamesQueryKey
->;
+export type GetEnigmaPriceServicePricesByNamesQueryKey = ReturnType<typeof getEnigmaPriceServicePricesByNamesQueryKey>;
 
 /**
  * Options accepted by {@link getEnigmaPriceServicePricesByNamesQueryOptions}: the action's

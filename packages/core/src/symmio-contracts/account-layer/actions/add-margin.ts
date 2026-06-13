@@ -10,18 +10,18 @@ import { simulateAddMargin } from "./simulate-add-margin";
  */
 export type AddMarginParameters = Compute<
   WriteContractParameter & {
-      /**
-       * The virtual account (VA) to add margin to. The connected wallet must be
-       * the VA's on-chain owner; the contract reverts (`onlyAccountOwner`) otherwise.
-       */
-      virtualAccount: Address;
-      /**
-       * Amount to add, in **18 decimals** (the internal allocated-balance unit,
-       * not the collateral token's decimals). Moved from the parent subaccount's
-       * already-deposited balance into the VA; reverts with `ZeroAmount` when `0`.
-       */
-      amount: bigint;
-    }
+    /**
+     * The virtual account (VA) to add margin to. The connected wallet must be
+     * the VA's on-chain owner; the contract reverts (`onlyAccountOwner`) otherwise.
+     */
+    virtualAccount: Address;
+    /**
+     * Amount to add, in **18 decimals** (the internal allocated-balance unit,
+     * not the collateral token's decimals). Moved from the parent subaccount's
+     * already-deposited balance into the VA; reverts with `ZeroAmount` when `0`.
+     */
+    amount: bigint;
+  }
 >;
 
 /** Return type of {@link addMargin}: the submitted transaction hash. */

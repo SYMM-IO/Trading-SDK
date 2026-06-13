@@ -38,7 +38,15 @@ interface Props {
  * own step. The deposit step auto-detects whether an approval is still needed and
  * flips its action between Approve and Deposit.
  */
-export function DepositFlow({ owner, subAccount, subAccountName, onSelectSubAccount, decimals, balance, ready }: Props) {
+export function DepositFlow({
+  owner,
+  subAccount,
+  subAccountName,
+  onSelectSubAccount,
+  decimals,
+  balance,
+  ready,
+}: Props) {
   const [step, setStep] = useState(0);
   const [amount, setAmount] = useState<string>("");
   const [allocate, setAllocate] = useState<boolean>(false);

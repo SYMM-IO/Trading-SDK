@@ -11,15 +11,15 @@ import { simulateGrantDelegation } from "./simulate-grant-delegation";
  */
 export type GrantDelegationParameters = Compute<
   WriteContractParameter & {
-      /** Account that grants the delegation. The wallet must own this account. */
-      account: InstantLayerAccount;
-      /** Signer that may call the selected Instant Layer functions. */
-      delegatedSigner: Address;
-      /** Function selectors (`bytes4[]`) to grant. */
-      selectors: readonly Hex[];
-      /** Expiry timestamp in seconds. */
-      expiryTimestamp: bigint;
-    }
+    /** Account that grants the delegation. The wallet must own this account. */
+    account: InstantLayerAccount;
+    /** Signer that may call the selected Instant Layer functions. */
+    delegatedSigner: Address;
+    /** Function selectors (`bytes4[]`) to grant. */
+    selectors: readonly Hex[];
+    /** Expiry timestamp in seconds. */
+    expiryTimestamp: bigint;
+  }
 >;
 
 /** Return type of {@link grantDelegation}: the submitted transaction hash. */

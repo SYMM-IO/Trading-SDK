@@ -20,13 +20,6 @@
  * other hook builds on.
  */
 export {
-  SymmioProvider,
-  useSymmioChainId,
-  useSymmioConfig,
-  type SymmioProviderProps,
-  type UseSymmioConfigParameters,
-} from "./provider";
-export {
   ADD_MARGIN_TO_NEXT_VA_SELECTOR,
   INSTANT_TRADE_REQUIRED_SELECTORS,
   OrderType,
@@ -41,6 +34,13 @@ export {
   type SymmErrorKind,
 } from "@symm-frontier/core";
 export type { GetWalletClientFn, SymmioWalletClient } from "@symm-frontier/core";
+export {
+  SymmioProvider,
+  useSymmioChainId,
+  useSymmioConfig,
+  type SymmioProviderProps,
+  type UseSymmioConfigParameters,
+} from "./provider";
 
 /**
  * Wallet

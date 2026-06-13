@@ -41,7 +41,15 @@ interface Props {
  * The withdraw step initiates a classic same-chain request, shows the cooldown
  * timing, and lists pending requests with inline finalize / cancel actions.
  */
-export function WithdrawFlow({ owner, subAccount, subAccountName, onSelectSubAccount, decimals, chainId, ready }: Props) {
+export function WithdrawFlow({
+  owner,
+  subAccount,
+  subAccountName,
+  onSelectSubAccount,
+  decimals,
+  chainId,
+  ready,
+}: Props) {
   const [step, setStep] = useState(0);
   const [amount, setAmount] = useState<string>("");
   const [receiver, setReceiver] = useState<string>("");

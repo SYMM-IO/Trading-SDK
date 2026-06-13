@@ -98,10 +98,7 @@ export interface InstantOpenReturnType {
  * });
  * ```
  */
-export async function instantOpen(
-  config: Config,
-  parameters: InstantOpenParameters,
-): Promise<InstantOpenReturnType> {
+export async function instantOpen(config: Config, parameters: InstantOpenParameters): Promise<InstantOpenReturnType> {
   const chainConfig = config.getChainConfig(parameters.chainId);
   const { accountLayerAddress, symmioAddress, affiliatesAddress } = chainConfig.addresses;
   const { solver } = chainConfig;

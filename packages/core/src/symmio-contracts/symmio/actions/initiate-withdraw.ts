@@ -10,31 +10,31 @@ import type { WithdrawReceiverPart } from "../types";
  */
 export type InitiateWithdrawParameters = Compute<
   WriteContractParameter & {
-      /**
-       * The subaccount initiating the withdrawal. The call is routed through the
-       * AccountLayer `_call` proxy so the core sees this subaccount as the caller;
-       * the connected wallet must be its on-chain `owner`.
-       */
-      account: Address;
-      /**
-       * The receiver parts the withdrawal is split into. A plain same-chain
-       * withdrawal is a single part with both provider fields set to the zero
-       * address — see `createClassicWithdrawPart`.
-       */
-      parts: readonly WithdrawReceiverPart[];
-      /**
-       * Opt into the cooldown speed-up flow. Only effective for speed-up-eligible
-       * users; ignored otherwise.
-       * @default false
-       */
-      speedUp?: boolean;
-      /**
-       * Opaque provider data forwarded to express/virtual providers (e.g. a signed
-       * option). Pass `0x` for a classic withdrawal.
-       * @default "0x"
-       */
-      providerData?: Hex;
-    }
+    /**
+     * The subaccount initiating the withdrawal. The call is routed through the
+     * AccountLayer `_call` proxy so the core sees this subaccount as the caller;
+     * the connected wallet must be its on-chain `owner`.
+     */
+    account: Address;
+    /**
+     * The receiver parts the withdrawal is split into. A plain same-chain
+     * withdrawal is a single part with both provider fields set to the zero
+     * address — see `createClassicWithdrawPart`.
+     */
+    parts: readonly WithdrawReceiverPart[];
+    /**
+     * Opt into the cooldown speed-up flow. Only effective for speed-up-eligible
+     * users; ignored otherwise.
+     * @default false
+     */
+    speedUp?: boolean;
+    /**
+     * Opaque provider data forwarded to express/virtual providers (e.g. a signed
+     * option). Pass `0x` for a classic withdrawal.
+     * @default "0x"
+     */
+    providerData?: Hex;
+  }
 >;
 
 /** Return type of {@link initiateWithdraw}: the submitted transaction hash. */

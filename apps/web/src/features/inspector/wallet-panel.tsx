@@ -2,7 +2,8 @@
 
 import { AddressTag } from "@/components/address-tag";
 import { StatusDot } from "@/components/status-dot";
-import { useConnectWallet, useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@symm-frontier/react";
+import { ConnectWalletButton } from "@/features/wallet/connect-wallet-button";
+import { useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Card } from "@symm-frontier/ui/components/card";
@@ -14,7 +15,6 @@ import { Spinner } from "@symm-frontier/ui/components/spinner";
  */
 export function WalletPanel() {
   const { address, isConnected, isOnExpectedChain } = useWalletAccount();
-  const { connectors, connect, status: connectStatus } = useConnectWallet();
   const { disconnect } = useDisconnectWallet();
   const { switchChain, status: switchStatus } = useSwitchToSymmioChain();
 
@@ -43,20 +43,7 @@ export function WalletPanel() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {!isConnected &&
-            connectors.map((connector) => (
-              <Button
-                key={connector.uid}
-                type="button"
-                size="sm"
-                onClick={() => connect(connector).catch(() => undefined)}
-                disabled={connectStatus === "pending"}
-                data-testid={`connect-${connector.id}`}
-              >
-                {connectStatus === "pending" ? <Spinner className="size-4" /> : null}
-                Connect {connector.name}
-              </Button>
-            ))}
+          {!isConnected && <ConnectWalletButton />}
 
           {isConnected && !isOnExpectedChain && (
             <Button

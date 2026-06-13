@@ -1,8 +1,8 @@
 "use client";
 
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
-import { TxReceipt } from "@/components/tx-result";
 import { ListSkeleton } from "@/components/skeletons";
+import { TxReceipt } from "@/components/tx-result";
 import { formatUsd } from "@/lib/format";
 import {
   SubAccountIsolationType,
@@ -146,8 +146,8 @@ function CreateSubaccountInline({ owner, onCreated }: { owner: Address; onCreate
       <div className="flex flex-col gap-1">
         <span className="text-foreground text-sm font-medium">No subaccounts yet</span>
         <span className="text-muted-foreground text-xs leading-5">
-          Create one for {shortenAddress(owner)}. Defaults to MARKET_DIRECTION isolation with single-VA mode on — you can
-          tune those later on the Subaccounts page.
+          Create one for {shortenAddress(owner)}. Defaults to MARKET_DIRECTION isolation with single-VA mode on — you
+          can tune those later on the Subaccounts page.
         </span>
       </div>
 
@@ -161,12 +161,7 @@ function CreateSubaccountInline({ owner, onCreated }: { owner: Address; onCreate
           maxLength={100}
           className="sm:flex-1"
         />
-        <Button
-          type="button"
-          onClick={handleCreate}
-          disabled={!canSubmit}
-          data-testid="subaccount-step-create-submit"
-        >
+        <Button type="button" onClick={handleCreate} disabled={!canSubmit} data-testid="subaccount-step-create-submit">
           {mutation.isPending ? <Spinner className="size-4" /> : null}
           {mutation.isPending ? "Creating…" : "Create subaccount"}
         </Button>
@@ -196,13 +191,7 @@ function CreateSubaccountInline({ owner, onCreated }: { owner: Address; onCreate
   );
 }
 
-function BalanceLabel({
-  balance,
-  testId,
-}: {
-  balance: ReturnType<typeof useAccountBalanceOf>;
-  testId: string;
-}) {
+function BalanceLabel({ balance, testId }: { balance: ReturnType<typeof useAccountBalanceOf>; testId: string }) {
   if (balance.isLoading) {
     return (
       <span className="text-muted-foreground inline-flex items-center gap-1 text-xs" data-testid={`${testId}-loading`}>

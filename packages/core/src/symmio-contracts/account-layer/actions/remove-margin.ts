@@ -11,25 +11,25 @@ import { simulateRemoveMargin } from "./simulate-remove-margin";
  */
 export type RemoveMarginParameters = Compute<
   WriteContractParameter & {
-      /**
-       * The virtual account (VA) to remove margin from. The connected wallet must
-       * be the VA's on-chain owner; the contract reverts (`onlyAccountOwner`) otherwise.
-       */
-      virtualAccount: Address;
-      /**
-       * Amount to remove, in **18 decimals** (the internal allocated-balance unit,
-       * not the collateral token's decimals). Moved from the VA back into the
-       * parent subaccount's available balance; reverts with `ZeroAmount` when `0`.
-       */
-      amount: bigint;
-      /**
-       * A fresh Muon uPnL attestation for `virtualAccount`. The contract verifies
-       * it to prove the VA stays solvent after the deallocation. Fetch one right
-       * before submitting (it is timestamped and short-lived) — see
-       * {@link getDeallocateUpnlSig}.
-       */
-      upnlSig: SingleUpnlSig;
-    }
+    /**
+     * The virtual account (VA) to remove margin from. The connected wallet must
+     * be the VA's on-chain owner; the contract reverts (`onlyAccountOwner`) otherwise.
+     */
+    virtualAccount: Address;
+    /**
+     * Amount to remove, in **18 decimals** (the internal allocated-balance unit,
+     * not the collateral token's decimals). Moved from the VA back into the
+     * parent subaccount's available balance; reverts with `ZeroAmount` when `0`.
+     */
+    amount: bigint;
+    /**
+     * A fresh Muon uPnL attestation for `virtualAccount`. The contract verifies
+     * it to prove the VA stays solvent after the deallocation. Fetch one right
+     * before submitting (it is timestamped and short-lived) — see
+     * {@link getDeallocateUpnlSig}.
+     */
+    upnlSig: SingleUpnlSig;
+  }
 >;
 
 /** Return type of {@link removeMargin}: the submitted transaction hash. */

@@ -31,9 +31,7 @@ describe("getEnigmaPriceServicePricesByNames", () => {
     };
     getSymbolPricesBatchApiV1PricesNamesGet.mockResolvedValue({ data });
 
-    await expect(
-      getEnigmaPriceServicePricesByNames(config, { names: ["BTCUSDT", "ETHUSDT"] }),
-    ).resolves.toEqual(data);
+    await expect(getEnigmaPriceServicePricesByNames(config, { names: ["BTCUSDT", "ETHUSDT"] })).resolves.toEqual(data);
     expect(getSymbolPricesBatchApiV1PricesNamesGet).toHaveBeenCalledWith("BTCUSDT,ETHUSDT", {
       baseURL: PRICE_SERVICE_URL,
     });
@@ -42,11 +40,9 @@ describe("getEnigmaPriceServicePricesByNames", () => {
   it("wraps request failures in a SymmError", async () => {
     getSymbolPricesBatchApiV1PricesNamesGet.mockRejectedValue(new Error("Network error"));
 
-    await expect(
-      getEnigmaPriceServicePricesByNames(config, { names: ["BTCUSDT"] }),
-    ).rejects.toBeInstanceOf(SymmError);
-    await expect(
-      getEnigmaPriceServicePricesByNames(config, { names: ["BTCUSDT"] }),
-    ).rejects.toThrow("Failed to fetch Enigma price-service prices by names");
+    await expect(getEnigmaPriceServicePricesByNames(config, { names: ["BTCUSDT"] })).rejects.toBeInstanceOf(SymmError);
+    await expect(getEnigmaPriceServicePricesByNames(config, { names: ["BTCUSDT"] })).rejects.toThrow(
+      "Failed to fetch Enigma price-service prices by names",
+    );
   });
 });

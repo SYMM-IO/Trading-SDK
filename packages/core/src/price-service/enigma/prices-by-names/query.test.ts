@@ -3,10 +3,7 @@ import { describe, expect, it } from "vitest";
 import { SymmioSupportedChainId } from "../../../core/chains";
 import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig } from "../../../shared/test/mock-config";
-import {
-  getEnigmaPriceServicePricesByNamesQueryKey,
-  getEnigmaPriceServicePricesByNamesQueryOptions,
-} from "./query";
+import { getEnigmaPriceServicePricesByNamesQueryKey, getEnigmaPriceServicePricesByNamesQueryOptions } from "./query";
 
 describe("getEnigmaPriceServicePricesByNamesQueryOptions", () => {
   it("respects an explicit query.enabled override", () => {

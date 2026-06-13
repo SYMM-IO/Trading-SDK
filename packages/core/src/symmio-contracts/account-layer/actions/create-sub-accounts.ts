@@ -11,17 +11,17 @@ import { simulateCreateSubAccounts } from "./simulate-create-sub-accounts";
  */
 export type CreateSubAccountsParameters = Compute<
   WriteContractParameter & {
-      /**
-       * Affiliate that custodies the new subaccounts. Must be `ACTIVE` on-chain,
-       * and each entry's `symmioCore` must be whitelisted and registered for it.
-       */
-      affiliate: Address;
-      /**
-       * One entry per subaccount to create. The returned addresses are in this
-       * same order.
-       */
-      accountsData: readonly SubAccountCreationData[];
-    }
+    /**
+     * Affiliate that custodies the new subaccounts. Must be `ACTIVE` on-chain,
+     * and each entry's `symmioCore` must be whitelisted and registered for it.
+     */
+    affiliate: Address;
+    /**
+     * One entry per subaccount to create. The returned addresses are in this
+     * same order.
+     */
+    accountsData: readonly SubAccountCreationData[];
+  }
 >;
 
 /**

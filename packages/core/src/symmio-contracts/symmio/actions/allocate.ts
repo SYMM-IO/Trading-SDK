@@ -9,18 +9,18 @@ import { callAsSubAccount } from "../internal/call-as-sub-account";
  */
 export type AllocateParameters = Compute<
   WriteContractParameter & {
-      /**
-       * The subaccount to allocate into. The call is routed through the
-       * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
-       */
-      account: Address;
-      /**
-       * Amount to move from the available balance into the allocated balance, in
-       * **18 decimals** (not the collateral token's decimals). Capped by the
-       * per-user balance limit.
-       */
-      amount: bigint;
-    }
+    /**
+     * The subaccount to allocate into. The call is routed through the
+     * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
+     */
+    account: Address;
+    /**
+     * Amount to move from the available balance into the allocated balance, in
+     * **18 decimals** (not the collateral token's decimals). Capped by the
+     * per-user balance limit.
+     */
+    amount: bigint;
+  }
 >;
 
 /** Return type of {@link allocate}: the submitted transaction hash. */

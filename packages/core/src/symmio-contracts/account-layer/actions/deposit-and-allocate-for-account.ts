@@ -10,20 +10,20 @@ import { simulateDepositAndAllocateForAccount } from "./simulate-deposit-and-all
  */
 export type DepositAndAllocateForAccountParameters = Compute<
   WriteContractParameter & {
-      /**
-       * The subaccount (or virtual account) to credit and allocate for. The wallet's
-       * signing account must be the subaccount's on-chain `owner`; the contract
-       * reverts otherwise.
-       */
-      account: Address;
-      /**
-       * Amount of collateral to deposit and allocate, in the collateral token's
-       * smallest unit (e.g. `1_000000n` for 1 USDC at 6 decimals). The user must have
-       * approved at least this much collateral to the SYMMIO core first — see
-       * {@link approveCollateral}.
-       */
-      amount: bigint;
-    }
+    /**
+     * The subaccount (or virtual account) to credit and allocate for. The wallet's
+     * signing account must be the subaccount's on-chain `owner`; the contract
+     * reverts otherwise.
+     */
+    account: Address;
+    /**
+     * Amount of collateral to deposit and allocate, in the collateral token's
+     * smallest unit (e.g. `1_000000n` for 1 USDC at 6 decimals). The user must have
+     * approved at least this much collateral to the SYMMIO core first — see
+     * {@link approveCollateral}.
+     */
+    amount: bigint;
+  }
 >;
 
 /** Return type of {@link depositAndAllocateForAccount}: the submitted transaction hash. */

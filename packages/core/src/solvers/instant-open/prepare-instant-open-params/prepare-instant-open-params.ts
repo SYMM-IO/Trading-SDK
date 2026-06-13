@@ -18,41 +18,41 @@ import { resolveFeeRates, resolveLockedParams, resolveMarket, resolveMarkPrice }
  */
 export type PrepareInstantOpenParameters = Compute<
   ChainIdParameter &
-  FromParameter & {
-    /** Sub-account / partyA address. */
-    subAccountAddress: Address;
-    /** Market identification + optional pre-fetched precision metadata. */
-    market: InstantOpenMarketData;
-    /** Trade side. */
-    positionType: PositionType;
-    /** Collateral (USD) the user enters as initial margin. Decimal string. */
-    initialMargin: string;
-    /** Position leverage (integer ≥ 1). */
-    leverage: number;
-    /** Slippage tolerance percent (e.g. `5` for 5%). */
-    slippage: number;
-    /** Pre-fetched mark price as decimal string. When omitted, fetched via Enigma price service. */
-    markPrice?: string;
-    /**
-     * Pre-fetched solver locked params (matches `getLockedParams` return —
-     * `ApiLockedParamsBySymbolIdResponse`). When supplied with all four
-     * percent fields, the fetch is skipped.
-     */
-    lockedParamPercent?: ApiLockedParamsBySymbolIdResponse;
-    /**
-     * Pre-fetched on-chain fee rates (matches `getFeeForUser` return —
-     * `FeeForUser`). When omitted, fetched via `getFeeForUser`.
-     */
-    feeRates?: FeeForUser;
-    /** Forwarded to {@link InstantOpenParameters}. */
-    uuid?: string;
-    /** Forwarded to {@link InstantOpenParameters}. */
-    addMarginSalt?: Hex;
-    /** Forwarded to {@link InstantOpenParameters}. */
-    sendQuoteSalt?: Hex;
-    /** Forwarded to {@link InstantOpenParameters}. */
-    deadline?: bigint;
-  }
+    FromParameter & {
+      /** Sub-account / partyA address. */
+      subAccountAddress: Address;
+      /** Market identification + optional pre-fetched precision metadata. */
+      market: InstantOpenMarketData;
+      /** Trade side. */
+      positionType: PositionType;
+      /** Collateral (USD) the user enters as initial margin. Decimal string. */
+      initialMargin: string;
+      /** Position leverage (integer ≥ 1). */
+      leverage: number;
+      /** Slippage tolerance percent (e.g. `5` for 5%). */
+      slippage: number;
+      /** Pre-fetched mark price as decimal string. When omitted, fetched via Enigma price service. */
+      markPrice?: string;
+      /**
+       * Pre-fetched solver locked params (matches `getLockedParams` return —
+       * `ApiLockedParamsBySymbolIdResponse`). When supplied with all four
+       * percent fields, the fetch is skipped.
+       */
+      lockedParamPercent?: ApiLockedParamsBySymbolIdResponse;
+      /**
+       * Pre-fetched on-chain fee rates (matches `getFeeForUser` return —
+       * `FeeForUser`). When omitted, fetched via `getFeeForUser`.
+       */
+      feeRates?: FeeForUser;
+      /** Forwarded to {@link InstantOpenParameters}. */
+      uuid?: string;
+      /** Forwarded to {@link InstantOpenParameters}. */
+      addMarginSalt?: Hex;
+      /** Forwarded to {@link InstantOpenParameters}. */
+      sendQuoteSalt?: Hex;
+      /** Forwarded to {@link InstantOpenParameters}. */
+      deadline?: bigint;
+    }
 >;
 
 /**

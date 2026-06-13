@@ -18,10 +18,7 @@ export interface ResolveMarkPriceParameters {
  * @throws {SymmError} `INSTANT_OPEN_MARK_PRICE_NOT_FOUND` when the price
  *   service omits the requested name from its response.
  */
-export async function resolveMarkPrice(
-  config: Config,
-  parameters: ResolveMarkPriceParameters,
-): Promise<string> {
+export async function resolveMarkPrice(config: Config, parameters: ResolveMarkPriceParameters): Promise<string> {
   if (parameters.markPrice !== undefined) return parameters.markPrice;
 
   const prices = await getEnigmaPriceServicePricesByNames(config, {

@@ -103,9 +103,7 @@ export interface EncodeSendQuoteWithAffiliateAndDataParameters {
  * Pass a real `upnlSig` for solvers requiring Muon verification, or omit to
  * default to {@link ZERO_UPNL_SIG} (lowcap).
  */
-export function encodeSendQuoteWithAffiliateAndData(
-  parameters: EncodeSendQuoteWithAffiliateAndDataParameters,
-): Hex {
+export function encodeSendQuoteWithAffiliateAndData(parameters: EncodeSendQuoteWithAffiliateAndDataParameters): Hex {
   const sig = parameters.upnlSig ?? ZERO_UPNL_SIG;
   return encodeFunctionData({
     abi: symmioAbi,
@@ -149,8 +147,5 @@ export function encodeSendQuoteWithAffiliateAndData(
  * @param uuid - Opaque identifier (caller-controlled; usually `crypto.randomUUID()`).
  */
 export function buildQuoteMetadata(uuid: string): Hex {
-  return encodeAbiParameters(
-    [{ type: "tuple", components: [{ type: "string", name: "uuid" }] }],
-    [{ uuid }],
-  );
+  return encodeAbiParameters([{ type: "tuple", components: [{ type: "string", name: "uuid" }] }], [{ uuid }]);
 }

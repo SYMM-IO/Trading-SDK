@@ -10,11 +10,11 @@ import { simulateFinalizeWithdrawRequest } from "./simulate-finalize-withdraw-re
  */
 export type FinalizeWithdrawRequestParameters = Compute<
   WriteContractParameter & {
-      /** The subaccount that owns the request (the request's on-chain `user`). */
-      user: Address;
-      /** Id of the withdraw request to finalize. */
-      requestId: bigint;
-    }
+    /** The subaccount that owns the request (the request's on-chain `user`). */
+    user: Address;
+    /** Id of the withdraw request to finalize. */
+    requestId: bigint;
+  }
 >;
 
 /** Return type of {@link finalizeWithdrawRequest}: the submitted transaction hash. */
