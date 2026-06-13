@@ -18,7 +18,7 @@ export interface MockConfigResult {
 
 /**
  * Build a real {@link Config} (via {@link createConfig}) whose `getClient` /
- * `getWalletClient` resolvers return stub viem clients with `vi.fn()`-backed
+ * `getWalletClients` resolvers return stub viem clients with `vi.fn()`-backed
  * `readContract` / `writeContract`. Lets action and query-factory tests assert
  * the contract calls without touching the network.
  *

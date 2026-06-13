@@ -1,6 +1,6 @@
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.5/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 
@@ -8,8 +8,7 @@ import { callAsSubAccount } from "../internal/call-as-sub-account";
  * Parameters for {@link allocate}.
  */
 export type AllocateParameters = Compute<
-  ChainIdParameter &
-    SimulateBeforeWriteParameter & {
+  WriteContractParameter & {
       /**
        * The subaccount to allocate into. The call is routed through the
        * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
@@ -66,6 +65,7 @@ export async function allocate(config: Config, parameters: AllocateParameters): 
     account,
     data,
     chainId,
+    from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
   });
 }

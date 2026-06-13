@@ -1,6 +1,6 @@
 import type { Address, Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
 import { simulateDeleteSubAccount } from "./simulate-delete-sub-account";
@@ -9,8 +9,7 @@ import { simulateDeleteSubAccount } from "./simulate-delete-sub-account";
  * Parameters for {@link deleteSubAccount}.
  */
 export type DeleteSubAccountParameters = Compute<
-  ChainIdParameter &
-    SimulateBeforeWriteParameter & {
+  WriteContractParameter & {
       /**
        * The subaccount to delete. The bound wallet's signing account must be the
        * subaccount's on-chain `owner`; the contract reverts (`onlyAccountOwner`)
@@ -57,10 +56,10 @@ export async function deleteSubAccount(
   config: Config,
   parameters: DeleteSubAccountParameters,
 ): Promise<DeleteSubAccountReturnType> {
-  const { chainId, subAccount } = parameters;
+  const { chainId, subAccount, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
-  const walletClient = await config.getWalletClient({ chainId });
+  const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
     await simulateDeleteSubAccount(config, { chainId, subAccount, from: walletClient.account.address });

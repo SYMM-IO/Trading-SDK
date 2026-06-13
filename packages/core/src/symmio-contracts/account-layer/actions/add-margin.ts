@@ -1,6 +1,6 @@
 import type { Address, Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
 import { simulateAddMargin } from "./simulate-add-margin";
@@ -9,8 +9,7 @@ import { simulateAddMargin } from "./simulate-add-margin";
  * Parameters for {@link addMargin}.
  */
 export type AddMarginParameters = Compute<
-  ChainIdParameter &
-    SimulateBeforeWriteParameter & {
+  WriteContractParameter & {
       /**
        * The virtual account (VA) to add margin to. The connected wallet must be
        * the VA's on-chain owner; the contract reverts (`onlyAccountOwner`) otherwise.
@@ -51,10 +50,10 @@ export type AddMarginReturnType = Hash;
  * ```
  */
 export async function addMargin(config: Config, parameters: AddMarginParameters): Promise<AddMarginReturnType> {
-  const { chainId, virtualAccount, amount } = parameters;
+  const { chainId, virtualAccount, amount, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
-  const walletClient = await config.getWalletClient({ chainId });
+  const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
     await simulateAddMargin(config, { chainId, virtualAccount, amount, from: walletClient.account.address });

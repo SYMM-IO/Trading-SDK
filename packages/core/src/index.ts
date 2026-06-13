@@ -677,6 +677,7 @@ export type {
   ExactPartial,
   FromParameter,
   SimulateBeforeWriteParameter,
+  WriteContractParameter,
 } from "./shared/types/properties";
 export type { QueryParameter, SymmioQueryOptions } from "./shared/types/query";
 export { filterQueryOptions } from "./shared/utils/query";
@@ -690,3 +691,88 @@ export { shouldSimulateBeforeWrite } from "./shared/utils/simulate-before-write"
  * errors and are not wrapped.
  */
 export { SymmApiError, SymmError, type SymmErrorKind } from "./shared/errors/symm-error";
+
+/**
+ * InstantLayer v2 (lowcap) — Instant Open
+ * ---------------------------------------
+ * Lowcap instant-open flow: trade math, calldata encoders, EIP-712 signed
+ * operations, hedger HTTP wrapper, and three action layers — pure primitive
+ * (`instantOpen`), wizard (`prepareInstantOpenParams`), and auto convenience
+ * (`instantOpenAuto`).
+ *
+ * Lowcap only — Majors flows are out of scope.
+ */
+export {
+  // calldata
+  ZERO_UPNL_SIG,
+  buildQuoteMetadata,
+  encodeAddMarginToNextVA,
+  encodeSendQuoteWithAffiliateAndData,
+  getFakeSendQuoteMuonSignature,
+  type EncodeAddMarginToNextVAParameters,
+  type EncodeSendQuoteWithAffiliateAndDataParameters,
+  // eip712
+  INSTANT_LAYER_EIP712_DOMAIN_NAME,
+  INSTANT_LAYER_EIP712_DOMAIN_VERSION,
+  SIGNED_OPERATION_TYPES,
+  getInstantLayerEip712Domain,
+  signSignedOperation,
+  // operations
+  buildSignedOperation,
+  formatSignedOperationPayload,
+  generateSalt,
+  signAndFormatInstantOperation,
+  type BuildSignedOperationParameters,
+  type SignAndFormatInstantOperationParameters,
+  // hedger api
+  sendInstantOpen,
+  type SendInstantOpenParameters,
+  type SendInstantOpenReturnType,
+  // trade math
+  MARKET_ORDER_DEADLINE_SECONDS,
+  SHORT_MARGIN_PREMIUM_MULTIPLIER,
+  calculateTradeParams,
+  calculateMargin,
+  computePlatformFee,
+  getMarketOrderDeadline,
+  toWeiBigInt,
+  type CalculateTradeParamsParameters,
+  type CalculateTradeParamsReturnType,
+  type CalculateMarginParameters,
+  type ComputePlatformFeeRates,
+  // instantOpen — primitive (all inputs required, no fetching)
+  instantOpen,
+  instantOpenMutationOptions,
+  type InstantOpenLockedParams,
+  type InstantOpenMargin,
+  type InstantOpenMarketData,
+  type InstantOpenOrder,
+  type InstantOpenParameters,
+  type InstantOpenReturnType,
+  // instantOpen — wizard (auto-fetches missing inputs)
+  prepareInstantOpenParams,
+  instantOpenAuto,
+  instantOpenAutoMutationOptions,
+  type PrepareInstantOpenParameters,
+  // resolvers (sub-units used by the wizard)
+  resolveFeeRates,
+  resolveLockedParams,
+  resolveMarket,
+  resolveMarkPrice,
+  type ResolveFeeRatesParameters,
+  type ResolveLockedParamsParameters,
+  type ResolveMarketParameters,
+  type ResolveMarkPriceParameters,
+  type ResolvedLockedParams,
+  type ResolvedMarket,
+  // types / constants
+  ORDER_TYPE_MARKET,
+  VIRTUAL_ACCOUNT_ISOLATION_TYPE,
+  type FlexField,
+  type InstantOperationPayload,
+  type ReplayAttackHeader,
+  type SignedOperation,
+  type SignedOperationPayload,
+  type UpnlSig,
+  type VirtualAccountIsolationType,
+} from "./solvers/instant-open";

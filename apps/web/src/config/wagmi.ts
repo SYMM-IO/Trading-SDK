@@ -8,7 +8,7 @@ import { E2E_ACCOUNT_ADDRESS, IS_E2E_MODE } from "./environment";
  * `fallback()` so we can add more upstreams without changing call sites —
  * single URL today, room to grow tomorrow.
  */
-const HYPER_EVM_RPC_URLS = ["https://rpc.hyperliquid.xyz/evm"] as const;
+const HYPER_EVM_RPC_URLS = ["https://rpc.hyperliquid.xyz/evm", "https://hyperliquid.drpc.org"] as const;
 
 export const wagmiConfig = createConfig({
   chains: [hyperEvm],

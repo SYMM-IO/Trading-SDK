@@ -1,6 +1,6 @@
 import type { Address, Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
 import { simulateDepositForAccount } from "./simulate-deposit-for-account";
@@ -9,8 +9,7 @@ import { simulateDepositForAccount } from "./simulate-deposit-for-account";
  * Parameters for {@link depositForAccount}.
  */
 export type DepositForAccountParameters = Compute<
-  ChainIdParameter &
-    SimulateBeforeWriteParameter & {
+  WriteContractParameter & {
       /**
        * The subaccount (or virtual account) to credit. The wallet's signing account
        * must be the subaccount's on-chain `owner`; the contract reverts otherwise.
@@ -59,10 +58,10 @@ export async function depositForAccount(
   config: Config,
   parameters: DepositForAccountParameters,
 ): Promise<DepositForAccountReturnType> {
-  const { chainId, account, amount } = parameters;
+  const { chainId, account, amount, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
-  const walletClient = await config.getWalletClient({ chainId });
+  const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
     await simulateDepositForAccount(config, { chainId, account, amount, from: walletClient.account.address });

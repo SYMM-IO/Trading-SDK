@@ -217,6 +217,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@symm-frontier/utils':
+        specifier: workspace:*
+        version: link:../utils
       '@tanstack/query-core':
         specifier: ^5.90.5
         version: 5.100.9

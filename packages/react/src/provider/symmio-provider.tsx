@@ -5,7 +5,7 @@ import {
   SymmError,
   type Config,
   type CreateConfigParameters,
-  type SymmioWalletClient,
+  type GetWalletClientFn,
 } from "@symm-frontier/core";
 import { useMemo, type ReactNode } from "react";
 import type { PublicClient } from "viem";
@@ -26,6 +26,15 @@ export interface SymmioProviderProps {
   chainOverrides?: CreateConfigParameters["chainOverrides"];
   /** Chain used when a hook or action omits `chainId`. Defaults to the first supported chain. */
   defaultChainId?: number;
+  /**
+   * Custom wallet-client resolver. Receives `{ chainId, from? }` from the SDK
+   * and returns the wallet client to sign with. Use this to plug in
+   * session-key, multi-signer, or any non-wagmi flow — the resolver decides.
+   *
+   * When omitted, the provider falls back to wagmi's connected wallet (ignores
+   * `from`).
+   */
+  getWalletClient?: GetWalletClientFn;
 }
 
 /**
@@ -50,7 +59,12 @@ export interface SymmioProviderProps {
  * The SDK never mounts wagmi or a `QueryClient` for the host — those (which
  * connectors, which RPC URLs, which shared `QueryClient`) belong to the host.
  */
-export function SymmioProvider({ children, chainOverrides, defaultChainId }: SymmioProviderProps) {
+export function SymmioProvider({
+  children,
+  chainOverrides,
+  defaultChainId,
+  getWalletClient: getWalletClientProp,
+}: SymmioProviderProps) {
   const wagmiConfig = useConfig();
 
   const config = useMemo<Config>(
@@ -69,20 +83,22 @@ export function SymmioProvider({ children, chainOverrides, defaultChainId }: Sym
             );
           return client;
         },
-        getWalletClient: async ({ chainId } = {}): Promise<SymmioWalletClient> => {
-          try {
-            return await getWalletClient(wagmiConfig, { chainId });
-          } catch (err) {
-            throw new SymmError(
-              "config",
-              "NO_WALLET_CONNECTED",
-              "No connected wallet. Connect a wallet before sending transactions.",
-              { cause: err instanceof Error ? err : undefined },
-            );
-          }
-        },
+        getWalletClient:
+          getWalletClientProp ??
+          (async ({ chainId }) => {
+            try {
+              return await getWalletClient(wagmiConfig, { chainId });
+            } catch (err) {
+              throw new SymmError(
+                "config",
+                "NO_WALLET_CONNECTED",
+                "No connected wallet. Connect a wallet before sending transactions.",
+                { cause: err instanceof Error ? err : undefined },
+              );
+            }
+          }),
       }),
-    [chainOverrides, defaultChainId, wagmiConfig],
+    [chainOverrides, defaultChainId, getWalletClientProp, wagmiConfig],
   );
 
   return <SymmioConfigContext.Provider value={config}>{children}</SymmioConfigContext.Provider>;

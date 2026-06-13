@@ -1,6 +1,6 @@
 import { erc20Abi, type Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { simulateApproveCollateral } from "./simulate-approve-collateral";
 
@@ -8,8 +8,7 @@ import { simulateApproveCollateral } from "./simulate-approve-collateral";
  * Parameters for {@link approveCollateral}.
  */
 export type ApproveCollateralParameters = Compute<
-  ChainIdParameter &
-    SimulateBeforeWriteParameter & {
+  WriteContractParameter & {
       /**
        * Allowance to grant, in the collateral token's smallest unit (e.g.
        * `1_000000n` for 1 USDC at 6 decimals). Pass `maxUint256` to approve once and
@@ -50,10 +49,10 @@ export async function approveCollateral(
   config: Config,
   parameters: ApproveCollateralParameters,
 ): Promise<ApproveCollateralReturnType> {
-  const { chainId, amount } = parameters;
+  const { chainId, amount, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
-  const walletClient = await config.getWalletClient({ chainId });
+  const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
     await simulateApproveCollateral(config, { chainId, amount, from: walletClient.account.address });

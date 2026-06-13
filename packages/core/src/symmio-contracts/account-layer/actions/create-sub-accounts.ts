@@ -1,6 +1,6 @@
 import type { Address, Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, SimulateBeforeWriteParameter } from "../../../shared/types/properties";
+import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
 import type { SubAccountCreationData } from "../types";
@@ -10,8 +10,7 @@ import { simulateCreateSubAccounts } from "./simulate-create-sub-accounts";
  * Parameters for {@link createSubAccounts}.
  */
 export type CreateSubAccountsParameters = Compute<
-  ChainIdParameter &
-    SimulateBeforeWriteParameter & {
+  WriteContractParameter & {
       /**
        * Affiliate that custodies the new subaccounts. Must be `ACTIVE` on-chain,
        * and each entry's `symmioCore` must be whitelisted and registered for it.
@@ -72,10 +71,10 @@ export async function createSubAccounts(
   config: Config,
   parameters: CreateSubAccountsParameters,
 ): Promise<CreateSubAccountsReturnType> {
-  const { chainId, affiliate, accountsData } = parameters;
+  const { chainId, affiliate, accountsData, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
-  const walletClient = await config.getWalletClient({ chainId });
+  const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
     await simulateCreateSubAccounts(config, { chainId, affiliate, accountsData, from: walletClient.account.address });

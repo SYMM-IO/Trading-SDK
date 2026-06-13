@@ -1,21 +1,27 @@
-import type { Account, Chain, PublicClient, Transport, WalletClient } from "viem";
+import type { Address, PublicClient } from "viem";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { DeepPartial } from "../../shared/types/properties";
 import type { SymmioChainConfig } from "../chains";
 import { hashChainConfig } from "./config-key";
 import { buildChainConfigs } from "./merge-chain-config";
+import type { SymmioWalletClient } from "./types";
 
-/**
- * A bound viem `WalletClient` with an account and chain — what write actions
- * need. The consuming layer supplies one through {@link GetWalletClientFn}.
- */
-export type SymmioWalletClient = WalletClient<Transport, Chain, Account>;
+export type { SymmioWalletClient } from "./types";
 
 /** Resolve a viem `PublicClient` for reads, optionally for a specific chain. */
 export type GetClientFn = (parameters?: { chainId?: number }) => PublicClient;
 
-/** Resolve a bound viem `WalletClient` for writes, optionally for a specific chain. */
-export type GetWalletClientFn = (parameters?: { chainId?: number }) => Promise<SymmioWalletClient>;
+/**
+ * Returns the wallet client the SDK should sign/write with.
+ *
+ * The SDK does not pick between multiple wallets. The consumer's resolver
+ * receives the optional `from` (passed by the action) and is responsible for
+ * returning the right wallet client — e.g. session-key when `from` matches the
+ * session key, wagmi-connected wallet otherwise. The resolver is called fresh
+ * per action so account switches in the connected wallet propagate without
+ * recreating the config.
+ */
+export type GetWalletClientFn = (parameters: { chainId: number; from?: Address }) => Promise<SymmioWalletClient>;
 
 /**
  * Parameters for {@link createConfig}.
@@ -33,8 +39,12 @@ export interface CreateConfigParameters {
    */
   getClient: GetClientFn;
   /**
-   * Returns the bound viem `WalletClient` used for write actions. Optional —
-   * read-only configs may omit it; write actions then throw a {@link SymmError}.
+   * Returns the bound viem `WalletClient` to sign/write with. Receives the
+   * optional `from` from the action — when the consumer has multiple potential
+   * signers (e.g. session-key + connected wallet), this resolver picks. The
+   * SDK does no address matching itself; passing `from` is just a hint.
+   *
+   * Optional — read-only configs may omit it; write/sign actions then throw.
    */
   getWalletClient?: GetWalletClientFn;
   /**
@@ -54,11 +64,6 @@ export interface CreateConfigParameters {
 /**
  * The immutable SDK config every action and query factory receives as its first
  * argument. Holds the per-chain registry and the viem-client resolvers.
- *
- * Stateless from the caller's view: `getClient({ chainId })` resolves a viem
- * client on demand. Connection state (which wallet, which chain) is not owned
- * here — the consuming layer supplies it through the resolvers and by passing
- * `chainId` explicitly.
  */
 export interface Config {
   /** Chain ids the config knows about (built-in defaults plus overrides). */
@@ -91,10 +96,15 @@ export interface Config {
   /** Resolve the viem `PublicClient` for reads on a chain. */
   getClient(parameters?: { chainId?: number }): PublicClient;
   /**
-   * Resolve the bound viem `WalletClient` for writes on a chain.
-   * @throws {SymmError} when the config was created without a `getWalletClient`.
+   * Resolve the wallet client for writes / off-chain signs.
+   *
+   * Forwards `chainId` (defaulting to `defaultChainId`) and the optional
+   * `from` to the consumer's `getWalletClient` resolver. The resolver decides
+   * which wallet to return; the SDK does not perform address matching.
+   *
+   * @throws {SymmError} when the config was created without `getWalletClient`.
    */
-  getWalletClient(parameters?: { chainId?: number }): Promise<SymmioWalletClient>;
+  getWalletClient(parameters?: { chainId?: number; from?: Address }): Promise<SymmioWalletClient>;
 }
 
 /**
@@ -109,19 +119,19 @@ export interface ConfigParameter {
 /**
  * Create an SDK {@link Config}.
  *
- * @param parameters - Client resolvers, optional per-chain overrides, and an
- *   optional default chain.
- * @returns An immutable config to pass as the first argument of every action.
- *
- * @example Plain viem (Node)
+ * @example
  * ```ts
- * import { createConfig, SymmioSupportedChainId } from "@symm-frontier/core";
- * import { createPublicClient, http } from "viem";
+ * import { createConfig } from "@symm-frontier/core";
+ * import { createPublicClient, createWalletClient, http } from "viem";
  * import { hyperEvm } from "viem/chains";
  *
  * const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
- * const config = createConfig({ getClient: () => publicClient });
- * const markets = await getMarkets(config, {});
+ * const walletClient = createWalletClient({ account, chain: hyperEvm, transport: http() });
+ *
+ * const config = createConfig({
+ *   getClient: () => publicClient,
+ *   getWalletClient: async () => walletClient,
+ * });
  * ```
  */
 export function createConfig(parameters: CreateConfigParameters): Config {
@@ -165,11 +175,13 @@ export function createConfig(parameters: CreateConfigParameters): Config {
         throw new SymmError(
           "config",
           "NO_WALLET_CLIENT",
-          "createConfig: no `getWalletClient` resolver was provided; write actions are unavailable.",
+          "createConfig: no `getWalletClient` resolver was provided; write/sign actions are unavailable.",
         );
       }
-
-      return getWalletClient({ chainId: clientParameters?.chainId ?? resolvedDefaultChainId });
+      return getWalletClient({
+        chainId: clientParameters?.chainId ?? resolvedDefaultChainId,
+        from: clientParameters?.from,
+      });
     },
   };
 }
