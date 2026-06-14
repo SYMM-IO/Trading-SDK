@@ -4,6 +4,7 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { formatUsd, WEI_DECIMALS } from "@/lib/format";
 import {
+  calculateTradeParams,
   PositionType,
   SymmioRequestError,
   useAccountBalanceOf,
@@ -12,6 +13,8 @@ import {
   useInstantOpenAuto,
   useLockedParams,
   useMarkets,
+  validateInstantOpenAgainstMarket,
+  type QuoteConstraintViolation,
 } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
@@ -143,6 +146,60 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
     availableMarginDecimal !== undefined &&
     validInitialMargin > availableMarginDecimal;
 
+  // Compute candidate trade parameters locally so we can both validate against
+  // the market and preview the locked-margin breakdown to the user. Returns
+  // `null` when any required input is missing or invalid.
+  const cachedMarkPrice = marketName ? priceQuery.data?.[marketName]?.markPrice : undefined;
+  const tradeParams = useMemo(() => {
+    if (
+      selectedMarket === undefined ||
+      cachedMarkPrice === undefined ||
+      lockedParamsQuery.data === undefined ||
+      validInitialMargin === undefined ||
+      validSlippage === undefined
+    ) {
+      return null;
+    }
+    return calculateTradeParams({
+      markPrice: String(cachedMarkPrice),
+      slippage: validSlippage,
+      positionType: side === "long" ? PositionType.LONG : PositionType.SHORT,
+      userInput: initialMargin,
+      inputField: "PRICE",
+      leverage,
+      pricePrecision: Number(selectedMarket.price_precision ?? 0),
+      quantityPrecision: Number(selectedMarket.quantity_precision ?? 0),
+      cvaPercent: lockedParamsQuery.data.cva,
+      lfPercent: lockedParamsQuery.data.lf,
+      partyAmmPercent: lockedParamsQuery.data.partyAmm,
+      partyBmmPercent: lockedParamsQuery.data.partyBmm,
+    });
+  }, [
+    selectedMarket,
+    cachedMarkPrice,
+    lockedParamsQuery.data,
+    validInitialMargin,
+    validSlippage,
+    side,
+    initialMargin,
+    leverage,
+  ]);
+
+  // Pre-submit quote validation: check the candidate quote against the
+  // market's published constraints. Empty when validation can't run yet;
+  // non-empty means the user can't submit.
+  const quoteViolations = useMemo<QuoteConstraintViolation[]>(() => {
+    if (selectedMarket === undefined || cachedMarkPrice === undefined || tradeParams === null) return [];
+    return validateInstantOpenAgainstMarket({
+      market: selectedMarket,
+      quantity: tradeParams.quantity,
+      markPrice: String(cachedMarkPrice),
+      cva: tradeParams.cva,
+      lf: tradeParams.lf,
+      partyAmm: tradeParams.partyAmm,
+    }).violations;
+  }, [selectedMarket, cachedMarkPrice, tradeParams]);
+
   const mutation = useInstantOpenAuto();
 
   const canSubmit = Boolean(
@@ -151,12 +208,12 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
     validInitialMargin !== undefined &&
     validSlippage !== undefined &&
     !exceedsAvailable &&
+    quoteViolations.length === 0 &&
     !mutation.isPending,
   );
 
   async function handleSubmit() {
     if (!canSubmit || !selectedMarket || !marketName) return;
-    const cachedMarkPrice = priceQuery.data?.[marketName]?.markPrice;
     await mutation.mutateAsync({
       subAccountAddress: subAccount,
       from: sessionKey,
@@ -283,6 +340,17 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
         </Field>
       </div>
 
+      {tradeParams !== null ? (
+        <TradePreview
+          tradeParams={tradeParams}
+          feeRates={feeQuery.data}
+          markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
+          idPrefix={idPrefix}
+        />
+      ) : null}
+
+      {quoteViolations.length > 0 ? <QuoteViolationsPanel violations={quoteViolations} idPrefix={idPrefix} /> : null}
+
       <Button
         type="button"
         size="lg"
@@ -298,6 +366,209 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
       <SubmitStatus mutation={mutation} sessionKey={sessionKey} idPrefix={idPrefix} />
     </div>
   );
+}
+
+function TradePreview({
+  tradeParams,
+  feeRates,
+  markPrice,
+  idPrefix,
+}: {
+  tradeParams: NonNullable<ReturnType<typeof calculateTradeParams>>;
+  feeRates: { openFee: bigint; closeFee: bigint } | undefined;
+  markPrice: string | undefined;
+  idPrefix: string;
+}) {
+  const lockedTotal = sumDecimals([tradeParams.cva, tradeParams.lf, tradeParams.partyAmm]);
+  const openFeeAmount = feeRates ? computeFeeAmount(feeRates.openFee, tradeParams.notional) : undefined;
+  const closeFeeAmount = feeRates ? computeFeeAmount(feeRates.closeFee, tradeParams.notional) : undefined;
+  const totalFeeAmount =
+    openFeeAmount !== undefined && closeFeeAmount !== undefined
+      ? sumDecimals([openFeeAmount, closeFeeAmount])
+      : undefined;
+
+  return (
+    <div
+      data-testid={`${idPrefix}-preview`}
+      className="border-border/70 bg-muted/20 grid gap-3 rounded-xl border p-4 text-sm"
+    >
+      <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Quote preview</div>
+
+      <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1.5">
+        <PreviewRow
+          label="Mark price"
+          value={markPrice !== undefined ? formatDecimalUsd(markPrice) : "—"}
+          testId={`${idPrefix}-preview-mark-price`}
+        />
+        <PreviewRow
+          label="Request price"
+          value={formatDecimalUsd(tradeParams.requestedOpenPrice)}
+          testId={`${idPrefix}-preview-request-price`}
+        />
+        <PreviewRow
+          label="quantity"
+          value={formatDecimalAmount(tradeParams.quantity)}
+          testId={`${idPrefix}-preview-quantity`}
+        />
+        <PreviewRow
+          label="Notional"
+          hint="(quantity × requestedOpenPrice)"
+          value={formatDecimalUsd(tradeParams.notional)}
+          testId={`${idPrefix}-preview-notional`}
+        />
+      </dl>
+
+      <div className="border-border/60 border-t pt-3">
+        <div className="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">Fees</div>
+        <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
+          <PreviewRow
+            label="Open fee"
+            value={openFeeAmount !== undefined ? formatDecimalUsd(openFeeAmount) : "—"}
+            testId={`${idPrefix}-preview-open-fee`}
+          />
+          <PreviewRow
+            label="Close fee"
+            value={closeFeeAmount !== undefined ? formatDecimalUsd(closeFeeAmount) : "—"}
+            testId={`${idPrefix}-preview-close-fee`}
+          />
+          <PreviewRow
+            label="Total fee"
+            value={totalFeeAmount !== undefined ? formatDecimalUsd(totalFeeAmount) : "—"}
+            bold
+            testId={`${idPrefix}-preview-total-fee`}
+          />
+        </dl>
+      </div>
+
+      <div className="border-border/60 border-t pt-3">
+        <div className="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">Locked margin</div>
+        <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
+          <PreviewRow label="CVA" value={formatDecimalUsd(tradeParams.cva)} testId={`${idPrefix}-preview-cva`} />
+          <PreviewRow label="LF" value={formatDecimalUsd(tradeParams.lf)} testId={`${idPrefix}-preview-lf`} />
+          <PreviewRow
+            label="partyAmm"
+            value={formatDecimalUsd(tradeParams.partyAmm)}
+            testId={`${idPrefix}-preview-partyamm`}
+          />
+          <PreviewRow
+            label="Total locked"
+            value={formatDecimalUsd(lockedTotal)}
+            bold
+            testId={`${idPrefix}-preview-locked-total`}
+          />
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Compute a fee amount in USD as a decimal string. `feeRate` is 18-decimal
+ * fixed-point (`getFeeForUser` shape); `notional` is the trade's notional as a
+ * decimal string. Plain `Number` math is fine here — preview-only precision.
+ */
+function computeFeeAmount(feeRate: bigint, notional: string): string {
+  const rate = Number(feeRate) / 1e18;
+  const notionalNum = Number(notional);
+  if (!Number.isFinite(rate) || !Number.isFinite(notionalNum)) return "0";
+  return String(rate * notionalNum);
+}
+
+function PreviewRow({
+  label,
+  hint,
+  value,
+  bold = false,
+  testId,
+}: {
+  label: string;
+  /** Optional short clarifier shown next to the label (e.g. the formula). */
+  hint?: string;
+  value: string;
+  bold?: boolean;
+  testId?: string;
+}) {
+  return (
+    <>
+      <dt className={cn("text-muted-foreground inline-flex items-baseline gap-1.5", bold && "text-foreground font-medium")}>
+        <span>{label}</span>
+        {hint ? <span className="text-muted-foreground/70 text-[0.65rem]">{hint}</span> : null}
+      </dt>
+      <dd className={cn("text-foreground justify-self-end font-mono", bold && "font-semibold")} data-testid={testId}>
+        {value}
+      </dd>
+    </>
+  );
+}
+
+function sumDecimals(values: readonly string[]): string {
+  let total = 0;
+  for (const v of values) {
+    const n = Number(v);
+    if (Number.isFinite(n)) total += n;
+  }
+  return String(total);
+}
+
+function QuoteViolationsPanel({ violations, idPrefix }: { violations: QuoteConstraintViolation[]; idPrefix: string }) {
+  return (
+    <div
+      data-testid={`${idPrefix}-quote-violations`}
+      role="alert"
+      className="border-destructive/30 bg-destructive/10 text-destructive flex flex-col gap-1.5 rounded-xl border px-3 py-2.5 text-sm"
+    >
+      <span className="text-foreground/90 font-medium">Quote can&apos;t be sent yet:</span>
+      <ul className="flex flex-col gap-1 pl-4 [&>li]:list-disc">
+        {violations.map((violation, index) => (
+          <li key={`${violation.kind}-${index}`} className="text-foreground/85 text-xs">
+            {describeViolation(violation)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Render one violation as a short, user-readable sentence. */
+function describeViolation(violation: QuoteConstraintViolation): string {
+  switch (violation.kind) {
+    case "LF_PORTION_TOO_LOW":
+      return `LF portion ${formatRatio(violation.actualPortion)} is below the market minimum ${formatRatio(violation.minPortion)}. Raise leverage or pick a different market.`;
+    case "QUOTE_VALUE_TOO_LOW":
+      return `Locked margin ${formatDecimalUsd(violation.actualQuoteValue)} (CVA + LF + partyAmm) is below the market minimum ${formatDecimalUsd(violation.minQuoteValue)}.`;
+    case "NOTIONAL_TOO_HIGH":
+      return `Notional ${formatDecimalUsd(violation.actualNotional)} exceeds the market cap ${formatDecimalUsd(violation.maxNotional)}. Lower the margin or leverage.`;
+    case "NOTIONAL_TOO_LOW":
+      return `Notional ${formatDecimalUsd(violation.actualNotional)} is below the market minimum ${formatDecimalUsd(violation.minNotional)}.`;
+    case "QUANTITY_TOO_HIGH":
+      return `Quantity ${formatDecimalAmount(violation.actualQuantity)} exceeds the market cap ${formatDecimalAmount(violation.maxQuantity)}.`;
+    case "QUANTITY_BELOW_LOT_SIZE":
+      return `Quantity ${formatDecimalAmount(violation.actualQuantity)} is below the market's minimum lot ${formatDecimalAmount(violation.lotSize)}.`;
+    case "QUANTITY_NOT_LOT_MULTIPLE":
+      return `Quantity ${formatDecimalAmount(violation.actualQuantity)} must be an exact multiple of the lot size ${formatDecimalAmount(violation.lotSize)}.`;
+  }
+}
+
+function formatRatio(value: string): string {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return value;
+  return `${(parsed * 100).toFixed(2)}%`;
+}
+
+function formatDecimalUsd(value: string): string {
+  return `$${formatDecimalAmount(value)}`;
+}
+
+/**
+ * Format a decimal string with at most 4 fractional digits, no thousand
+ * separators, trailing zeros stripped. `parseFloat` round-trip drops trailing
+ * zeros for free; falls through to the raw string when the value isn't a
+ * finite number so we never display `"NaN"`.
+ */
+function formatDecimalAmount(value: string): string {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return value;
+  return parseFloat(parsed.toFixed(4)).toString();
 }
 
 function SubmitStatus({

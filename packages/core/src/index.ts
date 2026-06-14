@@ -767,6 +767,11 @@ export {
   getInstantOpensQueryKey,
   getInstantOpensQueryOptions,
   getMarketOrderDeadline,
+  // quote constraints — pre-submit validation against market caps/floors
+  validateInstantOpenAgainstMarket,
+  type QuoteConstraintViolation,
+  type ValidateInstantOpenAgainstMarketParameters,
+  type ValidateInstantOpenAgainstMarketReturnType,
   // instantOpen — primitive (all inputs required, no fetching)
   instantOpen,
   instantOpenAuto,

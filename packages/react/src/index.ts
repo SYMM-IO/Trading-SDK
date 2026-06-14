@@ -30,8 +30,15 @@ export {
   SubAccountIsolationType,
   SymmApiError,
   SymmError,
+  calculateTradeParams,
+  validateInstantOpenAgainstMarket,
+  type CalculateTradeParamsParameters,
+  type CalculateTradeParamsReturnType,
+  type QuoteConstraintViolation,
   type SubAccountCreationData,
   type SymmErrorKind,
+  type ValidateInstantOpenAgainstMarketParameters,
+  type ValidateInstantOpenAgainstMarketReturnType,
 } from "@symm-frontier/core";
 export type { GetWalletClientFn, SymmioWalletClient } from "@symm-frontier/core";
 export {
