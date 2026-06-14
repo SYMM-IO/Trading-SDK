@@ -105,6 +105,16 @@ export function SymmioConfigDebug() {
               copyValue={chainConfig.subgraphs.analytics}
             />
           </ConfigGroup>
+
+          <ConfigGroup title="Notifications">
+            <DataRow
+              label="WebSocket"
+              mono
+              value={<span className="truncate">{chainConfig.notifications.url}</span>}
+              copyValue={chainConfig.notifications.url}
+            />
+            <DataRow label="Channel" mono value={chainConfig.notifications.channel} />
+          </ConfigGroup>
         </>
       )}
     </section>

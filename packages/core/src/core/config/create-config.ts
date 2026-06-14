@@ -1,6 +1,7 @@
 import type { Address, PublicClient } from "viem";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { DeepPartial } from "../../shared/types/properties";
+import type { WebSocketConstructor } from "../../shared/types/websocket";
 import type { SymmioChainConfig } from "../chains";
 import { hashChainConfig } from "./config-key";
 import { buildChainConfigs } from "./merge-chain-config";
@@ -59,6 +60,13 @@ export interface CreateConfigParameters {
    * option; set `false` here to disable the pre-flight for all writes.
    */
   simulateBeforeWrite?: boolean;
+  /**
+   * WebSocket implementation used by streaming actions (e.g. `watchNotifications`).
+   * Defaults to `globalThis.WebSocket` — set in browsers and Node 22+. Pass an
+   * implementation explicitly to run streams in environments without a global
+   * (e.g. the `ws` package in older Node, or a mock in tests).
+   */
+  webSocketConstructor?: WebSocketConstructor;
 }
 
 /**
@@ -105,6 +113,15 @@ export interface Config {
    * @throws {SymmError} when the config was created without `getWalletClient`.
    */
   getWalletClient(parameters?: { chainId?: number; from?: Address }): Promise<SymmioWalletClient>;
+  /**
+   * Resolve the WebSocket implementation streaming actions open connections
+   * with. Returns the injected `webSocketConstructor`, falling back to
+   * `globalThis.WebSocket`.
+   *
+   * @throws {SymmError} when neither an injected constructor nor a global
+   *   `WebSocket` is available.
+   */
+  getWebSocketConstructor(): WebSocketConstructor;
 }
 
 /**
@@ -135,7 +152,14 @@ export interface ConfigParameter {
  * ```
  */
 export function createConfig(parameters: CreateConfigParameters): Config {
-  const { getClient, getWalletClient, chainOverrides, defaultChainId, simulateBeforeWrite = true } = parameters;
+  const {
+    getClient,
+    getWalletClient,
+    chainOverrides,
+    defaultChainId,
+    simulateBeforeWrite = true,
+    webSocketConstructor,
+  } = parameters;
 
   const chainConfigs = buildChainConfigs(chainOverrides);
 
@@ -182,6 +206,16 @@ export function createConfig(parameters: CreateConfigParameters): Config {
         chainId: clientParameters?.chainId ?? resolvedDefaultChainId,
         from: clientParameters?.from,
       });
+    },
+    getWebSocketConstructor() {
+      const ctor = webSocketConstructor ?? (globalThis as { WebSocket?: WebSocketConstructor }).WebSocket;
+      if (!ctor)
+        throw new SymmError(
+          "config",
+          "NO_WEBSOCKET",
+          "No WebSocket implementation available. Pass `webSocketConstructor` to createConfig (e.g. the `ws` package in Node).",
+        );
+      return ctor;
     },
   };
 }

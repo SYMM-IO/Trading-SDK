@@ -67,6 +67,7 @@ export function ReadMarkets() {
     <MethodCard
       testId="method-getMarkets"
       name="getMarkets"
+      magicMethodId="markets"
       mutability="view"
       description="Fetch all tradable markets (contract symbols) from the solver."
     >

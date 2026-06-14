@@ -5,6 +5,7 @@ import { LogoMark } from "@/features/layout/logo";
 import { isActivePath, primaryNavLinks, secondaryNavLinks, type NavLink } from "@/features/layout/nav";
 import { NavMoreMenu } from "@/features/layout/nav-more-menu";
 import { ThemeToggle } from "@/features/layout/theme-toggle";
+import { MagicSidebarLauncher } from "@/features/magic-sidebar/magic-sidebar-launcher";
 import { SearchLauncher } from "@/features/search/search-launcher";
 import { cn } from "@symm-frontier/ui/lib/utils";
 import Link from "next/link";
@@ -53,6 +54,7 @@ export function SiteHeader() {
 
         <div className="ml-auto flex items-center gap-2">
           <SearchLauncher />
+          <MagicSidebarLauncher />
           <ConfigLauncher />
           <ThemeToggle />
           <button

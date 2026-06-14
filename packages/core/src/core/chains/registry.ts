@@ -30,6 +30,11 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
       type: "enigma",
       url: "https://lowcap-price.enigma.bz",
     },
+    notifications: {
+      url: "wss://notification.rasa.capital/ws/v1/subscribe",
+      channel: "Hyper-EVM_Solver-Low-Cap_Production",
+      protocol: "defilytics",
+    },
     muon: {
       // Muon oracle gateways (https://docs.symm.io/api-endpoints-and-deployments/muon-api),
       // tried in order until one returns a successful attestation.

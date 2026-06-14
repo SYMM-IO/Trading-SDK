@@ -2,7 +2,13 @@
  * Test-only render helpers. Compiled out of the published bundle by
  * `vite.config.ts`'s dts `exclude` and is not exported from `src/index.ts`.
  */
-import { createConfig, type Config, type SymmioWalletClient } from "@symm-frontier/core";
+import {
+  createConfig,
+  type Config,
+  type SymmioWalletClient,
+  type WebSocketConstructor,
+  type WebSocketLike,
+} from "@symm-frontier/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   render,
@@ -65,7 +71,10 @@ export interface MockSymmioConfig {
  * the stubs, with no network. `withWallet: false` omits the wallet resolver so
  * write paths reject with `SymmError`.
  */
-export function createMockSymmioConfig(opts?: { withWallet?: boolean }): MockSymmioConfig {
+export function createMockSymmioConfig(opts?: {
+  withWallet?: boolean;
+  webSocketConstructor?: WebSocketConstructor;
+}): MockSymmioConfig {
   const readContract = vi.fn();
   const writeContract = vi.fn();
   const simulateContract = vi.fn();
@@ -78,9 +87,79 @@ export function createMockSymmioConfig(opts?: { withWallet?: boolean }): MockSym
   const config = createConfig({
     getClient: () => publicClient,
     getWalletClient: opts?.withWallet === false ? undefined : async () => walletClient,
+    webSocketConstructor: opts?.webSocketConstructor,
   });
 
   return { config, readContract, writeContract, simulateContract, waitForTransactionReceipt };
+}
+
+/**
+ * A scriptable WebSocket instance for hook tests: records sent frames and
+ * exposes `simulate*` helpers to drive the socket lifecycle deterministically.
+ */
+export interface FakeWebSocketInstance extends WebSocketLike {
+  url: string;
+  sent: string[];
+  simulateOpen(): void;
+  simulateMessage(data: unknown): void;
+  simulateClose(code?: number): void;
+}
+
+/**
+ * Build an isolated fake WebSocket implementation for a single test, plus access
+ * to the instances it creates. Inject `WebSocket` via
+ * `createMockSymmioConfig({ webSocketConstructor })`.
+ */
+export function createFakeWebSocket(): {
+  WebSocket: WebSocketConstructor;
+  instances: FakeWebSocketInstance[];
+  last(): FakeWebSocketInstance;
+} {
+  const instances: FakeWebSocketInstance[] = [];
+
+  class FakeSocket implements FakeWebSocketInstance {
+    url: string;
+    sent: string[] = [];
+    readyState = 1;
+    onopen: WebSocketLike["onopen"] = null;
+    onclose: WebSocketLike["onclose"] = null;
+    onerror: WebSocketLike["onerror"] = null;
+    onmessage: WebSocketLike["onmessage"] = null;
+
+    constructor(url: string) {
+      this.url = url;
+      instances.push(this);
+    }
+
+    send(data: string): void {
+      this.sent.push(data);
+    }
+
+    close(): void {
+      this.readyState = 3;
+      this.onclose?.({ code: 1000, reason: "", wasClean: true });
+    }
+
+    simulateOpen(): void {
+      this.readyState = 1;
+      this.onopen?.({});
+    }
+
+    simulateMessage(data: unknown): void {
+      this.onmessage?.({ data: typeof data === "string" ? data : JSON.stringify(data) });
+    }
+
+    simulateClose(code = 1006): void {
+      this.readyState = 3;
+      this.onclose?.({ code, reason: "", wasClean: false });
+    }
+  }
+
+  return {
+    WebSocket: FakeSocket as unknown as WebSocketConstructor,
+    instances,
+    last: () => instances[instances.length - 1]!,
+  };
 }
 
 /**

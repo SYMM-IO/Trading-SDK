@@ -34,6 +34,8 @@ export function ReadGetQuote() {
     <MethodCard
       testId="method-getQuote"
       name="getQuote"
+      magicMethodId="quote"
+      magicMethodInput={quoteId}
       mutability="view"
       description="Read a single quote by id. Resolves to ‘not found’ when no quote has that id."
       wide

@@ -16,9 +16,9 @@ export interface ConfigPreset {
 
 /**
  * Staging deployment overrides. Applying this points the SDK at the SYMMIO
- * staging contracts, the Enigma staging solver (partyB), and the staging
- * analytics subgraph on HyperEVM. The staging collateral is an 18-decimal
- * mintable test token.
+ * staging contracts, the Enigma staging solver (partyB), the staging analytics
+ * subgraph, and the staging notifications WebSocket on HyperEVM. The staging
+ * collateral is an 18-decimal mintable test token.
  */
 export const STAGING_CHAIN_OVERRIDES = {
   [SymmioSupportedChainId.HYPER_EVM]: {
@@ -39,6 +39,10 @@ export const STAGING_CHAIN_OVERRIDES = {
       analytics:
         "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_analytics/latest/gn",
     },
+    notifications: {
+      url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
+      channel: "Hyper-evm_Solver-lowcap_Stage",
+    },
   },
 } satisfies CreateConfigParameters["chainOverrides"];
 
@@ -46,6 +50,7 @@ export const STAGING_CHAIN_OVERRIDES = {
 export const STAGING_PRESET: ConfigPreset = {
   id: "staging",
   label: "Staging",
-  description: "SYMMIO staging contracts, the Enigma staging solver, and an 18-decimal test collateral.",
+  description:
+    "SYMMIO staging contracts, the Enigma staging solver, the staging notifications stream, and an 18-decimal test collateral.",
   overrides: STAGING_CHAIN_OVERRIDES,
 };

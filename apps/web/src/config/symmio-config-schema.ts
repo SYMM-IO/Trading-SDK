@@ -9,10 +9,10 @@ import {
 import { getAddress, isAddress } from "viem";
 
 /** Top-level group a config field belongs to, matching {@link SymmioChainConfig}. */
-export type ConfigFieldGroup = "addresses" | "solver" | "subgraphs";
+export type ConfigFieldGroup = "addresses" | "solver" | "subgraphs" | "notifications";
 
 /** How a field is rendered and validated in the editor. */
-export type ConfigFieldKind = "address" | "decimals" | "url" | "text";
+export type ConfigFieldKind = "address" | "decimals" | "url" | "wsUrl" | "text";
 
 /** Metadata describing one editable field of a chain config. */
 export interface ConfigFieldDef {
@@ -65,6 +65,20 @@ export const CONFIG_GROUPS: ConfigGroupDef[] = [
     title: "Subgraphs",
     fields: [{ group: "subgraphs", key: "analytics", label: "Analytics", kind: "url" }],
   },
+  {
+    group: "notifications",
+    title: "Notifications",
+    fields: [
+      {
+        group: "notifications",
+        key: "url",
+        label: "WebSocket URL",
+        kind: "wsUrl",
+        hint: "Live notifications stream",
+      },
+      { group: "notifications", key: "channel", label: "Channel", kind: "text", hint: "app_name" },
+    ],
+  },
 ];
 
 /** Flat list of every editable field across all groups. */
@@ -116,6 +130,8 @@ export function validateFieldValue(field: ConfigFieldDef, raw: string): string |
     }
     case "url":
       return /^https?:\/\/\S+$/.test(value) ? null : "Must be an http(s) URL";
+    case "wsUrl":
+      return /^wss?:\/\/\S+$/.test(value) ? null : "Must be a ws(s) URL";
     case "text":
       return null;
   }
@@ -151,6 +167,7 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
       addresses: {},
       solver: {},
       subgraphs: {},
+      notifications: {},
     };
 
     for (const field of CONFIG_FIELDS) {
@@ -164,6 +181,7 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
     if (Object.keys(groups.addresses).length) chainOverride.addresses = groups.addresses;
     if (Object.keys(groups.solver).length) chainOverride.solver = groups.solver;
     if (Object.keys(groups.subgraphs).length) chainOverride.subgraphs = groups.subgraphs;
+    if (Object.keys(groups.notifications).length) chainOverride.notifications = groups.notifications;
     if (Object.keys(chainOverride).length) result[chainId] = chainOverride as DeepPartial<SymmioChainConfig>;
   }
 

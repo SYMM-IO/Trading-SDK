@@ -42,6 +42,7 @@ export {
   type GetWalletClientFn,
   type SymmioWalletClient,
 } from "./core/config";
+export type { WebSocketConstructor, WebSocketLike } from "./shared/types/websocket";
 
 /**
  * AccountLayer slice
@@ -445,6 +446,8 @@ export {
   type SymmioChainConfig,
   type SymmioContractAddresses,
   type SymmioMuonConfig,
+  type SymmioNotificationsConfig,
+  type SymmioNotificationsProtocol,
   type SymmioPriceServiceConfig,
   type SymmioPriceServiceType,
   type SymmioSolverConfig,
@@ -511,6 +514,31 @@ export {
   type GetEnigmaPriceServiceSymbolsInfoQueryOptions,
   type GetEnigmaPriceServiceSymbolsInfoReturnType,
 } from "./price-service/enigma";
+
+/**
+ * Notifications stream
+ * --------------------
+ * `watchNotifications` subscribes to the chain's notifications WebSocket and
+ * delivers normalized, classified position/quote state notifications. The
+ * reconnecting-socket primitive underneath stays internal; `SocketStatus` is the
+ * connection state it reports.
+ */
+export {
+  ActionStatus,
+  NotificationType,
+  buildSubscribeMessage,
+  classifyNotification,
+  normalizeNotification,
+  parseNotificationFrame,
+  watchNotifications,
+  type BuildSubscribeMessageParameters,
+  type DefilyticsNotificationEnvelope,
+  type Notification,
+  type RawPositionNotification,
+  type Unwatch,
+  type WatchNotificationsParameters,
+} from "./websocket/notifications";
+export type { SocketStatus } from "./websocket/socket";
 
 /**
  * Markets
@@ -731,6 +759,13 @@ export {
   generateSalt,
   getFakeSendQuoteMuonSignature,
   getInstantLayerEip712Domain,
+  // instant-open reads (off-chain hedger)
+  getInstantOpenQuoteId,
+  getInstantOpenQuoteIdQueryKey,
+  getInstantOpenQuoteIdQueryOptions,
+  getInstantOpens,
+  getInstantOpensQueryKey,
+  getInstantOpensQueryOptions,
   getMarketOrderDeadline,
   // instantOpen — primitive (all inputs required, no fetching)
   instantOpen,
@@ -757,6 +792,19 @@ export {
   type EncodeAddMarginToNextVAParameters,
   type EncodeSendQuoteWithAffiliateAndDataParameters,
   type FlexField,
+  // instant-open read types
+  type GetInstantOpenQuoteIdData,
+  type GetInstantOpenQuoteIdOptions,
+  type GetInstantOpenQuoteIdParameters,
+  type GetInstantOpenQuoteIdQueryKey,
+  type GetInstantOpenQuoteIdQueryOptions,
+  type GetInstantOpenQuoteIdReturnType,
+  type GetInstantOpensData,
+  type GetInstantOpensOptions,
+  type GetInstantOpensParameters,
+  type GetInstantOpensQueryKey,
+  type GetInstantOpensQueryOptions,
+  type GetInstantOpensReturnType,
   type InstantOpenLockedParams,
   type InstantOpenMargin,
   type InstantOpenMarketData,
@@ -764,6 +812,7 @@ export {
   type InstantOpenParameters,
   type InstantOpenReturnType,
   type InstantOperationPayload,
+  type PendingInstantOpen,
   type PrepareInstantOpenParameters,
   type ReplayAttackHeader,
   type ResolveFeeRatesParameters,

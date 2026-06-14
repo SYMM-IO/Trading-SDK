@@ -106,8 +106,8 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
             </div>
             <SheetTitle>Chain configuration</SheetTitle>
             <SheetDescription>
-              Override the SDK&apos;s built-in addresses, solver, and subgraphs. Edits apply to every read and write the
-              app makes.
+              Override the SDK&apos;s built-in addresses, solver, subgraphs, and notifications. Edits apply to every
+              read and write the app makes.
             </SheetDescription>
             <span className="border-border/70 bg-muted/40 mt-0.5 inline-flex w-fit items-center gap-2 rounded-full border py-1 pr-3 pl-2.5 text-xs font-medium">
               <StatusDot tone={status.tone} pulse={status.pulse} />

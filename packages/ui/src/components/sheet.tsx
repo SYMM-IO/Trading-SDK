@@ -71,20 +71,25 @@ const sheetVariants = cva(
  *
  * @param side - Screen edge the panel anchors to. Defaults to `"right"`.
  * @param showClose - Render the built-in top-right close button. Defaults to `true`.
+ * @param showOverlay - Render the dimmed backdrop. Defaults to `true`. Set `false`
+ *   together with `modal={false}` on {@link Sheet} for a non-blocking docked panel
+ *   that leaves the rest of the page interactive.
  */
 function SheetContent({
   className,
   children,
   side = "right",
   showClose = true,
+  showOverlay = true,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> &
   VariantProps<typeof sheetVariants> & {
     showClose?: boolean;
+    showOverlay?: boolean;
   }) {
   return (
     <SheetPrimitive.Portal data-slot="sheet-portal">
-      <SheetOverlay />
+      {showOverlay ? <SheetOverlay /> : null}
       <SheetPrimitive.Content data-slot="sheet-content" className={cn(sheetVariants({ side }), className)} {...props}>
         {children}
         {showClose ? (

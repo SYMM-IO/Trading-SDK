@@ -189,6 +189,8 @@ export {
   useGrantDelegation,
   useInstantOpen,
   useInstantOpenAuto,
+  useInstantOpenQuoteId,
+  useInstantOpens,
   useIsDelegationActive,
   useSimulateGrantDelegation,
   type GrantDelegationResult,
@@ -199,7 +201,11 @@ export {
   type UseInstantOpenAutoParameters,
   type UseInstantOpenAutoReturnType,
   type UseInstantOpenParameters,
+  type UseInstantOpenQuoteIdParameters,
+  type UseInstantOpenQuoteIdReturnType,
   type UseInstantOpenReturnType,
+  type UseInstantOpensParameters,
+  type UseInstantOpensReturnType,
   type UseIsDelegationActiveParameters,
   type UseIsDelegationActiveReturnType,
   type UseSimulateGrantDelegationParameters,
@@ -319,6 +325,15 @@ export {
   type UseEnigmaPriceServiceSymbolsInfoParameters,
   type UseEnigmaPriceServiceSymbolsInfoReturnType,
 } from "./price-service";
+
+/**
+ * WebSocket / notifications hooks
+ * -------------------------------
+ * Subscribe to the chain's live notifications stream. Import the notification
+ * value types (`Notification`, `NotificationType`, `SocketStatus`) from
+ * `@symm-frontier/core`.
+ */
+export { useNotifications, type UseNotificationsParameters, type UseNotificationsReturnType } from "./websocket";
 
 /**
  * Muon hooks

@@ -20,6 +20,8 @@ export function ReadGetPartyAPendingQuotes() {
     <MethodCard
       testId="method-getPartyAPendingQuotes"
       name="getPartyAPendingQuotes"
+      magicMethodId="party-a-pending-quotes"
+      magicMethodInput={input}
       mutability="view"
       description="List a partyA's pending quote ids (PENDING / LOCKED / CANCEL_PENDING). Hydrate each with getQuote."
       wide

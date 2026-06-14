@@ -58,6 +58,30 @@ export interface SymmioPriceServiceConfig {
 }
 
 /**
+ * Wire protocol a notifications endpoint speaks.
+ *
+ * - `defilytics` — the lowcap solver endpoint (`…/ws/v1/subscribe`). Subscribes
+ *   with a `channel_patterns` frame and wraps each push as `{ data, address }`.
+ */
+export type SymmioNotificationsProtocol = "defilytics";
+
+/**
+ * Notifications WebSocket configuration for a SYMMIO chain deployment.
+ *
+ * The notifications endpoint streams position/quote state transitions (instant
+ * open/close confirmations, fills, cancels, liquidations) for a SubAccount. It
+ * is a push channel, not a REST endpoint — `url` is a `ws://`/`wss://` URL.
+ */
+export interface SymmioNotificationsConfig {
+  /** Notifications WebSocket URL (`wss://…`). */
+  url: string;
+  /** Channel / `app_name` the subscribe frame targets on this endpoint. */
+  channel: string;
+  /** Wire protocol the endpoint speaks. */
+  protocol: SymmioNotificationsProtocol;
+}
+
+/**
  * Muon oracle configuration for a SYMMIO chain deployment.
  *
  * The Muon network signs off-chain values (e.g. a party's unrealized PnL) that
@@ -86,6 +110,8 @@ export interface SymmioChainConfig {
   solver: SymmioSolverConfig;
   /** Price-service configuration */
   priceService: SymmioPriceServiceConfig;
+  /** Notifications WebSocket configuration */
+  notifications: SymmioNotificationsConfig;
   /** Muon oracle configuration */
   muon: SymmioMuonConfig;
 }

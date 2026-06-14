@@ -37,6 +37,8 @@ export function ReadAccountBalanceInfo() {
     <MethodCard
       testId="method-getAccountBalanceInfo"
       name="getAccountBalanceInfo"
+      magicMethodId="account-balance-info"
+      magicMethodInput={selection.subAccount}
       mutability="view"
       description="Read balanceInfoOfPartyA for a selected subaccount on its SYMMIO core."
       wide

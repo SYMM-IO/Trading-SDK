@@ -115,6 +115,8 @@ export function ReadGetPartyAOpenPositions() {
     <MethodCard
       testId="method-getPartyAOpenPositions"
       name="getPartyAOpenPositions"
+      magicMethodId="party-a-open-positions"
+      magicMethodInput={input}
       mutability="view"
       description="Read a partyA's open positions (SubAccount for Majors, Virtual Account for VibeCaps)."
       wide

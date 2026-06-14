@@ -2,6 +2,8 @@
 
 import { wagmiConfig } from "@/config/wagmi";
 import { SymmioOverridesProvider, useSymmioOverrides } from "@/features/config/symmio-overrides-store";
+import { MagicSidebarDock } from "@/features/magic-sidebar/magic-sidebar-dock";
+import { MagicSidebarProvider } from "@/features/magic-sidebar/magic-sidebar-store";
 import { getAppSessionKeyManager } from "@/features/session-keys/session-key-manager";
 import { SymmError, SymmioProvider, type GetWalletClientFn, type SymmioWalletClient } from "@symm-frontier/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -58,7 +60,9 @@ function SymmioConfigBridge({ children }: { children: ReactNode }) {
 
   return (
     <SymmioProvider chainOverrides={overrides} getWalletClient={getWalletClient}>
-      {children}
+      <MagicSidebarProvider>
+        <MagicSidebarDock>{children}</MagicSidebarDock>
+      </MagicSidebarProvider>
     </SymmioProvider>
   );
 }
