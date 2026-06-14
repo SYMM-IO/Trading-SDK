@@ -6,11 +6,12 @@ import { Card } from "@symm-frontier/ui/components/card";
 import { useMemo, useState, type CSSProperties } from "react";
 import type { Address } from "viem";
 import { DepositFlow } from "./deposit-flow";
+import { InstantCloseFlow } from "./instant-close-flow";
 import { InstantOpenFlow } from "./instant-open-flow";
 import { Segmented } from "./segmented";
 import { WithdrawFlow } from "./withdraw-flow";
 
-type Tab = "deposit" | "withdraw" | "instant-open";
+type Tab = "deposit" | "withdraw" | "instant-open" | "instant-close";
 
 /**
  * End-to-end Integration console for the SYMMIO React SDK: a product-grade
@@ -44,11 +45,12 @@ export function IntegrationPanel() {
 
       <Card className="animate-enter-up gap-6 p-6 sm:p-8" style={{ "--enter-delay": "80ms" } as CSSProperties}>
         <Segmented
-          aria-label="Deposit, withdraw, or open a position"
+          aria-label="Deposit, withdraw, open, or close a position"
           options={[
             { value: "deposit", label: "Deposit" },
             { value: "withdraw", label: "Withdraw" },
             { value: "instant-open", label: "Instant Open" },
+            { value: "instant-close", label: "Instant Close" },
           ]}
           value={tab}
           onChange={setTab}
@@ -74,8 +76,16 @@ export function IntegrationPanel() {
             chainId={chainId}
             ready={ready}
           />
-        ) : (
+        ) : tab === "instant-open" ? (
           <InstantOpenFlow
+            owner={address}
+            subAccount={subAccount}
+            subAccountName={subAccountName}
+            onSelectSubAccount={setSubAccount}
+            ready={ready}
+          />
+        ) : (
+          <InstantCloseFlow
             owner={address}
             subAccount={subAccount}
             subAccountName={subAccountName}

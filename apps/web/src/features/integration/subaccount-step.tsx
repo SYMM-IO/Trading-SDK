@@ -11,6 +11,7 @@ import {
   useSymmioConfig,
   useUserSubAccounts,
 } from "@symm-frontier/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
@@ -34,7 +35,19 @@ interface Props {
  */
 export function SubaccountStep({ owner, selected, onSelect }: Props) {
   const subAccounts = useUserSubAccounts({ user: owner });
+  const queryClient = useQueryClient();
   const items = subAccounts.data ?? [];
+
+  /**
+   * Re-read the subaccount list and invalidate every mounted
+   * `useAccountBalanceOf` query so each row refetches its balance in lockstep.
+   * Prefix-match on the `"getAccountBalanceOf"` query-key namespace covers
+   * every account address the rows fan out to.
+   */
+  function refreshAll() {
+    void subAccounts.refetch();
+    void queryClient.invalidateQueries({ queryKey: ["getAccountBalanceOf"] });
+  }
 
   if (!owner) {
     return <ResultNote testId="subaccount-step-disconnected">Connect a wallet to load your subaccounts.</ResultNote>;
@@ -44,7 +57,18 @@ export function SubaccountStep({ owner, selected, onSelect }: Props) {
   }
   if (subAccounts.error) {
     return (
-      <ResultError testId="subaccount-step-error" kind={subAccounts.error.kind} message={subAccounts.error.message} />
+      <div className="flex flex-col gap-2">
+        <ResultError
+          testId="subaccount-step-error"
+          kind={subAccounts.error.kind}
+          message={subAccounts.error.message}
+        />
+        <RefetchButton
+          isRefetching={subAccounts.isRefetching}
+          onClick={refreshAll}
+          testId="subaccount-step-retry"
+        />
+      </div>
     );
   }
   if (items.length === 0) {
@@ -52,17 +76,56 @@ export function SubaccountStep({ owner, selected, onSelect }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="subaccount-step-list">
-      {items.map((sub) => (
-        <SubAccountOption
-          key={sub.accountAddress}
-          address={sub.accountAddress}
-          name={sub.name}
-          active={sub.accountAddress === selected}
-          onSelect={onSelect}
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-muted-foreground text-xs">
+          {items.length} subaccount{items.length === 1 ? "" : "s"}
+        </span>
+        <RefetchButton
+          isRefetching={subAccounts.isRefetching}
+          onClick={refreshAll}
+          testId="subaccount-step-retry"
         />
-      ))}
+      </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="subaccount-step-list">
+        {items.map((sub) => (
+          <SubAccountOption
+            key={sub.accountAddress}
+            address={sub.accountAddress}
+            name={sub.name}
+            active={sub.accountAddress === selected}
+            onSelect={onSelect}
+          />
+        ))}
+      </div>
     </div>
+  );
+}
+
+/**
+ * Tiny refetch trigger used by the wizard steps. Shows a spinner while
+ * refetching so the user gets feedback without a layout shift.
+ */
+function RefetchButton({
+  isRefetching,
+  onClick,
+  testId,
+}: {
+  isRefetching: boolean;
+  onClick: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={isRefetching}
+      data-testid={testId}
+      className="text-foreground hover:bg-muted/60 ring-border/60 disabled:text-muted-foreground inline-flex items-center gap-1.5 rounded px-2 py-1 text-[0.7rem] font-medium tracking-wide uppercase ring-1 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {isRefetching ? <Spinner className="size-3" /> : null}
+      {isRefetching ? "Refreshing…" : "Refresh"}
+    </button>
   );
 }
 

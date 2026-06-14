@@ -1,7 +1,7 @@
 import type { Address, Hex } from "viem";
 import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute, FromParameter } from "../../../shared/types/properties";
+import type { Compute, WriteSolverParameter } from "../../../shared/types/properties";
 import type { FeeForUser } from "../../../symmio-contracts/symmio/actions/get-fee-for-user";
 import type { ApiLockedParamsBySymbolIdResponse } from "../../types/generated/enigma-solver";
 import type { InstantOpenParameters } from "../instant-open/instant-open";
@@ -17,42 +17,41 @@ import { resolveFeeRates, resolveLockedParams, resolveMarket, resolveMarkPrice }
  * reads. Pre-fill an optional field to skip its fetch.
  */
 export type PrepareInstantOpenParameters = Compute<
-  ChainIdParameter &
-    FromParameter & {
-      /** Sub-account / partyA address. */
-      subAccountAddress: Address;
-      /** Market identification + optional pre-fetched precision metadata. */
-      market: InstantOpenMarketData;
-      /** Trade side. */
-      positionType: PositionType;
-      /** Collateral (USD) the user enters as initial margin. Decimal string. */
-      initialMargin: string;
-      /** Position leverage (integer ≥ 1). */
-      leverage: number;
-      /** Slippage tolerance percent (e.g. `5` for 5%). */
-      slippage: number;
-      /** Pre-fetched mark price as decimal string. When omitted, fetched via Enigma price service. */
-      markPrice?: string;
-      /**
-       * Pre-fetched solver locked params (matches `getLockedParams` return —
-       * `ApiLockedParamsBySymbolIdResponse`). When supplied with all four
-       * percent fields, the fetch is skipped.
-       */
-      lockedParamPercent?: ApiLockedParamsBySymbolIdResponse;
-      /**
-       * Pre-fetched on-chain fee rates (matches `getFeeForUser` return —
-       * `FeeForUser`). When omitted, fetched via `getFeeForUser`.
-       */
-      feeRates?: FeeForUser;
-      /** Forwarded to {@link InstantOpenParameters}. */
-      uuid?: string;
-      /** Forwarded to {@link InstantOpenParameters}. */
-      addMarginSalt?: Hex;
-      /** Forwarded to {@link InstantOpenParameters}. */
-      sendQuoteSalt?: Hex;
-      /** Forwarded to {@link InstantOpenParameters}. */
-      deadline?: bigint;
-    }
+  WriteSolverParameter & {
+    /** Sub-account / partyA address. */
+    subAccountAddress: Address;
+    /** Market identification + optional pre-fetched precision metadata. */
+    market: InstantOpenMarketData;
+    /** Trade side. */
+    positionType: PositionType;
+    /** Collateral (USD) the user enters as initial margin. Decimal string. */
+    initialMargin: string;
+    /** Position leverage (integer ≥ 1). */
+    leverage: number;
+    /** Slippage tolerance percent (e.g. `5` for 5%). */
+    slippage: number;
+    /** Pre-fetched mark price as decimal string. When omitted, fetched via Enigma price service. */
+    markPrice?: string;
+    /**
+     * Pre-fetched solver locked params (matches `getLockedParams` return —
+     * `ApiLockedParamsBySymbolIdResponse`). When supplied with all four
+     * percent fields, the fetch is skipped.
+     */
+    lockedParamPercent?: ApiLockedParamsBySymbolIdResponse;
+    /**
+     * Pre-fetched on-chain fee rates (matches `getFeeForUser` return —
+     * `FeeForUser`). When omitted, fetched via `getFeeForUser`.
+     */
+    feeRates?: FeeForUser;
+    /** Forwarded to {@link InstantOpenParameters}. */
+    uuid?: string;
+    /** Forwarded to {@link InstantOpenParameters}. */
+    addMarginSalt?: Hex;
+    /** Forwarded to {@link InstantOpenParameters}. */
+    sendQuoteSalt?: Hex;
+    /** Forwarded to {@link InstantOpenParameters}. */
+    deadline?: bigint;
+  }
 >;
 
 /**
@@ -68,9 +67,9 @@ export type PrepareInstantOpenParameters = Compute<
  *    `addMargin` amount.
  * 4. Convert all final values to 18-decimal-wei `bigint`.
  *
- * @throws {SymmError} `INSTANT_OPEN_MARKET_NOT_FOUND` /
- *   `INSTANT_OPEN_MARKET_METADATA_INCOMPLETE` /
- *   `INSTANT_OPEN_MARK_PRICE_NOT_FOUND` / `INVALID_TRADE_PARAMETERS` for
+ * @throws {SymmError} `RESOLVE_MARKET_NOT_FOUND` /
+ *   `RESOLVE_MARKET_METADATA_INCOMPLETE` /
+ *   `RESOLVE_MARK_PRICE_NOT_FOUND` / `INVALID_TRADE_PARAMETERS` for
  *   missing / invalid resolved inputs.
  */
 export async function prepareInstantOpenParams(

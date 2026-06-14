@@ -85,6 +85,9 @@ export {
   getUserSubAccountsAddressesQueryOptions,
   getUserSubAccountsQueryKey,
   getUserSubAccountsQueryOptions,
+  getVirtualAccount,
+  getVirtualAccountQueryKey,
+  getVirtualAccountQueryOptions,
   getVirtualAccountsAddressesOfSubAccount,
   getVirtualAccountsAddressesOfSubAccountQueryKey,
   getVirtualAccountsAddressesOfSubAccountQueryOptions,
@@ -159,12 +162,19 @@ export {
   type GetUserSubAccountsQueryKey,
   type GetUserSubAccountsQueryOptions,
   type GetUserSubAccountsReturnType,
+  type GetVirtualAccountData,
+  type GetVirtualAccountOptions,
+  type GetVirtualAccountParameters,
+  type GetVirtualAccountQueryKey,
+  type GetVirtualAccountQueryOptions,
+  type GetVirtualAccountReturnType,
   type GetVirtualAccountsAddressesOfSubAccountData,
   type GetVirtualAccountsAddressesOfSubAccountOptions,
   type GetVirtualAccountsAddressesOfSubAccountParameters,
   type GetVirtualAccountsAddressesOfSubAccountQueryKey,
   type GetVirtualAccountsAddressesOfSubAccountQueryOptions,
   type GetVirtualAccountsAddressesOfSubAccountReturnType,
+  type VirtualAccountDetail,
   type RemoveMarginParameters,
   type RemoveMarginReturnType,
   type SchnorrSign,
@@ -706,6 +716,7 @@ export type {
   FromParameter,
   SimulateBeforeWriteParameter,
   WriteContractParameter,
+  WriteSolverParameter,
 } from "./shared/types/properties";
 export type { QueryParameter, SymmioQueryOptions } from "./shared/types/query";
 export { filterQueryOptions } from "./shared/utils/query";
@@ -834,3 +845,44 @@ export {
   type UpnlSig,
   type VirtualAccountIsolationType,
 } from "./solvers/instant-open";
+
+/**
+ * InstantLayer v2 (lowcap) — Instant Close
+ * ----------------------------------------
+ * Lowcap instant-close flow: close-price math, calldata encoder for
+ * `requestToClosePosition`, hedger HTTP wrapper, the close-side quote
+ * constraint validator, and three action layers — pure primitive
+ * (`instantClose`), wizard (`prepareInstantCloseParams`), and auto
+ * convenience (`instantCloseAuto`).
+ *
+ * Lowcap only — Majors flows are out of scope. Reuses `buildSignedOperation`,
+ * `signAndFormatInstantOperation`, the EIP-712 domain, `PositionType`, and
+ * `ORDER_TYPE_MARKET` from the open slice (single source of truth — both
+ * slices encode the same on-chain enums and share the InstantLayer signing
+ * protocol). This block only adds close-specific symbols.
+ */
+export {
+  calculateClosePrice,
+  clampClosePrecision,
+  encodeRequestToClosePosition,
+  instantClose,
+  instantCloseAuto,
+  instantCloseAutoMutationOptions,
+  instantCloseMutationOptions,
+  prepareInstantCloseParams,
+  sendInstantClose,
+  validateInstantCloseAgainstMarket,
+  type CalculateClosePriceParameters,
+  type ClampClosePrecisionParameters,
+  type CloseQuoteConstraintViolation,
+  type EncodeRequestToClosePositionParameters,
+  type InstantCloseMarketData,
+  type InstantCloseOrder,
+  type InstantCloseParameters,
+  type InstantCloseReturnType,
+  type PrepareInstantCloseParameters,
+  type SendInstantCloseParameters,
+  type SendInstantCloseReturnType,
+  type ValidateInstantCloseAgainstMarketParameters,
+  type ValidateInstantCloseAgainstMarketReturnType,
+} from "./solvers/instant-close";

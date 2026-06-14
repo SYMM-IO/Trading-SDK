@@ -79,6 +79,26 @@ export interface SimulateBeforeWriteParameter {
 export type WriteContractParameter = ChainIdParameter & FromParameter & SimulateBeforeWriteParameter;
 
 /**
+ * Standard mixin set every off-chain solver/hedger write action accepts.
+ *
+ * Bundles the two mixins solver writes need — optional chain id and optional
+ * signer/from override — into one alias. Solver writes never simulate
+ * on-chain (they POST to an HTTP endpoint), so the `simulateBeforeWrite` flag
+ * is intentionally omitted; that's the only difference from
+ * {@link WriteContractParameter}.
+ *
+ * ```ts
+ * export type InstantCloseParameters = Compute<
+ *   WriteSolverParameter & {
+ *     partyA: Address;
+ *     order: InstantCloseOrder;
+ *   }
+ * >;
+ * ```
+ */
+export type WriteSolverParameter = ChainIdParameter & FromParameter;
+
+/**
  * Like `Partial<T>`, but each property is also explicitly `| undefined`. Used
  * for query-options shapes where every action parameter becomes optional.
  */

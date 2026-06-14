@@ -1,6 +1,6 @@
 import type { Address, Hex } from "viem";
 import type { Config } from "../../../core/config";
-import type { ChainIdParameter, Compute, FromParameter } from "../../../shared/types/properties";
+import type { Compute, WriteSolverParameter } from "../../../shared/types/properties";
 import {
   buildQuoteMetadata,
   encodeAddMarginToNextVA,
@@ -28,29 +28,28 @@ import {
  * platform-fee calc, and margin calc.
  */
 export type InstantOpenParameters = Compute<
-  ChainIdParameter &
-    FromParameter & {
-      /** Sub-account / partyA address (`signerAccount.addr` + `addMargin` subAccount). */
-      subAccountAddress: Address;
-      /** Market `symbol_id`. */
-      marketId: number;
-      /** Trade side. */
-      positionType: PositionType;
-      /** Order-side values (`price`, `quantity`) — both 18-decimal-wei `bigint`. */
-      order: InstantOpenOrder;
-      /** Locked-margin breakdown (`cva`, `lf`, `partyAmm`, `partyBmm`) — all 18-decimal-wei `bigint`. */
-      lockedParam: InstantOpenLockedParams;
-      /** Margin context (`amount`) — 18-decimal-wei `bigint`. */
-      margin: InstantOpenMargin;
-      /** Override the metadata UUID. Defaults to `globalThis.crypto.randomUUID()`. */
-      uuid?: string;
-      /** Override the addMargin salt. Defaults to a random 32-byte salt. */
-      addMarginSalt?: Hex;
-      /** Override the sendQuote salt. Defaults to a random 32-byte salt. */
-      sendQuoteSalt?: Hex;
-      /** Override the unix-seconds deadline (defaults to `now + 300s`). */
-      deadline?: bigint;
-    }
+  WriteSolverParameter & {
+    /** Sub-account / partyA address (`signerAccount.addr` + `addMargin` subAccount). */
+    subAccountAddress: Address;
+    /** Market `symbol_id`. */
+    marketId: number;
+    /** Trade side. */
+    positionType: PositionType;
+    /** Order-side values (`price`, `quantity`) — both 18-decimal-wei `bigint`. */
+    order: InstantOpenOrder;
+    /** Locked-margin breakdown (`cva`, `lf`, `partyAmm`, `partyBmm`) — all 18-decimal-wei `bigint`. */
+    lockedParam: InstantOpenLockedParams;
+    /** Margin context (`amount`) — 18-decimal-wei `bigint`. */
+    margin: InstantOpenMargin;
+    /** Override the metadata UUID. Defaults to `globalThis.crypto.randomUUID()`. */
+    uuid?: string;
+    /** Override the addMargin salt. Defaults to a random 32-byte salt. */
+    addMarginSalt?: Hex;
+    /** Override the sendQuote salt. Defaults to a random 32-byte salt. */
+    sendQuoteSalt?: Hex;
+    /** Override the unix-seconds deadline (defaults to `now + 300s`). */
+    deadline?: bigint;
+  }
 >;
 
 /**

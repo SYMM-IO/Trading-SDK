@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 import { MethodGroup } from "../inspector/method-group";
 import { ReadMarkets } from "../inspector/read-markets";
+import { EnigmaInstantCloseCard } from "./enigma-instant-close-card";
 import { EnigmaInstantOpenCard } from "./enigma-instant-open-card";
 import { ReadInstantOpensCard } from "./read-instant-opens-card";
 import { ReadLockedParams } from "./read-locked-params";
@@ -25,8 +26,9 @@ export function SolversShell() {
         <ReadInstantOpensCard />
       </MethodGroup>
 
-      <MethodGroup label="Writes" count={1} fullWidth>
+      <MethodGroup label="Writes" count={2} fullWidth>
         <EnigmaInstantOpenCard />
+        <EnigmaInstantCloseCard />
       </MethodGroup>
     </section>
   );

@@ -1,14 +1,9 @@
 /**
- * Market metadata resolved by {@link resolveMarket}.
- */
-export interface ResolvedMarket {
-  name: string;
-  pricePrecision: number;
-  quantityPrecision: number;
-}
-
-/**
  * Solver locked-param percentages resolved by {@link resolveLockedParams}.
+ *
+ * Open-specific. `ResolvedMarket` moved up to
+ * `solvers/shared/resolvers/types.ts` because both the open and close wizards
+ * use it.
  */
 export interface ResolvedLockedParams {
   cva: string;

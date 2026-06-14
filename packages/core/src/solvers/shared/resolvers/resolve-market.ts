@@ -1,6 +1,6 @@
-import type { Config } from "../../../../core/config";
-import { SymmError } from "../../../../shared/errors/symm-error";
-import { getMarkets } from "../../../markets/get-markets";
+import type { Config } from "../../../core/config";
+import { SymmError } from "../../../shared/errors/symm-error";
+import { getMarkets } from "../../markets/get-markets";
 import type { ResolvedMarket } from "./types";
 
 /**
@@ -19,9 +19,11 @@ export interface ResolveMarketParameters {
  * `marketId`. Returns caller-supplied values when all three are pre-filled;
  * otherwise fetches `/contract-symbols` and extracts the matching record.
  *
- * @throws {SymmError} `INSTANT_OPEN_MARKET_NOT_FOUND` when no record matches.
- * @throws {SymmError} `INSTANT_OPEN_MARKET_METADATA_INCOMPLETE` when the
- *   solver record is missing required fields.
+ * Shared by the instant-open and instant-close wizards.
+ *
+ * @throws {SymmError} `RESOLVE_MARKET_NOT_FOUND` when no record matches.
+ * @throws {SymmError} `RESOLVE_MARKET_METADATA_INCOMPLETE` when the solver
+ *   record is missing required fields.
  */
 export async function resolveMarket(config: Config, parameters: ResolveMarketParameters): Promise<ResolvedMarket> {
   const { marketName, pricePrecision, quantityPrecision } = parameters;
@@ -34,7 +36,7 @@ export async function resolveMarket(config: Config, parameters: ResolveMarketPar
   if (!match) {
     throw new SymmError(
       "api",
-      "INSTANT_OPEN_MARKET_NOT_FOUND",
+      "RESOLVE_MARKET_NOT_FOUND",
       `Market id ${parameters.marketId} not returned by solver /contract-symbols.`,
     );
   }
@@ -45,7 +47,7 @@ export async function resolveMarket(config: Config, parameters: ResolveMarketPar
   if (name === undefined || resolvedPricePrecision === undefined || resolvedQuantityPrecision === undefined) {
     throw new SymmError(
       "api",
-      "INSTANT_OPEN_MARKET_METADATA_INCOMPLETE",
+      "RESOLVE_MARKET_METADATA_INCOMPLETE",
       `Solver returned incomplete metadata for market id ${parameters.marketId} (name/price_precision/quantity_precision missing).`,
     );
   }

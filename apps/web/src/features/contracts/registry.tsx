@@ -14,6 +14,7 @@ import { ReadGetSubAccountVirtualNonce } from "../inspector/read-get-sub-account
 import { ReadGetSubAccountsCountOfUser } from "../inspector/read-get-sub-accounts-count-of-user";
 import { ReadGetUserSubAccounts } from "../inspector/read-get-user-sub-accounts";
 import { ReadGetUserSubAccountsAddresses } from "../inspector/read-get-user-sub-accounts-addresses";
+import { ReadGetVirtualAccount } from "../inspector/read-get-virtual-account";
 import { ReadGetVirtualAccountsAddressesOfSubAccount } from "../inspector/read-get-virtual-accounts-addresses-of-sub-account";
 import { ReadGetWithdrawRequest } from "../inspector/read-get-withdraw-request";
 import { ReadLastWithdrawRequestId } from "../inspector/read-last-withdraw-request-id";
@@ -88,6 +89,13 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     abi: "account-layer",
     groups: ["subaccounts"],
     Component: ReadGetUserSubAccountsAddresses,
+  },
+  {
+    id: "getVirtualAccount",
+    kind: "read",
+    abi: "account-layer",
+    groups: ["positions"],
+    Component: ReadGetVirtualAccount,
   },
   {
     id: "getVirtualAccountsAddressesOfSubAccount",

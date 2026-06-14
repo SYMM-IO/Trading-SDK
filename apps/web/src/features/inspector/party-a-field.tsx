@@ -2,7 +2,15 @@
 
 import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
-import { useUserSubAccounts, useVirtualAccountsAddressesOfSubAccount, useWalletAccount } from "@symm-frontier/react";
+import {
+  useOnchainContractMarkets,
+  useUserSubAccounts,
+  useVirtualAccount,
+  useVirtualAccountsAddressesOfSubAccount,
+  useWalletAccount,
+  VIRTUAL_ACCOUNT_ISOLATION_TYPE,
+  type VirtualAccountIsolationType,
+} from "@symm-frontier/react";
 import { Input } from "@symm-frontier/ui/components/input";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@symm-frontier/ui/components/popover";
 import { Skeleton } from "@symm-frontier/ui/components/skeleton";
@@ -285,31 +293,101 @@ function SubAccountGroup({
           ) : visibleVas.length === 0 ? (
             <p className="text-muted-foreground px-2.5 py-2 text-xs">No VAs match this search.</p>
           ) : (
-            visibleVas.map((va, index) => {
-              const vaSelected = va.toLowerCase() === normalizedValue;
-              return (
-                <button
-                  key={va}
-                  type="button"
-                  data-testid={`${idPrefix}-va-select`}
-                  data-va-address={va}
-                  onClick={() => onSelect(va, "va", name)}
-                  className="hover:bg-muted/60 focus-visible:bg-muted/60 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors outline-none"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <KindTag kind="va" />
-                    <span className="text-muted-foreground shrink-0 text-xs">#{index + 1}</span>
-                    <span className="text-foreground truncate font-mono text-xs">{shortenAddress(va)}</span>
-                  </span>
-                  {vaSelected ? <CheckIcon className="text-primary size-4 shrink-0" /> : null}
-                </button>
-              );
-            })
+            visibleVas.map((va, index) => (
+              <VaRow
+                key={va}
+                idPrefix={idPrefix}
+                index={index}
+                va={va}
+                parentName={name}
+                selected={va.toLowerCase() === normalizedValue}
+                onSelect={onSelect}
+              />
+            ))
           )}
         </div>
       ) : null}
     </div>
   );
+}
+
+/**
+ * One VA row in the picker. Reads the VA's `(symbolId, isolationType)` via
+ * {@link useVirtualAccount} (cached forever — fixed at creation) and resolves
+ * the symbol name through {@link useOnchainContractMarkets}. The trailing
+ * label reads `<market> · <Long|Short|Market|Position>`; falls back to
+ * `symbol N` while the markets list is loading and `(loading)` while the
+ * detail is in flight.
+ */
+function VaRow({
+  idPrefix,
+  index,
+  va,
+  parentName,
+  selected,
+  onSelect,
+}: {
+  idPrefix: string;
+  index: number;
+  va: Address;
+  parentName: string;
+  selected: boolean;
+  onSelect: (addr: string, kind: PartyAKind, parent?: string) => void;
+}) {
+  const detail = useVirtualAccount({ account: va });
+  const markets = useOnchainContractMarkets({
+    start: 0n,
+    size: 1000n,
+    query: { staleTime: Infinity, gcTime: Infinity },
+  });
+  const market = useMemo(
+    () =>
+      detail.data && markets.data
+        ? markets.data.find((m) => m.symbolId === detail.data!.symbolId)
+        : undefined,
+    [detail.data, markets.data],
+  );
+  const detailLabel = detail.data
+    ? `${market ? market.name : `symbol ${detail.data.symbolId.toString()}`} · ${labelForIsolation(detail.data.isolationType)}`
+    : detail.isLoading
+      ? "(loading)"
+      : "";
+
+  return (
+    <button
+      type="button"
+      data-testid={`${idPrefix}-va-select`}
+      data-va-address={va}
+      onClick={() => onSelect(va, "va", parentName)}
+      className="hover:bg-muted/60 focus-visible:bg-muted/60 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors outline-none"
+    >
+      <span className="flex min-w-0 items-baseline gap-2 leading-none">
+        <KindTag kind="va" />
+        <span className="text-muted-foreground shrink-0 text-xs">#{index + 1}</span>
+        <span className="text-foreground truncate font-mono text-xs">{shortenAddress(va)}</span>
+        {detailLabel ? (
+          <span className="text-muted-foreground shrink-0 truncate font-mono text-xs">{detailLabel}</span>
+        ) : null}
+      </span>
+      {selected ? <CheckIcon className="text-primary size-4 shrink-0" /> : null}
+    </button>
+  );
+}
+
+/** Short user-facing label for a VA's isolation enum. */
+function labelForIsolation(isolation: VirtualAccountIsolationType): string {
+  switch (isolation) {
+    case VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_LONG:
+      return "Long";
+    case VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_SHORT:
+      return "Short";
+    case VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET:
+      return "Market";
+    case VIRTUAL_ACCOUNT_ISOLATION_TYPE.POSITION:
+      return "Position";
+    default:
+      return "—";
+  }
 }
 
 function KindTag({ kind }: { kind: PartyAKind }) {
