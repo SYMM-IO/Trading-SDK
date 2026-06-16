@@ -18,8 +18,8 @@ import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { cn } from "@symm-frontier/ui/lib/utils";
-import { formatUnits, type Address } from "viem";
 import { useMemo, useState } from "react";
+import { formatUnits, type Address } from "viem";
 
 const WEI_DECIMALS = 18;
 
@@ -117,8 +117,7 @@ export function ClosePositionStep({
     });
   }, [market, cachedMarkPrice, validSlippage, position.positionType]);
 
-  const exceedsRemaining =
-    validQuantity !== undefined && validQuantity > Number(remainingQuantityDecimal);
+  const exceedsRemaining = validQuantity !== undefined && validQuantity > Number(remainingQuantityDecimal);
 
   // Close-side validator. Original cva/lf/partyAmm come from the on-chain
   // `Quote.lockedValues`; the validator scales them by remaining/original
@@ -146,12 +145,12 @@ export function ClosePositionStep({
   const mutation = useInstantCloseAuto();
   const canSubmit = Boolean(
     market &&
-      marketName &&
-      validQuantity !== undefined &&
-      validSlippage !== undefined &&
-      !exceedsRemaining &&
-      violations.length === 0 &&
-      !mutation.isPending,
+    marketName &&
+    validQuantity !== undefined &&
+    validSlippage !== undefined &&
+    !exceedsRemaining &&
+    violations.length === 0 &&
+    !mutation.isPending,
   );
 
   const isRefreshing =
@@ -337,7 +336,11 @@ function ClosePreview({
     >
       <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Close preview</div>
       <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1.5">
-        <PreviewRow label="Request close price" value={formatDecimalUsd(closePrice)} testId={`${idPrefix}-preview-close-price`} />
+        <PreviewRow
+          label="Request close price"
+          value={formatDecimalUsd(closePrice)}
+          testId={`${idPrefix}-preview-close-price`}
+        />
         <PreviewRow
           label="Notional"
           hint="(quantity × markPrice)"
@@ -354,13 +357,7 @@ function ClosePreview({
   );
 }
 
-function ViolationsPanel({
-  violations,
-  idPrefix,
-}: {
-  violations: CloseQuoteConstraintViolation[];
-  idPrefix: string;
-}) {
+function ViolationsPanel({ violations, idPrefix }: { violations: CloseQuoteConstraintViolation[]; idPrefix: string }) {
   return (
     <div
       data-testid={`${idPrefix}-violations`}
@@ -390,13 +387,7 @@ function describeViolation(violation: CloseQuoteConstraintViolation): string {
   }
 }
 
-function SubmitStatus({
-  mutation,
-  idPrefix,
-}: {
-  mutation: ReturnType<typeof useInstantCloseAuto>;
-  idPrefix: string;
-}) {
+function SubmitStatus({ mutation, idPrefix }: { mutation: ReturnType<typeof useInstantCloseAuto>; idPrefix: string }) {
   if (mutation.isPending) {
     return (
       <ResultNote testId={`${idPrefix}-loading`} loading>
@@ -436,17 +427,7 @@ function SubmitStatus({
 // Helpers
 // ---------------------------------------------------------------------------
 
-function PreviewRow({
-  label,
-  hint,
-  value,
-  testId,
-}: {
-  label: string;
-  hint?: string;
-  value: string;
-  testId?: string;
-}) {
+function PreviewRow({ label, hint, value, testId }: { label: string; hint?: string; value: string; testId?: string }) {
   return (
     <>
       <dt className="text-muted-foreground inline-flex items-baseline gap-1.5">

@@ -2,13 +2,21 @@
 
 import { Popover, PopoverContent, PopoverTrigger } from "@symm-frontier/ui/components/popover";
 import { cn } from "@symm-frontier/ui/lib/utils";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { findMagicMethod } from "./magic-catalog";
 import { POLL_INTERVALS, useMagicSidebar, type MagicPin } from "./magic-sidebar-store";
 import { SourceBadge } from "./source-badge";
 
+interface Props {
+  pin: MagicPin;
+  /** Grip handle that starts a reorder drag; omitted when reordering is unavailable (a single pin). */
+  handle?: ReactNode;
+  /** `true` while this card is the one being dragged, so it lifts and dims. */
+  dragging?: boolean;
+}
+
 /** A single pinned method on the board: a live card with cadence, collapse, and unpin. */
-export function PinnedMethodCard({ pin }: { pin: MagicPin }) {
+export function PinnedMethodCard({ pin, handle, dragging = false }: Props) {
   const { unpin, setPinInterval } = useMagicSidebar();
   const [collapsed, setCollapsed] = useState(false);
   const method = findMagicMethod(pin.methodId);
@@ -18,19 +26,26 @@ export function PinnedMethodCard({ pin }: { pin: MagicPin }) {
 
   return (
     <section
+      data-dragging={dragging || undefined}
       className={cn(
-        "bg-card/40 relative overflow-hidden rounded-2xl border transition-colors",
+        "bg-card/40 relative overflow-hidden rounded-2xl border transition-[border-color,box-shadow,opacity] duration-150",
         collapsed ? "border-border/60" : "border-border/70",
+        dragging && "border-primary/50 ring-primary/40 z-10 opacity-60 shadow-lg ring-1",
       )}
     >
       {collapsed ? null : <span className="bg-primary/70 absolute inset-y-0 left-0 w-0.5" aria-hidden />}
 
       <header className="flex items-center gap-2 px-4 py-2.5">
+        {handle}
         <button
           type="button"
           onClick={() => setCollapsed((value) => !value)}
           aria-expanded={!collapsed}
-          aria-label={collapsed ? `Expand ${method.label}` : `Collapse ${method.label} (pauses polling)`}
+          aria-label={
+            collapsed
+              ? `Expand ${method.label}`
+              : `Collapse ${method.label} (pauses ${method.source === "socket" ? "the stream" : "polling"})`
+          }
           className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/40 inline-flex size-6 shrink-0 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
         >
           <ChevronIcon className={cn("size-4 transition-transform duration-200", !collapsed && "rotate-90")} />
@@ -40,7 +55,9 @@ export function PinnedMethodCard({ pin }: { pin: MagicPin }) {
         <SourceBadge source={method.source} intervalMs={pin.intervalMs} live={!collapsed} />
 
         <div className="ml-auto flex items-center gap-1">
-          <IntervalControl value={pin.intervalMs} onChange={(ms) => setPinInterval(method.id, ms)} />
+          {method.source === "poll" ? (
+            <IntervalControl value={pin.intervalMs} onChange={(ms) => setPinInterval(method.id, ms)} />
+          ) : null}
           <button
             type="button"
             onClick={() => unpin(method.id)}
@@ -53,11 +70,11 @@ export function PinnedMethodCard({ pin }: { pin: MagicPin }) {
         </div>
       </header>
 
-      {collapsed ? null : (
-        <div className="border-border/60 border-t px-4 py-4">
-          <Panel intervalMs={pin.intervalMs} enabled initialInput={pin.seed} />
-        </div>
-      )}
+      {/* Keep the panel mounted while collapsed so its input and response/log
+          history survive; `enabled={!collapsed}` pauses the poll/stream instead. */}
+      <div className={cn("border-border/60 border-t px-4 py-4", collapsed && "hidden")}>
+        <Panel intervalMs={pin.intervalMs} enabled={!collapsed} initialInput={pin.seed} />
+      </div>
     </section>
   );
 }

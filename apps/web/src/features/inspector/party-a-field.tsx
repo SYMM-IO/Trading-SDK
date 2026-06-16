@@ -341,10 +341,7 @@ function VaRow({
     query: { staleTime: Infinity, gcTime: Infinity },
   });
   const market = useMemo(
-    () =>
-      detail.data && markets.data
-        ? markets.data.find((m) => m.symbolId === detail.data!.symbolId)
-        : undefined,
+    () => (detail.data && markets.data ? markets.data.find((m) => m.symbolId === detail.data!.symbolId) : undefined),
     [detail.data, markets.data],
   );
   const detailLabel = detail.data

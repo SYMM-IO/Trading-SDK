@@ -104,10 +104,7 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
       })),
     [positionsQuery.data],
   );
-  const selectedPosition = useMemo(
-    () => positions.find((p) => p.id === selectedQuoteId),
-    [positions, selectedQuoteId],
-  );
+  const selectedPosition = useMemo(() => positions.find((p) => p.id === selectedQuoteId), [positions, selectedQuoteId]);
 
   // Step gating: 0 connect → 1 subaccount → 2 VA → 3 session-key → 4 delegation → 5 position → 6 close
   const maxStep = !ready
@@ -335,12 +332,7 @@ function VirtualAccountStep({
       {header}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="instant-close-va-list">
         {items.map((va) => (
-          <VirtualAccountOption
-            key={va}
-            address={va}
-            active={va === selected}
-            onSelect={onSelect}
-          />
+          <VirtualAccountOption key={va} address={va} active={va === selected} onSelect={onSelect} />
         ))}
       </div>
     </div>
@@ -368,10 +360,7 @@ function VirtualAccountOption({
     query: { staleTime: Infinity, gcTime: Infinity },
   });
   const market = useMemo(
-    () =>
-      detail.data && markets.data
-        ? markets.data.find((m) => m.symbolId === detail.data!.symbolId)
-        : undefined,
+    () => (detail.data && markets.data ? markets.data.find((m) => m.symbolId === detail.data!.symbolId) : undefined),
     [detail.data, markets.data],
   );
   const sideLabel = detail.data ? labelForIsolation(detail.data.isolationType) : undefined;
@@ -597,35 +586,35 @@ function PositionPickerStep({
       {header}
       <div className="grid grid-cols-1 gap-2" data-testid="instant-close-positions-list">
         {positions.map((p) => {
-        const active = p.id === selected;
-        const remaining = p.quantity - p.closedAmount;
-        return (
-          <button
-            key={p.id.toString()}
-            type="button"
-            onClick={() => onSelect(p.id)}
-            data-testid={`instant-close-position-${p.id.toString()}`}
-            className={cn(
-              "focus-visible:ring-ring/40 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-all outline-none focus-visible:ring-2",
-              active
-                ? "border-primary/40 bg-primary/5 ring-primary/20 ring-1"
-                : "border-border/70 hover:border-border hover:bg-muted/40",
-            )}
-          >
-            <span className="flex min-w-0 flex-col">
-              <span className="text-foreground text-sm leading-tight font-medium">
-                Quote #{p.id.toString()} · symbol {p.symbolId.toString()}
+          const active = p.id === selected;
+          const remaining = p.quantity - p.closedAmount;
+          return (
+            <button
+              key={p.id.toString()}
+              type="button"
+              onClick={() => onSelect(p.id)}
+              data-testid={`instant-close-position-${p.id.toString()}`}
+              className={cn(
+                "focus-visible:ring-ring/40 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-all outline-none focus-visible:ring-2",
+                active
+                  ? "border-primary/40 bg-primary/5 ring-primary/20 ring-1"
+                  : "border-border/70 hover:border-border hover:bg-muted/40",
+              )}
+            >
+              <span className="flex min-w-0 flex-col">
+                <span className="text-foreground text-sm leading-tight font-medium">
+                  Quote #{p.id.toString()} · symbol {p.symbolId.toString()}
+                </span>
+                <span className="text-muted-foreground font-mono text-[0.7rem] leading-tight">
+                  remaining {formatUnits(remaining, WEI_DECIMALS)}
+                </span>
               </span>
-              <span className="text-muted-foreground font-mono text-[0.7rem] leading-tight">
-                remaining {formatUnits(remaining, WEI_DECIMALS)}
-              </span>
-            </span>
-            <Badge variant={p.positionType === PositionType.LONG ? "positive" : "destructive"}>
-              {p.positionType === PositionType.LONG ? "Long" : "Short"}
-            </Badge>
-          </button>
-        );
-      })}
+              <Badge variant={p.positionType === PositionType.LONG ? "positive" : "destructive"}>
+                {p.positionType === PositionType.LONG ? "Long" : "Short"}
+              </Badge>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

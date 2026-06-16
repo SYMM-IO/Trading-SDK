@@ -1,5 +1,6 @@
 import type { Address, Hex } from "viem";
 import type { InstantLayerAccount } from "../../../symmio-contracts/instant-layer/types";
+import { PositionType } from "../../../symmio-contracts/symmio/types";
 
 /**
  * Re-export the canonical trade-side enum (defined in
@@ -7,7 +8,7 @@ import type { InstantLayerAccount } from "../../../symmio-contracts/instant-laye
  * to import it from. Numeric values match the on-chain enum: `LONG = 0`,
  * `SHORT = 1`.
  */
-export { PositionType } from "../../../symmio-contracts/symmio/types";
+export { PositionType };
 
 /** Contract enum value for MARKET orders. */
 export const ORDER_TYPE_MARKET = 1 as const;
@@ -26,6 +27,34 @@ export const VIRTUAL_ACCOUNT_ISOLATION_TYPE = {
 
 export type VirtualAccountIsolationType =
   (typeof VIRTUAL_ACCOUNT_ISOLATION_TYPE)[keyof typeof VIRTUAL_ACCOUNT_ISOLATION_TYPE];
+
+/**
+ * Map a trade side to the market-isolation type its Virtual Account is created
+ * with. A `SHORT` lands in a `MARKET_SHORT` VA; everything else (i.e. `LONG`)
+ * lands in a `MARKET_LONG` VA.
+ *
+ * This is the side ↔ isolation rule used both when opening (`addMarginToNextVA`)
+ * and when predicting a not-yet-created VA's address
+ * (`predictNextVirtualAccountAddress`). It lives next to
+ * {@link VIRTUAL_ACCOUNT_ISOLATION_TYPE} so callers that only need the side
+ * mapping (e.g. the quotes slice) can import it without pulling in the rest of
+ * the instant-open flow.
+ *
+ * @param positionType - The trade side (`LONG` or `SHORT`).
+ * @returns The matching {@link VirtualAccountIsolationType}
+ *   (`MARKET_SHORT` for `SHORT`, otherwise `MARKET_LONG`).
+ *
+ * @example
+ * ```ts
+ * isolationTypeForSide(PositionType.SHORT); // VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_SHORT
+ * isolationTypeForSide(PositionType.LONG); // VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_LONG
+ * ```
+ */
+export function isolationTypeForSide(positionType: PositionType): VirtualAccountIsolationType {
+  return positionType === PositionType.SHORT
+    ? VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_SHORT
+    : VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_LONG;
+}
 
 /**
  * Muon oracle signature accepted by `sendQuoteWithAffiliateAndData`.

@@ -86,7 +86,11 @@ function TableHead({
   ...props
 }: Omit<React.ComponentProps<"th">, "align"> & { align?: "start" | "end" }) {
   return (
-    <th data-slot="table-head" className={cn("px-3 py-2.5", align === "end" && "text-right", className)} {...props} />
+    <th
+      data-slot="table-head"
+      className={cn("px-3 py-2.5 whitespace-nowrap", align === "end" && "text-right", className)}
+      {...props}
+    />
   );
 }
 

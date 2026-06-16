@@ -2,6 +2,7 @@ export * from "./use-delegation-expiry";
 export * from "./use-grant-delegation";
 export * from "./use-instant-close";
 export * from "./use-instant-close-auto";
+export * from "./use-instant-closes";
 export * from "./use-instant-open";
 export * from "./use-instant-open-auto";
 export * from "./use-instant-open-quote-id";

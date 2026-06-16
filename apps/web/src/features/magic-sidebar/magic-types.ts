@@ -1,7 +1,10 @@
 import type { ComponentType } from "react";
 
-/** Transport a magic method's data comes from. `socket` is reserved for live WS feeds. */
-export type MagicSource = "poll" | "socket";
+/**
+ * Transport a magic method's data comes from. `socket` is reserved for live WS
+ * feeds; `hybrid` is a polled source whose cadence is accelerated by a socket.
+ */
+export type MagicSource = "poll" | "socket" | "hybrid";
 
 /** Catalog grouping for the method browser. */
 export type MagicGroup = "solver" | "onchain" | "socket";

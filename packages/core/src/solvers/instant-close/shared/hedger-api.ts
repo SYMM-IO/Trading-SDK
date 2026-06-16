@@ -2,10 +2,7 @@ import { isAxiosError } from "axios";
 import type { Config } from "../../../core/config";
 import { SymmApiError, SymmError } from "../../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
-import {
-  postInstantTradeInstantClose,
-  type ApiV2InstantCloseRequest,
-} from "../../types/generated/enigma-solver";
+import { postInstantTradeInstantClose, type ApiV2InstantCloseRequest } from "../../types/generated/enigma-solver";
 
 /**
  * Parameters for {@link sendInstantClose}.

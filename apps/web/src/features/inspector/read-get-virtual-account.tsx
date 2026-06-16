@@ -5,7 +5,11 @@ import { BoolBadge } from "@/components/bool-badge";
 import { DataList, DataRow } from "@/components/data-list";
 import { ResultError, ResultNote } from "@/components/result";
 import { DataRowsSkeleton } from "@/components/skeletons";
-import { VIRTUAL_ACCOUNT_ISOLATION_TYPE, useVirtualAccount, type VirtualAccountIsolationType } from "@symm-frontier/react";
+import {
+  VIRTUAL_ACCOUNT_ISOLATION_TYPE,
+  useVirtualAccount,
+  type VirtualAccountIsolationType,
+} from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Spinner } from "@symm-frontier/ui/components/spinner";

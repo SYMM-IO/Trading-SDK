@@ -13,7 +13,7 @@ import { getMarketOrderDeadline } from "../shared/trade-math";
 import {
   ORDER_TYPE_MARKET,
   PositionType,
-  VIRTUAL_ACCOUNT_ISOLATION_TYPE,
+  isolationTypeForSide,
   type InstantOpenLockedParams,
   type InstantOpenMargin,
   type InstantOpenOrder,
@@ -108,10 +108,7 @@ export async function instantOpen(config: Config, parameters: InstantOpenParamet
   const deadline = parameters.deadline ?? getMarketOrderDeadline();
   const symbolId = BigInt(parameters.marketId);
 
-  const isolationType =
-    parameters.positionType === PositionType.SHORT
-      ? VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_SHORT
-      : VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_LONG;
+  const isolationType = isolationTypeForSide(parameters.positionType);
 
   const addMarginCallData = encodeAddMarginToNextVA({
     subAccount: parameters.subAccountAddress,

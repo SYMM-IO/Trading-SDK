@@ -6,10 +6,12 @@ import {
   usePartyAOpenPositions,
   usePartyAPendingQuotes,
 } from "@symm-frontier/react";
+import { QuotesMagicPanel } from "../quotes/quotes-magic-panel";
 import type { LiveQueryLike } from "./live-result";
 import type { MagicMethod } from "./magic-types";
 import { makePartyALivePanel, type PartyALiveArgs } from "./make-partya-panel";
 import { MarketsLivePanel } from "./markets-panel";
+import { NotificationsSocketPanel } from "./notifications-socket-panel";
 import { QuoteLivePanel } from "./quote-panel";
 
 /** Build TanStack `query` overrides for a polled live source. */
@@ -113,6 +115,16 @@ export const MAGIC_CATALOG: MagicMethod[] = [
     Panel: QuoteLivePanel,
   },
   {
+    id: "managed-quotes",
+    label: "Quotes",
+    description:
+      "A partyA's full quote feed — on-chain positions, pending instant-opens, and instant-closes reconciled into one lifecycle-tagged list, polled and socket-accelerated.",
+    group: "onchain",
+    source: "hybrid",
+    keywords: ["quotes", "managed", "unified", "positions", "instant", "lifecycle", "reconcile", "partyA", "feed"],
+    Panel: QuotesMagicPanel,
+  },
+  {
     id: "account-balance-info",
     label: "Balance info",
     description: "A sub-account's allocated/locked balance breakdown.",
@@ -120,6 +132,15 @@ export const MAGIC_CATALOG: MagicMethod[] = [
     source: "poll",
     keywords: ["balance", "margin", "allocated", "locked", "account"],
     Panel: BalanceInfoPanel,
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    description: "Live position & quote state events for a sub-account, pushed over the solver WebSocket.",
+    group: "socket",
+    source: "socket",
+    keywords: ["notifications", "socket", "websocket", "live", "stream", "events", "position state", "instant"],
+    Panel: NotificationsSocketPanel,
   },
 ];
 

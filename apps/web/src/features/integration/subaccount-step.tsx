@@ -11,13 +11,13 @@ import {
   useSymmioConfig,
   useUserSubAccounts,
 } from "@symm-frontier/react";
-import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { cn } from "@symm-frontier/ui/lib/utils";
 import { shortenAddress } from "@symm-frontier/utils";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 
@@ -58,16 +58,8 @@ export function SubaccountStep({ owner, selected, onSelect }: Props) {
   if (subAccounts.error) {
     return (
       <div className="flex flex-col gap-2">
-        <ResultError
-          testId="subaccount-step-error"
-          kind={subAccounts.error.kind}
-          message={subAccounts.error.message}
-        />
-        <RefetchButton
-          isRefetching={subAccounts.isRefetching}
-          onClick={refreshAll}
-          testId="subaccount-step-retry"
-        />
+        <ResultError testId="subaccount-step-error" kind={subAccounts.error.kind} message={subAccounts.error.message} />
+        <RefetchButton isRefetching={subAccounts.isRefetching} onClick={refreshAll} testId="subaccount-step-retry" />
       </div>
     );
   }
@@ -81,11 +73,7 @@ export function SubaccountStep({ owner, selected, onSelect }: Props) {
         <span className="text-muted-foreground text-xs">
           {items.length} subaccount{items.length === 1 ? "" : "s"}
         </span>
-        <RefetchButton
-          isRefetching={subAccounts.isRefetching}
-          onClick={refreshAll}
-          testId="subaccount-step-retry"
-        />
+        <RefetchButton isRefetching={subAccounts.isRefetching} onClick={refreshAll} testId="subaccount-step-retry" />
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="subaccount-step-list">
         {items.map((sub) => (

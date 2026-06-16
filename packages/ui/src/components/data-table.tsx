@@ -43,6 +43,12 @@ export interface DataTableColumn<TRow> {
   cellClassName?: string;
   /** Extra classes for this column's header cell. */
   headClassName?: string;
+  /**
+   * Sizing classes applied to BOTH the header cell and every body cell in this
+   * column (e.g. `"min-w-36"`). Use this to give a column breathing room: a
+   * width set on a single cell would not reliably constrain the whole column.
+   */
+  widthClassName?: string;
 }
 
 /**
@@ -61,6 +67,15 @@ export interface DataTableProps<TRow> {
   rowAttributes?: (
     row: TRow,
   ) => React.HTMLAttributes<HTMLTableRowElement> & Record<`data-${string}`, string | number | boolean | undefined>;
+  /**
+   * When provided, each row gains a leading expander control. Clicking it toggles
+   * a full-width detail row, spanning every column, rendered directly beneath the
+   * row with this function's output. Omit to render a plain table (no expander
+   * column, no behavior change).
+   */
+  renderExpanded?: (row: TRow) => React.ReactNode;
+  /** Row ids (per {@link DataTableProps.getRowId}) expanded on first render. Ignored when `renderExpanded` is absent. */
+  defaultExpandedRowIds?: readonly string[];
   /** Initial sort. Omit to start in the data's natural order. */
   initialSort?: DataTableSort;
   /** Selectable page sizes. Defaults to `[5, 10, 25, 50, 100]`. */
@@ -117,6 +132,8 @@ export function DataTable<TRow>({
   data,
   getRowId,
   rowAttributes,
+  renderExpanded,
+  defaultExpandedRowIds,
   initialSort,
   pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
   defaultPageSize,
@@ -130,6 +147,10 @@ export function DataTable<TRow>({
   const [sort, setSort] = React.useState<DataTableSort | undefined>(initialSort);
   const [pageSize, setPageSize] = React.useState<number>(defaultPageSize ?? pageSizeOptions[0] ?? 10);
   const [page, setPage] = React.useState(1);
+  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(() => new Set(defaultExpandedRowIds));
+  const isExpandable = Boolean(renderExpanded);
+  /** Total column count including the leading expander, used for full-width spans. */
+  const totalColumnCount = columns.length + (isExpandable ? 1 : 0);
 
   const sorted = React.useMemo(() => {
     if (!sort) return data;
@@ -171,6 +192,15 @@ export function DataTable<TRow>({
     );
   }
 
+  function toggleExpanded(rowId: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(rowId)) next.delete(rowId);
+      else next.add(rowId);
+      return next;
+    });
+  }
+
   return (
     <div data-testid={testId} className={cn("flex flex-col gap-3", className)}>
       {toolbar}
@@ -178,6 +208,11 @@ export function DataTable<TRow>({
       <Table>
         <TableHeader>
           <TableRow>
+            {isExpandable ? (
+              <TableHead className="w-9 px-2">
+                <span className="sr-only">Expand row</span>
+              </TableHead>
+            ) : null}
             {columns.map((column) => {
               const isSortable = Boolean(column.sortAccessor);
               const isActive = sort?.columnId === column.id;
@@ -185,7 +220,7 @@ export function DataTable<TRow>({
                 <TableHead
                   key={column.id}
                   align={column.align}
-                  className={column.headClassName}
+                  className={cn(column.widthClassName, column.headClassName)}
                   aria-sort={
                     isActive
                       ? sort?.direction === "asc"
@@ -220,17 +255,46 @@ export function DataTable<TRow>({
 
         <TableBody>
           {rows.length === 0 ? (
-            <TableEmpty colSpan={columns.length}>{emptyMessage}</TableEmpty>
+            <TableEmpty colSpan={totalColumnCount}>{emptyMessage}</TableEmpty>
           ) : (
-            rows.map((row, index) => (
-              <TableRow key={getRowId(row, start + index)} {...rowAttributes?.(row)}>
-                {columns.map((column) => (
-                  <TableCell key={column.id} align={column.align} className={column.cellClassName}>
-                    {column.cell(row)}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
+            rows.map((row, index) => {
+              const rowId = getRowId(row, start + index);
+              const isExpanded = isExpandable && expandedIds.has(rowId);
+              return (
+                <React.Fragment key={rowId}>
+                  <TableRow {...rowAttributes?.(row)}>
+                    {isExpandable ? (
+                      <TableCell className="w-9 px-2 align-middle">
+                        <ExpanderButton
+                          expanded={isExpanded}
+                          onToggle={() => toggleExpanded(rowId)}
+                          data-testid={testId ? `${testId}-expander-${rowId}` : undefined}
+                        />
+                      </TableCell>
+                    ) : null}
+                    {columns.map((column) => (
+                      <TableCell
+                        key={column.id}
+                        align={column.align}
+                        className={cn(column.widthClassName, column.cellClassName)}
+                      >
+                        {column.cell(row)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                  {isExpanded ? (
+                    <TableRow
+                      data-slot="table-row-expanded"
+                      data-testid={testId ? `${testId}-expanded-${rowId}` : undefined}
+                    >
+                      <TableCell colSpan={totalColumnCount} className="bg-muted/20 p-0">
+                        {renderExpanded?.(row)}
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </React.Fragment>
+              );
+            })
           )}
         </TableBody>
       </Table>
@@ -249,6 +313,47 @@ export function DataTable<TRow>({
         />
       ) : null}
     </div>
+  );
+}
+
+/** Leading row affordance: a chevron button that toggles its row's expanded detail panel. */
+function ExpanderButton({
+  expanded,
+  onToggle,
+  ...props
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+} & Record<`data-${string}`, string | undefined>) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-label={expanded ? "Collapse row" : "Expand row"}
+      className="text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring/50 inline-flex size-6 items-center justify-center rounded transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
+      {...props}
+    >
+      <ExpanderChevron expanded={expanded} />
+    </button>
+  );
+}
+
+/** Inline chevron that rotates a quarter-turn down when its row is expanded. */
+function ExpanderChevron({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={cn("size-3.5 transition-transform duration-150", expanded && "rotate-90")}
+      aria-hidden
+    >
+      <path d="m9 18 6-6-6-6" />
+    </svg>
   );
 }
 

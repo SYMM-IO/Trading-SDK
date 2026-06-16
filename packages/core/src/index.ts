@@ -70,6 +70,9 @@ export {
   getAccountBalanceOf,
   getAccountBalanceOfQueryKey,
   getAccountBalanceOfQueryOptions,
+  getPredictedNextVirtualAccount,
+  getPredictedNextVirtualAccountQueryKey,
+  getPredictedNextVirtualAccountQueryOptions,
   getSubAccount,
   getSubAccountQueryKey,
   getSubAccountQueryOptions,
@@ -132,6 +135,12 @@ export {
   type GetAccountBalanceOfQueryKey,
   type GetAccountBalanceOfQueryOptions,
   type GetAccountBalanceOfReturnType,
+  type GetPredictedNextVirtualAccountData,
+  type GetPredictedNextVirtualAccountOptions,
+  type GetPredictedNextVirtualAccountParameters,
+  type GetPredictedNextVirtualAccountQueryKey,
+  type GetPredictedNextVirtualAccountQueryOptions,
+  type GetPredictedNextVirtualAccountReturnType,
   type GetSubAccountData,
   type GetSubAccountOptions,
   type GetSubAccountParameters,
@@ -174,7 +183,6 @@ export {
   type GetVirtualAccountsAddressesOfSubAccountQueryKey,
   type GetVirtualAccountsAddressesOfSubAccountQueryOptions,
   type GetVirtualAccountsAddressesOfSubAccountReturnType,
-  type VirtualAccountDetail,
   type RemoveMarginParameters,
   type RemoveMarginReturnType,
   type SchnorrSign,
@@ -195,6 +203,7 @@ export {
   type SingleUpnlSig,
   type SubAccountCreationData,
   type SubAccountDetail,
+  type VirtualAccountDetail,
 } from "./symmio-contracts/account-layer";
 
 /**
@@ -778,16 +787,12 @@ export {
   getInstantOpensQueryKey,
   getInstantOpensQueryOptions,
   getMarketOrderDeadline,
-  // quote constraints — pre-submit validation against market caps/floors
-  validateInstantOpenAgainstMarket,
-  type QuoteConstraintViolation,
-  type ValidateInstantOpenAgainstMarketParameters,
-  type ValidateInstantOpenAgainstMarketReturnType,
   // instantOpen — primitive (all inputs required, no fetching)
   instantOpen,
   instantOpenAuto,
   instantOpenAutoMutationOptions,
   instantOpenMutationOptions,
+  isolationTypeForSide,
   // instantOpen — wizard (auto-fetches missing inputs)
   prepareInstantOpenParams,
   // resolvers (sub-units used by the wizard)
@@ -800,6 +805,8 @@ export {
   signAndFormatInstantOperation,
   signSignedOperation,
   toWeiBigInt,
+  // quote constraints — pre-submit validation against market caps/floors
+  validateInstantOpenAgainstMarket,
   type BuildSignedOperationParameters,
   type CalculateMarginParameters,
   type CalculateTradeParamsParameters,
@@ -830,6 +837,7 @@ export {
   type InstantOperationPayload,
   type PendingInstantOpen,
   type PrepareInstantOpenParameters,
+  type QuoteConstraintViolation,
   type ReplayAttackHeader,
   type ResolveFeeRatesParameters,
   type ResolveLockedParamsParameters,
@@ -843,6 +851,8 @@ export {
   type SignedOperation,
   type SignedOperationPayload,
   type UpnlSig,
+  type ValidateInstantOpenAgainstMarketParameters,
+  type ValidateInstantOpenAgainstMarketReturnType,
   type VirtualAccountIsolationType,
 } from "./solvers/instant-open";
 
@@ -865,24 +875,76 @@ export {
   calculateClosePrice,
   clampClosePrecision,
   encodeRequestToClosePosition,
+  // instant-close reads (off-chain hedger)
+  getInstantCloses,
+  getInstantClosesQueryKey,
+  getInstantClosesQueryOptions,
   instantClose,
   instantCloseAuto,
   instantCloseAutoMutationOptions,
   instantCloseMutationOptions,
   prepareInstantCloseParams,
   sendInstantClose,
+  toPendingInstantClose,
   validateInstantCloseAgainstMarket,
   type CalculateClosePriceParameters,
   type ClampClosePrecisionParameters,
   type CloseQuoteConstraintViolation,
   type EncodeRequestToClosePositionParameters,
+  // instant-close read types
+  type GetInstantClosesData,
+  type GetInstantClosesOptions,
+  type GetInstantClosesParameters,
+  type GetInstantClosesQueryKey,
+  type GetInstantClosesQueryOptions,
+  type GetInstantClosesReturnType,
   type InstantCloseMarketData,
   type InstantCloseOrder,
   type InstantCloseParameters,
   type InstantCloseReturnType,
+  type PendingInstantClose,
   type PrepareInstantCloseParameters,
   type SendInstantCloseParameters,
   type SendInstantCloseReturnType,
   type ValidateInstantCloseAgainstMarketParameters,
   type ValidateInstantCloseAgainstMarketReturnType,
 } from "./solvers/instant-close";
+
+/**
+ * Unified quotes
+ * --------------
+ * Pure reconciliation of every quote source — on-chain positions & pending
+ * quotes, pending instant-opens & instant-closes, and notifications — into one
+ * stable, de-duplicated, lifecycle-tagged {@link UnifiedQuote} list. The merge is
+ * deterministic given an injected `now` and the previous result (the framework
+ * layer drives the clock and polling cadence). `shouldAccelerateQuotePolling`
+ * tells the consumer when to poll faster.
+ */
+export {
+  QuoteLifecycle,
+  applyNotificationToQuotes,
+  fingerprintQuote,
+  getSubAccountQuotes,
+  getSubAccountQuotesQueryKey,
+  getSubAccountQuotesQueryOptions,
+  lifecycleFromQuoteStatus,
+  reconcileQuotes,
+  resolveQuoteAccounts,
+  shouldAccelerateQuotePolling,
+  toUnifiedQuoteFromInstantClose,
+  toUnifiedQuoteFromInstantOpen,
+  toUnifiedQuoteFromOnchain,
+  type GetSubAccountQuotesData,
+  type GetSubAccountQuotesOptions,
+  type GetSubAccountQuotesParameters,
+  type GetSubAccountQuotesQueryKey,
+  type GetSubAccountQuotesQueryOptions,
+  type GetSubAccountQuotesReturnType,
+  type QuoteOrigin,
+  type ReconcileQuotesInput,
+  type ReconcileQuotesResult,
+  type ResolveQuoteAccountsParameters,
+  type ResolveQuoteAccountsResult,
+  type ToUnifiedQuoteFromInstantCloseContext,
+  type UnifiedQuote,
+} from "./quotes";

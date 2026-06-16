@@ -5,8 +5,10 @@ import { CommandSearch } from "./command-search";
 
 /**
  * Header control that opens the app-wide command palette. Click the trigger or
- * press ⌘K / Ctrl+K anywhere. Renders a compact pill on desktop (with the key
- * hint) and an icon-only button on mobile.
+ * press ⌘K / Ctrl+K anywhere. Expands to a labelled pill (with the key hint)
+ * when the header has room and collapses to an icon-only button when it is
+ * tight — driven by the header's `@container/header` width, so it reacts to the
+ * magic sidebar push as well as the viewport.
  */
 export function SearchLauncher() {
   const [open, setOpen] = useState(false);
@@ -35,13 +37,13 @@ export function SearchLauncher() {
         title="Search"
         aria-keyshortcuts="Meta+K Control+K"
         onClick={() => setOpen(true)}
-        className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring/40 border-border/70 inline-flex h-9 items-center gap-2 rounded-xl border bg-transparent px-2.5 transition-colors outline-none focus-visible:ring-3 sm:min-w-44 sm:justify-start"
+        className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring/40 border-border/70 inline-flex h-9 items-center gap-2 rounded-xl border bg-transparent px-2.5 transition-colors outline-none focus-visible:ring-3 @min-[1090px]/header:min-w-44 @min-[1090px]/header:justify-start"
       >
         <SearchIcon className="size-[18px] shrink-0" />
-        <span className="hidden text-sm sm:inline">Search…</span>
+        <span className="hidden text-sm @min-[1090px]/header:inline">Search…</span>
         <kbd
           suppressHydrationWarning
-          className="border-border/70 bg-muted/60 ml-auto hidden items-center rounded px-1.5 py-0.5 font-sans text-[0.7rem] font-medium sm:inline-flex"
+          className="border-border/70 bg-muted/60 ml-auto hidden items-center rounded px-1.5 py-0.5 font-sans text-[0.7rem] font-medium @min-[1090px]/header:inline-flex"
         >
           {isMac ? "⌘K" : "Ctrl K"}
         </kbd>

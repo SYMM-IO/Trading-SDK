@@ -1,6 +1,6 @@
 import type { Config } from "../../../core/config";
-import { instantCloseAuto } from "./instant-close-auto";
 import type { PrepareInstantCloseParameters } from "../prepare-instant-close-params/prepare-instant-close-params";
+import { instantCloseAuto } from "./instant-close-auto";
 
 /**
  * Build TanStack Mutation options for {@link instantCloseAuto}.

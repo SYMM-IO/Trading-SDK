@@ -2,10 +2,10 @@ import type { Address, Hex } from "viem";
 import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, WriteSolverParameter } from "../../../shared/types/properties";
-import { resolveMarket, resolveMarkPrice } from "../../shared/resolvers";
 import { toWeiBigInt } from "../../instant-open/shared/trade-math";
-import { calculateClosePrice, clampClosePrecision } from "../shared/close-math";
+import { resolveMarket, resolveMarkPrice } from "../../shared/resolvers";
 import type { InstantCloseParameters } from "../instant-close/instant-close";
+import { calculateClosePrice, clampClosePrecision } from "../shared/close-math";
 import { type InstantCloseMarketData, type PositionType } from "../shared/types";
 
 /**

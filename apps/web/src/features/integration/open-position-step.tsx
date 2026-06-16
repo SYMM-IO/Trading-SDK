@@ -19,6 +19,7 @@ import {
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
 import { MarketSelect, type MarketSelectItem } from "@symm-frontier/ui/components/market-select";
+import { Slider } from "@symm-frontier/ui/components/slider";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/components/tooltip";
 import { cn } from "@symm-frontier/ui/lib/utils";
@@ -57,6 +58,8 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
   const [side, setSide] = useState<TradeSide>("long");
   const [initialMargin, setInitialMargin] = useState("");
   const [leverage, setLeverage] = useState(1);
+  /** Draft text for the inline leverage field; `leverage` stays the source of truth for math. */
+  const [leverageInput, setLeverageInput] = useState("1");
   const [slippage, setSlippage] = useState("5");
 
   const selectedMarket = useMemo(
@@ -68,9 +71,14 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
   const validSlippage = parsePositiveNumber(slippage);
   const marketName = selectedMarket?.name;
 
+  /** Keep `leverage` (and its inline draft) within the selected market's max. */
   useEffect(() => {
-    setLeverage((current) => clampLeverage(current, maxLeverage));
-  }, [maxLeverage]);
+    const clamped = clampLeverage(leverage, maxLeverage);
+    if (clamped !== leverage) {
+      setLeverage(clamped);
+      setLeverageInput(String(clamped));
+    }
+  }, [leverage, maxLeverage]);
 
   // Cache-hot pre-fetches; the SDK refetches inside the mutation if these are
   // not yet populated.
@@ -296,11 +304,7 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
 
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(140px,180px)]">
         <Field
-          label={
-            <span className="inline-flex items-center gap-2">
-              leverage <span className="text-foreground font-mono text-sm">{leverage}x</span>
-            </span>
-          }
+          label="leverage"
           htmlFor={`${idPrefix}-leverage`}
           hint={
             selectedMarket
@@ -308,18 +312,48 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
               : "Select a market first."
           }
         >
-          <input
-            id={`${idPrefix}-leverage`}
-            type="range"
-            min={1}
-            max={maxLeverage}
-            step={1}
-            value={leverage}
-            disabled={!selectedMarket}
-            onChange={(event) => setLeverage(Number(event.target.value))}
-            className="accent-primary h-9 w-full disabled:opacity-50"
-            data-testid={`${idPrefix}-leverage`}
-          />
+          <div
+            className={cn(
+              "border-border bg-input/40 focus-within:border-ring focus-within:bg-input/60 flex h-9 items-center gap-2.5 rounded-xl border px-3 transition-[color,box-shadow,background-color,border-color]",
+              !selectedMarket && "opacity-50",
+            )}
+          >
+            <Slider
+              id={`${idPrefix}-leverage`}
+              min={1}
+              max={maxLeverage}
+              step={1}
+              value={[leverage]}
+              disabled={!selectedMarket}
+              onValueChange={([next]) => {
+                if (next === undefined) return;
+                setLeverage(next);
+                setLeverageInput(String(next));
+              }}
+              className="flex-1"
+              data-testid={`${idPrefix}-leverage`}
+            />
+            <span aria-hidden="true" className="bg-border h-[18px] w-px shrink-0" />
+            <span className="flex shrink-0 items-baseline">
+              <input
+                aria-label="leverage value"
+                inputMode="numeric"
+                value={leverageInput}
+                disabled={!selectedMarket}
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/\D/g, "");
+                  setLeverageInput(digits);
+                  if (digits !== "") setLeverage(clampLeverage(Number(digits), maxLeverage));
+                }}
+                onBlur={() => setLeverageInput(String(leverage))}
+                className="text-foreground w-[2.2ch] bg-transparent text-right font-mono text-sm tabular-nums outline-none"
+                data-testid={`${idPrefix}-leverage-value`}
+              />
+              <span aria-hidden="true" className="text-muted-foreground font-mono text-sm">
+                ×
+              </span>
+            </span>
+          </div>
         </Field>
 
         <Field label="slippage (%)" htmlFor={`${idPrefix}-slippage`} hint="Percent tolerance — must be greater than 0.">
@@ -490,7 +524,12 @@ function PreviewRow({
 }) {
   return (
     <>
-      <dt className={cn("text-muted-foreground inline-flex items-baseline gap-1.5", bold && "text-foreground font-medium")}>
+      <dt
+        className={cn(
+          "text-muted-foreground inline-flex items-baseline gap-1.5",
+          bold && "text-foreground font-medium",
+        )}
+      >
         <span>{label}</span>
         {hint ? <span className="text-muted-foreground/70 text-[0.65rem]">{hint}</span> : null}
       </dt>

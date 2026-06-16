@@ -2,7 +2,8 @@
 
 import { ResultError, ResultNote } from "@/components/result";
 import { StatusDot } from "@/components/status-dot";
-import type { Notification, SocketStatus } from "@symm-frontier/core";
+import { MagicPinButton } from "@/features/magic-sidebar/magic-pin-button";
+import type { Notification } from "@symm-frontier/core";
 import { useNotifications } from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
@@ -18,6 +19,7 @@ import { useRef, useState } from "react";
 import type { Address } from "viem";
 import { SubAccountPicker } from "../inspector/subaccount-picker";
 import { NotificationLogRow } from "./notification-log-row";
+import { socketStatusLabel, socketStatusTone } from "./socket-status-display";
 
 /** Max log rows kept on screen. */
 const MAX_ROWS = 200;
@@ -31,27 +33,6 @@ interface LogEntry {
   key: string;
   receivedAt: number;
   notification: Notification;
-}
-
-function statusTone(status: SocketStatus): "positive" | "warning" | "neutral" {
-  if (status === "open") return "positive";
-  if (status === "connecting" || status === "reconnecting") return "warning";
-  return "neutral";
-}
-
-function statusLabel(status: SocketStatus): string {
-  switch (status) {
-    case "open":
-      return "Connected";
-    case "connecting":
-      return "Connecting…";
-    case "reconnecting":
-      return "Reconnecting…";
-    case "closing":
-      return "Closing…";
-    default:
-      return "Disconnected";
-  }
 }
 
 /**
@@ -97,8 +78,9 @@ export function NotificationsConsole() {
           <CardTitle>Subscription</CardTitle>
           <CardDescription>Pick a SubAccount and subscribe to its live notifications stream.</CardDescription>
           <CardAction className="flex items-center gap-2">
-            <StatusDot tone={statusTone(status)} pulse={status === "open"} />
-            <span className="text-sm">{statusLabel(status)}</span>
+            <StatusDot tone={socketStatusTone(status)} pulse={status === "open"} />
+            <span className="text-sm">{socketStatusLabel(status)}</span>
+            <MagicPinButton methodId="notifications" input={selection.subAccount} />
           </CardAction>
         </CardHeader>
         <CardContent className="space-y-4">

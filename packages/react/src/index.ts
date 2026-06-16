@@ -98,6 +98,7 @@ export {
   useDeposit,
   useDepositAndAllocate,
   useEditAccountName,
+  usePredictedNextVirtualAccount,
   useRemoveMargin,
   useSimulateAddMargin,
   useSimulateAllocate,
@@ -146,6 +147,8 @@ export {
   type UseDepositReturnType,
   type UseEditAccountNameParameters,
   type UseEditAccountNameReturnType,
+  type UsePredictedNextVirtualAccountParameters,
+  type UsePredictedNextVirtualAccountReturnType,
   type UseRemoveMarginParameters,
   type UseRemoveMarginReturnType,
   type UseSimulateAddMarginParameters,
@@ -215,6 +218,7 @@ export {
   useGrantDelegation,
   useInstantClose,
   useInstantCloseAuto,
+  useInstantCloses,
   useInstantOpen,
   useInstantOpenAuto,
   useInstantOpenQuoteId,
@@ -230,6 +234,8 @@ export {
   type UseInstantCloseAutoReturnType,
   type UseInstantCloseParameters,
   type UseInstantCloseReturnType,
+  type UseInstantClosesParameters,
+  type UseInstantClosesReturnType,
   type UseInstantOpenAutoParameters,
   type UseInstantOpenAutoReturnType,
   type UseInstantOpenParameters,
@@ -307,12 +313,22 @@ export {
  * -----------
  * Read open positions and quotes from the SYMMIO core. `usePartyAOpenPositions`
  * returns full `Quote` structs; `usePartyAPendingQuotes` returns pending quote
- * ids to hydrate with `useQuote`.
+ * ids to hydrate with `useQuote`. `useManagedQuotes` orchestrates every source
+ * (on-chain reads fanned out across the sub-account's Virtual Accounts + hedger
+ * instant-ops + live notifications) into one reconciled, lifecycle-tagged table,
+ * seeded by the optimistic `useOptimisticQuotesStore`. Import the `UnifiedQuote`
+ * / `QuoteLifecycle` value types from `@symm-frontier/core`.
  */
 export {
+  useManagedQuotes,
+  useOptimisticQuotesStore,
   usePartyAOpenPositions,
   usePartyAPendingQuotes,
   useQuote,
+  type ManagedQuotesSources,
+  type OptimisticQuotesStoreState,
+  type UseManagedQuotesParameters,
+  type UseManagedQuotesResult,
   type UsePartyAOpenPositionsParameters,
   type UsePartyAOpenPositionsReturnType,
   type UsePartyAPendingQuotesParameters,

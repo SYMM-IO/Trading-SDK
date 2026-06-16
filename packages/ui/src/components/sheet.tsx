@@ -66,6 +66,32 @@ const sheetVariants = cva(
 );
 
 /**
+ * Positioning for a {@link SheetContent} rendered with `keepMounted`. The panel
+ * stays in the DOM while closed (its React state and effects keep running), so
+ * the slide is driven by a persistent state-conditional transform + transition
+ * rather than the one-shot enter/exit keyframes — those have no fill-mode and
+ * would snap the closed panel back on-screen. The panel parks off-screen while
+ * closed; the host must clip the corresponding axis (e.g. `overflow-x: clip`) so
+ * the parked panel does not add a scrollbar.
+ */
+const sheetKeepMountedVariants = cva(
+  "bg-card text-card-foreground border-border/70 fixed z-50 flex flex-col gap-0 shadow-xl transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] data-[state=closed]:pointer-events-none data-[state=closed]:duration-300",
+  {
+    variants: {
+      side: {
+        right: "inset-y-0 right-0 h-full w-full border-l data-[state=closed]:translate-x-full sm:max-w-lg",
+        left: "inset-y-0 left-0 h-full w-full border-r data-[state=closed]:-translate-x-full sm:max-w-lg",
+        top: "inset-x-0 top-0 h-auto border-b data-[state=closed]:-translate-y-full",
+        bottom: "inset-x-0 bottom-0 h-auto border-t data-[state=closed]:translate-y-full",
+      },
+    },
+    defaultVariants: {
+      side: "right",
+    },
+  },
+);
+
+/**
  * The sliding panel surface. Renders the overlay and a built-in close button, and
  * portals to the document body.
  *
@@ -81,16 +107,32 @@ function SheetContent({
   side = "right",
   showClose = true,
   showOverlay = true,
+  keepMounted = false,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> &
   VariantProps<typeof sheetVariants> & {
     showClose?: boolean;
     showOverlay?: boolean;
+    /**
+     * Keep the panel mounted while closed instead of unmounting it. Its React
+     * state and effects (timers, subscriptions, sockets) keep running in the
+     * background, and the panel slides off-screen via a persistent transform.
+     * Best paired with `modal={false}` for a non-blocking docked panel. The host
+     * should clip the slide axis (e.g. `overflow-x: clip`) and pass `inert` while
+     * closed so the parked panel stays out of the tab order.
+     */
+    keepMounted?: boolean;
   }) {
+  const variants = keepMounted ? sheetKeepMountedVariants : sheetVariants;
   return (
-    <SheetPrimitive.Portal data-slot="sheet-portal">
+    <SheetPrimitive.Portal data-slot="sheet-portal" forceMount={keepMounted || undefined}>
       {showOverlay ? <SheetOverlay /> : null}
-      <SheetPrimitive.Content data-slot="sheet-content" className={cn(sheetVariants({ side }), className)} {...props}>
+      <SheetPrimitive.Content
+        data-slot="sheet-content"
+        forceMount={keepMounted || undefined}
+        className={cn(variants({ side }), className)}
+        {...props}
+      >
         {children}
         {showClose ? (
           <SheetPrimitive.Close

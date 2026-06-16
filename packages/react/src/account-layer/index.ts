@@ -8,6 +8,7 @@ export * from "./use-delete-sub-account";
 export * from "./use-deposit";
 export * from "./use-deposit-and-allocate";
 export * from "./use-edit-account-name";
+export * from "./use-predicted-next-virtual-account";
 export * from "./use-remove-margin";
 export * from "./use-simulate-add-margin";
 export * from "./use-simulate-allocate";

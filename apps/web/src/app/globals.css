@@ -21,6 +21,9 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    /* Clip stray horizontal overflow (e.g. the magic sidebar parked off-screen
+       while closed). `clip` avoids the scroll-container side effects of `hidden`. */
+    overflow-x: clip;
   }
 
   body {

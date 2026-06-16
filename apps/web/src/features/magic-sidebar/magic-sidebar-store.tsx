@@ -9,6 +9,41 @@ export const POLL_INTERVALS = [1_000, 3_000, 5_000, 10_000] as const;
 const DEFAULT_INTERVAL_MS = 3_000;
 
 const STORAGE_KEY = "symmio.magic.pins.v1";
+const WIDTH_STORAGE_KEY = "symmio.magic.width.v1";
+const CLOSE_NOTICE_STORAGE_KEY = "symmio.magic.closeNotice.dismissed.v1";
+
+/** Default sidebar width (px) — matches the previous fixed 34rem cap. */
+export const DEFAULT_SIDEBAR_WIDTH = 544;
+/** Smallest width the sidebar may be resized to (px). */
+export const MIN_SIDEBAR_WIDTH = 360;
+/** Largest width the sidebar may be resized to (px); the viewport caps it further via `w-full`. */
+export const MAX_SIDEBAR_WIDTH = 1_400;
+
+/** Clamp a candidate width into the allowed range, guarding against NaN. */
+function clampWidth(width: number): number {
+  if (!Number.isFinite(width)) return DEFAULT_SIDEBAR_WIDTH;
+  return Math.min(Math.max(Math.round(width), MIN_SIDEBAR_WIDTH), MAX_SIDEBAR_WIDTH);
+}
+
+function readStoredWidth(): number {
+  if (typeof window === "undefined") return DEFAULT_SIDEBAR_WIDTH;
+  try {
+    const raw = window.localStorage.getItem(WIDTH_STORAGE_KEY);
+    if (!raw) return DEFAULT_SIDEBAR_WIDTH;
+    return clampWidth(Number(raw));
+  } catch {
+    return DEFAULT_SIDEBAR_WIDTH;
+  }
+}
+
+function readStoredCloseNoticeDismissed(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(CLOSE_NOTICE_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 /** A pinned method and its chosen cadence. */
 export interface MagicPin {
@@ -45,6 +80,27 @@ interface MagicSidebarContextValue {
   pinAndReveal: (methodId: string, seed?: string) => void;
   /** Change a pinned method's cadence. */
   setPinInterval: (methodId: string, intervalMs: number) => void;
+  /**
+   * Reorder the board: move the pin `activeId` so it sits immediately before
+   * `overId`, or to the end of the list when `overId` is `null`. No-op when the
+   * move would not change the order.
+   */
+  reorderPins: (activeId: string, overId: string | null) => void;
+  /** Current sidebar width in px (drag-resizable, persisted). */
+  width: number;
+  /** Set the sidebar width (px); clamped to the allowed range. */
+  setWidth: (width: number) => void;
+  /** `true` while the user is actively dragging the resize handle. */
+  isResizing: boolean;
+  /** Flag/unflag an in-progress resize drag (disables the page-push transition for instant tracking). */
+  setIsResizing: (resizing: boolean) => void;
+  /**
+   * Whether the user opted out of the "pinned methods keep running while closed"
+   * notice (the modal's "don't show again"). Persisted to local storage.
+   */
+  closeNoticeDismissed: boolean;
+  /** Permanently dismiss the close notice (persists the opt-out). */
+  dismissCloseNotice: () => void;
   /** Whether persisted pins have been read from local storage yet. */
   hasHydrated: boolean;
 }
@@ -82,6 +138,10 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
   const [view, setView] = useState<MagicView>("catalog");
   /** First render (server + hydration) is deterministic; persisted pins load in the effect below. */
   const [pins, setPins] = useState<MagicPin[]>([]);
+  /** Deterministic default on first render; the persisted width loads in the mount effect. */
+  const [width, setWidthState] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+  const [closeNoticeDismissed, setCloseNoticeDismissed] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
@@ -90,6 +150,8 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
       setPins(stored);
       setView("board");
     }
+    setWidthState(readStoredWidth());
+    setCloseNoticeDismissed(readStoredCloseNoticeDismissed());
     setHasHydrated(true);
   }, []);
 
@@ -102,6 +164,17 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
       /** Storage can be unavailable (private mode, quota); pins still work in-memory. */
     }
   }, [pins, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(WIDTH_STORAGE_KEY, String(width));
+    } catch {
+      /** Storage can be unavailable; the width still applies in-memory. */
+    }
+  }, [width, hasHydrated]);
+
+  const setWidth = useCallback((next: number) => setWidthState(clampWidth(next)), []);
 
   const isPinned = useCallback((methodId: string) => pins.some((pin) => pin.methodId === methodId), [pins]);
 
@@ -130,10 +203,37 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
     setPins((prev) => prev.map((entry) => (entry.methodId === methodId ? { ...entry, intervalMs } : entry)));
   }, []);
 
+  const reorderPins = useCallback((activeId: string, overId: string | null) => {
+    if (activeId === overId) return;
+    setPins((prev) => {
+      const from = prev.findIndex((entry) => entry.methodId === activeId);
+      if (from === -1) return prev;
+      const next = prev.slice();
+      const [moved] = next.splice(from, 1);
+      if (!moved) return prev;
+      const to = overId === null ? next.length : next.findIndex((entry) => entry.methodId === overId);
+      if (to === -1) return prev;
+      next.splice(to, 0, moved);
+      /** Bail out if the new order is identical, so we don't churn state or storage. */
+      const unchanged = next.every((entry, index) => entry.methodId === prev[index]?.methodId);
+      return unchanged ? prev : next;
+    });
+  }, []);
+
   const openSidebar = useCallback(() => {
     setView(pins.length > 0 ? "board" : "catalog");
     setOpen(true);
   }, [pins.length]);
+
+  const dismissCloseNotice = useCallback(() => {
+    setCloseNoticeDismissed(true);
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(CLOSE_NOTICE_STORAGE_KEY, "1");
+    } catch {
+      /** Storage can be unavailable; the opt-out still applies in-memory for this session. */
+    }
+  }, []);
 
   const value = useMemo<MagicSidebarContextValue>(
     () => ({
@@ -148,9 +248,33 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
       unpin,
       pinAndReveal,
       setPinInterval,
+      reorderPins,
+      width,
+      setWidth,
+      isResizing,
+      setIsResizing,
+      closeNoticeDismissed,
+      dismissCloseNotice,
       hasHydrated,
     }),
-    [open, openSidebar, view, pins, isPinned, pin, unpin, pinAndReveal, setPinInterval, hasHydrated],
+    [
+      open,
+      openSidebar,
+      view,
+      pins,
+      isPinned,
+      pin,
+      unpin,
+      pinAndReveal,
+      setPinInterval,
+      reorderPins,
+      width,
+      setWidth,
+      isResizing,
+      closeNoticeDismissed,
+      dismissCloseNotice,
+      hasHydrated,
+    ],
   );
 
   return <MagicSidebarContext.Provider value={value}>{children}</MagicSidebarContext.Provider>;

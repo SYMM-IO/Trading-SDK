@@ -1,6 +1,8 @@
 "use client";
 
 import { cn } from "@symm-frontier/ui/lib/utils";
+import { useState } from "react";
+import { MagicCloseNotice } from "./magic-close-notice";
 import { MagicSidebarPanel } from "./magic-sidebar-panel";
 import { useMagicSidebar } from "./magic-sidebar-store";
 
@@ -10,8 +12,22 @@ import { useMagicSidebar } from "./magic-sidebar-store";
  * count, or a live pulse while open.
  */
 export function MagicSidebarLauncher() {
-  const { open, setOpen, openSidebar, pins } = useMagicSidebar();
+  const { open, setOpen, openSidebar, pins, closeNoticeDismissed, dismissCloseNotice } = useMagicSidebar();
+  const [noticeOpen, setNoticeOpen] = useState(false);
   const count = pins.length;
+
+  /**
+   * Intercept closing while methods are pinned: the panel stays mounted and keeps
+   * polling/streaming in the background, so warn once (until opted out) instead of
+   * closing silently. Opening, and any close with no pins, pass straight through.
+   */
+  const handleOpenChange = (next: boolean) => {
+    if (!next && open && count > 0 && !closeNoticeDismissed) {
+      setNoticeOpen(true);
+      return;
+    }
+    setOpen(next);
+  };
 
   return (
     <>
@@ -41,7 +57,17 @@ export function MagicSidebarLauncher() {
           />
         ) : null}
       </button>
-      <MagicSidebarPanel open={open} onOpenChange={setOpen} />
+      <MagicSidebarPanel open={open} onOpenChange={handleOpenChange} />
+      <MagicCloseNotice
+        open={noticeOpen}
+        pinCount={count}
+        onCancel={() => setNoticeOpen(false)}
+        onConfirm={(dontShowAgain) => {
+          if (dontShowAgain) dismissCloseNotice();
+          setNoticeOpen(false);
+          setOpen(false);
+        }}
+      />
     </>
   );
 }

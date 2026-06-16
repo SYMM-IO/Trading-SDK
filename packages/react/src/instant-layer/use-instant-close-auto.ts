@@ -42,9 +42,7 @@ export type UseInstantCloseAutoReturnType = UseMutationResult<
  * });
  * ```
  */
-export function useInstantCloseAuto(
-  parameters: UseInstantCloseAutoParameters = {},
-): UseInstantCloseAutoReturnType {
+export function useInstantCloseAuto(parameters: UseInstantCloseAutoParameters = {}): UseInstantCloseAutoReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const base = instantCloseAutoMutationOptions(config);

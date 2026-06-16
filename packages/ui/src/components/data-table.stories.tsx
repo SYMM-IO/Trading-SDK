@@ -63,6 +63,24 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
+export const Expandable: Story = {
+  name: "With expandable rows",
+  args: {
+    renderExpanded: (s: SymbolRow) => (
+      <div className="grid gap-1 px-4 py-3 text-sm">
+        <div className="text-muted-foreground text-xs tracking-wide uppercase">Details</div>
+        <div>
+          Full address: <span className="font-mono">{s.address}</span>
+        </div>
+        <div>
+          Status: <Badge variant={s.status === "TRADING" ? "positive" : "secondary"}>{s.status}</Badge>
+        </div>
+      </div>
+    ),
+    defaultExpandedRowIds: [`${SYMBOLS[0]!.address}-${SYMBOLS[0]!.name}`],
+  },
+};
+
 export const WithSearchToolbar: Story = {
   name: "With a search toolbar",
   render: (args) => {

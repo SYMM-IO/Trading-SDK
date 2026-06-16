@@ -4,7 +4,9 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@symm-frontie
 import { cn } from "@symm-frontier/ui/lib/utils";
 import { MagicBoardView } from "./magic-board-view";
 import { MagicCatalogView } from "./magic-catalog-view";
-import { useMagicSidebar } from "./magic-sidebar-store";
+import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, useMagicSidebar } from "./magic-sidebar-store";
+import { SidebarResizeHandle } from "./sidebar-resize-handle";
+import { useSidebarMetrics } from "./use-sidebar-metrics";
 
 interface Props {
   open: boolean;
@@ -18,17 +20,29 @@ interface Props {
  * history. The page behind stays fully interactive while it runs.
  */
 export function MagicSidebarPanel({ open, onOpenChange }: Props) {
-  const { view, setView, pins } = useMagicSidebar();
+  const { view, setView, pins, width, setWidth, setIsResizing } = useMagicSidebar();
+  const { panelMaxWidth } = useSidebarMetrics();
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
       <SheetContent
         side="right"
+        keepMounted
         showOverlay={false}
+        inert={!open}
         onOpenAutoFocus={(event) => event.preventDefault()}
         onInteractOutside={(event) => event.preventDefault()}
-        className="w-full gap-0 p-0 shadow-2xl sm:max-w-[34rem]"
+        className="w-full gap-0 p-0 shadow-2xl"
+        style={{ maxWidth: panelMaxWidth }}
       >
+        <SidebarResizeHandle
+          width={width}
+          minWidth={MIN_SIDEBAR_WIDTH}
+          maxWidth={MAX_SIDEBAR_WIDTH}
+          onResize={setWidth}
+          onResizeStart={() => setIsResizing(true)}
+          onResizeEnd={() => setIsResizing(false)}
+        />
         <header className="border-border/70 relative shrink-0 overflow-hidden border-b px-6 pt-6 pb-5">
           <div
             aria-hidden
@@ -58,7 +72,14 @@ export function MagicSidebarPanel({ open, onOpenChange }: Props) {
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
-          {view === "catalog" ? <MagicCatalogView /> : <MagicBoardView />}
+          {/* Both views stay mounted so pinned cards keep their inputs and keep
+              polling/streaming while you browse the catalog; only display toggles. */}
+          <div className={cn(view !== "board" && "hidden")}>
+            <MagicBoardView />
+          </div>
+          <div className={cn(view !== "catalog" && "hidden")}>
+            <MagicCatalogView />
+          </div>
         </div>
       </SheetContent>
     </Sheet>
