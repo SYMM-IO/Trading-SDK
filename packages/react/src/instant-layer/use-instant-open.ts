@@ -1,16 +1,18 @@
 "use client";
 
 import {
+  getInstantOpensQueryKey,
   instantOpenMutationOptions,
   type ConfigParameter,
   type InstantOpenParameters,
   type InstantOpenReturnType,
 } from "@symm-frontier/core";
-import { useMutation, type UseMutationResult } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
+import { predicateMatch } from "../utils";
 
 /**
  * Parameters for {@link useInstantOpen}.
@@ -49,6 +51,7 @@ export type UseInstantOpenReturnType = UseMutationResult<
 export function useInstantOpen(parameters: UseInstantOpenParameters = {}): UseInstantOpenReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
+  const queryClient = useQueryClient();
   const base = instantOpenMutationOptions(config);
 
   return useMutation<InstantOpenReturnType, SymmioRequestError, InstantOpenParameters>({
@@ -59,6 +62,15 @@ export function useInstantOpen(parameters: UseInstantOpenParameters = {}): UseIn
       } catch (err) {
         throw normalizeSymmError(err);
       }
+    },
+    onSuccess: (_result, variables) => {
+      /**
+       * A freshly submitted instant-open exists on the hedger but not in any
+       * cached read yet. Invalidate the instant-opens feed so it refetches and
+       * the optimistic row appears immediately — without waiting for a poll.
+       */
+      const configKey = config.getChainConfigKey(variables.chainId ?? chainId);
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getInstantOpensQueryKey, { configKey }) });
     },
   });
 }

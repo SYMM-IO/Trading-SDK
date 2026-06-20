@@ -56,8 +56,8 @@ export interface GetSubAccountQuotesReturnType {
  * 3. reads `getPartyAOpenPositions` and `getPartyAPendingQuotes` (hydrated with
  *    `getQuote`) for every account in parallel;
  * 4. reconciles all sources into one stable, de-duplicated {@link UnifiedQuote}
- *    list with {@link reconcileQuotes} (a one-shot merge: no previous result and
- *    no grace window, so `now` is irrelevant and passed as `0`).
+ *    list with {@link reconcileQuotes} ("active quotes only" — a pure, stateless
+ *    one-shot merge).
  *
  * This is a one-shot snapshot. For live updates, poll it (or drive
  * {@link reconcileQuotes} directly with notifications) from the framework layer.
@@ -77,13 +77,14 @@ export async function getSubAccountQuotes(
   config: Config,
   parameters: GetSubAccountQuotesParameters,
 ): Promise<GetSubAccountQuotesReturnType> {
-  const { chainId, subAccount, includeVirtualAccounts = true, extraAccounts = [], baseUrl } = parameters;
+  const { chainId, subAccount, baseUrl, includeVirtualAccounts = true, extraAccounts = [] } = parameters;
 
   const [instantOpens, instantCloses] = await Promise.all([
     getInstantOpens(config, { chainId, partyA: subAccount, baseUrl }),
     getInstantCloses(config, { chainId, partyA: subAccount, baseUrl }),
   ]);
 
+  // TODO: could we remove instantOpens from resolveQuoteAccounts? if we drop it it can get paraller with Promise.all
   const { accounts, instantOpenVaByTempId } = await resolveQuoteAccounts(config, {
     chainId,
     subAccount,

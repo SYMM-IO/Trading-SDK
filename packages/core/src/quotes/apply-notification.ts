@@ -40,6 +40,7 @@ function notificationMatchesQuote(quote: UnifiedQuote, n: Notification): boolean
 function applyToMatched(quote: UnifiedQuote, n: Notification): UnifiedQuote {
   const next: UnifiedQuote = { ...quote };
   const onchainId = n.quoteId && n.quoteId !== `${n.tempQuoteId}` ? BigInt(n.quoteId) : undefined;
+
   if (onchainId !== undefined && next.quoteId === undefined) {
     next.quoteId = onchainId;
     next.key = `onchain:${onchainId}`;
@@ -51,7 +52,9 @@ function applyToMatched(quote: UnifiedQuote, n: Notification): UnifiedQuote {
   if (n.vaAddress) {
     next.vaAddress = n.vaAddress as UnifiedQuote["vaAddress"];
   }
+
   const action = n.lastSeenAction ?? "";
+
   if (n.type === NotificationType.FAILED) {
     next.lifecycle = QuoteLifecycle.FAILED;
     return next;
@@ -63,7 +66,19 @@ function applyToMatched(quote: UnifiedQuote, n: Notification): UnifiedQuote {
     if (n.avgPriceClose) {
       next.closedPrice = next.closedPrice ?? toWeiBigInt(n.avgPriceClose);
     }
-    next.lifecycle = next.lifecycle === QuoteLifecycle.CLOSED ? QuoteLifecycle.CLOSED : QuoteLifecycle.CLOSING;
+    /**
+     * For an anchored on-chain row the authoritative lifecycle is whatever the
+     * fresh poll produced (`lifecycleFromQuoteStatus`) plus the self-clearing
+     * instant-close overlay. A close notification is **replayed** from the
+     * consumer's buffer on every reconcile tick, so re-stamping `CLOSING` here
+     * would pin a *settled partial close* — back to `OPENED`/`ONCHAIN` on-chain —
+     * to `CLOSING` forever. Only stamp the optimistic `CLOSING` while the row has
+     * not yet anchored on-chain (mirrors the `origin` guard in the price-fill
+     * branch below).
+     */
+    if (next.origin !== "onchain") {
+      next.lifecycle = QuoteLifecycle.CLOSING;
+    }
     return next;
   }
   if (OPEN_ANCHOR_ACTIONS.has(action)) {
@@ -94,7 +109,10 @@ function applyToMatched(quote: UnifiedQuote, n: Notification): UnifiedQuote {
  * - links `tempQuoteId` ↔ `quoteId` and rekeys it once the on-chain id appears;
  * - fills `openedPrice` and advances to `PRICE_FILLED` on `InstantRFQ` success;
  * - advances to `ONCHAIN` on `SendQuoteTransaction` (open-anchor) success;
- * - advances to `CLOSING` / keeps `CLOSED` on close-action success;
+ * - stamps the optimistic `CLOSING` on close-action success **only while the row
+ *   is not yet anchored on-chain** — an anchored row defers to its polled on-chain
+ *   status, so a settled partial close rests at `ONCHAIN` instead of sticking on
+ *   `CLOSING` when the close notification is replayed each tick;
  * - advances to `FAILED` on any failure notification.
  *
  * @param quotes - The current unified rows.

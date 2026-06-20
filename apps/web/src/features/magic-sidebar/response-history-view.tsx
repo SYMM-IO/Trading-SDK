@@ -48,7 +48,7 @@ export function ResponseHistoryView({ entries, isFetching, emptyLabel = "Waiting
           <time className="text-muted-foreground font-mono text-[11px]">{formatTime(current.at)}</time>
         </header>
         <div className="ring-primary/25 overflow-hidden rounded-xl ring-1">
-          <JsonView data={current.data} defaultExpandedDepth={2} />
+          <JsonView data={current.data} defaultExpandedDepth={2} scroll={false} />
         </div>
       </section>
 
@@ -83,7 +83,7 @@ function StaleEntry({ entry, stepsBack }: { entry: PollHistoryEntry<unknown>; st
         </span>
         <time className="text-muted-foreground/70 font-mono text-[11px]">{formatTime(entry.at)}</time>
       </div>
-      <JsonView data={entry.data} defaultExpandedDepth={0} className="bg-muted/10" />
+      <JsonView data={entry.data} defaultExpandedDepth={0} scroll={false} className="bg-muted/10" />
     </div>
   );
 }

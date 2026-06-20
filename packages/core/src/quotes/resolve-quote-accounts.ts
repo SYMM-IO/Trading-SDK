@@ -90,6 +90,7 @@ export async function resolveQuoteAccounts(
    */
   const seen = new Set<string>();
   const accounts: Address[] = [];
+
   const add = (address: Address) => {
     const checksummed = getAddress(address);
     const lower = checksummed.toLowerCase();
@@ -106,6 +107,7 @@ export async function resolveQuoteAccounts(
   }
 
   /**
+   * TODO: dose we need to predict the VA's?
    * Predict each pending open's VA. Many opens may share the same
    * `(isolationType, symbolId)` — the prediction is identical for those (until
    * the nonce advances), so dedupe the on-chain reads while still mapping every

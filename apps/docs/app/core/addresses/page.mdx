@@ -2,7 +2,7 @@
 
 `@symm-frontier/core` ships a per-chain address registry for each contract family. Today: `AccountLayer` only.
 
-## `getAccountLayerAddress(chainId)`
+## `getAccountLayerAddress`
 
 Look up the `AccountLayer` (v0.8.5) deployment address for a chain.
 
@@ -16,7 +16,7 @@ getAccountLayerAddress(hyperEvm.id);
 
 Throws `SymmError` when the chain isn't in the built-in registry. Consumers can always pass `{ accountLayerAddress: "0x..." }` to an SDK call to bypass the registry — useful for staging deployments and new chains that ship before an SDK release.
 
-## `listAccountLayerChains()`
+## `listAccountLayerChains`
 
 Enumerate the chain ids the SDK knows about.
 

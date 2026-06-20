@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
+import { usePersistentPinState } from "./magic-value-store";
 
 /** One observed response in a live polling session. */
 export interface PollHistoryEntry<T> {
@@ -40,17 +41,24 @@ function stableStringify(value: unknown): string {
  * responses are ignored, so the history only grows when the data actually
  * changes.
  *
- * Reset by remounting (the sidebar does this when it opens or the pinned method
- * changes), so each polling session has its own history.
+ * Pass `persistKey` (a pinned card's `methodId`) to persist the buffer across
+ * reloads: the restored history shows instantly — with its original timestamps —
+ * and live polling resumes on top of it. Omit it (or remount) for a fresh,
+ * session-only history.
  *
  * @param data - The latest response, or `undefined` before the first fetch.
  * @param updatedAt - The fetch timestamp (e.g. react-query `dataUpdatedAt`).
+ * @param persistKey - Stable key to persist the history under, or `undefined`.
  * @param max - Maximum entries to retain. Defaults to 10.
  * @returns Newest-first history, with the current entry at index 0.
  */
-export function usePollHistory<T>(data: T | undefined, updatedAt: number, max = 10): PollHistoryEntry<T>[] {
-  const [entries, setEntries] = useState<PollHistoryEntry<T>[]>([]);
-  const nextId = useRef(0);
+export function usePollHistory<T>(
+  data: T | undefined,
+  updatedAt: number,
+  persistKey?: string,
+  max = 10,
+): PollHistoryEntry<T>[] {
+  const [entries, setEntries] = usePersistentPinState<PollHistoryEntry<T>[]>(persistKey, []);
 
   useEffect(() => {
     if (data === undefined || updatedAt === 0) return;
@@ -58,11 +66,13 @@ export function usePollHistory<T>(data: T | undefined, updatedAt: number, max = 
       const key = stableStringify(data);
       const head = prev[0];
       if (head && stableStringify(head.data) === key) return prev;
-      const entry: PollHistoryEntry<T> = { id: nextId.current++, data, at: updatedAt, stale: false };
+      /** The head always holds the largest id (we only ever prepend), so this stays unique across reloads. */
+      const id = (head?.id ?? -1) + 1;
+      const entry: PollHistoryEntry<T> = { id, data, at: updatedAt, stale: false };
       const staled = prev.map((e) => (e.stale ? e : { ...e, stale: true }));
       return [entry, ...staled].slice(0, max);
     });
-  }, [updatedAt, data, max]);
+  }, [updatedAt, data, max, setEntries]);
 
   return entries;
 }

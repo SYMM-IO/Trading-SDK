@@ -4,7 +4,7 @@ Solver hooks wrap the `@symm-frontier/core` solver REST actions with React Query
 
 Use these hooks to build trade preparation UIs: market pickers, leverage controls, and locked-param previews before sending an instant action.
 
-## `useMarkets(params?)`
+## `useMarkets`
 
 Fetch tradable markets from the chain solver.
 
@@ -41,7 +41,7 @@ function MarketList() {
 
 `UseQueryResult<SymbolContractSymbol[], SymmioRequestError>`.
 
-## `useLockedParams(params)`
+## `useLockedParams`
 
 Fetch solver locked params for one market/leverage pair.
 

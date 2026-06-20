@@ -6,9 +6,10 @@ import { NotificationLogRow } from "@/features/websocket/notification-log-row";
 import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
 import type { Notification } from "@symm-frontier/core";
 import { useNotifications } from "@symm-frontier/react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { isAddress, type Address } from "viem";
 import type { MagicMethodPanelProps } from "./magic-types";
+import { magicInputPersistKey, usePersistentPinState } from "./magic-value-store";
 
 /** Max log rows kept in a sidebar socket panel. */
 const MAX_ROWS = 50;
@@ -25,12 +26,12 @@ interface LogEntry {
  * is expanded (`enabled`) and a valid address is entered; collapsing the card or
  * closing the sidebar unmounts the panel and closes the socket.
  */
-export function NotificationsSocketPanel({ enabled, initialInput }: MagicMethodPanelProps) {
-  const [input, setInput] = useState(() => initialInput ?? "");
+export function NotificationsSocketPanel({ enabled, initialInput, persistKey, seedToken }: MagicMethodPanelProps) {
+  const [input, setInput] = usePersistentPinState(magicInputPersistKey(persistKey), initialInput ?? "", seedToken);
   const account = isAddress(input) ? (input as Address) : undefined;
   const active = enabled && Boolean(account);
 
-  const [log, setLog] = useState<LogEntry[]>([]);
+  const [log, setLog] = usePersistentPinState<LogEntry[]>(persistKey, []);
   const seqRef = useRef(0);
 
   const { status, error } = useNotifications({
@@ -38,8 +39,10 @@ export function NotificationsSocketPanel({ enabled, initialInput }: MagicMethodP
     enabled: active,
     onNotification: (notification) => {
       seqRef.current += 1;
-      const key = `${notification.id}-${seqRef.current}`;
-      setLog((prev) => [{ key, receivedAt: Date.now(), notification }, ...prev].slice(0, MAX_ROWS));
+      const receivedAt = Date.now();
+      /** `receivedAt` namespaces the key per session so a new entry never collides with a persisted one. */
+      const key = `${notification.id}-${receivedAt}-${seqRef.current}`;
+      setLog((prev) => [{ key, receivedAt, notification }, ...prev].slice(0, MAX_ROWS));
     },
   });
 

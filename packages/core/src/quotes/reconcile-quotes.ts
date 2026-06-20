@@ -39,7 +39,12 @@ export interface ReconcileQuotesInput {
 export interface ReconcileQuotesResult {
   /** Merged, de-duplicated, lifecycle-tagged rows, newest first. */
   quotes: UnifiedQuote[];
-  /** Map from `tempQuoteId` to the row `key` it resolved to (temp ↔ on-chain link). */
+  /**
+   * Map from `tempQuoteId` to the on-chain row `key` it resolved to, recorded
+   * **only once the row has anchored on-chain** (`quoteId` present). A
+   * still-optimistic temp id is absent until then, so consumers can use this to
+   * clear an optimistic seed exactly when its on-chain twin exists.
+   */
   links: Record<number, string>;
 }
 
@@ -78,6 +83,7 @@ export interface ReconcileQuotesResult {
  */
 export function reconcileQuotes(input: ReconcileQuotesInput): ReconcileQuotesResult {
   const byKey = new Map<string, UnifiedQuote>();
+
   for (const quote of input.onchainPositions) {
     const row = withVaAddress(toUnifiedQuoteFromOnchain(quote), input.partyA);
     byKey.set(row.key, row);
@@ -103,7 +109,9 @@ export function reconcileQuotes(input: ReconcileQuotesInput): ReconcileQuotesRes
       raw: { ...existing.raw, instantClose: close },
     });
   }
+
   const onchainFingerprints = new Set<string>();
+
   for (const row of byKey.values()) {
     if (row.origin === "onchain") onchainFingerprints.add(fingerprintQuote(row));
   }
@@ -130,7 +138,14 @@ export function reconcileQuotes(input: ReconcileQuotesInput): ReconcileQuotesRes
   });
   const links: Record<number, string> = {};
   for (const row of merged) {
-    if (row.tempQuoteId !== undefined) links[row.tempQuoteId] = row.key;
+    /**
+     * Only record a temp ↔ on-chain link once the row has actually anchored
+     * (`quoteId` set). A still-optimistic row carries only its own `temp:` key —
+     * recording that as a "link" would let the consumer clear its optimistic seed
+     * before the on-chain twin exists, dropping the row for a tick (the
+     * appear→disappear→reappear flicker).
+     */
+    if (row.tempQuoteId !== undefined && row.quoteId !== undefined) links[row.tempQuoteId] = row.key;
   }
   return { quotes: merged, links };
 }

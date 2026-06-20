@@ -4,7 +4,7 @@ React-query wrappers over `@symm-frontier/core`'s InstantLayer slice.
 
 Delegation reads are intentionally split into two hooks. `useDelegationExpiry` reads the raw `delegations` mapping value, and `useIsDelegationActive` reads the contract's computed active status.
 
-## `useDelegationExpiry(params)`
+## `useDelegationExpiry`
 
 Read the raw expiry timestamp for one account, delegate, and selector.
 
@@ -37,7 +37,7 @@ if (expiryQuery.data) {
 
 `UseQueryResult<bigint, SymmioRequestError>`.
 
-## `useIsDelegationActive(params)`
+## `useIsDelegationActive`
 
 Read whether the contract considers a delegation active.
 
@@ -96,7 +96,7 @@ function DelegationReads({ account, delegate, selector }: Required<Props>) {
 }
 ```
 
-## `useGrantDelegation(options?)`
+## `useGrantDelegation`
 
 Submit an InstantLayer `grantDelegation` transaction.
 

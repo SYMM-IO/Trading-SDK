@@ -13,15 +13,6 @@ import {
 export type GetPredictedNextVirtualAccountData = GetPredictedNextVirtualAccountReturnType;
 
 /**
- * Default cache window for {@link getPredictedNextVirtualAccountQueryOptions}. The
- * predicted address is stable per `(subAccount, isolationType, symbolId)` only
- * until the subaccount's virtual nonce advances, so a short stale window keeps
- * the result fresh without refetching on every render. Override via
- * `query.staleTime`.
- */
-const DEFAULT_STALE_TIME_MS = 10_000;
-
-/**
  * Build the TanStack Query key for {@link getPredictedNextVirtualAccountQueryOptions}.
  *
  * @param options - Partial query parameters (chain id, subAccount, isolationType, symbolId).
@@ -65,10 +56,6 @@ export type GetPredictedNextVirtualAccountQueryOptions = SymmioQueryOptions<
  * set. An unsupported chain surfaces a {@link SymmError} from the query function
  * (it is not silently disabled).
  *
- * The predicted address is stable per `(subAccount, isolationType, symbolId)`
- * until the subaccount's virtual nonce advances, so a short default
- * `staleTime` is applied; override it via `query.staleTime`.
- *
  * @param config - The SDK config.
  * @param options - Query parameters and TanStack overrides.
  * @returns Options to pass to `useQuery` / `queryClient.fetchQuery`.
@@ -89,7 +76,6 @@ export function getPredictedNextVirtualAccountQueryOptions(
   options: GetPredictedNextVirtualAccountOptions = {},
 ): GetPredictedNextVirtualAccountQueryOptions {
   return {
-    staleTime: DEFAULT_STALE_TIME_MS,
     ...options.query,
     queryKey: getPredictedNextVirtualAccountQueryKey({
       ...options,

@@ -6,7 +6,7 @@ Two helpers for displaying hex strings in the UI.
 import { shortenAddress, minifyHash } from "@symm-frontier/utils/address";
 ```
 
-## `shortenAddress(address, opts?)`
+## `shortenAddress`
 
 Checksum + slice an EVM address. Use this for EOA / contract addresses where you want EIP-55 mixed-case output.
 
@@ -29,7 +29,7 @@ interface ShortenAddressOptions {
 }
 ```
 
-## `minifyHash(hash, opts?)`
+## `minifyHash`
 
 Generic hex shortener. Use for **non-address** strings: transaction hashes, ABI selectors, signatures, etc. Does **not** checksum (it's not an address).
 

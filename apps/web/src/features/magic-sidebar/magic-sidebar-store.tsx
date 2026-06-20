@@ -1,9 +1,14 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { clearAllPinValues, clearPinValue } from "./magic-value-store";
 
-/** Selectable poll cadences (ms). */
-export const POLL_INTERVALS = [1_000, 3_000, 5_000, 10_000] as const;
+/**
+ * Selectable poll cadences (ms). `0` is the "Off" option — a `refetchInterval` of
+ * `0` disables TanStack's periodic refetch, so the source loads once and stops
+ * idle-polling (a `hybrid` source still updates live off its socket).
+ */
+export const POLL_INTERVALS = [1_000, 3_000, 5_000, 10_000, 0] as const;
 
 /** Default cadence for a freshly pinned method. */
 const DEFAULT_INTERVAL_MS = 3_000;
@@ -57,6 +62,13 @@ export interface MagicPin {
    * shared query cache instead of starting blank.
    */
   seed?: string;
+  /**
+   * Monotonic re-seed signal handed to the panel as `seedToken`. Bumped whenever
+   * {@link MagicSidebarContextValue.pinMany} retargets an already-pinned card to
+   * a new `seed`, so the live panel re-adopts it instead of keeping a stale
+   * input. Absent on pins that were never prefilled from outside.
+   */
+  seedVersion?: number;
 }
 
 /** Which view the sidebar shows. */
@@ -78,6 +90,15 @@ interface MagicSidebarContextValue {
   unpin: (methodId: string) => void;
   /** Pin from a card: pins (seeded with the card's input), opens the sidebar, reveals the board. */
   pinAndReveal: (methodId: string, seed?: string) => void;
+  /**
+   * Pin several methods to a shared `seed` and reveal the board. Unlike
+   * {@link pin}, this retargets methods that are *already* pinned: it overwrites
+   * their `seed` and bumps `seedVersion`, so each live panel re-adopts the new
+   * input. Use for "watch this account across these cards" triggers.
+   */
+  pinMany: (entries: { methodId: string; seed?: string }[]) => void;
+  /** Unpin several methods at once (clears each one's persisted value). */
+  unpinMany: (methodIds: string[]) => void;
   /** Change a pinned method's cadence. */
   setPinInterval: (methodId: string, intervalMs: number) => void;
   /**
@@ -143,6 +164,8 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
   const [isResizing, setIsResizing] = useState(false);
   const [closeNoticeDismissed, setCloseNoticeDismissed] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
+  /** Source of the monotonic `seedVersion` stamped on retargeted pins. */
+  const seedVersionRef = useRef(0);
 
   useEffect(() => {
     const stored = readStoredPins();
@@ -158,8 +181,10 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hasHydrated || typeof window === "undefined") return;
     try {
-      if (pins.length === 0) window.localStorage.removeItem(STORAGE_KEY);
-      else window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pins));
+      if (pins.length === 0) {
+        window.localStorage.removeItem(STORAGE_KEY);
+        clearAllPinValues();
+      } else window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pins));
     } catch {
       /** Storage can be unavailable (private mode, quota); pins still work in-memory. */
     }
@@ -188,6 +213,35 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
 
   const unpin = useCallback((methodId: string) => {
     setPins((prev) => prev.filter((entry) => entry.methodId !== methodId));
+    clearPinValue(methodId);
+  }, []);
+
+  const pinMany = useCallback((entries: { methodId: string; seed?: string }[]) => {
+    if (entries.length === 0) return;
+    seedVersionRef.current += 1;
+    const version = seedVersionRef.current;
+    setPins((prev) => {
+      const next = prev.slice();
+      for (const { methodId, seed } of entries) {
+        const index = next.findIndex((entry) => entry.methodId === methodId);
+        const existing = index === -1 ? undefined : next[index];
+        if (existing === undefined) {
+          next.push({ methodId, intervalMs: DEFAULT_INTERVAL_MS, seed, seedVersion: version });
+        } else {
+          /** Retarget an existing pin: new seed + bumped version re-seeds its live panel. */
+          next[index] = { ...existing, seed, seedVersion: version };
+        }
+      }
+      return next;
+    });
+    setView("board");
+    setOpen(true);
+  }, []);
+
+  const unpinMany = useCallback((methodIds: string[]) => {
+    if (methodIds.length === 0) return;
+    setPins((prev) => prev.filter((entry) => !methodIds.includes(entry.methodId)));
+    for (const methodId of methodIds) clearPinValue(methodId);
   }, []);
 
   const pinAndReveal = useCallback(
@@ -247,6 +301,8 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
       pin,
       unpin,
       pinAndReveal,
+      pinMany,
+      unpinMany,
       setPinInterval,
       reorderPins,
       width,
@@ -266,6 +322,8 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
       pin,
       unpin,
       pinAndReveal,
+      pinMany,
+      unpinMany,
       setPinInterval,
       reorderPins,
       width,

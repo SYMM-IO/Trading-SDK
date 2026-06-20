@@ -2,7 +2,7 @@
 
 React-query wrappers over `@symm-frontier/core`'s AccountLayer slice.
 
-## `useUserSubAccounts(params)`
+## `useUserSubAccounts`
 
 Read a user's subaccounts. Returns react-query's full `UseQueryResult` shape.
 
@@ -39,7 +39,7 @@ return (
 
 `UseQueryResult<readonly SubAccountDetail[], SymmioRequestError>` — every field react-query exposes, with the SDK error type.
 
-## `useAccountBalanceOf(params)`
+## `useAccountBalanceOf`
 
 Read raw `balanceOf(account)` from the SYMMIO core/diamond contract.
 
@@ -70,7 +70,7 @@ return <span>{data === undefined ? "-" : formatEther(data)}</span>;
 
 The value is in raw collateral token units. Divide by `1e18` / use `formatEther` when displaying the current deployments' 18-decimal collateral values.
 
-## `useAccountBalanceInfo(params)`
+## `useAccountBalanceInfo`
 
 Read raw `balanceInfoOfPartyA(account)` fields from the SYMMIO core/diamond contract.
 
@@ -112,7 +112,7 @@ interface AccountBalanceInfo {
 
 All fields are in raw collateral token units.
 
-## `useAllocate(options?)`
+## `useAllocate`
 
 Allocate a subaccount's available balance into its allocated (tradeable) balance.
 Returns react-query's `UseMutationResult` shape. The call inputs (`account`,
@@ -149,7 +149,7 @@ On success, the hook invalidates the subaccount's `useAccountBalanceInfo` and `u
 
 `useSimulateAllocate()` runs the same call through `simulateContract` without sending — useful to surface a would-be revert before prompting the wallet.
 
-## `useDeallocate(options?)`
+## `useDeallocate`
 
 Deallocate a subaccount's allocated (tradeable) balance back into its available
 balance — the reverse of `useAllocate`. Returns react-query's `UseMutationResult`
@@ -188,7 +188,7 @@ On success, the hook invalidates the subaccount's `useAccountBalanceInfo` and `u
 
 The hook calls `getDeallocateUpnlSig` for you unless you pass a `upnlSig` variable. Deallocate is subject to the on-chain debounce — submitting too soon after a prior deallocate reverts — and the result must keep the subaccount solvent; both surface as a normalized `SymmioRequestError`. `useSimulateDeallocate()` dry-runs the call (supply a `upnlSig` there — it does not auto-fetch).
 
-## `useEditAccountName(options?)`
+## `useEditAccountName`
 
 Submit a rename transaction. Returns react-query's `UseMutationResult` shape.
 

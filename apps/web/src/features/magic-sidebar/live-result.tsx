@@ -25,6 +25,8 @@ interface Props {
   active: boolean;
   /** Hint shown while the source is idle (e.g. waiting for inputs). */
   idleHint?: string;
+  /** Stable key (the pin's `methodId`) to persist the response history across reloads. */
+  persistKey?: string;
 }
 
 /**
@@ -32,8 +34,8 @@ interface Props {
  * error, and the latest response with prior responses dimmed as stale history.
  * The {@link usePollHistory} buffer makes "what changed, and when" obvious.
  */
-export function LiveResult({ query, active, idleHint }: Props) {
-  const history = usePollHistory(query.data, query.dataUpdatedAt);
+export function LiveResult({ query, active, idleHint, persistKey }: Props) {
+  const history = usePollHistory(query.data, query.dataUpdatedAt, persistKey);
 
   return (
     <div className="flex flex-col gap-3">

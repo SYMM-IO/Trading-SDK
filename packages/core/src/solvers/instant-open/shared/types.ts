@@ -49,6 +49,8 @@ export type VirtualAccountIsolationType =
  * isolationTypeForSide(PositionType.SHORT); // VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_SHORT
  * isolationTypeForSide(PositionType.LONG); // VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_LONG
  * ```
+ *
+ * TODO: what happend if someone have different isolation type than the one we expect? like POSITION or MARKET?
  */
 export function isolationTypeForSide(positionType: PositionType): VirtualAccountIsolationType {
   return positionType === PositionType.SHORT

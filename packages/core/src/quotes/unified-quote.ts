@@ -78,10 +78,16 @@ export interface UnifiedQuote {
   openedPrice?: bigint;
   /** Average price the position closed at (wei), when known. */
   closedPrice?: bigint;
-  /** Total requested quantity (wei). */
+  /** Total requested quantity (wei) — fixed for the life of the position; partial closes do not shrink it. */
   quantity: bigint;
   /** Quantity already closed (wei), when known. */
   closedAmount?: bigint;
+  /**
+   * Remaining **open** size (wei): `quantity − closedAmount`, the live quantity
+   * still on the position (the figure a UI shows as "position size"); `0` once
+   * fully closed. Derived from the other amount fields by {@link quoteOpenQuantity}.
+   */
+  openQuantity: bigint;
   /** Quantity targeted by a pending close (wei), when closing. */
   quantityToClose?: bigint;
   /** Margin locked against the row (wei). */

@@ -1,5 +1,5 @@
 import type { Config } from "../../../core/config";
-import type { Compute, ConfigKeyParameter } from "../../../shared/types/properties";
+import type { Compute, ConfigKeyParameter, ExactPartial } from "../../../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../../../shared/types/query";
 import { filterQueryOptions } from "../../../shared/utils/query";
 import { getInstantOpens, type GetInstantOpensParameters, type GetInstantOpensReturnType } from "./get-instant-opens";
@@ -13,7 +13,9 @@ export type GetInstantOpensData = GetInstantOpensReturnType;
  * @param options - Query parameters (chain id, partyA, base url, config key).
  * @returns A stable, hashable query key.
  */
-export function getInstantOpensQueryKey(options: Compute<GetInstantOpensParameters & ConfigKeyParameter>) {
+export function getInstantOpensQueryKey(
+  options: Compute<ExactPartial<GetInstantOpensParameters> & ConfigKeyParameter> = {},
+) {
   return ["getInstantOpens", filterQueryOptions(options)] as const;
 }
 

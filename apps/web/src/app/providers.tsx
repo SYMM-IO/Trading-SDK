@@ -1,67 +1,33 @@
 "use client";
 
+import { useAppGetWalletClient } from "@/app/use-app-wallet-client";
 import { wagmiConfig } from "@/config/wagmi";
 import { SymmioOverridesProvider, useSymmioOverrides } from "@/features/config/symmio-overrides-store";
+import { MagicPopoutProvider } from "@/features/magic-sidebar/magic-popout-store";
 import { MagicSidebarDock } from "@/features/magic-sidebar/magic-sidebar-dock";
 import { MagicSidebarProvider } from "@/features/magic-sidebar/magic-sidebar-store";
-import { getAppSessionKeyManager } from "@/features/session-keys/session-key-manager";
-import { SymmError, SymmioProvider, type GetWalletClientFn, type SymmioWalletClient } from "@symm-frontier/react";
+import { SymmioProvider } from "@symm-frontier/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
-import { useCallback, useState } from "react";
-import { createWalletClient, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { useState } from "react";
 import { WagmiProvider } from "wagmi";
-import { getWalletClient as getWagmiWalletClient } from "wagmi/actions";
 
 /**
- * Feeds the runtime overrides store into `SymmioProvider` and wires a custom
- * wallet-client resolver: when `from` matches the in-memory session key, sign
- * with the session-key viem client; otherwise fall back to the wagmi-connected
- * EOA.
+ * Feeds the runtime overrides store into `SymmioProvider` and wires the app's
+ * wallet-client resolver (session key when it matches the requested signer, else
+ * the wagmi-connected EOA — see {@link useAppGetWalletClient}).
  */
 function SymmioConfigBridge({ children }: { children: ReactNode }) {
   const { overrides } = useSymmioOverrides();
-
-  const getWalletClient = useCallback<GetWalletClientFn>(async ({ chainId, from }) => {
-    const manager = getAppSessionKeyManager();
-    const sessionAddress = manager.getAddress();
-    const wantsSession = from && sessionAddress && from.toLowerCase() === sessionAddress.toLowerCase();
-
-    if (wantsSession) {
-      const privateKey = manager.getPrivateKey();
-      if (!privateKey) {
-        throw new SymmError(
-          "config",
-          "SESSION_KEY_NOT_LOADED",
-          "Session key matched the requested signer but no private key is loaded.",
-        );
-      }
-      const chain = wagmiConfig.chains.find((c) => c.id === chainId);
-      if (!chain) {
-        throw new SymmError("config", "UNSUPPORTED_CHAIN", `Unsupported chain id: ${chainId}.`);
-      }
-      const account = privateKeyToAccount(privateKey);
-      return createWalletClient({ account, chain, transport: http() }) as unknown as SymmioWalletClient;
-    }
-
-    try {
-      return await getWagmiWalletClient(wagmiConfig, { chainId });
-    } catch (err) {
-      throw new SymmError(
-        "config",
-        "NO_WALLET_CONNECTED",
-        "No connected wallet. Connect a wallet before sending transactions.",
-        { cause: err instanceof Error ? err : undefined },
-      );
-    }
-  }, []);
+  const getWalletClient = useAppGetWalletClient();
 
   return (
     <SymmioProvider chainOverrides={overrides} getWalletClient={getWalletClient}>
       <MagicSidebarProvider>
-        <MagicSidebarDock>{children}</MagicSidebarDock>
+        <MagicPopoutProvider>
+          <MagicSidebarDock>{children}</MagicSidebarDock>
+        </MagicPopoutProvider>
       </MagicSidebarProvider>
     </SymmioProvider>
   );

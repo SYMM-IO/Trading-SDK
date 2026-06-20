@@ -4,6 +4,7 @@ import type { UnifiedQuote } from "@symm-frontier/core";
 import { OrderType, PositionType, QuoteStatus } from "@symm-frontier/core";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { DataTable, type DataTableColumn } from "@symm-frontier/ui/components/data-table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/components/tooltip";
 import { formatRelativeTimestamp, formatTokenAmount } from "@symm-frontier/utils";
 import type { ReactNode } from "react";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
@@ -42,6 +43,54 @@ function rowIdSort(quote: UnifiedQuote): number {
 /** Best-known creation timestamp (seconds) for sorting/displaying the created column. */
 function createdSeconds(quote: UnifiedQuote): bigint | undefined {
   return quote.createTimestamp ?? quote.statusModifyTimestamp;
+}
+
+/** Inline "info" glyph (apps/web uses inline SVG, never lucide). */
+function InfoIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-3.5"
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </svg>
+  );
+}
+
+/**
+ * Header for the open-quantity column: the label plus an info glyph whose tooltip
+ * spells out the derivation. The trigger is a non-focusable `<span>` (not a
+ * `<button>`) because a sortable header already wraps its content in a `<button>`,
+ * and a button must not contain another interactive control.
+ */
+function OpenQuantityHeader() {
+  return (
+    <span className="inline-flex items-center gap-1">
+      Open qty
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className="text-muted-foreground/70 hover:text-foreground inline-flex cursor-help"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <InfoIcon />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-64 text-left font-normal normal-case">
+          Open qty = quantity − closedAmount. A position keeps its original quantity for life; partial closes accrue
+          separately, so this is the live size still on the book.
+        </TooltipContent>
+      </Tooltip>
+    </span>
+  );
 }
 
 const COLUMNS: DataTableColumn<UnifiedQuote>[] = [
@@ -136,6 +185,15 @@ const COLUMNS: DataTableColumn<UnifiedQuote>[] = [
     widthClassName: NUMERIC_COLUMN_WIDTH,
     cell: (quote) => formatFixedPoint(quote.quantity),
     sortAccessor: (quote) => Number(quote.quantity),
+    cellClassName: "text-muted-foreground font-mono",
+  },
+  {
+    id: "openQuantity",
+    header: <OpenQuantityHeader />,
+    align: "end",
+    widthClassName: NUMERIC_COLUMN_WIDTH,
+    cell: (quote) => formatFixedPoint(quote.openQuantity),
+    sortAccessor: (quote) => Number(quote.openQuantity),
     cellClassName: "text-foreground font-mono",
   },
   {

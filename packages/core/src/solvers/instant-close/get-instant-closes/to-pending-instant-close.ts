@@ -22,6 +22,7 @@ export interface PendingInstantClose {
 }
 
 /**
+ * TODO: improve the swagger types, then remove this function or remove its default values
  * Map one raw hedger `/instant_close` record to a normalized
  * {@link PendingInstantClose}.
  *

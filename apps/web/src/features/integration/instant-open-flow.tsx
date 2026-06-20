@@ -26,6 +26,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { maxUint256, zeroAddress, type Address } from "viem";
 import { WalletPanel } from "../inspector/wallet-panel";
+import { MagicWatchButton } from "../magic-sidebar/magic-watch-button";
 import { AmountField } from "./amount-field";
 import { FlowRail, type FlowStep } from "./flow-rail";
 import { OpenPositionStep } from "./open-position-step";
@@ -148,46 +149,55 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
   ];
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_220px]">
-      <div className="flex min-h-60 flex-col gap-5">
-        {current === 0 ? (
-          <WalletPanel />
-        ) : current === 1 ? (
-          <SubaccountStep
-            owner={owner}
-            selected={subAccount}
-            onSelect={(account) => {
-              onSelectSubAccount(account);
-              setStep(2);
-            }}
-          />
-        ) : current === 2 ? (
-          <FundSubaccountStep
-            owner={owner}
-            subAccount={subAccount}
-            decimals={collateralDecimals}
-            balance={subAccountBalance}
-          />
-        ) : current === 3 ? (
-          <SessionKeyStep address={sessionKey} owner={owner} />
-        ) : current === 4 ? (
-          <DelegationStep
-            subAccount={subAccount}
-            sessionKey={sessionKey}
-            addMarginActive={addMarginDelegation.data}
-            sendQuoteActive={sendQuoteDelegation.data}
-            closePositionActive={closePositionDelegation.data}
-            loading={delegationsLoading}
-            grant={grantDelegation}
-            onGrant={onGrantDelegation}
-          />
-        ) : (
-          <OpenPositionStep subAccount={subAccount!} sessionKey={sessionKey!} />
-        )}
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-muted-foreground text-xs">
+          Watch this subaccount&apos;s quotes, positions, and notifications live while you trade.
+        </span>
+        <MagicWatchButton partyA={subAccount} />
       </div>
 
-      <div className="lg:border-border/50 lg:border-l lg:pl-8">
-        <FlowRail steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep} />
+      <div className="grid gap-8 lg:grid-cols-[1fr_220px]">
+        <div className="flex min-h-60 flex-col gap-5">
+          {current === 0 ? (
+            <WalletPanel />
+          ) : current === 1 ? (
+            <SubaccountStep
+              owner={owner}
+              selected={subAccount}
+              onSelect={(account) => {
+                onSelectSubAccount(account);
+                setStep(2);
+              }}
+            />
+          ) : current === 2 ? (
+            <FundSubaccountStep
+              owner={owner}
+              subAccount={subAccount}
+              decimals={collateralDecimals}
+              balance={subAccountBalance}
+            />
+          ) : current === 3 ? (
+            <SessionKeyStep address={sessionKey} owner={owner} />
+          ) : current === 4 ? (
+            <DelegationStep
+              subAccount={subAccount}
+              sessionKey={sessionKey}
+              addMarginActive={addMarginDelegation.data}
+              sendQuoteActive={sendQuoteDelegation.data}
+              closePositionActive={closePositionDelegation.data}
+              loading={delegationsLoading}
+              grant={grantDelegation}
+              onGrant={onGrantDelegation}
+            />
+          ) : (
+            <OpenPositionStep subAccount={subAccount!} sessionKey={sessionKey!} />
+          )}
+        </div>
+
+        <div className="lg:border-border/50 lg:border-l lg:pl-8">
+          <FlowRail steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep} />
+        </div>
       </div>
     </div>
   );

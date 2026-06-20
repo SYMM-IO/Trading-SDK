@@ -31,6 +31,20 @@ export interface MagicMethodPanelProps {
    * shared query cache instead of starting blank.
    */
   initialInput?: string;
+  /**
+   * Stable key (the pin's `methodId`) the panel persists its displayed value(s)
+   * under, so a page reload restores them instead of blanking until the next
+   * poll. Omitted when the panel is rendered outside the pinned board.
+   */
+  persistKey?: string;
+  /**
+   * Monotonic "re-seed" signal. When it changes, the panel re-adopts
+   * {@link MagicMethodPanelProps.initialInput}, overriding whatever the user (or
+   * a previous prefill) had set — even on an already-mounted card. Lets a trigger
+   * such as "watch this sub-account" retarget a pinned card to a new address.
+   * Omitted (and ignored) when the card was never prefilled from outside.
+   */
+  seedToken?: number;
 }
 
 /**
@@ -51,6 +65,14 @@ export interface MagicMethod {
   source: MagicSource;
   /** Extra search terms beyond label/description. */
   keywords: string[];
+  /**
+   * Cap (px) for the pinned card's body before it starts scrolling inside the
+   * card. The body grows with its content up to this height; past it, the card
+   * scrolls instead of pushing the rest of the board down. Tune it per method —
+   * a streaming log wants more room than a single quote. Omit to use the shared
+   * default. The user can still drag the card's bottom edge past it.
+   */
+  bodyMaxHeight?: number;
   /** Panel that owns the method's inputs, live source, and response history. */
   Panel: ComponentType<MagicMethodPanelProps>;
 }

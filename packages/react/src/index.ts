@@ -320,6 +320,7 @@ export {
  * / `QuoteLifecycle` value types from `@symm-frontier/core`.
  */
 export {
+  useGroupedQuotes,
   useManagedQuotes,
   useOptimisticQuotesStore,
   usePartyAOpenPositions,
@@ -327,6 +328,8 @@ export {
   useQuote,
   type ManagedQuotesSources,
   type OptimisticQuotesStoreState,
+  type UseGroupedQuotesParameters,
+  type UseGroupedQuotesResult,
   type UseManagedQuotesParameters,
   type UseManagedQuotesResult,
   type UsePartyAOpenPositionsParameters,

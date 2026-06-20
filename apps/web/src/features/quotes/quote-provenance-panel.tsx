@@ -177,6 +177,7 @@ export function QuoteProvenancePanel({ quote }: Props) {
 
         <DetailSection title="Size">
           <DetailRow label="Quantity" value={formatFixedPoint(quote.quantity)} />
+          <DetailRow label="Open" value={formatFixedPoint(quote.openQuantity)} />
           <DetailRow label="Closed" value={formatOptionalFixedPoint(quote.closedAmount)} />
           <DetailRow label="To close" value={formatOptionalFixedPoint(quote.quantityToClose)} />
         </DetailSection>

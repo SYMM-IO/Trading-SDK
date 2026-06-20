@@ -5,7 +5,7 @@ import { LiveResult } from "./live-result";
 import type { MagicMethodPanelProps } from "./magic-types";
 
 /** Magic-method panel polling the solver's tradable markets. No inputs. */
-export function MarketsLivePanel({ intervalMs, enabled }: MagicMethodPanelProps) {
+export function MarketsLivePanel({ intervalMs, enabled, persistKey }: MagicMethodPanelProps) {
   const query = useMarkets({
     query: { enabled, refetchInterval: enabled ? intervalMs : false, refetchIntervalInBackground: true },
   });
@@ -19,6 +19,7 @@ export function MarketsLivePanel({ intervalMs, enabled }: MagicMethodPanelProps)
         error: query.error,
       }}
       active={enabled}
+      persistKey={persistKey}
     />
   );
 }

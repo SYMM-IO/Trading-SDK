@@ -3,6 +3,7 @@
 import { Search } from "lucide-react";
 import { Dialog as DialogPrimitive, VisuallyHidden } from "radix-ui";
 import * as React from "react";
+import { usePortalContainer } from "../lib/portal-container";
 import { cn } from "../lib/utils";
 
 /** A single selectable row in a {@link CommandPalette}. */
@@ -131,10 +132,11 @@ export function CommandPalette({
   }
 
   const hasResults = flat.length > 0;
+  const container = usePortalContainer();
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
-      <DialogPrimitive.Portal>
+      <DialogPrimitive.Portal container={container ?? undefined}>
         <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/45 backdrop-blur-sm" />
         <DialogPrimitive.Content
           aria-describedby={undefined}

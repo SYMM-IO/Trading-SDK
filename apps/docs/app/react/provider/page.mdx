@@ -35,7 +35,7 @@ interface SymmioClientConfigInput {
 
 The provider merges your input with the built-in defaults for the chain, creates a `SymmioClient`, and exposes it via `useSymmioClient()`.
 
-## `useSymmioClient()`
+## `useSymmioClient`
 
 Access the SDK client from context. Returns `undefined` if wagmi has no transport for the configured chain.
 
@@ -77,10 +77,10 @@ interface SymmioClient {
 
 These are exported but mostly internal — domain hooks call them on your behalf. Useful if you want to compose your own queries on top of the SDK.
 
-### `useSymmioPublicClient()`
+### `useSymmioPublicClient`
 
 Returns a viem `PublicClient` for the configured chain, sourced from the host's wagmi config. `undefined` when wagmi has no transport bound for the chain.
 
-### `useSymmioWalletClient()`
+### `useSymmioWalletClient`
 
 Returns wagmi's `useWalletClient` result scoped to the configured chain — full `{ data, status, error }` shape. `data` is `undefined` until the user connects a wallet **and** is switched to the SDK's chain.

@@ -2,7 +2,7 @@
 
 Price-service hooks wrap the `@symm-frontier/core` Enigma price-service reads with React Query and SDK provider state. They read the active chain from `SymmioProvider` unless you pass `chainId`.
 
-## `useEnigmaPriceServicePrices(params)`
+## `useEnigmaPriceServicePrices`
 
 Fetch mark prices by token addresses.
 
@@ -22,7 +22,7 @@ function Prices({ tokenAddress }: { tokenAddress: string }) {
 
 `addresses` accepts either `readonly string[]` or a comma-separated `string`.
 
-## `useEnigmaPriceServiceMetadata(params)`
+## `useEnigmaPriceServiceMetadata`
 
 Fetch metadata by token-address array.
 
@@ -36,7 +36,7 @@ const query = useEnigmaPriceServiceMetadata({
 
 `addresses` is required and must be an array.
 
-## `useEnigmaPriceServiceSymbolsInfo(params?)`
+## `useEnigmaPriceServiceSymbolsInfo`
 
 Fetch symbol names, statuses, and addresses.
 
@@ -46,7 +46,7 @@ import { useEnigmaPriceServiceSymbolsInfo } from "@symm-frontier/react";
 const query = useEnigmaPriceServiceSymbolsInfo();
 ```
 
-## `useEnigmaPriceServiceHealth(params?)`
+## `useEnigmaPriceServiceHealth`
 
 Read the service health endpoint.
 

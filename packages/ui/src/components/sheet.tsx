@@ -2,6 +2,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 import * as React from "react";
+import { usePortalContainer } from "../lib/portal-container";
 import { cn } from "../lib/utils";
 
 /**
@@ -124,8 +125,13 @@ function SheetContent({
     keepMounted?: boolean;
   }) {
   const variants = keepMounted ? sheetKeepMountedVariants : sheetVariants;
+  const container = usePortalContainer();
   return (
-    <SheetPrimitive.Portal data-slot="sheet-portal" forceMount={keepMounted || undefined}>
+    <SheetPrimitive.Portal
+      data-slot="sheet-portal"
+      container={container ?? undefined}
+      forceMount={keepMounted || undefined}
+    >
       {showOverlay ? <SheetOverlay /> : null}
       <SheetPrimitive.Content
         data-slot="sheet-content"

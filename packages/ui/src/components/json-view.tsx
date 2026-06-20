@@ -12,6 +12,14 @@ export interface JsonViewProps extends Omit<React.ComponentProps<"div">, "childr
   defaultExpandedDepth?: number;
   /** Hide the header toolbar (type summary, expand/collapse-all, copy). */
   hideToolbar?: boolean;
+  /**
+   * Whether the tree scrolls within its own capped height. `true` (the default)
+   * keeps the body to a max height and scrolls inside it. Pass `false` when an
+   * outer container already owns the scroll (e.g. a resizable card body), so the
+   * tree grows to its full height and there is a single scroll region, not two
+   * nested ones.
+   */
+  scroll?: boolean;
 }
 
 /**
@@ -23,7 +31,14 @@ export interface JsonViewProps extends Omit<React.ComponentProps<"div">, "childr
  * @example
  * <JsonView data={response} defaultExpandedDepth={2} />
  */
-export function JsonView({ data, defaultExpandedDepth = 1, hideToolbar = false, className, ...rest }: JsonViewProps) {
+export function JsonView({
+  data,
+  defaultExpandedDepth = 1,
+  hideToolbar = false,
+  scroll = true,
+  className,
+  ...rest
+}: JsonViewProps) {
   const [signal, setSignal] = React.useState<ExpandSignal>({ version: 0, open: false });
   const [copied, setCopied] = React.useState(false);
   const isContainer = data !== null && typeof data === "object";
@@ -72,7 +87,7 @@ export function JsonView({ data, defaultExpandedDepth = 1, hideToolbar = false, 
         </div>
       )}
 
-      <div className="max-h-96 overflow-auto p-3 leading-5">
+      <div className={cn("p-3 leading-5", scroll && "max-h-96 overflow-auto")}>
         <ExpandContext.Provider value={signal}>
           <JsonNode value={data} depth={0} defaultExpandedDepth={defaultExpandedDepth} isLast />
         </ExpandContext.Provider>

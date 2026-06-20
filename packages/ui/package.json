@@ -13,6 +13,10 @@
       "types": "./src/lib/utils.ts",
       "default": "./src/lib/utils.ts"
     },
+    "./lib/portal-container": {
+      "types": "./src/lib/portal-container.tsx",
+      "default": "./src/lib/portal-container.tsx"
+    },
     "./components/*": {
       "types": "./src/components/*.tsx",
       "default": "./src/components/*.tsx"

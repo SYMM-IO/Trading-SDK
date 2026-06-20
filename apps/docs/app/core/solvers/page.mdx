@@ -6,7 +6,7 @@ Use these APIs when you need solver metadata before building a trade flow: marke
 
 ## Markets
 
-### `getMarkets(config, params?)`
+### `getMarkets`
 
 Fetch tradable markets from the chain solver's `/contract-symbols` endpoint.
 
@@ -35,7 +35,7 @@ Important market fields:
 | `state`        | `number?` | `0` disabled, `1` close only, `2` open only, `3` enabled. |
 | `max_leverage` | `string?` | Maximum leverage accepted for this market.                |
 
-### `getMarketsQueryOptions(config, options?)`
+### `getMarketsQueryOptions`
 
 Build TanStack Query options for `getMarkets`.
 
@@ -48,7 +48,7 @@ const query = useQuery(getMarketsQueryOptions(config, { query: { staleTime: 30_0
 
 ## Locked Params
 
-### `getLockedParams(config, params)`
+### `getLockedParams`
 
 Fetch locked params from the chain solver's `/get_locked_params/{symbol}` endpoint.
 
@@ -85,7 +85,7 @@ interface SolverLockedParams {
 }
 ```
 
-### `getLockedParamsQueryOptions(config, options)`
+### `getLockedParamsQueryOptions`
 
 Build TanStack Query options for `getLockedParams`.
 
@@ -116,7 +116,7 @@ const options = getLockedParamsQueryOptions(config, {
 });
 ```
 
-### `getLockedParamsQueryKey(params)`
+### `getLockedParamsQueryKey`
 
 Build a cache key for a locked-params query.
 

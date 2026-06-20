@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import * as React from "react";
 
+import { usePortalContainer } from "../lib/portal-container";
 import { cn } from "../lib/utils";
 
 /**
@@ -66,8 +67,9 @@ function DialogContent({
   showClose = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean }) {
+  const container = usePortalContainer();
   return (
-    <DialogPrimitive.Portal>
+    <DialogPrimitive.Portal container={container ?? undefined}>
       <DialogOverlay />
       <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 sm:p-6">
         <DialogPrimitive.Content

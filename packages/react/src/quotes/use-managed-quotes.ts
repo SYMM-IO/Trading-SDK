@@ -1,9 +1,14 @@
 "use client";
 
 import {
+  getInstantClosesQueryKey,
+  getInstantOpensQueryKey,
+  getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
+  getPartyAPendingQuotesQueryKey,
   getPartyAPendingQuotesQueryOptions,
   getPredictedNextVirtualAccountQueryOptions,
+  getQuoteQueryKey,
   getQuoteQueryOptions,
   isolationTypeForSide,
   reconcileQuotes,
@@ -14,7 +19,7 @@ import {
   type SocketStatus,
   type UnifiedQuote,
 } from "@symm-frontier/core";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAddress, type Address } from "viem";
 import { useVirtualAccountsAddressesOfSubAccount } from "../account-layer/use-virtual-accounts-addresses-of-sub-account";
@@ -24,6 +29,7 @@ import { useInstantCloses } from "../instant-layer/use-instant-closes";
 import { useInstantOpens } from "../instant-layer/use-instant-opens";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
+import { predicateMatch } from "../utils";
 import { useNotifications } from "../websocket/use-notifications";
 import { useOptimisticQuotesStore } from "./optimistic-quotes-store";
 
@@ -37,8 +43,16 @@ const ACCELERATED_POLLING_INTERVAL = 1_500;
  * Cap on the live-notification buffer fed back into the merge. Reconciliation is
  * idempotent over already-applied notifications, so only a recent window is kept
  * to bound memory and reprocessing.
+ *
+ * TODO: check this and packages/react/src/quotes/use-managed-quotes.ts#L188-L206
  */
 const NOTIFICATION_BUFFER_LIMIT = 100;
+
+/** Stable empty array so the `accounts` memo doesn't churn while no VAs are retained. */
+const NO_RETAINED_VAS: readonly Address[] = [];
+
+/** Debounce (ms) for coalescing a burst of notifications into one set of read invalidations. */
+const NOTIFICATION_INVALIDATE_DEBOUNCE = 250;
 
 /**
  * Which underlying quote sources {@link useManagedQuotes} should read. Every
@@ -122,12 +136,12 @@ export interface UseManagedQuotesResult {
  * (`useInstantOpens` / `useInstantCloses`) stay scoped to the sub-account.
  *
  * Every source is gated by `sources`, `enabled`, and a set `partyA`, then their
- * snapshots flow through the pure core `reconcileQuotes`, injecting `Date.now()`
- * as the clock, threading the previous result for the removal grace window, and
- * stamping each optimistic instant-open with its predicted VA via
- * `instantOpenVaByTempId`. Live notifications (via `useNotifications`, unless
- * `live` is `false`) are applied in the same merge. On-chain polling accelerates
- * automatically while any row is mid-transition (`shouldAccelerateQuotePolling`).
+ * snapshots flow through the pure core `reconcileQuotes` ("active quotes only" —
+ * a quote shows iff it is in a source this tick), stamping each optimistic
+ * instant-open with its predicted VA via `instantOpenVaByTempId`. Live
+ * notifications (via `useNotifications`, unless `live` is `false`) are applied in
+ * the same merge. On-chain polling accelerates automatically while any row is
+ * mid-transition (`shouldAccelerateQuotePolling`).
  *
  * Optimistic instant-opens seeded into {@link useOptimisticQuotesStore} are
  * merged in as extra `instantOpens` so a just-submitted trade shows instantly,
@@ -153,9 +167,48 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
   const active = enabled && Boolean(partyA);
 
   /**
-   * Previous reconciliation result (drives the removal grace window and the
-   * temp ↔ on-chain links). Lives in a ref so it survives renders without
-   * triggering one; the latest result is synced back after each merge.
+   * Identity of the current account set's owner. VA retention (below) is scoped
+   * to this `(chainId, partyA)` so switching sub-accounts never carries another
+   * account's VAs into the read set.
+   */
+  const retentionOwner = active && partyA ? `${resolvedChainId}:${partyA.toLowerCase()}` : undefined;
+
+  /**
+   * VAs retained across the optimistic→on-chain hand-off. A predicted VA leaves
+   * `predictedVas` the instant its instant-open lands on-chain (the hedger drops
+   * the pending open), while `getVirtualAccountsAddressesOfSubAccount` and the
+   * notification `va_address` can lag a poll behind — so without retention we'd
+   * stop polling the exact VA the position just landed in, and the row would
+   * vanish for a tick before reappearing as its `ONCHAIN` twin. VAs are
+   * append-only on-chain, so once discovered we keep reading them while the owner
+   * is unchanged. See reference-va-address-resolution in agent memory.
+   */
+  const [retained, setRetained] = useState<{ owner?: string; vas: Address[] }>({ vas: [] });
+  const retainedVas = retained.owner === retentionOwner ? retained.vas : NO_RETAINED_VAS;
+
+  /**
+   * Notification-driven invalidation. Reads are kept in sync off the live
+   * notifications stream — not polling — so the feature works with polling off.
+   * `queryClient` and the cache scope (`configKey`) are mirrored into refs so the
+   * `onNotification` callback below can stay referentially stable (a new callback
+   * identity would resubscribe the socket). The debounce timer coalesces a burst
+   * of notifications into one invalidation pass.
+   */
+  const queryClient = useQueryClient();
+  const queryClientRef = useRef(queryClient);
+  queryClientRef.current = queryClient;
+  const configKey = config.getChainConfigKey(resolvedChainId);
+  const configKeyRef = useRef(configKey);
+  configKeyRef.current = configKey;
+  const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  /**
+   * Last reconciliation result, kept in a ref so it survives renders without
+   * triggering one. Its only remaining job is to feed
+   * {@link shouldAccelerateQuotePolling} the previous tick's result, since the
+   * source queries set their `refetchInterval` before this render's result
+   * exists. ("Active quotes only" dropped the grace window, and `links` are
+   * recomputed fresh on each merge.)
    */
   const previousRef = useRef<ReconcileQuotesResult | undefined>(undefined);
 
@@ -186,24 +239,15 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
   });
 
   /**
-   * TODO(quotes): brand-new-VA bridge gap — an optimistic row can briefly
-   * disappear (then reappear as its `ONCHAIN` row) when a position opens in a
-   * market the sub-account has never traded (a freshly created Virtual Account).
-   *
-   * Cause: predicted VAs below are derived from the CURRENT pending opens. The
-   * instant the hedger drops an instant-open (because it landed on-chain), its
-   * predicted VA leaves the `accounts` set — so we stop polling exactly the new VA
-   * where the quote landed, right before we've read it. The VA is not in
-   * `getVirtualAccountsAddressesOfSubAccount` yet, and the notification
-   * `va_address` can lag, so for a tick the optimistic row has no on-chain twin
-   * and (under "active quotes only") drops until its real `ONCHAIN` row appears.
-   *
-   * Fix: retain recently predicted/notified VAs in the account set for a short
-   * window after their pending open disappears (a per-config VA "seen" cache, à la
-   * Vibe-ui's VA store), so polling continues across the hand-off and the row
-   * transitions without a flicker. See reference-va-address-resolution in agent
-   * memory.
+   * Brand-new-VA bridge: a position can open in a market the sub-account has
+   * never traded, landing in a freshly created VA that is not yet in
+   * `getVirtualAccountsAddressesOfSubAccount`. The predicted VA below covers it
+   * while the instant-open is pending; once it lands on-chain the hedger drops the
+   * open and the prediction with it, so VA retention (`retained`, above) keeps the
+   * VA in the poll set across the hand-off — the row transitions to `ONCHAIN` in
+   * place instead of flickering out and back.
    */
+
   /**
    * Predict the VA each pending instant-open will land in. The set of opens is
    * dynamic, but `useQueries` over a dynamic array is allowed — the hook count
@@ -239,8 +283,31 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
     enabled: active && live,
     onNotification: useCallback((notification: Notification) => {
       setNotifications((prev) => [...prev, notification].slice(-NOTIFICATION_BUFFER_LIMIT));
+      /**
+       * Refetch the authoritative reads off the live event so both tables stay in
+       * sync without polling. Debounced to coalesce bursts; React Query dedups
+       * concurrent refetches of the same query. Scoped to this chain (`configKey`)
+       * so every fanned-out account refetches but other chains are untouched.
+       */
+      if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
+      invalidateTimerRef.current = setTimeout(() => {
+        const client = queryClientRef.current;
+        const scope = { configKey: configKeyRef.current };
+        void client.invalidateQueries({ predicate: predicateMatch(getPartyAOpenPositionsQueryKey, scope) });
+        void client.invalidateQueries({ predicate: predicateMatch(getPartyAPendingQuotesQueryKey, scope) });
+        void client.invalidateQueries({ predicate: predicateMatch(getQuoteQueryKey, scope) });
+        void client.invalidateQueries({ predicate: predicateMatch(getInstantOpensQueryKey, scope) });
+        void client.invalidateQueries({ predicate: predicateMatch(getInstantClosesQueryKey, scope) });
+      }, NOTIFICATION_INVALIDATE_DEBOUNCE);
     }, []),
   });
+
+  /** Clear the pending invalidation timer on unmount. */
+  useEffect(() => {
+    return () => {
+      if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
+    };
+  }, []);
 
   /** Distinct VA addresses seen on the notifications stream. */
   const notificationVas = useMemo<Address[]>(() => {
@@ -278,6 +345,7 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
       for (const virtualAccount of virtualAccounts.data ?? []) add(virtualAccount);
       for (const predicted of predictedVas.addresses) add(predicted);
       for (const notificationVa of notificationVas) add(notificationVa);
+      for (const retainedVa of retainedVas) add(retainedVa);
     }
     for (const extra of extraAccounts ?? []) add(extra);
     return result;
@@ -288,8 +356,35 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
     virtualAccounts.data,
     predictedVas.addresses,
     notificationVas,
+    retainedVas,
     extraAccounts,
   ]);
+
+  /**
+   * Accumulate every VA we discover (list + predicted + notification) into the
+   * retained set so none ever leaves the poll set mid-hand-off. Monotonic per
+   * owner; resets when the owner `(chainId, partyA)` changes. Setting state only
+   * when something new appears keeps this from looping.
+   */
+  useEffect(() => {
+    if (!retentionOwner) return;
+    const discovered = [...(virtualAccounts.data ?? []), ...predictedVas.addresses, ...notificationVas];
+    setRetained((prev) => {
+      const carryOver = prev.owner === retentionOwner ? prev.vas : [];
+      const seen = new Set(carryOver.map((address) => address.toLowerCase()));
+      const next = [...carryOver];
+      let changed = prev.owner !== retentionOwner;
+      for (const va of discovered) {
+        const checksummed = getAddress(va);
+        const lower = checksummed.toLowerCase();
+        if (seen.has(lower)) continue;
+        seen.add(lower);
+        next.push(checksummed);
+        changed = true;
+      }
+      return changed ? { owner: retentionOwner, vas: next } : prev;
+    });
+  }, [retentionOwner, virtualAccounts.data, predictedVas.addresses, notificationVas]);
 
   /** On-chain open positions, fanned out across every account, flattened to one `Quote[]`. */
   const openPositions = useQueries({

@@ -14,7 +14,7 @@ import {
 } from "@symm-frontier/utils/format";
 ```
 
-## `formatWithCommas(value, opts?)`
+## `formatWithCommas`
 
 Thousand separators with configurable decimal handling.
 
@@ -36,7 +36,7 @@ interface FormatWithCommasOptions {
 }
 ```
 
-## `formatCurrency(value, opts?)`
+## `formatCurrency`
 
 USD currency wrapper around `formatWithCommas`.
 
@@ -47,7 +47,7 @@ formatCurrency(1234.5, { display: "symbol-code" }); // "$1,234.5 USD"
 formatCurrency(0.000123, { dynamicDecimals: 2 }); // "$0.00012"
 ```
 
-## `formatCompact(value, opts?)`
+## `formatCompact`
 
 K / M / B / T / Q notation.
 
@@ -58,7 +58,7 @@ formatCompact(12_345_678, { maxDecimals: 1 }); // "12.3M"
 formatCompact(1500, { threshold: "M" }); // "1,500" — under threshold
 ```
 
-## `formatCompactCurrency(value, opts?)`
+## `formatCompactCurrency`
 
 Compact notation plus the `$` / `USD` decoration.
 
@@ -68,7 +68,7 @@ formatCompactCurrency(1_500_000, { display: "code" }); // "1.5M USD"
 formatCompactCurrency(-1_234_567, { maxDecimals: 1 }); // "-$1.2M"
 ```
 
-## `formatPercentage(value, opts?)`
+## `formatPercentage`
 
 Percentage with optional sign and thousand separators. **Input is the percentage itself** (`54` for "54%"), not a ratio.
 
@@ -81,7 +81,7 @@ formatPercentage(12345.6, { fixedDecimals: 2 }); // "12,345.60%"
 formatPercentage(0); // "0%"
 ```
 
-## `formatDynamicDecimals(value, sig, opts?)`
+## `formatDynamicDecimals`
 
 Adaptive precision: show `sig` significant digits after the first non-zero, no trailing zeros.
 
@@ -95,7 +95,7 @@ formatDynamicDecimals(0.0000123456, 3, { maxDecimals: 6 }); // "0.000012"
 
 Useful for prices that span many orders of magnitude (think shitcoin tickers and stablecoins in the same UI).
 
-## `formatRelativeTimestamp(timestampSeconds, opts?)`
+## `formatRelativeTimestamp`
 
 Short relative labels for Unix timestamps in seconds.
 

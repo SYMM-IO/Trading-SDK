@@ -1,0 +1,375 @@
+/* =========================================================================
+   Symmio Frontier docs — "Voltage Graphite"
+   A faithful port of apps/web (@symm-frontier/ui) so the docs read as the same
+   product: deep graphite neutrals, a single electric-cobalt accent, Bricolage /
+   Hanken / JetBrains type, 0.75rem rounded radius, and the two-glow + masked-grid
+   atmosphere. Tokens are copied from packages/ui/src/styles/globals.css because
+   the docs build has no Tailwind to @import the design system through.
+   Loads after nextra-theme-docs/style.css; un-layered rules win over Tailwind.
+   ========================================================================= */
+
+:root {
+  --background: #f7f8fa;
+  --foreground: #0e1116;
+  --card: #ffffff;
+  --card-foreground: #0e1116;
+  --popover: #ffffff;
+  --primary: #2f5fe6;
+  --primary-foreground: #ffffff;
+  --secondary: #eceef3;
+  --secondary-foreground: #2a2f3a;
+  --muted: #eef0f4;
+  --muted-foreground: #5b6170;
+  --accent: #edf0f6;
+  --positive: #0a9d6e;
+  --warning: #b9770a;
+  --border: #e3e6ec;
+  --input: #dfe3ea;
+  --ring: #2f5fe6;
+  --chart-2: #0a9d6e;
+}
+
+.dark {
+  --background: #0a0b0f;
+  --foreground: #edeef2;
+  --card: #101218;
+  --card-foreground: #edeef2;
+  --popover: #15171e;
+  --primary: #3b6cff;
+  --primary-foreground: #ffffff;
+  --secondary: #1a1d26;
+  --secondary-foreground: #d7d9e2;
+  --muted: #16181f;
+  --muted-foreground: #8b90a0;
+  --accent: #1e212b;
+  --positive: #2fd39a;
+  --warning: #f5b544;
+  --border: #23262f;
+  --input: #262a34;
+  --ring: #3b6cff;
+  --chart-2: #2fd39a;
+}
+
+/* Bridge the design-system tokens onto Nextra/Tailwind's own tokens. */
+:root {
+  --x-font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --x-default-font-family: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --x-font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --x-default-mono-font-family: var(--x-font-mono);
+  --font-display: var(--font-bricolage), var(--font-hanken), ui-sans-serif, sans-serif;
+
+  /* Rounded scale from web's --radius: 0.75rem */
+  --x-radius-sm: 0.5rem;
+  --x-radius-md: 0.625rem;
+  --x-radius-lg: 0.75rem;
+  --x-radius-xl: 1rem;
+}
+
+/* -------------------------------------------------------------------------
+   Atmosphere — two soft accent glows up top plus a fine grid that fades into
+   the page. Copied verbatim from apps/web so the canvas feels identical.
+   ------------------------------------------------------------------------- */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(58rem 40rem at 82% -12%, color-mix(in oklab, var(--primary) 16%, transparent), transparent 60%),
+    radial-gradient(48rem 34rem at 6% -4%, color-mix(in oklab, var(--chart-2) 9%, transparent), transparent 58%);
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--border) 70%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--border) 70%, transparent) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(120% 78% at 50% -8%, #000 28%, transparent 76%);
+  mask-image: radial-gradient(120% 78% at 50% -8%, #000 28%, transparent 76%);
+  opacity: 0.55;
+}
+
+/* Keep Nextra surfaces from painting over the atmosphere at the page root. */
+.nextra-content,
+main {
+  background: transparent;
+}
+
+body {
+  font-feature-settings: "ss01", "cv01", "cv03";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Tabular, slashed-zero numerals wherever mono renders (addresses, figures). */
+code,
+pre,
+kbd {
+  font-feature-settings: "zero", "ss01";
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--primary) 28%, transparent);
+  color: var(--foreground);
+}
+
+/* -------------------------------------------------------------------------
+   Typography — Bricolage display headings, tight tracking.
+   ------------------------------------------------------------------------- */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+article h1 {
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+article h2 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+article a {
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+/* -------------------------------------------------------------------------
+   Navbar — translucent graphite with a blur, matching apps/web's site header.
+   ------------------------------------------------------------------------- */
+.nextra-navbar {
+  background: color-mix(in oklab, var(--background) 72%, transparent);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
+}
+
+/* Brand lockup */
+.symm-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--font-display);
+}
+
+.symm-mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.7rem;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow:
+    0 1px 2px -1px rgba(10, 11, 15, 0.5),
+    0 2px 8px -3px color-mix(in oklab, var(--primary) 60%, transparent);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.symm-mark::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.28), transparent 60%);
+}
+
+.symm-mark svg {
+  position: relative;
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.symm-logo:hover .symm-mark {
+  transform: translateY(-2px);
+}
+
+.symm-word {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.symm-tag {
+  font-family: var(--x-font-sans);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* -------------------------------------------------------------------------
+   Sidebar — cobalt active marker, matching the app's primary wayfinding.
+   ------------------------------------------------------------------------- */
+.nextra-sidebar a[class*="x:bg-primary-100"] {
+  box-shadow: inset 2px 0 0 0 var(--primary);
+}
+
+/* -------------------------------------------------------------------------
+   Surfaces — code blocks and inline code read like the app's cards.
+   ------------------------------------------------------------------------- */
+article pre {
+  border: 1px solid var(--border);
+  border-radius: var(--x-radius-lg);
+  box-shadow:
+    0 1px 2px -1px rgba(0, 0, 0, 0.4),
+    0 8px 20px -12px rgba(0, 0, 0, 0.5);
+}
+
+:where(article) :not(pre) > code {
+  font-family: var(--x-font-mono);
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--secondary) 70%, transparent);
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-radius: var(--x-radius-sm);
+  padding: 0.12em 0.4em;
+  font-size: 0.84em;
+}
+
+/* API names in headings stay quiet, not boxed. */
+article :where(h1, h2, h3, h4) code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+
+/* Tables — graphite dividers, display headers. */
+article table {
+  border-color: var(--border);
+}
+
+article th {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+  background: color-mix(in oklab, var(--secondary) 55%, transparent);
+}
+
+article tr,
+article td,
+article th {
+  border-color: var(--border) !important;
+}
+
+/* -------------------------------------------------------------------------
+   Search box — input surface, rounded.
+   ------------------------------------------------------------------------- */
+.nextra-search input {
+  background: color-mix(in oklab, var(--input) 60%, transparent);
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-radius: var(--x-radius-md);
+}
+
+.nextra-search input:focus {
+  border-color: color-mix(in oklab, var(--primary) 55%, transparent);
+}
+
+/* -------------------------------------------------------------------------
+   Banner — slim console eyebrow with a mint status dot.
+   ------------------------------------------------------------------------- */
+.nextra-banner {
+  background: color-mix(in oklab, var(--background) 80%, transparent);
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+  font-family: var(--x-font-sans);
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+}
+
+.symm-banner-dot {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--positive);
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--positive) 55%, transparent);
+  animation: symm-pulse 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  vertical-align: middle;
+  margin-inline-end: 0.5rem;
+}
+
+@keyframes symm-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--positive) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Footer — app-style brand block.
+   ------------------------------------------------------------------------- */
+footer:has(.symm-footer) {
+  border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+
+.symm-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.symm-footer__tag {
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+  max-width: 32rem;
+  line-height: 1.5;
+}
+
+.symm-footer__meta {
+  font-family: var(--x-font-mono);
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.symm-footer__meta strong {
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+/* -------------------------------------------------------------------------
+   Scrollbar — rounded graphite, matching the app.
+   ------------------------------------------------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 32%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--muted-foreground) 30%, transparent);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--muted-foreground) 48%, transparent);
+  background-clip: padding-box;
+}

@@ -1,10 +1,10 @@
 "use client";
 
 import { PartyAField } from "@/features/inspector/party-a-field";
-import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { LiveResult, type LiveQueryLike } from "./live-result";
 import type { MagicMethodPanelProps } from "./magic-types";
+import { magicInputPersistKey, usePersistentPinState } from "./magic-value-store";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 
@@ -35,8 +35,8 @@ interface Config {
 export function makePartyALivePanel(config: Config) {
   const { idPrefix, label, useLiveQuery } = config;
 
-  return function PartyALivePanel({ intervalMs, enabled, initialInput }: MagicMethodPanelProps) {
-    const [input, setInput] = useState(() => initialInput ?? "");
+  return function PartyALivePanel({ intervalMs, enabled, initialInput, persistKey, seedToken }: MagicMethodPanelProps) {
+    const [input, setInput] = usePersistentPinState(magicInputPersistKey(persistKey), initialInput ?? "", seedToken);
     const partyA = isAddress(input) ? (input as Address) : undefined;
     const active = enabled && Boolean(partyA);
     const query = useLiveQuery({ partyA: partyA ?? ZERO_ADDRESS, active, intervalMs });
@@ -50,7 +50,12 @@ export function makePartyALivePanel(config: Config) {
           onValueChange={setInput}
           invalid={input.length > 0 && !partyA}
         />
-        <LiveResult query={query} active={active} idleHint="Enter a partyA address to start polling." />
+        <LiveResult
+          query={query}
+          active={active}
+          idleHint="Enter a partyA address to start polling."
+          persistKey={persistKey}
+        />
       </div>
     );
   };

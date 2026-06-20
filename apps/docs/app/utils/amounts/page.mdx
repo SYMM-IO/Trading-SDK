@@ -6,7 +6,7 @@ Viem-backed helpers for converting between raw on-chain `bigint` amounts and hum
 import { formatTokenAmount, parseTokenAmount, rawToDecimal, decimalToRaw } from "@symm-frontier/utils/amounts";
 ```
 
-## `formatTokenAmount(raw, decimals, opts?)`
+## `formatTokenAmount`
 
 Format a raw `bigint` amount for human display.
 
@@ -28,7 +28,7 @@ interface FormatTokenAmountOptions {
 }
 ```
 
-## `parseTokenAmount(value, decimals)`
+## `parseTokenAmount`
 
 Parse a user-typed decimal string into a raw `bigint`.
 
@@ -40,7 +40,7 @@ parseTokenAmount("", 18); // 0n
 
 Throws viem's `InvalidDecimalNumberError` when the input is not a valid number.
 
-## `rawToDecimal(raw, decimals)`
+## `rawToDecimal`
 
 Convert a raw `bigint` to a `Decimal`. Use when you need to chain math (multiply, percentage, comparison) on the result.
 
@@ -52,7 +52,7 @@ const balance = rawToDecimal(1_500_000n, 6); // Decimal("1.5")
 balance.times("0.997").toFixed(4); // "1.4955"
 ```
 
-## `decimalToRaw(value, decimals)`
+## `decimalToRaw`
 
 Counterpart to `rawToDecimal`: convert a `Decimal` back into a raw `bigint`.
 

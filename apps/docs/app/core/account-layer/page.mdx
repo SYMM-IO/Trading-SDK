@@ -6,7 +6,7 @@ This slice also exposes SYMMIO core balance reads for accounts. The `account` in
 
 ## Reads
 
-### `getUserSubAccounts(config, params)`
+### `getUserSubAccounts`
 
 List a user's subaccounts.
 
@@ -45,7 +45,7 @@ interface SubAccountDetail {
 }
 ```
 
-### `getAccountBalanceOf(config, params)`
+### `getAccountBalanceOf`
 
 Read raw `balanceOf(account)` from the SYMMIO core/diamond contract.
 
@@ -66,7 +66,7 @@ const balance = await getAccountBalanceOf(config, {
 
 **Returns** — `bigint`, in raw collateral token units. Use `formatUnits(value, 18)` / `formatEther(value)` or the utils package when displaying decimal values.
 
-### `getAccountBalanceInfo(config, params)`
+### `getAccountBalanceInfo`
 
 Read raw balance information from `balanceInfoOfPartyA(account)` on the SYMMIO core/diamond contract.
 
@@ -118,7 +118,7 @@ enum SubAccountIsolationType {
 
 ## Writes
 
-### `allocate(config, params)`
+### `allocate`
 
 Move a subaccount's available balance into its allocated (tradeable) balance — the
 margin Party A trades against. The call is routed through the AccountLayer `_call`
@@ -148,7 +148,7 @@ const hash = await allocate(config, {
 
 Dry-run without sending via `simulateAllocate(config, params)`.
 
-### `deallocate(config, params)`
+### `deallocate`
 
 Move a subaccount's allocated (tradeable) balance back into its available balance
 — the reverse of `allocate`. Routed through the AccountLayer `_call` proxy; the
@@ -181,7 +181,7 @@ const hash = await deallocate(config, {
 
 Dry-run without sending via `simulateDeallocate(config, params)`.
 
-### `editAccountName(config, params)`
+### `editAccountName`
 
 Rename a subaccount.
 

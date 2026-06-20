@@ -6,7 +6,7 @@ Contract reference: [SYMMIO perps-core v0.8.5 docs](https://github.com/SYMM-IO/p
 
 ## Reads
 
-### `getDelegationExpiry(config, params)`
+### `getDelegationExpiry`
 
 Read the raw expiry timestamp stored in the `delegations` mapping.
 
@@ -31,7 +31,7 @@ const expiryTimestamp = await getDelegationExpiry(config, {
 
 **Returns** — `bigint`, the Unix timestamp in seconds.
 
-### `getIsDelegationActive(config, params)`
+### `getIsDelegationActive`
 
 Read whether the contract considers a delegation active.
 
@@ -91,7 +91,7 @@ Partial keys are for cache matching and invalidation, not for calling the read q
 
 ## Write
 
-### `grantDelegation(config, params)`
+### `grantDelegation`
 
 Grant a delegated signer access to one or more selectors until an expiry timestamp.
 

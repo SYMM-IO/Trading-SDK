@@ -6,6 +6,7 @@ import {
   usePartyAOpenPositions,
   usePartyAPendingQuotes,
 } from "@symm-frontier/react";
+import { GroupedQuotesMagicPanel } from "../quotes/grouped-quotes-magic-panel";
 import { QuotesMagicPanel } from "../quotes/quotes-magic-panel";
 import type { LiveQueryLike } from "./live-result";
 import type { MagicMethod } from "./magic-types";
@@ -94,6 +95,7 @@ export const MAGIC_CATALOG: MagicMethod[] = [
     group: "onchain",
     source: "poll",
     keywords: ["positions", "open", "quotes", "partyA", "onchain", "diamond"],
+    bodyMaxHeight: 460,
     Panel: OpenPositionsPanel,
   },
   {
@@ -122,7 +124,19 @@ export const MAGIC_CATALOG: MagicMethod[] = [
     group: "onchain",
     source: "hybrid",
     keywords: ["quotes", "managed", "unified", "positions", "instant", "lifecycle", "reconcile", "partyA", "feed"],
+    bodyMaxHeight: 480,
     Panel: QuotesMagicPanel,
+  },
+  {
+    id: "grouped-quotes",
+    label: "Grouped positions",
+    description:
+      "A partyA's managed quotes folded into one row per market + side, with aggregated size, weighted open price, margin, and leverage; each row expands to its underlying quotes.",
+    group: "onchain",
+    source: "hybrid",
+    keywords: ["grouped", "positions", "aggregate", "market", "direction", "leverage", "size", "quotes", "partyA"],
+    bodyMaxHeight: 480,
+    Panel: GroupedQuotesMagicPanel,
   },
   {
     id: "account-balance-info",
@@ -140,6 +154,7 @@ export const MAGIC_CATALOG: MagicMethod[] = [
     group: "socket",
     source: "socket",
     keywords: ["notifications", "socket", "websocket", "live", "stream", "events", "position state", "instant"],
+    bodyMaxHeight: 460,
     Panel: NotificationsSocketPanel,
   },
 ];

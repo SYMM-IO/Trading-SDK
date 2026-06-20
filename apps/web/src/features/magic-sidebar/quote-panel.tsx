@@ -3,17 +3,17 @@
 import { Field } from "@/components/field";
 import { useQuote } from "@symm-frontier/react";
 import { Input } from "@symm-frontier/ui/components/input";
-import { useState } from "react";
 import { LiveResult } from "./live-result";
 import type { MagicMethodPanelProps } from "./magic-types";
+import { magicInputPersistKey, usePersistentPinState } from "./magic-value-store";
 
 function parseUint(value: string): bigint | undefined {
   return /^\d+$/.test(value.trim()) ? BigInt(value.trim()) : undefined;
 }
 
 /** Magic-method panel polling `getQuote(quoteId)` for a single quote. */
-export function QuoteLivePanel({ intervalMs, enabled, initialInput }: MagicMethodPanelProps) {
-  const [value, setValue] = useState(() => initialInput ?? "");
+export function QuoteLivePanel({ intervalMs, enabled, initialInput, persistKey, seedToken }: MagicMethodPanelProps) {
+  const [value, setValue] = usePersistentPinState(magicInputPersistKey(persistKey), initialInput ?? "", seedToken);
   const quoteId = parseUint(value);
   const active = enabled && quoteId !== undefined;
 
@@ -43,6 +43,7 @@ export function QuoteLivePanel({ intervalMs, enabled, initialInput }: MagicMetho
         }}
         active={active}
         idleHint="Enter a quote id to start polling."
+        persistKey={persistKey}
       />
     </div>
   );

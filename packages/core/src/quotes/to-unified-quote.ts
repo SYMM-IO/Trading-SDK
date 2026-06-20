@@ -3,6 +3,7 @@ import type { PendingInstantClose } from "../solvers/instant-close/get-instant-c
 import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/to-pending-instant-open";
 import { toWeiBigInt } from "../solvers/instant-open/shared/trade-math";
 import { QuoteStatus, type LockedValues, type Quote } from "../symmio-contracts/symmio/types";
+import { quoteOpenQuantity } from "./open-quantity";
 import { QuoteLifecycle, type UnifiedQuote } from "./unified-quote";
 
 /** All-zero locked values, used when an off-chain row has no per-leg margin yet. */
@@ -53,10 +54,11 @@ export function lifecycleFromQuoteStatus(status: QuoteStatus): QuoteLifecycle {
  * ```
  */
 export function toUnifiedQuoteFromOnchain(quote: Quote): UnifiedQuote {
+  const lifecycle = lifecycleFromQuoteStatus(quote.quoteStatus);
   return {
     key: `onchain:${quote.id}`,
     origin: "onchain",
-    lifecycle: lifecycleFromQuoteStatus(quote.quoteStatus),
+    lifecycle,
     quoteId: quote.id,
     partyA: quote.partyA,
     partyB: quote.partyB,
@@ -69,6 +71,7 @@ export function toUnifiedQuoteFromOnchain(quote: Quote): UnifiedQuote {
     closedPrice: quote.avgClosedPrice,
     quantity: quote.quantity,
     closedAmount: quote.closedAmount,
+    openQuantity: quoteOpenQuantity({ quantity: quote.quantity, closedAmount: quote.closedAmount }),
     quantityToClose: quote.quantityToClose,
     lockedValues: quote.lockedValues,
     createTimestamp: quote.createTimestamp,
@@ -93,6 +96,7 @@ export function toUnifiedQuoteFromOnchain(quote: Quote): UnifiedQuote {
  * ```
  */
 export function toUnifiedQuoteFromInstantOpen(pending: PendingInstantOpen): UnifiedQuote {
+  const quantity = toWeiBigInt(pending.quantity);
   return {
     key: `temp:${pending.tempQuoteId}`,
     origin: "offchain",
@@ -103,7 +107,8 @@ export function toUnifiedQuoteFromInstantOpen(pending: PendingInstantOpen): Unif
     positionType: pending.positionType,
     orderType: pending.orderType,
     requestedOpenPrice: toWeiBigInt(pending.requestedOpenPrice),
-    quantity: toWeiBigInt(pending.quantity),
+    quantity,
+    openQuantity: quantity,
     lockedValues: {
       cva: toWeiBigInt(pending.cva),
       lf: toWeiBigInt(pending.lf),
@@ -158,6 +163,7 @@ export function toUnifiedQuoteFromInstantClose(
     orderType: context.orderType,
     requestedOpenPrice: 0n,
     quantity: 0n,
+    openQuantity: 0n,
     quantityToClose: pending.quantityToClose,
     lockedValues: EMPTY_LOCKED_VALUES,
     raw: { instantClose: pending },

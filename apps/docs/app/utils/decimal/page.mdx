@@ -18,7 +18,7 @@ import {
 
 > **Naming overlap with viem.** `formatUnits` / `parseUnits` / `formatEther` / `parseEther` here **return / accept `Decimal`**, not strings. The root `@symm-frontier/utils` barrel intentionally does not re-export them so they never collide with viem's same-named functions. Always import from the `/decimal` subpath.
 
-## `toDecimal(value?)`
+## `toDecimal`
 
 Cast any `Decimal.Value` (string, number, bigint, Decimal) — including nullish or empty-string inputs — to a `Decimal`.
 
@@ -28,7 +28,7 @@ toDecimal(undefined); // ZERO_DECIMAL
 toDecimal(""); // ZERO_DECIMAL
 ```
 
-## `safeDivide(a, b)`
+## `safeDivide`
 
 Divide two `Decimal.Value`s, returning `0` when the divisor is zero or nullish.
 
@@ -38,7 +38,7 @@ safeDivide(10, 0).toString(); // "0"
 safeDivide(10, null).toString(); // "0"
 ```
 
-## `formatUnits(value, decimals = 18)`
+## `formatUnits`
 
 Convert a fixed-point integer (wei) to a human-readable `Decimal`.
 
@@ -48,7 +48,7 @@ formatUnits(1_230_000, 6).toString(); // "1.23"
 formatUnits(undefined, 18).toString(); // "0"
 ```
 
-## `parseUnits(value, decimals = 18)`
+## `parseUnits`
 
 Reverse direction: human-readable to fixed-point.
 
@@ -77,7 +77,7 @@ new Decimal("0.129").toFixed(2, RoundingMode.ROUND_FLOOR); // "0.12"
 new Decimal("0.129").toFixed(2, RoundingMode.ROUND_CEIL); // "0.13"
 ```
 
-## `configureSymmDecimal(options?)`
+## `configureSymmDecimal`
 
 Apply SYMMIO SDK-recommended Decimal.js settings globally.
 
