@@ -5,6 +5,8 @@ import { ReadEnigmaPriceServiceMetadata } from "./read-enigma-price-service-meta
 import { ReadEnigmaPriceServicePricesByAddresses } from "./read-enigma-price-service-prices-by-addresses";
 import { ReadEnigmaPriceServicePricesByNames } from "./read-enigma-price-service-prices-by-names";
 import { ReadEnigmaPriceServiceSymbolsInfo } from "./read-enigma-price-service-symbols-info";
+import { WatchEnigmaPriceByMarket } from "./watch-enigma-price-by-market";
+import { WatchEnigmaPrices } from "./watch-enigma-prices";
 
 /** Price-service page with read cards for the configured Enigma endpoint. */
 export function PriceServiceShell() {
@@ -22,6 +24,11 @@ export function PriceServiceShell() {
         <ReadEnigmaPriceServicePricesByNames />
         <ReadEnigmaPriceServiceMetadata />
         <ReadEnigmaPriceServiceSymbolsInfo />
+      </MethodGroup>
+
+      <MethodGroup label="Streams" count={2} fullWidth>
+        <WatchEnigmaPrices />
+        <WatchEnigmaPriceByMarket />
       </MethodGroup>
     </section>
   );

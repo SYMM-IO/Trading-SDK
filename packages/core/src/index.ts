@@ -560,6 +560,21 @@ export {
 export type { SocketStatus } from "./websocket/socket";
 
 /**
+ * Price-service stream
+ * --------------------
+ * `watchEnigmaPrices` subscribes to the chain's Enigma lowcap price WebSocket
+ * and delivers parsed `EnigmaPriceTick` batches. Broadcast-only — no subscribe
+ * message; watchers sharing the same `wsUrl` share one socket.
+ */
+export {
+  parsePriceFrame,
+  watchEnigmaPrices,
+  type EnigmaPriceTick,
+  type RawEnigmaPriceFrame,
+  type WatchEnigmaPricesParameters,
+} from "./websocket/prices";
+
+/**
  * Markets
  * -------
  * Fetch tradable markets from the chain's solver `/contract-symbols` endpoint.
@@ -924,6 +939,9 @@ export {
   QuoteLifecycle,
   aggregateGroupMetrics,
   applyNotificationToQuotes,
+  calculateQuoteLeverage,
+  calculateQuotePnl,
+  calculateQuoteUpnl,
   fingerprintQuote,
   getSubAccountQuotes,
   getSubAccountQuotesQueryKey,
@@ -959,6 +977,11 @@ export {
   type ReconcileQuotesResult,
   type ResolveQuoteAccountsParameters,
   type ResolveQuoteAccountsResult,
+  type CalculateQuoteLeverageParameters,
+  type CalculateQuotePnlInputs,
+  type CalculateQuotePnlReturnType,
+  type CalculateQuoteUpnlInputs,
+  type CalculateQuoteUpnlReturnType,
   type ToUnifiedQuoteFromInstantCloseContext,
   type UnifiedQuote,
 } from "./quotes";

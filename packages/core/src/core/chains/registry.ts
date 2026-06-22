@@ -29,6 +29,7 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     priceService: {
       type: "enigma",
       url: "https://lowcap-price.enigma.bz",
+      wsUrl: "wss://lowcap-price.enigma.bz/ws",
     },
     notifications: {
       url: "wss://notification.rasa.capital/ws/v1/subscribe",

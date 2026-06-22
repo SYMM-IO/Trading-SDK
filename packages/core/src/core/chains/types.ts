@@ -55,6 +55,8 @@ export interface SymmioPriceServiceConfig {
   type: SymmioPriceServiceType;
   /** Price-service API base URL */
   url: string;
+  /** WebSocket URL for live mark-price broadcasts. */
+  wsUrl: string;
 }
 
 /**

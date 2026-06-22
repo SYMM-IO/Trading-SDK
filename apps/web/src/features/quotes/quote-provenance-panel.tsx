@@ -1,5 +1,6 @@
 import { WEI_DECIMALS } from "@/lib/format";
 import { OrderType, PositionType, QuoteLifecycle, type UnifiedQuote } from "@symm-frontier/core";
+import { useQuoteUpnlAndPnl } from "@symm-frontier/react";
 import { formatTokenAmount } from "@symm-frontier/utils";
 import type { ReactNode } from "react";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
@@ -146,6 +147,7 @@ interface Props {
  */
 export function QuoteProvenancePanel({ quote }: Props) {
   const stages = buildJourney(quote);
+  const { upnl, upnlPercent, pnl, pnlPercent } = useQuoteUpnlAndPnl({ quote });
   return (
     <div className="border-primary/40 flex flex-col gap-4 border-l-2 px-4 py-3.5">
       <div className="flex items-center justify-between gap-3">
@@ -188,7 +190,20 @@ export function QuoteProvenancePanel({ quote }: Props) {
           <DetailRow label="Side" value={PositionType[quote.positionType] ?? String(quote.positionType)} />
           <DetailRow label="Order" value={OrderType[quote.orderType] ?? String(quote.orderType)} />
         </DetailSection>
+
+        <DetailSection title="PNL">
+          <DetailRow label="UPNL" value={formatPnl(upnl, upnlPercent)} />
+          <DetailRow label="Realized" value={formatPnl(pnl, pnlPercent)} />
+        </DetailSection>
       </div>
     </div>
   );
+}
+
+function formatPnl(value: string, percent: string): string {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num === 0) return EMPTY;
+  const sign = num > 0 ? "+" : "";
+  const fixed = `${sign}${num.toFixed(4)}`;
+  return percent === "0" ? fixed : `${fixed} (${sign}${percent}%)`;
 }

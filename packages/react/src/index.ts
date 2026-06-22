@@ -326,6 +326,7 @@ export {
   usePartyAOpenPositions,
   usePartyAPendingQuotes,
   useQuote,
+  useQuoteUpnlAndPnl,
   type ManagedQuotesSources,
   type OptimisticQuotesStoreState,
   type UseGroupedQuotesParameters,
@@ -338,6 +339,8 @@ export {
   type UsePartyAPendingQuotesReturnType,
   type UseQuoteParameters,
   type UseQuoteReturnType,
+  type UseQuoteUpnlAndPnlParameters,
+  type UseQuoteUpnlAndPnlReturnType,
 } from "./quotes";
 
 /**
@@ -364,7 +367,14 @@ export {
   useEnigmaPriceServiceMetadata,
   useEnigmaPriceServicePricesByAddresses,
   useEnigmaPriceServicePricesByNames,
+  useEnigmaPriceByMarketId,
+  useEnigmaPriceByName,
   useEnigmaPriceServiceSymbolsInfo,
+  useEnigmaPrices,
+  type UseEnigmaPriceByMarketIdParameters,
+  type UseEnigmaPriceByMarketIdReturnType,
+  type UseEnigmaPriceByNameParameters,
+  type UseEnigmaPriceByNameReturnType,
   type UseEnigmaPriceServiceHealthParameters,
   type UseEnigmaPriceServiceHealthReturnType,
   type UseEnigmaPriceServiceMetadataParameters,
@@ -375,6 +385,8 @@ export {
   type UseEnigmaPriceServicePricesByNamesReturnType,
   type UseEnigmaPriceServiceSymbolsInfoParameters,
   type UseEnigmaPriceServiceSymbolsInfoReturnType,
+  type UseEnigmaPricesParameters,
+  type UseEnigmaPricesReturnType,
 } from "./price-service";
 
 /**

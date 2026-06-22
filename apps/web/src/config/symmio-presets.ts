@@ -43,6 +43,10 @@ export const STAGING_CHAIN_OVERRIDES = {
       url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
       channel: "Hyper-evm_Solver-lowcap_Stage",
     },
+    priceService: {
+      url: "https://lowcap-price-staging.enigma.bz",
+      wsUrl: "wss://lowcap-price-staging.enigma.bz/ws",
+    },
   },
 } satisfies CreateConfigParameters["chainOverrides"];
 

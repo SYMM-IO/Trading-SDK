@@ -13,6 +13,7 @@ import type { MagicMethod } from "./magic-types";
 import { makePartyALivePanel, type PartyALiveArgs } from "./make-partya-panel";
 import { MarketsLivePanel } from "./markets-panel";
 import { NotificationsSocketPanel } from "./notifications-socket-panel";
+import { PricesSocketPanel } from "./prices-socket-panel";
 import { QuoteLivePanel } from "./quote-panel";
 
 /** Build TanStack `query` overrides for a polled live source. */
@@ -156,6 +157,16 @@ export const MAGIC_CATALOG: MagicMethod[] = [
     keywords: ["notifications", "socket", "websocket", "live", "stream", "events", "position state", "instant"],
     bodyMaxHeight: 460,
     Panel: NotificationsSocketPanel,
+  },
+  {
+    id: "prices",
+    label: "Prices",
+    description: "Live mark-price ticks from the Enigma lowcap price WebSocket — every connected client receives the same broadcast.",
+    group: "socket",
+    source: "socket",
+    keywords: ["prices", "price", "mark", "socket", "websocket", "live", "stream", "ticks", "enigma"],
+    bodyMaxHeight: 460,
+    Panel: PricesSocketPanel,
   },
 ];
 
