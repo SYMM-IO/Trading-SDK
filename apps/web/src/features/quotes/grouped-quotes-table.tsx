@@ -6,10 +6,11 @@ import { Badge } from "@symm-frontier/ui/components/badge";
 import { DataTable, type DataTableColumn } from "@symm-frontier/ui/components/data-table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/components/tooltip";
 import { formatTokenAmount } from "@symm-frontier/utils";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
 import { truncateAddress } from "./quote-provenance-panel";
 import { QuotesTable } from "./quotes-table";
+import { useMarketNameById } from "./use-market-name-by-id";
 
 /** Em dash placeholder for a metric a group cannot populate yet. */
 const EMPTY = "—";
@@ -108,24 +109,32 @@ function CalculatedHeader({ label, formula }: { label: string; formula: ReactNod
   );
 }
 
-const COLUMNS: DataTableColumn<QuoteGroup>[] = [
+function buildColumns(marketNameById: Map<string, string>): DataTableColumn<QuoteGroup>[] {
+  return [
   {
     id: "market",
     header: "Market",
     widthClassName: "min-w-28",
-    cell: (group) => (
-      <span className="flex flex-col leading-tight">
-        <span className="text-foreground font-mono whitespace-nowrap">
-          {group.by.symbolId === undefined ? EMPTY : String(group.by.symbolId)}
+    cell: (group) => {
+      const label =
+        group.by.symbolId === undefined
+          ? EMPTY
+          : (marketNameById.get(String(group.by.symbolId)) ?? String(group.by.symbolId));
+      return (
+        <span className="flex flex-col leading-tight">
+          <span className="text-foreground font-mono whitespace-nowrap">{label}</span>
+          {group.vaAddress ? (
+            <span className="text-muted-foreground/80 font-mono text-[0.7rem]" title={group.vaAddress}>
+              {truncateAddress(group.vaAddress)}
+            </span>
+          ) : null}
         </span>
-        {group.vaAddress ? (
-          <span className="text-muted-foreground/80 font-mono text-[0.7rem]" title={group.vaAddress}>
-            {truncateAddress(group.vaAddress)}
-          </span>
-        ) : null}
-      </span>
-    ),
-    sortAccessor: (group) => (group.by.symbolId === undefined ? undefined : Number(group.by.symbolId)),
+      );
+    },
+    sortAccessor: (group) =>
+      group.by.symbolId === undefined
+        ? undefined
+        : (marketNameById.get(String(group.by.symbolId)) ?? String(group.by.symbolId)),
   },
   {
     id: "side",
@@ -233,7 +242,8 @@ const COLUMNS: DataTableColumn<QuoteGroup>[] = [
     sortAccessor: (group) => (group.metrics.leverage === undefined ? undefined : Number(group.metrics.leverage)),
     cellClassName: "text-foreground font-mono",
   },
-];
+  ];
+}
 
 interface Props {
   groups: QuoteGroup[];
@@ -267,10 +277,12 @@ export function GroupedQuotesTable({
   testId,
   emptyMessage = "No grouped positions for this partyA.",
 }: Props) {
+  const marketNameById = useMarketNameById();
+  const columns = useMemo(() => buildColumns(marketNameById), [marketNameById]);
   return (
     <DataTable
       testId={testId}
-      columns={COLUMNS}
+      columns={columns}
       data={groups}
       totalCount={totalCount ?? groups.length}
       getRowId={(group) => group.key}

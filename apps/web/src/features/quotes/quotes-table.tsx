@@ -6,9 +6,10 @@ import { Badge } from "@symm-frontier/ui/components/badge";
 import { DataTable, type DataTableColumn } from "@symm-frontier/ui/components/data-table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/components/tooltip";
 import { formatRelativeTimestamp, formatTokenAmount } from "@symm-frontier/utils";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
 import { QuoteProvenancePanel, truncateAddress } from "./quote-provenance-panel";
+import { useMarketNameById } from "./use-market-name-by-id";
 
 /** Em dash placeholder for a field a source has not populated yet. */
 const EMPTY = "—";
@@ -93,7 +94,8 @@ function OpenQuantityHeader() {
   );
 }
 
-const COLUMNS: DataTableColumn<UnifiedQuote>[] = [
+function buildColumns(marketNameById: Map<string, string>): DataTableColumn<UnifiedQuote>[] {
+  return [
   {
     id: "id",
     header: "Id",
@@ -120,8 +122,8 @@ const COLUMNS: DataTableColumn<UnifiedQuote>[] = [
   {
     id: "symbolId",
     header: "Market",
-    cell: (quote) => String(quote.symbolId),
-    sortAccessor: (quote) => Number(quote.symbolId),
+    cell: (quote) => marketNameById.get(String(quote.symbolId)) ?? String(quote.symbolId),
+    sortAccessor: (quote) => marketNameById.get(String(quote.symbolId)) ?? String(quote.symbolId),
     cellClassName: "text-foreground font-mono",
   },
   {
@@ -231,7 +233,8 @@ const COLUMNS: DataTableColumn<UnifiedQuote>[] = [
       return seconds === undefined ? undefined : Number(seconds);
     },
   },
-];
+  ];
+}
 
 interface Props {
   quotes: UnifiedQuote[];
@@ -264,10 +267,12 @@ export function QuotesTable({
   testId,
   emptyMessage = "No quotes for this partyA.",
 }: Props) {
+  const marketNameById = useMarketNameById();
+  const columns = useMemo(() => buildColumns(marketNameById), [marketNameById]);
   return (
     <DataTable
       testId={testId}
-      columns={COLUMNS}
+      columns={columns}
       data={quotes}
       totalCount={totalCount ?? quotes.length}
       getRowId={(quote) => quote.key}
