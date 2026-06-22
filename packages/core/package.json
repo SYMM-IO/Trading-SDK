@@ -28,16 +28,21 @@
     "check-types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate-types": "orval"
+    "generate-types": "orval && graphql-codegen --config codegen.ts",
+    "generate-graphql": "graphql-codegen --config codegen.ts"
   },
   "peerDependencies": {
     "viem": "^2.49.0"
   },
   "devDependencies": {
+    "@graphql-codegen/cli": "^7.1.3",
+    "@graphql-codegen/client-preset": "^6.0.1",
+    "@graphql-typed-document-node/core": "^3.2.0",
     "@symm-frontier/eslint-config": "workspace:*",
     "@symm-frontier/typescript-config": "workspace:*",
     "@types/node": "^25.6.0",
     "eslint": "^9.39.4",
+    "graphql": "^16.14.2",
     "orval": "^8.14.0",
     "typescript": "^6.0.3",
     "viem": "^2.49.0",

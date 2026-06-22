@@ -163,6 +163,8 @@ export interface ApiGetInstantOpenResponse {
   requested_open_price?: string;
   symbol_id?: number;
   temp_quote_id?: number;
+  /** UUID is the frontend-provided UUID from the V2 sendQuote metadata */
+  uuid?: string;
 }
 
 export interface ApiGetQuoteIdResponse {

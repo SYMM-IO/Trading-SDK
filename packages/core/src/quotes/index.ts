@@ -1,5 +1,6 @@
 export * from "./apply-notification";
 export * from "./fingerprint";
+export * from "./get-quote-history";
 export * from "./get-sub-account-quotes";
 export * from "./grouping";
 export * from "./open-quantity";

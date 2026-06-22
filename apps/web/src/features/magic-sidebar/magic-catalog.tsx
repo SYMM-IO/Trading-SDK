@@ -7,6 +7,7 @@ import {
   usePartyAPendingQuotes,
 } from "@symm-frontier/react";
 import { GroupedQuotesMagicPanel } from "../quotes/grouped-quotes-magic-panel";
+import { QuoteHistoryMagicPanel } from "../quotes/quote-history-magic-panel";
 import { QuotesMagicPanel } from "../quotes/quotes-magic-panel";
 import type { LiveQueryLike } from "./live-result";
 import type { MagicMethod } from "./magic-types";
@@ -137,6 +138,17 @@ export const MAGIC_CATALOG: MagicMethod[] = [
     keywords: ["grouped", "positions", "aggregate", "market", "direction", "leverage", "size", "quotes", "partyA"],
     bodyMaxHeight: 480,
     Panel: GroupedQuotesMagicPanel,
+  },
+  {
+    id: "quote-history",
+    label: "History",
+    description:
+      "A partyA's closed and liquidated quotes from the analytics subgraph — one row per close/liquidation event with its immutable snapshot, filterable by close type.",
+    group: "onchain",
+    source: "poll",
+    keywords: ["history", "closed", "liquidated", "quotes", "subgraph", "events", "close", "partyA", "past"],
+    bodyMaxHeight: 480,
+    Panel: QuoteHistoryMagicPanel,
   },
   {
     id: "account-balance-info",

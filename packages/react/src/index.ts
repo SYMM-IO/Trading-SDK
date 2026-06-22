@@ -326,6 +326,8 @@ export {
   usePartyAOpenPositions,
   usePartyAPendingQuotes,
   useQuote,
+  useQuoteHistory,
+  useSubgraphQuery,
   type ManagedQuotesSources,
   type OptimisticQuotesStoreState,
   type UseGroupedQuotesParameters,
@@ -336,8 +338,12 @@ export {
   type UsePartyAOpenPositionsReturnType,
   type UsePartyAPendingQuotesParameters,
   type UsePartyAPendingQuotesReturnType,
+  type UseQuoteHistoryParameters,
+  type UseQuoteHistoryReturnType,
   type UseQuoteParameters,
   type UseQuoteReturnType,
+  type UseSubgraphQueryParameters,
+  type UseSubgraphQueryReturnType,
 } from "./quotes";
 
 /**
@@ -385,6 +391,21 @@ export {
  * `@symm-frontier/core`.
  */
 export { useNotifications, type UseNotificationsParameters, type UseNotificationsReturnType } from "./websocket";
+
+/**
+ * Notification search hooks
+ * -------------------------
+ * `useSearchNotifications` queries the notification service's free-form
+ * `POST /api/v1/search` endpoint (the REST counterpart to the live
+ * `useNotifications` stream). Import the filter/result value types
+ * (`NotificationSearchFilter`, `NotificationDocument`, `NotificationSearchResult`)
+ * from `@symm-frontier/core`.
+ */
+export {
+  useSearchNotifications,
+  type UseSearchNotificationsParameters,
+  type UseSearchNotificationsReturnType,
+} from "./notifications";
 
 /**
  * Muon hooks
