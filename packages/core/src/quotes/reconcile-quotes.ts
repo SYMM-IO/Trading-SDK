@@ -180,7 +180,7 @@ function mergeDuplicateRows(a: UnifiedQuote, b: UnifiedQuote): UnifiedQuote {
     tempQuoteId: primary.tempQuoteId ?? secondary.tempQuoteId,
     vaAddress: primary.vaAddress ?? secondary.vaAddress,
     openedPrice: primary.openedPrice ?? secondary.openedPrice,
-    closedPrice: primary.closedPrice ?? secondary.closedPrice,
+    avgClosedPrice: primary.avgClosedPrice ?? secondary.avgClosedPrice,
     quantityToClose: primary.quantityToClose ?? secondary.quantityToClose,
     raw: { ...secondary.raw, ...primary.raw },
   };

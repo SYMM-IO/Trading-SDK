@@ -107,10 +107,10 @@ describe("applyNotificationToQuotes — close lifecycle", () => {
 
   it("still captures the closed price from the notification without changing an anchored lifecycle", () => {
     const result = apply1(
-      makeRow({ lifecycle: QuoteLifecycle.ONCHAIN, closedPrice: undefined }),
+      makeRow({ lifecycle: QuoteLifecycle.ONCHAIN, avgClosedPrice: undefined }),
       makeCloseNotification({ avgPriceClose: "1.5" }),
     );
-    expect(result.closedPrice).toBe(1_500000000000000000n);
+    expect(result.avgClosedPrice).toBe(1_500000000000000000n);
     expect(result.lifecycle).toBe(QuoteLifecycle.ONCHAIN);
   });
 

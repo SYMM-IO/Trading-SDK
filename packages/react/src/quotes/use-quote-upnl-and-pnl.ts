@@ -25,7 +25,7 @@ export interface UseQuoteUpnlAndPnlParameters extends ConfigParameter {
  */
 export interface UseQuoteUpnlAndPnlReturnType
   extends CalculateQuoteUpnlReturnType,
-    CalculateQuotePnlReturnType {
+  CalculateQuotePnlReturnType {
   /** Mark price used in the calc, decimal string. `null` until the first tick. */
   markPrice: string | null;
   /** Leverage derived from the quote's locked-margin breakdown, decimal string. */
@@ -68,15 +68,11 @@ export function useQuoteUpnlAndPnl(parameters: UseQuoteUpnlAndPnlParameters): Us
   return useMemo(() => {
     if (!quote) return EMPTY;
 
+    const lockedValuesForLeverage = quote.initialLockedValues ?? quote.lockedValues;
     const leverage = calculateQuoteLeverage({
       quantity: quote.quantity,
       requestedOpenPrice: quote.requestedOpenPrice,
-      lockedValues: {
-        cva: quote.lockedValues.cva,
-        lf: quote.lockedValues.lf,
-        partyAmm: quote.lockedValues.partyAmm,
-        partyBmm: quote.lockedValues.partyBmm,
-      },
+      lockedValues: lockedValuesForLeverage,
     });
 
     const closedAmount = quote.closedAmount ?? 0n;
@@ -84,19 +80,19 @@ export function useQuoteUpnlAndPnl(parameters: UseQuoteUpnlAndPnlParameters): Us
 
     const { upnl, upnlPercent } = markPrice
       ? calculateQuoteUpnl({
-          markPrice,
-          positionType: quote.positionType,
-          quantity: quote.quantity,
-          closedAmount,
-          openedPrice: quote.openedPrice ?? 0n,
-          leverage,
-        })
+        markPrice,
+        positionType: quote.positionType,
+        quantity: quote.quantity,
+        closedAmount,
+        openedPrice: quote.openedPrice ?? 0n,
+        leverage,
+      })
       : { upnl: "0", upnlPercent: "0" };
-
+    console.log('upnl', markPrice, quote.quantity, closedAmount, quote.quantity - closedAmount, quote.openedPrice, leverage, upnl, upnlPercent)
     const { pnl, pnlPercent } = calculateQuotePnl({
       positionType: quote.positionType,
       closedAmount,
-      closedPrice: quote.closedPrice ?? 0n,
+      closedPrice: quote.avgClosedPrice ?? 0n,
       openedPrice: quote.openedPrice ?? 0n,
       leverage,
     });

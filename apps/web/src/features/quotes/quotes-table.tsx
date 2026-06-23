@@ -176,8 +176,8 @@ function buildColumns(marketNameById: Map<string, string>): DataTableColumn<Unif
     header: "Close price",
     align: "end",
     widthClassName: NUMERIC_COLUMN_WIDTH,
-    cell: (quote) => formatOptionalFixedPoint(quote.closedPrice),
-    sortAccessor: (quote) => (quote.closedPrice === undefined ? undefined : Number(quote.closedPrice)),
+    cell: (quote) => formatOptionalFixedPoint(quote.avgClosedPrice),
+    sortAccessor: (quote) => (quote.avgClosedPrice === undefined ? undefined : Number(quote.avgClosedPrice)),
     cellClassName: "text-muted-foreground font-mono",
   },
   {

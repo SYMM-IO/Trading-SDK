@@ -63,7 +63,7 @@ function buildJourney(quote: UnifiedQuote): JourneyStage[] {
     });
   }
   if (quote.lifecycle === QuoteLifecycle.CLOSED) {
-    stages.push({ key: "closed", label: "Closed", detail: formatOptionalFixedPoint(quote.closedPrice), tone: "done" });
+    stages.push({ key: "closed", label: "Closed", detail: formatOptionalFixedPoint(quote.avgClosedPrice), tone: "done" });
   }
   if (quote.lifecycle === QuoteLifecycle.FAILED) {
     stages.push({ key: "failed", label: "Failed", tone: "failed" });
@@ -147,7 +147,8 @@ interface Props {
  */
 export function QuoteProvenancePanel({ quote }: Props) {
   const stages = buildJourney(quote);
-  const { upnl, upnlPercent, pnl, pnlPercent } = useQuoteUpnlAndPnl({ quote });
+
+  const { upnl, upnlPercent } = useQuoteUpnlAndPnl({ quote });
   return (
     <div className="border-primary/40 flex flex-col gap-4 border-l-2 px-4 py-3.5">
       <div className="flex items-center justify-between gap-3">
@@ -174,7 +175,7 @@ export function QuoteProvenancePanel({ quote }: Props) {
         <DetailSection title="Prices">
           <DetailRow label="Requested" value={formatFixedPoint(quote.requestedOpenPrice)} />
           <DetailRow label="Opened" value={formatOptionalFixedPoint(quote.openedPrice)} />
-          <DetailRow label="Closed" value={formatOptionalFixedPoint(quote.closedPrice)} />
+          <DetailRow label="Closed" value={formatOptionalFixedPoint(quote.avgClosedPrice)} />
         </DetailSection>
 
         <DetailSection title="Size">
@@ -193,7 +194,6 @@ export function QuoteProvenancePanel({ quote }: Props) {
 
         <DetailSection title="PNL">
           <DetailRow label="UPNL" value={formatPnl(upnl, upnlPercent)} />
-          <DetailRow label="Realized" value={formatPnl(pnl, pnlPercent)} />
         </DetailSection>
       </div>
     </div>

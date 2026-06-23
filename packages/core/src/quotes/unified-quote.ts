@@ -1,4 +1,4 @@
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 import type { PendingInstantClose } from "../solvers/instant-close/get-instant-closes/to-pending-instant-close";
 import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/to-pending-instant-open";
 import type { LockedValues, OrderType, PositionType, Quote, QuoteStatus } from "../symmio-contracts/symmio/types";
@@ -76,8 +76,14 @@ export interface UnifiedQuote {
   requestedOpenPrice: bigint;
   /** Price partyB actually opened at (wei), when known. */
   openedPrice?: bigint;
-  /** Average price the position closed at (wei), when known. */
-  closedPrice?: bigint;
+  /** Initial price partyB opened at before any edits (wei), when known. */
+  initialOpenedPrice?: bigint;
+  /** Average price across executed closes (wei), when known. */
+  avgClosedPrice?: bigint;
+  /** Requested limit price for a pending close (wei), when known. */
+  requestedClosePrice?: bigint;
+  /** Market price snapshot at last state change (wei), when known. */
+  marketPrice?: bigint;
   /** Total requested quantity (wei) — fixed for the life of the position; partial closes do not shrink it. */
   quantity: bigint;
   /** Quantity already closed (wei), when known. */
@@ -92,6 +98,28 @@ export interface UnifiedQuote {
   quantityToClose?: bigint;
   /** Margin locked against the row (wei). */
   lockedValues: LockedValues;
+  /** Margin locked at open time — basis for leverage (wei), when known. */
+  initialLockedValues?: LockedValues;
+  /** Maximum funding rate partyA accepts, when known. */
+  maxFundingRate?: bigint;
+  /** Net funding paid (positive) or received (negative) over the position's life (wei), when known. */
+  accumulatedPaidFunding?: bigint;
+  /** Block timestamp funding was last applied, when known. */
+  lastFundingPaymentTimestamp?: bigint;
+  /** Quote deadline (expiry) timestamp, when known. */
+  deadline?: bigint;
+  /** Trading fee charged on the quote (wei), when known. */
+  tradingFee?: bigint;
+  /** Fee charged on close (wei), when known. */
+  closeFee?: bigint;
+  /** Affiliate address attributed to the quote, when known. */
+  affiliate?: Address;
+  /** PartyB addresses allowed to fill this quote (empty means any), when known. */
+  partyBsWhiteList?: readonly Address[];
+  /** Parent quote id for a partially-opened child, when known. */
+  parentId?: bigint;
+  /** Opaque per-quote data, when known. */
+  data?: Hex;
   /** Block timestamp the quote was created, when known. */
   createTimestamp?: bigint;
   /** Block timestamp of the last status change (sort key), when known. */

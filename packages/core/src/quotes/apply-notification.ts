@@ -64,7 +64,7 @@ function applyToMatched(quote: UnifiedQuote, n: Notification): UnifiedQuote {
   }
   if (CLOSE_ACTIONS.has(action)) {
     if (n.avgPriceClose) {
-      next.closedPrice = next.closedPrice ?? toWeiBigInt(n.avgPriceClose);
+      next.avgClosedPrice = next.avgClosedPrice ?? toWeiBigInt(n.avgPriceClose);
     }
     /**
      * For an anchored on-chain row the authoritative lifecycle is whatever the
