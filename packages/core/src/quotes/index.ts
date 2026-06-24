@@ -1,4 +1,5 @@
 export * from "./apply-notification";
+export * from "./fees";
 export * from "./fingerprint";
 export * from "./get-sub-account-quotes";
 export * from "./grouping";

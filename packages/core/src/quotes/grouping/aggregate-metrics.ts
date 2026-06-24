@@ -1,14 +1,8 @@
+import { WEI } from "../../shared/utils/wei";
 import type { LockedValues } from "../../symmio-contracts/symmio/types";
 import type { UnifiedQuote } from "../unified-quote";
 import { isActivePosition, isPendingOrder } from "./partition-quotes";
 import type { QuoteGroupMetrics } from "./quote-group";
-
-/**
- * Fixed-point scale shared by every 18-decimal-wei amount. A price and a quantity
- * are each scaled by this, so their product is scaled by `WEI²` and must be
- * divided by `WEI` once to land back in wei.
- */
-const WEI = 10n ** 18n;
 
 /** A quote's open price for valuation: the settled `openedPrice`, else the requested one. */
 function openPriceOf(quote: UnifiedQuote): bigint {

@@ -1,6 +1,7 @@
 import { WEI_DECIMALS } from "@/lib/format";
 import { OrderType, PositionType, QuoteLifecycle, type UnifiedQuote } from "@symm-frontier/core";
-import { useQuoteUpnlAndPnl } from "@symm-frontier/react";
+import { useQuotePlatformFee, useQuoteUpnlAndPnl } from "@symm-frontier/react";
+import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { formatTokenAmount } from "@symm-frontier/utils";
 import type { ReactNode } from "react";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
@@ -111,7 +112,7 @@ function JourneyRail({ stages }: { stages: JourneyStage[] }) {
 }
 
 /** One label/value pair inside a {@link DetailSection}. */
-function DetailRow({ label, value, title }: { label: string; value: string; title?: string }) {
+function DetailRow({ label, value, title }: { label: string; value: ReactNode; title?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <span className="text-muted-foreground text-[0.7rem]">{label}</span>
@@ -148,7 +149,11 @@ interface Props {
 export function QuoteProvenancePanel({ quote }: Props) {
   const stages = buildJourney(quote);
 
-  const { upnl, upnlPercent } = useQuoteUpnlAndPnl({ quote });
+  const { upnl, upnlPercent, markPrice, isLoading } = useQuoteUpnlAndPnl({ quote });
+  const upnlLoading = isLoading || markPrice === null;
+
+  const { openFee, closeFee } = useQuotePlatformFee({ quote });
+  const hasClosed = (quote.closedAmount ?? 0n) > 0n;
   return (
     <div className="border-primary/40 flex flex-col gap-4 border-l-2 px-4 py-3.5">
       <div className="flex items-center justify-between gap-3">
@@ -193,7 +198,24 @@ export function QuoteProvenancePanel({ quote }: Props) {
         </DetailSection>
 
         <DetailSection title="PNL">
-          <DetailRow label="UPNL" value={formatPnl(upnl, upnlPercent)} />
+          <DetailRow
+            label="UPNL"
+            value={
+              upnlLoading ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Spinner className="size-3" />
+                  <span className="text-muted-foreground">Loading…</span>
+                </span>
+              ) : (
+                formatPnl(upnl, upnlPercent)
+              )
+            }
+          />
+        </DetailSection>
+
+        <DetailSection title="Platform fees">
+          <DetailRow label="Open" value={formatFee(openFee)} />
+          {hasClosed ? <DetailRow label="Close" value={formatFee(closeFee)} /> : null}
         </DetailSection>
       </div>
     </div>
@@ -206,4 +228,9 @@ function formatPnl(value: string, percent: string): string {
   const sign = num > 0 ? "+" : "";
   const fixed = `${sign}${num.toFixed(4)}`;
   return percent === "0" ? fixed : `${fixed} (${sign}${percent}%)`;
+}
+
+function formatFee(value: bigint): string {
+  if (value === 0n) return EMPTY;
+  return formatTokenAmount(value, WEI_DECIMALS, { maxFractionDigits: 4 });
 }
