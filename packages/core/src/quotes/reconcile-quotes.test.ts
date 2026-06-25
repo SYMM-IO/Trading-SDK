@@ -193,16 +193,41 @@ describe("reconcileQuotes — withVaAddress", () => {
 });
 
 describe("reconcileQuotes — instant-close overlay", () => {
-  it("overlays a close onto its matching on-chain row: CLOSING, quantityToClose, raw.instantClose", () => {
+  it("overlays a close on an OPENED row as OPTIMISTIC_CLOSE (in-flight, on-chain still open)", () => {
     const close = makePendingClose({ quoteId: 5n, quantityToClose: 3_000000000000000000n });
     const { quotes } = reconcileQuotes({
       ...emptyInput(),
       onchainPositions: [makeQuote({ id: 5n, quoteStatus: QuoteStatus.OPENED })],
       instantCloses: [close],
     });
-    expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.CLOSING);
+    expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.OPTIMISTIC_CLOSE);
     expect(quotes[0]?.quantityToClose).toBe(3_000000000000000000n);
     expect(quotes[0]?.raw.instantClose).toBe(close);
+  });
+
+  it("advances an overlaid close to WRITE_ONCHAIN_CLOSE from the fill notification", () => {
+    const fill = makeNotification({
+      quoteId: "5",
+      type: NotificationType.SUCCESS,
+      actionStatus: "success",
+      lastSeenAction: "FillMarketOrderInstantClose",
+    });
+    const { quotes } = reconcileQuotes({
+      ...emptyInput(),
+      onchainPositions: [makeQuote({ id: 5n, quoteStatus: QuoteStatus.OPENED })],
+      instantCloses: [makePendingClose({ quoteId: 5n })],
+      notifications: [fill],
+    });
+    expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
+  });
+
+  it("overlays a close on a CLOSE_PENDING row as CLOSING (on-chain already reflects the close)", () => {
+    const { quotes } = reconcileQuotes({
+      ...emptyInput(),
+      onchainPositions: [makeQuote({ id: 5n, quoteStatus: QuoteStatus.CLOSE_PENDING })],
+      instantCloses: [makePendingClose({ quoteId: 5n })],
+    });
+    expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.CLOSING);
   });
 
   it("keeps a CLOSED row CLOSED when a close overlays it (never regresses a terminal row)", () => {
@@ -281,11 +306,13 @@ describe("reconcileQuotes — instant-open optimistic rows", () => {
 });
 
 describe("reconcileQuotes — notifications", () => {
-  it("rekeys an optimistic temp row to onchain and advances its lifecycle to ONCHAIN", () => {
+  it("rekeys an optimistic temp row to onchain:<id> and sets WRITE_ONCHAIN until the read confirms", () => {
     /**
      * SendQuoteTransaction success is an open-anchor action: it links the on-chain
-     * id onto the temp row, rekeys temp:7 → onchain:55, and advances OPTIMISTIC →
-     * ONCHAIN. quoteId differs from tempQuoteId so the engine treats it as anchored.
+     * id onto the temp row and rekeys temp:7 → onchain:55. The on-chain struct has
+     * not been read yet (`raw.onchain` absent), so the row sits at WRITE_ONCHAIN and
+     * is surfaced as a `pendingAnchor` for the next tick. quoteId differs from
+     * tempQuoteId so the engine treats it as anchored.
      */
     const open = makePendingOpen({ tempQuoteId: 7 });
     const notification = makeNotification({
@@ -295,10 +322,15 @@ describe("reconcileQuotes — notifications", () => {
       actionStatus: "success",
       lastSeenAction: "SendQuoteTransaction",
     });
-    const { quotes } = reconcileQuotes({ ...emptyInput(), instantOpens: [open], notifications: [notification] });
+    const { quotes, pendingAnchors } = reconcileQuotes({
+      ...emptyInput(),
+      instantOpens: [open],
+      notifications: [notification],
+    });
     expect(quotes[0]?.key).toBe("onchain:55");
     expect(quotes[0]?.quoteId).toBe(55n);
-    expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.ONCHAIN);
+    expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN);
+    expect(pendingAnchors.map((row) => row.key)).toEqual(["onchain:55"]);
   });
 
   it("applies notifications in arrival order (a later FAILED overrides an earlier anchor)", () => {
@@ -354,6 +386,51 @@ describe("reconcileQuotes — collapseByKey", () => {
     expect(onchain55[0]?.raw.onchain).toBe(polled);
     expect(onchain55[0]?.tempQuoteId).toBe(7);
     expect(onchain55[0]?.raw.instantOpen).toBe(open);
+    // The polled struct is present, so the anchor settles to ONCHAIN (not WRITE_ONCHAIN).
+    expect(onchain55[0]?.lifecycle).toBe(QuoteLifecycle.ONCHAIN);
+  });
+});
+
+describe("reconcileQuotes — write-onchain retention", () => {
+  /** Produce a single WRITE_ONCHAIN row (anchored per notification, no on-chain struct yet). */
+  function makeWriteOnchainTick() {
+    const open = makePendingOpen({ tempQuoteId: 7 });
+    const anchor = makeNotification({
+      quoteId: "55",
+      tempQuoteId: 7,
+      type: NotificationType.SUCCESS,
+      actionStatus: "success",
+      lastSeenAction: "SendQuoteTransaction",
+    });
+    return reconcileQuotes({ ...emptyInput(), instantOpens: [open], notifications: [anchor] });
+  }
+
+  it("retains an anchored-but-unread row via retainedAnchors when no live source holds it", () => {
+    const first = makeWriteOnchainTick();
+    expect(first.pendingAnchors).toHaveLength(1);
+    /**
+     * Next tick: the hedger has dropped the pending open and the on-chain read has
+     * not returned the quote yet. Without retention the row would vanish; feeding
+     * the prior `pendingAnchors` back keeps it as WRITE_ONCHAIN.
+     */
+    const second = reconcileQuotes({ ...emptyInput(), retainedAnchors: first.pendingAnchors });
+    expect(second.quotes.map((q) => q.key)).toEqual(["onchain:55"]);
+    expect(second.quotes[0]?.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN);
+    expect(second.pendingAnchors).toHaveLength(1);
+  });
+
+  it("drops the retained anchor once the on-chain read returns the quote (settles to ONCHAIN)", () => {
+    const first = makeWriteOnchainTick();
+    const settled = reconcileQuotes({
+      ...emptyInput(),
+      onchainPositions: [makeQuote({ id: 55n, quoteStatus: QuoteStatus.OPENED })],
+      retainedAnchors: first.pendingAnchors,
+    });
+    expect(settled.quotes).toHaveLength(1);
+    expect(settled.quotes[0]?.key).toBe("onchain:55");
+    expect(settled.quotes[0]?.lifecycle).toBe(QuoteLifecycle.ONCHAIN);
+    expect(settled.quotes[0]?.raw.onchain).toBeDefined();
+    expect(settled.pendingAnchors).toHaveLength(0);
   });
 });
 

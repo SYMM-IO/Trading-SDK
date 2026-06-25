@@ -37,6 +37,7 @@ export function isPendingOrder(quote: UnifiedQuote): boolean {
   if (
     quote.lifecycle === QuoteLifecycle.OPTIMISTIC ||
     quote.lifecycle === QuoteLifecycle.PRICE_FILLED ||
+    quote.lifecycle === QuoteLifecycle.WRITE_ONCHAIN ||
     quote.lifecycle === QuoteLifecycle.ONCHAIN
   ) {
     return quote.orderType === OrderType.LIMIT;
@@ -51,13 +52,15 @@ export function isPendingOrder(quote: UnifiedQuote): boolean {
  * An anchored row is classified by its on-chain {@link QuoteStatus}
  * (`OPENED` / `CLOSE_PENDING` / `CANCEL_CLOSE_PENDING` / `LIQUIDATED_PENDING`).
  * A row with no `quoteStatus` yet is classified by lifecycle + order type: an
- * optimistic/price-filled or just-anchored (`ONCHAIN`) `MARKET` open is an active
- * position, while the matching `LIMIT` order is still resting (pending). The
- * `ONCHAIN`-without-`quoteStatus` case is the brief window after a
- * `SendQuoteTransaction` notification anchors the row but before the on-chain poll
- * has returned its full struct — without it the row would drop out of the grouped
- * view for a tick. A `CLOSING` row is always active; terminal rows (`CLOSED` /
- * `CANCELED` / `EXPIRED` / `LIQUIDATED`, or an off-chain `FAILED`) are neither.
+ * optimistic/price-filled or just-anchored (`WRITE_ONCHAIN` / `ONCHAIN`) `MARKET`
+ * open is an active position, while the matching `LIMIT` order is still resting
+ * (pending). The `WRITE_ONCHAIN`-without-`quoteStatus` case is the brief window
+ * after a `SendQuoteTransaction` notification anchors the row but before the
+ * on-chain poll has returned its full struct — without it the row would drop out of
+ * the grouped view for a tick. Any closing-stage row (`OPTIMISTIC_CLOSE` /
+ * `CLOSE_PRICE_FILLED` / `WRITE_ONCHAIN_CLOSE` / `CLOSING`) is always active;
+ * terminal rows (`CLOSED` / `CANCELED` / `EXPIRED` / `LIQUIDATED`, or an off-chain
+ * `FAILED`) are neither.
  *
  * Mutually exclusive with {@link isPendingOrder}.
  *
@@ -69,8 +72,12 @@ export function isActivePosition(quote: UnifiedQuote): boolean {
   switch (quote.lifecycle) {
     case QuoteLifecycle.OPTIMISTIC:
     case QuoteLifecycle.PRICE_FILLED:
+    case QuoteLifecycle.WRITE_ONCHAIN:
     case QuoteLifecycle.ONCHAIN:
       return quote.orderType !== OrderType.LIMIT;
+    case QuoteLifecycle.OPTIMISTIC_CLOSE:
+    case QuoteLifecycle.CLOSE_PRICE_FILLED:
+    case QuoteLifecycle.WRITE_ONCHAIN_CLOSE:
     case QuoteLifecycle.CLOSING:
       return true;
     default:

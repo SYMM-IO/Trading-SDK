@@ -80,6 +80,41 @@ describe("isPendingOrder / isActivePosition (off-chain, no status yet)", () => {
     expect(isPendingOrder(quote)).toBe(true);
     expect(isActivePosition(quote)).toBe(false);
   });
+
+  it("treats a WRITE_ONCHAIN MARKET row (anchored, awaiting RPC) as an active position", () => {
+    const quote = makeUnifiedQuote({
+      lifecycle: QuoteLifecycle.WRITE_ONCHAIN,
+      quoteStatus: undefined,
+      orderType: OrderType.MARKET,
+    });
+    expect(isActivePosition(quote)).toBe(true);
+    expect(isPendingOrder(quote)).toBe(false);
+  });
+
+  it("treats a WRITE_ONCHAIN LIMIT row (anchored, awaiting RPC) as a pending order", () => {
+    const quote = makeUnifiedQuote({
+      lifecycle: QuoteLifecycle.WRITE_ONCHAIN,
+      quoteStatus: undefined,
+      orderType: OrderType.LIMIT,
+    });
+    expect(isPendingOrder(quote)).toBe(true);
+    expect(isActivePosition(quote)).toBe(false);
+  });
+
+  it("treats a WRITE_ONCHAIN_CLOSE row (close requested, awaiting RPC) as an active position", () => {
+    const quote = makeUnifiedQuote({ lifecycle: QuoteLifecycle.WRITE_ONCHAIN_CLOSE, quoteStatus: undefined });
+    expect(isActivePosition(quote)).toBe(true);
+    expect(isPendingOrder(quote)).toBe(false);
+  });
+
+  it.each([QuoteLifecycle.OPTIMISTIC_CLOSE, QuoteLifecycle.CLOSE_PRICE_FILLED])(
+    "treats an in-flight close stage %s as an active position",
+    (lifecycle) => {
+      const quote = makeUnifiedQuote({ lifecycle, quoteStatus: undefined });
+      expect(isActivePosition(quote)).toBe(true);
+      expect(isPendingOrder(quote)).toBe(false);
+    },
+  );
 });
 
 describe("partitionQuotes", () => {

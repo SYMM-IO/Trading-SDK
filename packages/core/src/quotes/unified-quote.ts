@@ -27,9 +27,37 @@ export enum QuoteLifecycle {
   OPTIMISTIC = "optimistic",
   /** A hedger reported a fill price (`InstantRFQ` success) but the on-chain quote has not landed yet. */
   PRICE_FILLED = "price-filled",
+  /**
+   * The open anchored on-chain per the notification (the `quoteId` is known), but
+   * the on-chain read has not returned the quote struct yet. The row is being
+   * "written on-chain": shown with its anchored id while the SDK waits for the RPC
+   * to confirm it. Resolves to {@link QuoteLifecycle.ONCHAIN} once the on-chain
+   * read returns the struct.
+   */
+  WRITE_ONCHAIN = "write-onchain",
   /** Anchored on-chain; mirrors a real {@link QuoteStatus}. */
   ONCHAIN = "onchain",
-  /** A close request is in flight (pending instant-close or `CLOSE_PENDING`). */
+  /**
+   * A close was just submitted and the hedger's pending-instant-close feed has it,
+   * but no close notification has confirmed a price yet — the close-side analog of
+   * {@link QuoteLifecycle.OPTIMISTIC}. Advances to {@link QuoteLifecycle.CLOSE_PRICE_FILLED}.
+   */
+  OPTIMISTIC_CLOSE = "optimistic-close",
+  /**
+   * A close notification reported the close price/fill request
+   * (`InstantRequestToClosePosition`) — the close-side analog of
+   * {@link QuoteLifecycle.PRICE_FILLED}. Advances to {@link QuoteLifecycle.WRITE_ONCHAIN_CLOSE}.
+   */
+  CLOSE_PRICE_FILLED = "close-price-filled",
+  /**
+   * The close fill (`FillMarketOrderInstantClose`) was reported, or a pending
+   * instant-close overlays the row while the on-chain status still shows the
+   * position open — the close is being "written on-chain", awaiting the RPC. The
+   * close-side analog of {@link QuoteLifecycle.WRITE_ONCHAIN}. Resolves to
+   * {@link QuoteLifecycle.CLOSING} when the on-chain status reflects the pending close.
+   */
+  WRITE_ONCHAIN_CLOSE = "write-onchain-close",
+  /** The close is confirmed pending on-chain — on-chain `CLOSE_PENDING` / `CANCEL_CLOSE_PENDING`. */
   CLOSING = "closing",
   /** The position is fully closed. */
   CLOSED = "closed",

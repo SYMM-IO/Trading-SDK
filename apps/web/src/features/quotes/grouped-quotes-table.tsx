@@ -45,8 +45,12 @@ function groupMargin(group: QuoteGroup): bigint {
 const LIFECYCLE_PRIORITY: readonly QuoteLifecycle[] = [
   QuoteLifecycle.FAILED,
   QuoteLifecycle.CLOSING,
+  QuoteLifecycle.WRITE_ONCHAIN_CLOSE,
+  QuoteLifecycle.CLOSE_PRICE_FILLED,
+  QuoteLifecycle.OPTIMISTIC_CLOSE,
   QuoteLifecycle.OPTIMISTIC,
   QuoteLifecycle.PRICE_FILLED,
+  QuoteLifecycle.WRITE_ONCHAIN,
   QuoteLifecycle.ONCHAIN,
   QuoteLifecycle.CLOSED,
 ];

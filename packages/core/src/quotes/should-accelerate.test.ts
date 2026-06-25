@@ -10,7 +10,15 @@ import { makeUnifiedQuote } from "./unified-quote.test";
  * this explicit set (and its complement) locks the boundary so a stray enum
  * value can't silently change behavior.
  */
-const ACCELERATING = [QuoteLifecycle.OPTIMISTIC, QuoteLifecycle.PRICE_FILLED, QuoteLifecycle.CLOSING];
+const ACCELERATING = [
+  QuoteLifecycle.OPTIMISTIC,
+  QuoteLifecycle.PRICE_FILLED,
+  QuoteLifecycle.WRITE_ONCHAIN,
+  QuoteLifecycle.OPTIMISTIC_CLOSE,
+  QuoteLifecycle.CLOSE_PRICE_FILLED,
+  QuoteLifecycle.WRITE_ONCHAIN_CLOSE,
+  QuoteLifecycle.CLOSING,
+];
 
 /**
  * Every lifecycle that must NOT trigger acceleration — the settled/terminal
@@ -29,6 +37,7 @@ function makeResult(lifecycles: QuoteLifecycle[]): ReconcileQuotesResult {
   return {
     quotes: lifecycles.map((lifecycle) => makeUnifiedQuote({ lifecycle })),
     links: {},
+    pendingAnchors: [],
   } as ReconcileQuotesResult;
 }
 

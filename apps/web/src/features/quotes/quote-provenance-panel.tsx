@@ -33,8 +33,9 @@ interface JourneyStage {
 /**
  * Build the row's lifecycle journey from EVIDENCE, not a fixed template: a stage
  * appears only once the row demonstrably reached it (an observed temp id, a fill
- * price, an anchored on-chain id, a close, a failure). The last stage is the
- * current state. This is what makes the optimistic→on-chain story legible.
+ * price, an anchored-but-unread id, a confirmed on-chain struct, a close, a
+ * failure). The last stage is the current state. This is what makes the
+ * optimistic→writing→on-chain story legible.
  */
 function buildJourney(quote: UnifiedQuote): JourneyStage[] {
   const stages: JourneyStage[] = [];
@@ -50,16 +51,43 @@ function buildJourney(quote: UnifiedQuote): JourneyStage[] {
   if (quote.openedPrice !== undefined && quote.openedPrice > 0n) {
     stages.push({ key: "price", label: "Price filled", detail: formatFixedPoint(quote.openedPrice), tone: "done" });
   }
-  if (quote.quoteId !== undefined) {
-    stages.push({ key: "onchain", label: "On-chain", detail: `#${quote.quoteId}`, tone: "done" });
+  if (quote.quoteId !== undefined && quote.raw.onchain === undefined) {
+    stages.push({ key: "write-onchain", label: "Writing on-chain", detail: `#${quote.quoteId}`, tone: "done" });
   }
-  if (quote.lifecycle === QuoteLifecycle.CLOSING) {
+  if (quote.raw.onchain !== undefined) {
     stages.push({
-      key: "closing",
-      label: "Closing",
+      key: "onchain",
+      label: "On-chain",
+      detail: quote.quoteId !== undefined ? `#${quote.quoteId}` : undefined,
+      tone: "done",
+    });
+  }
+  const closingNow =
+    quote.lifecycle === QuoteLifecycle.OPTIMISTIC_CLOSE ||
+    quote.lifecycle === QuoteLifecycle.CLOSE_PRICE_FILLED ||
+    quote.lifecycle === QuoteLifecycle.WRITE_ONCHAIN_CLOSE ||
+    quote.lifecycle === QuoteLifecycle.CLOSING;
+  if (closingNow) {
+    stages.push({
+      key: "close-requested",
+      label: "Close requested",
       detail: quote.quantityToClose !== undefined ? formatFixedPoint(quote.quantityToClose) : undefined,
       tone: "done",
     });
+    if (quote.closedPrice !== undefined && quote.closedPrice > 0n) {
+      stages.push({
+        key: "close-price",
+        label: "Close price filled",
+        detail: formatFixedPoint(quote.closedPrice),
+        tone: "done",
+      });
+    }
+    if (quote.lifecycle === QuoteLifecycle.WRITE_ONCHAIN_CLOSE) {
+      stages.push({ key: "write-onchain-close", label: "Closing on-chain", tone: "done" });
+    }
+    if (quote.lifecycle === QuoteLifecycle.CLOSING) {
+      stages.push({ key: "closing", label: "Closing", tone: "done" });
+    }
   }
   if (quote.lifecycle === QuoteLifecycle.CLOSED) {
     stages.push({ key: "closed", label: "Closed", detail: formatOptionalFixedPoint(quote.closedPrice), tone: "done" });

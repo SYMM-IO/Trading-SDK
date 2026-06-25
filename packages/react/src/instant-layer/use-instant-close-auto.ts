@@ -1,16 +1,18 @@
 "use client";
 
 import {
+  getInstantClosesQueryKey,
   instantCloseAutoMutationOptions,
   type ConfigParameter,
   type InstantCloseReturnType,
   type PrepareInstantCloseParameters,
 } from "@symm-frontier/core";
-import { useMutation, type UseMutationResult } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
+import { predicateMatch } from "../utils";
 
 /**
  * Parameters for {@link useInstantCloseAuto}.
@@ -45,6 +47,7 @@ export type UseInstantCloseAutoReturnType = UseMutationResult<
 export function useInstantCloseAuto(parameters: UseInstantCloseAutoParameters = {}): UseInstantCloseAutoReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
+  const queryClient = useQueryClient();
   const base = instantCloseAutoMutationOptions(config);
 
   return useMutation<InstantCloseReturnType, SymmioRequestError, PrepareInstantCloseParameters>({
@@ -55,6 +58,16 @@ export function useInstantCloseAuto(parameters: UseInstantCloseAutoParameters = 
       } catch (err) {
         throw normalizeSymmError(err);
       }
+    },
+    onSuccess: (_result, variables) => {
+      /**
+       * A freshly submitted instant-close exists on the hedger but not in any
+       * cached read yet. Invalidate the instant-closes feed so it refetches and the
+       * closing row appears immediately — and so the managed-quotes consumer, which
+       * polls the feed only while a close is in flight, fetches it once to bootstrap.
+       */
+      const configKey = config.getChainConfigKey(variables.chainId ?? chainId);
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getInstantClosesQueryKey, { configKey }) });
     },
   });
 }
