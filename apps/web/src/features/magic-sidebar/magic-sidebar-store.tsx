@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { findMagicMethod } from "./magic-catalog";
 import { clearAllPinValues, clearPinValue } from "./magic-value-store";
 
 /**
@@ -10,8 +11,18 @@ import { clearAllPinValues, clearPinValue } from "./magic-value-store";
  */
 export const POLL_INTERVALS = [1_000, 3_000, 5_000, 10_000, 0] as const;
 
-/** Default cadence for a freshly pinned method. */
+/** Default cadence for a freshly pinned method that declares no override. */
 const DEFAULT_INTERVAL_MS = 3_000;
+
+/**
+ * Initial poll cadence (ms) a method adopts when first pinned: its catalog
+ * `defaultIntervalMs` if it declares one, else {@link DEFAULT_INTERVAL_MS}. Lets a
+ * socket-backed `hybrid` source (the quotes feeds) default to "Off" (`0`)
+ * idle-polling while still updating live off its socket.
+ */
+function defaultIntervalFor(methodId: string): number {
+  return findMagicMethod(methodId)?.defaultIntervalMs ?? DEFAULT_INTERVAL_MS;
+}
 
 const STORAGE_KEY = "symmio.magic.pins.v1";
 const WIDTH_STORAGE_KEY = "symmio.magic.width.v1";
@@ -207,7 +218,7 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
     setPins((prev) =>
       prev.some((entry) => entry.methodId === methodId)
         ? prev
-        : [...prev, { methodId, intervalMs: DEFAULT_INTERVAL_MS, seed }],
+        : [...prev, { methodId, intervalMs: defaultIntervalFor(methodId), seed }],
     );
   }, []);
 
@@ -226,7 +237,7 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
         const index = next.findIndex((entry) => entry.methodId === methodId);
         const existing = index === -1 ? undefined : next[index];
         if (existing === undefined) {
-          next.push({ methodId, intervalMs: DEFAULT_INTERVAL_MS, seed, seedVersion: version });
+          next.push({ methodId, intervalMs: defaultIntervalFor(methodId), seed, seedVersion: version });
         } else {
           /** Retarget an existing pin: new seed + bumped version re-seeds its live panel. */
           next[index] = { ...existing, seed, seedVersion: version };

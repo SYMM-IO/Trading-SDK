@@ -66,6 +66,13 @@ export interface MagicMethod {
   /** Extra search terms beyond label/description. */
   keywords: string[];
   /**
+   * Initial poll cadence (ms) a freshly pinned card adopts. Omit to use the
+   * shared default. Set `0` ("Off") for a socket-backed `hybrid` source that
+   * should not idle-poll by default — it still updates live off its socket, and
+   * the user can raise the cadence from the card's interval control.
+   */
+  defaultIntervalMs?: number;
+  /**
    * Cap (px) for the pinned card's body before it starts scrolling inside the
    * card. The body grows with its content up to this height; past it, the card
    * scrolls instead of pushing the rest of the board down. Tune it per method —

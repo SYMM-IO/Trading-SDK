@@ -125,6 +125,8 @@ export const MAGIC_CATALOG: MagicMethod[] = [
     group: "onchain",
     source: "hybrid",
     keywords: ["quotes", "managed", "unified", "positions", "instant", "lifecycle", "reconcile", "partyA", "feed"],
+    /** Socket-accelerated feed: default to no idle polling; the notifications socket keeps it live. */
+    defaultIntervalMs: 0,
     bodyMaxHeight: 480,
     Panel: QuotesMagicPanel,
   },
@@ -136,6 +138,8 @@ export const MAGIC_CATALOG: MagicMethod[] = [
     group: "onchain",
     source: "hybrid",
     keywords: ["grouped", "positions", "aggregate", "market", "direction", "leverage", "size", "quotes", "partyA"],
+    /** Socket-accelerated feed: default to no idle polling; the notifications socket keeps it live. */
+    defaultIntervalMs: 0,
     bodyMaxHeight: 480,
     Panel: GroupedQuotesMagicPanel,
   },
