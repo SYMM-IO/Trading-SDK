@@ -1,6 +1,6 @@
 "use client";
 
-import { useMarkets } from "@symm-frontier/react";
+import { useMarkets } from "@theoldvarorg/react";
 import { LiveResult } from "./live-result";
 import type { MagicMethodPanelProps } from "./magic-types";
 

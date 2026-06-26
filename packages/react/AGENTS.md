@@ -2,7 +2,7 @@ Read alongside the repository-root `AGENTS.md`. Rules below apply on top of the 
 
 ## Purpose
 
-`@symm-frontier/react` is the **React layer on top of `@symm-frontier/core`**. It exposes hooks, providers, and any flow that needs framework state (React context, lifecycle, suspense) and cannot live in `core`.
+`@theoldvarorg/react` is the **React layer on top of `@theoldvarorg/core`**. It exposes hooks, providers, and any flow that needs framework state (React context, lifecycle, suspense) and cannot live in `core`.
 
 What this package owns:
 
@@ -14,7 +14,7 @@ What this package owns:
 What this package does **not** own:
 
 - Contract calls, API/GraphQL clients, transformations, calculations. Those live in `core`.
-- Design system components (Button, Modal, etc.). Those live in `@symm-frontier/ui`.
+- Design system components (Button, Modal, etc.). Those live in `@theoldvarorg/ui`.
 - Product screens or routes. Those live in `apps/web`.
 
 ## Architecture
@@ -36,7 +36,7 @@ This is the **implemented** React layer (no longer scaffolding). It mirrors wagm
 
 ## Rules
 
-- **Depend on `@symm-frontier/core`.** Do not duplicate `core` logic here. If you find yourself implementing a contract call or a calculation in `react`, stop — it belongs in `core`.
+- **Depend on `@theoldvarorg/core`.** Do not duplicate `core` logic here. If you find yourself implementing a contract call or a calculation in `react`, stop — it belongs in `core`.
 - **Peer-depend on React.** React is a `peerDependency`, not a direct dep, so consumers' React version wins.
 - **No app-level globals.** No module-level mutable singletons, no calls that assume a specific provider mounted outside what this package itself sets up.
 - **Hooks are framework-bound by definition.** That is the reason for this package's existence. Use them.

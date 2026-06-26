@@ -17,11 +17,11 @@ import {
   useGrantDelegation,
   useIsDelegationActive,
   useSymmioConfig,
-} from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { shortenAddress } from "@symm-frontier/utils";
+} from "@theoldvarorg/react";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
+import { shortenAddress } from "@theoldvarorg/utils";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { maxUint256, zeroAddress, type Address } from "viem";

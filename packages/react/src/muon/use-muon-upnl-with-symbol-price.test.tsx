@@ -1,4 +1,4 @@
-import type { GetMuonUpnlWithSymbolPriceReturnType } from "@symm-frontier/core";
+import type { GetMuonUpnlWithSymbolPriceReturnType } from "@theoldvarorg/core";
 import { act } from "@testing-library/react";
 import type { Address } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,8 +7,8 @@ import { useMuonUpnlWithSymbolPrice } from "./use-muon-upnl-with-symbol-price";
 
 const getMuonUpnlWithSymbolPrice = vi.hoisted(() => vi.fn());
 
-vi.mock("@symm-frontier/core", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@symm-frontier/core")>();
+vi.mock("@theoldvarorg/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@theoldvarorg/core")>();
   return { ...actual, getMuonUpnlWithSymbolPrice };
 });
 

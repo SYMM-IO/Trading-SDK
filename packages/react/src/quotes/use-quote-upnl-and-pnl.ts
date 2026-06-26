@@ -8,7 +8,7 @@ import {
   type CalculateQuoteUpnlReturnType,
   type ConfigParameter,
   type UnifiedQuote,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useMemo } from "react";
 import { useEnigmaPriceByMarketId } from "../price-service/use-enigma-price-by-market-id";
 

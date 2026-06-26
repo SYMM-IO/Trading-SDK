@@ -1,8 +1,8 @@
 "use client";
 
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { CommandPalette, type CommandPaletteGroup } from "@symm-frontier/ui/components/command-palette";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { CommandPalette, type CommandPaletteGroup } from "@theoldvarorg/ui/components/command-palette";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { SEARCH_TYPE_META, type SearchEntry, type SearchType } from "./search-entry";

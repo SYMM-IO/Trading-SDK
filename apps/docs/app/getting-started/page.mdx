@@ -5,10 +5,10 @@ The fastest path to a working React app that reads from SYMMIO.
 ## 1. Install
 
 ```sh
-pnpm add @symm-frontier/react viem wagmi @tanstack/react-query
+pnpm add @theoldvarorg/react viem wagmi @tanstack/react-query
 ```
 
-`@symm-frontier/react` is the umbrella package — it pulls in `@symm-frontier/core`, `@symm-frontier/utils`, and `zustand` transitively. The other four are peer dependencies you control.
+`@theoldvarorg/react` is the umbrella package — it pulls in `@theoldvarorg/core`, `@theoldvarorg/utils`, and `zustand` transitively. The other four are peer dependencies you control.
 
 ## 2. Mount providers
 
@@ -17,7 +17,7 @@ The React SDK assumes the host app mounts wagmi and `@tanstack/react-query` itse
 ```tsx
 "use client";
 
-import { SymmioProvider, SymmioSupportedChainId } from "@symm-frontier/react";
+import { SymmioProvider, SymmioSupportedChainId } from "@theoldvarorg/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { http } from "viem";
@@ -58,7 +58,7 @@ The order of providers matters. **Wagmi outside `QueryClient` outside `SymmioPro
 ```tsx
 "use client";
 
-import { useUserSubAccounts, useWalletAccount } from "@symm-frontier/react";
+import { useUserSubAccounts, useWalletAccount } from "@theoldvarorg/react";
 
 export function Subaccounts() {
   const { address } = useWalletAccount();
@@ -83,7 +83,7 @@ export function Subaccounts() {
 ```tsx
 "use client";
 
-import { useEditAccountName } from "@symm-frontier/react";
+import { useEditAccountName } from "@theoldvarorg/react";
 
 export function RenameButton({ account }: { account: `0x${string}` }) {
   const { mutate, isPending, error } = useEditAccountName();

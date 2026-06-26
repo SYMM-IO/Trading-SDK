@@ -5,7 +5,7 @@ import {
   useInstantOpens,
   usePartyAOpenPositions,
   usePartyAPendingQuotes,
-} from "@symm-frontier/react";
+} from "@theoldvarorg/react";
 import { GroupedQuotesMagicPanel } from "../quotes/grouped-quotes-magic-panel";
 import { QuoteHistoryMagicPanel } from "../quotes/quote-history-magic-panel";
 import { QuotesMagicPanel } from "../quotes/quotes-magic-panel";

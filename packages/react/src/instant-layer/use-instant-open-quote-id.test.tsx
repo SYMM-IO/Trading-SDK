@@ -4,8 +4,8 @@ import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-ut
 
 const getInstantOpenQuoteIdQueryOptions = vi.hoisted(() => vi.fn());
 
-vi.mock("@symm-frontier/core", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@symm-frontier/core")>();
+vi.mock("@theoldvarorg/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@theoldvarorg/core")>();
   return { ...actual, getInstantOpenQuoteIdQueryOptions };
 });
 

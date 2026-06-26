@@ -1,4 +1,4 @@
-import { SymmError } from "@symm-frontier/core";
+import { SymmError } from "@theoldvarorg/core";
 import {
   BaseError,
   ContractFunctionRevertedError,

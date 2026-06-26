@@ -1,4 +1,4 @@
-import type { Config } from "@symm-frontier/core";
+import type { Config } from "@theoldvarorg/core";
 import type { Hash } from "viem";
 import type { WriteResult } from "./write-types";
 

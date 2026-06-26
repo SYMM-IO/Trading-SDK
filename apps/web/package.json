@@ -1,5 +1,5 @@
 {
-  "name": "@symm-frontier/web",
+  "name": "@theoldvarorg/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -12,11 +12,11 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@symm-frontier/core": "workspace:*",
-    "@symm-frontier/react": "workspace:*",
-    "@symm-frontier/session-key": "workspace:*",
-    "@symm-frontier/ui": "workspace:*",
-    "@symm-frontier/utils": "workspace:*",
+    "@theoldvarorg/core": "workspace:*",
+    "@theoldvarorg/react": "workspace:*",
+    "@theoldvarorg/session-key": "workspace:*",
+    "@theoldvarorg/ui": "workspace:*",
+    "@theoldvarorg/utils": "workspace:*",
     "@tanstack/react-query": "^5.100.0",
     "fuse.js": "^7.4.2",
     "next": "16.2.9",
@@ -29,8 +29,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",
-    "@symm-frontier/eslint-config": "workspace:*",
-    "@symm-frontier/typescript-config": "workspace:*",
+    "@theoldvarorg/eslint-config": "workspace:*",
+    "@theoldvarorg/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4.2.4",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.17",

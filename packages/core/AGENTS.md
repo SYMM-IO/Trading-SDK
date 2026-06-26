@@ -2,16 +2,16 @@ Read alongside the repository-root `AGENTS.md`. Rules below apply on top of the 
 
 ## Purpose
 
-`@symm-frontier/core` is the **framework-agnostic SDK** for SYMMIO. It owns the parts of the SDK that have no framework assumptions: ABI fragments, contract calls (read + write via viem clients), per-chain address registry, calculations, transformations, and typed errors.
+`@theoldvarorg/core` is the **framework-agnostic SDK** for SYMMIO. It owns the parts of the SDK that have no framework assumptions: ABI fragments, contract calls (read + write via viem clients), per-chain address registry, calculations, transformations, and typed errors.
 
-A future React layer (`@symm-frontier/react`), Vue layer, or any other framework binding sits on top of this package and must not duplicate its logic.
+A future React layer (`@theoldvarorg/react`), Vue layer, or any other framework binding sits on top of this package and must not duplicate its logic.
 
 ## Architecture
 
 This package follows **wagmi's shape**: a single immutable config, passed as the first argument of every standalone action, plus matching TanStack Query/Mutation option factories.
 
 - **`createConfig` + standalone actions** are the canonical primitive. `createConfig({ getClient, getWalletClient?, chains?, defaultChainId? })` returns an immutable `Config`. Every action takes the config first: `getXyz(config, params)` (reads) / `doXyz(config, params)` (writes). The action resolves its viem client with `config.getClient({ chainId })` (or `config.getWalletClient({ chainId })` for writes) and its addresses with `config.getChainConfig(chainId)`.
-- **Injected client resolvers.** The config does **not** create viem clients itself; the consumer/framework layer injects `getClient` / `getWalletClient`. `@symm-frontier/react` bridges these to wagmi's `getPublicClient` / `getWalletClient`; a plain Node script passes its own viem clients. This is why core stays framework- **and** wagmi-agnostic.
+- **Injected client resolvers.** The config does **not** create viem clients itself; the consumer/framework layer injects `getClient` / `getWalletClient`. `@theoldvarorg/react` bridges these to wagmi's `getPublicClient` / `getWalletClient`; a plain Node script passes its own viem clients. This is why core stays framework- **and** wagmi-agnostic.
 - **Query/mutation option factories** ship next to each action: `getXyzQueryOptions(config, options)` and `xyzMutationOptions(config)` return TanStack option bags (typed via `@tanstack/query-core`) with the `queryKey`, `queryFn`, and `enabled` filled in. Framework layers feed them straight into `useQuery` / `useMutation`.
 - **`chainId` override pattern.** `params.chainId` is optional; when omitted, the config falls back to its `defaultChainId` (mirrors wagmi's `parameters.chainId ?? chainId`).
 - **No connection state in core.** Which wallet is connected, and the active chain, belong to the framework layer. Core only ever receives resolvers and an explicit (or default) `chainId`.

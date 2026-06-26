@@ -1,14 +1,14 @@
 # React
 
-`@symm-frontier/react` is the React adapter for the SYMMIO SDK. Hooks, providers, and `react-query`-shaped wrappers on top of `@symm-frontier/core`.
+`@theoldvarorg/react` is the React adapter for the SYMMIO SDK. Hooks, providers, and `react-query`-shaped wrappers on top of `@theoldvarorg/core`.
 
 ## Install
 
 ```sh
-pnpm add @symm-frontier/react viem wagmi @tanstack/react-query
+pnpm add @theoldvarorg/react viem wagmi @tanstack/react-query
 ```
 
-`react`, `react-dom`, `viem`, and `wagmi` are peer dependencies. `@symm-frontier/core`, `@symm-frontier/utils`, `decimal.js`, and `zustand` are pulled in transitively.
+`react`, `react-dom`, `viem`, and `wagmi` are peer dependencies. `@theoldvarorg/core`, `@theoldvarorg/utils`, `decimal.js`, and `zustand` are pulled in transitively.
 
 ## Mount the providers
 
@@ -37,11 +37,11 @@ See **[Getting Started](/getting-started)** for a complete `Providers` component
 
 ## Convenience re-exports
 
-`@symm-frontier/react` re-exports the most-used helpers from `@symm-frontier/utils` so apps don't have to add a second dependency for formatters:
+`@theoldvarorg/react` re-exports the most-used helpers from `@theoldvarorg/utils` so apps don't have to add a second dependency for formatters:
 
-- `formatTokenAmount`, `parseTokenAmount`, `rawToDecimal`, `decimalToRaw` (from `@symm-frontier/utils/amounts`)
-- `shortenAddress` (from `@symm-frontier/utils/address`)
+- `formatTokenAmount`, `parseTokenAmount`, `rawToDecimal`, `decimalToRaw` (from `@theoldvarorg/utils/amounts`)
+- `shortenAddress` (from `@theoldvarorg/utils/address`)
 
-Apps that want the full utils surface (Decimal helpers, currency formatters, …) should depend on `@symm-frontier/utils` directly. See **[Utils](/utils)**.
+Apps that want the full utils surface (Decimal helpers, currency formatters, …) should depend on `@theoldvarorg/utils` directly. See **[Utils](/utils)**.
 
 It also re-exports types from `core` (`SubAccountDetail`, `SubAccountIsolationType`, `EditAccountNameParams`, `SymmError`) so `apps/web`-style consumers don't need to depend on `core` directly.

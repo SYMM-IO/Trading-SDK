@@ -1,4 +1,4 @@
-import { getChainConfig, symmioAbi, SymmioSupportedChainId, type SingleUpnlSig } from "@symm-frontier/core";
+import { getChainConfig, symmioAbi, SymmioSupportedChainId, type SingleUpnlSig } from "@theoldvarorg/core";
 import { act, waitFor } from "@testing-library/react";
 import { encodeFunctionData, type Address } from "viem";
 import { describe, expect, it } from "vitest";

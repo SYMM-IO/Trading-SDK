@@ -1,5 +1,5 @@
-import { Skeleton } from "@symm-frontier/ui/components/skeleton";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { Skeleton } from "@theoldvarorg/ui/components/skeleton";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 import type { CSSProperties } from "react";
 
 const CELL_WIDTHS = ["w-2/3", "w-1/2", "w-3/4", "w-2/5", "w-3/5"];

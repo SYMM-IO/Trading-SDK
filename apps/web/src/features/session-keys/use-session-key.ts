@@ -1,7 +1,7 @@
 "use client";
 
-import { useWalletAccount } from "@symm-frontier/react";
-import type { SessionKeyMetadata, SessionKeyState } from "@symm-frontier/session-key";
+import { useWalletAccount } from "@theoldvarorg/react";
+import type { SessionKeyMetadata, SessionKeyState } from "@theoldvarorg/session-key";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { Address, Hex } from "viem";
 import { getAppSessionKeyManager } from "./session-key-manager";

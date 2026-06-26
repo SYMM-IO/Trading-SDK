@@ -13,7 +13,7 @@ The Orval-generated Enigma client is generated from the full OpenAPI document, b
 ## Prices
 
 ```ts
-import { getEnigmaPriceServicePrices } from "@symm-frontier/core";
+import { getEnigmaPriceServicePrices } from "@theoldvarorg/core";
 
 const prices = await getEnigmaPriceServicePrices(config, {
   addresses: "0xTokenA,0xTokenB",
@@ -35,7 +35,7 @@ function getEnigmaPriceServicePrices(
 ## Metadata
 
 ```ts
-import { getEnigmaPriceServiceMetadata } from "@symm-frontier/core";
+import { getEnigmaPriceServiceMetadata } from "@theoldvarorg/core";
 
 const metadata = await getEnigmaPriceServiceMetadata(config, {
   addresses: ["0xTokenA", "0xTokenB"],
@@ -57,7 +57,7 @@ function getEnigmaPriceServiceMetadata(
 ## Symbols Info
 
 ```ts
-import { getEnigmaPriceServiceSymbolsInfo } from "@symm-frontier/core";
+import { getEnigmaPriceServiceSymbolsInfo } from "@theoldvarorg/core";
 
 const symbols = await getEnigmaPriceServiceSymbolsInfo(config, {});
 ```
@@ -76,7 +76,7 @@ Each item includes `name`, `status`, and `address`.
 ## Health
 
 ```ts
-import { getEnigmaPriceServiceHealth } from "@symm-frontier/core";
+import { getEnigmaPriceServiceHealth } from "@theoldvarorg/core";
 
 const health = await getEnigmaPriceServiceHealth(config, {});
 ```
@@ -100,7 +100,7 @@ import {
   getEnigmaPriceServiceMetadataQueryOptions,
   getEnigmaPriceServicePricesQueryOptions,
   getEnigmaPriceServiceSymbolsInfoQueryOptions,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 
 useQuery(getEnigmaPriceServicePricesQueryOptions(config, { addresses: [symbolAddress] }));
 useQuery(getEnigmaPriceServiceMetadataQueryOptions(config, { addresses: [symbolAddress] }));

@@ -5,7 +5,7 @@ import {
   type ConfigParameter,
   type SimulateGrantDelegationParameters,
   type SimulateGrantDelegationReturnType,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import { useConnection } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";

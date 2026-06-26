@@ -1,4 +1,4 @@
-import { getChainConfig, SymmioSupportedChainId, VIRTUAL_ACCOUNT_ISOLATION_TYPE } from "@symm-frontier/core";
+import { getChainConfig, SymmioSupportedChainId, VIRTUAL_ACCOUNT_ISOLATION_TYPE } from "@theoldvarorg/core";
 import { waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { describe, expect, it } from "vitest";

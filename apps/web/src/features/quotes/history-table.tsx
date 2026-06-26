@@ -1,10 +1,10 @@
 "use client";
 import { WEI_DECIMALS } from "@/lib/format";
-import type { QuoteHistoryRow } from "@symm-frontier/core";
-import { PositionType, QuoteCloseEventType } from "@symm-frontier/core";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { DataTable, type DataTableColumn } from "@symm-frontier/ui/components/data-table";
-import { formatRelativeTimestamp, formatTokenAmount } from "@symm-frontier/utils";
+import type { QuoteHistoryRow } from "@theoldvarorg/core";
+import { PositionType, QuoteCloseEventType } from "@theoldvarorg/core";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { DataTable, type DataTableColumn } from "@theoldvarorg/ui/components/data-table";
+import { formatRelativeTimestamp, formatTokenAmount } from "@theoldvarorg/utils";
 import type { ReactNode } from "react";
 import { truncateAddress } from "./quote-provenance-panel";
 

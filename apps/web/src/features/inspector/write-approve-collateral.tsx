@@ -8,10 +8,10 @@ import {
   useSimulateApproveCollateral,
   useSymmioConfig,
   useWalletAccount,
-} from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+} from "@theoldvarorg/react";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Input } from "@theoldvarorg/ui/components/input";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
 import { useState } from "react";
 import { parseUnits } from "viem";
 

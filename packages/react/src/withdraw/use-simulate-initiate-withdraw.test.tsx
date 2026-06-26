@@ -1,4 +1,4 @@
-import { createClassicWithdrawPart, getChainConfig, SymmioSupportedChainId } from "@symm-frontier/core";
+import { createClassicWithdrawPart, getChainConfig, SymmioSupportedChainId } from "@theoldvarorg/core";
 import { act, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { describe, expect, it } from "vitest";

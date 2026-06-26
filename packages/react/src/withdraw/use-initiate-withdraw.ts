@@ -6,7 +6,7 @@ import {
   getWithdrawableTimeQueryKey,
   initiateWithdrawMutationOptions,
   type InitiateWithdrawParameters,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
@@ -39,7 +39,7 @@ export type UseInitiateWithdrawReturnType = UseMutationResult<
  *
  * @example
  * ```tsx
- * import { createClassicWithdrawPart } from "@symm-frontier/core";
+ * import { createClassicWithdrawPart } from "@theoldvarorg/core";
  * const { mutate } = useInitiateWithdraw();
  * mutate({ account: "0xsub…", parts: [createClassicWithdrawPart({ id: 0n, amount, receiver, chainId: 999n })] });
  * ```

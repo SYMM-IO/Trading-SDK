@@ -3,10 +3,10 @@
 import { ResultError, ResultNote } from "@/components/result";
 import { StatusDot } from "@/components/status-dot";
 import { MagicPinButton } from "@/features/magic-sidebar/magic-pin-button";
-import type { Notification } from "@symm-frontier/core";
-import { useNotifications } from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
+import type { Notification } from "@theoldvarorg/core";
+import { useNotifications } from "@theoldvarorg/react";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { Button } from "@theoldvarorg/ui/components/button";
 import {
   Card,
   CardAction,
@@ -14,7 +14,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@symm-frontier/ui/components/card";
+} from "@theoldvarorg/ui/components/card";
 import { useRef, useState } from "react";
 import type { Address } from "viem";
 import { SubAccountPicker } from "../inspector/subaccount-picker";

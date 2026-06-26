@@ -1,4 +1,4 @@
-import { SubAccountIsolationType, type CreateSubAccountsParameters } from "@symm-frontier/core";
+import { SubAccountIsolationType, type CreateSubAccountsParameters } from "@theoldvarorg/core";
 import { act, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { describe, expect, it } from "vitest";

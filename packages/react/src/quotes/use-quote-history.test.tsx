@@ -5,15 +5,15 @@ import {
   QuoteCloseType,
   QuoteStatus,
   type GetQuoteHistoryReturnType,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 
 const getQuoteHistoryQueryOptions = vi.hoisted(() => vi.fn());
 
-vi.mock("@symm-frontier/core", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@symm-frontier/core")>();
+vi.mock("@theoldvarorg/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@theoldvarorg/core")>();
   return { ...actual, getQuoteHistoryQueryOptions };
 });
 

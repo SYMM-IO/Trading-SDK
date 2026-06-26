@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 

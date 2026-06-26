@@ -2,8 +2,8 @@
 import { StatusDot } from "@/components/status-dot";
 import { PartyAField } from "@/features/inspector/party-a-field";
 import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
-import type { QuoteGroup } from "@symm-frontier/core";
-import { useGroupedQuotes } from "@symm-frontier/react";
+import type { QuoteGroup } from "@theoldvarorg/core";
+import { useGroupedQuotes } from "@theoldvarorg/react";
 import { useEffect, useRef } from "react";
 import { isAddress, type Address } from "viem";
 import type { MagicMethodPanelProps } from "../magic-sidebar/magic-types";

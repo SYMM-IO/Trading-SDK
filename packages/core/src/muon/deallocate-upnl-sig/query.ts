@@ -46,7 +46,7 @@ export type GetDeallocateUpnlSigQueryOptions = SymmioQueryOptions<
  *
  * @remarks
  * The attestation is short-lived. For an actual `removeMargin` submit, prefer
- * fetching a fresh signature on demand (the `@symm-frontier/react`
+ * fetching a fresh signature on demand (the `@theoldvarorg/react`
  * `useRemoveMargin` hook does this) rather than serving a cached one. If you do
  * cache it — e.g. to display the attested uPnL — set a low `staleTime` and
  * refetch before submitting.

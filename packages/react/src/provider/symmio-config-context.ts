@@ -1,6 +1,6 @@
 "use client";
 
-import type { Config } from "@symm-frontier/core";
+import type { Config } from "@theoldvarorg/core";
 import { createContext } from "react";
 
 /**

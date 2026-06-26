@@ -35,7 +35,7 @@ export interface CreateConfigParameters {
   chainOverrides?: Partial<Record<number, DeepPartial<SymmioChainConfig>>>;
   /**
    * Returns the viem `PublicClient` used for read actions. Framework layers
-   * inject this — e.g. `@symm-frontier/react` bridges it to wagmi's
+   * inject this — e.g. `@theoldvarorg/react` bridges it to wagmi's
    * `getPublicClient`. In a plain Node script, return your own viem client.
    */
   getClient: GetClientFn;
@@ -138,7 +138,7 @@ export interface ConfigParameter {
  *
  * @example
  * ```ts
- * import { createConfig } from "@symm-frontier/core";
+ * import { createConfig } from "@theoldvarorg/core";
  * import { createPublicClient, createWalletClient, http } from "viem";
  * import { hyperEvm } from "viem/chains";
  *

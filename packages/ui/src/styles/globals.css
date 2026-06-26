@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 
 /**
- * Scan @symm-frontier/ui's own components for utility classes. Consumers add
+ * Scan @theoldvarorg/ui's own components for utility classes. Consumers add
  * their own `@source` for their app code; this directive only covers classes
  * that originate inside this package.
  */

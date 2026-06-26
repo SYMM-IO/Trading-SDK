@@ -2,7 +2,7 @@
 
 import { symmioChains } from "@/config/symmio";
 import { countOverrides } from "@/config/symmio-config-schema";
-import type { CreateConfigParameters } from "@symm-frontier/core";
+import type { CreateConfigParameters } from "@theoldvarorg/core";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 type ChainOverrides = CreateConfigParameters["chainOverrides"];

@@ -29,7 +29,7 @@ export type GetDeallocateUpnlSigReturnType = SingleUpnlSig;
  *
  * @remarks
  * The attestation is timestamped and short-lived — fetch it immediately before
- * submitting `removeMargin`, not ahead of time. The `@symm-frontier/react`
+ * submitting `removeMargin`, not ahead of time. The `@theoldvarorg/react`
  * `useRemoveMargin` hook does this for you. For the raw, un-assembled attestation
  * (all returned fields), use `getMuonUpnlA` instead.
  *

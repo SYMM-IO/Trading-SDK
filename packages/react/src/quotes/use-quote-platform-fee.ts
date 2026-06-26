@@ -4,7 +4,7 @@ import {
   calculateClosePlatformFee,
   calculateOpenPlatformFee,
   type UnifiedQuote,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useMemo } from "react";
 
 /**

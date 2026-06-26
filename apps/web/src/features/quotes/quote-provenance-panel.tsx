@@ -1,8 +1,8 @@
 import { DEFAULT_PRICE_PRECISION, DEFAULT_QUANTITY_PRECISION, WEI_DECIMALS } from "@/lib/format";
-import { OrderType, PositionType, QuoteLifecycle, type UnifiedQuote } from "@symm-frontier/core";
-import { useAccountLiquidationPrice, useMarkets, useQuotePlatformFee, useQuoteUpnlAndPnl } from "@symm-frontier/react";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { formatTokenAmount } from "@symm-frontier/utils";
+import { OrderType, PositionType, QuoteLifecycle, type UnifiedQuote } from "@theoldvarorg/core";
+import { useAccountLiquidationPrice, useMarkets, useQuotePlatformFee, useQuoteUpnlAndPnl } from "@theoldvarorg/react";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
+import { formatTokenAmount } from "@theoldvarorg/utils";
 import type { ReactNode } from "react";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 import { Fragment } from "react";
 import { findMagicMethod } from "./magic-catalog";
 import { useMagicSidebar } from "./magic-sidebar-store";

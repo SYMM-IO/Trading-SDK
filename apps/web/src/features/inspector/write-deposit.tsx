@@ -3,10 +3,10 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import { useDeposit, useSimulateDeposit, useSymmioConfig, useWalletAccount } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useDeposit, useSimulateDeposit, useSymmioConfig, useWalletAccount } from "@theoldvarorg/react";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Input } from "@theoldvarorg/ui/components/input";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, parseUnits, type Address } from "viem";
 

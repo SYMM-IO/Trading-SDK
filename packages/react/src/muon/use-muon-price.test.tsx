@@ -1,4 +1,4 @@
-import type { GetMuonPriceReturnType } from "@symm-frontier/core";
+import type { GetMuonPriceReturnType } from "@theoldvarorg/core";
 import { act } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
@@ -6,8 +6,8 @@ import { useMuonPrice } from "./use-muon-price";
 
 const getMuonPrice = vi.hoisted(() => vi.fn());
 
-vi.mock("@symm-frontier/core", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@symm-frontier/core")>();
+vi.mock("@theoldvarorg/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@theoldvarorg/core")>();
   return { ...actual, getMuonPrice };
 });
 

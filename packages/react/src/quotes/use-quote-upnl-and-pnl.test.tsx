@@ -1,4 +1,4 @@
-import { PositionType, QuoteLifecycle, QuoteStatus, type UnifiedQuote } from "@symm-frontier/core";
+import { PositionType, QuoteLifecycle, QuoteStatus, type UnifiedQuote } from "@theoldvarorg/core";
 import { describe, expect, it } from "vitest";
 import { renderHookWithProviders } from "../test/test-utils";
 import { useQuoteUpnlAndPnl } from "./use-quote-upnl-and-pnl";

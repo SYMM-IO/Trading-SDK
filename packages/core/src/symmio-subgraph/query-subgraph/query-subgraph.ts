@@ -50,7 +50,7 @@ export type QuerySubgraphReturnType<TResult> = TResult;
  *
  * @example
  * ```ts
- * import { graphql } from "@symm-frontier/core/subgraph";
+ * import { graphql } from "@theoldvarorg/core/subgraph";
  * const doc = graphql(`query Q($id: ID!) { quote(id: $id) { quoteStatus } }`);
  * const data = await querySubgraph(config, { document: doc, variables: { id: "8232-…" } });
  * ```

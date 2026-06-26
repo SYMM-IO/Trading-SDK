@@ -1,5 +1,5 @@
 {
-  "extends": "@symm-frontier/typescript-config/base.json",
+  "extends": "@theoldvarorg/typescript-config/base.json",
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",

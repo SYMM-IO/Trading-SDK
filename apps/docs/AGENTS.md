@@ -2,7 +2,7 @@ Read alongside the repository-root `AGENTS.md`. Rules below apply on top of the 
 
 ## Purpose
 
-`apps/docs` is the **public documentation site** for the SDK, built with **Nextra**. It documents the public surface of `@symm-frontier/core` and `@symm-frontier/react` (and any future framework layer — Vue, Solid, etc.).
+`apps/docs` is the **public documentation site** for the SDK, built with **Nextra**. It documents the public surface of `@theoldvarorg/core` and `@theoldvarorg/react` (and any future framework layer — Vue, Solid, etc.).
 
 Every public API added to `core` or `react` must be reflected here:
 

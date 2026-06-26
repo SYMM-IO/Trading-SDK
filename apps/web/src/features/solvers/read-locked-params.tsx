@@ -3,11 +3,11 @@
 import { DataList, DataRow } from "@/components/data-list";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
-import { useLockedParams, useMarkets } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { MarketSelect, type MarketSelectItem } from "@symm-frontier/ui/components/market-select";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useLockedParams, useMarkets } from "@theoldvarorg/react";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Input } from "@theoldvarorg/ui/components/input";
+import { MarketSelect, type MarketSelectItem } from "@theoldvarorg/ui/components/market-select";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
 import { useEffect, useMemo, useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 

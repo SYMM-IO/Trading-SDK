@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 import type { ReactNode } from "react";
 import { useMagicSidebar } from "./magic-sidebar-store";
 import { useSidebarMetrics } from "./use-sidebar-metrics";

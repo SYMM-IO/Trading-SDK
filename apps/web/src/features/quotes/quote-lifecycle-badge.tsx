@@ -1,5 +1,5 @@
-import { QuoteLifecycle } from "@symm-frontier/core";
-import { Badge } from "@symm-frontier/ui/components/badge";
+import { QuoteLifecycle } from "@theoldvarorg/core";
+import { Badge } from "@theoldvarorg/ui/components/badge";
 import type { ComponentProps } from "react";
 
 type BadgeVariant = NonNullable<ComponentProps<typeof Badge>["variant"]>;

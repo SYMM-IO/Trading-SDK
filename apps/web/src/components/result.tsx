@@ -1,5 +1,5 @@
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
 import type { ReactNode } from "react";
 
 /**

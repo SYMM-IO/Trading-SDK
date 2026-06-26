@@ -1,11 +1,11 @@
 # Utils
 
-`@symm-frontier/utils` is a framework-agnostic helper layer for SYMMIO SDK consumers. No React and no wagmi. Helpers work in Node scripts, browser bundles, and any framework; browser-specific behavior belongs in the consuming app.
+`@theoldvarorg/utils` is a framework-agnostic helper layer for SYMMIO SDK consumers. No React and no wagmi. Helpers work in Node scripts, browser bundles, and any framework; browser-specific behavior belongs in the consuming app.
 
 ## Install
 
 ```sh
-pnpm add @symm-frontier/utils viem
+pnpm add @theoldvarorg/utils viem
 ```
 
 `viem` is a peer dependency. `decimal.js` is a direct dependency the package brings with it.
@@ -19,15 +19,15 @@ pnpm add @symm-frontier/utils viem
 
 ## Naming overlap with viem
 
-This package exposes `formatUnits` / `parseUnits` / `formatEther` / `parseEther` under `@symm-frontier/utils/decimal`. They **return / accept Decimal**, not strings — that's the key difference from viem's same-named functions. To avoid ambiguity, the root barrel (`@symm-frontier/utils`) does **not** re-export them. Use the deep import:
+This package exposes `formatUnits` / `parseUnits` / `formatEther` / `parseEther` under `@theoldvarorg/utils/decimal`. They **return / accept Decimal**, not strings — that's the key difference from viem's same-named functions. To avoid ambiguity, the root barrel (`@theoldvarorg/utils`) does **not** re-export them. Use the deep import:
 
 ```ts
-import { formatUnits, parseUnits } from "@symm-frontier/utils/decimal"; // Decimal-based
+import { formatUnits, parseUnits } from "@theoldvarorg/utils/decimal"; // Decimal-based
 import { formatUnits, parseUnits } from "viem"; // string/bigint-based
 ```
 
-## Already using `@symm-frontier/react`?
+## Already using `@theoldvarorg/react`?
 
-`react` re-exports the most-used helpers (`formatTokenAmount`, `parseTokenAmount`, `rawToDecimal`, `decimalToRaw`, `shortenAddress`) so you don't have to install `@symm-frontier/utils` separately just to format a balance.
+`react` re-exports the most-used helpers (`formatTokenAmount`, `parseTokenAmount`, `rawToDecimal`, `decimalToRaw`, `shortenAddress`) so you don't have to install `@theoldvarorg/utils` separately just to format a balance.
 
-If you want the full surface — Decimal helpers, compact-currency, and dynamic decimals — add `@symm-frontier/utils` as a direct dependency.
+If you want the full surface — Decimal helpers, compact-currency, and dynamic decimals — add `@theoldvarorg/utils` as a direct dependency.

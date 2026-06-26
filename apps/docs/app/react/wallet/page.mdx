@@ -7,7 +7,7 @@ Thin wrappers over wagmi's wallet hooks, with the SDK's chain-awareness and erro
 Read the connected wallet's state plus an `isOnExpectedChain` flag.
 
 ```tsx
-import { useWalletAccount } from "@symm-frontier/react";
+import { useWalletAccount } from "@theoldvarorg/react";
 
 const { address, chainId, isConnected, isReconnecting, isOnExpectedChain } = useWalletAccount();
 
@@ -21,7 +21,7 @@ return <Dashboard address={address} />;
 ## `useConnectWallet`
 
 ```tsx
-import { useConnectWallet } from "@symm-frontier/react";
+import { useConnectWallet } from "@theoldvarorg/react";
 
 const { connectors, connect, status, error } = useConnectWallet();
 

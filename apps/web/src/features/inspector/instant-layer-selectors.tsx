@@ -2,8 +2,8 @@ import {
   ADD_MARGIN_TO_NEXT_VA_SELECTOR,
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
   SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
-} from "@symm-frontier/react";
-import type { ComboboxItem } from "@symm-frontier/ui/components/combobox";
+} from "@theoldvarorg/react";
+import type { ComboboxItem } from "@theoldvarorg/ui/components/combobox";
 import type { Hex } from "viem";
 
 interface InstantLayerSelectorSuggestion {
@@ -13,7 +13,7 @@ interface InstantLayerSelectorSuggestion {
 
 /**
  * Function-selector suggestions surfaced by the combobox pickers. The selectors
- * come straight from `@symm-frontier/react`'s re-exports of the SDK's ABI-derived
+ * come straight from `@theoldvarorg/react`'s re-exports of the SDK's ABI-derived
  * constants — no hardcoded hex here.
  */
 const SELECTOR_SUGGESTIONS: readonly InstantLayerSelectorSuggestion[] = [

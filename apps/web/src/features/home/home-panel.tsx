@@ -1,6 +1,6 @@
 import { LinkCard, type LinkCardProps } from "@/components/link-card";
 import { StatusDot } from "@/components/status-dot";
-import { Button } from "@symm-frontier/ui/components/button";
+import { Button } from "@theoldvarorg/ui/components/button";
 import Link from "next/link";
 
 const cards: Omit<LinkCardProps, "index">[] = [
@@ -37,14 +37,14 @@ const cards: Omit<LinkCardProps, "index">[] = [
     href: "/integration",
     eyebrow: "End to end",
     title: "Integration flow",
-    description: "A production-grade deposit and withdraw console composed entirely from @symm-frontier/react hooks.",
+    description: "A production-grade deposit and withdraw console composed entirely from @theoldvarorg/react hooks.",
     icon: <FlowIcon />,
   },
   {
     href: "/config",
     eyebrow: "Runtime",
     title: "Resolved config",
-    description: "Inspect the chain config the app resolves from @symm-frontier/react — addresses, solver, subgraphs.",
+    description: "Inspect the chain config the app resolves from @theoldvarorg/react — addresses, solver, subgraphs.",
     icon: <SlidersIcon />,
   },
 ];

@@ -14,7 +14,7 @@ export default defineConfig({
   plugins: [
     /**
      * Generates `.d.ts` files alongside the JS output so consumers of
-     * `@symm-frontier/core` get full TypeScript types from the published package.
+     * `@theoldvarorg/core` get full TypeScript types from the published package.
      */
     dts({
       /**
@@ -64,7 +64,7 @@ export default defineConfig({
      */
     lib: {
       /**
-       * Single public entry. Sub-paths (e.g. `@symm-frontier/core/account-layer`)
+       * Single public entry. Sub-paths (e.g. `@theoldvarorg/core/account-layer`)
        * are exposed via `package.json` `exports`, not extra entries here.
        */
       entry: path.resolve(dirname, "src/index.ts"),

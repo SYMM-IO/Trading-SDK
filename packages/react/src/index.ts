@@ -1,10 +1,10 @@
 /**
- * `@symm-frontier/react` — React adapter for the SYMMIO SDK.
+ * `@theoldvarorg/react` — React adapter for the SYMMIO SDK.
  *
  * Mirrors wagmi's react layer: a {@link SymmioProvider} supplies the core
  * `Config` (its viem clients sourced from the host's wagmi config), and thin
  * hooks read it via `useSymmioConfig` / `useSymmioChainId` before delegating to
- * `@symm-frontier/core`'s query/mutation option factories. Every hook normalizes
+ * `@theoldvarorg/core`'s query/mutation option factories. Every hook normalizes
  * failures to the same `SymmioRequestError`.
  *
  * @remarks
@@ -55,8 +55,8 @@ export {
   type ValidateInstantOpenAgainstMarketReturnType,
   type VirtualAccountDetail,
   type VirtualAccountIsolationType,
-} from "@symm-frontier/core";
-export type { GetWalletClientFn, SymmioWalletClient } from "@symm-frontier/core";
+} from "@theoldvarorg/core";
+export type { GetWalletClientFn, SymmioWalletClient } from "@theoldvarorg/core";
 export {
   SymmioProvider,
   useSymmioChainId,
@@ -84,7 +84,7 @@ export {
 /**
  * AccountLayer hooks
  * ------------------
- * React-query wrappers over the `@symm-frontier/core` AccountLayer slice.
+ * React-query wrappers over the `@theoldvarorg/core` AccountLayer slice.
  * Mutations invalidate the relevant queries on success.
  */
 export {
@@ -330,7 +330,7 @@ export {
  * (on-chain reads fanned out across the sub-account's Virtual Accounts + hedger
  * instant-ops + live notifications) into one reconciled, lifecycle-tagged table,
  * seeded by the optimistic `useOptimisticQuotesStore`. Import the `UnifiedQuote`
- * / `QuoteLifecycle` value types from `@symm-frontier/core`.
+ * / `QuoteLifecycle` value types from `@theoldvarorg/core`.
  */
 export {
   useAccountLiquidationPrice,
@@ -419,7 +419,7 @@ export {
  * -------------------------------
  * Subscribe to the chain's live notifications stream. Import the notification
  * value types (`Notification`, `NotificationType`, `SocketStatus`) from
- * `@symm-frontier/core`.
+ * `@theoldvarorg/core`.
  */
 export { useNotifications, type UseNotificationsParameters, type UseNotificationsReturnType } from "./websocket";
 
@@ -430,7 +430,7 @@ export { useNotifications, type UseNotificationsParameters, type UseNotification
  * `POST /api/v1/search` endpoint (the REST counterpart to the live
  * `useNotifications` stream). Import the filter/result value types
  * (`NotificationSearchFilter`, `NotificationDocument`, `NotificationSearchResult`)
- * from `@symm-frontier/core`.
+ * from `@theoldvarorg/core`.
  */
 export {
   useSearchNotifications,

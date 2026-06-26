@@ -1,4 +1,4 @@
-import { parseEther, RoundingMode, toDecimal } from "@symm-frontier/utils/decimal";
+import { parseEther, RoundingMode, toDecimal } from "@theoldvarorg/utils/decimal";
 import { PositionType } from "./types";
 
 /**
@@ -237,7 +237,7 @@ export function computePlatformFee(
 /**
  * Convert a decimal string to an 18-decimal-fixed-point `bigint`.
  *
- * Wrapper over `parseEther` from `@symm-frontier/utils/decimal` that returns
+ * Wrapper over `parseEther` from `@theoldvarorg/utils/decimal` that returns
  * the wei value as `bigint` (truncated, no rounding) suitable for contract calls.
  */
 export function toWeiBigInt(value: string): bigint {

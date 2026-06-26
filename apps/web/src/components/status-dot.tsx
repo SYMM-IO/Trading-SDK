@@ -1,4 +1,4 @@
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 
 type Tone = "positive" | "negative" | "warning" | "info" | "neutral";
 

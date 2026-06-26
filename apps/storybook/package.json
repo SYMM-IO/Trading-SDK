@@ -1,5 +1,5 @@
 {
-  "name": "@symm-frontier/storybook",
+  "name": "@theoldvarorg/storybook",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@symm-frontier/ui": "workspace:*",
+    "@theoldvarorg/ui": "workspace:*",
     "react": "19.2.5",
     "react-dom": "19.2.5"
   },
@@ -18,8 +18,8 @@
     "@storybook/addon-docs": "^10.3.6",
     "@storybook/addon-themes": "^10.4.1",
     "@storybook/react-vite": "^10.3.6",
-    "@symm-frontier/eslint-config": "workspace:*",
-    "@symm-frontier/typescript-config": "workspace:*",
+    "@theoldvarorg/eslint-config": "workspace:*",
+    "@theoldvarorg/typescript-config": "workspace:*",
     "@tailwindcss/vite": "^4.2.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

@@ -1,15 +1,15 @@
 "use client";
 
-import { SymmioRequestError, useConnectWallet } from "@symm-frontier/react";
+import { SymmioRequestError, useConnectWallet } from "@theoldvarorg/react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@symm-frontier/ui/components/dialog";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { cn } from "@symm-frontier/ui/lib/utils";
+} from "@theoldvarorg/ui/components/dialog";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 import { useMemo, useState } from "react";
 import type { Connector } from "wagmi";
 

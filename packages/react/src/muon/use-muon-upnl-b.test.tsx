@@ -1,4 +1,4 @@
-import type { GetMuonUpnlBReturnType } from "@symm-frontier/core";
+import type { GetMuonUpnlBReturnType } from "@theoldvarorg/core";
 import { act } from "@testing-library/react";
 import type { Address } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,8 +7,8 @@ import { useMuonUpnlB } from "./use-muon-upnl-b";
 
 const getMuonUpnlB = vi.hoisted(() => vi.fn());
 
-vi.mock("@symm-frontier/core", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@symm-frontier/core")>();
+vi.mock("@theoldvarorg/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@theoldvarorg/core")>();
   return { ...actual, getMuonUpnlB };
 });
 

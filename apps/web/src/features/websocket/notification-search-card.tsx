@@ -1,16 +1,16 @@
 "use client";
 
 import { ResultError, ResultNote } from "@/components/result";
-import type { NotificationSearchFilter } from "@symm-frontier/core";
-import { useSearchNotifications } from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symm-frontier/ui/components/card";
-import { Combobox, type ComboboxItem } from "@symm-frontier/ui/components/combobox";
-import { Input } from "@symm-frontier/ui/components/input";
-import { JsonView } from "@symm-frontier/ui/components/json-view";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import type { NotificationSearchFilter } from "@theoldvarorg/core";
+import { useSearchNotifications } from "@theoldvarorg/react";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@theoldvarorg/ui/components/card";
+import { Combobox, type ComboboxItem } from "@theoldvarorg/ui/components/combobox";
+import { Input } from "@theoldvarorg/ui/components/input";
+import { JsonView } from "@theoldvarorg/ui/components/json-view";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 import { useRef, useState } from "react";
 
 /** A single editable key/value pair in the filter builder. */

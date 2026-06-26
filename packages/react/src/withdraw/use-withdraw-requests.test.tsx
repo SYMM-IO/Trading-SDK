@@ -1,4 +1,4 @@
-import { getChainConfig, SymmioSupportedChainId, WithdrawStatus } from "@symm-frontier/core";
+import { getChainConfig, SymmioSupportedChainId, WithdrawStatus } from "@theoldvarorg/core";
 import { waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { describe, expect, it } from "vitest";

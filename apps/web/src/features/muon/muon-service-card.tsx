@@ -1,6 +1,6 @@
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symm-frontier/ui/components/card";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@theoldvarorg/ui/components/card";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 import type { ReactNode } from "react";
 
 interface Props {

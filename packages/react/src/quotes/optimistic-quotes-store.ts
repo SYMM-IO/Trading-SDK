@@ -1,6 +1,6 @@
 "use client";
 
-import type { PendingInstantOpen } from "@symm-frontier/core";
+import type { PendingInstantOpen } from "@theoldvarorg/core";
 import { create } from "zustand";
 
 /**

@@ -3,11 +3,11 @@
 import { AddressTag } from "@/components/address-tag";
 import { StatusDot } from "@/components/status-dot";
 import { ConnectWalletButton } from "@/features/wallet/connect-wallet-button";
-import { useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Card } from "@symm-frontier/ui/components/card";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@theoldvarorg/react";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Card } from "@theoldvarorg/ui/components/card";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
 
 /**
  * Connection panel shared by the Inspector shells: shows the connected address

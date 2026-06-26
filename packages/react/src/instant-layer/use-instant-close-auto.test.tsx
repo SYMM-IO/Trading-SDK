@@ -4,7 +4,7 @@ import {
   getInstantOpensQueryKey,
   type InstantCloseReturnType,
   type PrepareInstantCloseParameters,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import type { Query, QueryKey } from "@tanstack/react-query";
 import { act, waitFor } from "@testing-library/react";
 import { arbitrum, hyperEvm } from "viem/chains";
@@ -14,8 +14,8 @@ import { createMockSymmioConfig, createTestQueryClient, renderHookWithProviders 
 
 const instantCloseAutoMutationOptions = vi.hoisted(() => vi.fn());
 
-vi.mock("@symm-frontier/core", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@symm-frontier/core")>();
+vi.mock("@theoldvarorg/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@theoldvarorg/core")>();
   return { ...actual, instantCloseAutoMutationOptions };
 });
 

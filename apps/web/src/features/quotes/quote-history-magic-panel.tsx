@@ -1,10 +1,10 @@
 "use client";
 import { PartyAField } from "@/features/inspector/party-a-field";
-import type { QuoteHistoryRow } from "@symm-frontier/core";
-import { QuoteCloseType } from "@symm-frontier/core";
-import { useQuoteHistory } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symm-frontier/ui/components/select";
+import type { QuoteHistoryRow } from "@theoldvarorg/core";
+import { QuoteCloseType } from "@theoldvarorg/core";
+import { useQuoteHistory } from "@theoldvarorg/react";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@theoldvarorg/ui/components/select";
 import { useEffect, useMemo, useRef } from "react";
 import { isAddress, type Address } from "viem";
 import type { MagicMethodPanelProps } from "../magic-sidebar/magic-types";

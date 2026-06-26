@@ -5,7 +5,7 @@ import {
   PositionType,
   type ConfigParameter,
   type AccountPosition,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useMemo } from "react";
 import { useAccountBalanceInfo } from "../account-layer/use-account-balance-info";
 import { usePartyAOpenPositions } from "./use-party-a-open-positions";

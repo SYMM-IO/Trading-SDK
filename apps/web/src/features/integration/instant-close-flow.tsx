@@ -15,12 +15,12 @@ import {
   useVirtualAccount,
   useVirtualAccountsAddressesOfSubAccount,
   type VirtualAccountIsolationType,
-} from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { cn } from "@symm-frontier/ui/lib/utils";
-import { shortenAddress } from "@symm-frontier/utils";
+} from "@theoldvarorg/react";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
+import { cn } from "@theoldvarorg/ui/lib/utils";
+import { shortenAddress } from "@theoldvarorg/utils";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits, zeroAddress, type Address } from "viem";

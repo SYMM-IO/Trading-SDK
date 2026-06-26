@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@symm-frontier/ui/components/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@theoldvarorg/ui/components/card";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 

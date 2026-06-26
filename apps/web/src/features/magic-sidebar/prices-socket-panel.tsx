@@ -2,8 +2,8 @@
 
 import { StatusDot } from "@/components/status-dot";
 import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
-import type { EnigmaPriceTick } from "@symm-frontier/core";
-import { useEnigmaPrices } from "@symm-frontier/react";
+import type { EnigmaPriceTick } from "@theoldvarorg/core";
+import { useEnigmaPrices } from "@theoldvarorg/react";
 import { useRef } from "react";
 import type { MagicMethodPanelProps } from "./magic-types";
 import { usePersistentPinState } from "./magic-value-store";

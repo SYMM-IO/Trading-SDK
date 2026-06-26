@@ -1,4 +1,4 @@
-import { createConfig, editAccountName, getUserSubAccounts, type SymmioWalletClient } from "@symm-frontier/core";
+import { createConfig, editAccountName, getUserSubAccounts, type SymmioWalletClient } from "@theoldvarorg/core";
 import { createPublicClient, createWalletClient, http, type PublicClient } from "viem";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import { hyperEvm } from "viem/chains";
@@ -17,7 +17,7 @@ loadIntegrationEnv();
  *
  * This test deliberately bypasses the React layer (no wagmi, no hooks). It
  * drives `core` directly with a viem `WalletClient` wired into a `Config` via
- * the resolver — the same shape `@symm-frontier/react` builds from wagmi.
+ * the resolver — the same shape `@theoldvarorg/react` builds from wagmi.
  */
 
 const HYPER_EVM_RPC = "https://rpc.hyperliquid.xyz/evm";

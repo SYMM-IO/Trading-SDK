@@ -3,9 +3,9 @@
 import { ResultError, ResultNote } from "@/components/result";
 import { StatusDot } from "@/components/status-dot";
 import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
-import { useEnigmaPrices } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
+import { useEnigmaPrices } from "@theoldvarorg/react";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Input } from "@theoldvarorg/ui/components/input";
 import { useMemo, useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 

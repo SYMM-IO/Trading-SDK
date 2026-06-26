@@ -10,12 +10,12 @@ import {
   useWalletAccount,
   VIRTUAL_ACCOUNT_ISOLATION_TYPE,
   type VirtualAccountIsolationType,
-} from "@symm-frontier/react";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@symm-frontier/ui/components/popover";
-import { Skeleton } from "@symm-frontier/ui/components/skeleton";
-import { cn } from "@symm-frontier/ui/lib/utils";
-import { shortenAddress } from "@symm-frontier/utils";
+} from "@theoldvarorg/react";
+import { Input } from "@theoldvarorg/ui/components/input";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@theoldvarorg/ui/components/popover";
+import { Skeleton } from "@theoldvarorg/ui/components/skeleton";
+import { cn } from "@theoldvarorg/ui/lib/utils";
+import { shortenAddress } from "@theoldvarorg/utils";
 import { useMemo, useState, type ReactNode } from "react";
 import type { Address } from "viem";
 

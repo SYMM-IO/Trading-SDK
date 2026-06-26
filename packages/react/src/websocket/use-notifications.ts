@@ -1,6 +1,6 @@
 "use client";
 
-import { watchNotifications, type ConfigParameter, type Notification, type SocketStatus } from "@symm-frontier/core";
+import { watchNotifications, type ConfigParameter, type Notification, type SocketStatus } from "@theoldvarorg/core";
 import { useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 import { normalizeSymmError } from "../errors/normalize-symm-error";

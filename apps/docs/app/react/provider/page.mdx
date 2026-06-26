@@ -5,7 +5,7 @@ The single context every other SDK hook consumes.
 ## Setup
 
 ```tsx
-import { SymmioProvider, SymmioSupportedChainId } from "@symm-frontier/react";
+import { SymmioProvider, SymmioSupportedChainId } from "@theoldvarorg/react";
 
 <SymmioProvider
   config={{
@@ -40,7 +40,7 @@ The provider merges your input with the built-in defaults for the chain, creates
 Access the SDK client from context. Returns `undefined` if wagmi has no transport for the configured chain.
 
 ```tsx
-import { useSymmioClient } from "@symm-frontier/react";
+import { useSymmioClient } from "@theoldvarorg/react";
 
 function Banner() {
   const client = useSymmioClient();

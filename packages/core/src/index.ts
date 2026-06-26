@@ -1,5 +1,5 @@
 /**
- * `@symm-frontier/core` — framework-agnostic SYMMIO SDK.
+ * `@theoldvarorg/core` — framework-agnostic SYMMIO SDK.
  *
  * a single immutable {@link Config} (created with
  * {@link createConfig}) is the first argument of every standalone action
@@ -7,7 +7,7 @@
  * Query / Mutation options factory (`getMarketsQueryOptions(config, options)`).
  * `core` depends on viem for contracts, axios for REST APIs, and
  * `@tanstack/query-core` for query option types — no framework. Framework
- * layers (`@symm-frontier/react`, a future Vue layer) inject the viem-client
+ * layers (`@theoldvarorg/react`, a future Vue layer) inject the viem-client
  * resolvers the config needs.
  *
  * @remarks

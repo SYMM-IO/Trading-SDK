@@ -6,7 +6,7 @@ import {
   getWithdrawRequestsQueryKey,
   getWithdrawableTimeQueryKey,
   type FinalizeWithdrawRequestParameters,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";

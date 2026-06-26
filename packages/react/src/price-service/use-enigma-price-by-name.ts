@@ -1,6 +1,6 @@
 "use client";
 
-import { watchEnigmaPrices, type ConfigParameter, type SocketStatus } from "@symm-frontier/core";
+import { watchEnigmaPrices, type ConfigParameter, type SocketStatus } from "@theoldvarorg/core";
 import { useEffect, useRef, useState } from "react";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";

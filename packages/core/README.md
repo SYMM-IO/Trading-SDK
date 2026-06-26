@@ -1,8 +1,8 @@
-# @symm-frontier/core
+# @theoldvarorg/core
 
 Framework-agnostic SYMMIO SDK.
 
-This package wraps SYMMIO contract calls behind a small, typed API built on [viem](https://viem.sh). It has no framework dependencies — `@symm-frontier/react` (and future Vue / Solid layers) sit on top of it.
+This package wraps SYMMIO contract calls behind a small, typed API built on [viem](https://viem.sh). It has no framework dependencies — `@theoldvarorg/react` (and future Vue / Solid layers) sit on top of it.
 
 ## Status
 
@@ -14,7 +14,7 @@ Early. This first slice ships the `AccountLayer` domain (v0.8.5) on HyperEVM wit
 ## Install
 
 ```sh
-pnpm add @symm-frontier/core viem
+pnpm add @theoldvarorg/core viem
 ```
 
 `viem` is a peer dependency.
@@ -26,7 +26,7 @@ pnpm add @symm-frontier/core viem
 ```ts
 import { createPublicClient, createWalletClient, http, custom } from "viem";
 import { hyperevm } from "viem/chains";
-import { getUserSubAccounts, editAccountName } from "@symm-frontier/core";
+import { getUserSubAccounts, editAccountName } from "@theoldvarorg/core";
 
 const publicClient = createPublicClient({ chain: hyperevm, transport: http() });
 
@@ -51,7 +51,7 @@ const hash = await editAccountName(walletClient, {
 Attach SDK methods to a viem client via `.extend()`:
 
 ```ts
-import { accountLayerReadActions, accountLayerWriteActions } from "@symm-frontier/core";
+import { accountLayerReadActions, accountLayerWriteActions } from "@theoldvarorg/core";
 
 const reader = createPublicClient({ chain: hyperevm, transport: http() }).extend(accountLayerReadActions);
 

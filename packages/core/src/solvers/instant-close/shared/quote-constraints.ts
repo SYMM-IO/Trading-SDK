@@ -1,4 +1,4 @@
-import { toDecimal } from "@symm-frontier/utils/decimal";
+import { toDecimal } from "@theoldvarorg/utils/decimal";
 import type { SymbolContractSymbol } from "../../types/generated/enigma-solver";
 
 /**

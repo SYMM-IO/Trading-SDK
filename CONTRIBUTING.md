@@ -64,12 +64,12 @@ and changelog writing later.
 
 Versioning matters for the SDK packages that will eventually be published:
 
-- `@symm-frontier/core`
-- `@symm-frontier/react`
-- `@symm-frontier/utils`
-- `@symm-frontier/session-key`
+- `@theoldvarorg/core`
+- `@theoldvarorg/react`
+- `@theoldvarorg/utils`
+- `@theoldvarorg/session-key`
 
-`@symm-frontier/ui`, the config packages, and the apps (`web`, `docs`, `storybook`) are internal —
+`@theoldvarorg/ui`, the config packages, and the apps (`web`, `docs`, `storybook`) are internal —
 you usually don't add changesets for them.
 
 ### When do I need a changeset?
@@ -100,8 +100,8 @@ A changeset file is just frontmatter + the summary:
 
 ```markdown
 ---
-"@symm-frontier/core": minor
-"@symm-frontier/react": patch
+"@theoldvarorg/core": minor
+"@theoldvarorg/react": patch
 ---
 
 Add `getInstantCloses` and surface it through `useManagedQuotes`.

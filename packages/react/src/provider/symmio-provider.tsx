@@ -6,7 +6,7 @@ import {
   type Config,
   type CreateConfigParameters,
   type GetWalletClientFn,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useMemo, type ReactNode } from "react";
 import type { PublicClient } from "viem";
 import { useConfig } from "wagmi";

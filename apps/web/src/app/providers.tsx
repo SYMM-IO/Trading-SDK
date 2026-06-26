@@ -6,7 +6,7 @@ import { SymmioOverridesProvider, useSymmioOverrides } from "@/features/config/s
 import { MagicPopoutProvider } from "@/features/magic-sidebar/magic-popout-store";
 import { MagicSidebarDock } from "@/features/magic-sidebar/magic-sidebar-dock";
 import { MagicSidebarProvider } from "@/features/magic-sidebar/magic-sidebar-store";
-import { SymmioProvider } from "@symm-frontier/react";
+import { SymmioProvider } from "@theoldvarorg/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";

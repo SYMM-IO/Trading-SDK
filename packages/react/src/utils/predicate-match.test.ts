@@ -1,4 +1,4 @@
-import { getMarketsQueryKey, getUserSubAccountsQueryKey } from "@symm-frontier/core";
+import { getMarketsQueryKey, getUserSubAccountsQueryKey } from "@theoldvarorg/core";
 import type { Query, QueryKey } from "@tanstack/react-query";
 import { hyperEvm, mainnet } from "viem/chains";
 import { describe, expect, it } from "vitest";

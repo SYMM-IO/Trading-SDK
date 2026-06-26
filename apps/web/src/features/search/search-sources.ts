@@ -1,4 +1,4 @@
-import type { useEnigmaPriceServiceSymbolsInfo, useMarkets } from "@symm-frontier/react";
+import type { useEnigmaPriceServiceSymbolsInfo, useMarkets } from "@theoldvarorg/react";
 import { ALL_PAGES } from "../contracts/pages";
 import { METHOD_REGISTRY, type AbiKey } from "../contracts/registry";
 import { navLinks } from "../layout/nav";

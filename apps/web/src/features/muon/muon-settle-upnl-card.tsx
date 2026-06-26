@@ -1,10 +1,10 @@
 "use client";
 
 import { Field } from "@/components/field";
-import { useMuonSettleUpnl } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useMuonSettleUpnl } from "@theoldvarorg/react";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Input } from "@theoldvarorg/ui/components/input";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { PartyAField } from "../inspector/party-a-field";

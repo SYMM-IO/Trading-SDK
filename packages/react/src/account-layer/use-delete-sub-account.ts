@@ -6,7 +6,7 @@ import {
   getUserSubAccountsAddressesQueryKey,
   getUserSubAccountsQueryKey,
   type DeleteSubAccountParameters,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { useConnection } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";

@@ -1,4 +1,4 @@
-import { SubAccountIsolationType, type SubAccountDetail } from "@symm-frontier/core";
+import { SubAccountIsolationType, type SubAccountDetail } from "@theoldvarorg/core";
 import { waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_EOA } from "../test/test-utils";

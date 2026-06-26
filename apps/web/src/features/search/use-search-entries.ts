@@ -1,6 +1,6 @@
 "use client";
 
-import { useEnigmaPriceServiceSymbolsInfo, useMarkets } from "@symm-frontier/react";
+import { useEnigmaPriceServiceSymbolsInfo, useMarkets } from "@theoldvarorg/react";
 import { useMemo } from "react";
 import type { SearchEntry } from "./search-entry";
 import { STATIC_ENTRIES, marketEntries, symbolEntries } from "./search-sources";

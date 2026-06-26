@@ -15,7 +15,7 @@ The SDK has two layers:
 
 The split must keep `core` reusable so that **Vue, Solid, or other framework layers** can be added later without rewriting `core`.
 
-Third-party developers will consume `@symm-frontier/core` and `@symm-frontier/react` to build their own UIs. Our own `apps/web` is one such consumer.
+Third-party developers will consume `@theoldvarorg/core` and `@theoldvarorg/react` to build their own UIs. Our own `apps/web` is one such consumer.
 
 ## Hard Rules
 
@@ -26,7 +26,7 @@ Non-negotiable. Violating any of them is a defect.
 3. **Do not add new dependencies without a stated reason and explicit user approval.** This applies to runtime, dev, and peer dependencies in any package.
 4. **All apps and packages are written in TypeScript.** Do not add `.js` source files to any package under `apps/*` or `packages/*`. Config files that conventionally ship as JavaScript (e.g. `postcss.config.js`, `next.config.*` when a project requires it) are the only exception; everything else — source, tests, scripts — must be TypeScript.
 5. **`packages/core` is framework-agnostic.** No React, Vue, or any other framework imports. No browser-only globals at module scope. If a flow needs framework state, put it in `packages/react` (or a future framework layer), not in `core`.
-6. **`apps/web` consumes hooks and providers from `@symm-frontier/react`, types and chain config from `@symm-frontier/core`.** Import runtime functionality (hooks, providers) from `react`. Import types, enums, and chain config (`SymmioSupportedChainId`, `getChainConfig`, etc.) from `core`. Do not re-export `core` types through `react`.
+6. **`apps/web` consumes hooks and providers from `@theoldvarorg/react`, types and chain config from `@theoldvarorg/core`.** Import runtime functionality (hooks, providers) from `react`. Import types, enums, and chain config (`SymmioSupportedChainId`, `getChainConfig`, etc.) from `core`. Do not re-export `core` types through `react`.
 7. **Majors trading logic requires explicit user approval.** The phase scope for Majors has not been decided. If a task appears to touch Majors flows, stop and confirm with the user before doing any work.
 8. **Honor the Design Proposal Gate.** For any non-trivial work in `packages/core` or `packages/react`, output a design proposal and wait for explicit user approval before writing implementation code. See [Design Proposal Gate](#design-proposal-gate) below.
 
@@ -34,7 +34,7 @@ Non-negotiable. Violating any of them is a defect.
 
 - **SYMM / SYMMIO** — the underlying trading protocol and product surface.
 - **SYMM Frontier** — this monorepo. The SDK and its consumers live here.
-- **SDK** — `@symm-frontier/core` together with `@symm-frontier/react` (and future framework layers).
+- **SDK** — `@theoldvarorg/core` together with `@theoldvarorg/react` (and future framework layers).
 - **core** — `packages/core`. Framework-agnostic SDK. Does not exist on disk yet; see [Current Package State](#current-package-state).
 - **react** — `packages/react`. React layer on top of `core`.
 - **VibeCaps** — lowcap trading flow.
@@ -49,15 +49,15 @@ When a task says "this repo" it means SYMM Frontier unless the user explicitly n
 
 ### `apps/`
 
-- **`apps/web`** — the production app, the spiritual successor to Vibe-ui built on modern stack. Built with `@symm-frontier/react` (and `@symm-frontier/ui` for design primitives). **Must not import `@symm-frontier/core` directly** (Hard Rule 6).
-- **`apps/docs`** — Nextra documentation site. Documents every public API in `@symm-frontier/core` and `@symm-frontier/react`. Use Nextra's full feature set: detailed prose, categorization, cross-links, well-organized structure.
+- **`apps/web`** — the production app, the spiritual successor to Vibe-ui built on modern stack. Built with `@theoldvarorg/react` (and `@theoldvarorg/ui` for design primitives). **Must not import `@theoldvarorg/core` directly** (Hard Rule 6).
+- **`apps/docs`** — Nextra documentation site. Documents every public API in `@theoldvarorg/core` and `@theoldvarorg/react`. Use Nextra's full feature set: detailed prose, categorization, cross-links, well-organized structure.
 - **`apps/storybook`** — Storybook host. **Stories themselves live next to the code they document**, not inside this app. `.stories.tsx` files are colocated in their owning package (e.g. `packages/ui/src/button.stories.tsx`). This app only configures and serves them.
 
 ### `packages/`
 
 - **`packages/core`** — framework-agnostic SDK. Contract calls, API/GraphQL clients, calculations, transformations, typed errors, validation. **Does not exist on disk yet** — will be created from scratch.
 - **`packages/react`** — React layer on top of `core`. Hooks, providers, framework-bound flows. Currently contains throwaway scaffolding from a previous rename; will be rebuilt fresh once `core` exists. See [Current Package State](#current-package-state).
-- **`packages/ui`** — design system / reusable UI primitives (Button, etc.) for `apps/web` and `apps/storybook`. **Not part of the SDK.** Consumers of `@symm-frontier/core` / `@symm-frontier/react` are not expected to depend on `@symm-frontier/ui`.
+- **`packages/ui`** — design system / reusable UI primitives (Button, etc.) for `apps/web` and `apps/storybook`. **Not part of the SDK.** Consumers of `@theoldvarorg/core` / `@theoldvarorg/react` are not expected to depend on `@theoldvarorg/ui`.
 - **`packages/eslint-config`** — shared ESLint config consumed by every workspace package.
 - **`packages/typescript-config`** — shared TS config consumed by every workspace package.
 
@@ -98,7 +98,7 @@ Read-only exploration (viewing files, searching the repo, reading Vibe-ui or Exp
 
 **Reference**: file paths in Vibe-ui and/or Explorer this derives from.
 
-**Public API** (exports from `@symm-frontier/core` and/or `@symm-frontier/react`):
+**Public API** (exports from `@theoldvarorg/core` and/or `@theoldvarorg/react`):
 ```ts
 // signatures only, with JSDoc
 ```
@@ -188,7 +188,7 @@ Repo-wide "handwriting". Applies to every package and app.
   }
   ```
 
-- **Document every public SDK export.** Each exported function, hook, type, and interface in `@symm-frontier/core` and `@symm-frontier/react` must have JSDoc — purpose, parameters, return value, and a short usage example where the API is not self-evident. The goal is for IDE hover-tooltips to be useful on their own.
+- **Document every public SDK export.** Each exported function, hook, type, and interface in `@theoldvarorg/core` and `@theoldvarorg/react` must have JSDoc — purpose, parameters, return value, and a short usage example where the API is not self-evident. The goal is for IDE hover-tooltips to be useful on their own.
 
 - **Do not break a string literal across multiple lines with `+` concatenation.** Keep the string on one line and let Prettier wrap the call site. If the message is genuinely too long to live on one line, use a template literal (backticks) — never glue two quoted fragments together with `+` just to dodge line length.
 

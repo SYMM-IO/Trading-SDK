@@ -4,19 +4,19 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { formatUsd } from "@/lib/format";
-import { createClassicWithdrawPart, WithdrawStatus, type WithdrawRequest } from "@symm-frontier/core";
+import { createClassicWithdrawPart, WithdrawStatus, type WithdrawRequest } from "@theoldvarorg/core";
 import {
   useFinalizeWithdrawRequest,
   useInitiateWithdraw,
   usePendingWithdrawRequests,
   useRequestCancelWithdraw,
   useWithdrawableTime,
-} from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { shortenAddress } from "@symm-frontier/utils";
+} from "@theoldvarorg/react";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Input } from "@theoldvarorg/ui/components/input";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
+import { shortenAddress } from "@theoldvarorg/utils";
 import { useEffect, useState } from "react";
 import { isAddress, type Address } from "viem";
 import { WalletPanel } from "../inspector/wallet-panel";

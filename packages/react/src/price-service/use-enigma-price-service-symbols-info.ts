@@ -5,7 +5,7 @@ import {
   type ConfigParameter,
   type GetEnigmaPriceServiceSymbolsInfoOptions,
   type GetEnigmaPriceServiceSymbolsInfoReturnType,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";

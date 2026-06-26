@@ -1,7 +1,7 @@
 "use client";
 
 import { WalletConnectDialog, WalletGlyph } from "@/features/wallet/wallet-connect-dialog";
-import { Button } from "@symm-frontier/ui/components/button";
+import { Button } from "@theoldvarorg/ui/components/button";
 import { useState } from "react";
 
 interface Props {

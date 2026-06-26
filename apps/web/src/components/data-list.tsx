@@ -1,5 +1,5 @@
-import { CopyButton } from "@symm-frontier/ui/components/copy-button";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { CopyButton } from "@theoldvarorg/ui/components/copy-button";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 import type * as React from "react";
 import type { ReactNode } from "react";
 

@@ -20,7 +20,7 @@ import {
   type ReconcileQuotesResult,
   type SocketStatus,
   type UnifiedQuote,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAddress, type Address } from "viem";

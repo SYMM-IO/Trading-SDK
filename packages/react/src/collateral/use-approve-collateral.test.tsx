@@ -1,4 +1,4 @@
-import { getChainConfig, SymmioSupportedChainId } from "@symm-frontier/core";
+import { getChainConfig, SymmioSupportedChainId } from "@theoldvarorg/core";
 import { act } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_TX_HASH } from "../test/test-utils";

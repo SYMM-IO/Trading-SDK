@@ -1,6 +1,6 @@
 "use client";
 
-import { createSessionKeyManager, type SessionKeyManager } from "@symm-frontier/session-key";
+import { createSessionKeyManager, type SessionKeyManager } from "@theoldvarorg/session-key";
 import { createBrowserSessionKeyStorage } from "./browser-session-key-storage";
 
 const STORAGE_PREFIX = "symm-frontier-session-key";

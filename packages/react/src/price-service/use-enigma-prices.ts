@@ -5,7 +5,7 @@ import {
   type ConfigParameter,
   type EnigmaPriceTick,
   type SocketStatus,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useEffect, useRef, useState } from "react";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";

@@ -8,11 +8,11 @@ import {
   useDeposit,
   useDepositAndAllocate,
   type UseCollateralBalanceReturnType,
-} from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { Switch } from "@symm-frontier/ui/components/switch";
-import { shortenAddress } from "@symm-frontier/utils";
+} from "@theoldvarorg/react";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
+import { Switch } from "@theoldvarorg/ui/components/switch";
+import { shortenAddress } from "@theoldvarorg/utils";
 import { useEffect, useState } from "react";
 import { maxUint256, type Address } from "viem";
 import { WalletPanel } from "../inspector/wallet-panel";

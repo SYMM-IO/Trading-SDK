@@ -1,4 +1,4 @@
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 
 /**
  * Brand glyph — a primary-filled rounded square with stacked up-chevrons,

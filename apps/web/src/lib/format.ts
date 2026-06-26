@@ -1,4 +1,4 @@
-import { WEI_DECIMALS, formatTokenAmount } from "@symm-frontier/utils";
+import { WEI_DECIMALS, formatTokenAmount } from "@theoldvarorg/utils";
 
 export { WEI_DECIMALS };
 

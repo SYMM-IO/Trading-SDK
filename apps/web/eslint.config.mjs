@@ -1,3 +1,3 @@
-import { nextJsConfig } from "@symm-frontier/eslint-config/next-js";
+import { nextJsConfig } from "@theoldvarorg/eslint-config/next-js";
 
 export default nextJsConfig;

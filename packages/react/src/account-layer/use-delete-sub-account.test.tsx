@@ -1,4 +1,4 @@
-import type { DeleteSubAccountParameters } from "@symm-frontier/core";
+import type { DeleteSubAccountParameters } from "@theoldvarorg/core";
 import { act, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { describe, expect, it } from "vitest";

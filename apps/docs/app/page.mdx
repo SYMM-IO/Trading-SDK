@@ -6,9 +6,9 @@ The SDK and reference apps for SYMMIO. Build trading UIs against SYMMIO without 
 
 Pick a library from the top nav:
 
-- **[Core](/core)** — `@symm-frontier/core`: framework-agnostic SDK. Contract calls, ABI fragments, the per-chain address registry, typed errors.
-- **[React](/react)** — `@symm-frontier/react`: React adapter. Hooks, providers, and `react-query`-shaped wrappers on top of `core`.
-- **[Utils](/utils)** — `@symm-frontier/utils`: framework-agnostic helpers — amount formatting, Decimal.js math, display formatters, address helpers.
+- **[Core](/core)** — `@theoldvarorg/core`: framework-agnostic SDK. Contract calls, ABI fragments, the per-chain address registry, typed errors.
+- **[React](/react)** — `@theoldvarorg/react`: React adapter. Hooks, providers, and `react-query`-shaped wrappers on top of `core`.
+- **[Utils](/utils)** — `@theoldvarorg/utils`: framework-agnostic helpers — amount formatting, Decimal.js math, display formatters, address helpers.
 
 If this is your first time here, start with **[Introduction](/introduction)**, then walk through **[Getting Started](/getting-started)**.
 
@@ -16,10 +16,10 @@ If this is your first time here, start with **[Introduction](/introduction)**, t
 
 ```sh
 # everything you need to ship a React UI
-pnpm add @symm-frontier/react @symm-frontier/utils viem wagmi @tanstack/react-query
+pnpm add @theoldvarorg/react @theoldvarorg/utils viem wagmi @tanstack/react-query
 
 # or just the framework-agnostic SDK (for Node scripts, Vue, Solid)
-pnpm add @symm-frontier/core viem
+pnpm add @theoldvarorg/core viem
 ```
 
 `viem` is a peer dependency of every SYMM Frontier package; bring your own copy.

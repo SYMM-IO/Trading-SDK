@@ -8,7 +8,7 @@ import {
   type QuoteGroup,
   type QuoteGroupingStrategy,
   type UnifiedQuote,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useMemo } from "react";
 import { useManagedQuotes, type UseManagedQuotesParameters, type UseManagedQuotesResult } from "./use-managed-quotes";
 

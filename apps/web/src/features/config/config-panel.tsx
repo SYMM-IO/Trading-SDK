@@ -17,9 +17,9 @@ import {
 import { STAGING_CHAIN_OVERRIDES, STAGING_PRESET } from "@/config/symmio-presets";
 import { ConfigFieldRow } from "@/features/config/config-field-row";
 import { useSymmioOverrides } from "@/features/config/symmio-overrides-store";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@symm-frontier/ui/components/sheet";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@theoldvarorg/ui/components/sheet";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 
 interface Props {

@@ -2,8 +2,8 @@
 
 import { Field } from "@/components/field";
 import { formatUsd } from "@/lib/format";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Input } from "@theoldvarorg/ui/components/input";
 
 interface Props {
   id: string;

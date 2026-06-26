@@ -3,10 +3,10 @@
 import { ResultError, ResultNote } from "@/components/result";
 import { ClosePositionStep, type ClosablePosition } from "@/features/integration/close-position-step";
 import { useSessionKey } from "@/features/session-keys/use-session-key";
-import { PositionType, usePartyAOpenPositions } from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { PositionType, usePartyAOpenPositions } from "@theoldvarorg/react";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { cn } from "@theoldvarorg/ui/lib/utils";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatUnits, isAddress, type Address } from "viem";

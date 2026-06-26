@@ -1,5 +1,5 @@
 {
-  "extends": "@symm-frontier/typescript-config/nextjs.json",
+  "extends": "@theoldvarorg/typescript-config/nextjs.json",
   "compilerOptions": {
     "strictNullChecks": true,
     "noUncheckedSideEffectImports": false,

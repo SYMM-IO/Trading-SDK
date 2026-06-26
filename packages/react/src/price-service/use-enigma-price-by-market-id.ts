@@ -1,6 +1,6 @@
 "use client";
 
-import type { ConfigParameter, SocketStatus } from "@symm-frontier/core";
+import type { ConfigParameter, SocketStatus } from "@theoldvarorg/core";
 import { useMemo } from "react";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useMarkets } from "../markets/use-markets";

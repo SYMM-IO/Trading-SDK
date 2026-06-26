@@ -1,4 +1,4 @@
-import type { ConfigParameter } from "@symm-frontier/core";
+import type { ConfigParameter } from "@theoldvarorg/core";
 import type { Hash, TransactionReceipt } from "viem";
 
 /**

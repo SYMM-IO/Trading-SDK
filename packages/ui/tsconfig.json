@@ -1,5 +1,5 @@
 {
-  "extends": "@symm-frontier/typescript-config/react-library.json",
+  "extends": "@theoldvarorg/typescript-config/react-library.json",
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"]

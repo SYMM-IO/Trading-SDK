@@ -1,5 +1,5 @@
 "use client";
-import { useMarkets } from "@symm-frontier/react";
+import { useMarkets } from "@theoldvarorg/react";
 import { useMemo } from "react";
 
 /**

@@ -3,11 +3,11 @@
 import { AddressTag } from "@/components/address-tag";
 import { DataList, DataRow } from "@/components/data-list";
 import { ResultError, ResultNote } from "@/components/result";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symm-frontier/ui/components/card";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { formatRelativeTimestamp } from "@symm-frontier/utils";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@theoldvarorg/ui/components/card";
+import { Input } from "@theoldvarorg/ui/components/input";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
+import { formatRelativeTimestamp } from "@theoldvarorg/utils";
 import { useState } from "react";
 import type { Hex } from "viem";
 import { isHex } from "viem";

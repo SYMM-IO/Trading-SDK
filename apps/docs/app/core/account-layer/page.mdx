@@ -11,7 +11,7 @@ This slice also exposes SYMMIO core balance reads for accounts. The `account` in
 List a user's subaccounts.
 
 ```ts
-import { getUserSubAccounts } from "@symm-frontier/core";
+import { getUserSubAccounts } from "@theoldvarorg/core";
 
 const subs = await getUserSubAccounts(config, {
   user: "0xabc...",
@@ -50,7 +50,7 @@ interface SubAccountDetail {
 Read raw `balanceOf(account)` from the SYMMIO core/diamond contract.
 
 ```ts
-import { getAccountBalanceOf } from "@symm-frontier/core";
+import { getAccountBalanceOf } from "@theoldvarorg/core";
 
 const balance = await getAccountBalanceOf(config, {
   account: "0xaccount...",
@@ -71,7 +71,7 @@ const balance = await getAccountBalanceOf(config, {
 Read raw balance information from `balanceInfoOfPartyA(account)` on the SYMMIO core/diamond contract.
 
 ```ts
-import { getAccountBalanceInfo } from "@symm-frontier/core";
+import { getAccountBalanceInfo } from "@theoldvarorg/core";
 
 const info = await getAccountBalanceInfo(config, {
   account: "0xaccount...",
@@ -127,7 +127,7 @@ be the subaccount's on-chain `owner`. The subaccount must not be suspended or in
 liquidation as Party A.
 
 ```ts
-import { allocate } from "@symm-frontier/core";
+import { allocate } from "@theoldvarorg/core";
 
 const hash = await allocate(config, {
   account: "0xsub...",
@@ -157,7 +157,7 @@ uPnL attestation so the contract can verify the subaccount stays solvent, and is
 subject to the on-chain **deallocate debounce**.
 
 ```ts
-import { deallocate, getDeallocateUpnlSig } from "@symm-frontier/core";
+import { deallocate, getDeallocateUpnlSig } from "@theoldvarorg/core";
 
 const upnlSig = await getDeallocateUpnlSig(config, { virtualAccount: "0xsub..." });
 const hash = await deallocate(config, {
@@ -186,7 +186,7 @@ Dry-run without sending via `simulateDeallocate(config, params)`.
 Rename a subaccount.
 
 ```ts
-import { editAccountName } from "@symm-frontier/core";
+import { editAccountName } from "@theoldvarorg/core";
 
 const hash = await editAccountName(config, {
   account: "0xsub...",
@@ -211,7 +211,7 @@ import {
   getAccountBalanceInfoQueryOptions,
   getAccountBalanceOfQueryOptions,
   getUserSubAccountsQueryOptions,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 
 useQuery(getAccountBalanceOfQueryOptions(config, { account }));
 useQuery(getAccountBalanceInfoQueryOptions(config, { account }));
@@ -223,7 +223,7 @@ useQuery(getUserSubAccountsQueryOptions(config, { user }));
 For consumers that want to call viem directly:
 
 ```ts
-import { accountLayerAbi, symmioAbi } from "@symm-frontier/core";
+import { accountLayerAbi, symmioAbi } from "@theoldvarorg/core";
 
 await publicClient.readContract({
   abi: accountLayerAbi,

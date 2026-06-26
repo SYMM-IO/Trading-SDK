@@ -1,4 +1,4 @@
-import type { GetMuonPriceRangeReturnType } from "@symm-frontier/core";
+import type { GetMuonPriceRangeReturnType } from "@theoldvarorg/core";
 import { act } from "@testing-library/react";
 import type { Address } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,8 +7,8 @@ import { useMuonPriceRange } from "./use-muon-price-range";
 
 const getMuonPriceRange = vi.hoisted(() => vi.fn());
 
-vi.mock("@symm-frontier/core", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@symm-frontier/core")>();
+vi.mock("@theoldvarorg/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@theoldvarorg/core")>();
   return { ...actual, getMuonPriceRange };
 });
 

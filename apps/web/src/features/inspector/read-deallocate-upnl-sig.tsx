@@ -2,9 +2,9 @@
 
 import { DataList, DataRow } from "@/components/data-list";
 import { ResultError, ResultNote } from "@/components/result";
-import { useDeallocateUpnlSig } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useDeallocateUpnlSig } from "@theoldvarorg/react";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 

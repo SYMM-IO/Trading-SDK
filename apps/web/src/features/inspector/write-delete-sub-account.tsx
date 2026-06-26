@@ -2,9 +2,9 @@
 
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import { useDeleteSubAccount, useSimulateDeleteSubAccount, useWalletAccount } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useDeleteSubAccount, useSimulateDeleteSubAccount, useWalletAccount } from "@theoldvarorg/react";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
 import { useState } from "react";
 import type { Address } from "viem";
 import { isAddress } from "viem";

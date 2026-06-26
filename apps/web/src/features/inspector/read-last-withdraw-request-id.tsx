@@ -2,9 +2,9 @@
 
 import { ResultError, ResultNote } from "@/components/result";
 import { Stat } from "@/components/stat";
-import { useLastWithdrawRequestId } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useLastWithdrawRequestId } from "@theoldvarorg/react";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { MethodCard } from "./method-card";

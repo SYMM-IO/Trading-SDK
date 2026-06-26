@@ -1,13 +1,13 @@
 # Addresses
 
-`@symm-frontier/core` ships a per-chain address registry for each contract family. Today: `AccountLayer` only.
+`@theoldvarorg/core` ships a per-chain address registry for each contract family. Today: `AccountLayer` only.
 
 ## `getAccountLayerAddress`
 
 Look up the `AccountLayer` (v0.8.5) deployment address for a chain.
 
 ```ts
-import { getAccountLayerAddress } from "@symm-frontier/core";
+import { getAccountLayerAddress } from "@theoldvarorg/core";
 import { hyperEvm } from "viem/chains";
 
 getAccountLayerAddress(hyperEvm.id);
@@ -21,7 +21,7 @@ Throws `SymmError` when the chain isn't in the built-in registry. Consumers can 
 Enumerate the chain ids the SDK knows about.
 
 ```ts
-import { listAccountLayerChains } from "@symm-frontier/core";
+import { listAccountLayerChains } from "@theoldvarorg/core";
 
 listAccountLayerChains(); // [999]  — HyperEVM, today
 ```

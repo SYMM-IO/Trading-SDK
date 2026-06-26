@@ -1,4 +1,4 @@
-import { getChainConfig, symmioAbi, SymmioSupportedChainId, type SingleUpnlSig } from "@symm-frontier/core";
+import { getChainConfig, symmioAbi, SymmioSupportedChainId, type SingleUpnlSig } from "@theoldvarorg/core";
 import { act } from "@testing-library/react";
 import { encodeFunctionData, type Address } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,8 +7,8 @@ import { useDeallocate } from "./use-deallocate";
 
 const getDeallocateUpnlSig = vi.hoisted(() => vi.fn());
 
-vi.mock("@symm-frontier/core", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@symm-frontier/core")>();
+vi.mock("@theoldvarorg/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@theoldvarorg/core")>();
   return { ...actual, getDeallocateUpnlSig };
 });
 

@@ -2,8 +2,8 @@
 
 import { Field } from "@/components/field";
 import { ResultError } from "@/components/result";
-import { useEnigmaPriceServiceSymbolsInfo } from "@symm-frontier/react";
-import { Combobox, type ComboboxItem } from "@symm-frontier/ui/components/combobox";
+import { useEnigmaPriceServiceSymbolsInfo } from "@theoldvarorg/react";
+import { Combobox, type ComboboxItem } from "@theoldvarorg/ui/components/combobox";
 import { useMemo } from "react";
 import { parseAddressList } from "./price-service-utils";
 

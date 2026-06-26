@@ -1,11 +1,11 @@
 "use client";
 import { WEI_DECIMALS } from "@/lib/format";
-import type { QuoteGroup } from "@symm-frontier/core";
-import { PositionType, QuoteLifecycle } from "@symm-frontier/core";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { DataTable, type DataTableColumn } from "@symm-frontier/ui/components/data-table";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/components/tooltip";
-import { formatTokenAmount } from "@symm-frontier/utils";
+import type { QuoteGroup } from "@theoldvarorg/core";
+import { PositionType, QuoteLifecycle } from "@theoldvarorg/core";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { DataTable, type DataTableColumn } from "@theoldvarorg/ui/components/data-table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@theoldvarorg/ui/components/tooltip";
+import { formatTokenAmount } from "@theoldvarorg/utils";
 import { useMemo, type ReactNode } from "react";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
 import { truncateAddress } from "./quote-provenance-panel";

@@ -3,8 +3,8 @@
 import { ResultError, ResultNote } from "@/components/result";
 import { StatusDot } from "@/components/status-dot";
 import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
-import { useEnigmaPriceByName, useMarkets } from "@symm-frontier/react";
-import { MarketSelect, type MarketSelectItem } from "@symm-frontier/ui/components/market-select";
+import { useEnigmaPriceByName, useMarkets } from "@theoldvarorg/react";
+import { MarketSelect, type MarketSelectItem } from "@theoldvarorg/ui/components/market-select";
 import { useMemo, useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 

@@ -1,4 +1,4 @@
-import type { SocketStatus } from "@symm-frontier/core";
+import type { SocketStatus } from "@theoldvarorg/core";
 
 /** Map a {@link SocketStatus} to a `StatusDot` tone. */
 export function socketStatusTone(status: SocketStatus): "positive" | "warning" | "neutral" {

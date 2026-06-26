@@ -1,8 +1,8 @@
 "use client";
 
-import { NotificationType, type Notification } from "@symm-frontier/core";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { JsonView } from "@symm-frontier/ui/components/json-view";
+import { NotificationType, type Notification } from "@theoldvarorg/core";
+import { Badge } from "@theoldvarorg/ui/components/badge";
+import { JsonView } from "@theoldvarorg/ui/components/json-view";
 
 const TYPE_VARIANT = {
   [NotificationType.SUCCESS]: "positive",

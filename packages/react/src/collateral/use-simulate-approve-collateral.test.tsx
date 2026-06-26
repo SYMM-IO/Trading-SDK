@@ -1,4 +1,4 @@
-import { getChainConfig, SymmioSupportedChainId } from "@symm-frontier/core";
+import { getChainConfig, SymmioSupportedChainId } from "@theoldvarorg/core";
 import { act, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { SymmioRequestError } from "../errors/symmio-request-error";

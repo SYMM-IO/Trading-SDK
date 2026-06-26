@@ -15,15 +15,15 @@ import {
   useMarkets,
   validateInstantOpenAgainstMarket,
   type QuoteConstraintViolation,
-} from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { MarketSelect, type MarketSelectItem } from "@symm-frontier/ui/components/market-select";
-import { Slider } from "@symm-frontier/ui/components/slider";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/components/tooltip";
-import { cn } from "@symm-frontier/ui/lib/utils";
-import { shortenAddress } from "@symm-frontier/utils";
+} from "@theoldvarorg/react";
+import { Button } from "@theoldvarorg/ui/components/button";
+import { Input } from "@theoldvarorg/ui/components/input";
+import { MarketSelect, type MarketSelectItem } from "@theoldvarorg/ui/components/market-select";
+import { Slider } from "@theoldvarorg/ui/components/slider";
+import { Spinner } from "@theoldvarorg/ui/components/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@theoldvarorg/ui/components/tooltip";
+import { cn } from "@theoldvarorg/ui/lib/utils";
+import { shortenAddress } from "@theoldvarorg/utils";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits, type Address } from "viem";
 

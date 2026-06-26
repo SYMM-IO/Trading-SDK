@@ -5,7 +5,7 @@ import {
   type ConfigParameter,
   type GetMuonPriceParameters,
   type GetMuonPriceReturnType,
-} from "@symm-frontier/core";
+} from "@theoldvarorg/core";
 import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
