@@ -1,10 +1,12 @@
 import { PageHeader } from "@/components/page-header";
 import { MethodGroup } from "../inspector/method-group";
+import { NotificationSearchCard } from "./notification-search-card";
 import { NotificationsConsole } from "./notifications-console";
 
 /**
- * WebSockets page: live, real-time SDK streams. Each channel is its own
- * `MethodGroup` section — Notifications today; price and TP/SL land here next.
+ * WebSockets page: the live notifications stream plus its REST counterpart —
+ * search stored notification history. Each capability is its own `MethodGroup`
+ * section; price and TP/SL streams land here next.
  */
 export function WebsocketShell() {
   return (
@@ -12,10 +14,13 @@ export function WebsocketShell() {
       <PageHeader
         eyebrow="React SDK · WebSockets"
         title="WebSockets"
-        description="Subscribe to the chain's live WebSocket channels and watch events stream in real time. Notifications stream position and quote state today; more channels land here next."
+        description="Subscribe to the chain's live WebSocket channels and watch events stream in real time. Notifications stream position and quote state live; search their stored history below."
       />
-      <MethodGroup label="Notifications" count={1} fullWidth>
+      <MethodGroup label="Live notifications" count={1} fullWidth>
         <NotificationsConsole />
+      </MethodGroup>
+      <MethodGroup label="Search history" count={1} fullWidth>
+        <NotificationSearchCard />
       </MethodGroup>
     </section>
   );

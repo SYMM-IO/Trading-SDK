@@ -35,6 +35,9 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
       url: "wss://notification.rasa.capital/ws/v1/subscribe",
       channel: "Hyper-EVM_Solver-Low-Cap_Production",
       protocol: "defilytics",
+      // Same host as the WebSocket stream; the REST search API is served under
+      // the `/notification` prefix (OpenAPI `servers[0].url`).
+      searchUrl: "https://notification.rasa.capital/notification",
     },
     muon: {
       // Muon oracle gateways (https://docs.symm.io/api-endpoints-and-deployments/muon-api),

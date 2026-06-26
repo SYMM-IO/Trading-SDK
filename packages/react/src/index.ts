@@ -309,6 +309,19 @@ export {
 } from "./markets";
 
 /**
+ * Solver error-code hooks
+ * -----------------------
+ * Fetch the solver's `/error_codes` map and resolve a single numeric code (e.g.
+ * the `errorCode` on a failed open/close notification) to its message.
+ */
+export {
+  useSolverErrorCodes,
+  useSolverErrorMessage,
+  type UseSolverErrorCodesParameters,
+  type UseSolverErrorCodesReturnType,
+} from "./error-codes";
+
+/**
  * Quote hooks
  * -----------
  * Read open positions and quotes from the SYMMIO core. `usePartyAOpenPositions`
@@ -329,6 +342,8 @@ export {
   useQuote,
   useQuotePlatformFee,
   useQuoteUpnlAndPnl,
+  useQuoteHistory,
+  useSubgraphQuery,
   type ManagedQuotesSources,
   type OptimisticQuotesStoreState,
   type UseAccountLiquidationPriceParameters,
@@ -341,12 +356,16 @@ export {
   type UsePartyAOpenPositionsReturnType,
   type UsePartyAPendingQuotesParameters,
   type UsePartyAPendingQuotesReturnType,
+  type UseQuoteHistoryParameters,
+  type UseQuoteHistoryReturnType,
   type UseQuoteParameters,
   type UseQuotePlatformFeeParameters,
   type UseQuotePlatformFeeReturnType,
   type UseQuoteReturnType,
   type UseQuoteUpnlAndPnlParameters,
   type UseQuoteUpnlAndPnlReturnType,
+  type UseSubgraphQueryParameters,
+  type UseSubgraphQueryReturnType,
 } from "./quotes";
 
 /**
@@ -403,6 +422,21 @@ export {
  * `@symm-frontier/core`.
  */
 export { useNotifications, type UseNotificationsParameters, type UseNotificationsReturnType } from "./websocket";
+
+/**
+ * Notification search hooks
+ * -------------------------
+ * `useSearchNotifications` queries the notification service's free-form
+ * `POST /api/v1/search` endpoint (the REST counterpart to the live
+ * `useNotifications` stream). Import the filter/result value types
+ * (`NotificationSearchFilter`, `NotificationDocument`, `NotificationSearchResult`)
+ * from `@symm-frontier/core`.
+ */
+export {
+  useSearchNotifications,
+  type UseSearchNotificationsParameters,
+  type UseSearchNotificationsReturnType,
+} from "./notifications";
 
 /**
  * Muon hooks

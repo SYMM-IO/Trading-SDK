@@ -6,6 +6,8 @@ import { isActivePath, primaryNavLinks, secondaryNavLinks, type NavLink } from "
 import { NavMoreMenu } from "@/features/layout/nav-more-menu";
 import { ThemeToggle } from "@/features/layout/theme-toggle";
 import { MagicSidebarLauncher } from "@/features/magic-sidebar/magic-sidebar-launcher";
+import { useMagicSidebar } from "@/features/magic-sidebar/magic-sidebar-store";
+import { useSidebarMetrics } from "@/features/magic-sidebar/use-sidebar-metrics";
 import { SearchLauncher } from "@/features/search/search-launcher";
 import { WalletLauncher } from "@/features/wallet/wallet-launcher";
 import { cn } from "@symm-frontier/ui/lib/utils";
@@ -16,9 +18,22 @@ import { useState } from "react";
 export function SiteHeader() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // The header is `fixed` (so a scroll-locking popup can't knock it out of view),
+  // so unlike the in-flow content it doesn't inherit the dock's right gutter —
+  // track it here so the header shrinks to sit flush beside the docked sidebar
+  // instead of being overlaid. `pushPadding` is 0 when the sidebar is closed or
+  // overlaying, so the header is full-width then.
+  const { pushPadding } = useSidebarMetrics();
+  const { isResizing } = useMagicSidebar();
 
   return (
-    <header className="border-border/60 bg-background/70 supports-backdrop-filter:bg-background/55 @container/header sticky top-0 z-50 w-full border-b backdrop-blur-xl">
+    <header
+      style={{ right: pushPadding }}
+      className={cn(
+        "border-border/60 bg-background/70 supports-backdrop-filter:bg-background/55 @container/header fixed top-0 left-0 z-50 border-b backdrop-blur-xl",
+        isResizing ? null : "transition-[right] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+      )}
+    >
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 @min-[1090px]/header:px-8 @xl/header:gap-6 @xl/header:px-6">
         <Link href="/" className="group flex items-center gap-2.5" aria-label="Symmio Frontier — home">
           <LogoMark className="transition-transform duration-300 group-hover:-translate-y-0.5" />

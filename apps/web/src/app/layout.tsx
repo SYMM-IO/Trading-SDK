@@ -48,7 +48,10 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col font-sans">
         <Providers>
           <SiteHeader />
-          <main className="flex-1">{children}</main>
+          {/* Offsets the now-fixed SiteHeader (h-16). Fixed (not sticky) so a
+              scroll-locking popup — Radix Select/Dialog sets `body { overflow: hidden }`
+              — can't knock the header out of its scroll context and hide it. */}
+          <main className="flex-1 pt-16">{children}</main>
           <SiteFooter />
         </Providers>
       </body>

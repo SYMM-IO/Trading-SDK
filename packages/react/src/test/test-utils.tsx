@@ -24,7 +24,7 @@ import { http } from "viem";
 import { hyperEvm } from "viem/chains";
 import { vi, type Mock } from "vitest";
 import { createConfig as createWagmiConfig, WagmiProvider, type Config as WagmiConfig } from "wagmi";
-import { mock } from "wagmi/connectors";
+import { mock, type MockParameters } from "wagmi/connectors";
 import { SymmioProvider } from "../provider/symmio-provider";
 
 /**
@@ -41,15 +41,28 @@ export const TEST_TX_HASH: Hash = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdea
  * Build a wagmi config wired against HyperEVM with the `mock` connector. The
  * transport URL is a localhost placeholder — hook tests inject a mock SDK config
  * via the hook's `config` parameter, so no real RPC traffic happens.
+ *
+ * @param opts.connected - `false` registers no connectors (no wallet available).
+ * @param opts.chains - Chains the wagmi config knows about. Defaults to
+ *   `[hyperEvm]`. Pass a chain the SDK does not support (e.g. `mainnet`) to drive
+ *   the "connected but on the wrong network" path, or several chains to exercise
+ *   `switchChain`. The first entry is the chain the mock connector connects on.
+ * @param opts.features - Forwarded to the `mock` connector. Use
+ *   `{ defaultConnected: true, reconnect: true }` to start connected on mount
+ *   (reconnect-on-mount only authorizes the connector when both are set), or
+ *   `{ connectError }` / `{ switchChainError }` to make those flows reject.
  */
-export function createTestWagmiConfig(opts?: { connected?: boolean }): WagmiConfig {
-  const connectors = opts?.connected === false ? [] : [mock({ accounts: [TEST_EOA] })];
+export function createTestWagmiConfig(opts?: {
+  connected?: boolean;
+  chains?: readonly [Chain, ...Chain[]];
+  features?: MockParameters["features"];
+}): WagmiConfig {
+  const chains = opts?.chains ?? [hyperEvm];
+  const connectors = opts?.connected === false ? [] : [mock({ accounts: [TEST_EOA], features: opts?.features })];
 
   return createWagmiConfig({
-    chains: [hyperEvm],
-    transports: {
-      [hyperEvm.id]: http("http://127.0.0.1:0"),
-    },
+    chains,
+    transports: Object.fromEntries(chains.map((chain) => [chain.id, http("http://127.0.0.1:0")])),
     connectors,
     multiInjectedProviderDiscovery: false,
   });

@@ -33,6 +33,17 @@ export interface ReconcileQuotesInput {
   instantOpenVaByTempId?: Record<number, Address>;
   /** Notifications to apply after the merge, in arrival order. */
   notifications?: readonly Notification[];
+  /**
+   * Rows that anchored on-chain on a prior tick (a notification set their
+   * `quoteId`) but whose on-chain struct has not been read yet — the
+   * `pendingAnchors` returned by the previous {@link reconcileQuotes} call. The
+   * consumer feeds them back so an anchored row survives the gap between "the
+   * hedger drops the pending open" and "the on-chain read returns the quote"
+   * instead of vanishing for a tick. Each is dropped automatically once the
+   * matching on-chain read arrives (its `key` is already populated with the real
+   * struct, so the retained copy is ignored).
+   */
+  retainedAnchors?: readonly UnifiedQuote[];
 }
 
 /** Output of {@link reconcileQuotes}: the merged rows plus the temp ↔ on-chain links. */
@@ -46,6 +57,13 @@ export interface ReconcileQuotesResult {
    * clear an optimistic seed exactly when its on-chain twin exists.
    */
   links: Record<number, string>;
+  /**
+   * Rows currently in {@link QuoteLifecycle.WRITE_ONCHAIN} — anchored per a
+   * notification but not yet returned by the on-chain read. The consumer retains
+   * these and feeds them back as {@link ReconcileQuotesInput.retainedAnchors} on
+   * the next tick so they do not flicker out while the RPC catches up.
+   */
+  pendingAnchors: UnifiedQuote[];
 }
 
 /**
@@ -57,14 +75,18 @@ export interface ReconcileQuotesResult {
  *
  * Pipeline:
  *
- * 1. On-chain positions + pending quotes become anchored rows.
- * 2. Pending instant-closes overlay the matching on-chain row as `CLOSING`.
+ * 1. On-chain positions + pending quotes become anchored rows; `retainedAnchors`
+ *    re-seed any anchored-but-not-yet-read row so it does not flicker out.
+ * 2. Pending instant-closes overlay the matching on-chain row — `CLOSING` once the
+ *    on-chain status shows the close pending, else `WRITE_ONCHAIN_CLOSE`.
  * 3. Pending instant-opens become `OPTIMISTIC` rows, **dropped** when an on-chain
  *    row already carries the same {@link fingerprintQuote} (the trade landed).
  * 4. Notifications are applied in order to link temp ↔ on-chain ids and advance
- *    lifecycles; `collapseByKey` then merges a rekeyed optimistic row into its
- *    on-chain twin, so the off-chain row drops once on-chain.
- * 5. Rows are sorted by `statusModifyTimestamp` descending (newest first).
+ *    lifecycles (an anchored-but-unread row sits at `WRITE_ONCHAIN`); `collapseByKey`
+ *    then merges a rekeyed optimistic row into its on-chain twin, so the off-chain
+ *    row drops once on-chain.
+ * 5. Rows are sorted by `statusModifyTimestamp` descending (newest first), and the
+ *    `WRITE_ONCHAIN` rows are returned as `pendingAnchors` for the next tick.
  *
  * @param input - One snapshot of all sources.
  * @returns The merged rows plus the temp ↔ on-chain `links`.
@@ -92,6 +114,15 @@ export function reconcileQuotes(input: ReconcileQuotesInput): ReconcileQuotesRes
     const row = withVaAddress(toUnifiedQuoteFromOnchain(quote), input.partyA);
     if (!byKey.has(row.key)) byKey.set(row.key, row);
   }
+  /**
+   * Re-seed rows that anchored on a prior tick but have no on-chain struct yet, so
+   * they survive the hedger-drop → on-chain-read gap. Skipped the moment the real
+   * on-chain read populates the same `key` (inserted above), so retention ends
+   * itself once the RPC confirms.
+   */
+  for (const anchor of input.retainedAnchors ?? []) {
+    if (!byKey.has(anchor.key)) byKey.set(anchor.key, anchor);
+  }
   for (const close of input.instantCloses) {
     const key = `onchain:${close.quoteId}`;
     const existing = byKey.get(key);
@@ -104,7 +135,7 @@ export function reconcileQuotes(input: ReconcileQuotesInput): ReconcileQuotesRes
     if (!existing) continue;
     byKey.set(key, {
       ...existing,
-      lifecycle: existing.lifecycle === QuoteLifecycle.CLOSED ? QuoteLifecycle.CLOSED : QuoteLifecycle.CLOSING,
+      lifecycle: overlayCloseLifecycle(existing),
       quantityToClose: close.quantityToClose,
       raw: { ...existing.raw, instantClose: close },
     });
@@ -147,7 +178,23 @@ export function reconcileQuotes(input: ReconcileQuotesInput): ReconcileQuotesRes
      */
     if (row.tempQuoteId !== undefined && row.quoteId !== undefined) links[row.tempQuoteId] = row.key;
   }
-  return { quotes: merged, links };
+  const pendingAnchors = merged.filter((row) => row.lifecycle === QuoteLifecycle.WRITE_ONCHAIN);
+  return { quotes: merged, links, pendingAnchors };
+}
+
+/**
+ * Lifecycle for an on-chain row that a pending instant-close overlays. Keep a
+ * terminal `CLOSED` as-is; keep `CLOSING` when the on-chain status already shows
+ * the close pending; otherwise the close is in-flight but the read still shows the
+ * position open — surface {@link QuoteLifecycle.OPTIMISTIC_CLOSE} as the base close
+ * stage. Close notifications (applied after this overlay) then advance it to
+ * `CLOSE_PRICE_FILLED` → `WRITE_ONCHAIN_CLOSE`; the poll moves it to `CLOSING` once
+ * the on-chain status reflects the pending close.
+ */
+function overlayCloseLifecycle(existing: UnifiedQuote): QuoteLifecycle {
+  if (existing.lifecycle === QuoteLifecycle.CLOSED) return QuoteLifecycle.CLOSED;
+  if (existing.lifecycle === QuoteLifecycle.CLOSING) return QuoteLifecycle.CLOSING;
+  return QuoteLifecycle.OPTIMISTIC_CLOSE;
 }
 
 /**

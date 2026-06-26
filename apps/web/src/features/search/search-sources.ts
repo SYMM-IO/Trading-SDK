@@ -3,6 +3,7 @@ import { ALL_PAGES } from "../contracts/pages";
 import { METHOD_REGISTRY, type AbiKey } from "../contracts/registry";
 import { navLinks } from "../layout/nav";
 import { MUON_METHODS } from "../muon/muon-registry";
+import { SOLVER_METHODS } from "../solvers/solver-methods";
 import type { SearchEntry } from "./search-entry";
 
 type Market = NonNullable<ReturnType<typeof useMarkets>["data"]>[number];
@@ -73,12 +74,26 @@ function muonMethodEntries(): SearchEntry[] {
   }));
 }
 
+/** Each Solvers-page method card, deep-linked to its anchor on the Solvers page. */
+function solverMethodEntries(): SearchEntry[] {
+  return SOLVER_METHODS.map((method) => ({
+    id: `solver:${method.id}`,
+    type: "method",
+    title: method.method,
+    subtitle: "Solver API",
+    kind: method.kind,
+    keywords: [method.action, "solver", "off-chain api"],
+    href: `/solvers#${method.id}`,
+  }));
+}
+
 /** Static entries that never change at runtime — built once at module load. */
 export const STATIC_ENTRIES: readonly SearchEntry[] = [
   ...routeEntries(),
   ...pageEntries(),
   ...methodEntries(),
   ...muonMethodEntries(),
+  ...solverMethodEntries(),
 ];
 
 /** Solver markets, fetched lazily when the palette opens. Routes to the Solvers page. */

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  classifyQuoteNotificationAction,
   getInstantClosesQueryKey,
   getInstantOpensQueryKey,
   getPartyAOpenPositionsQueryKey,
@@ -11,6 +12,7 @@ import {
   getQuoteQueryKey,
   getQuoteQueryOptions,
   isolationTypeForSide,
+  QuoteLifecycle,
   reconcileQuotes,
   shouldAccelerateQuotePolling,
   type Notification,
@@ -53,6 +55,24 @@ const NO_RETAINED_VAS: readonly Address[] = [];
 
 /** Debounce (ms) for coalescing a burst of notifications into one set of read invalidations. */
 const NOTIFICATION_INVALIDATE_DEBOUNCE = 250;
+
+/**
+ * Lifecycle stages that mean an open is in flight, so the hedger instant-opens
+ * feed is worth polling. Outside these stages the feed has nothing new (a
+ * settled position is tracked by the on-chain reads), so polling it is wasted.
+ */
+const OPEN_INTENT_LIFECYCLES = new Set<QuoteLifecycle>([
+  QuoteLifecycle.OPTIMISTIC,
+  QuoteLifecycle.PRICE_FILLED,
+  QuoteLifecycle.WRITE_ONCHAIN,
+]);
+
+/**
+ * Lifecycle stages that mean a close is in flight, so the hedger instant-closes
+ * feed is worth polling. Outside these stages there is no pending close, so
+ * polling the feed (merely holding open positions) is wasted.
+ */
+const CLOSE_INTENT_LIFECYCLES = new Set<QuoteLifecycle>([QuoteLifecycle.WRITE_ONCHAIN_CLOSE, QuoteLifecycle.CLOSING]);
 
 /**
  * Which underlying quote sources {@link useManagedQuotes} should read. Every
@@ -201,6 +221,13 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
   const configKeyRef = useRef(configKey);
   configKeyRef.current = configKey;
   const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /**
+   * Which hedger feeds a debounced notification burst should invalidate. A burst
+   * can mix open and close events, so the kinds are accumulated here across the
+   * debounce window and read (then reset) when the timer fires — scoping the
+   * invalidation to the feeds the events can actually affect.
+   */
+  const pendingInvalidationRef = useRef<{ opens: boolean; closes: boolean }>({ opens: false, closes: false });
 
   /**
    * Last reconciliation result, kept in a ref so it survives renders without
@@ -212,23 +239,53 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
    */
   const previousRef = useRef<ReconcileQuotesResult | undefined>(undefined);
 
+  /**
+   * Rows anchored on a prior tick (a notification set their `quoteId`) but not yet
+   * returned by the on-chain read — the previous merge's `pendingAnchors`. Fed back
+   * into {@link reconcileQuotes} so an anchored row keeps showing while the RPC
+   * catches up, instead of vanishing once the hedger drops its pending open. Held in
+   * a ref so it survives renders without triggering one; the source query that
+   * dropped the row drives the recompute that reads it.
+   */
+  const retainedAnchorsRef = useRef<UnifiedQuote[]>([]);
+
   const optimisticEntries = useOptimisticQuotesStore((state) => state.entries);
   const clearSettled = useOptimisticQuotesStore((state) => state.clearSettled);
 
   const accelerated = previousRef.current ? shouldAccelerateQuotePolling(previousRef.current) : false;
-  const refetchInterval = active ? (accelerated ? ACCELERATED_POLLING_INTERVAL : pollingInterval) : false;
+  const pollInterval = accelerated ? ACCELERATED_POLLING_INTERVAL : pollingInterval;
+  const refetchInterval = active ? pollInterval : false;
 
-  /** Off-chain hedger reads — always scoped to the sub-account, never the VAs. */
+  /**
+   * Gate the hedger feeds on the previous tick's lifecycles: poll instant-opens
+   * only while an open is in flight, instant-closes only while a close is in flight.
+   * Idle (just holding positions) polls neither — the on-chain reads + notifications
+   * cover steady state, and the open/close mutations invalidate the matching feed to
+   * bootstrap the first fetch. (Computed from the previous result for the same reason
+   * `accelerated` is — the queries set their interval before this render's result
+   * exists; an on-chain poll or notification re-render flips the gate on a tick later.)
+   */
+  const previousQuotes = previousRef.current?.quotes;
+  const hasOpenIntent = previousQuotes?.some((quote) => OPEN_INTENT_LIFECYCLES.has(quote.lifecycle)) ?? false;
+  const hasCloseIntent = previousQuotes?.some((quote) => CLOSE_INTENT_LIFECYCLES.has(quote.lifecycle)) ?? false;
+  const instantOpensInterval = active && wantInstantOpens && hasOpenIntent ? pollInterval : false;
+  const instantClosesInterval = active && wantInstantCloses && hasCloseIntent ? pollInterval : false;
+
+  /**
+   * Off-chain hedger reads — always scoped to the sub-account, never the VAs. Kept
+   * `enabled` so a mutation's `onSuccess` invalidation can fetch them on demand, but
+   * polled only while the matching flow is in flight (see the interval gates above).
+   */
   const instantOpens = useInstantOpens({
     partyA: partyA as Address,
     chainId: resolvedChainId,
-    query: { enabled: active && wantInstantOpens, refetchInterval },
+    query: { enabled: active && wantInstantOpens, refetchInterval: instantOpensInterval },
   });
 
   const instantCloses = useInstantCloses({
     partyA: partyA as Address,
     chainId: resolvedChainId,
-    query: { enabled: active && wantInstantCloses, refetchInterval },
+    query: { enabled: active && wantInstantCloses, refetchInterval: instantClosesInterval },
   });
 
   /** The sub-account's existing on-chain VAs. Empty (harmless) when `partyA` is itself a VA. */
@@ -285,19 +342,32 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
       setNotifications((prev) => [...prev, notification].slice(-NOTIFICATION_BUFFER_LIMIT));
       /**
        * Refetch the authoritative reads off the live event so both tables stay in
-       * sync without polling. Debounced to coalesce bursts; React Query dedups
-       * concurrent refetches of the same query. Scoped to this chain (`configKey`)
-       * so every fanned-out account refetches but other chains are untouched.
+       * sync without polling. The on-chain reads always refresh (any lifecycle event
+       * can change them); the hedger feeds refresh only for the matching flow, so an
+       * open event never re-fetches the closes feed and vice versa. Kinds are
+       * accumulated across the debounce window because a burst can mix open and close
+       * events. Scoped to this chain (`configKey`); React Query dedups concurrent
+       * refetches of the same query.
        */
+      const kind = classifyQuoteNotificationAction(notification.lastSeenAction);
+      const pending = pendingInvalidationRef.current;
+      if (kind === "open") pending.opens = true;
+      else if (kind === "close") pending.closes = true;
+      else {
+        pending.opens = true;
+        pending.closes = true;
+      }
       if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
       invalidateTimerRef.current = setTimeout(() => {
         const client = queryClientRef.current;
         const scope = { configKey: configKeyRef.current };
+        const { opens, closes } = pendingInvalidationRef.current;
+        pendingInvalidationRef.current = { opens: false, closes: false };
         void client.invalidateQueries({ predicate: predicateMatch(getPartyAOpenPositionsQueryKey, scope) });
         void client.invalidateQueries({ predicate: predicateMatch(getPartyAPendingQuotesQueryKey, scope) });
         void client.invalidateQueries({ predicate: predicateMatch(getQuoteQueryKey, scope) });
-        void client.invalidateQueries({ predicate: predicateMatch(getInstantOpensQueryKey, scope) });
-        void client.invalidateQueries({ predicate: predicateMatch(getInstantClosesQueryKey, scope) });
+        if (opens) void client.invalidateQueries({ predicate: predicateMatch(getInstantOpensQueryKey, scope) });
+        if (closes) void client.invalidateQueries({ predicate: predicateMatch(getInstantClosesQueryKey, scope) });
       }, NOTIFICATION_INVALIDATE_DEBOUNCE);
     }, []),
   });
@@ -471,7 +541,8 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
   const result = useMemo<ReconcileQuotesResult>(() => {
     if (!active || !partyA) {
       previousRef.current = undefined;
-      return { quotes: [], links: {} };
+      retainedAnchorsRef.current = [];
+      return { quotes: [], links: {}, pendingAnchors: [] };
     }
     const seededInstantOpens = [...(instantOpens.data ?? []), ...Object.values(optimisticEntries)];
     const next = reconcileQuotes({
@@ -482,8 +553,10 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
       instantCloses: wantInstantCloses ? (instantCloses.data ?? []) : [],
       instantOpenVaByTempId: predictedVas.byTempId,
       notifications,
+      retainedAnchors: retainedAnchorsRef.current,
     });
     previousRef.current = next;
+    retainedAnchorsRef.current = next.pendingAnchors;
     return next;
   }, [
     active,
@@ -501,19 +574,28 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
     wantInstantCloses,
   ]);
 
-  /** Drop optimistic seeds once their `tempQuoteId` has anchored on-chain. */
-  useEffect(() => {
-    const settled = Object.keys(optimisticEntries)
-      .map(Number)
-      .filter((tempQuoteId) => result.links[tempQuoteId] !== undefined);
-    if (settled.length > 0) clearSettled(settled);
-  }, [result, optimisticEntries, clearSettled]);
-
   const byKey = useMemo<Record<string, UnifiedQuote>>(() => {
     const map: Record<string, UnifiedQuote> = {};
     for (const quote of result.quotes) map[quote.key] = quote;
     return map;
   }, [result.quotes]);
+
+  /**
+   * Drop optimistic seeds once their `tempQuoteId` has been **confirmed by the
+   * on-chain read** — the linked row carries the polled struct (`raw.onchain`).
+   * Clearing on the notification link alone would drop the seed while the row is
+   * still `WRITE_ONCHAIN`, before any source but the notification holds it, so the
+   * row would flicker out until the RPC catches up.
+   */
+  useEffect(() => {
+    const settled = Object.keys(optimisticEntries)
+      .map(Number)
+      .filter((tempQuoteId) => {
+        const key = result.links[tempQuoteId];
+        return key !== undefined && byKey[key]?.raw.onchain !== undefined;
+      });
+    if (settled.length > 0) clearSettled(settled);
+  }, [result, byKey, optimisticEntries, clearSettled]);
 
   const isLoading =
     (active && includeVirtualAccounts && virtualAccounts.isLoading) ||

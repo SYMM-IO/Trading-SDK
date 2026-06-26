@@ -27,6 +27,14 @@ export interface SymmioSubgraphUrls {
 }
 
 /**
+ * Name of a configured subgraph endpoint (a key of {@link SymmioSubgraphUrls}).
+ *
+ * Used to pick which subgraph an action queries; today only `"analytics"` is
+ * wired, but the union grows automatically as endpoints are added.
+ */
+export type SymmioSubgraphName = keyof SymmioSubgraphUrls;
+
+/**
  * Solver / hedger configuration for a SYMMIO chain deployment.
  *
  * In this SDK a "solver" is the same actor that fronts the lowcap hedger REST
@@ -81,6 +89,12 @@ export interface SymmioNotificationsConfig {
   channel: string;
   /** Wire protocol the endpoint speaks. */
   protocol: SymmioNotificationsProtocol;
+  /**
+   * Base URL of the notification REST service that backs `searchNotifications`
+   * (`POST /api/v1/search`), e.g. `https://notification.rasa.capital/notification`.
+   * Optional — when unset, `searchNotifications` requires a per-call `baseUrl`.
+   */
+  searchUrl?: string;
 }
 
 /**

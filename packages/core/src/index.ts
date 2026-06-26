@@ -470,6 +470,7 @@ export {
   type SymmioPriceServiceConfig,
   type SymmioPriceServiceType,
   type SymmioSolverConfig,
+  type SymmioSubgraphName,
   type SymmioSubgraphUrls,
 } from "./core/chains";
 
@@ -573,6 +574,32 @@ export {
   type RawEnigmaPriceFrame,
   type WatchEnigmaPricesParameters,
 } from "./websocket/prices";
+/** 
+ * Notifications search
+ * --------------------
+ * `searchNotifications` queries the notification service's `POST /api/v1/search`
+ * endpoint — a free-form equality filter over stored notifications. Keys are
+ * matched exactly, whether top-level (`app_name`, …) or a dotted payload path
+ * (`data.temp_quote_id`, …); {@link NotificationSearchFilter} types the known
+ * keys while still accepting any string key. The REST counterpart to the live
+ * `watchNotifications` stream.
+ */
+export {
+  searchNotifications,
+  searchNotificationsQueryKey,
+  searchNotificationsQueryOptions,
+  type NotificationDocument,
+  type NotificationQueryValue,
+  type NotificationSearchField,
+  type NotificationSearchFilter,
+  type NotificationSearchResult,
+  type SearchNotificationsData,
+  type SearchNotificationsOptions,
+  type SearchNotificationsParameters,
+  type SearchNotificationsQueryKey,
+  type SearchNotificationsQueryOptions,
+  type SearchNotificationsReturnType,
+} from "./notifications";
 
 /**
  * Markets
@@ -609,6 +636,24 @@ export {
   type GetLockedParamsReturnType,
   type SolverLockedParams,
 } from "./solvers/locked-params";
+
+/**
+ * Solver error codes
+ * ------------------
+ * Fetch the solver's `/error_codes` map to resolve the numeric `errorCode`
+ * reported on a failed open/close notification to a human-readable message.
+ */
+export {
+  getSolverErrorCodes,
+  getSolverErrorCodesQueryKey,
+  getSolverErrorCodesQueryOptions,
+  type GetSolverErrorCodesData,
+  type GetSolverErrorCodesOptions,
+  type GetSolverErrorCodesParameters,
+  type GetSolverErrorCodesQueryKey,
+  type GetSolverErrorCodesQueryOptions,
+  type GetSolverErrorCodesReturnType,
+} from "./solvers/error-codes";
 
 /**
  * Muon oracle service
@@ -945,6 +990,7 @@ export {
   calculateQuoteLeverage,
   calculateQuotePnl,
   calculateQuoteUpnl,
+  classifyQuoteNotificationAction,
   fingerprintQuote,
   getSubAccountQuotes,
   getSubAccountQuotesQueryKey,
@@ -976,6 +1022,7 @@ export {
   type QuoteGroupKeyFn,
   type QuoteGroupMetrics,
   type QuoteGroupingStrategy,
+  type QuoteNotificationActionKind,
   type QuoteOrigin,
   type ReconcileQuotesInput,
   type ReconcileQuotesResult,
@@ -991,4 +1038,50 @@ export {
   type CalculateQuoteUpnlReturnType,
   type ToUnifiedQuoteFromInstantCloseContext,
   type UnifiedQuote,
+} from "./quotes";
+
+/**
+ * Subgraph layer (GraphQL)
+ * ------------------------
+ * Low-level escape hatch for running typed GraphQL documents against a chain's
+ * configured subgraph (default `analytics`) over the SDK's axios transport.
+ * Curated subgraph reads (e.g. `getQuoteHistory`) are built on this.
+ */
+export {
+  getQuerySubgraphQueryKey,
+  querySubgraph,
+  querySubgraphQueryOptions,
+  type QuerySubgraphOptions,
+  type QuerySubgraphParameters,
+  type QuerySubgraphQueryKey,
+  type QuerySubgraphQueryOptions,
+  type QuerySubgraphReturnType,
+  type SubgraphDocument,
+} from "./symmio-subgraph";
+
+/**
+ * Quote history (subgraph)
+ * ------------------------
+ * `getQuoteHistory` reads a subaccount's closed/liquidated quotes from the
+ * analytics subgraph's immutable `quoteEvents`, overlaying each event's frozen
+ * metadata snapshot so multiple partial-close rows stay individually accurate.
+ */
+export {
+  QuoteCloseEventType,
+  QuoteCloseType,
+  closeTypeToEventTypes,
+  eventTypeToCloseType,
+  eventTypeToQuoteStatus,
+  getQuoteHistory,
+  getQuoteHistoryQueryKey,
+  getQuoteHistoryQueryOptions,
+  toQuoteHistoryRow,
+  type GetQuoteHistoryData,
+  type GetQuoteHistoryOptions,
+  type GetQuoteHistoryParameters,
+  type GetQuoteHistoryQueryKey,
+  type GetQuoteHistoryQueryOptions,
+  type GetQuoteHistoryReturnType,
+  type QuoteHistoryRow,
+  type RawQuoteEventRow,
 } from "./quotes";

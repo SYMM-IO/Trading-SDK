@@ -7,3 +7,5 @@ export * from "./use-party-a-pending-quotes";
 export * from "./use-quote";
 export * from "./use-quote-platform-fee";
 export * from "./use-quote-upnl-and-pnl";
+export * from "./use-quote-history";
+export * from "./use-subgraph-query";
