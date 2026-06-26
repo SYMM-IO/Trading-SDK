@@ -624,6 +624,24 @@ export {
 } from "./solvers/locked-params";
 
 /**
+ * Solver error codes
+ * ------------------
+ * Fetch the solver's `/error_codes` map to resolve the numeric `errorCode`
+ * reported on a failed open/close notification to a human-readable message.
+ */
+export {
+  getSolverErrorCodes,
+  getSolverErrorCodesQueryKey,
+  getSolverErrorCodesQueryOptions,
+  type GetSolverErrorCodesData,
+  type GetSolverErrorCodesOptions,
+  type GetSolverErrorCodesParameters,
+  type GetSolverErrorCodesQueryKey,
+  type GetSolverErrorCodesQueryOptions,
+  type GetSolverErrorCodesReturnType,
+} from "./solvers/error-codes";
+
+/**
  * Muon oracle service
  * -------------------
  * Fetch the Muon `uPnl_A` attestation `removeMargin` requires, assembled into a

@@ -6,6 +6,7 @@ import { EnigmaInstantCloseCard } from "./enigma-instant-close-card";
 import { EnigmaInstantOpenCard } from "./enigma-instant-open-card";
 import { ReadInstantOpensCard } from "./read-instant-opens-card";
 import { ReadLockedParams } from "./read-locked-params";
+import { SolverErrorCodesCard } from "./solver-error-codes-card";
 
 /**
  * Solvers page. The solver is an off-chain API (not a contract), so it sits
@@ -21,10 +22,11 @@ export function SolversShell() {
         description="The solver is an off-chain service, not a contract. Fetch tradable markets (contract symbols) — symbols, leverage, fees, and state — straight from the chain's solver."
       />
 
-      <MethodGroup label="Reads" count={4} fullWidth>
+      <MethodGroup label="Reads" count={5} fullWidth>
         <ReadLockedParams />
         <ReadMarkets />
         <ReadInstantOpensCard />
+        <SolverErrorCodesCard />
         <QuotesCard />
       </MethodGroup>
 

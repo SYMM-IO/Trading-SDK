@@ -309,6 +309,19 @@ export {
 } from "./markets";
 
 /**
+ * Solver error-code hooks
+ * -----------------------
+ * Fetch the solver's `/error_codes` map and resolve a single numeric code (e.g.
+ * the `errorCode` on a failed open/close notification) to its message.
+ */
+export {
+  useSolverErrorCodes,
+  useSolverErrorMessage,
+  type UseSolverErrorCodesParameters,
+  type UseSolverErrorCodesReturnType,
+} from "./error-codes";
+
+/**
  * Quote hooks
  * -----------
  * Read open positions and quotes from the SYMMIO core. `usePartyAOpenPositions`
