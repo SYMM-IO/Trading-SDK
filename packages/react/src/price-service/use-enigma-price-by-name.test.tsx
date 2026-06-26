@@ -8,9 +8,7 @@ describe("useEnigmaPriceByName", () => {
     const fake = createFakeWebSocket();
     const { config } = createMockSymmioConfig({ webSocketConstructor: fake.WebSocket });
 
-    const { result } = renderHookWithProviders(() =>
-      useEnigmaPriceByName({ config, name: "BTCUSDT", enabled: false }),
-    );
+    const { result } = renderHookWithProviders(() => useEnigmaPriceByName({ config, name: "BTCUSDT", enabled: false }));
 
     expect(fake.instances.length).toBe(0);
     expect(result.current.markPrice).toBeNull();

@@ -1,12 +1,12 @@
 "use client";
 
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import {
   getAccountBalanceOfQueryOptions,
   type ConfigParameter,
   type GetAccountBalanceOfOptions,
   type GetAccountBalanceOfReturnType,
 } from "@theoldvarorg/core";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioConfig } from "../provider/use-symmio-config";

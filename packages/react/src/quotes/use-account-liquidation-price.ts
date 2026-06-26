@@ -3,13 +3,13 @@
 import {
   calculateLiquidationPrice,
   PositionType,
-  type ConfigParameter,
   type AccountPosition,
+  type ConfigParameter,
 } from "@theoldvarorg/core";
 import { useMemo } from "react";
+import type { Address } from "viem";
 import { useAccountBalanceInfo } from "../account-layer/use-account-balance-info";
 import { usePartyAOpenPositions } from "./use-party-a-open-positions";
-import type { Address } from "viem";
 
 /**
  * Parameters for {@link useAccountLiquidationPrice}.

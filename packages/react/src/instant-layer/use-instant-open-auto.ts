@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import {
   getInstantOpensQueryKey,
   instantOpenAutoMutationOptions,
@@ -7,7 +8,6 @@ import {
   type InstantOpenReturnType,
   type PrepareInstantOpenParameters,
 } from "@theoldvarorg/core";
-import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";

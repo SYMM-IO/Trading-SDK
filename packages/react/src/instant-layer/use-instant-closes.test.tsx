@@ -1,5 +1,5 @@
-import { type GetInstantClosesReturnType } from "@theoldvarorg/core";
 import { waitFor } from "@testing-library/react";
+import { type GetInstantClosesReturnType } from "@theoldvarorg/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 

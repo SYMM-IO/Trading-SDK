@@ -1,5 +1,5 @@
-import { getMarketsQueryKey, getUserSubAccountsQueryKey } from "@theoldvarorg/core";
 import type { Query, QueryKey } from "@tanstack/react-query";
+import { getMarketsQueryKey, getUserSubAccountsQueryKey } from "@theoldvarorg/core";
 import { hyperEvm, mainnet } from "viem/chains";
 import { describe, expect, it } from "vitest";
 import { predicateMatch } from "./predicate-match";

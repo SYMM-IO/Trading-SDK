@@ -1,12 +1,12 @@
 "use client";
 
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import {
   getSubAccountVirtualNonceQueryOptions,
   type ConfigParameter,
   type GetSubAccountVirtualNonceOptions,
   type GetSubAccountVirtualNonceReturnType,
 } from "@theoldvarorg/core";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";

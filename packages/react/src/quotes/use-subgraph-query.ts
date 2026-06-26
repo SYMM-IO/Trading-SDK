@@ -1,7 +1,7 @@
 "use client";
 
-import { querySubgraphQueryOptions, type ConfigParameter, type QuerySubgraphOptions } from "@theoldvarorg/core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { querySubgraphQueryOptions, type ConfigParameter, type QuerySubgraphOptions } from "@theoldvarorg/core";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";

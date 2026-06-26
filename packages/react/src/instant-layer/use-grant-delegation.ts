@@ -1,12 +1,12 @@
 "use client";
 
+import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import {
   getDelegationExpiryQueryKey,
   getIsDelegationActiveQueryKey,
   grantDelegationMutationOptions,
   type GrantDelegationParameters,
 } from "@theoldvarorg/core";
-import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioConfig } from "../provider/use-symmio-config";

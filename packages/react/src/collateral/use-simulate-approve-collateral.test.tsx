@@ -1,5 +1,5 @@
-import { getChainConfig, SymmioSupportedChainId } from "@theoldvarorg/core";
 import { act, waitFor } from "@testing-library/react";
+import { getChainConfig, SymmioSupportedChainId } from "@theoldvarorg/core";
 import { describe, expect, it } from "vitest";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";

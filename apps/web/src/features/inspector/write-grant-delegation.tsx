@@ -3,12 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import {
-  useGrantDelegation,
-  useSimulateGrantDelegation,
-  useSymmioConfig,
-  useWalletAccount,
-} from "@theoldvarorg/react";
+import { useGrantDelegation, useSimulateGrantDelegation, useSymmioConfig, useWalletAccount } from "@theoldvarorg/react";
 import { Button } from "@theoldvarorg/ui/components/button";
 import { Combobox } from "@theoldvarorg/ui/components/combobox";
 import { DateTimePicker } from "@theoldvarorg/ui/components/date-time-picker";

@@ -574,7 +574,7 @@ export {
   type RawEnigmaPriceFrame,
   type WatchEnigmaPricesParameters,
 } from "./websocket/prices";
-/** 
+/**
  * Notifications search
  * --------------------
  * `searchNotifications` queries the notification service's `POST /api/v1/search`
@@ -1008,6 +1008,14 @@ export {
   toUnifiedQuoteFromInstantOpen,
   toUnifiedQuoteFromOnchain,
   type AccountPosition,
+  type CalculateClosePlatformFeeInputs,
+  type CalculateLiquidationPriceInputs,
+  type CalculateOpenPlatformFeeInputs,
+  type CalculateQuoteLeverageParameters,
+  type CalculateQuotePnlInputs,
+  type CalculateQuotePnlReturnType,
+  type CalculateQuoteUpnlInputs,
+  type CalculateQuoteUpnlReturnType,
   type GetSubAccountQuotesData,
   type GetSubAccountQuotesOptions,
   type GetSubAccountQuotesParameters,
@@ -1028,14 +1036,6 @@ export {
   type ReconcileQuotesResult,
   type ResolveQuoteAccountsParameters,
   type ResolveQuoteAccountsResult,
-  type CalculateClosePlatformFeeInputs,
-  type CalculateLiquidationPriceInputs,
-  type CalculateOpenPlatformFeeInputs,
-  type CalculateQuoteLeverageParameters,
-  type CalculateQuotePnlInputs,
-  type CalculateQuotePnlReturnType,
-  type CalculateQuoteUpnlInputs,
-  type CalculateQuoteUpnlReturnType,
   type ToUnifiedQuoteFromInstantCloseContext,
   type UnifiedQuote,
 } from "./quotes";

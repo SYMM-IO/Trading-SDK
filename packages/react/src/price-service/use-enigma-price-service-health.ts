@@ -1,12 +1,12 @@
 "use client";
 
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import {
   getEnigmaPriceServiceHealthQueryOptions,
   type ConfigParameter,
   type GetEnigmaPriceServiceHealthOptions,
   type GetEnigmaPriceServiceHealthReturnType,
 } from "@theoldvarorg/core";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";

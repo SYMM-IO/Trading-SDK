@@ -1,5 +1,5 @@
-import { getChainConfig, SymmioSupportedChainId } from "@theoldvarorg/core";
 import { waitFor } from "@testing-library/react";
+import { getChainConfig, SymmioSupportedChainId } from "@theoldvarorg/core";
 import { describe, expect, it } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_EOA } from "../test/test-utils";
 import { useVirtualAccountsAddressesOfSubAccount } from "./use-virtual-accounts-addresses-of-sub-account";

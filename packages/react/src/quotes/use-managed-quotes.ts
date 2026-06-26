@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   classifyQuoteNotificationAction,
   getInstantClosesQueryKey,
@@ -21,7 +22,6 @@ import {
   type SocketStatus,
   type UnifiedQuote,
 } from "@theoldvarorg/core";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAddress, type Address } from "viem";
 import { useVirtualAccountsAddressesOfSubAccount } from "../account-layer/use-virtual-accounts-addresses-of-sub-account";
@@ -483,7 +483,7 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
       refetch: () => results.forEach((result) => result.refetch()),
     }),
   });
-  console.log('openPosition:', openPositions)
+  console.log("openPosition:", openPositions);
   /** Pending quote ids, fanned out across every account, then hydrated per id. */
   const pendingQuoteIds = useQueries({
     queries: accounts.map((account) => {

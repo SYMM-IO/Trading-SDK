@@ -1,3 +1,5 @@
+import type { Query, QueryKey } from "@tanstack/react-query";
+import { act, waitFor } from "@testing-library/react";
 import {
   PositionType,
   getInstantClosesQueryKey,
@@ -5,8 +7,6 @@ import {
   type InstantOpenParameters,
   type InstantOpenReturnType,
 } from "@theoldvarorg/core";
-import type { Query, QueryKey } from "@tanstack/react-query";
-import { act, waitFor } from "@testing-library/react";
 import { arbitrum, hyperEvm } from "viem/chains";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SymmioRequestError } from "../errors/symmio-request-error";

@@ -4,8 +4,8 @@ import { SymmError } from "../../shared/errors/symm-error";
 import { createFakeWebSocket } from "../../shared/test/fake-web-socket";
 import { mockConfig } from "../../shared/test/mock-config";
 import type { SocketStatus } from "../socket/socket-status";
-import { watchEnigmaPrices } from "./watch-enigma-prices";
 import type { EnigmaPriceTick } from "./types";
+import { watchEnigmaPrices } from "./watch-enigma-prices";
 
 describe("watchEnigmaPrices", () => {
   it("opens the price socket and delivers normalized ticks", () => {

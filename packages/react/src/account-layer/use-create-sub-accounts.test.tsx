@@ -1,5 +1,5 @@
-import { SubAccountIsolationType, type CreateSubAccountsParameters } from "@theoldvarorg/core";
 import { act, waitFor } from "@testing-library/react";
+import { SubAccountIsolationType, type CreateSubAccountsParameters } from "@theoldvarorg/core";
 import type { Address } from "viem";
 import { describe, expect, it } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_TX_HASH } from "../test/test-utils";

@@ -1,5 +1,5 @@
-import { getChainConfig, symmioAbi, SymmioSupportedChainId, type SingleUpnlSig } from "@theoldvarorg/core";
 import { act } from "@testing-library/react";
+import { getChainConfig, symmioAbi, SymmioSupportedChainId, type SingleUpnlSig } from "@theoldvarorg/core";
 import { encodeFunctionData, type Address } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_TX_HASH } from "../test/test-utils";

@@ -1,9 +1,9 @@
 import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
+import type { Unwatch } from "../notifications/watch-notifications";
 import { createReconnectingSocket } from "../socket/create-reconnecting-socket";
 import { createSocketPool, type SocketPool } from "../socket/socket-pool";
 import type { SocketStatus } from "../socket/socket-status";
-import type { Unwatch } from "../notifications/watch-notifications";
 import { parsePriceFrame } from "./parse-price-frame";
 import type { EnigmaPriceTick } from "./types";
 

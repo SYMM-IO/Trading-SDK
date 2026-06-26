@@ -1,12 +1,12 @@
 "use client";
 
+import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import {
   simulateDepositAndAllocateForAccountMutationOptions,
   type ConfigParameter,
   type SimulateDepositAndAllocateForAccountParameters,
   type SimulateDepositAndAllocateForAccountReturnType,
 } from "@theoldvarorg/core";
-import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import { useConnection } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";

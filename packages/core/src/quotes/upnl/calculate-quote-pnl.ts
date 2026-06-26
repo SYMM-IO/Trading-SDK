@@ -54,7 +54,12 @@ export function calculateQuotePnl(inputs: CalculateQuotePnlInputs): CalculateQuo
   const leverage = Number(inputs.leverage);
   const sideSign = inputs.positionType === PositionType.SHORT ? -1 : 1;
 
-  if (!Number.isFinite(closedAmount) || !Number.isFinite(closedPrice) || !Number.isFinite(openedPrice) || closedAmount <= 0) {
+  if (
+    !Number.isFinite(closedAmount) ||
+    !Number.isFinite(closedPrice) ||
+    !Number.isFinite(openedPrice) ||
+    closedAmount <= 0
+  ) {
     return { pnl: "0", pnlPercent: "0" };
   }
 

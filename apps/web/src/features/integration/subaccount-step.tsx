@@ -4,6 +4,7 @@ import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { ListSkeleton } from "@/components/skeletons";
 import { TxReceipt } from "@/components/tx-result";
 import { formatUsd } from "@/lib/format";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   SubAccountIsolationType,
   useAccountBalanceOf,
@@ -17,7 +18,6 @@ import { Input } from "@theoldvarorg/ui/components/input";
 import { Spinner } from "@theoldvarorg/ui/components/spinner";
 import { cn } from "@theoldvarorg/ui/lib/utils";
 import { shortenAddress } from "@theoldvarorg/utils";
-import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 

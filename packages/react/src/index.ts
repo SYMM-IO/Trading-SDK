@@ -340,9 +340,9 @@ export {
   usePartyAOpenPositions,
   usePartyAPendingQuotes,
   useQuote,
+  useQuoteHistory,
   useQuotePlatformFee,
   useQuoteUpnlAndPnl,
-  useQuoteHistory,
   useSubgraphQuery,
   type ManagedQuotesSources,
   type OptimisticQuotesStoreState,
@@ -388,12 +388,12 @@ export { useFeeForUser, type UseFeeForUserParameters, type UseFeeForUserReturnTy
  * Read Enigma price-service prices, metadata, symbols info, and health.
  */
 export {
+  useEnigmaPriceByMarketId,
+  useEnigmaPriceByName,
   useEnigmaPriceServiceHealth,
   useEnigmaPriceServiceMetadata,
   useEnigmaPriceServicePricesByAddresses,
   useEnigmaPriceServicePricesByNames,
-  useEnigmaPriceByMarketId,
-  useEnigmaPriceByName,
   useEnigmaPriceServiceSymbolsInfo,
   useEnigmaPrices,
   type UseEnigmaPriceByMarketIdParameters,

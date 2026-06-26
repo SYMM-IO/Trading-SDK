@@ -115,137 +115,137 @@ function CalculatedHeader({ label, formula }: { label: string; formula: ReactNod
 
 function buildColumns(marketNameById: Map<string, string>): DataTableColumn<QuoteGroup>[] {
   return [
-  {
-    id: "market",
-    header: "Market",
-    widthClassName: "min-w-28",
-    cell: (group) => {
-      const label =
+    {
+      id: "market",
+      header: "Market",
+      widthClassName: "min-w-28",
+      cell: (group) => {
+        const label =
+          group.by.symbolId === undefined
+            ? EMPTY
+            : (marketNameById.get(String(group.by.symbolId)) ?? String(group.by.symbolId));
+        return (
+          <span className="flex flex-col leading-tight">
+            <span className="text-foreground font-mono whitespace-nowrap">{label}</span>
+            {group.vaAddress ? (
+              <span className="text-muted-foreground/80 font-mono text-[0.7rem]" title={group.vaAddress}>
+                {truncateAddress(group.vaAddress)}
+              </span>
+            ) : null}
+          </span>
+        );
+      },
+      sortAccessor: (group) =>
         group.by.symbolId === undefined
-          ? EMPTY
-          : (marketNameById.get(String(group.by.symbolId)) ?? String(group.by.symbolId));
-      return (
-        <span className="flex flex-col leading-tight">
-          <span className="text-foreground font-mono whitespace-nowrap">{label}</span>
-          {group.vaAddress ? (
-            <span className="text-muted-foreground/80 font-mono text-[0.7rem]" title={group.vaAddress}>
-              {truncateAddress(group.vaAddress)}
-            </span>
+          ? undefined
+          : (marketNameById.get(String(group.by.symbolId)) ?? String(group.by.symbolId)),
+    },
+    {
+      id: "side",
+      header: "Side",
+      cell: (group) =>
+        group.by.positionType === undefined ? (
+          <span className="text-muted-foreground">{EMPTY}</span>
+        ) : (
+          <Badge variant={group.by.positionType === PositionType.LONG ? "positive" : "destructive"}>
+            {PositionType[group.by.positionType] ?? String(group.by.positionType)}
+          </Badge>
+        ),
+      sortAccessor: (group) => group.by.positionType,
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: (group) => <QuoteLifecycleBadge lifecycle={groupLifecycle(group)} />,
+      sortAccessor: (group) => groupLifecycle(group),
+    },
+    {
+      id: "quotes",
+      header: "Quotes",
+      align: "end",
+      cell: (group) => (
+        <span className="inline-flex items-center gap-1">
+          <span className="text-foreground font-mono">{group.metrics.quoteCount}</span>
+          {group.isAggregate ? (
+            <Badge variant="secondary" className="text-[0.65rem]">
+              agg
+            </Badge>
           ) : null}
         </span>
-      );
-    },
-    sortAccessor: (group) =>
-      group.by.symbolId === undefined
-        ? undefined
-        : (marketNameById.get(String(group.by.symbolId)) ?? String(group.by.symbolId)),
-  },
-  {
-    id: "side",
-    header: "Side",
-    cell: (group) =>
-      group.by.positionType === undefined ? (
-        <span className="text-muted-foreground">{EMPTY}</span>
-      ) : (
-        <Badge variant={group.by.positionType === PositionType.LONG ? "positive" : "destructive"}>
-          {PositionType[group.by.positionType] ?? String(group.by.positionType)}
-        </Badge>
       ),
-    sortAccessor: (group) => group.by.positionType,
-  },
-  {
-    id: "status",
-    header: "Status",
-    cell: (group) => <QuoteLifecycleBadge lifecycle={groupLifecycle(group)} />,
-    sortAccessor: (group) => groupLifecycle(group),
-  },
-  {
-    id: "quotes",
-    header: "Quotes",
-    align: "end",
-    cell: (group) => (
-      <span className="inline-flex items-center gap-1">
-        <span className="text-foreground font-mono">{group.metrics.quoteCount}</span>
-        {group.isAggregate ? (
-          <Badge variant="secondary" className="text-[0.65rem]">
-            agg
-          </Badge>
-        ) : null}
-      </span>
-    ),
-    sortAccessor: (group) => group.metrics.quoteCount,
-  },
-  {
-    id: "openQuantity",
-    header: (
-      <CalculatedHeader
-        label="Open qty"
-        formula="Open qty = Σ (quantity − closedAmount) across the group's quotes — the live size still on the book."
-      />
-    ),
-    align: "end",
-    widthClassName: NUMERIC_COLUMN_WIDTH,
-    cell: (group) => formatFixedPoint(group.metrics.openQuantity),
-    sortAccessor: (group) => Number(group.metrics.openQuantity),
-    cellClassName: "text-foreground font-mono",
-  },
-  {
-    id: "weightedOpenPrice",
-    header: (
-      <CalculatedHeader
-        label="Avg price"
-        formula="Weighted avg open price = Σ(openQty × price) ÷ Σ openQty, where price is the opened price (else the requested one). Hidden until every quote in the group has a settled open price."
-      />
-    ),
-    align: "end",
-    widthClassName: NUMERIC_COLUMN_WIDTH,
-    cell: (group) => formatOptionalFixedPoint(group.metrics.weightedOpenPrice),
-    sortAccessor: (group) =>
-      group.metrics.weightedOpenPrice === undefined ? undefined : Number(group.metrics.weightedOpenPrice),
-    cellClassName: "text-foreground font-mono",
-  },
-  {
-    id: "notional",
-    header: (
-      <CalculatedHeader
-        label="Notional"
-        formula="Notional = Σ (openQty × price) across the group — the position's notional value at its open price."
-      />
-    ),
-    align: "end",
-    widthClassName: NUMERIC_COLUMN_WIDTH,
-    cell: (group) => formatFixedPoint(group.metrics.notional),
-    sortAccessor: (group) => Number(group.metrics.notional),
-    cellClassName: "text-muted-foreground font-mono",
-  },
-  {
-    id: "margin",
-    header: (
-      <CalculatedHeader
-        label="Margin (cva+lf)"
-        formula="Margin = Σ CVA + Σ LF locked across the group's quotes (the partyA collateral at risk, excluding maintenance margin)."
-      />
-    ),
-    align: "end",
-    widthClassName: NUMERIC_COLUMN_WIDTH,
-    cell: (group) => formatFixedPoint(groupMargin(group)),
-    sortAccessor: (group) => Number(groupMargin(group)),
-    cellClassName: "text-muted-foreground font-mono",
-  },
-  {
-    id: "leverage",
-    header: (
-      <CalculatedHeader
-        label="Leverage"
-        formula="Leverage = notional ÷ Σ (CVA + LF + partyAMM) — the group's blended leverage against its partyA-locked margin."
-      />
-    ),
-    align: "end",
-    widthClassName: "min-w-20",
-    cell: (group) => formatLeverage(group.metrics.leverage),
-    sortAccessor: (group) => (group.metrics.leverage === undefined ? undefined : Number(group.metrics.leverage)),
-    cellClassName: "text-foreground font-mono",
-  },
+      sortAccessor: (group) => group.metrics.quoteCount,
+    },
+    {
+      id: "openQuantity",
+      header: (
+        <CalculatedHeader
+          label="Open qty"
+          formula="Open qty = Σ (quantity − closedAmount) across the group's quotes — the live size still on the book."
+        />
+      ),
+      align: "end",
+      widthClassName: NUMERIC_COLUMN_WIDTH,
+      cell: (group) => formatFixedPoint(group.metrics.openQuantity),
+      sortAccessor: (group) => Number(group.metrics.openQuantity),
+      cellClassName: "text-foreground font-mono",
+    },
+    {
+      id: "weightedOpenPrice",
+      header: (
+        <CalculatedHeader
+          label="Avg price"
+          formula="Weighted avg open price = Σ(openQty × price) ÷ Σ openQty, where price is the opened price (else the requested one). Hidden until every quote in the group has a settled open price."
+        />
+      ),
+      align: "end",
+      widthClassName: NUMERIC_COLUMN_WIDTH,
+      cell: (group) => formatOptionalFixedPoint(group.metrics.weightedOpenPrice),
+      sortAccessor: (group) =>
+        group.metrics.weightedOpenPrice === undefined ? undefined : Number(group.metrics.weightedOpenPrice),
+      cellClassName: "text-foreground font-mono",
+    },
+    {
+      id: "notional",
+      header: (
+        <CalculatedHeader
+          label="Notional"
+          formula="Notional = Σ (openQty × price) across the group — the position's notional value at its open price."
+        />
+      ),
+      align: "end",
+      widthClassName: NUMERIC_COLUMN_WIDTH,
+      cell: (group) => formatFixedPoint(group.metrics.notional),
+      sortAccessor: (group) => Number(group.metrics.notional),
+      cellClassName: "text-muted-foreground font-mono",
+    },
+    {
+      id: "margin",
+      header: (
+        <CalculatedHeader
+          label="Margin (cva+lf)"
+          formula="Margin = Σ CVA + Σ LF locked across the group's quotes (the partyA collateral at risk, excluding maintenance margin)."
+        />
+      ),
+      align: "end",
+      widthClassName: NUMERIC_COLUMN_WIDTH,
+      cell: (group) => formatFixedPoint(groupMargin(group)),
+      sortAccessor: (group) => Number(groupMargin(group)),
+      cellClassName: "text-muted-foreground font-mono",
+    },
+    {
+      id: "leverage",
+      header: (
+        <CalculatedHeader
+          label="Leverage"
+          formula="Leverage = notional ÷ Σ (CVA + LF + partyAMM) — the group's blended leverage against its partyA-locked margin."
+        />
+      ),
+      align: "end",
+      widthClassName: "min-w-20",
+      cell: (group) => formatLeverage(group.metrics.leverage),
+      sortAccessor: (group) => (group.metrics.leverage === undefined ? undefined : Number(group.metrics.leverage)),
+      cellClassName: "text-foreground font-mono",
+    },
   ];
 }
 

@@ -1,12 +1,12 @@
 "use client";
 
+import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import {
   getMuonUpnlAWithSymbolPrice,
   type ConfigParameter,
   type GetMuonUpnlAWithSymbolPriceParameters,
   type GetMuonUpnlAWithSymbolPriceReturnType,
 } from "@theoldvarorg/core";
-import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";

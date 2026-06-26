@@ -1,5 +1,5 @@
-import type { GetMuonPriceReturnType } from "@theoldvarorg/core";
 import { act } from "@testing-library/react";
+import type { GetMuonPriceReturnType } from "@theoldvarorg/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 import { useMuonPrice } from "./use-muon-price";

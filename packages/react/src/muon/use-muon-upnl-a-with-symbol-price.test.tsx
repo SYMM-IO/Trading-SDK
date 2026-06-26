@@ -1,5 +1,5 @@
-import type { GetMuonUpnlAWithSymbolPriceReturnType } from "@theoldvarorg/core";
 import { act } from "@testing-library/react";
+import type { GetMuonUpnlAWithSymbolPriceReturnType } from "@theoldvarorg/core";
 import type { Address } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";

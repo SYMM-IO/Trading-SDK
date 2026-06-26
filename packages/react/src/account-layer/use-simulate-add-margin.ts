@@ -1,12 +1,12 @@
 "use client";
 
+import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import {
   simulateAddMarginMutationOptions,
   type ConfigParameter,
   type SimulateAddMarginParameters,
   type SimulateAddMarginReturnType,
 } from "@theoldvarorg/core";
-import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import { useConnection } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";

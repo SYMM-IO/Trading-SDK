@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  calculateClosePlatformFee,
-  calculateOpenPlatformFee,
-  type UnifiedQuote,
-} from "@theoldvarorg/core";
+import { calculateClosePlatformFee, calculateOpenPlatformFee, type UnifiedQuote } from "@theoldvarorg/core";
 import { useMemo } from "react";
 
 /**
@@ -55,10 +51,10 @@ export function useQuotePlatformFee(parameters: UseQuotePlatformFeeParameters): 
     const closeFee =
       closedAmount > 0n
         ? calculateClosePlatformFee({
-          quantity: closedAmount,
-          closePrice: quote.avgClosedPrice ?? 0n,
-          closeFeeRate: quote.closeFee ?? 0n,
-        })
+            quantity: closedAmount,
+            closePrice: quote.avgClosedPrice ?? 0n,
+            closeFeeRate: quote.closeFee ?? 0n,
+          })
         : 0n;
 
     return { openFee, closeFee };

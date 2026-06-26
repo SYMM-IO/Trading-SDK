@@ -1,3 +1,4 @@
+import { waitFor } from "@testing-library/react";
 import {
   OrderType,
   PositionType,
@@ -6,7 +7,6 @@ import {
   QuoteStatus,
   type GetQuoteHistoryReturnType,
 } from "@theoldvarorg/core";
-import { waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 

@@ -1,12 +1,12 @@
 "use client";
 
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import {
   getPartyAOpenPositionsQueryOptions,
   type ConfigParameter,
   type GetPartyAOpenPositionsOptions,
   type GetPartyAOpenPositionsReturnType,
 } from "@theoldvarorg/core";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";

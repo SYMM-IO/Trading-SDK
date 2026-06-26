@@ -2,13 +2,6 @@
  * Test-only render helpers. Compiled out of the published bundle by
  * `vite.config.ts`'s dts `exclude` and is not exported from `src/index.ts`.
  */
-import {
-  createConfig,
-  type Config,
-  type SymmioWalletClient,
-  type WebSocketConstructor,
-  type WebSocketLike,
-} from "@theoldvarorg/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   render,
@@ -18,6 +11,13 @@ import {
   type RenderOptions,
   type RenderResult,
 } from "@testing-library/react";
+import {
+  createConfig,
+  type Config,
+  type SymmioWalletClient,
+  type WebSocketConstructor,
+  type WebSocketLike,
+} from "@theoldvarorg/core";
 import { type PropsWithChildren, type ReactElement } from "react";
 import type { Account, Chain, Hash, PublicClient } from "viem";
 import { http } from "viem";

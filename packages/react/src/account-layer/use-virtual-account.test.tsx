@@ -1,5 +1,5 @@
-import { getChainConfig, SymmioSupportedChainId, VIRTUAL_ACCOUNT_ISOLATION_TYPE } from "@theoldvarorg/core";
 import { waitFor } from "@testing-library/react";
+import { getChainConfig, SymmioSupportedChainId, VIRTUAL_ACCOUNT_ISOLATION_TYPE } from "@theoldvarorg/core";
 import type { Address, Hex } from "viem";
 import { describe, expect, it } from "vitest";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
