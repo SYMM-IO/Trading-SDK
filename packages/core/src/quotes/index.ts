@@ -3,6 +3,7 @@ export * from "./fees";
 export * from "./fingerprint";
 export * from "./get-sub-account-quotes";
 export * from "./grouping";
+export * from "./liquidation";
 export * from "./open-quantity";
 export * from "./reconcile-quotes";
 export * from "./resolve-quote-accounts";

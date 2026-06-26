@@ -320,6 +320,7 @@ export {
  * / `QuoteLifecycle` value types from `@symm-frontier/core`.
  */
 export {
+  useAccountLiquidationPrice,
   useGroupedQuotes,
   useManagedQuotes,
   useOptimisticQuotesStore,
@@ -330,6 +331,8 @@ export {
   useQuoteUpnlAndPnl,
   type ManagedQuotesSources,
   type OptimisticQuotesStoreState,
+  type UseAccountLiquidationPriceParameters,
+  type UseAccountLiquidationPriceReturnType,
   type UseGroupedQuotesParameters,
   type UseGroupedQuotesResult,
   type UseManagedQuotesParameters,

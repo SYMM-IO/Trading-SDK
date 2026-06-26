@@ -1,6 +1,6 @@
-import { WEI_DECIMALS } from "@/lib/format";
+import { DEFAULT_PRICE_PRECISION, DEFAULT_QUANTITY_PRECISION, WEI_DECIMALS } from "@/lib/format";
 import { OrderType, PositionType, QuoteLifecycle, type UnifiedQuote } from "@symm-frontier/core";
-import { useQuotePlatformFee, useQuoteUpnlAndPnl } from "@symm-frontier/react";
+import { useAccountLiquidationPrice, useMarkets, useQuotePlatformFee, useQuoteUpnlAndPnl } from "@symm-frontier/react";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { formatTokenAmount } from "@symm-frontier/utils";
 import type { ReactNode } from "react";
@@ -14,14 +14,14 @@ export function truncateAddress(address: string): string {
   return address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address;
 }
 
-/** Format an 18-decimal-wei amount the way the rest of the quotes feature does. */
-function formatFixedPoint(raw: bigint): string {
-  return formatTokenAmount(raw, WEI_DECIMALS, { maxFractionDigits: 6 });
+/** Format an 18-decimal-wei amount with the requested decimal precision. */
+function formatFixedPoint(raw: bigint, precision: number): string {
+  return formatTokenAmount(raw, WEI_DECIMALS, { maxFractionDigits: precision });
 }
 
 /** Format an optional wei amount, falling back to {@link EMPTY}. */
-function formatOptionalFixedPoint(raw?: bigint): string {
-  return raw === undefined ? EMPTY : formatFixedPoint(raw);
+function formatOptionalFixedPoint(raw: bigint | undefined, precision: number): string {
+  return raw === undefined ? EMPTY : formatFixedPoint(raw, precision);
 }
 
 /** A single node on the provenance rail. */
@@ -38,7 +38,7 @@ interface JourneyStage {
  * price, an anchored on-chain id, a close, a failure). The last stage is the
  * current state. This is what makes the optimistic→on-chain story legible.
  */
-function buildJourney(quote: UnifiedQuote): JourneyStage[] {
+function buildJourney(quote: UnifiedQuote, pricePrecision: number, quantityPrecision: number): JourneyStage[] {
   const stages: JourneyStage[] = [];
   const observedOrigin = quote.tempQuoteId !== undefined || quote.raw.instantOpen !== undefined;
   if (observedOrigin) {
@@ -50,7 +50,12 @@ function buildJourney(quote: UnifiedQuote): JourneyStage[] {
     });
   }
   if (quote.openedPrice !== undefined && quote.openedPrice > 0n) {
-    stages.push({ key: "price", label: "Price filled", detail: formatFixedPoint(quote.openedPrice), tone: "done" });
+    stages.push({
+      key: "price",
+      label: "Price filled",
+      detail: formatFixedPoint(quote.openedPrice, pricePrecision),
+      tone: "done",
+    });
   }
   if (quote.quoteId !== undefined) {
     stages.push({ key: "onchain", label: "On-chain", detail: `#${quote.quoteId}`, tone: "done" });
@@ -59,12 +64,18 @@ function buildJourney(quote: UnifiedQuote): JourneyStage[] {
     stages.push({
       key: "closing",
       label: "Closing",
-      detail: quote.quantityToClose !== undefined ? formatFixedPoint(quote.quantityToClose) : undefined,
+      detail:
+        quote.quantityToClose !== undefined ? formatFixedPoint(quote.quantityToClose, quantityPrecision) : undefined,
       tone: "done",
     });
   }
   if (quote.lifecycle === QuoteLifecycle.CLOSED) {
-    stages.push({ key: "closed", label: "Closed", detail: formatOptionalFixedPoint(quote.avgClosedPrice), tone: "done" });
+    stages.push({
+      key: "closed",
+      label: "Closed",
+      detail: formatOptionalFixedPoint(quote.avgClosedPrice, pricePrecision),
+      tone: "done",
+    });
   }
   if (quote.lifecycle === QuoteLifecycle.FAILED) {
     stages.push({ key: "failed", label: "Failed", tone: "failed" });
@@ -147,13 +158,20 @@ interface Props {
  * started off-chain and is "now on-chain" tells that story when expanded.
  */
 export function QuoteProvenancePanel({ quote }: Props) {
-  const stages = buildJourney(quote);
+  const marketsQuery = useMarkets();
+  const market = marketsQuery.data?.find((m) => BigInt(m.symbol_id ?? 0) === quote.symbolId);
+  const pricePrecision = market?.price_precision ?? DEFAULT_PRICE_PRECISION;
+  const quantityPrecision = market?.quantity_precision ?? DEFAULT_QUANTITY_PRECISION;
+
+  const stages = buildJourney(quote, pricePrecision, quantityPrecision);
 
   const { upnl, upnlPercent, markPrice, isLoading } = useQuoteUpnlAndPnl({ quote });
   const upnlLoading = isLoading || markPrice === null;
 
   const { openFee, closeFee } = useQuotePlatformFee({ quote });
   const hasClosed = (quote.closedAmount ?? 0n) > 0n;
+
+  const { liquidationPrice, isLoading: liqLoading } = useAccountLiquidationPrice({ account: quote.partyA });
   return (
     <div className="border-primary/40 flex flex-col gap-4 border-l-2 px-4 py-3.5">
       <div className="flex items-center justify-between gap-3">
@@ -178,21 +196,36 @@ export function QuoteProvenancePanel({ quote }: Props) {
         </DetailSection>
 
         <DetailSection title="Prices">
-          <DetailRow label="Requested" value={formatFixedPoint(quote.requestedOpenPrice)} />
-          <DetailRow label="Opened" value={formatOptionalFixedPoint(quote.openedPrice)} />
-          <DetailRow label="Closed" value={formatOptionalFixedPoint(quote.avgClosedPrice)} />
+          <DetailRow label="Requested" value={formatFixedPoint(quote.requestedOpenPrice, pricePrecision)} />
+          <DetailRow label="Opened" value={formatOptionalFixedPoint(quote.openedPrice, pricePrecision)} />
+          <DetailRow label="Closed" value={formatOptionalFixedPoint(quote.avgClosedPrice, pricePrecision)} />
+          <DetailRow
+            label="Liquidation"
+            value={
+              liqLoading ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Spinner className="size-3" />
+                  <span className="text-muted-foreground">Loading…</span>
+                </span>
+              ) : liquidationPrice === 0n ? (
+                EMPTY
+              ) : (
+                formatFixedPoint(liquidationPrice, pricePrecision)
+              )
+            }
+          />
         </DetailSection>
 
         <DetailSection title="Size">
-          <DetailRow label="Quantity" value={formatFixedPoint(quote.quantity)} />
-          <DetailRow label="Open" value={formatFixedPoint(quote.openQuantity)} />
-          <DetailRow label="Closed" value={formatOptionalFixedPoint(quote.closedAmount)} />
-          <DetailRow label="To close" value={formatOptionalFixedPoint(quote.quantityToClose)} />
+          <DetailRow label="Quantity" value={formatFixedPoint(quote.quantity, quantityPrecision)} />
+          <DetailRow label="Open" value={formatFixedPoint(quote.openQuantity, quantityPrecision)} />
+          <DetailRow label="Closed" value={formatOptionalFixedPoint(quote.closedAmount, quantityPrecision)} />
+          <DetailRow label="To close" value={formatOptionalFixedPoint(quote.quantityToClose, quantityPrecision)} />
         </DetailSection>
 
         <DetailSection title="Margin · Side">
-          <DetailRow label="CVA" value={formatFixedPoint(quote.lockedValues.cva)} />
-          <DetailRow label="LF" value={formatFixedPoint(quote.lockedValues.lf)} />
+          <DetailRow label="CVA" value={formatFixedPoint(quote.lockedValues.cva, pricePrecision)} />
+          <DetailRow label="LF" value={formatFixedPoint(quote.lockedValues.lf, pricePrecision)} />
           <DetailRow label="Side" value={PositionType[quote.positionType] ?? String(quote.positionType)} />
           <DetailRow label="Order" value={OrderType[quote.orderType] ?? String(quote.orderType)} />
         </DetailSection>
