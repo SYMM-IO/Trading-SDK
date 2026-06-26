@@ -9,7 +9,7 @@
     "check-types": "turbo run check-types",
     "format": "prettier --write .",
     "changeset": "changeset",
-    "version-packages": "changeset version",
+    "version-packages": "changeset version && pnpm install --lockfile-only",
     "release": "turbo run build && changeset publish"
   },
   "devDependencies": {

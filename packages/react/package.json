@@ -1,6 +1,6 @@
 {
   "name": "@theoldvarorg/react",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "React adapter for the SYMMIO SDK. Hooks, providers, and React-bound ergonomics on top of @theoldvarorg/core.",
   "license": "MIT",
   "author": "SYMMIO",

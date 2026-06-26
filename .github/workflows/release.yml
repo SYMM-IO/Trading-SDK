@@ -1,0 +1,56 @@
+name: Release
+
+# Publishes the SDK packages to npm via Changesets.
+#
+# Flow:
+#   1. Push to the release branch with one or more changesets present.
+#   2. This workflow opens/updates a "Version Packages" PR (runs `version-packages`).
+#   3. Merging that PR re-runs the workflow; with no changesets left it builds and
+#      publishes every package whose version is not yet on npm (`release`).
+#
+# Test scope (@theoldvarorg): trigger branch is `publish-setup` and auth uses the
+# NPM_TOKEN secret. For the real @symm-frontier release, switch the branch to
+# `main` and prefer OIDC trusted publishing over a long-lived token.
+
+on:
+  push:
+    branches: [publish-setup]
+
+concurrency:
+  group: release-${{ github.ref }}
+
+permissions:
+  contents: write # version commit, tags, GitHub releases
+  pull-requests: write # open/update the Version Packages PR
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Changesets needs full history
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Configure npm auth
+        run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create Release PR or publish to npm
+        uses: changesets/action@v2
+        with:
+          version: pnpm run version-packages
+          publish: pnpm run release
+          commit: "chore: version packages"
+          title: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
