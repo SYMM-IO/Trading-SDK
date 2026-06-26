@@ -76,12 +76,22 @@ export default defineConfig({
     },
     rollupOptions: {
       /**
-       * viem is a peer dependency (see AGENTS.md). Marking it external prevents
-       * it from being bundled into our output, so consumers use their own copy
-       * and we don't ship a duplicate. The regex covers viem sub-paths like
-       * `viem/chains`, `viem/actions`, etc.
+       * Externalize every declared dependency and peer dependency so none of
+       * them are bundled into our output — consumers resolve their own copies and
+       * we never ship duplicates. `viem` is a peer dep; `@theoldvarorg/utils` is a
+       * workspace sibling published as its own package, so bundling it would
+       * double-ship its code and break independent versioning. The regexes cover
+       * sub-path imports like `viem/chains` and `@theoldvarorg/utils/amounts`.
        */
-      external: ["viem", /^viem\//, "@tanstack/query-core"],
+      external: [
+        "viem",
+        /^viem\//,
+        "@tanstack/query-core",
+        "@theoldvarorg/utils",
+        /^@theoldvarorg\/utils\//,
+        "axios",
+        "ohash",
+      ],
       output: {
         dir: path.resolve(dirname, "dist"),
         /**

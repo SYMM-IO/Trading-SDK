@@ -1,8 +1,25 @@
 {
   "name": "@theoldvarorg/utils",
   "version": "0.0.0",
-  "private": true,
   "description": "Framework-agnostic utility helpers for SYMMIO SDK consumers: amount formatting, address helpers, Decimal.js bridge.",
+  "license": "MIT",
+  "author": "SYMMIO",
+  "homepage": "https://github.com/SYMM-IO/SYMM-Frontier#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SYMM-IO/SYMM-Frontier.git",
+    "directory": "packages/utils"
+  },
+  "bugs": {
+    "url": "https://github.com/SYMM-IO/SYMM-Frontier/issues"
+  },
+  "keywords": [
+    "symmio",
+    "defi",
+    "perpetuals",
+    "sdk",
+    "utils"
+  ],
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -37,13 +54,17 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepack": "pnpm build"
   },
   "dependencies": {
     "decimal.js": "^10.4.3",

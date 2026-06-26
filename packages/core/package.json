@@ -1,8 +1,25 @@
 {
   "name": "@theoldvarorg/core",
   "version": "0.0.0",
-  "private": true,
   "description": "Framework-agnostic SYMMIO SDK. Contract calls, calculations, and transformations with no framework assumptions.",
+  "license": "MIT",
+  "author": "SYMMIO",
+  "homepage": "https://github.com/SYMM-IO/SYMM-Frontier#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SYMM-IO/SYMM-Frontier.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/SYMM-IO/SYMM-Frontier/issues"
+  },
+  "keywords": [
+    "symmio",
+    "defi",
+    "perpetuals",
+    "sdk",
+    "viem"
+  ],
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -21,6 +38,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
@@ -29,7 +49,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "generate-types": "orval && graphql-codegen --config codegen.ts",
-    "generate-graphql": "graphql-codegen --config codegen.ts"
+    "generate-graphql": "graphql-codegen --config codegen.ts",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@theoldvarorg/utils": "workspace:^",
+    "@tanstack/query-core": "^5.90.5",
+    "axios": "^1.16.1",
+    "ohash": "^2.0.11"
   },
   "peerDependencies": {
     "viem": "^2.49.0"
@@ -49,11 +76,5 @@
     "vite": "^8.0.13",
     "vite-plugin-dts": "^5.0.0",
     "vitest": "^4.1.6"
-  },
-  "dependencies": {
-    "@theoldvarorg/utils": "workspace:*",
-    "@tanstack/query-core": "^5.90.5",
-    "axios": "^1.16.1",
-    "ohash": "^2.0.11"
   }
 }

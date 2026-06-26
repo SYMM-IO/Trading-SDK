@@ -1,8 +1,26 @@
 {
   "name": "@theoldvarorg/react",
   "version": "0.0.0",
-  "private": true,
   "description": "React adapter for the SYMMIO SDK. Hooks, providers, and React-bound ergonomics on top of @theoldvarorg/core.",
+  "license": "MIT",
+  "author": "SYMMIO",
+  "homepage": "https://github.com/SYMM-IO/SYMM-Frontier#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SYMM-IO/SYMM-Frontier.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/SYMM-IO/SYMM-Frontier/issues"
+  },
+  "keywords": [
+    "symmio",
+    "defi",
+    "perpetuals",
+    "sdk",
+    "react",
+    "hooks"
+  ],
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -57,6 +75,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
@@ -64,10 +85,11 @@
     "check-types": "tsc --noEmit",
     "test": "vitest run --project unit",
     "test:watch": "vitest --project unit",
-    "test:integration": "vitest run --project integration"
+    "test:integration": "vitest run --project integration",
+    "prepack": "pnpm build"
   },
   "dependencies": {
-    "@theoldvarorg/core": "workspace:*",
+    "@theoldvarorg/core": "workspace:^",
     "@tanstack/react-query": "^5.100.0",
     "decimal.js": "^10.4.3",
     "zustand": "^5.0.0"
