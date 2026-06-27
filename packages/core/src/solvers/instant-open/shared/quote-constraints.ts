@@ -1,4 +1,7 @@
 import { toDecimal } from "@symm-frontier/utils/decimal";
+import type { PositionType } from "../../../symmio-contracts/symmio/types";
+import { checkNotionalCap } from "../../notional-cap/check-notional-cap";
+import type { MarketNotionalCap } from "../../notional-cap/types";
 import type { SymbolContractSymbol } from "../../types/generated/enigma-solver";
 
 /**
@@ -59,6 +62,15 @@ export type QuoteConstraintViolation =
       lotSize: string;
       /** Final leveraged quantity. */
       actualQuantity: string;
+    }
+  | {
+      kind: "CAP_REACHED";
+      /** Side the trade was on. */
+      side: PositionType;
+      /** Available liquidity on that side, dollars (decimal string). */
+      available: string;
+      /** Requested notional, dollars (decimal string). */
+      actualNotional: string;
     };
 
 /**
@@ -83,6 +95,15 @@ export interface ValidateInstantOpenAgainstMarketParameters {
   lf: string;
   /** PartyA maintenance margin from {@link calculateTradeParams} (decimal string). */
   partyAmm: string;
+  /**
+   * Optional solver-side liquidity cap for the market. When provided alongside
+   * {@link positionType}, the validator rejects trades whose notional exceeds
+   * the chosen side's available liquidity (`CAP_REACHED`). When the cap carries
+   * a non-null `error`, the check is skipped.
+   */
+  notionalCap?: MarketNotionalCap;
+  /** Side of the candidate trade — required for the {@link notionalCap} check. */
+  positionType?: PositionType;
 }
 
 /** Result of {@link validateInstantOpenAgainstMarket}. */
@@ -130,7 +151,7 @@ export interface ValidateInstantOpenAgainstMarketReturnType {
 export function validateInstantOpenAgainstMarket(
   parameters: ValidateInstantOpenAgainstMarketParameters,
 ): ValidateInstantOpenAgainstMarketReturnType {
-  const { market, quantity, markPrice, cva, lf, partyAmm } = parameters;
+  const { market, quantity, markPrice, cva, lf, partyAmm, notionalCap, positionType } = parameters;
   const violations: QuoteConstraintViolation[] = [];
 
   const cvaDec = toDecimal(cva);
@@ -220,6 +241,21 @@ export function validateInstantOpenAgainstMarket(
           actualQuantity: actualQuantity.toString(),
         });
       }
+    }
+  }
+
+  // 7. Solver-side available liquidity for the chosen side. Delegates to
+  // {@link checkNotionalCap} so the rule stays consistent with the standalone
+  // pre-trade check.
+  if (notionalCap && positionType !== undefined) {
+    const result = checkNotionalCap({ positionType, notional: notional.toString(), cap: notionalCap });
+    if (!result.ok) {
+      violations.push({
+        kind: "CAP_REACHED",
+        side: result.side,
+        available: String(result.available),
+        actualNotional: result.requestedNotional,
+      });
     }
   }
 

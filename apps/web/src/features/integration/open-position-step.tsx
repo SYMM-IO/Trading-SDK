@@ -13,6 +13,7 @@ import {
   useInstantOpenAuto,
   useLockedParams,
   useMarkets,
+  useNotionalCapBySymbolId,
   validateInstantOpenAgainstMarket,
   type QuoteConstraintViolation,
 } from "@symm-frontier/react";
@@ -96,6 +97,9 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
     user: subAccount,
     symbolId: selectedMarket?.symbol_id !== undefined ? BigInt(selectedMarket.symbol_id) : 0n,
     query: { enabled: Boolean(selectedMarket?.symbol_id), staleTime: 30_000 },
+  });
+  const notionalCapQuery = useNotionalCapBySymbolId({
+    symbolId: Number(selectedMarket?.symbol_id ?? 0),
   });
 
   /**
@@ -205,8 +209,10 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
       cva: tradeParams.cva,
       lf: tradeParams.lf,
       partyAmm: tradeParams.partyAmm,
+      notionalCap: notionalCapQuery.data,
+      positionType: side === "long" ? PositionType.LONG : PositionType.SHORT,
     }).violations;
-  }, [selectedMarket, cachedMarkPrice, tradeParams]);
+  }, [selectedMarket, cachedMarkPrice, tradeParams, notionalCapQuery.data, side]);
 
   const mutation = useInstantOpenAuto();
 
@@ -379,6 +385,9 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
           tradeParams={tradeParams}
           feeRates={feeQuery.data}
           markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
+          notionalCap={notionalCapQuery.data}
+          notionalCapLoading={notionalCapQuery.isLoading}
+          side={side}
           idPrefix={idPrefix}
         />
       ) : null}
@@ -406,11 +415,25 @@ function TradePreview({
   tradeParams,
   feeRates,
   markPrice,
+  notionalCap,
+  notionalCapLoading,
+  side,
   idPrefix,
 }: {
   tradeParams: NonNullable<ReturnType<typeof calculateTradeParams>>;
   feeRates: { openFee: bigint; closeFee: bigint } | undefined;
   markPrice: string | undefined;
+  notionalCap:
+    | {
+        availableToLong: number;
+        availableToShort: number;
+        totalCap: number;
+        used: number;
+        error: string | null;
+      }
+    | undefined;
+  notionalCapLoading: boolean;
+  side: TradeSide;
   idPrefix: string;
 }) {
   const lockedTotal = sumDecimals([tradeParams.cva, tradeParams.lf, tradeParams.partyAmm]);
@@ -491,6 +514,38 @@ function TradePreview({
             testId={`${idPrefix}-preview-locked-total`}
           />
         </dl>
+      </div>
+
+      <div className="border-border/60 border-t pt-3">
+        <div className="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">
+          Available liquidity
+        </div>
+        {notionalCapLoading && !notionalCap ? (
+          <div className="text-muted-foreground flex items-center gap-2 text-xs">
+            <Spinner className="size-3" /> <span>Loading…</span>
+          </div>
+        ) : notionalCap?.error ? (
+          <p className="text-destructive text-xs" data-testid={`${idPrefix}-preview-cap-error`}>
+            Solver error: {notionalCap.error}
+          </p>
+        ) : notionalCap ? (
+          <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
+            <PreviewRow
+              label="Available to long"
+              value={formatDecimalUsd(String(notionalCap.availableToLong))}
+              bold={side === "long"}
+              testId={`${idPrefix}-preview-cap-long`}
+            />
+            <PreviewRow
+              label="Available to short"
+              value={formatDecimalUsd(String(notionalCap.availableToShort))}
+              bold={side === "short"}
+              testId={`${idPrefix}-preview-cap-short`}
+            />
+          </dl>
+        ) : (
+          <p className="text-muted-foreground text-xs">No cap data.</p>
+        )}
       </div>
     </div>
   );
@@ -585,6 +640,10 @@ function describeViolation(violation: QuoteConstraintViolation): string {
       return `Quantity ${formatDecimalAmount(violation.actualQuantity)} is below the market's minimum lot ${formatDecimalAmount(violation.lotSize)}.`;
     case "QUANTITY_NOT_LOT_MULTIPLE":
       return `Quantity ${formatDecimalAmount(violation.actualQuantity)} must be an exact multiple of the lot size ${formatDecimalAmount(violation.lotSize)}.`;
+    case "CAP_REACHED": {
+      const sideLabel = violation.side === PositionType.LONG ? "long" : "short";
+      return `Notional ${formatDecimalUsd(violation.actualNotional)} exceeds the solver's available liquidity on the ${sideLabel} side (${formatDecimalUsd(violation.available)}).`;
+    }
   }
 }
 

@@ -388,6 +388,25 @@ export {
 export { useLockedParams, type UseLockedParamsParameters, type UseLockedParamsReturnType } from "./locked-params";
 
 /**
+ * Notional cap hooks
+ * ------------------
+ * Read per-market available liquidity from the solver, polled every 15 s by
+ * default. Caller controls the polling cadence (or disables it).
+ */
+export {
+  DEFAULT_NOTIONAL_CAP_POLLING_MS,
+  useNotionalCapAll,
+  useNotionalCapBySymbolId,
+  useOpenInterestBySymbolId,
+  type UseNotionalCapAllParameters,
+  type UseNotionalCapAllReturnType,
+  type UseNotionalCapBySymbolIdParameters,
+  type UseNotionalCapBySymbolIdReturnType,
+  type UseOpenInterestBySymbolIdParameters,
+  type UseOpenInterestBySymbolIdReturnType,
+} from "./notional-cap";
+
+/**
  * Fee hooks
  * ---------
  * Read SYMMIO fee settings for a user/account, affiliate, and symbol id.

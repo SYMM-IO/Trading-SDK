@@ -638,6 +638,49 @@ export {
 } from "./solvers/locked-params";
 
 /**
+ * Notional cap (available liquidity)
+ * ----------------------------------
+ * Fetch the solver's per-market notional cap and remaining available liquidity
+ * (`availableToLong`, `availableToShort`, …). Dollar amounts are surfaced as
+ * plain numbers with no scaling. {@link checkNotionalCap} gates a candidate
+ * open trade against the chosen side's available liquidity.
+ */
+export {
+  checkNotionalCap,
+  getNotionalCapAll,
+  getNotionalCapAllQueryKey,
+  getNotionalCapAllQueryOptions,
+  getNotionalCapBySymbolId,
+  getNotionalCapBySymbolIdQueryKey,
+  getNotionalCapBySymbolIdQueryOptions,
+  getOpenInterestBySymbolId,
+  getOpenInterestBySymbolIdQueryKey,
+  getOpenInterestBySymbolIdQueryOptions,
+  toMarketNotionalCap,
+  type CheckNotionalCapInputs,
+  type CheckNotionalCapResult,
+  type GetNotionalCapAllData,
+  type GetNotionalCapAllOptions,
+  type GetNotionalCapAllParameters,
+  type GetNotionalCapAllQueryKey,
+  type GetNotionalCapAllQueryOptions,
+  type GetNotionalCapAllReturnType,
+  type GetNotionalCapBySymbolIdData,
+  type GetNotionalCapBySymbolIdOptions,
+  type GetNotionalCapBySymbolIdParameters,
+  type GetNotionalCapBySymbolIdQueryKey,
+  type GetNotionalCapBySymbolIdQueryOptions,
+  type GetNotionalCapBySymbolIdReturnType,
+  type GetOpenInterestBySymbolIdData,
+  type GetOpenInterestBySymbolIdOptions,
+  type GetOpenInterestBySymbolIdParameters,
+  type GetOpenInterestBySymbolIdQueryKey,
+  type GetOpenInterestBySymbolIdQueryOptions,
+  type GetOpenInterestBySymbolIdReturnType,
+  type MarketNotionalCap,
+} from "./solvers/notional-cap";
+
+/**
  * Solver error codes
  * ------------------
  * Fetch the solver's `/error_codes` map to resolve the numeric `errorCode`
