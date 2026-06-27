@@ -177,7 +177,8 @@ export const MAGIC_CATALOG: MagicMethod[] = [
   {
     id: "prices",
     label: "Prices",
-    description: "Live mark-price ticks from the Enigma lowcap price WebSocket — every connected client receives the same broadcast.",
+    description:
+      "Live mark-price ticks from the Enigma lowcap price WebSocket — every connected client receives the same broadcast.",
     group: "socket",
     source: "socket",
     keywords: ["prices", "price", "mark", "socket", "websocket", "live", "stream", "ticks", "enigma"],

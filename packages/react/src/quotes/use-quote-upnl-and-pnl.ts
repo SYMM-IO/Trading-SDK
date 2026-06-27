@@ -23,9 +23,7 @@ export interface UseQuoteUpnlAndPnlParameters extends ConfigParameter {
 /**
  * Return type of {@link useQuoteUpnlAndPnl}.
  */
-export interface UseQuoteUpnlAndPnlReturnType
-  extends CalculateQuoteUpnlReturnType,
-  CalculateQuotePnlReturnType {
+export interface UseQuoteUpnlAndPnlReturnType extends CalculateQuoteUpnlReturnType, CalculateQuotePnlReturnType {
   /** Mark price used in the calc, decimal string. `null` until the first tick. */
   markPrice: string | null;
   /** Leverage derived from the quote's locked-margin breakdown, decimal string. */
@@ -80,15 +78,15 @@ export function useQuoteUpnlAndPnl(parameters: UseQuoteUpnlAndPnlParameters): Us
 
     const { upnl, upnlPercent } = markPrice
       ? calculateQuoteUpnl({
-        markPrice,
-        positionType: quote.positionType,
-        quantity: quote.quantity,
-        closedAmount,
-        openedPrice: quote.openedPrice ?? 0n,
-        leverage,
-      })
+          markPrice,
+          positionType: quote.positionType,
+          quantity: quote.quantity,
+          closedAmount,
+          openedPrice: quote.openedPrice ?? 0n,
+          leverage,
+        })
       : { upnl: "0", upnlPercent: "0" };
-    console.log('upnl', markPrice, quote.quantity, closedAmount, quote.quantity - closedAmount, quote.openedPrice, leverage, upnl, upnlPercent)
+
     const { pnl, pnlPercent } = calculateQuotePnl({
       positionType: quote.positionType,
       closedAmount,

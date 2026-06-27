@@ -4,9 +4,10 @@ import { AddressTag } from "@/components/address-tag";
 import { DataList, DataRow } from "@/components/data-list";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
+import { QuoteEventsList } from "@/features/quotes/quote-events-list";
 import { WEI_DECIMALS } from "@/lib/format";
 import { OrderType, PositionType, QuoteStatus } from "@symm-frontier/core";
-import { useQuote } from "@symm-frontier/react";
+import { useQuote, useQuotePriceHistory } from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
@@ -216,7 +217,22 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
           />
         </DataList>
       </Section>
+
+      <QuotePriceHistorySection quoteId={quote.id} />
     </div>
+  );
+}
+
+function QuotePriceHistorySection({ quoteId }: { quoteId: bigint }) {
+  const priceHistory = useQuotePriceHistory({ quoteId });
+  return (
+    <Section title="Price History">
+      <QuoteEventsList
+        rows={priceHistory.data?.rows}
+        isLoading={priceHistory.isLoading}
+        hasMore={priceHistory.data?.hasMore}
+      />
+    </Section>
   );
 }
 

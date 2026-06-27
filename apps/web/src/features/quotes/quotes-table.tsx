@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/compo
 import { formatRelativeTimestamp, formatTokenAmount } from "@symm-frontier/utils";
 import { useMemo, type ReactNode } from "react";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
+import { QuotePriceHistoryButton } from "./quote-price-history-button";
 import { QuoteProvenancePanel, truncateAddress } from "./quote-provenance-panel";
 import { useMarketNameById } from "./use-market-name-by-id";
 
@@ -96,143 +97,148 @@ function OpenQuantityHeader() {
 
 function buildColumns(marketNameById: Map<string, string>): DataTableColumn<UnifiedQuote>[] {
   return [
-  {
-    id: "id",
-    header: "Id",
-    widthClassName: "min-w-36",
-    cell: (quote) => (
-      <span className="flex flex-col leading-tight">
-        <span className="text-foreground font-mono whitespace-nowrap">{rowIdLabel(quote)}</span>
-        <span className="text-muted-foreground text-[0.7rem] tracking-wide uppercase">{quote.origin}</span>
-        {quote.vaAddress ? (
-          <span className="text-muted-foreground/80 font-mono text-[0.7rem]" title={quote.vaAddress}>
-            {truncateAddress(quote.vaAddress)}
-          </span>
-        ) : null}
-      </span>
-    ),
-    sortAccessor: rowIdSort,
-  },
-  {
-    id: "lifecycle",
-    header: "Lifecycle",
-    cell: (quote) => <QuoteLifecycleBadge lifecycle={quote.lifecycle} />,
-    sortAccessor: (quote) => quote.lifecycle,
-  },
-  {
-    id: "symbolId",
-    header: "Market",
-    cell: (quote) => marketNameById.get(String(quote.symbolId)) ?? String(quote.symbolId),
-    sortAccessor: (quote) => marketNameById.get(String(quote.symbolId)) ?? String(quote.symbolId),
-    cellClassName: "text-foreground font-mono",
-  },
-  {
-    id: "positionType",
-    header: "Side",
-    cell: (quote) => (
-      <Badge variant={quote.positionType === PositionType.LONG ? "positive" : "destructive"}>
-        {PositionType[quote.positionType] ?? String(quote.positionType)}
-      </Badge>
-    ),
-    sortAccessor: (quote) => quote.positionType,
-  },
-  {
-    id: "orderType",
-    header: "Type",
-    cell: (quote) => <Badge variant="secondary">{OrderType[quote.orderType] ?? String(quote.orderType)}</Badge>,
-    sortAccessor: (quote) => quote.orderType,
-  },
-  {
-    id: "quoteStatus",
-    header: "Status",
-    cell: (quote) =>
-      quote.quoteStatus === undefined ? (
-        <span className="text-muted-foreground">{EMPTY}</span>
-      ) : (
-        <Badge variant="secondary">{QuoteStatus[quote.quoteStatus] ?? String(quote.quoteStatus)}</Badge>
-      ),
-    sortAccessor: (quote) => quote.quoteStatus,
-  },
-  {
-    id: "requestedOpenPrice",
-    header: "Req. price",
-    align: "end",
-    widthClassName: NUMERIC_COLUMN_WIDTH,
-    cell: (quote) => formatFixedPoint(quote.requestedOpenPrice),
-    sortAccessor: (quote) => Number(quote.requestedOpenPrice),
-    cellClassName: "text-foreground font-mono",
-  },
-  {
-    id: "openedPrice",
-    header: "Open price",
-    align: "end",
-    widthClassName: NUMERIC_COLUMN_WIDTH,
-    cell: (quote) => formatOptionalFixedPoint(quote.openedPrice),
-    sortAccessor: (quote) => (quote.openedPrice === undefined ? undefined : Number(quote.openedPrice)),
-    cellClassName: "text-foreground font-mono",
-  },
-  {
-    id: "closedPrice",
-    header: "Close price",
-    align: "end",
-    widthClassName: NUMERIC_COLUMN_WIDTH,
-    cell: (quote) => formatOptionalFixedPoint(quote.avgClosedPrice),
-    sortAccessor: (quote) => (quote.avgClosedPrice === undefined ? undefined : Number(quote.avgClosedPrice)),
-    cellClassName: "text-muted-foreground font-mono",
-  },
-  {
-    id: "quantity",
-    header: "Quantity",
-    align: "end",
-    widthClassName: NUMERIC_COLUMN_WIDTH,
-    cell: (quote) => formatFixedPoint(quote.quantity),
-    sortAccessor: (quote) => Number(quote.quantity),
-    cellClassName: "text-muted-foreground font-mono",
-  },
-  {
-    id: "openQuantity",
-    header: <OpenQuantityHeader />,
-    align: "end",
-    widthClassName: NUMERIC_COLUMN_WIDTH,
-    cell: (quote) => formatFixedPoint(quote.openQuantity),
-    sortAccessor: (quote) => Number(quote.openQuantity),
-    cellClassName: "text-foreground font-mono",
-  },
-  {
-    id: "quantityToClose",
-    header: "To close",
-    align: "end",
-    widthClassName: NUMERIC_COLUMN_WIDTH,
-    cell: (quote) => formatOptionalFixedPoint(quote.quantityToClose),
-    sortAccessor: (quote) => (quote.quantityToClose === undefined ? undefined : Number(quote.quantityToClose)),
-    cellClassName: "text-muted-foreground font-mono",
-  },
-  {
-    id: "margin",
-    header: "Margin (cva+lf)",
-    align: "end",
-    widthClassName: NUMERIC_COLUMN_WIDTH,
-    cell: (quote) => formatFixedPoint(quote.lockedValues.cva + quote.lockedValues.lf),
-    sortAccessor: (quote) => Number(quote.lockedValues.cva + quote.lockedValues.lf),
-    cellClassName: "text-muted-foreground font-mono",
-  },
-  {
-    id: "created",
-    header: "Created",
-    align: "end",
-    cell: (quote) => {
-      const seconds = createdSeconds(quote);
-      return (
-        <span className="text-muted-foreground">
-          {seconds === undefined ? EMPTY : formatRelativeTimestamp(seconds)}
+    {
+      id: "id",
+      header: "Id",
+      widthClassName: "min-w-36",
+      cell: (quote) => (
+        <span className="flex flex-col leading-tight">
+          <span className="text-foreground font-mono whitespace-nowrap">{rowIdLabel(quote)}</span>
+          <span className="text-muted-foreground text-[0.7rem] tracking-wide uppercase">{quote.origin}</span>
+          {quote.vaAddress ? (
+            <span className="text-muted-foreground/80 font-mono text-[0.7rem]" title={quote.vaAddress}>
+              {truncateAddress(quote.vaAddress)}
+            </span>
+          ) : null}
         </span>
-      );
+      ),
+      sortAccessor: rowIdSort,
     },
-    sortAccessor: (quote) => {
-      const seconds = createdSeconds(quote);
-      return seconds === undefined ? undefined : Number(seconds);
+    {
+      id: "lifecycle",
+      header: "Lifecycle",
+      cell: (quote) => <QuoteLifecycleBadge lifecycle={quote.lifecycle} />,
+      sortAccessor: (quote) => quote.lifecycle,
     },
-  },
+    {
+      id: "symbolId",
+      header: "Market",
+      cell: (quote) => marketNameById.get(String(quote.symbolId)) ?? String(quote.symbolId),
+      sortAccessor: (quote) => marketNameById.get(String(quote.symbolId)) ?? String(quote.symbolId),
+      cellClassName: "text-foreground font-mono",
+    },
+    {
+      id: "positionType",
+      header: "Side",
+      cell: (quote) => (
+        <Badge variant={quote.positionType === PositionType.LONG ? "positive" : "destructive"}>
+          {PositionType[quote.positionType] ?? String(quote.positionType)}
+        </Badge>
+      ),
+      sortAccessor: (quote) => quote.positionType,
+    },
+    {
+      id: "orderType",
+      header: "Type",
+      cell: (quote) => <Badge variant="secondary">{OrderType[quote.orderType] ?? String(quote.orderType)}</Badge>,
+      sortAccessor: (quote) => quote.orderType,
+    },
+    {
+      id: "quoteStatus",
+      header: "Status",
+      cell: (quote) =>
+        quote.quoteStatus === undefined ? (
+          <span className="text-muted-foreground">{EMPTY}</span>
+        ) : (
+          <Badge variant="secondary">{QuoteStatus[quote.quoteStatus] ?? String(quote.quoteStatus)}</Badge>
+        ),
+      sortAccessor: (quote) => quote.quoteStatus,
+    },
+    {
+      id: "requestedOpenPrice",
+      header: "Req. price",
+      align: "end",
+      widthClassName: NUMERIC_COLUMN_WIDTH,
+      cell: (quote) => formatFixedPoint(quote.requestedOpenPrice),
+      sortAccessor: (quote) => Number(quote.requestedOpenPrice),
+      cellClassName: "text-foreground font-mono",
+    },
+    {
+      id: "openedPrice",
+      header: "Open price",
+      align: "end",
+      widthClassName: NUMERIC_COLUMN_WIDTH,
+      cell: (quote) => (
+        <span className="inline-flex items-center justify-end gap-1.5">
+          <span>{formatOptionalFixedPoint(quote.openedPrice)}</span>
+          <QuotePriceHistoryButton quoteId={quote.quoteId} symbolId={quote.symbolId} />
+        </span>
+      ),
+      sortAccessor: (quote) => (quote.openedPrice === undefined ? undefined : Number(quote.openedPrice)),
+      cellClassName: "text-foreground font-mono",
+    },
+    {
+      id: "closedPrice",
+      header: "Close price",
+      align: "end",
+      widthClassName: NUMERIC_COLUMN_WIDTH,
+      cell: (quote) => formatOptionalFixedPoint(quote.avgClosedPrice),
+      sortAccessor: (quote) => (quote.avgClosedPrice === undefined ? undefined : Number(quote.avgClosedPrice)),
+      cellClassName: "text-muted-foreground font-mono",
+    },
+    {
+      id: "quantity",
+      header: "Quantity",
+      align: "end",
+      widthClassName: NUMERIC_COLUMN_WIDTH,
+      cell: (quote) => formatFixedPoint(quote.quantity),
+      sortAccessor: (quote) => Number(quote.quantity),
+      cellClassName: "text-muted-foreground font-mono",
+    },
+    {
+      id: "openQuantity",
+      header: <OpenQuantityHeader />,
+      align: "end",
+      widthClassName: NUMERIC_COLUMN_WIDTH,
+      cell: (quote) => formatFixedPoint(quote.openQuantity),
+      sortAccessor: (quote) => Number(quote.openQuantity),
+      cellClassName: "text-foreground font-mono",
+    },
+    {
+      id: "quantityToClose",
+      header: "To close",
+      align: "end",
+      widthClassName: NUMERIC_COLUMN_WIDTH,
+      cell: (quote) => formatOptionalFixedPoint(quote.quantityToClose),
+      sortAccessor: (quote) => (quote.quantityToClose === undefined ? undefined : Number(quote.quantityToClose)),
+      cellClassName: "text-muted-foreground font-mono",
+    },
+    {
+      id: "margin",
+      header: "Margin (cva+lf)",
+      align: "end",
+      widthClassName: NUMERIC_COLUMN_WIDTH,
+      cell: (quote) => formatFixedPoint(quote.lockedValues.cva + quote.lockedValues.lf),
+      sortAccessor: (quote) => Number(quote.lockedValues.cva + quote.lockedValues.lf),
+      cellClassName: "text-muted-foreground font-mono",
+    },
+    {
+      id: "created",
+      header: "Created",
+      align: "end",
+      cell: (quote) => {
+        const seconds = createdSeconds(quote);
+        return (
+          <span className="text-muted-foreground">
+            {seconds === undefined ? EMPTY : formatRelativeTimestamp(seconds)}
+          </span>
+        );
+      },
+      sortAccessor: (quote) => {
+        const seconds = createdSeconds(quote);
+        return seconds === undefined ? undefined : Number(seconds);
+      },
+    },
   ];
 }
 

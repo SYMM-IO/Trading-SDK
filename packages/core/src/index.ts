@@ -574,7 +574,7 @@ export {
   type RawEnigmaPriceFrame,
   type WatchEnigmaPricesParameters,
 } from "./websocket/prices";
-/** 
+/**
  * Notifications search
  * --------------------
  * `searchNotifications` queries the notification service's `POST /api/v1/search`
@@ -1008,6 +1008,14 @@ export {
   toUnifiedQuoteFromInstantOpen,
   toUnifiedQuoteFromOnchain,
   type AccountPosition,
+  type CalculateClosePlatformFeeInputs,
+  type CalculateLiquidationPriceInputs,
+  type CalculateOpenPlatformFeeInputs,
+  type CalculateQuoteLeverageParameters,
+  type CalculateQuotePnlInputs,
+  type CalculateQuotePnlReturnType,
+  type CalculateQuoteUpnlInputs,
+  type CalculateQuoteUpnlReturnType,
   type GetSubAccountQuotesData,
   type GetSubAccountQuotesOptions,
   type GetSubAccountQuotesParameters,
@@ -1028,14 +1036,6 @@ export {
   type ReconcileQuotesResult,
   type ResolveQuoteAccountsParameters,
   type ResolveQuoteAccountsResult,
-  type CalculateClosePlatformFeeInputs,
-  type CalculateLiquidationPriceInputs,
-  type CalculateOpenPlatformFeeInputs,
-  type CalculateQuoteLeverageParameters,
-  type CalculateQuotePnlInputs,
-  type CalculateQuotePnlReturnType,
-  type CalculateQuoteUpnlInputs,
-  type CalculateQuoteUpnlReturnType,
   type ToUnifiedQuoteFromInstantCloseContext,
   type UnifiedQuote,
 } from "./quotes";
@@ -1084,4 +1084,52 @@ export {
   type GetQuoteHistoryReturnType,
   type QuoteHistoryRow,
   type RawQuoteEventRow,
+} from "./quotes";
+
+/**
+ * Quote events by type (subgraph)
+ * -------------------------------
+ * `getQuoteEventsByType` reads non-terminal `QuoteEvent`s (open-price recompute,
+ * funding charges) from the analytics subgraph, filtered to the requested event
+ * types. Decoded `metadata` fields are placed on a typed row alongside the
+ * raw payload.
+ */
+export {
+  DEFAULT_QUOTE_EVENTS_BY_TYPE_PAGE_SIZE,
+  PRICE_HISTORY_EVENT_TYPES,
+  QuoteEventType,
+  getQuoteEventsByType,
+  getQuoteEventsByTypeQueryKey,
+  getQuoteEventsByTypeQueryOptions,
+  toQuoteEventRow,
+  type GetQuoteEventsByTypeData,
+  type GetQuoteEventsByTypeOptions,
+  type GetQuoteEventsByTypeParameters,
+  type GetQuoteEventsByTypeQueryKey,
+  type GetQuoteEventsByTypeQueryOptions,
+  type GetQuoteEventsByTypeReturnType,
+  type QuoteEventRow,
+  type RawQuoteEventNode,
+} from "./quotes";
+
+/**
+ * Quote funding (subgraph)
+ * ------------------------
+ * `getQuoteFunding` reads `userPaidFunding` / `userReceivedFunding` for a batch
+ * of on-chain quote ids from the analytics subgraph. Filters by the protocol
+ * `quoteId` scalar so callers never need the diamond address.
+ */
+export {
+  getQuoteFunding,
+  getQuoteFundingQueryKey,
+  getQuoteFundingQueryOptions,
+  toQuoteFundingRow,
+  type GetQuoteFundingData,
+  type GetQuoteFundingOptions,
+  type GetQuoteFundingParameters,
+  type GetQuoteFundingQueryKey,
+  type GetQuoteFundingQueryOptions,
+  type GetQuoteFundingReturnType,
+  type QuoteFundingData,
+  type RawQuoteFundingRow,
 } from "./quotes";

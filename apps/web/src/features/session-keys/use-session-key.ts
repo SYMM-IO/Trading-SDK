@@ -38,9 +38,7 @@ export function useSessionKey() {
   );
 
   useEffect(() => {
-    console.log("useEffect", isConnected, address);
     if (!isConnected || !address) {
-      console.log("useEffect destroy", address, manager);
       void manager.destroy();
       setMetadata(null);
       setError(null);

@@ -19,7 +19,6 @@ export function WatchEnigmaPriceByMarket() {
   const marketsQuery = useMarkets();
   const markets = useMemo(() => sortMarkets(marketsQuery.data ?? []), [marketsQuery.data]);
   const items = useMemo(() => toMarketSelectItems(markets), [markets]);
-  console.log("market", marketsQuery.data, items);
   const [marketId, setMarketId] = useState("");
   const selectedMarket = useMemo(() => markets.find((m) => String(m.symbol_id) === marketId), [markets, marketId]);
   const name = selectedMarket?.name;

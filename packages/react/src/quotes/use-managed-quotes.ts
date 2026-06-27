@@ -483,7 +483,6 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
       refetch: () => results.forEach((result) => result.refetch()),
     }),
   });
-  console.log('openPosition:', openPositions)
   /** Pending quote ids, fanned out across every account, then hydrated per id. */
   const pendingQuoteIds = useQueries({
     queries: accounts.map((account) => {

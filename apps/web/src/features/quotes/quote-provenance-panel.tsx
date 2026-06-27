@@ -1,9 +1,17 @@
 import { DEFAULT_PRICE_PRECISION, DEFAULT_QUANTITY_PRECISION, WEI_DECIMALS } from "@/lib/format";
 import { OrderType, PositionType, QuoteLifecycle, type UnifiedQuote } from "@symm-frontier/core";
-import { useAccountLiquidationPrice, useMarkets, useQuotePlatformFee, useQuoteUpnlAndPnl } from "@symm-frontier/react";
+import {
+  useAccountLiquidationPrice,
+  useMarkets,
+  useQuoteFunding,
+  useQuotePlatformFee,
+  useQuotePriceHistory,
+  useQuoteUpnlAndPnl,
+} from "@symm-frontier/react";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { formatTokenAmount } from "@symm-frontier/utils";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { QuoteEventsList } from "./quote-events-list";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
 
 /** Em-dash placeholder for an absent field. */
@@ -200,6 +208,14 @@ export function QuoteProvenancePanel({ quote }: Props) {
   const hasClosed = (quote.closedAmount ?? 0n) > 0n;
 
   const { liquidationPrice, isLoading: liqLoading } = useAccountLiquidationPrice({ account: quote.partyA });
+
+  const funding = useQuoteFunding({ quoteId: quote.quoteId });
+
+  const [showPriceHistory, setShowPriceHistory] = useState(false);
+  const priceHistory = useQuotePriceHistory({
+    quoteId: quote.quoteId ?? 0n,
+    query: { enabled: showPriceHistory && quote.quoteId !== undefined },
+  });
   return (
     <div className="border-primary/40 flex flex-col gap-4 border-l-2 px-4 py-3.5">
       <div className="flex items-center justify-between gap-3">
@@ -278,7 +294,66 @@ export function QuoteProvenancePanel({ quote }: Props) {
           <DetailRow label="Open" value={formatFee(openFee)} />
           {hasClosed ? <DetailRow label="Close" value={formatFee(closeFee)} /> : null}
         </DetailSection>
+
+        <DetailSection title="Funding">
+          <DetailRow
+            label="Paid"
+            value={renderFunding(funding.data?.paid, funding.isLoading, quote.quoteId !== undefined)}
+          />
+          <DetailRow
+            label="Received"
+            value={renderFunding(funding.data?.received, funding.isLoading, quote.quoteId !== undefined)}
+          />
+          <DetailRow
+            label="Net"
+            value={renderFundingSigned(funding.data?.net, funding.isLoading, quote.quoteId !== undefined)}
+          />
+        </DetailSection>
       </div>
+
+      {quote.quoteId !== undefined ? (
+        <div className="flex flex-col gap-3 pt-1">
+          <ToggleSection
+            title="Price history"
+            open={showPriceHistory}
+            onToggle={() => setShowPriceHistory((current) => !current)}
+          >
+            <QuoteEventsList
+              rows={priceHistory.data?.rows}
+              isLoading={priceHistory.isLoading}
+              hasMore={priceHistory.data?.hasMore}
+              pricePrecision={pricePrecision}
+              quantityPrecision={quantityPrecision}
+            />
+          </ToggleSection>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ToggleSection({
+  title,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="text-muted-foreground hover:text-foreground border-border flex items-center justify-between gap-2 border-b pb-1 text-[0.65rem] font-medium tracking-wider uppercase transition-colors"
+      >
+        <span>{title}</span>
+        <span className="text-[0.7rem]">{open ? "▾" : "▸"}</span>
+      </button>
+      {open ? children : null}
     </div>
   );
 }
@@ -294,4 +369,35 @@ function formatPnl(value: string, percent: string): string {
 function formatFee(value: bigint): string {
   if (value === 0n) return EMPTY;
   return formatTokenAmount(value, WEI_DECIMALS, { maxFractionDigits: 4 });
+}
+
+function renderFunding(value: bigint | undefined, isLoading: boolean, hasQuoteId: boolean): ReactNode {
+  if (!hasQuoteId) return EMPTY;
+  if (value === undefined) {
+    if (!isLoading) return EMPTY;
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <Spinner className="size-3" />
+        <span className="text-muted-foreground">Loading…</span>
+      </span>
+    );
+  }
+  return formatFee(value);
+}
+
+function renderFundingSigned(value: bigint | undefined, isLoading: boolean, hasQuoteId: boolean): ReactNode {
+  if (!hasQuoteId) return EMPTY;
+  if (value === undefined) {
+    if (!isLoading) return EMPTY;
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <Spinner className="size-3" />
+        <span className="text-muted-foreground">Loading…</span>
+      </span>
+    );
+  }
+  if (value === 0n) return EMPTY;
+  const sign = value > 0n ? "+" : "-";
+  const magnitude = value < 0n ? -value : value;
+  return `${sign}${formatTokenAmount(magnitude, WEI_DECIMALS, { maxFractionDigits: 4 })}`;
 }

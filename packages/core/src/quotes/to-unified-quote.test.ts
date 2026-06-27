@@ -142,13 +142,12 @@ describe("toUnifiedQuoteFromOnchain", () => {
     expect(row.quoteStatus).toBe(quote.quoteStatus);
   });
 
-  it("copies prices, mapping closedPrice from the quote's avgClosedPrice", () => {
+  it("copies prices including avgClosedPrice from the on-chain quote", () => {
     const quote = makeQuote();
     const row = toUnifiedQuoteFromOnchain(quote);
     expect(row.requestedOpenPrice).toBe(quote.requestedOpenPrice);
     expect(row.openedPrice).toBe(quote.openedPrice);
-    /** closedPrice is sourced from avgClosedPrice, not a same-named field. */
-    expect(row.closedPrice).toBe(quote.avgClosedPrice);
+    expect(row.avgClosedPrice).toBe(quote.avgClosedPrice);
   });
 
   it("derives openQuantity as quantity − closedAmount (matching quoteOpenQuantity)", () => {

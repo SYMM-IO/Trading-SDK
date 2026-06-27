@@ -7,6 +7,34 @@ import type { DocumentTypeDecoration } from "@graphql-typed-document-node/core";
 /** Defines the order direction, either ascending or descending */
 export type OrderDirection = "asc" | "desc";
 
+export type QuoteEventsForQuoteByTypeQueryVariables = Exact<{
+  quoteId: string;
+  typeIn: Array<string> | string;
+  first: number;
+  skip: number;
+  orderDirection: OrderDirection;
+}>;
+
+export type QuoteEventsForQuoteByTypeQuery = {
+  quoteEvents: Array<{
+    id: string;
+    type: string;
+    metadata: string | null;
+    timestamp: string;
+    blockNumber: string;
+    transaction: string;
+    quoteId: string;
+  }>;
+};
+
+export type QuotesFundingQueryVariables = Exact<{
+  ids: Array<string> | string;
+}>;
+
+export type QuotesFundingQuery = {
+  quotes: Array<{ quoteId: string; userPaidFunding: string | null; userReceivedFunding: string | null }>;
+};
+
 export type QuoteEventsForHistoryQueryVariables = Exact<{
   typeIn: Array<string> | string;
   subAccounts: Array<string> | string;
@@ -68,6 +96,34 @@ export class TypedDocumentString<TResult, TVariables>
   }
 }
 
+export const QuoteEventsForQuoteByTypeDocument = new TypedDocumentString(`
+    query QuoteEventsForQuoteByType($quoteId: BigInt!, $typeIn: [String!]!, $first: Int!, $skip: Int!, $orderDirection: OrderDirection!) {
+  quoteEvents(
+    first: $first
+    skip: $skip
+    orderBy: timestamp
+    orderDirection: $orderDirection
+    where: {quoteId: $quoteId, type_in: $typeIn}
+  ) {
+    id
+    type
+    metadata
+    timestamp
+    blockNumber
+    transaction
+    quoteId
+  }
+}
+    `) as unknown as TypedDocumentString<QuoteEventsForQuoteByTypeQuery, QuoteEventsForQuoteByTypeQueryVariables>;
+export const QuotesFundingDocument = new TypedDocumentString(`
+    query QuotesFunding($ids: [BigInt!]!) {
+  quotes(where: {quoteId_in: $ids}) {
+    quoteId
+    userPaidFunding
+    userReceivedFunding
+  }
+}
+    `) as unknown as TypedDocumentString<QuotesFundingQuery, QuotesFundingQueryVariables>;
 export const QuoteEventsForHistoryDocument = new TypedDocumentString(`
     query QuoteEventsForHistory($typeIn: [String!]!, $subAccounts: [String!]!, $first: Int!, $skip: Int!, $orderDirection: OrderDirection!, $startDate: BigInt!, $endDate: BigInt!) {
   quoteEvents(

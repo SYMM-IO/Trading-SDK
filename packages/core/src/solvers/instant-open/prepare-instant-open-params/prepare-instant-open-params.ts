@@ -117,7 +117,6 @@ export async function prepareInstantOpenParams(
     partyAmmPercent: lockedParams.partyAmm,
     partyBmmPercent: lockedParams.partyBmm,
   });
-  console.log("tradeCalc", tradeCalc, markPrice);
   if (!tradeCalc) {
     throw new SymmError(
       "validation",

@@ -109,12 +109,9 @@ function ResultPanel({ testId, enabled, hasAny, rows, error, errorKind, searchin
     return <ResultNote testId={`${testId}-no-match`}>No symbols match this search.</ResultNote>;
   }
   return (
-    <div
-      data-testid={`${testId}-data`}
-      className="border-border bg-card/40 max-h-96 overflow-y-auto rounded-xl border"
-    >
+    <div data-testid={`${testId}-data`} className="border-border bg-card/40 max-h-96 overflow-y-auto rounded-xl border">
       <table className="w-full text-sm">
-        <thead className="bg-card/70 text-muted-foreground sticky top-0 text-xs backdrop-blur supports-[backdrop-filter]:bg-card/50">
+        <thead className="bg-card/70 text-muted-foreground supports-[backdrop-filter]:bg-card/50 sticky top-0 text-xs backdrop-blur">
           <tr>
             <th className="px-3 py-2 text-left font-medium">Symbol</th>
             <th className="px-3 py-2 text-right font-medium">Mark price</th>
