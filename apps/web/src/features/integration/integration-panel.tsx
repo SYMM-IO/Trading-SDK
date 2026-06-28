@@ -5,13 +5,14 @@ import { useCollateralBalance, useSymmioConfig, useUserSubAccounts, useWalletAcc
 import { Card } from "@symm-frontier/ui/components/card";
 import { useMemo, useState, type CSSProperties } from "react";
 import type { Address } from "viem";
+import { CloseAllFlow } from "./close-all-flow";
 import { DepositFlow } from "./deposit-flow";
 import { InstantCloseFlow } from "./instant-close-flow";
 import { InstantOpenFlow } from "./instant-open-flow";
 import { Segmented } from "./segmented";
 import { WithdrawFlow } from "./withdraw-flow";
 
-type Tab = "deposit" | "withdraw" | "instant-open" | "instant-close";
+type Tab = "deposit" | "withdraw" | "instant-open" | "instant-close" | "close-all";
 
 /**
  * End-to-end Integration console for the SYMMIO React SDK: a product-grade
@@ -51,6 +52,7 @@ export function IntegrationPanel() {
             { value: "withdraw", label: "Withdraw" },
             { value: "instant-open", label: "Instant Open" },
             { value: "instant-close", label: "Instant Close" },
+            { value: "close-all", label: "Close All" },
           ]}
           value={tab}
           onChange={setTab}
@@ -84,8 +86,16 @@ export function IntegrationPanel() {
             onSelectSubAccount={setSubAccount}
             ready={ready}
           />
-        ) : (
+        ) : tab === "instant-close" ? (
           <InstantCloseFlow
+            owner={address}
+            subAccount={subAccount}
+            subAccountName={subAccountName}
+            onSelectSubAccount={setSubAccount}
+            ready={ready}
+          />
+        ) : (
+          <CloseAllFlow
             owner={address}
             subAccount={subAccount}
             subAccountName={subAccountName}

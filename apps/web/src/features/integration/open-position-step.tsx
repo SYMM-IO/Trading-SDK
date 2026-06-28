@@ -24,7 +24,7 @@ import { Slider } from "@symm-frontier/ui/components/slider";
 import { Spinner } from "@symm-frontier/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/components/tooltip";
 import { cn } from "@symm-frontier/ui/lib/utils";
-import { shortenAddress } from "@symm-frontier/utils";
+import { formatCompact, shortenAddress } from "@symm-frontier/utils";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits, type Address } from "viem";
 
@@ -532,13 +532,13 @@ function TradePreview({
           <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
             <PreviewRow
               label="Available to long"
-              value={formatDecimalUsd(String(notionalCap.availableToLong))}
+              value={formatCompactUsd(notionalCap.availableToLong)}
               bold={side === "long"}
               testId={`${idPrefix}-preview-cap-long`}
             />
             <PreviewRow
               label="Available to short"
-              value={formatDecimalUsd(String(notionalCap.availableToShort))}
+              value={formatCompactUsd(notionalCap.availableToShort)}
               bold={side === "short"}
               testId={`${idPrefix}-preview-cap-short`}
             />
@@ -655,6 +655,16 @@ function formatRatio(value: string): string {
 
 function formatDecimalUsd(value: string): string {
   return `$${formatDecimalAmount(value)}`;
+}
+
+/**
+ * Compact-notation USD formatter (K/M/B/T). Used for solver liquidity figures
+ * where magnitude matters more than precision (`$1.2M` reads better than
+ * `$1,234,567`). Sub-1k values fall through to comma-separated formatting.
+ */
+function formatCompactUsd(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  return `$${formatCompact(value, { maxDecimals: 2 })}`;
 }
 
 /**

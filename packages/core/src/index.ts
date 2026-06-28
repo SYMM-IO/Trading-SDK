@@ -975,6 +975,7 @@ export {
  * protocol). This block only adds close-specific symbols.
  */
 export {
+  MAX_INSTANT_CLOSE_BULK_ORDERS,
   calculateClosePrice,
   clampClosePrecision,
   encodeRequestToClosePosition,
@@ -985,6 +986,10 @@ export {
   instantClose,
   instantCloseAuto,
   instantCloseAutoMutationOptions,
+  instantCloseBulk,
+  instantCloseBulkAuto,
+  instantCloseBulkAutoMutationOptions,
+  instantCloseBulkMutationOptions,
   instantCloseMutationOptions,
   prepareInstantCloseParams,
   sendInstantClose,
@@ -1001,6 +1006,11 @@ export {
   type GetInstantClosesQueryKey,
   type GetInstantClosesQueryOptions,
   type GetInstantClosesReturnType,
+  type InstantCloseBulkAutoOrder,
+  type InstantCloseBulkAutoParameters,
+  type InstantCloseBulkOrder,
+  type InstantCloseBulkParameters,
+  type InstantCloseBulkReturnType,
   type InstantCloseMarketData,
   type InstantCloseOrder,
   type InstantCloseParameters,
