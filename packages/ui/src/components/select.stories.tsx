@@ -46,3 +46,43 @@ export const Preselected: Story = {
     </div>
   ),
 };
+
+/**
+ * Each item carries a `description` line that explains what it does. The
+ * description renders only in the open dropdown — the trigger reflects the
+ * selected item's label alone.
+ */
+export const WithDescriptions: Story = {
+  render: (args) => (
+    <div className="w-[320px]">
+      <Select {...args} defaultValue="exclude">
+        <SelectTrigger>
+          <SelectValue placeholder="Margin legs" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem
+            value="exclude"
+            description="Default. Show only real deposits and withdrawals."
+            className="max-w-xs"
+          >
+            Hide margin legs
+          </SelectItem>
+          <SelectItem
+            value="include"
+            description="Include the margin-transfer legs alongside real movements."
+            className="max-w-xs"
+          >
+            Show margin legs
+          </SelectItem>
+          <SelectItem
+            value="only"
+            description="Show just the margin-transfer legs between a subaccount and its virtual accounts."
+            className="max-w-xs"
+          >
+            Only margin legs
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  ),
+};

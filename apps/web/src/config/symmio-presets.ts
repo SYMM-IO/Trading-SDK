@@ -38,6 +38,8 @@ export const STAGING_CHAIN_OVERRIDES = {
     subgraphs: {
       analytics:
         "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_analytics/latest/gn",
+      events:
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_events/latest/gn",
     },
     notifications: {
       url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",

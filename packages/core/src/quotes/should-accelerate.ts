@@ -38,3 +38,36 @@ const ACCELERATING_LIFECYCLES = new Set<QuoteLifecycle>([
 export function shouldAccelerateQuotePolling(result: ReconcileQuotesResult): boolean {
   return result.quotes.some((quote) => ACCELERATING_LIFECYCLES.has(quote.lifecycle));
 }
+
+/**
+ * Lifecycle stages where the SDK is waiting on the **on-chain read** to confirm a
+ * change it already knows is coming — an anchored open (`WRITE_ONCHAIN`) or a
+ * requested close (`WRITE_ONCHAIN_CLOSE` / `CLOSING`): the notification/overlay has
+ * advanced the row but `raw.onchain` has not caught up yet.
+ */
+const ONCHAIN_PENDING_LIFECYCLES = new Set<QuoteLifecycle>([
+  QuoteLifecycle.WRITE_ONCHAIN,
+  QuoteLifecycle.WRITE_ONCHAIN_CLOSE,
+  QuoteLifecycle.CLOSING,
+]);
+
+/**
+ * Decide whether the **on-chain reads** specifically should poll at the accelerated
+ * interval — the RPC-lag retry. Unlike {@link shouldAccelerateQuotePolling} (which is
+ * `true` for every mid-transition stage, including the purely off-chain ones), this is
+ * `true` only while a row awaits on-chain confirmation (`WRITE_ONCHAIN` /
+ * `WRITE_ONCHAIN_CLOSE` / `CLOSING`). The off-chain stages (`OPTIMISTIC` /
+ * `PRICE_FILLED` / `OPTIMISTIC_CLOSE` / `CLOSE_PRICE_FILLED`) have nothing on-chain to
+ * read before the anchor, so they must not drive on-chain polling.
+ *
+ * @param result - The latest reconciliation result.
+ * @returns `true` when at least one row is awaiting on-chain confirmation.
+ *
+ * @example
+ * ```ts
+ * const onchainInterval = shouldAccelerateOnchainReads(result) ? 1_500 : false;
+ * ```
+ */
+export function shouldAccelerateOnchainReads(result: ReconcileQuotesResult): boolean {
+  return result.quotes.some((quote) => ONCHAIN_PENDING_LIFECYCLES.has(quote.lifecycle));
+}

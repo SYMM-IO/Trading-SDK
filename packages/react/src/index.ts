@@ -402,6 +402,35 @@ export {
 } from "./quotes";
 
 /**
+ * Balance history hooks
+ * ---------------------
+ * `useBalanceHistory` reads a sub-account's deposit / withdraw history from the
+ * analytics subgraph (`getBalanceHistory`), with internal margin-transfer legs
+ * excluded by default. `useDepositHistory` / `useWithdrawHistory` are thin
+ * wrappers that pin the movement filter. Import the `BalanceChangeType` /
+ * `BalanceHistoryFilter` / `MarginTransferType` enums and `BalanceHistoryRow`
+ * type from `@symm-frontier/core`.
+ */
+export {
+  useBalanceHistory,
+  useDepositHistory,
+  useWithdrawHistory,
+  type UseBalanceHistoryParameters,
+  type UseBalanceHistoryReturnType,
+  type UseDepositHistoryParameters,
+  type UseWithdrawHistoryParameters,
+} from "./balance-history";
+
+/**
+ * Transfer history hook
+ * ---------------------
+ * `useTransferHistory` reads internal transfers (margin moves between SYMMIO
+ * accounts) from the events subgraph (`getTransferHistory`). Import the
+ * `TransferRow` / `TransferDirection` types from `@symm-frontier/core`.
+ */
+export { useTransferHistory, type UseTransferHistoryParameters, type UseTransferHistoryReturnType } from "./transfers";
+
+/**
  * Locked params hooks
  * -------------------
  * Fetch solver lock percentages for a market/leverage pair.

@@ -35,12 +35,14 @@ import { WriteGrantDelegation } from "../inspector/write-grant-delegation";
 import { WriteInitiateWithdraw } from "../inspector/write-initiate-withdraw";
 import { WriteRemoveMargin } from "../inspector/write-remove-margin";
 import { WriteRequestCancelWithdraw } from "../inspector/write-request-cancel-withdraw";
+import { BalanceHistoryCard } from "../transactions/balance-history-card";
+import { TransfersCard } from "../transactions/transfers-card";
 
 /** On-chain ABI a method belongs to. Solver (API) reads have no ABI. */
 export type AbiKey = "account-layer" | "symmio-core" | "collateral" | "instant-layer";
 
 /** Usability flow a method participates in. */
-export type GroupKey = "subaccounts" | "deposit" | "margin" | "withdraw" | "delegation" | "positions";
+export type GroupKey = "subaccounts" | "deposit" | "margin" | "withdraw" | "delegation" | "positions" | "transfers";
 
 /** One registered method-exerciser card with its taxonomy. */
 export interface MethodEntry {
@@ -199,6 +201,10 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     groups: ["deposit"],
     Component: WriteDepositAndAllocate,
   },
+  // Balance history (analytics subgraph) — a deposit/withdraw read, not an ABI method
+  { id: "balanceHistory", kind: "read", groups: ["deposit", "withdraw"], Component: BalanceHistoryCard },
+  // Transfer history (events subgraph) — internal transfers, not an ABI method
+  { id: "transferHistory", kind: "read", groups: ["transfers"], Component: TransfersCard },
   // Collateral (ERC20)
   { id: "approveCollateral", kind: "write", abi: "collateral", groups: ["deposit"], Component: WriteApproveCollateral },
   {

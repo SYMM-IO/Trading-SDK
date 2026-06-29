@@ -1057,6 +1057,7 @@ export {
   reconcileQuotes,
   resolveQuoteAccounts,
   resolveQuoteGroupingStrategy,
+  shouldAccelerateOnchainReads,
   shouldAccelerateQuotePolling,
   toUnifiedQuoteFromInstantClose,
   toUnifiedQuoteFromInstantOpen,
@@ -1272,3 +1273,56 @@ export {
   type UnwatchTpSl,
   type WatchTpSlNotificationsParameters,
 } from "./websocket/tpsl";
+
+/**
+ * Balance history (subgraph)
+ * --------------------------
+ * `getBalanceHistory` reads a sub-account's deposit / withdraw history from the
+ * analytics subgraph's `balanceChanges` collection, filtered by movement type
+ * (deposit / withdraw / bridge), time range, and pagination. Amounts are raw
+ * `bigint` in collateral decimals.
+ */
+export {
+  BalanceChangeType,
+  BalanceHistoryFilter,
+  MarginTransferType,
+  balanceHistoryFilterToTypes,
+  getBalanceHistory,
+  getBalanceHistoryQueryKey,
+  getBalanceHistoryQueryOptions,
+  toBalanceHistoryRow,
+  type BalanceHistoryRow,
+  type GetBalanceHistoryData,
+  type GetBalanceHistoryOptions,
+  type GetBalanceHistoryParameters,
+  type GetBalanceHistoryQueryKey,
+  type GetBalanceHistoryQueryOptions,
+  type GetBalanceHistoryReturnType,
+  type InternalTransfersMode,
+  type RawBalanceChangeRow,
+} from "./balance-history";
+
+/**
+ * Transfer history (events subgraph)
+ * ----------------------------------
+ * `getTransferHistory` reads internal transfers (margin moves between SYMMIO
+ * accounts) from the **events** subgraph's `internalTransfers` collection — the
+ * source behind a "Transfer" view. Rows carry raw `from` / `to` endpoints, an
+ * 18-decimal `amount`, and a `direction` relative to the queried accounts.
+ */
+export {
+  getTransferHistory,
+  getTransferHistoryQueryKey,
+  getTransferHistoryQueryOptions,
+  toTransferRow,
+  type GetTransferHistoryData,
+  type GetTransferHistoryOptions,
+  type GetTransferHistoryParameters,
+  type GetTransferHistoryQueryKey,
+  type GetTransferHistoryQueryOptions,
+  type GetTransferHistoryReturnType,
+  type RawInternalTransferRow,
+  type TransferDirection,
+  type TransferRow,
+  type TransferRowDirection,
+} from "./transfers";

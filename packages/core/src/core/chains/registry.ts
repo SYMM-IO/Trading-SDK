@@ -20,6 +20,8 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     subgraphs: {
       analytics:
         "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_mainnet_analytics/latest/gn",
+      events:
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_mainnet_events/latest/gn",
     },
     solver: {
       name: "Enigma",

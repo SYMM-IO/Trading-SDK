@@ -25,71 +25,94 @@ import { SymmioSupportedChainId } from "./src/core/chains/supported-chains";
  * directly over the SDK's axios transport with zero GraphQL runtime dependency.
  */
 const ANALYTICS_SUBGRAPH_URL = CHAIN_CONFIGS[SymmioSupportedChainId.HYPER_EVM].subgraphs.analytics;
+/**
+ * The events subgraph (raw on-chain events, e.g. `internalTransfers`). A separate
+ * deployed schema from analytics, so it gets its own codegen target + output dir
+ * and its operations are scoped to `src/transfers/**` (the only events consumer).
+ */
+const EVENTS_SUBGRAPH_URL = CHAIN_CONFIGS[SymmioSupportedChainId.HYPER_EVM].subgraphs.events;
+
+/**
+ * Shared client-preset output config — identical for both schemas. See the
+ * per-field rationale below; factored out so the two targets can't drift.
+ */
+const CLIENT_PRESET_TARGET = {
+  /**
+   * `client-preset` — emits a typed `graphql()` factory returning one document
+   * per operation, replacing the legacy `typescript` + `typescript-operations`
+   * stack.
+   */
+  preset: "client",
+  /**
+   * Disable fragment masking so fragment fields are read directly off the result
+   * type — we don't use the preset's `useFragment()` unmasking indirection.
+   */
+  presetConfig: { fragmentMasking: false },
+  config: {
+    /**
+     * Each operation compiles to a `TypedDocumentString` whose `.toString()` is
+     * the raw query text — POSTed directly over axios with no GraphQL runtime.
+     */
+    documentMode: "string",
+    /** Emit type-only imports so the output is `verbatimModuleSyntax`-safe. */
+    useTypeImports: true,
+    /**
+     * The Graph custom scalars → portable TS primitives. Amounts/prices are raw
+     * wei strings the actions parse to `bigint`; addresses/hashes are hex.
+     */
+    scalars: {
+      BigInt: "string",
+      Bytes: "string",
+      BigDecimal: "string",
+      Int8: "number",
+      Timestamp: "string",
+    },
+  },
+} as const;
 
 const config: CodegenConfig = {
   /**
-   * Live endpoint introspected at generate-time for the full executable schema
-   * (Query root + Graph-generated `*_filter` / `*_orderBy` inputs). See the
-   * module JSDoc for why the deployed endpoint — not the repo `schema.graphql` —
-   * is the only viable source.
-   */
-  schema: ANALYTICS_SUBGRAPH_URL,
-  /**
-   * Glob set scanned for GraphQL operations to type. Operations are authored
-   * inline as `graphql("…")` tagged strings anywhere under `src`. The two
-   * negations keep the scan to hand-written source: tests never contribute
-   * operations, and excluding the output dir stops codegen from re-parsing the
-   * documents it just emitted (a self-referential loop).
-   */
-  documents: ["src/**/*.ts", "!src/**/*.test.ts", "!src/symmio-subgraph/types/generated/**"],
-  /**
    * Don't fail the run when zero operations are found (e.g. a clean rebuild
-   * before any query is authored). Keeps `pnpm generate-types` non-fatal.
+   * before any query is authored, or before the events slice exists). Keeps
+   * `pnpm generate-types` non-fatal.
    */
   ignoreNoDocuments: true,
   generates: {
     /**
-     * The client preset emits a folder (`graphql.ts`, `gql.ts`, `index.ts`),
-     * not a single file — hence a directory target.
+     * Analytics target. Introspects the live analytics endpoint and types every
+     * `graphql("…")` operation under `src` EXCEPT the events slice — those query a
+     * different schema and are typed by the events target below. The client
+     * preset emits a folder (`graphql.ts`, `gql.ts`, `index.ts`), hence a
+     * directory target.
+     *
+     * ⚠️ ROUTING IS BY FILE PATH. Both targets' generated `graphql()` factories
+     * share the name `graphql`, and the client preset scans by that identifier
+     * (its `gqlTagName` does not isolate a target's documents in this version), so
+     * the ONLY thing that routes an operation to the right schema is the
+     * `documents` globs below. **Every events operation MUST live under
+     * `src/transfers/**`** (the events target's scope). To add an events consumer
+     * in a new directory, add that directory to the events `documents` glob AND to
+     * this target's exclusions — otherwise its `graphql("…internalTransfers…")`
+     * call is swept into this analytics scan and codegen aborts with a confusing
+     * "Cannot query field" error against the wrong schema.
      */
-    "./src/symmio-subgraph/types/generated/": {
-      /**
-       * `client-preset` — the modern preset that emits a typed `graphql()`
-       * factory returning one document per operation, replacing the legacy
-       * `typescript` + `typescript-operations` + near-operation-file stack.
-       */
-      preset: "client",
-      /**
-       * Disable fragment masking so fragment fields are read directly off the
-       * result type. We don't use the preset's `useFragment()` unmasking
-       * indirection; the SDK consumes fields plainly.
-       */
-      presetConfig: { fragmentMasking: false },
-      config: {
-        /**
-         * Each operation compiles to a `TypedDocumentString` whose `.toString()`
-         * is the raw query text — POSTed directly over axios with no GraphQL
-         * runtime. See the module JSDoc.
-         */
-        documentMode: "string",
-        /**
-         * Emit type-only imports as `import type { … }` so the output is
-         * `verbatimModuleSyntax`/`isolatedModules`-safe and pulls in no runtime
-         * imports.
-         */
-        useTypeImports: true,
-        /**
-         * The Graph custom scalars → portable TS primitives. Amounts/prices are
-         * raw wei strings the actions parse to `bigint`; addresses/hashes are hex.
-         */
-        scalars: {
-          BigInt: "string",
-          Bytes: "string",
-          BigDecimal: "string",
-          Int8: "number",
-          Timestamp: "string",
-        },
-      },
+    "./src/symmio-subgraph/types/generated/analytics/": {
+      schema: ANALYTICS_SUBGRAPH_URL,
+      documents: ["src/**/*.ts", "!src/**/*.test.ts", "!src/symmio-subgraph/types/generated/**", "!src/transfers/**"],
+      ...CLIENT_PRESET_TARGET,
+    },
+    /**
+     * Events target. A separate deployed schema (raw on-chain events), so it gets
+     * its own introspection + `graphql()` factory under a sibling `events/` output
+     * dir (both schemas' generated code shares the one `types/generated/` parent).
+     * Scoped to `src/transfers/**`, the only events consumer — see the path-routing
+     * warning above; keep events operations under this glob and excluded from
+     * analytics.
+     */
+    "./src/symmio-subgraph/types/generated/events/": {
+      schema: EVENTS_SUBGRAPH_URL,
+      documents: ["src/transfers/**/*.ts", "!src/transfers/**/*.test.ts"],
+      ...CLIENT_PRESET_TARGET,
     },
   },
 };

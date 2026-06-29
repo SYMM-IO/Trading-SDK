@@ -14,7 +14,7 @@ import {
   isolationTypeForSide,
   QuoteLifecycle,
   reconcileQuotes,
-  shouldAccelerateQuotePolling,
+  shouldAccelerateOnchainReads,
   type Notification,
   type Quote,
   type ReconcileQuotesResult,
@@ -35,8 +35,13 @@ import { predicateMatch } from "../utils";
 import { useNotifications } from "../websocket/use-notifications";
 import { useOptimisticQuotesStore } from "./optimistic-quotes-store";
 
-/** Idle quote-polling interval (ms) when nothing is mid-transition. */
-const DEFAULT_POLLING_INTERVAL = 5_000;
+/**
+ * Baseline poll interval (ms) used **only as a fallback** when the live event channel
+ * is unavailable (`live` is off, or the notifications socket is not `open`). With the
+ * socket up the feature is events-first: there is no idle on-chain poll unless the
+ * consumer opts into one via `pollingInterval`.
+ */
+const FALLBACK_POLLING_INTERVAL = 5_000;
 
 /** Accelerated quote-polling interval (ms) while a row is mid-transition. */
 const ACCELERATED_POLLING_INTERVAL = 1_500;
@@ -98,7 +103,13 @@ export interface UseManagedQuotesParameters {
   partyA?: Address;
   /** Target chain id. Defaults to the connected chain. */
   chainId?: number;
-  /** Idle on-chain polling interval (ms). Default 5000; accelerates automatically while rows transition. */
+  /**
+   * Opt-in idle polling cadence (ms). **Default off** — with `live` notifications the
+   * feature is events-first: it does not poll at idle, only (a) accelerates on-chain
+   * reads briefly while a row awaits on-chain confirmation (the RPC-lag retry), and
+   * (b) falls back to a baseline poll when the event channel is down. Set this to make
+   * it poll on a fixed cadence regardless (e.g. a live-inspector panel).
+   */
   pollingInterval?: number;
   /** Subscribe to the live notifications stream. Default `true`; set `false` for poll-only. */
   live?: boolean;
@@ -160,8 +171,10 @@ export interface UseManagedQuotesResult {
  * a quote shows iff it is in a source this tick), stamping each optimistic
  * instant-open with its predicted VA via `instantOpenVaByTempId`. Live
  * notifications (via `useNotifications`, unless `live` is `false`) are applied in
- * the same merge. On-chain polling accelerates automatically while any row is
- * mid-transition (`shouldAccelerateQuotePolling`).
+ * the same merge. With `live` notifications the feature is **events-first**: it does
+ * not poll at idle, only accelerating the on-chain reads briefly while a row awaits
+ * on-chain confirmation (`shouldAccelerateOnchainReads`, the RPC-lag retry), and
+ * falling back to a baseline poll only when the event channel is down.
  *
  * Optimistic instant-opens seeded into {@link useOptimisticQuotesStore} are
  * merged in as extra `instantOpens` so a just-submitted trade shows instantly,
@@ -173,7 +186,7 @@ export interface UseManagedQuotesResult {
  * ```
  */
 export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseManagedQuotesResult {
-  const { partyA, chainId, pollingInterval = DEFAULT_POLLING_INTERVAL, live = true, enabled = true } = parameters;
+  const { partyA, chainId, pollingInterval, live = true, enabled = true } = parameters;
   const config = useSymmioConfig();
   const defaultChainId = useSymmioChainId();
   const resolvedChainId = chainId ?? defaultChainId;
@@ -232,10 +245,10 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
   /**
    * Last reconciliation result, kept in a ref so it survives renders without
    * triggering one. Its only remaining job is to feed
-   * {@link shouldAccelerateQuotePolling} the previous tick's result, since the
-   * source queries set their `refetchInterval` before this render's result
-   * exists. ("Active quotes only" dropped the grace window, and `links` are
-   * recomputed fresh on each merge.)
+   * {@link shouldAccelerateOnchainReads} (and the feed-intent gates) the previous
+   * tick's result, since the source queries set their `refetchInterval` before this
+   * render's result exists. ("Active quotes only" dropped the grace window, and
+   * `links` are recomputed fresh on each merge.)
    */
   const previousRef = useRef<ReconcileQuotesResult | undefined>(undefined);
 
@@ -249,27 +262,49 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
    */
   const retainedAnchorsRef = useRef<UnifiedQuote[]>([]);
 
+  /**
+   * Last tick's socket status, read one render behind (like `previousRef`) to decide
+   * whether the live event channel is up. Updated right after `useNotifications` below.
+   * When the channel is live the feature is events-first (no idle poll); when it is
+   * down we fall back to polling so state still advances without notifications.
+   */
+  const socketStatusRef = useRef<SocketStatus>("closed");
+
   const optimisticEntries = useOptimisticQuotesStore((state) => state.entries);
   const clearSettled = useOptimisticQuotesStore((state) => state.clearSettled);
 
-  const accelerated = previousRef.current ? shouldAccelerateQuotePolling(previousRef.current) : false;
-  const pollInterval = accelerated ? ACCELERATED_POLLING_INTERVAL : pollingInterval;
-  const refetchInterval = active ? pollInterval : false;
+  /** Live event channel = subscribed (`live`) and the socket was `open` last render. */
+  const eventChannelLive = live && socketStatusRef.current === "open";
+  /** Consumer's opt-in idle cadence (off by default). */
+  const idleInterval = pollingInterval && pollingInterval > 0 ? pollingInterval : false;
 
   /**
-   * Gate the hedger feeds on the previous tick's lifecycles: poll instant-opens
-   * only while an open is in flight, instant-closes only while a close is in flight.
-   * Idle (just holding positions) polls neither — the on-chain reads + notifications
-   * cover steady state, and the open/close mutations invalidate the matching feed to
-   * bootstrap the first fetch. (Computed from the previous result for the same reason
-   * `accelerated` is — the queries set their interval before this render's result
-   * exists; an on-chain poll or notification re-render flips the gate on a tick later.)
+   * On-chain reads accelerate to {@link ACCELERATED_POLLING_INTERVAL} **only** while a
+   * row awaits on-chain confirmation (`WRITE_ONCHAIN` / `WRITE_ONCHAIN_CLOSE` /
+   * `CLOSING`) — the RPC-lag retry. Otherwise: no idle poll when the event channel is
+   * live (events drive updates) unless the consumer opted into `idleInterval`; a
+   * baseline fallback when the channel is down so state still progresses. Read from the
+   * previous result because the queries set their interval before this render's result
+   * exists (an on-chain poll / notification re-render advances it a tick later).
+   */
+  const accelerateOnchain = previousRef.current ? shouldAccelerateOnchainReads(previousRef.current) : false;
+  const onchainIdleInterval = eventChannelLive ? idleInterval : idleInterval || FALLBACK_POLLING_INTERVAL;
+  const refetchInterval = active ? (accelerateOnchain ? ACCELERATED_POLLING_INTERVAL : onchainIdleInterval) : false;
+
+  /**
+   * Hedger feeds are event-driven while the channel is live: the open/close mutation
+   * invalidates the matching feed once and the notifications advance the stage, so they
+   * do not poll (unless the consumer opted into `idleInterval`). When the channel is
+   * down they poll while the matching flow is in flight, to track it without
+   * notifications. `hasOpenIntent` / `hasCloseIntent` come from the previous tick.
    */
   const previousQuotes = previousRef.current?.quotes;
   const hasOpenIntent = previousQuotes?.some((quote) => OPEN_INTENT_LIFECYCLES.has(quote.lifecycle)) ?? false;
   const hasCloseIntent = previousQuotes?.some((quote) => CLOSE_INTENT_LIFECYCLES.has(quote.lifecycle)) ?? false;
-  const instantOpensInterval = active && wantInstantOpens && hasOpenIntent ? pollInterval : false;
-  const instantClosesInterval = active && wantInstantCloses && hasCloseIntent ? pollInterval : false;
+  const feedInterval = (hasIntent: boolean) =>
+    !eventChannelLive && hasIntent ? ACCELERATED_POLLING_INTERVAL : idleInterval;
+  const instantOpensInterval = active && wantInstantOpens ? feedInterval(hasOpenIntent) : false;
+  const instantClosesInterval = active && wantInstantCloses ? feedInterval(hasCloseIntent) : false;
 
   /**
    * Off-chain hedger reads — always scoped to the sub-account, never the VAs. Kept
@@ -371,6 +406,30 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
       }, NOTIFICATION_INVALIDATE_DEBOUNCE);
     }, []),
   });
+
+  /** Mirror the live socket status into the ref the interval gating reads next render. */
+  socketStatusRef.current = socketStatus;
+
+  /**
+   * One-shot re-sync when the notifications socket **reconnects**. The stream does not
+   * replay messages missed while it was down, so on a re-`open` we invalidate the reads
+   * once to catch up — this replaces a continuous fallback poll. The first connect is
+   * skipped (the queries already fetched on mount).
+   */
+  const hasBeenOpenRef = useRef(false);
+  useEffect(() => {
+    if (!live || socketStatus !== "open") return;
+    if (hasBeenOpenRef.current) {
+      const client = queryClientRef.current;
+      const scope = { configKey: configKeyRef.current };
+      void client.invalidateQueries({ predicate: predicateMatch(getPartyAOpenPositionsQueryKey, scope) });
+      void client.invalidateQueries({ predicate: predicateMatch(getPartyAPendingQuotesQueryKey, scope) });
+      void client.invalidateQueries({ predicate: predicateMatch(getQuoteQueryKey, scope) });
+      void client.invalidateQueries({ predicate: predicateMatch(getInstantOpensQueryKey, scope) });
+      void client.invalidateQueries({ predicate: predicateMatch(getInstantClosesQueryKey, scope) });
+    }
+    hasBeenOpenRef.current = true;
+  }, [socketStatus, live]);
 
   /** Clear the pending invalidation timer on unmount. */
   useEffect(() => {

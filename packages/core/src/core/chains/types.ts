@@ -22,15 +22,17 @@ export interface SymmioContractAddresses {
  * Subgraph endpoints for a SYMMIO chain deployment.
  */
 export interface SymmioSubgraphUrls {
-  /** Analytics subgraph for aggregated data */
+  /** Analytics subgraph for aggregated data (balance changes, quotes, history). */
   analytics: string;
+  /** Events subgraph for raw on-chain events (e.g. `internalTransfers`). */
+  events: string;
 }
 
 /**
  * Name of a configured subgraph endpoint (a key of {@link SymmioSubgraphUrls}).
  *
- * Used to pick which subgraph an action queries; today only `"analytics"` is
- * wired, but the union grows automatically as endpoints are added.
+ * Used to pick which subgraph an action queries (`"analytics"` | `"events"`); the
+ * union grows automatically as endpoints are added.
  */
 export type SymmioSubgraphName = keyof SymmioSubgraphUrls;
 

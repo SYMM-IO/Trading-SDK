@@ -1,4 +1,4 @@
-import { graphql } from "../../symmio-subgraph/types/generated";
+import { graphql } from "../../symmio-subgraph/types/generated/analytics";
 
 /**
  * Batch read of `userPaidFunding` / `userReceivedFunding` for the given on-chain

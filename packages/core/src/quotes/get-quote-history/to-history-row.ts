@@ -1,6 +1,6 @@
 import { getAddress, type Hex } from "viem";
 import type { OrderType, PositionType, QuoteStatus } from "../../symmio-contracts/symmio/types";
-import type { QuoteEventsForHistoryQuery } from "../../symmio-subgraph/types/generated/graphql";
+import type { QuoteEventsForHistoryQuery } from "../../symmio-subgraph/types/generated/analytics/graphql";
 import { eventTypeToQuoteStatus, LIQUIDATION_EVENT_TYPES } from "./close-type";
 import { QuoteCloseEventType, type QuoteHistoryRow } from "./types";
 

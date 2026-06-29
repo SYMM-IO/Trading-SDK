@@ -7,6 +7,30 @@ import type { DocumentTypeDecoration } from "@graphql-typed-document-node/core";
 /** Defines the order direction, either ascending or descending */
 export type OrderDirection = "asc" | "desc";
 
+export type BalanceChangesQueryVariables = Exact<{
+  accounts: Array<string> | string;
+  typeIn: Array<string> | string;
+  isMarginTransferSideEffectIn: Array<boolean> | boolean;
+  first: number;
+  skip: number;
+  orderDirection: OrderDirection;
+  startDate: string;
+  endDate: string;
+}>;
+
+export type BalanceChangesQuery = {
+  balanceChanges: Array<{
+    id: string;
+    type: string;
+    amount: string;
+    account: string;
+    timestamp: string;
+    transaction: string;
+    isMarginTransferSideEffect: boolean;
+    marginTransferType: string | null;
+  }>;
+};
+
 export type QuoteEventsForQuoteByTypeQueryVariables = Exact<{
   quoteId: string;
   typeIn: Array<string> | string;
@@ -96,6 +120,26 @@ export class TypedDocumentString<TResult, TVariables>
   }
 }
 
+export const BalanceChangesDocument = new TypedDocumentString(`
+    query BalanceChanges($accounts: [Bytes!]!, $typeIn: [String!]!, $isMarginTransferSideEffectIn: [Boolean!]!, $first: Int!, $skip: Int!, $orderDirection: OrderDirection!, $startDate: BigInt!, $endDate: BigInt!) {
+  balanceChanges(
+    first: $first
+    skip: $skip
+    orderBy: timestamp
+    orderDirection: $orderDirection
+    where: {account_in: $accounts, type_in: $typeIn, isMarginTransferSideEffect_in: $isMarginTransferSideEffectIn, timestamp_gte: $startDate, timestamp_lte: $endDate}
+  ) {
+    id
+    type
+    amount
+    account
+    timestamp
+    transaction
+    isMarginTransferSideEffect
+    marginTransferType
+  }
+}
+    `) as unknown as TypedDocumentString<BalanceChangesQuery, BalanceChangesQueryVariables>;
 export const QuoteEventsForQuoteByTypeDocument = new TypedDocumentString(`
     query QuoteEventsForQuoteByType($quoteId: BigInt!, $typeIn: [String!]!, $first: Int!, $skip: Int!, $orderDirection: OrderDirection!) {
   quoteEvents(

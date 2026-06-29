@@ -63,7 +63,10 @@ export const CONFIG_GROUPS: ConfigGroupDef[] = [
   {
     group: "subgraphs",
     title: "Subgraphs",
-    fields: [{ group: "subgraphs", key: "analytics", label: "Analytics", kind: "url" }],
+    fields: [
+      { group: "subgraphs", key: "analytics", label: "Analytics", kind: "url" },
+      { group: "subgraphs", key: "events", label: "Events", kind: "url" },
+    ],
   },
   {
     group: "notifications",

@@ -3,7 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import { Stat } from "@/components/stat";
-import { formatUsd } from "@/lib/format";
+import { formatUsd, isUnlimitedAllowance } from "@/lib/format";
 import { useCollateralAllowance, useSymmioConfig, useWalletAccount } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
@@ -84,9 +84,33 @@ function ResultPanel({
   if (query.data === undefined) {
     return <ResultNote testId={`${testId}-idle`}>Run the read to see the allowance.</ResultNote>;
   }
+
+  const raw = query.data;
+
+  if (isUnlimitedAllowance(raw)) {
+    return (
+      <div data-testid={`${testId}-data`}>
+        <Stat
+          label="Allowance"
+          value={
+            <span className="inline-flex items-baseline gap-2">
+              <span className="text-info">∞</span>
+              Unlimited
+            </span>
+          }
+          hint="Max approval — the core can spend any amount."
+        />
+      </div>
+    );
+  }
+
   return (
     <div data-testid={`${testId}-data`}>
-      <Stat label="Allowance" value={formatUsd(query.data, decimals)} hint={`${String(query.data)} raw units`} />
+      <Stat
+        label="Allowance"
+        value={raw === 0n ? "None" : formatUsd(raw, decimals)}
+        hint={raw === 0n ? "This owner hasn't approved the core yet." : `${String(raw)} raw units`}
+      />
     </div>
   );
 }

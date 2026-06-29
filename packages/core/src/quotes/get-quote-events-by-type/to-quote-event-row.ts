@@ -1,5 +1,5 @@
 import type { Hex } from "viem";
-import type { QuoteEventsForQuoteByTypeQuery } from "../../symmio-subgraph/types/generated/graphql";
+import type { QuoteEventsForQuoteByTypeQuery } from "../../symmio-subgraph/types/generated/analytics/graphql";
 import { QuoteEventType, type QuoteEventRow } from "./types";
 
 /** A single `quoteEvents` row as returned by the events query. */

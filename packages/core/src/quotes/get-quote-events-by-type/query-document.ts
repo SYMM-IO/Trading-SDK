@@ -1,4 +1,4 @@
-import { graphql } from "../../symmio-subgraph/types/generated";
+import { graphql } from "../../symmio-subgraph/types/generated/analytics";
 
 /**
  * Read every `QuoteEvent` of the requested types for one quote id, paginated and

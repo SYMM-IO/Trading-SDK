@@ -98,13 +98,24 @@ function SelectLabel({ className, ...props }: React.ComponentProps<typeof Select
   );
 }
 
+/** Props for {@link SelectItem}: Radix `Select.Item` props plus an optional `description`. */
+interface SelectItemProps extends React.ComponentProps<typeof SelectPrimitive.Item> {
+  /**
+   * Optional secondary line rendered under the label inside the dropdown to
+   * explain what the option does. It lives outside Radix's `ItemText`, so it
+   * shows only in the open list — the trigger still reflects the label alone.
+   */
+  description?: React.ReactNode;
+}
+
 /** A selectable option. `value` is the string written to the {@link Select}'s value. */
-function SelectItem({ className, children, ...props }: React.ComponentProps<typeof SelectPrimitive.Item>) {
+function SelectItem({ className, children, description, ...props }: SelectItemProps) {
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
         "focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default items-center gap-2 rounded-xl py-1.5 pr-8 pl-2 text-sm outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+        description && "items-start",
         className,
       )}
       {...props}
@@ -114,7 +125,14 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
           <Check className="size-4" />
         </SelectPrimitive.ItemIndicator>
       </span>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      {description ? (
+        <span className="flex flex-col gap-0.5">
+          <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+          <span className="text-muted-foreground text-xs leading-snug font-normal">{description}</span>
+        </span>
+      ) : (
+        <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      )}
     </SelectPrimitive.Item>
   );
 }
@@ -176,4 +194,5 @@ export {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
+  type SelectItemProps,
 };

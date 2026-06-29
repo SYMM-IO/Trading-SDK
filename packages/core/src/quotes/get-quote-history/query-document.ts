@@ -1,4 +1,4 @@
-import { graphql } from "../../symmio-subgraph/types/generated";
+import { graphql } from "../../symmio-subgraph/types/generated/analytics";
 
 /**
  * History query over the immutable `quoteEvents` collection (SYMMIO subgraphs

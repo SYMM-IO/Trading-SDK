@@ -1,4 +1,4 @@
-import type { QuotesFundingQuery } from "../../symmio-subgraph/types/generated/graphql";
+import type { QuotesFundingQuery } from "../../symmio-subgraph/types/generated/analytics/graphql";
 import type { QuoteFundingData } from "./types";
 
 /** A single `quotes` row as returned by the funding query. */

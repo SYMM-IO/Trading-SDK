@@ -108,6 +108,17 @@ export const FLOW_PAGES: readonly ContractPage[] = [
     icon: <WithdrawIcon />,
   },
   {
+    slug: "transfers",
+    kind: "flow",
+    group: "transfers",
+    eyebrow: "Flow",
+    title: "Transfers",
+    description:
+      "Internal transfers — margin moves between SYMMIO accounts — read from the events subgraph, filterable by direction with their raw from → to endpoints.",
+    icon: <TransferIcon />,
+    fullWidth: true,
+  },
+  {
     slug: "delegation",
     kind: "flow",
     group: "delegation",
@@ -275,6 +286,28 @@ function WithdrawIcon() {
         stroke="currentColor"
         strokeWidth="1.75"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function TransferIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      <path
+        d="M4 8h13m0 0-3.5-3.5M17 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M20 16H7m0 0 3.5-3.5M7 16l3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.55"
       />
     </svg>
   );
