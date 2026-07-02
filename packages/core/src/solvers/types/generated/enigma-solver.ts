@@ -653,7 +653,7 @@ export const getInstantTradeEip712Config = (
  * - `remove_margin` — withdraw allocated margin from an existing VirtualAccount via AccountLayer.removeMargin. Requires `operation`.
  * - `delegate_access_for_session_key` — grant a delegate signer access for one or more allowlisted selectors via InstantLayer.grantBatchDelegationBySig. Requires `delegation`.
  *
- * Exactly one of `operation` or `delegation` must be present per request. Delegation selectors are restricted to: `sendQuoteWithAffiliateAndData`, `requestToClosePosition`, `addMarginToNextVA`, `addMargin`, `removeMargin`.
+ * Exactly one of `operation` or `delegation` must be present per request. Delegation selectors are restricted to: `sendQuoteWithAffiliateAndData`, `requestToClosePosition`, `addMarginToNextVA`, `addMargin`, `removeMargin`, `allocate`, `deallocate`, `safeDeallocate`, `initiateWithdraw`, `finalizeWithdrawRequest`, `requestCancelWithdraw`.
  *
  * Each PartyA is limited to `GASLESS_DAILY_MAX` accepted attempts per UTC day (default 5). The counter is consumed on every attempt past basic validation, regardless of downstream success or failure; the `dailyRemaining` field in the response reports the user's remaining quota.
  * @summary Submit a gasless operation

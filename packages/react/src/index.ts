@@ -563,3 +563,63 @@ export {
   type WriteParameters,
   type WriteResult,
 } from "./transactions";
+
+/**
+ * TP/SL hooks + helpers
+ * ---------------------
+ * Phase 1 — on-chain enigma quotes. Read TP/SL via REST + WS overlay, write new
+ * orders via session-key EIP-712 signing. Pure helpers re-exported from
+ * `@symm-frontier/core` so consumers can stay on one dependency.
+ */
+export {
+  DEFAULT_TPSL_SLIPPAGE_LOWCAPS,
+  ZERO_LEG,
+  buildConditionalOrderLeg,
+  buildConditionalOrderMessage,
+  buildTpSlDeleteMessage,
+  generateTpSlSalt,
+  parseTpSlFrame,
+  priceSlippageCalculation,
+  signTpSlRequest,
+  toSignableTpSlMessage,
+  validateTpSl,
+  watchTpSlNotifications,
+  type QuoteTpSl,
+  type QuoteTpSlActionPriceType,
+  type QuoteTpSlConditionalOrderType,
+  type QuoteTpSlRow,
+  type QuoteTpSlRowState,
+  type SetTpSlSide,
+  type TpSlConditionalOrderLeg,
+  type TpSlConditionalOrderMessage,
+  type TpSlConditionalOrderType,
+  type TpSlConfig,
+  type TpSlDeleteMessage,
+  type TpSlInfoState,
+  type TpSlNotification,
+  type TpSlPriceType,
+  type TpSlSignedRequest,
+  type TpSlSigningSpec,
+  type TpSlValidation,
+  type UnwatchTpSl,
+  type ValidateTpSlInputs,
+  type WatchTpSlNotificationsParameters,
+} from "@symm-frontier/core";
+export {
+  toQuoteTpSl,
+  useQuoteTpSl,
+  useSetQuoteTpSl,
+  useTpSlConfig,
+  useTpSlSigningSpec,
+  useWatchTpSlNotifications,
+  type UseQuoteTpSlParameters,
+  type UseQuoteTpSlReturnType,
+  type UseSetQuoteTpSlParameters,
+  type UseSetQuoteTpSlReturnType,
+  type UseTpSlConfigParameters,
+  type UseTpSlConfigReturnType,
+  type UseTpSlSigningSpecParameters,
+  type UseTpSlSigningSpecReturnType,
+  type UseWatchTpSlNotificationsParameters,
+  type UseWatchTpSlNotificationsReturnType,
+} from "./tpsl";

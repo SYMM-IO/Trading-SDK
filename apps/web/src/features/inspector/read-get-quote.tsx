@@ -7,7 +7,7 @@ import { ResultError, ResultNote } from "@/components/result";
 import { QuoteEventsList } from "@/features/quotes/quote-events-list";
 import { WEI_DECIMALS } from "@/lib/format";
 import { OrderType, PositionType, QuoteStatus } from "@symm-frontier/core";
-import { useQuote, useQuotePriceHistory } from "@symm-frontier/react";
+import { useQuote, useQuotePriceHistory, useQuoteTpSl } from "@symm-frontier/react";
 import { Badge } from "@symm-frontier/ui/components/badge";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
@@ -219,7 +219,35 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
       </Section>
 
       <QuotePriceHistorySection quoteId={quote.id} />
+
+      <QuoteTpSlSection quoteId={quote.id} subAccount={quote.partyA} />
     </div>
+  );
+}
+
+function QuoteTpSlSection({ quoteId, subAccount }: { quoteId: bigint; subAccount: Address }) {
+  const tpsl = useQuoteTpSl({ quoteId, account: subAccount });
+  return (
+    <Section title="TP/SL">
+      {tpsl.isLoading ? (
+        <span className="text-muted-foreground text-xs">Loading…</span>
+      ) : tpsl.error ? (
+        <span className="text-destructive text-xs">{tpsl.error.message}</span>
+      ) : tpsl.data ? (
+        <DataList>
+          <DataRow label="tp" value={tpsl.data.tp || "—"} mono />
+          <DataRow label="sl" value={tpsl.data.sl || "—"} mono />
+          <DataRow label="tpPriceType" value={tpsl.data.tpPriceType} mono />
+          <DataRow label="slPriceType" value={tpsl.data.slPriceType} mono />
+          <DataRow label="tpOpenPrice" value={tpsl.data.tpOpenPrice || "—"} mono />
+          <DataRow label="slOpenPrice" value={tpsl.data.slOpenPrice || "—"} mono />
+          <DataRow label="tpCohQuoteId" value={tpsl.data.tpCohQuoteId ?? "—"} mono />
+          <DataRow label="slCohQuoteId" value={tpsl.data.slCohQuoteId ?? "—"} mono />
+        </DataList>
+      ) : (
+        <span className="text-muted-foreground text-xs">No data.</span>
+      )}
+    </Section>
   );
 }
 

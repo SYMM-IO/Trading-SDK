@@ -48,6 +48,27 @@ export interface SymmioSolverConfig {
   address: Address;
   /** Solver / hedger API base URL */
   url: string;
+  /** Optional TP/SL handler — solver supports conditional orders only when set. */
+  tpsl?: SymmioTpSlConfig;
+}
+
+/**
+ * TP/SL (Conditional Order Handler) configuration for a solver.
+ *
+ * The handler is an off-chain service that signs and executes
+ * `requestToClosePosition` calls when the user's TP/SL trigger fires. To
+ * authorize it, every user must grant a delegation to {@link cohWalletAddress}
+ * for the standard instant-trade selectors.
+ */
+export interface SymmioTpSlConfig {
+  /** Handler REST root URL (no `/api/v5/` suffix — orval-generated paths add it). */
+  url: string;
+  /** Handler WebSocket URL — defilytics-protocol notifications scoped by `appName`. */
+  wsUrl: string;
+  /** `App-Name` header value, e.g. `Hyper-EVM_COH-Low-Cap_Production`. */
+  appName: string;
+  /** COH wallet address that must be granted delegation to execute TP/SL orders. */
+  cohWalletAddress: Address;
 }
 
 /**

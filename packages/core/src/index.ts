@@ -472,6 +472,7 @@ export {
   type SymmioSolverConfig,
   type SymmioSubgraphName,
   type SymmioSubgraphUrls,
+  type SymmioTpSlConfig,
 } from "./core/chains";
 
 /**
@@ -1186,3 +1187,88 @@ export {
   type QuoteFundingData,
   type RawQuoteFundingRow,
 } from "./quotes";
+
+/**
+ * TP/SL (conditional orders)
+ * --------------------------
+ * Phase 1 — on-chain enigma quotes only. Reads the handler's `/configs/` rules,
+ * `/signing-spec`, current TP/SL per quote, and writes new TP/SL orders signed
+ * with the session key against the handler's EIP-712 typed-data domain.
+ */
+export {
+  DEFAULT_TPSL_SLIPPAGE_LOWCAPS,
+  ZERO_LEG,
+  buildConditionalOrderLeg,
+  buildConditionalOrderMessage,
+  buildTpSlDeleteMessage,
+  generateTpSlSalt,
+  getQuoteTpSl,
+  getQuoteTpSlQueryKey,
+  getQuoteTpSlQueryOptions,
+  getTpSlConfig,
+  getTpSlConfigQueryKey,
+  getTpSlConfigQueryOptions,
+  getTpSlSigningSpec,
+  getTpSlSigningSpecQueryKey,
+  getTpSlSigningSpecQueryOptions,
+  priceSlippageCalculation,
+  setQuoteTpSl,
+  setQuoteTpSlMutationOptions,
+  signTpSlRequest,
+  toSignableTpSlMessage,
+  validateTpSl,
+  type GetQuoteTpSlData,
+  type GetQuoteTpSlOptions,
+  type GetQuoteTpSlParameters,
+  type GetQuoteTpSlQueryKey,
+  type GetQuoteTpSlQueryOptions,
+  type GetQuoteTpSlReturnType,
+  type GetTpSlConfigData,
+  type GetTpSlConfigOptions,
+  type GetTpSlConfigParameters,
+  type GetTpSlConfigQueryKey,
+  type GetTpSlConfigQueryOptions,
+  type GetTpSlConfigReturnType,
+  type GetTpSlSigningSpecData,
+  type GetTpSlSigningSpecOptions,
+  type GetTpSlSigningSpecParameters,
+  type GetTpSlSigningSpecQueryKey,
+  type GetTpSlSigningSpecQueryOptions,
+  type GetTpSlSigningSpecReturnType,
+  type QuoteTpSl,
+  type QuoteTpSlActionPriceType,
+  type QuoteTpSlConditionalOrderType,
+  type QuoteTpSlRow,
+  type QuoteTpSlRowState,
+  type SetQuoteTpSlParameters,
+  type SetQuoteTpSlReturnType,
+  type SetTpSlSide,
+  type TpSlConditionalOrderLeg,
+  type TpSlConditionalOrderMessage,
+  type TpSlConditionalOrderType,
+  type TpSlConfig,
+  type TpSlDeleteMessage,
+  type TpSlInfoState,
+  type TpSlPriceType,
+  type TpSlSignedRequest,
+  type TpSlSigningSpec,
+  type TpSlValidation,
+  type ValidateTpSlInputs,
+} from "./tpsl";
+
+/**
+ * TP/SL WebSocket
+ * ---------------
+ * Live notifications stream for conditional-order state transitions.
+ */
+export {
+  parseTpSlFrame,
+  watchTpSlNotifications,
+  type RawTpSlNotification,
+  type RawTpSlNotificationData,
+  type RawTpSlNotificationDetails,
+  type RawTpSlNotificationState,
+  type TpSlNotification,
+  type UnwatchTpSl,
+  type WatchTpSlNotificationsParameters,
+} from "./websocket/tpsl";

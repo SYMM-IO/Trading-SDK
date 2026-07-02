@@ -10,9 +10,10 @@ import { DepositFlow } from "./deposit-flow";
 import { InstantCloseFlow } from "./instant-close-flow";
 import { InstantOpenFlow } from "./instant-open-flow";
 import { Segmented } from "./segmented";
+import { TpSlFlow } from "./tpsl-flow";
 import { WithdrawFlow } from "./withdraw-flow";
 
-type Tab = "deposit" | "withdraw" | "instant-open" | "instant-close" | "close-all";
+type Tab = "deposit" | "withdraw" | "instant-open" | "instant-close" | "close-all" | "tpsl";
 
 /**
  * End-to-end Integration console for the SYMMIO React SDK: a product-grade
@@ -53,6 +54,7 @@ export function IntegrationPanel() {
             { value: "instant-open", label: "Instant Open" },
             { value: "instant-close", label: "Instant Close" },
             { value: "close-all", label: "Close All" },
+            { value: "tpsl", label: "TP/SL" },
           ]}
           value={tab}
           onChange={setTab}
@@ -94,8 +96,16 @@ export function IntegrationPanel() {
             onSelectSubAccount={setSubAccount}
             ready={ready}
           />
-        ) : (
+        ) : tab === "close-all" ? (
           <CloseAllFlow
+            owner={address}
+            subAccount={subAccount}
+            subAccountName={subAccountName}
+            onSelectSubAccount={setSubAccount}
+            ready={ready}
+          />
+        ) : (
+          <TpSlFlow
             owner={address}
             subAccount={subAccount}
             subAccountName={subAccountName}

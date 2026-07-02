@@ -2,7 +2,7 @@ import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { Unwatch } from "../notifications/watch-notifications";
 import { createReconnectingSocket } from "../socket/create-reconnecting-socket";
-import { createSocketPool, type SocketPool } from "../socket/socket-pool";
+import { getSocketPool } from "../socket/get-socket-pool";
 import type { SocketStatus } from "../socket/socket-status";
 import { parsePriceFrame } from "./parse-price-frame";
 import type { EnigmaPriceTick } from "./types";
@@ -19,18 +19,6 @@ export interface WatchEnigmaPricesParameters {
   onStatusChange?: (status: SocketStatus) => void;
   /** Called on a transport or parse error; does not stop the subscription. */
   onError?: (error: SymmError) => void;
-}
-
-/** Per-config socket pools, so connections never leak across `Config` instances. */
-const pools = new WeakMap<Config, SocketPool>();
-
-function getPool(config: Config): SocketPool {
-  let pool = pools.get(config);
-  if (!pool) {
-    pool = createSocketPool();
-    pools.set(config, pool);
-  }
-  return pool;
 }
 
 function toPricesError(event: unknown): SymmError {
@@ -75,7 +63,7 @@ export function watchEnigmaPrices(config: Config, parameters: WatchEnigmaPricesP
 
   const key = `${wsUrl}|prices`;
 
-  return getPool(config).acquire(
+  return getSocketPool(config).acquire(
     key,
     (handlers) =>
       createReconnectingSocket({

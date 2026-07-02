@@ -25,6 +25,12 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
       name: "Enigma",
       address: "0x76bc5889c0cfcC20960b0D81F541595d81a95122",
       url: "https://solver.enigma.bz/api",
+      tpsl: {
+        url: "https://conditional-orders-handler-lowcap85.rasa.capital",
+        wsUrl: "wss://notification.rasa.capital/ws/v1/subscribe",
+        appName: "Hyper-EVM_COH-Low-Cap_Production",
+        cohWalletAddress: "0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31",
+      },
     },
     priceService: {
       type: "enigma",

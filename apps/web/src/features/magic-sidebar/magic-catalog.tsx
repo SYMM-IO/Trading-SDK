@@ -16,6 +16,7 @@ import { MarketsLivePanel } from "./markets-panel";
 import { NotificationsSocketPanel } from "./notifications-socket-panel";
 import { PricesSocketPanel } from "./prices-socket-panel";
 import { QuoteLivePanel } from "./quote-panel";
+import { TpSlNotificationsSocketPanel } from "./tpsl-notifications-socket-panel";
 
 /** Build TanStack `query` overrides for a polled live source. */
 function pollOptions(active: boolean, intervalMs: number) {
@@ -173,6 +174,29 @@ export const MAGIC_CATALOG: MagicMethod[] = [
     keywords: ["notifications", "socket", "websocket", "live", "stream", "events", "position state", "instant"],
     bodyMaxHeight: 460,
     Panel: NotificationsSocketPanel,
+  },
+  {
+    id: "tpsl-notifications",
+    label: "TP/SL notifications",
+    description:
+      "Live take-profit / stop-loss handler events for a sub-account (separate channel from position notifications).",
+    group: "socket",
+    source: "socket",
+    keywords: [
+      "tpsl",
+      "tp",
+      "sl",
+      "take profit",
+      "stop loss",
+      "conditional",
+      "coh",
+      "notifications",
+      "socket",
+      "websocket",
+      "live",
+    ],
+    bodyMaxHeight: 460,
+    Panel: TpSlNotificationsSocketPanel,
   },
   {
     id: "prices",
