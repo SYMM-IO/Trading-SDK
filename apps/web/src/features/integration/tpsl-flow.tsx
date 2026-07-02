@@ -7,6 +7,7 @@ import {
   PositionType,
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
   SymmioRequestError,
+  useDeleteQuoteTpSl,
   useEnigmaPriceByMarketId,
   useGrantDelegation,
   useIsDelegationActive,
@@ -537,6 +538,7 @@ function SetTpSlStep({
 
   const tpslConfig = useTpSlConfig();
   const mutation = useSetQuoteTpSl();
+  const deleteMutation = useDeleteQuoteTpSl();
 
   const [tpPrice, setTpPrice] = useState("");
   const [slPrice, setSlPrice] = useState("");
@@ -545,6 +547,7 @@ function SetTpSlStep({
   const [slippage, setSlippage] = useState("90");
   const tpSeededRef = useRef(false);
   const slSeededRef = useRef(false);
+  const [deletingSides, setDeletingSides] = useState<{ tp: boolean; sl: boolean }>({ tp: false, sl: false });
 
   // Seed each side once from the confirmed snapshot. After the initial seed
   // the user owns the field — a mid-flight refetch (rows returning the stale
@@ -562,6 +565,23 @@ function SetTpSlStep({
       slSeededRef.current = true;
     }
   }, [current.data]);
+
+  // After a delete is dispatched, wait for the WS `cancel` frame to drop the
+  // row (snapshot side becomes empty) before clearing the input. This is what
+  // "confirmed by notification" means — POST 200 alone doesn't clear.
+  useEffect(() => {
+    if (!current.data) return;
+    if (deletingSides.tp && !current.data.tp && current.data.tpState !== "confirming") {
+      setTpPrice("");
+      setTpPriceType("markPrice");
+      setDeletingSides((prev) => ({ ...prev, tp: false }));
+    }
+    if (deletingSides.sl && !current.data.sl && current.data.slState !== "confirming") {
+      setSlPrice("");
+      setSlPriceType("markPrice");
+      setDeletingSides((prev) => ({ ...prev, sl: false }));
+    }
+  }, [current.data, deletingSides.tp, deletingSides.sl]);
 
   const validation: TpSlValidation = useMemo(() => {
     if (!tpslConfig.data) return { ok: true };
@@ -656,7 +676,7 @@ function SetTpSlStep({
             <Spinner className="size-3" /> Loading…
           </div>
         ) : current.data ? (
-          <dl className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1 text-xs">
+          <dl className="grid grid-cols-[auto_1fr_auto_auto] gap-x-3 gap-y-1 text-xs">
             <dt className="text-muted-foreground">TP</dt>
             <dd className="text-foreground font-mono">
               {current.data.tp ? `${current.data.tp} (${current.data.tpPriceType})` : "—"}
@@ -667,6 +687,29 @@ function SetTpSlStep({
                 hasValue={Boolean(current.data.tp) || current.data.tpState === "confirming"}
               />
             </dd>
+            <dd className="justify-self-end">
+              <DeleteSideButton
+                cohQuoteId={current.data.tpCohQuoteId}
+                side="take_profit"
+                disabled={
+                  !sessionKey || !current.data.tp || current.data.tpState === "confirming" || deleteMutation.isPending
+                }
+                onDelete={(cohQuoteId) =>
+                  deleteMutation.mutate(
+                    {
+                      from: sessionKey,
+                      quoteId: position.id,
+                      virtualAccount,
+                      cohQuoteId,
+                      conditionalOrderType: "take_profit",
+                    },
+                    {
+                      onSuccess: () => setDeletingSides((prev) => ({ ...prev, tp: true })),
+                    },
+                  )
+                }
+              />
+            </dd>
             <dt className="text-muted-foreground">SL</dt>
             <dd className="text-foreground font-mono">
               {current.data.sl ? `${current.data.sl} (${current.data.slPriceType})` : "—"}
@@ -675,6 +718,29 @@ function SetTpSlStep({
               <TpSlSideStateBadge
                 state={current.data.slState}
                 hasValue={Boolean(current.data.sl) || current.data.slState === "confirming"}
+              />
+            </dd>
+            <dd className="justify-self-end">
+              <DeleteSideButton
+                cohQuoteId={current.data.slCohQuoteId}
+                side="stop_loss"
+                disabled={
+                  !sessionKey || !current.data.sl || current.data.slState === "confirming" || deleteMutation.isPending
+                }
+                onDelete={(cohQuoteId) =>
+                  deleteMutation.mutate(
+                    {
+                      from: sessionKey,
+                      quoteId: position.id,
+                      virtualAccount,
+                      cohQuoteId,
+                      conditionalOrderType: "stop_loss",
+                    },
+                    {
+                      onSuccess: () => setDeletingSides((prev) => ({ ...prev, sl: true })),
+                    },
+                  )
+                }
               />
             </dd>
           </dl>
@@ -739,6 +805,33 @@ function SetTpSlStep({
         </ResultSuccess>
       ) : null}
     </div>
+  );
+}
+
+function DeleteSideButton({
+  cohQuoteId,
+  side,
+  disabled,
+  onDelete,
+}: {
+  cohQuoteId?: string;
+  side: "take_profit" | "stop_loss";
+  disabled: boolean;
+  onDelete: (cohQuoteId: string) => void;
+}) {
+  if (!cohQuoteId) return null;
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      disabled={disabled}
+      onClick={() => onDelete(cohQuoteId)}
+      className="text-destructive hover:text-destructive h-6 px-2 text-[0.65rem]"
+      data-testid={`tpsl-delete-${side}`}
+    >
+      Delete
+    </Button>
   );
 }
 

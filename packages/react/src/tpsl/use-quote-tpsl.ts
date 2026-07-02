@@ -109,7 +109,14 @@ export function useQuoteTpSl(parameters: UseQuoteTpSlParameters): UseQuoteTpSlRe
             : notification.conditionalOrderType === "stop_loss"
               ? "sl"
               : null;
-        if (side && (notification.state === "new" || notification.state === "edit")) {
+        if (
+          side &&
+          (notification.state === "new" ||
+            notification.state === "edit" ||
+            notification.state === "cancel" ||
+            notification.state === "canceled" ||
+            notification.state === "cancelled")
+        ) {
           clearTpSlConfirmingSide(queryClient, confirmingKey, side);
         }
       }
