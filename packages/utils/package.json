@@ -1,5 +1,5 @@
 {
-  "name": "@symm-frontier/utils",
+  "name": "@symmio/utils",
   "version": "0.0.0",
   "private": true,
   "description": "Framework-agnostic utility helpers for SYMMIO SDK consumers: amount formatting, address helpers, Decimal.js bridge.",
@@ -53,8 +53,8 @@
     "viem": "^2.49.0"
   },
   "devDependencies": {
-    "@symm-frontier/eslint-config": "workspace:*",
-    "@symm-frontier/typescript-config": "workspace:*",
+    "@symmio/eslint-config": "workspace:*",
+    "@symmio/typescript-config": "workspace:*",
     "@types/node": "^25.6.0",
     "@types/ramda": "^0.31.1",
     "eslint": "^9.39.4",

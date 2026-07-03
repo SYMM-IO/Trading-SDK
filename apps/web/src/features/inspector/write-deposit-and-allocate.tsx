@@ -8,10 +8,10 @@ import {
   useSimulateDepositAndAllocate,
   useSymmioConfig,
   useWalletAccount,
-} from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+} from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Input } from "@symmio/ui/components/input";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, parseUnits, type Address } from "viem";
 

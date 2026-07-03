@@ -45,7 +45,7 @@ export function SiteFooter() {
         <div className="border-border/60 text-muted-foreground mt-10 flex flex-col gap-2 border-t pt-6 text-xs sm:flex-row sm:items-center sm:justify-between">
           <span>© {year} Symmio Frontier</span>
           <span className="font-mono">
-            built with <span className="text-foreground">@symm-frontier</span>
+            built with <span className="text-foreground">@symmio</span>
           </span>
         </div>
       </div>

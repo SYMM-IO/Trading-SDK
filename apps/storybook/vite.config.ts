@@ -12,12 +12,12 @@ export default defineConfig({
   resolve: {
     alias: {
       /**
-       * `@symm-frontier/ui/globals.css` lives at `src/styles/globals.css` in
+       * `@symmio/ui/globals.css` lives at `src/styles/globals.css` in
        * the package, so it needs its own alias entry — the broader directory
        * alias below would otherwise resolve it to `src/globals.css`.
        */
-      "@symm-frontier/ui/globals.css": path.resolve(uiSrc, "styles/globals.css"),
-      "@symm-frontier/ui": uiSrc,
+      "@symmio/ui/globals.css": path.resolve(uiSrc, "styles/globals.css"),
+      "@symmio/ui": uiSrc,
     },
   },
 });

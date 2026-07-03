@@ -1,11 +1,11 @@
 "use client";
 import { WEI_DECIMALS } from "@/lib/format";
-import type { QuoteGroup } from "@symm-frontier/core";
-import { PositionType, QuoteLifecycle } from "@symm-frontier/core";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { DataTable, type DataTableColumn } from "@symm-frontier/ui/components/data-table";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/components/tooltip";
-import { formatTokenAmount } from "@symm-frontier/utils";
+import type { QuoteGroup } from "@symmio/trading-core";
+import { PositionType, QuoteLifecycle } from "@symmio/trading-core";
+import { Badge } from "@symmio/ui/components/badge";
+import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
+import { formatTokenAmount } from "@symmio/utils";
 import { useMemo, type ReactNode } from "react";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
 import { truncateAddress } from "./quote-provenance-panel";

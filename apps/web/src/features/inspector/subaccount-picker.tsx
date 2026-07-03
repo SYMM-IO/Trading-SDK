@@ -1,8 +1,8 @@
 "use client";
 
-import { useWalletAccount } from "@symm-frontier/react";
-import { AccountPicker } from "@symm-frontier/ui/components/account-picker";
-import { shortenAddress } from "@symm-frontier/utils";
+import { useWalletAccount } from "@symmio/trading-react";
+import { AccountPicker } from "@symmio/ui/components/account-picker";
+import { shortenAddress } from "@symmio/utils";
 import { useMemo, useState } from "react";
 import type { Address } from "viem";
 import { isAddress } from "viem";

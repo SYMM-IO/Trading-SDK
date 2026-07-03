@@ -1,6 +1,6 @@
 import { txExplorerUrl } from "@/lib/explorer";
-import { CopyButton } from "@symm-frontier/ui/components/copy-button";
-import { minifyHash } from "@symm-frontier/utils";
+import { CopyButton } from "@symmio/ui/components/copy-button";
+import { minifyHash } from "@symmio/utils";
 
 interface Props {
   hash: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@symm-frontier/ui/components/button";
+import { Button } from "@symmio/ui/components/button";
 
 interface Props {
   /** Current 1-based page. */

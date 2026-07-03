@@ -1,13 +1,13 @@
 # Errors
 
-`@symm-frontier/core` exposes exactly one error class — and otherwise lets viem's errors pass through unwrapped. That's a deliberate choice: viem already has a rich hierarchy (`ContractFunctionExecutionError`, `CallExecutionError`, `BaseError`, …) and rewrapping every viem error in our own type would force consumers to learn two error vocabularies.
+`@symmio/trading-core` exposes exactly one error class — and otherwise lets viem's errors pass through unwrapped. That's a deliberate choice: viem already has a rich hierarchy (`ContractFunctionExecutionError`, `CallExecutionError`, `BaseError`, …) and rewrapping every viem error in our own type would force consumers to learn two error vocabularies.
 
 ## `SymmError`
 
 Thrown for **SDK-level** failures — unknown chain, missing config, validation, registry lookup miss. Anything that isn't an on-chain or transport failure.
 
 ```ts
-import { SymmError } from "@symm-frontier/core";
+import { SymmError } from "@symmio/trading-core";
 
 try {
   await getUserSubAccounts(publicClient, { user: "0xabc..." });
@@ -60,4 +60,4 @@ try {
 }
 ```
 
-If you're building on React, **[`@symm-frontier/react`](/react/errors)** does this classification for you and gives you a single discriminated union (`SymmioRequestError.kind`) to switch on.
+If you're building on React, **[`@symmio/trading-react`](/react/errors)** does this classification for you and gives you a single discriminated union (`SymmioRequestError.kind`) to switch on.

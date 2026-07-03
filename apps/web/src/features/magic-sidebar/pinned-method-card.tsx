@@ -1,7 +1,7 @@
 "use client";
 
-import { Popover, PopoverContent, PopoverTrigger } from "@symm-frontier/ui/components/popover";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@symmio/ui/components/popover";
+import { cn } from "@symmio/ui/lib/utils";
 import { useState, type ReactNode } from "react";
 import { CardResizeHandle } from "./card-resize-handle";
 import { findMagicMethod } from "./magic-catalog";

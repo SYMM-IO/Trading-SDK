@@ -1,8 +1,8 @@
 "use client";
 
 import { PageHeader } from "@/components/page-header";
-import { useCollateralBalance, useSymmioConfig, useUserSubAccounts, useWalletAccount } from "@symm-frontier/react";
-import { Card } from "@symm-frontier/ui/components/card";
+import { useCollateralBalance, useSymmioConfig, useUserSubAccounts, useWalletAccount } from "@symmio/trading-react";
+import { Card } from "@symmio/ui/components/card";
 import { useMemo, useState, type CSSProperties } from "react";
 import type { Address } from "viem";
 import { CloseAllFlow } from "./close-all-flow";
@@ -18,7 +18,7 @@ type Tab = "deposit" | "withdraw" | "instant-open" | "instant-close" | "close-al
 /**
  * End-to-end Integration console for the SYMMIO React SDK: a product-grade
  * deposit / withdraw / instant-open wizard built entirely from
- * `@symm-frontier/react` hooks. Each flow walks Connect → Select subaccount →
+ * `@symmio/trading-react` hooks. Each flow walks Connect → Select subaccount →
  * Act, with navigable steps and data loaded in the step that needs it.
  */
 export function IntegrationPanel() {
@@ -42,7 +42,7 @@ export function IntegrationPanel() {
       <PageHeader
         eyebrow="React SDK · Integration"
         title="Move collateral, end to end"
-        description="A production-grade deposit, withdraw, and instant-open wizard composed entirely from @symm-frontier/react hooks — the same surface a third-party integrator would build on."
+        description="A production-grade deposit, withdraw, and instant-open wizard composed entirely from @symmio/trading-react hooks — the same surface a third-party integrator would build on."
       />
 
       <Card className="animate-enter-up gap-6 p-6 sm:p-8" style={{ "--enter-delay": "80ms" } as CSSProperties}>

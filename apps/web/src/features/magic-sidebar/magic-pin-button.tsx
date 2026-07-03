@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { cn } from "@symmio/ui/lib/utils";
 import { useMagicSidebar } from "./magic-sidebar-store";
 
 /**

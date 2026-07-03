@@ -4,12 +4,12 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import { TableSkeleton } from "@/components/skeletons";
 import { WEI_DECIMALS, formatUsd } from "@/lib/format";
-import { useOnchainContractMarkets } from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { formatTokenAmount, formatWithCommas, rawToDecimal } from "@symm-frontier/utils";
+import { useOnchainContractMarkets } from "@symmio/trading-react";
+import { Badge } from "@symmio/ui/components/badge";
+import { Button } from "@symmio/ui/components/button";
+import { Input } from "@symmio/ui/components/input";
+import { Spinner } from "@symmio/ui/components/spinner";
+import { formatTokenAmount, formatWithCommas, rawToDecimal } from "@symmio/utils";
 import { useMemo, useState } from "react";
 import { MethodCard } from "./method-card";
 

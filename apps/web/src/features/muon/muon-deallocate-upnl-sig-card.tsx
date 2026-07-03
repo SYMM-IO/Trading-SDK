@@ -1,8 +1,8 @@
 "use client";
 
-import { useDeallocateUpnlSig } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useDeallocateUpnlSig } from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { VirtualAccountField } from "../inspector/virtual-account-field";

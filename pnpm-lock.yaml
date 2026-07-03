@@ -62,10 +62,10 @@ importers:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
     devDependencies:
-      '@symm-frontier/eslint-config':
+      '@symmio/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@symm-frontier/typescript-config':
+      '@symmio/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
       '@types/mdx':
@@ -89,7 +89,7 @@ importers:
 
   apps/storybook:
     dependencies:
-      '@symm-frontier/ui':
+      '@symmio/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       react:
@@ -108,10 +108,10 @@ importers:
       '@storybook/react-vite':
         specifier: ^10.3.6
         version: 10.3.6(esbuild@0.28.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.60.2)(storybook@10.3.6(@testing-library/dom@10.4.1)(prettier@3.8.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@6.0.3)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
-      '@symm-frontier/eslint-config':
+      '@symmio/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@symm-frontier/typescript-config':
+      '@symmio/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
       '@tailwindcss/vite':
@@ -144,19 +144,19 @@ importers:
 
   apps/web:
     dependencies:
-      '@symm-frontier/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@symm-frontier/react':
-        specifier: workspace:*
-        version: link:../../packages/react
-      '@symm-frontier/session-key':
+      '@symmio/session-key':
         specifier: workspace:*
         version: link:../../packages/session-key
-      '@symm-frontier/ui':
+      '@symmio/trading-core':
+        specifier: workspace:*
+        version: link:../../packages/trading-core
+      '@symmio/trading-react':
+        specifier: workspace:*
+        version: link:../../packages/trading-react
+      '@symmio/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@symm-frontier/utils':
+      '@symmio/utils':
         specifier: workspace:*
         version: link:../../packages/utils
       '@tanstack/react-query':
@@ -190,10 +190,10 @@ importers:
       '@playwright/test':
         specifier: ^1.50.0
         version: 1.60.0
-      '@symm-frontier/eslint-config':
+      '@symmio/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@symm-frontier/typescript-config':
+      '@symmio/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
       '@tailwindcss/postcss':
@@ -218,64 +218,6 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  packages/core:
-    dependencies:
-      '@symm-frontier/utils':
-        specifier: workspace:*
-        version: link:../utils
-      '@tanstack/query-core':
-        specifier: ^5.90.5
-        version: 5.100.9
-      axios:
-        specifier: ^1.16.1
-        version: 1.16.1
-      ohash:
-        specifier: ^2.0.11
-        version: 2.0.11
-    devDependencies:
-      '@graphql-codegen/cli':
-        specifier: ^7.1.3
-        version: 7.1.3(@types/node@25.6.0)(graphql@16.14.2)(typescript@6.0.3)
-      '@graphql-codegen/client-preset':
-        specifier: ^6.0.1
-        version: 6.0.1(graphql@16.14.2)
-      '@graphql-typed-document-node/core':
-        specifier: ^3.2.0
-        version: 3.2.0(graphql@16.14.2)
-      '@symm-frontier/eslint-config':
-        specifier: workspace:*
-        version: link:../eslint-config
-      '@symm-frontier/typescript-config':
-        specifier: workspace:*
-        version: link:../typescript-config
-      '@types/node':
-        specifier: ^25.6.0
-        version: 25.6.0
-      eslint:
-        specifier: ^9.39.4
-        version: 9.39.4(jiti@2.6.1)
-      graphql:
-        specifier: ^16.14.2
-        version: 16.14.2
-      orval:
-        specifier: ^8.14.0
-        version: 8.14.0(prettier@3.8.3)(typescript@6.0.3)
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-      viem:
-        specifier: ^2.49.0
-        version: 2.49.3(typescript@6.0.3)(zod@4.4.3)
-      vite:
-        specifier: ^8.0.13
-        version: 8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4)
-      vite-plugin-dts:
-        specifier: ^5.0.0
-        version: 5.0.0(@microsoft/api-extractor@7.58.7(@types/node@25.6.0))(esbuild@0.28.0)(rolldown@1.0.1)(rollup@4.60.2)(typescript@6.0.3)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
-      vitest:
-        specifier: ^4.1.6
-        version: 4.1.6(@types/node@25.6.0)(happy-dom@16.8.1)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
-
   packages/eslint-config:
     devDependencies:
       '@eslint/js':
@@ -284,7 +226,7 @@ importers:
       '@next/eslint-plugin-next':
         specifier: ^16.2.4
         version: 16.2.4
-      '@symm-frontier/typescript-config':
+      '@symmio/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       eslint:
@@ -315,11 +257,99 @@ importers:
         specifier: ^8.59.1
         version: 8.59.1(eslint@9.39.4(jiti@2.6.1))(typescript@6.0.3)
 
-  packages/react:
-    dependencies:
-      '@symm-frontier/core':
+  packages/session-key:
+    devDependencies:
+      '@symmio/eslint-config':
         specifier: workspace:*
-        version: link:../core
+        version: link:../eslint-config
+      '@symmio/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.6.1)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      viem:
+        specifier: ^2.49.0
+        version: 2.49.3(typescript@6.0.3)(zod@4.4.3)
+      vite:
+        specifier: ^8.0.13
+        version: 8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4)
+      vite-plugin-dts:
+        specifier: ^5.0.0
+        version: 5.0.0(@microsoft/api-extractor@7.58.7(@types/node@25.6.0))(esbuild@0.28.0)(rolldown@1.0.1)(rollup@4.60.2)(typescript@6.0.3)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
+      vitest:
+        specifier: ^4.1.6
+        version: 4.1.6(@types/node@25.6.0)(happy-dom@16.8.1)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
+
+  packages/trading-core:
+    dependencies:
+      '@symmio/utils':
+        specifier: workspace:*
+        version: link:../utils
+      '@tanstack/query-core':
+        specifier: ^5.90.5
+        version: 5.100.9
+      axios:
+        specifier: ^1.16.1
+        version: 1.16.1
+      ohash:
+        specifier: ^2.0.11
+        version: 2.0.11
+    devDependencies:
+      '@graphql-codegen/cli':
+        specifier: ^7.1.3
+        version: 7.1.3(@types/node@25.6.0)(graphql@16.14.2)(typescript@6.0.3)
+      '@graphql-codegen/client-preset':
+        specifier: ^6.0.1
+        version: 6.0.1(graphql@16.14.2)
+      '@graphql-typed-document-node/core':
+        specifier: ^3.2.0
+        version: 3.2.0(graphql@16.14.2)
+      '@symmio/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@symmio/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      eslint:
+        specifier: ^9.39.4
+        version: 9.39.4(jiti@2.6.1)
+      graphql:
+        specifier: ^16.14.2
+        version: 16.14.2
+      orval:
+        specifier: ^8.14.0
+        version: 8.14.0(prettier@3.8.3)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      viem:
+        specifier: ^2.49.0
+        version: 2.49.3(typescript@6.0.3)(zod@4.4.3)
+      vite:
+        specifier: ^8.0.13
+        version: 8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4)
+      vite-plugin-dts:
+        specifier: ^5.0.0
+        version: 5.0.0(@microsoft/api-extractor@7.58.7(@types/node@25.6.0))(esbuild@0.28.0)(rolldown@1.0.1)(rollup@4.60.2)(typescript@6.0.3)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
+      vitest:
+        specifier: ^4.1.6
+        version: 4.1.6(@types/node@25.6.0)(happy-dom@16.8.1)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
+
+  packages/trading-react:
+    dependencies:
+      '@symmio/trading-core':
+        specifier: workspace:*
+        version: link:../trading-core
       '@tanstack/react-query':
         specifier: ^5.100.0
         version: 5.100.9(react@19.2.7)
@@ -328,12 +358,12 @@ importers:
         version: 10.6.0
       zustand:
         specifier: ^5.0.0
-        version: 5.0.12(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.4.0(react@19.2.7))
+        version: 5.0.12(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7))
     devDependencies:
-      '@symm-frontier/eslint-config':
+      '@symmio/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@symm-frontier/typescript-config':
+      '@symmio/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@testing-library/dom':
@@ -356,7 +386,7 @@ importers:
         version: 6.0.1(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
       '@wagmi/connectors':
         specifier: ^8.0.0
-        version: 8.0.11(@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)))(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
+        version: 8.0.11(@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)))(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
       eslint:
         specifier: ^9.39.4
         version: 9.39.4(jiti@2.6.1)
@@ -388,36 +418,6 @@ importers:
         specifier: ^3.4.2
         version: 3.6.11(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.7))(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
 
-  packages/session-key:
-    devDependencies:
-      '@symm-frontier/eslint-config':
-        specifier: workspace:*
-        version: link:../eslint-config
-      '@symm-frontier/typescript-config':
-        specifier: workspace:*
-        version: link:../typescript-config
-      '@types/node':
-        specifier: ^25.6.0
-        version: 25.6.0
-      eslint:
-        specifier: ^9.39.4
-        version: 9.39.4(jiti@2.6.1)
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-      viem:
-        specifier: ^2.49.0
-        version: 2.49.3(typescript@6.0.3)(zod@4.4.3)
-      vite:
-        specifier: ^8.0.13
-        version: 8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4)
-      vite-plugin-dts:
-        specifier: ^5.0.0
-        version: 5.0.0(@microsoft/api-extractor@7.58.7(@types/node@25.6.0))(esbuild@0.28.0)(rolldown@1.0.1)(rollup@4.60.2)(typescript@6.0.3)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
-      vitest:
-        specifier: ^4.1.6
-        version: 4.1.6(@types/node@25.6.0)(happy-dom@16.8.1)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
-
   packages/typescript-config: {}
 
   packages/ui:
@@ -444,10 +444,10 @@ importers:
       '@storybook/react':
         specifier: ^10.3.6
         version: 10.3.6(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(storybook@10.3.6(@testing-library/dom@10.4.1)(prettier@3.8.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@6.0.3)
-      '@symm-frontier/eslint-config':
+      '@symmio/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@symm-frontier/typescript-config':
+      '@symmio/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@tailwindcss/postcss':
@@ -484,10 +484,10 @@ importers:
         specifier: ^0.32.0
         version: 0.32.0
     devDependencies:
-      '@symm-frontier/eslint-config':
+      '@symmio/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@symm-frontier/typescript-config':
+      '@symmio/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -10912,12 +10912,34 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
+  '@wagmi/connectors@8.0.11(@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)))(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))':
+    dependencies:
+      '@wagmi/core': 3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
+      viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
+    optionalDependencies:
+      typescript: 6.0.3
+
   '@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))':
     dependencies:
       eventemitter3: 5.0.1
       mipd: 0.0.7(typescript@6.0.3)
       viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
       zustand: 5.0.0(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.4.0(react@19.2.7))
+    optionalDependencies:
+      '@tanstack/query-core': 5.100.9
+      typescript: 6.0.3
+    transitivePeerDependencies:
+      - '@types/react'
+      - immer
+      - react
+      - use-sync-external-store
+
+  '@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))':
+    dependencies:
+      eventemitter3: 5.0.1
+      mipd: 0.0.7(typescript@6.0.3)
+      viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
+      zustand: 5.0.0(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7))
     optionalDependencies:
       '@tanstack/query-core': 5.100.9
       typescript: 6.0.3
@@ -15518,11 +15540,11 @@ snapshots:
       react: 19.2.7
       use-sync-external-store: 1.4.0(react@19.2.7)
 
-  zustand@5.0.12(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.4.0(react@19.2.7)):
+  zustand@5.0.0(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7)):
     optionalDependencies:
       '@types/react': 19.2.17
       react: 19.2.7
-      use-sync-external-store: 1.4.0(react@19.2.7)
+      use-sync-external-store: 1.6.0(react@19.2.7)
 
   zustand@5.0.12(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7)):
     optionalDependencies:

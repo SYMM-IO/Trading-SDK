@@ -11,7 +11,7 @@ Contract reference: [SYMMIO perps-core v0.8.5 docs](https://github.com/SYMM-IO/p
 Read the raw expiry timestamp stored in the `delegations` mapping.
 
 ```ts
-import { getDelegationExpiry } from "@symm-frontier/core";
+import { getDelegationExpiry } from "@symmio/trading-core";
 
 const expiryTimestamp = await getDelegationExpiry(config, {
   account: "0xaccount...",
@@ -36,7 +36,7 @@ const expiryTimestamp = await getDelegationExpiry(config, {
 Read whether the contract considers a delegation active.
 
 ```ts
-import { getIsDelegationActive } from "@symm-frontier/core";
+import { getIsDelegationActive } from "@symmio/trading-core";
 
 const isActive = await getIsDelegationActive(config, {
   account: "0xaccount...",
@@ -61,7 +61,7 @@ const isActive = await getIsDelegationActive(config, {
 Use these when integrating with TanStack Query outside React:
 
 ```ts
-import { getDelegationExpiryQueryOptions, getIsDelegationActiveQueryOptions } from "@symm-frontier/core";
+import { getDelegationExpiryQueryOptions, getIsDelegationActiveQueryOptions } from "@symmio/trading-core";
 
 const expiryOptions = getDelegationExpiryQueryOptions(config, {
   account,
@@ -81,7 +81,7 @@ const activeOptions = getIsDelegationActiveQueryOptions(config, {
 The query-key builders still accept partial inputs:
 
 ```ts
-import { getDelegationExpiryQueryKey, getIsDelegationActiveQueryKey } from "@symm-frontier/core";
+import { getDelegationExpiryQueryKey, getIsDelegationActiveQueryKey } from "@symmio/trading-core";
 
 getDelegationExpiryQueryKey({ account, delegate });
 getIsDelegationActiveQueryKey({ account, delegate });
@@ -96,7 +96,7 @@ Partial keys are for cache matching and invalidation, not for calling the read q
 Grant a delegated signer access to one or more selectors until an expiry timestamp.
 
 ```ts
-import { grantDelegation } from "@symm-frontier/core";
+import { grantDelegation } from "@symmio/trading-core";
 
 const hash = await grantDelegation(config, {
   account: { addr: account, isPartyB: false },

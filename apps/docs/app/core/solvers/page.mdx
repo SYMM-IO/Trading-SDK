@@ -1,6 +1,6 @@
 # Solvers
 
-The solver APIs are off-chain REST endpoints configured per chain in `createConfig`. `@symm-frontier/core` exposes them as framework-agnostic actions plus TanStack Query option factories.
+The solver APIs are off-chain REST endpoints configured per chain in `createConfig`. `@symmio/trading-core` exposes them as framework-agnostic actions plus TanStack Query option factories.
 
 Use these APIs when you need solver metadata before building a trade flow: market lists, leverage limits, and locked percentages for a market/leverage pair.
 
@@ -11,7 +11,7 @@ Use these APIs when you need solver metadata before building a trade flow: marke
 Fetch tradable markets from the chain solver's `/contract-symbols` endpoint.
 
 ```ts
-import { getMarkets } from "@symm-frontier/core";
+import { getMarkets } from "@symmio/trading-core";
 
 const markets = await getMarkets(config);
 const btc = markets.find((market) => market.name === "BTCUSDT");
@@ -40,7 +40,7 @@ Important market fields:
 Build TanStack Query options for `getMarkets`.
 
 ```ts
-import { getMarketsQueryOptions } from "@symm-frontier/core";
+import { getMarketsQueryOptions } from "@symmio/trading-core";
 import { useQuery } from "@tanstack/react-query";
 
 const query = useQuery(getMarketsQueryOptions(config, { query: { staleTime: 30_000 } }));
@@ -55,7 +55,7 @@ Fetch locked params from the chain solver's `/get_locked_params/{symbol}` endpoi
 The `symbol` parameter is the solver path value. In trade UIs, use the selected market's `name` when available, with `symbol` as a fallback.
 
 ```ts
-import { getLockedParams } from "@symm-frontier/core";
+import { getLockedParams } from "@symmio/trading-core";
 
 const locked = await getLockedParams(config, {
   symbol: "BTCUSDT",
@@ -90,7 +90,7 @@ interface SolverLockedParams {
 Build TanStack Query options for `getLockedParams`.
 
 ```ts
-import { getLockedParamsQueryOptions } from "@symm-frontier/core";
+import { getLockedParamsQueryOptions } from "@symmio/trading-core";
 import { useQuery } from "@tanstack/react-query";
 
 const options = getLockedParamsQueryOptions(config, {
@@ -121,7 +121,7 @@ const options = getLockedParamsQueryOptions(config, {
 Build a cache key for a locked-params query.
 
 ```ts
-import { getLockedParamsQueryKey } from "@symm-frontier/core";
+import { getLockedParamsQueryKey } from "@symmio/trading-core";
 
 const key = getLockedParamsQueryKey({
   symbol: "BTCUSDT",

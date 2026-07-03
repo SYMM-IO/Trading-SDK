@@ -1,5 +1,5 @@
 "use client";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { cn } from "@symmio/ui/lib/utils";
 import { useCallback, useRef, type KeyboardEvent, type PointerEvent } from "react";
 
 /** Pixels a single arrow-key press grows/shrinks the panel. */

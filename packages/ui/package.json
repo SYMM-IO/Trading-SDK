@@ -1,5 +1,5 @@
 {
-  "name": "@symm-frontier/ui",
+  "name": "@symmio/ui",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -41,8 +41,8 @@
   },
   "devDependencies": {
     "@storybook/react": "^10.3.6",
-    "@symm-frontier/eslint-config": "workspace:*",
-    "@symm-frontier/typescript-config": "workspace:*",
+    "@symmio/eslint-config": "workspace:*",
+    "@symmio/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4.2.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

@@ -3,10 +3,10 @@
 import { DataList, DataRow } from "@/components/data-list";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
-import { DEFAULT_NOTIONAL_CAP_POLLING_MS, useMarkets, useOpenInterestBySymbolId } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { MarketSelect, type MarketSelectItem } from "@symm-frontier/ui/components/market-select";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { DEFAULT_NOTIONAL_CAP_POLLING_MS, useMarkets, useOpenInterestBySymbolId } from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { MarketSelect, type MarketSelectItem } from "@symmio/ui/components/market-select";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { useMemo, useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 

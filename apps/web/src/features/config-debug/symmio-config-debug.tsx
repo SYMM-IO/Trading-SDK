@@ -5,10 +5,10 @@ import { DataList, DataRow } from "@/components/data-list";
 import { PageHeader } from "@/components/page-header";
 import { ConfigPanel } from "@/features/config/config-panel";
 import { useSymmioOverrides } from "@/features/config/symmio-overrides-store";
-import { useSymmioChainId, useSymmioConfig } from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@symm-frontier/ui/components/card";
+import { useSymmioChainId, useSymmioConfig } from "@symmio/trading-react";
+import { Badge } from "@symmio/ui/components/badge";
+import { Button } from "@symmio/ui/components/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@symmio/ui/components/card";
 import { useState, type ReactNode } from "react";
 
 function ConfigGroup({ title, children }: { title: string; children: ReactNode }) {

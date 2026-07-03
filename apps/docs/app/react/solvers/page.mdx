@@ -1,6 +1,6 @@
 # Solvers hooks
 
-Solver hooks wrap the `@symm-frontier/core` solver REST actions with React Query and SDK provider state. They read the active chain from `SymmioProvider` unless you pass `chainId`.
+Solver hooks wrap the `@symmio/trading-core` solver REST actions with React Query and SDK provider state. They read the active chain from `SymmioProvider` unless you pass `chainId`.
 
 Use these hooks to build trade preparation UIs: market pickers, leverage controls, and locked-param previews before sending an instant action.
 
@@ -9,7 +9,7 @@ Use these hooks to build trade preparation UIs: market pickers, leverage control
 Fetch tradable markets from the chain solver.
 
 ```tsx
-import { useMarkets } from "@symm-frontier/react";
+import { useMarkets } from "@symmio/trading-react";
 
 function MarketList() {
   const query = useMarkets({ query: { staleTime: 30_000 } });
@@ -48,7 +48,7 @@ Fetch solver locked params for one market/leverage pair.
 `symbol` and `leverage` are required inputs. For market UIs, use the selected market's `name` when available, with `symbol` as a fallback.
 
 ```tsx
-import { useLockedParams } from "@symm-frontier/react";
+import { useLockedParams } from "@symmio/trading-react";
 
 function LockedParamsPreview({ symbol, leverage }: { symbol: string; leverage: number }) {
   const query = useLockedParams({

@@ -10,7 +10,7 @@ import { useMagicSidebar } from "@/features/magic-sidebar/magic-sidebar-store";
 import { useSidebarMetrics } from "@/features/magic-sidebar/use-sidebar-metrics";
 import { SearchLauncher } from "@/features/search/search-launcher";
 import { WalletLauncher } from "@/features/wallet/wallet-launcher";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { cn } from "@symmio/ui/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";

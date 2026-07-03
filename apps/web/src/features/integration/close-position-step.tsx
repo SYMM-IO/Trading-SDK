@@ -12,12 +12,12 @@ import {
   useMarkets,
   validateInstantCloseAgainstMarket,
   type CloseQuoteConstraintViolation,
-} from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { cn } from "@symm-frontier/ui/lib/utils";
+} from "@symmio/trading-react";
+import { Badge } from "@symmio/ui/components/badge";
+import { Button } from "@symmio/ui/components/button";
+import { Input } from "@symmio/ui/components/input";
+import { Spinner } from "@symmio/ui/components/spinner";
+import { cn } from "@symmio/ui/lib/utils";
 import { useMemo, useState } from "react";
 import { formatUnits, type Address } from "viem";
 

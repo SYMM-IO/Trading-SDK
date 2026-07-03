@@ -3,7 +3,7 @@
 Viem-backed helpers for converting between raw on-chain `bigint` amounts and human-readable strings, plus a bridge into Decimal.js when you need UI-side math.
 
 ```ts
-import { formatTokenAmount, parseTokenAmount, rawToDecimal, decimalToRaw } from "@symm-frontier/utils/amounts";
+import { formatTokenAmount, parseTokenAmount, rawToDecimal, decimalToRaw } from "@symmio/utils/amounts";
 ```
 
 ## `formatTokenAmount`
@@ -46,7 +46,7 @@ Convert a raw `bigint` to a `Decimal`. Use when you need to chain math (multiply
 
 ```ts
 import Decimal from "decimal.js";
-import { rawToDecimal } from "@symm-frontier/utils/amounts";
+import { rawToDecimal } from "@symmio/utils/amounts";
 
 const balance = rawToDecimal(1_500_000n, 6); // Decimal("1.5")
 balance.times("0.997").toFixed(4); // "1.4955"
@@ -58,7 +58,7 @@ Counterpart to `rawToDecimal`: convert a `Decimal` back into a raw `bigint`.
 
 ```ts
 import Decimal from "decimal.js";
-import { decimalToRaw } from "@symm-frontier/utils/amounts";
+import { decimalToRaw } from "@symmio/utils/amounts";
 
 decimalToRaw(new Decimal("1.5"), 6); // 1_500_000n
 decimalToRaw(new Decimal("1.234567891"), 6); // 1_234_567n — truncated, not rounded

@@ -13,10 +13,10 @@ import {
   safeDivide,
   toDecimal,
   ZERO_DECIMAL,
-} from "@symm-frontier/utils/decimal";
+} from "@symmio/utils/decimal";
 ```
 
-> **Naming overlap with viem.** `formatUnits` / `parseUnits` / `formatEther` / `parseEther` here **return / accept `Decimal`**, not strings. The root `@symm-frontier/utils` barrel intentionally does not re-export them so they never collide with viem's same-named functions. Always import from the `/decimal` subpath.
+> **Naming overlap with viem.** `formatUnits` / `parseUnits` / `formatEther` / `parseEther` here **return / accept `Decimal`**, not strings. The root `@symmio/utils` barrel intentionally does not re-export them so they never collide with viem's same-named functions. Always import from the `/decimal` subpath.
 
 ## `toDecimal`
 
@@ -71,7 +71,7 @@ parseEther("2").toFixed(0); // "2000000000000000000"
 Typed names for Decimal.js's rounding constants. Pass them to `decimal.toFixed(places, mode)` or to any utils formatter that accepts a `rounding` option.
 
 ```ts
-import { RoundingMode } from "@symm-frontier/utils/decimal";
+import { RoundingMode } from "@symmio/utils/decimal";
 
 new Decimal("0.129").toFixed(2, RoundingMode.ROUND_FLOOR); // "0.12"
 new Decimal("0.129").toFixed(2, RoundingMode.ROUND_CEIL); // "0.13"
@@ -82,7 +82,7 @@ new Decimal("0.129").toFixed(2, RoundingMode.ROUND_CEIL); // "0.13"
 Apply SYMMIO SDK-recommended Decimal.js settings globally.
 
 ```ts
-import { configureSymmDecimal } from "@symm-frontier/utils/decimal";
+import { configureSymmDecimal } from "@symmio/utils/decimal";
 
 // Once, at app startup
 configureSymmDecimal();

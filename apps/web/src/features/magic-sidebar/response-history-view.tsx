@@ -1,7 +1,7 @@
 "use client";
 
-import { JsonView } from "@symm-frontier/ui/components/json-view";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { JsonView } from "@symmio/ui/components/json-view";
+import { cn } from "@symmio/ui/lib/utils";
 import type { PollHistoryEntry } from "./use-poll-history";
 
 interface Props {

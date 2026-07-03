@@ -1,9 +1,9 @@
 "use client";
 
 import { DEFAULT_PRICE_PRECISION, DEFAULT_QUANTITY_PRECISION, WEI_DECIMALS } from "@/lib/format";
-import { QuoteEventType, type QuoteEventRow } from "@symm-frontier/core";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { formatTokenAmount } from "@symm-frontier/utils";
+import { QuoteEventType, type QuoteEventRow } from "@symmio/trading-core";
+import { Spinner } from "@symmio/ui/components/spinner";
+import { formatTokenAmount } from "@symmio/utils";
 
 interface Props {
   rows: QuoteEventRow[] | undefined;

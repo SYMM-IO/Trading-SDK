@@ -1,8 +1,8 @@
 "use client";
 
 import { Field } from "@/components/field";
-import { useQuote } from "@symm-frontier/react";
-import { Input } from "@symm-frontier/ui/components/input";
+import { useQuote } from "@symmio/trading-react";
+import { Input } from "@symmio/ui/components/input";
 import { LiveResult } from "./live-result";
 import type { MagicMethodPanelProps } from "./magic-types";
 import { magicInputPersistKey, usePersistentPinState } from "./magic-value-store";

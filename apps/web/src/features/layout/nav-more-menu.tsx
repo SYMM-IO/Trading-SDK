@@ -1,8 +1,8 @@
 "use client";
 
 import { isActivePath, isAnyActive, secondaryNavLinks } from "@/features/layout/nav";
-import { Popover, PopoverContent, PopoverTrigger } from "@symm-frontier/ui/components/popover";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@symmio/ui/components/popover";
+import { cn } from "@symmio/ui/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactElement, type SVGProps } from "react";

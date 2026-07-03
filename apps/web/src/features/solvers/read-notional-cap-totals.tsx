@@ -2,9 +2,9 @@
 
 import { DataList, DataRow } from "@/components/data-list";
 import { ResultError, ResultNote } from "@/components/result";
-import { DEFAULT_NOTIONAL_CAP_POLLING_MS, useNotionalCapAll } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { DEFAULT_NOTIONAL_CAP_POLLING_MS, useNotionalCapAll } from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { useMemo, useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 

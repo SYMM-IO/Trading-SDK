@@ -1,7 +1,7 @@
 "use client";
 
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
-import type { SymmioRequestError } from "@symm-frontier/react";
+import type { SymmioRequestError } from "@symmio/trading-react";
 import type { ReactNode } from "react";
 
 interface Props {

@@ -31,7 +31,7 @@ interface TransactionsStoreState {
 Standard zustand. Pass a selector for fine-grained subscriptions:
 
 ```tsx
-import { useTransactionsStore } from "@symm-frontier/react";
+import { useTransactionsStore } from "@symmio/trading-react";
 
 function PendingBadge() {
   const pendingCount = useTransactionsStore((s) => s.txs.filter((t) => t.status === "pending").length);

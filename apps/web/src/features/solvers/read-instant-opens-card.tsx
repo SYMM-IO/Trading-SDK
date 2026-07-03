@@ -4,12 +4,12 @@ import { ResultError, ResultNote } from "@/components/result";
 import { TableSkeleton } from "@/components/skeletons";
 import { MethodCard } from "@/features/inspector/method-card";
 import { PartyAField } from "@/features/inspector/party-a-field";
-import { OrderType, PositionType } from "@symm-frontier/core";
-import { useInstantOpens } from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { DataTable, type DataTableColumn } from "@symm-frontier/ui/components/data-table";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { OrderType, PositionType } from "@symmio/trading-core";
+import { useInstantOpens } from "@symmio/trading-react";
+import { Badge } from "@symmio/ui/components/badge";
+import { Button } from "@symmio/ui/components/button";
+import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 

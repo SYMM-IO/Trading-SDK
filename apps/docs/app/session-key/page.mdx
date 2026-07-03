@@ -4,7 +4,7 @@ Framework-agnostic helpers for local EVM session keys. Use them when an app need
 
 Session keys are normal EVM keys, so they are not tied to one chain. Use one session key for the owner across all supported chains unless your app has a product-specific reason to rotate or isolate it.
 
-`@symm-frontier/session-key` does not own browser storage, localStorage, encryption, or decryption. It only defines the storage contract and manager. Your application decides where records live and how private-key material is protected before persistence.
+`@symmio/session-key` does not own browser storage, localStorage, encryption, or decryption. It only defines the storage contract and manager. Your application decides where records live and how private-key material is protected before persistence.
 
 ```ts
 import {
@@ -15,7 +15,7 @@ import {
   sessionKeyFromPrivateKey,
   SESSION_KEY_TRANSFER_PAYLOAD_VERSION,
   type SessionKeyStorage,
-} from "@symm-frontier/session-key";
+} from "@symmio/session-key";
 
 const storage: SessionKeyStorage = {
   async load(owner) {
@@ -39,7 +39,7 @@ const signature = await manager.sign("hello");
 
 ## Storage Boundary
 
-`@symm-frontier/session-key` exports the storage interface only:
+`@symmio/session-key` exports the storage interface only:
 
 ```ts
 interface SessionKeyStorage {

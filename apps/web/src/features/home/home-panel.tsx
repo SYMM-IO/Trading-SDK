@@ -1,6 +1,6 @@
 import { LinkCard, type LinkCardProps } from "@/components/link-card";
 import { StatusDot } from "@/components/status-dot";
-import { Button } from "@symm-frontier/ui/components/button";
+import { Button } from "@symmio/ui/components/button";
 import Link from "next/link";
 
 const cards: Omit<LinkCardProps, "index">[] = [
@@ -37,14 +37,14 @@ const cards: Omit<LinkCardProps, "index">[] = [
     href: "/integration",
     eyebrow: "End to end",
     title: "Integration flow",
-    description: "A production-grade deposit and withdraw console composed entirely from @symm-frontier/react hooks.",
+    description: "A production-grade deposit and withdraw console composed entirely from @symmio/trading-react hooks.",
     icon: <FlowIcon />,
   },
   {
     href: "/config",
     eyebrow: "Runtime",
     title: "Resolved config",
-    description: "Inspect the chain config the app resolves from @symm-frontier/react — addresses, solver, subgraphs.",
+    description: "Inspect the chain config the app resolves from @symmio/trading-react — addresses, solver, subgraphs.",
     icon: <SlidersIcon />,
   },
 ];
@@ -63,7 +63,7 @@ export function HomePanel() {
         </h1>
 
         <p className="text-muted-foreground max-w-2xl text-base leading-7 text-pretty">
-          A reference console for the <span className="text-foreground font-medium">@symm-frontier</span> SDK. Run live
+          A reference console for the <span className="text-foreground font-medium">@symmio</span> SDK. Run live
           contract reads and writes, move collateral end to end, and verify the resolved chain config — every call goes
           through the same surface third-party builders use.
         </p>

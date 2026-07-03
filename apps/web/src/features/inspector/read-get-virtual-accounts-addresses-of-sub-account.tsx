@@ -3,9 +3,9 @@
 import { AddressTag } from "@/components/address-tag";
 import { ResultError, ResultNote } from "@/components/result";
 import { ListSkeleton } from "@/components/skeletons";
-import { useVirtualAccountsAddressesOfSubAccount } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useVirtualAccountsAddressesOfSubAccount } from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { MethodCard } from "./method-card";

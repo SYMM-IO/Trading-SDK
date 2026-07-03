@@ -1,5 +1,5 @@
 {
-  "name": "@symm-frontier/docs",
+  "name": "@symmio/docs",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -17,8 +17,8 @@
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
-    "@symm-frontier/eslint-config": "workspace:*",
-    "@symm-frontier/typescript-config": "workspace:*",
+    "@symmio/eslint-config": "workspace:*",
+    "@symmio/typescript-config": "workspace:*",
     "@types/mdx": "^2.0.13",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",

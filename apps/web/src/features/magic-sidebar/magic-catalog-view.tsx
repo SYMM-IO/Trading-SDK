@@ -1,7 +1,7 @@
 "use client";
 
-import { SearchInput } from "@symm-frontier/ui/components/search-input";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { SearchInput } from "@symmio/ui/components/search-input";
+import { cn } from "@symmio/ui/lib/utils";
 import { useMemo, useState } from "react";
 import { MAGIC_CATALOG } from "./magic-catalog";
 import { useMagicSidebar } from "./magic-sidebar-store";

@@ -6,7 +6,7 @@ SYMM Frontier is an SDK-first workspace for [SYMMIO](https://symm.io). The under
 
 The SDK is split along the lines a framework imposes:
 
-### `@symm-frontier/core`
+### `@symmio/trading-core`
 
 Framework-agnostic. Contract calls, ABI fragments, calculations, transformations. No React. No Vue. No DOM.
 
@@ -16,17 +16,17 @@ You'd use `core` directly when you're writing:
 - A different framework layer (Vue, Solid)
 - An advanced React app that wants to bypass the hook layer
 
-### `@symm-frontier/react`
+### `@symmio/trading-react`
 
 A thin React layer on top of `core`. Hooks, providers, `react-query`-shaped wrappers. Stateful flows and framework-bound ergonomics that don't fit in `core` live here.
 
 You'd use `react` when you're building a React UI — which is most of the time.
 
-## And a companion: `@symm-frontier/utils`
+## And a companion: `@symmio/utils`
 
 Framework-agnostic helpers that don't fit in `core` because they pull in non-`viem` dependencies (Decimal.js). Format token amounts, parse user input, shorten addresses for display, do precise UI math.
 
-`@symm-frontier/react` re-exports the most-used utils helpers (`formatTokenAmount`, `shortenAddress`, etc.) so React apps don't need to add a second dependency just to format a number.
+`@symmio/trading-react` re-exports the most-used utils helpers (`formatTokenAmount`, `shortenAddress`, etc.) so React apps don't need to add a second dependency just to format a number.
 
 ## Design rules
 

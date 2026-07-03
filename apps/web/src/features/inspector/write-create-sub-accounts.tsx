@@ -4,21 +4,21 @@ import { AddressTag } from "@/components/address-tag";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import { SubAccountIsolationType, type SubAccountCreationData } from "@symm-frontier/core";
+import { SubAccountIsolationType, type SubAccountCreationData } from "@symmio/trading-core";
 import {
   useCreateSubAccounts,
   useSimulateCreateSubAccounts,
   useSymmioConfig,
   useWalletAccount,
-} from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Label } from "@symm-frontier/ui/components/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symm-frontier/ui/components/select";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { Switch } from "@symm-frontier/ui/components/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/components/tooltip";
+} from "@symmio/trading-react";
+import { Badge } from "@symmio/ui/components/badge";
+import { Button } from "@symmio/ui/components/button";
+import { Input } from "@symmio/ui/components/input";
+import { Label } from "@symmio/ui/components/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symmio/ui/components/select";
+import { Spinner } from "@symmio/ui/components/spinner";
+import { Switch } from "@symmio/ui/components/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
 import { useState, type ReactNode } from "react";
 import { isAddress, type Address } from "viem";
 import { MethodCard } from "./method-card";

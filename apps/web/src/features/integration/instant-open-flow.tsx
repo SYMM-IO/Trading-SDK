@@ -17,11 +17,11 @@ import {
   useGrantDelegation,
   useIsDelegationActive,
   useSymmioConfig,
-} from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { shortenAddress } from "@symm-frontier/utils";
+} from "@symmio/trading-react";
+import { Badge } from "@symmio/ui/components/badge";
+import { Button } from "@symmio/ui/components/button";
+import { Spinner } from "@symmio/ui/components/spinner";
+import { shortenAddress } from "@symmio/utils";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { maxUint256, zeroAddress, type Address } from "viem";

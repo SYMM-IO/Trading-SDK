@@ -17,7 +17,7 @@ These are non-negotiable. Violating any of them is a defect.
 
 - **frontier project**: this repository.
 - **vibe-ui repo**: the separate Vibe UI reference application. Its local path can differ by machine; ask the user or use the path they provide in the current task.
-- **SYMMIO SDK / core SDK**: the clean, reusable domain layer being built in `packages/core`.
+- **SYMMIO SDK / core SDK**: the clean, reusable domain layer being built in `packages/trading-core`.
 
 When a task references "current repo", it means the frontier project unless the user explicitly says otherwise.
 
@@ -25,7 +25,7 @@ When a task references "current repo", it means the frontier project unless the 
 
 Frontier is a clean frontend boundary for SYMMIO trading flows:
 
-- shared domain logic, SDK APIs, and React SDK hooks/providers in `packages/core`;
+- shared domain logic, SDK APIs, and React SDK hooks/providers in `packages/trading-core`;
 - shared design system and reusable UI primitives in `packages/ui`;
 - application screens and product composition in `apps/web`;
 - documentation in `apps/docs`;
@@ -66,7 +66,7 @@ Vibe-ui is a source of behavioral truth, not a structure to copy wholesale. Extr
 
 ## Folder Responsibilities
 
-### `packages/core`
+### `packages/trading-core`
 
 Put SDK, domain logic, and React SDK adapters here.
 
@@ -75,7 +75,7 @@ Examples: SYMMIO client creation and config; typed service clients for backend, 
 Recommended starting structure:
 
 ```txt
-packages/core/src/
+packages/trading-core/src/
   provider/       # SymmioProvider, SDK context, provider-level hooks
   config/         # SDK config types, defaults, validation, environment binding helpers
   wallet/         # Wagmi-backed account, signing, transaction, and chain hooks
@@ -95,7 +95,7 @@ This structure is not fixed. Add, remove, rename, or merge folders when the impl
 
 Rules:
 
-- Do not import UI libraries or app components into `packages/core`.
+- Do not import UI libraries or app components into `packages/trading-core`.
 - Organize by domain and responsibility, not by technology. For example, wallet hooks belong in `wallet/`, withdraw hooks belong in `withdraw/`, and provider code belongs in `provider/`.
 - Do not use browser globals (`window`, `document`, `localStorage`, `navigator`, etc.) casually. If needed, keep them inside the domain module that owns that browser behavior.
 - Keep public APIs small, typed, and stable.
@@ -119,11 +119,11 @@ Rules:
 
 Put the Frontier product app here.
 
-Examples: routes, pages, app-level layouts; composition of `packages/core` and `packages/ui`; feature screens and browser-specific integration; app-specific providers and environment binding.
+Examples: routes, pages, app-level layouts; composition of `packages/trading-core` and `packages/ui`; feature screens and browser-specific integration; app-specific providers and environment binding.
 
 Rules:
 
-- Do not bury reusable SDK logic inside app components. If logic could be reused by another app or script, it belongs in `packages/core`.
+- Do not bury reusable SDK logic inside app components. If logic could be reused by another app or script, it belongs in `packages/trading-core`.
 - When working on Next.js features, consult the official Next.js docs at https://nextjs.org/docs via web fetch.
 
 ### `apps/docs`
@@ -151,11 +151,11 @@ For any task that ports or derives behavior from vibe-ui:
 
 2. **Identify the domain boundary.** Separate pure domain logic, service calls, contract interaction, state synchronization, and presentation.
 
-3. **Design the frontier API before writing code.** Decide what is public in `packages/core`, what is internal, which domain folder owns it, and what the app calls.
+3. **Design the frontier API before writing code.** Decide what is public in `packages/trading-core`, what is internal, which domain folder owns it, and what the app calls.
 
 4. **Output a design proposal and stop.** See "Design Proposal Gate" below.
 
-5. **After approval, implement in the correct package.** Core SDK logic and hooks → `packages/core`; generic UI → `packages/ui`; route composition → `apps/web`.
+5. **After approval, implement in the correct package.** Core SDK logic and hooks → `packages/trading-core`; generic UI → `packages/ui`; route composition → `apps/web`.
 
 6. **Keep the first version narrow.** Build small, working SDK slices. Do not copy broad vibe-ui modules.
 
@@ -180,7 +180,7 @@ Read-only exploration (viewing files, searching the repo, reading vibe-ui) is al
 
 **Vibe-ui reference**: file paths in vibe-ui this derives from.
 
-**Public API** (exports from `packages/core`, including React exports if any):
+**Public API** (exports from `packages/trading-core`, including React exports if any):
 ```ts
 // signatures only, with JSDoc
 ```
@@ -220,7 +220,7 @@ Do not guess on these. The cost of a question is small; the cost of unwinding th
 - Keep files cohesive; do not mix unrelated concerns in one module.
 - Use typed request/response models. Do not use `any`.
 - Validate external data at boundaries.
-- Do not introduce app-wide global state into `packages/core`.
+- Do not introduce app-wide global state into `packages/trading-core`.
 - Keep implementation increments reviewable (small, focused PRs).
 
 ## Completion Checklist
@@ -248,7 +248,7 @@ _Last updated: 2026-05-11. Update this section when the baseline materially chan
 
 - `apps/web` is mostly scaffold-level Next.js UI.
 - `packages/ui` exposes a simple shared `Button`.
-- `packages/core` exposes placeholder exports including `activeAccounts()`.
+- `packages/trading-core` exposes placeholder exports including `activeAccounts()`.
 - `apps/docs` contains starter Nextra docs.
 
 Expect to replace scaffolding gradually as SDK and product flows become real.

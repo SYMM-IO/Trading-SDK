@@ -3,10 +3,10 @@
 import { DataList, DataRow } from "@/components/data-list";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
-import { useSolverErrorCodes, useSolverErrorMessage } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useSolverErrorCodes, useSolverErrorMessage } from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Input } from "@symmio/ui/components/input";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 

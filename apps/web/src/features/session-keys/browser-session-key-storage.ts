@@ -1,6 +1,6 @@
 "use client";
 
-import type { SessionKeyMetadata, SessionKeyStorage } from "@symm-frontier/session-key";
+import type { SessionKeyMetadata, SessionKeyStorage } from "@symmio/session-key";
 import { getAddress, type Address } from "viem";
 import { decryptSessionPrivateKey, encryptSessionPrivateKey } from "./session-key-crypto";
 
