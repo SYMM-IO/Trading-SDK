@@ -1,7 +1,7 @@
 "use client";
 
 import { DEFAULT_PRICE_PRECISION, DEFAULT_QUANTITY_PRECISION } from "@/lib/format";
-import { useMarkets, useQuotePriceHistory } from "@symm-frontier/react";
+import { useMarkets, useQuotePriceHistory } from "@symmio/trading-react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@symm-frontier/ui/components/dialog";
+} from "@symmio/ui/components/dialog";
 import { useState } from "react";
 import { QuoteEventsList } from "./quote-events-list";
 

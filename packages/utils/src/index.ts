@@ -1,12 +1,12 @@
 /**
- * `@symm-frontier/utils` — framework-agnostic helpers for SYMMIO SDK consumers.
+ * `@symmio/utils` — framework-agnostic helpers for SYMMIO SDK consumers.
  *
  * Sub-entries are available for deep imports:
  *
- * - `@symm-frontier/utils/amounts` — `bigint` ↔ string helpers (viem-backed).
- * - `@symm-frontier/utils/decimal` — Decimal-based math (Decimal.js).
- * - `@symm-frontier/utils/format`  — display formatters (commas, compact, currency, %, dynamic).
- * - `@symm-frontier/utils/address` — checksummed and generic hex shorteners.
+ * - `@symmio/utils/amounts` — `bigint` ↔ string helpers (viem-backed).
+ * - `@symmio/utils/decimal` — Decimal-based math (Decimal.js).
+ * - `@symmio/utils/format`  — display formatters (commas, compact, currency, %, dynamic).
+ * - `@symmio/utils/address` — checksummed and generic hex shorteners.
  */
 
 /**
@@ -30,7 +30,7 @@ export {
  * Helpers built on Decimal.js for chainable UI math. `formatUnits` /
  * `parseUnits` here return `Decimal`, in contrast to viem's same-named
  * functions which return / take strings. Available via the deep import
- * `@symm-frontier/utils/decimal` to avoid name collisions with viem at the
+ * `@symmio/utils/decimal` to avoid name collisions with viem at the
  * root barrel.
  */
 export {

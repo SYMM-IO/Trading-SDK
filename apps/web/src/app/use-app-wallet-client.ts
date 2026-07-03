@@ -2,7 +2,7 @@
 
 import { wagmiConfig } from "@/config/wagmi";
 import { getAppSessionKeyManager } from "@/features/session-keys/session-key-manager";
-import { SymmError, type GetWalletClientFn, type SymmioWalletClient } from "@symm-frontier/react";
+import { SymmError, type GetWalletClientFn, type SymmioWalletClient } from "@symmio/trading-react";
 import { useCallback } from "react";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";

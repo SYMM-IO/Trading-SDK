@@ -3,9 +3,9 @@
 import { StatusDot } from "@/components/status-dot";
 import { PartyAField } from "@/features/inspector/party-a-field";
 import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
-import { useWatchTpSlNotifications, type TpSlNotification } from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { JsonView } from "@symm-frontier/ui/components/json-view";
+import { useWatchTpSlNotifications, type TpSlNotification } from "@symmio/trading-react";
+import { Badge } from "@symmio/ui/components/badge";
+import { JsonView } from "@symmio/ui/components/json-view";
 import { useRef } from "react";
 import { isAddress, type Address } from "viem";
 import type { MagicMethodPanelProps } from "./magic-types";

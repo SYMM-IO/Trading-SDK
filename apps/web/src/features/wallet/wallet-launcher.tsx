@@ -3,11 +3,11 @@
 import { AddressTag } from "@/components/address-tag";
 import { StatusDot } from "@/components/status-dot";
 import { WalletConnectDialog, WalletGlyph } from "@/features/wallet/wallet-connect-dialog";
-import { useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@symm-frontier/ui/components/popover";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@symmio/ui/components/popover";
+import { Spinner } from "@symmio/ui/components/spinner";
+import { cn } from "@symmio/ui/lib/utils";
 import { useState } from "react";
 import type { Address } from "viem";
 

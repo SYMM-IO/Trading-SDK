@@ -3,8 +3,8 @@
 import { useAppGetWalletClient } from "@/app/use-app-wallet-client";
 import { wagmiConfig } from "@/config/wagmi";
 import { useSymmioOverrides } from "@/features/config/symmio-overrides-store";
-import { SymmioProvider, type GetWalletClientFn } from "@symm-frontier/react";
-import { PortalContainerProvider } from "@symm-frontier/ui/lib/portal-container";
+import { SymmioProvider, type GetWalletClientFn } from "@symmio/trading-react";
+import { PortalContainerProvider } from "@symmio/ui/lib/portal-container";
 import { QueryClientProvider, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";

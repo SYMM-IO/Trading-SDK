@@ -1,0 +1,59 @@
+{
+  "name": "@symmio/trading-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Framework-agnostic SYMMIO SDK. Contract calls, calculations, and transformations with no framework assumptions.",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "generate-types": "orval && graphql-codegen --config codegen.ts",
+    "generate-graphql": "graphql-codegen --config codegen.ts"
+  },
+  "peerDependencies": {
+    "viem": "^2.49.0"
+  },
+  "devDependencies": {
+    "@graphql-codegen/cli": "^7.1.3",
+    "@graphql-codegen/client-preset": "^6.0.1",
+    "@graphql-typed-document-node/core": "^3.2.0",
+    "@symmio/eslint-config": "workspace:*",
+    "@symmio/typescript-config": "workspace:*",
+    "@types/node": "^25.6.0",
+    "eslint": "^9.39.4",
+    "graphql": "^16.14.2",
+    "orval": "^8.14.0",
+    "typescript": "^6.0.3",
+    "viem": "^2.49.0",
+    "vite": "^8.0.13",
+    "vite-plugin-dts": "^5.0.0",
+    "vitest": "^4.1.6"
+  },
+  "dependencies": {
+    "@symmio/utils": "workspace:*",
+    "@tanstack/query-core": "^5.90.5",
+    "axios": "^1.16.1",
+    "ohash": "^2.0.11"
+  }
+}

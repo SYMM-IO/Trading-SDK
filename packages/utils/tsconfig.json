@@ -1,5 +1,5 @@
 {
-  "extends": "@symm-frontier/typescript-config/bundled-library.json",
+  "extends": "@symmio/typescript-config/bundled-library.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src"

@@ -8,13 +8,13 @@ import {
   useSimulateGrantDelegation,
   useSymmioConfig,
   useWalletAccount,
-} from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Combobox } from "@symm-frontier/ui/components/combobox";
-import { DateTimePicker } from "@symm-frontier/ui/components/date-time-picker";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { Switch } from "@symm-frontier/ui/components/switch";
-import { formatRelativeTimestamp } from "@symm-frontier/utils";
+} from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Combobox } from "@symmio/ui/components/combobox";
+import { DateTimePicker } from "@symmio/ui/components/date-time-picker";
+import { Spinner } from "@symmio/ui/components/spinner";
+import { Switch } from "@symmio/ui/components/switch";
+import { formatRelativeTimestamp } from "@symmio/utils";
 import { useState } from "react";
 import type { Address, Hex } from "viem";
 import { isAddress } from "viem";

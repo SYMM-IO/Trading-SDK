@@ -1,10 +1,10 @@
 "use client";
 
 import { Field } from "@/components/field";
-import { useMuonUpnlB } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useMuonUpnlB } from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Input } from "@symmio/ui/components/input";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { PartyAField } from "../inspector/party-a-field";

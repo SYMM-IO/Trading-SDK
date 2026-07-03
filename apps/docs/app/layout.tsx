@@ -55,7 +55,7 @@ const footer = (
         The SYMMIO SDK surface for builders — connect a wallet, inspect contract state, and trade on HyperEVM.
       </span>
       <span className="symm-footer__meta">
-        © {new Date().getFullYear()} Symmio Frontier · built with <strong>@symm-frontier</strong>
+        © {new Date().getFullYear()} Symmio Frontier · built with <strong>@symmio</strong>
       </span>
     </div>
   </Footer>

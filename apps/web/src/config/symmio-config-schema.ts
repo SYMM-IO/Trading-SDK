@@ -5,7 +5,7 @@ import {
   type CreateConfigParameters,
   type DeepPartial,
   type SymmioChainConfig,
-} from "@symm-frontier/core";
+} from "@symmio/trading-core";
 import { getAddress, isAddress } from "viem";
 
 /** Top-level group a config field belongs to, matching {@link SymmioChainConfig}. */

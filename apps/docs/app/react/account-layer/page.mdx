@@ -1,13 +1,13 @@
 # AccountLayer hooks
 
-React-query wrappers over `@symm-frontier/core`'s AccountLayer slice.
+React-query wrappers over `@symmio/trading-core`'s AccountLayer slice.
 
 ## `useUserSubAccounts`
 
 Read a user's subaccounts. Returns react-query's full `UseQueryResult` shape.
 
 ```tsx
-import { useUserSubAccounts, useWalletAccount } from "@symm-frontier/react";
+import { useUserSubAccounts, useWalletAccount } from "@symmio/trading-react";
 
 const { address } = useWalletAccount();
 const { data, isLoading, error, refetch } = useUserSubAccounts({ user: address });
@@ -45,7 +45,7 @@ Read raw `balanceOf(account)` from the SYMMIO core/diamond contract.
 
 ```tsx
 import { formatEther } from "viem";
-import { useAccountBalanceOf } from "@symm-frontier/react";
+import { useAccountBalanceOf } from "@symmio/trading-react";
 
 const { data, isLoading, error } = useAccountBalanceOf({ account });
 
@@ -76,7 +76,7 @@ Read raw `balanceInfoOfPartyA(account)` fields from the SYMMIO core/diamond cont
 
 ```tsx
 import { formatEther } from "viem";
-import { useAccountBalanceInfo } from "@symm-frontier/react";
+import { useAccountBalanceInfo } from "@symmio/trading-react";
 
 const { data } = useAccountBalanceInfo({ account });
 
@@ -119,7 +119,7 @@ Returns react-query's `UseMutationResult` shape. The call inputs (`account`,
 `amount`) are passed to `mutate`; `amount` is in **18 decimals**.
 
 ```tsx
-import { useAllocate } from "@symm-frontier/react";
+import { useAllocate } from "@symmio/trading-react";
 
 const { mutate, isPending, isSuccess, data, error } = useAllocate();
 
@@ -158,7 +158,7 @@ submitting (the contract requires it to prove the subaccount stays solvent),
 unless you pass one as `upnlSig`. `amount` is in **18 decimals**.
 
 ```tsx
-import { useDeallocate } from "@symm-frontier/react";
+import { useDeallocate } from "@symmio/trading-react";
 
 const { mutate, isPending, isSuccess, data, error } = useDeallocate();
 
@@ -193,7 +193,7 @@ The hook calls `getDeallocateUpnlSig` for you unless you pass a `upnlSig` variab
 Submit a rename transaction. Returns react-query's `UseMutationResult` shape.
 
 ```tsx
-import { useEditAccountName } from "@symm-frontier/react";
+import { useEditAccountName } from "@symmio/trading-react";
 
 const { mutate, isPending, isSuccess, data, error } = useEditAccountName();
 

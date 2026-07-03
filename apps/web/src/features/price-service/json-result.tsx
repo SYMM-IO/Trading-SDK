@@ -1,5 +1,5 @@
 import { ResultNote } from "@/components/result";
-import { JsonView } from "@symm-frontier/ui/components/json-view";
+import { JsonView } from "@symmio/ui/components/json-view";
 
 interface Props {
   testId: string;

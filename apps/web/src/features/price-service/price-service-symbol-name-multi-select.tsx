@@ -2,10 +2,10 @@
 
 import { Field } from "@/components/field";
 import { ResultError } from "@/components/result";
-import { useEnigmaPriceServiceSymbolsInfo } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Combobox, type ComboboxItem } from "@symm-frontier/ui/components/combobox";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useEnigmaPriceServiceSymbolsInfo } from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Combobox, type ComboboxItem } from "@symmio/ui/components/combobox";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { useMemo } from "react";
 import { parseAddressList } from "./price-service-utils";
 

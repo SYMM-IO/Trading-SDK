@@ -1,13 +1,13 @@
 # Addresses
 
-`@symm-frontier/core` ships a per-chain address registry for each contract family. Today: `AccountLayer` only.
+`@symmio/trading-core` ships a per-chain address registry for each contract family. Today: `AccountLayer` only.
 
 ## `getAccountLayerAddress`
 
 Look up the `AccountLayer` (v0.8.5) deployment address for a chain.
 
 ```ts
-import { getAccountLayerAddress } from "@symm-frontier/core";
+import { getAccountLayerAddress } from "@symmio/trading-core";
 import { hyperEvm } from "viem/chains";
 
 getAccountLayerAddress(hyperEvm.id);
@@ -21,11 +21,11 @@ Throws `SymmError` when the chain isn't in the built-in registry. Consumers can 
 Enumerate the chain ids the SDK knows about.
 
 ```ts
-import { listAccountLayerChains } from "@symm-frontier/core";
+import { listAccountLayerChains } from "@symmio/trading-core";
 
 listAccountLayerChains(); // [999]  — HyperEVM, today
 ```
 
 ## Adding a chain
 
-The registry lives at `packages/core/src/chains/account-layer-addresses.ts`. Open a PR with the chain id (sourced from `viem/chains`, never a numeric literal) and the deployment address. New chains follow the same conventions as the current entries.
+The registry lives at `packages/trading-core/src/chains/account-layer-addresses.ts`. Open a PR with the chain id (sourced from `viem/chains`, never a numeric literal) and the deployment address. New chains follow the same conventions as the current entries.

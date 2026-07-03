@@ -1,5 +1,5 @@
 {
-  "name": "@symm-frontier/session-key",
+  "name": "@symmio/session-key",
   "version": "0.0.0",
   "private": true,
   "description": "Framework-agnostic local EVM session-key helpers for SYMMIO SDK consumers.",
@@ -33,8 +33,8 @@
     "viem": "^2.49.0"
   },
   "devDependencies": {
-    "@symm-frontier/eslint-config": "workspace:*",
-    "@symm-frontier/typescript-config": "workspace:*",
+    "@symmio/eslint-config": "workspace:*",
+    "@symmio/typescript-config": "workspace:*",
     "@types/node": "^25.6.0",
     "eslint": "^9.39.4",
     "typescript": "^6.0.3",

@@ -1,13 +1,13 @@
 # Price Service hooks
 
-Price-service hooks wrap the `@symm-frontier/core` Enigma price-service reads with React Query and SDK provider state. They read the active chain from `SymmioProvider` unless you pass `chainId`.
+Price-service hooks wrap the `@symmio/trading-core` Enigma price-service reads with React Query and SDK provider state. They read the active chain from `SymmioProvider` unless you pass `chainId`.
 
 ## `useEnigmaPriceServicePrices`
 
 Fetch mark prices by token addresses.
 
 ```tsx
-import { useEnigmaPriceServicePrices } from "@symm-frontier/react";
+import { useEnigmaPriceServicePrices } from "@symmio/trading-react";
 
 function Prices({ tokenAddress }: { tokenAddress: string }) {
   const query = useEnigmaPriceServicePrices({
@@ -27,7 +27,7 @@ function Prices({ tokenAddress }: { tokenAddress: string }) {
 Fetch metadata by token-address array.
 
 ```tsx
-import { useEnigmaPriceServiceMetadata } from "@symm-frontier/react";
+import { useEnigmaPriceServiceMetadata } from "@symmio/trading-react";
 
 const query = useEnigmaPriceServiceMetadata({
   addresses: ["0xTokenA", "0xTokenB"],
@@ -41,7 +41,7 @@ const query = useEnigmaPriceServiceMetadata({
 Fetch symbol names, statuses, and addresses.
 
 ```tsx
-import { useEnigmaPriceServiceSymbolsInfo } from "@symm-frontier/react";
+import { useEnigmaPriceServiceSymbolsInfo } from "@symmio/trading-react";
 
 const query = useEnigmaPriceServiceSymbolsInfo();
 ```
@@ -51,7 +51,7 @@ const query = useEnigmaPriceServiceSymbolsInfo();
 Read the service health endpoint.
 
 ```tsx
-import { useEnigmaPriceServiceHealth } from "@symm-frontier/react";
+import { useEnigmaPriceServiceHealth } from "@symmio/trading-react";
 
 const query = useEnigmaPriceServiceHealth();
 ```

@@ -1,3 +1,3 @@
-import { baseConfig } from "@symm-frontier/eslint-config/base";
+import { baseConfig } from "@symmio/eslint-config/base";
 
 export default baseConfig;

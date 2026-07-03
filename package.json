@@ -1,5 +1,5 @@
 {
-  "name": "@symm-frontier",
+  "name": "@symmio",
   "private": true,
   "scripts": {
     "build": "turbo run build",

@@ -1,10 +1,10 @@
 "use client";
 import { WEI_DECIMALS } from "@/lib/format";
-import type { QuoteHistoryRow } from "@symm-frontier/core";
-import { PositionType, QuoteCloseEventType } from "@symm-frontier/core";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { DataTable, type DataTableColumn } from "@symm-frontier/ui/components/data-table";
-import { formatRelativeTimestamp, formatTokenAmount } from "@symm-frontier/utils";
+import type { QuoteHistoryRow } from "@symmio/trading-core";
+import { PositionType, QuoteCloseEventType } from "@symmio/trading-core";
+import { Badge } from "@symmio/ui/components/badge";
+import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
+import { formatRelativeTimestamp, formatTokenAmount } from "@symmio/utils";
 import type { ReactNode } from "react";
 import { truncateAddress } from "./quote-provenance-panel";
 

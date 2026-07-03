@@ -1,8 +1,8 @@
 "use client";
 
 import { Field } from "@/components/field";
-import { useWalletAccount } from "@symm-frontier/react";
-import { AccountCombobox } from "@symm-frontier/ui/components/account-combobox";
+import { useWalletAccount } from "@symmio/trading-react";
+import { AccountCombobox } from "@symmio/ui/components/account-combobox";
 import type { ReactNode } from "react";
 import type { Address } from "viem";
 import { SubAccountListMessage, useSubAccountOptions } from "./subaccount-options";

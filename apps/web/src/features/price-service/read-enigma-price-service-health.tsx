@@ -1,9 +1,9 @@
 "use client";
 
 import { ResultError, ResultNote } from "@/components/result";
-import { useEnigmaPriceServiceHealth } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useEnigmaPriceServiceHealth } from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { MethodCard } from "../inspector/method-card";
 import { JsonResult } from "./json-result";
 

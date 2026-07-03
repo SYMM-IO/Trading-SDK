@@ -1,6 +1,6 @@
 # InstantLayer hooks
 
-React-query wrappers over `@symm-frontier/core`'s InstantLayer slice.
+React-query wrappers over `@symmio/trading-core`'s InstantLayer slice.
 
 Delegation reads are intentionally split into two hooks. `useDelegationExpiry` reads the raw `delegations` mapping value, and `useIsDelegationActive` reads the contract's computed active status.
 
@@ -9,7 +9,7 @@ Delegation reads are intentionally split into two hooks. `useDelegationExpiry` r
 Read the raw expiry timestamp for one account, delegate, and selector.
 
 ```tsx
-import { useDelegationExpiry } from "@symm-frontier/react";
+import { useDelegationExpiry } from "@symmio/trading-react";
 
 const expiryQuery = useDelegationExpiry({
   account,
@@ -42,7 +42,7 @@ if (expiryQuery.data) {
 Read whether the contract considers a delegation active.
 
 ```tsx
-import { useIsDelegationActive } from "@symm-frontier/react";
+import { useIsDelegationActive } from "@symmio/trading-react";
 
 const activeQuery = useIsDelegationActive({
   account,
@@ -101,7 +101,7 @@ function DelegationReads({ account, delegate, selector }: Required<Props>) {
 Submit an InstantLayer `grantDelegation` transaction.
 
 ```tsx
-import { useGrantDelegation } from "@symm-frontier/react";
+import { useGrantDelegation } from "@symmio/trading-react";
 
 const { mutate, isPending, data, error } = useGrantDelegation();
 

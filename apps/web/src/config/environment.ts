@@ -18,7 +18,7 @@ export const IS_E2E_MODE = process.env.NEXT_PUBLIC_E2E_MODE === "1";
  * The mock connector cannot actually sign transactions (it forwards
  * `eth_sendTransaction` straight to the RPC), so the Inspector's write
  * button will error in E2E mode. Real-broadcast write coverage lives in the
- * `packages/react` Vitest write integration test, which uses the seed
+ * `packages/trading-react` Vitest write integration test, which uses the seed
  * phrase server-side via `viem/accounts`.
  */
 export const E2E_ACCOUNT_ADDRESS = (process.env.NEXT_PUBLIC_E2E_ACCOUNT_ADDRESS ??

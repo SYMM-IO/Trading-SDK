@@ -64,7 +64,7 @@ export interface ConfigureSymmDecimalOptions {
  * pass explicit precision and rounding to every `.toFixed()` call.
  *
  * @example
- * import { configureSymmDecimal } from "@symm-frontier/utils/decimal";
+ * import { configureSymmDecimal } from "@symmio/utils/decimal";
  * configureSymmDecimal(); // at app entrypoint
  */
 export function configureSymmDecimal(options: ConfigureSymmDecimalOptions = {}): void {

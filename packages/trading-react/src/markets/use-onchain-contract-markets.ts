@@ -1,0 +1,59 @@
+"use client";
+
+import {
+  getOnchainContractMarketsQueryOptions,
+  type ConfigParameter,
+  type GetOnchainContractMarketsOptions,
+  type GetOnchainContractMarketsReturnType,
+} from "@symmio/trading-core";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { normalizeSymmError } from "../errors/normalize-symm-error";
+import type { SymmioRequestError } from "../errors/symmio-request-error";
+import { useSymmioChainId } from "../provider/use-symmio-chain-id";
+import { useSymmioConfig } from "../provider/use-symmio-config";
+
+/**
+ * Parameters for {@link useOnchainContractMarkets}: the core query options
+ * (start, size, chain id, TanStack `query` overrides) plus an optional `config`.
+ */
+export type UseOnchainContractMarketsParameters = GetOnchainContractMarketsOptions & ConfigParameter;
+
+/** Return type of {@link useOnchainContractMarkets}. */
+export type UseOnchainContractMarketsReturnType = UseQueryResult<
+  GetOnchainContractMarketsReturnType,
+  SymmioRequestError
+>;
+
+/**
+ * Read paginated on-chain contract markets from the SYMMIO core diamond.
+ *
+ * This hook delegates to core's `getOnchainContractMarkets`, which calls the
+ * contract `getSymbols(start, size)` view. Errors are normalized to
+ * {@link SymmioRequestError}.
+ *
+ * @example
+ * ```tsx
+ * const { data } = useOnchainContractMarkets({ start: 0, size: 100 });
+ * ```
+ */
+export function useOnchainContractMarkets(
+  parameters: UseOnchainContractMarketsParameters,
+): UseOnchainContractMarketsReturnType {
+  const config = useSymmioConfig(parameters);
+  const chainId = useSymmioChainId();
+  const options = getOnchainContractMarketsQueryOptions(config, {
+    ...parameters,
+    chainId: parameters.chainId ?? chainId,
+  });
+
+  return useQuery({
+    ...options,
+    queryFn: async () => {
+      try {
+        return await options.queryFn();
+      } catch (err) {
+        throw normalizeSymmError(err);
+      }
+    },
+  }) as UseOnchainContractMarketsReturnType;
+}

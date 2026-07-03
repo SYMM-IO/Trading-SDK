@@ -3,16 +3,16 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import { createClassicWithdrawPart } from "@symm-frontier/core";
+import { createClassicWithdrawPart } from "@symmio/trading-core";
 import {
   useInitiateWithdraw,
   useSimulateInitiateWithdraw,
   useSymmioConfig,
   useWalletAccount,
-} from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+} from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Input } from "@symmio/ui/components/input";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, parseUnits, type Address } from "viem";
 

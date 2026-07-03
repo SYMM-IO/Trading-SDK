@@ -1,5 +1,5 @@
-import { Label } from "@symm-frontier/ui/components/label";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { Label } from "@symmio/ui/components/label";
+import { cn } from "@symmio/ui/lib/utils";
 import type { CSSProperties, ReactNode } from "react";
 
 interface Props {

@@ -1,5 +1,5 @@
-import type { ComboboxItem } from "@symm-frontier/ui/components/combobox";
-import { shortenAddress } from "@symm-frontier/utils";
+import type { ComboboxItem } from "@symmio/ui/components/combobox";
+import { shortenAddress } from "@symmio/utils";
 import type { Address } from "viem";
 
 export interface InstantLayerDelegateeSuggestion {

@@ -1,4 +1,4 @@
-import { SymmioSupportedChainId, type CreateConfigParameters } from "@symm-frontier/core";
+import { SymmioSupportedChainId, type CreateConfigParameters } from "@symmio/trading-core";
 
 /**
  * A named, one-click set of chain overrides surfaced in the config panel.

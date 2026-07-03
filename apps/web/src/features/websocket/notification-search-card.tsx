@@ -1,16 +1,16 @@
 "use client";
 
 import { ResultError, ResultNote } from "@/components/result";
-import type { NotificationSearchFilter } from "@symm-frontier/core";
-import { useSearchNotifications } from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symm-frontier/ui/components/card";
-import { Combobox, type ComboboxItem } from "@symm-frontier/ui/components/combobox";
-import { Input } from "@symm-frontier/ui/components/input";
-import { JsonView } from "@symm-frontier/ui/components/json-view";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import type { NotificationSearchFilter } from "@symmio/trading-core";
+import { useSearchNotifications } from "@symmio/trading-react";
+import { Badge } from "@symmio/ui/components/badge";
+import { Button } from "@symmio/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symmio/ui/components/card";
+import { Combobox, type ComboboxItem } from "@symmio/ui/components/combobox";
+import { Input } from "@symmio/ui/components/input";
+import { JsonView } from "@symmio/ui/components/json-view";
+import { Spinner } from "@symmio/ui/components/spinner";
+import { cn } from "@symmio/ui/lib/utils";
 import { useRef, useState } from "react";
 
 /** A single editable key/value pair in the filter builder. */

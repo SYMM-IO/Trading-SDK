@@ -1,7 +1,7 @@
 "use client";
 
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@symm-frontier/ui/components/sheet";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@symmio/ui/components/sheet";
+import { cn } from "@symmio/ui/lib/utils";
 import { MagicBoardView } from "./magic-board-view";
 import { MagicCatalogView } from "./magic-catalog-view";
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, useMagicSidebar } from "./magic-sidebar-store";

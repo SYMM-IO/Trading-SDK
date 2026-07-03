@@ -10,7 +10,7 @@ import { defineConfig, devices } from "@playwright/test";
  * A `write` E2E layer is **not** included here. The wagmi `mock` connector
  * forwards `eth_sendTransaction` straight to the RPC without signing, so a
  * public RPC will reject the call. Real-broadcast write coverage lives in
- * `packages/react`'s Vitest write integration test, which uses `viem/accounts`
+ * `packages/trading-react`'s Vitest write integration test, which uses `viem/accounts`
  * + the seed phrase server-side.
  */
 export default defineConfig({

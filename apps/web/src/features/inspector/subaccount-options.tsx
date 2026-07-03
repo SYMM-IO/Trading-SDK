@@ -2,9 +2,9 @@
 
 import { ResultError, ResultNote } from "@/components/result";
 import { formatUsd } from "@/lib/format";
-import { useAccountBalanceOf, useUserSubAccounts } from "@symm-frontier/react";
-import type { AccountPickerItem, AccountPickerListState } from "@symm-frontier/ui/components/account-combobox";
-import { shortenAddress } from "@symm-frontier/utils";
+import { useAccountBalanceOf, useUserSubAccounts } from "@symmio/trading-react";
+import type { AccountPickerItem, AccountPickerListState } from "@symmio/ui/components/account-combobox";
+import { shortenAddress } from "@symmio/utils";
 import { useMemo } from "react";
 import type { Address } from "viem";
 

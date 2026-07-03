@@ -3,9 +3,9 @@
 import { ResultError, ResultNote } from "@/components/result";
 import { Stat } from "@/components/stat";
 import { formatUsd } from "@/lib/format";
-import { useAccountBalanceOf } from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useAccountBalanceOf } from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
 import type { Address } from "viem";
 import { MethodCard } from "./method-card";

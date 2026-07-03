@@ -2,9 +2,9 @@
 
 import { txExplorerUrl } from "@/lib/explorer";
 import { formatUsd } from "@/lib/format";
-import { BalanceChangeType, type BalanceHistoryRow } from "@symm-frontier/core";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { DataTable, type DataTableColumn } from "@symm-frontier/ui/components/data-table";
+import { BalanceChangeType, type BalanceHistoryRow } from "@symmio/trading-core";
+import { Badge } from "@symmio/ui/components/badge";
+import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
 import type { ReactNode } from "react";
 
 /** Human label for each movement type. A bridge withdraw reads as a withdraw. */

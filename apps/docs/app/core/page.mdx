@@ -1,11 +1,11 @@
 # Core
 
-`@symm-frontier/core` is the framework-agnostic SDK. It wraps SYMMIO contract calls behind a small typed API built on [viem](https://viem.sh).
+`@symmio/trading-core` is the framework-agnostic SDK. It wraps SYMMIO contract calls behind a small typed API built on [viem](https://viem.sh).
 
 ## Install
 
 ```sh
-pnpm add @symm-frontier/core viem
+pnpm add @symmio/trading-core viem
 ```
 
 `viem` is a peer dependency — bring your own copy.
@@ -19,7 +19,7 @@ Two ways to call a method, depending on how much ergonomics you want:
 The canonical primitive. Tree-shakable, idiomatic viem.
 
 ```ts
-import { getUserSubAccounts } from "@symm-frontier/core";
+import { getUserSubAccounts } from "@symmio/trading-core";
 import { createPublicClient, http } from "viem";
 import { hyperEvm } from "viem/chains";
 
@@ -33,7 +33,7 @@ const subs = await getUserSubAccounts(publicClient, { user: "0xabc..." });
 If you'd rather hang SDK methods off a viem client, use `.extend()` with one of the action factories:
 
 ```ts
-import { accountLayerReadActions } from "@symm-frontier/core";
+import { accountLayerReadActions } from "@symmio/trading-core";
 
 const reader = createPublicClient({ chain: hyperEvm, transport: http() }).extend(accountLayerReadActions);
 
@@ -51,5 +51,5 @@ await reader.getUserSubAccounts({ user: "0xabc..." });
 
 ## What `core` doesn't do
 
-- React hooks. Use **[`@symm-frontier/react`](/react)**.
-- Decimal-based math or display formatters. Use **[`@symm-frontier/utils`](/utils)**.
+- React hooks. Use **[`@symmio/trading-react`](/react)**.
+- Decimal-based math or display formatters. Use **[`@symmio/utils`](/utils)**.

@@ -2,13 +2,13 @@
 
 import { ResultError, ResultNote } from "@/components/result";
 import { TableSkeleton } from "@/components/skeletons";
-import { useMarkets } from "@symm-frontier/react";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { DataTable, type DataTableColumn } from "@symm-frontier/ui/components/data-table";
-import { SearchInput } from "@symm-frontier/ui/components/search-input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symm-frontier/ui/components/select";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
+import { useMarkets } from "@symmio/trading-react";
+import { Badge } from "@symmio/ui/components/badge";
+import { Button } from "@symmio/ui/components/button";
+import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
+import { SearchInput } from "@symmio/ui/components/search-input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symmio/ui/components/select";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { useMemo, useState } from "react";
 import { MethodCard } from "./method-card";
 

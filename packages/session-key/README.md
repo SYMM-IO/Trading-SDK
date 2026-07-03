@@ -1,4 +1,4 @@
-# @symm-frontier/session-key
+# @symmio/session-key
 
 Framework-agnostic local EVM session-key helpers for SYMMIO SDK consumers.
 

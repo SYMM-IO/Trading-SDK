@@ -1,4 +1,4 @@
-import { WEI_DECIMALS, formatTokenAmount } from "@symm-frontier/utils";
+import { WEI_DECIMALS, formatTokenAmount } from "@symmio/utils";
 import { maxUint256 } from "viem";
 
 export { WEI_DECIMALS };

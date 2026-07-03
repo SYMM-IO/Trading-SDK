@@ -1,7 +1,7 @@
 "use client";
 
-import { Button } from "@symm-frontier/ui/components/button";
-import { Checkbox } from "@symm-frontier/ui/components/checkbox";
+import { Button } from "@symmio/ui/components/button";
+import { Checkbox } from "@symmio/ui/components/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -9,8 +9,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@symm-frontier/ui/components/dialog";
-import { Label } from "@symm-frontier/ui/components/label";
+} from "@symmio/ui/components/dialog";
+import { Label } from "@symmio/ui/components/label";
 import { useEffect, useState } from "react";
 
 interface Props {

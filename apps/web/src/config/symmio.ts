@@ -1,4 +1,4 @@
-import { SymmioSupportedChainId, type CreateConfigParameters } from "@symm-frontier/core";
+import { SymmioSupportedChainId, type CreateConfigParameters } from "@symmio/trading-core";
 
 const FRONTIER_AFFILIATE_BY_CHAIN = {
   [SymmioSupportedChainId.HYPER_EVM]: "0xBcB033C9154401fA000a1Ae60843f79f45741b7c", // Vibe Affiliate Address

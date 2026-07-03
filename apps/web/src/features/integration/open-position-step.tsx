@@ -16,15 +16,15 @@ import {
   useNotionalCapBySymbolId,
   validateInstantOpenAgainstMarket,
   type QuoteConstraintViolation,
-} from "@symm-frontier/react";
-import { Button } from "@symm-frontier/ui/components/button";
-import { Input } from "@symm-frontier/ui/components/input";
-import { MarketSelect, type MarketSelectItem } from "@symm-frontier/ui/components/market-select";
-import { Slider } from "@symm-frontier/ui/components/slider";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@symm-frontier/ui/components/tooltip";
-import { cn } from "@symm-frontier/ui/lib/utils";
-import { formatCompact, shortenAddress } from "@symm-frontier/utils";
+} from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
+import { Input } from "@symmio/ui/components/input";
+import { MarketSelect, type MarketSelectItem } from "@symmio/ui/components/market-select";
+import { Slider } from "@symmio/ui/components/slider";
+import { Spinner } from "@symmio/ui/components/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
+import { cn } from "@symmio/ui/lib/utils";
+import { formatCompact, shortenAddress } from "@symmio/utils";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits, type Address } from "viem";
 

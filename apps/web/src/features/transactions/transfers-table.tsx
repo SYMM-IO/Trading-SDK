@@ -2,10 +2,10 @@
 
 import { txExplorerUrl } from "@/lib/explorer";
 import { formatUsd, WEI_DECIMALS } from "@/lib/format";
-import type { TransferRow } from "@symm-frontier/core";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { DataTable, type DataTableColumn } from "@symm-frontier/ui/components/data-table";
-import { shortenAddress } from "@symm-frontier/utils";
+import type { TransferRow } from "@symmio/trading-core";
+import { Badge } from "@symmio/ui/components/badge";
+import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
+import { shortenAddress } from "@symmio/utils";
 import type { ReactNode } from "react";
 
 /** Truncate a 32-byte tx hash for display (`shortenAddress` is 20-byte only). */

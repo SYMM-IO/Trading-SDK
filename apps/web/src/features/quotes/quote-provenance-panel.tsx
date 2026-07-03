@@ -1,5 +1,5 @@
 import { DEFAULT_PRICE_PRECISION, DEFAULT_QUANTITY_PRECISION, WEI_DECIMALS } from "@/lib/format";
-import { OrderType, PositionType, QuoteLifecycle, type UnifiedQuote } from "@symm-frontier/core";
+import { OrderType, PositionType, QuoteLifecycle, type UnifiedQuote } from "@symmio/trading-core";
 import {
   useAccountLiquidationPrice,
   useMarkets,
@@ -7,9 +7,9 @@ import {
   useQuotePlatformFee,
   useQuotePriceHistory,
   useQuoteUpnlAndPnl,
-} from "@symm-frontier/react";
-import { Spinner } from "@symm-frontier/ui/components/spinner";
-import { formatTokenAmount } from "@symm-frontier/utils";
+} from "@symmio/trading-react";
+import { Spinner } from "@symmio/ui/components/spinner";
+import { formatTokenAmount } from "@symmio/utils";
 import { useState, type ReactNode } from "react";
 import { QuoteEventsList } from "./quote-events-list";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";

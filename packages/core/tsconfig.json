@@ -1,9 +1,0 @@
-{
-  "extends": "@symm-frontier/typescript-config/bundled-library.json",
-  "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src"
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
-}

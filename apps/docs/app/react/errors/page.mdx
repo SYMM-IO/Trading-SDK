@@ -28,7 +28,7 @@ class SymmioRequestError extends Error {
 ## Branching in the UI
 
 ```tsx
-import { useEditAccountName } from "@symm-frontier/react";
+import { useEditAccountName } from "@symmio/trading-react";
 
 function RenameButton() {
   const { mutate, error } = useEditAccountName();
@@ -53,7 +53,7 @@ function RenameButton() {
 The classifier the hooks use internally. Convert any thrown value (viem error, `SymmError`, plain `Error`, anything) into a `SymmioRequestError`.
 
 ```ts
-import { normalizeSymmError } from "@symm-frontier/react";
+import { normalizeSymmError } from "@symmio/trading-react";
 
 try {
   await someThirdPartyCall();
@@ -70,8 +70,8 @@ Useful when:
 
 ## Re-exported `SymmError`
 
-`@symm-frontier/react` re-exports `SymmError` from `core` for convenience. `normalizeSymmError(symmError).kind` is always `"sdk"`.
+`@symmio/trading-react` re-exports `SymmError` from `core` for convenience. `normalizeSymmError(symmError).kind` is always `"sdk"`.
 
 ```ts
-import { SymmError } from "@symm-frontier/react"; // same as `from "@symm-frontier/core"`
+import { SymmError } from "@symmio/trading-react"; // same as `from "@symmio/trading-core"`
 ```

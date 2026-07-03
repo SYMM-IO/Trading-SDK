@@ -3,9 +3,9 @@
 import { ResultNote } from "@/components/result";
 import { OpenPositionStep } from "@/features/integration/open-position-step";
 import { useSessionKey } from "@/features/session-keys/use-session-key";
-import { Badge } from "@symm-frontier/ui/components/badge";
-import { Button } from "@symm-frontier/ui/components/button";
-import { cn } from "@symm-frontier/ui/lib/utils";
+import { Badge } from "@symmio/ui/components/badge";
+import { Button } from "@symmio/ui/components/button";
+import { cn } from "@symmio/ui/lib/utils";
 import Link from "next/link";
 import { useState } from "react";
 import type { Address } from "viem";
