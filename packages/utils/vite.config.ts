@@ -39,11 +39,13 @@ export default defineConfig({
     },
     rollupOptions: {
       /**
-       * `viem` is a peer dependency; `decimal.js` is a direct dep we want
-       * resolved by the consumer's node_modules so a single Decimal class is
-       * shared across the SDK and host app.
+       * Externalize every bare import — the `viem` peer dep and the `decimal.js`
+       * and `ramda` runtime deps alike. A library must not bundle its declared
+       * dependencies; the consumer resolves them from their own `node_modules`
+       * (which also guarantees a single shared `Decimal` class across the SDK and
+       * host app). Only our own source (relative/absolute paths) is bundled.
        */
-      external: ["viem", /^viem\//, "decimal.js"],
+      external: (id) => !id.startsWith(".") && !path.isAbsolute(id),
       output: {
         dir: path.resolve(dirname, "dist"),
         preserveModules: true,

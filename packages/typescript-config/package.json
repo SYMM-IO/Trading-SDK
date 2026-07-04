@@ -1,9 +1,22 @@
 {
   "name": "@symmio/typescript-config",
   "version": "0.0.0",
-  "private": true,
+  "description": "Shared TypeScript configurations for the SYMMIO SDK monorepo.",
   "license": "MIT",
+  "homepage": "https://github.com/SYMM-IO/SYMM-Frontier/tree/main/packages/typescript-config#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SYMM-IO/SYMM-Frontier.git",
+    "directory": "packages/typescript-config"
+  },
+  "bugs": "https://github.com/SYMM-IO/SYMM-Frontier/issues",
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "files": [
+    "base.json",
+    "bundled-library.json",
+    "nextjs.json",
+    "react-library.json"
+  ]
 }

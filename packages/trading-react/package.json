@@ -1,8 +1,15 @@
 {
   "name": "@symmio/trading-react",
   "version": "0.0.0",
-  "private": true,
   "description": "React adapter for the SYMMIO SDK. Hooks, providers, and React-bound ergonomics on top of @symmio/trading-core.",
+  "license": "MIT",
+  "homepage": "https://github.com/SYMM-IO/SYMM-Frontier/tree/main/packages/trading-react#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SYMM-IO/SYMM-Frontier.git",
+    "directory": "packages/trading-react"
+  },
+  "bugs": "https://github.com/SYMM-IO/SYMM-Frontier/issues",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -57,6 +64,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
@@ -67,7 +77,7 @@
     "test:integration": "vitest run --project integration"
   },
   "dependencies": {
-    "@symmio/trading-core": "workspace:*",
+    "@symmio/trading-core": "workspace:^",
     "@tanstack/react-query": "^5.100.0",
     "decimal.js": "^10.4.3",
     "zustand": "^5.0.0"
@@ -79,8 +89,8 @@
     "wagmi": "^3.4.2"
   },
   "devDependencies": {
-    "@symmio/eslint-config": "workspace:*",
-    "@symmio/typescript-config": "workspace:*",
+    "@symmio/eslint-config": "workspace:^",
+    "@symmio/typescript-config": "workspace:^",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^25.6.0",

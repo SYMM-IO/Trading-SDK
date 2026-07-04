@@ -76,12 +76,14 @@ export default defineConfig({
     },
     rollupOptions: {
       /**
-       * viem is a peer dependency (see AGENTS.md). Marking it external prevents
-       * it from being bundled into our output, so consumers use their own copy
-       * and we don't ship a duplicate. The regex covers viem sub-paths like
-       * `viem/chains`, `viem/actions`, etc.
+       * Externalize every bare import — peer deps (`viem`), runtime deps
+       * (`axios`, `ohash`, `@tanstack/query-core`), the internal `@symmio/utils`
+       * dependency, and Node builtins. A library must never bundle its declared
+       * dependencies: the consumer resolves them from their own `node_modules`,
+       * so npm dedupes a single copy instead of us shipping vendored duplicates.
+       * Only our own source (relative/absolute paths) is bundled.
        */
-      external: ["viem", /^viem\//, "@tanstack/query-core"],
+      external: (id) => !id.startsWith(".") && !path.isAbsolute(id),
       output: {
         dir: path.resolve(dirname, "dist"),
         /**

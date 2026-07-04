@@ -1,8 +1,15 @@
 {
   "name": "@symmio/utils",
   "version": "0.0.0",
-  "private": true,
   "description": "Framework-agnostic utility helpers for SYMMIO SDK consumers: amount formatting, address helpers, Decimal.js bridge.",
+  "license": "MIT",
+  "homepage": "https://github.com/SYMM-IO/SYMM-Frontier/tree/main/packages/utils#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SYMM-IO/SYMM-Frontier.git",
+    "directory": "packages/utils"
+  },
+  "bugs": "https://github.com/SYMM-IO/SYMM-Frontier/issues",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -37,6 +44,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
@@ -53,8 +63,8 @@
     "viem": "^2.49.0"
   },
   "devDependencies": {
-    "@symmio/eslint-config": "workspace:*",
-    "@symmio/typescript-config": "workspace:*",
+    "@symmio/eslint-config": "workspace:^",
+    "@symmio/typescript-config": "workspace:^",
     "@types/node": "^25.6.0",
     "@types/ramda": "^0.31.1",
     "eslint": "^9.39.4",
