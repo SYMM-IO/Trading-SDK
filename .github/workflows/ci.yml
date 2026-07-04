@@ -1,9 +1,11 @@
 name: CI
 
+# PRs only. The merged code was already validated on its PR, so re-running CI on
+# every push to main is redundant — main pushes just run the Release workflow.
+# (Keep "Require branches to be up to date before merging" on in branch protection
+# so the PR is always tested against the latest main.)
 on:
   pull_request:
-  push:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
