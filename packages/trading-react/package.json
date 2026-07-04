@@ -1,6 +1,6 @@
 {
   "name": "@symmio/trading-react",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React adapter for the SYMMIO SDK. Hooks, providers, and React-bound ergonomics on top of @symmio/trading-core.",
   "license": "MIT",
   "homepage": "https://github.com/SYMM-IO/SYMM-Frontier/tree/main/packages/trading-react#readme",
