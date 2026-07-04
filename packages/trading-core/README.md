@@ -1,67 +1,40 @@
 # @symmio/trading-core
 
-Framework-agnostic SYMMIO SDK.
+> Framework-agnostic SYMMIO SDK. Contract calls, calculations, and transformations with no framework assumptions.
 
-This package wraps SYMMIO contract calls behind a small, typed API built on [viem](https://viem.sh). It has no framework dependencies — `@symmio/trading-react` (and future Vue / Solid layers) sit on top of it.
+`@symmio/trading-core` is the base layer of the SYMMIO SDK: contract reads and writes (via viem), REST and GraphQL calls, and the calculations and transformations that turn raw protocol data into typed results. It has no framework dependency, so React (`@symmio/trading-react`) and other framework bindings build on top of it.
 
-## Status
+**[Documentation](https://symmio-frontier.vercel.app/core) · [Live SDK console](https://symm-frontier-web.vercel.app/)**
 
-Early. This first slice ships the `AccountLayer` domain (v0.8.5) on HyperEVM with two methods:
-
-- `getUserSubAccounts(publicClient, params)` — list a user's subaccounts.
-- `editAccountName(walletClient, params)` — rename a subaccount.
-
-## Install
+## Installation
 
 ```sh
-pnpm add @symmio/trading-core viem
+npm install @symmio/trading-core viem
 ```
 
-`viem` is a peer dependency.
+viem is a peer dependency.
 
 ## Usage
 
-### Free functions
-
 ```ts
-import { createPublicClient, createWalletClient, http, custom } from "viem";
-import { hyperevm } from "viem/chains";
-import { getUserSubAccounts, editAccountName } from "@symmio/trading-core";
+import { createConfig, getMarkets } from "@symmio/trading-core";
+import { createPublicClient, http } from "viem";
+import { hyperEvm } from "viem/chains";
 
-const publicClient = createPublicClient({ chain: hyperevm, transport: http() });
+const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
 
-const subs = await getUserSubAccounts(publicClient, {
-  user: "0xabc...",
-  limit: 100n,
+const config = createConfig({
+  getClient: () => publicClient,
 });
 
-const walletClient = createWalletClient({
-  chain: hyperevm,
-  transport: custom(window.ethereum),
-});
-
-const hash = await editAccountName(walletClient, {
-  account: "0xsub...",
-  name: "My Trading Account",
-});
+const markets = await getMarkets(config, {});
+console.log(markets[0]?.name);
 ```
 
-### viem actions
+Every action ships a matching TanStack Query / Mutation options factory (e.g. `getMarketsQueryOptions`) for wiring into a query client.
 
-Attach SDK methods to a viem client via `.extend()`:
+See the [full API reference](https://symmio-frontier.vercel.app/core) for every action, options factory, and type.
 
-```ts
-import { accountLayerReadActions, accountLayerWriteActions } from "@symmio/trading-core";
+## License
 
-const reader = createPublicClient({ chain: hyperevm, transport: http() }).extend(accountLayerReadActions);
-
-await reader.getUserSubAccounts({ user: "0xabc..." });
-```
-
-## Documentation
-
-Full reference and concept docs: see `apps/docs` in the monorepo (or [the published docs site] once available).
-
-## Contributing
-
-See [`AGENTS.md`](./AGENTS.md) for package-specific rules and the repo-root [`AGENTS.md`](../../AGENTS.md) for monorepo conventions.
+[MIT](./LICENSE)
