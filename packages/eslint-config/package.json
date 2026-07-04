@@ -1,6 +1,6 @@
 {
   "name": "@symmio/eslint-config",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared ESLint flat configs for the SYMMIO SDK monorepo.",
   "license": "MIT",
   "homepage": "https://github.com/SYMM-IO/SYMM-Frontier/tree/main/packages/eslint-config#readme",
