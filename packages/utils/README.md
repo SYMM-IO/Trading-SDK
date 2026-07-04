@@ -1,39 +1,35 @@
 # @symmio/utils
 
-Framework-agnostic utility helpers for SYMMIO SDK consumers.
+> Framework-agnostic utility helpers for SYMMIO SDK consumers: amount formatting, address helpers, Decimal.js bridge.
 
-Has no React, no wagmi, no DOM — anything in this package can be imported from a Node script just as well as from a React app. Companion to [`@symmio/trading-core`](../core) (which holds contract/ABI/address logic) and [`@symmio/trading-react`](../react) (the React adapter).
+`@symmio/utils` is the shared helper layer of the SYMMIO SDK. It holds framework-neutral primitives — token amount formatting, display formatters, address shorteners, and a Decimal.js bridge — that any consumer of `@symmio/trading-core` or `@symmio/trading-react` can use, whether in React, another framework, or a plain Node script.
 
-## Install
+**[Documentation](https://symmio-frontier.vercel.app/utils) · [Live SDK console](https://symm-frontier-web.vercel.app/)**
+
+## Installation
 
 ```sh
-pnpm add @symmio/utils viem
+npm install @symmio/utils viem
 ```
 
-`viem` is a peer dependency; `decimal.js` is a direct dependency.
+viem is a peer dependency.
 
 ## Usage
 
-### Amount helpers
-
 ```ts
-import { formatTokenAmount, parseTokenAmount, rawToDecimal } from "@symmio/utils/amounts";
+import { formatTokenAmount, formatCurrency, shortenAddress } from "@symmio/utils";
 
-formatTokenAmount(1_234_567_890_000n, 6); // "1234567.89"
-parseTokenAmount("1234.5", 6); //              1_234_500_000n
+const raw = 1_234_567_890n;
 
-const balance = rawToDecimal(1_500_000n, 6); // Decimal("1.5")
-balance.times("0.997"); //                       Decimal("1.4955")
+const amount = formatTokenAmount(raw, 6); // "1234.56789"
+const price = formatCurrency(1234.567); // "$1,234.56"
+const account = shortenAddress("0x46493c376758da47823d7e3ae5d417ea6546eeb3"); // "0x4649…eEB3"
+
+console.log(amount, price, account);
 ```
 
-### Address helpers
+See the [full API reference](https://symmio-frontier.vercel.app/utils) for every helper and its options.
 
-```ts
-import { shortenAddress } from "@symmio/utils/address";
+## License
 
-shortenAddress("0x46493c376758Da47823D7E3Ae5d417eA6546eEB3"); // "0x4649…eEB3"
-```
-
-## Contributing
-
-See [`AGENTS.md`](./AGENTS.md) for package rules and the repo-root [`AGENTS.md`](../../AGENTS.md) for monorepo conventions.
+[MIT](./LICENSE)
