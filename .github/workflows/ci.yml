@@ -34,16 +34,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm build
+      # Restore Turbo's local task cache so unchanged packages skip
+      # build/lint/types/test on repeat pushes to a PR. Keys are content-hashed,
+      # so a stale or missing cache only ever forces a rebuild, never a wrong result.
+      - name: Restore Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
 
-      - name: Lint
-        run: pnpm lint
-
-      - name: Type-check
-        run: pnpm check-types
-
-      # Unit tests only. Integration tests are gated behind SYMM_RUN_INTEGRATION
+      # One Turbo invocation: build the dependency graph once, then fan lint,
+      # type-check, and unit tests out across packages in parallel — each package
+      # is linted/typed/tested as soon as its deps are built, instead of waiting
+      # for every build to finish. --continue runs every check even after one
+      # fails (so a PR surfaces all failures at once); Turbo still exits non-zero
+      # on any failure. Integration tests stay gated behind SYMM_RUN_INTEGRATION
       # and a funded key, and never run here.
-      - name: Test
-        run: pnpm test
+      - name: Build · Lint · Types · Test
+        run: pnpm exec turbo run build lint check-types test --continue
