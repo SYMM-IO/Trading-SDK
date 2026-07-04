@@ -1,151 +1,116 @@
 "use client";
 
 import {
-  getQuoteTpSlQueryKey,
   getQuoteTpSlQueryOptions,
   type ConfigParameter,
   type GetQuoteTpSlOptions,
-  type QuoteTpSl,
-  type QuoteTpSlRow,
   type TpSlNotification,
 } from "@symm-frontier/core";
-import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { Address } from "viem";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
-import { toQuoteTpSl } from "./to-quote-tpsl";
-import {
-  clearTpSlConfirmingSide,
-  EMPTY_TPSL_CONFIRMING,
-  getTpSlConfirmingQueryKey,
-  type TpSlConfirming,
-} from "./tpsl-confirming";
+import { useTpSlRecord, useTpSlStore, type TpSlRecord } from "./tpsl-store";
 import { useWatchTpSlNotifications } from "./use-watch-tpsl-notifications";
 
 /** Parameters for {@link useQuoteTpSl}. */
-export type UseQuoteTpSlParameters = GetQuoteTpSlOptions &
+export type UseQuoteTpSlParameters = Omit<GetQuoteTpSlOptions, "quoteId"> &
   ConfigParameter & {
     /**
+     * Quote id — accepts either the on-chain `quoteId` or the hedger
+     * `tempQuoteId`. Whichever is passed, the hook resolves to the same
+     * shared record via the store's id index.
+     */
+    quoteId: bigint;
+    /**
      * SubAccount address — when provided, the hook also subscribes to the
-     * TP/SL WebSocket and reconciles the snapshot (`confirming` → `new`)
-     * without manual polling. Omit to skip WS (REST-only).
+     * TP/SL WebSocket and reconciles the record without manual polling.
      */
     account?: Address;
   };
 
 /** Return type of {@link useQuoteTpSl}. */
-export type UseQuoteTpSlReturnType = UseQueryResult<QuoteTpSl, SymmioRequestError> & {
-  /** The unfiltered conditional-order rows returned by the handler. */
-  rows: QuoteTpSlRow[] | undefined;
-};
+export type UseQuoteTpSlReturnType = UseQueryResult<TpSlRecord, SymmioRequestError>;
 
 /**
- * Read the TP/SL snapshot for one on-chain quote.
+ * Read the folded TP/SL snapshot for one quote. Pass either the on-chain
+ * `quoteId` or the hedger `tempQuoteId` — the store keeps a single record per
+ * quote indexed under every id it has learned for that quote, so both callers
+ * get the same object.
  *
- * The query caches the **raw handler rows** (every state — `pending` / `new` /
- * `triggered` / `canceled` / `killed`); the hook returns a folded
- * {@link QuoteTpSl} via {@link toQuoteTpSl}.
- *
- * State machine — when a POST just landed (via
- * {@link useSetQuoteTpSl}) the shared "confirming" slot is set for the
- * submitted sides; this hook overlays `tpState` / `slState = "confirming"`
- * until a matching WebSocket `report` arrives with `successful: true`. On
- * that report the slot is cleared and the rows query is invalidated, so the
- * fresh snapshot flips the side to `new` (active).
+ * The `confirming` overlay ("POST accepted, awaiting handler") is merged into
+ * `tpState` / `slState` at read time — a side flagged as confirming reports
+ * state `"confirming"` regardless of what the row set says.
  */
 export function useQuoteTpSl(parameters: UseQuoteTpSlParameters): UseQuoteTpSlReturnType {
   const config = useSymmioConfig(parameters);
   const defaultChainId = useSymmioChainId();
   const chainId = parameters.chainId ?? defaultChainId;
-  const queryClient = useQueryClient();
-  const configKey = config.getChainConfigKey(chainId);
 
-  const options = getQuoteTpSlQueryOptions(config, { ...parameters, chainId });
+  const record = useTpSlRecord(parameters.quoteId);
+  const options = getQuoteTpSlQueryOptions(config, {
+    ...parameters,
+    chainId,
+    quoteId: parameters.quoteId,
+  });
+  // Re-fetch is driven by TanStack Query cache: mutations invalidate `rowsKey`,
+  // which triggers a refetch here so the store record picks up the newly
+  // committed tp/sl values. (An earlier version gated on `record === undefined`
+  // to avoid a duplicate fetch when the on-chain quoteId first appeared, but
+  // that also swallowed post-mutation invalidations — leaving the box stuck on
+  // the old values.)
   const queryResult = useQuery({
     ...options,
     queryFn: async () => {
       try {
-        return await options.queryFn();
+        const rows = await options.queryFn();
+        useTpSlStore.getState().setRows(parameters.quoteId, rows);
+        return rows;
       } catch (err) {
         throw normalizeSymmError(err);
       }
     },
   });
 
-  const rowsKey = getQuoteTpSlQueryKey({ ...parameters, chainId, configKey });
-  const confirmingKey = getTpSlConfirmingQueryKey({ chainId, quoteId: parameters.quoteId, configKey });
-
-  const confirmingQuery = useQuery<TpSlConfirming>({
-    queryKey: confirmingKey,
-    queryFn: () => queryClient.getQueryData<TpSlConfirming>(confirmingKey) ?? EMPTY_TPSL_CONFIRMING,
-    initialData: EMPTY_TPSL_CONFIRMING,
-    staleTime: Infinity,
-    gcTime: Infinity,
-  });
-  const confirming = confirmingQuery.data ?? EMPTY_TPSL_CONFIRMING;
-
-  const folded = useMemo(() => {
-    if (!queryResult.data) return undefined;
-    const snapshot = toQuoteTpSl(queryResult.data);
-    return applyConfirmingOverlay(snapshot, confirming);
-  }, [queryResult.data, confirming]);
-
-  const wsAccount = parameters.account;
-  const matchQuoteId = parameters.quoteId;
-  const rowsKeySerialized = JSON.stringify(rowsKey);
-
   useWatchTpSlNotifications({
-    account: wsAccount,
-    enabled: Boolean(wsAccount) && matchQuoteId > 0n,
+    account: parameters.account,
+    enabled: Boolean(parameters.account) && parameters.quoteId !== 0n,
     onNotification: (notification) => {
-      if (!matchesQuote(notification, matchQuoteId)) return;
-      if (notification.successful) {
-        const side =
-          notification.conditionalOrderType === "take_profit"
-            ? "tp"
-            : notification.conditionalOrderType === "stop_loss"
-              ? "sl"
-              : null;
-        if (
-          side &&
-          (notification.state === "new" ||
-            notification.state === "edit" ||
-            notification.state === "cancel" ||
-            notification.state === "canceled" ||
-            notification.state === "cancelled")
-        ) {
-          clearTpSlConfirmingSide(queryClient, confirmingKey, side);
-        }
+      if (notification.primaryIdentifier !== 0 && notification.secondaryIdentifier !== 0) {
+        useTpSlStore.getState().link(BigInt(notification.primaryIdentifier), BigInt(notification.secondaryIdentifier));
       }
-      void queryClient.invalidateQueries({ queryKey: rowsKey });
+      if (!matchesQuote(notification, parameters.quoteId)) return;
+      useTpSlStore.getState().applyNotification(parameters.quoteId, notification);
     },
   });
 
-  useEffect(() => {
-    void rowsKeySerialized;
-  }, [rowsKeySerialized]);
-
-  const result = { ...queryResult, data: folded, rows: queryResult.data } as unknown as UseQuoteTpSlReturnType;
-  return result;
-}
-
-function matchesQuote(notification: TpSlNotification, quoteId: bigint): boolean {
-  return notification.quoteId === Number(quoteId);
+  return {
+    query: queryResult,
+    data: record,
+  } as unknown as UseQuoteTpSlReturnType;
 }
 
 /**
- * If a side is awaiting WS confirmation, override its state to `confirming`
- * (the row snapshot may or may not have caught up yet — either way, "await
- * WS" takes precedence over what the REST rows report).
+ * True when the notification and the caller address the same store record.
+ * Uses the store's id index — every id linked to the same record maps to
+ * the same object, so reference equality decides the match.
  */
-function applyConfirmingOverlay(snapshot: QuoteTpSl, confirming: TpSlConfirming): QuoteTpSl {
-  if (!confirming.tp && !confirming.sl) return snapshot;
-  return {
-    ...snapshot,
-    tpState: confirming.tp ? "confirming" : snapshot.tpState,
-    slState: confirming.sl ? "confirming" : snapshot.slState,
-  };
+function matchesQuote(notification: TpSlNotification, quoteId: bigint): boolean {
+  const store = useTpSlStore.getState();
+  const target = store.get(quoteId);
+  if (!target) {
+    // No record yet for the target — fall back to raw-id compare so the
+    // first "seed" frame still matches.
+    return (
+      notification.primaryIdentifier === Number(quoteId) ||
+      notification.secondaryIdentifier === Number(quoteId) ||
+      notification.quoteId === Number(quoteId)
+    );
+  }
+  if (notification.primaryIdentifier !== 0 && store.get(BigInt(notification.primaryIdentifier)) === target) return true;
+  if (notification.secondaryIdentifier !== 0 && store.get(BigInt(notification.secondaryIdentifier)) === target)
+    return true;
+  return false;
 }

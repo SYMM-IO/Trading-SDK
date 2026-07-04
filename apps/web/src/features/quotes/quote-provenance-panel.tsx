@@ -214,10 +214,14 @@ export function QuoteProvenancePanel({ quote }: Props) {
 
   const funding = useQuoteFunding({ quoteId: quote.quoteId });
 
+  // Prefer the on-chain id once the quote anchors; fall back to the temp id
+  // pre-chain. The store aliases both to the same record via the solver's
+  // temp ↔ on-chain link, so this resolves to a single coherent status.
+  const tpslQuoteId = quote.quoteId ?? (quote.tempQuoteId !== undefined ? BigInt(quote.tempQuoteId) : undefined);
   const tpsl = useQuoteTpSl({
-    quoteId: quote.quoteId ?? 0n,
+    quoteId: tpslQuoteId ?? 0n,
     account: quote.partyA,
-    query: { enabled: quote.quoteId !== undefined && quote.quoteId > 0n },
+    query: { enabled: tpslQuoteId !== undefined && tpslQuoteId !== 0n },
   });
 
   const [showPriceHistory, setShowPriceHistory] = useState(false);

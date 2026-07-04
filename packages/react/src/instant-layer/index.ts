@@ -8,6 +8,7 @@ export * from "./use-instant-closes";
 export * from "./use-instant-open";
 export * from "./use-instant-open-auto";
 export * from "./use-instant-open-quote-id";
+export * from "./use-instant-open-with-tpsl";
 export * from "./use-instant-opens";
 export * from "./use-is-delegation-active";
 export * from "./use-simulate-grant-delegation";

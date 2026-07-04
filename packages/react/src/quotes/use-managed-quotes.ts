@@ -31,6 +31,7 @@ import { useInstantCloses } from "../instant-layer/use-instant-closes";
 import { useInstantOpens } from "../instant-layer/use-instant-opens";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
+import { useTpSlStore } from "../tpsl/tpsl-store";
 import { predicateMatch } from "../utils";
 import { useNotifications } from "../websocket/use-notifications";
 import { useOptimisticQuotesStore } from "./optimistic-quotes-store";
@@ -340,6 +341,16 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
     enabled: active && live,
     onNotification: useCallback((notification: Notification) => {
       setNotifications((prev) => [...prev, notification].slice(-NOTIFICATION_BUFFER_LIMIT));
+      // Solver notification carries both `tempQuoteId` and the on-chain
+      // `quoteId` on the frame that anchors a pre-chain quote. Link the two
+      // in the TP/SL store so a record that was written under the temp id
+      // (via `useSetQuoteTpSl` post-instant-open) is instantly reachable via
+      // the on-chain id once the anchor lands — no re-fetch needed.
+      const tempId = notification.tempQuoteId;
+      const onchainStr = notification.quoteId;
+      if (tempId && onchainStr && onchainStr !== `${tempId}`) {
+        useTpSlStore.getState().link(BigInt(tempId), BigInt(onchainStr));
+      }
       /**
        * Refetch the authoritative reads off the live event so both tables stay in
        * sync without polling. The on-chain reads always refresh (any lifecycle event

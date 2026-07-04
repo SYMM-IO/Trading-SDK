@@ -5,17 +5,21 @@ import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { formatUsd, WEI_DECIMALS } from "@/lib/format";
 import {
   calculateTradeParams,
+  isolationTypeForSide,
   PositionType,
   SymmioRequestError,
   useAccountBalanceOf,
   useEnigmaPriceServicePricesByNames,
   useFeeForUser,
-  useInstantOpenAuto,
+  useInstantOpenWithTpSl,
   useLockedParams,
   useMarkets,
   useNotionalCapBySymbolId,
+  usePredictedNextVirtualAccount,
   validateInstantOpenAgainstMarket,
   type QuoteConstraintViolation,
+  type TpSlPriceType,
+  type UseInstantOpenWithTpSlReturnType,
 } from "@symm-frontier/react";
 import { Button } from "@symm-frontier/ui/components/button";
 import { Input } from "@symm-frontier/ui/components/input";
@@ -214,7 +218,24 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
     }).violations;
   }, [selectedMarket, cachedMarkPrice, tradeParams, notionalCapQuery.data, side]);
 
-  const mutation = useInstantOpenAuto();
+  // Single SDK-side orchestrator: fires instant open, then TP/SL against the
+  // predicted VA using the hedger's `tempQuoteId`. All request/response logic
+  // lives in `@symm-frontier/react`; this component just gathers the inputs.
+  const mutation = useInstantOpenWithTpSl();
+
+  const [tpPrice, setTpPrice] = useState("");
+  const [slPrice, setSlPrice] = useState("");
+  const [tpPriceType, setTpPriceType] = useState<TpSlPriceType>("markPrice");
+  const [slPriceType, setSlPriceType] = useState<TpSlPriceType>("markPrice");
+
+  const positionTypeForSide = side === "long" ? PositionType.LONG : PositionType.SHORT;
+  const marketSymbolId = selectedMarket ? BigInt(selectedMarket.symbol_id ?? 0) : undefined;
+  const predictedVaQuery = usePredictedNextVirtualAccount({
+    subAccount,
+    isolationType: isolationTypeForSide(positionTypeForSide),
+    symbolId: marketSymbolId ?? 0n,
+    query: { enabled: marketSymbolId !== undefined && marketSymbolId > 0n },
+  });
 
   const canSubmit = Boolean(
     selectedMarket &&
@@ -228,6 +249,24 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
 
   async function handleSubmit() {
     if (!canSubmit || !selectedMarket || !marketName) return;
+    const hasTp = tpPrice.length > 0;
+    const hasSl = slPrice.length > 0;
+    const wantsTpSl = hasTp || hasSl;
+    const virtualAccount = predictedVaQuery.data;
+    const tpsl =
+      wantsTpSl && virtualAccount && tradeParams
+        ? {
+            from: sessionKey,
+            virtualAccount,
+            subAccount,
+            symbolId: BigInt(selectedMarket.symbol_id ?? 0),
+            positionType: positionTypeForSide,
+            quantity: tradeParams.quantity,
+            pricePrecision: Number(selectedMarket.price_precision ?? 4),
+            tp: hasTp ? { triggerPrice: tpPrice, priceType: tpPriceType } : undefined,
+            sl: hasSl ? { triggerPrice: slPrice, priceType: slPriceType } : undefined,
+          }
+        : undefined;
     await mutation.mutateAsync({
       subAccountAddress: subAccount,
       from: sessionKey,
@@ -237,13 +276,14 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
         pricePrecision: Number(selectedMarket.price_precision ?? 0),
         quantityPrecision: Number(selectedMarket.quantity_precision ?? 0),
       },
-      positionType: side === "long" ? PositionType.LONG : PositionType.SHORT,
+      positionType: positionTypeForSide,
       initialMargin,
       leverage,
       slippage: validSlippage!,
       lockedParamPercent: lockedParamsQuery.data,
       markPrice: cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined,
       feeRates: feeQuery.data,
+      tpsl,
     });
   }
 
@@ -380,6 +420,18 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
         </Field>
       </div>
 
+      <TpSlPresetCard
+        idPrefix={idPrefix}
+        tpPrice={tpPrice}
+        onTpPriceChange={setTpPrice}
+        tpPriceType={tpPriceType}
+        onTpPriceTypeChange={setTpPriceType}
+        slPrice={slPrice}
+        onSlPriceChange={setSlPrice}
+        slPriceType={slPriceType}
+        onSlPriceTypeChange={setSlPriceType}
+      />
+
       {tradeParams !== null ? (
         <TradePreview
           tradeParams={tradeParams}
@@ -390,7 +442,16 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
           side={side}
           idPrefix={idPrefix}
         />
-      ) : null}
+      ) : (
+        <QuotePreviewPlaceholder
+          idPrefix={idPrefix}
+          hasMarket={Boolean(selectedMarket)}
+          marketsLoading={marketsQuery.isLoading}
+          markPriceLoading={priceQuery.isLoading}
+          lockedParamsLoading={lockedParamsQuery.isLoading}
+          feeLoading={feeQuery.isLoading}
+        />
+      )}
 
       {quoteViolations.length > 0 ? <QuoteViolationsPanel violations={quoteViolations} idPrefix={idPrefix} /> : null}
 
@@ -407,6 +468,56 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
       </Button>
 
       <SubmitStatus mutation={mutation} sessionKey={sessionKey} idPrefix={idPrefix} />
+
+      {mutation.data?.tpsl || mutation.data?.tpslError || mutation.phase === "attaching-tpsl" ? (
+        <TpSlAttachmentStatus idPrefix={idPrefix} mutation={mutation} />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Placeholder shown in place of the quote preview while any of the inputs
+ * `calculateTradeParams` needs is missing. Surfaces WHY the preview is empty
+ * so the user knows what to do next.
+ */
+function QuotePreviewPlaceholder({
+  idPrefix,
+  hasMarket,
+  marketsLoading,
+  markPriceLoading,
+  lockedParamsLoading,
+  feeLoading,
+}: {
+  idPrefix: string;
+  hasMarket: boolean;
+  marketsLoading: boolean;
+  markPriceLoading: boolean;
+  lockedParamsLoading: boolean;
+  feeLoading: boolean;
+}) {
+  const busy = marketsLoading || markPriceLoading || lockedParamsLoading || feeLoading;
+  const message = marketsLoading
+    ? "Loading markets…"
+    : !hasMarket
+      ? "Select a market to build a preview."
+      : markPriceLoading
+        ? "Waiting for mark price…"
+        : lockedParamsLoading
+          ? "Loading market parameters…"
+          : feeLoading
+            ? "Loading fees…"
+            : "Enter margin, leverage, and slippage to compute the preview.";
+  return (
+    <div
+      data-testid={`${idPrefix}-preview-placeholder`}
+      className="border-border/70 bg-muted/20 grid gap-2 rounded-xl border p-4 text-sm"
+    >
+      <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Quote preview</div>
+      <div className="text-muted-foreground inline-flex items-center gap-2 text-xs">
+        {busy ? <Spinner className="size-3" /> : null}
+        <span>{message}</span>
+      </div>
     </div>
   );
 }
@@ -684,11 +795,11 @@ function SubmitStatus({
   sessionKey,
   idPrefix,
 }: {
-  mutation: ReturnType<typeof useInstantOpenAuto>;
+  mutation: UseInstantOpenWithTpSlReturnType;
   sessionKey: Address;
   idPrefix: string;
 }) {
-  if (mutation.isPending) {
+  if (mutation.phase === "opening") {
     return (
       <ResultNote testId={`${idPrefix}-loading`} loading>
         Signing operations with session key <span className="font-mono">{shortenAddress(sessionKey)}</span> and
@@ -714,8 +825,8 @@ function SubmitStatus({
       />
     );
   }
-  if (mutation.data?.success) {
-    const tempQuoteId = mutation.data.tempQuoteId ?? "(none)";
+  if (mutation.data?.instantOpen?.success) {
+    const tempQuoteId = mutation.data.instantOpen.tempQuoteId ?? "(none)";
     return (
       <ResultSuccess testId={`${idPrefix}-success`}>
         <span className="text-foreground">Submitted to hedger.</span>
@@ -983,4 +1094,138 @@ function solverErrorOf(error: unknown): SolverErrorBody | undefined {
   const detail = typeof data.error_detail === "string" ? data.error_detail : undefined;
   if (message === undefined && code === undefined && category === undefined && detail === undefined) return undefined;
   return { message, code, category, detail };
+}
+
+/**
+ * Optional pre-fill for TP/SL. Values ride with the instant open request: on
+ * hedger accept we capture the tempQuoteId, poll until an on-chain quote id
+ * arrives, then post `setQuoteTpSl` for it.
+ */
+function TpSlPresetCard({
+  idPrefix,
+  tpPrice,
+  onTpPriceChange,
+  tpPriceType,
+  onTpPriceTypeChange,
+  slPrice,
+  onSlPriceChange,
+  slPriceType,
+  onSlPriceTypeChange,
+}: {
+  idPrefix: string;
+  tpPrice: string;
+  onTpPriceChange: (v: string) => void;
+  tpPriceType: TpSlPriceType;
+  onTpPriceTypeChange: (t: TpSlPriceType) => void;
+  slPrice: string;
+  onSlPriceChange: (v: string) => void;
+  slPriceType: TpSlPriceType;
+  onSlPriceTypeChange: (t: TpSlPriceType) => void;
+}) {
+  return (
+    <div className="border-border/60 grid gap-2 rounded-xl border p-3 text-sm">
+      <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">TP/SL (optional)</div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <TpSlPresetSide
+          label="Take Profit"
+          idPrefix={`${idPrefix}-tp`}
+          price={tpPrice}
+          onPriceChange={onTpPriceChange}
+          priceType={tpPriceType}
+          onPriceTypeChange={onTpPriceTypeChange}
+        />
+        <TpSlPresetSide
+          label="Stop Loss"
+          idPrefix={`${idPrefix}-sl`}
+          price={slPrice}
+          onPriceChange={onSlPriceChange}
+          priceType={slPriceType}
+          onPriceTypeChange={onSlPriceTypeChange}
+        />
+      </div>
+    </div>
+  );
+}
+
+function TpSlPresetSide({
+  label,
+  idPrefix,
+  price,
+  onPriceChange,
+  priceType,
+  onPriceTypeChange,
+}: {
+  label: string;
+  idPrefix: string;
+  price: string;
+  onPriceChange: (v: string) => void;
+  priceType: TpSlPriceType;
+  onPriceTypeChange: (t: TpSlPriceType) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-muted-foreground text-[0.7rem]" htmlFor={`${idPrefix}-price`}>
+        {label}
+      </label>
+      <Input
+        id={`${idPrefix}-price`}
+        value={price}
+        onChange={(event) => onPriceChange(event.target.value)}
+        placeholder="Trigger price"
+        inputMode="decimal"
+      />
+      <div className="flex gap-1">
+        {(["markPrice", "lastPrice"] as const).map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => onPriceTypeChange(type)}
+            className={cn(
+              "border-border/60 rounded-md border px-2 py-0.5 text-[0.65rem] transition-colors",
+              priceType === type ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {type === "markPrice" ? "mark" : "last"}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Status for the TP/SL attachment leg. The orchestrator hook's `phase` +
+ * partial-success payload (`tpsl` / `tpslError`) drive the render — no local
+ * mutation state needed.
+ */
+function TpSlAttachmentStatus({
+  idPrefix,
+  mutation,
+}: {
+  idPrefix: string;
+  mutation: UseInstantOpenWithTpSlReturnType;
+}) {
+  if (mutation.data?.tpsl) {
+    return (
+      <ResultSuccess testId={`${idPrefix}-tpsl-success`}>
+        TP/SL submitted — WebSocket will confirm activation.
+      </ResultSuccess>
+    );
+  }
+  if (mutation.data?.tpslError) {
+    return (
+      <ResultError
+        testId={`${idPrefix}-tpsl-error`}
+        kind={mutation.data.tpslError.kind ?? "generic"}
+        message={mutation.data.tpslError.message ?? "TP/SL submission failed."}
+      />
+    );
+  }
+  return (
+    <ResultNote testId={`${idPrefix}-tpsl-status`}>
+      <span className="inline-flex items-center gap-2">
+        <Spinner className="size-3" /> Submitting TP/SL for temp quote…
+      </span>
+    </ResultNote>
+  );
 }

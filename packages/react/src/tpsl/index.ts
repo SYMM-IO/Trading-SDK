@@ -1,5 +1,5 @@
 export * from "./to-quote-tpsl";
-export * from "./tpsl-confirming";
+export * from "./tpsl-store";
 export * from "./use-delete-quote-tpsl";
 export * from "./use-quote-tpsl";
 export * from "./use-set-quote-tpsl";
