@@ -1,13 +1,15 @@
 import { DEFAULT_PRICE_PRECISION, DEFAULT_QUANTITY_PRECISION, WEI_DECIMALS } from "@/lib/format";
-import { OrderType, PositionType, QuoteLifecycle, type UnifiedQuote } from "@symmio/trading-core";
+import { OrderType, PositionType, QuoteLifecycle, TpSlInfoState, type UnifiedQuote } from "@symmio/trading-core";
 import {
   useAccountLiquidationPrice,
   useMarkets,
   useQuoteFunding,
   useQuotePlatformFee,
   useQuotePriceHistory,
+  useQuoteTpSl,
   useQuoteUpnlAndPnl,
 } from "@symmio/trading-react";
+import { Badge } from "@symmio/ui/components/badge";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { formatTokenAmount } from "@symmio/utils";
 import { useState, type ReactNode } from "react";
@@ -211,6 +213,16 @@ export function QuoteProvenancePanel({ quote }: Props) {
 
   const funding = useQuoteFunding({ quoteId: quote.quoteId });
 
+  // Prefer the on-chain id once the quote anchors; fall back to the temp id
+  // pre-chain. The store aliases both to the same record via the solver's
+  // temp ↔ on-chain link, so this resolves to a single coherent status.
+  const tpslQuoteId = quote.quoteId ?? (quote.tempQuoteId !== undefined ? BigInt(quote.tempQuoteId) : undefined);
+  const tpsl = useQuoteTpSl({
+    quoteId: tpslQuoteId ?? 0n,
+    account: quote.partyA,
+    query: { enabled: tpslQuoteId !== undefined && tpslQuoteId !== 0n },
+  });
+
   const [showPriceHistory, setShowPriceHistory] = useState(false);
   const priceHistory = useQuotePriceHistory({
     quoteId: quote.quoteId ?? 0n,
@@ -295,6 +307,35 @@ export function QuoteProvenancePanel({ quote }: Props) {
           {hasClosed ? <DetailRow label="Close" value={formatFee(closeFee)} /> : null}
         </DetailSection>
 
+        <DetailSection title="TP/SL">
+          <DetailRow
+            label="TP"
+            value={
+              tpsl.isLoading ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Spinner className="size-3" />
+                  <span className="text-muted-foreground">Loading…</span>
+                </span>
+              ) : (
+                <TpSlRowValue price={tpsl.data?.tp} priceType={tpsl.data?.tpPriceType} state={tpsl.data?.tpState} />
+              )
+            }
+          />
+          <DetailRow
+            label="SL"
+            value={
+              tpsl.isLoading ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Spinner className="size-3" />
+                  <span className="text-muted-foreground">Loading…</span>
+                </span>
+              ) : (
+                <TpSlRowValue price={tpsl.data?.sl} priceType={tpsl.data?.slPriceType} state={tpsl.data?.slState} />
+              )
+            }
+          />
+        </DetailSection>
+
         <DetailSection title="Funding">
           <DetailRow
             label="Paid"
@@ -355,6 +396,43 @@ function ToggleSection({
       </button>
       {open ? children : null}
     </div>
+  );
+}
+
+/**
+ * Render one TP or SL row inside the provenance panel: the trigger price with
+ * its priceType hint plus a state badge. Empty snapshot → em-dash.
+ */
+function TpSlRowValue({
+  price,
+  priceType,
+  state,
+}: {
+  price?: string;
+  priceType?: "markPrice" | "lastPrice";
+  state?: TpSlInfoState;
+}) {
+  if (state === "confirming") {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        {price ? <span className="font-mono">{price}</span> : null}
+        <Badge variant="warning">Processing…</Badge>
+      </span>
+    );
+  }
+  if (!price) return <>{EMPTY}</>;
+  const badge =
+    state === "triggered" ? (
+      <Badge variant="info">Triggered</Badge>
+    ) : state === "pending" ? (
+      <Badge variant="secondary">Pending</Badge>
+    ) : null;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="font-mono">{price}</span>
+      <span className="text-muted-foreground text-[0.65rem]">({priceType === "lastPrice" ? "last" : "mark"})</span>
+      {badge}
+    </span>
   );
 }
 

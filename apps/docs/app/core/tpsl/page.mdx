@@ -1,0 +1,206 @@
+# TP/SL
+
+Take-profit and stop-loss orders for open positions. Trigger prices are held off-chain by a **conditional-order handler** ("handler" from here on) — a solver-adjacent service. `@symmio/trading-core` speaks to the handler over signed HTTP and a WebSocket report stream; the on-chain contract is only involved when a trigger actually fires and closes the position.
+
+The handler broadcasts every state transition (`pending`, `new`, `triggered`, `canceled`) via a defilytics-protocol WebSocket. Every SDK call is a thin, framework-agnostic wrapper around one HTTP verb or one socket subscription; the framework layer (`@symmio/trading-react`) is where the store, aliasing, and status overlay live.
+
+## Concepts
+
+**Conditional order** — one leg of a TP/SL, addressed by a handler-issued `coh_quote_id` (e.g. `"coh4213"`). A quote has at most one active TP and one active SL.
+
+**Quote id vs temp quote id** — a pre-chain instant-open exists at the handler under a hedger-issued `tempQuoteId` (negative integer). Once it anchors on-chain, the same order gains a positive `quoteId`. TP/SL orders are addressable by either id.
+
+**Notification frame** — a `report` on the WebSocket. Carries `primary_identifier` (on-chain id or `0`), `secondary_identifier` (temp id or `0`), `data.conditional_order_type` (`take_profit` | `stop_loss`), `data.state`, `data.successful`, and — on some frames — `data.details.trigger_price`. This is the source of truth for state transitions; the SDK does **not** poll after mutations.
+
+## Read
+
+### `getQuoteTpSl`
+
+Fetch the raw conditional-order rows for one quote from the handler.
+
+```ts
+import { getQuoteTpSl } from "@symmio/trading-core";
+
+const rows = await getQuoteTpSl(config, {
+  quoteId: 42n,
+});
+```
+
+**Parameters**
+
+| Name      | Type      | Default        | Notes                                                 |
+| --------- | --------- | -------------- | ----------------------------------------------------- |
+| `quoteId` | `bigint`  | required       | On-chain quote id or hedger `tempQuoteId` (negative). |
+| `chainId` | `number?` | config default | Optional chain override.                              |
+
+**Returns** — `QuoteTpSlRow[]`. Each row carries `quote_id`, `coh_quote_id`, `conditional_order_type`, `state` (`pending` | `new` | `triggered` | `triggered_pending` | `canceled` | `killed`), `conditional_order_price`, `price`, `action_price_type`, and timestamps.
+
+The row set contains every historical row for the quote, including terminated ones. React layers use `toQuoteTpSl` to fold rows into per-side snapshots.
+
+## Write
+
+### `setQuoteTpSl`
+
+Sign an EIP-712 conditional-order message with the session-key wallet and POST it to the handler. Accepts one or both sides in a single call.
+
+```ts
+import { setQuoteTpSl } from "@symmio/trading-core";
+
+const { cohQuoteId } = await setQuoteTpSl(config, {
+  from: sessionKey,
+  quoteId: 42n,
+  virtualAccount,
+  subAccount,
+  symbolId,
+  positionType,
+  quantity,
+  pricePrecision,
+  tp: { triggerPrice: "150", priceType: "markPrice" },
+  sl: { triggerPrice: "80", priceType: "markPrice" },
+});
+```
+
+**Parameters**
+
+| Name             | Type           | Notes                                                              |
+| ---------------- | -------------- | ------------------------------------------------------------------ |
+| `from`           | `Address`      | Session-key signer.                                                |
+| `quoteId`        | `bigint`       | On-chain quote id (or `tempQuoteId` for a pre-chain instant open). |
+| `virtualAccount` | `Address`      | PartyA that owns the quote.                                        |
+| `subAccount`     | `Address`      | SubAccount that owns the VA.                                       |
+| `symbolId`       | `bigint`       | Solver market id.                                                  |
+| `positionType`   | `PositionType` | Quote direction.                                                   |
+| `quantity`       | `string`       | Quote quantity (decimal).                                          |
+| `pricePrecision` | `number`       | Market price precision (rounds prices to N decimals).              |
+| `affiliate`      | `Address?`     | Defaults to `chainConfig.addresses.affiliatesAddress`.             |
+| `slippage`       | `number?`      | Slippage percent applied when deriving each leg's `price`.         |
+| `tp`             | `SetTpSlSide?` | `{ triggerPrice, priceType }`. Omit to skip TP.                    |
+| `sl`             | `SetTpSlSide?` | Omit to skip SL.                                                   |
+| `chainId`        | `number?`      | Optional chain override.                                           |
+
+**Returns** — `{ success: true, cohQuoteId?: string }`. Handler-issued `coh_quote_id` present on accept.
+
+A 200 response means the handler **accepted** the request; the order is only "confirmed" once the WebSocket broadcasts a `report` with `data.state: "new"` and `data.successful: true`. Callers should subscribe via `watchTpSlNotifications` and reconcile — the React layer does this automatically.
+
+### `deleteQuoteTpSl`
+
+Cancel a live TP or SL by its `cohQuoteId`. Signs an EIP-712 delete message and calls `DELETE /api/v5/`.
+
+```ts
+import { deleteQuoteTpSl } from "@symmio/trading-core";
+
+await deleteQuoteTpSl(config, {
+  from: sessionKey,
+  quoteId: 42n,
+  virtualAccount,
+  cohQuoteId: "coh4213",
+  conditionalOrderType: "take_profit",
+});
+```
+
+Confirmation lands on the WebSocket as a `cancel` / `canceled` `report`; the target side becomes `canceled`.
+
+## WebSocket
+
+### `watchTpSlNotifications`
+
+Subscribe to the TP/SL notifications feed for one SubAccount. Reuses the SDK's shared socket pool — many watchers on the same `(wsUrl, appName, account)` triple share one connection.
+
+```ts
+import { watchTpSlNotifications } from "@symmio/trading-core";
+
+const unwatch = watchTpSlNotifications(config, {
+  account: subAccount,
+  onNotification: (frame) => {
+    console.log(frame.conditionalOrderType, frame.state, frame.successful);
+  },
+  onStatusChange: (status) => console.log(status),
+  onError: (err) => console.error(err),
+});
+```
+
+**Parameters**
+
+| Name             | Type                            | Notes                                             |
+| ---------------- | ------------------------------- | ------------------------------------------------- |
+| `account`        | `Address`                       | SubAccount to subscribe for.                      |
+| `chainId`        | `number?`                       | Optional chain override.                          |
+| `onNotification` | `(n: TpSlNotification) => void` | Fires for every parsed report.                    |
+| `onStatusChange` | `(s: SocketStatus) => void?`    | Connection status changes.                        |
+| `onError`        | `(e: SymmError) => void?`       | Transport / parse errors (does not stop the sub). |
+
+**Returns** — `UnwatchTpSl` (idempotent disposer).
+
+### `TpSlNotification` shape
+
+```ts
+interface TpSlNotification {
+  quoteId: number; // primary_identifier or secondary_identifier fallback
+  primaryIdentifier: number; // on-chain id when anchored, else 0
+  secondaryIdentifier: number; // temp id pre-anchor, else 0
+  account: string | null;
+  conditionalOrderType: "take_profit" | "stop_loss" | null;
+  state: "new" | "edit" | "pending" | "cancel" | "canceled" | "cancelled" | "triggered" | "trigger" | "close";
+  successful: boolean;
+  cohQuoteId?: string;
+  details?: { trigger_price?: number; open_price?: number; close_price?: number; quantity_to_close?: number };
+  errorCode?: number;
+  errorMessage?: string;
+  timestamp?: number;
+  raw: RawTpSlNotification;
+}
+```
+
+The pair `(primaryIdentifier, secondaryIdentifier)` is the temp ↔ on-chain link. A frame that carries both nonzero is the one that reveals the pairing.
+
+## Signing spec + config
+
+The handler exposes two side helpers used by mutations:
+
+### `getTpSlSigningSpec`
+
+Fetch the EIP-712 typed-data domain + schema (`primaryType`, `types`, `domain`). Called by `setQuoteTpSl` / `deleteQuoteTpSl` internally; also exposed for advanced consumers that sign their own messages.
+
+### `getTpSlConfig`
+
+Fetch handler-side rules: `minPriceDistancePercent`, `minProfitStopLossSpreadPercent`. Used by pre-submit validation.
+
+Both are wrapped by `@symmio/trading-react` (`useTpSlSigningSpec`, `useTpSlConfig`) with TanStack Query.
+
+## Validation
+
+### `validateTpSl`
+
+Pure runtime check that a submission satisfies handler-side rules and side-vs-open price ordering. Used by the React layer's form; framework-agnostic so a Node script or a Vue app can share it.
+
+```ts
+import { validateTpSl } from "@symmio/trading-core";
+
+const result = validateTpSl({
+  takeProfitPrice,
+  stopLossPrice,
+  openPrice,
+  positionType,
+  pricePrecision,
+  config: tpslConfig,
+});
+if (!result.ok) {
+  console.log(result.tpError, result.slError);
+}
+```
+
+## Query options
+
+TanStack Query bags for callers integrating outside React:
+
+```ts
+import {
+  getQuoteTpSlQueryOptions,
+  setQuoteTpSlMutationOptions,
+  deleteQuoteTpSlMutationOptions,
+  getTpSlConfigQueryOptions,
+  getTpSlSigningSpecQueryOptions,
+} from "@symmio/trading-core";
+```
+
+Each factory returns `{ queryKey, queryFn, enabled }` (reads) or `{ mutationKey, mutationFn }` (writes) and is the primitive `@symmio/trading-react`'s hooks build on.

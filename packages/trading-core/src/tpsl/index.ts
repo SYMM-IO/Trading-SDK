@@ -1,4 +1,5 @@
 export * from "./config";
+export * from "./delete-quote-tpsl";
 export * from "./get-quote-tpsl";
 export * from "./set-quote-tpsl";
 export * from "./signing-spec";

@@ -1,0 +1,208 @@
+# TP/SL hooks
+
+React-query wrappers over `@symmio/trading-core`'s TP/SL slice, plus a shared Zustand store that keeps every render for one quote coherent — even across the temp → on-chain anchor transition.
+
+The store is the mental model. Every hook and mutation reads from or writes to the same record; the WebSocket keeps it fresh. No REST refetch after mutations — the WS report is authoritative.
+
+## The store
+
+`useTpSlStore` — a module-level Zustand store. Two maps:
+
+- **`records: Map<recordKey, TpSlRecord>`** — one entry per quote.
+- **`index: Map<bigint, recordKey>`** — every id ever seen for that quote (on-chain `quoteId` **and** hedger `tempQuoteId`) points to the same `recordKey`, so a lookup by either id lands on the same object.
+
+```ts
+interface TpSlRecord {
+  quoteId?: bigint;
+  tempQuoteId?: bigint;
+
+  tp: string; // trigger price
+  sl: string;
+  tpOpenPrice: string;
+  slOpenPrice: string;
+  tpPriceType: TpSlPriceType; // "markPrice" | "lastPrice"
+  slPriceType: TpSlPriceType;
+  tpState: TpSlInfoState; // "confirming" | "pending" | "new" | "triggered" | "canceled" | "killed" | "loading"
+  slState: TpSlInfoState;
+  tpCohQuoteId?: string;
+  slCohQuoteId?: string;
+}
+```
+
+`tpState` / `slState` is the single source of truth per side — including the transient `"confirming"` phase between a mutation's POST accepting and the WS `report` landing. There is no separate overlay flag.
+
+### Store actions
+
+| Action                                | When it fires                                                                | Effect                                                                                                                        |
+| ------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `setRows(id, rows)`                   | REST `GET /api/v5/?quote_id=…` returns.                                      | Folds rows via `toQuoteTpSl`; auto-indexes each row's `quote_id` alias.                                                       |
+| `markConfirming(id, side, patch?)`    | `useSetQuoteTpSl` / `useDeleteQuoteTpSl` / `useInstantOpenWithTpSl` succeed. | Sets that side's state to `"confirming"`; optional `patch` seeds `{ price, priceType, cohQuoteId }`.                          |
+| `applyNotification(id, notification)` | WS `report` frame arrives (`successful: true`).                              | Maps `notification.state` → `TpSlInfoState`; stamps `trigger_price` from `details` when present; clears fields on `canceled`. |
+| `link(a, b)`                          | Solver notification anchors a pre-chain quote (temp ↔ on-chain).             | Both ids resolve to the same record; merges if two records existed.                                                           |
+
+### Selector
+
+```ts
+import { useTpSlRecord } from "@symmio/trading-react";
+
+const record = useTpSlRecord(quoteId);
+```
+
+Returns `TpSlRecord | undefined`. Reactive — Zustand re-renders when the record changes.
+
+## `useQuoteTpSl`
+
+The public hook. Reads the folded TP/SL snapshot for one quote, drives the REST fetch, subscribes to the WS report stream.
+
+```tsx
+import { useQuoteTpSl } from "@symmio/trading-react";
+
+const tpsl = useQuoteTpSl({
+  quoteId, // on-chain quoteId OR tempQuoteId — either works
+  account: subAccount, // subscribes to WS notifications for this SubAccount
+});
+
+if (tpsl.data) {
+  const { tp, tpState, tpPriceType } = tpsl.data;
+}
+```
+
+Pass either the on-chain `quoteId` or the hedger `tempQuoteId`. The store's id index resolves both to the same record; whichever id the WS or solver reveals second is linked in.
+
+### Parameters
+
+| Name      | Type       | Default        | Notes                                                            |
+| --------- | ---------- | -------------- | ---------------------------------------------------------------- |
+| `quoteId` | `bigint`   | required       | On-chain quote id or hedger `tempQuoteId`.                       |
+| `account` | `Address?` | `undefined`    | SubAccount. Enables the WS subscription for live reconciliation. |
+| `chainId` | `number?`  | config default | Optional chain override.                                         |
+| `query`   | `object?`  | `undefined`    | TanStack Query overrides.                                        |
+| `config`  | `Config?`  | provider value | Optional config override.                                        |
+
+### Return type
+
+`UseQueryResult<TpSlRecord, SymmioRequestError>` — `data` is the folded record.
+
+## Mutations
+
+### `useSetQuoteTpSl`
+
+Submit a TP and/or SL order for one quote. On success:
+
+1. `markConfirming(quoteId, "tp", { price, priceType, cohQuoteId })` for each side that was submitted — the store's `tpState` / `slState` flip to `"confirming"` and the target trigger price is stamped immediately.
+2. No REST invalidation — the WS report is the source of truth.
+
+```tsx
+import { useSetQuoteTpSl } from "@symmio/trading-react";
+
+const mutation = useSetQuoteTpSl();
+
+await mutation.mutateAsync({
+  from: sessionKey,
+  quoteId,
+  virtualAccount,
+  subAccount,
+  symbolId,
+  positionType,
+  quantity,
+  pricePrecision,
+  tp: { triggerPrice: "150", priceType: "markPrice" },
+});
+```
+
+### `useDeleteQuoteTpSl`
+
+Cancel one side by its `cohQuoteId`. On success:
+
+1. `markConfirming(quoteId, side)` — target side flips to `"confirming"`.
+2. The WS `cancel` / `canceled` `report` transitions it to `"canceled"` and clears the trigger price via `applyNotification`.
+
+```tsx
+import { useDeleteQuoteTpSl } from "@symmio/trading-react";
+
+const deleteMutation = useDeleteQuoteTpSl();
+
+deleteMutation.mutate({
+  from: sessionKey,
+  quoteId,
+  virtualAccount,
+  cohQuoteId,
+  conditionalOrderType: "take_profit",
+});
+```
+
+### `useInstantOpenWithTpSl`
+
+One-shot orchestrator: instant-open a position **and** attach a TP/SL in a single call. The TP/SL is signed against the predicted VA and posted under the returned `tempQuoteId` — no wait for on-chain reconciliation.
+
+```tsx
+import { useInstantOpenWithTpSl } from "@symmio/trading-react";
+
+const open = useInstantOpenWithTpSl();
+
+open.mutate({
+  ...prepareInstantOpenParams,
+  tpsl: hasTpOrSl
+    ? {
+        from: sessionKey,
+        virtualAccount: predictedVa,
+        subAccount,
+        symbolId,
+        positionType,
+        quantity,
+        pricePrecision,
+        tp,
+        sl,
+      }
+    : undefined,
+});
+```
+
+Marks `"confirming"` under the `tempQuoteId`. The solver notification that later anchors the quote to an on-chain `quoteId` triggers `useTpSlStore.link(tempId, quoteId)` in `useManagedQuotes`, so a subsequent read via the on-chain id resolves to the same record.
+
+## Live reconciliation
+
+### `useWatchTpSlNotifications`
+
+Low-level WS subscription for a SubAccount. `useQuoteTpSl` uses it internally; call it directly only when a component wants raw frames without the store side effects.
+
+```tsx
+import { useWatchTpSlNotifications } from "@symmio/trading-react";
+
+const { status, error } = useWatchTpSlNotifications({
+  account: subAccount,
+  onNotification: (frame) => console.log(frame),
+});
+```
+
+### Where temp ↔ on-chain linking happens
+
+Two sites cover the possible frame shapes:
+
+1. **`useManagedQuotes.onNotification`** (solver stream) — when a solver notification carries both `tempQuoteId` and `quoteId`, calls `useTpSlStore.getState().link(tempId, onchainId)`. This is the primary link site because the solver announces the anchor before the TP/SL WS does.
+2. **`useQuoteTpSl` WS handler** (TP/SL stream) — same call when a `TpSlNotification` has both `primaryIdentifier` and `secondaryIdentifier` nonzero. Fallback in case the solver stream is off (`live: false`).
+
+## Config + validation hooks
+
+### `useTpSlConfig`
+
+Fetch handler-side rules for one chain (`minPriceDistancePercent`, `minProfitStopLossSpreadPercent`).
+
+### `useTpSlSigningSpec`
+
+Fetch the EIP-712 typed-data domain + schema (`primaryType`, `types`, `domain`). Mutations use it internally; expose it when signing outside the SDK.
+
+### `toQuoteTpSl`
+
+Pure fold: `QuoteTpSlRow[] → QuoteTpSl`. Available for callers that already hold rows (e.g. a custom REST fetch) and want the same snapshot shape without going through the store.
+
+## End-to-end flow
+
+Anatomy of a "set TP/SL after instant open" round trip:
+
+1. **`useInstantOpenWithTpSl.mutate(vars)`** — hedger returns a `tempQuoteId`; the SDK immediately signs and POSTs `setQuoteTpSl` against the predicted VA.
+2. **On success** — `markConfirming(tempQuoteId, "tp")` (and/or `"sl"`), seeded with the submitted trigger price. Panel renders `tpState: "confirming"`.
+3. **Solver notification** — anchors the quote (`tempQuoteId ↔ quoteId`). `useManagedQuotes` calls `useTpSlStore.link(tempId, quoteId)`. Both ids now index the same record.
+4. **TP/SL WS `report`** (`successful: true`, `state: "new"`) — `applyNotification` sets `tpState: "new"`, confirms `trigger_price` from `details`. Panel renders `Active`.
+
+No REST call fires after the initial mount — the store + WS keep the record fresh.

@@ -25,13 +25,26 @@ export type GetQuoteTpSlQueryOptions = SymmioQueryOptions<
 
 /**
  * Build TanStack Query options for {@link getQuoteTpSl}. Disabled until
- * `quoteId` is non-zero.
+ * `quoteId` is a real id (present + non-zero). Accepts negative ids (hedger
+ * `tempQuoteId`) so a pre-chain quote's TP/SL can be read the moment the
+ * hedger accepts an instant open — no wait for on-chain reconciliation.
  */
 export function getQuoteTpSlQueryOptions(config: Config, options: GetQuoteTpSlOptions): GetQuoteTpSlQueryOptions {
   return {
     ...options.query,
     queryKey: getQuoteTpSlQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
-    enabled: (options.query?.enabled ?? true) && options.quoteId > 0n,
+    enabled: (options.query?.enabled ?? true) && isValidQuoteId(options.quoteId),
     queryFn: () => getQuoteTpSl(config, { chainId: options.chainId, quoteId: options.quoteId }),
   };
+}
+
+/**
+ * Guard for the runtime shape of `quoteId`: not null, not undefined, and not
+ * the `0n` sentinel that callers pass with the `??` fallback. TypeScript types
+ * `quoteId` as `bigint`, but the boundary (`quote.quoteId` on unified quotes,
+ * user input, cache hydration) can still surface `null`/`undefined` at
+ * runtime, so we belt-and-braces it here.
+ */
+function isValidQuoteId(quoteId: unknown): quoteId is bigint {
+  return typeof quoteId === "bigint" && quoteId !== 0n;
 }

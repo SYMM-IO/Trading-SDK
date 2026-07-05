@@ -2,6 +2,7 @@
 import { WEI_DECIMALS } from "@/lib/format";
 import type { UnifiedQuote } from "@symmio/trading-core";
 import { OrderType, PositionType, QuoteStatus } from "@symmio/trading-core";
+import { useQuoteTpSl } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
@@ -95,6 +96,44 @@ function OpenQuantityHeader() {
   );
 }
 
+/**
+ * Compact TP/SL summary rendered inside the id column. Reads the shared TP/SL
+ * store via {@link useQuoteTpSl} so the `confirming` overlay ("Processing…")
+ * shows immediately after a mutation posts.
+ */
+function TpSlIndicator({ quote }: { quote: UnifiedQuote }) {
+  const quoteId = quote.quoteId ?? (quote.tempQuoteId !== undefined ? BigInt(quote.tempQuoteId) : undefined);
+  const tpsl = useQuoteTpSl({
+    quoteId: quoteId ?? 0n,
+    account: quote.partyA,
+    query: { enabled: quoteId !== undefined && quoteId !== 0n },
+  });
+  const data = tpsl.data;
+  if (!data) return null;
+  const hasTp = Boolean(data.tp) || data.tpState === "confirming";
+  const hasSl = Boolean(data.sl) || data.slState === "confirming";
+  if (!hasTp && !hasSl) return null;
+  return (
+    <span className="mt-0.5 flex flex-col gap-0.5 text-[0.65rem] leading-tight">
+      {hasTp ? (
+        <span className="text-muted-foreground/90 font-mono">
+          <span className="text-emerald-500">TP</span> {renderSide(data.tp, data.tpState)}
+        </span>
+      ) : null}
+      {hasSl ? (
+        <span className="text-muted-foreground/90 font-mono">
+          <span className="text-red-500">SL</span> {renderSide(data.sl, data.slState)}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function renderSide(price: string, state: string): string {
+  if (state === "confirming") return "processing…";
+  return price || EMPTY;
+}
+
 function buildColumns(marketNameById: Map<string, string>): DataTableColumn<UnifiedQuote>[] {
   return [
     {
@@ -110,6 +149,7 @@ function buildColumns(marketNameById: Map<string, string>): DataTableColumn<Unif
               {truncateAddress(quote.vaAddress)}
             </span>
           ) : null}
+          <TpSlIndicator quote={quote} />
         </span>
       ),
       sortAccessor: rowIdSort,
