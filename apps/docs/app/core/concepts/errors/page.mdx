@@ -1,0 +1,153 @@
+# Errors
+
+`@symmio/trading-core` uses **one error class hierarchy** for SDK-level failures and lets viem's own errors pass through unwrapped. Two vocabularies — the SDK's typed `SymmError` for configuration / HTTP / validation, and viem's `BaseError` tree for on-chain and transport failures.
+
+## Class hierarchy
+
+```
+SymmError                     (all SDK-level failures — kind + code + message)
+  └─ SymmApiError             (HTTP failures — adds status, url, method, responseData)
+```
+
+### `SymmError`
+
+```ts
+import { SymmError } from "@symmio/trading-core";
+
+class SymmError extends Error {
+  readonly name = "SymmError";
+  readonly kind: "config" | "api" | "validation";
+  readonly code: string; // e.g. "UNSUPPORTED_CHAIN"
+  constructor(kind, code, message, options?);
+}
+```
+
+- **`kind`** — broad classification for error-handling branches.
+  - `"config"` — SDK configuration issues (missing chain, no wallet client).
+  - `"api"` — REST / GraphQL / WebSocket transport failures.
+  - `"validation"` — input validation (missing required parameter).
+- **`code`** — specific identifier within the kind (`"UNSUPPORTED_CHAIN"`, `"MISSING_USER"`).
+
+### `SymmApiError extends SymmError`
+
+Every HTTP failure surfaces as `SymmApiError` with `kind === "api"`:
+
+```ts
+class SymmApiError extends SymmError {
+  readonly status: number; // HTTP status
+  readonly statusText: string;
+  readonly responseData: unknown; // raw response body (solver / hedger error payload)
+  readonly url: string;
+  readonly method: string;
+}
+```
+
+`SymmApiError.fromAxios(err, { code, baseURL })` builds one from an axios error, preserving the original as `cause` and composing a single-line message: `"<code>: <axios message> (<METHOD> <URL> → <status> <statusText>)"`.
+
+## Handling
+
+```ts
+import { SymmError, SymmApiError } from "@symmio/trading-core";
+import { BaseError, ContractFunctionRevertedError, UserRejectedRequestError } from "viem";
+
+try {
+  await editAccountName(config, { account, name });
+} catch (err) {
+  if (err instanceof SymmApiError) {
+    console.error(`HTTP ${err.status}`, err.responseData);
+    return;
+  }
+  if (err instanceof SymmError) {
+    if (err.kind === "config") console.error("Setup:", err.code, err.message);
+    if (err.kind === "validation") console.error("Bad input:", err.code, err.message);
+    return;
+  }
+  if (err instanceof BaseError) {
+    const revert = err.walk((e) => e instanceof ContractFunctionRevertedError);
+    if (revert instanceof ContractFunctionRevertedError) {
+      console.log("revert reason:", revert.reason);
+      return;
+    }
+    if (err.walk((e) => e instanceof UserRejectedRequestError)) return;
+  }
+  throw err;
+}
+```
+
+Alternatively check `err.name === "SymmError"` across realms.
+
+## Catalogue
+
+Codes are stable strings. Group per kind. New codes may appear at any minor version; unknown `code` should fall through to a generic branch.
+
+### `kind: "config"`
+
+| Code                       | Thrown by                                      | Meaning                                                         |
+| -------------------------- | ---------------------------------------------- | --------------------------------------------------------------- |
+| `NO_CHAINS_CONFIGURED`     | `createConfig`                                 | No supported chains in the built-in registry.                   |
+| `UNSUPPORTED_CHAIN`        | `Config.getChainConfig`, most reads/writes     | Chain id not in the config registry.                            |
+| `NO_WALLET_CLIENT`         | `Config.getWalletClient`, every write          | `createConfig` was called without a `getWalletClient` resolver. |
+| `NO_WEBSOCKET`             | `Config.getWebSocketConstructor`, every stream | No `webSocketConstructor` and no `globalThis.WebSocket`.        |
+| `PRICES_WS_NOT_CONFIGURED` | `watchEnigmaPrices`                            | Chain lacks a price-service WebSocket URL.                      |
+| `MUON_URLS_NOT_CONFIGURED` | `getMuonRequest`                               | Chain lacks Muon oracle URLs.                                   |
+
+### `kind: "validation"`
+
+| Code               | Thrown by                                                                        | Meaning                       |
+| ------------------ | -------------------------------------------------------------------------------- | ----------------------------- |
+| `MISSING_USER`     | `getUserSubAccounts`, `getUserSubAccountsAddresses`, `getSubAccountsCountOfUser` | `user` parameter required.    |
+| `MISSING_ACCOUNT`  | Several read/write actions                                                       | `account` parameter required. |
+| `MISSING_OWNER`    | Ownership-scoped reads                                                           | `owner` parameter required.   |
+| `MISSING_PARTY_A`  | Party-A-scoped reads                                                             | `partyA` parameter required.  |
+| `MISSING_QUOTE_ID` | Quote-scoped reads                                                               | `quoteId` parameter required. |
+
+### `kind: "api"`
+
+Selected — many more surface as `SymmApiError` with a `_FAILED` code per action:
+
+| Code                                                    | Thrown by                                    |
+| ------------------------------------------------------- | -------------------------------------------- |
+| `FETCH_MARKETS_FAILED`                                  | `getMarkets`                                 |
+| `FETCH_LOCKED_PARAMS_FAILED`                            | `getLockedParams`                            |
+| `FETCH_NOTIONAL_CAP_FAILED`                             | `getNotionalCap`                             |
+| `FETCH_NOTIONAL_CAP_ALL_FAILED`                         | `getNotionalCapAll`                          |
+| `FETCH_SOLVER_ERROR_CODES_FAILED`                       | `getSolverErrorCodes`                        |
+| `FETCH_MUON_REQUEST_FAILED`                             | `getMuonRequest`                             |
+| `FETCH_ENIGMA_PRICE_SERVICE_HEALTH_FAILED`              | `getEnigmaPriceServiceHealth`                |
+| `FETCH_ENIGMA_PRICE_SERVICE_METADATA_FAILED`            | `getEnigmaPriceServiceMetadata`              |
+| `FETCH_ENIGMA_PRICE_SERVICE_PRICES_BY_NAMES_FAILED`     | `getEnigmaPriceServicePricesByNames`         |
+| `FETCH_ENIGMA_PRICE_SERVICE_PRICES_BY_ADDRESSES_FAILED` | `getEnigmaPriceServicePricesByAddresses`     |
+| `FETCH_ENIGMA_PRICE_SERVICE_SYMBOLS_INFO_FAILED`        | `getEnigmaPriceServiceSymbolsInfo`           |
+| `GET_INSTANT_OPENS_FAILED`                              | `getInstantOpens`                            |
+| `GET_INSTANT_CLOSES_FAILED`                             | `getInstantCloses`                           |
+| `GET_INSTANT_OPEN_QUOTE_ID_FAILED`                      | `getInstantOpenQuoteId`                      |
+| `SEARCH_NOTIFICATIONS_FAILED`                           | `searchNotifications`                        |
+| `SET_TPSL_REJECTED`                                     | `setQuoteTpSl` (handler returned failure)    |
+| `DELETE_TPSL_REJECTED`                                  | `deleteQuoteTpSl` (handler returned failure) |
+| `FETCH_QUOTE_TPSL_FAILED`                               | `getQuoteTpSl`                               |
+| `TPSL_SOCKET_ERROR`                                     | `watchTpSlNotifications`                     |
+| `NOTIFICATIONS_SOCKET_ERROR`                            | `watchNotifications`                         |
+| `PRICES_SOCKET_ERROR`                                   | `watchEnigmaPrices`                          |
+
+## viem errors (on-chain / transport)
+
+Contract reverts, gas failures, wallet rejections, RPC unreachable — all bubble up as viem errors. Use `BaseError.walk()` to inspect the cause chain.
+
+```ts
+import { BaseError, ContractFunctionRevertedError } from "viem";
+
+if (err instanceof BaseError) {
+  const revert = err.walk((e) => e instanceof ContractFunctionRevertedError);
+  if (revert) console.log(revert.reason);
+}
+```
+
+## React
+
+`@symmio/trading-react` normalizes both — every hook wraps `queryFn` / `mutationFn` and runs failures through `normalizeSymmError` → `SymmioRequestError` (discriminated by `kind`). See the [React errors page](../../../react/errors).
+
+## Related
+
+- [Config](../config) — throws `config` errors on setup.
+- [Query options](../query-options) — errors surface through TanStack Query.
+- [React errors](../../../react/errors) — discriminated `SymmioRequestError`.

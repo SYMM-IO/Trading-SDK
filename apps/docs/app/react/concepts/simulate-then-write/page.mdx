@@ -1,0 +1,56 @@
+# Simulate then write
+
+Every write hook has a paired **`useSimulateXyz`** — a read that runs viem's `simulateContract` against the pending inputs. The pattern:
+
+1. Consumer types inputs into a form.
+2. `useSimulateXyz(inputs)` runs continuously — refetches on input change.
+3. If the simulation reverts, the UI shows the reason and disables Submit.
+4. Only when simulation succeeds does the consumer call `useXyz().mutate(inputs)`.
+
+Same shape everywhere: `useSimulateAllocate` / `useAllocate`, `useSimulateDeposit` / `useDeposit`, `useSimulateCreateSubAccounts` / `useCreateSubAccounts`, and so on.
+
+## Why simulate first
+
+- **Catch reverts before signing.** A revert during simulation is free — no gas, no wallet popup, no user friction. A revert during the actual write costs gas.
+- **Show the reason inline.** Simulation returns the decoded revert reason (via viem's `ContractFunctionRevertedError`), which the form can render as an inline error before the user clicks Submit.
+- **Gas prep.** The simulated result carries gas estimates the wallet UI can display in the confirmation dialog.
+
+The paired shape is idiomatic wagmi / viem — same pattern as `useSimulateContract` / `useWriteContract` — so consumers already fluent in wagmi write forms recognize it instantly.
+
+## Usage
+
+```tsx
+function AllocateForm({ account, amount }) {
+  const simulation = useSimulateAllocate({ account, amount });
+  const mutation = useAllocate();
+
+  const canSubmit = simulation.data && !simulation.isError && !mutation.isPending;
+
+  return (
+    <>
+      {simulation.error?.kind === "revert" ? (
+        <ErrorNote>Simulation reverted: {simulation.error.reason}</ErrorNote>
+      ) : null}
+
+      <Button disabled={!canSubmit} onClick={() => mutation.mutate({ account, amount })}>
+        {mutation.isPending ? "Allocating…" : "Allocate"}
+      </Button>
+    </>
+  );
+}
+```
+
+## Bypassing simulation
+
+Two ways to skip the pre-flight:
+
+1. **Per-call** — set `simulateBeforeWrite: false` in the mutation variables.
+2. **Config-wide** — `createConfig({ simulateBeforeWrite: false })`. Every write in the config skips the dry-run.
+
+Skipping is fine for scripts / bots where you already know the inputs are valid; UI flows should almost always simulate.
+
+## Related
+
+- [Hook pattern](../hook-pattern) — where the paired hooks are named / shaped.
+- [Errors](../errors) — `SymmioRequestError` `kind: "revert"` carries the reason.
+- [Config](../../../core/concepts/config) — `simulateBeforeWrite` default.

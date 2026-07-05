@@ -1,0 +1,72 @@
+# Error normalization
+
+Every hook wraps its underlying core action and pipes failures through **`normalizeSymmError`** — a classifier that turns any thrown exception (viem, axios, SDK, user rejection) into a single discriminated type: **`SymmioRequestError`**. Consumers handle errors by switching on `.kind` instead of learning multiple error hierarchies.
+
+## `SymmioRequestError`
+
+```ts
+export type SymmioRequestError =
+  | { kind: "user-rejected"; message: string; cause?: unknown }
+  | { kind: "config"; code: string; message: string; cause?: unknown }
+  | { kind: "validation"; code: string; message: string; cause?: unknown }
+  | { kind: "api"; code: string; message: string; status?: number; responseData?: unknown; cause?: unknown }
+  | { kind: "revert"; reason?: string; message: string; cause?: unknown }
+  | { kind: "unknown"; message: string; cause?: unknown };
+```
+
+Every hook's `error` typed as `SymmioRequestError | null`. Discriminate on `.kind`:
+
+```tsx
+const mutation = useAllocate();
+
+if (mutation.error) {
+  switch (mutation.error.kind) {
+    case "user-rejected":
+      return null; // silent — user dismissed
+    case "revert":
+      return <Toast type="error">Revert: {mutation.error.reason ?? mutation.error.message}</Toast>;
+    case "api":
+      return (
+        <Toast type="error">
+          API {mutation.error.status}: {mutation.error.message}
+        </Toast>
+      );
+    default:
+      return <Toast type="error">{mutation.error.message}</Toast>;
+  }
+}
+```
+
+## `normalizeSymmError`
+
+```ts
+import { normalizeSymmError } from "@symmio/trading-react";
+
+const normalized = normalizeSymmError(someUnknownError);
+```
+
+Classification order (first match wins):
+
+1. Already a `SymmioRequestError` — passthrough.
+2. viem `UserRejectedRequestError` (walked via `BaseError.walk`) → `kind: "user-rejected"`.
+3. viem `ContractFunctionRevertedError` → `kind: "revert"` with `reason` extracted.
+4. Other viem `BaseError` (call execution failure, gas estimation, RPC) → `kind: "revert"` with the walked short message.
+5. `SymmApiError` (HTTP failure) → `kind: "api"` with `status`, `code`, `responseData`.
+6. `SymmError` with `kind: "config"` → `kind: "config"` with the SDK code.
+7. `SymmError` with `kind: "validation"` → `kind: "validation"` with the SDK code.
+8. Anything else → `kind: "unknown"` with the raw `message`.
+
+The **original error is preserved on `cause`** — logging or DevTools panels still get the full viem / axios / whatever stack.
+
+## Why not `instanceof`?
+
+- Works across realms (SSR, iframes, package duplication).
+- Works with any user-space custom error (e.g. wallet connectors that throw their own types).
+- Compact — one type, one switch.
+
+`instanceof SymmError` still works if you prefer it inside a manual `try/catch` around a core action; the React layer just makes the discriminated form the default so `switch` on `.kind` is always safe.
+
+## Related
+
+- [Core errors](../../../core/concepts/errors) — full `SymmError` / `SymmApiError` catalogue.
+- [Hook pattern](../hook-pattern) — where the normalization runs.

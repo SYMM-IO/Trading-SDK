@@ -1,0 +1,117 @@
+# Instant Open hooks
+
+React hooks over the core [Instant Open](../../../core/solvers/instant-open) flow. The three-function split (prepare / submit / auto) applies here too — pick based on how much control you want.
+
+The page is split into two groups:
+
+- **[Reads](#reads)** — pending queue reads (`useInstantOpens`, `useInstantOpenQuoteId`).
+- **[Writes](#writes)** — the three-function open path (`useInstantOpenAuto`, `useInstantOpen`) plus the composed orchestrator (`useInstantOpenWithTpSl`).
+
+## Import
+
+```ts
+import {
+  useInstantOpen,
+  useInstantOpenAuto,
+  useInstantOpenWithTpSl,
+  useInstantOpens,
+  useInstantOpenQuoteId,
+} from "@symmio/trading-react";
+```
+
+## Reads
+
+### `useInstantOpens`
+
+Paginated list of the solver's pending instant-opens for a SubAccount. `useManagedQuotes` consumes this internally.
+
+```ts
+const pending = useInstantOpens({ account: subAccount, offset: 0n, size: 20n });
+```
+
+### `useInstantOpenQuoteId`
+
+Resolve the on-chain `quoteId` for a given `tempQuoteId`. `useManagedQuotes` and the notification handlers use this to link rows.
+
+```ts
+const quoteId = useInstantOpenQuoteId({ tempQuoteId: -1001 });
+```
+
+## Writes
+
+### `useInstantOpenAuto`
+
+The default — one-line orchestrator. Runs `prepareInstantOpenParams` inline (fetches market metadata, mark price, locked params, fee rates) then signs and POSTs.
+
+```tsx
+const open = useInstantOpenAuto();
+
+<Button
+  disabled={open.isPending}
+  onClick={() =>
+    open.mutate({
+      from: sessionKey,
+      subAccountAddress: subAccount,
+      market: { id: 1 },
+      positionType: PositionType.LONG,
+      initialMargin: "100",
+      leverage: 5,
+      slippage: 1,
+    })
+  }
+>
+  {open.isPending ? "Opening…" : "Open"}
+</Button>;
+```
+
+**Latency**: prepare fetches run inline, so click → sign gap includes the network hop. Fine for most flows; see `useInstantOpen` below for the low-latency variant.
+
+## `useInstantOpen`
+
+Low-latency primitive — the caller supplies the fully-resolved `InstantOpenParameters` bag. Pair with a pre-resolved `prepareInstantOpenParams` call staged earlier (on trade-panel mount) so the critical path is just sign + POST.
+
+```tsx
+const prepare = usePrepareInstantOpenParamsCached(uiInputs); // your own hook
+const open = useInstantOpen();
+
+// user clicks Open — no fetches on the critical path
+open.mutate(prepare.data);
+```
+
+## `useInstantOpenWithTpSl`
+
+Orchestrator that opens a position and immediately attaches TP/SL against the returned `tempQuoteId`. Two mutations chained under the hood:
+
+1. `instantOpenAuto` → returns `tempQuoteId`.
+2. `setQuoteTpSl` with `quoteId: tempQuoteId` → creates the conditional-order legs.
+
+```tsx
+const open = useInstantOpenWithTpSl();
+
+open.mutate({
+  ...instantOpenInputs,
+  tpsl: hasTpOrSl
+    ? {
+        from: sessionKey,
+        virtualAccount: predictedVa,
+        subAccount,
+        symbolId,
+        positionType,
+        quantity,
+        pricePrecision,
+        tp: tpInput,
+        sl: slInput,
+      }
+    : undefined,
+});
+```
+
+On success, `useTpSlStore` is populated with the confirming record keyed by `tempQuoteId`. When the position anchors on-chain, the solver maps `tempQuoteId ↔ quoteId` and the same TP/SL record is reachable by either id.
+
+See [TP/SL](../../tpsl) for the store + reconciliation model.
+
+## Related
+
+- [Core Instant Open](../../../core/solvers/instant-open) — the three-function split explained.
+- [TP/SL](../../tpsl) — `useInstantOpenWithTpSl` composes over these.
+- [Unified Quotes](../../quotes) — `useManagedQuotes` reconciles the pending list with on-chain reads + notifications.

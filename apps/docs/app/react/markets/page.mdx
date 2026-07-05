@@ -1,0 +1,32 @@
+# Markets hooks
+
+Thin wrappers over the solver and on-chain market catalogs.
+
+**Every hook on this page is a [read](../concepts/hook-pattern#reads).**
+
+## Import
+
+```ts
+import { useMarkets, useOnchainContractMarkets } from "@symmio/trading-react";
+```
+
+## `useMarkets`
+
+Solver-side market catalog (default for UIs). Adds precision / tick metadata the contract doesn't carry.
+
+```ts
+const markets = useMarkets();
+```
+
+## `useOnchainContractMarkets`
+
+Raw on-chain `getSymbol()` — authoritative but stripped of solver metadata.
+
+```ts
+const contractMarkets = useOnchainContractMarkets();
+```
+
+## Related
+
+- [Solvers](../solvers) — `useMarkets` also documented under the solvers slice.
+- [SYMMIO Contract](../symmio-contract) — on-chain contract reads.

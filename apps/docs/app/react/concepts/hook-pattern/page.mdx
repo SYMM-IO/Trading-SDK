@@ -1,0 +1,87 @@
+# Hook pattern
+
+Every hook in `@symmio/trading-react` follows one of two shapes — a read hook (TanStack `useQuery` over a core query-options factory) or a write hook (TanStack `useMutation` over a core mutation-options factory). Once you've read one, you've read them all.
+
+## Reads
+
+```ts
+import { getMarketsQueryOptions } from "@symmio/trading-core";
+import { useSymmioConfig, useSymmioChainId } from "@symmio/trading-react";
+import { useQuery } from "@tanstack/react-query";
+
+export function useMarkets(parameters = {}) {
+  const config = useSymmioConfig(parameters);
+  const chainId = useSymmioChainId();
+  return useQuery(getMarketsQueryOptions(config, { ...parameters, chainId: parameters.chainId ?? chainId }));
+}
+```
+
+Three lines of glue:
+
+1. **`useSymmioConfig(parameters)`** — `parameters.config ?? contextConfig`. Every hook accepts an optional `config` override for tests / manual wiring.
+2. **`useSymmioChainId()`** — reads the connected wagmi chain, threading it into the action.
+3. **`useQuery(getXyzQueryOptions(config, options))`** — the core factory owns `queryKey`, `queryFn`, `enabled`.
+
+Consumers can pass any TanStack override via `parameters.query`:
+
+```ts
+useMarkets({ query: { staleTime: 30_000, refetchOnWindowFocus: false } });
+```
+
+## Writes
+
+```ts
+import { createSubAccountsMutationOptions } from "@symmio/trading-core";
+import { useSymmioConfig, predicateMatch } from "@symmio/trading-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { getUserSubAccountsQueryKey } from "@symmio/trading-core";
+
+export function useCreateSubAccounts(parameters = {}) {
+  const config = useSymmioConfig(parameters);
+  const queryClient = useQueryClient();
+  return useMutation({
+    ...createSubAccountsMutationOptions(config),
+    onSuccess: (_result, variables) => {
+      // Invalidate every subaccount list this write touched.
+      void queryClient.invalidateQueries({
+        predicate: predicateMatch(getUserSubAccountsQueryKey, { user: variables.account.addr }),
+      });
+    },
+  });
+}
+```
+
+Mutations layer three responsibilities on top of the core factory:
+
+- **Error normalization** — wraps `mutationFn` and pipes failures through `normalizeSymmError`. See [Errors](../errors).
+- **Cache invalidation** — on success, invalidates every query key touched by the write via `predicateMatch`. See [Invalidation](../invalidation).
+- **Transactions store bookkeeping** — writes that produce a tx hash push to `useTransactionsStore` (see [Stores](../stores)) so the UI can render a "tx pending" surface without threading state through props.
+
+## Parameters convention
+
+Every hook accepts a single **`parameters`** object with:
+
+- **The action's own inputs** — the same shape the standalone `core` action expects.
+- **`config?: Config`** — override the context-provided SDK config.
+- **`chainId?: number`** — override the wagmi-connected chain.
+- **`query?: QueryObserverOptions`** — TanStack overrides (reads only).
+
+All optional except the action's required inputs. Framework layers never invent their own parameter shape — pass-through minimizes surprise.
+
+## Returns
+
+- **Reads** — `UseQueryResult<Data, SymmioRequestError>`. `data`, `error`, `isLoading`, `isFetching`, `refetch` — all standard TanStack.
+- **Writes** — `UseMutationResult<Data, SymmioRequestError, Variables>`. Standard `mutate` / `mutateAsync` / `isPending` / `data` / `error`.
+
+No custom return types. Every consumer that knows TanStack Query already knows how to use these hooks.
+
+## When a hook does more
+
+A handful of hooks compose multiple actions or maintain external state — `useManagedQuotes` (polling + WS + reconciliation), `useInstantOpenWithTpSl` (two mutations chained), `useQuoteTpSl` (REST + WS + store). Those are documented individually in their slice pages. They still expose the same TanStack-shaped return type wherever possible; the extras land as additional fields.
+
+## Related
+
+- [Errors](../errors) — how the wrapper normalizes exceptions.
+- [Invalidation](../invalidation) — `predicateMatch` and mutation `onSuccess`.
+- [Simulate then write](../simulate-then-write) — the paired `useSimulate*` + `use*` pattern for writes.
+- [Stores](../stores) — the three Zustand stores hooks integrate with.

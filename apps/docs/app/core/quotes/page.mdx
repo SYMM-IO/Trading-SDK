@@ -1,0 +1,155 @@
+# Unified quotes
+
+`@symmio/trading-core` exposes a **unified quote model** that folds every source of quote-ish data — on-chain reads, pending instant-opens, pending instant-closes, solver notifications — into one stable, de-duplicated shape (`UnifiedQuote`). It is the primary abstraction consumers build UIs against.
+
+The rest of the SDK returns raw records from each source. `reconcileQuotes` merges them; `applyNotificationToQuotes` advances lifecycle in real time; the React layer's `useManagedQuotes` composes both into a live quote list.
+
+## Import
+
+```ts
+import {
+  reconcileQuotes,
+  applyNotificationToQuotes,
+  toUnifiedQuote,
+  resolveQuoteAccounts,
+  shouldAccelerate,
+  QuoteLifecycle,
+  type UnifiedQuote,
+  type QuoteOrigin,
+  type ReconcileQuotesInput,
+  type ReconcileQuotesResult,
+} from "@symmio/trading-core";
+```
+
+## `UnifiedQuote`
+
+One row per quote/position, keyed by a stable `key` (`onchain:<id>` or `temp:<tempId>`) that survives the temp → on-chain anchor transition:
+
+```ts
+interface UnifiedQuote {
+  key: string; // stable identity for React lists
+  origin: QuoteOrigin; // "onchain" | "offchain"
+  lifecycle: QuoteLifecycle;
+
+  quoteId?: bigint; // on-chain id (once anchored)
+  tempQuoteId?: number; // hedger id (before anchor, negative)
+
+  partyA: Address; // SubAccount
+  partyB?: Address; // Solver / hedger
+  vaAddress?: Address; // Virtual Account (lowcap)
+
+  symbolId: bigint;
+  positionType: PositionType;
+  orderType: OrderType;
+  quoteStatus?: QuoteStatus;
+  quantity: bigint;
+  closedAmount?: bigint;
+  openQuantity: bigint;
+  quantityToClose?: bigint;
+
+  requestedOpenPrice: bigint;
+  openedPrice?: bigint;
+  avgClosedPrice?: bigint;
+
+  lockedValues: LockedValues; // CVA + LF stamps
+
+  createTimestamp?: bigint;
+  statusModifyTimestamp?: bigint;
+
+  raw: { onchain?: Quote; instantOpen?: PendingInstantOpen; instantClose?: PendingInstantClose };
+}
+```
+
+Every amount and price is 18-decimal-wei `bigint`. Off-chain hedger amounts are normalized to wei before hitting this type. `raw` carries the untouched source rows for advanced use.
+
+## `QuoteOrigin`
+
+- `"onchain"` — read from the SYMMIO contract (`getPartyAOpenPositions` / `getPartyAPendingQuotes` + `getQuote`); the row carries a real `quoteId`.
+- `"offchain"` — only known to a hedger so far (a pending instant-open or instant-close); the row carries a `tempQuoteId` and is waiting to anchor.
+
+## `QuoteLifecycle`
+
+Merged stage across every source. Off-chain and transient stages (`OPTIMISTIC`, `PRICE_FILLED`, `CLOSING`, …) are SDK-side overlays — they do not exist on the on-chain `QuoteStatus`; reconciliation assigns them from notifications and hedger records.
+
+| Stage                 | Meaning                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `OPTIMISTIC`          | Submitted to hedger; no on-chain quote and no fill report yet.                      |
+| `PRICE_FILLED`        | Hedger reported a fill price; on-chain quote hasn't landed.                         |
+| `WRITE_ONCHAIN`       | Anchored on-chain per notification (quoteId known); on-chain read hasn't caught up. |
+| `ONCHAIN`             | Anchored on-chain; mirrors a real `QuoteStatus`.                                    |
+| `OPTIMISTIC_CLOSE`    | Close submitted; hedger's pending-instant-close feed has it, no notification yet.   |
+| `CLOSE_PRICE_FILLED`  | Close notification reported the close price / fill request.                         |
+| `WRITE_ONCHAIN_CLOSE` | Close fill reported, or overlay pending on-chain confirmation.                      |
+| `CLOSING`             | Close is `CLOSE_PENDING` / `CANCEL_CLOSE_PENDING` on-chain.                         |
+| `CLOSED`              | Position fully closed.                                                              |
+| `FAILED`              | Hedger or notification reported the open/close failed.                              |
+
+## `reconcileQuotes`
+
+Merges the raw sources into a de-duplicated `UnifiedQuote[]`.
+
+```ts
+const result: ReconcileQuotesResult = reconcileQuotes({
+  onchainOpens, // Quote[] from getPartyAOpenPositions
+  onchainPending, // Quote[] from getPartyAPendingQuotes
+  instantOpens, // PendingInstantOpen[]
+  instantCloses, // PendingInstantClose[]
+  removalLedger, // opaque ledger of user-dismissed rows (persist across calls)
+});
+
+const { quotes, removalLedger } = result;
+```
+
+**Rules**:
+
+- Anchored rows (on-chain id present) win over their pre-chain temp entries — the `key` migrates from `temp:<id>` → `onchain:<id>`, but the row's identity is stable.
+- User-dismissed rows are held in `removalLedger` for a short window so a temporarily-missing on-chain read doesn't resurrect them.
+- Every source's `raw` payload is preserved on the merged row.
+
+## `applyNotificationToQuotes`
+
+Apply one notification (or a batch) to the reconciled row list. Advances lifecycle, fills in prices, links temp ↔ on-chain ids on the anchor frame.
+
+```ts
+const next = applyNotificationToQuotes(previous, notification);
+```
+
+- Matches a notification to a row by on-chain quote id, falling back to `tempQuoteId`. Anchoring links the two: `temp:<id>` → `onchain:<id>`.
+- Fills `openedPrice` on `InstantRFQ` success.
+- Advances to `ONCHAIN` on `SendQuoteTransaction` success.
+- Advances close stages on rows already in the closing flow: request → `CLOSE_PRICE_FILLED`, fill → `WRITE_ONCHAIN_CLOSE`. Monotonic.
+- On failure notifications, only rows that were told they anchored (`origin === "onchain"`) but never returned an on-chain struct are marked `FAILED` — pending opens simply vanish once the hedger drops them.
+
+## `toUnifiedQuote`
+
+Fold one row from one source into the `UnifiedQuote` shape without merging. Useful when a consumer only wants a single-row projection (e.g. adding an optimistic row before the reconciler has run).
+
+```ts
+const row = toUnifiedQuote({ onchain: quote, partyA });
+```
+
+## `resolveQuoteAccounts`
+
+Resolve the account set the reconciler needs — the SubAccount, its Virtual Accounts, and the predicted VAs for pending instant-opens (so a temp row's `vaAddress` matches an on-chain read once anchored).
+
+```ts
+const {
+  accounts, // Address[] to fetch on-chain quotes across
+  instantOpenVaByTempId, // Map<tempQuoteId, predictedVa>
+} = await resolveQuoteAccounts(config, { partyA, instantOpens });
+```
+
+## `shouldAccelerate`
+
+Predicate a poll scheduler consumes to switch to accelerated polling — `true` when at least one row is mid-transition (`OPTIMISTIC*`, `PRICE_FILLED`, `WRITE_ONCHAIN*`, `CLOSING`). Idle-quote apps stay at the default poll interval; mid-transition apps tighten it.
+
+```ts
+const interval = shouldAccelerate(quotes) ? 1_500 : 5_000;
+```
+
+## Related
+
+- [SYMMIO Contract](../symmio-contract) — the raw quote reads reconciliation consumes.
+- [Solvers](../solvers) — pending instant-opens / instant-closes.
+- [Notifications stream](../notifications) — the source `applyNotificationToQuotes` folds in.
+- [React `useManagedQuotes`](../../react/quotes) — composed on top of everything here.

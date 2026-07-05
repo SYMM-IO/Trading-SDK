@@ -130,3 +130,51 @@ const key = getLockedParamsQueryKey({
 ```
 
 `symbol` and `leverage` are part of the key, so each market/leverage pair caches independently.
+
+## Notional Cap (available liquidity)
+
+Per-market caps on how much notional the solver still permits — the frontline "can I open this size?" gate.
+
+### `getNotionalCapBySymbolId`
+
+Cap for one market.
+
+```ts
+import { getNotionalCapBySymbolId } from "@symmio/trading-core";
+
+const cap = await getNotionalCapBySymbolId(config, { symbolId: 1n });
+// { used: bigint, cap: bigint, availability: bigint }
+```
+
+### `getNotionalCapAll`
+
+Batch — every market's cap in one call. Cheaper than looping `getNotionalCapBySymbolId`.
+
+```ts
+import { getNotionalCapAll } from "@symmio/trading-core";
+
+const caps = await getNotionalCapAll(config, {});
+```
+
+### `getOpenInterestBySymbolId`
+
+Used vs capped notional per market.
+
+```ts
+import { getOpenInterestBySymbolId } from "@symmio/trading-core";
+
+const oi = await getOpenInterestBySymbolId(config, { symbolId: 1n });
+```
+
+## Instant Open / Instant Close
+
+The lowcap trading flows live on their own pages:
+
+- **[Instant Open](/core/solvers/instant-open)** — `instantOpen`, `instantOpenAuto`, `prepareInstantOpenParams`, `getInstantOpens`, `getInstantOpenQuoteId`.
+- **[Instant Close](/core/solvers/instant-close)** — `instantClose`, `instantCloseAuto`, `instantCloseBulk`, `prepareInstantCloseParams`, `getInstantCloses`.
+
+## Related
+
+- [SYMMIO Contract](/core/symmio-contract) — on-chain reads. `getOnchainContractMarkets` is the contract-side analog to `getMarkets`.
+- [Unified Quotes](/core/quotes) — `PendingInstantOpen` / `PendingInstantClose` from `getInstantOpens` / `getInstantCloses` feed `reconcileQuotes`.
+- [Errors](/core/concepts/errors) — solver failures surface as `SymmApiError`.

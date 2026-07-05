@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Bricolage_Grotesque, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import { Footer, Layout, Navbar } from "nextra-theme-docs";
 import "nextra-theme-docs/style.css";
-import { Banner, Head } from "nextra/components";
+import { Banner, Head, Search } from "nextra/components";
 import { getPageMap } from "nextra/page-map";
 import type { ReactNode } from "react";
 import "./globals.css";
@@ -39,13 +39,37 @@ export const metadata: Metadata = {
 };
 
 const banner = (
-  <Banner storageKey="symm-frontier-banner">
+  <Banner storageKey="symmio-banner">
     <span className="symm-banner-dot" aria-hidden />
     Symmio Frontier — the SDK surface for builders on HyperEVM
   </Banner>
 );
 
-const navbar = <Navbar logo={<SymmioLogo />} logoLink="/" projectLink="https://github.com/SYMM-IO" />;
+/**
+ * Nextra 4 search is powered by Pagefind, which indexes the built HTML output.
+ * In `next dev` there is no build to index, so the search box would sit inert
+ * and error on click. Swap in a stub label pointing at a working build in dev;
+ * production ships the real `<Search />`.
+ */
+const isProduction = process.env.NODE_ENV === "production";
+const search = isProduction ? <Search /> : <DevSearchStub />;
+
+function DevSearchStub() {
+  return (
+    <span
+      className="symm-search-stub"
+      title="Search is powered by Pagefind and only works against a built site. Run `pnpm --filter @symmio/docs preview` (build + start) to try it."
+    >
+      Search — build to enable
+    </span>
+  );
+}
+
+const navbar = (
+  <Navbar logo={<SymmioLogo />} logoLink="/" projectLink="https://github.com/SYMM-IO">
+    {search}
+  </Navbar>
+);
 
 const footer = (
   <Footer>

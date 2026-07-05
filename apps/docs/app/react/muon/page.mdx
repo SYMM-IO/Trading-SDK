@@ -1,0 +1,89 @@
+# Muon Oracle hooks
+
+React hooks over the [Core Muon](../../core/muon) slice. Fetch Muon-attested signature payloads (UPNL, price, price range, partyA overview) reactively — most consumers reach for these when preparing on-chain writes that require a Muon signature (`deallocate`, settlement).
+
+**Every hook on this page is a [read](../concepts/hook-pattern#reads).** Muon has no writes — the on-chain writes that consume these signatures live on their own slices (see [SYMMIO Contract](../symmio-contract)).
+
+## Import
+
+```ts
+import {
+  useMuonPrice,
+  useMuonPriceRange,
+  useMuonUpnl,
+  useMuonUpnlA,
+  useMuonUpnlB,
+  useMuonUpnlWithSymbolPrice,
+  useMuonUpnlAWithSymbolPrice,
+  useMuonSettleUpnl,
+  useMuonPartyAOverview,
+} from "@symmio/trading-react";
+```
+
+## Price attestations
+
+### `useMuonPrice`
+
+Attested single-point price for a market.
+
+```ts
+const priceSig = useMuonPrice({ symbolId: 1n });
+```
+
+### `useMuonPriceRange`
+
+Attested min / max price window across a block range.
+
+```ts
+const rangeSig = useMuonPriceRange({
+  symbolId: 1n,
+  fromBlock: 100n,
+  toBlock: 200n,
+});
+```
+
+## UPNL attestations
+
+### `useMuonUpnl` / `useMuonUpnlA` / `useMuonUpnlB`
+
+Attest to an account's UPNL. Variants: any side, party-A (trader), party-B (solver).
+
+```ts
+const upnl = useMuonUpnlA({ partyA });
+```
+
+### `useMuonUpnlWithSymbolPrice` / `useMuonUpnlAWithSymbolPrice`
+
+Combined UPNL + market price attestations. Consumed by writes that need both (e.g. partial close settlement).
+
+```ts
+const combo = useMuonUpnlAWithSymbolPrice({ partyA, symbolId: 1n });
+```
+
+### `useMuonSettleUpnl`
+
+Full settlement UPNL attestation across both parties. Required by settlement flows synchronizing both sides.
+
+## Account snapshot
+
+### `useMuonPartyAOverview`
+
+Account-wide UPNL + collateral snapshot for a PartyA — one attestation covering every open position.
+
+```ts
+const overview = useMuonPartyAOverview({ partyA });
+```
+
+## Errors
+
+Muon-side errors surface as `SymmioRequestError` `kind: "api"`:
+
+- `MUON_URLS_NOT_CONFIGURED` — chain has no Muon endpoint.
+- `FETCH_MUON_REQUEST_FAILED` — transport / HTTP failure.
+
+Muon-side quorum failures come back as `kind: "api"` with the Muon `error.message`.
+
+## Related
+
+- [Core Muon](../../core/muon) — signature payload shape.
+- [SYMMIO Contract](../symmio-contract) — writes that consume these signatures.

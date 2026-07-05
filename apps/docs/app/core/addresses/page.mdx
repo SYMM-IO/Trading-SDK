@@ -1,31 +1,104 @@
 # Addresses
 
-`@symmio/trading-core` ships a per-chain address registry for each contract family. Today: `AccountLayer` only.
+`@symmio/trading-core` ships a per-chain registry of every deployment address, endpoint URL, and configured service. It lives in the core package at:
 
-## `getAccountLayerAddress`
-
-Look up the `AccountLayer` (v0.8.5) deployment address for a chain.
-
-```ts
-import { getAccountLayerAddress } from "@symmio/trading-core";
-import { hyperEvm } from "viem/chains";
-
-getAccountLayerAddress(hyperEvm.id);
-// "0x46493c376758Da47823D7E3Ae5d417eA6546eEB3"
+```
+packages/trading-core/src/core/chains/registry.ts
 ```
 
-Throws `SymmError` when the chain isn't in the built-in registry. Consumers can always pass `{ accountLayerAddress: "0x..." }` to an SDK call to bypass the registry — useful for staging deployments and new chains that ship before an SDK release.
+The registry is the single source of truth for chain-specific values. Every action reads it via `Config.getChainConfig(chainId)` — you never hand-thread addresses through action arguments unless you're overriding a default.
 
-## `listAccountLayerChains`
-
-Enumerate the chain ids the SDK knows about.
+## Runtime access
 
 ```ts
-import { listAccountLayerChains } from "@symmio/trading-core";
+import { createConfig } from "@symmio/trading-core";
 
-listAccountLayerChains(); // [999]  — HyperEVM, today
+const config = createConfig({ getClient: () => publicClient });
+
+const chain = config.getChainConfig(999);
+
+chain.addresses.symmioAddress;
+chain.addresses.instantLayerAddress;
+chain.addresses.accountLayerAddress;
+chain.addresses.affiliatesAddress;
+chain.addresses.collateralAddress;
+chain.addresses.collateralDecimals;
 ```
+
+Throws `UNSUPPORTED_CHAIN` when the chain id isn't in the registry. See [Config](../concepts/config).
+
+## What's in the registry
+
+Every entry follows `SymmioChainConfig`:
+
+```ts
+interface SymmioChainConfig {
+  chainId: number;
+  addresses: SymmioContractAddresses; // on-chain contract addresses
+  subgraphs: SymmioSubgraphUrls; // GraphQL endpoints
+  solver: SymmioSolverConfig; // solver REST + TP/SL handler
+  priceService: SymmioPriceServiceConfig; // Enigma price service
+  notifications: SymmioNotificationsConfig; // solver notifications WS + REST search
+  muon: SymmioMuonConfig; // Muon oracle gateways
+}
+```
+
+`SymmioContractAddresses` (the "addresses" section people usually want):
+
+| Field                 | Type      | Notes                                      |
+| --------------------- | --------- | ------------------------------------------ |
+| `symmioAddress`       | `Address` | SYMMIO diamond contract.                   |
+| `instantLayerAddress` | `Address` | InstantLayer (delegated instant actions).  |
+| `accountLayerAddress` | `Address` | AccountLayer (SubAccount / VA management). |
+| `affiliatesAddress`   | `Address` | Affiliates registry.                       |
+| `collateralAddress`   | `Address` | Collateral token (e.g. USDC).              |
+| `collateralDecimals`  | `number`  | Decimals of the collateral token.          |
+
+Everything else (solver URL, TP/SL handler, subgraph, notifications WS, Muon gateways) lives on sibling fields of the same chain entry.
+
+## Current chains
+
+Only **HyperEVM (999)** is deployed today. The registry entry (`packages/trading-core/src/core/chains/registry.ts:10-60`) carries:
+
+- `symmioAddress` — `0x57331038c21982116EE9b0906E4a5c5cB52dcE2e`
+- `instantLayerAddress` — `0x72DBF07457b2712b160F67A85D338F860c1CA620`
+- `accountLayerAddress` — `0x46493c376758Da47823D7E3Ae5d417eA6546eEB3`
+- `affiliatesAddress` — `0xBcB033C9154401fA000a1Ae60843f79f45741b7c`
+- `collateralAddress` — `0xb88339CB7199b77E23DB6E890353E22632Ba630f` (USDC, 6 decimals)
+- `solver.address` — `0x76bc5889c0cfcC20960b0D81F541595d81a95122` (Enigma)
+- `solver.tpsl.cohWalletAddress` — `0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31`
+
+Plus URLs for solver, TP/SL handler, price service, notifications, subgraphs, and Muon gateways.
+
+## Per-chain overrides
+
+Override any field at runtime via `createConfig({ chainOverrides })`. Deep-merged onto the built-in registry — you can override just the subgraph URL or just one address, keeping the rest.
+
+```ts
+const config = createConfig({
+  getClient: () => publicClient,
+  chainOverrides: {
+    999: {
+      subgraphs: {
+        analytics: "https://staging.example/subgraphs/analytics",
+      },
+    },
+  },
+});
+```
+
+Useful for staging deployments and new chains that ship before an SDK release.
 
 ## Adding a chain
 
-The registry lives at `packages/trading-core/src/chains/account-layer-addresses.ts`. Open a PR with the chain id (sourced from `viem/chains`, never a numeric literal) and the deployment address. New chains follow the same conventions as the current entries.
+1. Add its id to `packages/trading-core/src/core/chains/supported-chains.ts` — sourced from `viem/chains`, never a numeric literal.
+2. Add its entry to `CHAIN_CONFIGS` in `packages/trading-core/src/core/chains/registry.ts` — every field of `SymmioChainConfig` is required.
+3. Colocate tests for `getChainConfig` if you introduce novel behavior.
+
+Open a PR. New chains follow the existing entries' conventions.
+
+## Related
+
+- [Config](../concepts/config) — how `getChainConfig` / `chainOverrides` plug in.
+- [ABI fragments](../abi) — pair addresses with typed ABIs for viem-direct calls.
+- [Shared Types](../shared-types) — `ChainIdParameter` mixin on every action.

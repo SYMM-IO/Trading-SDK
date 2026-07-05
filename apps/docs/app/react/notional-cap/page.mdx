@@ -1,0 +1,40 @@
+# Notional Cap hooks
+
+Available-liquidity gates. Use these to prevent a trade from being submitted when the solver has no room for it.
+
+**Read only.**
+
+## Import
+
+```ts
+import { useNotionalCapAll, useNotionalCapBySymbolId, useOpenInterestBySymbolId } from "@symmio/trading-react";
+```
+
+## `useNotionalCapBySymbolId`
+
+Cap for a single market.
+
+```ts
+const cap = useNotionalCapBySymbolId({ symbolId: 1n });
+```
+
+## `useNotionalCapAll`
+
+Every market's cap in one call. Cheaper than looping the by-id variant.
+
+```ts
+const caps = useNotionalCapAll();
+```
+
+## `useOpenInterestBySymbolId`
+
+Used vs capped notional per market.
+
+```ts
+const oi = useOpenInterestBySymbolId({ symbolId: 1n });
+```
+
+## Related
+
+- [Core Solvers](../../core/solvers) — the underlying REST reads.
+- [Locked Params](../locked-params) — often paired for trade pre-flight.

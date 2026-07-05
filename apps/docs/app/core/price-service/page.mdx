@@ -1,38 +1,114 @@
 # Price Service
 
-The price-service APIs read off-chain market data from the chain config. HyperEVM currently uses the Enigma price service:
+Off-chain market data — mark prices, symbol metadata, and health — from the chain's configured price service. HyperEVM uses **Enigma** (`config.getChainConfig().priceService.type === "enigma"`).
+
+Two access modes:
+
+- **REST reads** — one-shot batch fetches (`getEnigmaPriceServicePricesByAddresses`, `getEnigmaPriceServicePricesByNames`, metadata, symbols info, health). Fine for review screens, one-off checks, and pre-trade preflight.
+- **WebSocket stream** — [`watchEnigmaPrices`](#watchenigmaprices) pushes live tick batches. Use this when your UI needs updating prices (order book, PnL, live trade panels). One connection is pooled across every subscriber for the same chain.
+
+Endpoint URLs live in the chain config:
 
 ```ts
 const chain = config.getChainConfig();
-console.log(chain.priceService.type); // "enigma"
-console.log(chain.priceService.url); // "https://lowcap-price.enigma.bz"
+chain.priceService.url; // "https://lowcap-price.enigma.bz"
+chain.priceService.wsUrl; // "wss://lowcap-price.enigma.bz/ws"
 ```
 
-The Orval-generated Enigma client is generated from the full OpenAPI document, but the public SDK surface exposes only prices, metadata, symbols info, and health.
+## `watchEnigmaPrices`
 
-## Prices
+Subscribe to the live price WebSocket. The service pushes **batches** of `EnigmaPriceTick` — one call to your `onPrices` handler per push, containing every symbol that ticked.
 
 ```ts
-import { getEnigmaPriceServicePrices } from "@symmio/trading-core";
+import { watchEnigmaPrices } from "@symmio/trading-core";
 
-const prices = await getEnigmaPriceServicePrices(config, {
-  addresses: "0xTokenA,0xTokenB",
+const unwatch = watchEnigmaPrices(config, {
+  onPrices: (ticks) => {
+    for (const tick of ticks) {
+      console.log(tick.symbol, tick.price, tick.timestamp);
+    }
+  },
+  onStatusChange: (status) => console.log("status:", status),
+  onError: (err) => console.error("prices error:", err),
+});
+
+// dispose (idempotent):
+unwatch();
+```
+
+### Parameters
+
+| Name             | Type                                 | Notes                                                                          |
+| ---------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
+| `chainId`        | `number?`                            | Optional chain override.                                                       |
+| `onPrices`       | `(ticks: EnigmaPriceTick[]) => void` | **Required.** Called for every parsed batch of ticks.                          |
+| `onStatusChange` | `(s: SocketStatus) => void?`         | Connection status changes (`connecting` → `open` → `reconnecting` → `closed`). |
+| `onError`        | `(e: SymmError) => void?`            | Transport / parse errors; does **not** stop the subscription.                  |
+
+### Connection pooling
+
+Multiple callers on the same chain share a **single** WebSocket connection — the SDK pools by `(wsUrl, "prices")` key. Every subscribed `onPrices` handler receives every batch. Reconnect is exponential-backoff and automatic. See [WebSocket streams](../concepts/websocket).
+
+### Returns
+
+`Unwatch` — a `() => void` disposer. Calling it multiple times is safe. The underlying socket closes only when the last subscriber unwatches.
+
+### Errors
+
+- `PRICES_WS_NOT_CONFIGURED` — chain has no `priceService.wsUrl`.
+- `PRICES_SOCKET_ERROR` — surfaced on `onError` per parse / transport failure; the subscription stays open.
+
+## REST reads
+
+### `getEnigmaPriceServicePricesByAddresses`
+
+Batch fetch of mark prices, keyed by symbol address. Use when you already have on-chain token addresses (e.g. from a market catalog).
+
+```ts
+import { getEnigmaPriceServicePricesByAddresses } from "@symmio/trading-core";
+
+const prices = await getEnigmaPriceServicePricesByAddresses(config, {
+  addresses: ["0xTokenA", "0xTokenB"],
 });
 ```
 
+**Limit**: **max 50 addresses per request** (Enigma API contract). Split larger sets into 50-at-a-time chunks — the SDK does not chunk automatically.
+
+**Parameters**
+
+| Name        | Type                | Notes                         |
+| ----------- | ------------------- | ----------------------------- |
+| `addresses` | `readonly string[]` | Symbol addresses. **Max 50.** |
+| `chainId`   | `number?`           | Optional chain override.      |
+
+**Returns** — `EnigmaPricesByAddress` (`Record<address, EnigmaPriceData>`). Each entry carries the mark price plus the standard Enigma price fields (`price`, `timestamp`, `source`, …).
+
+### `getEnigmaPriceServicePricesByNames`
+
+Same as above, keyed by market **name** instead of address. Use when your UI works off solver market names (e.g. `"BTCUSDT"`).
+
 ```ts
-function getEnigmaPriceServicePrices(
-  config: Config,
-  parameters: {
-    chainId?: number;
-    addresses: readonly string[] | string;
-  },
-): Promise<EnigmaPricesByAddress>;
+import { getEnigmaPriceServicePricesByNames } from "@symmio/trading-core";
+
+const prices = await getEnigmaPriceServicePricesByNames(config, {
+  names: ["BTCUSDT", "ETHUSDT"],
+});
 ```
 
-`addresses` accepts either an array or a comma-separated string. The service contract allows up to 50 addresses per request.
+**Limit**: **max 50 names per request** (same Enigma contract).
 
-## Metadata
+**Parameters**
+
+| Name      | Type                | Notes                     |
+| --------- | ------------------- | ------------------------- |
+| `names`   | `readonly string[]` | Market names. **Max 50.** |
+| `chainId` | `number?`           | Optional chain override.  |
+
+**Returns** — `EnigmaPricesByName` — mapping of name → price data.
+
+### `getEnigmaPriceServiceMetadata`
+
+Rich market metadata — pair identifiers, token refs, USD / native price strings, liquidity, price change, market cap, source. Heavier than the prices endpoints — reach for it when the UI needs the full picture, not just the mark price.
 
 ```ts
 import { getEnigmaPriceServiceMetadata } from "@symmio/trading-core";
@@ -42,19 +118,18 @@ const metadata = await getEnigmaPriceServiceMetadata(config, {
 });
 ```
 
-```ts
-function getEnigmaPriceServiceMetadata(
-  config: Config,
-  parameters: {
-    chainId?: number;
-    addresses: readonly string[];
-  },
-): Promise<EnigmaMetadataByAddress>;
-```
+**Parameters**
 
-`addresses` is required and must be an array. Metadata includes pair identifiers, token refs, USD/native price strings, liquidity, price change, market cap, and source.
+| Name        | Type                | Notes                                                |
+| ----------- | ------------------- | ---------------------------------------------------- |
+| `addresses` | `readonly string[]` | Symbol addresses. Required (array only, not string). |
+| `chainId`   | `number?`           | Optional chain override.                             |
 
-## Symbols Info
+**Returns** — `EnigmaMetadataByAddress`.
+
+### `getEnigmaPriceServiceSymbolsInfo`
+
+The full symbol catalog: every tradeable market's `name`, `status`, and `address`. Cheap enough to use as an app-boot bootstrap for building the "which markets exist?" list.
 
 ```ts
 import { getEnigmaPriceServiceSymbolsInfo } from "@symmio/trading-core";
@@ -62,18 +137,17 @@ import { getEnigmaPriceServiceSymbolsInfo } from "@symmio/trading-core";
 const symbols = await getEnigmaPriceServiceSymbolsInfo(config, {});
 ```
 
-```ts
-function getEnigmaPriceServiceSymbolsInfo(
-  config: Config,
-  parameters?: {
-    chainId?: number;
-  },
-): Promise<EnigmaSymbolInfo[]>;
-```
+**Parameters**
 
-Each item includes `name`, `status`, and `address`.
+| Name      | Type      | Notes                    |
+| --------- | --------- | ------------------------ |
+| `chainId` | `number?` | Optional chain override. |
 
-## Health
+**Returns** — `EnigmaSymbolInfo[]`.
+
+### `getEnigmaPriceServiceHealth`
+
+Service liveness probe. Returns the service's own health payload. Useful for status pages and CI smoke tests.
 
 ```ts
 import { getEnigmaPriceServiceHealth } from "@symmio/trading-core";
@@ -81,29 +155,53 @@ import { getEnigmaPriceServiceHealth } from "@symmio/trading-core";
 const health = await getEnigmaPriceServiceHealth(config, {});
 ```
 
-```ts
-function getEnigmaPriceServiceHealth(
-  config: Config,
-  parameters?: {
-    chainId?: number;
-  },
-): Promise<EnigmaPriceServiceHealth>;
-```
+**Parameters**
+
+| Name      | Type      | Notes                    |
+| --------- | --------- | ------------------------ |
+| `chainId` | `number?` | Optional chain override. |
+
+**Returns** — `EnigmaPriceServiceHealth`.
 
 ## Query Options
 
-Each read has a TanStack Query options factory:
+Each REST read ships a TanStack Query options factory, feedable straight into `useQuery` (React) or `queryClient.fetchQuery` (anywhere):
 
 ```ts
 import {
-  getEnigmaPriceServiceHealthQueryOptions,
+  getEnigmaPriceServicePricesByAddressesQueryOptions,
+  getEnigmaPriceServicePricesByNamesQueryOptions,
   getEnigmaPriceServiceMetadataQueryOptions,
-  getEnigmaPriceServicePricesQueryOptions,
   getEnigmaPriceServiceSymbolsInfoQueryOptions,
+  getEnigmaPriceServiceHealthQueryOptions,
 } from "@symmio/trading-core";
 
-useQuery(getEnigmaPriceServicePricesQueryOptions(config, { addresses: [symbolAddress] }));
-useQuery(getEnigmaPriceServiceMetadataQueryOptions(config, { addresses: [symbolAddress] }));
+useQuery(getEnigmaPriceServicePricesByAddressesQueryOptions(config, { addresses: ["0x…"] }));
+useQuery(getEnigmaPriceServicePricesByNamesQueryOptions(config, { names: ["BTCUSDT"] }));
+useQuery(getEnigmaPriceServiceMetadataQueryOptions(config, { addresses: ["0x…"] }));
 useQuery(getEnigmaPriceServiceSymbolsInfoQueryOptions(config, {}));
 useQuery(getEnigmaPriceServiceHealthQueryOptions(config, {}));
 ```
+
+Every factory follows the shared [Query options](../concepts/query-options) pattern — pre-filled `queryKey`, `queryFn`, and `enabled`. Consumers can still pass `staleTime`, `refetchInterval`, `select`, etc. via `query`.
+
+## Errors
+
+REST failures surface as `SymmApiError` with the following codes:
+
+| Code                                                    | Thrown by                                    |
+| ------------------------------------------------------- | -------------------------------------------- |
+| `FETCH_ENIGMA_PRICE_SERVICE_PRICES_BY_ADDRESSES_FAILED` | `getEnigmaPriceServicePricesByAddresses`     |
+| `FETCH_ENIGMA_PRICE_SERVICE_PRICES_BY_NAMES_FAILED`     | `getEnigmaPriceServicePricesByNames`         |
+| `FETCH_ENIGMA_PRICE_SERVICE_METADATA_FAILED`            | `getEnigmaPriceServiceMetadata`              |
+| `FETCH_ENIGMA_PRICE_SERVICE_SYMBOLS_INFO_FAILED`        | `getEnigmaPriceServiceSymbolsInfo`           |
+| `FETCH_ENIGMA_PRICE_SERVICE_HEALTH_FAILED`              | `getEnigmaPriceServiceHealth`                |
+| `PRICES_WS_NOT_CONFIGURED`                              | `watchEnigmaPrices` (chain missing `wsUrl`)  |
+| `PRICES_SOCKET_ERROR`                                   | `watchEnigmaPrices` transport / parse errors |
+
+## Related
+
+- [WebSocket streams](../concepts/websocket) — pool, reconnect, `SocketStatus`.
+- [Notifications](../notifications) — separate WS for solver notifications.
+- [TP/SL](../tpsl) — separate WS for conditional-order reports.
+- [React `usePrices` hooks](../../react/price-service) — thin hooks over these actions.

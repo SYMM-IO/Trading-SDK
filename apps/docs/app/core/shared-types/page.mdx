@@ -1,0 +1,168 @@
+# Shared types
+
+Cross-cutting parameter and utility types used across every slice. Public because consumers composing higher-level custom actions need to reference them.
+
+## Import
+
+```ts
+import type {
+  ChainIdParameter,
+  ConfigKeyParameter,
+  ConfigParameter,
+  FromParameter,
+  SimulateBeforeWriteParameter,
+  QueryParameter,
+  SymmioQueryOptions,
+  WebSocketConstructor,
+  WebSocketLike,
+  Compute,
+  DeepPartial,
+  ExactPartial,
+} from "@symmio/trading-core";
+```
+
+## Parameter mixins
+
+### `ChainIdParameter`
+
+Every action accepts an optional `chainId` override. Included on every action's parameters via this mixin:
+
+```ts
+interface ChainIdParameter {
+  /** Chain to run the action against. Defaults to `config.defaultChainId`. */
+  chainId?: number;
+}
+```
+
+### `ConfigParameter`
+
+Every hook / action accepts an optional `config` override:
+
+```ts
+interface ConfigParameter {
+  /** Use this config instead of the one from context. */
+  config?: Config;
+}
+```
+
+### `ConfigKeyParameter`
+
+Used by query-key factories — the config-key fingerprint is folded into every key so runtime overrides do not serve stale cache.
+
+```ts
+interface ConfigKeyParameter {
+  configKey?: string;
+}
+```
+
+Consumers rarely reach for it directly; the SDK factories set it internally.
+
+### `FromParameter`
+
+Signer selector for writes. The consumer's `getWalletClient` resolver receives `from` and decides which wallet to return.
+
+```ts
+interface FromParameter {
+  from?: Address;
+}
+```
+
+### `SimulateBeforeWriteParameter`
+
+Per-write override for the pre-flight `simulateContract` dry-run.
+
+```ts
+interface SimulateBeforeWriteParameter {
+  simulateBeforeWrite?: boolean;
+}
+```
+
+## Query types
+
+### `QueryParameter`
+
+Optional TanStack Query overrides accepted by every read factory:
+
+```ts
+interface QueryParameter<queryFnData, error, data, queryKey> {
+  query?: Partial<
+    Omit<QueryObserverOptions<...>, "queryFn" | "queryKey" | "queryHash" | "queryKeyHashFn">
+  >;
+}
+```
+
+The SDK owns `queryKey` and `queryFn`; everything else (`staleTime`, `enabled`, `select`, …) is passthrough.
+
+### `SymmioQueryOptions`
+
+Return type of every `getXyzQueryOptions` factory:
+
+```ts
+type SymmioQueryOptions<queryFnData, error, data, queryKey> = Partial<
+  Omit<QueryObserverOptions<...>, "queryFn" | "queryKey" | "queryHash" | "queryKeyHashFn">
+> & {
+  queryKey: queryKey;
+  queryFn: () => Promise<queryFnData>;
+};
+```
+
+Feed straight into `useQuery` / `queryClient.fetchQuery`.
+
+## WebSocket types
+
+### `WebSocketConstructor` / `WebSocketLike`
+
+Minimal subset of the WebSocket API the SDK's streaming actions need. Pass a custom constructor into `createConfig({ webSocketConstructor })` when the runtime does not expose a global `WebSocket` (e.g. older Node).
+
+```ts
+type WebSocketConstructor = new (url: string, protocols?: string | string[]) => WebSocketLike;
+
+interface WebSocketLike {
+  readyState: 0 | 1 | 2 | 3;
+  send(data: string): void;
+  close(code?: number, reason?: string): void;
+  addEventListener(type: "open" | "close" | "message" | "error", listener: (ev: Event | MessageEvent) => void): void;
+  removeEventListener(...): void;
+  readonly CONNECTING: 0; readonly OPEN: 1; readonly CLOSING: 2; readonly CLOSED: 3;
+}
+```
+
+Any spec-compliant implementation (browser native, Node 22+, `ws` package, mocks) works.
+
+## TypeScript helpers
+
+### `Compute<T>`
+
+Deeply resolves a type so hover-tooltips show the flat shape instead of a chain of intersections. Used to keep public parameter types readable.
+
+```ts
+type UserSubAccountsParameters = Compute<ChainIdParameter & { user: Address; offset: bigint; size: bigint }>;
+```
+
+### `DeepPartial<T>`
+
+Recursive `Partial`. Used by `createConfig({ chainOverrides })` so per-chain overrides can nest arbitrarily deep.
+
+### `ExactPartial<T>`
+
+Non-widening `Partial` — every field becomes `T[K] | undefined` without dropping `undefined` from unions. Used by TanStack helpers.
+
+## Write parameter helpers
+
+### `WriteContractParameter`
+
+Shape of a contract write's options bag: `{ account, from?, simulateBeforeWrite?, chainId? }`.
+
+### `WriteSolverParameter`
+
+Shape of a solver-side write: `{ from, chainId? }` — the SubAccount / VA / quote id are per-action.
+
+### `DepositForAccountParameters` / `InstantCloseParameters`
+
+Concrete parameter shapes for specific actions, re-exported for consumers composing higher-level flows.
+
+## Related
+
+- [Config](../concepts/config) — the runtime object every action uses.
+- [Query options](../concepts/query-options) — how the query types plug in.
+- [Errors](../concepts/errors) — validation errors reference the field names in these mixins.

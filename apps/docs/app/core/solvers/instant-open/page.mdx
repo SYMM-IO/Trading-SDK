@@ -1,0 +1,201 @@
+# Instant Open
+
+Instant Open is the lowcap flow for opening a position. The user signs an EIP-712 message, the SDK submits it to the solver, and the solver returns a `tempQuoteId` immediately — the position is tradeable before the on-chain anchor lands.
+
+The SDK splits the flow into **three functions** on purpose:
+
+1. **`prepareInstantOpenParams`** — resolve every derivable input (market metadata, mark price, locked params, fee rates) into the exact wire-shaped `InstantOpenParameters` bag.
+2. **`instantOpen`** — sign + submit. Requires the fully-resolved bag.
+3. **`instantOpenAuto`** — thin wrapper that calls `prepareInstantOpenParams` then `instantOpen`. One line for callers who don't care about the intermediate state.
+
+The split lets you access, cache, or override any step. It also has a **latency implication**: `instantOpenAuto` runs the prepare fetches inline, so the wall-clock from "user clicks" to "signature dialog" is `prepare fetches + sign + POST`. If you already have the pre-fetched data (from a preview screen, a quote review, an earlier order), call `instantOpen` directly and you get straight to sign + POST — faster fills, tighter price windows.
+
+Plus read helpers for the pending queue: `getInstantOpens` (paginated list), `getInstantOpenQuoteId` (resolve on-chain id for a given `tempQuoteId`).
+
+## Import
+
+```ts
+import {
+  instantOpen,
+  instantOpenAuto,
+  prepareInstantOpenParams,
+  getInstantOpens,
+  getInstantOpenQuoteId,
+  type PrepareInstantOpenParameters,
+  type InstantOpenParameters,
+  type InstantOpenReturnType,
+  type PendingInstantOpen,
+} from "@symmio/trading-core";
+```
+
+## The three-function split
+
+Under the hood, `instantOpenAuto` is:
+
+```ts
+export async function instantOpenAuto(config, parameters) {
+  const resolved = await prepareInstantOpenParams(config, parameters);
+  return instantOpen(config, resolved);
+}
+```
+
+That's it. The wrapper exists so simple call sites stay one line; the underlying two-function shape exists so:
+
+- You can **cache the prepared bag** (e.g. render a review screen with the resolved trade math and only submit after user confirmation).
+- You can **override any resolved field** (e.g. pin a mark price you fetched elsewhere, skip a locked-params fetch by supplying it directly).
+- You can **run prepare early** — kick off the fetches when the user opens the trade panel, then when they click Open you only sign + POST.
+- You can **inspect** the exact numbers being signed before the network hop.
+
+`instantOpen` on its own is the "I already have everything, just submit" primitive. Pair it with a manual `prepareInstantOpenParams` call staged earlier when open latency matters.
+
+## `prepareInstantOpenParams`
+
+Pure resolver. Takes the minimal UI-shaped inputs (wallet, market, side, margin, leverage, slippage) and returns the full `InstantOpenParameters` bag needed by `instantOpen`.
+
+**Steps (in order)**:
+
+1. Resolve market metadata, mark price, locked params, and fee rates — fetched concurrently, with any caller-supplied field short-circuiting its fetch.
+2. Run `calculateTradeParams` to derive `requestedOpenPrice`, `quantity`, `cva`, `lf`, `partyAmm`, `partyBmm`, `notional`.
+3. Run `computePlatformFee` + `calculateMargin` to derive the `addMargin` amount.
+4. Convert every value to 18-decimal-wei `bigint`.
+
+```ts
+const resolved = await prepareInstantOpenParams(config, {
+  from: sessionKey,
+  subAccountAddress,
+  market: { id: 1 },
+  positionType: PositionType.LONG,
+  initialMargin: "100",
+  leverage: 5,
+  slippage: 1,
+});
+
+// `resolved` is now inspectable, hashable, and ready to sign.
+console.log(resolved.quantity, resolved.requestedOpenPrice, resolved.addMargin);
+```
+
+### Parameters
+
+Required = inputs only the caller can know (wallet, session key, trade intent). Optional = anything derivable from solver / price-service / on-chain reads.
+
+**Every optional field you pre-fill skips its network fetch.** If you already have `markPrice` from a live price stream, `lockedParamPercent` from a cached solver read, or `feeRates` from an earlier `getFeeForUser` call, pass them in — `prepareInstantOpenParams` short-circuits each field and only fetches what's still missing. Pass all four optional derivable fields and the function becomes pure math with zero network hops — the fastest possible path from UI inputs to a signed message.
+
+| Name                 | Type                                 | Required | Notes                                                                                         |
+| -------------------- | ------------------------------------ | -------- | --------------------------------------------------------------------------------------------- |
+| `from`               | `Address`                            | ✔        | Session-key signer.                                                                           |
+| `subAccountAddress`  | `Address`                            | ✔        | SubAccount that owns the trade.                                                               |
+| `market`             | `InstantOpenMarketData`              | ✔        | `{ id }`, plus optional pre-fetched precision metadata (`priceDecimals`, `quantityDecimals`). |
+| `positionType`       | `PositionType`                       | ✔        | LONG / SHORT.                                                                                 |
+| `initialMargin`      | `string`                             | ✔        | Decimal collateral amount.                                                                    |
+| `leverage`           | `number`                             | ✔        | Positive integer / decimal.                                                                   |
+| `slippage`           | `number`                             | ✔        | Percent (e.g. `1` for 1%).                                                                    |
+| `markPrice`          | `string?`                            |          | Pre-fetched mark price (decimal). Omit to fetch via Enigma.                                   |
+| `lockedParamPercent` | `ApiLockedParamsBySymbolIdResponse?` |          | Pre-fetched solver locked params. Omit to fetch via `getLockedParams`.                        |
+| `feeRates`           | `FeeForUser?`                        |          | Pre-fetched on-chain fee rates. Omit to fetch via `getFeeForUser`.                            |
+| `uuid`               | `string?`                            |          | Forwarded to `InstantOpenParameters`.                                                         |
+| `addMarginSalt`      | `Hex?`                               |          | Forwarded.                                                                                    |
+| `sendQuoteSalt`      | `Hex?`                               |          | Forwarded.                                                                                    |
+| `deadline`           | `bigint?`                            |          | Forwarded.                                                                                    |
+| `chainId`            | `number?`                            |          | Optional chain override.                                                                      |
+
+### Returns
+
+`InstantOpenParameters` — the full parameter bag that `instantOpen` consumes. Inspectable, hashable, safe to log for debugging or persist between screens.
+
+### Errors
+
+- `RESOLVE_MARKET_NOT_FOUND` — solver has no market for that id.
+- `RESOLVE_MARKET_METADATA_INCOMPLETE` — market response missing precision fields.
+- `RESOLVE_MARK_PRICE_NOT_FOUND` — price service returned no tick for the symbol.
+- `INVALID_TRADE_PARAMETERS` — math failed (e.g. bad leverage, zero margin).
+
+## `instantOpen`
+
+Sign the EIP-712 message with `config.getWalletClient({ from })` and POST it to the solver. **This is the low-latency primitive** — everything above (`prepareInstantOpenParams`) has already run; this step is just sign + network.
+
+```ts
+const result = await instantOpen(config, resolved);
+console.log(result.tempQuoteId);
+```
+
+Use direct calls to `instantOpen` when open speed matters — typical pattern:
+
+```ts
+// on trade-panel mount, run prepare early:
+const prepared = await prepareInstantOpenParams(config, uiInputs);
+
+// user clicks Open — no fetch on the critical path:
+const result = await instantOpen(config, prepared);
+```
+
+### Parameters
+
+`InstantOpenParameters` — the resolved bag from `prepareInstantOpenParams`. Every field is a concrete value; no fetching happens here.
+
+### Returns
+
+`InstantOpenReturnType` — `{ success: true; tempQuoteId?: string }`.
+
+`tempQuoteId` is the solver-issued negative integer that identifies the pending trade until it anchors on-chain. Rarely `undefined` (synchronous accept-without-id paths).
+
+### Errors
+
+- `SET_TPSL_REJECTED` (misleadingly named — same code family) or a solver-specific `SymmApiError` when the solver rejects the payload.
+- Viem `UserRejectedRequestError` when the user dismisses the signature dialog.
+- `SymmError` (`kind: "config"`) when chain config is missing a solver URL.
+
+## `instantOpenAuto`
+
+Convenience wrapper: `prepareInstantOpenParams` + `instantOpen` in one call. Same parameter shape as `prepareInstantOpenParams`.
+
+```ts
+const result = await instantOpenAuto(config, {
+  from: sessionKey,
+  subAccountAddress,
+  market: { id: 1 },
+  positionType: PositionType.LONG,
+  initialMargin: "100",
+  leverage: 5,
+  slippage: 1,
+});
+```
+
+**Latency**: this variant does the prepare fetches inline, so the total wall-clock is `prepare fetches + sign + POST`. Fine for most flows; use `prepareInstantOpenParams` + `instantOpen` split when open time is critical (e.g. reacting to a live price change).
+
+## `getInstantOpens`
+
+Paginated list of the solver's pending instant-opens for a SubAccount.
+
+```ts
+const page = await getInstantOpens(config, {
+  account: subAccount,
+  offset: 0n,
+  size: 20n,
+});
+```
+
+The reconciler ([`reconcileQuotes`](../../quotes#reconcilequotes)) consumes this list, so consumers rarely call it directly. Combine with `resolveQuoteAccounts` to know which predicted VAs to fetch on-chain reads across.
+
+## `getInstantOpenQuoteId`
+
+Resolve the on-chain `quoteId` for a given `tempQuoteId` — the anchor mapping the solver reveals once the quote lands on-chain.
+
+```ts
+const quoteId = await getInstantOpenQuoteId(config, { tempQuoteId: -1001 });
+```
+
+The reconciler and notification handlers use this to link temp ↔ on-chain rows automatically; consumers rarely need it manually.
+
+## Query / Mutation options
+
+- `instantOpenMutationOptions(config)` — TanStack mutation bag for the `instantOpen` primitive.
+- `instantOpenAutoMutationOptions(config)` — TanStack mutation bag for the `Auto` wrapper.
+- `getInstantOpensQueryOptions(config, options)` — TanStack query bag for the pending list.
+- `getInstantOpenQuoteIdQueryOptions(config, options)` — TanStack query bag for the temp-id resolver.
+
+## Related
+
+- [InstantLayer](../../instant-layer) — the underlying delegated-write contract.
+- [Instant Close](../instant-close) — the close-side analog.
+- [Unified Quotes](../../quotes) — `PendingInstantOpen` feeds into `reconcileQuotes`.
+- [TP/SL](../../tpsl) — attach a TP/SL leg via `useInstantOpenWithTpSl` in the React layer.

@@ -1,0 +1,32 @@
+# Locked Params hooks
+
+Solver-side `LockedParams` — the CVA / LF ratios required to lock margin at open for a market + leverage pair.
+
+**Read only.**
+
+## Import
+
+```ts
+import { useLockedParams } from "@symmio/trading-react";
+```
+
+## `useLockedParams`
+
+```ts
+const locked = useLockedParams({ symbol: "BTCUSDT", leverage: 5 });
+```
+
+**Parameters**
+
+| Name       | Type      | Notes                                  |
+| ---------- | --------- | -------------------------------------- |
+| `symbol`   | `string`  | Solver market path value.              |
+| `leverage` | `number`  | Leverage to compute locked params for. |
+| `chainId`  | `number?` | Optional chain override.               |
+
+**Returns** — `UseQueryResult<SolverLockedParams, SymmioRequestError>`.
+
+## Related
+
+- [Core Solvers > Locked Params](../../core/solvers#locked-params).
+- [Instant Open](../solvers/instant-open) — used internally by `useInstantOpenAuto`.

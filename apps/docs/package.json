@@ -6,6 +6,7 @@
     "dev": "next",
     "build": "next build",
     "start": "next start",
+    "preview": "next build && next start",
     "lint": "eslint . --max-warnings 0",
     "check-types": "next typegen && tsc --noEmit"
   },

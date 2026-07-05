@@ -1,0 +1,53 @@
+# Stores
+
+TanStack Query cache handles server / on-chain state. **Zustand stores** handle everything else — reactive state that spans components, survives unmounts, and doesn't map cleanly onto a fetch:
+
+- **[`useTpSlStore`](../../tpsl)** — folded TP/SL records per quote. Written by mutations (`markConfirming`) and the WebSocket (`applyNotification`). Reads use `useTpSlRecord(id)`.
+- **[`useOptimisticQuotesStore`](../../quotes)** — pending / dismissed quotes for `reconcileQuotes`. Feeds into `useManagedQuotes`.
+- **[`useTransactionsStore`](../../transactions)** — pending write receipts. Every write hook pushes here when it fires; UIs render a "tx pending" tray by subscribing.
+
+All three are **module-level Zustand stores** — a single instance across the app is intentional so a mutation fired in one component reaches a status badge in another without prop drilling or lifted state.
+
+## Why not just TanStack Query cache?
+
+TanStack Query is optimized for **request-response caching** — one query key, one fetch, one result. The three concerns above don't fit:
+
+- **TP/SL folded records** are built from REST rows + mutation acks + WebSocket frames. No single "queryFn" produces them; the store folds every source.
+- **Optimistic quotes** are produced by mutations (a new instant open) and cleared by reconciliation, not by a fetch.
+- **Transactions store** is a write-only push queue with a subscription model, not a fetch.
+
+Stores keep those concerns first-class, with reactive subscription and a clean action surface.
+
+## Selector pattern
+
+Every store exposes small selector hooks around the raw store, so consumers pay only for the slice they read:
+
+```ts
+export function useTpSlRecord(id: bigint | undefined): TpSlRecord | undefined {
+  return useTpSlStore((state) => {
+    if (id === undefined) return undefined;
+    const key = state.index.get(id);
+    return key === undefined ? undefined : state.records.get(key);
+  });
+}
+```
+
+Zustand's default equality (`Object.is`) means a component re-renders only when its selected record ref actually changes — you can mount hundreds of `useTpSlRecord` selectors without perf concern.
+
+## Resetting in tests
+
+Each store exposes a `__resetXyzStore()` helper for test cleanup:
+
+```ts
+import { __resetTpSlStore } from "@symmio/trading-react";
+
+beforeEach(() => __resetTpSlStore());
+```
+
+The double-underscore signals "test only" — production code should never call these.
+
+## Related
+
+- [TP/SL](../../tpsl) — `useTpSlStore` shape and actions.
+- [Unified Quotes](../../quotes) — `useOptimisticQuotesStore`, `useManagedQuotes`.
+- [Transactions](../../transactions) — `useTransactionsStore`.

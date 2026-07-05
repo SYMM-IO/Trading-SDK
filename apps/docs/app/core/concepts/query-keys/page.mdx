@@ -1,0 +1,88 @@
+# Query keys
+
+Every SDK read has a matching query-key factory (`getMarketsQueryKey`, `getUserSubAccountsQueryKey`, …). Keys are two-element arrays: a leading string tag identifying the action, and a plain object holding the request-shaped options.
+
+```ts
+["getUserSubAccounts", { chainId: 999, user: "0x…", configKey: "sha1:…" }];
+```
+
+Consistent shape across the SDK means an app can invalidate a whole slice by tag, or match a subset of one slice by field — without knowing each key's internals.
+
+## Import
+
+```ts
+import { getMarketsQueryKey, getUserSubAccountsQueryKey, filterQueryOptions } from "@symmio/trading-core";
+import { predicateMatch } from "@symmio/trading-react";
+```
+
+## Key shape
+
+Each factory produces a `readonly [tag, options]` tuple:
+
+- **`tag`**: the action name as a string literal (`"getMarkets"`, `"getUserSubAccounts"`). Two calls sharing a tag share a cache slice.
+- **`options`**: the hashable payload — the read's inputs, stripped of TanStack control fields (`query`, `enabled`, `config`) and functions, with every `bigint` serialized to its decimal string (TanStack's default hash throws on `bigint`).
+
+The transform is done by `filterQueryOptions`:
+
+```ts
+filterQueryOptions({ chainId: 999, user: "0x…", offset: 0n, query: { staleTime: 1 } });
+// → { chainId: 999, user: "0x…", offset: "0" }
+```
+
+Every factory routes its inputs through `filterQueryOptions` so the shape is uniform.
+
+## `configKey` in every key
+
+The `Config.getChainConfigKey(chainId)` fingerprint is folded into every key. A runtime chain-config override (e.g. custom subgraph URL) produces a fresh fingerprint, so TanStack refetches with the new config instead of serving stale cache. Unknown chains resolve to a stable `"unsupported"` sentinel; the factory never throws.
+
+## Building predicates — `predicateMatch`
+
+TanStack's built-in leading-prefix matching cannot express "invalidate every subaccount query for `user`, regardless of pagination or chain". `predicateMatch` (exported from `@symmio/trading-react`) closes that gap by turning a core query-key factory into a predicate that:
+
+1. Matches the tag exactly.
+2. For every field in a partial, matches the key's trailing options object. Omitted fields match anything.
+
+```ts
+import { predicateMatch } from "@symmio/trading-react";
+import { getUserSubAccountsQueryKey } from "@symmio/trading-core";
+
+queryClient.invalidateQueries({
+  predicate: predicateMatch(getUserSubAccountsQueryKey, { user }),
+});
+```
+
+Both the partial and the stored keys are run through the same factory, so `bigint` values compare in the decimal-string form the factory emits. No manual string coercion required.
+
+## Common invalidation patterns
+
+### Invalidate every subaccount for one user
+
+```ts
+queryClient.invalidateQueries({
+  predicate: predicateMatch(getUserSubAccountsQueryKey, { user }),
+});
+```
+
+### Invalidate the entire slice
+
+```ts
+queryClient.invalidateQueries({ queryKey: ["getMarkets"] });
+```
+
+Pass just the tag to invalidate every entry from that factory.
+
+### Invalidate one specific entry
+
+```ts
+queryClient.invalidateQueries({
+  queryKey: getUserSubAccountsQueryKey({ user, chainId, offset, size }),
+});
+```
+
+Reconstruct the exact key when the request inputs are known.
+
+## Related
+
+- [Query options](../query-options) — how factories consume keys.
+- [Config](../config) — `getChainConfigKey` participates in every key.
+- [React invalidation examples](../../../react/provider) — hooks that call `predicateMatch` internally on mutation success.

@@ -1,0 +1,115 @@
+# Query options
+
+Every read action in `@symmio/trading-core` ships with a matching TanStack Query options factory next to it. Every write ships with a mutation options factory. Both return fully-formed option bags with the SDK's `queryKey`, `queryFn`, and `enabled` filled in — a consumer feeds them straight into `useQuery` / `useMutation` (in the React layer) or `queryClient.fetchQuery` / `queryClient.executeMutation` (outside React).
+
+This is the seam that keeps `@symmio/trading-core` framework-agnostic while still shipping first-class TanStack integration.
+
+## Import
+
+```ts
+import {
+  getMarketsQueryOptions,
+  createSubAccountsMutationOptions,
+  type QueryParameter,
+  type SymmioQueryOptions,
+} from "@symmio/trading-core";
+```
+
+## Read factory shape
+
+Every read factory follows the same signature:
+
+```ts
+function getXyzQueryOptions(config: Config, options: GetXyzOptions): GetXyzQueryOptions;
+```
+
+- `config` — first positional argument, always. Provides the client resolver, chain registry, and config-key fingerprint.
+- `options` — the action's read inputs plus an optional `query` bag for TanStack overrides.
+- Returns a `SymmioQueryOptions<Data, Error, Data, Key>` — a partial TanStack `QueryObserverOptions` with `queryKey`, `queryFn`, and (usually) `enabled` set.
+
+### Usage — outside React
+
+```ts
+import { getMarketsQueryOptions } from "@symmio/trading-core";
+import { QueryClient } from "@tanstack/query-core";
+
+const queryClient = new QueryClient();
+
+const markets = await queryClient.fetchQuery(getMarketsQueryOptions(config, {}));
+```
+
+### Usage — inside React
+
+The React layer's hooks call the factory internally, so consumers rarely reach for it directly:
+
+```ts
+// packages/trading-react/src/markets/use-markets.ts (simplified)
+export function useMarkets(parameters: UseMarketsParameters = {}) {
+  const config = useSymmioConfig(parameters);
+  const chainId = useSymmioChainId();
+  return useQuery(getMarketsQueryOptions(config, { ...parameters, chainId }));
+}
+```
+
+## Mutation factory shape
+
+```ts
+function xyzMutationOptions(config: Config): XyzMutationOptions;
+```
+
+Writes are stateless — the factory takes only the config and returns `{ mutationKey, mutationFn }`. The action's parameters (including `chainId`) are passed at `mutate` time.
+
+```ts
+import { createSubAccountsMutationOptions } from "@symmio/trading-core";
+import { QueryClient } from "@tanstack/query-core";
+
+const queryClient = new QueryClient();
+
+const hash = await queryClient.executeMutation({
+  ...createSubAccountsMutationOptions(config),
+  variables: { count: 1 },
+});
+```
+
+## The `QueryParameter` mixin
+
+Read factories accept a `query?: Partial<QueryObserverOptions>` override on the options bag. `queryKey`, `queryFn`, and hashing internals are owned by the SDK and stripped from the accepted set; everything else is passthrough.
+
+```ts
+useMarkets({
+  query: {
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    select: (markets) => markets.filter((m) => m.enabled),
+  },
+});
+```
+
+The React layer's hook `parameters` and the standalone factory's `options` both extend `QueryParameter<Data, Error, Data, Key>`.
+
+## `SymmioQueryOptions` return type
+
+Every factory declares its return type explicitly (rather than inferred) so the generated `.d.ts` stays portable:
+
+```ts
+type SymmioQueryOptions<queryFnData, error, data, queryKey> = Partial<
+  Omit<QueryObserverOptions<...>, "queryFn" | "queryKey" | "queryHash" | "queryKeyHashFn">
+> & {
+  queryKey: queryKey;
+  queryFn: () => Promise<queryFnData>;
+};
+```
+
+Consumers rarely instantiate this manually — the alias is exported for advanced use (composing SDK queries into higher-level custom hooks).
+
+## The `enabled` guard
+
+Factories set `enabled` when the read has runtime-nullable inputs. Example: `getQuoteTpSlQueryOptions` sets `enabled: (options.query?.enabled ?? true) && isValidQuoteId(options.quoteId)`, so a caller who plugs a `0n` sentinel into the id (a common `??` fallback) sees the query stay idle rather than firing a bogus request.
+
+Consumer overrides via `query.enabled` AND with the factory's guard — the query fires only when both are true.
+
+## Related
+
+- [Query keys](../query-keys) — key shape, invalidation, `predicateMatch`.
+- [Config](../config) — `Config.getChainConfigKey` participates in every key.
+- [React hooks](../../../react/provider) — how the React layer wires factories into `useQuery` / `useMutation`.

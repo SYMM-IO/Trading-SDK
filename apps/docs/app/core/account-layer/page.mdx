@@ -47,7 +47,7 @@ interface SubAccountDetail {
 
 ### `getAccountBalanceOf`
 
-Read raw `balanceOf(account)` from the SYMMIO core/diamond contract.
+Read the account's **available (deallocated) balance** — collateral that lives on the account but is **not** currently allocated to any SubAccount for trading. This is the amount the user can transfer, withdraw, or allocate. Read via `balanceOf(account)` on the SYMMIO diamond.
 
 ```ts
 import { getAccountBalanceOf } from "@symmio/trading-core";
@@ -68,7 +68,9 @@ const balance = await getAccountBalanceOf(config, {
 
 ### `getAccountBalanceInfo`
 
-Read raw balance information from `balanceInfoOfPartyA(account)` on the SYMMIO core/diamond contract.
+Read the account's **tradable (allocated) balance info** — the collateral that has been allocated to this SubAccount and is available (or locked) for trading, together with the CVA / LF / margin locks currently held against it. Read via `balanceInfoOfPartyA(account)` on the SYMMIO diamond.
+
+Pair with [`getAccountBalanceOf`](#getaccountbalanceof) for the full picture: `balanceOf` is the free-to-move pot; `balanceInfoOfPartyA` is the allocated-and-in-play pot.
 
 ```ts
 import { getAccountBalanceInfo } from "@symmio/trading-core";

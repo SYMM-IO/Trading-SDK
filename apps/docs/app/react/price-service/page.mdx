@@ -2,6 +2,8 @@
 
 Price-service hooks wrap the `@symmio/trading-core` Enigma price-service reads with React Query and SDK provider state. They read the active chain from `SymmioProvider` unless you pass `chainId`.
 
+**Read-only page.** REST hooks return `UseQueryResult`; the live-price WebSocket hook is a subscription (still a "read" — no on-chain state mutated).
+
 ## `useEnigmaPriceServicePrices`
 
 Fetch mark prices by token addresses.

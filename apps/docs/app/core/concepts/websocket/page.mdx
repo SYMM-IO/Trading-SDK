@@ -1,0 +1,91 @@
+# WebSocket streams
+
+Every live stream in `@symmio/trading-core` — solver notifications, TP/SL reports, Enigma price ticks — shares one connection model: a reconnecting socket wrapped in a per-config pool.
+
+Consumers never see the socket directly. They call a `watchXyz(config, params)` action that returns an idempotent disposer; the SDK deduplicates connections, reconnects on drops, and forwards parsed frames to every subscriber.
+
+## Import
+
+```ts
+import {
+  watchNotifications,
+  watchTpSlNotifications,
+  watchEnigmaPrices,
+  type SocketStatus,
+  type WebSocketConstructor,
+  type WebSocketLike,
+} from "@symmio/trading-core";
+```
+
+## Watcher signature
+
+Every streaming action follows the same shape:
+
+```ts
+type Watch<Params, Frame> = (
+  config: Config,
+  parameters: Params & {
+    onNotification?: (frame: Frame) => void;
+    onStatusChange?: (status: SocketStatus) => void;
+    onError?: (error: SymmError) => void;
+  },
+) => () => void;
+```
+
+The returned disposer is idempotent — calling it twice is a no-op. Framework layers wire it into `useEffect` cleanup automatically.
+
+## Connection pool
+
+`getSocketPool(config)` returns a per-config connection pool. Every `watchXyz` call goes through the pool with a stable key (typically `<wsUrl>|<channel>|<accountOrScope>`). When two subscribers ask for the same key, the pool hands them the **same** underlying connection with a fanout dispatcher — one socket, N subscribers, N frames delivered per message.
+
+The pool ref-counts subscribers. Disposing the last one closes the socket after a grace period; a new subscription within that window reuses the still-open connection.
+
+## Reconnect behavior
+
+`createReconnectingSocket` wraps the raw `WebSocket`:
+
+- Exponential-backoff reconnect on drops (starting ~500 ms, capped ~15 s).
+- Emits `SocketStatus` transitions (`"connecting"` → `"open"` → `"reconnecting"` → `"closing"` → `"closed"`).
+- Replays any queue of `getOpenMessages()` — the subscribe frames — on every fresh open, so a reconnect re-subscribes automatically.
+- Surfaces parse and transport errors on `onError` without closing the subscription.
+
+## `SocketStatus`
+
+```ts
+type SocketStatus = "connecting" | "open" | "reconnecting" | "closing" | "closed";
+```
+
+Fires once on subscribe and every time the underlying socket transitions. A brief `"reconnecting"` → `"open"` bounce is normal on network flap; only sustained `"closed"` (with an error on `onError`) is a real failure.
+
+## Bring your own WebSocket
+
+`WebSocketConstructor` is a `new (url, protocols?) => WebSocketLike` constructor. `createConfig({ webSocketConstructor })` accepts it explicitly; when omitted, the SDK reads `globalThis.WebSocket` (present in browsers and Node 22+).
+
+For older Node runtimes:
+
+```ts
+import { WebSocket as NodeWebSocket } from "ws";
+import { createConfig } from "@symmio/trading-core";
+
+const config = createConfig({
+  getClient: () => publicClient,
+  webSocketConstructor: NodeWebSocket as unknown as WebSocketConstructor,
+});
+```
+
+`WebSocketLike` is the minimal subset the SDK needs (`send`, `close`, `addEventListener`, `readyState`, `CONNECTING` / `OPEN` / `CLOSING` / `CLOSED` constants). Anything spec-compliant works.
+
+## Error handling
+
+`onError` receives a normalized `SymmError`:
+
+- Transport failures (socket-level exceptions) map to `TPSL_SOCKET_ERROR` / `NOTIFICATIONS_SOCKET_ERROR` / `PRICES_SOCKET_ERROR` depending on the stream.
+- Parse failures (unknown frame shape) surface with the raw payload on `cause`.
+- Errors do **not** stop the subscription. The pool keeps the connection open and continues delivering good frames.
+
+## Related
+
+- [Notifications stream](../../notifications/stream) — solver events.
+- [TP/SL WebSocket](../../tpsl) — conditional-order reports.
+- [Price service](../../price-service) — Enigma price ticks.
+- [Config](../config) — `webSocketConstructor` override.

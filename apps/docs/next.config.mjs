@@ -1,31 +1,18 @@
 import nextra from "nextra";
 
-// Set up Nextra with its configuration
-const withNextra = nextra({
-  // ... Add Nextra-specific options here
-});
+const withNextra = nextra({});
 
-// Export the final Next.js config with Nextra included
-export default withNextra({
-  // ... Add regular Next.js options here
-});
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  experimental: {
+    // Force server-component renders to invalidate on every file change so
+    // Nextra picks up MDX edits without a full dev-server restart.
+    staleTimes: {
+      dynamic: 0,
+      static: 0,
+    },
+  },
+};
 
-// import nextra from 'nextra'
-
-// const withNextra = nextra({
-//   latex: true,
-//   search: {
-//     codeblocks: false
-//   }
-// })
-
-// export default withNextra({
-//   reactStrictMode: true,
-//   output: 'standalone',
-//   typescript: {
-//     ignoreBuildErrors: true,
-//   },
-//   eslint: {
-//     ignoreDuringBuilds: true,
-//   },
-// })
+export default withNextra(nextConfig);
