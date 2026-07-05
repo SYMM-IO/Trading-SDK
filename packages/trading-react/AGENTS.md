@@ -30,7 +30,7 @@ This is the **implemented** React layer (no longer scaffolding). It mirrors wagm
 
 ## Public API
 
-- Public entry is `src/index.ts`. Sub-entries (e.g. `./provider`, `./wallet`) are allowed when they make tree-shaking or grouping clearer; declare them in `package.json` `exports`.
+- Public entry is `src/index.ts`. Sub-entries (e.g. `./provider`, `./wallet`) are allowed when they make tree-shaking or grouping clearer; declare them in `package.json` `exports`. A new sub-entry must be kept in sync across three places — `package.json` `exports`, the `vite.config.ts` `entry` map, and the `scripts/verify-packages/published-smoke/` fixtures + `runtime-probe.mjs` — or the published export map breaks. See the [Learned Rules](../../AGENTS.md#learned-rules) entry.
 - Every export must have JSDoc (purpose, params, return, short usage example for non-obvious APIs).
 - Re-exporting types from `core` is fine; re-exporting whole `core` runtime modules is **not** — consumers that want raw `core` should depend on `core` directly. `react` exposes React-shaped APIs.
 

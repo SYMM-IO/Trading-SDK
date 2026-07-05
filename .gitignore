@@ -31,6 +31,9 @@ next-env.d.ts
 # Testing
 coverage
 
+# Package tarballs (from `pnpm pack` / verify-packages)
+*.tgz
+
 # Misc
 .DS_Store
 *.pem

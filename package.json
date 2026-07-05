@@ -8,11 +8,14 @@
     "test": "turbo run test",
     "check-types": "turbo run check-types",
     "format": "prettier --write .",
+    "verify-packages": "node scripts/verify-packages/verify-packages.mjs",
+    "verify-pack": "node scripts/verify-packages/verify-packages.mjs --layer1-only",
     "changeset": "changeset",
     "changeset:version": "changeset version && pnpm install --lockfile-only",
-    "changeset:publish": "pnpm build && changeset publish"
+    "changeset:publish": "pnpm build && pnpm verify-pack && changeset publish"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.4",
     "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.31.0",
     "@commitlint/cli": "^20.5.3",
@@ -21,6 +24,7 @@
     "prettier": "^3.8.3",
     "prettier-plugin-organize-imports": "^4.3.0",
     "prettier-plugin-tailwindcss": "^0.8.0",
+    "publint": "^0.3.21",
     "turbo": "^2.9.8",
     "typescript": "^6.0.3"
   },
