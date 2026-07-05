@@ -21,9 +21,25 @@ export interface SolverMethodMeta {
  */
 export const SOLVER_METHODS: readonly SolverMethodMeta[] = [
   { id: "method-getLockedParams", method: "getLockedParams", action: "useLockedParams", kind: "read" },
+  {
+    id: "method-getNotionalCap",
+    method: "getNotionalCapBySymbolId",
+    action: "useNotionalCapBySymbolId",
+    kind: "read",
+  },
+  { id: "method-getNotionalCapAll", method: "getNotionalCapAll", action: "useNotionalCapAll", kind: "read" },
+  {
+    id: "method-getOpenInterest",
+    method: "getOpenInterestBySymbolId",
+    action: "useOpenInterestBySymbolId",
+    kind: "read",
+  },
+  { id: "method-getFundingInfo", method: "getFundingInfo", action: "useFundingInfo", kind: "read" },
+  { id: "method-getMarketInfo", method: "getMarketInfo", action: "useMarketInfo", kind: "read" },
   { id: "method-getMarkets", method: "getMarkets", action: "useMarkets", kind: "read" },
   { id: "method-getInstantOpens", method: "getInstantOpens", action: "useInstantOpens", kind: "read" },
   { id: "method-getSolverErrorCodes", method: "getSolverErrorCodes", action: "useSolverErrorCodes", kind: "read" },
+  { id: "method-managedQuotes", method: "useManagedQuotes", action: "useManagedQuotes", kind: "read" },
   { id: "method-enigma-instant-open", method: "instantOpen", action: "useInstantOpen", kind: "write" },
   { id: "method-enigma-instant-close", method: "instantClose", action: "useInstantClose", kind: "write" },
 ];

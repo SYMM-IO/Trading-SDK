@@ -4,8 +4,10 @@ import { ReadMarkets } from "../inspector/read-markets";
 import { QuotesCard } from "../quotes/quotes-card";
 import { EnigmaInstantCloseCard } from "./enigma-instant-close-card";
 import { EnigmaInstantOpenCard } from "./enigma-instant-open-card";
+import { ReadFundingInfoCard } from "./read-funding-info-card";
 import { ReadInstantOpensCard } from "./read-instant-opens-card";
 import { ReadLockedParams } from "./read-locked-params";
+import { ReadMarketInfoCard } from "./read-market-info-card";
 import { ReadNotionalCap } from "./read-notional-cap";
 import { ReadNotionalCapTotals } from "./read-notional-cap-totals";
 import { ReadOpenInterest } from "./read-open-interest";
@@ -25,11 +27,13 @@ export function SolversShell() {
         description="The solver is an off-chain service, not a contract. Fetch tradable markets (contract symbols) — symbols, leverage, fees, and state — straight from the chain's solver."
       />
 
-      <MethodGroup label="Reads" count={8} fullWidth>
+      <MethodGroup label="Reads" count={10} fullWidth>
         <ReadLockedParams />
         <ReadNotionalCap />
         <ReadNotionalCapTotals />
         <ReadOpenInterest />
+        <ReadFundingInfoCard />
+        <ReadMarketInfoCard />
         <ReadMarkets />
         <ReadInstantOpensCard />
         <SolverErrorCodesCard />

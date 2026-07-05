@@ -621,6 +621,52 @@ export {
 } from "./solvers/markets";
 
 /**
+ * Funding info
+ * ------------
+ * Fetch per-market funding rates (next-epoch long/short), next funding time,
+ * and epoch length from the chain's solver `/get_funding_info` endpoint. Rates
+ * are plain per-epoch decimal fractions (×100 for a percentage); a positive
+ * rate receives funding, a negative rate pays. {@link projectFundingRate}
+ * extrapolates a per-epoch rate over a day window (linear, non-compounded).
+ */
+export {
+  getFundingInfo,
+  getFundingInfoQueryKey,
+  getFundingInfoQueryOptions,
+  projectFundingRate,
+  toMarketFundingInfo,
+  type GetFundingInfoData,
+  type GetFundingInfoOptions,
+  type GetFundingInfoParameters,
+  type GetFundingInfoQueryKey,
+  type GetFundingInfoQueryOptions,
+  type GetFundingInfoReturnType,
+  type MarketFundingInfo,
+  type ProjectFundingRateParameters,
+} from "./solvers/funding-info";
+
+/**
+ * Market info (solver)
+ * --------------------
+ * Per-market 24h trading volume and lifetime value from the chain's solver,
+ * plus the aggregate totals across every market. Dollar amounts are plain
+ * numbers as the solver reports them; no decimal scaling.
+ */
+export {
+  getMarketInfo,
+  getMarketInfoQueryKey,
+  getMarketInfoQueryOptions,
+  toMarketInfo,
+  type GetMarketInfoData,
+  type GetMarketInfoOptions,
+  type GetMarketInfoParameters,
+  type GetMarketInfoQueryKey,
+  type GetMarketInfoQueryOptions,
+  type GetMarketInfoReturnType,
+  type MarketVolume,
+} from "./solvers/market-info";
+
+/**
  * Locked params
  * -------------
  * Fetch solver lock percentages for a market/leverage pair.

@@ -1,3 +1,4 @@
+import { toFiniteNumber } from "@symmio/utils/number";
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
@@ -21,13 +22,6 @@ export interface GetNotionalCapAllReturnType {
   totalUsed: number;
   /** Per-symbol rows, decoded with the same mapper as {@link getNotionalCapBySymbolId}. */
   symbols: MarketNotionalCap[];
-}
-
-/** Coerce an optional numeric solver field (declared `number` but served as string) to `number`. */
-function toNumber(value: number | string | undefined | null): number {
-  if (value === undefined || value === null) return 0;
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 /**
@@ -55,9 +49,9 @@ export async function getNotionalCapAll(
     const r = response.data as Record<string, unknown>;
     const rawSymbols = Array.isArray(r.symbols) ? (r.symbols as Parameters<typeof toMarketNotionalCap>[0][]) : [];
     return {
-      count: toNumber(r.count as number | string | undefined),
-      totalOpenInterest: toNumber(r.total_open_interest as number | string | undefined),
-      totalUsed: toNumber(r.total_used as number | string | undefined),
+      count: toFiniteNumber(r.count as number | string | undefined),
+      totalOpenInterest: toFiniteNumber(r.total_open_interest as number | string | undefined),
+      totalUsed: toFiniteNumber(r.total_used as number | string | undefined),
       symbols: rawSymbols.map(toMarketNotionalCap),
     };
   } catch (err) {
