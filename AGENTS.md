@@ -4,6 +4,8 @@ Rules for AI coding agents (Claude Code, Cursor, Codex, etc.) working anywhere i
 
 Subprojects under `apps/*` and `packages/*` may add their own `AGENTS.md`. Those rules apply **on top of** the ones in this file; they do not replace it.
 
+@AGENTS.local.md
+
 ## Mission
 
 SYMM Frontier is an **SDK-first** workspace for SYMMIO. The underlying product is built by many vendors with different architectures and tools. Building UIs against that raw surface is complex, so we ship an SDK that hides the complexity behind a **simple, correct, reliable** API.
