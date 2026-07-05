@@ -36,6 +36,10 @@
       "types": "./dist/format/index.d.ts",
       "import": "./dist/format/index.js"
     },
+    "./number": {
+      "types": "./dist/number/index.d.ts",
+      "import": "./dist/number/index.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"

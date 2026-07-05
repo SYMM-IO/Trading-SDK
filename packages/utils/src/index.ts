@@ -7,6 +7,7 @@
  * - `@symmio/utils/decimal` — Decimal-based math (Decimal.js).
  * - `@symmio/utils/format`  — display formatters (commas, compact, currency, %, dynamic).
  * - `@symmio/utils/address` — checksummed and generic hex shorteners.
+ * - `@symmio/utils/number`  — numeric coercion (`toFiniteNumber`).
  */
 
 /**
@@ -75,3 +76,12 @@ export {
  * any hex-ish string (tx hashes, selectors).
  */
 export { minifyHash, shortenAddress, type MinifyHashOptions, type ShortenAddressOptions } from "./address";
+
+/**
+ * Number coercion
+ * ---------------
+ * `toFiniteNumber` parses a `number` / numeric-string / nullish value into a
+ * finite `number`, defaulting to `0` — useful for JSON fields whose spec type
+ * and served type disagree.
+ */
+export { toFiniteNumber } from "./number";

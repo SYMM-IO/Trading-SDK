@@ -464,6 +464,24 @@ export {
 } from "./notional-cap";
 
 /**
+ * Funding-info hooks
+ * ------------------
+ * Read per-market funding rates (next-epoch long/short), next funding time, and
+ * epoch length from the solver. Does not poll by default; the caller opts into
+ * polling via `query.refetchInterval`.
+ */
+export { useFundingInfo, type UseFundingInfoParameters, type UseFundingInfoReturnType } from "./funding-info";
+
+/**
+ * Market-info hooks
+ * -----------------
+ * Read per-market 24h trading volume and lifetime value, plus the aggregate
+ * totals, from the solver. Does not poll by default; the caller opts into
+ * polling via `query.refetchInterval`.
+ */
+export { useMarketInfo, type UseMarketInfoParameters, type UseMarketInfoReturnType } from "./market-info";
+
+/**
  * Fee hooks
  * ---------
  * Read SYMMIO fee settings for a user/account, affiliate, and symbol id.

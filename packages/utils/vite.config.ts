@@ -34,6 +34,7 @@ export default defineConfig({
         "amounts/index": path.resolve(srcRoot, "amounts/index.ts"),
         "decimal/index": path.resolve(srcRoot, "decimal/index.ts"),
         "format/index": path.resolve(srcRoot, "format/index.ts"),
+        "number/index": path.resolve(srcRoot, "number/index.ts"),
       },
       formats: ["es"],
     },
