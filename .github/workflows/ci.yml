@@ -54,3 +54,39 @@ jobs:
       # and a funded key, and never run here.
       - name: Build · Lint · Types · Test
         run: pnpm exec turbo run build lint check-types test --continue
+
+  # Verify the PUBLISHED shape of the packages (compiled JS, generated .d.ts, and the
+  # exports/files manifest) the way an external npm consumer sees them — packed tarballs
+  # linted by publint + attw, then installed into a consumer outside the workspace and
+  # typechecked under strict nodenext + runtime-imported. The in-repo `verify` job above
+  # only ever exercises workspace symlinks under bundler resolution, so it cannot catch a
+  # broken subpath export, an unresolvable .d.ts, or a file missing from the tarball.
+  # A separate job so its external install does not serialize behind `verify`.
+  packages:
+    name: Verify published packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: Verify packages
+        run: pnpm verify-packages

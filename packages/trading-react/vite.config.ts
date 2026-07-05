@@ -23,7 +23,25 @@ export default defineConfig({
     sourcemap: true,
     target: "es2022",
     lib: {
-      entry: path.resolve(dirname, "src/index.ts"),
+      /**
+       * Each public sub-barrel is its own entry so rollup emits a real
+       * `dist/<sub>/index.js` for it. With a single root entry and
+       * `preserveModules`, sub-barrels that only re-export get hoisted away,
+       * which leaves the `./<sub>` paths in `package.json#exports` pointing to
+       * files that do not exist.
+       */
+      entry: {
+        index: path.resolve(srcRoot, "index.ts"),
+        "provider/index": path.resolve(srcRoot, "provider/index.ts"),
+        "account-layer/index": path.resolve(srcRoot, "account-layer/index.ts"),
+        "instant-layer/index": path.resolve(srcRoot, "instant-layer/index.ts"),
+        "wallet/index": path.resolve(srcRoot, "wallet/index.ts"),
+        "errors/index": path.resolve(srcRoot, "errors/index.ts"),
+        "transactions/index": path.resolve(srcRoot, "transactions/index.ts"),
+        "markets/index": path.resolve(srcRoot, "markets/index.ts"),
+        "fees/index": path.resolve(srcRoot, "fees/index.ts"),
+        "price-service/index": path.resolve(srcRoot, "price-service/index.ts"),
+      },
       formats: ["es"],
     },
     rollupOptions: {

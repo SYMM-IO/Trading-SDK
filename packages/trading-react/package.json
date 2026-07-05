@@ -68,7 +68,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node ../../scripts/fix-dts-extensions.mjs dist",
     "dev": "vite build --watch",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
