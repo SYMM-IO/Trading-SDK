@@ -11,13 +11,15 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Least privilege: CI only needs to read the repo.
+# Least privilege: CI reads the repo to build/test. The coverage step also
+# posts a sticky comment on the PR, which needs write access to pull requests.
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   verify:
-    name: Lint · Types · Build · Test
+    name: Lint · Types · Build · Test · Coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,12 +50,60 @@ jobs:
       # One Turbo invocation: build the dependency graph once, then fan lint,
       # type-check, and unit tests out across packages in parallel — each package
       # is linted/typed/tested as soon as its deps are built, instead of waiting
-      # for every build to finish. --continue runs every check even after one
-      # fails (so a PR surfaces all failures at once); Turbo still exits non-zero
-      # on any failure. Integration tests stay gated behind SYMM_RUN_INTEGRATION
-      # and a funded key, and never run here.
-      - name: Build · Lint · Types · Test
-        run: pnpm exec turbo run build lint check-types test --continue
+      # for every build to finish. `test:coverage` runs the same unit tests as
+      # `test`, just instrumented — it still gates the PR (no thresholds set, so
+      # it only fails on a failing test) and writes each package's coverage/
+      # reports for the report steps below. --continue runs every check even
+      # after one fails (so a PR surfaces all failures at once); Turbo still
+      # exits non-zero on any failure. Integration tests stay gated behind
+      # SYMM_RUN_INTEGRATION and a funded key, and never run here.
+      - name: Build · Lint · Types · Test + Coverage
+        run: pnpm exec turbo run build lint check-types test:coverage --continue
+
+      # Post a coverage summary as a sticky PR comment (one per package) plus a
+      # table in the Actions job summary. Self-hosted — no external account or
+      # secret, it just parses each package's coverage/coverage-*.json.
+      # `if: ${{ !cancelled() }}` so the report still posts when a test failed
+      # above (--continue kept the run going, Turbo exits non-zero, but the
+      # coverage that did get written is still worth seeing). `file-coverage-mode:
+      # all` lists every source file — including 0%-covered ones — so untested
+      # files surface. No `vite-config-path`: there are no thresholds to read, and
+      # pointing paths from the repo root avoids the action loading a build config.
+      - name: Coverage report — trading-core
+        if: ${{ !cancelled() }}
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          name: trading-core
+          json-summary-path: packages/trading-core/coverage/coverage-summary.json
+          json-final-path: packages/trading-core/coverage/coverage-final.json
+          file-coverage-mode: all
+
+      - name: Coverage report — trading-react
+        if: ${{ !cancelled() }}
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          name: trading-react
+          json-summary-path: packages/trading-react/coverage/coverage-summary.json
+          json-final-path: packages/trading-react/coverage/coverage-final.json
+          file-coverage-mode: all
+
+      - name: Coverage report — utils
+        if: ${{ !cancelled() }}
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          name: utils
+          json-summary-path: packages/utils/coverage/coverage-summary.json
+          json-final-path: packages/utils/coverage/coverage-final.json
+          file-coverage-mode: all
+
+      - name: Coverage report — session-key
+        if: ${{ !cancelled() }}
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          name: session-key
+          json-summary-path: packages/session-key/coverage/coverage-summary.json
+          json-final-path: packages/session-key/coverage/coverage-final.json
+          file-coverage-mode: all
 
   # Verify the PUBLISHED shape of the packages (compiled JS, generated .d.ts, and the
   # exports/files manifest) the way an external npm consumer sees them — packed tarballs

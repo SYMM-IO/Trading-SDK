@@ -74,6 +74,7 @@
     "check-types": "tsc --noEmit",
     "test": "vitest run --project unit",
     "test:watch": "vitest --project unit",
+    "test:coverage": "vitest run --project unit --coverage",
     "test:integration": "vitest run --project integration"
   },
   "dependencies": {
@@ -97,6 +98,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.10",
     "@wagmi/connectors": "^8.0.0",
     "eslint": "^9.39.4",
     "happy-dom": "^16.0.0",
@@ -106,7 +108,7 @@
     "viem": "^2.49.0",
     "vite": "^8.0.10",
     "vite-plugin-dts": "^5.0.0",
-    "vitest": "^4.1.6",
+    "vitest": "^4.1.10",
     "wagmi": "^3.4.2"
   }
 }
