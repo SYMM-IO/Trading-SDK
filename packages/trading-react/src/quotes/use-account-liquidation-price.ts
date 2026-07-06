@@ -15,7 +15,7 @@ import { usePartyAOpenPositions } from "./use-party-a-open-positions";
  * Parameters for {@link useAccountLiquidationPrice}.
  */
 export interface UseAccountLiquidationPriceParameters extends ConfigParameter {
-  /** Account address (a sub-account for Majors, a virtual account for lowcap). */
+  /** Account address (virtual account for lowcap). */
   account?: Address;
   /** Optional override; defaults to the connected chain. */
   chainId?: number;
@@ -38,12 +38,9 @@ const EMPTY: UseAccountLiquidationPriceReturnType = { liquidationPrice: 0n, isLo
  * info and its open positions from the SYMMIO core and feeding them into
  * {@link calculateLiquidationPrice}.
  *
- * Works for both a sub-account (Majors) and a virtual account (lowcap) — the
- * formula is the same per-account; the only difference is the address you pass.
- *
- * Net position direction is taken from the first active position. lowcap VAs are
- * single-direction by design; for a mixed-direction account the result reflects
- * the first position's side only.
+ * Net position direction is taken from the first active position. Lowcap virtual
+ * accounts are single-direction by design; for a mixed-direction account the
+ * result reflects the first position's side only.
  *
  * @example
  * ```tsx

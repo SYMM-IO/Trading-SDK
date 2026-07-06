@@ -9,7 +9,7 @@ export type GetMuonUpnlWithSymbolPriceParameters = Compute<
   ChainIdParameter & {
     /** The partyB (solver) side of the attestation. */
     partyB: Address;
-    /** The partyA (a subaccount for Majors, a virtual account for VibeCaps) to attest. */
+    /** The partyA (virtual account, lowcap) to attest. */
     partyA: Address;
     /** The symbol id whose price is included in the attestation. */
     symbolId: bigint;

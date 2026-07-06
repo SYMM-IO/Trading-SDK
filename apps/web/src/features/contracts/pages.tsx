@@ -95,7 +95,7 @@ export const FLOW_PAGES: readonly ContractPage[] = [
     eyebrow: "Flow",
     title: "Positions",
     description:
-      "Discover a subaccount's virtual accounts, then read its open positions and pending quote ids, and inspect any quote by id. For VibeCaps, partyA is the VA; for Majors it is the subaccount.",
+      "Discover a subaccount's virtual accounts, then read its open positions and pending quote ids, and inspect any quote by id. partyA is the virtual account.",
     icon: <PositionsIcon />,
   },
   {

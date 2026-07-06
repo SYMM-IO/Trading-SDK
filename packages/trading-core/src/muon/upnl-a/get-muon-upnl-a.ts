@@ -7,7 +7,7 @@ import { MUON_METHOD_UPNL_A, type MuonAttestationBase } from "../types";
 /** Parameters for {@link getMuonUpnlA}. */
 export type GetMuonUpnlAParameters = Compute<
   ChainIdParameter & {
-    /** The partyA (a subaccount for Majors, a virtual account for VibeCaps) to attest. */
+    /** The partyA (virtual account for lowcap) to attest. */
     partyA: Address;
   }
 >;

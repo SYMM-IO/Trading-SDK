@@ -851,8 +851,6 @@ export { SymmApiError, SymmError, type SymmErrorKind } from "./shared/errors/sym
  * operations, hedger HTTP wrapper, and three action layers — pure primitive
  * (`instantOpen`), wizard (`prepareInstantOpenParams`), and auto convenience
  * (`instantOpenAuto`).
- *
- * Lowcap only — Majors flows are out of scope.
  */
 export {
   // selectors

@@ -7,7 +7,7 @@ import { MUON_METHOD_UPNL_A_WITH_SYMBOL_PRICE, type MuonAttestationBase } from "
 /** Parameters for {@link getMuonUpnlAWithSymbolPrice}. */
 export type GetMuonUpnlAWithSymbolPriceParameters = Compute<
   ChainIdParameter & {
-    /** The partyA (a subaccount for Majors, a virtual account for VibeCaps) to attest. */
+    /** The partyA (virtual account, lowcap) to attest. */
     partyA: Address;
     /** The symbol whose price is attested alongside the uPnL. */
     symbolId: bigint;

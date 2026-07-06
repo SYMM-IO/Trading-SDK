@@ -42,12 +42,12 @@ interface Props {
 type PartyAKind = "sub" | "va";
 
 /**
- * Address field for a SYMMIO `partyA`, which may be a SubAccount (Majors) or one
- * of its Virtual Accounts (VibeCaps). The picker lists the owner's subaccounts as
- * expandable groups; expanding a subaccount lazily loads its VA addresses so the
- * user can select the subaccount itself or any of its VAs. A pasted/typed address
- * is still accepted directly. Pass `selectable="va"` to restrict selection to
- * Virtual Accounts only (see {@link VirtualAccountField}).
+ * Address field for a SYMMIO `partyA` — a subaccount or one of its virtual
+ * accounts (lowcap). The picker lists the owner's subaccounts as expandable
+ * groups; expanding a subaccount lazily loads its VA addresses so the user can
+ * select the subaccount itself or any of its VAs. A pasted/typed address is
+ * still accepted directly. Pass `selectable="va"` to restrict selection to
+ * virtual accounts only (see {@link VirtualAccountField}).
  */
 export function PartyAField({
   idPrefix,

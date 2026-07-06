@@ -11,7 +11,7 @@ export type GetMuonPriceRangeParameters = Compute<
     t0: bigint;
     /** Window end in unix seconds. */
     t1: bigint;
-    /** The partyA (a subaccount for Majors, a virtual account for VibeCaps) to attest. */
+    /** The partyA (virtual account for lowcap) to attest. */
     partyA: Address;
     /** The partyB counterparty of the position. */
     partyB: Address;

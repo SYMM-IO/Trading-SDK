@@ -29,8 +29,7 @@ Non-negotiable. Violating any of them is a defect.
 4. **All apps and packages are written in TypeScript.** Do not add `.js` source files to any package under `apps/*` or `packages/*`. Config files that conventionally ship as JavaScript (e.g. `postcss.config.js`, `next.config.*` when a project requires it) are the only exception; everything else — source, tests, scripts — must be TypeScript.
 5. **`packages/trading-core` is framework-agnostic.** No React, Vue, or any other framework imports. No browser-only globals at module scope. If a flow needs framework state, put it in `packages/trading-react` (or a future framework layer), not in `core`.
 6. **`apps/web` consumes hooks and providers from `@symmio/trading-react`, types and chain config from `@symmio/trading-core`.** Import runtime functionality (hooks, providers) from `react`. Import types, enums, and chain config (`SymmioSupportedChainId`, `getChainConfig`, etc.) from `core`. Do not re-export `core` types through `react`.
-7. **Majors trading logic requires explicit user approval.** The phase scope for Majors has not been decided. If a task appears to touch Majors flows, stop and confirm with the user before doing any work.
-8. **Honor the Design Proposal Gate.** For any non-trivial work in `packages/trading-core` or `packages/trading-react`, output a design proposal and wait for explicit user approval before writing implementation code. See [Design Proposal Gate](#design-proposal-gate) below.
+7. **Honor the Design Proposal Gate.** For any non-trivial work in `packages/trading-core` or `packages/trading-react`, output a design proposal and wait for explicit user approval before writing implementation code. See [Design Proposal Gate](#design-proposal-gate) below.
 
 ## Project Vocabulary
 
@@ -40,7 +39,6 @@ Non-negotiable. Violating any of them is a defect.
 - **core** — `packages/trading-core`. Framework-agnostic SDK. Does not exist on disk yet; see [Current Package State](#current-package-state).
 - **react** — `packages/trading-react`. React layer on top of `core`.
 - **VibeCaps** — lowcap trading flow.
-- **Majors** — blue-chip trading flow. Out of scope without explicit approval (Hard Rule 7).
 - **Vibe-ui** — separate reference repo: full Next.js UI built against the raw product surface. See [Reference Repos](#reference-repos).
 - **Explorer** — separate reference repo: lower-level data display UI. Contains an **Inspector** section that is the closest existing analogue to the SDK boundary.
 - **vendors** — the multiple teams that produce and manage the product data the SDK wraps. Specifics are not yet documented here; see [Vendors & Data Sources](#vendors--data-sources).
@@ -128,7 +126,7 @@ When in doubt, write the proposal.
 
 ### When to stop and ask
 
-- **Scope unclear** (VibeCaps vs Majors, this phase vs later)? Ask.
+- **Scope unclear** (this phase vs later)? Ask.
 - **Package placement unclear** (`core` vs `react` vs `ui` vs `web`)? Ask.
 - **A Vibe-ui or Explorer pattern seems wrong for the SDK**? Ask before copying.
 - **Public API shape unclear**? Propose two options in the design proposal and let the user pick.

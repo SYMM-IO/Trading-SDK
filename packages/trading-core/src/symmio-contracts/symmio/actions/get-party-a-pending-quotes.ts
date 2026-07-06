@@ -8,7 +8,7 @@ import { symmioAbi } from "../../abi/v0.8.5/symmio";
  */
 export type GetPartyAPendingQuotesParameters = Compute<
   ChainIdParameter & {
-    /** The partyA whose pending quote ids to read — a SubAccount (Majors) or Virtual Account (VibeCaps). */
+    /** The partyA (virtual account, lowcap) whose pending quote ids to read. */
     partyA: Address;
   }
 >;

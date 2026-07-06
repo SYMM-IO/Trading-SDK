@@ -7,7 +7,7 @@ import { MUON_METHOD_SETTLE_UPNL, type MuonAttestationBase } from "../types";
 /** Parameters for {@link getMuonSettleUpnl}. */
 export type GetMuonSettleUpnlParameters = Compute<
   ChainIdParameter & {
-    /** The partyA (a subaccount for Majors, a virtual account for VibeCaps) whose quotes to settle. */
+    /** The partyA (virtual account for lowcap) whose quotes to settle. */
     partyA: Address;
     /** Quote ids to include in the settlement attestation. */
     quoteIds: readonly bigint[];
