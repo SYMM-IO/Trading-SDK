@@ -69,6 +69,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       className={`${display.variable} ${sans.variable} ${mono.variable}`}
       suppressHydrationWarning
     >
+      {/* Favicon comes from the file-based metadata icons (app/icon.svg +
+          app/favicon.ico), so no faviconGlyph here — that would inject a
+          competing emoji <link>. */}
       <Head
         color={{
           hue: 225,
@@ -76,7 +79,6 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           lightness: { dark: 62, light: 54 },
         }}
         backgroundColor={{ dark: "#0a0b0f", light: "#f7f8fa" }}
-        faviconGlyph="▲"
       />
       <body>
         <Layout
