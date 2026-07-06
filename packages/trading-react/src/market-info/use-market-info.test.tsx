@@ -41,8 +41,10 @@ describe("useMarketInfo", () => {
     expect(result.current.data).toEqual(RESULT);
     expect(getMarketInfoQueryOptions).toHaveBeenCalledWith(
       config,
-      expect.objectContaining({ chainId: expect.any(Number), query: undefined }),
+      expect.objectContaining({ chainId: expect.any(Number) }),
     );
+    const [, forwardedOptions] = getMarketInfoQueryOptions.mock.lastCall ?? [];
+    expect(forwardedOptions?.query).toBeUndefined();
   });
 
   it("forwards a consumer-supplied query.refetchInterval to opt into polling", async () => {

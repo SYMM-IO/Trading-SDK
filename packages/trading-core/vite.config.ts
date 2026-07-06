@@ -131,7 +131,13 @@ export default defineConfig({
     coverage: {
       /** v8 is faster than istanbul and built into Node — no extra instrumentation. */
       provider: "v8",
-      reporter: ["text", "html"],
+      /**
+       * `text` prints the summary to the console, `html` is browsable locally
+       * (`coverage/index.html`), and `json` + `json-summary` are the
+       * machine-readable reports the CI PR-comment step
+       * (`davelosert/vitest-coverage-report-action`) parses.
+       */
+      reporter: ["text", "html", "json", "json-summary"],
       include: ["src/**/*.ts"],
       /**
        * Test files and barrel `index.ts` re-exports aren't meaningful coverage
