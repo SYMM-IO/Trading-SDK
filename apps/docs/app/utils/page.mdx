@@ -1,6 +1,8 @@
 # Utils
 
-`@symmio/utils` is a framework-agnostic helper layer for SYMMIO SDK consumers. No React and no wagmi. Helpers work in Node scripts, browser bundles, and any framework; browser-specific behavior belongs in the consuming app.
+`@symmio/utils` is a framework-agnostic helper layer for SYMMIO SDK consumers. No React, no wagmi, no domain logic. Helpers work in Node scripts, browser bundles, and any framework; browser-specific behavior belongs in the consuming app.
+
+**Every export is a pure function or constant.** No side effects (except the explicit `configureSymmDecimal` opt-in), no I/O, no state. Safe to call in render loops.
 
 ## Install
 
@@ -12,14 +14,25 @@ pnpm add @symmio/utils viem
 
 ## Sections
 
-- **[Amounts (bigint)](/utils/amounts)** — viem-backed `bigint ↔ string` token amount helpers + a Decimal.js bridge.
-- **[Decimal helpers](/utils/decimal)** — chainable Decimal-based math (`toDecimal`, `safeDivide`, `formatUnits` returning `Decimal`, …).
-- **[Display formatters](/utils/format)** — thousand separators, compact (K/M/B/T), currency, percentage, dynamic precision, relative timestamps.
-- **[Address & hash](/utils/address)** — `shortenAddress` (checksummed), `minifyHash` (any string).
+- **[Amounts (bigint)](/utils/amounts)** — viem-backed `bigint ↔ string` token amount helpers + a Decimal.js bridge. `formatTokenAmount`, `parseTokenAmount`, `rawToDecimal`, `decimalToRaw`, `WEI_DECIMALS`.
+- **[Decimal helpers](/utils/decimal)** — chainable Decimal-based math (`toDecimal`, `safeDivide`, `formatUnits` returning `Decimal`, `RoundingMode`, `configureSymmDecimal`, `ZERO_DECIMAL`).
+- **[Display formatters](/utils/format)** — thousand separators, compact (K/M/B/T/Q), currency, percentage, dynamic precision, relative timestamps.
+- **[Address & hash](/utils/address)** — `shortenAddress` (checksummed), `minifyHash` (any hex).
+
+## Sub-entry imports
+
+The root barrel (`@symmio/utils`) re-exports every helper for convenience. **Deep imports** through each sub-entry tree-shake more cleanly and dodge naming collisions with viem:
+
+```ts
+import { formatTokenAmount } from "@symmio/utils/amounts";
+import { formatUnits, toDecimal } from "@symmio/utils/decimal";
+import { formatCompact, formatCurrency } from "@symmio/utils/format";
+import { shortenAddress } from "@symmio/utils/address";
+```
 
 ## Naming overlap with viem
 
-This package exposes `formatUnits` / `parseUnits` / `formatEther` / `parseEther` under `@symmio/utils/decimal`. They **return / accept Decimal**, not strings — that's the key difference from viem's same-named functions. To avoid ambiguity, the root barrel (`@symmio/utils`) does **not** re-export them. Use the deep import:
+`@symmio/utils/decimal` exposes `formatUnits` / `parseUnits` / `formatEther` / `parseEther` that **return / accept `Decimal`**, not strings — that's the key difference from viem's same-named functions. To avoid ambiguity, the root barrel does **not** re-export them. Always deep-import:
 
 ```ts
 import { formatUnits, parseUnits } from "@symmio/utils/decimal"; // Decimal-based
@@ -28,6 +41,12 @@ import { formatUnits, parseUnits } from "viem"; // string/bigint-based
 
 ## Already using `@symmio/trading-react`?
 
-`react` re-exports the most-used helpers (`formatTokenAmount`, `parseTokenAmount`, `rawToDecimal`, `decimalToRaw`, `shortenAddress`) so you don't have to install `@symmio/utils` separately just to format a balance.
+`react` re-exports the most-used helpers (`formatTokenAmount`, `parseTokenAmount`, `rawToDecimal`, `decimalToRaw`, `shortenAddress`) so simple apps don't need a second dependency for basic amount / address rendering.
 
-If you want the full surface — Decimal helpers, compact-currency, and dynamic decimals — add `@symmio/utils` as a direct dependency.
+Add `@symmio/utils` directly when you want the full surface — Decimal chainables, compact-currency, dynamic decimals, percentage, relative timestamps.
+
+## What's NOT in utils
+
+- **Contract calls, ABI fragments, address registries.** Those live in `@symmio/trading-core`.
+- **React hooks.** Those live in `@symmio/trading-react`.
+- **DOM globals.** Utils runs in Node scripts and workers too — no `window` / `document` at module scope.

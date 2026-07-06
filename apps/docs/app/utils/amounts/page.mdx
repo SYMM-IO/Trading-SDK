@@ -3,7 +3,20 @@
 Viem-backed helpers for converting between raw on-chain `bigint` amounts and human-readable strings, plus a bridge into Decimal.js when you need UI-side math.
 
 ```ts
-import { formatTokenAmount, parseTokenAmount, rawToDecimal, decimalToRaw } from "@symmio/utils/amounts";
+import { WEI_DECIMALS, formatTokenAmount, parseTokenAmount, rawToDecimal, decimalToRaw } from "@symmio/utils/amounts";
+```
+
+## `WEI_DECIMALS`
+
+```ts
+const WEI_DECIMALS = 18;
+```
+
+Convenience constant for the standard 18-decimal wei precision every SYMMIO contract quotes / amounts use. Prefer it over hard-coding `18` at call sites so a one-day migration to a different collateral precision is a single-file edit.
+
+```ts
+formatTokenAmount(rawWei, WEI_DECIMALS);
+parseTokenAmount(userInput, WEI_DECIMALS);
 ```
 
 ## `formatTokenAmount`
