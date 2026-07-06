@@ -10,6 +10,7 @@ export default {
   index: { title: "Home", display: "hidden" },
   introduction: "Introduction",
   "getting-started": "Getting Started",
+  guides: "Guides",
   "-- libraries": {
     type: "separator",
     title: "Libraries",

@@ -4,6 +4,21 @@ The solver APIs are off-chain REST endpoints configured per chain in `createConf
 
 Use these APIs when you need solver metadata before building a trade flow: market lists, leverage limits, and locked percentages for a market/leverage pair.
 
+## Protocol model — intent-based, no orderbook
+
+SYMMIO is intent-based. The current lowcap version has **no orderbook**. Positions are opened peer-to-peer between two roles:
+
+- **partyA** — the user. Sends an intent to open a position.
+- **partyB** — a solver. Watches partyA intents and takes the opposite side, becoming the direct counterparty.
+
+Every lowcap position is one partyA ↔ one partyB agreement. There is no shared book, no matching engine, no other users on the other side. The solver _is_ the counterparty.
+
+Implications when building on the SDK:
+
+- No bid/ask depth to render. Prices come from off-chain feeds (see [Price Service](/core/price-service)), not an on-chain book.
+- Trade lifecycle is intent → solver acceptance → on-chain settlement. Surface intent state, not order-fill progress.
+- `partyA` / `partyB` in ABIs, events, and notifications always mean user / solver respectively.
+
 ## Markets
 
 ### `getMarkets`
