@@ -100,7 +100,6 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           lightness: { dark: 62, light: 54 },
         }}
         backgroundColor={{ dark: "#0a0b0f", light: "#f7f8fa" }}
-        faviconGlyph="▲"
       />
       <body>
         <Layout
@@ -110,6 +109,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           pageMap={await getPageMap()}
           docsRepositoryBase="https://github.com/shuding/nextra/tree/main/docs"
           nextThemes={{ attribute: "class", defaultTheme: "dark" }}
+          sidebar={{ defaultMenuCollapseLevel: 1, autoCollapse: true }}
         >
           {children}
         </Layout>

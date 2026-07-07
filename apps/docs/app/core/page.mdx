@@ -7,10 +7,10 @@ Framework layers (`@symmio/trading-react`, a future Vue layer) sit on top of `co
 ## Install
 
 ```sh
-pnpm add @symmio/trading-core viem @tanstack/query-core
+pnpm add @symmio/trading-core viem
 ```
 
-`viem` is a peer dependency — bring your own copy. `@tanstack/query-core` is used for types only in the query-options factories.
+`viem` is the only peer dependency — bring your own copy.
 
 ## Shape
 
@@ -30,7 +30,7 @@ const config = createConfig({
 const subs = await getUserSubAccounts(config, { user: "0xabc..." });
 ```
 
-Every read also ships a matching `getXyzQueryOptions(config, options)` factory returning a fully-formed TanStack Query options bag — feed it into `useQuery` (React) or `queryClient.fetchQuery` (anywhere).
+Every read also ships a matching `getXyzQueryOptions(config, options)` factory returning a fully-formed TanStack Query options bag — feed it into `useQuery` or `queryClient.fetchQuery`.
 
 See [Config](/core/concepts/config) and [Query options](/core/concepts/query-options).
 
