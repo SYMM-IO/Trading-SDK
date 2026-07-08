@@ -15,6 +15,6 @@ export const baseConfig = defineConfig(
     },
   },
   {
-    ignores: ["**/dist/**", "**/.next/**", "**/node_modules/**", "**/storybook-static/**"],
+    ignores: ["**/dist/**", "**/.next/**", "**/node_modules/**", "**/storybook-static/**", "**/coverage/**"],
   },
 );

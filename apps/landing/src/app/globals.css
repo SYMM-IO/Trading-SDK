@@ -1,0 +1,354 @@
+@import "@symmio/ui/globals.css";
+
+/**
+ * Scan this app's own source for utility classes used in JSX. The UI package
+ * declares its own `@source` for `packages/ui/src/**`, so we only add the
+ * consumer side here.
+ */
+@source "../**/*.{ts,tsx}";
+
+/**
+ * Bind the app's loaded webfonts (see `layout.tsx`) to the design-system font
+ * tokens, exactly as `apps/web` does — Bricolage Grotesque drives display
+ * headings, Hanken Grotesque the UI/body, JetBrains Mono every figure and hash.
+ */
+@theme inline {
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-hanken), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    overflow-x: clip;
+  }
+
+  body {
+    position: relative;
+    min-height: 100%;
+    background-color: var(--background);
+  }
+
+  /**
+   * Atmosphere — cobalt glows anchored top-center plus a fine grid that fades
+   * into the page. Fixed and behind all content, pointer-events off. Same
+   * vocabulary as `apps/web`, tuned wider for a full-bleed marketing surface.
+   */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    background:
+      radial-gradient(70rem 46rem at 76% -14%, color-mix(in oklab, var(--primary) 18%, transparent), transparent 60%),
+      radial-gradient(56rem 40rem at 4% -6%, color-mix(in oklab, var(--chart-5) 12%, transparent), transparent 58%),
+      radial-gradient(46rem 34rem at 50% 108%, color-mix(in oklab, var(--chart-2) 8%, transparent), transparent 60%);
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, color-mix(in oklab, var(--border) 68%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--border) 68%, transparent) 1px, transparent 1px);
+    background-size: 60px 60px;
+    -webkit-mask-image: radial-gradient(125% 80% at 50% -6%, #000 26%, transparent 78%);
+    mask-image: radial-gradient(125% 80% at 50% -6%, #000 26%, transparent 78%);
+    opacity: 0.5;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 32%, transparent) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--muted-foreground) 30%, transparent);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--muted-foreground) 48%, transparent);
+    background-clip: padding-box;
+  }
+}
+
+/**
+ * Motion vocabulary. Most reveals are orchestrated in JS with `motion`; the
+ * keyframes below drive the ambient, always-on effects that would be wasteful
+ * to run off a render loop — the ticker marquee, the accent sweep on the hero
+ * wordmark, and the soft breathing of the atmosphere.
+ */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    /* Two copies of the track sit side by side; shift by exactly one. */
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes sheen {
+  0% {
+    background-position: -120% 0;
+  }
+  60%,
+  100% {
+    background-position: 220% 0;
+  }
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes grid-drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0 -60px;
+  }
+}
+
+.animate-marquee {
+  animation: marquee var(--marquee-duration, 42s) linear infinite;
+}
+
+.pause-on-hover:hover .animate-marquee {
+  animation-play-state: paused;
+}
+
+/**
+ * A cobalt gradient text sweep. Applied to the wordmark accent so the primary
+ * color reads as *charged*, not flat.
+ */
+.text-sheen {
+  background-image: linear-gradient(
+    100deg,
+    var(--primary) 0%,
+    color-mix(in oklab, var(--primary) 55%, var(--foreground)) 45%,
+    var(--primary) 60%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sheen 6s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: float-slow 7s ease-in-out infinite;
+}
+
+/** Dotted connector used in the SDK-layer diagram. */
+.dotted-line {
+  background-image: linear-gradient(to bottom, color-mix(in oklab, var(--primary) 60%, transparent) 40%, transparent 0);
+  background-size: 2px 8px;
+  background-repeat: repeat-y;
+}
+
+/**
+ * Featured library card — a slow cobalt→violet arc travels the card border
+ * while the surface stays graphite. The ring is a masked pseudo-element, so it
+ * layers on top of the card's own translucent fill rather than replacing it:
+ * the conic gradient keeps a faint cobalt base all the way round and lights one
+ * short arc at a time, sweeping it with the animated `--border-angle`. Same
+ * "charged" register as `.text-sheen`.
+ */
+@property --border-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.card-live-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--border-angle),
+    color-mix(in oklab, var(--primary) 22%, transparent) 0deg,
+    color-mix(in oklab, var(--primary) 22%, transparent) 200deg,
+    var(--primary) 272deg,
+    var(--chart-5) 315deg,
+    color-mix(in oklab, var(--primary) 22%, transparent) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: border-spin 4.5s linear infinite;
+}
+
+@keyframes border-spin {
+  to {
+    --border-angle: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .text-sheen,
+  .animate-float-slow {
+    animation: none !important;
+  }
+
+  /* Freeze the featured card to a full, static cobalt→violet edge. */
+  .card-live-border::before {
+    animation: none !important;
+    background: linear-gradient(120deg, var(--primary), var(--chart-5));
+  }
+
+  .text-sheen {
+    color: var(--primary);
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/**
+ * Mobile navigation drawer — standing "aurora mesh" atmosphere.
+ *
+ * The panel itself is now a solid, opaque `bg-background` slab. The previous
+ * `bg-background/95` + `backdrop-blur-xl` read as translucent over the
+ * full-screen backdrop and let page content bleed through — that is the bug
+ * this fixes. The panel is `isolate`, so this `-z-10` wrapper paints ABOVE the
+ * opaque fill but strictly BELOW the in-flow nav links (link contrast is never
+ * touched), and the wrapper's own `overflow-hidden` clips the oversized layers
+ * to the panel. It re-hosts the page's own atmosphere (see body::before /
+ * body::after): the same cobalt / violet / green radial triad and the same 60px
+ * masked hairline grid on the shared `grid-drift` keyframe, so the drawer reads
+ * as the site continuing rather than a separate slab.
+ *
+ * Two oversized aurora layers drift and cross-fade out of phase to morph as one
+ * mesh; the blooms sit in the corners so the vertical reading column stays calm.
+ * A top-anchored grid adds the technical register, and a static scrim washes the
+ * lower-left toward `--background` to firm contrast under the links and footer.
+ * Only transform / opacity / background-position animate (compositor-friendly),
+ * and softness comes from wide radial falloffs rather than a blur filter, so
+ * there is no per-frame rasterization on mobile. Every colour is `color-mix` on
+ * the theme tokens, so light and dark both tune themselves.
+ */
+.drawer-atmos > * {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* Back aurora — violet foot bottom-left, faint green bottom-right, low cobalt
+   echo mid-panel: carries the full primary / chart-5 / chart-2 triad. */
+.drawer-aurora-b {
+  inset: -32%;
+  background:
+    radial-gradient(58% 50% at 20% 92%, color-mix(in oklab, var(--chart-5) 22%, transparent), transparent 70%),
+    radial-gradient(46% 42% at 88% 84%, color-mix(in oklab, var(--chart-2) 14%, transparent), transparent 72%),
+    radial-gradient(52% 48% at 58% 60%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 74%);
+  opacity: 0.5;
+  will-change: transform, opacity;
+  animation: drawer-aurora-b 34s ease-in-out infinite;
+}
+
+/* Front aurora — cobalt crown top-right, violet bloom upper-left. */
+.drawer-aurora-a {
+  inset: -32%;
+  background:
+    radial-gradient(52% 46% at 82% 12%, color-mix(in oklab, var(--primary) 26%, transparent), transparent 68%),
+    radial-gradient(50% 48% at 10% 30%, color-mix(in oklab, var(--chart-5) 20%, transparent), transparent 72%);
+  opacity: 0.6;
+  will-change: transform, opacity;
+  animation: drawer-aurora-a 26s ease-in-out infinite;
+}
+
+/* The site's 60px hairline grid, anchored over the wordmark and dissolving into
+   solid graphite before the footer. Reuses the shared `grid-drift` keyframe. */
+.drawer-grid {
+  inset: 0;
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--border) 68%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--border) 68%, transparent) 1px, transparent 1px);
+  background-size: 60px 60px;
+  -webkit-mask-image: radial-gradient(120% 66% at 30% -8%, #000 24%, transparent 80%);
+  mask-image: radial-gradient(120% 66% at 30% -8%, #000 24%, transparent 80%);
+  opacity: 0.5;
+  animation: grid-drift 24s linear infinite;
+}
+
+/* Static contrast scrim — clear at the top-right so the aurora glows, firming
+   toward `--background` across the lower-left where the links and footer sit. */
+.drawer-scrim {
+  inset: 0;
+  background: linear-gradient(
+    215deg,
+    transparent 0%,
+    color-mix(in oklab, var(--background) 55%, transparent) 46%,
+    color-mix(in oklab, var(--background) 80%, transparent) 100%
+  );
+}
+
+/**
+ * Anti-correlated envelopes: as the front layer swells and brightens, the back
+ * layer settles and dims — one morphing mesh, not two loops. The mismatched
+ * 26s / 34s periods keep them beating out of phase so it never visibly repeats.
+ */
+@keyframes drawer-aurora-a {
+  0%,
+  100% {
+    transform: translate3d(-3%, -2%, 0) scale(1.06) rotate(0deg);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate3d(3%, 3%, 0) scale(1.15) rotate(3deg);
+    opacity: 0.74;
+  }
+}
+
+@keyframes drawer-aurora-b {
+  0%,
+  100% {
+    transform: translate3d(3%, 2%, 0) scale(1.14) rotate(0deg);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate3d(-3%, -3%, 0) scale(1.02) rotate(-4deg);
+    opacity: 0.34;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Freeze to a calm, centered blend — the layers overlaid at rest and the grid
+     still. `inset: -32%` keeps full coverage at scale 1, so no hard edges show. */
+  .drawer-aurora-a,
+  .drawer-aurora-b,
+  .drawer-grid {
+    animation: none !important;
+    transform: none;
+  }
+}

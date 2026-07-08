@@ -4,6 +4,7 @@ const withNextra = nextra({});
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  trailingSlash: true,
   reactStrictMode: true,
   experimental: {
     // Force server-component renders to invalidate on every file change so
