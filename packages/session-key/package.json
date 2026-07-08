@@ -1,6 +1,6 @@
 {
   "name": "@symmio/session-key",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Framework-agnostic local EVM session-key helpers for SYMMIO SDK consumers.",
   "license": "MIT",
   "homepage": "https://github.com/SYMM-IO/SYMM-Frontier/tree/main/packages/session-key#readme",
