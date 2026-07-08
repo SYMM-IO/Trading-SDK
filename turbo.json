@@ -1,7 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
-  "globalEnv": ["CI", "E2E_SEED_PHRASE", "SYMM_TEST_PRIVATE_KEY", "SYMM_RUN_INTEGRATION"],
+  "globalEnv": ["CI", "E2E_SEED_PHRASE", "NODE_ENV", "SYMM_TEST_PRIVATE_KEY", "SYMM_RUN_INTEGRATION"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

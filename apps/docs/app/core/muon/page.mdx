@@ -1,0 +1,108 @@
+# Muon oracle
+
+Muon is a decentralized oracle network. SYMMIO uses it to attest to unrealized-PnL (UPNL) values, price windows, and account overviews that must be signed by a trusted quorum before the contract will accept them (e.g. `deallocate`, close settlement).
+
+`@symmio/trading-core` exposes the Muon REST surface as typed actions. Each returns a signature payload consumers pass along to the on-chain write.
+
+## Import
+
+```ts
+import {
+  getMuonPrice,
+  getMuonPriceRange,
+  getMuonUpnl,
+  getMuonUpnlA,
+  getMuonUpnlB,
+  getMuonUpnlWithSymbolPrice,
+  getMuonUpnlAWithSymbolPrice,
+  getMuonSettleUpnl,
+  getMuonPartyAOverview,
+  type MuonSignature,
+  type MuonResponse,
+} from "@symmio/trading-core";
+```
+
+## Actions
+
+### `getMuonPrice`
+
+Attested single-point price for a market.
+
+```ts
+const priceSig = await getMuonPrice(config, { symbolId: 1n });
+```
+
+### `getMuonPriceRange`
+
+Attested min/max price window across a block range — used by triggered orders where the fill must reference the range not a single tick.
+
+```ts
+const rangeSig = await getMuonPriceRange(config, {
+  symbolId: 1n,
+  fromBlock: 100n,
+  toBlock: 200n,
+});
+```
+
+### `getMuonUpnl` / `getMuonUpnlA` / `getMuonUpnlB`
+
+Attest to an account's UPNL at the current block. Variants:
+
+- `getMuonUpnl` — either side.
+- `getMuonUpnlA` — PartyA (trader).
+- `getMuonUpnlB` — PartyB (solver).
+
+```ts
+const upnlSig = await getMuonUpnlA(config, { partyA });
+```
+
+### `getMuonUpnlWithSymbolPrice` / `getMuonUpnlAWithSymbolPrice`
+
+UPNL + market price in a single attestation. The contract accepts this combined payload for writes that need both (e.g. partial close settlement).
+
+```ts
+const combo = await getMuonUpnlAWithSymbolPrice(config, {
+  partyA,
+  symbolId: 1n,
+});
+```
+
+### `getMuonSettleUpnl`
+
+Full settlement UPNL attestation across both parties. Required by settlement flows that must synchronize both sides.
+
+### `getMuonPartyAOverview`
+
+Account-wide UPNL + collateral snapshot for a PartyA — one attestation covering every open position.
+
+## Return shape
+
+Every action returns a signature payload of the form:
+
+```ts
+interface MuonResponse<Data> {
+  success: boolean;
+  result?: {
+    data: Data; // decoded, typed fields (upnl, price, timestamp, …)
+    signature: MuonSignature; // reqId, signature, gatewayNonce, …
+  };
+  error?: { message: string; code?: number };
+}
+```
+
+The typed actions unpack `result` when `success === true` and throw a `SymmError` (`kind: "api"`) otherwise. The full raw response is available on error `cause` for debugging.
+
+## Chain config
+
+Muon URLs live in the chain-config registry: `Config.getChainConfig(chainId).muon.urls`. When missing, actions throw `MUON_URLS_NOT_CONFIGURED`.
+
+## Errors
+
+- `MUON_URLS_NOT_CONFIGURED` — chain has no Muon endpoint.
+- `FETCH_MUON_REQUEST_FAILED` — transport / HTTP failure; inspect `SymmApiError`.
+- Muon-side errors (quorum failure, invalid request) surface as `SymmError` (`kind: "api"`) with the Muon `error.message`.
+
+## Related
+
+- [SYMMIO Contract](../symmio-contract) — writes that consume Muon signatures (`deallocate`, settle).
+- [Errors](../concepts/errors) — full `SymmError` catalogue.

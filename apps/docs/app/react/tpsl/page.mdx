@@ -50,7 +50,9 @@ const record = useTpSlRecord(quoteId);
 
 Returns `TpSlRecord | undefined`. Reactive — Zustand re-renders when the record changes.
 
-## `useQuoteTpSl`
+## Reads
+
+### `useQuoteTpSl`
 
 The public hook. Reads the folded TP/SL snapshot for one quote, drives the REST fetch, subscribes to the WS report stream.
 
@@ -69,7 +71,7 @@ if (tpsl.data) {
 
 Pass either the on-chain `quoteId` or the hedger `tempQuoteId`. The store's id index resolves both to the same record; whichever id the WS or solver reveals second is linked in.
 
-### Parameters
+#### Parameters
 
 | Name      | Type       | Default        | Notes                                                            |
 | --------- | ---------- | -------------- | ---------------------------------------------------------------- |
@@ -79,11 +81,32 @@ Pass either the on-chain `quoteId` or the hedger `tempQuoteId`. The store's id i
 | `query`   | `object?`  | `undefined`    | TanStack Query overrides.                                        |
 | `config`  | `Config?`  | provider value | Optional config override.                                        |
 
-### Return type
+#### Return type
 
 `UseQueryResult<TpSlRecord, SymmioRequestError>` — `data` is the folded record.
 
-## Mutations
+### `useWatchTpSlNotifications`
+
+Low-level WS subscription for a SubAccount. `useQuoteTpSl` uses it internally; call it directly only when a component wants raw frames without the store side effects.
+
+```tsx
+import { useWatchTpSlNotifications } from "@symmio/trading-react";
+
+const { status, error } = useWatchTpSlNotifications({
+  account: subAccount,
+  onNotification: (frame) => console.log(frame),
+});
+```
+
+### `useTpSlConfig`
+
+Fetch handler-side rules for one chain (`minPriceDistancePercent`, `minProfitStopLossSpreadPercent`).
+
+### `useTpSlSigningSpec`
+
+Fetch the EIP-712 typed-data domain + schema (`primaryType`, `types`, `domain`). Mutations use it internally; expose it when signing outside the SDK.
+
+## Writes
 
 ### `useSetQuoteTpSl`
 
@@ -162,19 +185,6 @@ Marks `"confirming"` under the `tempQuoteId`. The solver notification that later
 
 ## Live reconciliation
 
-### `useWatchTpSlNotifications`
-
-Low-level WS subscription for a SubAccount. `useQuoteTpSl` uses it internally; call it directly only when a component wants raw frames without the store side effects.
-
-```tsx
-import { useWatchTpSlNotifications } from "@symmio/trading-react";
-
-const { status, error } = useWatchTpSlNotifications({
-  account: subAccount,
-  onNotification: (frame) => console.log(frame),
-});
-```
-
 ### Where temp ↔ on-chain linking happens
 
 Two sites cover the possible frame shapes:
@@ -182,15 +192,7 @@ Two sites cover the possible frame shapes:
 1. **`useManagedQuotes.onNotification`** (solver stream) — when a solver notification carries both `tempQuoteId` and `quoteId`, calls `useTpSlStore.getState().link(tempId, onchainId)`. This is the primary link site because the solver announces the anchor before the TP/SL WS does.
 2. **`useQuoteTpSl` WS handler** (TP/SL stream) — same call when a `TpSlNotification` has both `primaryIdentifier` and `secondaryIdentifier` nonzero. Fallback in case the solver stream is off (`live: false`).
 
-## Config + validation hooks
-
-### `useTpSlConfig`
-
-Fetch handler-side rules for one chain (`minPriceDistancePercent`, `minProfitStopLossSpreadPercent`).
-
-### `useTpSlSigningSpec`
-
-Fetch the EIP-712 typed-data domain + schema (`primaryType`, `types`, `domain`). Mutations use it internally; expose it when signing outside the SDK.
+## Utilities
 
 ### `toQuoteTpSl`
 

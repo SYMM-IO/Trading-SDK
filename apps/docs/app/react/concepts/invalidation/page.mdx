@@ -1,0 +1,78 @@
+# Cache invalidation
+
+Writes mutate on-chain state; reads that depend on that state need to refetch. `@symmio/trading-react` uses TanStack Query's `invalidateQueries` with a **predicate function built from a core query-key factory** — invalidate every subaccount list for one user, without knowing the specific pagination / chain of every cached entry.
+
+## `predicateMatch`
+
+```ts
+import { predicateMatch } from "@symmio/trading-react";
+import { getUserSubAccountsQueryKey } from "@symmio/trading-core";
+
+queryClient.invalidateQueries({
+  predicate: predicateMatch(getUserSubAccountsQueryKey, { user }),
+});
+```
+
+The predicate matches when:
+
+1. The query's leading tag (`"getUserSubAccounts"`) matches the factory's tag.
+2. Every field in the partial (`{ user }`) matches the query's trailing options object.
+
+Fields you omit match anything. The partial and the stored keys are run through the same factory, so `bigint` values compare in the decimal-string form — no manual coercion.
+
+This closes a gap TanStack's built-in leading-prefix match can't express: "every entry for user X, across every pagination window, across every chain".
+
+## Mutation pattern
+
+Every write hook wires invalidation in its `onSuccess`:
+
+```ts
+export function useAllocate(parameters = {}) {
+  const config = useSymmioConfig(parameters);
+  const queryClient = useQueryClient();
+  return useMutation({
+    ...allocateMutationOptions(config),
+    onSuccess: (_result, variables) => {
+      // Every "allocated" read for this account is stale now.
+      void queryClient.invalidateQueries({
+        predicate: predicateMatch(getAllocatedQueryKey, { account: variables.account }),
+      });
+      // Balance changed too.
+      void queryClient.invalidateQueries({
+        predicate: predicateMatch(getCollateralBalanceQueryKey, { account: variables.account }),
+      });
+    },
+  });
+}
+```
+
+Consumers who need extra invalidation on top can supply their own `onSuccess`:
+
+```ts
+const mutation = useAllocate({
+  mutation: {
+    onSuccess: (result, variables) => {
+      // Consumer-side: refresh a custom aggregate.
+      queryClient.invalidateQueries({ queryKey: ["myAppTotals"] });
+    },
+  },
+});
+```
+
+TanStack Query runs both — the hook's default `onSuccess` and the caller's — sequentially.
+
+## Broad invalidation
+
+Sometimes you want to nuke the whole slice:
+
+```ts
+queryClient.invalidateQueries({ queryKey: ["getMarkets"] });
+```
+
+Pass just the tag as the queryKey. Every cached entry for that factory refetches on next mount.
+
+## Related
+
+- [Core query keys](../../../core/concepts/query-keys) — key shape and `filterQueryOptions` internals.
+- [Hook pattern](../hook-pattern) — where `onSuccess` fires from.
+- [Simulate then write](../simulate-then-write) — the paired pattern for writes.

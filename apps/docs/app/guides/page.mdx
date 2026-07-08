@@ -1,0 +1,17 @@
+# Guides
+
+End-to-end recipes that cut across multiple SDK slices. Each guide picks one UI surface (a chart, a panel, a flow) and walks the full wiring — which hooks to call, which data to derive from which endpoint, which framework primitives to reach for.
+
+Guides are **consumer-facing**. Reference docs under [Core](../core), [React](../react), and the other library sections describe individual APIs; guides show how to combine them.
+
+## Available guides
+
+- [Build a Perps DEX](./build-a-dex) — end-to-end recipe for shipping a full trading UI on top of `@symmio/trading-react`. Providers, wallet, subaccounts, collateral, open / close, TP/SL — plus the version pins and import paths new integrators trip on.
+- [Lowcap Chart](./lowcap-chart) — render a price chart for a lowcap market. Two options: DexScreener iframe (fast path) or your own OHLC feed (Moralis / GeckoTerminal) rendered with TradingView Lightweight Charts.
+
+## When to reach for a guide vs a reference
+
+- **Reference** — "what does `useEnigmaPriceServiceMetadata` return?" → [Core / Price Service](../core/price-service) or [React / Price Service hooks](../react/price-service).
+- **Guide** — "how do I show a chart for a lowcap market?" → this section.
+
+New guides are added as new UI patterns crystallize. If a recipe lives in the vibe-ui reference repo and belongs in the SDK's documented surface, propose it as a guide.

@@ -1,6 +1,21 @@
 # React
 
-`@symmio/trading-react` is the React adapter for the SYMMIO SDK. Hooks, providers, and `react-query`-shaped wrappers on top of `@symmio/trading-core`.
+`@symmio/trading-react` is the React layer on top of `@symmio/trading-core`. Every hook wraps a `core` action or query-options factory and threads it through `useQuery` / `useMutation`, plus a small set of **Zustand stores** for state that has no natural home in TanStack Query cache (optimistic quotes, TP/SL folded records, pending transactions).
+
+Two rules govern the layer:
+
+- **`core` owns the logic.** Contract calls, REST clients, subgraph queries, WebSocket parsing, math — all in `core`. Hooks are ~10 lines of glue: read config, resolve chain id, call the core factory, feed into TanStack.
+- **State lives in stores.** Reactive state that spans components (open trade queue, folded TP/SL rows, tx receipts) sits in module-level Zustand stores exposed as `useXxxStore()` hooks. The stores are documented next to the hook that populates them.
+
+## What the wrapper gives you
+
+When a hook wraps a core action, it doesn't just forward — it takes care of the things every consumer would otherwise wire by hand:
+
+- **Cache invalidation done at the right places.** Every write hook's `onSuccess` invalidates the read queries the write actually mutated. Fire `useAllocate()`, and the allocated balance / collateral balance / party-scoped quote reads automatically refetch. You don't chase down which queries went stale. See [Cache invalidation](/react/concepts/invalidation).
+- **Sensible refetch intervals baked in.** Data hooks that need polling (`useManagedQuotes`, price service reads, notional cap gates) ship with defaults calibrated to the underlying service — 5 s idle, ~1.5 s accelerated when a row is mid-transition, WS reports piggybacked to invalidate the next poll. You get "live" without picking numbers.
+- **Full override access on every knob.** Every hook accepts a `query` override (any TanStack option — `staleTime`, `refetchInterval`, `enabled`, `select`, …), an optional `config` override, and an optional `chainId` override. Defaults are what most consumers want; overrides are one prop away when they aren't.
+
+Result: mount the provider, call the hook, render the data. Refetch, invalidation, and interval choices are already handled.
 
 ## Install
 
@@ -8,40 +23,96 @@
 pnpm add @symmio/trading-react viem wagmi @tanstack/react-query
 ```
 
-`react`, `react-dom`, `viem`, and `wagmi` are peer dependencies. `@symmio/trading-core`, `@symmio/utils`, `decimal.js`, and `zustand` are pulled in transitively.
+Peer deps: `react`, `react-dom`, `viem`, `wagmi`. Transitive: `@symmio/trading-core`, `@symmio/utils`, `zustand`.
 
 ## Mount the providers
 
-The SDK assumes the host mounts wagmi and `@tanstack/react-query` itself. That keeps the host in control of connectors, RPC URLs, and the shared `QueryClient`.
+The host owns the wagmi config and the `QueryClient`. `SymmioProvider` sits inside them, builds the `core` `Config`, and supplies it via context:
 
 ```tsx
 <WagmiProvider config={wagmiConfig}>
   <QueryClientProvider client={queryClient}>
-    <SymmioProvider config={symmioConfig}>{children}</SymmioProvider>
+    <SymmioProvider>{children}</SymmioProvider>
   </QueryClientProvider>
 </WagmiProvider>
 ```
 
-See **[Getting Started](/getting-started)** for a complete `Providers` component.
+`SymmioProvider` reads wagmi's connection state and bridges `getPublicClient` / `getWalletClient` into the `core` config. See [SymmioProvider](/react/provider).
 
-## Sections
+## The hook pattern
 
-- **[SymmioProvider](/react/provider)** — config, context, and the internal client hooks.
-- **[Wallet hooks](/react/wallet)** — `useWalletAccount`, `useConnectWallet`, `useDisconnectWallet`, `useSwitchToSymmioChain`.
-- **[AccountLayer hooks](/react/account-layer)** — `useUserSubAccounts`, `useAccountBalanceOf`, `useAccountBalanceInfo`, `useEditAccountName`.
-- **[InstantLayer hooks](/react/instant-layer)** — `useDelegationExpiry`, `useIsDelegationActive`, `useGrantDelegation`.
-- **[Solvers hooks](/react/solvers)** — `useMarkets` and `useLockedParams`.
-- **[Price Service hooks](/react/price-service)** — `useEnigmaPriceServicePrices`, `useEnigmaPriceServiceMetadata`, `useEnigmaPriceServiceSymbolsInfo`, `useEnigmaPriceServiceHealth`.
-- **[Errors](/react/errors)** — `SymmioRequestError` and the `normalizeSymmError` classifier.
-- **[Transactions store](/react/transactions)** — optional zustand store for tracking pending tx hashes.
+Every read hook is the same three-line shape — this is intentional, so behavior is predictable across the whole library:
+
+```ts
+export function useMarkets(parameters = {}) {
+  const config = useSymmioConfig(parameters);
+  const chainId = useSymmioChainId();
+  return useQuery(getMarketsQueryOptions(config, { ...parameters, chainId }));
+}
+```
+
+- `useSymmioConfig(parameters)` = `parameters.config ?? contextConfig` (mirrors wagmi's `useConfig`).
+- `useSymmioChainId()` reads the connected chain from wagmi.
+- The core factory owns the `queryKey`, `queryFn`, and any `enabled` guard.
+
+Mutations follow the same shape via `useMutation(xyzMutationOptions(config))`. See [Concepts › Hook pattern](/react/concepts/hook-pattern).
+
+## Concepts
+
+- **[Hook pattern](/react/concepts/hook-pattern)** — the shape every read / write hook follows.
+- **[Error normalization](/react/concepts/errors)** — how `SymmioRequestError` classifies transport / user-rejection / config failures.
+- **[Cache invalidation](/react/concepts/invalidation)** — `predicateMatch` and the mutation invalidation pattern.
+- **[Simulate then write](/react/concepts/simulate-then-write)** — the `useSimulateXyz` → `useXyz` pattern for writes.
+- **[Stores](/react/concepts/stores)** — the three module-level Zustand stores and when they update.
+
+## Reference
+
+Every domain slice, one page. Each mirrors its `core` counterpart plus the React-specific glue (invalidation on mutation success, provider access, store updates).
+
+### Provider + Wallet
+
+- **[SymmioProvider](/react/provider)** — mount, chain overrides, WebSocket ctor override, `useSymmioConfig`, `useSymmioChainId`.
+- **[Wallet](/react/wallet)** — `useWalletAccount`, `useConnectWallet`, `useDisconnectWallet`, `useSwitchToSymmioChain`.
+
+### Contract hooks
+
+- **[AccountLayer](/react/account-layer)** — sub-account / virtual-account reads + writes.
+- **[InstantLayer](/react/instant-layer)** — delegation reads + `useGrantDelegation`.
+- **[SYMMIO Contract](/react/symmio-contract)** — quote reads, party positions, collateral, allocate / deallocate, on-chain markets.
+- **[Withdraw](/react/withdraw)** — request / cancel / finalize + polling helpers.
+
+### Trading
+
+- **[Unified Quotes](/react/quotes)** — `useManagedQuotes` (polling + WS + reconciliation), `useGroupedQuotes`, `useOptimisticQuotesStore`.
+- **[Solvers](/react/solvers)** — `useMarkets`, `useLockedParams`, `useNotionalCap*`. Nested:
+  - [Instant Open](/react/solvers/instant-open)
+  - [Instant Close](/react/solvers/instant-close)
+- **[TP/SL](/react/tpsl)** — `useQuoteTpSl`, mutations, `useTpSlStore`.
+- **[Markets](/react/markets)** — solver + on-chain market catalog hooks.
+- **[Fees](/react/fees)** — `useFeeForUser`, `useQuotePlatformFee`.
+
+### Data
+
+- **[Price Service](/react/price-service)** — REST + WS Enigma hooks, per-market helpers.
+- **[Notifications](/react/notifications)** — `useNotifications`, `useSearchNotifications`.
+- **[Subgraph](/react/subgraph)** — `useSubgraphQuery` escape hatch + history hooks.
+- **[Muon](/react/muon)** — oracle signature helpers.
+- **[Notional Cap](/react/notional-cap)** — `useNotionalCapAll`, `useNotionalCapBySymbolId`, `useOpenInterestBySymbolId`.
+- **[Locked Params](/react/locked-params)** — `useLockedParams`.
+- **[Error codes](/react/error-codes)** — solver error code + message lookup hooks.
+
+### Stores + utilities
+
+- **[Transactions store](/react/transactions)** — `useTransactionsStore` for pending write receipts.
+- **[Errors](/react/errors)** — `SymmioRequestError` discriminant, `normalizeSymmError`.
 
 ## Convenience re-exports
 
-`@symmio/trading-react` re-exports the most-used helpers from `@symmio/utils` so apps don't have to add a second dependency for formatters:
+`@symmio/trading-react` re-exports the most-used formatters from `@symmio/utils` so apps don't have to add a second dependency for basic amount / address rendering:
 
 - `formatTokenAmount`, `parseTokenAmount`, `rawToDecimal`, `decimalToRaw` (from `@symmio/utils/amounts`)
 - `shortenAddress` (from `@symmio/utils/address`)
 
-Apps that want the full utils surface (Decimal helpers, currency formatters, …) should depend on `@symmio/utils` directly. See **[Utils](/utils)**.
+For the full Decimal / currency toolkit, depend on `@symmio/utils` directly. See [Utils](/utils).
 
-It also re-exports types from `core` (`SubAccountDetail`, `SubAccountIsolationType`, `EditAccountNameParams`, `SymmError`) so `apps/web`-style consumers don't need to depend on `core` directly.
+Types like `SubAccountDetail`, `SubAccountIsolationType`, `EditAccountNameParams`, `SymmError`, and `TpSlRecord` are re-exported from `core` so app code doesn't need to depend on `@symmio/trading-core` unless it wants to call standalone actions outside the React tree.

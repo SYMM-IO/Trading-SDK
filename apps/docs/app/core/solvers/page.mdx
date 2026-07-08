@@ -4,6 +4,21 @@ The solver APIs are off-chain REST endpoints configured per chain in `createConf
 
 Use these APIs when you need solver metadata before building a trade flow: market lists, leverage limits, and locked percentages for a market/leverage pair.
 
+## Protocol model — intent-based, no orderbook
+
+SYMMIO is intent-based. The current lowcap version has **no orderbook**. Positions are opened peer-to-peer between two roles:
+
+- **partyA** — the user. Sends an intent to open a position.
+- **partyB** — a solver. Watches partyA intents and takes the opposite side, becoming the direct counterparty.
+
+Every lowcap position is one partyA ↔ one partyB agreement. There is no shared book, no matching engine, no other users on the other side. The solver _is_ the counterparty.
+
+Implications when building on the SDK:
+
+- No bid/ask depth to render. Prices come from off-chain feeds (see [Price Service](/core/price-service)), not an on-chain book.
+- Trade lifecycle is intent → solver acceptance → on-chain settlement. Surface intent state, not order-fill progress.
+- `partyA` / `partyB` in ABIs, events, and notifications always mean user / solver respectively.
+
 ## Markets
 
 ### `getMarkets`
@@ -130,3 +145,51 @@ const key = getLockedParamsQueryKey({
 ```
 
 `symbol` and `leverage` are part of the key, so each market/leverage pair caches independently.
+
+## Notional Cap (available liquidity)
+
+Per-market caps on how much notional the solver still permits — the frontline "can I open this size?" gate.
+
+### `getNotionalCapBySymbolId`
+
+Cap for one market.
+
+```ts
+import { getNotionalCapBySymbolId } from "@symmio/trading-core";
+
+const cap = await getNotionalCapBySymbolId(config, { symbolId: 1n });
+// { used: bigint, cap: bigint, availability: bigint }
+```
+
+### `getNotionalCapAll`
+
+Batch — every market's cap in one call. Cheaper than looping `getNotionalCapBySymbolId`.
+
+```ts
+import { getNotionalCapAll } from "@symmio/trading-core";
+
+const caps = await getNotionalCapAll(config, {});
+```
+
+### `getOpenInterestBySymbolId`
+
+Used vs capped notional per market.
+
+```ts
+import { getOpenInterestBySymbolId } from "@symmio/trading-core";
+
+const oi = await getOpenInterestBySymbolId(config, { symbolId: 1n });
+```
+
+## Instant Open / Instant Close
+
+The lowcap trading flows live on their own pages:
+
+- **[Instant Open](/core/solvers/instant-open)** — `instantOpen`, `instantOpenAuto`, `prepareInstantOpenParams`, `getInstantOpens`, `getInstantOpenQuoteId`.
+- **[Instant Close](/core/solvers/instant-close)** — `instantClose`, `instantCloseAuto`, `instantCloseBulk`, `prepareInstantCloseParams`, `getInstantCloses`.
+
+## Related
+
+- [SYMMIO Contract](/core/symmio-contract) — on-chain reads. `getOnchainContractMarkets` is the contract-side analog to `getMarkets`.
+- [Unified Quotes](/core/quotes) — `PendingInstantOpen` / `PendingInstantClose` from `getInstantOpens` / `getInstantCloses` feed `reconcileQuotes`.
+- [Errors](/core/concepts/errors) — solver failures surface as `SymmApiError`.

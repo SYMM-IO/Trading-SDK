@@ -7,7 +7,7 @@ import { MUON_METHOD_PARTY_A_OVERVIEW, type MuonAttestationBase } from "../types
 /** Parameters for {@link getMuonPartyAOverview}. */
 export type GetMuonPartyAOverviewParameters = Compute<
   ChainIdParameter & {
-    /** The partyA (a subaccount for Majors, a virtual account for VibeCaps) to attest. */
+    /** The partyA (virtual account for lowcap) to attest. */
     partyA: Address;
   }
 >;

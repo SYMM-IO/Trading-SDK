@@ -12,7 +12,6 @@ Stack: Next.js + React + Tailwind. Built against `@symmio/trading-react` and `@s
 - **No SDK-shaped logic in app code.** If a piece of logic could be reused by another consumer (another app, a third-party integrator, a CLI), it belongs in `@symmio/trading-core` or `@symmio/trading-react`. Push it down before shipping it here.
 - **App-specific composition only.** Routes, layouts, page-level wiring, app-only providers, environment binding, and browser-specific glue.
 - **Design system usage.** Reusable visual primitives come from `@symmio/ui`. Do not re-implement a Button locally; if a primitive is missing, propose it in `@symmio/ui`.
-- **Majors flows require approval.** Even at the app layer. See Hard Rule 7.
 
 ## Coding Style
 

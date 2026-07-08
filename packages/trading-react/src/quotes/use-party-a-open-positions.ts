@@ -23,9 +23,9 @@ export type UsePartyAOpenPositionsReturnType = UseQueryResult<GetPartyAOpenPosit
 
 /**
  * Read a partyA's open positions (full `Quote` structs) from the SYMMIO core.
- * `partyA` is a SubAccount (Majors) or Virtual Account (VibeCaps). The query is
- * disabled until `partyA` is set. `chainId` defaults to the connected chain.
- * Errors are normalized to {@link SymmioRequestError}.
+ * `partyA` is a virtual account (lowcap). The query is disabled until `partyA`
+ * is set. `chainId` defaults to the connected chain. Errors are normalized to
+ * {@link SymmioRequestError}.
  *
  * @example
  * ```tsx

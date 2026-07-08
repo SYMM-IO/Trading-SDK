@@ -1,0 +1,222 @@
+import { Callout } from "nextra/components";
+
+# Lowcap Chart
+
+Lowcap markets do not have a native SYMMIO chart. The SDK does not ship one either — you pick the rendering approach that fits your UI budget and DX preferences.
+
+Two common options:
+
+- **Option A — DexScreener iframe.** Fastest to ship. One `<iframe>`, zero data plumbing, styling limited to DexScreener's query flags.
+- **Option B — Own chart with OHLC + charting library.** Fetch OHLCV candles from Moralis, CoinGecko / GeckoTerminal, or any pool-indexer of your choice, and render them with TradingView Lightweight Charts (or ECharts, Recharts, etc.). Full control over look and feel; you own the data pipeline.
+
+<Callout type="info">
+  Whichever you pick, **prices, mark, and lifecycle data still come from the Enigma price service.** The chart is
+  display-only — do not read prices from the iframe or the OHLC feed for trade math.
+</Callout>
+
+Both options key off the market's **pair address** and **chain slug**, which come from a single call to [`useEnigmaPriceServiceMetadata`](../../react/price-service#useenigmapriceservicemetadata) using the market's **base-token address**.
+
+| Field                | Source            | Used for                                                    |
+| -------------------- | ----------------- | ----------------------------------------------------------- |
+| `pair_address`       | metadata response | pool identifier for both options                            |
+| `chain_id`           | metadata response | network slug (`"solana"`, `"base"`, `"bsc"`, …) — lowercase |
+| `base_token.address` | metadata response | key for the metadata lookup                                 |
+
+---
+
+## Option A — DexScreener iframe
+
+Point an `<iframe>` at `dexscreener.com/{chainSlug}/{pairAddress}` with `embed=1` and a set of look-and-feel flags.
+
+### Minimal component
+
+```tsx
+import { useEnigmaPriceServiceMetadata } from "@symmio/trading-react";
+
+interface Props {
+  /** Base-token address for the market you want the chart of. */
+  tokenAddress: string;
+}
+
+export function LowcapDexScreenerChart(props: Props) {
+  const { data, isLoading } = useEnigmaPriceServiceMetadata({
+    addresses: [props.tokenAddress],
+  });
+
+  if (isLoading) return <ChartSkeleton />;
+
+  const meta = data?.[props.tokenAddress];
+  if (!meta?.pair_address || !meta?.chain_id) return <ChartUnavailable />;
+
+  const url = buildDexScreenerEmbedUrl({
+    chainSlug: meta.chain_id.toLowerCase(),
+    pairAddress: meta.pair_address,
+  });
+
+  return <iframe title="DexScreener Chart" src={url} width="100%" height="100%" style={{ border: 0 }} />;
+}
+```
+
+### Building the embed URL
+
+Keep this in a helper so the flags are consistent across every chart surface:
+
+```ts
+interface BuildDexScreenerEmbedUrlOptions {
+  chainSlug: string;
+  pairAddress: string;
+  /** Override any of the default query params. */
+  overrides?: Record<string, string>;
+}
+
+export function buildDexScreenerEmbedUrl(options: BuildDexScreenerEmbedUrlOptions) {
+  const params = new URLSearchParams({
+    embed: "1",
+    loadChartSettings: "0",
+    trades: "0",
+    info: "0",
+    chartLeftToolbar: "0",
+    chartTheme: "dark",
+    theme: "dark",
+    chartStyle: "1",
+    interval: "15",
+    chartType: "price",
+    ...options.overrides,
+  });
+  return `https://dexscreener.com/${options.chainSlug}/${options.pairAddress}?${params.toString()}`;
+}
+```
+
+### Query-param reference
+
+| Param               | Value   | Effect                                                        |
+| ------------------- | ------- | ------------------------------------------------------------- |
+| `embed`             | `1`     | Strip the DexScreener chrome — required for iframe embedding. |
+| `loadChartSettings` | `0`     | Ignore the visitor's saved DexScreener chart preferences.     |
+| `trades`            | `0`     | Hide the trades panel.                                        |
+| `info`              | `0`     | Hide the info / socials panel.                                |
+| `chartLeftToolbar`  | `0`     | Hide the left toolbar.                                        |
+| `chartTheme`        | `dark`  | Chart theme.                                                  |
+| `theme`             | `dark`  | Page theme.                                                   |
+| `chartStyle`        | `1`     | `1` = candles, `0` = bars, `2` = line, `3` = area.            |
+| `interval`          | `15`    | Default candle interval in minutes.                           |
+| `chartType`         | `price` | `price` or `marketCap`.                                       |
+
+Override any of them per surface — e.g. `interval: "60"` for a wider-timeframe view — via `overrides`.
+
+### Loading & fallback states
+
+Metadata may be missing while the request is in-flight, or the market may not have a resolvable pair. Render three states:
+
+1. **Loading** — `isLoading` true. Show a chart-shaped skeleton so the layout doesn't jump.
+2. **Unavailable** — metadata resolved but `pair_address` / `chain_id` missing. Show a small "chart not available for this market" placeholder. Do **not** silently render an iframe pointed at a broken URL.
+3. **Ready** — build the URL and mount the iframe.
+
+The iframe itself has no error event you can hook — DexScreener renders its own inline error inside the frame. Trust the metadata gate rather than trying to detect iframe failures.
+
+---
+
+## Option B — Own chart with OHLC + charting library
+
+Fetch OHLCV candles from a public data provider, feed them into a charting library, own the render. More work, but the chart matches your product's design system and you can layer overlays (positions, TP/SL lines, mark price) on top.
+
+### OHLC data providers
+
+Pick one — both cover EVM chains and Solana, both give candles keyed by pool / pair address:
+
+| Provider                                                                                           | Endpoint shape                                                   | Notes                                                                                                                                      |
+| -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Moralis Price API** — [OHLCV](https://docs.moralis.com/data-api/evm/price/overview)              | `GET /erc20/{tokenAddress}/ohlcv` (EVM) / matching Solana route  | OHLCV candles for tokens across EVM chains and Solana. API key required, has a free tier.                                                  |
+| **CoinGecko / GeckoTerminal DEX** — [pool OHLCV](https://apiguide.geckoterminal.com/)              | `GET /networks/{network}/pools/{pool_address}/ohlcv/{timeframe}` | DEX-native, keyed by pool address (== `pair_address`). Public GeckoTerminal API is free; CoinGecko Pro is required for higher rate limits. |
+| **CoinGecko coin OHLC** — [`/coins/{id}/ohlc`](https://docs.coingecko.com/reference/coins-id-ohlc) | `GET /coins/{id}/ohlc`                                           | Keyed by CoinGecko `id`, not contract address — worse fit for lowcap since many lowcap tokens are not indexed there.                       |
+
+For lowcap, **GeckoTerminal's `pools/{pool_address}/ohlcv` route is usually the best fit** — the pool address is exactly what the metadata endpoint already returns (`pair_address`), the API is public, and it covers the DEXes lowcap tokens actually trade on.
+
+### Sketch — GeckoTerminal + TradingView Lightweight Charts
+
+```tsx
+import { useQuery } from "@tanstack/react-query";
+import { useEnigmaPriceServiceMetadata } from "@symmio/trading-react";
+import { createChart, type UTCTimestamp } from "lightweight-charts";
+import { useEffect, useRef } from "react";
+
+interface Props {
+  tokenAddress: string;
+  /** Candle timeframe accepted by GeckoTerminal: "minute" | "hour" | "day". */
+  timeframe?: "minute" | "hour" | "day";
+}
+
+export function LowcapOhlcChart(props: Props) {
+  const timeframe = props.timeframe ?? "minute";
+  const { data: metadata } = useEnigmaPriceServiceMetadata({
+    addresses: [props.tokenAddress],
+  });
+  const meta = metadata?.[props.tokenAddress];
+
+  const candles = useQuery({
+    queryKey: ["gt-ohlcv", meta?.chain_id, meta?.pair_address, timeframe],
+    queryFn: () => fetchGeckoTerminalOhlcv(meta!.chain_id, meta!.pair_address, timeframe),
+    enabled: Boolean(meta?.chain_id && meta?.pair_address),
+    staleTime: 30_000,
+  });
+
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || !candles.data) return;
+    const chart = createChart(containerRef.current, { autoSize: true });
+    const series = chart.addCandlestickSeries();
+    series.setData(candles.data);
+    return () => chart.remove();
+  }, [candles.data]);
+
+  return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
+}
+
+async function fetchGeckoTerminalOhlcv(chainSlug: string, poolAddress: string, timeframe: string) {
+  const url = `https://api.geckoterminal.com/api/v2/networks/${chainSlug.toLowerCase()}/pools/${poolAddress}/ohlcv/${timeframe}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`GeckoTerminal OHLCV ${res.status}`);
+  const json = await res.json();
+  // ohlcv_list: [[unixSeconds, open, high, low, close, volume], …]
+  return (json.data.attributes.ohlcv_list as number[][]).map(([t, open, high, low, close]) => ({
+    time: t as UTCTimestamp,
+    open,
+    high,
+    low,
+    close,
+  }));
+}
+```
+
+<Callout type="warning">
+  Confirm each provider's rate limits, terms of service, and attribution requirements before shipping. Public tiers are
+  fine for demos and low-traffic apps; production usually needs a paid key.
+</Callout>
+
+### Charting library choices
+
+- **TradingView Lightweight Charts** — free, small footprint (~40 KB gzipped), candlestick / line / area, no attribution required for the OSS build. Default recommendation.
+- **TradingView Advanced Charts** — full TradingView terminal experience (indicators, drawing tools). License required; you host their bundle.
+- **ECharts / Recharts / visx** — general-purpose; pick if your app already ships one of them and you want visual consistency.
+
+---
+
+## Which option to pick
+
+| Concern                                       | Option A (DexScreener) | Option B (Own OHLC)                |
+| --------------------------------------------- | ---------------------- | ---------------------------------- |
+| Time to ship                                  | Minutes                | Hours to days                      |
+| Look & feel control                           | Query flags only       | Full                               |
+| Overlay positions / TP-SL / mark on the chart | Not possible           | Yes                                |
+| Data pipeline you own                         | None                   | Full — provider, cache, rate limit |
+| Cost                                          | Free                   | Free tier → paid at scale          |
+| Best for                                      | MVPs, embedded pages   | Product surfaces, trade panels     |
+
+Start with A. Move to B once the product needs on-chart overlays or a bespoke look.
+
+## Related
+
+- [`useEnigmaPriceServiceMetadata`](../../react/price-service#useenigmapriceservicemetadata) — the metadata hook both options depend on.
+- [Price Service](../../core/price-service) — core-level reference for the metadata endpoint, including the full `MetadataResponse` shape.
+- [Instant Open](../../react/solvers/instant-open) — the lowcap open flow this chart typically sits next to.

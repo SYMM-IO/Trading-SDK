@@ -2,7 +2,16 @@
 
 React-query wrappers over `@symmio/trading-core`'s AccountLayer slice.
 
-## `useUserSubAccounts`
+The page is split into two groups:
+
+- **[Reads](#reads)** — TanStack `useQuery`-shaped hooks. Same call = same cached result. Refetch on invalidation.
+- **[Writes](#writes)** — TanStack `useMutation`-shaped hooks. Trigger `mutate` / `mutateAsync`, watch `isPending` / `data` / `error`, and let the hook invalidate the affected reads for you.
+
+Every write also has a paired `useSimulateXyz` — see [Simulate then write](../concepts/simulate-then-write).
+
+## Reads
+
+### `useUserSubAccounts`
 
 Read a user's subaccounts. Returns react-query's full `UseQueryResult` shape.
 
@@ -25,7 +34,7 @@ return (
 );
 ```
 
-### Parameters
+#### Parameters
 
 | Name      | Type       | Default        | Notes                                                                                                                                                        |
 | --------- | ---------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -35,13 +44,13 @@ return (
 | `chainId` | `number?`  | config default | Optional chain override.                                                                                                                                     |
 | `query`   | `object?`  | `undefined`    | TanStack Query overrides, including `enabled`.                                                                                                               |
 
-### Return type
+#### Return type
 
 `UseQueryResult<readonly SubAccountDetail[], SymmioRequestError>` — every field react-query exposes, with the SDK error type.
 
-## `useAccountBalanceOf`
+### `useAccountBalanceOf`
 
-Read raw `balanceOf(account)` from the SYMMIO core/diamond contract.
+Read the account's **available (deallocated) balance** — collateral that lives on the account but is **not** currently allocated to any SubAccount for trading. This is the amount the user can deposit, withdraw, or allocate. Under the hood: `balanceOf(account)` on the SYMMIO diamond.
 
 ```tsx
 import { formatEther } from "viem";
@@ -55,7 +64,7 @@ if (error) return <ErrorView kind={error.kind} message={error.message} />;
 return <span>{data === undefined ? "-" : formatEther(data)}</span>;
 ```
 
-### Parameters
+#### Parameters
 
 | Name      | Type       | Default        | Notes                                                                         |
 | --------- | ---------- | -------------- | ----------------------------------------------------------------------------- |
@@ -64,15 +73,15 @@ return <span>{data === undefined ? "-" : formatEther(data)}</span>;
 | `query`   | `object?`  | `undefined`    | TanStack Query overrides.                                                     |
 | `config`  | `Config?`  | provider value | Optional config override.                                                     |
 
-### Return type
+#### Return type
 
 `UseQueryResult<bigint, SymmioRequestError>`.
 
 The value is in raw collateral token units. Divide by `1e18` / use `formatEther` when displaying the current deployments' 18-decimal collateral values.
 
-## `useAccountBalanceInfo`
+### `useAccountBalanceInfo`
 
-Read raw `balanceInfoOfPartyA(account)` fields from the SYMMIO core/diamond contract.
+Read the account's **tradable (allocated) balance info** — collateral allocated to this SubAccount for trading, plus the CVA / LF / margin locks currently held against it. Pair with [`useAccountBalanceOf`](#useaccountbalanceof) for the full picture: available on one side, allocated-and-in-play on the other. Under the hood: `balanceInfoOfPartyA(account)` on the SYMMIO diamond.
 
 ```tsx
 import { formatEther } from "viem";
@@ -83,7 +92,7 @@ const { data } = useAccountBalanceInfo({ account });
 return <span>{data ? formatEther(data.allocatedBalance) : "-"}</span>;
 ```
 
-### Parameters
+#### Parameters
 
 | Name      | Type       | Default        | Notes                                                                                             |
 | --------- | ---------- | -------------- | ------------------------------------------------------------------------------------------------- |
@@ -92,7 +101,7 @@ return <span>{data ? formatEther(data.allocatedBalance) : "-"}</span>;
 | `query`   | `object?`  | `undefined`    | TanStack Query overrides.                                                                         |
 | `config`  | `Config?`  | provider value | Optional config override.                                                                         |
 
-### Return type
+#### Return type
 
 `UseQueryResult<AccountBalanceInfo, SymmioRequestError>`.
 
@@ -112,11 +121,14 @@ interface AccountBalanceInfo {
 
 All fields are in raw collateral token units.
 
-## `useAllocate`
+## Writes
+
+Every hook below returns react-query's `UseMutationResult` — call `mutate(inputs)` (or `mutateAsync`), watch `isPending` / `data` / `error`, and the hook invalidates the reads it affected on your behalf.
+
+### `useAllocate`
 
 Allocate a subaccount's available balance into its allocated (tradeable) balance.
-Returns react-query's `UseMutationResult` shape. The call inputs (`account`,
-`amount`) are passed to `mutate`; `amount` is in **18 decimals**.
+The call inputs (`account`, `amount`) are passed to `mutate`; `amount` is in **18 decimals**.
 
 ```tsx
 import { useAllocate } from "@symmio/trading-react";
@@ -132,7 +144,7 @@ const { mutate, isPending, isSuccess, data, error } = useAllocate();
 }
 ```
 
-### Options
+#### Options
 
 ```ts
 interface UseAllocateParameters {
@@ -141,21 +153,17 @@ interface UseAllocateParameters {
 }
 ```
 
-### Cache invalidation
+#### Cache invalidation
 
 On success, the hook invalidates the subaccount's `useAccountBalanceInfo` and `useAccountBalanceOf` queries in the active `QueryClient`, so allocated and available balances rerender automatically.
 
-### Dry run
+#### Dry run
 
 `useSimulateAllocate()` runs the same call through `simulateContract` without sending — useful to surface a would-be revert before prompting the wallet.
 
-## `useDeallocate`
+### `useDeallocate`
 
-Deallocate a subaccount's allocated (tradeable) balance back into its available
-balance — the reverse of `useAllocate`. Returns react-query's `UseMutationResult`
-shape. The hook **fetches a fresh Muon uPnL signature automatically** before
-submitting (the contract requires it to prove the subaccount stays solvent),
-unless you pass one as `upnlSig`. `amount` is in **18 decimals**.
+Deallocate a subaccount's allocated (tradeable) balance back into its available balance — the reverse of `useAllocate`. The hook **fetches a fresh Muon uPnL signature automatically** before submitting (the contract requires it to prove the subaccount stays solvent), unless you pass one as `upnlSig`. `amount` is in **18 decimals**.
 
 ```tsx
 import { useDeallocate } from "@symmio/trading-react";
@@ -171,7 +179,7 @@ const { mutate, isPending, isSuccess, data, error } = useDeallocate();
 }
 ```
 
-### Options
+#### Options
 
 ```ts
 interface UseDeallocateParameters {
@@ -180,17 +188,17 @@ interface UseDeallocateParameters {
 }
 ```
 
-### Cache invalidation
+#### Cache invalidation
 
 On success, the hook invalidates the subaccount's `useAccountBalanceInfo` and `useAccountBalanceOf` queries in the active `QueryClient`, so allocated and available balances rerender automatically.
 
-### Muon signature & cooldown
+#### Muon signature & cooldown
 
 The hook calls `getDeallocateUpnlSig` for you unless you pass a `upnlSig` variable. Deallocate is subject to the on-chain debounce — submitting too soon after a prior deallocate reverts — and the result must keep the subaccount solvent; both surface as a normalized `SymmioRequestError`. `useSimulateDeallocate()` dry-runs the call (supply a `upnlSig` there — it does not auto-fetch).
 
-## `useEditAccountName`
+### `useEditAccountName`
 
-Submit a rename transaction. Returns react-query's `UseMutationResult` shape.
+Submit a rename transaction.
 
 ```tsx
 import { useEditAccountName } from "@symmio/trading-react";
@@ -209,7 +217,7 @@ const { mutate, isPending, isSuccess, data, error } = useEditAccountName();
 }
 ```
 
-### Options
+#### Options
 
 ```ts
 interface UseEditAccountNameOptions {
@@ -218,10 +226,10 @@ interface UseEditAccountNameOptions {
 }
 ```
 
-### Cache invalidation
+#### Cache invalidation
 
 On success, the hook invalidates every cached `useUserSubAccounts` query in the active `QueryClient`, so mounted lists rerender with the new name automatically. No manual invalidation needed.
 
-### Why this hook needs a connected wallet
+#### Why this hook needs a connected wallet
 
 The hook reads `useSymmioWalletClient()` under the hood. If the user is disconnected or on the wrong chain, calling `mutate` throws a `SymmioRequestError` with `kind: "sdk"` before any contract call is made. UIs typically gate the button on `useWalletAccount().isOnExpectedChain` to avoid the error path entirely.

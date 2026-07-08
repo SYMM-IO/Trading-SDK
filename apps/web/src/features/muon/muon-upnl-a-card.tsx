@@ -19,7 +19,7 @@ export function MuonUpnlACard() {
     <MuonServiceCard
       testId="muon-uPnl_A"
       method="uPnl_A"
-      description="A partyA's unrealized-PnL attestation (the signature removeMargin / deallocate requires). partyA is a subaccount for Majors, a virtual account for VibeCaps."
+      description="A partyA's unrealized-PnL attestation (the signature removeMargin / deallocate requires). partyA is a virtual account (lowcap)."
     >
       <PartyAField
         idPrefix="muon-upnl-a-party-a"

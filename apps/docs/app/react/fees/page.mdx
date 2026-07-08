@@ -1,0 +1,32 @@
+# Fees hooks
+
+Read on-chain fee rates and compute per-quote platform fees.
+
+**Every hook on this page is a [read](../concepts/hook-pattern#reads).**
+
+## Import
+
+```ts
+import { useFeeForUser, useQuotePlatformFee } from "@symmio/trading-react";
+```
+
+## `useFeeForUser`
+
+Fee rate applied to a user's trades (basis points).
+
+```ts
+const fee = useFeeForUser({ account });
+```
+
+## `useQuotePlatformFee`
+
+Composed — quote size × fee rate → open + close fees for a specific quote.
+
+```ts
+const { openFee, closeFee } = useQuotePlatformFee({ quote });
+```
+
+## Related
+
+- [Unified Quotes](../quotes) — consumers of the derived fee.
+- [SYMMIO Contract](../symmio-contract) — the underlying `getFeeForUser` read.

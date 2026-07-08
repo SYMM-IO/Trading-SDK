@@ -227,7 +227,7 @@ export interface Quote {
   lockedValues: LockedValues;
   /** Maximum funding rate partyA accepts. */
   maxFundingRate: bigint;
-  /** Owner of the quote — the SubAccount (Majors) or Virtual Account (VibeCaps). */
+  /** Owner of the quote — the virtual account (lowcap). */
   partyA: Address;
   /** The partyB (hedger/solver) that locked/opened the quote, or the zero address. */
   partyB: Address;

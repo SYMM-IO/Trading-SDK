@@ -1,0 +1,74 @@
+# ABI fragments
+
+Raw viem-style `Abi` arrays for the SYMMIO contracts, for consumers who call viem directly (bypassing the SDK's typed actions). Use these as an **escape hatch** — the typed actions are recommended for everything the SDK already covers.
+
+## Import
+
+```ts
+import { accountLayerAbi, instantLayerAbi, symmioAbi } from "@symmio/trading-core";
+```
+
+Each is a `readonly Abi` array exported straight from the versioned `src/abi/v0.8.5/` files.
+
+## Available fragments
+
+| ABI               | Contract        | Notes                                                    |
+| ----------------- | --------------- | -------------------------------------------------------- |
+| `accountLayerAbi` | AccountLayer    | SubAccount / Virtual Account creation, deposits, margin. |
+| `instantLayerAbi` | InstantLayer    | Delegated instant-open / instant-close.                  |
+| `symmioAbi`       | SYMMIO Contract | Quotes, allocation, collateral, protocol-level state.    |
+
+The current version is `v0.8.5` — sourced from [`@symm-io/perps-core`](https://github.com/SYMM-IO/perps-core/tree/version_0.8.5). When the SDK ships a second version, ABIs will route through a version-aware registry; today they are directly re-exported.
+
+## Usage — viem `readContract`
+
+```ts
+import { createPublicClient, http } from "viem";
+import { hyperEvm } from "viem/chains";
+import { accountLayerAbi } from "@symmio/trading-core";
+
+const client = createPublicClient({ chain: hyperEvm, transport: http() });
+
+const result = await client.readContract({
+  address: "0x…",
+  abi: accountLayerAbi,
+  functionName: "getSubAccountsCountOfUser",
+  args: [user],
+});
+```
+
+## Usage — viem `writeContract`
+
+```ts
+import { walletClient } from "./client";
+import { symmioAbi } from "@symmio/trading-core";
+
+const hash = await walletClient.writeContract({
+  address: "0x…",
+  abi: symmioAbi,
+  functionName: "allocate",
+  args: [subAccount, amount],
+});
+```
+
+Pair with `Config.getChainConfig(chainId).addresses` (see [Addresses](../addresses)) for the deployment-specific address.
+
+## When to reach for the ABI vs typed actions
+
+Prefer the typed action when one exists:
+
+- Typed actions run through `Config.getClient` / `getWalletClient`, so chain switching and wallet routing already work.
+- They wrap responses in typed shapes (`Quote`, `Market`, `LockedValues`) with 18-decimal-wei `bigint`.
+- They surface SDK errors (`SymmError` / `SymmApiError`) instead of raw viem errors when the failure is config-level.
+
+Reach for the ABI directly when:
+
+- The function isn't wrapped by the SDK yet.
+- You want raw viem semantics (e.g. `multicall` batches, custom overrides).
+- You're building diagnostics that need untouched ABI-level output.
+
+## Related
+
+- [Addresses](../addresses) — per-chain deployment addresses.
+- [Config](../concepts/config) — client resolvers to pair the ABI with.
+- [AccountLayer](../account-layer) / [InstantLayer](../instant-layer) / [SYMMIO Contract](../symmio-contract) — typed actions built on top.

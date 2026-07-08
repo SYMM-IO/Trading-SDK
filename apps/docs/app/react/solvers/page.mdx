@@ -1,134 +1,92 @@
 # Solvers hooks
 
-Solver hooks wrap the `@symmio/trading-core` solver REST actions with React Query and SDK provider state. They read the active chain from `SymmioProvider` unless you pass `chainId`.
+React hooks over `@symmio/trading-core`'s Solvers slice — market catalog, locked params, notional cap, open interest, plus the instant-open / instant-close mutation orchestrators.
 
-Use these hooks to build trade preparation UIs: market pickers, leverage controls, and locked-param previews before sending an instant action.
+Every hook on this landing page is a **read**. The writes (instant-open / instant-close) live on their own pages linked at the bottom.
 
-## `useMarkets`
-
-Fetch tradable markets from the chain solver.
-
-```tsx
-import { useMarkets } from "@symmio/trading-react";
-
-function MarketList() {
-  const query = useMarkets({ query: { staleTime: 30_000 } });
-
-  if (query.isLoading) return <p>Loading markets...</p>;
-  if (query.error) return <p>{query.error.message}</p>;
-
-  return (
-    <ul>
-      {(query.data ?? []).map((market) => (
-        <li key={market.symbol_id}>
-          {market.name ?? market.symbol} · max {market.max_leverage}x
-        </li>
-      ))}
-    </ul>
-  );
-}
-```
-
-### Parameters
-
-| Name      | Type      | Default         | Notes                     |
-| --------- | --------- | --------------- | ------------------------- |
-| `chainId` | `number?` | connected chain | Optional chain override.  |
-| `query`   | `object?` | `undefined`     | TanStack Query overrides. |
-| `config`  | `Config?` | provider value  | Optional config override. |
-
-### Return type
-
-`UseQueryResult<SymbolContractSymbol[], SymmioRequestError>`.
-
-## `useLockedParams`
-
-Fetch solver locked params for one market/leverage pair.
-
-`symbol` and `leverage` are required inputs. For market UIs, use the selected market's `name` when available, with `symbol` as a fallback.
-
-```tsx
-import { useLockedParams } from "@symmio/trading-react";
-
-function LockedParamsPreview({ symbol, leverage }: { symbol: string; leverage: number }) {
-  const query = useLockedParams({
-    symbol,
-    leverage,
-    query: { staleTime: 10_000 },
-  });
-
-  if (query.isLoading) return <p>Loading locked params...</p>;
-  if (query.error) return <p>{query.error.message}</p>;
-
-  return (
-    <dl>
-      <dt>CVA</dt>
-      <dd>{query.data?.cva}</dd>
-      <dt>LF</dt>
-      <dd>{query.data?.lf}</dd>
-      <dt>Party AMM</dt>
-      <dd>{query.data?.partyAmm}</dd>
-      <dt>Party BMM</dt>
-      <dd>{query.data?.partyBmm}</dd>
-    </dl>
-  );
-}
-```
-
-### Parameters
-
-| Name       | Type      | Default         | Notes                                     |
-| ---------- | --------- | --------------- | ----------------------------------------- |
-| `symbol`   | `string`  | required        | Solver market path value.                 |
-| `leverage` | `number`  | required        | Leverage used to calculate locked params. |
-| `chainId`  | `number?` | connected chain | Optional chain override.                  |
-| `query`    | `object?` | `undefined`     | TanStack Query overrides.                 |
-| `config`   | `Config?` | provider value  | Optional config override.                 |
-
-### Return type
-
-`UseQueryResult<SolverLockedParams, SymmioRequestError>`.
+## Import
 
 ```ts
-interface SolverLockedParams {
-  cva?: string;
-  lf?: string;
-  partyAmm?: string;
-  partyBmm?: string;
-  leverage?: string;
-}
+import {
+  useMarkets,
+  useLockedParams,
+  useNotionalCapAll,
+  useNotionalCapBySymbolId,
+  useOpenInterestBySymbolId,
+  useSolverErrorCodes,
+  useSolverErrorMessage,
+} from "@symmio/trading-react";
 ```
 
-## Conditional Forms
+## Reads
 
-Because `useLockedParams` requires inputs, keep incomplete form state outside the hook call. A simple pattern is to render a child only after the inputs are ready:
+### `useMarkets`
 
-```tsx
-function LockedParamsForm() {
-  const symbol = selectedMarket?.name ?? selectedMarket?.symbol;
-  const leverage = parsedLeverage;
+Solver-side market catalog. Prefer this over `useOnchainContractMarkets` for UI catalogs — the solver adds precision / tick metadata.
 
-  if (!symbol || !leverage) {
-    return <p>Select a market and leverage.</p>;
-  }
-
-  return <LockedParamsPreview symbol={symbol} leverage={leverage} />;
-}
+```ts
+const markets = useMarkets();
 ```
 
-For manual "Read" buttons, pass placeholder values and disable the query until the button can refetch:
+Returns `SymbolContractSymbol[]`.
 
-```tsx
-const ready = Boolean(symbol) && Boolean(leverage);
-const query = useLockedParams({
-  symbol: symbol ?? "",
-  leverage: leverage ?? 0,
-  query: { enabled: false },
-});
+### `useLockedParams`
 
-<button disabled={!ready || query.isFetching} onClick={() => void query.refetch()}>
-  Read locked params
-</button>;
+Fetch the solver's `LockedParams` for a market + leverage — the CVA / LF percentages required to open at that leverage. Used inside `useInstantOpenAuto` internally; expose it to render "at this leverage you lock X collateral" UIs.
+
+```ts
+const locked = useLockedParams({ symbol: "BTCUSDT", leverage: 5 });
 ```
 
-The hook does not make required inputs optional and does not validate missing inputs inside `queryFn`.
+### `useNotionalCapBySymbolId`
+
+Available liquidity — how much notional the solver still permits for a market. Gate order size on this.
+
+```ts
+const cap = useNotionalCapBySymbolId({ symbolId: 1n });
+```
+
+### `useNotionalCapAll`
+
+Batch — every market's cap in one call.
+
+```ts
+const caps = useNotionalCapAll();
+```
+
+### `useOpenInterestBySymbolId`
+
+Used vs capped notional per market.
+
+```ts
+const oi = useOpenInterestBySymbolId({ symbolId: 1n });
+```
+
+### `useSolverErrorCodes`
+
+Fetch the solver's error-code registry. Cache once, look up by code.
+
+```ts
+const codes = useSolverErrorCodes();
+```
+
+### `useSolverErrorMessage`
+
+Composed — takes an error code, returns the human-readable message.
+
+```ts
+const msg = useSolverErrorMessage({ code: 42 });
+```
+
+## Trading flows
+
+Instant Open and Instant Close live on their own pages:
+
+- **[Instant Open](/react/solvers/instant-open)** — `useInstantOpen`, `useInstantOpenAuto`, `useInstantOpenWithTpSl`, `useInstantOpens`, `useInstantOpenQuoteId`.
+- **[Instant Close](/react/solvers/instant-close)** — `useInstantClose`, `useInstantCloseAuto`, `useInstantCloseBulk`, `useInstantCloseBulkAuto`, `useInstantCloses`.
+
+## Related
+
+- [Core Solvers](../../core/solvers) — the underlying actions.
+- [SYMMIO Contract](../symmio-contract) — on-chain analogs where applicable.
+- [Errors](../errors) — solver failures surface as `SymmioRequestError` `kind: "api"`.

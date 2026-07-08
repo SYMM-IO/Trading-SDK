@@ -3,9 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next",
+    "dev": "next dev",
     "build": "next build",
+    "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind",
     "start": "next start",
+    "preview": "next build && next start",
     "lint": "eslint . --max-warnings 0",
     "check-types": "next typegen && tsc --noEmit"
   },
@@ -24,6 +26,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
+    "pagefind": "^1.5.2",
     "typescript": "^6.0.3"
   }
 }

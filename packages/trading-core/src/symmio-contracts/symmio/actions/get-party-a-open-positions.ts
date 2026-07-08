@@ -9,7 +9,7 @@ import type { Quote } from "../types";
  */
 export type GetPartyAOpenPositionsParameters = Compute<
   ChainIdParameter & {
-    /** The partyA whose open positions to read — a SubAccount (Majors) or Virtual Account (VibeCaps). */
+    /** The partyA (virtual account, lowcap) whose open positions to read. */
     partyA: Address;
     /**
      * Pagination offset into partyA's open-positions list.

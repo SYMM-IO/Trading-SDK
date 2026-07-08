@@ -1,0 +1,110 @@
+# Subgraph hooks
+
+React hooks over the two per-chain GraphQL subgraphs (`analytics` + `events`). See [Core Subgraph](../../core/subgraph) for the full data model, endpoint layout, and how to add missing queries.
+
+**Read only.** Subgraphs are historical indexes — writing happens on-chain, then indexed here.
+
+## Import
+
+```ts
+import {
+  useSubgraphQuery,
+  useBalanceHistory,
+  useTransferHistory,
+  useQuoteHistory,
+  useQuoteEventsByType,
+  useQuoteFunding,
+  useQuotesFunding,
+  useDepositHistory,
+  useWithdrawHistory,
+} from "@symmio/trading-react";
+```
+
+## Escape hatch — `useSubgraphQuery`
+
+Send any raw GraphQL query against either subgraph. Use when the SDK doesn't ship a pre-baked hook for what you need.
+
+```ts
+const history = useSubgraphQuery({
+  subgraph: "analytics",
+  query: gql`
+    query MyCustomQuery($account: String!) {
+      myEntities(where: { account: $account }) {
+        id
+        value
+      }
+    }
+  `,
+  variables: { account: subAccount },
+});
+```
+
+Returns `UseQueryResult<T, SymmioRequestError>` — same shape as every SDK hook. The response is parsed as-is; consumers own the type.
+
+If you find yourself writing the same raw query across two components, that's the signal to open a PR adding a typed hook — see [Core Subgraph](../../core/subgraph).
+
+## Pre-baked history reads
+
+### `useBalanceHistory`
+
+Deposit / withdraw / allocate / deallocate events over time.
+
+```ts
+const history = useBalanceHistory({ account, first: 50, skip: 0 });
+```
+
+### `useTransferHistory`
+
+Every collateral in / out for an account.
+
+```ts
+const transfers = useTransferHistory({ account, first: 50, skip: 0 });
+```
+
+### `useDepositHistory` / `useWithdrawHistory`
+
+Filtered projections of the balance history for the two most common UI needs.
+
+## Per-quote history
+
+### `useQuoteHistory`
+
+Every state transition for one quote — send, lock, fill, close, cancel — chronologically ordered.
+
+```ts
+const events = useQuoteHistory({ quoteId: 42n, first: 100 });
+```
+
+### `useQuoteEventsByType`
+
+Filter by event type. Handy for per-quote timelines that only need fills or only cancels.
+
+```ts
+const fills = useQuoteEventsByType({
+  quoteId: 42n,
+  type: "FillOpenMarketOrder",
+  first: 20,
+});
+```
+
+### `useQuoteFunding`
+
+Aggregate funding paid + received for one quote across its lifetime.
+
+```ts
+const { paid, received, net } = useQuoteFunding({ quoteId: 42n }).data ?? {};
+```
+
+### `useQuotesFunding`
+
+Batch variant — funding for many quotes in one request. Feeds "sum of funding across open positions" UI.
+
+```ts
+const funding = useQuotesFunding({ quoteIds: [42n, 43n, 44n] });
+```
+
+## Related
+
+- [Core Subgraph](../../core/subgraph) — the two subgraphs, contract sync, adding queries.
+- [Unified Quotes](../quotes) — `useQuoteHistory` decorates rendered rows.
+- [Errors](../errors) — subgraph failures surface as `SymmioRequestError` `kind: "api"`.

@@ -1,16 +1,47 @@
 # TP/SL
 
-Take-profit and stop-loss orders for open positions. Trigger prices are held off-chain by a **conditional-order handler** ("handler" from here on) — a solver-adjacent service. `@symmio/trading-core` speaks to the handler over signed HTTP and a WebSocket report stream; the on-chain contract is only involved when a trigger actually fires and closes the position.
+Take-profit and stop-loss orders for open positions. Trigger prices are held off-chain by a **conditional-order handler** ("handler" from here on) — a solver-adjacent service. `@symmio/trading-core` speaks to the handler over signed HTTP for mutations and a defilytics-protocol WebSocket for state updates. The on-chain contract is only involved when a trigger actually fires and closes the position.
 
-The handler broadcasts every state transition (`pending`, `new`, `triggered`, `canceled`) via a defilytics-protocol WebSocket. Every SDK call is a thin, framework-agnostic wrapper around one HTTP verb or one socket subscription; the framework layer (`@symmio/trading-react`) is where the store, aliasing, and status overlay live.
+## The flow — POST + WebSocket
+
+Every TP/SL mutation (**new**, **edit**, **delete**) follows the same two-step handshake:
+
+1. **POST** the signed EIP-712 message to the handler. A `200` response means the handler **accepted** the request — the order is now `processing`, not yet live.
+2. **Wait for the WebSocket `report` frame** with `data.successful: true`. That frame is the final approval — the state transitions to `new` (create / edit) or `canceled` (delete).
+
+The SDK does **not** poll after a mutation. The WebSocket report is authoritative, and the framework layer (`@symmio/trading-react`) reconciles `confirming` → `new` / `canceled` off it. If you're building a UI, subscribe via [`watchTpSlNotifications`](#watchtpslnotifications) and reflect the state change when the matching frame lands.
+
+Same handshake for new / edit / delete — POST accepts, WS confirms. Nothing shortcut: even a 200 without a WS report means the order is stuck in `pending` and the UI should render it as "processing".
+
+## Attaching TP/SL to a new position (instant open)
+
+For a brand-new order that should ship with a TP and/or SL attached, the flow is:
+
+1. Call **`instantOpen`** (or [`instantOpenAuto`](../solvers/instant-open)). The solver responds with a `tempQuoteId` (negative integer) that identifies the pending trade **before** it anchors on-chain.
+2. Immediately POST **`setQuoteTpSl`** using that `tempQuoteId` as the `quoteId` argument. The handler creates the conditional order against the pre-chain identity.
+3. When the position anchors on-chain and gets its real positive `quoteId`, the handler transparently maps `tempQuoteId ↔ quoteId`. **The TP/SL row survives the transition** — you can read it back with either id.
+
+The React layer wraps this in [`useInstantOpenWithTpSl`](../../react/tpsl), which orchestrates both POSTs and stitches the state into one mutation. Directly in `core`, it's two sequential calls: `instantOpenAuto` → `setQuoteTpSl` with the returned `tempQuoteId`.
 
 ## Concepts
 
-**Conditional order** — one leg of a TP/SL, addressed by a handler-issued `coh_quote_id` (e.g. `"coh4213"`). A quote has at most one active TP and one active SL.
+**Conditional order** — one leg of a TP/SL, addressed by a handler-issued `coh_quote_id` (e.g. `"coh4213"`). A quote has at most one active TP and one active SL at a time.
 
-**Quote id vs temp quote id** — a pre-chain instant-open exists at the handler under a hedger-issued `tempQuoteId` (negative integer). Once it anchors on-chain, the same order gains a positive `quoteId`. TP/SL orders are addressable by either id.
+**Quote id vs temp quote id** — a pre-chain instant-open exists at the handler under a hedger-issued `tempQuoteId` (negative integer). Once it anchors on-chain, the same order gains a positive `quoteId`. **TP/SL orders are addressable by either id** — the handler maps them, so reads and writes can use whichever id the caller has.
 
 **Notification frame** — a `report` on the WebSocket. Carries `primary_identifier` (on-chain id or `0`), `secondary_identifier` (temp id or `0`), `data.conditional_order_type` (`take_profit` | `stop_loss`), `data.state`, `data.successful`, and — on some frames — `data.details.trigger_price`. This is the source of truth for state transitions; the SDK does **not** poll after mutations.
+
+**States** — the handler emits a small state machine:
+
+| State                               | Meaning                                                   |
+| ----------------------------------- | --------------------------------------------------------- |
+| `pending`                           | POST accepted; awaiting handler processing.               |
+| `new`                               | Handler confirmed the order is live (create / edit path). |
+| `triggered`                         | The price condition fired; the close is in flight.        |
+| `cancel` / `canceled` / `cancelled` | Delete confirmed, or handler dropped the order.           |
+| `close`                             | Terminal — position closed via this order.                |
+
+React layers overlay a `confirming` synthetic state locally between the POST and the WS report so the UI can show "processing…" without any extra plumbing.
 
 ## Read
 

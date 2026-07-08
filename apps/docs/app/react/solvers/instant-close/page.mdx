@@ -1,0 +1,86 @@
+# Instant Close hooks
+
+React hooks over the core [Instant Close](../../../core/solvers/instant-close) flow. Same three-function split as Instant Open, plus bulk variants.
+
+The page is split into two groups:
+
+- **[Reads](#reads)** — pending queue reads (`useInstantCloses`).
+- **[Writes](#writes)** — single-quote close (`useInstantCloseAuto`, `useInstantClose`) + bulk variants (`useInstantCloseBulk`, `useInstantCloseBulkAuto`).
+
+## Import
+
+```ts
+import {
+  useInstantClose,
+  useInstantCloseAuto,
+  useInstantCloseBulk,
+  useInstantCloseBulkAuto,
+  useInstantCloses,
+} from "@symmio/trading-react";
+```
+
+## Reads
+
+### `useInstantCloses`
+
+Paginated list of the solver's pending instant-closes for a SubAccount. `useManagedQuotes` consumes this internally.
+
+```ts
+const pending = useInstantCloses({ account: subAccount, offset: 0n, size: 20n });
+```
+
+## Writes
+
+### `useInstantCloseAuto`
+
+One-line orchestrator: `prepareInstantCloseParams` + `instantClose`. Runs the market metadata / mark-price fetches inline.
+
+```tsx
+const close = useInstantCloseAuto();
+
+close.mutate({
+  from: sessionKey,
+  partyA,
+  market: { id: 1 },
+  positionType: PositionType.LONG,
+  quoteId: 42n,
+  quantityToClose: "0.5",
+  slippage: 1,
+});
+```
+
+## `useInstantClose`
+
+Low-latency primitive — caller supplies the pre-resolved `InstantCloseParameters`. Pair with a staged `prepareInstantCloseParams` for fast closes.
+
+```tsx
+const close = useInstantClose();
+close.mutate(prepared);
+```
+
+## `useInstantCloseBulk` / `useInstantCloseBulkAuto`
+
+Atomic close of multiple quotes. `Auto` fetches metadata per quote; the primitive expects pre-resolved bags.
+
+```tsx
+const bulk = useInstantCloseBulkAuto();
+
+bulk.mutate({
+  from: sessionKey,
+  subAccount,
+  virtualAccount,
+  closes: [
+    { quoteId: 42n, quantityToClose: "0.5" },
+    { quoteId: 43n, quantityToClose: "1.0" },
+  ],
+  slippage: 1,
+});
+```
+
+The solver may partially accept — inspect per-quote success flags in `mutation.data`.
+
+## Related
+
+- [Core Instant Close](../../../core/solvers/instant-close) — three-function split.
+- [Instant Open](../instant-open) — the open-side analog.
+- [Unified Quotes](../../quotes) — close-side lifecycle transitions live in `applyNotificationToQuotes`.

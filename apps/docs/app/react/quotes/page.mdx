@@ -1,0 +1,117 @@
+# Unified Quotes hooks
+
+Live, reconciled quote list — the primary abstraction UI code binds to. Composes on-chain reads, pending instant-opens, pending instant-closes, and solver notifications into one reactive stream of `UnifiedQuote[]`.
+
+**Read-only page.** Every hook here is a read. The writes that produce the pending rows (`useInstantOpen*`, `useInstantClose*`) live under [Solvers](../solvers).
+
+## Import
+
+```ts
+import {
+  useManagedQuotes,
+  useGroupedQuotes,
+  useOptimisticQuotesStore,
+  useQuoteUpnlAndPnl,
+  useQuotePlatformFee,
+  useQuotePriceHistory,
+} from "@symmio/trading-react";
+```
+
+## `useManagedQuotes`
+
+The orchestrator. Handles:
+
+1. **Reads** — `getPartyAOpenPositions`, `getPartyAPendingQuotes`, `getInstantOpens`, `getInstantCloses` on a chain-scoped poll.
+2. **Notifications** — subscribes via `useNotifications`, folds each frame through `applyNotificationToQuotes`.
+3. **Reconciliation** — merges every source via `reconcileQuotes` with the `useOptimisticQuotesStore` ledger.
+4. **Polling acceleration** — switches to a tighter interval (~1.5 s) while any row is mid-transition (`shouldAccelerate(quotes) === true`); otherwise idles at ~5 s.
+5. **Invalidation on notification** — debounces + invalidates the on-chain reads so the next poll returns fresh data.
+
+```tsx
+const managed = useManagedQuotes({
+  partyA: subAccount,
+  live: true, // subscribe to notifications (default: true)
+});
+
+for (const quote of managed.quotes) {
+  render(quote);
+}
+```
+
+### Parameters
+
+| Name            | Type         | Default        | Notes                                                      |
+| --------------- | ------------ | -------------- | ---------------------------------------------------------- |
+| `partyA`        | `Address`    | required       | SubAccount whose quotes to manage.                         |
+| `live`          | `boolean`    | `true`         | Subscribe to the notifications WS; `false` for poll-only.  |
+| `extraAccounts` | `Address[]?` | `[]`           | Extra addresses to include in the on-chain read set (VAs). |
+| `chainId`       | `number?`    | config default | Optional chain override.                                   |
+
+### Return type
+
+```ts
+{
+  quotes: UnifiedQuote[];
+  isLoading: boolean;
+  isFetching: boolean;
+  socketStatus: SocketStatus;
+  error: SymmioRequestError | null;
+}
+```
+
+The React hook is the recommended entry point — it wires stores, polling, and WS reconciliation you would otherwise have to compose by hand.
+
+## `useGroupedQuotes`
+
+Groups a `UnifiedQuote[]` by market + side. Useful for a "positions grouped by symbol" table.
+
+```ts
+const grouped = useGroupedQuotes({ quotes: managed.quotes });
+```
+
+## `useOptimisticQuotesStore`
+
+Module-level Zustand store — the "pending opens the reconciler still remembers about" ledger. See [Stores](../concepts/stores).
+
+Written by mutations (`useInstantOpen*` push an entry) and cleared by reconciliation once the row is anchored on-chain. Consumers rarely read the store directly; `useManagedQuotes` composes it in for you.
+
+Direct access via a selector when you need to render optimistic UI outside the managed list:
+
+```ts
+const pending = useOptimisticQuotesStore((state) => state.pending);
+```
+
+## Per-quote decorators
+
+Small derived hooks that compose reads on a specific quote:
+
+### `useQuoteUpnlAndPnl`
+
+`{ upnl, upnlPercent, markPrice }` snapshot for a quote — composes on-chain quote + mark price + Muon UPNL.
+
+```ts
+const { upnl, upnlPercent, markPrice } = useQuoteUpnlAndPnl({ quote });
+```
+
+### `useQuotePlatformFee`
+
+Open + close fee for a quote based on `useFeeForUser` + quote size.
+
+```ts
+const { openFee, closeFee } = useQuotePlatformFee({ quote });
+```
+
+### `useQuotePriceHistory`
+
+Subgraph-backed price history for a quote.
+
+```ts
+const history = useQuotePriceHistory({ quoteId: 42n, query: { enabled: showChart } });
+```
+
+## Related
+
+- [Core Unified Quotes](../../core/quotes) — the underlying `reconcileQuotes` / `applyNotificationToQuotes`.
+- [Notifications](../notifications) — the WS stream `useManagedQuotes` subscribes to.
+- [Instant Open](../solvers/instant-open) / [Instant Close](../solvers/instant-close) — mutations that push into `useOptimisticQuotesStore`.
+- [Stores](../concepts/stores) — how `useOptimisticQuotesStore` fits into the wider Zustand pattern.

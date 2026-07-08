@@ -1,0 +1,122 @@
+# Config
+
+`createConfig` is the entry point to `@symmio/trading-core`. It returns an immutable `Config` object that every standalone action and TanStack Query / Mutation options factory receives as its first argument.
+
+The config does **not** own viem clients — the framework layer (or a plain Node script) injects them via resolver callbacks. This keeps the SDK framework-agnostic and lets `@symmio/trading-react` bridge to wagmi without pulling wagmi into `core`.
+
+## Import
+
+```ts
+import { createConfig, type Config } from "@symmio/trading-core";
+```
+
+## Usage
+
+```ts
+import { createConfig } from "@symmio/trading-core";
+import { createPublicClient, createWalletClient, http } from "viem";
+import { hyperEvm } from "viem/chains";
+
+const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
+const walletClient = createWalletClient({ account, chain: hyperEvm, transport: http() });
+
+const config = createConfig({
+  getClient: () => publicClient,
+  getWalletClient: async () => walletClient,
+});
+```
+
+The config is meant to be created once at app start and shared across every call. Do not recreate it per action — chain-config fingerprints (used in query keys) rebuild on every call to `createConfig`.
+
+## Parameters
+
+### `getClient`
+
+- Type: `(parameters?: { chainId?: number }) => PublicClient`
+- **Required**
+
+Resolves the viem `PublicClient` used for read actions. Called fresh on every read. Framework layers inject a chain-aware resolver — `@symmio/trading-react` bridges this to `wagmi/actions#getPublicClient`; a plain Node script returns its own viem client.
+
+### `getWalletClient`
+
+- Type: `(parameters: { chainId: number; from?: Address }) => Promise<SymmioWalletClient>`
+- **Optional** — read-only configs may omit it; write / sign actions then throw `NO_WALLET_CLIENT`.
+
+Returns the bound viem `WalletClient` used to sign and send. The SDK does **not** pick between multiple wallets. The resolver receives the optional `from` (passed by the action) and is responsible for returning the right client — for example, a session-key wallet when `from` matches the session key, or the wagmi-connected wallet otherwise. The resolver is called fresh per action, so account switches propagate without recreating the config.
+
+### `chainOverrides`
+
+- Type: `Partial<Record<number, DeepPartial<SymmioChainConfig>>>`
+- Default: `undefined`
+
+Per-chain overrides deep-merged onto the SDK's built-in chain configs, keyed by chain id. Use this to point at a custom subgraph URL, override an address, or add a solver override without forking the whole registry.
+
+### `defaultChainId`
+
+- Type: `number`
+- Default: first built-in supported chain
+
+Chain used when an action or query omits `chainId`. Set to pin the SDK to a specific chain in single-chain apps.
+
+### `simulateBeforeWrite`
+
+- Type: `boolean`
+- Default: `true`
+
+Dry-run every write with viem's `simulateContract` before sending it. Aborts (and throws the decoded revert) if the transaction would fail. Override for a single call with the write's `simulateBeforeWrite` option; set `false` here to disable the pre-flight for **all** writes.
+
+### `webSocketConstructor`
+
+- Type: `WebSocketConstructor`
+- Default: `globalThis.WebSocket`
+
+WebSocket implementation used by streaming actions (`watchNotifications`, `watchTpSlNotifications`, `watchPriceServiceStream`). Set in browsers and Node 22+. Pass an implementation explicitly to run streams in older Node (the `ws` package) or a mock in tests.
+
+## Returns
+
+The returned `Config` is immutable. It exposes:
+
+### Data
+
+- `chains: readonly number[]` — chain ids the config knows about.
+- `defaultChainId: number` — the default `chainId` used when actions omit it.
+- `simulateBeforeWrite: boolean` — the default dry-run flag for writes.
+
+### Resolvers
+
+- `getChainConfig(chainId?): SymmioChainConfig` — fully-merged config for a chain. Throws `UNSUPPORTED_CHAIN` when unknown.
+- `getChainConfigKey(chainId?): string` — stable fingerprint of a chain's resolved config, folded into every query key so overrides do not serve stale cache. Returns a `"unsupported"` sentinel for unknown chains (never throws).
+- `getClient({ chainId? }): PublicClient` — resolves the read client.
+- `getWalletClient({ chainId?, from? }): Promise<SymmioWalletClient>` — resolves the write client. Throws `NO_WALLET_CLIENT` when `getWalletClient` was not supplied.
+- `getWebSocketConstructor(): WebSocketConstructor` — returns the injected constructor or the global `WebSocket`. Throws `NO_WEBSOCKET` when neither is available.
+
+## `ConfigParameter`
+
+Every action and hook accepts a `config?: Config` override via the `ConfigParameter` mixin:
+
+```ts
+interface ConfigParameter {
+  /** Use this config instead of the one from context. */
+  config?: Config;
+}
+```
+
+In `@symmio/trading-react` the hook reads the config from context (via `SymmioProvider`) unless `parameters.config` is set — mirroring wagmi's `parameters.config ?? contextConfig` pattern.
+
+## Errors
+
+`createConfig` throws `SymmError` synchronously on:
+
+- `NO_CHAINS_CONFIGURED` — no supported chains in the built-in registry.
+
+The `Config` throws on lazy resolution:
+
+- `UNSUPPORTED_CHAIN` — from `getChainConfig(id)` when `id` is unknown.
+- `NO_WALLET_CLIENT` — from `getWalletClient` when the resolver was not supplied.
+- `NO_WEBSOCKET` — from `getWebSocketConstructor` when no constructor is available.
+
+## Related
+
+- [React provider](../../../react/provider) — `SymmioProvider` wraps `createConfig` for React apps.
+- [Query options](../query-options) — how the factories consume the config.
+- [Errors](../errors) — full `SymmError` catalogue.

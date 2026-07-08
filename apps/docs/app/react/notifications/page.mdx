@@ -1,0 +1,94 @@
+# Notifications hooks
+
+React hooks over the solver [Notifications](../../core/notifications) channel — live WS stream + REST search over history. Both return normalized `Notification` frames, so UI code consumes them with one shape.
+
+**Read-only page.** `useNotifications` is a WebSocket subscription (still a "read" — no state mutation on-chain); `useSearchNotifications` is a REST-backed read.
+
+TP/SL has its own separate WebSocket over the same underlying Defilytics service (different `appName`). See [TP/SL](../tpsl).
+
+## Import
+
+```ts
+import {
+  useNotifications,
+  useSearchNotifications,
+  type Notification,
+  type NotificationType,
+} from "@symmio/trading-react";
+```
+
+## `useNotifications`
+
+Subscribe to the live solver notifications WebSocket for one SubAccount. Returns the live socket status + delegates each parsed frame to your `onNotification` callback.
+
+```tsx
+const { status } = useNotifications({
+  account: subAccount,
+  enabled: true,
+  onNotification: (notification) => {
+    console.log(notification.type, notification.quoteId, notification.lastSeenAction);
+  },
+});
+```
+
+### Parameters
+
+| Name             | Type                         | Default        | Notes                                                     |
+| ---------------- | ---------------------------- | -------------- | --------------------------------------------------------- |
+| `account`        | `Address?`                   | `undefined`    | SubAccount. When unset, the subscription is idle.         |
+| `enabled`        | `boolean?`                   | `true`         | Gate the subscription behind a flag (e.g. `live` toggle). |
+| `chainId`        | `number?`                    | config default | Optional chain override.                                  |
+| `onNotification` | `(n: Notification) => void?` | `undefined`    | Fires per parsed frame.                                   |
+| `onStatusChange` | `(s: SocketStatus) => void?` | `undefined`    | Connection status transitions.                            |
+| `onError`        | `(e: SymmError) => void?`    | `undefined`    | Transport / parse errors; does not stop the subscription. |
+
+### Return type
+
+```ts
+{
+  status: SocketStatus;
+  error: SymmioRequestError | null;
+}
+```
+
+Consumers reading the raw frames typically pass them into `applyNotificationToQuotes` (via `useManagedQuotes`) or into their own local reducer.
+
+### Connection pooling
+
+Every subscriber on the same `(wsUrl, appName, account)` triple shares one connection. See [Core WebSocket](../../core/concepts/websocket).
+
+## `useSearchNotifications`
+
+REST-backed paginated search for historical frames.
+
+```ts
+const page = useSearchNotifications({
+  account: subAccount,
+  filter: { quoteId: "42" },
+  page: 0,
+  size: 20,
+});
+
+page.data?.data.map((notification) => ...);
+```
+
+### Parameters
+
+| Name      | Type                        | Notes                                                |
+| --------- | --------------------------- | ---------------------------------------------------- |
+| `account` | `Address`                   | SubAccount to scope the search to.                   |
+| `filter`  | `NotificationSearchFilter?` | `quoteId` / `tempQuoteId` / `lastSeenAction` / date. |
+| `page`    | `number`                    | 0-indexed.                                           |
+| `size`    | `number`                    | Rows per page.                                       |
+| `chainId` | `number?`                   | Optional chain override.                             |
+| `query`   | `object?`                   | TanStack overrides.                                  |
+
+### Return type
+
+`UseQueryResult<{ data: Notification[]; total: number }, SymmioRequestError>`.
+
+## Related
+
+- [Core Notifications](../../core/notifications) — shape + wire protocol.
+- [Unified Quotes](../quotes) — `useManagedQuotes` composes `useNotifications` under the hood.
+- [TP/SL](../tpsl) — separate WS + REST for conditional-order reports.

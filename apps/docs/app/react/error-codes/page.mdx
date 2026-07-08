@@ -1,0 +1,45 @@
+# Error codes hooks
+
+Solver error-code registry lookups. Turn a numeric code into a human-readable message for UI display.
+
+**Read only.**
+
+## Import
+
+```ts
+import { useSolverErrorCodes, useSolverErrorMessage } from "@symmio/trading-react";
+```
+
+## `useSolverErrorCodes`
+
+Fetch the full registry. Cache once — the registry is stable per solver deployment.
+
+```ts
+const codes = useSolverErrorCodes();
+```
+
+## `useSolverErrorMessage`
+
+Look up a message by code. Composed on top of `useSolverErrorCodes`.
+
+```ts
+const message = useSolverErrorMessage({ code: 42 });
+```
+
+Common usage — render a solver rejection reason:
+
+```tsx
+const mutation = useInstantOpenAuto();
+const message = useSolverErrorMessage({
+  code: mutation.error?.responseData?.code,
+});
+
+{
+  mutation.error ? <ErrorNote>{message.data ?? mutation.error.message}</ErrorNote> : null;
+}
+```
+
+## Related
+
+- [Errors](../errors) — `SymmioRequestError` `kind: "api"` carries the numeric code on `responseData`.
+- [Core Solvers](../../core/solvers).

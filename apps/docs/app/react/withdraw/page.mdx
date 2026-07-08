@@ -1,0 +1,100 @@
+# Withdraw hooks
+
+Withdraw request lifecycle — initiate, cancel, finalize, plus reads for the pending queue.
+
+## Import
+
+```ts
+import {
+  // Reads
+  useLastWithdrawRequestId,
+  usePendingWithdrawRequests,
+  useWithdrawRequest,
+  useWithdrawableTime,
+  // Writes
+  useInitiateWithdraw,
+  useSimulateInitiateWithdraw,
+  useRequestCancelWithdraw,
+  useSimulateRequestCancelWithdraw,
+  useFinalizeWithdrawRequest,
+  useSimulateFinalizeWithdrawRequest,
+} from "@symmio/trading-react";
+```
+
+## Lifecycle overview
+
+1. **Initiate** — `useInitiateWithdraw` submits a withdraw request. Enters the delayed queue.
+2. **Wait** — `useWithdrawableTime` tells the UI when the request becomes claimable.
+3. **Finalize** — `useFinalizeWithdrawRequest` claims the funds after the delay.
+4. **Cancel** (optional) — `useRequestCancelWithdraw` cancels a pending request.
+
+Each write has a paired `useSimulate*` — see [Simulate then write](../concepts/simulate-then-write).
+
+## Reads
+
+### `useLastWithdrawRequestId`
+
+Id of the most recent request for an account.
+
+```ts
+const lastId = useLastWithdrawRequestId({ account });
+```
+
+### `usePendingWithdrawRequests`
+
+Every queued (not yet claimable) request for an account.
+
+```ts
+const pending = usePendingWithdrawRequests({ account });
+```
+
+### `useWithdrawRequest`
+
+Details for one specific request.
+
+```ts
+const request = useWithdrawRequest({ account, requestId });
+```
+
+### `useWithdrawableTime`
+
+Timestamp when a queued request becomes claimable. Bind to a countdown / claim button.
+
+```ts
+const { withdrawableAt, isReady } = useWithdrawableTime({ requestId });
+```
+
+## Writes
+
+### `useInitiateWithdraw` / `useSimulateInitiateWithdraw`
+
+Submit a withdraw request.
+
+```ts
+const simulation = useSimulateInitiateWithdraw({ account, amount });
+const mutation = useInitiateWithdraw();
+```
+
+### `useRequestCancelWithdraw` / `useSimulateRequestCancelWithdraw`
+
+Cancel a pending request.
+
+```ts
+const mutation = useRequestCancelWithdraw();
+mutation.mutate({ account, requestId });
+```
+
+### `useFinalizeWithdrawRequest` / `useSimulateFinalizeWithdrawRequest`
+
+Claim funds after the delay expires.
+
+```ts
+const mutation = useFinalizeWithdrawRequest();
+mutation.mutate({ account, requestId });
+```
+
+## Related
+
+- [SYMMIO Contract](../symmio-contract) — the underlying `createClassicWithdrawPart` primitive.
+- [InstantLayer](../instant-layer) — the delegated instant-withdraw variant.
+- [Errors](../errors) — reverts surface as `SymmioRequestError` `kind: "revert"`.

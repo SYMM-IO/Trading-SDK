@@ -1,0 +1,197 @@
+# Instant Close
+
+Instant Close is the lowcap flow for closing (fully or partially) an open position. Same shape as Instant Open — sign, submit, get an id — with a bulk variant for closing multiple quotes atomically.
+
+The SDK splits the flow into **three functions** on purpose (same pattern as Instant Open):
+
+1. **`prepareInstantCloseParams`** — resolve every derivable input (market metadata, mark price) into the exact wire-shaped `InstantCloseParameters` bag.
+2. **`instantClose`** — sign + submit. Requires the fully-resolved bag.
+3. **`instantCloseAuto`** — thin wrapper that calls `prepareInstantCloseParams` then `instantClose`. One line for callers who don't care about the intermediate state.
+
+Latency implication: `instantCloseAuto` runs the prepare fetches inline, so total wall-clock is `prepare fetches + sign + POST`. Call `instantClose` directly (with a pre-resolved bag) when close speed matters — e.g. closing on a fast-moving market where the mark-price fetch would burn the price window.
+
+Bulk close (`instantCloseBulk` / `instantCloseBulkAuto`) mirrors the pair: one atomic solver call across multiple quotes, with the same prepare-first / submit-second split.
+
+## Import
+
+```ts
+import {
+  instantClose,
+  instantCloseAuto,
+  instantCloseBulk,
+  instantCloseBulkAuto,
+  prepareInstantCloseParams,
+  getInstantCloses,
+  type PrepareInstantCloseParameters,
+  type InstantCloseParameters,
+  type PendingInstantClose,
+} from "@symmio/trading-core";
+```
+
+## The three-function split
+
+Under the hood, `instantCloseAuto` is:
+
+```ts
+export async function instantCloseAuto(config, parameters) {
+  const resolved = await prepareInstantCloseParams(config, parameters);
+  return instantClose(config, resolved);
+}
+```
+
+Same reasoning as Instant Open — the wrapper exists for one-line call sites; the split exists so you can:
+
+- **Cache the prepared bag** (render a review / confirmation screen, submit only after user confirms).
+- **Override resolved fields** (pin a specific mark price you fetched elsewhere).
+- **Run prepare early** — kick off the fetch when the user opens the close panel; when they hit Close, only sign + POST runs.
+- **Inspect** the exact numbers being signed before the network hop.
+
+`instantClose` on its own is the "I already have everything, just submit" primitive.
+
+## `prepareInstantCloseParams`
+
+Pure resolver. Takes the minimal UI-shaped inputs (partyA, market, side, quote id, quantity, slippage) and returns the full `InstantCloseParameters` bag needed by `instantClose`.
+
+**Steps (in order)**:
+
+1. Resolve market metadata + mark price — caller-supplied values short-circuit the fetches.
+2. Compute the slippage-adjusted close price via `calculateClosePrice`.
+3. Clamp `quantityToClose` to the market's `quantityPrecision`.
+4. Convert decimal strings to 18-decimal-wei `bigint`.
+
+```ts
+const resolved = await prepareInstantCloseParams(config, {
+  from: sessionKey,
+  partyA,
+  market: { id: 1 },
+  positionType: PositionType.LONG,
+  quoteId: 42n,
+  quantityToClose: "0.5",
+  slippage: 1,
+});
+```
+
+### Parameters
+
+Required = inputs only the caller can know (partyA, quote id, close intent). Optional = anything derivable from solver / price-service reads.
+
+**Every optional field you pre-fill skips its network fetch.** If you already have `markPrice` from a live price stream, or full precision metadata on `market` (`pricePrecision`, `quantityPrecision`), pass them in — `prepareInstantCloseParams` short-circuits each field and only fetches what's still missing. Pass everything derivable and the function becomes pure math with zero network hops.
+
+| Name              | Type                     | Required | Notes                                                                              |
+| ----------------- | ------------------------ | -------- | ---------------------------------------------------------------------------------- |
+| `from`            | `Address`                | ✔        | Session-key signer.                                                                |
+| `partyA`          | `Address`                | ✔        | Virtual Account that owns the position.                                            |
+| `market`          | `InstantCloseMarketData` | ✔        | `{ id }`, plus optional pre-fetched `name`, `pricePrecision`, `quantityPrecision`. |
+| `positionType`    | `PositionType`           | ✔        | Side of the position being closed (LONG = sell, SHORT = buy).                      |
+| `quoteId`         | `bigint`                 | ✔        | Quote id of the position.                                                          |
+| `quantityToClose` | `string`                 | ✔        | Decimal amount to close (partial or full).                                         |
+| `slippage`        | `number`                 | ✔        | Percent (e.g. `1` for 1%).                                                         |
+| `markPrice`       | `string?`                |          | Pre-fetched mark price (decimal). Omit to fetch via Enigma price service.          |
+| `salt`            | `Hex?`                   |          | Forwarded to `InstantCloseParameters`.                                             |
+| `deadline`        | `bigint?`                |          | Forwarded.                                                                         |
+| `chainId`         | `number?`                |          | Optional chain override.                                                           |
+
+### Returns
+
+`InstantCloseParameters` — the full parameter bag `instantClose` consumes. Inspectable, hashable, safe to log or stage between screens.
+
+### Errors
+
+- `INSTANT_CLOSE_INVALID_PARAMETERS` — mark price is zero / NaN, or `quantityToClose` is non-positive.
+
+## `instantClose`
+
+Sign the EIP-712 message with `config.getWalletClient({ from })` and POST to the solver. **The low-latency primitive** — no fetching, just sign + network.
+
+```ts
+const result = await instantClose(config, resolved);
+```
+
+Use `instantClose` directly when close speed matters — typical pattern:
+
+```ts
+// on close-panel mount, run prepare early:
+const prepared = await prepareInstantCloseParams(config, uiInputs);
+
+// user clicks Close — no fetch on the critical path:
+const result = await instantClose(config, prepared);
+```
+
+### Parameters
+
+`InstantCloseParameters` — the resolved bag from `prepareInstantCloseParams`. Every field is a concrete value; no fetching happens here.
+
+### Returns
+
+Solver response — `{ success: true; tempCloseId?: string; ... }`. Consumers usually just wait for the WS `close` notification.
+
+### Errors
+
+- Solver rejection surfaces as `SymmApiError`; inspect `responseData` for the reason.
+- Viem `UserRejectedRequestError` when the user dismisses the signature dialog.
+
+## `instantCloseAuto`
+
+Convenience wrapper: `prepareInstantCloseParams` + `instantClose` in one call. Same parameter shape as `prepareInstantCloseParams`.
+
+```ts
+await instantCloseAuto(config, {
+  from: sessionKey,
+  partyA,
+  market: { id: 1 },
+  positionType: PositionType.LONG,
+  quoteId: 42n,
+  quantityToClose: "0.5",
+  slippage: 1,
+});
+```
+
+**Latency**: prepare fetches run inline, so total wall-clock is `prepare fetches + sign + POST`. Use the split (`prepareInstantCloseParams` + `instantClose`) when close time is critical.
+
+## `instantCloseBulk` / `instantCloseBulkAuto`
+
+Atomic close of multiple quotes in one solver call. Same three-function split — the `Auto` wrapper is `prepare (each) + submit`.
+
+```ts
+await instantCloseBulkAuto(config, {
+  from: sessionKey,
+  subAccount,
+  virtualAccount,
+  closes: [
+    { quoteId: 42n, quantityToClose: "0.5" },
+    { quoteId: 43n, quantityToClose: "1.0" },
+  ],
+  slippage: 1,
+});
+```
+
+The solver may partially accept — the return value carries per-quote success flags. Consumers should surface partial results rather than treating the batch as all-or-nothing.
+
+For the low-latency bulk path, pre-resolve each per-quote bag via `prepareInstantCloseParams` (in parallel with `Promise.all`) then submit via `instantCloseBulk`.
+
+## `getInstantCloses`
+
+Paginated list of the solver's pending instant-closes for a SubAccount.
+
+```ts
+const page = await getInstantCloses(config, {
+  account: subAccount,
+  offset: 0n,
+  size: 20n,
+});
+```
+
+Consumed by the reconciler ([`reconcileQuotes`](../../quotes#reconcilequotes)), so callers rarely need it directly.
+
+## Query / Mutation options
+
+- `instantCloseMutationOptions(config)` — TanStack mutation bag for the primitive.
+- `instantCloseAutoMutationOptions(config)` — TanStack mutation bag for the wrapper.
+- `instantCloseBulkMutationOptions(config)` / `instantCloseBulkAutoMutationOptions(config)` — bulk variants.
+- `getInstantClosesQueryOptions(config, options)` — TanStack query bag for the pending list.
+
+## Related
+
+- [Instant Open](../instant-open) — the open-side analog with the same split.
+- [Unified Quotes](../../quotes) — `PendingInstantClose` feeds the reconciler; close-side lifecycle transitions live in `applyNotificationToQuotes`.
+- [Notifications](../../notifications) — close notifications drive `CLOSE_PRICE_FILLED` / `WRITE_ONCHAIN_CLOSE` / `CLOSING` transitions.

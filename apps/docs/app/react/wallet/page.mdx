@@ -2,7 +2,14 @@
 
 Thin wrappers over wagmi's wallet hooks, with the SDK's chain-awareness and error normalization layered on top.
 
-## `useWalletAccount`
+The page is split into two groups:
+
+- **[Reads](#reads)** — `useWalletAccount`.
+- **[Writes](#writes)** — `useConnectWallet`, `useDisconnectWallet`, `useSwitchToSymmioChain`. These are "actions" rather than TanStack mutations, but they still trigger side effects (wallet popups, chain switches) so the split applies.
+
+## Reads
+
+### `useWalletAccount`
 
 Read the connected wallet's state plus an `isOnExpectedChain` flag.
 
@@ -18,7 +25,9 @@ return <Dashboard address={address} />;
 
 `isOnExpectedChain` is `true` iff the wallet's chainId matches the SDK's configured chain — saves you from manually comparing in every component.
 
-## `useConnectWallet`
+## Writes
+
+### `useConnectWallet`
 
 ```tsx
 import { useConnectWallet } from "@symmio/trading-react";
@@ -34,14 +43,14 @@ return connectors.map((connector) => (
 
 `connectors` is whatever the host's wagmi config registered (`injected()`, `walletConnect()`, `mock()`, …). The SDK does not pick connectors for you. Errors thrown from `connect()` are already normalized to `SymmioRequestError`.
 
-## `useDisconnectWallet`
+### `useDisconnectWallet`
 
 ```tsx
 const { disconnect } = useDisconnectWallet();
 <button onClick={disconnect}>Disconnect</button>;
 ```
 
-## `useSwitchToSymmioChain`
+### `useSwitchToSymmioChain`
 
 Ask the wallet to switch to the chain configured in `SymmioProvider`. Convenience wrapper over wagmi's `useSwitchChain` that pulls the target chain id from the SDK config.
 

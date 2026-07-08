@@ -9,7 +9,7 @@ export type GetMuonUpnlParameters = Compute<
   ChainIdParameter & {
     /** The partyB (solver/hedger) side of the pair to attest. */
     partyB: Address;
-    /** The partyA (a subaccount for Majors, a virtual account for VibeCaps) to attest. */
+    /** The partyA (virtual account for lowcap) to attest. */
     partyA: Address;
   }
 >;

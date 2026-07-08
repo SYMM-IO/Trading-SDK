@@ -1,86 +1,126 @@
 # SymmioProvider
 
-The single context every other SDK hook consumes.
+The single React context every other SDK hook consumes. Builds the `core` `Config`, bridges wagmi's viem clients into it, and exposes the config + connected chain via `useSymmioConfig` / `useSymmioChainId`.
 
 ## Setup
 
 ```tsx
-import { SymmioProvider, SymmioSupportedChainId } from "@symmio/trading-react";
+import { SymmioProvider } from "@symmio/trading-react";
 
+<SymmioProvider>{children}</SymmioProvider>;
+```
+
+**Must be mounted inside a `WagmiProvider` and `QueryClientProvider`.** The SDK reads wagmi's connection state via `useConfig()` and shares the caller's `QueryClient`; it does not mount either itself.
+
+```tsx
+<WagmiProvider config={wagmiConfig}>
+  <QueryClientProvider client={queryClient}>
+    <SymmioProvider>{children}</SymmioProvider>
+  </QueryClientProvider>
+</WagmiProvider>
+```
+
+## Props
+
+### `chainOverrides`
+
+- Type: `Partial<Record<number, DeepPartial<SymmioChainConfig>>>`
+- Default: `undefined`
+
+Per-chain overrides deep-merged onto the SDK's built-in registry. Use to point at a staging subgraph, override an address, or add a solver override without forking.
+
+```tsx
 <SymmioProvider
-  config={{
-    chainId: SymmioSupportedChainId.HYPER_EVM,
-    affiliateAddress: "0xYourAffiliateAddress",
+  chainOverrides={{
+    999: {
+      subgraphs: {
+        analytics: "https://staging.example/subgraphs/analytics",
+      },
+    },
   }}
 >
   {children}
-</SymmioProvider>;
+</SymmioProvider>
 ```
 
-**Must be mounted inside a `WagmiProvider` and `QueryClientProvider`.** The SDK reads both from context but does not mount them itself. See **[Getting Started](/getting-started)** for the full tree.
+### `defaultChainId`
 
-## `SymmioClientConfigInput`
+- Type: `number`
+- Default: first built-in supported chain
 
-```ts
-interface SymmioClientConfigInput {
-  chainId: SymmioSupportedChainId;
-  affiliateAddress: Address;
+Chain used when an action or hook omits `chainId`. Set to pin the SDK in single-chain apps; wagmi's active chain still overrides for the connected wallet.
 
-  // optional per-chain overrides
-  addresses?: Partial<SymmioContractAddresses>;
-  subgraphs?: Partial<SymmioSubgraphUrls>;
-  solver?: Partial<SymmioSolverConfig>;
-}
-```
+### `getWalletClient`
 
-The provider merges your input with the built-in defaults for the chain, creates a `SymmioClient`, and exposes it via `useSymmioClient()`.
+- Type: `(parameters: { chainId: number; from?: Address }) => Promise<SymmioWalletClient>`
+- Default: wagmi-connected wallet resolver
 
-## `useSymmioClient`
+Custom wallet-client resolver. Receives `{ chainId, from }` from the SDK; the caller decides which wallet to return.
 
-Access the SDK client from context. Returns `undefined` if wagmi has no transport for the configured chain.
+Use this to plug in a **session-key wallet** (return the session key when `from` matches it, wagmi otherwise) or a **multi-signer flow** (a router that picks based on `from`).
 
 ```tsx
-import { useSymmioClient } from "@symmio/trading-react";
-
-function Banner() {
-  const client = useSymmioClient();
-  if (!client) return <p>Chain not configured</p>;
-
-  return (
-    <p>
-      Trading against {client.config.solver.name} on chain {client.config.chainId}.
-    </p>
+function useAppGetWalletClient() {
+  return useCallback(
+    async ({ chainId, from }) => {
+      if (sessionKey && from?.toLowerCase() === sessionKey.address.toLowerCase()) {
+        return sessionKey.walletClient;
+      }
+      return await getWalletClient(wagmiConfig, { chainId });
+    },
+    [sessionKey],
   );
 }
+
+<SymmioProvider getWalletClient={useAppGetWalletClient()}>{children}</SymmioProvider>;
 ```
 
-The client provides bound methods (`getUserSubAccounts`, `getMarkets`, `editAccountName`) and the resolved config at `client.config`.
+When omitted, the provider falls back to `wagmi/actions#getWalletClient` — the SDK signs with whatever wallet wagmi has connected, ignoring `from`.
 
-## Client shape
+## What the provider does
+
+1. Reads the host wagmi config via `useConfig()`.
+2. Calls `createConfig(...)` once, memoized against the wagmi config reference.
+3. Wires `getClient` to `wagmi/actions#getPublicClient` and `getWalletClient` to the prop (or wagmi's default).
+4. Exposes the `Config` via context.
+
+The wagmi bridge is **the only place the SDK touches wagmi** — that's why `core` stays wagmi-free and non-React consumers can pass their own viem clients.
+
+## Reading the config in a hook
+
+### `useSymmioConfig(parameters?)`
+
+Reads the config from context. Every SDK hook accepts an optional `config` override via its `parameters`; `useSymmioConfig` mirrors that convention (`parameters?.config ?? contextConfig`).
 
 ```ts
-interface SymmioClient {
-  config: SymmioChainConfig; // resolved addresses, subgraphs, solver
-  publicClient: PublicClient; // viem public client
-  walletClient?: WalletClient; // viem wallet client (if connected)
+import { useSymmioConfig } from "@symmio/trading-react";
 
-  // Bound methods
-  getUserSubAccounts(params: { user: Address }): Promise<SubAccountDetail[]>;
-  getMarkets(): Promise<Market[]>;
-  editAccountName(params: { account: Address; name: string }): Promise<Hash>;
-}
+const config = useSymmioConfig(); // from context
+const configOverride = useSymmioConfig({ config: customConfig }); // override
 ```
 
-`addresses.accountLayerAddress` is the address every account-layer hook uses by default. Each hook also accepts a per-call `accountLayerAddress` override.
+Throws when called outside `SymmioProvider` **and** no `config` override was passed.
 
-## Internal client hooks
+### `useSymmioChainId()`
 
-These are exported but mostly internal — domain hooks call them on your behalf. Useful if you want to compose your own queries on top of the SDK.
+Reads the connected chain id from wagmi. Falls back to the provider's `defaultChainId` when no wallet is connected.
 
-### `useSymmioPublicClient`
+```ts
+import { useSymmioChainId } from "@symmio/trading-react";
 
-Returns a viem `PublicClient` for the configured chain, sourced from the host's wagmi config. `undefined` when wagmi has no transport bound for the chain.
+const chainId = useSymmioChainId();
+```
 
-### `useSymmioWalletClient`
+## Chain-config utilities
 
-Returns wagmi's `useWalletClient` result scoped to the configured chain — full `{ data, status, error }` shape. `data` is `undefined` until the user connects a wallet **and** is switched to the SDK's chain.
+Re-exported from `core`:
+
+- `SymmioSupportedChainId` — enum of the SDK's built-in chain ids.
+- `isSymmioSupportedChainId(id)` — narrow an arbitrary id.
+- `getChainConfig(config, chainId?)` / `listSupportedChains(config)` — standalone helpers on the resolved config.
+
+## Related
+
+- [Config](../../core/concepts/config) — the underlying `createConfig`.
+- [Hook pattern](../concepts/hook-pattern) — how every downstream hook consumes context.
+- [Wallet hooks](../wallet) — the higher-level wallet + chain-switch API.

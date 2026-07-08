@@ -118,7 +118,7 @@ export function ReadGetPartyAOpenPositions() {
       magicMethodId="party-a-open-positions"
       magicMethodInput={input}
       mutability="view"
-      description="Read a partyA's open positions (SubAccount for Majors, Virtual Account for VibeCaps)."
+      description="Read a partyA's open positions (virtual account, lowcap)."
       wide
     >
       <PartyAField

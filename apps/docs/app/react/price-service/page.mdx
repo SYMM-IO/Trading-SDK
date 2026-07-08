@@ -2,6 +2,8 @@
 
 Price-service hooks wrap the `@symmio/trading-core` Enigma price-service reads with React Query and SDK provider state. They read the active chain from `SymmioProvider` unless you pass `chainId`.
 
+**Read-only page.** REST hooks return `UseQueryResult`; the live-price WebSocket hook is a subscription (still a "read" — no on-chain state mutated).
+
 ## `useEnigmaPriceServicePrices`
 
 Fetch mark prices by token addresses.
@@ -55,6 +57,10 @@ import { useEnigmaPriceServiceHealth } from "@symmio/trading-react";
 
 const query = useEnigmaPriceServiceHealth();
 ```
+
+## Recipes
+
+- [Lowcap Chart](../../guides/lowcap-chart) — render a price chart for a lowcap market. DexScreener iframe or own OHLC feed (Moralis / GeckoTerminal) with TradingView Lightweight Charts.
 
 ## Manual Read Buttons
 

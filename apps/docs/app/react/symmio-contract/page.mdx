@@ -1,0 +1,183 @@
+# SYMMIO Contract hooks
+
+React hooks over `@symmio/trading-core`'s on-chain SYMMIO contract slice — quote reads, party positions, collateral, allocate / deallocate, on-chain markets. Solver-side reads (`useMarkets`, `useLockedParams`, `useNotionalCap*`) live under [Solvers](../solvers).
+
+The page is split into two groups:
+
+- **[Reads](#reads)** — quote reads, collateral balances, on-chain markets, Muon UPNL sig, derived reads.
+- **[Writes](#writes)** — approve collateral, allocate, deallocate. Every write has a paired `useSimulateXyz` — see [Simulate then write](../concepts/simulate-then-write).
+
+## Import
+
+```ts
+import {
+  // Reads
+  useQuote,
+  useSubAccountQuotes,
+  usePartyAOpenPositions,
+  usePartyAPendingQuotes,
+  useOnchainContractMarkets,
+  useAccountLiquidationPrice,
+  useCollateralAllowance,
+  useCollateralBalance,
+  useDeallocateUpnlSig,
+  useQuoteUpnlAndPnl,
+  // Writes
+  useApproveCollateral,
+  useSimulateApproveCollateral,
+  useAllocate,
+  useSimulateAllocate,
+  useDeallocate,
+  useSimulateDeallocate,
+} from "@symmio/trading-react";
+```
+
+## Reads
+
+### `useQuote`
+
+Read one quote struct by id.
+
+```ts
+const quote = useQuote({ quoteId: 42n });
+```
+
+**Returns** — `UseQueryResult<Quote, SymmioRequestError>`.
+
+### `useSubAccountQuotes`
+
+Paginated quote list for a SubAccount.
+
+```ts
+const quotes = useSubAccountQuotes({
+  account: subAccount,
+  offset: 0n,
+  size: 20n,
+});
+```
+
+### `usePartyAOpenPositions`
+
+Open positions (anchored) for a PartyA (Virtual Account).
+
+```ts
+const open = usePartyAOpenPositions({ partyA, offset: 0n, size: 50n });
+```
+
+### `usePartyAPendingQuotes`
+
+Pending quotes (post-lock, pre-fill) for a PartyA.
+
+```ts
+const pending = usePartyAPendingQuotes({ partyA, offset: 0n, size: 50n });
+```
+
+### `useOnchainContractMarkets`
+
+Raw on-chain `getSymbol()` view. Use when you need contract truth without solver metadata; otherwise prefer `useMarkets` from [Solvers](../solvers).
+
+```ts
+const markets = useOnchainContractMarkets();
+```
+
+### `useAccountLiquidationPrice`
+
+Derived — liquidation price for a partyA's positions, computed from on-chain reads.
+
+```ts
+const { liquidationPrice, isLoading } = useAccountLiquidationPrice({ account: partyA });
+```
+
+### `useCollateralBalance`
+
+ERC-20 balance of the collateral token for an account.
+
+```ts
+const balance = useCollateralBalance({ account });
+```
+
+### `useCollateralAllowance`
+
+Allowance the account has granted the SYMMIO contract.
+
+```ts
+const allowance = useCollateralAllowance({ account });
+```
+
+### `useDeallocateUpnlSig`
+
+Fetch the Muon UPNL signature required by `deallocate`. Thin wrapper over `getDeallocateUpnlSig`.
+
+```ts
+const upnl = useDeallocateUpnlSig({ partyA });
+```
+
+### `useQuoteUpnlAndPnl`
+
+Composes an on-chain quote + mark price + Muon UPNL into a single reactive `{ upnl, upnlPercent, markPrice }` snapshot. UI-shaped, ready for a position row.
+
+```ts
+const { upnl, upnlPercent, markPrice, isLoading } = useQuoteUpnlAndPnl({ quote });
+```
+
+## Writes
+
+### `useApproveCollateral` / `useSimulateApproveCollateral`
+
+Approve the SYMMIO contract to spend collateral.
+
+```tsx
+const simulation = useSimulateApproveCollateral({ account, amount });
+const mutation = useApproveCollateral();
+
+<Button disabled={!simulation.data || mutation.isPending} onClick={() => mutation.mutate({ account, amount })}>
+  Approve
+</Button>;
+```
+
+### `useAllocate` / `useSimulateAllocate`
+
+Move collateral from the account into the SubAccount's tradable pool.
+
+```tsx
+const simulation = useSimulateAllocate({ account: subAccount, amount });
+const mutation = useAllocate();
+
+mutation.mutate({ account: subAccount, amount });
+```
+
+Invalidates `getAllocated`, `getCollateralBalance`, and party-scoped quote reads on success.
+
+### `useDeallocate` / `useSimulateDeallocate`
+
+Withdraw idle allocated collateral. Requires a Muon UPNL signature.
+
+```tsx
+const upnlSigQuery = useDeallocateUpnlSig({ partyA });
+const simulation = useSimulateDeallocate({
+  account: partyA,
+  amount,
+  upnlSig: upnlSigQuery.data,
+});
+const mutation = useDeallocate();
+```
+
+`useSimulateDeallocate` stays disabled until `upnlSig` is resolved — pipe the query result straight through.
+
+## Query options access
+
+Every hook wraps a core factory. If you need the raw factory (e.g. building your own composed query), import it from `@symmio/trading-core`:
+
+```ts
+import { getQuoteQueryOptions } from "@symmio/trading-core";
+```
+
+See [Query options](../../core/concepts/query-options).
+
+## Related
+
+- [Core SYMMIO Contract](../../core/symmio-contract) — the underlying actions.
+- [Solvers](../solvers) — solver-side market, locked params, notional cap.
+- [Unified Quotes](../quotes) — `useManagedQuotes` composes these reads with WS + reconciliation.
+- [Withdraw](../withdraw) — separate slice for the withdraw request lifecycle.
+- [Muon](../muon) — `useDeallocateUpnlSig` uses this under the hood.
