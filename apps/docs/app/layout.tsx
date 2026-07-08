@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
-import { Footer, Layout, Navbar } from "nextra-theme-docs";
+import { Footer, Layout, Navbar, ThemeSwitch } from "nextra-theme-docs";
 import "nextra-theme-docs/style.css";
 import { Banner, Head, Search } from "nextra/components";
 import { getPageMap } from "nextra/page-map";
@@ -68,6 +68,7 @@ function DevSearchStub() {
 const navbar = (
   <Navbar logo={<SymmioLogo />} logoLink="/" projectLink="https://github.com/SYMM-IO">
     {search}
+    <ThemeSwitch lite />
   </Navbar>
 );
 

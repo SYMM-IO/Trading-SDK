@@ -8,10 +8,14 @@ import { MagicSidebarDock } from "@/features/magic-sidebar/magic-sidebar-dock";
 import { MagicSidebarProvider } from "@/features/magic-sidebar/magic-sidebar-store";
 import { SymmioProvider } from "@symmio/trading-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "next-themes";
+import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { WagmiProvider } from "wagmi";
+
+const ThemeProvider = dynamic(() => import("next-themes").then((m) => m.ThemeProvider), {
+  ssr: false,
+});
 
 /**
  * Feeds the runtime overrides store into `SymmioProvider` and wires the app's
