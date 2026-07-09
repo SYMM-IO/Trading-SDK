@@ -10,6 +10,7 @@ import {
   SymmioRequestError,
   TpSlPriceType,
   useAccountBalanceOf,
+  useAvailableInstantOpenMargin,
   useEnigmaPriceServicePricesByNames,
   useFeeForUser,
   useInstantOpenWithTpSl,
@@ -141,19 +142,15 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
     return BigInt(Math.round(validSlippage * 1e16));
   }, [validSlippage]);
 
-  const availableMarginWei = useMemo<bigint | undefined>(() => {
-    const balance = balanceQuery.data;
-    const fees = feeQuery.data;
-    if (balance === undefined || fees === undefined || slippageFractionWei === undefined) return undefined;
-    const ONE_E18 = 10n ** 18n;
-    const slippageMultiplier =
-      side === "short" ? (slippageFractionWei >= ONE_E18 ? 0n : ONE_E18 - slippageFractionWei) : ONE_E18;
-    const totalFeeRate = fees.openFee + fees.closeFee;
-    const leverageScaled = BigInt(leverage) * totalFeeRate;
-    const feeMultiplier = leverageScaled >= ONE_E18 ? 0n : ONE_E18 - leverageScaled;
-    const afterSlippage = (balance * slippageMultiplier) / ONE_E18;
-    return (afterSlippage * feeMultiplier) / ONE_E18;
-  }, [balanceQuery.data, feeQuery.data, leverage, side, slippageFractionWei]);
+  const marginInfo = useAvailableInstantOpenMargin({
+    account: subAccount,
+    symbolId: selectedMarket?.symbol_id,
+    leverage,
+    positionType: side === "short" ? PositionType.SHORT : PositionType.LONG,
+    slippage: validSlippage ?? 0,
+  });
+  // Keep the form's "unavailable until slippage is valid" behavior.
+  const availableMarginWei = validSlippage === undefined ? undefined : marginInfo.availableMarginWei;
 
   const availableMarginDecimal =
     availableMarginWei !== undefined ? Number(formatUnits(availableMarginWei, WEI_DECIMALS)) : undefined;

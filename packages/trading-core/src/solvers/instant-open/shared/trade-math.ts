@@ -243,3 +243,69 @@ export function computePlatformFee(
 export function toWeiBigInt(value: string): bigint {
   return BigInt(parseEther(value).toFixed(0, RoundingMode.ROUND_DOWN));
 }
+
+/**
+ * Inputs for {@link calculateAvailableInstantOpenMargin}. All amounts are
+ * 18-decimal wei / fixed-point.
+ */
+export interface CalculateAvailableInstantOpenMarginParameters {
+  /** SubAccount available (deallocated) balance from `getAccountBalanceOf`; 1e18-scaled. */
+  balance: bigint;
+  /** Open fee rate (18-decimal fixed-point) from `getFeeForUser`. */
+  openFee: bigint;
+  /** Close fee rate (18-decimal fixed-point) from `getFeeForUser`. */
+  closeFee: bigint;
+  /** Slippage as an 18-decimal fraction (5% → `5n * 10n ** 16n`). */
+  slippageFractionWei: bigint;
+  /** Requested leverage (integer ≥ 1). */
+  leverage: number;
+  /** LONG skips the slippage cap; SHORT applies it. */
+  positionType: PositionType;
+}
+
+/**
+ * Maximum initial margin an instant open can spend. Shaves the raw available
+ * balance for fees (both sides, charged on the leveraged notional) and — for
+ * SHORT only — a worst-case slippage-fill buffer. Pure `bigint`; clamps to `0n`.
+ *
+ * ```text
+ * available = balance
+ *           × max(0, 1 − slippageFactor)                 // SHORT: slippage, LONG: 0
+ *           × max(0, 1 − leverage × (openFee + closeFee))
+ * ```
+ *
+ * A SHORT sizes quantity off `requestOpenPrice = markPrice × (1 − s)` (below
+ * mark), so a worse fill inflates notional by up to `1 / (1 − s)`; capping usable
+ * balance at `balance × (1 − s)` covers it. A LONG sets the request above mark,
+ * so fills deflate notional and need no cap.
+ *
+ * @returns spendable margin in 18-decimal wei.
+ * @example
+ * ```ts
+ * const max = calculateAvailableInstantOpenMargin({
+ *   balance,
+ *   openFee,
+ *   closeFee,
+ *   slippageFractionWei: 5n * 10n ** 16n, // 5%
+ *   leverage: 10,
+ *   positionType: PositionType.SHORT,
+ * });
+ * ```
+ */
+export function calculateAvailableInstantOpenMargin(parameters: CalculateAvailableInstantOpenMarginParameters): bigint {
+  const { balance, openFee, closeFee, slippageFractionWei, leverage, positionType } = parameters;
+  const ONE_E18 = 10n ** 18n;
+
+  const slippageMultiplier =
+    positionType === PositionType.SHORT
+      ? slippageFractionWei >= ONE_E18
+        ? 0n
+        : ONE_E18 - slippageFractionWei
+      : ONE_E18;
+
+  const leverageScaled = BigInt(leverage) * (openFee + closeFee);
+  const feeMultiplier = leverageScaled >= ONE_E18 ? 0n : ONE_E18 - leverageScaled;
+
+  const afterSlippage = (balance * slippageMultiplier) / ONE_E18;
+  return (afterSlippage * feeMultiplier) / ONE_E18;
+}

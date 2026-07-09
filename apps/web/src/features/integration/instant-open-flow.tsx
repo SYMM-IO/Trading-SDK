@@ -58,9 +58,12 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
 
   // ---- Subaccount balance: gates the Fund step. Available balance > 0 means
   // the subaccount can fund `addMarginToNextVA` for a trade. ----
+  // `live` refetches on the on-chain settle notification, so the balance drops
+  // after an open/close anchors without a manual refresh.
   const subAccountBalance = useAccountBalanceOf({
     account: subAccount ?? zeroAddress,
     query: { enabled: Boolean(subAccount) },
+    live: true,
   });
   const balanceKnown = Boolean(subAccount) && subAccountBalance.data !== undefined;
   const balanceFunded = balanceKnown && (subAccountBalance.data ?? 0n) > 0n;

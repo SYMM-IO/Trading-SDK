@@ -66,12 +66,13 @@ return <span>{data === undefined ? "-" : formatEther(data)}</span>;
 
 #### Parameters
 
-| Name      | Type       | Default        | Notes                                                                         |
-| --------- | ---------- | -------------- | ----------------------------------------------------------------------------- |
-| `account` | `Address?` | `undefined`    | Account address passed to `balanceOf`. The query is disabled while undefined. |
-| `chainId` | `number?`  | config default | Optional chain override.                                                      |
-| `query`   | `object?`  | `undefined`    | TanStack Query overrides.                                                     |
-| `config`  | `Config?`  | provider value | Optional config override.                                                     |
+| Name      | Type       | Default        | Notes                                                                                                                                            |
+| --------- | ---------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `account` | `Address?` | `undefined`    | Account address passed to `balanceOf`. The query is disabled while undefined.                                                                    |
+| `chainId` | `number?`  | config default | Optional chain override.                                                                                                                         |
+| `query`   | `object?`  | `undefined`    | TanStack Query overrides.                                                                                                                        |
+| `config`  | `Config?`  | provider value | Optional config override.                                                                                                                        |
+| `live`    | `boolean?` | `false`        | Subscribe to the account's on-chain settle notifications and refetch on each open/close settle (a shared WebSocket; requires the provider tree). |
 
 #### Return type
 
@@ -94,12 +95,13 @@ return <span>{data ? formatEther(data.allocatedBalance) : "-"}</span>;
 
 #### Parameters
 
-| Name      | Type       | Default        | Notes                                                                                             |
-| --------- | ---------- | -------------- | ------------------------------------------------------------------------------------------------- |
-| `account` | `Address?` | `undefined`    | Account address passed as PartyA to `balanceInfoOfPartyA`. The query is disabled while undefined. |
-| `chainId` | `number?`  | config default | Optional chain override.                                                                          |
-| `query`   | `object?`  | `undefined`    | TanStack Query overrides.                                                                         |
-| `config`  | `Config?`  | provider value | Optional config override.                                                                         |
+| Name      | Type       | Default        | Notes                                                                                                                                                  |
+| --------- | ---------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `account` | `Address?` | `undefined`    | Account address passed as PartyA to `balanceInfoOfPartyA`. The query is disabled while undefined.                                                      |
+| `chainId` | `number?`  | config default | Optional chain override.                                                                                                                               |
+| `query`   | `object?`  | `undefined`    | TanStack Query overrides.                                                                                                                              |
+| `config`  | `Config?`  | provider value | Optional config override.                                                                                                                              |
+| `live`    | `boolean?` | `false`        | Same as `useAccountBalanceOf`, and it **also** refetches on any frame whose `vaAddress` equals `account` (the account's Virtual Account just settled). |
 
 #### Return type
 

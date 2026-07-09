@@ -918,6 +918,8 @@ export {
   buildQuoteMetadata,
   // operations
   buildSignedOperation,
+  // trade math — spendable margin for the Max chip (fee + slippage shave)
+  calculateAvailableInstantOpenMargin,
   calculateMargin,
   calculateTradeParams,
   computePlatformFee,
@@ -956,6 +958,7 @@ export {
   // quote constraints — pre-submit validation against market caps/floors
   validateInstantOpenAgainstMarket,
   type BuildSignedOperationParameters,
+  type CalculateAvailableInstantOpenMarginParameters,
   type CalculateMarginParameters,
   type CalculateTradeParamsParameters,
   type CalculateTradeParamsReturnType,

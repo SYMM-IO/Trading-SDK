@@ -262,22 +262,24 @@ For a low-latency path (pre-fetch on mount, one-shot submit), use **[`useInstant
 
 ### Available margin (the Max chip)
 
-Raw available balance is not the safe max — the request must survive fees and, for SHORT, worst-case slippage fill. Shave it before writing to `Max`:
+`Max` is not the raw balance — the request must survive fees and, for SHORT, a worst-case slippage fill. The SDK does the shave for you with [`useAvailableInstantOpenMargin`](../../react/margin#useavailableinstantopenmargin):
 
+```tsx
+const { availableMargin, availableMarginWei } = useAvailableInstantOpenMargin({
+  account: subAccount,
+  symbolId: market.symbol_id,
+  leverage,
+  positionType,
+  slippage, // percent
+});
+// wire `availableMargin` to the Max chip; block submit when the typed margin exceeds it.
 ```
-available = balance
-          × max(0, 1 − slippageFactor)              // slippageFactor = slippage on SHORT, 0 on LONG
-          × max(0, 1 − leverage × (openFee + closeFee))
-```
 
-1. **Fees** are charged on leveraged notional — subtract `leverage × (openFee + closeFee)`.
-2. **Slippage (SHORT only)** — quantity is sized off `markPrice × (1 − s)`; a closer fill inflates notional, so cap usable balance at `balance × (1 − s)`. LONG fills deflate notional, so no extra cap.
-
-Inputs: `balance` = `useAccountBalanceOf` (1e18), `openFee`/`closeFee` = `useFeeForUser` (18-dec fixed-point), `slippage` as a wei fraction (`slippage × 1e16`). Do it all in `BigInt` with `ONE_E18 = 10n ** 18n`; `formatUnits(_, 18)` only at display time.
+It applies `available = balance × max(0, 1 − slippageFactor) × max(0, 1 − leverage × (openFee + closeFee))` — `slippageFactor = slippage` on SHORT and `0` on LONG (fees are charged on the leveraged notional; SHORT also caps for the worst-case fill). Because it reads the balance with `live: true`, the `Max` **refetches automatically when the open/close settles on-chain** — no manual refresh.
 
 <Callout type="info">
-  No SDK hook exposes this yet — copy the `availableMarginWei` memo from
-  `apps/web/src/features/integration/open-position-step.tsx`.
+  Want to own the pieces? Call the pure `calculateAvailableInstantOpenMargin` from `@symmio/trading-core` with your own
+  balance + fee reads — the hook is just that function fed by `useAccountBalanceOf` + `useFeeForUser`.
 </Callout>
 
 ### Pre-submit validation
@@ -351,26 +353,18 @@ const closeWei = percent >= 100 ? remaining : (remaining * BigInt(Math.round(per
 // useInstantCloseAuto().mutate({ …, quantityToClose: formatUnits(closeWei, 18) })
 ```
 
-### Refetch margin after settle
+### Keep the balance fresh after settle
 
-Neither open nor close changes the SubAccount balance at POST time — margin locks/unlocks on the settle notification. Subscribe with `useNotifications({ account: subAccount })` and, on a `NotificationType.SUCCESS` frame whose `lastSeenAction` is a settle action, invalidate the balance queries so Available / Allocated / the trade-form Max all refetch:
+Neither open nor close changes the SubAccount balance at POST time — margin locks/unlocks on the on-chain **settle** notification, which lands later over the WebSocket. So a balance read shown at trade time goes stale after the position anchors.
+
+Rather than wiring a separate invalidation, pass **`live: true`** to the balance read hooks. They subscribe to the account's settle notifications (a shared socket) and refetch themselves on each open-anchor / close-fill:
 
 ```ts
-// open anchored (margin locked) + close filled (margin unlocked) — NOT the earlier request/price-fill frames
-const SETTLE = new Set([
-  "SendQuoteTransaction",
-  "SendQuote",
-  "FillLimitOrderOpen",
-  "FillMarketOrderInstantClose",
-  "FillLimitOrderClose",
-]);
-// onNotification(n): if (n.type === NotificationType.SUCCESS && SETTLE.has(n.lastSeenAction ?? "")) {
-//   queryClient.invalidateQueries({ queryKey: ["getAccountBalanceOf"] });
-//   queryClient.invalidateQueries({ queryKey: ["getAccountBalanceInfo"] });
-// }
+const { data: available } = useAccountBalanceOf({ account: subAccount, live: true });
+const { data: info } = useAccountBalanceInfo({ account: subAccount, live: true });
 ```
 
-The balance query-key factories are not re-exported through react and the hooks expose no `queryKey`, so invalidate by the **string tag** (`["getAccountBalanceOf"]`) — TanStack prefix-matches it.
+`useAvailableInstantOpenMargin` already reads its balance with `live: true`, so the trade-form `Max` stays fresh with no extra wiring. All reads of the same account share one query key, so any one `live` read refreshes the value everywhere.
 
 ## 8. TP/SL
 
@@ -396,7 +390,7 @@ See the [TP/SL reference](../../react/tpsl) for the state machine, store shape, 
 - [ ] Header opens a searchable selector, not a `<select>`.
 - [ ] Field order: Side → Margin → Leverage → TP/SL → Slippage → Submit.
 - [ ] Colored Long / Short segmented control.
-- [ ] `Max` reads `useAccountBalanceOf` (available), shaved for fees + slippage — not `allocatedBalance`.
+- [ ] `Max` uses `useAvailableInstantOpenMargin` (balance shaved for fees + slippage), not the raw `useAccountBalanceOf` / `allocatedBalance`.
 - [ ] Leverage bounds from `market.max_leverage`.
 - [ ] Slippage is a chip row with a custom field.
 - [ ] Submit is smart-gated (Connect → Switch → Select SubAccount → Deposit → Insufficient → Open).

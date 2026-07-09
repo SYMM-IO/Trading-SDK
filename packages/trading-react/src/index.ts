@@ -32,6 +32,7 @@ export {
   SymmApiError,
   SymmError,
   VIRTUAL_ACCOUNT_ISOLATION_TYPE,
+  calculateAvailableInstantOpenMargin,
   calculateClosePrice,
   calculateTradeParams,
   clampClosePrecision,
@@ -40,6 +41,7 @@ export {
   isolationTypeForSide,
   validateInstantCloseAgainstMarket,
   validateInstantOpenAgainstMarket,
+  type CalculateAvailableInstantOpenMarginParameters,
   type CalculateClosePriceParameters,
   type CalculateTradeParamsParameters,
   type CalculateTradeParamsReturnType,
@@ -407,6 +409,15 @@ export {
   type UseSubgraphQueryParameters,
   type UseSubgraphQueryReturnType,
 } from "./quotes";
+
+/**
+ * Margin — derived spendable-margin helpers for the trade form.
+ */
+export {
+  useAvailableInstantOpenMargin,
+  type UseAvailableInstantOpenMarginParameters,
+  type UseAvailableInstantOpenMarginReturnType,
+} from "./margin";
 
 /**
  * Balance history hooks
