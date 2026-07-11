@@ -97,23 +97,37 @@ Nest **`WagmiProvider` → `QueryClientProvider` → `SymmioProvider`**. The SDK
 
 - **`WagmiProvider`** — your `createConfig({ chains, transports, connectors })` from `wagmi`. The host owns connectors and RPCs; the SDK never picks them.
 - **`QueryClientProvider`** — one `new QueryClient()`, held in `useState` so it survives remounts.
-- **`SymmioProvider`** — props are **`chainOverrides`**, **`defaultChainId`**, **`getWalletClient`** (plus `children`). There is **no** `config` or `affiliateAddress` prop. Set your affiliate through `chainOverrides`, which deep-merges onto the SDK's built-in per-chain config:
+- **`SymmioProvider`** — props are **`symmioConfig`** (required), **`defaultChainId`**, **`getWalletClient`** (plus `children`). `symmioConfig` is the per-chain SYMMIO config, keyed by chain id; each supported chain must set `addresses.affiliatesAddress` (your registered affiliate) or the provider throws:
 
   ```tsx
+  import { SymmioSupportedChainId } from "@symmio/trading-core";
   import { SymmioProvider } from "@symmio/trading-react";
-  import { SymmioSupportedChainId, type CreateConfigParameters } from "@symmio/trading-core";
 
-  const chainOverrides: CreateConfigParameters["chainOverrides"] = {
+  const symmioConfig = {
     [SymmioSupportedChainId.HYPER_EVM]: {
-      // affiliate earns a fee cut on trades routed through your UI — set before shipping
-      addresses: { affiliatesAddress: "0xYourAffiliate…" },
+      addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" },
+      // optional: per-chain subgraphs / solver / … overrides
     },
   };
 
-  <SymmioProvider chainOverrides={chainOverrides} getWalletClient={getWalletClient}>
+  <SymmioProvider symmioConfig={symmioConfig} getWalletClient={getWalletClient}>
     {children}
   </SymmioProvider>;
   ```
+
+<Callout type="info">
+  **What the affiliate address is — and why it's how you get paid.** In SYMM perps, trades are opened through frontends —
+  dApps, brokers, bots. The affiliate address is that frontend's **identity onchain**. It rides on every quote (that's the
+  `…WithAffiliate…` in `SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR`), so the protocol knows **who sourced the trade** and
+  routes that source's share of the trading fee to it. Affiliate addresses are **per chain** — a registration on one chain
+  is not valid on another — so `symmioConfig` carries one under each chain's `addresses.affiliatesAddress`.
+
+It's mandatory by design: **the SDK throws (`AFFILIATE_ADDRESS_REQUIRED`) if a supported chain's affiliate is the zero
+address or missing**, so a trade can never silently fall back to the protocol's default affiliate and lose your
+attribution. Running your own frontend and earning a cut of trading fees means **registering your affiliate address**
+with the protocol first, then setting it under `symmioConfig[chainId].addresses.affiliatesAddress`.
+
+</Callout>
 
 `getWalletClient` is the resolver the SDK calls to sign each write. For instant trading it returns a **session-key** viem client when the requested `from` matches your loaded session key, and falls back to the connected wallet otherwise (see [§4](#4-session-key--delegation)). Omit it and every instant open/close falls back to a per-trade wallet popup. See the [SymmioProvider reference](../../react/provider) for the full prop list.
 
@@ -215,6 +229,50 @@ From `@symmio/trading-react`:
   the trade form on `allActive === true`.
 </Callout>
 
+### Gate every write, not just the open form
+
+**Open, close, and set-TP/SL are all signed by the session key** — each reverts on-chain without the matching delegation. Gating only the open form is a trap: a position opened in a prior session (or before the key was rotated) will still render in the positions table, and its **Close** and **TP/SL** actions will silently fail if you let the user trigger them without an active delegation. Rotating the session key drops _all three_ delegations for the new key, so "I could trade a minute ago" is not proof the delegation still holds.
+
+Enforce the same gate on every write path. Extract the check + grant once and reuse it — for the open form, the close modal, and the TP/SL modal:
+
+```ts
+// one hook, three call sites
+function useTradingDelegation(subAccount?: Address) {
+  const { sessionKeyAddress, isLoading: sessionKeyLoading } = useSessionKey();
+  const enabled = Boolean(subAccount && sessionKeyAddress);
+  const addMargin = useIsDelegationActive({
+    account: subAccount!,
+    delegate: sessionKeyAddress!,
+    selector: ADD_MARGIN_TO_NEXT_VA_SELECTOR,
+    query: { enabled },
+  });
+  const sendQuote = useIsDelegationActive({
+    account: subAccount!,
+    delegate: sessionKeyAddress!,
+    selector: SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
+    query: { enabled },
+  });
+  const closePos = useIsDelegationActive({
+    account: subAccount!,
+    delegate: sessionKeyAddress!,
+    selector: REQUEST_TO_CLOSE_POSITION_SELECTOR,
+    query: { enabled },
+  });
+  const grant = useGrantDelegation();
+  const isActive = addMargin.data === true && sendQuote.data === true && closePos.data === true;
+  const enable = () =>
+    grant.mutate({
+      account: { addr: subAccount!, isPartyB: false },
+      delegatedSigner: sessionKeyAddress!,
+      selectors: INSTANT_TRADE_REQUIRED_SELECTORS,
+      expiryTimestamp,
+    });
+  return { sessionKeyAddress, sessionKeyLoading, isActive, granting: grant.isPending, enable };
+}
+```
+
+In the close modal and the TP/SL modal, swap the action button for an **"Enable trading"** button whenever `isActive === false`. Because `useGrantDelegation` auto-invalidates the three `useIsDelegationActive` queries on success, the button flips back to the real action the moment the grant lands — no manual refetch.
+
 ### TP/SL needs a second delegation
 
 TP/SL requests are signed by the session key, but the on-chain execution when a trigger fires is done by the solver's **COH wallet**, not the session key. The SubAccount must delegate to two signers:
@@ -222,7 +280,7 @@ TP/SL requests are signed by the session key, but the on-chain execution when a 
 - **Session key** → `INSTANT_TRADE_REQUIRED_SELECTORS` (open, close, add margin).
 - **COH wallet** → `REQUEST_TO_CLOSE_POSITION_SELECTOR` (executes the trigger).
 
-Read the COH address from config — `config.getChainConfig().solver.tpsl?.cohWalletAddress` — then check and grant it exactly like the session-key delegation. A user can trade with only the session-key delegation, but cannot set TP/SL without the COH delegation. Gate the TP/SL panel on `cohActive === true`.
+Read the COH address from config — `config.getChainConfig().solver.tpsl?.cohWalletAddress` — then check and grant it exactly like the session-key delegation. TP/SL needs **both** delegations, so gate the panel in order: first the session-key trading delegation (`isActive`, same as open/close — see [Gate every write](#gate-every-write-not-just-the-open-form)), then `cohActive === true`. A user can trade with only the session-key delegation, but cannot set TP/SL until the COH delegation is also granted.
 
 Reference: `apps/web/src/features/integration/instant-open-flow.tsx` and `tpsl-flow.tsx`.
 
@@ -251,6 +309,50 @@ Two orchestrators cover the open flow:
 Both `mutate` with `{ from, subAccountAddress, market: { id }, positionType, initialMargin, leverage, slippage, tpsl? }`. `from` is the **session key**. `market.id` is `Number(row.symbol_id)`. `positionType` is `PositionType.LONG` / `PositionType.SHORT`.
 
 For a low-latency path (pre-fetch on mount, one-shot submit), use **[`useInstantOpen`](../../react/solvers/instant-open#useinstantopen)** with a cached `prepareInstantOpenParams` — same inputs, you own the fetch.
+
+### Attaching TP/SL at open
+
+`useInstantOpenWithTpSl` posts the open, then — the instant the hedger returns a `tempQuoteId` — submits `setQuoteTpSl` against it, in one flow. The catch: TP/SL is signed against the position's **Virtual Account (VA)**, and the VA does not exist on-chain until the open lands. Predict it up front with **[`usePredictedNextVirtualAccount`](../../react/account-layer#usepredictednextvirtualaccount)**, keyed by the side's isolation type:
+
+```tsx
+const positionType = side === "long" ? PositionType.LONG : PositionType.SHORT;
+const { data: predictedVa } = usePredictedNextVirtualAccount({
+  subAccount,
+  isolationType: isolationTypeForSide(positionType), // MARKET_LONG / MARKET_SHORT
+  symbolId: BigInt(market.symbol_id),
+  query: { enabled: market.symbol_id != null },
+});
+
+const hasTp = tpPrice.length > 0;
+const hasSl = slPrice.length > 0;
+const tpsl =
+  (hasTp || hasSl) && predictedVa
+    ? {
+        from: sessionKey, // session key signs it
+        virtualAccount: predictedVa, // the predicted VA, not the SubAccount
+        subAccount,
+        symbolId: BigInt(market.symbol_id),
+        positionType,
+        quantity: tradeParams.quantity, // decimal string from calculateTradeParams
+        pricePrecision: Number(market.price_precision),
+        tp: hasTp ? { triggerPrice: tpPrice, priceType: tpType } : undefined, // "markPrice" | "lastPrice"
+        sl: hasSl ? { triggerPrice: slPrice, priceType: slType } : undefined,
+      }
+    : undefined;
+
+await open.mutateAsync({
+  from: sessionKey,
+  subAccountAddress: subAccount,
+  market: { id },
+  positionType,
+  initialMargin,
+  leverage,
+  slippage,
+  tpsl,
+});
+```
+
+`tpsl: undefined` (both legs empty) makes the hook behave exactly like `useInstantOpenAuto` — no wasted call. The open and the TP/SL leg fail independently: if the open lands but the TP/SL POST is rejected, the mutation still resolves and surfaces `data.tpslError` (an amber "position opened, TP/SL failed" is friendlier than throwing away the trade). See [§8](#8-tpsl) for how the attached order then confirms over the WebSocket.
 
 **Form details that matter:**
 
@@ -311,6 +413,8 @@ Pattern: on every input change run `calculateTradeParams` → if non-null run `v
 
 Per-row: **[`useQuoteUpnlAndPnl`](../../react/quotes#usequoteupnlandpnl)** → `{ upnl, upnlPercent, markPrice }`; **[`useInstantCloseAuto`](../../react/solvers/instant-close#useinstantcloseauto)** to close; **[`useQuotePlatformFee`](../../react/quotes#usequoteplatformfee)** for a fee estimate.
 
+Closing is session-key-signed, so the close button lives behind the same delegation gate as the open form — a position that survived from a prior session can still show up here with a stale key. Gate the close action on the trading delegation and surface **"Enable trading"** when it is inactive (see [§4 · Gate every write](#gate-every-write-not-just-the-open-form)).
+
 <Callout type="info">
   Pending rows carry `tempQuoteId` (negative int) until the solver anchors them and assigns an on-chain `quoteId`. Pick
   `quote.quoteId ?? BigInt(quote.tempQuoteId)` for actions — the WS handler links the two once the anchor lands.
@@ -370,10 +474,30 @@ const { data: info } = useAccountBalanceInfo({ account: subAccount, live: true }
 
 Prerequisites: session-key delegation **and** the second COH-wallet delegation for `REQUEST_TO_CLOSE_POSITION_SELECTOR` (see [§4](#4-session-key--delegation)). Skip either and the on-chain trigger reverts.
 
-- **[`useQuoteTpSl`](../../react/tpsl#usequotetpsl)** — reads the current TP/SL record for a quote (`{ quoteId }` → `{ tp, sl, … }`). Folds handler-side conditional orders and on-chain quotes into one record.
-- **[`useSetQuoteTpSl`](../../react/tpsl#usesetquotetpsl)** — mutates it. Pass `tp: { price, priceType }` and/or `sl: { price, priceType }`; `undefined` clears a leg.
+- **[`useQuoteTpSl`](../../react/tpsl#usequotetpsl)** — reads the current TP/SL record for a quote (`{ quoteId, account }` → `{ tp, sl, tpState, slState, … }`). Folds handler-side conditional orders and on-chain quotes into one record.
+- **[`useSetQuoteTpSl`](../../react/tpsl#usesetquotetpsl)** — mutates it. Pass `tp: { triggerPrice, priceType }` and/or `sl: { triggerPrice, priceType }` (`priceType` is `"markPrice" | "lastPrice"`); `undefined` clears a leg. `quoteId` accepts either the on-chain `quoteId` **or** the pre-chain `tempQuoteId`.
 
-See the [TP/SL reference](../../react/tpsl) for the state machine, store shape, and the `tempQuoteId ↔ quoteId` linking rules.
+`quoteId` picks the same id as any other per-row action: `quote.quoteId ?? BigInt(quote.tempQuoteId)`. A TP/SL attached at open (see [§6](#attaching-tpsl-at-open)) is keyed by the `tempQuoteId`; the store re-links it to the on-chain `quoteId` once the open anchors, so the record follows the position across the transition.
+
+### Confirmation is WS-driven — don't finish on the POST
+
+A `setQuoteTpSl` POST returning `200` only means the handler **accepted** the order. It is not live until the handler broadcasts a `report` frame over the **TP/SL WebSocket**. `useQuoteTpSl` folds that stream into `tpState` / `slState`:
+
+`pending` (POST in flight) → **`confirming`** (POST returned, awaiting the report) → **`new`** (active) → `triggered` / `canceled` / `killed`.
+
+To receive the stream, **pass `account`** (the SubAccount) to `useQuoteTpSl` — that is the whole notification setup; the hook opens and reconciles the socket for you. Omit it and you get the folded snapshot but no live transitions.
+
+<Callout type="warning">
+  **Do not close the TP/SL modal — or clear the form — on the mutation's `isSuccess`.** That is the `confirming` state, not
+  the final one. Keep the panel open and drive its status badge off `record.tpState` / `record.slState`; the leg is only
+  done when it reads `new`. The set-at-open path is identical: `useInstantOpenWithTpSl` marks the leg `confirming`
+  internally, so a `useQuoteTpSl({ quoteId: tempQuoteId, account })` elsewhere in the UI shows "Processing…" until the same
+  report lands.
+</Callout>
+
+To show a position's live TP/SL inline (e.g. under the market name in the positions row), read it the same way — `useQuoteTpSl({ quoteId, account: subAccount })` — and render `record.tp` / `record.sl`.
+
+See the [TP/SL reference](../../react/tpsl) for the full state machine, store shape, and the `tempQuoteId ↔ quoteId` linking rules.
 
 ## Checklist
 
@@ -382,7 +506,7 @@ See the [TP/SL reference](../../react/tpsl) for the state machine, store shape, 
 - [ ] Exactly one wagmi copy resolves — automatic for a clean single-project install; force it with a package-manager override if two ever appear.
 - [ ] Providers nested wagmi → QueryClient → Symmio, mounted **client-only** so `next build` doesn't fail prerendering `/_not-found`.
 - [ ] `SymmioSupportedChainId`, `UnifiedQuote`, `QuoteLifecycle` imported from `@symmio/trading-core`.
-- [ ] Affiliate set via `SymmioProvider` `chainOverrides`, and a `getWalletClient` resolver wired for session-key signing.
+- [ ] Affiliate set under `SymmioProvider`'s required **`symmioConfig`** — each chain's `addresses.affiliatesAddress` a **registered, non-zero** address (the SDK throws on zero/missing), and a `getWalletClient` resolver wired for session-key signing.
 
 **Trade UX**
 
@@ -401,7 +525,10 @@ See the [TP/SL reference](../../react/tpsl) for the state machine, store shape, 
 - [ ] Trade form blocks until a SubAccount is picked and all delegations are active.
 - [ ] `from` is a session key in production, not the raw EOA.
 - [ ] Delegation checked for all three selectors; granted at once via `INSTANT_TRADE_REQUIRED_SELECTORS`; expiry surfaced via `useDelegationExpiry`.
-- [ ] TP/SL panel gates on the second (COH-wallet) delegation.
+- [ ] **Every** write path gates on the delegation — the close modal and the TP/SL modal show "Enable trading" when inactive, not just the open form.
+- [ ] TP/SL panel gates on the session-key delegation **and** the second (COH-wallet) delegation, in that order.
+- [ ] TP/SL attached at open signs against the **predicted VA** (`usePredictedNextVirtualAccount` + `isolationTypeForSide`), not the SubAccount.
+- [ ] TP/SL confirmation is WS-driven — `useQuoteTpSl` gets `account`, the panel stays open on POST success, and a leg is "done" only at `tpState`/`slState === "new"`.
 - [ ] Positions use `useManagedQuotes`; actions pick `quote.quoteId ?? BigInt(quote.tempQuoteId)`.
 - [ ] Close state is driven by `UnifiedQuote.lifecycle` (WS-authoritative), not the mutation's `isSuccess`.
 - [ ] Margin refetches after an open/close **settles** (on the settle notification), not just at POST time.

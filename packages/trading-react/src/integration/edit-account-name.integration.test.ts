@@ -49,6 +49,7 @@ maybe("editAccountName — integration (real broadcast on HyperEVM)", () => {
     });
 
     const config = createConfig({
+      symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
       getClient: () => publicClient as PublicClient,
       getWalletClient: async () => walletClient as unknown as SymmioWalletClient,
     });

@@ -27,7 +27,7 @@ function SymmioConfigBridge({ children }: { children: ReactNode }) {
   const getWalletClient = useAppGetWalletClient();
 
   return (
-    <SymmioProvider chainOverrides={overrides} getWalletClient={getWalletClient}>
+    <SymmioProvider symmioConfig={overrides} getWalletClient={getWalletClient}>
       <MagicSidebarProvider>
         <MagicPopoutProvider>
           <MagicSidebarDock>{children}</MagicSidebarDock>

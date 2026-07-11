@@ -98,6 +98,7 @@ export function createMockSymmioConfig(opts?: {
   const walletClient = { account, chain: hyperEvm as Chain, writeContract } as unknown as SymmioWalletClient;
 
   const config = createConfig({
+    symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
     getClient: () => publicClient,
     getWalletClient: opts?.withWallet === false ? undefined : async () => walletClient,
     webSocketConstructor: opts?.webSocketConstructor,
@@ -211,7 +212,11 @@ export function TestProviders({
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <SymmioProvider>{children}</SymmioProvider>
+        <SymmioProvider
+          symmioConfig={{ 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } }}
+        >
+          {children}
+        </SymmioProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

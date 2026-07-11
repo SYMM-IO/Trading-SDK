@@ -17,7 +17,10 @@ vi.mock("../types/generated/enigma-solver", async (importOriginal) => {
 import { getSolverErrorCodes } from "./get-solver-error-codes";
 
 const SOLVER_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solver.url;
-const config = createConfig({ getClient: () => ({}) as PublicClient });
+const config = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+});
 const SAMPLE_RESPONSE: { data: Record<string, string> } = {
   data: {
     "2000": "Insufficient balance",

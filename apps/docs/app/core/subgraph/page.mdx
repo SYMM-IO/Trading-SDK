@@ -16,7 +16,7 @@ Both subgraphs carry a **lot** of data — they hold the entire history of every
 
 ### Endpoints
 
-Endpoints live in the chain-config registry (`Config.getChainConfig(chainId).subgraphs`). Override via `createConfig({ chainOverrides })` when pointing at a custom deployment or a staging index.
+Endpoints live in the chain-config registry (`Config.getChainConfig(chainId).subgraphs`). Override via `createConfig({ symmioConfig })` when pointing at a custom deployment or a staging index.
 
 ```ts
 const chain = config.getChainConfig();

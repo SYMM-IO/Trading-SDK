@@ -3,10 +3,11 @@ import {
   listSupportedChains,
   SymmioSupportedChainId,
   type CreateConfigParameters,
-  type DeepPartial,
   type SymmioChainConfig,
+  type SymmioChainConfigInput,
 } from "@symmio/trading-core";
-import { getAddress, isAddress } from "viem";
+import { getAddress, isAddress, type Address } from "viem";
+import { symmioChains } from "./symmio";
 
 /** Top-level group a config field belongs to, matching {@link SymmioChainConfig}. */
 export type ConfigFieldGroup = "addresses" | "solver" | "subgraphs" | "notifications";
@@ -157,12 +158,14 @@ function coerceField(field: ConfigFieldDef, value: string): string | number {
 }
 
 /**
- * Build the SDK `chainOverrides` object from an editor draft. Only fields that
- * are valid and differ from the built-in default become overrides; everything
- * else inherits the default. Returns `undefined` when nothing is overridden.
+ * Build the SDK `symmioConfig` object from an editor draft. Only fields that are
+ * valid and differ from the built-in default become overrides; everything else
+ * inherits the default — **except** each chain's `addresses.affiliatesAddress`,
+ * which is mandatory (see {@link SymmioChainConfigInput}) and is always emitted
+ * from the edited value or the app baseline.
  */
-export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters["chainOverrides"] {
-  const result: Record<number, DeepPartial<SymmioChainConfig>> = {};
+export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters["symmioConfig"] {
+  const result: NonNullable<CreateConfigParameters["symmioConfig"]> = {};
 
   for (const chainId of SUPPORTED_CHAIN_IDS) {
     const chainDraft = draft[chainId] ?? {};
@@ -180,22 +183,29 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
       groups[field.group][field.key] = coerceField(field, raw.trim());
     }
 
-    const chainOverride: Record<string, unknown> = {};
-    if (Object.keys(groups.addresses).length) chainOverride.addresses = groups.addresses;
+    // Affiliate is mandatory per chain — always emit it (the edited value if
+    // present, else the app baseline), even when it equals the built-in default
+    // and would otherwise be stripped as a no-op override.
+    const affiliate =
+      (groups.addresses.affiliatesAddress as Address | undefined) ??
+      symmioChains?.[chainId]?.addresses?.affiliatesAddress;
+    if (affiliate) groups.addresses.affiliatesAddress = affiliate;
+
+    const chainOverride: Record<string, unknown> = { addresses: groups.addresses };
     if (Object.keys(groups.solver).length) chainOverride.solver = groups.solver;
     if (Object.keys(groups.subgraphs).length) chainOverride.subgraphs = groups.subgraphs;
     if (Object.keys(groups.notifications).length) chainOverride.notifications = groups.notifications;
-    if (Object.keys(chainOverride).length) result[chainId] = chainOverride as DeepPartial<SymmioChainConfig>;
+    result[chainId] = chainOverride as SymmioChainConfigInput;
   }
 
-  return Object.keys(result).length ? result : undefined;
+  return result;
 }
 
 /**
  * Expand a `chainOverrides` object into a complete editor draft: every field is
  * filled with its override value when present, otherwise the built-in default.
  */
-export function draftFromOverrides(overrides: CreateConfigParameters["chainOverrides"]): ConfigDraft {
+export function draftFromOverrides(overrides: CreateConfigParameters["symmioConfig"]): ConfigDraft {
   const draft: ConfigDraft = {};
 
   for (const chainId of SUPPORTED_CHAIN_IDS) {
@@ -216,7 +226,7 @@ export function draftFromOverrides(overrides: CreateConfigParameters["chainOverr
 }
 
 /** Count of fields (across all chains) that an overrides object changes from default. */
-export function countOverrides(overrides: CreateConfigParameters["chainOverrides"]): number {
+export function countOverrides(overrides: CreateConfigParameters["symmioConfig"]): number {
   const draft = draftFromOverrides(overrides);
   let total = 0;
   for (const chainId of SUPPORTED_CHAIN_IDS) {
@@ -228,7 +238,7 @@ export function countOverrides(overrides: CreateConfigParameters["chainOverrides
 }
 
 /** Count of overridden fields for a single chain. */
-export function countChainOverrides(overrides: CreateConfigParameters["chainOverrides"], chainId: number): number {
+export function countChainOverrides(overrides: CreateConfigParameters["symmioConfig"], chainId: number): number {
   const draft = draftFromOverrides(overrides);
   let total = 0;
   for (const field of CONFIG_FIELDS) {
@@ -239,8 +249,8 @@ export function countChainOverrides(overrides: CreateConfigParameters["chainOver
 
 /** Structural equality of two overrides objects, compared field-by-field. */
 export function sameOverrides(
-  a: CreateConfigParameters["chainOverrides"],
-  b: CreateConfigParameters["chainOverrides"],
+  a: CreateConfigParameters["symmioConfig"],
+  b: CreateConfigParameters["symmioConfig"],
 ): boolean {
   const da = draftFromOverrides(a);
   const db = draftFromOverrides(b);

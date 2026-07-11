@@ -1,6 +1,7 @@
 "use client";
 
 import { StatusDot } from "@/components/status-dot";
+import { symmioChains } from "@/config/symmio";
 import {
   buildChainOverrides,
   chainLabel,
@@ -167,7 +168,7 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
                 variant="ghost"
                 size="sm"
                 className="flex-1"
-                onClick={() => setOverrides(undefined)}
+                onClick={() => setOverrides(symmioChains)}
                 disabled={!canReset}
               >
                 <ResetIcon className="size-4" />

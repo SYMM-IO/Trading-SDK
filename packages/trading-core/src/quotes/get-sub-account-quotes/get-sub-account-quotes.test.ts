@@ -38,7 +38,10 @@ const EXTRA = "0x00000000000000000000000000000000000000c1" as Address;
 const BASE_URL = "https://custom-hedger.example.com";
 
 /** Stub config — every dependency is mocked, so the client is never used. */
-const config = createConfig({ getClient: () => ({}) as PublicClient });
+const config = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+});
 
 /**
  * Opaque source rows. `reconcileQuotes` is mocked, so these only need stable

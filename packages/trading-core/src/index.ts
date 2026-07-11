@@ -40,6 +40,7 @@ export {
   type CreateConfigParameters,
   type GetClientFn,
   type GetWalletClientFn,
+  type SymmioChainConfigInput,
   type SymmioWalletClient,
 } from "./core/config";
 export type { WebSocketConstructor, WebSocketLike } from "./shared/types/websocket";

@@ -32,7 +32,11 @@ function IntegrationProviders({ children }: PropsWithChildren) {
   return (
     <WagmiProvider config={INTEGRATION_WAGMI}>
       <QueryClientProvider client={queryClient}>
-        <SymmioProvider>{children}</SymmioProvider>
+        <SymmioProvider
+          symmioConfig={{ 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } }}
+        >
+          {children}
+        </SymmioProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

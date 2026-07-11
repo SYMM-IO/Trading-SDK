@@ -8,7 +8,10 @@ import type { NotificationSearchFilter } from "../types";
 import { searchNotifications } from "./search-notifications";
 
 const SEARCH_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).notifications.searchUrl;
-const config = createConfig({ getClient: () => ({}) as PublicClient });
+const config = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+});
 
 const FILTER: NotificationSearchFilter = {
   app_name: "Base_Superflow_Stage",
@@ -59,7 +62,12 @@ describe("searchNotifications", () => {
   it("throws a SymmError when no search URL is configured and no baseUrl is passed", async () => {
     const unconfigured = createConfig({
       getClient: () => ({}) as PublicClient,
-      chainOverrides: { [SymmioSupportedChainId.HYPER_EVM]: { notifications: { searchUrl: "" } } },
+      symmioConfig: {
+        [SymmioSupportedChainId.HYPER_EVM]: {
+          addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+          notifications: { searchUrl: "" },
+        },
+      },
     });
     await expect(searchNotifications(unconfigured, { filter: FILTER })).rejects.toBeInstanceOf(SymmError);
     await expect(searchNotifications(unconfigured, { filter: FILTER })).rejects.toThrow(

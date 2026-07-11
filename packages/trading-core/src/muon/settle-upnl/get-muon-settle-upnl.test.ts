@@ -11,7 +11,10 @@ const PARTY_A: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const OWNER: Address = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const NONCE: Address = "0xcccccccccccccccccccccccccccccccccccccccc";
 const QUOTE_IDS = [10n, 11n] as const;
-const config = createConfig({ getClient: () => ({}) as PublicClient });
+const config = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+});
 
 const RAW = {
   success: true,

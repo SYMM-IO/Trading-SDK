@@ -76,9 +76,12 @@ describe("getDelegationExpiryQueryOptions", () => {
     const { config: base } = mockConfig();
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
-      chainOverrides: {
+      symmioConfig: {
         [SymmioSupportedChainId.HYPER_EVM]: {
-          addresses: { instantLayerAddress: "0x9999999999999999999999999999999999999999" },
+          addresses: {
+            affiliatesAddress: "0x000000000000000000000000000000000000aFF1",
+            instantLayerAddress: "0x9999999999999999999999999999999999999999",
+          },
         },
       },
     });

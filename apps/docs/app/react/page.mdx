@@ -32,7 +32,13 @@ The host owns the wagmi config and the `QueryClient`. `SymmioProvider` sits insi
 ```tsx
 <WagmiProvider config={wagmiConfig}>
   <QueryClientProvider client={queryClient}>
-    <SymmioProvider>{children}</SymmioProvider>
+    <SymmioProvider
+      symmioConfig={{
+        [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+      }}
+    >
+      {children}
+    </SymmioProvider>
   </QueryClientProvider>
 </WagmiProvider>
 ```

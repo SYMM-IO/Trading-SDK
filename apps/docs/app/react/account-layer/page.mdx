@@ -123,6 +123,40 @@ interface AccountBalanceInfo {
 
 All fields are in raw collateral token units.
 
+### `usePredictedNextVirtualAccount`
+
+Predict the deterministic address of the **Virtual Account (VA)** a SubAccount will create for its next `(isolationType, symbolId)` position — before the trade lands on-chain and the VA exists. In lowcap, an instant open isolates each position into its own VA; the AccountLayer derives that address up front, so you can sign against it early. The main use: attaching TP/SL in the same flow as an instant open (the TP/SL order must be signed against the VA, not the SubAccount). Pair the side with `isolationTypeForSide(positionType)` to pick the isolation type.
+
+```tsx
+import { isolationTypeForSide, PositionType, usePredictedNextVirtualAccount } from "@symmio/trading-react";
+
+const positionType = side === "long" ? PositionType.LONG : PositionType.SHORT;
+const { data: predictedVa } = usePredictedNextVirtualAccount({
+  subAccount,
+  isolationType: isolationTypeForSide(positionType), // MARKET_LONG / MARKET_SHORT
+  symbolId: BigInt(market.symbol_id),
+});
+
+// predictedVa → pass as `virtualAccount` to a TP/SL attached at open.
+```
+
+#### Parameters
+
+| Name            | Type                           | Default        | Notes                                                                   |
+| --------------- | ------------------------------ | -------------- | ----------------------------------------------------------------------- |
+| `subAccount`    | `Address?`                     | `undefined`    | The SubAccount that will open the position.                             |
+| `isolationType` | `VirtualAccountIsolationType?` | `undefined`    | Isolation bucket for the VA — use `isolationTypeForSide(positionType)`. |
+| `symbolId`      | `bigint?`                      | `undefined`    | Solver market id of the position.                                       |
+| `chainId`       | `number?`                      | config default | Optional chain override.                                                |
+| `query`         | `object?`                      | `undefined`    | TanStack Query overrides.                                               |
+| `config`        | `Config?`                      | provider value | Optional config override.                                               |
+
+The query is **disabled until `subAccount`, `isolationType`, and `symbolId` are all set**. The prediction is stable per `(subAccount, isolationType, symbolId)` only until the SubAccount's virtual nonce advances (i.e. it opens that isolation), so a short `staleTime` applies — override via `query.staleTime`.
+
+#### Return type
+
+`UseQueryResult<Address, SymmioRequestError>` — the predicted VA address.
+
 ## Writes
 
 Every hook below returns react-query's `UseMutationResult` — call `mutate(inputs)` (or `mutateAsync`), watch `isPending` / `data` / `error`, and the hook invalidates the reads it affected on your behalf.

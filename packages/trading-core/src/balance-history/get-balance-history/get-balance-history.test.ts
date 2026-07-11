@@ -7,7 +7,10 @@ import { getBalanceHistory } from "./get-balance-history";
 import { BalanceChangeType, BalanceHistoryFilter } from "./types";
 
 const ANALYTICS_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).subgraphs.analytics;
-const config = createConfig({ getClient: () => ({}) as PublicClient });
+const config = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+});
 
 /** Checksummed; the action lowercases it for the subgraph filter. */
 const SUB = "0xF55534BBf9011ca7Ad84b804fdA9E7f4bE18Fe8A";

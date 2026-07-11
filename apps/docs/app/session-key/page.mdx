@@ -243,7 +243,14 @@ function useAppGetWalletClient(manager: SessionKeyManager) {
   );
 }
 
-<SymmioProvider getWalletClient={useAppGetWalletClient(manager)}>{children}</SymmioProvider>;
+<SymmioProvider
+  symmioConfig={{
+    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+  }}
+  getWalletClient={useAppGetWalletClient(manager)}
+>
+  {children}
+</SymmioProvider>;
 ```
 
 `sessionKeyWalletClient(manager, chainId)` is a small helper the consuming app owns — it turns the session-key private key into a viem `walletClient` bound to the chain. Every SDK write that sets `from` to the session key's address then signs via this path without a wallet prompt.

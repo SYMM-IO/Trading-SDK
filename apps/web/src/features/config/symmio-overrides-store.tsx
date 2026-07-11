@@ -5,7 +5,7 @@ import { countOverrides } from "@/config/symmio-config-schema";
 import type { CreateConfigParameters } from "@symmio/trading-core";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-type ChainOverrides = CreateConfigParameters["chainOverrides"];
+type ChainOverrides = CreateConfigParameters["symmioConfig"];
 
 const STORAGE_KEY = "symmio.config.overrides.v1";
 

@@ -19,7 +19,10 @@ import { getInstantOpens } from "./get-instant-opens";
 
 const SOLVER_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solver.url;
 const PARTY_A = "0x00000000000000000000000000000000000000a1" as const;
-const config = createConfig({ getClient: () => ({}) as PublicClient });
+const config = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+});
 
 describe("getInstantOpens", () => {
   beforeEach(() => {

@@ -14,7 +14,10 @@ const NONCE: Address = "0xcccccccccccccccccccccccccccccccccccccccc";
 const T0 = 1_700_000_000n;
 const T1 = 1_700_000_900n;
 const SYMBOL_ID = 1n;
-const config = createConfig({ getClient: () => ({}) as PublicClient });
+const config = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+});
 
 const RAW = {
   success: true,

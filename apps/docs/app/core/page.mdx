@@ -24,6 +24,9 @@ import { hyperEvm } from "viem/chains";
 const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
 
 const config = createConfig({
+  symmioConfig: {
+    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+  },
   getClient: () => publicClient,
 });
 

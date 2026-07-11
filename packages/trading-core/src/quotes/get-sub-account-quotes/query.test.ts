@@ -15,7 +15,10 @@ const SUB = "0x00000000000000000000000000000000000000a1" as Address;
 const EXTRA = "0x00000000000000000000000000000000000000c1" as Address;
 const BASE_URL = "https://custom-hedger.example.com";
 /** Stub config — the queryFn calls a mocked action, so the client is never used. */
-const config = createConfig({ getClient: () => ({}) as PublicClient });
+const config = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+});
 
 describe("getSubAccountQuotesQueryKey", () => {
   it("tags the key with the action name and embeds the filtered options", () => {

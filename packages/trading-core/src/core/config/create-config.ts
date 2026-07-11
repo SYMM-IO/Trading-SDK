@@ -1,11 +1,26 @@
-import type { Address, PublicClient } from "viem";
+import { zeroAddress, type Address, type PublicClient } from "viem";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { DeepPartial } from "../../shared/types/properties";
 import type { WebSocketConstructor } from "../../shared/types/websocket";
-import type { SymmioChainConfig } from "../chains";
+import { listSupportedChains, type SymmioChainConfig, type SymmioContractAddresses } from "../chains";
 import { hashChainConfig } from "./config-key";
 import { buildChainConfigs } from "./merge-chain-config";
 import type { SymmioWalletClient } from "./types";
+
+/**
+ * Per-chain SYMMIO configuration input for {@link createConfig}, deep-merged onto
+ * that chain's built-in defaults.
+ *
+ * Every field is optional to override **except** `addresses.affiliatesAddress` —
+ * your frontend's on-chain affiliate for that chain (your identity in SYMMIO),
+ * attached to every quote so the protocol attributes the trade to you and routes
+ * your fee share. It is mandatory in the type because affiliate addresses are per
+ * chain (a registration on one chain is not valid on another) and a missing one
+ * would silently fall back to the built-in default affiliate, losing attribution.
+ */
+export type SymmioChainConfigInput = Omit<DeepPartial<SymmioChainConfig>, "addresses"> & {
+  addresses: DeepPartial<SymmioContractAddresses> & Pick<SymmioContractAddresses, "affiliatesAddress">;
+};
 
 export type { SymmioWalletClient } from "./types";
 
@@ -29,10 +44,31 @@ export type GetWalletClientFn = (parameters: { chainId: number; from?: Address }
  */
 export interface CreateConfigParameters {
   /**
-   * Per-chain overrides deep-merged onto the SDK's built-in chain configs,
-   * keyed by chain id. Omit to use defaults.
+   * Per-chain SYMMIO configuration, keyed by chain id — deep-merged onto the
+   * SDK's built-in defaults. Each entry may override that chain's `addresses`,
+   * `subgraphs`, `solver`, `priceService`, `notifications`, and `muon` endpoints.
+   *
+   * **Required.** Every supported chain must supply a non-zero
+   * `addresses.affiliatesAddress` — your frontend's on-chain **affiliate**
+   * (your identity in SYMMIO on that chain), attached to every quote
+   * (`sendQuoteWithAffiliateAndData`) so the protocol knows who sourced the trade
+   * and routes your share of the trading fee to you. Affiliate addresses are per
+   * chain: a registration on one chain is not valid on another. `createConfig`
+   * throws `AFFILIATE_ADDRESS_REQUIRED` for any supported chain missing it, so a
+   * trade can never silently fall back to the built-in default affiliate and lose
+   * attribution.
+   *
+   * @example
+   * ```ts
+   * symmioConfig: {
+   *   [SymmioSupportedChainId.HYPER_EVM]: {
+   *     addresses: { affiliatesAddress: "0xYourHyperEvmAffiliate…" },
+   *     // optional: subgraphs, solver, priceService, notifications, muon
+   *   },
+   * }
+   * ```
    */
-  chainOverrides?: Partial<Record<number, DeepPartial<SymmioChainConfig>>>;
+  symmioConfig: Partial<Record<number, SymmioChainConfigInput>>;
   /**
    * Returns the viem `PublicClient` used for read actions. Framework layers
    * inject this — e.g. `@symmio/trading-react` bridges it to wagmi's
@@ -146,6 +182,7 @@ export interface ConfigParameter {
  * const walletClient = createWalletClient({ account, chain: hyperEvm, transport: http() });
  *
  * const config = createConfig({
+ *   symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourHyperEvmAffiliate…" } } },
  *   getClient: () => publicClient,
  *   getWalletClient: async () => walletClient,
  * });
@@ -155,13 +192,27 @@ export function createConfig(parameters: CreateConfigParameters): Config {
   const {
     getClient,
     getWalletClient,
-    chainOverrides,
+    symmioConfig,
     defaultChainId,
     simulateBeforeWrite = true,
     webSocketConstructor,
   } = parameters;
 
-  const chainConfigs = buildChainConfigs(chainOverrides);
+  // Affiliate is mandatory per chain: every supported chain's `symmioConfig`
+  // entry must set a non-zero `addresses.affiliatesAddress`, or a trade would
+  // silently fall back to the built-in default affiliate and lose attribution.
+  // Check the raw input (not the merged config, whose default would mask a gap).
+  for (const chainId of listSupportedChains()) {
+    const affiliate = symmioConfig?.[chainId]?.addresses?.affiliatesAddress;
+    if (!affiliate || affiliate === zeroAddress)
+      throw new SymmError(
+        "config",
+        "AFFILIATE_ADDRESS_REQUIRED",
+        `createConfig: \`symmioConfig[${chainId}].addresses.affiliatesAddress\` is required and must be non-zero. Affiliate addresses are per chain — set your registered affiliate for every supported chain so trades are attributed to you and earn your fee share.`,
+      );
+  }
+
+  const chainConfigs = buildChainConfigs(symmioConfig);
 
   const chainIds = Object.keys(chainConfigs).map(Number);
   if (chainIds.length === 0)

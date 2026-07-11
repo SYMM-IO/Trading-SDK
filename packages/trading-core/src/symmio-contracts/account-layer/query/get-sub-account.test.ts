@@ -45,9 +45,12 @@ describe("getSubAccountQueryOptions", () => {
     const { config: base } = mockConfig();
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
-      chainOverrides: {
+      symmioConfig: {
         [SymmioSupportedChainId.HYPER_EVM]: {
-          addresses: { accountLayerAddress: "0x9999999999999999999999999999999999999999" },
+          addresses: {
+            affiliatesAddress: "0x000000000000000000000000000000000000aFF1",
+            accountLayerAddress: "0x9999999999999999999999999999999999999999",
+          },
         },
       },
     });

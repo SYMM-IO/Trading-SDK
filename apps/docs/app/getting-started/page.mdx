@@ -38,9 +38,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <SymmioProvider
-          config={{
-            chainId: SymmioSupportedChainId.HYPER_EVM,
-            affiliateAddress: "0xYourAffiliateAddress",
+          symmioConfig={{
+            [SymmioSupportedChainId.HYPER_EVM]: {
+              addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" },
+            },
           }}
         >
           {children}

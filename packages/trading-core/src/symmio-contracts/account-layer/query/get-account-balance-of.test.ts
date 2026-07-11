@@ -57,9 +57,9 @@ describe("getAccountBalanceOfQueryOptions", () => {
     const { config: base } = mockConfig();
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
-      chainOverrides: {
+      symmioConfig: {
         [SymmioSupportedChainId.HYPER_EVM]: {
-          addresses: { symmioAddress: CUSTOM_SYMMIO },
+          addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1", symmioAddress: CUSTOM_SYMMIO },
         },
       },
     });

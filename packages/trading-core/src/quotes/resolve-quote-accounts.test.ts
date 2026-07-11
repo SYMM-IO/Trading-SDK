@@ -36,7 +36,10 @@ const PREDICTED_SHORT_5 = "0x00000000000000000000000000000000000000c4" as Addres
 const EXTRA = "0x00000000000000000000000000000000000000d1" as Address;
 
 /** Stub config — both reads are mocked, so the client is never touched. */
-const config = createConfig({ getClient: () => ({}) as PublicClient });
+const config = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+});
 
 /**
  * Build a `PendingInstantOpen` with only the fields `resolveQuoteAccounts`

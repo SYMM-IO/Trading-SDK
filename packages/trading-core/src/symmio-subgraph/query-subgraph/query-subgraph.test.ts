@@ -7,7 +7,10 @@ import { SymmError } from "../../shared/errors/symm-error";
 import { querySubgraph } from "./query-subgraph";
 
 const ANALYTICS_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).subgraphs.analytics;
-const config = createConfig({ getClient: () => ({}) as PublicClient });
+const config = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+});
 
 describe("querySubgraph", () => {
   afterEach(() => {
@@ -32,7 +35,12 @@ describe("querySubgraph", () => {
   it("throws a SymmError when no endpoint is configured for the subgraph", async () => {
     const unconfigured = createConfig({
       getClient: () => ({}) as PublicClient,
-      chainOverrides: { [SymmioSupportedChainId.HYPER_EVM]: { subgraphs: { analytics: "" } } },
+      symmioConfig: {
+        [SymmioSupportedChainId.HYPER_EVM]: {
+          addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+          subgraphs: { analytics: "" },
+        },
+      },
     });
     const promise = querySubgraph(unconfigured, { document: "query { ok }", variables: {} });
     await expect(promise).rejects.toBeInstanceOf(SymmError);
