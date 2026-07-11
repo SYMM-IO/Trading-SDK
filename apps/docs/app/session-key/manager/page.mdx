@@ -1,0 +1,133 @@
+# createSessionKeyManager
+
+The runtime that owns a session key: loads it, generates and rotates it, signs with it, and clears it. The private key lives **in memory only** — persistence, serialization, and encryption are delegated to the [`SessionKeyStorage`](/session-key/security) adapter you pass in.
+
+```ts
+import { createSessionKeyManager, SESSION_KEY_EXPIRY_MS } from "@symmio/session-key";
+
+const manager = createSessionKeyManager({
+  storage, // required — your persistence adapter
+  defaultTtlMs: SESSION_KEY_EXPIRY_MS, // default: one year
+  now: () => Date.now(), // default; override for tests
+});
+
+const state = await manager.initialize(owner);
+const { signature } = await manager.sign("hello");
+```
+
+## Options
+
+<Properties>
+  <Property name="storage" type="SessionKeyStorage" typeHref="/session-key/security" required>
+    Consumer-owned persistence adapter. The manager loads, saves, and removes records through it — see [Security &
+    storage](/session-key/security).
+  </Property>
+  <Property name="defaultTtlMs" type="number" default="SESSION_KEY_EXPIRY_MS">
+    Lifetime applied to newly generated / imported keys, in ms. Defaults to one year.
+  </Property>
+  <Property name="now" type="() => number" default="Date.now">
+    Injectable clock. Override in tests to control expiry.
+  </Property>
+</Properties>
+
+## Methods
+
+<Properties>
+  <Property name="initialize(owner, options?)" type="Promise<SessionKeyState>">
+    Load an existing non-expired key for `owner`, or generate and persist a new one. If the stored key is expired it is
+    removed and a fresh one is generated (auto-rotate); a `load` that throws is treated as "no key" and also rotated.
+    `options.ttlMs` overrides the default lifetime for a freshly generated key.
+  </Property>
+  <Property name="importPrivateKey(owner, key, options?)" type="Promise<SessionKeyState>">
+    Persist an existing private key for `owner` and load it into memory, **replacing** any stored key. Used by
+    device-transfer flows.
+  </Property>
+  <Property name="rotate(owner, options?)" type="Promise<SessionKeyState>">
+    Generate a new key, persist it (replacing any existing key for `owner`), and load it.
+  </Property>
+  <Property name="sign(message)" type="Promise<SessionKeySignature>">
+    Sign a UTF-8 string as an EIP-191 personal message. Returns the signature, the signing address, and the client-side
+    `durationMs`. Throws if no key is loaded.
+  </Property>
+  <Property name="signTypedData(params)" type="Promise<Hex>">
+    Sign EIP-712 typed data — the path the SDK's trade actions use. Throws if no key is loaded.
+  </Property>
+  <Property name="destroy(owner?)" type="Promise<void>">
+    Clear the in-memory key and reset state. When `owner` is passed, also remove its stored record.
+  </Property>
+  <Property name="getState()" type="SessionKeyState">
+    Current runtime snapshot — see below.
+  </Property>
+  <Property name="isReady()" type="boolean">
+    Quick boolean for "a valid session key is loaded".
+  </Property>
+  <Property name="getAddress()" type="Address | null">
+    Loaded session-key public address, or `null`.
+  </Property>
+  <Property name="getPrivateKey()" type="Hex | null">
+    Loaded raw private key — **for explicit device-transfer / export only.** Treat like a wallet mnemonic.
+  </Property>
+  <Property name="getMetadata(owner)" type="Promise<SessionKeyMetadata | null>">
+    Stored public metadata via the adapter, without loading the key into memory.
+  </Property>
+  <Property name="subscribe(listener)" type="() => void">
+    Subscribe to state changes. Returns an unsubscribe function.
+  </Property>
+  <Property name="getSnapshot()" type="Address | null">
+    Framework-integration snapshot — the loaded address, or `null`.
+  </Property>
+</Properties>
+
+## `SessionKeyState`
+
+The shape `getState()` returns:
+
+<Returns type="SessionKeyState">
+  <Property name="isReady" type="boolean">
+    A valid key is currently in memory.
+  </Property>
+  <Property name="isExpired" type="boolean">
+    The last loaded record was expired.
+  </Property>
+  <Property name="publicAddress" type="Address | null">
+    Loaded session-key address, when initialized.
+  </Property>
+  <Property name="expiresAt" type="number | null">
+    Expiry timestamp in ms since epoch, when initialized.
+  </Property>
+</Returns>
+
+## Reacting to state changes
+
+`subscribe` plus `getSnapshot` is the integration surface for framework state (e.g. React's `useSyncExternalStore`):
+
+```ts
+const unsubscribe = manager.subscribe(() => {
+  const { isReady, publicAddress, expiresAt } = manager.getState();
+  // re-render the "session active until …" indicator
+});
+
+// later
+unsubscribe();
+```
+
+## Signing typed data
+
+The SDK's trade actions sign EIP-712 typed data. `signTypedData` takes the standard viem shape:
+
+```ts
+const signature = await manager.signTypedData({
+  domain,
+  types,
+  primaryType: "Quote",
+  message,
+});
+```
+
+See [Provider integration](/session-key/provider-integration) for how this is reached automatically when an SDK write sets `from` to the session-key address.
+
+## Related
+
+- [Key material helpers](/session-key/key-material) — generate a raw keypair without a manager.
+- [Security & storage](/session-key/security) — the `SessionKeyStorage` adapter the manager depends on.
+- [Types & constants](/session-key/reference) — `SessionKeyManager`, `CreateSessionKeyManagerOptions`, `SessionKeySignature`, `SessionKeyTypedDataParameters`.

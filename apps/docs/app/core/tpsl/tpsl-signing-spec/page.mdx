@@ -1,0 +1,22 @@
+# TpSlSigningSpec
+
+The handler `/signing-spec` payload — the EIP-712 typed-data domain + schema a TP/SL message is signed against. Returned by [`getTpSlSigningSpec`](/core/tpsl/get-tpsl-signing-spec) (POST) and [`getTpSlDeleteSigningSpec`](/core/tpsl/get-tpsl-delete-signing-spec) (DELETE), and consumed by [`signTpSlRequest`](/core/tpsl/sign-tpsl-request). Server-published and stable per deployment, so the SDK never hardcodes the schema.
+
+## Fields
+
+<Properties>
+  <Property name="domain" type="{ name: string; version: string; chainId: number; verifyingContract: Address }">
+    EIP-712 domain separator fields.
+  </Property>
+  <Property name="types" type="Record<string, Array<{ name: string; type: string }>>">
+    The typed-data type definitions.
+  </Property>
+  <Property name="primaryType" type="string">
+    The root type name to hash (differs between the POST and DELETE specs).
+  </Property>
+</Properties>
+
+## Related
+
+- [`getTpSlSigningSpec`](/core/tpsl/get-tpsl-signing-spec) / [`getTpSlDeleteSigningSpec`](/core/tpsl/get-tpsl-delete-signing-spec) — fetch this.
+- [`signTpSlRequest`](/core/tpsl/sign-tpsl-request) — signs against it.

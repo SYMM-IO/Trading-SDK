@@ -1,0 +1,42 @@
+# buildSubscribeMessage
+
+Build the subscribe frame to send on (re)connect for a notifications endpoint.
+
+For `defilytics`, this is a `channel_patterns` frame scoped to the account with wildcard identifiers (every quote id for the account). The frame is returned as a JSON string, ready to send.
+
+```ts
+import { buildSubscribeMessage } from "@symmio/trading-core";
+
+const frame = buildSubscribeMessage({
+  account: "0xaccount...",
+  channel: "Hyper-EVM_Solver-Low-Cap_Production",
+  protocol: "defilytics",
+});
+```
+
+## Parameters
+
+The single argument is a `BuildSubscribeMessageParameters` object:
+
+<Properties>
+  <Property name="account" type="Address" required>
+    SubAccount address to subscribe for.
+  </Property>
+  <Property name="channel" type="string" required>
+    Channel / `app_name` configured for the endpoint.
+  </Property>
+  <Property name="protocol" type="SymmioNotificationsProtocol" required>
+    Wire protocol the endpoint speaks.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="string">
+  The frame serialized as a JSON string, ready to send. Throws a `SymmError` for an unsupported protocol.
+</Returns>
+
+## Related
+
+- [parseNotificationFrame](/core/notifications/parse-notification-frame) — the inbound counterpart.
+- [watchNotifications](/core/notifications/watch-notifications) — sends this frame on every (re)connect.

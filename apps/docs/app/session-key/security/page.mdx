@@ -1,0 +1,112 @@
+import { Callout } from "nextra/components";
+
+# Security & storage
+
+A session key is a **private key that can sign trades on the user's behalf**. Treat it with the same care as a wallet mnemonic. This package deliberately keeps two responsibilities in your hands: **where the key is stored** and **whether it is encrypted**.
+
+## ⚠️ The manager never encrypts
+
+<Callout type="warning">
+  **The private key is stored as plaintext `Hex` in the `SessionKeyRecord`.** `@symmio/session-key` **does not encrypt
+  anything.** It hands your storage adapter a raw private key and expects it back, unchanged, on `load`. If you need
+  encryption, you add it inside the adapter.
+</Callout>
+
+**Consumer responsibility**:
+
+- **Browser apps** — encrypt `record.privateKey` before writing to storage (WebCrypto + a user-derived key, WebAuthn PRF, a biometrics-gated key, or a Passkey PRF). Decrypt inside `load()`.
+- **Bots / scripts** — read the private key from a secrets manager (Vault, GCP Secret Manager, KMS), never from a checked-in file.
+- **Never** log the record. Never send it over an untrusted channel. Never expose it in a URL fragment.
+
+The manager exposes [`getPrivateKey()`](/session-key/manager) **only** for explicit device-transfer and export flows. Everywhere else, the key stays inside the manager.
+
+## The storage boundary
+
+`@symmio/session-key` exports the storage interface only — you implement it:
+
+```ts
+interface SessionKeyStorage {
+  load(owner: Address): Promise<SessionKeyRecord | null>;
+  save(owner: Address, record: SessionKeyRecord): Promise<void>;
+  remove(owner: Address): Promise<void>;
+  getMetadata(owner: Address): Promise<SessionKeyMetadata | null>;
+}
+```
+
+<Properties>
+  <Property name="load" type="(owner) => Promise<SessionKeyRecord | null>" required>
+    Return the stored record for `owner`, or `null` if none. **Decrypt here** if you encrypted on `save`. If `load`
+    throws, the manager treats it as "no key" — it removes the record and generates a fresh one.
+  </Property>
+  <Property name="save" type="(owner, record) => Promise<void>" required>
+    Persist the record for `owner`. **Encrypt `record.privateKey` here** before it touches disk.
+  </Property>
+  <Property name="remove" type="(owner) => Promise<void>" required>
+    Delete the stored key for `owner`. Called on expiry, on `destroy(owner)`, and when `load` throws. Rotation does
+    **not** call `remove` — it overwrites the record via `save`.
+  </Property>
+  <Property name="getMetadata" type="(owner) => Promise<SessionKeyMetadata | null>" required>
+    Return the non-secret metadata (address, timestamps) for `owner` **without** loading the private key into memory —
+    used to show "session active until…" without a decrypt.
+  </Property>
+</Properties>
+
+## The record
+
+The manager passes a plain `SessionKeyRecord` — **including the raw private key as `Hex`** — straight to your adapter:
+
+```ts
+interface SessionKeyRecord {
+  owner: Address;
+  privateKey: Hex; // plaintext — encrypt before persisting
+  address: Address;
+  createdAt: number; // ms since epoch
+  expiresAt: number; // ms since epoch
+  label?: string;
+}
+```
+
+`getMetadata` returns the non-secret subset — safe to read without a decrypt:
+
+```ts
+interface SessionKeyMetadata {
+  address: Address;
+  owner: Address;
+  createdAt: number;
+  expiresAt: number;
+}
+```
+
+## Key storage by owner, not by chain
+
+Store one record per **owner address**, not per chain ID. A session key is a normal EVM key and can sign for the same owner across every supported chain; chain-specific authorization belongs in the contracts and the delegation layer, not in your storage keying.
+
+## A minimal (unencrypted) adapter
+
+This memory adapter shows the shape only. **Do not ship it as-is in a browser** — add encryption in `save` / `load` first.
+
+```ts
+import type { SessionKeyRecord, SessionKeyStorage } from "@symmio/session-key";
+
+function createMemoryStorage(): SessionKeyStorage {
+  const records = new Map<string, SessionKeyRecord>();
+  const key = (owner: string) => owner.toLowerCase();
+  return {
+    async load(owner) {
+      return records.get(key(owner)) ?? null;
+    },
+    async save(owner, record) {
+      records.set(key(owner), record);
+    },
+    async remove(owner) {
+      records.delete(key(owner));
+    },
+    async getMetadata(owner) {
+      const record = records.get(key(owner));
+      if (!record) return null;
+      const { privateKey: _privateKey, label: _label, ...metadata } = record;
+      return metadata;
+    },
+  };
+}
+```

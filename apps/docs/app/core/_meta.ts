@@ -1,5 +1,6 @@
 export default {
   index: "Overview",
+  "getting-started": "Getting Started",
   concepts: "Core Concepts",
   abi: "ABI fragments",
   addresses: "Addresses",

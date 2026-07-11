@@ -1,0 +1,101 @@
+# setQuoteTpSl
+
+Submit a TP and/or SL order to the handler. Accepts one or both sides in a single call. Internally: resolves the handler URL + [signing spec](/core/tpsl/get-tpsl-signing-spec), rounds trigger prices and derives slippage-shifted fill prices via [`priceSlippageCalculation`](/core/tpsl/price-slippage-calculation), builds a [`TpSlConditionalOrderMessage`](/core/tpsl/tpsl-conditional-order-message) with non-null legs only, signs it with the session-key wallet client, and POSTs `{ typedData, signature, signer }`.
+
+The handler returns `200` on accept, but the order is only "confirmed" once the WebSocket reports `state: "new"` and `successful: true`. Callers should subscribe via [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) and reconcile — the React layer does this automatically.
+
+```ts
+import { setQuoteTpSl } from "@symmio/trading-core";
+
+const { cohQuoteId } = await setQuoteTpSl(config, {
+  from: sessionKey,
+  quoteId: 42n,
+  virtualAccount,
+  subAccount,
+  symbolId: 7n,
+  positionType: PositionType.LONG,
+  quantity: "100",
+  pricePrecision: 4,
+  tp: { triggerPrice: "150", priceType: "markPrice" },
+  sl: { triggerPrice: "80", priceType: "markPrice" },
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quoteId" type="bigint" required>
+    On-chain quote id (or a negative `tempQuoteId` for a pre-chain instant open).
+  </Property>
+  <Property name="virtualAccount" type="Address" required>
+    PartyA (the VA address) that owns the quote.
+  </Property>
+  <Property name="subAccount" type="Address" required>
+    SubAccount that owns the VA.
+  </Property>
+  <Property name="symbolId" type="bigint" required>
+    Solver market id.
+  </Property>
+  <Property name="positionType" type="PositionType" required>
+    Quote direction (LONG / SHORT).
+  </Property>
+  <Property name="quantity" type="string" required>
+    Quote quantity (decimal string).
+  </Property>
+  <Property name="pricePrecision" type="number" required>
+    Market price precision (rounds prices to N decimals).
+  </Property>
+  <Property name="tp" type="SetTpSlSide" typeHref="/core/tpsl/set-tpsl-side" optional>
+    Take-profit side. Omit to skip TP.
+  </Property>
+  <Property name="sl" type="SetTpSlSide" typeHref="/core/tpsl/set-tpsl-side" optional>
+    Stop-loss side. Omit to skip SL.
+  </Property>
+  <Property name="affiliate" type="Address" optional>
+    Affiliate to bind to the order. Defaults to `chainConfig.addresses.affiliatesAddress`.
+  </Property>
+  <Property name="slippage" type="number" optional>
+    Slippage percent applied when deriving each leg's fill price. Defaults to `DEFAULT_TPSL_SLIPPAGE_LOWCAPS` (`90`).
+  </Property>
+  <Property name="from" type="Address" optional>
+    Session-key signer the wallet client resolves for. Defaults to the connected wallet in the React layer.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+At least one of `tp` or `sl` must be provided.
+
+## Returns
+
+<Returns type="SetQuoteTpSlReturnType">
+  <Property name="success" type="true">
+    Always `true` on a resolved call (failures throw).
+  </Property>
+  <Property name="cohQuoteId" type="string" optional>
+    Handler-issued conditional-order id, when reported on the response.
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError` when the chain has no `tpsl` config, both `tp` and `sl` are omitted, or signing fails.
+- `SymmApiError` when the handler request fails.
+
+## Mutation options
+
+```ts
+import { setQuoteTpSlMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+useMutation(setQuoteTpSlMutationOptions(config));
+```
+
+`setQuoteTpSlMutationOptions` returns `{ mutationKey, mutationFn }`; the `mutationFn` takes the same parameters object as the action.
+
+## Related
+
+- [`SetTpSlSide`](/core/tpsl/set-tpsl-side) — the per-side input shape.
+- [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) — the confirmation stream.
+- [`useSetQuoteTpSl`](/react/tpsl) / [`useInstantOpenWithTpSl`](/react/tpsl) — React bindings.

@@ -1,0 +1,66 @@
+# getMuonUpnl
+
+Fetch a fresh Muon `uPnl` attestation for a `partyB` / `partyA` pair and normalize it to typed fields. Returns the combined attestation — partyA and partyB uPnL in one response, with a per-party breakdown. For a single-party uPnL use [`getMuonUpnlA`](/core/muon/upnl-a) / [`getMuonUpnlB`](/core/muon/upnl-b) instead. The oracle URLs and the SYMMIO diamond address are resolved from `config`; gateways are tried in order until one succeeds.
+
+```ts
+import { getMuonUpnl } from "@symmio/trading-core";
+
+const a = await getMuonUpnl(config, { partyB: "0xb...", partyA: "0xva..." });
+console.log(a.uPnlA, a.uPnlB);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="partyB" type="Address" required>
+    The partyB (solver/hedger) side of the pair to attest.
+  </Property>
+  <Property name="partyA" type="Address" required>
+    The partyA (virtual account for lowcap) to attest.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetMuonUpnlReturnType">
+  <Property name="partyB" type="Address">
+    The attested partyB.
+  </Property>
+  <Property name="partyA" type="Address">
+    The attested partyA.
+  </Property>
+  <Property name="uPnlA" type="bigint" optional>
+    PartyA's signed unrealized PnL (18-decimal, signed).
+  </Property>
+  <Property name="uPnlB" type="bigint" optional>
+    PartyB's signed unrealized PnL (18-decimal, signed).
+  </Property>
+  <Property name="notionalValueSumA" type="bigint" optional>
+    Sum of notional values across the partyA's positions.
+  </Property>
+  <Property name="notionalValueSumB" type="bigint" optional>
+    Sum of notional values across the partyB's positions.
+  </Property>
+  <Property name="quoteIdsA" type="bigint[]">
+    Quote ids included in the partyA side of the attestation.
+  </Property>
+  <Property name="quoteIdsB" type="bigint[]">
+    Quote ids included in the partyB side of the attestation.
+  </Property>
+</Returns>
+
+Plus the [`MuonAttestationBase`](/core/muon/muon-attestation-base) signature envelope fields.
+
+## Query options
+
+```ts
+import { getMuonUpnlQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getMuonUpnlQueryOptions(config, { partyB, partyA }));
+```
+
+`GetMuonUpnlOptions` requires `partyB` and `partyA`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getMuonUpnlQueryKey` builder still accepts partial inputs for cache matching and invalidation.

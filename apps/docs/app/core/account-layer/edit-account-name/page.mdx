@@ -1,0 +1,30 @@
+# editAccountName
+
+Rename a subaccount.
+
+```ts
+import { editAccountName } from "@symmio/trading-core";
+
+const hash = await editAccountName(config, {
+  account: "0xsub...",
+  name: "Trading bot",
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The subaccount being renamed. The signer must equal the subaccount's `owner` on chain.
+  </Property>
+  <Property name="name" type="string" required>
+    New display name.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hash">The broadcast tx hash.</Returns>

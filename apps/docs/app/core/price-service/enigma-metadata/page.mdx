@@ -1,0 +1,31 @@
+# EnigmaMetadata
+
+A rich per-market metadata row returned by [`getEnigmaPriceServiceMetadata`](/core/price-service/metadata). The read returns a `Record<address, EnigmaMetadata>`. Each row carries the pair identifiers, the base-token ref, USD / native price strings, liquidity, 24h price change, market cap, and the data source.
+
+```ts
+import type { EnigmaMetadata } from "@symmio/trading-core";
+```
+
+## Fields
+
+<Properties>
+  <Property name="name" type="string">Market symbol name.</Property>
+  <Property name="chain_id" type="string">Chain identifier the pair trades on.</Property>
+  <Property name="dex_id" type="string">DEX identifier the pair is sourced from.</Property>
+  <Property name="pair_address" type="string">On-chain address of the trading pair.</Property>
+  <Property name="base_token" type="TokenRefDTO">Base-token reference: `{ address, name, symbol }`.</Property>
+  <Property name="price_native" type="string">Price quoted in the native/quote token, as a decimal string.</Property>
+  <Property name="price_usd" type="string">Price in USD, as a decimal string.</Property>
+  <Property name="decimal" type="number">Price decimals for the pair.</Property>
+  <Property name="liquidity" type="LiquidityDTO | null" optional>Liquidity snapshot `{ usd }`, or `null` when unavailable.</Property>
+  <Property name="price_change" type="PriceChangeDTO">24h price change: `{ h24: number | null }`.</Property>
+  <Property name="market_cap" type="number | null" optional>Market cap in USD, or `null` when unavailable.</Property>
+  <Property name="pair_created_at" type="number">Pair creation timestamp (unix ms).</Property>
+  <Property name="updated_at" type="number">Last-update timestamp (unix ms).</Property>
+  <Property name="source" type='"DEXSCREENER" | "MANUAL"'>Where the metadata was sourced from.</Property>
+</Properties>
+
+## Related
+
+- [getEnigmaPriceServiceMetadata](/core/price-service/metadata) — returns `Record<address, EnigmaMetadata>`.
+- [EnigmaSymbolInfo](/core/price-service/enigma-symbol-info) — the lighter catalog row.

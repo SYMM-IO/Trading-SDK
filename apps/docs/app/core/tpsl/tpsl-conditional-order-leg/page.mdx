@@ -1,0 +1,29 @@
+# TpSlConditionalOrderLeg
+
+One leg of a conditional-order message body. Built by [`buildConditionalOrderLeg`](/core/tpsl/build-conditional-order-leg) and carried as the `takeProfit` / `stopLoss` field of a [`TpSlConditionalOrderMessage`](/core/tpsl/tpsl-conditional-order-message).
+
+## Fields
+
+<Properties>
+  <Property name="quantity" type="string">
+    Quote quantity (decimal string).
+  </Property>
+  <Property name="price" type="string">
+    Slippage-shifted fill price (decimal string, rounded to market precision).
+  </Property>
+  <Property name="orderType" type="number">
+    Wire `order_type` (`1` = market).
+  </Property>
+  <Property name="conditionalPrice" type="string">
+    Trigger price (decimal string, rounded to market precision).
+  </Property>
+  <Property name="conditionalPriceType" type='"market" | "last_close"'>
+    Wire form of `TpSlPriceType` — `market` for mark price, `last_close` for last-close.
+  </Property>
+</Properties>
+
+## Related
+
+- [`buildConditionalOrderLeg`](/core/tpsl/build-conditional-order-leg) — builds this.
+- [`TpSlPriceType`](/core/tpsl/tpsl-price-type) — the SDK-facing price type mapped onto `conditionalPriceType`.
+- The `ZERO_LEG` constant is a zero-value leg of this shape used to pad `null` legs before signing.

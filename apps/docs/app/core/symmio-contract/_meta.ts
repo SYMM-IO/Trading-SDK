@@ -1,0 +1,17 @@
+export default {
+  index: "Overview",
+  "-- markets": { type: "separator", title: "On-chain markets" },
+  "get-onchain-contract-markets": "getOnchainContractMarkets",
+  "-- quotes": { type: "separator", title: "Quote reads" },
+  "get-quote": "getQuote",
+  "get-sub-account-quotes": "getSubAccountQuotes",
+  "get-party-a-open-positions": "getPartyAOpenPositions",
+  "get-party-a-pending-quotes": "getPartyAPendingQuotes",
+  "-- collateral": { type: "separator", title: "Collateral" },
+  "get-collateral-balance": "getCollateralBalance",
+  "get-collateral-allowance": "getCollateralAllowance",
+  "-- withdraw": { type: "separator", title: "Withdraw" },
+  "create-classic-withdraw-part": "createClassicWithdrawPart",
+  "get-last-withdraw-request-id": "getLastWithdrawRequestId",
+  "get-pending-withdraw-requests": "getPendingWithdrawRequests",
+};

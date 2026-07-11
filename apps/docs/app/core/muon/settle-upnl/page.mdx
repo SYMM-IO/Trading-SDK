@@ -1,0 +1,54 @@
+# getMuonSettleUpnl
+
+Fetch a fresh Muon `settle_upnl` attestation for `partyA` over `quoteIds` and normalize it to typed fields. This produces the uPnL settlement data that `settleUpnl` requires. The oracle URLs and the SYMMIO diamond address are resolved from `config`; gateways are tried in order until one succeeds.
+
+```ts
+import { getMuonSettleUpnl } from "@symmio/trading-core";
+
+const s = await getMuonSettleUpnl(config, { partyA: "0xva...", quoteIds: [10n, 11n] });
+console.log(s.uPnlA, s.quoteIds);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="partyA" type="Address" required>
+    The partyA (virtual account for lowcap) whose quotes to settle.
+  </Property>
+  <Property name="quoteIds" type="readonly bigint[]" required>
+    Quote ids to include in the settlement attestation.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetMuonSettleUpnlReturnType">
+  <Property name="partyA" type="Address">
+    The attested partyA.
+  </Property>
+  <Property name="quoteIds" type="bigint[]">
+    Quote ids included in the attestation.
+  </Property>
+  <Property name="uPnlA" type="bigint" optional>
+    Signed unrealized PnL for partyA (18-decimal, signed).
+  </Property>
+  <Property name="notionalValueSumA" type="bigint" optional>
+    Sum of notional values across partyA's settled positions.
+  </Property>
+</Returns>
+
+Plus the [`MuonAttestationBase`](/core/muon/muon-attestation-base) signature envelope fields.
+
+## Query options
+
+```ts
+import { getMuonSettleUpnlQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getMuonSettleUpnlQueryOptions(config, { partyA, quoteIds: [10n, 11n] }));
+```
+
+`GetMuonSettleUpnlOptions` requires `partyA` and `quoteIds`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getMuonSettleUpnlQueryKey` builder still accepts partial inputs for cache matching and invalidation.

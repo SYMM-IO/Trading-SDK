@@ -1,0 +1,43 @@
+# QuoteTpSl
+
+A folded TP/SL snapshot for a single quote — both sides merged from the handler's per-conditional-order [rows](/core/tpsl/quote-tpsl-row). This is the UI-facing shape the React layer's `toQuoteTpSl` produces; `core` returns the raw rows and leaves folding to the consumer.
+
+## Fields
+
+<Properties>
+  <Property name="tp" type="string">
+    Take-profit trigger price (decimal string). Empty when no order.
+  </Property>
+  <Property name="sl" type="string">
+    Stop-loss trigger price (decimal string). Empty when no order.
+  </Property>
+  <Property name="tpOpenPrice" type="string">
+    Slippage-shifted "opened" price stamped on the TP order (decimal string).
+  </Property>
+  <Property name="slOpenPrice" type="string">
+    Slippage-shifted "opened" price stamped on the SL order (decimal string).
+  </Property>
+  <Property name="tpPriceType" type="TpSlPriceType" typeHref="/core/tpsl/tpsl-price-type">
+    Whether the TP trips on the mark or last-close price.
+  </Property>
+  <Property name="slPriceType" type="TpSlPriceType" typeHref="/core/tpsl/tpsl-price-type">
+    Whether the SL trips on the mark or last-close price.
+  </Property>
+  <Property name="tpState" type="TpSlInfoState" typeHref="/core/tpsl/tpsl-info-state">
+    Lifecycle stage of the TP order.
+  </Property>
+  <Property name="slState" type="TpSlInfoState" typeHref="/core/tpsl/tpsl-info-state">
+    Lifecycle stage of the SL order.
+  </Property>
+  <Property name="tpCohQuoteId" type="string" optional>
+    Handler-issued conditional-order id for the TP order, when present.
+  </Property>
+  <Property name="slCohQuoteId" type="string" optional>
+    Handler-issued conditional-order id for the SL order, when present.
+  </Property>
+</Properties>
+
+## Related
+
+- [`QuoteTpSlRow`](/core/tpsl/quote-tpsl-row) — the raw rows this snapshot folds.
+- [`useQuoteTpSl`](/react/tpsl) — React binding that returns this shape.

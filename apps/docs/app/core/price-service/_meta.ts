@@ -1,0 +1,16 @@
+export default {
+  index: "Overview",
+  "-- live-prices": { type: "separator", title: "Live prices" },
+  "watch-enigma-prices": "watchEnigmaPrices",
+  "-- rest-reads": { type: "separator", title: "REST reads" },
+  "prices-by-addresses": "getEnigmaPriceServicePricesByAddresses",
+  "prices-by-names": "getEnigmaPriceServicePricesByNames",
+  metadata: "getEnigmaPriceServiceMetadata",
+  "symbols-info": "getEnigmaPriceServiceSymbolsInfo",
+  health: "getEnigmaPriceServiceHealth",
+  "-- types": { type: "separator", title: "Types" },
+  "enigma-price-tick": "EnigmaPriceTick",
+  "enigma-price-data": "EnigmaPriceData",
+  "enigma-metadata": "EnigmaMetadata",
+  "enigma-symbol-info": "EnigmaSymbolInfo",
+};

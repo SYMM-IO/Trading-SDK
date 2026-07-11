@@ -1,0 +1,41 @@
+# buildTpSlDeleteMessage
+
+Build a delete-conditional-order EIP-712 message body ([`TpSlDeleteMessage`](/core/tpsl/tpsl-delete-message)). The salt is generated automatically via [`generateTpSlSalt`](/core/tpsl/generate-tpsl-salt); pass `salt` to override (e.g. to sign deterministically in tests). [`deleteQuoteTpSl`](/core/tpsl/delete-quote-tpsl) uses this internally.
+
+```ts
+import { buildTpSlDeleteMessage } from "@symmio/trading-core";
+
+const message = buildTpSlDeleteMessage({
+  virtualAccount,
+  cohQuoteId: "coh4213",
+  conditionalOrderType: "take_profit",
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="virtualAccount" type="Address" required>
+    PartyA (the VA address) that owns the quote.
+  </Property>
+  <Property name="cohQuoteId" type="string" required>
+    Handler-issued conditional-order id targeted by the delete.
+  </Property>
+  <Property name="conditionalOrderType" type='"take_profit" | "stop_loss"' required>
+    Which side is being canceled.
+  </Property>
+  <Property name="salt" type="string" optional>
+    Override for the auto-generated salt.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="TpSlDeleteMessage" typeHref="/core/tpsl/tpsl-delete-message">
+  The delete message body (pre-signature). Pass to [`signTpSlRequest`](/core/tpsl/sign-tpsl-request).
+</Returns>
+
+## Related
+
+- [`TpSlDeleteMessage`](/core/tpsl/tpsl-delete-message) — the return shape.
+- [`deleteQuoteTpSl`](/core/tpsl/delete-quote-tpsl) — the full delete action.

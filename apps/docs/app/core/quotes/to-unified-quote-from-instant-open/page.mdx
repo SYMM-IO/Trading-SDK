@@ -1,0 +1,31 @@
+# toUnifiedQuoteFromInstantOpen
+
+Build an optimistic [`UnifiedQuote`](/core/quotes/unified-quote) from a pending instant-open record, without merging. Useful when a consumer wants a single-row projection — e.g. adding an optimistic row before the reconciler has run.
+
+The hedger reports human-scaled decimal strings; this normalizes price, quantity, and the locked legs to 18-decimal wei. The row is `OPTIMISTIC` (no fill, no on-chain id yet) and keyed `temp:<tempId>`.
+
+```ts
+import { toUnifiedQuoteFromInstantOpen } from "@symmio/trading-core";
+
+const row = toUnifiedQuoteFromInstantOpen(pending);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="pending" type="PendingInstantOpen" required>
+    A normalized pending instant-open record (from `getInstantOpens`).
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="UnifiedQuote" typeHref="/core/quotes/unified-quote">
+  The unified row, `origin: "offchain"`, `lifecycle: OPTIMISTIC`, keyed `temp:<tempQuoteId>`.
+</Returns>
+
+## Related
+
+- [UnifiedQuote](/core/quotes/unified-quote) — the returned shape.
+- [reconcileQuotes](/core/quotes/reconcile-quotes) — runs this internally over the `instantOpens` input.
+- [Solvers](/core/solvers) — `getInstantOpens` produces the `PendingInstantOpen` input.

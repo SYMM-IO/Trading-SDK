@@ -1,0 +1,51 @@
+# NotificationSearchResult
+
+The normalized result of [`searchNotifications`](/core/notifications/search-notifications).
+
+## Fields
+
+<Properties>
+  <Property name="total" type="number">
+    Total number of documents matching the filter, ignoring pagination.
+  </Property>
+  <Property name="count" type="number">
+    Number of documents returned in this page (`documents.length`).
+  </Property>
+  <Property name="documents" type="NotificationDocument[]">
+    The matched documents for the requested `start`/`size` window.
+  </Property>
+</Properties>
+
+## NotificationDocument
+
+A stored notification document as returned by the search endpoint. Only the well-known top-level fields are typed; an index signature (`[key: string]: unknown`) keeps app-specific fields reachable. For trading notifications the `data` payload is the position wire frame ([`RawPositionNotification`](/core/notifications/raw-position-notification)).
+
+<Properties>
+  <Property name="id" type="string" optional />
+  <Property name="app_name" type="string" optional>
+    Publishing app / channel identity, e.g. `"Hyper-EVM_Solver-Low-Cap_Production"`.
+  </Property>
+  <Property name="address" type="string" optional>
+    SubAccount address the notification belongs to.
+  </Property>
+  <Property name="primary_identifier" type="number" optional />
+  <Property name="secondary_identifier" type="string | number | null" optional />
+  <Property name="type" type="string" optional>
+    `report` | `alert`.
+  </Property>
+  <Property name="create_time" type="number" optional />
+  <Property name="modify_time" type="number" optional />
+  <Property
+    name="data"
+    type="RawPositionNotification & Record<string, unknown>"
+    typeHref="/core/notifications/raw-position-notification"
+    optional
+  >
+    App-specific payload; the position wire frame for trading notifications.
+  </Property>
+</Properties>
+
+## Related
+
+- [searchNotifications](/core/notifications/search-notifications) — returns this result.
+- [NotificationSearchFilter](/core/notifications/notification-search-filter) — the filter that produces it.

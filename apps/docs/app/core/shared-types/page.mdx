@@ -1,168 +1,218 @@
 # Shared types
 
-Cross-cutting parameter and utility types used across every slice. Public because consumers composing higher-level custom actions need to reference them.
+Cross-cutting parameter and utility types used across every slice of the SDK. They are public because consumers composing their own higher-level actions need to reference the same building blocks. Most are single-property _mixins_ combined into an action's parameter type via `Compute<A & B>`, mirroring the `@wagmi/core` convention.
 
 ## Import
 
 ```ts
 import type {
   ChainIdParameter,
+  Compute,
   ConfigKeyParameter,
   ConfigParameter,
+  DeepPartial,
+  ExactPartial,
   FromParameter,
-  SimulateBeforeWriteParameter,
   QueryParameter,
+  SimulateBeforeWriteParameter,
   SymmioQueryOptions,
   WebSocketConstructor,
   WebSocketLike,
-  Compute,
-  DeepPartial,
-  ExactPartial,
+  WriteContractParameter,
+  WriteSolverParameter,
 } from "@symmio/trading-core";
 ```
 
 ## Parameter mixins
 
-### `ChainIdParameter`
+Single-property object types folded into an action's parameter type. Each carries exactly one field so it can be mixed into many actions without collision.
 
-Every action accepts an optional `chainId` override. Included on every action's parameters via this mixin:
+### ChainIdParameter
 
-```ts
-interface ChainIdParameter {
-  /** Chain to run the action against. Defaults to `config.defaultChainId`. */
-  chainId?: number;
-}
-```
+Optional chain override, mixed into every action's parameters.
 
-### `ConfigParameter`
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId` when omitted.
+  </Property>
+</Properties>
 
-Every hook / action accepts an optional `config` override:
+### ConfigParameter
 
-```ts
-interface ConfigParameter {
-  /** Use this config instead of the one from context. */
-  config?: Config;
-}
-```
+Optional config override accepted by every hook and action.
 
-### `ConfigKeyParameter`
+<Properties>
+  <Property name="config" type="Config" optional>
+    Use this config instead of the one from context.
+  </Property>
+</Properties>
 
-Used by query-key factories — the config-key fingerprint is folded into every key so runtime overrides do not serve stale cache.
+### ConfigKeyParameter
 
-```ts
-interface ConfigKeyParameter {
-  configKey?: string;
-}
-```
+Folded into query keys so a runtime config override yields a fresh key instead of serving stale cache. The query-option factories set it internally; you rarely pass it by hand.
 
-Consumers rarely reach for it directly; the SDK factories set it internally.
+<Properties>
+  <Property name="configKey" type="string" optional>
+    Stable fingerprint of the resolved chain config. Set automatically from `config.getChainConfigKey(chainId)` and
+    folded into query keys.
+  </Property>
+</Properties>
 
-### `FromParameter`
+### FromParameter
 
-Signer selector for writes. The consumer's `getWalletClient` resolver receives `from` and decides which wallet to return.
+Optional sender for write simulations. Named `from` (not `account`) so it never collides with an action's own `account` / `user` field.
 
-```ts
-interface FromParameter {
-  from?: Address;
-}
-```
+<Properties>
+  <Property name="from" type="Address" optional>
+    The address the simulation runs as (becomes `msg.sender`). Defaults to the connected wallet in the React layer.
+  </Property>
+</Properties>
 
-### `SimulateBeforeWriteParameter`
+### SimulateBeforeWriteParameter
 
-Per-write override for the pre-flight `simulateContract` dry-run.
+Per-write opt-out for the pre-send dry-run.
 
-```ts
-interface SimulateBeforeWriteParameter {
-  simulateBeforeWrite?: boolean;
-}
-```
+<Properties>
+  <Property name="simulateBeforeWrite" type="boolean" optional>
+    Dry-run via `simulateContract` before sending; abort if it would revert. Defaults to the config's
+    `simulateBeforeWrite` (itself `true`).
+  </Property>
+</Properties>
 
 ## Query types
 
-### `QueryParameter`
+### QueryParameter
 
-Optional TanStack Query overrides accepted by every read factory:
+Optional TanStack Query overrides accepted by every read factory.
 
-```ts
-interface QueryParameter<queryFnData, error, data, queryKey> {
-  query?: Partial<
-    Omit<QueryObserverOptions<...>, "queryFn" | "queryKey" | "queryHash" | "queryKeyHashFn">
-  >;
-}
-```
+<Properties>
+  <Property name="query" type="Partial<QueryObserverOptions>" optional>
+    Partial TanStack Query options minus `queryKey`/`queryFn`/`queryHash`/`queryKeyHashFn` (the factory fills those).
+    Pass `staleTime`, `gcTime`, `select`, `enabled`, `retry`, etc.
+  </Property>
+</Properties>
 
-The SDK owns `queryKey` and `queryFn`; everything else (`staleTime`, `enabled`, `select`, …) is passthrough.
+### SymmioQueryOptions
 
-### `SymmioQueryOptions`
+The object every `…QueryOptions` factory returns: your [`QueryParameter`](#queryparameter) passthrough with the SDK's `queryKey` and `queryFn` already filled in. Feed it straight into `useQuery` / `queryClient.fetchQuery`.
 
-Return type of every `getXyzQueryOptions` factory:
+<Properties>
+  <Property name="queryKey" type="queryKey">
+    The SDK-owned query key, pre-filled by the factory.
+  </Property>
+  <Property name="queryFn" type="() => Promise<queryFnData>">
+    The SDK-owned fetcher, pre-filled by the factory.
+  </Property>
+</Properties>
 
-```ts
-type SymmioQueryOptions<queryFnData, error, data, queryKey> = Partial<
-  Omit<QueryObserverOptions<...>, "queryFn" | "queryKey" | "queryHash" | "queryKeyHashFn">
-> & {
-  queryKey: queryKey;
-  queryFn: () => Promise<queryFnData>;
-};
-```
-
-Feed straight into `useQuery` / `queryClient.fetchQuery`.
+Every other field is passthrough from `QueryParameter`'s `query` — `staleTime`, `select`, `enabled`, and the rest.
 
 ## WebSocket types
 
-### `WebSocketConstructor` / `WebSocketLike`
+Minimal structural types for a WebSocket implementation the SDK can drive. `core` stays free of a DOM-lib dependency by typing only the members its reconnecting socket relies on. Inject an implementation via `createConfig({ webSocketConstructor })`; when omitted the SDK falls back to `globalThis.WebSocket`.
 
-Minimal subset of the WebSocket API the SDK's streaming actions need. Pass a custom constructor into `createConfig({ webSocketConstructor })` when the runtime does not expose a global `WebSocket` (e.g. older Node).
+### WebSocketLike
+
+The subset of a WebSocket instance the SDK's reconnecting socket relies on. Both the browser `WebSocket` and the `ws` package satisfy this shape.
+
+<Properties>
+  <Property name="readyState" type="number">
+    Current connection state: `0` connecting, `1` open, `2` closing, `3` closed.
+  </Property>
+  <Property name="send" type="(data: string) => void">
+    Send a string frame.
+  </Property>
+  <Property name="close" type="(code?: number, reason?: string) => void">
+    Begin closing the connection.
+  </Property>
+  <Property name="onopen" type="((event: unknown) => void) | null">
+    Fired once the connection opens.
+  </Property>
+  <Property name="onclose" type="((event: { code?: number; reason?: string; wasClean?: boolean }) => void) | null">
+    Fired when the connection closes, cleanly or otherwise.
+  </Property>
+  <Property name="onerror" type="((event: unknown) => void) | null">
+    Fired on a transport-level error.
+  </Property>
+  <Property name="onmessage" type="((event: { data: unknown }) => void) | null">
+    Fired for each inbound frame; `data` is typically a JSON string.
+  </Property>
+</Properties>
+
+### WebSocketConstructor
+
+A constructor compatible with `WebSocketLike`. Both `globalThis.WebSocket` and the `ws` package's export match.
 
 ```ts
-type WebSocketConstructor = new (url: string, protocols?: string | string[]) => WebSocketLike;
-
-interface WebSocketLike {
-  readyState: 0 | 1 | 2 | 3;
-  send(data: string): void;
-  close(code?: number, reason?: string): void;
-  addEventListener(type: "open" | "close" | "message" | "error", listener: (ev: Event | MessageEvent) => void): void;
-  removeEventListener(...): void;
-  readonly CONNECTING: 0; readonly OPEN: 1; readonly CLOSING: 2; readonly CLOSED: 3;
+interface WebSocketConstructor {
+  new (url: string, protocols?: string | string[]): WebSocketLike;
 }
 ```
 
-Any spec-compliant implementation (browser native, Node 22+, `ws` package, mocks) works.
-
 ## TypeScript helpers
 
-### `Compute<T>`
+Pure type-level utilities — no runtime output.
 
-Deeply resolves a type so hover-tooltips show the flat shape instead of a chain of intersections. Used to keep public parameter types readable.
+### Compute
+
+Flattens an intersection of object types into a single, readable object so hover-tooltips show the flat shape instead of a chain of intersections. Purely cosmetic.
 
 ```ts
-type UserSubAccountsParameters = Compute<ChainIdParameter & { user: Address; offset: bigint; size: bigint }>;
+type Params = Compute<ChainIdParameter & { user: Address; size: bigint }>;
+// hover shows: { chainId?: number; user: Address; size: bigint }
 ```
 
-### `DeepPartial<T>`
+### DeepPartial
 
-Recursive `Partial`. Used by `createConfig({ symmioConfig })` so per-chain overrides can nest arbitrarily deep.
+Recursive `Partial`, but **arrays are leaves** — an overriding array replaces the original wholesale rather than being patched element-by-element. Used by `createConfig({ symmioConfig })`, where a consumer may override a single deeply-nested per-chain field.
 
-### `ExactPartial<T>`
+```ts
+type DeepPartial<type> = type extends readonly unknown[]
+  ? type
+  : type extends object
+    ? { [key in keyof type]?: DeepPartial<type[key]> }
+    : type;
+```
 
-Non-widening `Partial` — every field becomes `T[K] | undefined` without dropping `undefined` from unions. Used by TanStack helpers.
+### ExactPartial
+
+Non-widening `Partial`: every field becomes optional **and** explicitly `| undefined`, without dropping `undefined` from a union member. Used for query-option shapes where each action parameter turns optional.
+
+```ts
+type ExactPartial<type> = {
+  [key in keyof type]?: type[key] | undefined;
+};
+```
 
 ## Write parameter helpers
 
-### `WriteContractParameter`
+Mixin bundles an action extends with its own action-specific fields. Each is an alias for an intersection of the mixins above, kept as one name so an action's parameter type stays focused on what is unique to it.
 
-Shape of a contract write's options bag: `{ account, from?, simulateBeforeWrite?, chainId? }`.
+### WriteContractParameter
 
-### `WriteSolverParameter`
+The standard mixin set every on-chain write action accepts. It has no `account` field of its own — the action adds that.
 
-Shape of a solver-side write: `{ from, chainId? }` — the SubAccount / VA / quote id are per-action.
+```ts
+type WriteContractParameter = ChainIdParameter & FromParameter & SimulateBeforeWriteParameter;
+```
 
-### `DepositForAccountParameters` / `InstantCloseParameters`
+Composes [`ChainIdParameter`](#chainidparameter), [`FromParameter`](#fromparameter), and [`SimulateBeforeWriteParameter`](#simulatebeforewriteparameter). An action folds it in and adds its own fields, e.g. `Compute<WriteContractParameter & { account: Address; amount: bigint }>`.
 
-Concrete parameter shapes for specific actions, re-exported for consumers composing higher-level flows.
+### WriteSolverParameter
+
+The standard mixin set every off-chain solver/hedger write accepts. Same as `WriteContractParameter` minus `simulateBeforeWrite` — solver writes POST to an HTTP endpoint and never simulate on-chain.
+
+```ts
+type WriteSolverParameter = ChainIdParameter & FromParameter;
+```
+
+Composes [`ChainIdParameter`](#chainidparameter) and [`FromParameter`](#fromparameter); `from` stays optional. The action adds its own fields, e.g. `Compute<WriteSolverParameter & { partyA: Address; order: InstantCloseOrder }>`.
+
+Concrete action-parameter types (e.g. `DepositForAccountParameters`, `InstantCloseParameters`) are documented on their own action pages, not here.
 
 ## Related
 
 - [Config](../concepts/config) — the runtime object every action uses.
 - [Query options](../concepts/query-options) — how the query types plug in.
+- [WebSocket](../concepts/websocket) — where `WebSocketLike` / `WebSocketConstructor` are wired in.
 - [Errors](../concepts/errors) — validation errors reference the field names in these mixins.

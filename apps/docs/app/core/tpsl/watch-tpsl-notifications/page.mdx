@@ -1,0 +1,60 @@
+# watchTpSlNotifications
+
+Subscribe to live TP/SL notifications for one SubAccount.
+
+Reuses the defilytics-protocol subscribe-frame builder and the SDK's shared socket pool, so many watchers across the app share one underlying connection per `(wsUrl, appName, account)` triple. The channel is scoped by the chain's `tpsl.appName` (e.g. `Hyper-EVM_COH-Low-Cap_Production`), distinct from the quote-state [notifications](/core/notifications) stream. Inbound `report` frames are parsed by [`parseTpSlFrame`](/core/tpsl/parse-tpsl-frame) into [`TpSlNotification`](/core/tpsl/tpsl-notification)s before your handler fires.
+
+This is a subscribe function, not a query — there are no query options. For a React binding, use [`useWatchTpSlNotifications`](/react/tpsl).
+
+```ts
+import { watchTpSlNotifications } from "@symmio/trading-core";
+
+const unwatch = watchTpSlNotifications(config, {
+  account: subAccount,
+  onNotification: (frame) => {
+    console.log(frame.conditionalOrderType, frame.state, frame.successful);
+  },
+  onStatusChange: (status) => console.log(status),
+  onError: (err) => console.error(err),
+});
+
+// later, dispose (idempotent):
+unwatch();
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    SubAccount address to subscribe for.
+  </Property>
+  <Property name="onNotification" type="(n: TpSlNotification) => void" typeHref="/core/tpsl/tpsl-notification" required>
+    Called for every normalized TP/SL report.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="onStatusChange" type="(s: SocketStatus) => void" optional>
+    Called whenever the underlying connection status changes. `SocketStatus` is `"connecting" | "open" | "reconnecting"
+    | "closing" | "closed"`.
+  </Property>
+  <Property name="onError" type="(e: SymmError) => void" optional>
+    Called on a transport or parse error; does not stop the subscription.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="UnwatchTpSl">
+  An idempotent disposer. Call it to stop the subscription; the pooled socket closes when the last watcher releases.
+</Returns>
+
+## Throws
+
+Throws a `SymmError` synchronously when the chain has no `tpsl` config or no `WebSocket` implementation is available.
+
+## Related
+
+- [WebSocket concept](/core/concepts/websocket) — pool, reconnect, and the `SocketStatus` lifecycle.
+- [`parseTpSlFrame`](/core/tpsl/parse-tpsl-frame) — the per-frame parser used internally.
+- [`TpSlNotification`](/core/tpsl/tpsl-notification) — the delivered payload shape.

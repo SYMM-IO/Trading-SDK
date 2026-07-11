@@ -1,0 +1,69 @@
+# QuoteLifecycle
+
+The stage of a quote's lifecycle as tracked across the on-chain and off-chain merge. Drives row styling and polling acceleration in the consumer. Enumerated so consumers can `switch` on it.
+
+The off-chain stages (`OPTIMISTIC`, `PRICE_FILLED`), the `WRITE_ONCHAIN*` "awaiting the RPC" stages, and the transient close stages are **SDK-side overlays** — they do not exist on the on-chain [`QuoteStatus`](/core/symmio-contract/get-quote); reconciliation assigns them from notifications and hedger records.
+
+```ts
+enum QuoteLifecycle {
+  OPTIMISTIC = "optimistic",
+  PRICE_FILLED = "price-filled",
+  WRITE_ONCHAIN = "write-onchain",
+  ONCHAIN = "onchain",
+  OPTIMISTIC_CLOSE = "optimistic-close",
+  CLOSE_PRICE_FILLED = "close-price-filled",
+  WRITE_ONCHAIN_CLOSE = "write-onchain-close",
+  CLOSING = "closing",
+  CLOSED = "closed",
+  FAILED = "failed",
+}
+```
+
+## Members
+
+<Properties>
+  <Property name="OPTIMISTIC" type='"optimistic"'>
+    Submitted to a hedger; no on-chain quote and no fill report yet.
+  </Property>
+  <Property name="PRICE_FILLED" type='"price-filled"'>
+    A hedger reported a fill price (`InstantRFQ` success) but the on-chain quote has not landed yet.
+  </Property>
+  <Property name="WRITE_ONCHAIN" type='"write-onchain"'>
+    The open anchored on-chain per the notification (the `quoteId` is known), but the on-chain read has not returned the
+    quote struct yet — shown with its anchored id while the SDK waits for the RPC. Resolves to `ONCHAIN` once the read
+    returns.
+  </Property>
+  <Property name="ONCHAIN" type='"onchain"'>
+    Anchored on-chain; mirrors a real `QuoteStatus`.
+  </Property>
+  <Property name="OPTIMISTIC_CLOSE" type='"optimistic-close"'>
+    A close was just submitted and the hedger's pending-instant-close feed has it, but no close notification has
+    confirmed a price yet — the close-side analog of `OPTIMISTIC`.
+  </Property>
+  <Property name="CLOSE_PRICE_FILLED" type='"close-price-filled"'>
+    A close notification reported the close price/fill request (`InstantRequestToClosePosition`) — the close-side analog
+    of `PRICE_FILLED`.
+  </Property>
+  <Property name="WRITE_ONCHAIN_CLOSE" type='"write-onchain-close"'>
+    The close fill (`FillMarketOrderInstantClose`) was reported, or a pending instant-close overlays the row while the
+    on-chain status still shows the position open — the close is being written on-chain, awaiting the RPC. Resolves to
+    `CLOSING` once the on-chain status reflects the pending close.
+  </Property>
+  <Property name="CLOSING" type='"closing"'>
+    The close is confirmed pending on-chain — on-chain `CLOSE_PENDING` / `CANCEL_CLOSE_PENDING`.
+  </Property>
+  <Property name="CLOSED" type='"closed"'>
+    The position is fully closed.
+  </Property>
+  <Property name="FAILED" type='"failed"'>
+    A hedger or notification reported the open/close failed.
+  </Property>
+</Properties>
+
+The `WRITE_ONCHAIN*` and `CLOSING` stages are exactly the ones [`shouldAccelerateOnchainReads`](/core/quotes/should-accelerate-onchain-reads) treats as awaiting on-chain confirmation; every mid-transition stage above drives [`shouldAccelerateQuotePolling`](/core/quotes/should-accelerate-quote-polling).
+
+## Related
+
+- [UnifiedQuote](/core/quotes/unified-quote) — carries `lifecycle`.
+- [applyNotificationToQuotes](/core/quotes/apply-notification-to-quotes) — advances a row's lifecycle from notifications.
+- [shouldAccelerateQuotePolling](/core/quotes/should-accelerate-quote-polling) — reads these stages to gate polling.

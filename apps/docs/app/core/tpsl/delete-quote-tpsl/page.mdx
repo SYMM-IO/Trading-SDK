@@ -1,0 +1,70 @@
+# deleteQuoteTpSl
+
+Cancel a live TP or SL order by its handler-issued `cohQuoteId`. Internally: resolves the handler URL + [DELETE signing spec](/core/tpsl/get-tpsl-delete-signing-spec), builds a [`TpSlDeleteMessage`](/core/tpsl/tpsl-delete-message) bound to the target `cohQuoteId` + side, signs it with the session-key wallet, and calls `DELETE /api/v5/` with `{ typedData, signature, signer }`.
+
+The handler returns `200` on accept; the cancel is only fully confirmed once the WebSocket reports `state: "cancel"` (or `canceled` / `cancelled`). Callers should subscribe via [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) and reconcile.
+
+```ts
+import { deleteQuoteTpSl } from "@symmio/trading-core";
+
+await deleteQuoteTpSl(config, {
+  from: sessionKey,
+  quoteId: 42n,
+  virtualAccount,
+  cohQuoteId: "coh4213",
+  conditionalOrderType: "take_profit",
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quoteId" type="bigint" required>
+    On-chain quote id the order belongs to (used for cache invalidation).
+  </Property>
+  <Property name="virtualAccount" type="Address" required>
+    PartyA (the VA address) that owns the quote.
+  </Property>
+  <Property name="cohQuoteId" type="string" required>
+    Handler-issued conditional-order id targeted by the delete.
+  </Property>
+  <Property name="conditionalOrderType" type='"take_profit" | "stop_loss"' required>
+    Which side is being canceled (`TpSlConditionalOrderType`).
+  </Property>
+  <Property name="from" type="Address" optional>
+    Session-key signer the wallet client resolves for. Defaults to the connected wallet in the React layer.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="DeleteQuoteTpSlReturnType">
+  <Property name="success" type="true">
+    Always `true` on a resolved call (failures throw).
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError` when the chain has no `tpsl` config or signing fails.
+- `SymmApiError` when the handler request fails.
+
+## Mutation options
+
+```ts
+import { deleteQuoteTpSlMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+useMutation(deleteQuoteTpSlMutationOptions(config));
+```
+
+`deleteQuoteTpSlMutationOptions` returns `{ mutationKey, mutationFn }`; the `mutationFn` takes the same parameters object as the action.
+
+## Related
+
+- [`TpSlDeleteMessage`](/core/tpsl/tpsl-delete-message) — the message body built and signed.
+- [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) — the confirmation stream.
+- [`useDeleteQuoteTpSl`](/react/tpsl) — React binding.

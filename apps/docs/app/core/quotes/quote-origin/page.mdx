@@ -1,0 +1,27 @@
+# QuoteOrigin
+
+Where a [`UnifiedQuote`](/core/quotes/unified-quote) was sourced from before reconciliation. A string union.
+
+```ts
+type QuoteOrigin = "onchain" | "offchain";
+```
+
+## Members
+
+<Properties>
+  <Property name="onchain" type='"onchain"'>
+    Read from the SYMMIO core (`getPartyAOpenPositions` / `getPartyAPendingQuotes` + `getQuote`); the row carries a real
+    `quoteId`.
+  </Property>
+  <Property name="offchain" type='"offchain"'>
+    Only known to a hedger so far — a pending instant-open or instant-close; the row carries a `tempQuoteId` and waits
+    to anchor on-chain.
+  </Property>
+</Properties>
+
+A row's `origin` flips from `"offchain"` to `"onchain"` the moment reconciliation links its temp id to an on-chain quote id (its `key` migrates `temp:<id>` → `onchain:<id>` at the same time).
+
+## Related
+
+- [UnifiedQuote](/core/quotes/unified-quote) — carries `origin`.
+- [QuoteLifecycle](/core/quotes/quote-lifecycle) — the finer-grained stage layered on top of origin.

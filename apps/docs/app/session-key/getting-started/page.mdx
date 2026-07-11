@@ -1,0 +1,58 @@
+import { Callout } from "nextra/components";
+
+# Getting Started with Session Key
+
+`@symmio/session-key` is the framework-agnostic runtime behind SYMMIO's popup-free trading. It generates and manages a **session key** — a locally held EVM keypair the app signs trades with silently — so a trader authorizes their wallet once and then trades with no prompt on the hot path. No React, no wagmi, no DOM globals; the same manager runs in browsers, workers, and Node.
+
+## 1. Install
+
+```sh
+pnpm add @symmio/session-key viem
+```
+
+`viem` is a peer dependency — the manager derives accounts and signs through it.
+
+## 2. Provide storage
+
+The manager persists the key through a `SessionKeyStorage` adapter **you** implement. This is where the key lives between sessions — `localStorage`, IndexedDB, a Node keystore, whatever fits your app.
+
+<Callout type="warning">
+  **Nothing is encrypted for you.** The manager hands your storage adapter the raw private key as plaintext `Hex`.
+  Encryption is your responsibility — read [Security &amp; storage](/session-key/security) before shipping.
+</Callout>
+
+```ts
+import { createSessionKeyManager, type SessionKeyStorage } from "@symmio/session-key";
+
+const storage: SessionKeyStorage = createAppStorage(); // you own this adapter
+
+const manager = createSessionKeyManager({ storage });
+```
+
+## 3. Initialize and sign
+
+`initialize(owner)` loads the owner's existing key from storage, or generates and persists a new one. After that, every `sign` runs in the background with no wallet prompt.
+
+```ts
+const state = await manager.initialize(owner); // { address, ... }
+
+const { signature } = await manager.sign("hello");
+```
+
+## 4. Authorize the key on-chain
+
+A fresh session key can sign, but the protocol won't honor its signatures until the owner **delegates** to it once — a single wallet popup via `grantDelegation` (on the InstantLayer). After that, trades sign silently until the delegation expires or is revoked.
+
+```ts
+import { grantDelegation } from "@symmio/trading-core";
+
+await grantDelegation(config, { sessionKey: state.address });
+```
+
+See [How it works](/session-key/how-it-works) for the full delegation flow and key lifecycle.
+
+## Next steps
+
+- **[Overview](/session-key)** — the complete manager, key-material, and transfer-payload surface.
+- **[How it works](/session-key/how-it-works)** — why session keys exist and the `grantDelegation` flow end to end.
+- **[Provider integration](/session-key/provider-integration)** — wiring the manager into `SymmioProvider` so SDK writes sign through the session key.

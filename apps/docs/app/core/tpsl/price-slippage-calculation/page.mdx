@@ -1,0 +1,48 @@
+# priceSlippageCalculation
+
+Shift a trigger price by `slippage` percent in the direction the conditional order would fill at. Used to derive the `price` field on each [`TpSlConditionalOrderLeg`](/core/tpsl/tpsl-conditional-order-leg) — the handler fills against this wide tolerance. The result is rounded to `pricePrecision` decimals to match the market.
+
+- **`SHORT`**: shifts up by `1 + slippage / 100`.
+- **`LONG`**: shifts down by `1 − slippage / 100`.
+
+```ts
+import { priceSlippageCalculation } from "@symmio/trading-core";
+
+priceSlippageCalculation("100", 90, PositionType.LONG, 4); // "10.0000"
+```
+
+## Parameters
+
+<Properties>
+  <Property name="price" type="string" required>
+    Trigger price to shift (decimal string).
+  </Property>
+  <Property name="slippage" type="number" required>
+    Slippage percent.
+  </Property>
+  <Property name="positionType" type="PositionType" required>
+    Quote direction; sets the shift direction.
+  </Property>
+  <Property name="pricePrecision" type="number" required>
+    Decimals to round the result to.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="string">The slippage-shifted price as a decimal string, rounded to `pricePrecision` decimals.</Returns>
+
+## DEFAULT_TPSL_SLIPPAGE_LOWCAPS
+
+When a caller doesn't pass `slippage`, [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) falls back to the exported default:
+
+```ts
+import { DEFAULT_TPSL_SLIPPAGE_LOWCAPS } from "@symmio/trading-core";
+
+// 90  (percent — the handler quotes against a very wide tolerance for lowcap markets)
+```
+
+## Related
+
+- [`buildConditionalOrderLeg`](/core/tpsl/build-conditional-order-leg) — consumes the shifted `price`.
+- [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) — applies this per side.

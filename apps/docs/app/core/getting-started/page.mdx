@@ -1,0 +1,77 @@
+import { Callout } from "nextra/components";
+
+# Getting Started with Core
+
+`@symmio/trading-core` is the framework-agnostic SDK. Every call is a plain function that takes a `Config` as its first argument — no hooks, no providers, no framework. Reach for it in a Node script (deposit bot, indexer), a non-React framework layer (Vue, Solid), or a React app that wants to bypass the hook layer.
+
+<Callout type="info">
+  Building a React UI? Use **[Getting Started with React](/react/getting-started)** instead — it wraps every one of
+  these functions in a hook with caching and invalidation. Come back here when you need the raw calls.
+</Callout>
+
+## 1. Install
+
+```sh
+pnpm add @symmio/trading-core viem
+```
+
+`viem` is the only peer dependency — bring your own copy.
+
+## 2. Create a config
+
+Every action and query-options factory receives a `Config` as its first argument. Create it once with [`createConfig`](/core/concepts/config) and share it. The config never owns viem clients itself — you inject them through resolver callbacks, so you stay in control of the RPC and the wallet.
+
+```ts
+import { createConfig } from "@symmio/trading-core";
+import { createPublicClient, http } from "viem";
+import { hyperEvm } from "viem/chains";
+
+const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
+
+const config = createConfig({
+  getClient: () => publicClient,
+});
+```
+
+`getClient` is all a read-only config needs. Add [`getWalletClient`](/core/concepts/config) when you want to send transactions — see step 4.
+
+## 3. Read on-chain data
+
+Every read is `getXyz(config, params)`:
+
+```ts
+import { getUserSubAccounts } from "@symmio/trading-core";
+
+const subs = await getUserSubAccounts(config, { user: "0xabc..." });
+console.log(subs.map((sub) => sub.name));
+```
+
+Want a cache? Every read also ships a matching `getXyzQueryOptions(config, options)` factory that returns a ready-made TanStack Query options bag — feed it into `queryClient.fetchQuery` or any framework's query layer. See [Query Options](/core/concepts/query-options).
+
+## 4. Send a transaction
+
+Writes sign through the wallet client your config resolves. Add `getWalletClient` to `createConfig`, then call `xyz(config, params)`:
+
+```ts
+import { createConfig, editAccountName } from "@symmio/trading-core";
+import { createPublicClient, createWalletClient, http } from "viem";
+import { hyperEvm } from "viem/chains";
+
+const config = createConfig({
+  getClient: () => createPublicClient({ chain: hyperEvm, transport: http() }),
+  getWalletClient: async () => createWalletClient({ account, chain: hyperEvm, transport: http() }),
+});
+
+const hash = await editAccountName(config, {
+  account: "0xSubAccount...",
+  name: "Trading bot",
+});
+```
+
+A config with no `getWalletClient` is read-only; write actions throw `NO_WALLET_CLIENT`. Writes are also dry-run with `simulateContract` first by default — see [`simulateBeforeWrite`](/core/concepts/config).
+
+## Next steps
+
+- **[Overview](/core)** — the full catalog: contracts, unified quotes, price service, subgraph, Muon.
+- **[Config](/core/concepts/config)** — client resolvers, chain overrides, and the WebSocket constructor in full.
+- **[Errors](/core/concepts/errors)** — the `SymmError` / `SymmApiError` catalogue every action can throw.

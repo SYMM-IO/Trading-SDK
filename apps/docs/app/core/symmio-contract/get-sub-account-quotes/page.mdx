@@ -1,0 +1,52 @@
+# getSubAccountQuotes
+
+Read a subaccount's full quote picture across every account that holds it. Lowcap positions are isolated into Virtual Accounts (VAs), so a subaccount's quotes are spread across its VAs rather than the subaccount itself. This unions the VAs, fetches the off-chain pending instant-opens / instant-closes, and merges everything into one de-duplicated, lifecycle-tagged list.
+
+```ts
+import { getSubAccountQuotes } from "@symmio/trading-core";
+
+const { quotes, accounts } = await getSubAccountQuotes(config, {
+  subAccount,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="subAccount" type="Address" required>
+    The subaccount whose full quote picture to assemble.
+  </Property>
+  <Property name="includeVirtualAccounts" type="boolean" default="true">
+    Union the subaccount's existing on-chain Virtual Accounts (VAs) into the read. In lowcap, each isolated position
+    lives under a VA, so this is required to see the full picture.
+  </Property>
+  <Property name="extraAccounts" type="readonly Address[]" optional>
+    Extra accounts to read quotes across (e.g. VAs already known to the consumer).
+  </Property>
+  <Property name="baseUrl" type="string" optional>
+    Hedger base URL for the off-chain instant-open / instant-close reads. Defaults to the chain config's `solver.url`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetSubAccountQuotesReturnType">
+  <Property name="quotes" type="UnifiedQuote[]" typeHref="/core/quotes/unified-quote">
+    The merged, de-duplicated, lifecycle-tagged quote rows for the subaccount.
+  </Property>
+  <Property name="accounts" type="Address[]">
+    The on-chain `partyA` accounts the quotes were read across (subaccount + VAs + extras).
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getSubAccountQuotesQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getSubAccountQuotesQueryOptions(config, { subAccount }));
+```

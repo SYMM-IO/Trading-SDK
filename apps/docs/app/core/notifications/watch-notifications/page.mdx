@@ -1,0 +1,57 @@
+# watchNotifications
+
+Subscribe to live position/quote state notifications for one account.
+
+Opens (or reuses) one reconnecting socket to the chain's notifications endpoint, sends the subscribe frame on every (re)connect, normalizes inbound frames into [`Notification`](/core/notifications/notification)s, and invokes your handlers. Watchers sharing the same endpoint and account share one socket; it closes when the last one unwatches.
+
+This is a subscribe function, not a query — there are no query options. For a React binding, use the [`useNotifications`](/react/notifications) hook.
+
+```ts
+import { watchNotifications } from "@symmio/trading-core";
+
+const unwatch = watchNotifications(config, {
+  account: "0xaccount...",
+  onNotification: (n) => console.log(n.type, n.quoteId),
+  onStatusChange: (status) => console.log(status),
+  onError: (err) => console.error(err),
+});
+
+// later, dispose (idempotent):
+unwatch();
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    SubAccount address to subscribe for.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="onNotification" type="(n: Notification) => void" typeHref="/core/notifications/notification" required>
+    Called for every normalized notification frame.
+  </Property>
+  <Property name="onStatusChange" type="(s: SocketStatus) => void" optional>
+    Called whenever the underlying connection status changes. `SocketStatus` is `"connecting" | "open" | "reconnecting"
+    | "closing" | "closed"`.
+  </Property>
+  <Property name="onError" type="(e: SymmError) => void" optional>
+    Called on a transport or parse error; does not stop the subscription.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Unwatch">
+  Call to stop the subscription; idempotent. The pooled socket closes when the last watcher releases.
+</Returns>
+
+## Throws
+
+Throws a `SymmError` synchronously when the chain is unsupported or no `WebSocket` implementation is available.
+
+## Related
+
+- [WebSocket concept](/core/concepts/websocket) — pool, reconnect, and the `SocketStatus` lifecycle.
+- [searchNotifications](/core/notifications/search-notifications) — REST history over the same channel.

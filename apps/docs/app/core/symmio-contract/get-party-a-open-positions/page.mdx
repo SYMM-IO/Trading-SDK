@@ -1,0 +1,46 @@
+# getPartyAOpenPositions
+
+Read the open positions (quotes past the open anchor) for a PartyA — a Virtual Account in the lowcap flow.
+
+```ts
+import { getPartyAOpenPositions } from "@symmio/trading-core";
+
+const open = await getPartyAOpenPositions(config, {
+  partyA,
+  start: 0n,
+  size: 50n,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="partyA" type="Address" required>
+    The partyA (virtual account, lowcap) whose open positions to read.
+  </Property>
+  <Property name="start" type="bigint" default="0n">
+    Pagination offset into partyA's open-positions list.
+  </Property>
+  <Property name="size" type="bigint" default="200n">
+    Maximum number of positions to return from `start`. Clamped on-chain to the number remaining.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly Quote[]">
+  The open-position quotes found in the scanned range — the raw on-chain quote structs. See [Unified
+  Quotes](/core/quotes) for the higher-level model.
+</Returns>
+
+## Query options
+
+```ts
+import { getPartyAOpenPositionsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getPartyAOpenPositionsQueryOptions(config, { partyA }));
+```

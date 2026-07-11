@@ -1,0 +1,33 @@
+# getLastWithdrawRequestId
+
+Read the id of the most recent withdraw request for a subaccount.
+
+```ts
+import { getLastWithdrawRequestId } from "@symmio/trading-core";
+
+const lastId = await getLastWithdrawRequestId(config, { user });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="user" type="Address" required>
+    The subaccount whose latest request id to read.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="bigint">The last assigned request id, or `0n` when the subaccount has no requests.</Returns>
+
+## Query options
+
+```ts
+import { getLastWithdrawRequestIdQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getLastWithdrawRequestIdQueryOptions(config, { user }));
+```

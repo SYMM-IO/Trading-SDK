@@ -1,0 +1,46 @@
+# getTpSlConfig
+
+Fetch the handler's `/configs/` rules — the constraints a TP/SL request must satisfy. The wire fields (`MinPriceDistancePercent`, `MinProfitStopLossSpreadPercent`) are camel-cased on the SDK boundary.
+
+```ts
+import { getTpSlConfig } from "@symmio/trading-core";
+
+const config = await getTpSlConfig(sdkConfig);
+// { minPriceDistancePercent, minProfitStopLossSpreadPercent }
+```
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="TpSlConfig" typeHref="/core/tpsl/tpsl-config">
+  The handler rules. Feed this into [`validateTpSl`](/core/tpsl/validate-tpsl) before submitting.
+</Returns>
+
+## Throws
+
+- `SymmError` when the chain has no `tpsl` config.
+- `SymmApiError` when the HTTP request fails.
+
+## Query options
+
+```ts
+import { getTpSlConfigQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getTpSlConfigQueryOptions(config));
+```
+
+`getTpSlConfigQueryOptions` takes no required inputs; `chainId` is optional. `getTpSlConfigQueryKey` builds the matching cache key.
+
+## Related
+
+- [`TpSlConfig`](/core/tpsl/tpsl-config) — the return shape.
+- [`validateTpSl`](/core/tpsl/validate-tpsl) — consumes these rules.
+- [`useTpSlConfig`](/react/tpsl) — React binding.

@@ -1,187 +1,73 @@
 # SYMMIO Contract
 
-Reads and writes against the on-chain SYMMIO diamond contract — quotes, collateral, allocation, withdraw, on-chain market list, on-chain open interest. This slice targets the `Symmio` contract directly via viem clients.
+Reads and writes against the on-chain SYMMIO diamond contract — quotes, collateral, allocation, withdraw, and the on-chain market list. This slice targets the `Symmio` contract directly via viem clients.
 
-Solver-side catalog / limit reads (`getMarkets`, `getLockedParams`, `getNotionalCapBySymbolId`, `getOpenInterestBySymbolId`) hit the solver REST API and live under [Solvers](../solvers) — they are **not** contract reads even when the numbers ultimately reflect on-chain state.
+Solver-side catalog / limit reads (`getMarkets`, `getLockedParams`, `getNotionalCapBySymbolId`, `getOpenInterestBySymbolId`) hit the solver REST API and live under [Solvers](/core/solvers) — they are **not** contract reads even when the numbers ultimately reflect on-chain state.
 
-## Import
-
-```ts
-import {
-  // On-chain market catalog
-  getOnchainContractMarkets,
-  // Quote reads
-  getQuote,
-  getSubAccountQuotes,
-  getPartyAOpenPositions,
-  getPartyAPendingQuotes,
-  // Collateral
-  getCollateralAllowance,
-  getCollateralBalance,
-  // Allocate / deallocate
-  allocate,
-  deallocate,
-  allocated,
-  allocateUpnlSig,
-  getDeallocateUpnlSig,
-  // Withdraw
-  createClassicWithdrawPart,
-  getLastWithdrawRequestId,
-  getPendingWithdrawRequests,
-} from "@symmio/trading-core";
-```
-
-Every action mentioned below ships a matching `xyzQueryOptions` (reads) or `xyzMutationOptions` (writes). See [Query options](../concepts/query-options).
+Each method has its own page with the full signature, parameters, return shape, examples, and query options.
 
 ## On-chain markets
 
-### `getOnchainContractMarkets`
-
-Read the contract's `getSymbol()` view — the authoritative on-chain market list, without solver-added metadata like precision or tick bounds.
-
-```ts
-const markets = await getOnchainContractMarkets(config, {});
-```
-
-Use this when you need on-chain truth (e.g. verifying the solver's catalog is in sync). For UI catalogs, prefer the solver's [`getMarkets`](../solvers#getmarkets) — it adds precision / tick metadata the contract doesn't carry.
+<MethodIndex kind="read">
+  <MethodEntry name="getOnchainContractMarkets" href="/core/symmio-contract/get-onchain-contract-markets">
+    The authoritative on-chain market list from `getSymbols`, without solver metadata.
+  </MethodEntry>
+</MethodIndex>
 
 ## Quote reads
 
-### `getQuote`
-
-Read one quote struct by id.
-
-```ts
-const quote = await getQuote(config, { quoteId: 42n });
-```
-
-### `getSubAccountQuotes`
-
-Paginated quote list for one SubAccount.
-
-```ts
-const quotes = await getSubAccountQuotes(config, {
-  account: subAccount,
-  offset: 0n,
-  size: 20n,
-});
-```
-
-### `getPartyAOpenPositions`
-
-Open positions (quotes past anchor) for a PartyA (Virtual Account).
-
-```ts
-const open = await getPartyAOpenPositions(config, {
-  partyA,
-  offset: 0n,
-  size: 50n,
-});
-```
-
-### `getPartyAPendingQuotes`
-
-Quotes still in the pending stages for a PartyA.
-
-```ts
-const pending = await getPartyAPendingQuotes(config, {
-  partyA,
-  offset: 0n,
-  size: 50n,
-});
-```
+<MethodIndex kind="read">
+  <MethodEntry name="getQuote" href="/core/symmio-contract/get-quote">
+    Read one quote struct by id.
+  </MethodEntry>
+  <MethodEntry name="getSubAccountQuotes" href="/core/symmio-contract/get-sub-account-quotes">
+    A subaccount's full quote picture across its Virtual Accounts.
+  </MethodEntry>
+  <MethodEntry name="getPartyAOpenPositions" href="/core/symmio-contract/get-party-a-open-positions">
+    Open positions for a PartyA (Virtual Account).
+  </MethodEntry>
+  <MethodEntry name="getPartyAPendingQuotes" href="/core/symmio-contract/get-party-a-pending-quotes">
+    Pending quote ids for a PartyA.
+  </MethodEntry>
+</MethodIndex>
 
 ## Collateral
 
-### `getCollateralBalance`
-
-ERC-20 balance of the collateral token for one account.
-
-```ts
-const balance = await getCollateralBalance(config, { account });
-```
-
-### `getCollateralAllowance`
-
-Allowance the account has granted the SYMMIO contract to spend collateral.
-
-```ts
-const allowance = await getCollateralAllowance(config, { account });
-```
+<MethodIndex kind="read">
+  <MethodEntry name="getCollateralBalance" href="/core/symmio-contract/get-collateral-balance">
+    Collateral-token wallet balance for an owner.
+  </MethodEntry>
+  <MethodEntry name="getCollateralAllowance" href="/core/symmio-contract/get-collateral-allowance">
+    Allowance the owner has granted the SYMMIO core.
+  </MethodEntry>
+</MethodIndex>
 
 ## Allocate / deallocate
 
-### `allocate`
-
-Move collateral from the account into the SubAccount's tradable pool.
-
-```ts
-const hash = await allocate(config, {
-  account: subAccount,
-  amount: parseUnits("100", 6),
-});
-```
-
-### `allocated`
-
-Read how much the SubAccount already has allocated.
-
-```ts
-const already = await allocated(config, { account: subAccount });
-```
-
-### `deallocate`
-
-Withdraw idle allocated collateral. Requires an unrealised-PnL signature from Muon.
-
-```ts
-const upnlSig = await getDeallocateUpnlSig(config, { partyA });
-
-const hash = await deallocate(config, {
-  account: partyA,
-  amount: parseUnits("50", 6),
-  upnlSig,
-});
-```
-
-### `allocateUpnlSig` / `getDeallocateUpnlSig`
-
-Fetch the Muon signature required for allocate / deallocate. See [Muon oracle](../muon) for the underlying request shape.
+`allocate` and `deallocate` move collateral between an account's available and allocated balances. They are the same on-chain writes documented under AccountLayer — see [`allocate`](/core/account-layer/allocate) and [`deallocate`](/core/account-layer/deallocate).
 
 ## Withdraw
 
-### `createClassicWithdrawPart`
-
-Build the calldata for the classic (non-instant) withdraw path. Combine with the AccountLayer's simulate/write helpers, or feed into the InstantLayer for delegated execution.
-
-```ts
-const part = createClassicWithdrawPart(config, { account, amount });
-```
-
-### `getLastWithdrawRequestId`
-
-Read the id of the most recent withdraw request for an account.
-
-```ts
-const lastId = await getLastWithdrawRequestId(config, { account });
-```
-
-### `getPendingWithdrawRequests`
-
-Read the queued (not yet claimable) withdraws for an account.
-
-```ts
-const pending = await getPendingWithdrawRequests(config, { account });
-```
+<MethodIndex kind="read">
+  <MethodEntry name="createClassicWithdrawPart" href="/core/symmio-contract/create-classic-withdraw-part">
+    Build a classic (provider-free) withdraw receiver part.
+  </MethodEntry>
+  <MethodEntry name="getLastWithdrawRequestId" href="/core/symmio-contract/get-last-withdraw-request-id">
+    The most recent withdraw request id for a subaccount.
+  </MethodEntry>
+  <MethodEntry name="getPendingWithdrawRequests" href="/core/symmio-contract/get-pending-withdraw-requests">
+    The active (non-terminal) withdraw requests for a subaccount.
+  </MethodEntry>
+</MethodIndex>
 
 ## Query options
 
-Every read exposes `xyzQueryOptions` / `xyzQueryKey`; writes expose `xyzMutationOptions`. See [Query options](../concepts/query-options).
+Every read ships a matching `…QueryOptions` factory and `…QueryKey` builder. See each read's page for the exact call, and [Query options](/core/concepts/query-options) for the shared pattern.
 
 ## Related
 
-- [Solvers](../solvers) — solver REST catalog: markets, locked params, notional cap, open interest.
-- [AccountLayer](../account-layer) — SubAccount / Virtual Account creation, deposits, margin.
-- [InstantLayer](../instant-layer) — delegated instant flows on top of `allocate` / `deallocate`.
-- [Muon oracle](../muon) — signature helpers for UPNL-gated writes.
-- [Errors](../concepts/errors) — every write can surface a viem revert or an SDK-level `SymmError`.
+- [Solvers](/core/solvers) — solver REST catalog: markets, locked params, notional cap, open interest.
+- [AccountLayer](/core/account-layer) — SubAccount / Virtual Account creation, balances, `allocate` / `deallocate`.
+- [InstantLayer](/core/instant-layer) — delegated instant flows.
+- [Muon oracle](/core/muon) — `getDeallocateUpnlSig` and other uPnL signature helpers for gated writes.
+- [Errors](/core/concepts/errors) — every write can surface a viem revert or an SDK-level `SymmError`.

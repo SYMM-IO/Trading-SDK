@@ -1,0 +1,54 @@
+# getMuonUpnlA
+
+Fetch a fresh Muon `uPnl_A` attestation for `partyA` and normalize it to typed fields. This returns the raw attestation; for the contract-ready `SingleUpnlSig` that `removeMargin` needs, use [`getDeallocateUpnlSig`](/core/muon/deallocate-upnl-sig) instead. The oracle URLs and the SYMMIO diamond address are resolved from `config`; gateways are tried in order until one succeeds.
+
+```ts
+import { getMuonUpnlA } from "@symmio/trading-core";
+
+const a = await getMuonUpnlA(config, { partyA: "0xva..." });
+console.log(a.uPnl, a.quoteIds);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="partyA" type="Address" required>
+    The partyA (virtual account for lowcap) to attest.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetMuonUpnlAReturnType">
+  <Property name="partyA" type="Address">
+    The attested partyA.
+  </Property>
+  <Property name="uPnl" type="bigint" required>
+    Signed unrealized PnL (18-decimal, signed).
+  </Property>
+  <Property name="notionalValueSum" type="bigint" optional>
+    Sum of notional values across the partyA's positions.
+  </Property>
+  <Property name="symbolIds" type="bigint[]">
+    Symbol ids included in the attestation.
+  </Property>
+  <Property name="quoteIds" type="bigint[]">
+    Quote ids included in the attestation.
+  </Property>
+</Returns>
+
+Plus the [`MuonAttestationBase`](/core/muon/muon-attestation-base) signature envelope fields.
+
+## Query options
+
+```ts
+import { getMuonUpnlAQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getMuonUpnlAQueryOptions(config, { partyA }));
+```
+
+`GetMuonUpnlAOptions` requires `partyA`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getMuonUpnlAQueryKey` builder still accepts partial inputs for cache matching and invalidation.

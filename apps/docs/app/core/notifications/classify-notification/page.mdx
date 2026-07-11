@@ -1,0 +1,30 @@
+# classifyNotification
+
+Classify a raw `action_status` into a [`NotificationType`](/core/notifications/notification-type). Unknown or missing statuses are treated as `NotificationType.FAILED`.
+
+```ts
+import { classifyNotification } from "@symmio/trading-core";
+
+classifyNotification("success"); // NotificationType.SUCCESS
+classifyNotification("seen"); // NotificationType.SEEN
+classifyNotification(null); // NotificationType.FAILED
+```
+
+## Parameters
+
+<Properties>
+  <Property name="actionStatus" type="string | null" required>
+    The raw `action_status` field from the wire frame.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="NotificationType" typeHref="/core/notifications/notification-type">
+  The classification. Unknown or missing statuses map to `FAILED`.
+</Returns>
+
+## Related
+
+- [NotificationType](/core/notifications/notification-type) — the enum this returns.
+- [normalizeNotification](/core/notifications/normalize-notification) — applies this classification when building a `Notification`.

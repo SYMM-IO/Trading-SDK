@@ -1,0 +1,29 @@
+# EnigmaPriceData
+
+A single mark-price row returned by the Enigma REST prices reads. Both [`getEnigmaPriceServicePricesByAddresses`](/core/price-service/prices-by-addresses) and [`getEnigmaPriceServicePricesByNames`](/core/price-service/prices-by-names) return a `Record` whose values are `EnigmaPriceData`.
+
+Unlike the live [`EnigmaPriceTick`](/core/price-service/enigma-price-tick), the REST `markPrice` is a plain **number** (not a decimal string).
+
+```ts
+import type { EnigmaPriceData } from "@symmio/trading-core";
+```
+
+## Fields
+
+<Properties>
+  <Property name="name" type="string">
+    Market symbol name (e.g. `"BTCUSDT"`).
+  </Property>
+  <Property name="markPrice" type="number">
+    Mark price.
+  </Property>
+  <Property name="time" type="number">
+    Source timestamp (unix ms).
+  </Property>
+</Properties>
+
+## Related
+
+- [getEnigmaPriceServicePricesByAddresses](/core/price-service/prices-by-addresses) — returns `Record<address, EnigmaPriceData>`.
+- [getEnigmaPriceServicePricesByNames](/core/price-service/prices-by-names) — returns `Record<name, EnigmaPriceData>`.
+- [EnigmaPriceTick](/core/price-service/enigma-price-tick) — the streaming equivalent, where `markPrice` is a `string`.

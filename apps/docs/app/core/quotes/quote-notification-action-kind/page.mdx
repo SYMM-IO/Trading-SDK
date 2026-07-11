@@ -1,0 +1,28 @@
+# QuoteNotificationActionKind
+
+The kind of quote action a notification reports, derived from its `lastSeenAction`. Consumers use this to scope cache invalidation to the reads a notification can actually affect — an open-anchor event never changes the pending-instant-close feed, and vice versa. A string union.
+
+```ts
+type QuoteNotificationActionKind = "open" | "close" | "other";
+```
+
+## Members
+
+<Properties>
+  <Property name="open" type='"open"'>
+    An open-side action: anchoring an open (`SendQuoteTransaction` / `SendQuote` / `FillLimitOrderOpen`) or the
+    `InstantRFQ` price fill.
+  </Property>
+  <Property name="close" type='"close"'>
+    A close-side action: the close request (`InstantRequestToClosePosition` / `RequestToClosePosition`) or the close
+    fill (`FillMarketOrderInstantClose` / `FillLimitOrderClose`).
+  </Property>
+  <Property name="other" type='"other"'>
+    Anything else, including failures and unknown or absent actions.
+  </Property>
+</Properties>
+
+## Related
+
+- [classifyQuoteNotificationAction](/core/quotes/classify-quote-notification-action) — returns this union.
+- [Notifications stream](/core/notifications) — the frames whose `lastSeenAction` is classified.

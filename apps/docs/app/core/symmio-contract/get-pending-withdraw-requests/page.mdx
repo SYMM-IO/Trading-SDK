@@ -1,0 +1,80 @@
+# getPendingWithdrawRequests
+
+Read the queued (not yet claimable) withdraw requests for a subaccount. Scans a range of request ids and returns only the non-terminal ones found.
+
+```ts
+import { getPendingWithdrawRequests } from "@symmio/trading-core";
+
+const pending = await getPendingWithdrawRequests(config, { user });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="user" type="Address" required>
+    The subaccount whose pending requests to list.
+  </Property>
+  <Property name="start" type="bigint" default="1n">
+    First request id to scan (inclusive). Request ids start at 1.
+  </Property>
+  <Property name="size" type="bigint" default="200n">
+    Number of request ids to scan from `start`. The returned array contains only the non-terminal requests found in that
+    range, so its length may be smaller.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly WithdrawRequest[]">
+  <Property name="id" type="bigint">
+    Sequential request id (starts at 1 per user).
+  </Property>
+  <Property name="user" type="Address">
+    The subaccount the request belongs to.
+  </Property>
+  <Property name="parts" type="readonly WithdrawReceiverPart[]">
+    The receiver parts the withdrawal is split into.
+  </Property>
+  <Property name="timestamp" type="bigint">
+    Block timestamp at which the request was created.
+  </Property>
+  <Property name="cooldownEndTime" type="bigint">
+    Earliest timestamp the request can be finalized.
+  </Property>
+  <Property name="status" type="WithdrawStatus">
+    Current lifecycle status.
+  </Property>
+  <Property name="speedUp" type="boolean">
+    Whether the request opted into the cooldown speed-up flow.
+  </Property>
+  <Property name="isCooldownModified" type="boolean">
+    Whether the cooldown was modified after creation (e.g. by an accepted speed-up).
+  </Property>
+  <Property name="provider" type="Address">
+    The provider bound to the request, or the zero address for a classic withdrawal.
+  </Property>
+  <Property name="isPureVirtual" type="boolean">
+    Whether the request is a pure-virtual (cross-chain, no express) withdrawal.
+  </Property>
+  <Property name="providerData" type="Hex">
+    Opaque provider data (e.g. a signed option), or `0x`.
+  </Property>
+  <Property name="totalAmount" type="bigint">
+    Total collateral amount across all parts.
+  </Property>
+  <Property name="totalVirtualAmount" type="bigint">
+    Total amount delivered via virtual providers.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getPendingWithdrawRequestsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getPendingWithdrawRequestsQueryOptions(config, { user }));
+```

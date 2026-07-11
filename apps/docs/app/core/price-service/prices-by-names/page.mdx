@@ -1,0 +1,41 @@
+# getEnigmaPriceServicePricesByNames
+
+Batch-fetch mark prices from the chain's Enigma price service, keyed by market **name**. Use it when your UI works off solver market names (e.g. `"BTCUSDT"`) rather than token addresses.
+
+The API accepts a **maximum of 50 names per request** — the same contract as the addresses read. The SDK does not chunk automatically.
+
+```ts
+import { getEnigmaPriceServicePricesByNames } from "@symmio/trading-core";
+
+const prices = await getEnigmaPriceServicePricesByNames(config, {
+  names: ["BTCUSDT", "ETHUSDT"],
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="names" type="readonly string[]" required>
+    Market names to price. Max 50 per API contract.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="EnigmaPricesByName">
+  A mapping of market name to an [`EnigmaPriceData`](/core/price-service/enigma-price-data) row (`Record<string, EnigmaPriceData>`). Each row carries `name`, `markPrice`, and `time`.
+</Returns>
+
+## Query options
+
+```ts
+import { getEnigmaPriceServicePricesByNamesQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getEnigmaPriceServicePricesByNamesQueryOptions(config, { names: ["BTCUSDT"] }));
+```
+
+`GetEnigmaPriceServicePricesByNamesOptions` requires `names`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getEnigmaPriceServicePricesByNamesQueryKey` builder still accepts partial inputs for cache matching and invalidation. Prices move constantly — set a low `staleTime` / `refetchInterval`, or use [`watchEnigmaPrices`](/core/price-service/watch-enigma-prices) for a live stream.

@@ -1,0 +1,83 @@
+import { Callout } from "nextra/components";
+
+# Transfer payloads
+
+Encode and decode **short-lived envelopes** for moving a session key to another device — a QR handoff, a same-device deep link, or a cross-tab message. The payload carries the private key, so it is deliberately time-boxed: it expires **two minutes** after creation by default.
+
+<Callout type="warning">
+  The private key travels **inside** the payload. Never ship a transfer payload over an untrusted channel — prefer a
+  local QR scan or a same-device deep link, and keep the validity window short.
+</Callout>
+
+## `encodeSessionKeyTransferPayload`
+
+Serialize a payload to a JSON string suitable for QR or deep-link transport.
+
+```ts
+import { encodeSessionKeyTransferPayload, SESSION_KEY_TRANSFER_PAYLOAD_VERSION } from "@symmio/session-key";
+
+const raw = encodeSessionKeyTransferPayload({
+  version: SESSION_KEY_TRANSFER_PAYLOAD_VERSION,
+  owner,
+  sessionPrivateKey: manager.getPrivateKey(),
+  sessionAddress: manager.getAddress() ?? undefined,
+  createdAt: Date.now(),
+  expiresAt: manager.getState().expiresAt ?? undefined, // the session key's own expiry, not the 2-min envelope window
+});
+```
+
+<Properties>
+  <Property name="payload" type="SessionKeyTransferPayload" required>
+    The payload to serialize — see the [type](/session-key/reference). `sessionPrivateKey` may be `null` for a
+    metadata-only envelope.
+  </Property>
+</Properties>
+
+<Returns type="string">A JSON string. `encode` does no validation — it is a plain `JSON.stringify`.</Returns>
+
+The payload carries **two independent timestamps**: `createdAt` drives the envelope's short validity window (`decode` rejects a payload once `now - createdAt` exceeds `maxAgeMs`), while `expiresAt` carries the **session key's own expiry** so the receiving device knows how long the imported key is good for. They are not the same clock — do not set `expiresAt` to the 2-minute transfer window.
+
+## `decodeSessionKeyTransferPayload`
+
+Parse and validate a raw payload.
+
+```ts
+import { decodeSessionKeyTransferPayload } from "@symmio/session-key";
+
+const decoded = decodeSessionKeyTransferPayload(raw);
+if (!decoded || !decoded.sessionPrivateKey) {
+  // stale, malformed, wrong version, or metadata-only — bail out
+  return;
+}
+
+await manager.importPrivateKey(decoded.owner, decoded.sessionPrivateKey);
+```
+
+<Properties>
+  <Property name="raw" type="string" required>
+    The raw JSON payload.
+  </Property>
+  <Property name="options.maxAgeMs" type="number" default="SESSION_KEY_TRANSFER_MAX_AGE_MS">
+    Maximum age, in ms, measured from the payload's `createdAt`. Defaults to two minutes.
+  </Property>
+  <Property name="options.now" type="number" default="Date.now()">
+    Reference timestamp for the age check, in ms.
+  </Property>
+</Properties>
+
+<Returns type="SessionKeyTransferPayload | null">
+  The validated payload, or **`null`** — `decode` does **not** throw. It returns `null` when the JSON is malformed, the
+  `version` does not match `SESSION_KEY_TRANSFER_PAYLOAD_VERSION`, the `owner` is not a valid address,
+  `sessionPrivateKey` is present but invalid, `createdAt` is missing, the payload is older than `maxAgeMs`, or an
+  optional field is the wrong shape (`sessionAddress` present but not an address, `expiresAt` present but not a number).
+  Always null-check before using the result.
+</Returns>
+
+## Metadata-only payloads
+
+`sessionPrivateKey` may be `null` — a payload that transfers only the address and timestamps, no secret. `decode` still validates and returns it, so guard on `decoded.sessionPrivateKey` before calling [`importPrivateKey`](/session-key/manager), as the example above does.
+
+## Related
+
+- [createSessionKeyManager](/session-key/manager) — `getPrivateKey`, `getAddress`, and `importPrivateKey` are the manager side of a handoff.
+- [Types & constants](/session-key/reference) — the `SessionKeyTransferPayload` shape and the transfer constants.

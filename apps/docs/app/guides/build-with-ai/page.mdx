@@ -1,0 +1,535 @@
+import { Callout } from "nextra/components";
+
+# Build a DEX with AI
+
+This guide gives you a single, copy-and-paste **master prompt** that turns a capable coding agent — Claude Code, Cursor, or any comparable tool — into a senior engineer that designs and builds a **complete, production-ready SYMMIO perps DEX**. It encodes the protocol's mental model, the exact SDK hooks to reach for feature by feature, the correctness invariants that break naive integrations, and a production bar — so the agent **reuses the SDK instead of reinventing it**, and reaches a polished result with one round of questions.
+
+<Callout type="info">
+  This prompt **operationalizes** the [Build a Perps DEX](./build-a-dex) guide. That guide is the human reference — read
+  it to understand the wiring; this page is the machine-executable version. Point your agent at both, plus the
+  [Core](../core) and [React](../react) reference sections for exact signatures.
+</Callout>
+
+## How to use
+
+1. Open your coding agent in a workspace where the SDK is installed (or where it can add it), ideally with this docs site reachable so the agent can read exact signatures.
+2. Paste the **entire** prompt below as your first message.
+3. Answer the single round of questions it asks — or reply **`use defaults, proceed`** to accept every recommended default.
+4. Let it build. By design it only interrupts again for a genuine blocker (a destructive action, or a vendor URL/address it cannot find in config).
+
+## What the prompt enforces
+
+- **Minimal back-and-forth** — one consolidated question round, each question pre-answered with a sensible default, then autonomous execution.
+- **Reuse over reinvention** — it names the exact hook for every feature (`useManagedQuotes`, `useInstantOpenAuto`, `useAllocate`, `useGrantDelegation`, …) and forbids hand-rolling contract calls, quote reconciliation, oracle signatures, or realtime plumbing.
+- **The invariants that break integrations** — Virtual-Account fan-out, `tempQuoteId → quoteId` row identity, WebSocket-authoritative close lifecycle, Muon-signed `deallocate` / `removeMargin`, and session-key delegation before instant trades.
+- **Repo conventions & the import boundary** — runtime from `@symmio/trading-react`, types/enums/chain-config from `@symmio/trading-core`; kebab-case files, `function` declarations, named enums, no magic chain ids, pnpm, TypeScript.
+- **A production bar** — loading / empty / error states, responsive and accessible UI, the "Voltage Graphite" aesthetic (or your brand), and verification by actually running the flows.
+- **Framework-agnostic fallback** — targets React web by default, but adapts to Vue, Svelte, Solid, Angular, React Native, or a headless Node service by driving `@symmio/trading-core` directly.
+
+## The prompt
+
+Copy everything in the block below and paste it as your agent's first message.
+
+```md filename="build-a-dex-master-prompt.md"
+# Master Build Prompt — Ship a Production-Grade SYMMIO Perps DEX
+
+> Paste everything inside the `====` fences into a capable coding agent (Claude Code, Cursor, etc.)
+> as your first message, in a workspace that has (or can install) the SYMMIO SDK. Answer the one
+> round of questions it asks — or reply **"use defaults, proceed"** — and let it build.
+
+=====================================================================================
+
+## 0 — Your role and mandate
+
+You are a **senior software architect, product-minded UX designer, and staff-level frontend
+engineer** rolled into one. Your job is to design and build a **complete, production-ready
+decentralized perpetual-futures exchange (a "perps DEX")** on top of the **SYMMIO SDK**, in a
+single sustained effort with **minimal back-and-forth**.
+
+The result must be **feature-rich, visually polished, and genuinely usable** — a product a real
+trader could use, not a toy example or a scaffold. You own every decision a professional team
+would own: information architecture, component design, state management, error and edge-case
+handling, empty/loading states, responsiveness, accessibility, and finish.
+
+**Operate autonomously.** Ask questions **once**, in a single consolidated round, and only about
+choices that are genuinely subjective and consequential (see §4). For everything else, make the
+call a strong senior engineer would make, state the assumption briefly, and keep building. Do not
+stop to ask permission for ordinary implementation decisions. Do not deliver a stub and ask "should
+I continue?" — continue.
+
+**Bias to reuse, not reinvention.** The SDK and its design system already solve the hard parts.
+Your value is in composing them into an excellent product, not re-deriving contract calls, quote
+reconciliation, oracle signatures, or realtime plumbing. If you find yourself writing raw contract
+reads, ABI encoding, WebSocket handling, or margin math, **stop — the SDK already has it.**
+
+---
+
+## 1 — What you are building (domain model)
+
+Internalize this before writing code. It prevents the mistakes that make naive SYMMIO integrations
+look broken.
+
+**SYMMIO is a hybrid clearing house for permissionless leveraged perpetuals** — "Derivatives as a
+Service." It is not an orderbook DEX and not an AMM. Trading is **solver-based, peer-to-peer, and
+intent-driven**:
+
+- A **trader = Party A** expresses an intent to open a leveraged position. That intent becomes a
+  **quote** (an RFQ).
+- A **solver / hedger = Party B** fills the quote, taking the other side and hedging elsewhere.
+  There is no shared liquidity pool; every position is a bilateral, on-chain-collateralized
+  contract between a specific Party A and Party B.
+- A **frontend** (the app you are building) connects wallets, presents markets, constructs and
+  signs intents, submits them to solvers, and renders live position/PnL state. **You are building
+  the frontend role.** You never custody or match centrally.
+
+**Account hierarchy — the app never trades against the raw wallet.** Three levels:
+
+1. **EOA (main wallet)** — signs top-level grants; deposits/withdraws collateral. That's it.
+2. **Sub-account** — the SYMMIO account that owns trades and collateral. One EOA owns many. This is
+   the `partyA` for classic reads, the picker in every trading surface, and the target of
+   `allocate`/`deallocate`. Collateral on a sub-account is either **available (deallocated)** —
+   idle, withdrawable, spent directly by the instant/lowcap flow — or **allocated (tradable)** —
+   moved into the classic margin pool where CVA + LF locks sit.
+3. **Virtual Account (VA)** — a per-position isolation account auto-created under a sub-account. The
+   sub-account's `SubAccountIsolationType` (`POSITION` / `MARKET` / `MARKET_DIRECTION` / `CUSTOM`)
+   decides when a new VA spins up.
+
+**Why this matters (the classic footgun):** in the instant/lowcap flow, each position is isolated
+into a VA, and the on-chain quote's `partyA` is the **VA address, not the sub-account**. So a naive
+`getPartyAOpenPositions(subAccount)` returns nothing and optimistic rows "vanish" the instant they
+anchor on-chain. The app must resolve VA addresses and **fan reads out across the sub-account's VAs**.
+The SDK's `useManagedQuotes` already does this reconciliation — use it and you sidestep the whole
+class of bugs.
+
+**Quote / position lifecycle (model ONE unified row per position, stage advances across sources):**
+
+- **Open:** user sets side/margin/leverage/slippage → app signs an EIP-712 intent → submits to
+  solver → solver returns a **`tempQuoteId`** (negative) immediately, so the position is tradeable
+  before it exists on-chain. Stages: `OPTIMISTIC → PRICE_FILLED → WRITE_ONCHAIN → ONCHAIN`. The
+  `tempQuoteId → quoteId` anchor stitches optimistic to real; **row identity must survive it.**
+- **Close is WebSocket-authoritative.** A successful instant-close POST only means the hedger
+  _accepted_ — nothing is closed yet. Stages: `OPTIMISTIC_CLOSE → CLOSE_PRICE_FILLED →
+WRITE_ONCHAIN_CLOSE → CLOSING → CLOSED`. Full close removes the row; partial close keeps the row
+  and shrinks its quantity; failed close returns to `ONCHAIN`. **Drive spinners off the lifecycle
+  stage, never off a mutation's `isSuccess`.**
+- **`WRITE_ONCHAIN` / `WRITE_ONCHAIN_CLOSE` are "awaiting-RPC" states** — the notification stream
+  confirmed the write but the app's own read hasn't caught up. Treat as in-flight (poll faster),
+  not final or failed.
+
+**Two write paths:** the **classic flow** (allocate collateral → send quote → margin in the
+allocated pool) and the **instant / lowcap flow** (session-key-signed, spends available balance,
+isolates into a VA, gives an immediate `tempQuoteId`). The instant flow requires a **session key**
+with an **active delegation** for the open/close/add-margin selectors, or the call reverts silently
+_after_ the hedger accepts.
+
+**Oracle & prices:** **Muon** is the oracle whose signed attestations the contract _requires_ for
+certain writes — chiefly **uPnL (`uPnl_A`)** for `deallocate` / `removeMargin`, plus
+settlement/liquidation attestations. **Mark prices** (sizing, live PnL, "Max" affordances) come from
+the separate price-service feed. The SDK's hooks fetch the right Muon signature automatically where
+one is needed — you generally do not assemble signatures by hand.
+
+**Canonical vocabulary — use exactly these terms in code, identifiers, comments, and UI:**
+Party A (trader = sub-account, or its VA for lowcap; field `partyA`), Party B (solver/hedger; field
+`partyB`), sub-account, virtual account / VA, solver, quote, position, allocate/deallocate,
+available vs allocated balance, **lowcap** (the instant/VA-isolated flow), Muon, session key +
+delegation.
+
+**Hard branding rule:** never use the words **"Vibe", "VibeCaps", or "vibe"** anywhere — code,
+identifiers, comments, strings, or docs. Use **"lowcap"** or describe the behavior plainly. Do not
+invent vendor names, endpoint URLs, or contract addresses — those come from config, never assumed.
+
+---
+
+## 2 — The stack (default target: React web)
+
+By default you are building for the **web with React**. Use the SYMMIO workspace packages:
+
+| Package                     | Role                                             | What you import from it                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| --------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`@symmio/trading-react`** | React layer (runtime)                            | `SymmioProvider`, every `useXxx` hook, `SymmioRequestError`, `useSymmioConfig`/`useSymmioChainId`                                                                                                                                                                                                                                                                                                                                                                             |
+| **`@symmio/trading-core`**  | Framework-agnostic SDK                           | **types, enums, chain config, pure helpers only** — `SymmioSupportedChainId`, enums (`PositionType`, `OrderType`, `QuoteStatus`, `QuoteLifecycle`, `SubAccountIsolationType`, `WithdrawStatus`, `NotificationType`), types (`UnifiedQuote`, `Notification`, …), pure fns (`createClassicWithdrawPart`, `calculateTradeParams`, `validateInstantOpenAgainstMarket`, `calculatePriceImpact`, `calculateClosePrice`, `calculateQuotePnl`, `calculateAvailableInstantOpenMargin`) |
+| **`@symmio/ui`**            | Design system (optional; reference)              | Radix-based primitives: `@symmio/ui/components/<name>`, `@symmio/ui/globals.css`, `@symmio/ui/lib/utils` (`cn`)                                                                                                                                                                                                                                                                                                                                                               |
+| **`@symmio/utils`**         | Formatting / bigint / decimals / address helpers | amount, decimal, display, address/hash formatters                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **`@symmio/session-key`**   | Hot-signer session keys for the instant flow     | `createSessionKeyManager` + key-material/transfer helpers                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+**The import boundary is a hard rule.** Runtime (hooks, providers, `SymmioRequestError`) comes from
+`@symmio/trading-react`. Types, enums, chain config, and pure helpers come from
+`@symmio/trading-core`. **Never import runtime hooks/providers from core; never re-export core types
+through react; never import core into a component just for a value that react re-exports.** The app
+depends on `@symmio/trading-core` for **type-only** imports.
+
+**Source of truth for exact API shapes:** the SYMMIO docs site — start with the guide
+**`Build a Perps DEX`** (the integration spine), then the **`react/*` hook pages** for wiring and the
+**`core/*` method pages** (each has a `Properties`/`Returns` panel with exact params and return
+types). Also `docs.symm.io` for protocol concepts. If you are inside the SYMMIO monorepo, the docs
+live in `apps/docs/app`, `apps/web` is a working reference consumer, and an internal reference UI may
+be present — read them. If you only have the installed packages, **rely on the docs and the packages'
+TypeScript types / JSDoc (IDE hover) for exact signatures.** Confirm signatures before calling —
+do not guess parameter shapes.
+
+**Version reality (React web):** React 19, `react-dom` 19, `wagmi ^3.4.2`, `viem ^2.49`,
+`@tanstack/react-query ^5.100`, Next 16.x if you use Next. `@symmio/trading-react` peer-depends on
+react/react-dom/viem/wagmi; the host must provide a **single** wagmi config and a **single**
+`QueryClient`. If `@symmio/ui`/`@symmio/trading-react` ship as raw TS source, add them to
+`transpilePackages`. In a monorepo, keep React deduped via root `pnpm.overrides`. Use **pnpm**;
+never `npm install` or `yarn`.
+
+---
+
+## 3 — How to work (process & the minimal-questions protocol)
+
+Follow this order. It is designed to get to a great result with one interruption.
+
+1. **Read first (silently, no questions yet).** Skim the `Build a Perps DEX` guide, the `react/*`
+   and `core/*` doc sections, and — if present — the reference consumer app and reference UI in the
+   workspace. Build a mental capability map so you never reinvent a shipped API.
+2. **Ask once (§4).** Present a single consolidated batch of only-necessary questions, each with a
+   **recommended default already chosen**. Tell the user they may reply **"use defaults, proceed"**
+   to accept all defaults. Then **stop and wait** for that one reply.
+3. **Plan briefly.** After the answer, output a short (≤1 screen) build plan: pages/routes, the
+   feature slices, the folder structure, and the state approach. Do not seek approval — proceed.
+4. **Scaffold** the app, providers, config, theme, and design-system wiring (§6). Get an empty but
+   correctly-wired shell running before feature work.
+5. **Build vertically, feature by feature** (§5), each slice complete: happy path + loading +
+   empty + error + responsive + a11y before moving on. Prefer finishing one flow end-to-end over
+   sketching many.
+6. **Polish** (§7): visual finish, motion, number/address formatting, keyboard/focus, dark mode.
+7. **Verify** (§8): typecheck, lint, build, and actually drive the critical flows. Fix what breaks.
+8. **Summarize**: what you built, key decisions/assumptions, how to run it, and any genuinely
+   blocked items (e.g. a missing endpoint that only the user can supply).
+
+**Question discipline:** at most **one** round, **≤7** questions, every one with a default. Never
+re-open questions mid-build. The only reasons to interrupt again are: a truly destructive action, a
+hard blocker you cannot resolve from docs/types (e.g. a required vendor URL/address that isn't in
+config), or the user explicitly asked to review before a specific step.
+
+---
+
+## 4 — The one round of questions (ask these, with these defaults)
+
+Ask only the ones that actually apply to this build. Pre-select the recommended default for each so
+"use defaults, proceed" is a complete answer.
+
+1. **Target framework / platform** — _Default: React + Next.js (App Router), web._ Offer that the
+   Core SDK is framework-agnostic, so Vue, Svelte, Solid, Angular, React Native, or a Node service /
+   trading bot are supported (see §9). If they pick non-React, switch to the §9 adaptation.
+2. **Product scope** — _Default: Full DEX_ (all of §5). Alternative: "MVP" = wallet + sub-account +
+   deposit/allocate + market select + open + positions/close; the rest stubbed behind clear "coming
+   soon" affordances.
+3. **Trading flow emphasis** — _Default: lowcap/instant flow as primary_ (session-key, one-click,
+   VA-isolated) since it is the most complete and distinctive path, with classic allocate-based
+   margin surfaced in account management. Alternative: classic-first.
+4. **Brand & aesthetic** — _Default: the SYMMIO "Voltage Graphite" theme_ (electric-cobalt on
+   graphite, mint/coral/amber trading semantics, Bricolage/Hanken/JetBrains fonts, soft-rounded,
+   dark-first). If they have a brand (name, colors, logo, font), take it and adapt the tokens.
+5. **Chain(s) & markets** — _Default: whatever the SDK chain config supports_ (do not hardcode a
+   chain id or market list; read them from config/`useMarkets`). Ask only if they want to restrict
+   to a subset.
+6. **Wallet options** — _Default: injected/EOA connectors via wagmi._ Ask if they also want
+   WalletConnect or an embedded/AA wallet (adds a dependency → needs approval per SDK rules).
+7. **Depth of extras** — _Default: include_ notifications/toasts, price charts, and history
+   (quote/balance/transfer) as first-class. Ask only if they want to defer any.
+
+If the workspace or task already answers one of these, skip it — don't ask what you can already see.
+
+---
+
+## 5 — Required feature set (the DEX checklist)
+
+Implement all of these for a Full-scope build (trim per §4.2 for MVP). For each, **reach for the
+named SDK capability — do not reinvent it.** Confirm exact params in the docs/types.
+
+**A. Wallet & network shell**
+
+- Connect / disconnect / account chip with truncated address + avatar → `useWalletAccount`,
+  `useConnectWallet`, `useDisconnectWallet`.
+- Wrong-chain detection and one-click switch → `useSwitchToSymmioChain` (+ `isOnExpectedChain`).
+  Chain id from `SymmioSupportedChainId` / chain config — **never a numeric literal.**
+- A **gate ladder** that guides the user: Connect → Switch chain → Select sub-account → Deposit →
+  (instant flow) Init session key → Grant delegation → Trade. Render the CTA as a single
+  **state-machine button** that always shows the next required action.
+
+**B. Account / sub-account management**
+
+- List, create, rename sub-accounts → `useUserSubAccounts`, `useCreateSubAccounts`,
+  `useEditAccountName`. Persist the selected sub-account (URL or store) across the app.
+- Balance overview: available vs allocated, locked CVA/LF, uPnL → `useAccountBalanceOf`,
+  `useAccountBalanceInfo`. Pass `live: true` so the read subscribes to the account's settle
+  notifications and auto-refetches when an open/close settles — no manual invalidation.
+
+**C. Collateral: deposit, allocate/deallocate, margin**
+
+- Deposit: ERC-20 **approve → deposit** → `useApproveCollateral` (approves the **SYMMIO core**, not
+  AccountLayer), `useCollateralAllowance`, `useCollateralBalance`, `useDeposit` /
+  `useDepositAndAllocate`.
+- Move funds between available and allocated → `useAllocate` / `useDeallocate` (deallocate needs a
+  Muon uPnL sig — the hook fetches it; respect the on-chain debounce/cooldown in the UI).
+- Add / remove margin on a position/VA → `useAddMargin` / `useRemoveMargin` (remove needs Muon uPnL;
+  show a cooldown countdown). Always show **Current → After** projections for margin and
+  liquidation price.
+
+**D. Withdraw (request-based)**
+
+- Initiate → cooldown → finalize, plus cancel → `useInitiateWithdraw`, `useRequestCancelWithdraw`,
+  `useFinalizeWithdrawRequest`; surface `useWithdrawableTime`, `usePendingWithdrawRequests`,
+  `useLastWithdrawRequestId`. Render a multi-step progress UI (Confirm → cooldown → Finalize) with
+  the cooldown timer.
+
+**E. Markets**
+
+- Market discovery + metadata → `useMarkets`, `useOnchainContractMarkets`. A searchable, virtualized
+  market selector (not a native `<select>`); a market ticker/bar; 24h change where available.
+- Pre-trade gating → `useNotionalCapBySymbolId`, `useOpenInterestBySymbolId`, `useLockedParams`,
+  `useFeeForUser` / `useQuotePlatformFee`. Block or warn before submit when caps are exceeded.
+- Market-header stat strip (polled): funding via `useFundingInfo` (next-epoch rate + settlement
+  countdown; a positive rate means that side _receives_, negative _pays_) and available liquidity +
+  open interest via `useNotionalCapBySymbolId` (`availableToLong` / `availableToShort` /
+  `openInterest`).
+
+**F. Order entry (open a position)**
+
+- Order ticket: side (long/short), order type (market/limit), size input with balance + percent
+  shortcuts, a leverage slider (capped by market max leverage), optional TP/SL, slippage.
+- Submit → `useInstantOpenAuto` (one-shot prepare+submit) or `useInstantOpenWithTpSl`
+  (multi-phase: opening → attaching-tpsl). For classic flow, the allocate-based path.
+- Pre-submit validation → `calculateTradeParams` + `validateInstantOpenAgainstMarket`; render each
+  violation kind clearly. The "Max" affordance is `useAvailableInstantOpenMargin` (balance shaved for
+  fees + worst-case slippage), never the raw balance.
+- Estimated fill price + price impact → `useEstimatedPrice` (pass the slippage-adjusted
+  `calculateTradeParams().requestedOpenPrice`, `entry: "open"`), then `calculatePriceImpact` against
+  the mark. Debounce the inputs so it doesn't refetch on every keystroke.
+
+**G. Positions, close, TP/SL**
+
+- Positions/quotes table (grouped by market+direction) with per-metric cells: entry, mark, size,
+  margin, liq price, uPnL/PnL, TP/SL, actions → **`useManagedQuotes`** (reconciles on-chain
+  positions + pending quotes + instant opens/closes + live notifications + VA fan-out into one
+  lifecycle-tagged list) or `useGroupedQuotes`. Per-position PnL → `useQuoteUpnlAndPnl`; liq price →
+  `useAccountLiquidationPrice`. **Do not hand-wire the low-level reads** — `useManagedQuotes` is the
+  intended surface.
+- Close / partial-close (basis-point scaling) → `useInstantCloseAuto`, `useInstantClose`,
+  `useInstantCloseBulk` (close-all). Drive UI state off `QuoteLifecycle`, not mutation success.
+  Preview the fill with `useEstimatedPrice` (`entry: "close"`, price from `calculateClosePrice`) and
+  fold it into an estimated PnL via `calculateQuotePnl`.
+- TP/SL on open positions → `useQuoteTpSl`, `useSetQuoteTpSl`, `useDeleteQuoteTpSl`,
+  `useWatchTpSlNotifications`.
+
+**H. Realtime & notifications**
+
+- Toasts + notification center → `useNotifications` (live socket), `useSearchNotifications` (REST
+  history). Connection/health status indicator. Notifications are also the source of truth for
+  close/settle lifecycle — read balances with `live: true` (see B) so they auto-refetch on settle.
+
+**I. Price feeds & charts**
+
+- Live mark prices → the Enigma price hooks (`useEnigmaPrices*`) / `watchEnigmaPrices`. A price chart
+  per market (follow the `Lowcap Chart` guide — embed fast-path or a lightweight charting lib with an
+  OHLC feed; do not add a heavy dependency without approval).
+
+**J. History**
+
+- Quote/trade history, funding, balance history, transfers, deposits, withdrawals →
+  `useQuoteHistory`, `useQuoteEventsByType`, `useQuoteFunding`, `useBalanceHistory`,
+  `useTransferHistory`, `useDepositHistory`, `useWithdrawHistory`; raw escape hatch
+  `useSubgraphQuery`. Filters, pagination, detail views.
+
+**K. Session key + delegation (required for the instant flow)**
+
+- Create/init a session key → `@symmio/session-key` `createSessionKeyManager`; grant/track delegation
+  → `useGrantDelegation`, `useIsDelegationActive`, `useDelegationExpiry`. Gate instant trades behind
+  an active delegation and make enabling it a smooth one-time step. Note TP/SL may need a second
+  delegation.
+
+**L. Settings & cross-cutting**
+
+- Slippage defaults, theme toggle, sub-account switcher, affiliate config (the **required**
+  `symmioConfig[chainId].addresses.affiliatesAddress`),
+  tx tracking (`useTransactionsStore`), and a solver error-code humanizer (`useSolverErrorMessage`).
+
+---
+
+## 6 — Architecture, wiring & state
+
+**Provider composition (React) — exact nesting order:**
+`ThemeProvider → WagmiProvider → QueryClientProvider → SymmioProvider → app`.
+
+- Create the **`QueryClient` inside `useState(() => new QueryClient(...))`**, never at module scope
+  (SSR/hydration would make two). Sensible defaults: `retry: 2`, `staleTime: 30_000`.
+- One wagmi `createConfig` with chains from `wagmi/chains`, `fallback(http(...))` transports (batch
+  RPC), `injected()` connector, `ssr: true`.
+- `SymmioProvider` builds the core `Config` internally by bridging wagmi's
+  `getPublicClient`/`getWalletClient`. Pass **`symmioConfig`** (required — per-chain config keyed by
+  chain id; every supported chain **must** set `addresses.affiliatesAddress` to a registered, non-zero
+  affiliate or the provider throws `AFFILIATE_ADDRESS_REQUIRED`), `defaultChainId`, and a custom
+  `getWalletClient` when using session keys (route to the session signer when `from` matches, else the
+  connected EOA).
+
+**State model:** server/on-chain state lives in React Query via the SDK hooks (they own query keys,
+`enabled` gating, and cache invalidation on mutation success — **don't add your own missing-input
+guards; reads self-disable until required inputs are present**). Keep only genuinely local UI state
+(selected market, ticket inputs, selected sub-account, theme) in a thin store (e.g. zustand) or URL.
+Put the active market in the URL.
+
+**Reconciliation:** for positions/quotes, prefer `useManagedQuotes`. If you ever reconcile manually
+with the core `reconcileQuotes`, feed its `pendingAnchors` back as `retainedAnchors` on the next tick
+— the consumer drives the clock. Resolve VA addresses via notification `va_address` (primary) →
+`predictNextVirtualAccount` (bridge the optimistic gap) → VA listing (authoritative backfill).
+
+**Units:** on-chain values are **wei `bigint`** (18-dec or collateral-dec); solver/REST values are
+plain numbers/decimal strings. The instant-open **auto/wizard** tiers do unit conversion; the
+**primitive** tier does not. Format for display only at the edge via `@symmio/utils`.
+
+**Errors:** every failure normalizes to **`SymmioRequestError` with a `.kind`** discriminator
+(`user-rejected | contract-revert | insufficient-funds | rpc | api | sdk | unknown`). Branch on
+`.kind`: silence `user-rejected`, surface `reason` for `contract-revert`, humanize solver
+`errorCode` via `useSolverErrorMessage`, offer retry for `rpc`. Never show a raw stack to a user.
+
+**Suggested structure (adapt to the framework):** `app/` (routes/layout/providers) · `config/`
+(wagmi, symmio overrides, chains) · `features/<domain>/` (wallet, account, collateral, withdraw,
+markets, trade, positions, history, notifications — each with its components + local hooks) ·
+`components/` (shared presentational) · `lib/` (formatters, helpers). One cohesive responsibility
+per file; split by meaning, not line count.
+
+---
+
+## 7 — Design & UX bar (make it look and feel professional)
+
+The app must read as **intentional and premium**, never templated or "AI-generic."
+
+- **Design system:** in the SYMMIO workspace, **reuse `@symmio/ui` primitives** (button, input,
+  dialog, sheet, table/data-table, select/combobox, market-select, account-picker, tooltip, badge,
+  slider, skeleton, spinner, card, …) — do not re-implement what it ships; extend it upstream if
+  something's missing. If `@symmio/ui` is not available to you, scaffold a **small local primitive
+  set** in the same spirit (Tailwind + Radix + `cva` + a `cn()` merger) — do **not** pull a heavy
+  third-party component kit.
+- **Aesthetic (default "Voltage Graphite"):** single **electric-cobalt** primary
+  (`#2f5fe6` light / `#3b6cff` dark) over **cool graphite neutrals** (`#f7f8fa` / near-black
+  `#0a0b0f`), with **mint** positive (`#0a9d6e`/`#2fd39a`), **coral** negative
+  (`#e5484d`/`#ff6470`), **amber** warning. **Dark is the primary surface.** Fonts: **Bricolage
+  Grotesque** (display/figures), **Hanken Grotesk** (UI/body), **JetBrains Mono** (addresses,
+  hashes, amounts — with `tabular-nums slashed-zero`). Soft-rounded (`--radius: 0.75rem`; buttons/
+  inputs `rounded-xl`, cards `rounded-2xl`). Subtle atmosphere (faint radial accent glows, a masked
+  fine grid), layered shadows, restrained entrance motion (long ease-out, staggered) that respects
+  `prefers-reduced-motion`. If the user gave a brand, adapt these tokens to it faithfully.
+- **Proven UX patterns to imitate** (behavior, not branding): the single **state-machine CTA
+  button** (one button, many states) for the trade action; an animated two/three-option **segmented
+  toggle** for long/short and market/limit; a **leverage slider** with a color gradient; **grouped
+  positions table** with per-metric cells and a mobile **card** fallback; a **resizable** chart /
+  positions dock; a **searchable virtualized market picker**; **right-slide sheets** for
+  deposit/withdraw/account; **multi-step progress** components for withdraw/delegation; **cooldown
+  countdowns**. (These come from an internal reference UI; **strip all of its product branding** and
+  use neutral vocabulary.)
+- **Finish that separates real products from demos:** every list has loading **skeletons**, a
+  designed **empty state**, and an **error state**; every mutation shows pending/optimistic feedback
+  and disables double-submit; numbers are formatted (tabular, right-aligned, correct precision,
+  colored by sign); addresses are truncated + copyable; the whole app is **responsive** (usable
+  trade + positions on mobile) and **accessible** (keyboard nav, focus rings, ARIA, contrast). No
+  dead ends — every gate tells the user what to do next.
+
+---
+
+## 8 — Definition of done (production-ready)
+
+Do not call it complete until:
+
+- `typecheck`, `lint`, and `build` all pass clean; no unused imports/vars; no `any` leaks on public
+  surfaces.
+- Every feature in the agreed scope handles happy + loading + empty + error paths, is responsive,
+  and is keyboard-accessible.
+- You have **actually run the app and driven the critical flows** (connect → select sub-account →
+  deposit/allocate → open → see position → close), fixing anything that breaks. No console errors on
+  the main paths.
+- Config, chains, and any addresses come from SDK config / env vars — **no secrets or hardcoded
+  addresses in source**; a `.env.example` documents what's needed.
+- Pure logic (formatting, any local calc) has unit tests; critical flows have at least a smoke/E2E
+  test. Keep testing proportionate — cover what would silently break, don't chase coverage.
+- A concise **README**: what it is, prerequisites, install (pnpm), env setup, run/build commands,
+  and the architecture in a paragraph.
+- A final summary of decisions, assumptions, and any genuinely blocked items.
+
+---
+
+## 9 — Building for a different framework or platform
+
+The Core SDK (`@symmio/trading-core`) is framework-agnostic, so you can target anything. When the
+user picks a non-React target, **use `@symmio/trading-core` directly** and recreate the ergonomics in
+the target idiom.
+
+**The universal seam:** `createConfig({ symmioConfig, getClient, getWalletClient?, defaultChainId?,
+webSocketConstructor? })`. You inject how clients are obtained:
+
+- `symmioConfig` — per-chain config keyed by chain id; **required**, and every supported chain must
+  carry a registered non-zero `addresses.affiliatesAddress` or it throws `AFFILIATE_ADDRESS_REQUIRED`.
+- `getClient({ chainId }) → PublicClient` (required; reads).
+- `getWalletClient({ chainId, from }) → SymmioWalletClient` (writes/signing; omit for read-only).
+- `webSocketConstructor` — supply a `ws` implementation off-browser (Node); browsers use the global.
+
+Then every action is `getX(config, params)` (reads) / `doX(config, params)` (writes), with
+`getXQueryOptions(config, options)` bags ready for any TanStack Query adapter, `doXMutationOptions`
+for mutations, and `watchX(config, { onX }) → unsubscribe` for realtime. Enums are named members
+(`PositionType.LONG`), on-chain values are wei `bigint`, and `useManagedQuotes`'s logic is available
+as core `reconcileQuotes` / `getSubAccountQuotes` for you to drive on your own clock.
+
+**Per environment:**
+
+- **Vue / Svelte / Solid:** build a thin provider/composable/store layer that holds one `Config` and
+  wraps the `getXQueryOptions`/`doXMutationOptions` in that framework's Query adapter (TanStack Query
+  has Vue/Svelte/Solid bindings). Mirror the React hook names as composables/stores.
+- **Angular:** wrap `Config` in an injectable service; expose reads as observables (RxJS) over the
+  query options and writes as methods; use TanStack Query Angular or your own cache.
+- **React Native / Expo:** same React hooks from `@symmio/trading-react`, but swap wagmi connectors
+  for a mobile wallet strategy (WalletConnect/deeplink) and rebuild the UI with native primitives —
+  keep the SDK layer identical.
+- **Node service / trading bot / CLI / backend:** no React and no UI. Instantiate viem clients
+  yourself, pass them into `createConfig`, provide a `webSocketConstructor`, and call `getX`/`doX`
+  directly. Great for automation, monitoring, or a headless executor. Handle keys securely
+  (env/KMS), never in source.
+
+Whatever the target: **reuse the SDK for all protocol logic**, keep the framework layer thin, apply
+the same domain model (§1), correctness invariants (§6), and production bar (§8), and only the
+presentation layer changes.
+
+---
+
+## 10 — Non-negotiables (quick reference)
+
+- Reuse the SDK and design system; **never reinvent** contract calls, quote reconciliation, oracle
+  signatures, realtime, or margin math.
+- Import boundary: **runtime from `-react`, types/enums/chain-config from `-core`.** Never cross it.
+- **`useManagedQuotes`** for positions; VA fan-out is mandatory; row identity survives
+  `tempQuoteId → quoteId`.
+- Close/settle UI is **WebSocket/lifecycle-authoritative**, not mutation-success-driven.
+- `approveCollateral` targets the **core**, not AccountLayer. `deallocate`/`removeMargin` need a
+  **Muon** sig (hooks fetch it). Instant trades need **session key + active delegation** first.
+- Affiliate is **mandatory**: set `symmioConfig[chainId].addresses.affiliatesAddress` to a registered,
+  non-zero address or `createConfig` / `SymmioProvider` throws `AFFILIATE_ADDRESS_REQUIRED`.
+- Branch on **`error.kind`**; don't add your own read-input guards (reads self-disable).
+- **Kebab-case** filenames; **`function`** keyword at module scope (arrows only inline); props type
+  `Props` (or `{Component}Props` if exported); **JSDoc** on public exports (`/** */`, not `//`);
+  **named enum members** and chain ids from config (no numeric literals); no `+`-concatenated strings
+  to wrap lines; imports in one contiguous block; **no `lucide-react` in the app** (inline SVG
+  icons; lucide is confined to `@symmio/ui`); Tailwind classes via `cn()` and variants via `cva`.
+- **pnpm** only; **TypeScript** only (framework config files excepted). **No new dependencies**
+  without a stated reason and the user's approval.
+- Never the word "vibe"/"VibeCaps"; never invent vendor names, URLs, or addresses.
+
+Now: read the docs, ask your one round of questions (§4) — or accept "use defaults, proceed" — then
+build the whole thing.
+
+=====================================================================================
+```
+
+## Customizing
+
+Steer the build by how you answer the question round — or by editing the prompt before you paste it:
+
+- **Brand and theme** — answer Q4 with your product name, colors, logo, and fonts; the agent adapts the token set instead of using Voltage Graphite.
+- **Scope** — answer Q2 `MVP` for a lean wallet → deposit → open → close slice, or `Full DEX` for everything in section 5.
+- **Framework or platform** — answer Q1 with Vue, Angular, React Native, Node, etc.; the agent switches to the core-direct wiring described in section 9.
+- **Your house rules** — append your repo's own conventions to section 10 before pasting, and the agent treats them as non-negotiable alongside the SDK's.
+
+## Related
+
+- [Build a Perps DEX](./build-a-dex) — the human-readable wiring reference this prompt is built from.
+- [Lowcap Chart](./lowcap-chart) — the chart recipe referenced by the trade surface.
+- [React hooks](../react) and [Core API](../core) — the exact signatures the agent should confirm against.

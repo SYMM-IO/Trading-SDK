@@ -1,0 +1,43 @@
+# grantDelegation
+
+Grant a delegated signer access to one or more selectors until an expiry timestamp.
+
+```ts
+import { grantDelegation } from "@symmio/trading-core";
+
+const hash = await grantDelegation(config, {
+  account: { addr: account, isPartyB: false },
+  delegatedSigner: delegate,
+  selectors: ["0x501e891f"],
+  expiryTimestamp: 1_766_000_000n,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="InstantLayerAccount" typeHref="/core/instant-layer/instant-layer-account" required>
+    Account that grants the delegation. The connected wallet must own this account.
+  </Property>
+  <Property name="delegatedSigner" type="Address" required>
+    Signer that may call the selected Instant Layer functions.
+  </Property>
+  <Property name="selectors" type="readonly Hex[]" required>
+    Function selectors (`bytes4[]`) to grant.
+  </Property>
+  <Property name="expiryTimestamp" type="bigint" required>
+    Expiry timestamp in seconds.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+  <Property name="simulateBeforeWrite" type="boolean" optional>
+    Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default).
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hash">
+  The submitted transaction hash. Dry-run without sending via `simulateGrantDelegation(config, params)`.
+</Returns>

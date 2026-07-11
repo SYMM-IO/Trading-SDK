@@ -8,15 +8,21 @@ Raw viem-style `Abi` arrays for the SYMMIO contracts, for consumers who call vie
 import { accountLayerAbi, instantLayerAbi, symmioAbi } from "@symmio/trading-core";
 ```
 
-Each is a `readonly Abi` array exported straight from the versioned `src/abi/v0.8.5/` files.
+Each is a `readonly Abi` array exported straight from the versioned `src/symmio-contracts/abi/v0.8.5/` files.
 
 ## Available fragments
 
-| ABI               | Contract        | Notes                                                    |
-| ----------------- | --------------- | -------------------------------------------------------- |
-| `accountLayerAbi` | AccountLayer    | SubAccount / Virtual Account creation, deposits, margin. |
-| `instantLayerAbi` | InstantLayer    | Delegated instant-open / instant-close.                  |
-| `symmioAbi`       | SYMMIO Contract | Quotes, allocation, collateral, protocol-level state.    |
+<MethodIndex kind="type">
+  <MethodEntry name="accountLayerAbi" href="/core/account-layer">
+    AccountLayer contract — SubAccount / Virtual Account creation, deposits, margin.
+  </MethodEntry>
+  <MethodEntry name="instantLayerAbi" href="/core/instant-layer">
+    InstantLayer contract — delegated instant-open / instant-close.
+  </MethodEntry>
+  <MethodEntry name="symmioAbi" href="/core/symmio-contract">
+    SYMMIO diamond contract — quotes, allocation, collateral, protocol-level state.
+  </MethodEntry>
+</MethodIndex>
 
 The current version is `v0.8.5` — sourced from [`@symm-io/perps-core`](https://github.com/SYMM-IO/perps-core/tree/version_0.8.5). When the SDK ships a second version, ABIs will route through a version-aware registry; today they are directly re-exported.
 
@@ -47,7 +53,7 @@ const hash = await walletClient.writeContract({
   address: "0x…",
   abi: symmioAbi,
   functionName: "allocate",
-  args: [subAccount, amount],
+  args: [amount],
 });
 ```
 

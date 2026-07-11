@@ -1,0 +1,55 @@
+# getAccountBalanceOf
+
+Read the account's **available (deallocated) balance** — collateral that lives on the account but is **not** currently allocated to any SubAccount for trading. This is the amount the user can transfer, withdraw, or allocate. Read via `balanceOf(account)` on the SYMMIO diamond.
+
+Pair with [`getAccountBalanceInfo`](/core/account-layer/get-account-balance-info) for the full picture: `balanceOf` is the free-to-move pot; `balanceInfoOfPartyA` is the allocated-and-in-play pot.
+
+```ts
+import { getAccountBalanceOf } from "@symmio/trading-core";
+
+const balance = await getAccountBalanceOf(config, {
+  account: "0xaccount...",
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    Account address passed to `balanceOf`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="bigint">
+  Raw collateral token units. Use `formatUnits(value, 18)` / `formatEther(value)` or the utils package when displaying
+  decimal values.
+</Returns>
+
+## Query options
+
+```ts
+import { getAccountBalanceOfQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getAccountBalanceOfQueryOptions(config, { account: "0xaccount..." }));
+```
+
+## Raw ABI
+
+For consumers that want to call viem directly:
+
+```ts
+import { symmioAbi } from "@symmio/trading-core";
+
+await publicClient.readContract({
+  abi: symmioAbi,
+  address: symmioAddress,
+  functionName: "balanceOf",
+  args: ["0xaccount..."],
+});
+```

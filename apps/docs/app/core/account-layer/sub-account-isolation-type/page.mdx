@@ -1,0 +1,12 @@
+# SubAccountIsolationType
+
+How a subaccount decides when to spin up a new Virtual Account (VA) for a trade. Returned on the `isolationType` field of every [`SubAccountDetail`](/core/account-layer/get-user-sub-accounts).
+
+```ts
+enum SubAccountIsolationType {
+  POSITION = 0, // one VA per trade
+  MARKET = 1, // one VA per market
+  MARKET_DIRECTION = 2, // one VA per market + direction
+  CUSTOM = 3, // no automatic VA creation
+}
+```

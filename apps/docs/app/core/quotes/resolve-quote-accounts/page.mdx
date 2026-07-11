@@ -1,0 +1,56 @@
+# resolveQuoteAccounts
+
+Resolve the full set of on-chain `partyA` accounts that together hold a sub-account's quote picture. This is the one function in the module that reads on-chain — every other reconciliation function is a pure transform.
+
+In lowcap, each isolated position lives under a Virtual Account (VA), and the VA — not the sub-account — is the on-chain `partyA` for quote reads. A brand-new instant-open lands in a VA that does not exist on-chain yet, so its address is predicted from `(subAccount, isolationType, symbolId)`. This assembles, in order: the sub-account itself; its existing VAs (when `includeVirtualAccounts`); one predicted VA per pending instant-open (deduped by `(isolationType, symbolId)` and run in parallel); and any `extraAccounts`. Addresses are deduped case-insensitively and returned checksummed.
+
+```ts
+import { resolveQuoteAccounts } from "@symmio/trading-core";
+
+const { accounts, instantOpenVaByTempId } = await resolveQuoteAccounts(config, {
+  subAccount,
+  instantOpens,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="subAccount" type="Address" required>
+    The subaccount whose full quote picture is being assembled.
+  </Property>
+  <Property name="instantOpens" type="readonly PendingInstantOpen[]" optional>
+    Pending instant-opens for the subaccount. Each lands in a VA that may not exist on-chain yet; its address is
+    predicted up front.
+  </Property>
+  <Property name="includeVirtualAccounts" type="boolean" default="true">
+    Union the subaccount's existing on-chain VAs into the result.
+  </Property>
+  <Property name="extraAccounts" type="readonly Address[]" optional>
+    Extra accounts to union in (e.g. VAs already known to the consumer).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain; falls back to the config's default chain.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="ResolveQuoteAccountsResult">
+  <Property name="accounts" type="Address[]">
+    The deduplicated, checksummed set of on-chain `partyA` accounts to read quotes across — the subaccount, its existing
+    VAs, the predicted VAs of its pending instant-opens, and any `extraAccounts`. Order is preserved (subaccount first,
+    then VAs, then predicted VAs, then extras).
+  </Property>
+  <Property name="instantOpenVaByTempId" type="Record<number, Address>">
+    Map from a pending instant-open's `tempQuoteId` to the predicted VA its position will land in. Pass it to
+    [`reconcileQuotes`](/core/quotes/reconcile-quotes) so the optimistic row is stamped with its eventual VA before the
+    trade anchors.
+  </Property>
+</Returns>
+
+## Related
+
+- [reconcileQuotes](/core/quotes/reconcile-quotes) — consumes `accounts` (to read across) and `instantOpenVaByTempId`.
+- [`getSubAccountQuotes`](/core/symmio-contract/get-sub-account-quotes) — runs this, the source reads, and the merge in one call.
+- [Solvers](/core/solvers) — `getInstantOpens` produces the `PendingInstantOpen[]` passed here.

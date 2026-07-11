@@ -1,5 +1,6 @@
 export default {
   index: "Overview",
+  "getting-started": "Getting Started",
   concepts: "React Concepts",
   provider: "SymmioProvider",
   wallet: "Wallet hooks",

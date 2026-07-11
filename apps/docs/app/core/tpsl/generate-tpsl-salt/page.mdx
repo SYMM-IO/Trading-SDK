@@ -1,0 +1,25 @@
+# generateTpSlSalt
+
+Generate a random `uint256` salt (as a decimal string) for replay protection. Every conditional-order and delete message carries a fresh salt; [`buildConditionalOrderMessage`](/core/tpsl/build-conditional-order-message) and [`buildTpSlDeleteMessage`](/core/tpsl/build-tpsl-delete-message) call this automatically unless you pass an explicit `salt` (e.g. to sign deterministically in tests).
+
+Draws 32 random bytes from `crypto.getRandomValues` and folds them into a big integer.
+
+```ts
+import { generateTpSlSalt } from "@symmio/trading-core";
+
+const salt = generateTpSlSalt();
+// "8471293…"  (decimal string)
+```
+
+## Parameters
+
+None.
+
+## Returns
+
+<Returns type="string">A random `uint256` as a decimal string.</Returns>
+
+## Related
+
+- [`buildConditionalOrderMessage`](/core/tpsl/build-conditional-order-message) — accepts an optional `salt` override.
+- [`buildTpSlDeleteMessage`](/core/tpsl/build-tpsl-delete-message) — same.

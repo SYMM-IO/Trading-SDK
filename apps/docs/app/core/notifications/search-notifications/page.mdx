@@ -1,0 +1,85 @@
+# searchNotifications
+
+Search stored notifications via the notification service's `POST /api/v1/search` endpoint.
+
+The filter is a free-form equality match over the stored document: every key is compared exactly, whether it is a top-level field (`app_name`, `address`, `type`, …) or a dotted path into the nested payload (`data.temp_quote_id`, `data.quote_id`, …). Known fields are offered as autocomplete; any other string key is still accepted.
+
+The base URL resolves from the chain config's `notifications.searchUrl`, or the per-call `baseUrl` override. The action appends `/api/v1/search`.
+
+```ts
+import { searchNotifications } from "@symmio/trading-core";
+
+const { documents, total } = await searchNotifications(config, {
+  filter: { app_name: "Base_Superflow_Stage", "data.temp_quote_id": -172 },
+  size: 50,
+});
+
+for (const doc of documents) {
+  console.log(doc.id, doc.data?.quote_id);
+}
+```
+
+## Parameters
+
+<Properties>
+  <Property
+    name="filter"
+    type="NotificationSearchFilter"
+    typeHref="/core/notifications/notification-search-filter"
+    required
+  >
+    Equality filter sent as the request `query`. Named `filter` (not `query`) so it never collides with the TanStack
+    `query` overrides on the matching query-options factory.
+  </Property>
+  <Property name="size" type="number" optional>
+    Maximum number of results to return (1–100). Defaults to 100 (the backend default).
+  </Property>
+  <Property name="start" type="number" optional>
+    Zero-based offset of the first result. Defaults to 0.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override; defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="baseUrl" type="string" optional>
+    Override the notification-search base URL. Defaults to the chain config's `notifications.searchUrl`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="NotificationSearchResult" typeHref="/core/notifications/notification-search-result">
+  <Property name="total" type="number">
+    Total matches.
+  </Property>
+  <Property name="count" type="number">
+    Number returned in this page.
+  </Property>
+  <Property name="documents" type="NotificationDocument[]" typeHref="/core/notifications/notification-search-result">
+    The stored notification documents.
+  </Property>
+</Returns>
+
+## Throws
+
+Throws a `SymmApiError` when the search request fails, and a `SymmError` when no search URL is configured for the chain and no `baseUrl` is passed.
+
+## Query options
+
+```ts
+import { searchNotificationsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(
+  searchNotificationsQueryOptions(config, {
+    filter: { "data.temp_quote_id": -172 },
+    query: { refetchInterval: 5_000 },
+  }),
+);
+```
+
+The query is disabled until `filter` has at least one key, so an empty filter never fires a match-all request. `searchNotificationsQueryKey` builds the matching cache key — the `filter` object is folded in, so two searches with different filters cache independently.
+
+## Related
+
+- [NotificationSearchFilter](/core/notifications/notification-search-filter) — the filter shape and its known keys.
+- [watchNotifications](/core/notifications/watch-notifications) — live stream over the same channel.

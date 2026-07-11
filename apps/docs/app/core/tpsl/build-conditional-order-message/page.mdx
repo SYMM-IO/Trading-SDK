@@ -1,0 +1,72 @@
+# buildConditionalOrderMessage
+
+Build a create/edit conditional-order EIP-712 message body ([`TpSlConditionalOrderMessage`](/core/tpsl/tpsl-conditional-order-message)). The salt is generated automatically via [`generateTpSlSalt`](/core/tpsl/generate-tpsl-salt); pass `salt` to override. Legs are built with [`buildConditionalOrderLeg`](/core/tpsl/build-conditional-order-leg) and passed as `takeProfit` / `stopLoss` (or `null` to skip a side). [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) uses this internally.
+
+```ts
+import { buildConditionalOrderMessage } from "@symmio/trading-core";
+
+const message = buildConditionalOrderMessage({
+  virtualAccount,
+  subAccount,
+  quoteId: 42,
+  symbolId: 7,
+  positionType: 0,
+  affiliate,
+  takeProfit: tpLeg,
+  stopLoss: null,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="virtualAccount" type="Address" required>
+    PartyA (the VA address) that owns the quote.
+  </Property>
+  <Property name="subAccount" type="Address" required>
+    SubAccount that owns the VA.
+  </Property>
+  <Property name="quoteId" type="number | null" required>
+    On-chain quote id (or `tempQuoteId`); `null` for a pre-chain order with no id yet.
+  </Property>
+  <Property name="symbolId" type="number" required>
+    Solver market id.
+  </Property>
+  <Property name="positionType" type="0 | 1" required>
+    Quote direction — `0` = long, `1` = short.
+  </Property>
+  <Property name="affiliate" type="Address" required>
+    Affiliate bound to the order.
+  </Property>
+  <Property
+    name="takeProfit"
+    type="TpSlConditionalOrderLeg | null"
+    typeHref="/core/tpsl/tpsl-conditional-order-leg"
+    required
+  >
+    The TP leg, or `null` to skip TP.
+  </Property>
+  <Property
+    name="stopLoss"
+    type="TpSlConditionalOrderLeg | null"
+    typeHref="/core/tpsl/tpsl-conditional-order-leg"
+    required
+  >
+    The SL leg, or `null` to skip SL.
+  </Property>
+  <Property name="salt" type="string" optional>
+    Override for the auto-generated salt.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="TpSlConditionalOrderMessage" typeHref="/core/tpsl/tpsl-conditional-order-message">
+  The message body (pre-signature) with `sendQuote: null`. Pass to [`signTpSlRequest`](/core/tpsl/sign-tpsl-request).
+</Returns>
+
+## Related
+
+- [`buildConditionalOrderLeg`](/core/tpsl/build-conditional-order-leg) — builds each leg.
+- [`TpSlConditionalOrderMessage`](/core/tpsl/tpsl-conditional-order-message) — the return shape.
+- [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) — the full create/edit action.

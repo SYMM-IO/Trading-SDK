@@ -1,6 +1,6 @@
-# Getting Started
+# Getting Started with React
 
-The fastest path to a working React app that reads from SYMMIO.
+The fastest path to a working React app that reads from SYMMIO. `@symmio/trading-react` wraps every `core` call in a hook with caching, refetching, and invalidation already wired — mount the provider, call the hook, render the data.
 
 ## 1. Install
 
@@ -52,7 +52,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 }
 ```
 
-The order of providers matters. **Wagmi outside `QueryClient` outside `SymmioProvider`** — the SDK reads both wagmi and `QueryClient` from context.
+The order of providers matters. **Wagmi outside `QueryClient` outside `SymmioProvider`** — the SDK reads both wagmi and `QueryClient` from context. See [SymmioProvider](/react/provider) for chain overrides and the WebSocket constructor.
 
 ## 3. Read on-chain data
 
@@ -101,5 +101,6 @@ export function RenameButton({ account }: { account: `0x${string}` }) {
 
 ## Next steps
 
-- Skim the library indexes to see what's available: **[Core](/core)**, **[React](/react)**, **[Utils](/utils)**.
-- The Inspector app in `apps/web` (route `/inspector/account-layer`) is a live, working integration target.
+- **[Overview](/react)** — the full hook catalog and the wrapper guarantees (invalidation, refetch intervals, override knobs).
+- **[Hook pattern](/react/concepts/hook-pattern)** — the three-line shape every read and write hook follows.
+- **[Core](/core/getting-started)** — the framework-agnostic functions each hook wraps, for Node scripts or bypassing the hook layer.

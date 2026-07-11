@@ -1,0 +1,46 @@
+# buildConditionalOrderLeg
+
+Build one leg (TP or SL) of a conditional-order message ([`TpSlConditionalOrderLeg`](/core/tpsl/tpsl-conditional-order-leg)). Maps the SDK's [`TpSlPriceType`](/core/tpsl/tpsl-price-type) (`markPrice` / `lastPrice`) onto the handler's wire form (`market` / `last_close`) and defaults `orderType` to market. [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) builds each leg with this.
+
+```ts
+import { buildConditionalOrderLeg } from "@symmio/trading-core";
+
+const leg = buildConditionalOrderLeg({
+  quantity: "100",
+  price: "10.0000",
+  conditionalPrice: "150.0000",
+  priceType: "markPrice",
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quantity" type="string" required>
+    Quote quantity (decimal string).
+  </Property>
+  <Property name="price" type="string" required>
+    Slippage-shifted fill price (decimal string, rounded to market precision).
+  </Property>
+  <Property name="conditionalPrice" type="string" required>
+    Trigger price (decimal string, rounded to market precision).
+  </Property>
+  <Property name="priceType" type="TpSlPriceType" typeHref="/core/tpsl/tpsl-price-type" required>
+    `markPrice` or `lastPrice`; mapped to the wire `conditionalPriceType`.
+  </Property>
+  <Property name="orderType" type="number" optional>
+    Wire `order_type`. Defaults to `1` (market).
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="TpSlConditionalOrderLeg" typeHref="/core/tpsl/tpsl-conditional-order-leg">
+  The leg, with `conditionalPriceType` set to `last_close` when `priceType` is `lastPrice`, else `market`.
+</Returns>
+
+## Related
+
+- [`TpSlConditionalOrderLeg`](/core/tpsl/tpsl-conditional-order-leg) — the return shape.
+- [`buildConditionalOrderMessage`](/core/tpsl/build-conditional-order-message) — assembles legs into a message.
+- [`priceSlippageCalculation`](/core/tpsl/price-slippage-calculation) — derives the `price` field.

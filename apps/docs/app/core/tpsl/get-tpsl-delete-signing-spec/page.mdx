@@ -1,0 +1,47 @@
+# getTpSlDeleteSigningSpec
+
+Fetch the handler's EIP-712 signing spec for the **DELETE** endpoint (`/api/v5/signing-spec-del`). Distinct from the [POST spec](/core/tpsl/get-tpsl-signing-spec) because the delete typed data uses a different `primaryType` and message struct. Drives the signature that [`deleteQuoteTpSl`](/core/tpsl/delete-quote-tpsl) produces.
+
+Stable per deployment — cache indefinitely. Called internally by `deleteQuoteTpSl`; exposed for advanced consumers that sign their own delete messages.
+
+```ts
+import { getTpSlDeleteSigningSpec } from "@symmio/trading-core";
+
+const spec = await getTpSlDeleteSigningSpec(config);
+// { domain, types, primaryType }
+```
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="TpSlSigningSpec" typeHref="/core/tpsl/tpsl-signing-spec">
+  The EIP-712 typed-data domain + schema for the delete endpoint.
+</Returns>
+
+## Throws
+
+- `SymmError` when the chain has no `tpsl` config.
+- `SymmApiError` when the HTTP request fails.
+
+## Query options
+
+```ts
+import { getTpSlDeleteSigningSpecQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getTpSlDeleteSigningSpecQueryOptions(config));
+```
+
+`getTpSlDeleteSigningSpecQueryOptions` takes no required inputs — cache forever. `getTpSlDeleteSigningSpecQueryKey` builds the matching cache key.
+
+## Related
+
+- [`getTpSlSigningSpec`](/core/tpsl/get-tpsl-signing-spec) — the spec for the POST endpoint.
+- [`TpSlSigningSpec`](/core/tpsl/tpsl-signing-spec) — the return shape.

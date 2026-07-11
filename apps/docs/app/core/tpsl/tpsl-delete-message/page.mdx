@@ -1,0 +1,25 @@
+# TpSlDeleteMessage
+
+The delete-order message body (pre-signature). Built by [`buildTpSlDeleteMessage`](/core/tpsl/build-tpsl-delete-message) and signed by [`signTpSlRequest`](/core/tpsl/sign-tpsl-request) against the [DELETE signing spec](/core/tpsl/get-tpsl-delete-signing-spec).
+
+## Fields
+
+<Properties>
+  <Property name="virtualAccount" type="Address">
+    PartyA (the VA address) that owns the quote.
+  </Property>
+  <Property name="salt" type="string">
+    Random `uint256` salt (decimal string) for replay protection.
+  </Property>
+  <Property name="cohQuoteId" type="string">
+    Handler-issued conditional-order id targeted by the delete.
+  </Property>
+  <Property name="conditionalOrderType" type='"take_profit" | "stop_loss"'>
+    Which side is being canceled (`TpSlConditionalOrderType`).
+  </Property>
+</Properties>
+
+## Related
+
+- [`buildTpSlDeleteMessage`](/core/tpsl/build-tpsl-delete-message) — builds this.
+- [`deleteQuoteTpSl`](/core/tpsl/delete-quote-tpsl) — the full delete action.

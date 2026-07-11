@@ -1,0 +1,54 @@
+# getMuonPrice
+
+Fetch a fresh Muon `price` attestation for a set of quote ids and normalize it to typed fields. The oracle URLs and the SYMMIO diamond address are resolved from `config`; gateways are tried in order until one succeeds.
+
+```ts
+import { getMuonPrice } from "@symmio/trading-core";
+
+const p = await getMuonPrice(config, { quoteIds: [10n, 11n] });
+console.log(p.prices, p.quoteIds);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quoteIds" type="readonly bigint[]" required>
+    The quote ids to price. The partyB liquidation flow validates these prices.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetMuonPriceReturnType">
+  <Property name="quoteIds" type="bigint[]">
+    The attested quote ids (echoed from the request).
+  </Property>
+  <Property name="prices" type="bigint[]" optional>
+    Validated prices per quote id (18-decimal).
+  </Property>
+  <Property name="markPrices" type="bigint[]" optional>
+    Mark prices per quote id (18-decimal).
+  </Property>
+  <Property name="maxLeverages" type="bigint[]" optional>
+    Max leverage per quote id.
+  </Property>
+  <Property name="symbols" type="string[]" optional>
+    Symbol names per quote id.
+  </Property>
+</Returns>
+
+Plus the [`MuonAttestationBase`](/core/muon/muon-attestation-base) signature envelope fields.
+
+## Query options
+
+```ts
+import { getMuonPriceQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getMuonPriceQueryOptions(config, { quoteIds: [10n, 11n] }));
+```
+
+`GetMuonPriceOptions` requires `quoteIds`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getMuonPriceQueryKey` builder still accepts partial inputs for cache matching and invalidation.

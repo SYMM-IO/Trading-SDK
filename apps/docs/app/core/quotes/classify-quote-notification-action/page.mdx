@@ -1,0 +1,31 @@
+# classifyQuoteNotificationAction
+
+Classify a notification's `lastSeenAction` into the quote flow it belongs to. Consumers use the result to scope cache invalidation to the reads a notification can actually affect — an open-anchor event never changes the pending-instant-close feed, and vice versa.
+
+Open-side actions (anchoring an open, or the `InstantRFQ` price fill) classify as `"open"`; close-request/fill actions classify as `"close"`; anything else (including failures and unknown actions) is `"other"`.
+
+```ts
+import { classifyQuoteNotificationAction } from "@symmio/trading-core";
+
+if (classifyQuoteNotificationAction(n.lastSeenAction) === "close") invalidateCloses();
+```
+
+## Parameters
+
+<Properties>
+  <Property name="action" type="string | null | undefined" required>
+    The notification's `lastSeenAction` (may be `null`/absent).
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="QuoteNotificationActionKind" typeHref="/core/quotes/quote-notification-action-kind">
+  The quote flow the action belongs to — `"open"`, `"close"`, or `"other"`.
+</Returns>
+
+## Related
+
+- [QuoteNotificationActionKind](/core/quotes/quote-notification-action-kind) — the union this returns.
+- [applyNotificationToQuotes](/core/quotes/apply-notification-to-quotes) — advances a row's lifecycle from the same notifications.
+- [Notifications stream](/core/notifications) — the frames whose `lastSeenAction` is classified.

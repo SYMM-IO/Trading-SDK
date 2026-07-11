@@ -1,0 +1,42 @@
+# applyNotificationToQuotes
+
+Apply a single notification to a list of [`UnifiedQuote`](/core/quotes/unified-quote)s, returning a new list (pure — inputs are never mutated). This is the per-notification step [`reconcileQuotes`](/core/quotes/reconcile-quotes) runs internally over its `notifications`, exposed for consumers that fold notifications in themselves.
+
+The notification is matched to a row by on-chain quote id, falling back to the pre-chain temp id — which is how an optimistic row gets linked to its on-chain quote (`temp:<id>` → `onchain:<id>`). On the matched row it:
+
+- links `tempQuoteId` ↔ `quoteId` and rekeys the row once the on-chain id appears;
+- fills `openedPrice` and advances to `PRICE_FILLED` on `InstantRFQ` success;
+- advances to `WRITE_ONCHAIN` on an open-anchor (`SendQuoteTransaction`) success while the on-chain read has not caught up;
+- advances the close stage on a row already in the closing flow (or an off-chain row): the request → `CLOSE_PRICE_FILLED`, the fill → `WRITE_ONCHAIN_CLOSE`, monotonically. A settled close (polled back to `ONCHAIN`) is no longer in a closing stage, so replayed close notifications match nothing to advance and never re-stick it;
+- advances to `FAILED` **only for an anchored-but-unread row whose anchor reverted** (`origin === "onchain"`, `raw.onchain` absent). A failed close on a confirmed position stays put (defers to the poll), and a failed open's optimistic row just vanishes when the hedger drops it — failure is an event, not a durable state.
+
+```ts
+import { applyNotificationToQuotes } from "@symmio/trading-core";
+
+const next = applyNotificationToQuotes(quotes, notification);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quotes" type="UnifiedQuote[]" required>
+    The current unified rows.
+  </Property>
+  <Property name="n" type="Notification" required>
+    The normalized [notification](/core/notifications/notification) to apply.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="UnifiedQuote[]" typeHref="/core/quotes/unified-quote">
+  A new list with the matched row updated; the same list (by content) when nothing matched. Notifications are replayed
+  every reconcile tick, so this is idempotent — applying the same notification twice never regresses a row.
+</Returns>
+
+## Related
+
+- [reconcileQuotes](/core/quotes/reconcile-quotes) — applies this over its `notifications` after the source merge.
+- [Notification](/core/notifications/notification) — the input frame shape.
+- [QuoteLifecycle](/core/quotes/quote-lifecycle) — the stages this advances through.
+- [classifyQuoteNotificationAction](/core/quotes/classify-quote-notification-action) — classifies which flow a notification belongs to.

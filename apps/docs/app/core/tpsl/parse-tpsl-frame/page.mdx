@@ -1,0 +1,48 @@
+# parseTpSlFrame
+
+Parse a raw defilytics frame into a [`TpSlNotification`](/core/tpsl/tpsl-notification), or `null` when the frame isn't a `report` (control frames, malformed JSON, missing payload, or wrong shape). [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) calls this on every inbound message; call it directly to parse frames you receive on your own socket.
+
+The wire shape is single-wrapped — the `data` field **is** the payload, not a nested envelope:
+
+```jsonc
+{
+  "app_name": "Hyper-EVM_COH-Low-Cap_Production",
+  "primary_identifier": 9565,
+  "secondary_identifier": 0,
+  "address": "0xaE96…",
+  "type": "report",
+  "timestamp": 1782821982,
+  "data": { "coh_quote_id": "…", "conditional_order_type": "…", "state": "…", "details": {}, "successful": true },
+}
+```
+
+`quoteId` resolves to `primary_identifier` when non-zero, else falls back to `secondary_identifier` (the temp id).
+
+```ts
+import { parseTpSlFrame } from "@symmio/trading-core";
+
+const frame = parseTpSlFrame(event.data);
+if (frame) {
+  console.log(frame.quoteId, frame.state, frame.successful);
+}
+```
+
+## Parameters
+
+<Properties>
+  <Property name="data" type="unknown" required>
+    Raw WebSocket `event.data`, a JSON string, or an already-parsed object.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="TpSlNotification | null" typeHref="/core/tpsl/tpsl-notification">
+  The normalized notification, or `null` when the input isn't a parseable `report` frame.
+</Returns>
+
+## Related
+
+- [`TpSlNotification`](/core/tpsl/tpsl-notification) — the normalized output.
+- [`RawTpSlNotification`](/core/tpsl/raw-tpsl-notification) — the wire frame it accepts.
+- [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) — subscription that applies this parser.

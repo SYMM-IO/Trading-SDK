@@ -1,0 +1,25 @@
+# TpSlPriceType
+
+Whether a conditional order trips on the mark price or the last-close (subgraph trade) price.
+
+```ts
+type TpSlPriceType = "markPrice" | "lastPrice";
+```
+
+On the wire, [`buildConditionalOrderLeg`](/core/tpsl/build-conditional-order-leg) maps these onto the handler's `conditionalPriceType` — `markPrice` → `market`, `lastPrice` → `last_close`.
+
+## Values
+
+<Properties>
+  <Property name="markPrice" type='"markPrice"'>
+    Trips on the mark price.
+  </Property>
+  <Property name="lastPrice" type='"lastPrice"'>
+    Trips on the last-close (subgraph trade) price.
+  </Property>
+</Properties>
+
+## Related
+
+- [`SetTpSlSide`](/core/tpsl/set-tpsl-side) — carries `priceType`.
+- [`TpSlConditionalOrderLeg`](/core/tpsl/tpsl-conditional-order-leg) — the wire `conditionalPriceType` this maps to.

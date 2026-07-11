@@ -1,0 +1,44 @@
+# TpSlConditionalOrderMessage
+
+The create/edit conditional-order message body (pre-signature). Built by [`buildConditionalOrderMessage`](/core/tpsl/build-conditional-order-message) and signed by [`signTpSlRequest`](/core/tpsl/sign-tpsl-request). A `null` leg means "no order on that side"; [`toSignableTpSlMessage`](/core/tpsl/to-signable-tpsl-message) pads any `null` with `ZERO_LEG` before hashing.
+
+## Fields
+
+<Properties>
+  <Property name="virtualAccount" type="Address">
+    PartyA (the VA address) that owns the quote.
+  </Property>
+  <Property name="subAccount" type="Address">
+    SubAccount that owns the VA.
+  </Property>
+  <Property name="salt" type="string">
+    Random `uint256` salt (decimal string) for replay protection.
+  </Property>
+  <Property name="quoteId" type="number | null">
+    On-chain quote id (or `tempQuoteId`); `null` for a pre-chain order with no id yet.
+  </Property>
+  <Property name="symbolId" type="number">
+    Solver market id.
+  </Property>
+  <Property name="positionType" type="0 | 1">
+    Quote direction — `0` = long, `1` = short.
+  </Property>
+  <Property name="affiliate" type="Address">
+    Affiliate bound to the order.
+  </Property>
+  <Property name="takeProfit" type="TpSlConditionalOrderLeg | null" typeHref="/core/tpsl/tpsl-conditional-order-leg">
+    The TP leg, or `null`.
+  </Property>
+  <Property name="stopLoss" type="TpSlConditionalOrderLeg | null" typeHref="/core/tpsl/tpsl-conditional-order-leg">
+    The SL leg, or `null`.
+  </Property>
+  <Property name="sendQuote" type="null">
+    Always `null` for a TP/SL message.
+  </Property>
+</Properties>
+
+## Related
+
+- [`buildConditionalOrderMessage`](/core/tpsl/build-conditional-order-message) — builds this.
+- [`TpSlConditionalOrderLeg`](/core/tpsl/tpsl-conditional-order-leg) — the leg shape.
+- [`toSignableTpSlMessage`](/core/tpsl/to-signable-tpsl-message) — pads `null` fields before signing.

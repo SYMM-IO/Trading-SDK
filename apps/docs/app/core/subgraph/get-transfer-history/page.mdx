@@ -1,0 +1,80 @@
+# getTransferHistory
+
+Internal transfers — margin moves between SYMMIO accounts — for a set of accounts, from the **events** subgraph's `internalTransfers` collection (the source behind a "Transfer" tab).
+
+```ts
+import { getTransferHistory } from "@symmio/trading-core";
+
+const transfers = await getTransferHistory(config, {
+  accounts: [subAccount],
+  first: 50,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="accounts" type="readonly Address[]" required>
+    The accounts whose transfers to read (e.g. the addresses from `getUserSubAccounts`). A transfer is matched when one
+    of these is the sender or the recipient. An empty array reads nothing.
+  </Property>
+  <Property name="direction" type="TransferDirection" default="all">
+    Which transfers to return relative to `accounts`: `"all"`, `"outgoing"` (sent from a queried account), or
+    `"incoming"` (received by one).
+  </Property>
+  <Property name="first" type="number" default="1000">
+    Page size.
+  </Property>
+  <Property name="skip" type="number" default="0">
+    Page offset.
+  </Property>
+  <Property name="startTime" type="number" default="0">
+    Lower bound on the transfer timestamp (unix seconds).
+  </Property>
+  <Property name="endTime" type="number" default="2_000_000_000">
+    Upper bound on the transfer timestamp (unix seconds).
+  </Property>
+  <Property name="orderDirection" type='"asc" | "desc"' default="desc">
+    Sort direction on the transfer timestamp.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly TransferRow[]">
+  <Property name="id" type="string">
+    Subgraph entity id (use as a stable row key).
+  </Property>
+  <Property name="from" type="Address">
+    Sender (the `from` endpoint), checksummed. A raw on-chain endpoint (SubAccount / Virtual Account), not necessarily
+    the controlling wallet.
+  </Property>
+  <Property name="to" type="Address">
+    Recipient (the `to` endpoint), checksummed.
+  </Property>
+  <Property name="amount" type="bigint">
+    Amount, raw `bigint` in **18 decimals** (account-balance units) — NOT the 6-decimal collateral units used by
+    `getBalanceHistory`.
+  </Property>
+  <Property name="timestamp" type="number">
+    Block timestamp, unix seconds.
+  </Property>
+  <Property name="transaction" type="Hex">
+    Transaction hash of the transfer.
+  </Property>
+  <Property name="direction" type='"outgoing" | "incoming"'>
+    Whether this transfer is outgoing or incoming relative to the queried accounts.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getTransferHistoryQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getTransferHistoryQueryOptions(config, { accounts: [subAccount] }));
+```

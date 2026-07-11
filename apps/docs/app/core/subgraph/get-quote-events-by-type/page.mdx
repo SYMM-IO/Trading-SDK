@@ -1,0 +1,62 @@
+# getQuoteEventsByType
+
+Decoded subgraph events for one quote, filtered to specific event types — useful for building per-quote timelines that pull out just funding ticks or settle-uPnL events. Paged.
+
+```ts
+import { getQuoteEventsByType, QuoteEventType } from "@symmio/trading-core";
+
+const { rows, hasMore } = await getQuoteEventsByType(config, {
+  quoteId: 42n,
+  types: [QuoteEventType.ChargeFundingRate],
+  first: 20,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quoteId" type="bigint" required>
+    On-chain quote id to read events for.
+  </Property>
+  <Property name="types" type="readonly QuoteEventType[]" required>
+    Event types to include: `SettleUpnl` (`SETTLE_UPNL`), `ChargeFundingRate` (`CHARGE_FUNDING_RATE`),
+    `ChargeAccumulatedFundingFee` (`CHARGE_ACCUMULATED_FUNDING_FEE`).
+  </Property>
+  <Property name="first" type="number" default="50">
+    Page size.
+  </Property>
+  <Property name="skip" type="number" default="0">
+    Page offset.
+  </Property>
+  <Property name="orderDirection" type='"asc" | "desc"' default="desc">
+    Sort direction on the event timestamp (newest first).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetQuoteEventsByTypeReturnType">
+  <Property name="rows" type="QuoteEventRow[]">
+    The decoded event rows for the requested `types`.
+  </Property>
+  <Property name="hasMore" type="boolean">
+    `true` when the page came back full (`rows.length === first`) — fetch the next page by advancing `skip`.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getQuoteEventsByTypeQueryOptions, QuoteEventType } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(
+  getQuoteEventsByTypeQueryOptions(config, {
+    quoteId: 42n,
+    types: [QuoteEventType.ChargeFundingRate],
+  }),
+);
+```

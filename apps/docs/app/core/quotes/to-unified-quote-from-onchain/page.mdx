@@ -1,0 +1,31 @@
+# toUnifiedQuoteFromOnchain
+
+Build a [`UnifiedQuote`](/core/quotes/unified-quote) from an on-chain [`Quote`](/core/symmio-contract/get-quote), without merging. Useful for a single-row projection of a raw on-chain read.
+
+The lifecycle is derived from the quote's `QuoteStatus` — open and pending statuses stay `ONCHAIN`, a pending close becomes `CLOSING`, a closed/cancelled/expired quote becomes `CLOSED`, and a liquidated quote becomes `FAILED`. Every amount is already 18-decimal wei on the on-chain struct, so it carries through untouched.
+
+```ts
+import { toUnifiedQuoteFromOnchain } from "@symmio/trading-core";
+
+const row = toUnifiedQuoteFromOnchain(quote);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quote" type="Quote" required>
+    The on-chain quote/position struct (from `getQuote` / `getPartyAOpenPositions`).
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="UnifiedQuote" typeHref="/core/quotes/unified-quote">
+  The unified row, `origin: "onchain"`, keyed `onchain:<id>`, with `raw.onchain` carrying the source struct.
+</Returns>
+
+## Related
+
+- [UnifiedQuote](/core/quotes/unified-quote) — the returned shape.
+- [`getQuote`](/core/symmio-contract/get-quote) — the raw on-chain struct this folds.
+- [reconcileQuotes](/core/quotes/reconcile-quotes) — runs this internally over the on-chain inputs.

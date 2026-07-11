@@ -1,0 +1,30 @@
+# MuonAttestationBase
+
+The signature envelope every Muon attestation return extends. Each normalized read ([`getMuonPrice`](/core/muon/price), [`getMuonUpnlA`](/core/muon/upnl-a), …) adds its own method-specific fields on top of these — the replay-protection and signature data the on-chain verifier checks.
+
+```ts
+import type { MuonAttestationBase } from "@symmio/trading-core";
+```
+
+## Fields
+
+<Properties>
+  <Property name="reqId" type="Hex">
+    Opaque Muon request id.
+  </Property>
+  <Property name="timestamp" type="bigint">
+    Attestation timestamp in seconds.
+  </Property>
+  <Property name="nonce" type="Address">
+    Replay-protection nonce address (`data.init.nonceAddress`).
+  </Property>
+  <Property name="owner" type="Address">
+    Signer owner address (`signatures[0].owner`).
+  </Property>
+  <Property name="signature" type="bigint">
+    Aggregated Schnorr signature as `uint256` (`signatures[0].signature`).
+  </Property>
+  <Property name="gatewaySignature" type="Hex">
+    Muon gateway (node) signature (`nodeSignature`).
+  </Property>
+</Properties>

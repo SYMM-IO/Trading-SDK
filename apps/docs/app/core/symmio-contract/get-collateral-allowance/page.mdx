@@ -1,0 +1,33 @@
+# getCollateralAllowance
+
+Read the allowance the owner has granted the SYMMIO core to spend the collateral token.
+
+```ts
+import { getCollateralAllowance } from "@symmio/trading-core";
+
+const allowance = await getCollateralAllowance(config, { owner });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="owner" type="Address" required>
+    Token owner whose allowance to the SYMMIO core is read (usually the connected EOA).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="bigint">The current allowance, in the collateral token's units.</Returns>
+
+## Query options
+
+```ts
+import { getCollateralAllowanceQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getCollateralAllowanceQueryOptions(config, { owner }));
+```

@@ -1,0 +1,18 @@
+# InstantLayerAccount
+
+Account identity used by Instant Layer delegation calls. Passed as the `account` field of [`grantDelegation`](/core/instant-layer/grant-delegation).
+
+```ts
+const account = { addr: "0xaccount...", isPartyB: false };
+```
+
+## Fields
+
+<Properties>
+  <Property name="addr" type="Address">
+    Account, subaccount, virtual account, or PartyB address.
+  </Property>
+  <Property name="isPartyB" type="boolean">
+    Whether the account is a PartyB account. PartyA/user accounts should pass `false`.
+  </Property>
+</Properties>

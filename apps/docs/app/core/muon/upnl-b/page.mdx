@@ -1,0 +1,57 @@
+# getMuonUpnlB
+
+Fetch a fresh Muon `uPnl_B` attestation for `partyB` against `partyA` and normalize it to typed fields — the partyB's uPnL is computed against the given partyA (used in `lockQuote` solvency validation). The oracle URLs and the SYMMIO diamond address are resolved from `config`; gateways are tried in order until one succeeds.
+
+```ts
+import { getMuonUpnlB } from "@symmio/trading-core";
+
+const b = await getMuonUpnlB(config, { partyB: "0xpb...", partyA: "0xva..." });
+console.log(b.uPnl, b.quoteIds);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="partyB" type="Address" required>
+    The partyB (a hedger/solver) to attest.
+  </Property>
+  <Property name="partyA" type="Address" required>
+    The partyA the partyB's uPnL is computed against.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetMuonUpnlBReturnType">
+  <Property name="partyB" type="Address">
+    The attested partyB.
+  </Property>
+  <Property name="partyA" type="Address">
+    The partyA the attestation is computed against.
+  </Property>
+  <Property name="uPnl" type="bigint" required>
+    Signed unrealized PnL (18-decimal, signed).
+  </Property>
+  <Property name="notionalValueSum" type="bigint" optional>
+    Sum of notional values across the partyB's positions with the partyA.
+  </Property>
+  <Property name="quoteIds" type="bigint[]">
+    Quote ids included in the attestation.
+  </Property>
+</Returns>
+
+Plus the [`MuonAttestationBase`](/core/muon/muon-attestation-base) signature envelope fields.
+
+## Query options
+
+```ts
+import { getMuonUpnlBQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getMuonUpnlBQueryOptions(config, { partyB, partyA }));
+```
+
+`GetMuonUpnlBOptions` requires `partyB` and `partyA`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getMuonUpnlBQueryKey` builder still accepts partial inputs for cache matching and invalidation.

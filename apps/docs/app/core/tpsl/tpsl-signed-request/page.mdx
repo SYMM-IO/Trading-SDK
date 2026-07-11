@@ -1,0 +1,23 @@
+# TpSlSignedRequest
+
+The final POST/DELETE body sent to the handler — typed data plus signature. Produced by [`signTpSlRequest`](/core/tpsl/sign-tpsl-request); [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) and [`deleteQuoteTpSl`](/core/tpsl/delete-quote-tpsl) send it.
+
+## Fields
+
+<Properties>
+  <Property name="typedData" type="{ types; primaryType; domain; message }">
+    The EIP-712 typed data that was signed — `types`, `primaryType`, `domain` (from the [signing
+    spec](/core/tpsl/tpsl-signing-spec)), and the padded `message`.
+  </Property>
+  <Property name="signature" type="string">
+    The EIP-712 signature over `typedData`.
+  </Property>
+  <Property name="signer" type="Address">
+    Address that produced the signature (the session-key wallet).
+  </Property>
+</Properties>
+
+## Related
+
+- [`signTpSlRequest`](/core/tpsl/sign-tpsl-request) — produces this.
+- [`TpSlSigningSpec`](/core/tpsl/tpsl-signing-spec) — source of the `typedData.domain` / `types` / `primaryType`.
