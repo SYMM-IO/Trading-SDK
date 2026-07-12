@@ -13,6 +13,7 @@ import {
   useNotionalCapAll,
   useNotionalCapBySymbolId,
   useOpenInterestBySymbolId,
+  useFundingInfo,
   useSolverErrorCodes,
   useSolverErrorMessage,
 } from "@symmio/trading-react";
@@ -60,6 +61,16 @@ Used vs capped notional per market.
 
 ```ts
 const oi = useOpenInterestBySymbolId({ symbolId: 1n });
+```
+
+### `useFundingInfo`
+
+Next-epoch funding for **every** market in one call — pick a row by `symbol`. Each row is `{ symbol, nextFundingRateLong, nextFundingRateShort, nextFundingTime, epochDurationSeconds }`. The rates are per-epoch **decimal fractions** (`0.0001` = `0.01%`, ×`100` for a percent); a **positive** rate _receives_ funding, a **negative** rate _pays_. `nextFundingTime` is a Unix timestamp in **milliseconds** (guard `< 1e12` as seconds). Does not poll by default — pass `query.refetchInterval`.
+
+```ts
+const funding = useFundingInfo({ query: { refetchInterval: 30_000 } });
+const btc = funding.data?.find((f) => f.symbol === "BTCUSDT");
+const pct = (btc?.nextFundingRateLong ?? 0) * 100; // long-side funding %
 ```
 
 ### `useSolverErrorCodes`
