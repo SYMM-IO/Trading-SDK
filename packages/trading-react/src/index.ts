@@ -34,6 +34,8 @@ export {
   VIRTUAL_ACCOUNT_ISOLATION_TYPE,
   calculateAvailableInstantOpenMargin,
   calculateClosePrice,
+  calculatePriceImpact,
+  calculateQuotePnl,
   calculateTradeParams,
   clampClosePrecision,
   getPartyAOpenPositionsQueryKey,
@@ -481,6 +483,11 @@ export {
  * epoch length from the solver. Does not poll by default; the caller opts into
  * polling via `query.refetchInterval`.
  */
+export {
+  useEstimatedPrice,
+  type UseEstimatedPriceParameters,
+  type UseEstimatedPriceReturnType,
+} from "./estimated-price";
 export { useFundingInfo, type UseFundingInfoParameters, type UseFundingInfoReturnType } from "./funding-info";
 
 /**

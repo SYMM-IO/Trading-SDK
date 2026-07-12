@@ -29,9 +29,10 @@ import { Slider } from "@symmio/ui/components/slider";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
 import { cn } from "@symmio/ui/lib/utils";
-import { formatCompact, shortenAddress } from "@symmio/utils";
+import { formatCompact, formatWithCommas, shortenAddress } from "@symmio/utils";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits, type Address } from "viem";
+import { EstimatedPricePreview } from "./estimated-price-preview";
 
 type TradeSide = "long" | "short";
 type Market = NonNullable<ReturnType<typeof useMarkets>["data"]>[number];
@@ -437,6 +438,8 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
           notionalCap={notionalCapQuery.data}
           notionalCapLoading={notionalCapQuery.isLoading}
           side={side}
+          pricePrecision={Number(selectedMarket?.price_precision ?? 2)}
+          quantityPrecision={Number(selectedMarket?.quantity_precision ?? 4)}
           idPrefix={idPrefix}
         />
       ) : (
@@ -449,6 +452,17 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
           feeLoading={feeQuery.isLoading}
         />
       )}
+
+      <EstimatedPricePreview
+        symbolId={selectedMarket ? Number(selectedMarket.symbol_id ?? 0) : undefined}
+        quantity={tradeParams?.quantity}
+        positionType={positionTypeForSide}
+        entry="open"
+        requestPrice={tradeParams?.requestedOpenPrice}
+        markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
+        pricePrecision={Number(selectedMarket?.price_precision ?? 2)}
+        idPrefix={idPrefix}
+      />
 
       {quoteViolations.length > 0 ? <QuoteViolationsPanel violations={quoteViolations} idPrefix={idPrefix} /> : null}
 
@@ -526,11 +540,15 @@ function TradePreview({
   notionalCap,
   notionalCapLoading,
   side,
+  pricePrecision,
+  quantityPrecision,
   idPrefix,
 }: {
   tradeParams: NonNullable<ReturnType<typeof calculateTradeParams>>;
   feeRates: { openFee: bigint; closeFee: bigint } | undefined;
   markPrice: string | undefined;
+  pricePrecision: number;
+  quantityPrecision: number;
   notionalCap:
     | {
         availableToLong: number;
@@ -562,17 +580,17 @@ function TradePreview({
       <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1.5">
         <PreviewRow
           label="Mark price"
-          value={markPrice !== undefined ? formatDecimalUsd(markPrice) : "—"}
+          value={markPrice !== undefined ? formatPriceAt(markPrice, pricePrecision) : "—"}
           testId={`${idPrefix}-preview-mark-price`}
         />
         <PreviewRow
           label="Request price"
-          value={formatDecimalUsd(tradeParams.requestedOpenPrice)}
+          value={formatPriceAt(tradeParams.requestedOpenPrice, pricePrecision)}
           testId={`${idPrefix}-preview-request-price`}
         />
         <PreviewRow
           label="quantity"
-          value={formatDecimalAmount(tradeParams.quantity)}
+          value={formatQuantityAt(tradeParams.quantity, quantityPrecision)}
           testId={`${idPrefix}-preview-quantity`}
         />
         <PreviewRow
@@ -763,6 +781,18 @@ function formatRatio(value: string): string {
 
 function formatDecimalUsd(value: string): string {
   return `$${formatDecimalAmount(value)}`;
+}
+
+/** A market price at the market's `price_precision` decimals (padded), with a `$`. */
+function formatPriceAt(value: string, pricePrecision: number): string {
+  if (!Number.isFinite(Number(value))) return value;
+  return `$${formatWithCommas(value, { fixedDecimals: pricePrecision })}`;
+}
+
+/** A quantity / size at the market's `quantity_precision` decimals (padded). */
+function formatQuantityAt(value: string, quantityPrecision: number): string {
+  if (!Number.isFinite(Number(value))) return value;
+  return formatWithCommas(value, { fixedDecimals: quantityPrecision });
 }
 
 /**

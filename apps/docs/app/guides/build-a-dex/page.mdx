@@ -8,13 +8,13 @@ Ship a perpetuals trading UI on `@symmio/trading-react`: connect a wallet, pick 
 
 A perps DEX is five parts plus a shared shell. Distribute them however you like — one dense trading page, or a route per part.
 
-| Part                 | What it does                                            | Primary hooks                                                                      |
-| -------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| **Market selection** | Discover and switch markets — header + searchable list. | `useMarkets`                                                                       |
-| **Trade form**       | Side, size, leverage, TP/SL, slippage, submit.          | `useInstantOpenAuto`, `useInstantOpenWithTpSl`, `useLockedParams`, `useFeeForUser` |
-| **Positions**        | Live open positions, per-row uPnL, close.               | `useManagedQuotes`, `useQuoteUpnlAndPnl`, `useInstantCloseAuto`                    |
-| **Collateral**       | Available vs allocated balance, deposit / allocate.     | `useAccountBalanceOf`, `useAccountBalanceInfo`, `useAllocate`, `useDeallocate`     |
-| **TP/SL**            | Take-profit / stop-loss per position.                   | `useQuoteTpSl`, `useSetQuoteTpSl`                                                  |
+| Part                 | What it does                                             | Primary hooks                                                                            |
+| -------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Market selection** | Discover and switch markets — header + searchable list.  | `useMarkets`                                                                             |
+| **Trade form**       | Side, size, leverage, TP/SL, slippage, submit.           | `useInstantOpenAuto`, `useInstantOpenWithTpSl`, `useLockedParams`, `useFeeForUser`       |
+| **Positions**        | Live open positions, per-row uPnL, close.                | `useManagedQuotes`, `useQuoteUpnlAndPnl`, `useInstantCloseAuto`                          |
+| **Collateral**       | Deposit and withdraw the SubAccount's available balance. | `useAccountBalanceOf`, `useDeposit`, `useInitiateWithdraw`, `useFinalizeWithdrawRequest` |
+| **TP/SL**            | Take-profit / stop-loss per position.                    | `useQuoteTpSl`, `useSetQuoteTpSl`                                                        |
 
 The shell — wallet connection and the SubAccount picker — is shared by every part and surfaces once: `useWalletAccount`, `useConnectWallet`, `useDisconnectWallet`, `useSwitchToSymmioChain`, `useUserSubAccounts`.
 
@@ -179,25 +179,31 @@ SYMMIO trades happen against a **SubAccount** address, not the EOA. Every tradin
 
 ## 3. Collateral
 
-The diamond keeps two balances per SubAccount. The instant (lowcap) flow this guide describes funds from **available**.
+The user-facing collateral flow for a lowcap DEX is just **deposit** and **withdraw** — funds live in the SubAccount's **available** balance, which instant trading spends directly.
 
-- **Available (deallocated)** — deposited collateral idle on the account. Read via [`useAccountBalanceOf`](../../react/account-layer#useaccountbalanceof) (`{ account }` → `bigint`, 18 decimals). **Instant open consumes this directly.**
-- **Allocated** — collateral moved into the classic-flow pool where CVA + LF locks sit. Read via [`useAccountBalanceInfo`](../../react/account-layer#useaccountbalanceinfo) (`{ account }` → `{ allocatedBalance, lockedCVA, lockedLF, lockedPartyAMM, lockedPartyBMM, … }`).
-
-Show both. Wire the buttons to:
-
-- **[`useAllocate`](../../react/account-layer#useallocate)** — available → allocated.
-- **[`useDeallocate`](../../react/account-layer#usedeallocate)** — allocated → available. Fetches a fresh Muon uPnL signature for you. Subject to an on-chain debounce — a rapid second deallocate reverts.
+- **Available (deallocated)** — deposited collateral idle on the account: what instant open consumes and what a user withdraws. Read via [`useAccountBalanceOf`](../../react/account-layer#useaccountbalanceof) (`{ account }` → `bigint`, 18 decimals).
+- **Deposit** (wallet → available) — [`useApproveCollateral`](../../react/symmio-contract#useapprovecollateral--usesimulateapprovecollateral) (ERC-20 approve) then [`useDeposit`](../../react/symmio-contract#usedeposit--usesimulatedeposit) (`{ account, amount }`).
 
 <Callout type="warning">
-  **Gate trading on _available_, not _allocated_.** Instant open pulls from `useAccountBalanceOf` (available).
-  `useAllocate` moves funds into the classic-flow pool and actually *reduces* what an instant open can use, so
-  the fund gate is `useAccountBalanceOf > 0` — the submit button says **Deposit collateral**, not _Allocate_.
+  **Skip allocate / deallocate in a lowcap UI.** [`useAllocate`](../../react/account-layer#useallocate) /
+  [`useDeallocate`](../../react/account-layer#usedeallocate) shuffle funds in and out of the _classic_ (non-instant) pool
+  where CVA / LF locks sit — a concept a lowcap trader never touches, and allocating actually _reduces_ what an instant
+  open can use. Keep the panel to **Deposit + Withdraw**; the fund gate is `useAccountBalanceOf > 0` (the submit button
+  says **Deposit collateral**), never _Allocate_.
 </Callout>
 
+### Withdraw
+
+Withdrawing returns funds to the wallet from the **available** balance in a two-step, cooldown-gated flow:
+
+1. **Initiate** — [`useInitiateWithdraw`](../../react/withdraw#useinitiatewithdraw--usesimulateinitiatewithdraw). Build a part with `createClassicWithdrawPart({ id: 0n, amount, receiver, chainId: BigInt(chainId) })` (`amount` in collateral decimals, `receiver` = the connected wallet), then `mutate({ account: subAccount, parts: [part] })`. This queues a request and starts the cooldown.
+2. **Cooldown** — a **protocol-configured** on-chain value (`max(lastDeallocation + cooldownPeriod, now)`), read per request as `request.cooldownEndTime`, or via [`useWithdrawableTime`](../../react/withdraw#usewithdrawabletime) for an "if you withdrew now" estimate. It's usually short (hours) but not fixed — render a countdown that **adds a day segment only when remaining ≥ 24 h**, so it never shows a bare clock time if the protocol ever raises it.
+3. **Finalize / cancel** — [`usePendingWithdrawRequests`](../../react/withdraw#usependingwithdrawrequests) (`{ user }` → `WithdrawRequest[]` with `id`, `totalAmount`, `cooldownEndTime`) lists active requests. [`useFinalizeWithdrawRequest`](../../react/withdraw#usefinalizewithdrawrequest--usesimulatefinalizewithdrawrequest) (`{ user, requestId }`) pays out to the wallet once the cooldown elapses (permissionless); [`useRequestCancelWithdraw`](../../react/withdraw#userequestcancelwithdraw--usesimulaterequestcancelwithdraw) (`{ account, requestId }`) cancels a pending one.
+
 <Callout type="info">
-  Amounts are 18-decimal raw units. Convert user input with `parseEther` (viem) or the SDK's re-exported
-  `parseTokenAmount` from `@symmio/utils/amounts`.
+  Account balances (available) are **18-decimal** internal units. **Deposit and withdraw amounts are in the collateral
+  token's decimals** (`getChainConfig().addresses.collateralDecimals`) — parse them with `parseUnits(input,
+  collateralDecimals)`, not `parseEther`.
 </Callout>
 
 ## 4. Session key + delegation
@@ -392,6 +398,26 @@ await open.mutateAsync({
 - `useLockedParams({ symbol, leverage })` drives a live "Locks CVA X% + LF Y%" hint.
 - Slippage is a chip row (`0.1 / 0.5 / 1 / custom`), never a raw number field.
 - The submit button is smart-labeled from a single gate (see [the gate ladder](#the-gate-ladder)).
+
+### Estimated fill price + impact
+
+Preview the price the solver would actually fill at with **[`useEstimatedPrice`](../../react/solvers#useestimatedprice)** — pass the **slippage-adjusted request price** (`calculateTradeParams().requestedOpenPrice` for an open, `calculateClosePrice()` for a close), the `quantity`, side, and `entry`. From the returned `estimatedPrice`:
+
+- **Open** — show it in the ticket plus the **price impact** vs mark: `calculatePriceImpact({ estimatedPrice, referencePrice: markPrice })`.
+- **Close** — show the estimated close price and fold it into an **estimated PnL** with the realized-PnL calc: `calculateQuotePnl({ positionType, closedAmount, closedPrice: parseEther(estimatedPrice), openedPrice, leverage })` (get `leverage` from `useQuoteUpnlAndPnl`).
+
+```tsx
+const est = useEstimatedPrice({
+  symbolId: Number(market.symbol_id),
+  quantity: tradeParams.quantity,
+  positionType,
+  entry: "open",
+  price: tradeParams.requestedOpenPrice, // slippage-adjusted, NOT the raw mark
+}).data?.estimatedPrice;
+const impact = est ? calculatePriceImpact({ estimatedPrice: est, referencePrice: String(markPrice) }) : 0;
+```
+
+Debounce the `quantity` / `price` inputs so it doesn't refetch on every keystroke.
 
 ### Available margin (the Max chip)
 

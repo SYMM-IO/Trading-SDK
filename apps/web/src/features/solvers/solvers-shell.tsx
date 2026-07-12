@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/page-header";
 import { MethodGroup } from "../inspector/method-group";
 import { ReadMarkets } from "../inspector/read-markets";
 import { QuotesCard } from "../quotes/quotes-card";
+import { EnigmaEstimatedPriceCard } from "./enigma-estimated-price-card";
 import { EnigmaInstantCloseCard } from "./enigma-instant-close-card";
 import { EnigmaInstantOpenCard } from "./enigma-instant-open-card";
 import { ReadFundingInfoCard } from "./read-funding-info-card";
@@ -27,12 +28,13 @@ export function SolversShell() {
         description="The solver is an off-chain service, not a contract. Fetch tradable markets (contract symbols) — symbols, leverage, fees, and state — straight from the chain's solver."
       />
 
-      <MethodGroup label="Reads" count={10} fullWidth>
+      <MethodGroup label="Reads" count={11} fullWidth>
         <ReadLockedParams />
         <ReadNotionalCap />
         <ReadNotionalCapTotals />
         <ReadOpenInterest />
         <ReadFundingInfoCard />
+        <EnigmaEstimatedPriceCard />
         <ReadMarketInfoCard />
         <ReadMarkets />
         <ReadInstantOpensCard />

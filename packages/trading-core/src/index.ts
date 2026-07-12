@@ -631,6 +631,21 @@ export {
  * extrapolates a per-epoch rate over a day window (linear, non-compounded).
  */
 export {
+  calculatePriceImpact,
+  getEstimatedPrice,
+  getEstimatedPriceQueryKey,
+  getEstimatedPriceQueryOptions,
+  toEstimatedPrice,
+  type CalculatePriceImpactParameters,
+  type EstimatedPriceEntry,
+  type GetEstimatedPriceData,
+  type GetEstimatedPriceOptions,
+  type GetEstimatedPriceParameters,
+  type GetEstimatedPriceQueryKey,
+  type GetEstimatedPriceQueryOptions,
+  type GetEstimatedPriceReturnType,
+} from "./solvers/estimated-price";
+export {
   getFundingInfo,
   getFundingInfoQueryKey,
   getFundingInfoQueryOptions,
