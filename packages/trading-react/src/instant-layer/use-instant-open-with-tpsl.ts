@@ -127,10 +127,26 @@ export function useInstantOpenWithTpSl(
           chainId: resolvedChainId,
           quoteId,
         });
-        // Mirror useSetQuoteTpSl.onSuccess: mark confirming for the sides we
-        // submitted so useQuoteTpSl overlays "Processing…" until the WS report.
-        if (variables.tpsl!.tp) markConfirming(quoteId, "tp");
-        if (variables.tpsl!.sl) markConfirming(quoteId, "sl");
+        // Mirror useSetQuoteTpSl.onSuccess: seed the confirming slot with the
+        // target trigger price/type (not just the state) so useQuoteTpSl renders
+        // the levels immediately — e.g. inline on the freshly-opened position row,
+        // keyed by the tempQuoteId — instead of blank until the WS report lands.
+        const tp = variables.tpsl!.tp;
+        const sl = variables.tpsl!.sl;
+        if (tp) {
+          markConfirming(quoteId, "tp", {
+            price: tp.triggerPrice,
+            priceType: tp.priceType,
+            cohQuoteId: tpslResult.cohQuoteId,
+          });
+        }
+        if (sl) {
+          markConfirming(quoteId, "sl", {
+            price: sl.triggerPrice,
+            priceType: sl.priceType,
+            cohQuoteId: tpslResult.cohQuoteId,
+          });
+        }
         setPhase("success");
         return { instantOpen: openResult, tpsl: tpslResult };
       } catch (err) {

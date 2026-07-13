@@ -2,6 +2,8 @@
 
 import {
   depositForAccountMutationOptions,
+  getAccountBalanceInfoQueryKey,
+  getAccountBalanceOfQueryKey,
   getCollateralAllowanceQueryKey,
   getCollateralBalanceQueryKey,
   type DepositForAccountParameters,
@@ -31,7 +33,9 @@ export type UseDepositReturnType = UseMutationResult<DepositResult, SymmioReques
  * subaccount's available balance. The connected wallet must own the subaccount,
  * and must have approved the collateral to the SYMMIO core first (see
  * `useApproveCollateral`). On success, the connected wallet's collateral
- * allowance and balance queries are invalidated so mounted reads refetch.
+ * allowance and balance queries **and the credited subaccount's available
+ * balance** are invalidated, so mounted reads — including the trade form's
+ * available instant-open margin (`Max`) — refetch immediately.
  *
  * @example
  * ```tsx
@@ -67,10 +71,17 @@ export function useDeposit(parameters: UseDepositParameters = {}): UseDepositRet
         throw normalizeSymmError(err);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       const partial = address ? { owner: address } : undefined;
       void queryClient.invalidateQueries({ predicate: predicateMatch(getCollateralAllowanceQueryKey, partial) });
       void queryClient.invalidateQueries({ predicate: predicateMatch(getCollateralBalanceQueryKey, partial) });
+      // The deposit credits the subaccount's available balance — refetch it so
+      // the trade form's available margin / `Max` reflect the new funds. A
+      // deposit is not a trade settle, so `live` balance reads don't otherwise
+      // refetch on their own.
+      const accountPartial = { account: variables.account };
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceInfoQueryKey, accountPartial) });
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceOfQueryKey, accountPartial) });
     },
   });
 }

@@ -396,7 +396,7 @@ await open.mutateAsync({
 - Side toggle is a colored segmented control (Long / Short), not a dropdown.
 - Leverage bounds read from `market.max_leverage`, never a hardcoded value.
 - `useLockedParams({ symbol, leverage })` drives a live "Locks CVA X% + LF Y%" hint.
-- Slippage is a chip row (`0.1 / 0.5 / 1 / custom`), never a raw number field.
+- Slippage is a chip row (`0.1 / 0.5 / 1 / 5 / custom`), never a raw number field — default **5%**, since lowcap fills move more than majors do.
 - The submit button is smart-labeled from a single gate (see [the gate ladder](#the-gate-ladder)).
 
 ### Estimated fill price + impact
@@ -470,6 +470,8 @@ Pattern: on every input change run `calculateTradeParams` → if non-null run `v
 
 Per-row: **[`useQuoteUpnlAndPnl`](../../react/quotes#usequoteupnlandpnl)** → `{ upnl, upnlPercent, markPrice }`; **[`useInstantCloseAuto`](../../react/solvers/instant-close#useinstantcloseauto)** to close; **[`useQuotePlatformFee`](../../react/quotes#usequoteplatformfee)** for a fee estimate.
 
+The close ticket carries its own **slippage** control — a chip row like the open form (default **5%**). It shaves the request price via `calculateClosePrice({ markPrice, slippage, positionType, pricePrecision })` and is passed straight through to `useInstantCloseAuto`, so surface it to the user rather than hardcoding it.
+
 Closing is session-key-signed, so the close button lives behind the same delegation gate as the open form — a position that survived from a prior session can still show up here with a stale key. Gate the close action on the trading delegation and surface **"Enable trading"** when it is inactive (see [§4 · Gate every write](#gate-every-write-not-just-the-open-form)).
 
 <Callout type="info">
@@ -505,6 +507,17 @@ The `UnifiedQuote` amount / price fields — quantities, prices, `liquidationPri
   4)`). Format with a **fixed-decimals** helper (e.g. `formatWithCommas(value, {fixedDecimals})`) so a market always
   renders in its own format across the header, rows, and modals — not a global "4 decimals everywhere".
 </Callout>
+
+### A just-opened position isn't closeable yet
+
+An instant open seeds the row **optimistically**, so it shows in the table the moment you submit — but it has no on-chain `quoteId` until the solver's on-chain settle notification lands. Closing a row that hasn't anchored reverts. Drive the row's open state from `UnifiedQuote.lifecycle`, exactly like the close state, and show a loading state — a disabled **"Opening…"** button — until it clears:
+
+```ts
+const OPENING_STAGES = [QuoteLifecycle.OPTIMISTIC, QuoteLifecycle.PRICE_FILLED, QuoteLifecycle.WRITE_ONCHAIN];
+const isOpening = OPENING_STAGES.includes(quote.lifecycle);
+```
+
+The open advances `OPTIMISTIC → PRICE_FILLED → WRITE_ONCHAIN → ONCHAIN`; only at `ONCHAIN` — the second, on-chain solver notification — does the position get its on-chain `quoteId` and become closeable. Gate the **Close** row action on `!isOpening` and swap it for a spinner until that notification arrives, so a user can't fire a close that would silently revert mid-open. TP/SL is unaffected — it keys off the `tempQuoteId` and the store re-links it once the anchor lands, so leave it enabled through the open.
 
 ### Closing is WS-authoritative
 
@@ -561,7 +574,7 @@ const { data: info } = useAccountBalanceInfo({ account: subAccount, live: true }
 Prerequisites: session-key delegation **and** the second COH-wallet delegation for `REQUEST_TO_CLOSE_POSITION_SELECTOR` (see [§4](#4-session-key--delegation)). Skip either and the on-chain trigger reverts.
 
 - **[`useQuoteTpSl`](../../react/tpsl#usequotetpsl)** — reads the current TP/SL record for a quote (`{ quoteId, account }` → `{ tp, sl, tpState, slState, … }`). Folds handler-side conditional orders and on-chain quotes into one record.
-- **[`useSetQuoteTpSl`](../../react/tpsl#usesetquotetpsl)** — mutates it. Pass `tp: { triggerPrice, priceType }` and/or `sl: { triggerPrice, priceType }` (`priceType` is `"markPrice" | "lastPrice"`); `undefined` clears a leg. `quoteId` accepts either the on-chain `quoteId` **or** the pre-chain `tempQuoteId`.
+- **[`useSetQuoteTpSl`](../../react/tpsl#usesetquotetpsl)** — mutates it. Pass `tp: { triggerPrice, priceType }` and/or `sl: { triggerPrice, priceType }` (`priceType` is `"markPrice" | "lastPrice"`). **Send only the leg the user actually changed** — an omitted leg is left untouched on the service (omitting is _not_ clearing; at least one leg is required). Track a per-side "dirty" flag so editing TP alone doesn't re-submit the unchanged SL. To remove a leg entirely, use [`useDeleteQuoteTpSl`](../../react/tpsl), not an empty leg. `quoteId` accepts either the on-chain `quoteId` **or** the pre-chain `tempQuoteId`.
 
 `quoteId` picks the same id as any other per-row action: `quote.quoteId ?? BigInt(quote.tempQuoteId)`. A TP/SL attached at open (see [§6](#attaching-tpsl-at-open)) is keyed by the `tempQuoteId`; the store re-links it to the on-chain `quoteId` once the open anchors, so the record follows the position across the transition.
 
@@ -603,7 +616,7 @@ See the [TP/SL reference](../../react/tpsl) for the full state machine, store sh
 - [ ] Colored Long / Short segmented control.
 - [ ] `Max` uses `useAvailableInstantOpenMargin` (balance shaved for fees + slippage), not the raw `useAccountBalanceOf` / `allocatedBalance`.
 - [ ] Leverage bounds from `market.max_leverage`.
-- [ ] Slippage is a chip row with a custom field.
+- [ ] Slippage is a chip row with a custom field (default 5%), on both the open ticket **and** the close modal.
 - [ ] Submit is smart-gated (Connect → Switch → Select SubAccount → Deposit → Insufficient → Open).
 - [ ] Pre-submit validation runs `calculateTradeParams` + `validateInstantOpenAgainstMarket`.
 
@@ -618,6 +631,7 @@ See the [TP/SL reference](../../react/tpsl) for the full state machine, store sh
 - [ ] TP/SL confirmation is WS-driven — `useQuoteTpSl` gets `account`, the panel stays open on POST success, and a leg is "done" only at `tpState`/`slState === "new"`.
 - [ ] Positions use `useManagedQuotes`; actions pick `quote.quoteId ?? BigInt(quote.tempQuoteId)`.
 - [ ] Close state is driven by `UnifiedQuote.lifecycle` (WS-authoritative), not the mutation's `isSuccess`.
+- [ ] A just-opened row gates **Close** on the open lifecycle (`OPTIMISTIC → PRICE_FILLED → WRITE_ONCHAIN`), showing a loading state until it reaches `ONCHAIN` (TP/SL stays enabled — it keys off `tempQuoteId`).
 - [ ] Margin refetches after an open/close **settles** (on the settle notification), not just at POST time.
 
 ## Pitfalls
