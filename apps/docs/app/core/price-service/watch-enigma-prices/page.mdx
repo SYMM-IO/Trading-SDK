@@ -1,0 +1,63 @@
+# watchEnigmaPrices
+
+Subscribe to the chain's Enigma lowcap price-service WebSocket and receive live mark-price ticks.
+
+The endpoint is **broadcast-only** — there is no subscribe message; every connected client receives the same ticks. The service pushes **batches** of [`EnigmaPriceTick`](/core/price-service/enigma-price-tick) — your `onPrices` handler is called once per push with every market that ticked. Watchers sharing the same `wsUrl` share one underlying socket (pooled per `wsUrl`); it reconnects with exponential backoff and closes only when the last watcher unwatches.
+
+This is a subscribe function, not a query — there are no query options. For a React binding, use the [`useEnigmaPrices`](/react/price-service) hook.
+
+```ts
+import { watchEnigmaPrices } from "@symmio/trading-core";
+
+const unwatch = watchEnigmaPrices(config, {
+  onPrices: (ticks) => {
+    for (const tick of ticks) {
+      console.log(tick.name, tick.markPrice, tick.time);
+    }
+  },
+  onStatusChange: (status) => console.log("status:", status),
+  onError: (err) => console.error("prices error:", err),
+});
+
+// later, dispose (idempotent):
+unwatch();
+```
+
+## Parameters
+
+<Properties>
+  <Property
+    name="onPrices"
+    type="(ticks: EnigmaPriceTick[]) => void"
+    typeHref="/core/price-service/enigma-price-tick"
+    required
+  >
+    Called for every parsed batch of price ticks.
+  </Property>
+  <Property name="onStatusChange" type="(s: SocketStatus) => void" optional>
+    Called whenever the underlying connection status changes. `SocketStatus` is `"connecting" | "open" | "reconnecting"
+    | "closing" | "closed"`.
+  </Property>
+  <Property name="onError" type="(e: SymmError) => void" optional>
+    Called on a transport or parse error; does not stop the subscription.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Unwatch">
+  Call to stop the subscription; idempotent. The pooled socket closes when the last watcher releases.
+</Returns>
+
+## Throws
+
+Throws a `SymmError` synchronously when the chain is unsupported, has no `priceService.wsUrl` configured (`PRICES_WS_NOT_CONFIGURED`), or no `WebSocket` implementation is available. Per-frame parse and transport failures surface on `onError` as a `SymmError` (`PRICES_SOCKET_ERROR`) and do not stop the subscription.
+
+## Related
+
+- [WebSocket streams](/core/concepts/websocket) — pool, reconnect, and the `SocketStatus` lifecycle.
+- [EnigmaPriceTick](/core/price-service/enigma-price-tick) — the shape delivered to `onPrices`.
+- [getEnigmaPriceServicePricesByAddresses](/core/price-service/prices-by-addresses) — one-shot REST alternative when you don't need a live stream.

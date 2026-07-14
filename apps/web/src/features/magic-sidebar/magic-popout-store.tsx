@@ -200,7 +200,7 @@ function PopoutShell({ pin, queryClient, overrides, getWalletClient, container, 
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <SymmioProvider chainOverrides={overrides} getWalletClient={getWalletClient}>
+        <SymmioProvider symmioConfig={overrides} getWalletClient={getWalletClient}>
           <PortalContainerProvider container={container}>
             <PopoutCard pin={pin} onClose={onRequestClose} />
           </PortalContainerProvider>

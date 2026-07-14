@@ -1,0 +1,69 @@
+# getOnchainContractMarkets
+
+Read the contract's `getSymbols` view — the authoritative on-chain market list, without solver-added metadata like precision or tick bounds.
+
+```ts
+import { getOnchainContractMarkets } from "@symmio/trading-core";
+
+const markets = await getOnchainContractMarkets(config, {
+  start: 0n,
+  size: 100n,
+});
+```
+
+Use this when you need on-chain truth (e.g. verifying the solver's catalog is in sync). For UI catalogs, prefer the solver's [`getMarkets`](/core/solvers#getmarkets) — it adds precision / tick metadata the contract doesn't carry.
+
+## Parameters
+
+<Properties>
+  <Property name="start" type="bigint | number" required>
+    Start offset passed to SYMMIO core `getSymbols`.
+  </Property>
+  <Property name="size" type="bigint | number" required>
+    Page size passed to SYMMIO core `getSymbols`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly OnchainContractMarket[]">
+  <Property name="symbolId" type="bigint">
+    SYMMIO symbol id.
+  </Property>
+  <Property name="name" type="string">
+    Contract-level market name, such as `BTCUSDT`.
+  </Property>
+  <Property name="isValid" type="boolean">
+    Whether the market is currently valid for trading.
+  </Property>
+  <Property name="minAcceptableQuoteValue" type="bigint">
+    Minimum acceptable quote value in raw 18-decimal units.
+  </Property>
+  <Property name="minAcceptablePortionLF" type="bigint">
+    Minimum acceptable liquidation-fee portion in raw 18-decimal units.
+  </Property>
+  <Property name="tradingFee" type="bigint">
+    Trading fee rate in raw 18-decimal fixed point units.
+  </Property>
+  <Property name="maxLeverage" type="bigint">
+    Maximum leverage in raw 18-decimal fixed point units.
+  </Property>
+  <Property name="fundingRateEpochDuration" type="bigint">
+    Funding-rate epoch duration in seconds.
+  </Property>
+  <Property name="fundingRateWindowTime" type="bigint">
+    Funding-rate window time in seconds.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getOnchainContractMarketsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getOnchainContractMarketsQueryOptions(config, { start: 0n, size: 100n }));
+```

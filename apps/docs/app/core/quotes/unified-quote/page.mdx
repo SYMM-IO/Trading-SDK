@@ -1,0 +1,58 @@
+# UnifiedQuote
+
+A single quote/position row merged from every source — on-chain reads, pending instant-opens, pending instant-closes, and notifications — into one stable, de-duplicated shape. This is the primary abstraction quote and position UIs build against; every other function in this module reads or produces it.
+
+All amount and price fields are 18-decimal-wei `bigint`, matching the on-chain [`Quote`](/core/symmio-contract/get-quote). Off-chain hedger amounts are normalized to wei before they reach this type. The `key` is a stable identity for React lists and the removal ledger; it migrates from `temp:<tempId>` to `onchain:<id>` when a row anchors, but the row's identity is preserved. `raw` carries the untouched source rows for advanced use.
+
+```ts
+import type { UnifiedQuote } from "@symmio/trading-core";
+```
+
+## Fields
+
+<Properties>
+  <Property name="key" type="string">Stable identity for this row (`onchain:<id>` or `temp:<tempId>`). Survives the temp → on-chain anchor transition.</Property>
+  <Property name="origin" type="QuoteOrigin" typeHref="/core/quotes/quote-origin">Source the row was reconciled from.</Property>
+  <Property name="lifecycle" type="QuoteLifecycle" typeHref="/core/quotes/quote-lifecycle">Current lifecycle stage.</Property>
+  <Property name="quoteId" type="bigint">On-chain quote id, once anchored. Absent while the row is still off-chain.</Property>
+  <Property name="tempQuoteId" type="number">Hedger-local temp id, before the on-chain id exists (negative).</Property>
+  <Property name="partyA" type="Address">Sub-account (partyA) that owns the row.</Property>
+  <Property name="partyB" type="Address">PartyB (hedger/solver) that locked/opened the quote, when known.</Property>
+  <Property name="vaAddress" type="Address">Solver-assigned Virtual Account address (lowcap), when known.</Property>
+  <Property name="symbolId" type="bigint">Market identifier (`symbolId`).</Property>
+  <Property name="positionType" type="PositionType">Long or short.</Property>
+  <Property name="orderType" type="OrderType">Limit or market order.</Property>
+  <Property name="quoteStatus" type="QuoteStatus">On-chain status, when the row is anchored on-chain.</Property>
+  <Property name="requestedOpenPrice" type="bigint">Price partyA requested to open at (wei).</Property>
+  <Property name="openedPrice" type="bigint">Price partyB actually opened at (wei), when known.</Property>
+  <Property name="initialOpenedPrice" type="bigint">Initial price partyB opened at before any edits (wei), when known.</Property>
+  <Property name="avgClosedPrice" type="bigint">Average price across executed closes (wei), when known.</Property>
+  <Property name="requestedClosePrice" type="bigint">Requested limit price for a pending close (wei), when known.</Property>
+  <Property name="marketPrice" type="bigint">Market price snapshot at last state change (wei), when known.</Property>
+  <Property name="quantity" type="bigint">Total requested quantity (wei) — fixed for the life of the position; partial closes do not shrink it.</Property>
+  <Property name="closedAmount" type="bigint">Quantity already closed (wei), when known.</Property>
+  <Property name="openQuantity" type="bigint">Remaining **open** size (wei): `quantity − closedAmount`, the live quantity still on the position (the figure a UI shows as "position size"); `0` once fully closed.</Property>
+  <Property name="quantityToClose" type="bigint">Quantity targeted by a pending close (wei), when closing.</Property>
+  <Property name="lockedValues" type="LockedValues">Margin locked against the row (wei) — CVA, LF, and the two maintenance-margin legs.</Property>
+  <Property name="initialLockedValues" type="LockedValues">Margin locked at open time — basis for leverage (wei), when known.</Property>
+  <Property name="maxFundingRate" type="bigint">Maximum funding rate partyA accepts, when known.</Property>
+  <Property name="accumulatedPaidFunding" type="bigint">Net funding paid (positive) or received (negative) over the position's life (wei), when known.</Property>
+  <Property name="lastFundingPaymentTimestamp" type="bigint">Block timestamp funding was last applied, when known.</Property>
+  <Property name="deadline" type="bigint">Quote deadline (expiry) timestamp, when known.</Property>
+  <Property name="tradingFee" type="bigint">Trading fee charged on the quote (wei), when known.</Property>
+  <Property name="closeFee" type="bigint">Fee charged on close (wei), when known.</Property>
+  <Property name="affiliate" type="Address">Affiliate address attributed to the quote, when known.</Property>
+  <Property name="partyBsWhiteList" type="readonly Address[]">PartyB addresses allowed to fill this quote (empty means any), when known.</Property>
+  <Property name="parentId" type="bigint">Parent quote id for a partially-opened child, when known.</Property>
+  <Property name="data" type="Hex">Opaque per-quote data, when known.</Property>
+  <Property name="createTimestamp" type="bigint">Block timestamp the quote was created, when known.</Property>
+  <Property name="statusModifyTimestamp" type="bigint">Block timestamp of the last status change (the reconciler's sort key), when known.</Property>
+  <Property name="raw" type="{ onchain?; instantOpen?; instantClose? }">Untouched source rows this was reconciled from: the on-chain `Quote` (`onchain`), the `PendingInstantOpen` (`instantOpen`), and/or the `PendingInstantClose` (`instantClose`) it was merged from.</Property>
+</Properties>
+
+## Related
+
+- [QuoteOrigin](/core/quotes/quote-origin) — the `origin` field.
+- [QuoteLifecycle](/core/quotes/quote-lifecycle) — the `lifecycle` field.
+- [toUnifiedQuoteFromOnchain](/core/quotes/to-unified-quote-from-onchain) — builds a row from an on-chain `Quote`.
+- [reconcileQuotes](/core/quotes/reconcile-quotes) — produces the merged `UnifiedQuote[]`.

@@ -1,0 +1,56 @@
+# toUnifiedQuoteFromInstantClose
+
+Build a `CLOSING` [`UnifiedQuote`](/core/quotes/unified-quote) from a pending instant-close record, without merging.
+
+A close record carries only the quote id and close amounts (already wei), so the market/side metadata is supplied via `context` — typically copied from the matching on-chain row. Reconciliation overlays closes onto the existing on-chain row directly; this helper is exposed for consumers that want to render a standalone close-only row when the on-chain row is not available.
+
+```ts
+import { toUnifiedQuoteFromInstantClose } from "@symmio/trading-core";
+
+const row = toUnifiedQuoteFromInstantClose(pending, {
+  partyA,
+  symbolId,
+  positionType,
+  orderType,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="pending" type="PendingInstantClose" required>
+    A normalized pending instant-close record (from `getInstantCloses`).
+  </Property>
+  <Property name="context" type="ToUnifiedQuoteFromInstantCloseContext" required>
+    Market/side metadata for the targeted position — the fields a close record does not carry. See below.
+  </Property>
+</Properties>
+
+The `context` object (`ToUnifiedQuoteFromInstantCloseContext`) identifies the position the close targets:
+
+<Properties>
+  <Property name="partyA" type="Address" required>
+    Sub-account (partyA) that owns the position being closed.
+  </Property>
+  <Property name="symbolId" type="bigint" required>
+    Market identifier of the position being closed.
+  </Property>
+  <Property name="positionType" type="PositionType" required>
+    Side of the position being closed.
+  </Property>
+  <Property name="orderType" type="OrderType" required>
+    Order type of the position being closed.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="UnifiedQuote" typeHref="/core/quotes/unified-quote">
+  The unified row, `origin: "onchain"`, `lifecycle: CLOSING`, keyed `onchain:<quoteId>`. Open-side fields (`requestedOpenPrice`, `quantity`, `openQuantity`) are `0n` — they come from the on-chain row when available.
+</Returns>
+
+## Related
+
+- [UnifiedQuote](/core/quotes/unified-quote) — the returned shape.
+- [reconcileQuotes](/core/quotes/reconcile-quotes) — overlays closes onto the on-chain row directly, rather than producing standalone close rows.
+- [Solvers](/core/solvers) — `getInstantCloses` produces the `PendingInstantClose` input.

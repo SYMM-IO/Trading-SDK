@@ -1,0 +1,30 @@
+# normalizeNotification
+
+Normalize a raw wire frame into a [`Notification`](/core/notifications/notification): camelCase fields, a resolved `quoteId` (the on-chain id when present, else the temp id), and a classified `type`.
+
+`watchNotifications` calls it internally; reach for it directly when consuming the raw feed elsewhere — for example replaying a fixture in tests.
+
+```ts
+import { normalizeNotification } from "@symmio/trading-core";
+
+const notification = normalizeNotification(rawFrame);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="raw" type="RawPositionNotification" typeHref="/core/notifications/raw-position-notification" required>
+    The raw position-state frame.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Notification" typeHref="/core/notifications/notification">
+  The normalized, classified notification, with the original frame preserved on `raw`.
+</Returns>
+
+## Related
+
+- [classifyNotification](/core/notifications/classify-notification) — the classification step applied to `action_status`.
+- [parseNotificationFrame](/core/notifications/parse-notification-frame) — produces the raw frame this consumes.

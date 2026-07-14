@@ -1,0 +1,73 @@
+import { Callout } from "nextra/components";
+
+# Getting Started with Utils
+
+`@symmio/utils` is a framework-agnostic helper layer — amount math, Decimal.js precision, display formatters, and address helpers. Every export is a pure function or constant, so calls are safe anywhere: Node scripts, workers, render loops, any framework.
+
+## 1. Install
+
+```sh
+pnpm add @symmio/utils viem
+```
+
+`viem` is a peer dependency; `decimal.js` ships as a direct dependency the package brings with it.
+
+<Callout type="info">
+  Already on `@symmio/trading-react`? It re-exports the most-used formatters (`formatTokenAmount`, `parseTokenAmount`,
+  `shortenAddress`, …), so you may not need this dependency at all. Add it directly when you want the full Decimal /
+  currency toolkit.
+</Callout>
+
+## 2. Format and parse token amounts
+
+Convert between raw on-chain `bigint` values and human strings. `formatTokenAmount` takes wei-scale integers to a display string; `parseTokenAmount` takes user input back to `bigint`.
+
+```ts
+import { formatTokenAmount, parseTokenAmount } from "@symmio/utils/amounts";
+
+formatTokenAmount(1234500000n, 6); // "1,234.5"  (6-decimal token, e.g. USDC)
+parseTokenAmount("1234.5", 6); // 1234500000n
+```
+
+## 3. Do precise UI math
+
+Reach for the Decimal helpers when floating-point rounding would corrupt a figure — margin, PnL, notional. They accept and return `Decimal`, never `number`.
+
+```ts
+import { safeDivide, toDecimal } from "@symmio/utils/decimal";
+
+const price = toDecimal("18.42");
+const size = toDecimal("3.5");
+const notional = price.mul(size); // Decimal("64.47")
+
+safeDivide(toDecimal("0"), toDecimal("0")); // Decimal("0") — never throws or NaNs
+```
+
+## 4. Present it
+
+Display formatters handle the last mile — separators, compact suffixes, currency, percentages, relative time.
+
+```ts
+import { formatCompact, formatCurrency } from "@symmio/utils/format";
+import { shortenAddress } from "@symmio/utils/address";
+
+formatCompact(1_240_000); // "1.24M"
+formatCurrency(64.47); // "$64.47"
+shortenAddress("0x1234...abcd"); // checksummed "0x1234…abcd"
+```
+
+## Deep-import over the barrel
+
+The root barrel (`@symmio/utils`) re-exports everything, but importing through each sub-entry tree-shakes more cleanly and dodges naming collisions with viem (`@symmio/utils/decimal` exposes a `formatUnits` that returns `Decimal`, not a string):
+
+```ts
+import { formatTokenAmount } from "@symmio/utils/amounts";
+import { formatUnits, toDecimal } from "@symmio/utils/decimal";
+import { formatCompact, formatCurrency } from "@symmio/utils/format";
+import { shortenAddress } from "@symmio/utils/address";
+```
+
+## Next steps
+
+- **[Overview](/utils)** — every sub-entry and the full export surface.
+- **[Amounts](/utils/amounts)** · **[Decimal helpers](/utils/decimal)** · **[Display formatters](/utils/format)** · **[Address & hash](/utils/address)**

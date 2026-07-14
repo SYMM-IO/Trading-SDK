@@ -13,6 +13,9 @@ import {
   useNotionalCapAll,
   useNotionalCapBySymbolId,
   useOpenInterestBySymbolId,
+  useFundingInfo,
+  useEstimatedPrice,
+  calculatePriceImpact,
   useSolverErrorCodes,
   useSolverErrorMessage,
 } from "@symmio/trading-react";
@@ -60,6 +63,33 @@ Used vs capped notional per market.
 
 ```ts
 const oi = useOpenInterestBySymbolId({ symbolId: 1n });
+```
+
+### `useFundingInfo`
+
+Next-epoch funding for **every** market in one call — pick a row by `symbol`. Each row is `{ symbol, nextFundingRateLong, nextFundingRateShort, nextFundingTime, epochDurationSeconds }`. The rates are per-epoch **decimal fractions** (`0.0001` = `0.01%`, ×`100` for a percent); a **positive** rate _receives_ funding, a **negative** rate _pays_. `nextFundingTime` is a Unix timestamp in **milliseconds** (guard `< 1e12` as seconds). Does not poll by default — pass `query.refetchInterval`.
+
+```ts
+const funding = useFundingInfo({ query: { refetchInterval: 30_000 } });
+const btc = funding.data?.find((f) => f.symbol === "BTCUSDT");
+const pct = (btc?.nextFundingRateLong ?? 0) * 100; // long-side funding %
+```
+
+### `useEstimatedPrice`
+
+Ask the solver what price an open or close would **fill at** — a read-only simulation of the trade → `{ estimatedPrice }`. Use it to preview the fill price, price impact ([`calculatePriceImpact`](../../core/solvers#calculatepriceimpact)) and — for a close — an estimated PnL, before the user submits. Pass the **slippage-adjusted request price** (what the SDK sends to the solver), **not** the raw mark; `positionType` and `entry` (`"open"` | `"close"`) pick the direction. Disabled until `quantity` and `price` are non-empty. `quantity` and `price` are **debounced internally** (`debounceMs`, default `350`) so typing an amount fires one request once the user settles — pass the raw input, no external debounce needed; set `debounceMs: 0` to disable.
+
+```ts
+const { data } = useEstimatedPrice({
+  symbolId: Number(market.symbol_id),
+  quantity: tradeParams.quantity, // leveraged quantity to open / amount to close
+  positionType,
+  entry: "open",
+  price: tradeParams.requestedOpenPrice, // slippage-adjusted; use calculateClosePrice for a close
+});
+const impact = data
+  ? calculatePriceImpact({ estimatedPrice: data.estimatedPrice, referencePrice: String(markPrice) })
+  : 0;
 ```
 
 ### `useSolverErrorCodes`

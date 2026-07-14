@@ -1,5 +1,6 @@
 export default {
   index: "Overview",
+  "getting-started": "Getting Started",
   concepts: "React Concepts",
   provider: "SymmioProvider",
   wallet: "Wallet hooks",
@@ -12,6 +13,7 @@ export default {
   tpsl: "TP/SL hooks",
   markets: "Markets hooks",
   fees: "Fees hooks",
+  margin: "Margin hooks",
   "price-service": "Price Service hooks",
   notifications: "Notifications hooks",
   subgraph: "Subgraph hooks",

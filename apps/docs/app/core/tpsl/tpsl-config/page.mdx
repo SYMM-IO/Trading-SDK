@@ -1,0 +1,19 @@
+# TpSlConfig
+
+The handler `/configs/` payload — the rules a TP/SL request must satisfy. Returned by [`getTpSlConfig`](/core/tpsl/get-tpsl-config) (camel-cased from the wire `MinPriceDistancePercent` / `MinProfitStopLossSpreadPercent`) and consumed by [`validateTpSl`](/core/tpsl/validate-tpsl).
+
+## Fields
+
+<Properties>
+  <Property name="minPriceDistancePercent" type="number">
+    Minimum `|target − open| / open × 100` the handler accepts (percent).
+  </Property>
+  <Property name="minProfitStopLossSpreadPercent" type="number">
+    Minimum TP↔SL spread as a percent of the open price.
+  </Property>
+</Properties>
+
+## Related
+
+- [`getTpSlConfig`](/core/tpsl/get-tpsl-config) — fetches this.
+- [`validateTpSl`](/core/tpsl/validate-tpsl) — enforces these rules.

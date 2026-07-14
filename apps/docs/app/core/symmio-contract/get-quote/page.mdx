@@ -1,0 +1,36 @@
+# getQuote
+
+Read one quote struct by id. Quote ids are 1-based.
+
+```ts
+import { getQuote } from "@symmio/trading-core";
+
+const quote = await getQuote(config, { quoteId: 42n });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quoteId" type="bigint" required>
+    The quote id to read. Quote ids are 1-based.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Quote | null">
+  The raw on-chain quote struct, or `null` if no quote exists with that id. See [Unified Quotes](/core/quotes) for the
+  higher-level quote model built on top of it.
+</Returns>
+
+## Query options
+
+```ts
+import { getQuoteQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getQuoteQueryOptions(config, { quoteId: 42n }));
+```

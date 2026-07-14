@@ -1,0 +1,18 @@
+export default {
+  index: "Overview",
+  "-- prices": { type: "separator", title: "Prices" },
+  price: "getMuonPrice",
+  "price-range": "getMuonPriceRange",
+  "-- upnl": { type: "separator", title: "uPnL attestations" },
+  upnl: "getMuonUpnl",
+  "upnl-a": "getMuonUpnlA",
+  "upnl-b": "getMuonUpnlB",
+  "upnl-with-symbol-price": "getMuonUpnlWithSymbolPrice",
+  "upnl-a-with-symbol-price": "getMuonUpnlAWithSymbolPrice",
+  "settle-upnl": "getMuonSettleUpnl",
+  "party-a-overview": "getMuonPartyAOverview",
+  "-- signatures": { type: "separator", title: "Contract signatures" },
+  "deallocate-upnl-sig": "getDeallocateUpnlSig",
+  "-- types": { type: "separator", title: "Types" },
+  "muon-attestation-base": "MuonAttestationBase",
+};

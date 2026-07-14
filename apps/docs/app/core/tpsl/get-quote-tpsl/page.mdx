@@ -1,0 +1,53 @@
+# getQuoteTpSl
+
+Read the raw TP/SL rows for one quote from the handler.
+
+Hits `GET /api/v5/?quote_id=<id>` and returns the full row list (every state). Framework layers (`@symmio/trading-react`) fold and filter these into UI-facing snapshots — `core` keeps the raw shape so consumers can apply their own selection rules.
+
+```ts
+import { getQuoteTpSl } from "@symmio/trading-core";
+
+const rows = await getQuoteTpSl(config, {
+  quoteId: 42n,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quoteId" type="bigint" required>
+    On-chain quote id. A negative hedger `tempQuoteId` is also accepted, so a pre-chain quote's TP/SL can be read the
+    moment the hedger accepts an instant open.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="QuoteTpSlRow[]" typeHref="/core/tpsl/quote-tpsl-row">
+  Every conditional-order row for the quote, in every state. See [`QuoteTpSlRow`](/core/tpsl/quote-tpsl-row) for the
+  field list.
+</Returns>
+
+## Throws
+
+- `SymmError` when the chain has no `tpsl` config.
+- `SymmApiError` when the HTTP request fails.
+
+## Query options
+
+```ts
+import { getQuoteTpSlQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getQuoteTpSlQueryOptions(config, { quoteId: 42n }));
+```
+
+`getQuoteTpSlQueryOptions` is disabled until `quoteId` is a real id (present and non-zero); it accepts negative ids so a pre-chain quote can be read without waiting for on-chain reconciliation. `GetQuoteTpSlOptions` requires `quoteId`. The `getQuoteTpSlQueryKey` builder stringifies `quoteId` for cache matching.
+
+## Related
+
+- [`QuoteTpSlRow`](/core/tpsl/quote-tpsl-row) — the raw row shape.
+- [`useQuoteTpSl`](/react/tpsl) — React binding that folds rows into a per-side snapshot.

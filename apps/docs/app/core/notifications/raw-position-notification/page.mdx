@@ -1,0 +1,61 @@
+# RawPositionNotification
+
+The raw position-state notification frame as it arrives on the wire (snake_case), mirroring the hedger/solver payload. Consumers normally receive the normalized [`Notification`](/core/notifications/notification); the raw frame is retained on it as `raw`.
+
+The endpoint omits fields that do not apply to a given frame (for example an `InstantRFQ` report carries no `id`), so almost every field is optional; [`normalizeNotification`](/core/notifications/normalize-notification) fills sensible defaults.
+
+## Fields
+
+<Properties>
+  <Property name="id" type="string" optional />
+  <Property name="quote_id" type="number" optional>
+    On-chain quote id, or `0` while the order is still off-chain.
+  </Property>
+  <Property name="temp_quote_id" type="number" optional>
+    Negative placeholder id assigned before the on-chain quote id exists.
+  </Property>
+  <Property name="create_time" type="number" optional />
+  <Property name="modify_time" type="number" optional />
+  <Property name="counterparty_address" type="string" optional />
+  <Property name="address" type="string" optional>
+    SubAccount address the notification belongs to.
+  </Property>
+  <Property name="va_address" type="string" optional>
+    Solver-assigned Virtual Account address (lowcap), when present.
+  </Property>
+  <Property name="filled_amount_open" type="string | null" optional />
+  <Property name="filled_amount_close" type="string | null" optional />
+  <Property name="last_seen_action" type="string | null" optional>
+    Last solver action seen for this quote (e.g. `SendQuoteTransaction`).
+  </Property>
+  <Property name="action_status" type="string | null" optional>
+    `success` | `failed` | `seen`.
+  </Property>
+  <Property name="failure_type" type="string | null" optional />
+  <Property name="failure_message" type="string | null" optional />
+  <Property name="error_code" type="number | null" optional />
+  <Property name="state_type" type="string | null" optional>
+    `report` | `alert`.
+  </Property>
+  <Property name="version" type="number" optional />
+  <Property name="avg_price_open" type="string" optional />
+  <Property name="avg_price_close" type="string" optional />
+</Properties>
+
+## DefilyticsNotificationEnvelope
+
+The `defilytics` endpoint nests the notification under `data`, with the SubAccount address hoisted to the top level. [`parseNotificationFrame`](/core/notifications/parse-notification-frame) unwraps it back into a `RawPositionNotification`.
+
+<Properties>
+  <Property name="data" type="RawPositionNotification">
+    The nested notification frame.
+  </Property>
+  <Property name="address" type="string">
+    The SubAccount address, hoisted to the envelope root.
+  </Property>
+</Properties>
+
+## Related
+
+- [Notification](/core/notifications/notification) — the normalized shape this becomes.
+- [parseNotificationFrame](/core/notifications/parse-notification-frame) — parses an inbound frame into this type.

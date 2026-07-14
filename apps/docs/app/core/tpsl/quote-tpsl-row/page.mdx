@@ -1,0 +1,63 @@
+# QuoteTpSlRow
+
+One conditional-order row as returned by [`getQuoteTpSl`](/core/tpsl/get-quote-tpsl) (`GET /api/v5/?quote_id=…`). Aliases the orval-generated `ConditionalOrderResponseSchema`. The row set contains every historical row for the quote, including terminated ones; React layers fold rows into per-side [`QuoteTpSl`](/core/tpsl/quote-tpsl) snapshots.
+
+## Fields
+
+<Properties>
+  <Property name="quote_id" type="number">
+    On-chain quote id the row belongs to.
+  </Property>
+  <Property name="coh_quote_id" type="string">
+    Handler-issued conditional-order id (e.g. `"coh4213"`).
+  </Property>
+  <Property name="party_a_address" type="string">
+    PartyA (VA) address that owns the quote.
+  </Property>
+  <Property name="symbol_id" type="number">
+    Solver market id.
+  </Property>
+  <Property name="conditional_order_type" type='"take_profit" | "stop_loss" | "send_quote"'>
+    Which kind of conditional order (`QuoteTpSlConditionalOrderType`).
+  </Property>
+  <Property name="quantity" type="number">
+    Order quantity.
+  </Property>
+  <Property name="conditional_order_price" type="number">
+    The trigger price.
+  </Property>
+  <Property name="price" type="number | null" optional>
+    The slippage-shifted fill price.
+  </Property>
+  <Property name="order_type" type="0 | 1">
+    Wire order type (`1` = market).
+  </Property>
+  <Property name="state" type='"pending" | "new" | "triggered" | "triggered_pending" | "canceled" | "killed"'>
+    Row lifecycle state (`QuoteTpSlRowState`).
+  </Property>
+  <Property name="action_price_type" type='"market" | "last_close"'>
+    Whether the trigger trips on the mark or last-close price (`QuoteTpSlActionPriceType`).
+  </Property>
+  <Property name="position_type" type="0 | 1">
+    Quote direction — `0` = long, `1` = short.
+  </Property>
+  <Property name="close_status" type="string | null" optional>
+    Handler close status, when present.
+  </Property>
+  <Property name="leverage" type="number | string | null" optional>
+    Leverage stamped on the order, when present.
+  </Property>
+  <Property name="create_time" type="number">
+    Creation timestamp.
+  </Property>
+  <Property name="modify_time" type="number">
+    Last-modification timestamp.
+  </Property>
+</Properties>
+
+The companion string types `QuoteTpSlRowState`, `QuoteTpSlActionPriceType`, and `QuoteTpSlConditionalOrderType` are re-exported alongside this row for typing individual fields.
+
+## Related
+
+- [`getQuoteTpSl`](/core/tpsl/get-quote-tpsl) — returns `QuoteTpSlRow[]`.
+- [`QuoteTpSl`](/core/tpsl/quote-tpsl) — the folded per-side snapshot React layers derive from these rows.

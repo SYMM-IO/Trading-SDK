@@ -18,8 +18,10 @@ import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { cn } from "@symmio/ui/lib/utils";
+import { formatWithCommas } from "@symmio/utils";
 import { useMemo, useState } from "react";
 import { formatUnits, type Address } from "viem";
+import { EstimatedPricePreview } from "./estimated-price-preview";
 
 const WEI_DECIMALS = 18;
 
@@ -254,6 +256,17 @@ export function ClosePositionStep({
         />
       ) : null}
 
+      <EstimatedPricePreview
+        symbolId={Number(position.symbolId)}
+        quantity={validQuantity !== undefined ? String(validQuantity) : undefined}
+        positionType={position.positionType}
+        entry="close"
+        requestPrice={closePrice ?? undefined}
+        markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
+        pricePrecision={Number(market?.price_precision ?? 2)}
+        idPrefix={idPrefix}
+      />
+
       {violations.length > 0 ? <ViolationsPanel violations={violations} idPrefix={idPrefix} /> : null}
 
       <Button
@@ -288,6 +301,8 @@ function PositionSummary({
   const sideVariant = position.positionType === PositionType.LONG ? "positive" : "destructive";
   const quantityDec = formatUnits(position.quantity, WEI_DECIMALS);
   const closedDec = formatUnits(position.closedAmount, WEI_DECIMALS);
+  const pricePrecision = Number(market?.price_precision ?? 2);
+  const quantityPrecision = Number(market?.quantity_precision ?? 4);
 
   return (
     <div
@@ -301,9 +316,12 @@ function PositionSummary({
       <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1.5">
         <PreviewRow label="Quote" value={`#${position.id.toString()}`} />
         <PreviewRow label="Market" value={market?.symbol ?? market?.name ?? `#${position.symbolId.toString()}`} />
-        <PreviewRow label="Mark price" value={markPrice !== undefined ? formatDecimalUsd(String(markPrice)) : "—"} />
-        <PreviewRow label="Total quantity" value={formatDecimalAmount(quantityDec)} />
-        <PreviewRow label="Already closed" value={formatDecimalAmount(closedDec)} />
+        <PreviewRow
+          label="Mark price"
+          value={markPrice !== undefined ? formatPriceAt(String(markPrice), pricePrecision) : "—"}
+        />
+        <PreviewRow label="Total quantity" value={formatQuantityAt(quantityDec, quantityPrecision)} />
+        <PreviewRow label="Already closed" value={formatQuantityAt(closedDec, quantityPrecision)} />
       </dl>
     </div>
   );
@@ -455,6 +473,18 @@ function formatDecimalAmount(value: string): string {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return value;
   return parseFloat(parsed.toFixed(4)).toString();
+}
+
+/** A market price at the market's `price_precision` decimals (padded), with a `$`. */
+function formatPriceAt(value: string, pricePrecision: number): string {
+  if (!Number.isFinite(Number(value))) return value;
+  return `$${formatWithCommas(value, { fixedDecimals: pricePrecision })}`;
+}
+
+/** A quantity / size at the market's `quantity_precision` decimals (padded). */
+function formatQuantityAt(value: string, quantityPrecision: number): string {
+  if (!Number.isFinite(Number(value))) return value;
+  return formatWithCommas(value, { fixedDecimals: quantityPrecision });
 }
 
 function computeFeeAmount(feeRate: bigint, notional: string): string {

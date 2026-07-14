@@ -1,108 +1,76 @@
 # Muon oracle
 
-Muon is a decentralized oracle network. SYMMIO uses it to attest to unrealized-PnL (UPNL) values, price windows, and account overviews that must be signed by a trusted quorum before the contract will accept them (e.g. `deallocate`, close settlement).
+Muon is a decentralized oracle network. SYMMIO uses it to attest to prices, unrealized-PnL (uPnL) values, and account overviews that the contract will only accept when signed by a trusted quorum (`removeMargin` / `deallocate`, settlement, force-close, liquidation).
 
-`@symmio/trading-core` exposes the Muon REST surface as typed actions. Each returns a signature payload consumers pass along to the on-chain write.
+`@symmio/trading-core` exposes each documented Muon endpoint as its own typed read. Every method resolves the oracle gateway URLs and the SYMMIO diamond address (the `symmio` request param) from `config`, tries the configured gateways in order until one succeeds, and returns a **normalized attestation** — typed `bigint` / `Address` fields plus the shared signature envelope. The raw envelope fields common to every return are documented once on [`MuonAttestationBase`](/core/muon/muon-attestation-base).
 
-## Import
+Each method has its own page with the full signature, parameters, return shape, examples, and query options.
 
-```ts
-import {
-  getMuonPrice,
-  getMuonPriceRange,
-  getMuonUpnl,
-  getMuonUpnlA,
-  getMuonUpnlB,
-  getMuonUpnlWithSymbolPrice,
-  getMuonUpnlAWithSymbolPrice,
-  getMuonSettleUpnl,
-  getMuonPartyAOverview,
-  type MuonSignature,
-  type MuonResponse,
-} from "@symmio/trading-core";
-```
+## Prices
 
-## Actions
+<MethodIndex kind="read">
+  <MethodEntry name="getMuonPrice" href="/core/muon/price">
+    Validated prices for a set of quote ids.
+  </MethodEntry>
+  <MethodEntry name="getMuonPriceRange" href="/core/muon/price-range">
+    TWAP-style price range over a time window for force-close validation.
+  </MethodEntry>
+</MethodIndex>
 
-### `getMuonPrice`
+## uPnL attestations
 
-Attested single-point price for a market.
+<MethodIndex kind="read">
+  <MethodEntry name="getMuonUpnl" href="/core/muon/upnl">
+    Combined partyA + partyB unrealized PnL in one attestation.
+  </MethodEntry>
+  <MethodEntry name="getMuonUpnlA" href="/core/muon/upnl-a">
+    A partyA's unrealized-PnL attestation.
+  </MethodEntry>
+  <MethodEntry name="getMuonUpnlB" href="/core/muon/upnl-b">
+    A partyB's unrealized PnL computed against a partyA.
+  </MethodEntry>
+  <MethodEntry name="getMuonUpnlWithSymbolPrice" href="/core/muon/upnl-with-symbol-price">
+    Both parties' uPnL plus a single symbol price.
+  </MethodEntry>
+  <MethodEntry name="getMuonUpnlAWithSymbolPrice" href="/core/muon/upnl-a-with-symbol-price">
+    A partyA's uPnL plus a single symbol price.
+  </MethodEntry>
+  <MethodEntry name="getMuonSettleUpnl" href="/core/muon/settle-upnl">
+    A partyA's uPnL settlement data for a set of quotes.
+  </MethodEntry>
+  <MethodEntry name="getMuonPartyAOverview" href="/core/muon/party-a-overview">
+    A partyA's liquidation overview.
+  </MethodEntry>
+</MethodIndex>
 
-```ts
-const priceSig = await getMuonPrice(config, { symbolId: 1n });
-```
+## Contract signatures
 
-### `getMuonPriceRange`
+<MethodIndex kind="read">
+  <MethodEntry name="getDeallocateUpnlSig" href="/core/muon/deallocate-upnl-sig">
+    A `uPnl_A` attestation assembled into the contract-ready `SingleUpnlSig` that `removeMargin` / `deallocate` need.
+  </MethodEntry>
+</MethodIndex>
 
-Attested min/max price window across a block range — used by triggered orders where the fill must reference the range not a single tick.
+## Types
 
-```ts
-const rangeSig = await getMuonPriceRange(config, {
-  symbolId: 1n,
-  fromBlock: 100n,
-  toBlock: 200n,
-});
-```
+<MethodIndex kind="type">
+  <MethodEntry name="MuonAttestationBase" href="/core/muon/muon-attestation-base">
+    The signature envelope every normalized attestation return extends.
+  </MethodEntry>
+</MethodIndex>
 
-### `getMuonUpnl` / `getMuonUpnlA` / `getMuonUpnlB`
+## Query options
 
-Attest to an account's UPNL at the current block. Variants:
-
-- `getMuonUpnl` — either side.
-- `getMuonUpnlA` — PartyA (trader).
-- `getMuonUpnlB` — PartyB (solver).
-
-```ts
-const upnlSig = await getMuonUpnlA(config, { partyA });
-```
-
-### `getMuonUpnlWithSymbolPrice` / `getMuonUpnlAWithSymbolPrice`
-
-UPNL + market price in a single attestation. The contract accepts this combined payload for writes that need both (e.g. partial close settlement).
-
-```ts
-const combo = await getMuonUpnlAWithSymbolPrice(config, {
-  partyA,
-  symbolId: 1n,
-});
-```
-
-### `getMuonSettleUpnl`
-
-Full settlement UPNL attestation across both parties. Required by settlement flows that must synchronize both sides.
-
-### `getMuonPartyAOverview`
-
-Account-wide UPNL + collateral snapshot for a PartyA — one attestation covering every open position.
-
-## Return shape
-
-Every action returns a signature payload of the form:
-
-```ts
-interface MuonResponse<Data> {
-  success: boolean;
-  result?: {
-    data: Data; // decoded, typed fields (upnl, price, timestamp, …)
-    signature: MuonSignature; // reqId, signature, gatewayNonce, …
-  };
-  error?: { message: string; code?: number };
-}
-```
-
-The typed actions unpack `result` when `success === true` and throw a `SymmError` (`kind: "api"`) otherwise. The full raw response is available on error `cause` for debugging.
-
-## Chain config
-
-Muon URLs live in the chain-config registry: `Config.getChainConfig(chainId).muon.urls`. When missing, actions throw `MUON_URLS_NOT_CONFIGURED`.
+Each read ships a matching `…QueryOptions` factory and a `…QueryKey` builder for TanStack Query. See each method's page for the exact call, and [Query options](/core/concepts/query-options) for the shared pattern. Attestations are timestamped and short-lived — cache them with a low `staleTime`, and for a signature you intend to submit on-chain fetch a fresh one on demand rather than serving a cached one.
 
 ## Errors
 
-- `MUON_URLS_NOT_CONFIGURED` — chain has no Muon endpoint.
-- `FETCH_MUON_REQUEST_FAILED` — transport / HTTP failure; inspect `SymmApiError`.
-- Muon-side errors (quorum failure, invalid request) surface as `SymmError` (`kind: "api"`) with the Muon `error.message`.
+- `MUON_URLS_NOT_CONFIGURED` — the chain has no Muon gateway URLs in its config. Surfaces as a `SymmError` with `kind: "config"`.
+- `MUON_REQUEST_UNSUCCESSFUL` — a gateway responded but the attestation was unsuccessful (quorum failure, invalid request). Surfaces as a `SymmError` with `kind: "api"`.
+- `FETCH_MUON_REQUEST_FAILED` — every configured gateway failed at the transport / HTTP layer. Surfaces as a `SymmApiError` (`kind: "api"`) carrying the last transport error.
 
 ## Related
 
-- [SYMMIO Contract](../symmio-contract) — writes that consume Muon signatures (`deallocate`, settle).
-- [Errors](../concepts/errors) — full `SymmError` catalogue.
+- [SYMMIO Contract](/core/symmio-contract) — writes that consume Muon attestations (`removeMargin`, settle, force-close).
+- [AccountLayer](/core/account-layer) — `removeMargin` / `deallocate`, which need `getDeallocateUpnlSig`.
+- [Errors](/core/concepts/errors) — the full `SymmError` catalogue.

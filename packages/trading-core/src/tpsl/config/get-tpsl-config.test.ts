@@ -6,7 +6,10 @@ import { createConfig } from "../../core/config";
 import { getTpSlConfig } from "./get-tpsl-config";
 
 const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solver.tpsl!;
-const config = createConfig({ getClient: () => ({}) as PublicClient });
+const config = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+});
 
 function okResponse<T>(data: T): AxiosResponse<T> {
   return {

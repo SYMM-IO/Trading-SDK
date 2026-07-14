@@ -1,24 +1,25 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import { Footer, Layout, Navbar, ThemeSwitch } from "nextra-theme-docs";
 import "nextra-theme-docs/style.css";
 import { Banner, Head, Search } from "nextra/components";
 import { getPageMap } from "nextra/page-map";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { LibrarySwitcher } from "./library-switcher";
 import { SymmioLogo } from "./logo";
 
-/** Editorial display face — headings and the wordmark (matches apps/web). */
-const display = Bricolage_Grotesque({
+/** Heading face — headings and the wordmark (Explorer uses Inter; matches apps/web). */
+const display = Inter({
   subsets: ["latin"],
-  variable: "--font-bricolage",
+  variable: "--font-inter",
   display: "swap",
 });
 
 /** UI / body face — labels, prose, controls. */
-const sans = Hanken_Grotesk({
+const sans = Manrope({
   subsets: ["latin"],
-  variable: "--font-hanken",
+  variable: "--font-manrope",
   display: "swap",
 });
 
@@ -46,31 +47,34 @@ const banner = (
 );
 
 /**
- * Nextra 4 search is powered by Pagefind, which indexes the built HTML output.
- * In `next dev` there is no build to index, so the search box would sit inert
- * and error on click. Swap in a stub label pointing at a working build in dev;
- * production ships the real `<Search />`.
+ * Nextra 4 search is powered by Pagefind, which indexes the built HTML output
+ * into `public/_pagefind` (gitignored, regenerated per build). The input itself
+ * is safe to render everywhere — Pagefind only loads lazily on interaction — so
+ * the real `<Search />` ships in `next dev` too. Without a local build the index
+ * is absent and typing surfaces `errorText`; run `pnpm --filter @symmio/docs preview`
+ * (build + start) to index the site and search for real.
  */
-const isProduction = process.env.NODE_ENV === "production";
-const search = isProduction ? <Search /> : <DevSearchStub />;
-
-function DevSearchStub() {
-  return (
-    <span
-      className="symm-search-stub"
-      title="Search is powered by Pagefind and only works against a built site. Run `pnpm --filter @symmio/docs preview` (build + start) to try it."
-    >
-      Search — build to enable
-    </span>
-  );
-}
+const search = (
+  <Search errorText="Search index not found. It is generated at build time — run `pnpm --filter @symmio/docs preview` to enable search locally." />
+);
 
 const navbar = (
   <Navbar logo={<SymmioLogo />} logoLink="/" projectLink="https://github.com/SYMM-IO">
-    {search}
     <ThemeSwitch lite />
   </Navbar>
 );
+
+/**
+ * Scopes the sidebar to the active library before first paint so the other
+ * libraries never flash in. Mirrors the logic in `library-switcher.tsx`: the
+ * current route wins, otherwise the last-picked library, otherwise Core.
+ */
+const scopeSidebarScript = `try {
+  var libs = ["core", "react", "utils", "session-key"];
+  var seg = location.pathname.split("/").filter(Boolean)[0];
+  var lib = libs.indexOf(seg) > -1 ? seg : (localStorage.getItem("symmio-docs-library") || "core");
+  document.documentElement.setAttribute("data-doc-lib", lib);
+} catch (e) {}`;
 
 const footer = (
   <Footer>
@@ -99,22 +103,25 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           competing emoji <link>. */}
       <Head
         color={{
-          hue: 225,
+          hue: 6,
           saturation: { dark: 100, light: 80 },
-          lightness: { dark: 62, light: 54 },
+          lightness: { dark: 72, light: 42 },
         }}
-        backgroundColor={{ dark: "#0a0b0f", light: "#f7f8fa" }}
+        backgroundColor={{ dark: "#0a0505", light: "#fbf9f8" }}
       />
       <body>
+        <script dangerouslySetInnerHTML={{ __html: scopeSidebarScript }} />
         <Layout
           banner={banner}
           navbar={navbar}
+          search={search}
           footer={footer}
           pageMap={await getPageMap()}
-          docsRepositoryBase="https://github.com/shuding/nextra/tree/main/docs"
+          docsRepositoryBase="https://github.com/SYMM-IO/SYMM-Frontier/tree/main/apps/docs"
           nextThemes={{ attribute: "class", defaultTheme: "dark" }}
           sidebar={{ defaultMenuCollapseLevel: 1, autoCollapse: true }}
         >
+          <LibrarySwitcher />
           {children}
         </Layout>
       </body>

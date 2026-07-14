@@ -11,63 +11,93 @@
 @custom-variant dark (&:is(.dark *));
 
 /**
- * "Voltage Graphite" — cool graphite neutrals with a single electric-cobalt
- * accent and refined mint / coral / amber semantics for trading state.
+ * "Ember" — the Explorer-derived design language: warm near-black surfaces
+ * with a single coral / bright-red accent, backed by naples-yellow and
+ * picton-blue brand scales and mint / red trading semantics.
  *
- * Dark is the primary surface (deep near-black graphite, not navy, not pure
- * black); light is a clean cool off-white. Both ship full token coverage.
- * Font stacks here are fallbacks — the consuming app injects the real
- * webfonts (Bricolage Grotesque / Hanken Grotesque / JetBrains Mono) and
- * overrides `--font-*` with its own loader variables.
+ * Ported from the Symmio Explorer dashboard (its live `.dark` tokens are the
+ * source of truth). Dark is the primary surface — a warm, slightly red-tinted
+ * void-black, not navy, not pure black. Light is a warm off-white companion
+ * designed to pair with the same coral accent (Explorer ships dark-only; the
+ * light variant is our addition so the app-level theme toggle keeps working).
+ *
+ * Tokens are authored as `hsl(...)` triplets so they match Explorer's values
+ * exactly and stay lossless; Tailwind v4 opacity modifiers (`bg-primary/80`)
+ * and `color-mix()` both accept them. Font stacks here are fallbacks — the
+ * consuming app injects the real webfonts (Manrope / Inter / JetBrains Mono)
+ * and overrides `--font-*` with its own loader variables.
  */
 :root {
-  --background: #f7f8fa;
-  --foreground: #0e1116;
-  --card: #ffffff;
-  --card-foreground: #0e1116;
-  --popover: #ffffff;
-  --popover-foreground: #0e1116;
-  --primary: #2f5fe6;
-  --primary-foreground: #ffffff;
-  --secondary: #eceef3;
-  --secondary-foreground: #2a2f3a;
-  --muted: #eef0f4;
-  --muted-foreground: #5b6170;
-  --accent: #edf0f6;
-  --accent-foreground: #0e1116;
-  --destructive: #e5484d;
-  --destructive-foreground: #ffffff;
-  --positive: #0a9d6e;
-  --positive-foreground: #ffffff;
-  --negative: #e5484d;
-  --negative-foreground: #ffffff;
-  --warning: #b9770a;
-  --warning-foreground: #ffffff;
-  --info: #2f5fe6;
-  --border: #e3e6ec;
-  --input: #dfe3ea;
-  --ring: #2f5fe6;
-  --chart-1: #2f5fe6;
-  --chart-2: #0a9d6e;
-  --chart-3: #b9770a;
-  --chart-4: #e5484d;
-  --chart-5: #7a5af0;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #0e1116;
-  --sidebar-primary: #2f5fe6;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #edf0f6;
-  --sidebar-accent-foreground: #0e1116;
-  --sidebar-border: #e3e6ec;
-  --sidebar-ring: #2f5fe6;
-  --font-sans: "Hanken Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Bricolage Grotesque", "Hanken Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --background: hsl(24 24% 98%);
+  --foreground: hsl(0 14% 10%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(0 14% 10%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(0 14% 10%);
+  --primary: hsl(6 80% 42%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(20 15% 94%);
+  --secondary-foreground: hsl(0 12% 20%);
+  --muted: hsl(20 14% 95%);
+  --muted-foreground: hsl(0 6% 42%);
+  --accent: hsl(18 16% 93%);
+  --accent-foreground: hsl(0 14% 12%);
+  --destructive: hsl(0 72% 47%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --positive: hsl(152 62% 29%);
+  --positive-foreground: hsl(0 0% 100%);
+  --negative: hsl(0 74% 46%);
+  --negative-foreground: hsl(0 0% 100%);
+  --warning: hsl(38 92% 29%);
+  --warning-foreground: hsl(0 0% 100%);
+  --info: hsl(196 78% 33%);
+  --info-foreground: hsl(0 0% 100%);
+  --border: hsl(20 12% 88%);
+  --input: hsl(20 12% 90%);
+  --ring: hsl(6 80% 42%);
+  --chart-1: hsl(6 80% 52%);
+  --chart-2: hsl(160 55% 38%);
+  --chart-3: hsl(30 80% 48%);
+  --chart-4: hsl(280 55% 52%);
+  --chart-5: hsl(340 70% 50%);
+  --sidebar: hsl(0 0% 100%);
+  --sidebar-foreground: hsl(0 14% 10%);
+  --sidebar-primary: hsl(6 80% 42%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(18 16% 93%);
+  --sidebar-accent-foreground: hsl(0 14% 12%);
+  --sidebar-border: hsl(20 12% 88%);
+  --sidebar-ring: hsl(6 80% 42%);
+
+  /**
+   * Brand scales — absolute brand hues from Explorer, identical in light and
+   * dark (they are brand colors, not surface semantics, so they are declared
+   * once here and inherited by `.dark`).
+   */
+  --brand-red-100: hsl(6 100% 94%);
+  --brand-red-200: hsl(5 100% 86%);
+  --brand-red-300: hsl(6 100% 81%);
+  --brand-red-400: hsl(5 100% 72%);
+  --brand-red-500: hsl(5 80% 58%);
+  --brand-yellow-100: hsl(46 100% 89%);
+  --brand-yellow-200: hsl(46 98% 82%);
+  --brand-yellow-300: hsl(46 96% 73%);
+  --brand-yellow-400: hsl(46 84% 65%);
+  --brand-yellow-500: hsl(46 59% 37%);
+  --brand-blue-100: hsl(196 100% 89%);
+  --brand-blue-200: hsl(196 88% 80%);
+  --brand-blue-300: hsl(196 88% 71%);
+  --brand-blue-400: hsl(196 81% 62%);
+  --brand-blue-500: hsl(196 59% 49%);
+
+  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Inter", "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --radius: 0.75rem;
+  --radius: 0.5rem;
   --tracking-normal: 0em;
   --spacing: 0.25rem;
-  --shadow-color: 220 43% 11%;
+  --shadow-color: 0 20% 12%;
   --shadow-2xs: 0 1px 2px 0 hsl(var(--shadow-color) / 0.04);
   --shadow-xs: 0 1px 2px 0 hsl(var(--shadow-color) / 0.05);
   --shadow-sm: 0 1px 2px -1px hsl(var(--shadow-color) / 0.08), 0 1px 3px 0 hsl(var(--shadow-color) / 0.06);
@@ -76,49 +106,52 @@
   --shadow-lg: 0 4px 8px -4px hsl(var(--shadow-color) / 0.1), 0 16px 32px -8px hsl(var(--shadow-color) / 0.16);
   --shadow-xl: 0 8px 16px -6px hsl(var(--shadow-color) / 0.12), 0 28px 48px -12px hsl(var(--shadow-color) / 0.2);
   --shadow-2xl: 0 32px 64px -16px hsl(var(--shadow-color) / 0.28);
+  --shadow-glow: 0 0 28px 6px color-mix(in oklab, var(--primary) 30%, transparent);
+  --shadow-glow-sm: 0 0 16px 3px color-mix(in oklab, var(--primary) 28%, transparent);
 }
 
 .dark {
-  --background: #0a0b0f;
-  --foreground: #edeef2;
-  --card: #101218;
-  --card-foreground: #edeef2;
-  --popover: #15171e;
-  --popover-foreground: #edeef2;
-  --primary: #3b6cff;
-  --primary-foreground: #ffffff;
-  --secondary: #1a1d26;
-  --secondary-foreground: #d7d9e2;
-  --muted: #16181f;
-  --muted-foreground: #8b90a0;
-  --accent: #1e212b;
-  --accent-foreground: #edeef2;
-  --destructive: #ff6470;
-  --destructive-foreground: #16080a;
-  --positive: #2fd39a;
-  --positive-foreground: #04130d;
-  --negative: #ff6470;
-  --negative-foreground: #16080a;
-  --warning: #f5b544;
-  --warning-foreground: #1a1206;
-  --info: #5b86ff;
-  --border: #23262f;
-  --input: #262a34;
-  --ring: #3b6cff;
-  --chart-1: #5b86ff;
-  --chart-2: #2fd39a;
-  --chart-3: #f5b544;
-  --chart-4: #ff6470;
-  --chart-5: #9b8cff;
-  --sidebar: #101218;
-  --sidebar-foreground: #edeef2;
-  --sidebar-primary: #3b6cff;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e212b;
-  --sidebar-accent-foreground: #edeef2;
-  --sidebar-border: #23262f;
-  --sidebar-ring: #3b6cff;
-  --shadow-color: 240 60% 1%;
+  --background: hsl(0 33% 3%);
+  --foreground: hsl(0 20% 95%);
+  --card: hsl(0 24% 5%);
+  --card-foreground: hsl(0 20% 95%);
+  --popover: hsl(0 18% 7%);
+  --popover-foreground: hsl(0 20% 95%);
+  --primary: hsl(5 100% 72%);
+  --primary-foreground: hsl(0 0% 9%);
+  --secondary: hsl(0 6% 13%);
+  --secondary-foreground: hsl(0 20% 95%);
+  --muted: hsl(0 6% 11%);
+  --muted-foreground: hsl(0 4% 56%);
+  --accent: hsl(0 8% 15%);
+  --accent-foreground: hsl(0 20% 95%);
+  --destructive: hsl(0 63% 61%);
+  --destructive-foreground: hsl(0 0% 98%);
+  --positive: hsl(152 58% 50%);
+  --positive-foreground: hsl(150 60% 6%);
+  --negative: hsl(0 82% 65%);
+  --negative-foreground: hsl(0 0% 8%);
+  --warning: hsl(46 84% 65%);
+  --warning-foreground: hsl(40 60% 8%);
+  --info: hsl(196 81% 62%);
+  --info-foreground: hsl(200 60% 8%);
+  --border: hsl(0 8% 16%);
+  --input: hsl(0 8% 20%);
+  --ring: hsl(5 100% 72%);
+  --chart-1: hsl(5 100% 72%);
+  --chart-2: hsl(160 60% 45%);
+  --chart-3: hsl(30 80% 55%);
+  --chart-4: hsl(280 65% 60%);
+  --chart-5: hsl(340 75% 55%);
+  --sidebar: hsl(0 24% 5%);
+  --sidebar-foreground: hsl(0 20% 95%);
+  --sidebar-primary: hsl(5 100% 72%);
+  --sidebar-primary-foreground: hsl(0 0% 9%);
+  --sidebar-accent: hsl(0 8% 15%);
+  --sidebar-accent-foreground: hsl(0 20% 95%);
+  --sidebar-border: hsl(0 8% 16%);
+  --sidebar-ring: hsl(5 100% 72%);
+  --shadow-color: 0 40% 1%;
   --shadow-2xs: 0 1px 2px 0 hsl(var(--shadow-color) / 0.3);
   --shadow-xs: 0 1px 2px 0 hsl(var(--shadow-color) / 0.4);
   --shadow-sm: 0 1px 2px -1px hsl(var(--shadow-color) / 0.5), 0 1px 3px 0 hsl(var(--shadow-color) / 0.4);
@@ -127,6 +160,8 @@
   --shadow-lg: 0 6px 14px -6px hsl(var(--shadow-color) / 0.55), 0 20px 40px -10px hsl(var(--shadow-color) / 0.6);
   --shadow-xl: 0 10px 22px -8px hsl(var(--shadow-color) / 0.6), 0 36px 60px -16px hsl(var(--shadow-color) / 0.65);
   --shadow-2xl: 0 40px 80px -20px hsl(var(--shadow-color) / 0.7);
+  --shadow-glow: 0 0 28px 8px color-mix(in oklab, var(--primary) 34%, transparent);
+  --shadow-glow-sm: 0 0 18px 4px color-mix(in oklab, var(--primary) 30%, transparent);
 }
 
 @theme inline {
@@ -153,6 +188,7 @@
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -169,6 +205,22 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-brand-red-100: var(--brand-red-100);
+  --color-brand-red-200: var(--brand-red-200);
+  --color-brand-red-300: var(--brand-red-300);
+  --color-brand-red-400: var(--brand-red-400);
+  --color-brand-red-500: var(--brand-red-500);
+  --color-brand-yellow-100: var(--brand-yellow-100);
+  --color-brand-yellow-200: var(--brand-yellow-200);
+  --color-brand-yellow-300: var(--brand-yellow-300);
+  --color-brand-yellow-400: var(--brand-yellow-400);
+  --color-brand-yellow-500: var(--brand-yellow-500);
+  --color-brand-blue-100: var(--brand-blue-100);
+  --color-brand-blue-200: var(--brand-blue-200);
+  --color-brand-blue-300: var(--brand-blue-300);
+  --color-brand-blue-400: var(--brand-blue-400);
+  --color-brand-blue-500: var(--brand-blue-500);
 
   --font-sans: var(--font-sans);
   --font-display: var(--font-display);
@@ -189,6 +241,8 @@
   --shadow-lg: var(--shadow-lg);
   --shadow-xl: var(--shadow-xl);
   --shadow-2xl: var(--shadow-2xl);
+  --shadow-glow: var(--shadow-glow);
+  --shadow-glow-sm: var(--shadow-glow-sm);
 
   --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
   --tracking-tight: calc(var(--tracking-normal) - 0.025em);
@@ -206,19 +260,45 @@
   body {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
-    font-feature-settings: "ss01", "cv01", "cv03";
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
+  /**
+   * Display headings use Inter (Explorer's heading face); body text uses
+   * Manrope. Consumers that render headings should reach for `font-display`.
+   */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+  }
+
   /* Tabular, slashed-zero numerals everywhere mono is used (addresses, amounts). */
   .font-mono {
-    font-feature-settings: "zero", "ss01";
+    font-feature-settings: "zero";
     font-variant-numeric: tabular-nums slashed-zero;
   }
 
   ::selection {
-    background-color: color-mix(in oklab, var(--primary) 28%, transparent);
+    background-color: color-mix(in oklab, var(--primary) 32%, transparent);
     color: var(--foreground);
+  }
+}
+
+@layer utilities {
+  /**
+   * Coral-glow signature from Explorer (accordion nodes, live dots). Use on
+   * small emphasis elements — active markers, status dots, focal chips.
+   */
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .shadow-glow-sm {
+    box-shadow: var(--shadow-glow-sm);
   }
 }

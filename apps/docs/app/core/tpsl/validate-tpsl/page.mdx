@@ -1,0 +1,65 @@
+# validateTpSl
+
+Validate a candidate TP/SL pair against the handler's published rules. Pure and framework-agnostic — a Node script or a Vue app can share it with the React form. The SDK does **not** throw here; the caller decides whether to surface, block, or proceed.
+
+Checks, in order:
+
+1. **Sign rule** — TP above/below the reference price per side; SL the opposite.
+2. **`minPriceDistancePercent`** — `|target − open| / open × 100` must clear the floor.
+3. **`minProfitStopLossSpreadPercent`** — when both sides are set, the absolute TP↔SL spread as a percent of the reference price must clear the floor.
+
+```ts
+import { validateTpSl } from "@symmio/trading-core";
+
+const result = validateTpSl({
+  takeProfitPrice: "150",
+  stopLossPrice: "80",
+  openPrice: "100",
+  positionType: PositionType.LONG,
+  pricePrecision: 4,
+  config: tpslConfig,
+});
+if (!result.ok) {
+  console.log(result.tpError, result.slError);
+}
+```
+
+## Parameters
+
+A single [`ValidateTpSlInputs`](/core/tpsl/validate-tpsl-inputs) object:
+
+<Properties>
+  <Property name="openPrice" type="string" required>
+    Reference price the distance/spread rules are measured against (decimal string).
+  </Property>
+  <Property name="positionType" type="PositionType" required>
+    Quote direction (LONG / SHORT).
+  </Property>
+  <Property name="pricePrecision" type="number" required>
+    Market price precision — used to render the "should be above/below X" hint.
+  </Property>
+  <Property name="config" type="TpSlConfig" typeHref="/core/tpsl/tpsl-config" required>
+    Live handler `/configs/` data.
+  </Property>
+  <Property name="takeProfitPrice" type="string" optional>
+    TP trigger price (decimal string). Omit when only setting an SL.
+  </Property>
+  <Property name="stopLossPrice" type="string" optional>
+    SL trigger price (decimal string). Omit when only setting a TP.
+  </Property>
+  <Property name="isOpenPosition" type="boolean" optional>
+    When `true`, error text says "current price" instead of "open price".
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="TpSlValidation" typeHref="/core/tpsl/tpsl-validation">
+  `{ ok: true }` when every supplied side passes; otherwise `{ ok: false }` with per-side `tpError` / `slError` strings.
+</Returns>
+
+## Related
+
+- [`ValidateTpSlInputs`](/core/tpsl/validate-tpsl-inputs) — the input shape.
+- [`TpSlValidation`](/core/tpsl/tpsl-validation) — the outcome shape.
+- [`getTpSlConfig`](/core/tpsl/get-tpsl-config) — source of the `config` rules.

@@ -1,0 +1,47 @@
+# signTpSlRequest
+
+Sign a TP/SL message with the session-key wallet and produce the `{ typedData, signature, signer }` body the handler expects. The handler's [signing spec](/core/tpsl/get-tpsl-signing-spec) drives `domain` / `types` / `primaryType`, so the SDK never hardcodes the EIP-712 schema — it always matches the deployed handler. `null` legs are padded with `ZERO_LEG` (via [`toSignableTpSlMessage`](/core/tpsl/to-signable-tpsl-message)) before signing, because EIP-712 can't hash null structs.
+
+Both [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) and [`deleteQuoteTpSl`](/core/tpsl/delete-quote-tpsl) call this internally; use it directly only when signing your own messages.
+
+```ts
+import { signTpSlRequest } from "@symmio/trading-core";
+
+const signed = await signTpSlRequest({
+  signingSpec,
+  message,
+  walletClient,
+});
+// { typedData, signature, signer }
+```
+
+## Parameters
+
+<Properties>
+  <Property name="signingSpec" type="TpSlSigningSpec" typeHref="/core/tpsl/tpsl-signing-spec" required>
+    The handler's EIP-712 spec — drives `domain`, `types`, `primaryType`.
+  </Property>
+  <Property
+    name="message"
+    type="TpSlConditionalOrderMessage | TpSlDeleteMessage"
+    typeHref="/core/tpsl/tpsl-conditional-order-message"
+    required
+  >
+    The message body to sign — a create/edit or a delete message.
+  </Property>
+  <Property name="walletClient" type="SymmioWalletClient" required>
+    Session-key wallet client that performs `signTypedData`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<TpSlSignedRequest>" typeHref="/core/tpsl/tpsl-signed-request">
+  The signed request body — typed data, signature, and signer address — ready to POST/DELETE.
+</Returns>
+
+## Related
+
+- [`TpSlSignedRequest`](/core/tpsl/tpsl-signed-request) — the return shape.
+- [`toSignableTpSlMessage`](/core/tpsl/to-signable-tpsl-message) — the null-leg padding applied before hashing.
+- [`getTpSlSigningSpec`](/core/tpsl/get-tpsl-signing-spec) — source of the `signingSpec`.

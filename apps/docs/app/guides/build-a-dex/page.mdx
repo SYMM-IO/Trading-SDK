@@ -8,13 +8,13 @@ Ship a perpetuals trading UI on `@symmio/trading-react`: connect a wallet, pick 
 
 A perps DEX is five parts plus a shared shell. Distribute them however you like — one dense trading page, or a route per part.
 
-| Part                 | What it does                                            | Primary hooks                                                                      |
-| -------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| **Market selection** | Discover and switch markets — header + searchable list. | `useMarkets`                                                                       |
-| **Trade form**       | Side, size, leverage, TP/SL, slippage, submit.          | `useInstantOpenAuto`, `useInstantOpenWithTpSl`, `useLockedParams`, `useFeeForUser` |
-| **Positions**        | Live open positions, per-row uPnL, close.               | `useManagedQuotes`, `useQuoteUpnlAndPnl`, `useInstantCloseAuto`                    |
-| **Collateral**       | Available vs allocated balance, deposit / allocate.     | `useAccountBalanceOf`, `useAccountBalanceInfo`, `useAllocate`, `useDeallocate`     |
-| **TP/SL**            | Take-profit / stop-loss per position.                   | `useQuoteTpSl`, `useSetQuoteTpSl`                                                  |
+| Part                 | What it does                                             | Primary hooks                                                                            |
+| -------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Market selection** | Discover and switch markets — header + searchable list.  | `useMarkets`                                                                             |
+| **Trade form**       | Side, size, leverage, TP/SL, slippage, submit.           | `useInstantOpenAuto`, `useInstantOpenWithTpSl`, `useLockedParams`, `useFeeForUser`       |
+| **Positions**        | Live open positions, per-row uPnL, close.                | `useManagedQuotes`, `useQuoteUpnlAndPnl`, `useInstantCloseAuto`                          |
+| **Collateral**       | Deposit and withdraw the SubAccount's available balance. | `useAccountBalanceOf`, `useDeposit`, `useInitiateWithdraw`, `useFinalizeWithdrawRequest` |
+| **TP/SL**            | Take-profit / stop-loss per position.                    | `useQuoteTpSl`, `useSetQuoteTpSl`                                                        |
 
 The shell — wallet connection and the SubAccount picker — is shared by every part and surfaces once: `useWalletAccount`, `useConnectWallet`, `useDisconnectWallet`, `useSwitchToSymmioChain`, `useUserSubAccounts`.
 
@@ -97,23 +97,37 @@ Nest **`WagmiProvider` → `QueryClientProvider` → `SymmioProvider`**. The SDK
 
 - **`WagmiProvider`** — your `createConfig({ chains, transports, connectors })` from `wagmi`. The host owns connectors and RPCs; the SDK never picks them.
 - **`QueryClientProvider`** — one `new QueryClient()`, held in `useState` so it survives remounts.
-- **`SymmioProvider`** — props are **`chainOverrides`**, **`defaultChainId`**, **`getWalletClient`** (plus `children`). There is **no** `config` or `affiliateAddress` prop. Set your affiliate through `chainOverrides`, which deep-merges onto the SDK's built-in per-chain config:
+- **`SymmioProvider`** — props are **`symmioConfig`** (required), **`defaultChainId`**, **`getWalletClient`** (plus `children`). `symmioConfig` is the per-chain SYMMIO config, keyed by chain id; each supported chain must set `addresses.affiliatesAddress` (your registered affiliate) or the provider throws:
 
   ```tsx
+  import { SymmioSupportedChainId } from "@symmio/trading-core";
   import { SymmioProvider } from "@symmio/trading-react";
-  import { SymmioSupportedChainId, type CreateConfigParameters } from "@symmio/trading-core";
 
-  const chainOverrides: CreateConfigParameters["chainOverrides"] = {
+  const symmioConfig = {
     [SymmioSupportedChainId.HYPER_EVM]: {
-      // affiliate earns a fee cut on trades routed through your UI — set before shipping
-      addresses: { affiliatesAddress: "0xYourAffiliate…" },
+      addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" },
+      // optional: per-chain subgraphs / solver / … overrides
     },
   };
 
-  <SymmioProvider chainOverrides={chainOverrides} getWalletClient={getWalletClient}>
+  <SymmioProvider symmioConfig={symmioConfig} getWalletClient={getWalletClient}>
     {children}
   </SymmioProvider>;
   ```
+
+<Callout type="info">
+  **What the affiliate address is — and why it's how you get paid.** In SYMM perps, trades are opened through frontends —
+  dApps, brokers, bots. The affiliate address is that frontend's **identity onchain**. It rides on every quote (that's the
+  `…WithAffiliate…` in `SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR`), so the protocol knows **who sourced the trade** and
+  routes that source's share of the trading fee to it. Affiliate addresses are **per chain** — a registration on one chain
+  is not valid on another — so `symmioConfig` carries one under each chain's `addresses.affiliatesAddress`.
+
+It's mandatory by design: **the SDK throws (`AFFILIATE_ADDRESS_REQUIRED`) if a supported chain's affiliate is the zero
+address or missing**, so a trade can never silently fall back to the protocol's default affiliate and lose your
+attribution. Running your own frontend and earning a cut of trading fees means **registering your affiliate address**
+with the protocol first, then setting it under `symmioConfig[chainId].addresses.affiliatesAddress`.
+
+</Callout>
 
 `getWalletClient` is the resolver the SDK calls to sign each write. For instant trading it returns a **session-key** viem client when the requested `from` matches your loaded session key, and falls back to the connected wallet otherwise (see [§4](#4-session-key--delegation)). Omit it and every instant open/close falls back to a per-trade wallet popup. See the [SymmioProvider reference](../../react/provider) for the full prop list.
 
@@ -165,25 +179,31 @@ SYMMIO trades happen against a **SubAccount** address, not the EOA. Every tradin
 
 ## 3. Collateral
 
-The diamond keeps two balances per SubAccount. The instant (lowcap) flow this guide describes funds from **available**.
+The user-facing collateral flow for a lowcap DEX is just **deposit** and **withdraw** — funds live in the SubAccount's **available** balance, which instant trading spends directly.
 
-- **Available (deallocated)** — deposited collateral idle on the account. Read via [`useAccountBalanceOf`](../../react/account-layer#useaccountbalanceof) (`{ account }` → `bigint`, 18 decimals). **Instant open consumes this directly.**
-- **Allocated** — collateral moved into the classic-flow pool where CVA + LF locks sit. Read via [`useAccountBalanceInfo`](../../react/account-layer#useaccountbalanceinfo) (`{ account }` → `{ allocatedBalance, lockedCVA, lockedLF, lockedPartyAMM, lockedPartyBMM, … }`).
-
-Show both. Wire the buttons to:
-
-- **[`useAllocate`](../../react/account-layer#useallocate)** — available → allocated.
-- **[`useDeallocate`](../../react/account-layer#usedeallocate)** — allocated → available. Fetches a fresh Muon uPnL signature for you. Subject to an on-chain debounce — a rapid second deallocate reverts.
+- **Available (deallocated)** — deposited collateral idle on the account: what instant open consumes and what a user withdraws. Read via [`useAccountBalanceOf`](../../react/account-layer#useaccountbalanceof) (`{ account }` → `bigint`, 18 decimals).
+- **Deposit** (wallet → available) — [`useApproveCollateral`](../../react/symmio-contract#useapprovecollateral--usesimulateapprovecollateral) (ERC-20 approve) then [`useDeposit`](../../react/symmio-contract#usedeposit--usesimulatedeposit) (`{ account, amount }`).
 
 <Callout type="warning">
-  **Gate trading on _available_, not _allocated_.** Instant open pulls from `useAccountBalanceOf` (available).
-  `useAllocate` moves funds into the classic-flow pool and actually *reduces* what an instant open can use, so
-  the fund gate is `useAccountBalanceOf > 0` — the submit button says **Deposit collateral**, not _Allocate_.
+  **Skip allocate / deallocate in a lowcap UI.** [`useAllocate`](../../react/account-layer#useallocate) /
+  [`useDeallocate`](../../react/account-layer#usedeallocate) shuffle funds in and out of the _classic_ (non-instant) pool
+  where CVA / LF locks sit — a concept a lowcap trader never touches, and allocating actually _reduces_ what an instant
+  open can use. Keep the panel to **Deposit + Withdraw**; the fund gate is `useAccountBalanceOf > 0` (the submit button
+  says **Deposit collateral**), never _Allocate_.
 </Callout>
 
+### Withdraw
+
+Withdrawing returns funds to the wallet from the **available** balance in a two-step, cooldown-gated flow:
+
+1. **Initiate** — [`useInitiateWithdraw`](../../react/withdraw#useinitiatewithdraw--usesimulateinitiatewithdraw). Build a part with `createClassicWithdrawPart({ id: 0n, amount, receiver, chainId: BigInt(chainId) })` (`amount` in collateral decimals, `receiver` = the connected wallet), then `mutate({ account: subAccount, parts: [part] })`. This queues a request and starts the cooldown.
+2. **Cooldown** — a **protocol-configured** on-chain value (`max(lastDeallocation + cooldownPeriod, now)`), read per request as `request.cooldownEndTime`, or via [`useWithdrawableTime`](../../react/withdraw#usewithdrawabletime) for an "if you withdrew now" estimate. It's usually short (hours) but not fixed — render a countdown that **adds a day segment only when remaining ≥ 24 h**, so it never shows a bare clock time if the protocol ever raises it.
+3. **Finalize / cancel** — [`usePendingWithdrawRequests`](../../react/withdraw#usependingwithdrawrequests) (`{ user }` → `WithdrawRequest[]` with `id`, `totalAmount`, `cooldownEndTime`) lists active requests. [`useFinalizeWithdrawRequest`](../../react/withdraw#usefinalizewithdrawrequest--usesimulatefinalizewithdrawrequest) (`{ user, requestId }`) pays out to the wallet once the cooldown elapses (permissionless); [`useRequestCancelWithdraw`](../../react/withdraw#userequestcancelwithdraw--usesimulaterequestcancelwithdraw) (`{ account, requestId }`) cancels a pending one.
+
 <Callout type="info">
-  Amounts are 18-decimal raw units. Convert user input with `parseEther` (viem) or the SDK's re-exported
-  `parseTokenAmount` from `@symmio/utils/amounts`.
+  Account balances (available) are **18-decimal** internal units. **Deposit and withdraw amounts are in the collateral
+  token's decimals** (`getChainConfig().addresses.collateralDecimals`) — parse them with `parseUnits(input,
+  collateralDecimals)`, not `parseEther`.
 </Callout>
 
 ## 4. Session key + delegation
@@ -215,6 +235,50 @@ From `@symmio/trading-react`:
   the trade form on `allActive === true`.
 </Callout>
 
+### Gate every write, not just the open form
+
+**Open, close, and set-TP/SL are all signed by the session key** — each reverts on-chain without the matching delegation. Gating only the open form is a trap: a position opened in a prior session (or before the key was rotated) will still render in the positions table, and its **Close** and **TP/SL** actions will silently fail if you let the user trigger them without an active delegation. Rotating the session key drops _all three_ delegations for the new key, so "I could trade a minute ago" is not proof the delegation still holds.
+
+Enforce the same gate on every write path. Extract the check + grant once and reuse it — for the open form, the close modal, and the TP/SL modal:
+
+```ts
+// one hook, three call sites
+function useTradingDelegation(subAccount?: Address) {
+  const { sessionKeyAddress, isLoading: sessionKeyLoading } = useSessionKey();
+  const enabled = Boolean(subAccount && sessionKeyAddress);
+  const addMargin = useIsDelegationActive({
+    account: subAccount!,
+    delegate: sessionKeyAddress!,
+    selector: ADD_MARGIN_TO_NEXT_VA_SELECTOR,
+    query: { enabled },
+  });
+  const sendQuote = useIsDelegationActive({
+    account: subAccount!,
+    delegate: sessionKeyAddress!,
+    selector: SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
+    query: { enabled },
+  });
+  const closePos = useIsDelegationActive({
+    account: subAccount!,
+    delegate: sessionKeyAddress!,
+    selector: REQUEST_TO_CLOSE_POSITION_SELECTOR,
+    query: { enabled },
+  });
+  const grant = useGrantDelegation();
+  const isActive = addMargin.data === true && sendQuote.data === true && closePos.data === true;
+  const enable = () =>
+    grant.mutate({
+      account: { addr: subAccount!, isPartyB: false },
+      delegatedSigner: sessionKeyAddress!,
+      selectors: INSTANT_TRADE_REQUIRED_SELECTORS,
+      expiryTimestamp,
+    });
+  return { sessionKeyAddress, sessionKeyLoading, isActive, granting: grant.isPending, enable };
+}
+```
+
+In the close modal and the TP/SL modal, swap the action button for an **"Enable trading"** button whenever `isActive === false`. Because `useGrantDelegation` auto-invalidates the three `useIsDelegationActive` queries on success, the button flips back to the real action the moment the grant lands — no manual refetch.
+
 ### TP/SL needs a second delegation
 
 TP/SL requests are signed by the session key, but the on-chain execution when a trigger fires is done by the solver's **COH wallet**, not the session key. The SubAccount must delegate to two signers:
@@ -222,7 +286,7 @@ TP/SL requests are signed by the session key, but the on-chain execution when a 
 - **Session key** → `INSTANT_TRADE_REQUIRED_SELECTORS` (open, close, add margin).
 - **COH wallet** → `REQUEST_TO_CLOSE_POSITION_SELECTOR` (executes the trigger).
 
-Read the COH address from config — `config.getChainConfig().solver.tpsl?.cohWalletAddress` — then check and grant it exactly like the session-key delegation. A user can trade with only the session-key delegation, but cannot set TP/SL without the COH delegation. Gate the TP/SL panel on `cohActive === true`.
+Read the COH address from config — `config.getChainConfig().solver.tpsl?.cohWalletAddress` — then check and grant it exactly like the session-key delegation. TP/SL needs **both** delegations, so gate the panel in order: first the session-key trading delegation (`isActive`, same as open/close — see [Gate every write](#gate-every-write-not-just-the-open-form)), then `cohActive === true`. A user can trade with only the session-key delegation, but cannot set TP/SL until the COH delegation is also granted.
 
 Reference: `apps/web/src/features/integration/instant-open-flow.tsx` and `tpsl-flow.tsx`.
 
@@ -241,6 +305,37 @@ Reference: `apps/web/src/features/integration/instant-open-flow.tsx` and `tpsl-f
   action, its `id` is `Number(row.symbol_id)`.
 </Callout>
 
+### Market header stats (funding + liquidity)
+
+A trader expects the market header to carry a live stat strip alongside the mark price — **funding** and **available liquidity**. Each is one hook, polled so the strip stays fresh:
+
+- **Funding** — **[`useFundingInfo`](../../react/solvers#usefundinginfo)** returns each market's next-epoch figures; match the row by the market's solver **`symbol`** field — **not** `name` or the route ticker, which can differ (`SymbolContractSymbol` carries both). You can also pass a `symbols` filter to fetch just the one market. Each row has `nextFundingRateLong` / `nextFundingRateShort` (per-epoch **decimal fractions** — `0.0001` = `0.01%`, so ×`100` for a percent), `nextFundingTime`, and `epochDurationSeconds`. **A positive rate means that side _receives_ funding; negative _pays_.** For a settlement countdown, read `nextFundingTime` — a **Unix timestamp in milliseconds**, but stay defensive about the unit (treat a value below `1e12` as seconds). It does not poll by default; pass `query.refetchInterval`.
+- **Liquidity** — **[`useNotionalCapBySymbolId`](../../react/notional-cap#usenotionalcapbysymbolid)** returns `{ openInterest, availableToLong, availableToShort, totalCap, used }` for one market. **Available liquidity** is `availableToLong` / `availableToShort` (the notional the solver still allows to open per side); **open interest** is `openInterest`. Poll it with `DEFAULT_NOTIONAL_CAP_POLLING_MS`.
+
+```tsx
+// Filter the fetch by the current market, and match by the market's solver
+// `symbol` field (which can differ from `name` / the route ticker).
+const funding = useFundingInfo({ symbols: [symbol], query: { refetchInterval: 30_000 } }).data?.find(
+  (f) => f.symbol === market.symbol,
+);
+const cap = useNotionalCapBySymbolId({
+  symbolId: Number(market.symbol_id),
+  query: { enabled: market.symbol_id != null, refetchInterval: DEFAULT_NOTIONAL_CAP_POLLING_MS },
+}).data;
+
+const rate = funding?.nextFundingRateLong; // ×100 for a percent; color by receive (≥0) / pay (<0)
+const targetMs = funding && funding.nextFundingTime < 1e12 ? funding.nextFundingTime * 1000 : funding?.nextFundingTime; // countdown
+
+cap?.availableToLong; // available liquidity per side
+cap?.availableToShort;
+cap?.openInterest; // open interest
+```
+
+<Callout type="info">
+  `useFundingInfo` returns **all** markets, so call it once and reuse (TanStack dedupes it). `useNotionalCapBySymbolId`
+  is the same hook the trade form uses to gate order size — the header and the form share one cached query per market.
+</Callout>
+
 ## 6. Open a position
 
 Two orchestrators cover the open flow:
@@ -252,32 +347,98 @@ Both `mutate` with `{ from, subAccountAddress, market: { id }, positionType, ini
 
 For a low-latency path (pre-fetch on mount, one-shot submit), use **[`useInstantOpen`](../../react/solvers/instant-open#useinstantopen)** with a cached `prepareInstantOpenParams` — same inputs, you own the fetch.
 
+### Attaching TP/SL at open
+
+`useInstantOpenWithTpSl` posts the open, then — the instant the hedger returns a `tempQuoteId` — submits `setQuoteTpSl` against it, in one flow. The catch: TP/SL is signed against the position's **Virtual Account (VA)**, and the VA does not exist on-chain until the open lands. Predict it up front with **[`usePredictedNextVirtualAccount`](../../react/account-layer#usepredictednextvirtualaccount)**, keyed by the side's isolation type:
+
+```tsx
+const positionType = side === "long" ? PositionType.LONG : PositionType.SHORT;
+const { data: predictedVa } = usePredictedNextVirtualAccount({
+  subAccount,
+  isolationType: isolationTypeForSide(positionType), // MARKET_LONG / MARKET_SHORT
+  symbolId: BigInt(market.symbol_id),
+  query: { enabled: market.symbol_id != null },
+});
+
+const hasTp = tpPrice.length > 0;
+const hasSl = slPrice.length > 0;
+const tpsl =
+  (hasTp || hasSl) && predictedVa
+    ? {
+        from: sessionKey, // session key signs it
+        virtualAccount: predictedVa, // the predicted VA, not the SubAccount
+        subAccount,
+        symbolId: BigInt(market.symbol_id),
+        positionType,
+        quantity: tradeParams.quantity, // decimal string from calculateTradeParams
+        pricePrecision: Number(market.price_precision),
+        tp: hasTp ? { triggerPrice: tpPrice, priceType: tpType } : undefined, // "markPrice" | "lastPrice"
+        sl: hasSl ? { triggerPrice: slPrice, priceType: slType } : undefined,
+      }
+    : undefined;
+
+await open.mutateAsync({
+  from: sessionKey,
+  subAccountAddress: subAccount,
+  market: { id },
+  positionType,
+  initialMargin,
+  leverage,
+  slippage,
+  tpsl,
+});
+```
+
+`tpsl: undefined` (both legs empty) makes the hook behave exactly like `useInstantOpenAuto` — no wasted call. The open and the TP/SL leg fail independently: if the open lands but the TP/SL POST is rejected, the mutation still resolves and surfaces `data.tpslError` (an amber "position opened, TP/SL failed" is friendlier than throwing away the trade). See [§8](#8-tpsl) for how the attached order then confirms over the WebSocket.
+
 **Form details that matter:**
 
 - Side toggle is a colored segmented control (Long / Short), not a dropdown.
 - Leverage bounds read from `market.max_leverage`, never a hardcoded value.
 - `useLockedParams({ symbol, leverage })` drives a live "Locks CVA X% + LF Y%" hint.
-- Slippage is a chip row (`0.1 / 0.5 / 1 / custom`), never a raw number field.
+- Slippage is a chip row (`0.1 / 0.5 / 1 / 5 / custom`), never a raw number field — default **5%**, since lowcap fills move more than majors do.
 - The submit button is smart-labeled from a single gate (see [the gate ladder](#the-gate-ladder)).
+
+### Estimated fill price + impact
+
+Preview the price the solver would actually fill at with **[`useEstimatedPrice`](../../react/solvers#useestimatedprice)** — pass the **slippage-adjusted request price** (`calculateTradeParams().requestedOpenPrice` for an open, `calculateClosePrice()` for a close), the `quantity`, side, and `entry`. From the returned `estimatedPrice`:
+
+- **Open** — show it in the ticket plus the **price impact** vs mark: `calculatePriceImpact({ estimatedPrice, referencePrice: markPrice })`.
+- **Close** — show the estimated close price and fold it into an **estimated PnL** with the realized-PnL calc: `calculateQuotePnl({ positionType, closedAmount, closedPrice: parseEther(estimatedPrice), openedPrice, leverage })` (get `leverage` from `useQuoteUpnlAndPnl`).
+
+```tsx
+const est = useEstimatedPrice({
+  symbolId: Number(market.symbol_id),
+  quantity: tradeParams.quantity,
+  positionType,
+  entry: "open",
+  price: tradeParams.requestedOpenPrice, // slippage-adjusted, NOT the raw mark
+}).data?.estimatedPrice;
+const impact = est ? calculatePriceImpact({ estimatedPrice: est, referencePrice: String(markPrice) }) : 0;
+```
+
+Debounce the `quantity` / `price` inputs so it doesn't refetch on every keystroke.
 
 ### Available margin (the Max chip)
 
-Raw available balance is not the safe max — the request must survive fees and, for SHORT, worst-case slippage fill. Shave it before writing to `Max`:
+`Max` is not the raw balance — the request must survive fees and, for SHORT, a worst-case slippage fill. The SDK does the shave for you with [`useAvailableInstantOpenMargin`](../../react/margin#useavailableinstantopenmargin):
 
+```tsx
+const { availableMargin, availableMarginWei } = useAvailableInstantOpenMargin({
+  account: subAccount,
+  symbolId: market.symbol_id,
+  leverage,
+  positionType,
+  slippage, // percent
+});
+// wire `availableMargin` to the Max chip; block submit when the typed margin exceeds it.
 ```
-available = balance
-          × max(0, 1 − slippageFactor)              // slippageFactor = slippage on SHORT, 0 on LONG
-          × max(0, 1 − leverage × (openFee + closeFee))
-```
 
-1. **Fees** are charged on leveraged notional — subtract `leverage × (openFee + closeFee)`.
-2. **Slippage (SHORT only)** — quantity is sized off `markPrice × (1 − s)`; a closer fill inflates notional, so cap usable balance at `balance × (1 − s)`. LONG fills deflate notional, so no extra cap.
-
-Inputs: `balance` = `useAccountBalanceOf` (1e18), `openFee`/`closeFee` = `useFeeForUser` (18-dec fixed-point), `slippage` as a wei fraction (`slippage × 1e16`). Do it all in `BigInt` with `ONE_E18 = 10n ** 18n`; `formatUnits(_, 18)` only at display time.
+It applies `available = balance × max(0, 1 − slippageFactor) × max(0, 1 − leverage × (openFee + closeFee))` — `slippageFactor = slippage` on SHORT and `0` on LONG (fees are charged on the leveraged notional; SHORT also caps for the worst-case fill). Because it reads the balance with `live: true`, the `Max` **refetches automatically when the open/close settles on-chain** — no manual refresh.
 
 <Callout type="info">
-  No SDK hook exposes this yet — copy the `availableMarginWei` memo from
-  `apps/web/src/features/integration/open-position-step.tsx`.
+  Want to own the pieces? Call the pure `calculateAvailableInstantOpenMargin` from `@symmio/trading-core` with your own
+  balance + fee reads — the hook is just that function fed by `useAccountBalanceOf` + `useFeeForUser`.
 </Callout>
 
 ### Pre-submit validation
@@ -309,10 +470,54 @@ Pattern: on every input change run `calculateTradeParams` → if non-null run `v
 
 Per-row: **[`useQuoteUpnlAndPnl`](../../react/quotes#usequoteupnlandpnl)** → `{ upnl, upnlPercent, markPrice }`; **[`useInstantCloseAuto`](../../react/solvers/instant-close#useinstantcloseauto)** to close; **[`useQuotePlatformFee`](../../react/quotes#usequoteplatformfee)** for a fee estimate.
 
+The close ticket carries its own **slippage** control — a chip row like the open form (default **5%**). It shaves the request price via `calculateClosePrice({ markPrice, slippage, positionType, pricePrecision })` and is passed straight through to `useInstantCloseAuto`, so surface it to the user rather than hardcoding it.
+
+Closing is session-key-signed, so the close button lives behind the same delegation gate as the open form — a position that survived from a prior session can still show up here with a stale key. Gate the close action on the trading delegation and surface **"Enable trading"** when it is inactive (see [§4 · Gate every write](#gate-every-write-not-just-the-open-form)).
+
 <Callout type="info">
   Pending rows carry `tempQuoteId` (negative int) until the solver anchors them and assigns an on-chain `quoteId`. Pick
   `quote.quoteId ?? BigInt(quote.tempQuoteId)` for actions — the WS handler links the two once the anchor lands.
 </Callout>
+
+### Position details
+
+A per-position details view (a modal or side panel) is pure composition — no new fetch beyond three per-quote hooks plus the `UnifiedQuote` fields:
+
+| Detail               | Source                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quote id             | `quote.quoteId ?? quote.tempQuoteId` (pending until it anchors)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Side                 | `quote.positionType`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Quantity / open size | `quote.quantity` (total requested, fixed) · `quote.openQuantity` (remaining open) — both wei                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Closed amount        | `quote.closedAmount` (wei) — how much of the position was already closed (`quantity − openQuantity`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Opened price         | `quote.openedPrice ?? quote.requestedOpenPrice` (wei)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Mark price           | **[`useQuoteUpnlAndPnl`](../../react/quotes#usequoteupnlandpnl)** → `markPrice` (a decimal string, not wei)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| uPnL                 | `useQuoteUpnlAndPnl` → `{ upnl, upnlPercent }` (decimal strings, not wei)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Position value ($)   | `openQuantity × mark` — the dollar notional                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Liquidation price    | **[`useAccountLiquidationPrice`](../../react/quotes#useaccountliquidationprice)** `({ account: quote.vaAddress ?? quote.partyA })` → `liquidationPrice` (wei). Lowcap isolates each position into its own single-position VA, so the account liq price **is** the position's.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Open-price history   | **[`useQuotePriceHistory`](../../react/quotes#usequotepricehistory)** `({ quoteId, orderDirection: "asc" })` → `{ rows }`. Label **why** each change happened from `row.type` (`QuoteEventType`: settle-uPnL recompute on partial close, or a funding tick); `row.newPrice` (wei) is the open price after it, and `row.prevPrice` gives the signed Δ. Filter to rows with `newPrice` and prepend the entry — **`quote.initialOpenedPrice`** (the original open before any recompute), **not** `openedPrice`, which is the _latest_ adjusted open. Color each Δ by **P&L impact, not price direction**: `uPnL = (mark − open) × size` for a long, so a _higher_ open price hurts a long (red) and helps a short — flip the color by `positionType`. Needs the on-chain `quoteId` — empty while the row is still pending. |
+| Opened at            | `quote.createTimestamp` — a block timestamp in **seconds** (`× 1000` for a JS `Date`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Platform fee         | **[`useQuotePlatformFee`](../../react/quotes#usequoteplatformfee)** `({ quote })` → `{ openFee, closeFee }` (wei)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+
+The `UnifiedQuote` amount / price fields — quantities, prices, `liquidationPrice`, and the fees — are 18-decimal **wei** `bigint`; divide by `1e18` (`formatUnits`) to display. The exceptions are `useQuoteUpnlAndPnl`'s outputs — **`markPrice`, `upnl`, and `upnlPercent` are already decimal strings**, so pass them straight to your formatter without dividing.
+
+<Callout type="warning">
+  **Render every quote value at the market's precision.** Show each **price** (entry, mark, liquidation, TP/SL,
+  price-history) at `market.price_precision` decimals and each **quantity / size** at `market.quantity_precision` — both
+  fields live on `SymbolContractSymbol` (`Number(market.price_precision ?? 2)` / `Number(market.quantity_precision ??
+  4)`). Format with a **fixed-decimals** helper (e.g. `formatWithCommas(value, {fixedDecimals})`) so a market always
+  renders in its own format across the header, rows, and modals — not a global "4 decimals everywhere".
+</Callout>
+
+### A just-opened position isn't closeable yet
+
+An instant open seeds the row **optimistically**, so it shows in the table the moment you submit — but it has no on-chain `quoteId` until the solver's on-chain settle notification lands. Closing a row that hasn't anchored reverts. Drive the row's open state from `UnifiedQuote.lifecycle`, exactly like the close state, and show a loading state — a disabled **"Opening…"** button — until it clears:
+
+```ts
+const OPENING_STAGES = [QuoteLifecycle.OPTIMISTIC, QuoteLifecycle.PRICE_FILLED, QuoteLifecycle.WRITE_ONCHAIN];
+const isOpening = OPENING_STAGES.includes(quote.lifecycle);
+```
+
+The open advances `OPTIMISTIC → PRICE_FILLED → WRITE_ONCHAIN → ONCHAIN`; only at `ONCHAIN` — the second, on-chain solver notification — does the position get its on-chain `quoteId` and become closeable. Gate the **Close** row action on `!isOpening` and swap it for a spinner until that notification arrives, so a user can't fire a close that would silently revert mid-open. TP/SL is unaffected — it keys off the `tempQuoteId` and the store re-links it once the anchor lands, so leave it enabled through the open.
 
 ### Closing is WS-authoritative
 
@@ -351,35 +556,47 @@ const closeWei = percent >= 100 ? remaining : (remaining * BigInt(Math.round(per
 // useInstantCloseAuto().mutate({ …, quantityToClose: formatUnits(closeWei, 18) })
 ```
 
-### Refetch margin after settle
+### Keep the balance fresh after settle
 
-Neither open nor close changes the SubAccount balance at POST time — margin locks/unlocks on the settle notification. Subscribe with `useNotifications({ account: subAccount })` and, on a `NotificationType.SUCCESS` frame whose `lastSeenAction` is a settle action, invalidate the balance queries so Available / Allocated / the trade-form Max all refetch:
+Neither open nor close changes the SubAccount balance at POST time — margin locks/unlocks on the on-chain **settle** notification, which lands later over the WebSocket. So a balance read shown at trade time goes stale after the position anchors.
+
+Rather than wiring a separate invalidation, pass **`live: true`** to the balance read hooks. They subscribe to the account's settle notifications (a shared socket) and refetch themselves on each open-anchor / close-fill:
 
 ```ts
-// open anchored (margin locked) + close filled (margin unlocked) — NOT the earlier request/price-fill frames
-const SETTLE = new Set([
-  "SendQuoteTransaction",
-  "SendQuote",
-  "FillLimitOrderOpen",
-  "FillMarketOrderInstantClose",
-  "FillLimitOrderClose",
-]);
-// onNotification(n): if (n.type === NotificationType.SUCCESS && SETTLE.has(n.lastSeenAction ?? "")) {
-//   queryClient.invalidateQueries({ queryKey: ["getAccountBalanceOf"] });
-//   queryClient.invalidateQueries({ queryKey: ["getAccountBalanceInfo"] });
-// }
+const { data: available } = useAccountBalanceOf({ account: subAccount, live: true });
+const { data: info } = useAccountBalanceInfo({ account: subAccount, live: true });
 ```
 
-The balance query-key factories are not re-exported through react and the hooks expose no `queryKey`, so invalidate by the **string tag** (`["getAccountBalanceOf"]`) — TanStack prefix-matches it.
+`useAvailableInstantOpenMargin` already reads its balance with `live: true`, so the trade-form `Max` stays fresh with no extra wiring. All reads of the same account share one query key, so any one `live` read refreshes the value everywhere.
 
 ## 8. TP/SL
 
 Prerequisites: session-key delegation **and** the second COH-wallet delegation for `REQUEST_TO_CLOSE_POSITION_SELECTOR` (see [§4](#4-session-key--delegation)). Skip either and the on-chain trigger reverts.
 
-- **[`useQuoteTpSl`](../../react/tpsl#usequotetpsl)** — reads the current TP/SL record for a quote (`{ quoteId }` → `{ tp, sl, … }`). Folds handler-side conditional orders and on-chain quotes into one record.
-- **[`useSetQuoteTpSl`](../../react/tpsl#usesetquotetpsl)** — mutates it. Pass `tp: { price, priceType }` and/or `sl: { price, priceType }`; `undefined` clears a leg.
+- **[`useQuoteTpSl`](../../react/tpsl#usequotetpsl)** — reads the current TP/SL record for a quote (`{ quoteId, account }` → `{ tp, sl, tpState, slState, … }`). Folds handler-side conditional orders and on-chain quotes into one record.
+- **[`useSetQuoteTpSl`](../../react/tpsl#usesetquotetpsl)** — mutates it. Pass `tp: { triggerPrice, priceType }` and/or `sl: { triggerPrice, priceType }` (`priceType` is `"markPrice" | "lastPrice"`). **Send only the leg the user actually changed** — an omitted leg is left untouched on the service (omitting is _not_ clearing; at least one leg is required). Track a per-side "dirty" flag so editing TP alone doesn't re-submit the unchanged SL. To remove a leg entirely, use [`useDeleteQuoteTpSl`](../../react/tpsl), not an empty leg. `quoteId` accepts either the on-chain `quoteId` **or** the pre-chain `tempQuoteId`.
 
-See the [TP/SL reference](../../react/tpsl) for the state machine, store shape, and the `tempQuoteId ↔ quoteId` linking rules.
+`quoteId` picks the same id as any other per-row action: `quote.quoteId ?? BigInt(quote.tempQuoteId)`. A TP/SL attached at open (see [§6](#attaching-tpsl-at-open)) is keyed by the `tempQuoteId`; the store re-links it to the on-chain `quoteId` once the open anchors, so the record follows the position across the transition.
+
+### Confirmation is WS-driven — don't finish on the POST
+
+A `setQuoteTpSl` POST returning `200` only means the handler **accepted** the order. It is not live until the handler broadcasts a `report` frame over the **TP/SL WebSocket**. `useQuoteTpSl` folds that stream into `tpState` / `slState`:
+
+`pending` (POST in flight) → **`confirming`** (POST returned, awaiting the report) → **`new`** (active) → `triggered` / `canceled` / `killed`.
+
+To receive the stream, **pass `account`** (the SubAccount) to `useQuoteTpSl` — that is the whole notification setup; the hook opens and reconciles the socket for you. Omit it and you get the folded snapshot but no live transitions.
+
+<Callout type="warning">
+  **Do not close the TP/SL modal — or clear the form — on the mutation's `isSuccess`.** That is the `confirming` state, not
+  the final one. Keep the panel open and drive its status badge off `record.tpState` / `record.slState`; the leg is only
+  done when it reads `new`. The set-at-open path is identical: `useInstantOpenWithTpSl` marks the leg `confirming`
+  internally, so a `useQuoteTpSl({ quoteId: tempQuoteId, account })` elsewhere in the UI shows "Processing…" until the same
+  report lands.
+</Callout>
+
+To show a position's live TP/SL inline (e.g. under the market name in the positions row), read it the same way — `useQuoteTpSl({ quoteId, account: subAccount })` — and render `record.tp` / `record.sl`.
+
+See the [TP/SL reference](../../react/tpsl) for the full state machine, store shape, and the `tempQuoteId ↔ quoteId` linking rules.
 
 ## Checklist
 
@@ -388,17 +605,18 @@ See the [TP/SL reference](../../react/tpsl) for the state machine, store shape, 
 - [ ] Exactly one wagmi copy resolves — automatic for a clean single-project install; force it with a package-manager override if two ever appear.
 - [ ] Providers nested wagmi → QueryClient → Symmio, mounted **client-only** so `next build` doesn't fail prerendering `/_not-found`.
 - [ ] `SymmioSupportedChainId`, `UnifiedQuote`, `QuoteLifecycle` imported from `@symmio/trading-core`.
-- [ ] Affiliate set via `SymmioProvider` `chainOverrides`, and a `getWalletClient` resolver wired for session-key signing.
+- [ ] Affiliate set under `SymmioProvider`'s required **`symmioConfig`** — each chain's `addresses.affiliatesAddress` a **registered, non-zero** address (the SDK throws on zero/missing), and a `getWalletClient` resolver wired for session-key signing.
 
 **Trade UX**
 
 - [ ] Market is addressable (URL / query / hash), not component state only.
 - [ ] Header opens a searchable selector, not a `<select>`.
+- [ ] Market header carries a live stat strip — funding (`useFundingInfo`, rate + countdown) and liquidity (`useNotionalCapBySymbolId`: open interest + available-to-long/short), both polled.
 - [ ] Field order: Side → Margin → Leverage → TP/SL → Slippage → Submit.
 - [ ] Colored Long / Short segmented control.
-- [ ] `Max` reads `useAccountBalanceOf` (available), shaved for fees + slippage — not `allocatedBalance`.
+- [ ] `Max` uses `useAvailableInstantOpenMargin` (balance shaved for fees + slippage), not the raw `useAccountBalanceOf` / `allocatedBalance`.
 - [ ] Leverage bounds from `market.max_leverage`.
-- [ ] Slippage is a chip row with a custom field.
+- [ ] Slippage is a chip row with a custom field (default 5%), on both the open ticket **and** the close modal.
 - [ ] Submit is smart-gated (Connect → Switch → Select SubAccount → Deposit → Insufficient → Open).
 - [ ] Pre-submit validation runs `calculateTradeParams` + `validateInstantOpenAgainstMarket`.
 
@@ -407,9 +625,13 @@ See the [TP/SL reference](../../react/tpsl) for the state machine, store shape, 
 - [ ] Trade form blocks until a SubAccount is picked and all delegations are active.
 - [ ] `from` is a session key in production, not the raw EOA.
 - [ ] Delegation checked for all three selectors; granted at once via `INSTANT_TRADE_REQUIRED_SELECTORS`; expiry surfaced via `useDelegationExpiry`.
-- [ ] TP/SL panel gates on the second (COH-wallet) delegation.
+- [ ] **Every** write path gates on the delegation — the close modal and the TP/SL modal show "Enable trading" when inactive, not just the open form.
+- [ ] TP/SL panel gates on the session-key delegation **and** the second (COH-wallet) delegation, in that order.
+- [ ] TP/SL attached at open signs against the **predicted VA** (`usePredictedNextVirtualAccount` + `isolationTypeForSide`), not the SubAccount.
+- [ ] TP/SL confirmation is WS-driven — `useQuoteTpSl` gets `account`, the panel stays open on POST success, and a leg is "done" only at `tpState`/`slState === "new"`.
 - [ ] Positions use `useManagedQuotes`; actions pick `quote.quoteId ?? BigInt(quote.tempQuoteId)`.
 - [ ] Close state is driven by `UnifiedQuote.lifecycle` (WS-authoritative), not the mutation's `isSuccess`.
+- [ ] A just-opened row gates **Close** on the open lifecycle (`OPTIMISTIC → PRICE_FILLED → WRITE_ONCHAIN`), showing a loading state until it reaches `ONCHAIN` (TP/SL stays enabled — it keys off `tempQuoteId`).
 - [ ] Margin refetches after an open/close **settles** (on the settle notification), not just at POST time.
 
 ## Pitfalls

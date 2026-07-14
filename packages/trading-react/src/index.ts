@@ -32,7 +32,10 @@ export {
   SymmApiError,
   SymmError,
   VIRTUAL_ACCOUNT_ISOLATION_TYPE,
+  calculateAvailableInstantOpenMargin,
   calculateClosePrice,
+  calculatePriceImpact,
+  calculateQuotePnl,
   calculateTradeParams,
   clampClosePrecision,
   getPartyAOpenPositionsQueryKey,
@@ -40,6 +43,7 @@ export {
   isolationTypeForSide,
   validateInstantCloseAgainstMarket,
   validateInstantOpenAgainstMarket,
+  type CalculateAvailableInstantOpenMarginParameters,
   type CalculateClosePriceParameters,
   type CalculateTradeParamsParameters,
   type CalculateTradeParamsReturnType,
@@ -409,6 +413,15 @@ export {
 } from "./quotes";
 
 /**
+ * Margin — derived spendable-margin helpers for the trade form.
+ */
+export {
+  useAvailableInstantOpenMargin,
+  type UseAvailableInstantOpenMarginParameters,
+  type UseAvailableInstantOpenMarginReturnType,
+} from "./margin";
+
+/**
  * Balance history hooks
  * ---------------------
  * `useBalanceHistory` reads a sub-account's deposit / withdraw history from the
@@ -470,6 +483,11 @@ export {
  * epoch length from the solver. Does not poll by default; the caller opts into
  * polling via `query.refetchInterval`.
  */
+export {
+  useEstimatedPrice,
+  type UseEstimatedPriceParameters,
+  type UseEstimatedPriceReturnType,
+} from "./estimated-price";
 export { useFundingInfo, type UseFundingInfoParameters, type UseFundingInfoReturnType } from "./funding-info";
 
 /**

@@ -1,0 +1,34 @@
+# ValidateTpSlInputs
+
+Inputs to [`validateTpSl`](/core/tpsl/validate-tpsl). `openPrice` is the price the conditional order's distance is measured against — the quote's open price for a closed position, or the live mark price when validating against an open position (set `isOpenPosition: true` so error text reads accordingly).
+
+## Fields
+
+<Properties>
+  <Property name="openPrice" type="string">
+    Reference price for the distance/spread rules (decimal string).
+  </Property>
+  <Property name="positionType" type="PositionType">
+    Quote direction (LONG / SHORT).
+  </Property>
+  <Property name="pricePrecision" type="number">
+    Market price precision — only used to render the "should be above/below X" hint.
+  </Property>
+  <Property name="config" type="TpSlConfig" typeHref="/core/tpsl/tpsl-config">
+    Live handler `/configs/` data.
+  </Property>
+  <Property name="takeProfitPrice" type="string" optional>
+    TP trigger price (decimal string). Omit when only setting an SL.
+  </Property>
+  <Property name="stopLossPrice" type="string" optional>
+    SL trigger price (decimal string). Omit when only setting a TP.
+  </Property>
+  <Property name="isOpenPosition" type="boolean" optional>
+    When `true`, error text says "current price" instead of "open price".
+  </Property>
+</Properties>
+
+## Related
+
+- [`validateTpSl`](/core/tpsl/validate-tpsl) — consumes these.
+- [`TpSlValidation`](/core/tpsl/tpsl-validation) — the outcome.

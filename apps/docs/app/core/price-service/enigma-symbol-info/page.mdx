@@ -1,0 +1,26 @@
+# EnigmaSymbolInfo
+
+A single symbol catalog row returned by [`getEnigmaPriceServiceSymbolsInfo`](/core/price-service/symbols-info). The read returns an `EnigmaSymbolInfo[]` — one entry per known market. Use it to build the "which markets exist?" list and to filter by trading status.
+
+```ts
+import type { EnigmaSymbolInfo } from "@symmio/trading-core";
+```
+
+## Fields
+
+<Properties>
+  <Property name="name" type="string">
+    Market symbol name (e.g. `"BTCUSDT"`).
+  </Property>
+  <Property name="status" type='"SETTLING" | "TRADING"'>
+    Whether the market is actively trading or settling.
+  </Property>
+  <Property name="address" type="string">
+    Symbol address, usable with the address-keyed prices and metadata reads.
+  </Property>
+</Properties>
+
+## Related
+
+- [getEnigmaPriceServiceSymbolsInfo](/core/price-service/symbols-info) — returns `EnigmaSymbolInfo[]`.
+- [EnigmaMetadata](/core/price-service/enigma-metadata) — the richer per-market metadata row.

@@ -1,0 +1,58 @@
+# getDeallocateUpnlSig
+
+Fetch a fresh Muon uPnL (`uPnl_A`) attestation for a virtual account, assembled into the contract-ready `SingleUpnlSig` that `removeMargin` / `deallocate` require. This is the short-lived `uPnl_A` signature those writes need to prove the virtual account stays solvent after the deallocation — the attestation is timestamped and short-lived, so fetch it immediately before submitting, not ahead of time. For the raw, un-assembled attestation (all returned fields), use [`getMuonUpnlA`](/core/muon/upnl-a) instead. The oracle URLs and the SYMMIO diamond address are resolved from `config`; gateways are tried in order until one succeeds.
+
+```ts
+import { getDeallocateUpnlSig, removeMargin } from "@symmio/trading-core";
+
+const upnlSig = await getDeallocateUpnlSig(config, { virtualAccount: "0xva..." });
+await removeMargin(config, {
+  virtualAccount: "0xva...",
+  amount: 50_000000000000000000n,
+  upnlSig,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="virtualAccount" type="Address" required>
+    The virtual account (Muon `partyA`) the uPnL attestation is for.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+Unlike the other Muon reads, this returns a contract-ready struct — **not** a `MuonAttestationBase` subtype. It mirrors the on-chain `SingleUpnlSig` tuple field-for-field so it encodes directly as the contract argument.
+
+<Returns type="SingleUpnlSig">
+  <Property name="reqId" type="Hex">
+    Muon request id (opaque bytes).
+  </Property>
+  <Property name="timestamp" type="bigint">
+    Attestation timestamp (seconds).
+  </Property>
+  <Property name="upnl" type="bigint">
+    Signed unrealized PnL of the party, `int256` (may be negative).
+  </Property>
+  <Property name="gatewaySignature" type="Hex">
+    Muon gateway signature over the request (opaque bytes).
+  </Property>
+  <Property name="sigs" type="SchnorrSign">
+    The Schnorr TSS signature pieces (`signature`, `owner`, `nonce`).
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getDeallocateUpnlSigQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getDeallocateUpnlSigQueryOptions(config, { virtualAccount }));
+```
+
+`GetDeallocateUpnlSigOptions` requires `virtualAccount`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getDeallocateUpnlSigQueryKey` builder still accepts partial inputs for cache matching and invalidation. Because the signature is short-lived, prefer fetching on demand right before the write over serving a cached one.

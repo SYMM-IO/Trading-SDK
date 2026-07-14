@@ -186,6 +186,34 @@ const quoteId = await getInstantOpenQuoteId(config, { tempQuoteId: -1001 });
 
 The reconciler and notification handlers use this to link temp ↔ on-chain rows automatically; consumers rarely need it manually.
 
+## `calculateAvailableInstantOpenMargin`
+
+Pure function — the maximum **initial margin** an instant open can spend, shaving the raw available balance for fees (both sides, on the leveraged notional) and, for SHORT, a worst-case slippage fill. All BigInt; clamps to `0n`; returns 18-decimal wei. Feed the `Max` chip.
+
+```ts
+import { calculateAvailableInstantOpenMargin, PositionType } from "@symmio/trading-core";
+
+const max = calculateAvailableInstantOpenMargin({
+  balance, // getAccountBalanceOf, 1e18
+  openFee, // getFeeForUser, 18-dec fixed-point
+  closeFee,
+  slippageFractionWei: 5n * 10n ** 16n, // 5%
+  leverage: 10,
+  positionType: PositionType.SHORT,
+});
+```
+
+```
+available = balance
+          × max(0, 1 − slippageFactor)              // SHORT: slippage, LONG: 0
+          × max(0, 1 − leverage × (openFee + closeFee))
+```
+
+1. **Fees** are charged on the leveraged notional — subtract `leverage × (openFee + closeFee)`.
+2. **Slippage (SHORT only)** — quantity is sized off `markPrice × (1 − s)`; a worse fill inflates notional by up to `1 / (1 − s)`, so cap usable balance at `balance × (1 − s)`. LONG sets the request above mark, so fills deflate notional — no cap.
+
+The React layer wraps this in [`useAvailableInstantOpenMargin`](../../../react/margin#useavailableinstantopenmargin), fed by `useAccountBalanceOf` + `useFeeForUser`.
+
 ## Query / Mutation options
 
 - `instantOpenMutationOptions(config)` — TanStack mutation bag for the `instantOpen` primitive.

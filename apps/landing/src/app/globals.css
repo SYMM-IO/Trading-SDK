@@ -9,12 +9,12 @@
 
 /**
  * Bind the app's loaded webfonts (see `layout.tsx`) to the design-system font
- * tokens, exactly as `apps/web` does — Bricolage Grotesque drives display
- * headings, Hanken Grotesque the UI/body, JetBrains Mono every figure and hash.
+ * tokens, exactly as `apps/web` does — Inter drives display headings, Manrope
+ * the UI/body, JetBrains Mono every figure and hash (the Explorer type system).
  */
 @theme inline {
-  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-bricolage), var(--font-hanken), ui-sans-serif, sans-serif;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-inter), var(--font-manrope), ui-sans-serif, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 

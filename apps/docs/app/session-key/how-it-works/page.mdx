@@ -1,0 +1,47 @@
+# How it works
+
+## Why session keys exist in SYMMIO
+
+Every user-driven action in SYMMIO — **open a position, close a position, set / edit / delete a TP or SL** — is submitted as an **EIP-712 signed message** to the solver / conditional-order handler. That is the security model: the contract and off-chain services only accept messages the user has explicitly authorized.
+
+Signing every one of those with the connected wallet (MetaMask, WalletConnect, Coinbase Wallet) means a popup on **every action**:
+
+- Open a position → popup.
+- Adjust a TP → popup.
+- Cancel an SL → popup.
+- Partial close → popup.
+- Bulk close five positions → five popups.
+
+That is unusable for trading. A trader clicking through fifty popups a session is fifty chances to hit "reject" by accident, fifty context switches away from the price. Traders on centralized exchanges never see this friction; SYMMIO cannot afford to either.
+
+## The flow
+
+**Session keys fix it.** The lifecycle:
+
+1. **The user connects the wallet** — MetaMask etc. — and authorizes a **session key** once (via `grantDelegation` on-chain). One wallet popup.
+2. The session key is a **locally generated EVM keypair** the app holds in memory and persists through a consumer-owned storage adapter — memory-only for a single session, or durable across sessions, depending on the adapter you provide.
+3. Every subsequent open / close / TP / SL / edit signs **silently in the background** with the session key. Zero popups.
+4. When the session expires (default: **one year**) or the user rotates it, they re-authorize once and continue.
+
+The trader sees a normal exchange-style flow. The wallet is only touched on connect, delegation, deposit, and withdraw — never on the trading hot path.
+
+Session keys are **normal EVM keys** — not chain-tied. One session key per owner covers every supported chain unless the app has a specific reason to isolate. See [Provider integration](/session-key/provider-integration) for how the signing actually routes through the SDK.
+
+## What this package does — and doesn't
+
+`@symmio/session-key` is the **framework-agnostic runtime** that owns:
+
+- **Key generation** ([`createSessionKey`](/session-key/key-material), [`sessionKeyFromPrivateKey`](/session-key/key-material)) — creates the local EVM keypair.
+- **Manager** ([`createSessionKeyManager`](/session-key/manager)) — loads, generates, rotates, signs, destroys. Exposes state and a subscription for framework integrations.
+- **Transfer payloads** ([`encodeSessionKeyTransferPayload`](/session-key/transfer-payloads) / [`decodeSessionKeyTransferPayload`](/session-key/transfer-payloads)) — short-lived envelopes for moving a key to another device.
+- **Constants** — TTLs and versions. See [Types & constants](/session-key/reference).
+
+It does **not** own:
+
+- **Storage** — the package defines a [`SessionKeyStorage`](/session-key/security) contract; the consumer picks localStorage, IndexedDB, memory, or a remote store.
+- **Encryption / decryption** — the manager never encrypts. See [Security & storage](/session-key/security).
+- **DOM globals** — it runs equally well in Node scripts, workers, and browsers.
+
+## Where it plugs into the SDK
+
+The manager is wired into `@symmio/trading-react` through **`SymmioProvider`'s `getWalletClient` resolver**. Every SDK write that sets `from` to the session-key address routes signing through the manager; everything else routes to the connected wagmi wallet. [Provider integration](/session-key/provider-integration) walks through the exact wiring and lists which actions sign with the session key versus the owner wallet.

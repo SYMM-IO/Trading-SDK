@@ -11,7 +11,7 @@ export interface ConfigPreset {
   /** One-line explanation of what applying the preset does. */
   description: string;
   /** Per-chain overrides this preset writes onto the SDK defaults. */
-  overrides: CreateConfigParameters["chainOverrides"];
+  overrides: CreateConfigParameters["symmioConfig"];
 }
 
 /**
@@ -50,7 +50,7 @@ export const STAGING_CHAIN_OVERRIDES = {
       wsUrl: "wss://lowcap-price-staging.enigma.bz/ws",
     },
   },
-} satisfies CreateConfigParameters["chainOverrides"];
+} satisfies CreateConfigParameters["symmioConfig"];
 
 /** The staging preset, ready to render as a one-click action in the config panel. */
 export const STAGING_PRESET: ConfigPreset = {

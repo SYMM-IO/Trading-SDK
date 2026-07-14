@@ -1,0 +1,51 @@
+# Notification
+
+A normalized, classified notification the SDK delivers to consumers.
+
+camelCase, with `quoteId` resolved to the on-chain id when available (falling back to the temp id), and `type` classified from `actionStatus`. The original wire frame is preserved on `raw` for advanced use. Both [`watchNotifications`](/core/notifications/watch-notifications) and [`normalizeNotification`](/core/notifications/normalize-notification) produce this shape.
+
+## Fields
+
+<Properties>
+  <Property name="id" type="string" />
+  <Property name="quoteId" type="string">
+    On-chain quote id as a string, or the temp id when no on-chain id exists yet.
+  </Property>
+  <Property name="tempQuoteId" type="number">
+    The temp (pre-chain) quote id; negative until the on-chain id is assigned.
+  </Property>
+  <Property name="type" type="NotificationType" typeHref="/core/notifications/notification-type">
+    Classification derived from `actionStatus`.
+  </Property>
+  <Property name="actionStatus" type="string | null">
+    Raw `action_status` (`success` | `failed` | `seen`), or `null`.
+  </Property>
+  <Property name="lastSeenAction" type="string | null">
+    Last solver action seen for this quote.
+  </Property>
+  <Property name="account" type="string | null">
+    SubAccount address this notification belongs to.
+  </Property>
+  <Property name="vaAddress" type="string | null">
+    Solver-assigned Virtual Account address (lowcap), when present.
+  </Property>
+  <Property name="counterpartyAddress" type="string" />
+  <Property name="filledAmountOpen" type="string | null" />
+  <Property name="filledAmountClose" type="string | null" />
+  <Property name="avgPriceOpen" type="string" />
+  <Property name="avgPriceClose" type="string" />
+  <Property name="failureType" type="string | null" />
+  <Property name="failureMessage" type="string | null" />
+  <Property name="errorCode" type="number | null" />
+  <Property name="stateType" type="string | null" />
+  <Property name="createTime" type="string" />
+  <Property name="modifyTime" type="string" />
+  <Property name="raw" type="RawPositionNotification" typeHref="/core/notifications/raw-position-notification">
+    The original wire frame.
+  </Property>
+</Properties>
+
+## Related
+
+- [RawPositionNotification](/core/notifications/raw-position-notification) — the snake_case wire frame retained on `raw`.
+- [NotificationType](/core/notifications/notification-type) — the `type` classification.

@@ -1,0 +1,51 @@
+# Key material helpers
+
+Two small helpers that produce a raw session-key pair with **no manager, no state, and no persistence**. Reach for these when you only need a keypair — nothing to load, persist, sign with, or subscribe to.
+
+Both return the same `SessionKeyMaterial` shape:
+
+<Returns type="SessionKeyMaterial">
+  <Property name="address" type="Address">
+    Public address derived from the private key.
+  </Property>
+  <Property name="privateKey" type="Hex">
+    The raw private key. Handle it with the same care as a wallet mnemonic — see [Security &
+    storage](/session-key/security).
+  </Property>
+</Returns>
+
+## `createSessionKey`
+
+Generate a fresh keypair.
+
+```ts
+import { createSessionKey } from "@symmio/session-key";
+
+const key = createSessionKey();
+console.log(key.address); // 0x…
+```
+
+<Returns type="SessionKeyMaterial">A newly generated private key and its derived public address.</Returns>
+
+## `sessionKeyFromPrivateKey`
+
+Restore the material from an existing private key — useful when importing a key that lives outside the manager.
+
+```ts
+import { sessionKeyFromPrivateKey } from "@symmio/session-key";
+
+const key = sessionKeyFromPrivateKey(privateKey);
+console.log(key.address);
+```
+
+<Properties>
+  <Property name="privateKey" type="Hex" required>
+    A raw EVM private key.
+  </Property>
+</Properties>
+
+<Returns type="SessionKeyMaterial">The supplied private key and its derived public address.</Returns>
+
+## When to use the manager instead
+
+These helpers give you a keypair and nothing more. When you need persistence, expiry, rotation, signing, or state subscription, use [`createSessionKeyManager`](/session-key/manager) — or [`importPrivateKey`](/session-key/manager) to bring an existing key under manager control.

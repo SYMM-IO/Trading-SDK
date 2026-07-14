@@ -1,0 +1,70 @@
+import { Callout } from "nextra/components";
+
+# Provider integration
+
+Session keys are wired into `@symmio/trading-react` through [`SymmioProvider`](/react/provider)'s **`getWalletClient` resolver**. Every SDK write that passes `from: sessionKeyAddress` routes signing through the session-key manager; every other write routes to the wagmi-connected wallet.
+
+## The resolver
+
+`getWalletClient` has the signature `({ chainId, from }) => Promise<SymmioWalletClient>`. Return a session-key-backed client when `from` matches the loaded session key, otherwise fall through to the wagmi wallet:
+
+```tsx
+function useAppGetWalletClient(manager: SessionKeyManager) {
+  return useCallback(
+    async ({ chainId, from }: { chainId: number; from?: Address }) => {
+      const sessionAddress = manager.getAddress();
+      if (sessionAddress && from?.toLowerCase() === sessionAddress.toLowerCase()) {
+        return sessionKeyWalletClient(manager, chainId);
+      }
+      return await getWalletClient(wagmiConfig, { chainId });
+    },
+    [manager],
+  );
+}
+
+<SymmioProvider
+  symmioConfig={{
+    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+  }}
+  getWalletClient={useAppGetWalletClient(manager)}
+>
+  {children}
+</SymmioProvider>;
+```
+
+`sessionKeyWalletClient(manager, chainId)` is a small helper **the consuming app owns** — it turns the session-key private key into a viem `walletClient` bound to the chain. `@symmio/session-key` does not ship it; the manager gives you the address (`getAddress`) and the signing primitives (`sign`, `signTypedData`) to build one. Every SDK write that sets `from` to the session key's address then signs via this path without a wallet prompt.
+
+<Callout type="info">
+  When you leave `getWalletClient` unset, `SymmioProvider` defaults to the wagmi wallet for every write — so a wallet
+  popup on every action. Providing this resolver is what makes trading popup-free.
+</Callout>
+
+## Which actions sign with the session key
+
+These route through the session-key manager when `from` is the session-key address:
+
+- **TP/SL** — [`useSetQuoteTpSl`](/react/tpsl), `useDeleteQuoteTpSl` (EIP-712 conditional-order message).
+- **Instant Open** — [`useInstantOpen`](/react/solvers/instant-open), `useInstantOpenAuto`, `useInstantOpenWithTpSl` (EIP-712 open + optional TP/SL leg).
+- **Instant Close** — [`useInstantClose`](/react/solvers/instant-close), `useInstantCloseAuto`, and their bulk variants.
+- **Delegated instant withdraw** — after [`useGrantDelegation`](/react/instant-layer) authorizes the session key on-chain for the withdraw selector.
+
+## Which actions stay on the connected wallet
+
+These always route to the owner wallet, regardless of session-key configuration:
+
+- **Wallet connect / disconnect / chain switch** — not signing, just wagmi calls.
+- **Grant delegation** — the very act of authorizing the session key; it must be signed by the owner wallet.
+- **Deposit / classic withdraw** — non-instant on-chain writes routed through the owner wallet.
+
+<Callout type="info">
+  The imports above (`useCallback`, `getWalletClient` from `wagmi/actions`, `wagmiConfig`) come from your app.
+  `SessionKeyManager` and `Address` come from `@symmio/session-key` and `viem`. `SymmioProvider` comes from
+  `@symmio/trading-react`.
+</Callout>
+
+## Related
+
+- [SymmioProvider](/react/provider) — where `getWalletClient` is injected.
+- [TP/SL](/react/tpsl) — the primary consumer of session-key signing.
+- [Instant Open](/react/solvers/instant-open) / [Instant Close](/react/solvers/instant-close) — same.
+- [InstantLayer](/react/instant-layer) — `useGrantDelegation` authorizes the session key on-chain.

@@ -1,0 +1,29 @@
+# EnigmaPriceTick
+
+A normalized live price tick delivered by [`watchEnigmaPrices`](/core/price-service/watch-enigma-prices). The stream pushes an array of these per message — one entry per market that ticked. The `markPrice` arrives as a JSON number on the wire and the SDK normalizes it to a decimal **string**.
+
+```ts
+import type { EnigmaPriceTick } from "@symmio/trading-core";
+```
+
+## Fields
+
+<Properties>
+  <Property name="name" type="string">
+    Market symbol name (e.g. `"BTCUSDT"`).
+  </Property>
+  <Property name="markPrice" type="string">
+    Mark price as a decimal string.
+  </Property>
+  <Property name="time" type="number" optional>
+    Source timestamp (unix ms), when present on the frame.
+  </Property>
+  <Property name="address" type="string" optional>
+    Address of the underlying token / market, when present on the frame.
+  </Property>
+</Properties>
+
+## Related
+
+- [watchEnigmaPrices](/core/price-service/watch-enigma-prices) — the subscription that delivers these ticks.
+- [EnigmaPriceData](/core/price-service/enigma-price-data) — the REST equivalent, where `markPrice` is a `number`.

@@ -5,9 +5,14 @@ The single React context every other SDK hook consumes. Builds the `core` `Confi
 ## Setup
 
 ```tsx
+import { SymmioSupportedChainId } from "@symmio/trading-core";
 import { SymmioProvider } from "@symmio/trading-react";
 
-<SymmioProvider>{children}</SymmioProvider>;
+const symmioConfig = {
+  [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+};
+
+<SymmioProvider symmioConfig={symmioConfig}>{children}</SymmioProvider>;
 ```
 
 **Must be mounted inside a `WagmiProvider` and `QueryClientProvider`.** The SDK reads wagmi's connection state via `useConfig()` and shares the caller's `QueryClient`; it does not mount either itself.
@@ -15,27 +20,29 @@ import { SymmioProvider } from "@symmio/trading-react";
 ```tsx
 <WagmiProvider config={wagmiConfig}>
   <QueryClientProvider client={queryClient}>
-    <SymmioProvider>{children}</SymmioProvider>
+    <SymmioProvider symmioConfig={symmioConfig}>{children}</SymmioProvider>
   </QueryClientProvider>
 </WagmiProvider>
 ```
 
 ## Props
 
-### `chainOverrides`
+### `symmioConfig`
 
-- Type: `Partial<Record<number, DeepPartial<SymmioChainConfig>>>`
-- Default: `undefined`
+- Type: `Partial<Record<number, SymmioChainConfigInput>>`
+- **Required.** Every supported chain must set a non-zero `addresses.affiliatesAddress`, or the provider throws `AFFILIATE_ADDRESS_REQUIRED` (via `createConfig`). The affiliate is mandatory in the type — a chain entry without one is a compile error.
 
-Per-chain overrides deep-merged onto the SDK's built-in registry. Use to point at a staging subgraph, override an address, or add a solver override without forking.
+Per-chain SYMMIO configuration, keyed by chain id, deep-merged onto the SDK's built-in defaults (addresses, subgraphs, solver, …).
+
+Its one mandatory field is **`addresses.affiliatesAddress`** for every supported chain — your frontend's on-chain affiliate (your identity in SYMMIO on that chain), attached to every quote so the protocol knows who sourced the trade and routes your share of the trading fee to you. Affiliate addresses are **per chain** (a registration on one chain is not valid on another). Mandatory by design: without it, trades would silently fall back to the built-in default affiliate and you would lose fee attribution. See the [Providers section of the DEX guide](../../guides/build-a-dex#providers) for the full explanation.
 
 ```tsx
 <SymmioProvider
-  chainOverrides={{
-    999: {
-      subgraphs: {
-        analytics: "https://staging.example/subgraphs/analytics",
-      },
+  symmioConfig={{
+    [SymmioSupportedChainId.HYPER_EVM]: {
+      addresses: { affiliatesAddress: "0xYourHyperEvmAffiliate…" },
+      // optional per-chain overrides:
+      subgraphs: { analytics: "https://staging.example/subgraphs/analytics" },
     },
   }}
 >
@@ -72,7 +79,14 @@ function useAppGetWalletClient() {
   );
 }
 
-<SymmioProvider getWalletClient={useAppGetWalletClient()}>{children}</SymmioProvider>;
+<SymmioProvider
+  symmioConfig={{
+    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+  }}
+  getWalletClient={useAppGetWalletClient()}
+>
+  {children}
+</SymmioProvider>;
 ```
 
 When omitted, the provider falls back to `wagmi/actions#getWalletClient` — the SDK signs with whatever wallet wagmi has connected, ignoring `from`.

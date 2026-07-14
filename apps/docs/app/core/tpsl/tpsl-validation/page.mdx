@@ -1,0 +1,28 @@
+# TpSlValidation
+
+The outcome of [`validateTpSl`](/core/tpsl/validate-tpsl). A discriminated union on `ok`: `ok: true` means every supplied side passed; `ok: false` carries per-side error strings so the UI can render them inline. The SDK never throws — the caller decides whether to surface, block, or proceed.
+
+```ts
+type TpSlValidation =
+  | { ok: true; tpError?: undefined; slError?: undefined }
+  | { ok: false; tpError?: string; slError?: string };
+```
+
+## Fields
+
+<Properties>
+  <Property name="ok" type="boolean">
+    Discriminant. `true` when every supplied side passed.
+  </Property>
+  <Property name="tpError" type="string" optional>
+    Take-profit error message (only on the `ok: false` branch).
+  </Property>
+  <Property name="slError" type="string" optional>
+    Stop-loss error message (only on the `ok: false` branch).
+  </Property>
+</Properties>
+
+## Related
+
+- [`validateTpSl`](/core/tpsl/validate-tpsl) — produces this.
+- [`ValidateTpSlInputs`](/core/tpsl/validate-tpsl-inputs) — the inputs.

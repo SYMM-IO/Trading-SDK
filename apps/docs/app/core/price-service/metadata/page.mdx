@@ -1,0 +1,41 @@
+# getEnigmaPriceServiceMetadata
+
+Fetch rich per-market metadata from the chain's Enigma price service, keyed by symbol **address** — pair identifiers, base-token ref, USD / native price strings, liquidity, 24h price change, market cap, and data source. Heavier than the prices reads; reach for it when the UI needs the full picture, not just the mark price.
+
+Pass `addresses` as an array (max 50 per API contract). This read does not support the price-service's deprecated "fetch all metadata" mode.
+
+```ts
+import { getEnigmaPriceServiceMetadata } from "@symmio/trading-core";
+
+const metadata = await getEnigmaPriceServiceMetadata(config, {
+  addresses: ["0xTokenA", "0xTokenB"],
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="addresses" type="readonly string[]" required>
+    Symbol addresses to describe. Max 50 per API contract.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="EnigmaMetadataByAddress">
+  A mapping of symbol address to an [`EnigmaMetadata`](/core/price-service/enigma-metadata) row (`Record<string, EnigmaMetadata>`).
+</Returns>
+
+## Query options
+
+```ts
+import { getEnigmaPriceServiceMetadataQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getEnigmaPriceServiceMetadataQueryOptions(config, { addresses: ["0x…"] }));
+```
+
+`GetEnigmaPriceServiceMetadataOptions` requires `addresses`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getEnigmaPriceServiceMetadataQueryKey` builder still accepts partial inputs for cache matching and invalidation. Metadata changes slowly relative to prices, so a longer `staleTime` is usually fine.

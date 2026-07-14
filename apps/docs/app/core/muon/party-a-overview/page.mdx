@@ -1,0 +1,60 @@
+# getMuonPartyAOverview
+
+Fetch a fresh Muon `partyA_overview` attestation for `partyA` and normalize it to typed fields. This is the uPnL + liquidation data behind `liquidatePartyA` / `setSymbolsPrice` (it produces a `LiquidationSig`). The oracle URLs and the SYMMIO diamond address are resolved from `config`; gateways are tried in order until one succeeds.
+
+```ts
+import { getMuonPartyAOverview } from "@symmio/trading-core";
+
+const overview = await getMuonPartyAOverview(config, { partyA: "0xva..." });
+console.log(overview.uPnl, overview.liquidationId);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="partyA" type="Address" required>
+    The partyA (virtual account for lowcap) to attest.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetMuonPartyAOverviewReturnType">
+  <Property name="partyA" type="Address">
+    The attested partyA.
+  </Property>
+  <Property name="uPnl" type="bigint" required>
+    Signed unrealized PnL (18-decimal, signed).
+  </Property>
+  <Property name="notionalValueSum" type="bigint" optional>
+    Sum of notional values across the partyA's positions.
+  </Property>
+  <Property name="loss" type="bigint" optional>
+    Aggregated loss used by the liquidation flow.
+  </Property>
+  <Property name="liquidationId" type="string" optional>
+    Raw liquidation id for this partyA, when the attestation carries one.
+  </Property>
+  <Property name="symbolIds" type="bigint[]">
+    Symbol ids included in the attestation.
+  </Property>
+  <Property name="quoteIds" type="bigint[]">
+    Quote ids included in the attestation.
+  </Property>
+</Returns>
+
+Plus the [`MuonAttestationBase`](/core/muon/muon-attestation-base) signature envelope fields.
+
+## Query options
+
+```ts
+import { getMuonPartyAOverviewQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getMuonPartyAOverviewQueryOptions(config, { partyA }));
+```
+
+`GetMuonPartyAOverviewOptions` requires `partyA`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getMuonPartyAOverviewQueryKey` builder still accepts partial inputs for cache matching and invalidation.

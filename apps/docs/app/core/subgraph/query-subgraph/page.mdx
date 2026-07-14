@@ -1,0 +1,62 @@
+# querySubgraph
+
+Issue an arbitrary GraphQL query against a configured subgraph — the raw escape hatch for reads the SDK doesn't wrap as a typed action. Pass a codegen `TypedDocumentString` for full type inference, or a raw GraphQL string.
+
+```ts
+import { querySubgraph } from "@symmio/trading-core";
+
+const data = await querySubgraph(config, {
+  document: /* GraphQL */ `
+    query ($id: ID!) {
+      quote(id: $id) {
+        id
+        partyA
+      }
+    }
+  `,
+  variables: { id: "42" },
+  subgraph: "analytics",
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="document" type="SubgraphDocument | string" required>
+    The query document — a codegen `TypedDocumentString` (which infers the result and variables) or a raw GraphQL
+    string.
+  </Property>
+  <Property name="variables" type="Variables" required>
+    The operation variables.
+  </Property>
+  <Property name="subgraph" type="SymmioSubgraphName" default="analytics">
+    Which configured subgraph to query: `"analytics"` (aggregated data) or `"events"` (raw on-chain events).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="TResult">
+  The operation's `data`, typed by the document. When `document` is a `TypedDocumentString`, the result is fully
+  inferred; with a raw string it is the generic result type you supply. Transport failures, a GraphQL `errors` payload,
+  and empty `data` all throw (see [GraphQL error handling](/core/subgraph#graphql-error-handling)).
+</Returns>
+
+## Query options
+
+```ts
+import { querySubgraphQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(
+  querySubgraphQueryOptions(config, {
+    document: myDocument,
+    variables: { id: "42" },
+  }),
+);
+```
+
+In React, prefer the [`useSubgraphQuery`](/react/subgraph) hook, which wraps this factory.

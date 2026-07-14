@@ -1,0 +1,84 @@
+# getAccountBalanceInfo
+
+Read the account's **tradable (allocated) balance info** — the collateral that has been allocated to this SubAccount and is available (or locked) for trading, together with the CVA / LF / margin locks currently held against it. Read via `balanceInfoOfPartyA(account)` on the SYMMIO diamond.
+
+Pair with [`getAccountBalanceOf`](/core/account-layer/get-account-balance-of) for the full picture: `balanceOf` is the free-to-move pot; `balanceInfoOfPartyA` is the allocated-and-in-play pot.
+
+```ts
+import { getAccountBalanceInfo } from "@symmio/trading-core";
+
+const info = await getAccountBalanceInfo(config, {
+  account: "0xaccount...",
+});
+
+console.log(info.allocatedBalance);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    Account address passed as PartyA to `balanceInfoOfPartyA`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="AccountBalanceInfo">
+  <Property name="allocatedBalance" type="bigint">
+    Total allocated balance.
+  </Property>
+  <Property name="lockedCVA" type="bigint">
+    Locked CVA margin.
+  </Property>
+  <Property name="lockedLF" type="bigint">
+    Locked LF margin.
+  </Property>
+  <Property name="lockedPartyAMM" type="bigint">
+    Locked PartyA maintenance margin.
+  </Property>
+  <Property name="lockedPartyBMM" type="bigint">
+    Locked PartyB maintenance margin.
+  </Property>
+  <Property name="pendingLockedCVA" type="bigint">
+    Pending locked CVA margin.
+  </Property>
+  <Property name="pendingLockedLF" type="bigint">
+    Pending locked LF margin.
+  </Property>
+  <Property name="pendingLockedPartyAMM" type="bigint">
+    Pending locked PartyA maintenance margin.
+  </Property>
+  <Property name="pendingLockedPartyBMM" type="bigint">
+    Pending locked PartyB maintenance margin.
+  </Property>
+</Returns>
+
+All fields are returned in raw collateral token units.
+
+## Query options
+
+```ts
+import { getAccountBalanceInfoQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getAccountBalanceInfoQueryOptions(config, { account: "0xaccount..." }));
+```
+
+## Raw ABI
+
+For consumers that want to call viem directly:
+
+```ts
+import { symmioAbi } from "@symmio/trading-core";
+
+await publicClient.readContract({
+  abi: symmioAbi,
+  address: symmioAddress,
+  functionName: "balanceInfoOfPartyA",
+  args: ["0xaccount..."],
+});
+```

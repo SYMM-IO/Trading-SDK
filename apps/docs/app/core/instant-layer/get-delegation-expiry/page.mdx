@@ -1,0 +1,45 @@
+# getDelegationExpiry
+
+Read the raw expiry timestamp stored in the `delegations` mapping.
+
+```ts
+import { getDelegationExpiry } from "@symmio/trading-core";
+
+const expiryTimestamp = await getDelegationExpiry(config, {
+  account: "0xaccount...",
+  delegate: "0xdelegate...",
+  selector: "0x501e891f",
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    Account that owns the delegation.
+  </Property>
+  <Property name="delegate" type="Address" required>
+    Delegated signer being checked.
+  </Property>
+  <Property name="selector" type="Hex" required>
+    Function selector (`bytes4`) being checked.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="bigint">Raw delegation expiry as a Unix timestamp in seconds.</Returns>
+
+## Query options
+
+```ts
+import { getDelegationExpiryQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getDelegationExpiryQueryOptions(config, { account, delegate, selector }));
+```
+
+`GetDelegationExpiryOptions` requires `account`, `delegate`, and `selector`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getDelegationExpiryQueryKey` builder still accepts partial inputs for cache matching and invalidation.

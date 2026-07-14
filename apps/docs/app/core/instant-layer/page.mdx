@@ -4,116 +4,39 @@ The `InstantLayer` contract manages delegated signer access for instant actions.
 
 Contract reference: [SYMMIO perps-core v0.8.5 docs](https://github.com/SYMM-IO/perps-core/tree/version_0.8.5/docs/v0.8.5).
 
+Each method has its own page with the full signature, parameters, return shape, examples, and query options.
+
 ## Reads
 
-### `getDelegationExpiry`
+<MethodIndex kind="read">
+  <MethodEntry name="getDelegationExpiry" href="/core/instant-layer/get-delegation-expiry">
+    Raw delegation expiry timestamp from the `delegations` mapping.
+  </MethodEntry>
+  <MethodEntry name="getIsDelegationActive" href="/core/instant-layer/get-is-delegation-active">
+    Whether the contract considers a delegation active.
+  </MethodEntry>
+</MethodIndex>
 
-Read the raw expiry timestamp stored in the `delegations` mapping.
+## Writes
 
-```ts
-import { getDelegationExpiry } from "@symmio/trading-core";
+<MethodIndex kind="write">
+  <MethodEntry name="grantDelegation" href="/core/instant-layer/grant-delegation">
+    Grant a delegated signer access to selectors until an expiry.
+  </MethodEntry>
+</MethodIndex>
 
-const expiryTimestamp = await getDelegationExpiry(config, {
-  account: "0xaccount...",
-  delegate: "0xdelegate...",
-  selector: "0x501e891f",
-});
-```
+## Types
 
-**Parameters**
+<MethodIndex kind="type">
+  <MethodEntry name="InstantLayerAccount" href="/core/instant-layer/instant-layer-account">
+    Account identity passed to delegation calls.
+  </MethodEntry>
+</MethodIndex>
 
-| Name       | Type      | Default        | Notes                                              |
-| ---------- | --------- | -------------- | -------------------------------------------------- |
-| `account`  | `Address` | required       | Account that owns the delegation.                  |
-| `delegate` | `Address` | required       | Delegated signer being checked.                    |
-| `selector` | `Hex`     | required       | Function selector as `bytes4`, for example `0x...` |
-| `chainId`  | `number?` | config default | Optional chain override.                           |
+## Query options
 
-**Returns** — `bigint`, the Unix timestamp in seconds.
+Each read ships a matching `…QueryOptions` factory and a `…QueryKey` builder for TanStack Query. See each read's page for the exact call.
 
-### `getIsDelegationActive`
+## Raw ABI
 
-Read whether the contract considers a delegation active.
-
-```ts
-import { getIsDelegationActive } from "@symmio/trading-core";
-
-const isActive = await getIsDelegationActive(config, {
-  account: "0xaccount...",
-  delegate: "0xdelegate...",
-  selector: "0x501e891f",
-});
-```
-
-**Parameters**
-
-| Name       | Type      | Default        | Notes                             |
-| ---------- | --------- | -------------- | --------------------------------- |
-| `account`  | `Address` | required       | Account that owns the delegation. |
-| `delegate` | `Address` | required       | Delegated signer being checked.   |
-| `selector` | `Hex`     | required       | Function selector as `bytes4`.    |
-| `chainId`  | `number?` | config default | Optional chain override.          |
-
-**Returns** — `boolean`.
-
-## Query Options
-
-Use these when integrating with TanStack Query outside React:
-
-```ts
-import { getDelegationExpiryQueryOptions, getIsDelegationActiveQueryOptions } from "@symmio/trading-core";
-
-const expiryOptions = getDelegationExpiryQueryOptions(config, {
-  account,
-  delegate,
-  selector,
-});
-
-const activeOptions = getIsDelegationActiveQueryOptions(config, {
-  account,
-  delegate,
-  selector,
-});
-```
-
-`GetDelegationExpiryOptions` and `GetIsDelegationActiveOptions` require `account`, `delegate`, and `selector`. The factories do not accept missing read inputs and do not validate them inside `queryFn`.
-
-The query-key builders still accept partial inputs:
-
-```ts
-import { getDelegationExpiryQueryKey, getIsDelegationActiveQueryKey } from "@symmio/trading-core";
-
-getDelegationExpiryQueryKey({ account, delegate });
-getIsDelegationActiveQueryKey({ account, delegate });
-```
-
-Partial keys are for cache matching and invalidation, not for calling the read query.
-
-## Write
-
-### `grantDelegation`
-
-Grant a delegated signer access to one or more selectors until an expiry timestamp.
-
-```ts
-import { grantDelegation } from "@symmio/trading-core";
-
-const hash = await grantDelegation(config, {
-  account: { addr: account, isPartyB: false },
-  delegatedSigner: delegate,
-  selectors: ["0x501e891f"],
-  expiryTimestamp: 1_766_000_000n,
-});
-```
-
-**Parameters**
-
-| Name              | Type                  | Notes                                                                                |
-| ----------------- | --------------------- | ------------------------------------------------------------------------------------ |
-| `account`         | `InstantLayerAccount` | Account identity passed to the contract. PartyA/user accounts use `isPartyB: false`. |
-| `delegatedSigner` | `Address`             | Signer receiving delegated access.                                                   |
-| `selectors`       | `readonly Hex[]`      | Function selectors to delegate.                                                      |
-| `expiryTimestamp` | `bigint`              | Unix timestamp in seconds.                                                           |
-| `chainId`         | `number?`             | Optional chain override.                                                             |
-
-**Returns** — `Hash`.
+The `instantLayerAbi` export is available for consumers that want to call the contract directly with viem. The `InstantLayer` address is resolved per chain from the config (`config.getChainConfig(chainId)`), not exported as a standalone constant.

@@ -1,0 +1,38 @@
+# toSignableTpSlMessage
+
+EIP-712 can't hash `null` struct fields. This replaces any `null` leg or `sendQuote` with a zero-value struct before hashing, so [`signTpSlRequest`](/core/tpsl/sign-tpsl-request) can produce a valid signature. The same padded shape is sent on the wire, so the handler can re-verify it. A `null` `quoteId` is padded to `0`.
+
+```ts
+import { toSignableTpSlMessage } from "@symmio/trading-core";
+
+const signable = toSignableTpSlMessage(message);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="message" type="Record<string, unknown>" required>
+    A conditional-order or delete message body that may carry `null` legs / `sendQuote` / `quoteId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Record<string, unknown>">
+  The same message with any `null` `takeProfit` / `stopLoss` replaced by `ZERO_LEG`, `null` `sendQuote` replaced by `{ ...ZERO_LEG, leverage: 0 }`, and `null` `quoteId` replaced by `0`.
+</Returns>
+
+## ZERO_LEG
+
+The padding uses the exported `ZERO_LEG` sentinel — an empty-value [`TpSlConditionalOrderLeg`](/core/tpsl/tpsl-conditional-order-leg):
+
+```ts
+import { ZERO_LEG } from "@symmio/trading-core";
+
+// { quantity: "0", price: "0", orderType: 0, conditionalPrice: "0", conditionalPriceType: "market" }
+```
+
+## Related
+
+- [`signTpSlRequest`](/core/tpsl/sign-tpsl-request) — applies this before signing.
+- [`TpSlConditionalOrderLeg`](/core/tpsl/tpsl-conditional-order-leg) — the leg shape `ZERO_LEG` fills.

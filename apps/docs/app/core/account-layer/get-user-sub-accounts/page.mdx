@@ -1,0 +1,91 @@
+# getUserSubAccounts
+
+List a user's subaccounts.
+
+```ts
+import { getUserSubAccounts } from "@symmio/trading-core";
+
+const subs = await getUserSubAccounts(config, {
+  user: "0xabc...",
+  offset: 0n,
+  limit: 200n,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="user" type="Address" required>
+    EOA whose subaccounts to list.
+  </Property>
+  <Property name="offset" type="bigint" default="0n">
+    Pagination offset.
+  </Property>
+  <Property name="limit" type="bigint" default="200n">
+    Max number of subaccounts to return.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly SubAccountDetail[]">
+  <Property name="accountAddress" type="Address">
+    The subaccount's proxy address on-chain.
+  </Property>
+  <Property name="owner" type="Address">
+    The EOA that created and owns the subaccount.
+  </Property>
+  <Property name="name" type="string">
+    User-defined display name. Editable via the `editAccountName` write.
+  </Property>
+  <Property name="isExists" type="boolean">
+    `false` for a subaccount that has been deleted on-chain.
+  </Property>
+  <Property name="singleVAMode" type="boolean">
+    `true` when the subaccount routes successive quotes for the same market into the existing active VA instead of
+    creating a fresh VA per `sendQuote`. Toggleable only while no VAs are active on the subaccount.
+  </Property>
+  <Property name="affiliate" type="Address">
+    Affiliate address attributed to the subaccount, or the zero address.
+  </Property>
+  <Property name="symmioCore" type="Address">
+    The SYMMIO core (diamond) address this subaccount trades against.
+  </Property>
+  <Property name="metadata" type="Hex">
+    Free-form contract metadata blob. May be `0x` (empty) for most accounts.
+  </Property>
+  <Property
+    name="isolationType"
+    type="SubAccountIsolationType"
+    typeHref="/core/account-layer/sub-account-isolation-type"
+  >
+    Strategy the AccountLayer uses to create VAs for this subaccount's trades.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getUserSubAccountsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getUserSubAccountsQueryOptions(config, { user: "0xabc..." }));
+```
+
+## Raw ABI
+
+For consumers that want to call viem directly:
+
+```ts
+import { accountLayerAbi } from "@symmio/trading-core";
+
+await publicClient.readContract({
+  abi: accountLayerAbi,
+  address: accountLayerAddress,
+  functionName: "getUserSubAccounts",
+  args: ["0xabc...", 0n, 200n],
+});
+```

@@ -1,0 +1,87 @@
+# getBalanceHistory
+
+Time-series of a set of sub-accounts' settled collateral movements — deposits and withdraws — from the analytics subgraph.
+
+```ts
+import { getBalanceHistory } from "@symmio/trading-core";
+
+const history = await getBalanceHistory(config, {
+  accounts: [subAccount],
+  first: 50,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="accounts" type="readonly Address[]" required>
+    The sub-accounts whose deposit / withdraw history to read (e.g. the addresses from `getUserSubAccounts`). The query
+    filters on the movement's `account`, so pass every sub-account to cover. An empty array reads nothing.
+  </Property>
+  <Property name="filter" type="BalanceHistoryFilter" default="All">
+    Movement-type filter: `All` (deposits and withdraws), `Deposit`, or `Withdraw`.
+  </Property>
+  <Property name="internalTransfers" type="InternalTransfersMode" default="exclude">
+    How to treat internal margin-transfer legs (bookkeeping side effects of moving margin between a user's own
+    SubAccount and a Virtual Account): `"exclude"` (genuine deposits/withdrawals only), `"only"`, or `"include"`.
+    Orthogonal to `filter`.
+  </Property>
+  <Property name="first" type="number" default="1000">
+    Page size.
+  </Property>
+  <Property name="skip" type="number" default="0">
+    Page offset.
+  </Property>
+  <Property name="startTime" type="number" default="0">
+    Lower bound on the movement timestamp (unix seconds).
+  </Property>
+  <Property name="endTime" type="number" default="2_000_000_000">
+    Upper bound on the movement timestamp (unix seconds).
+  </Property>
+  <Property name="orderDirection" type='"asc" | "desc"' default="desc">
+    Sort direction on the movement timestamp.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly BalanceHistoryRow[]">
+  <Property name="id" type="string">
+    Subgraph entity id (use as a stable row key).
+  </Property>
+  <Property name="type" type="BalanceChangeType">
+    Movement kind — `DEPOSIT`, `WITHDRAW`, or `BRIDGE` (a bridged withdraw).
+  </Property>
+  <Property name="amount" type="bigint">
+    Amount, raw `bigint` in the **collateral token's decimals** (not 18) — scale by `collateralDecimals` (6 on HyperEVM)
+    for display.
+  </Property>
+  <Property name="account" type="Address">
+    The sub-account the movement belongs to.
+  </Property>
+  <Property name="timestamp" type="number">
+    Block timestamp, unix seconds.
+  </Property>
+  <Property name="transaction" type="Hex">
+    Transaction hash of the movement.
+  </Property>
+  <Property name="isInternalTransfer" type="boolean">
+    `true` when this row is an internal margin-transfer leg rather than a real user deposit / withdrawal. Always `false`
+    under the default `internalTransfers: "exclude"`.
+  </Property>
+  <Property name="marginTransferType" type="MarginTransferType | null">
+    The margin-transfer kind (`ADD` / `REMOVE` / `AUTO_RETURN`) when `isInternalTransfer` is `true`; otherwise `null`.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getBalanceHistoryQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getBalanceHistoryQueryOptions(config, { accounts: [subAccount] }));
+```

@@ -2,7 +2,7 @@
 
 `@symmio/trading-core` is the framework-agnostic SYMMIO SDK. Contract calls, REST clients, GraphQL subgraph reads, WebSocket streams, calculations, and typed errors — no framework assumptions.
 
-Framework layers (`@symmio/trading-react`, a future Vue layer) sit on top of `core` and inject the viem-client resolvers it needs.
+Framework layers sit on top of `core` and inject the viem-client resolvers it needs. Today that layer is `@symmio/trading-react`. Because `core` stays framework-agnostic, other layers (Vue, Solid, or anything else) can be added later without rewriting it.
 
 ## Install
 
@@ -14,7 +14,7 @@ pnpm add @symmio/trading-core viem
 
 ## Shape
 
-Every read is `getXyz(config, params)`; every write is `xyz(config, params)`. The **config** is always the first argument — a single immutable `Config` object created once with `createConfig`, shared across every call.
+Every read is `getXyz(config, params)`; every write is `xyz(config, params)`. The **config** is always the first argument — a single immutable [`Config`](/core/concepts/config) object created once with [`createConfig`](/core/concepts/config), shared across every call.
 
 ```ts
 import { createConfig, getUserSubAccounts } from "@symmio/trading-core";
@@ -24,6 +24,9 @@ import { hyperEvm } from "viem/chains";
 const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
 
 const config = createConfig({
+  symmioConfig: {
+    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+  },
   getClient: () => publicClient,
 });
 

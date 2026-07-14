@@ -1,0 +1,54 @@
+# TpSlNotification
+
+The normalized TP/SL notification the SDK delivers to consumers. Produced by [`parseTpSlFrame`](/core/tpsl/parse-tpsl-frame) and delivered by [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications). camelCase, with `quoteId` resolved to the on-chain id when the quote has anchored (else the temp id). The original wire frame is preserved on `raw`.
+
+The pair `(primaryIdentifier, secondaryIdentifier)` is the temp ↔ on-chain link: a frame that carries both nonzero is the one that reveals the pairing.
+
+## Fields
+
+<Properties>
+  <Property name="quoteId" type="number">
+    On-chain quote id when known; falls back to the temp id (may be negative).
+  </Property>
+  <Property name="primaryIdentifier" type="number">
+    Always the raw `primary_identifier` (`0` while pre-chain).
+  </Property>
+  <Property name="secondaryIdentifier" type="number">
+    Always the raw `secondary_identifier` (the temp id pre-chain).
+  </Property>
+  <Property name="account" type="string | null">
+    SubAccount address the notification belongs to.
+  </Property>
+  <Property name="conditionalOrderType" type='"take_profit" | "stop_loss" | null'>
+    Which side the report is about (`TpSlConditionalOrderType`), or `null`.
+  </Property>
+  <Property name="state" type="RawTpSlNotificationState" typeHref="/core/tpsl/raw-tpsl-notification">
+    Wire state — `new` | `edit` | `pending` | `cancel(led)` | `trigger(ed)` | `close`.
+  </Property>
+  <Property name="successful" type="boolean">
+    Whether the reported action succeeded.
+  </Property>
+  <Property name="cohQuoteId" type="string" optional>
+    Handler-issued conditional-order id, when present.
+  </Property>
+  <Property name="details" type="RawTpSlNotificationDetails" typeHref="/core/tpsl/raw-tpsl-notification" optional>
+    Set on `close` frames — the fill details from the handler.
+  </Property>
+  <Property name="errorCode" type="number" optional>
+    Set when `successful: false`.
+  </Property>
+  <Property name="errorMessage" type="string" optional>
+    Set when `successful: false`.
+  </Property>
+  <Property name="timestamp" type="number" optional>
+    Frame timestamp (seconds), when present.
+  </Property>
+  <Property name="raw" type="RawTpSlNotification" typeHref="/core/tpsl/raw-tpsl-notification">
+    The raw decoded wire frame.
+  </Property>
+</Properties>
+
+## Related
+
+- [`RawTpSlNotification`](/core/tpsl/raw-tpsl-notification) — the wire frame retained on `raw`.
+- [`parseTpSlFrame`](/core/tpsl/parse-tpsl-frame) / [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) — where it comes from.

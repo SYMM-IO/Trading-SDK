@@ -1,0 +1,136 @@
+# Types & constants
+
+Every type and constant exported from `@symmio/session-key`. The interfaces are authoritative — the manager, helpers, and payload functions all speak these shapes.
+
+## Manager types
+
+### `SessionKeyManager`
+
+The runtime interface returned by [`createSessionKeyManager`](/session-key/manager). See that page for per-method docs.
+
+### `CreateSessionKeyManagerOptions`
+
+```ts
+interface CreateSessionKeyManagerOptions {
+  storage: SessionKeyStorage;
+  defaultTtlMs?: number; // default: SESSION_KEY_EXPIRY_MS (one year)
+  now?: () => number; // default: Date.now
+}
+```
+
+### `SessionKeyState`
+
+```ts
+interface SessionKeyState {
+  isReady: boolean; // valid key currently in memory
+  isExpired: boolean; // last loaded record was expired
+  publicAddress: Address | null;
+  expiresAt: number | null; // ms since epoch
+}
+```
+
+### `SessionKeySignature`
+
+Returned by [`manager.sign`](/session-key/manager).
+
+```ts
+interface SessionKeySignature {
+  signature: Hex; // hex ECDSA signature
+  sessionKeyAddress: Address; // address that produced it
+  durationMs: number; // client-side signing duration
+}
+```
+
+### `SessionKeyTypedDataParameters`
+
+The EIP-712 request accepted by [`manager.signTypedData`](/session-key/manager).
+
+```ts
+interface SessionKeyTypedDataParameters {
+  domain: TypedDataDomain;
+  types: Record<string, Array<{ name: string; type: string }>>;
+  primaryType: string;
+  message: Record<string, unknown>;
+}
+```
+
+## Key material
+
+### `SessionKeyMaterial`
+
+Returned by [`createSessionKey`](/session-key/key-material) and [`sessionKeyFromPrivateKey`](/session-key/key-material).
+
+```ts
+interface SessionKeyMaterial {
+  address: Address;
+  privateKey: Hex;
+}
+```
+
+## Storage types
+
+### `SessionKeyStorage`
+
+The persistence contract you implement. Full walkthrough on [Security & storage](/session-key/security).
+
+```ts
+interface SessionKeyStorage {
+  load(owner: Address): Promise<SessionKeyRecord | null>;
+  save(owner: Address, record: SessionKeyRecord): Promise<void>;
+  remove(owner: Address): Promise<void>;
+  getMetadata(owner: Address): Promise<SessionKeyMetadata | null>;
+}
+```
+
+### `SessionKeyRecord`
+
+The persisted record. `privateKey` is **plaintext `Hex`** — encrypt it in your adapter.
+
+```ts
+interface SessionKeyRecord {
+  owner: Address;
+  privateKey: Hex;
+  address: Address;
+  createdAt: number; // ms since epoch
+  expiresAt: number; // ms since epoch
+  label?: string;
+}
+```
+
+### `SessionKeyMetadata`
+
+The non-secret subset, returned by `getMetadata`.
+
+```ts
+interface SessionKeyMetadata {
+  address: Address;
+  owner: Address;
+  createdAt: number;
+  expiresAt: number;
+}
+```
+
+## Transfer types
+
+### `SessionKeyTransferPayload`
+
+The envelope for [device handoff](/session-key/transfer-payloads). `sessionPrivateKey` is `null` for a metadata-only payload.
+
+```ts
+interface SessionKeyTransferPayload {
+  version: number;
+  owner: Address;
+  sessionPrivateKey: Hex | null;
+  sessionAddress?: Address;
+  createdAt: number; // ms since epoch
+  expiresAt?: number; // ms since epoch
+}
+```
+
+## Constants
+
+| Constant                               | Value                    | Notes                                                          |
+| -------------------------------------- | ------------------------ | -------------------------------------------------------------- |
+| `SESSION_KEY_EXPIRY_MS`                | `365 * 24 * 60 * 60_000` | Default TTL for newly generated / imported keys (1 year).      |
+| `SESSION_KEY_TRANSFER_PAYLOAD_VERSION` | `1`                      | Current transfer payload schema. Bump if the encoding changes. |
+| `SESSION_KEY_TRANSFER_MAX_AGE_MS`      | `120_000`                | Default validity window for transfer payloads (2 minutes).     |

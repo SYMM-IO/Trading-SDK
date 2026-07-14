@@ -1,0 +1,30 @@
+# NotificationType
+
+Classification of a notification, derived from its `action_status`. Enumerated so consumers can `switch` on it without knowing the wire tags. Unknown or missing statuses are treated as `FAILED`.
+
+```ts
+enum NotificationType {
+  SUCCESS = "success",
+  FAILED = "failed",
+  SEEN = "seen",
+}
+```
+
+[`classifyNotification`](/core/notifications/classify-notification) maps a raw `action_status` onto these members.
+
+## ActionStatus
+
+The wire-level `action_status` values a notification can carry are modeled by the parallel `ActionStatus` enum, which shares the same members:
+
+```ts
+enum ActionStatus {
+  SUCCESS = "success",
+  FAILED = "failed",
+  SEEN = "seen",
+}
+```
+
+## Related
+
+- [classifyNotification](/core/notifications/classify-notification) — turns `action_status` into a `NotificationType`.
+- [Notification](/core/notifications/notification) — carries the classified `type`.

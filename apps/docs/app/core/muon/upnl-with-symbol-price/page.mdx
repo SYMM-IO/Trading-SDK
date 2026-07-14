@@ -1,0 +1,73 @@
+# getMuonUpnlWithSymbolPrice
+
+Fetch a fresh Muon `uPnlWithSymbolPrice` attestation for a `partyB` / `partyA` pair and a `symbolId`, normalized to typed fields. This attestation carries both parties' uPnL plus a single symbol price — the shape a solver's `openPosition` call needs. The oracle URLs and the SYMMIO diamond address are resolved from `config`; gateways are tried in order until one succeeds.
+
+```ts
+import { getMuonUpnlWithSymbolPrice } from "@symmio/trading-core";
+
+const a = await getMuonUpnlWithSymbolPrice(config, {
+  partyB: "0xsolver...",
+  partyA: "0xva...",
+  symbolId: 1n,
+});
+console.log(a.price, a.uPnlA, a.uPnlB);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="partyB" type="Address" required>
+    The partyB (solver) side of the attestation.
+  </Property>
+  <Property name="partyA" type="Address" required>
+    The partyA (virtual account, lowcap) to attest.
+  </Property>
+  <Property name="symbolId" type="bigint" required>
+    The symbol id whose price is included in the attestation.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetMuonUpnlWithSymbolPriceReturnType">
+  <Property name="partyB" type="Address">
+    The attested partyB.
+  </Property>
+  <Property name="partyA" type="Address">
+    The attested partyA.
+  </Property>
+  <Property name="symbolId" type="bigint">
+    The symbol id the price is for.
+  </Property>
+  <Property name="price" type="bigint" optional>
+    The attested symbol price (18-decimal).
+  </Property>
+  <Property name="uPnlA" type="bigint" optional>
+    Signed unrealized PnL for partyA (18-decimal, signed).
+  </Property>
+  <Property name="uPnlB" type="bigint" optional>
+    Signed unrealized PnL for partyB (18-decimal, signed).
+  </Property>
+  <Property name="quoteIdsA" type="bigint[]">
+    Quote ids included on partyA's side of the attestation.
+  </Property>
+  <Property name="quoteIdsB" type="bigint[]">
+    Quote ids included on partyB's side of the attestation.
+  </Property>
+</Returns>
+
+Plus the [`MuonAttestationBase`](/core/muon/muon-attestation-base) signature envelope fields.
+
+## Query options
+
+```ts
+import { getMuonUpnlWithSymbolPriceQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getMuonUpnlWithSymbolPriceQueryOptions(config, { partyB, partyA, symbolId }));
+```
+
+`GetMuonUpnlWithSymbolPriceOptions` requires `partyB`, `partyA`, and `symbolId`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getMuonUpnlWithSymbolPriceQueryKey` builder still accepts partial inputs for cache matching and invalidation.

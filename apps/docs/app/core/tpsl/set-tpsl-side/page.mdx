@@ -1,0 +1,23 @@
+# SetTpSlSide
+
+One side (TP or SL) of a [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) call. Passed as the `tp` and/or `sl` field; omit a side to skip it.
+
+```ts
+const tp = { triggerPrice: "150", priceType: "markPrice" };
+```
+
+## Fields
+
+<Properties>
+  <Property name="triggerPrice" type="string">
+    Trigger price (decimal string).
+  </Property>
+  <Property name="priceType" type="TpSlPriceType" typeHref="/core/tpsl/tpsl-price-type">
+    Whether the order trips on the mark price or the last-close price.
+  </Property>
+</Properties>
+
+## Related
+
+- [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) — takes `tp` / `sl` of this shape.
+- [`TpSlPriceType`](/core/tpsl/tpsl-price-type) — the `priceType` values.

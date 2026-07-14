@@ -106,7 +106,9 @@ open.mutate({
 });
 ```
 
-On success, `useTpSlStore` is populated with the confirming record keyed by `tempQuoteId`. When the position anchors on-chain, the solver maps `tempQuoteId ↔ quoteId` and the same TP/SL record is reachable by either id.
+`virtualAccount` is the position's VA, which does not exist on-chain yet — derive it with [`usePredictedNextVirtualAccount`](../../account-layer#usepredictednextvirtualaccount) keyed by `isolationTypeForSide(positionType)` and `symbolId`. `tpsl: undefined` (both legs empty) collapses the call to a plain `useInstantOpenAuto`. The open and the TP/SL leg fail independently: a rejected TP/SL still resolves the mutation and surfaces `data.tpslError` rather than throwing away a landed open.
+
+On success, `useTpSlStore` is populated with the confirming record keyed by `tempQuoteId`. When the position anchors on-chain, the solver maps `tempQuoteId ↔ quoteId` and the same TP/SL record is reachable by either id. Confirmation is WebSocket-driven — the record sits in `confirming` until the handler's `report` frame flips it to `new`; read it with `useQuoteTpSl({ quoteId, account })`.
 
 See [TP/SL](../../tpsl) for the store + reconciliation model.
 

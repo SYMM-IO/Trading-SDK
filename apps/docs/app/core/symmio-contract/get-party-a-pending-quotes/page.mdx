@@ -1,0 +1,33 @@
+# getPartyAPendingQuotes
+
+Read the ids of the quotes still in the pending stages for a PartyA. Pair the ids with [`getQuote`](/core/symmio-contract/get-quote) to read each struct.
+
+```ts
+import { getPartyAPendingQuotes } from "@symmio/trading-core";
+
+const pendingIds = await getPartyAPendingQuotes(config, { partyA });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="partyA" type="Address" required>
+    The partyA (virtual account, lowcap) whose pending quote ids to read.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly bigint[]">The pending quote ids.</Returns>
+
+## Query options
+
+```ts
+import { getPartyAPendingQuotesQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getPartyAPendingQuotesQueryOptions(config, { partyA }));
+```

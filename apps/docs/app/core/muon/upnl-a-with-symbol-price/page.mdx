@@ -1,0 +1,63 @@
+# getMuonUpnlAWithSymbolPrice
+
+Fetch a fresh Muon `uPnl_A_withSymbolPrice` attestation for `partyA` and a single `symbolId`, and normalize it to typed fields. This bundles partyA's uPnL with one symbol's price — it feeds the `sendQuoteWithAffiliate` flow. The oracle URLs and the SYMMIO diamond address are resolved from `config`; gateways are tried in order until one succeeds.
+
+```ts
+import { getMuonUpnlAWithSymbolPrice } from "@symmio/trading-core";
+
+const a = await getMuonUpnlAWithSymbolPrice(config, { partyA: "0xva...", symbolId: 1n });
+console.log(a.uPnl, a.price);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="partyA" type="Address" required>
+    The partyA (virtual account, lowcap) to attest.
+  </Property>
+  <Property name="symbolId" type="bigint" required>
+    The symbol whose price is attested alongside the uPnL.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetMuonUpnlAWithSymbolPriceReturnType">
+  <Property name="partyA" type="Address">
+    The attested partyA.
+  </Property>
+  <Property name="symbolId" type="bigint">
+    The symbol whose price is attested.
+  </Property>
+  <Property name="price" type="bigint" optional>
+    The attested price for `symbolId` (18-decimal).
+  </Property>
+  <Property name="uPnl" type="bigint" required>
+    Signed unrealized PnL (18-decimal, signed).
+  </Property>
+  <Property name="notionalValueSum" type="bigint" optional>
+    Sum of notional values across the partyA's positions.
+  </Property>
+  <Property name="symbolIds" type="bigint[]">
+    Symbol ids included in the attestation.
+  </Property>
+  <Property name="quoteIds" type="bigint[]">
+    Quote ids included in the attestation.
+  </Property>
+</Returns>
+
+Plus the [`MuonAttestationBase`](/core/muon/muon-attestation-base) signature envelope fields.
+
+## Query options
+
+```ts
+import { getMuonUpnlAWithSymbolPriceQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getMuonUpnlAWithSymbolPriceQueryOptions(config, { partyA, symbolId }));
+```
+
+`GetMuonUpnlAWithSymbolPriceOptions` requires `partyA` and `symbolId`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getMuonUpnlAWithSymbolPriceQueryKey` builder still accepts partial inputs for cache matching and invalidation.

@@ -1,0 +1,90 @@
+# getMuonPriceRange
+
+Fetch a fresh Muon `priceRange` attestation for a position over the `[t0, t1]` window and normalize it to typed fields. This produces the TWAP-style range a partyB needs to validate a `forceClosePosition` / `settleAndForceClosePosition` against the configured gap thresholds — it is a **time window in unix seconds, not a block range**. The oracle URLs and the SYMMIO diamond address are resolved from `config`; gateways are tried in order until one succeeds.
+
+```ts
+import { getMuonPriceRange } from "@symmio/trading-core";
+
+const r = await getMuonPriceRange(config, {
+  t0: 1_700_000_000n,
+  t1: 1_700_000_900n,
+  partyA: "0xva...",
+  partyB: "0xpb...",
+  symbolId: 1n,
+});
+console.log(r.lowest, r.highest, r.mean);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="t0" type="bigint" required>
+    Window start in unix seconds.
+  </Property>
+  <Property name="t1" type="bigint" required>
+    Window end in unix seconds.
+  </Property>
+  <Property name="partyA" type="Address" required>
+    The partyA (virtual account for lowcap) to attest.
+  </Property>
+  <Property name="partyB" type="Address" required>
+    The partyB counterparty of the position.
+  </Property>
+  <Property name="symbolId" type="bigint" required>
+    The market symbol id the range is computed for.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetMuonPriceRangeReturnType">
+  <Property name="partyA" type="Address">
+    The attested partyA.
+  </Property>
+  <Property name="partyB" type="Address">
+    The attested partyB.
+  </Property>
+  <Property name="symbolId" type="bigint">
+    The market symbol id the range was computed for.
+  </Property>
+  <Property name="startTime" type="bigint" optional>
+    Window start in unix seconds (echoed by the gateway).
+  </Property>
+  <Property name="endTime" type="bigint" optional>
+    Window end in unix seconds (echoed by the gateway).
+  </Property>
+  <Property name="lowest" type="bigint" optional>
+    Lowest observed price across the window (18-decimal).
+  </Property>
+  <Property name="highest" type="bigint" optional>
+    Highest observed price across the window (18-decimal).
+  </Property>
+  <Property name="mean" type="bigint" optional>
+    TWAP/mean price across the window (18-decimal).
+  </Property>
+  <Property name="price" type="bigint" optional>
+    Spot price at the attestation (18-decimal).
+  </Property>
+  <Property name="uPnlA" type="bigint" optional>
+    PartyA's unrealized PnL at the attestation (18-decimal, signed).
+  </Property>
+  <Property name="uPnlB" type="bigint" optional>
+    PartyB's unrealized PnL at the attestation (18-decimal, signed).
+  </Property>
+</Returns>
+
+Plus the [`MuonAttestationBase`](/core/muon/muon-attestation-base) signature envelope fields.
+
+## Query options
+
+```ts
+import { getMuonPriceRangeQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getMuonPriceRangeQueryOptions(config, { t0, t1, partyA, partyB, symbolId }));
+```
+
+`GetMuonPriceRangeOptions` requires `t0`, `t1`, `partyA`, `partyB`, and `symbolId`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getMuonPriceRangeQueryKey` builder still accepts partial inputs for cache matching and invalidation.

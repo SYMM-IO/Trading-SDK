@@ -1,0 +1,36 @@
+# parseNotificationFrame
+
+Parse an inbound socket frame into a [`RawPositionNotification`](/core/notifications/raw-position-notification), or `null` when the frame is not a notification (control/ack frames, malformed JSON, or a missing payload — all skipped silently by the caller).
+
+For `defilytics`, the notification is unwrapped from its `{ data, address }` envelope and the top-level `address` is hoisted onto the frame.
+
+```ts
+import { parseNotificationFrame } from "@symmio/trading-core";
+
+const raw = parseNotificationFrame(event.data, "defilytics");
+if (raw) {
+  // a real notification frame
+}
+```
+
+## Parameters
+
+<Properties>
+  <Property name="data" type="unknown" required>
+    The raw `event.data` — a JSON string, or an already-parsed object.
+  </Property>
+  <Property name="protocol" type="SymmioNotificationsProtocol" required>
+    The endpoint's wire protocol.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="RawPositionNotification | null" typeHref="/core/notifications/raw-position-notification">
+  The parsed raw frame, or `null` for control/ack frames, malformed JSON, or a missing payload.
+</Returns>
+
+## Related
+
+- [normalizeNotification](/core/notifications/normalize-notification) — turns this raw frame into a `Notification`.
+- [buildSubscribeMessage](/core/notifications/build-subscribe-message) — the outbound counterpart sent on connect.

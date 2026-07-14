@@ -146,7 +146,7 @@ export function PartyAField({
                 placeholder="Search subaccounts…"
                 aria-label="Search subaccounts"
                 data-testid={`${idPrefix}-search`}
-                className="placeholder:text-muted-foreground/70 h-10 w-full bg-transparent text-sm outline-none"
+                className="placeholder:text-muted-foreground h-10 w-full bg-transparent text-sm outline-none"
               />
             </div>
 

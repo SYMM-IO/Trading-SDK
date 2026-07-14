@@ -4,240 +4,50 @@ The `AccountLayer` contract is where SYMMIO subaccounts live. Each EOA can own m
 
 This slice also exposes SYMMIO core balance reads for accounts. The `account` input can be a subaccount or virtual account address depending on what the underlying SYMMIO method accepts.
 
+Contract reference: [SYMMIO perps-core v0.8.5 docs](https://github.com/SYMM-IO/perps-core/tree/version_0.8.5/docs/v0.8.5).
+
+Each method has its own page with the full signature, parameters, return shape, examples, query options, and raw ABI usage.
+
 ## Reads
 
-### `getUserSubAccounts`
-
-List a user's subaccounts.
-
-```ts
-import { getUserSubAccounts } from "@symmio/trading-core";
-
-const subs = await getUserSubAccounts(config, {
-  user: "0xabc...",
-  offset: 0n,
-  limit: 200n,
-});
-```
-
-**Parameters**
-
-| Name      | Type      | Default        | Notes                                                                             |
-| --------- | --------- | -------------- | --------------------------------------------------------------------------------- |
-| `user`    | `Address` | —              | EOA whose subaccounts to list.                                                    |
-| `offset`  | `bigint`  | `0n`           | Pagination offset.                                                                |
-| `limit`   | `bigint`  | `200n`         | Max number of subaccounts to return. Matches the Explorer Inspector page default. |
-| `chainId` | `number?` | config default | Optional chain override.                                                          |
-
-**Returns** — `readonly SubAccountDetail[]`.
-
-```ts
-interface SubAccountDetail {
-  accountAddress: Address; // proxy address on chain
-  owner: Address; // EOA that created this subaccount
-  name: string; // editable via editAccountName
-  isExists: boolean; // false if deleted
-  singleVAMode: boolean;
-  affiliate: Address;
-  symmioCore: Address;
-  metadata: Hex;
-  isolationType: SubAccountIsolationType;
-}
-```
-
-### `getAccountBalanceOf`
-
-Read the account's **available (deallocated) balance** — collateral that lives on the account but is **not** currently allocated to any SubAccount for trading. This is the amount the user can transfer, withdraw, or allocate. Read via `balanceOf(account)` on the SYMMIO diamond.
-
-```ts
-import { getAccountBalanceOf } from "@symmio/trading-core";
-
-const balance = await getAccountBalanceOf(config, {
-  account: "0xaccount...",
-});
-```
-
-**Parameters**
-
-| Name      | Type      | Default        | Notes                                  |
-| --------- | --------- | -------------- | -------------------------------------- |
-| `account` | `Address` | required       | Account address passed to `balanceOf`. |
-| `chainId` | `number?` | config default | Optional chain override.               |
-
-**Returns** — `bigint`, in raw collateral token units. Use `formatUnits(value, 18)` / `formatEther(value)` or the utils package when displaying decimal values.
-
-### `getAccountBalanceInfo`
-
-Read the account's **tradable (allocated) balance info** — the collateral that has been allocated to this SubAccount and is available (or locked) for trading, together with the CVA / LF / margin locks currently held against it. Read via `balanceInfoOfPartyA(account)` on the SYMMIO diamond.
-
-Pair with [`getAccountBalanceOf`](#getaccountbalanceof) for the full picture: `balanceOf` is the free-to-move pot; `balanceInfoOfPartyA` is the allocated-and-in-play pot.
-
-```ts
-import { getAccountBalanceInfo } from "@symmio/trading-core";
-
-const info = await getAccountBalanceInfo(config, {
-  account: "0xaccount...",
-});
-
-console.log(info.allocatedBalance);
-```
-
-**Parameters**
-
-| Name      | Type      | Default        | Notes                                                      |
-| --------- | --------- | -------------- | ---------------------------------------------------------- |
-| `account` | `Address` | required       | Account address passed as PartyA to `balanceInfoOfPartyA`. |
-| `chainId` | `number?` | config default | Optional chain override.                                   |
-
-**Returns** — `AccountBalanceInfo`.
-
-```ts
-interface AccountBalanceInfo {
-  allocatedBalance: bigint;
-  lockedCVA: bigint;
-  lockedLF: bigint;
-  lockedPartyAMM: bigint;
-  lockedPartyBMM: bigint;
-  pendingLockedCVA: bigint;
-  pendingLockedLF: bigint;
-  pendingLockedPartyAMM: bigint;
-  pendingLockedPartyBMM: bigint;
-}
-```
-
-All fields are returned in raw collateral token units.
-
-### `SubAccountIsolationType`
-
-```ts
-enum SubAccountIsolationType {
-  POSITION = 0, // one VA per trade
-  MARKET = 1, // one VA per market
-  MARKET_DIRECTION = 2, // one VA per market + direction
-  CUSTOM = 3, // no automatic VA creation
-}
-```
+<MethodIndex kind="read">
+  <MethodEntry name="getUserSubAccounts" href="/core/account-layer/get-user-sub-accounts">
+    List an EOA's subaccounts.
+  </MethodEntry>
+  <MethodEntry name="getAccountBalanceOf" href="/core/account-layer/get-account-balance-of">
+    Available (deallocated) balance — collateral free to transfer, withdraw, or allocate.
+  </MethodEntry>
+  <MethodEntry name="getAccountBalanceInfo" href="/core/account-layer/get-account-balance-info">
+    Allocated (tradable) balance plus the CVA / LF / margin locks held against it.
+  </MethodEntry>
+</MethodIndex>
 
 ## Writes
 
-### `allocate`
+<MethodIndex kind="write">
+  <MethodEntry name="allocate" href="/core/account-layer/allocate">
+    Move available balance into allocated (tradable) balance.
+  </MethodEntry>
+  <MethodEntry name="deallocate" href="/core/account-layer/deallocate">
+    Move allocated balance back to available (needs a Muon uPnL sig).
+  </MethodEntry>
+  <MethodEntry name="editAccountName" href="/core/account-layer/edit-account-name">
+    Rename a subaccount.
+  </MethodEntry>
+</MethodIndex>
 
-Move a subaccount's available balance into its allocated (tradeable) balance — the
-margin Party A trades against. The call is routed through the AccountLayer `_call`
-proxy so the SYMMIO core attributes it to the subaccount; the connected wallet must
-be the subaccount's on-chain `owner`. The subaccount must not be suspended or in
-liquidation as Party A.
+## Types
 
-```ts
-import { allocate } from "@symmio/trading-core";
-
-const hash = await allocate(config, {
-  account: "0xsub...",
-  amount: 1_000000000000000000n, // 18 decimals
-});
-```
-
-**Parameters**
-
-| Name                  | Type       | Notes                                                                                              |
-| --------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
-| `account`             | `Address`  | The subaccount to allocate into. The signer must equal its on-chain `owner`.                       |
-| `amount`              | `bigint`   | Amount moved into allocated balance, in **18 decimals** (not collateral decimals).                 |
-| `chainId`             | `number?`  | Optional chain override.                                                                           |
-| `simulateBeforeWrite` | `boolean?` | Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default). |
-
-**Returns** — `Hash` (the broadcast tx hash).
-
-Dry-run without sending via `simulateAllocate(config, params)`.
-
-### `deallocate`
-
-Move a subaccount's allocated (tradeable) balance back into its available balance
-— the reverse of `allocate`. Routed through the AccountLayer `_call` proxy; the
-connected wallet must be the subaccount's on-chain `owner`. Requires a fresh Muon
-uPnL attestation so the contract can verify the subaccount stays solvent, and is
-subject to the on-chain **deallocate debounce**.
-
-```ts
-import { deallocate, getDeallocateUpnlSig } from "@symmio/trading-core";
-
-const upnlSig = await getDeallocateUpnlSig(config, { virtualAccount: "0xsub..." });
-const hash = await deallocate(config, {
-  account: "0xsub...",
-  amount: 1_000000000000000000n, // 18 decimals
-  upnlSig,
-});
-```
-
-**Parameters**
-
-| Name                  | Type            | Notes                                                                                              |
-| --------------------- | --------------- | -------------------------------------------------------------------------------------------------- |
-| `account`             | `Address`       | The subaccount to deallocate from. The signer must equal its on-chain `owner`.                     |
-| `amount`              | `bigint`        | Amount moved back into available balance, in **18 decimals** (not collateral decimals).            |
-| `upnlSig`             | `SingleUpnlSig` | A fresh Muon uPnL attestation — fetch with `getDeallocateUpnlSig` right before submitting.         |
-| `chainId`             | `number?`       | Optional chain override.                                                                           |
-| `simulateBeforeWrite` | `boolean?`      | Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default). |
-
-**Returns** — `Hash` (the broadcast tx hash).
-
-Dry-run without sending via `simulateDeallocate(config, params)`.
-
-### `editAccountName`
-
-Rename a subaccount.
-
-```ts
-import { editAccountName } from "@symmio/trading-core";
-
-const hash = await editAccountName(config, {
-  account: "0xsub...",
-  name: "Trading bot",
-});
-```
-
-**Parameters**
-
-| Name      | Type      | Notes                                                                                  |
-| --------- | --------- | -------------------------------------------------------------------------------------- |
-| `account` | `Address` | The subaccount being renamed. The signer must equal the subaccount's `owner` on chain. |
-| `name`    | `string`  | New display name.                                                                      |
-| `chainId` | `number?` | Optional chain override.                                                               |
-
-**Returns** — `Hash` (the broadcast tx hash).
+<MethodIndex kind="type">
+  <MethodEntry name="SubAccountIsolationType" href="/core/account-layer/sub-account-isolation-type">
+    How a subaccount auto-creates Virtual Accounts per trade / market / direction.
+  </MethodEntry>
+</MethodIndex>
 
 ## Query options
 
-```ts
-import {
-  getAccountBalanceInfoQueryOptions,
-  getAccountBalanceOfQueryOptions,
-  getUserSubAccountsQueryOptions,
-} from "@symmio/trading-core";
-
-useQuery(getAccountBalanceOfQueryOptions(config, { account }));
-useQuery(getAccountBalanceInfoQueryOptions(config, { account }));
-useQuery(getUserSubAccountsQueryOptions(config, { user }));
-```
+Every read ships a matching `…QueryOptions` factory for TanStack Query — `getUserSubAccountsQueryOptions`, `getAccountBalanceOfQueryOptions`, and `getAccountBalanceInfoQueryOptions`. See each read's page for the exact call.
 
 ## Raw ABI
 
-For consumers that want to call viem directly:
-
-```ts
-import { accountLayerAbi, symmioAbi } from "@symmio/trading-core";
-
-await publicClient.readContract({
-  abi: accountLayerAbi,
-  address: accountLayerAddress,
-  functionName: "getUserSubAccounts",
-  args: ["0xabc...", 0n, 200n],
-});
-
-await publicClient.readContract({
-  abi: symmioAbi,
-  address: symmioAddress,
-  functionName: "balanceOf",
-  args: ["0xaccount..."],
-});
-```
+Reads can be called directly with viem using the exported `accountLayerAbi` and `symmioAbi`; each read's page shows the corresponding `readContract` call. Writes are routed through the AccountLayer `_call` proxy so SYMMIO core attributes them to the subaccount — use the SDK write functions rather than calling the ABI directly.

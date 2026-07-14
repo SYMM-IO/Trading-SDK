@@ -1,0 +1,76 @@
+# reconcileQuotes
+
+Merge every quote source for a sub-account into one stable, de-duplicated, lifecycle-tagged list — **active quotes only**: a quote appears iff it is in at least one source this tick, so a quote that has left every source is simply absent (no lingering "removed" rows). **Pure** and stateless: given the same input it always returns the same result, reading no clock and no randomness.
+
+The merge pipeline: on-chain positions and pending quotes become anchored rows (`retainedAnchors` re-seed any anchored-but-not-yet-read row so it does not flicker out); pending instant-closes overlay the matching on-chain row; pending instant-opens become `OPTIMISTIC` rows, dropped when an on-chain row already carries the same fingerprint (the trade landed); notifications are then applied in order to link temp ↔ on-chain ids and advance lifecycles; finally rows are sorted by `statusModifyTimestamp` descending, and the `WRITE_ONCHAIN` rows are returned as `pendingAnchors` for the next tick.
+
+```ts
+import { reconcileQuotes } from "@symmio/trading-core";
+
+const { quotes, links, pendingAnchors } = reconcileQuotes({
+  partyA,
+  onchainPositions,
+  onchainPendingQuotes,
+  instantOpens,
+  instantCloses,
+  notifications,
+  retainedAnchors, // pendingAnchors from the previous tick
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="partyA" type="Address" required>
+    Sub-account (partyA) the snapshot belongs to.
+  </Property>
+  <Property name="onchainPositions" type="readonly Quote[]" required>
+    On-chain open positions (`getPartyAOpenPositions`).
+  </Property>
+  <Property name="onchainPendingQuotes" type="readonly Quote[]" required>
+    On-chain pending quotes hydrated via `getQuote`.
+  </Property>
+  <Property name="instantOpens" type="readonly PendingInstantOpen[]" required>
+    Pending instant-open records from the hedger.
+  </Property>
+  <Property name="instantCloses" type="readonly PendingInstantClose[]" required>
+    Pending instant-close records from the hedger.
+  </Property>
+  <Property name="instantOpenVaByTempId" type="Record<number, Address>" optional>
+    Map from a pending instant-open's `tempQuoteId` to the Virtual Account (VA) its position will land in (from
+    [`resolveQuoteAccounts`](/core/quotes/resolve-quote-accounts)). When present, the optimistic row is stamped with its
+    eventual VA so the UI can show it before the trade anchors.
+  </Property>
+  <Property name="notifications" type="readonly Notification[]" optional>
+    Notifications to apply after the merge, in arrival order.
+  </Property>
+  <Property name="retainedAnchors" type="readonly UnifiedQuote[]" optional>
+    The `pendingAnchors` returned by the previous call — rows that anchored on a prior tick (a notification set their
+    `quoteId`) but whose on-chain struct has not been read yet. Fed back so an anchored row survives the gap between
+    "the hedger drops the pending open" and "the on-chain read returns the quote". Each is dropped automatically once
+    its matching on-chain read arrives.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="ReconcileQuotesResult">
+  <Property name="quotes" type="UnifiedQuote[]" typeHref="/core/quotes/unified-quote">
+    Merged, de-duplicated, lifecycle-tagged rows, newest first.
+  </Property>
+  <Property name="links" type="Record<number, string>">
+    Map from `tempQuoteId` to the on-chain row `key` it resolved to, recorded **only once the row has anchored
+    on-chain** (`quoteId` present). Consumers use it to clear an optimistic seed exactly when its on-chain twin exists.
+  </Property>
+  <Property name="pendingAnchors" type="UnifiedQuote[]">
+    Rows currently in `WRITE_ONCHAIN` — anchored per a notification but not yet returned by the on-chain read. Retain
+    these and feed them back as `retainedAnchors` next tick so they do not flicker out while the RPC catches up.
+  </Property>
+</Returns>
+
+## Related
+
+- [UnifiedQuote](/core/quotes/unified-quote) — the merged row shape.
+- [applyNotificationToQuotes](/core/quotes/apply-notification-to-quotes) — the per-notification step this runs internally over `notifications`.
+- [resolveQuoteAccounts](/core/quotes/resolve-quote-accounts) — produces `instantOpenVaByTempId` and the account set the on-chain reads span.
+- [`getSubAccountQuotes`](/core/symmio-contract/get-sub-account-quotes) — the convenience read that runs the account resolution, the source reads, and this merge in one call.

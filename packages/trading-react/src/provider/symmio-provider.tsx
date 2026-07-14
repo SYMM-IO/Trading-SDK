@@ -20,10 +20,19 @@ export interface SymmioProviderProps {
   /** React subtree that may use SYMMIO SDK hooks. */
   children: ReactNode;
   /**
-   * Per-chain Symmio overrides (addresses, subgraphs, solver) deep-merged onto
-   * the SDK's built-in defaults, keyed by chain id. Omit to use defaults.
+   * Per-chain SYMMIO configuration, keyed by chain id — deep-merged onto the
+   * SDK's built-in defaults (addresses, subgraphs, solver, …).
+   *
+   * **Required.** Every supported chain must set a non-zero
+   * `addresses.affiliatesAddress` — your frontend's on-chain affiliate (your
+   * identity in SYMMIO on that chain), attached to every quote so the protocol
+   * attributes the trade to you and routes your fee share. Affiliate addresses
+   * are per chain (a registration on one chain is not valid on another). The
+   * provider throws `AFFILIATE_ADDRESS_REQUIRED` (via `createConfig`) for any
+   * supported chain missing it, so trades can never silently fall back to the
+   * built-in default affiliate and lose attribution.
    */
-  chainOverrides?: CreateConfigParameters["chainOverrides"];
+  symmioConfig: CreateConfigParameters["symmioConfig"];
   /** Chain used when a hook or action omits `chainId`. Defaults to the first supported chain. */
   defaultChainId?: number;
   /**
@@ -49,7 +58,7 @@ export interface SymmioProviderProps {
  * ```tsx
  * <WagmiProvider config={wagmiConfig}>
  *   <QueryClientProvider client={queryClient}>
- *     <SymmioProvider>
+ *     <SymmioProvider symmioConfig={{ [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0x…" } } }}>
  *       <App />
  *     </SymmioProvider>
  *   </QueryClientProvider>
@@ -61,7 +70,7 @@ export interface SymmioProviderProps {
  */
 export function SymmioProvider({
   children,
-  chainOverrides,
+  symmioConfig,
   defaultChainId,
   getWalletClient: getWalletClientProp,
 }: SymmioProviderProps) {
@@ -70,7 +79,7 @@ export function SymmioProvider({
   const config = useMemo<Config>(
     () =>
       createConfig({
-        chainOverrides,
+        symmioConfig,
         defaultChainId,
         getClient: ({ chainId } = {}): PublicClient => {
           const client = getPublicClient(wagmiConfig, { chainId });
@@ -98,7 +107,7 @@ export function SymmioProvider({
             }
           }),
       }),
-    [chainOverrides, defaultChainId, getWalletClientProp, wagmiConfig],
+    [symmioConfig, defaultChainId, getWalletClientProp, wagmiConfig],
   );
 
   return <SymmioConfigContext.Provider value={config}>{children}</SymmioConfigContext.Provider>;

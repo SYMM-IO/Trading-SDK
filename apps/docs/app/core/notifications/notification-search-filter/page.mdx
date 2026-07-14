@@ -1,0 +1,54 @@
+# NotificationSearchFilter
+
+The free-form equality filter accepted by [`searchNotifications`](/core/notifications/search-notifications). Every key/value pair is matched **exactly** against the stored document — there is no camelCase mapping and no range or operator syntax.
+
+```ts
+type NotificationSearchFilter = Partial<Record<NotificationSearchField, NotificationQueryValue>> &
+  Record<string, NotificationQueryValue>;
+```
+
+Known top-level fields and every `data.*` payload field are offered as editor autocomplete, but any string key is still accepted — app-specific payloads carry fields the SDK does not enumerate, and the endpoint matches them all the same.
+
+```ts
+const filter: NotificationSearchFilter = {
+  address: "0xaccount...",
+  "data.quote_id": "42",
+};
+```
+
+## Keys
+
+Keys are either a snake_case top-level field (sitting at the document root, alongside `data`) or a dotted path into the nested `data` payload:
+
+<Properties>
+  <Property name="id" type="NotificationQueryValue" optional>
+    Top-level document id.
+  </Property>
+  <Property name="app_name" type="NotificationQueryValue" optional>
+    Publishing app / channel identity.
+  </Property>
+  <Property name="address" type="NotificationQueryValue" optional>
+    SubAccount address.
+  </Property>
+  <Property name="primary_identifier" type="NotificationQueryValue" optional />
+  <Property name="secondary_identifier" type="NotificationQueryValue" optional />
+  <Property name="type" type="NotificationQueryValue" optional />
+  <Property name="create_time" type="NotificationQueryValue" optional />
+  <Property name="modify_time" type="NotificationQueryValue" optional />
+  <Property name="data.quote_id" type="NotificationQueryValue" optional>
+    Dotted path into the payload; on-chain quote id.
+  </Property>
+  <Property name="data.temp_quote_id" type="NotificationQueryValue" optional>
+    Dotted path into the payload; pre-chain temp id.
+  </Property>
+  <Property name="data.last_seen_action" type="NotificationQueryValue" optional>
+    Dotted path into the payload; last solver action.
+  </Property>
+</Properties>
+
+`NotificationQueryValue` is `string | number | boolean | null` — the scalar types the backend matches by exact equality.
+
+## Related
+
+- [searchNotifications](/core/notifications/search-notifications) — consumes this filter.
+- [NotificationSearchResult](/core/notifications/notification-search-result) — the shape returned for a matching filter.

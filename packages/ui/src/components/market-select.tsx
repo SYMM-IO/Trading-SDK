@@ -82,8 +82,8 @@ function MarketSelect({
               aria-expanded={open}
               disabled={disabled}
               className={cn(
-                "bg-input/35 border-border hover:bg-input/55 focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-xl border py-1 pr-10 pl-3 text-left text-base transition-[color,box-shadow,background-color,border-color] outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
-                selectedItem ? "text-foreground" : "text-muted-foreground/70",
+                "bg-input/35 border-border hover:bg-input/55 focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border py-1 pr-10 pl-3 text-left text-base transition-[color,box-shadow,background-color,border-color] outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+                selectedItem ? "text-foreground" : "text-muted-foreground",
                 selectedItem && "pr-16",
               )}
             >
@@ -123,7 +123,7 @@ function MarketSelect({
               aria-label={searchPlaceholder}
               autoFocus
               data-testid={`${idPrefix}-search`}
-              className="bg-background focus-visible:bg-background h-9 rounded-lg pr-3 pl-9 shadow-none"
+              className="bg-background focus-visible:bg-background h-9 rounded-md pr-3 pl-9 shadow-none"
             />
           </div>
         </div>
@@ -191,7 +191,7 @@ function MarketSelectList({
             aria-pressed={selected}
             disabled={item.disabled}
             onClick={() => onSelect(item)}
-            className="hover:bg-muted/60 focus-visible:bg-muted/60 disabled:text-muted-foreground flex w-full items-start justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition-colors outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            className="hover:bg-muted/60 focus-visible:bg-muted/60 disabled:text-muted-foreground flex w-full items-start justify-between gap-3 rounded-md px-2.5 py-2 text-left transition-colors outline-none disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="min-w-0 flex-1">
               <span className="text-foreground block truncate text-sm font-medium">{item.label}</span>

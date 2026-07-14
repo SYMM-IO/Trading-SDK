@@ -181,6 +181,36 @@ import { getOpenInterestBySymbolId } from "@symmio/trading-core";
 const oi = await getOpenInterestBySymbolId(config, { symbolId: 1n });
 ```
 
+## Estimated price
+
+### `getEstimatedPrice`
+
+Ask the solver what price an open or close would actually **fill at** — a read-only simulation of the trade (`GET /estimated-price`; nothing is submitted) → `{ estimatedPrice }`. Pass the order `quantity`, the side, whether it's an `"open"` or `"close"`, and the **slippage-adjusted request price** the caller computed (`calculateTradeParams().requestedOpenPrice` for an open, `calculateClosePrice()` for a close) — **not** the raw mark. `position_type` is sent as `"long"` / `"short"`.
+
+```ts
+import { getEstimatedPrice, PositionType } from "@symmio/trading-core";
+
+const { estimatedPrice } = await getEstimatedPrice(config, {
+  symbolId: 1,
+  quantity: "1000",
+  positionType: PositionType.LONG,
+  entry: "open",
+  price: requestPrice,
+});
+```
+
+`getEstimatedPriceQueryOptions` / `getEstimatedPriceQueryKey` ship alongside for TanStack; the React layer wraps them as [`useEstimatedPrice`](/react/solvers#useestimatedprice).
+
+### `calculatePriceImpact`
+
+Pure helper — signed **price-impact percent** of an estimated fill vs a reference price: `(estimated − reference) / reference × 100`. Returns `0` for a zero / non-finite reference. The UI colors it by side.
+
+```ts
+import { calculatePriceImpact } from "@symmio/trading-core";
+
+const impact = calculatePriceImpact({ estimatedPrice, referencePrice: markPrice }); // e.g. 0.42 → +0.42%
+```
+
 ## Instant Open / Instant Close
 
 The lowcap trading flows live on their own pages:

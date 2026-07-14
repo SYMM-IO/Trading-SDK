@@ -1,0 +1,39 @@
+# TpSlInfoState
+
+The lifecycle stage of a TP or SL order, mirroring the handler's `state` plus two client-side synthetic stages the React layer overlays. Carried on [`QuoteTpSl`](/core/tpsl/quote-tpsl)`.tpState` / `.slState`.
+
+```ts
+type TpSlInfoState = "loading" | "pending" | "confirming" | "new" | "triggered" | "canceled" | "killed";
+```
+
+## Values
+
+<Properties>
+  <Property name="loading" type='"loading"'>
+    The current TP/SL is still being fetched.
+  </Property>
+  <Property name="pending" type='"pending"'>
+    POST is in flight (mutation `isPending`).
+  </Property>
+  <Property name="confirming" type='"confirming"'>
+    POST returned 200 — the handler accepted the request but hasn't yet broadcast a `report` with `successful: true`.
+    Treat as "processing" until the WS confirms.
+  </Property>
+  <Property name="new" type='"new"'>
+    Handler confirmed the order is live.
+  </Property>
+  <Property name="triggered" type='"triggered"'>
+    The price condition fired; the close is in flight.
+  </Property>
+  <Property name="canceled" type='"canceled"'>
+    Delete confirmed, or the handler dropped the order.
+  </Property>
+  <Property name="killed" type='"killed"'>
+    Terminal — the order was killed by the handler.
+  </Property>
+</Properties>
+
+## Related
+
+- [`QuoteTpSl`](/core/tpsl/quote-tpsl) — carries `tpState` / `slState` of this type.
+- [`RawTpSlNotification`](/core/tpsl/raw-tpsl-notification) — the wire `state` these are derived from.

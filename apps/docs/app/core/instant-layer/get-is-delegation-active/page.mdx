@@ -1,0 +1,45 @@
+# getIsDelegationActive
+
+Read whether the contract considers a delegation active.
+
+```ts
+import { getIsDelegationActive } from "@symmio/trading-core";
+
+const isActive = await getIsDelegationActive(config, {
+  account: "0xaccount...",
+  delegate: "0xdelegate...",
+  selector: "0x501e891f",
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    Account that owns the delegation.
+  </Property>
+  <Property name="delegate" type="Address" required>
+    Delegated signer being checked.
+  </Property>
+  <Property name="selector" type="Hex" required>
+    Function selector (`bytes4`) being checked.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="boolean">`true` when the contract considers the delegation active.</Returns>
+
+## Query options
+
+```ts
+import { getIsDelegationActiveQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getIsDelegationActiveQueryOptions(config, { account, delegate, selector }));
+```
+
+`GetIsDelegationActiveOptions` requires `account`, `delegate`, and `selector`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getIsDelegationActiveQueryKey` builder still accepts partial inputs for cache matching and invalidation.

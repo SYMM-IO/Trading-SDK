@@ -1,0 +1,33 @@
+# getCollateralBalance
+
+Read the ERC-20 balance of the collateral token for one owner (usually the connected EOA).
+
+```ts
+import { getCollateralBalance } from "@symmio/trading-core";
+
+const balance = await getCollateralBalance(config, { owner });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="owner" type="Address" required>
+    Address whose collateral-token balance to read (usually the connected EOA).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="bigint">The wallet balance, in the collateral token's units.</Returns>
+
+## Query options
+
+```ts
+import { getCollateralBalanceQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getCollateralBalanceQueryOptions(config, { owner }));
+```

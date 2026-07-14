@@ -1,256 +1,80 @@
-# Session Key Helpers
+import { Callout } from "nextra/components";
 
-## Why session keys exist in SYMMIO
+# Session Key
 
-Every user-driven action in SYMMIO — **open a position, close a position, set / edit / delete a TP or SL** — is submitted as an **EIP-712 signed message** to the solver / conditional-order handler. That's the security model: the contract and off-chain services only accept messages the user has explicitly authorized.
+`@symmio/session-key` is the framework-agnostic runtime behind SYMMIO's popup-free trading. It generates and manages a **session key** — a locally held EVM keypair the app signs trades with silently — so a trader authorizes their wallet once and then opens, closes, and adjusts positions with no wallet prompt on the trading hot path.
 
-Signing every one of those with the connected wallet (MetaMask, WalletConnect, Coinbase Wallet) means a popup on **every action**:
+No React, no wagmi, no DOM globals. The same manager runs in browsers, web workers, and Node scripts. **Storage and encryption are yours to provide**; everything else is here.
 
-- Open a position → popup.
-- Adjust a TP → popup.
-- Cancel an SL → popup.
-- Partial close → popup.
-- Bulk close five positions → five popups.
+## Install
 
-That's unusable for trading. A trader clicking through fifty popups a session is fifty chances to hit "reject" by accident, fifty context switches away from the price. Traders on centralized exchanges never see this friction; SYMMIO can't afford to either.
+```sh
+pnpm add @symmio/session-key viem
+```
 
-**Session keys fix it.** The flow:
+`viem` is a peer dependency — the manager derives accounts and signs through it.
 
-1. **User connects the wallet** — MetaMask etc. — and authorizes a **session key** once (via `grantDelegation` on-chain). One wallet popup.
-2. The session key is a **locally generated EVM keypair** the app holds in memory (and optionally persists via a consumer-owned storage adapter).
-3. Every subsequent open / close / TP / SL / edit signs **silently in the background** with the session key. Zero popups.
-4. When the session expires (default: 1 year) or the user rotates it, they re-authorize once and continue.
+## The problem it solves
 
-The trader sees a normal exchange-style flow. The wallet is only touched on connect, delegation, deposit, and withdraw — never on the trading hot path.
+Every user action in SYMMIO — open a position, close a position, set / edit / delete a TP or SL — is an **EIP-712 signed message**. Signed with the connected wallet, that means a popup on _every_ action: one to open, one per TP tweak, five to bulk-close five positions. That is unusable for trading.
 
-## What this package does — and doesn't
+Session keys move signing off the wallet. The trader authorizes a session key once (`grantDelegation`, a single wallet popup), and every subsequent trade signs in the background with zero prompts. The wallet is only touched on connect, delegation, deposit, and withdraw. See [How it works](/session-key/how-it-works) for the full flow.
 
-`@symmio/session-key` is the **framework-agnostic runtime** that owns:
-
-- **Key generation** (`createSessionKey`, `sessionKeyFromPrivateKey`) — creates the local EVM keypair.
-- **Manager** (`createSessionKeyManager`) — loads, generates, rotates, signs, destroys. Exposes state and subscription for framework integrations.
-- **Transfer payloads** (`encodeSessionKeyTransferPayload` / `decodeSessionKeyTransferPayload`) — short-lived envelopes for moving a key to another device.
-- **Constants** — TTLs, versions.
-
-It does **not** own:
-
-- **Storage** — the package defines a `SessionKeyStorage` contract; the consumer picks localStorage, IndexedDB, memory, or a remote store.
-- **Encryption / decryption** — see the warning below.
-- **DOM globals** — runs equally well in Node scripts, workers, and browsers.
-
-### ⚠️ No encryption
-
-**The private key is stored as plaintext `Hex` in the `SessionKeyRecord`.** `@symmio/session-key` **does not encrypt anything**. It hands your storage adapter a raw private key and expects it back on `load`. **Pay attention — add encryption if you need it.**
-
-**Consumer responsibility**:
-
-- **Browser apps** — encrypt `record.privateKey` before writing to storage (WebCrypto + a user-derived key, WebAuthn PRF, biometrics-gated key, or Passkey PRF). Decrypt inside `load()`.
-- **Bots / scripts** — read the private key from a secrets manager (Vault, GCP Secret Manager, KMS), never from a checked-in file.
-- **Never** log the record. Never send it over an untrusted channel. Never expose it in a URL fragment.
-
-The manager exposes `getPrivateKey()` **only** for explicit device-transfer flows. Treat it like a wallet mnemonic.
-
-## Where session keys plug into SDK actions
-
-Session keys are wired into `@symmio/trading-react` through **`SymmioProvider`'s `getWalletClient` resolver**. Every SDK write that passes `from: sessionKeyAddress` routes signing through the session-key manager; everything else routes to the wagmi-connected wallet.
-
-Actions that sign via the session key when configured:
-
-- **TP/SL** — `useSetQuoteTpSl`, `useDeleteQuoteTpSl` (EIP-712 conditional-order message).
-- **Instant Open** — `useInstantOpen`, `useInstantOpenAuto`, `useInstantOpenWithTpSl` (EIP-712 open + optional TP/SL leg).
-- **Instant Close** — `useInstantClose`, `useInstantCloseAuto`, and their bulk variants.
-- **Delegated instant withdraw** — after `useGrantDelegation` authorizes the session key on-chain for the withdraw selector.
-
-Actions that stay on the connected wallet (regardless of session-key config):
-
-- **Wallet connect / disconnect / chain switch** — not signing, just wagmi calls.
-- **Grant delegation** — the very act of authorizing the session key; signed by the owner wallet.
-- **Deposit / classic withdraw** — non-instant on-chain writes routed through the owner wallet.
-
-Session keys are **normal EVM keys** — not chain-tied. One session key per owner covers every supported chain unless the app has a specific reason to isolate.
+## Quickstart
 
 ```ts
-import {
-  createSessionKey,
-  createSessionKeyManager,
-  decodeSessionKeyTransferPayload,
-  encodeSessionKeyTransferPayload,
-  sessionKeyFromPrivateKey,
-  SESSION_KEY_TRANSFER_PAYLOAD_VERSION,
-  type SessionKeyStorage,
-} from "@symmio/session-key";
+import { createSessionKeyManager, type SessionKeyStorage } from "@symmio/session-key";
 
-const storage: SessionKeyStorage = {
-  async load(owner) {
-    return loadRecordForOwner(owner);
-  },
-  async save(owner, record) {
-    await saveRecordForOwner(owner, record);
-  },
-  async remove(owner) {
-    await removeRecordForOwner(owner);
-  },
-  async getMetadata(owner) {
-    return loadMetadataForOwner(owner);
-  },
-};
+const storage: SessionKeyStorage = createAppStorage(); // you own this — see Security & storage
 
 const manager = createSessionKeyManager({ storage });
-const state = await manager.initialize(owner);
-const signature = await manager.sign("hello");
+
+const state = await manager.initialize(owner); // load an existing key, or generate + persist a new one
+const { signature } = await manager.sign("hello");
 ```
 
-## Storage Boundary
+<Callout type="warning">
+  **Never encrypted for you.** The manager hands your storage adapter the raw private key as plaintext `Hex`.
+  `@symmio/session-key` encrypts nothing — you add it. Read [Security &amp; storage](/session-key/security) before
+  shipping.
+</Callout>
 
-`@symmio/session-key` exports the storage interface only:
+## Concepts
 
-```ts
-interface SessionKeyStorage {
-  load(owner: Address): Promise<SessionKeyRecord | null>;
-  save(owner: Address, record: SessionKeyRecord): Promise<void>;
-  remove(owner: Address): Promise<void>;
-  getMetadata(owner: Address): Promise<SessionKeyMetadata | null>;
-}
+Start here — how session keys work, and what you own versus what the package handles.
 
-interface SessionKeyRecord {
-  owner: Address;
-  privateKey: Hex;
-  address: Address;
-  createdAt: number;
-  expiresAt: number;
-  label?: string;
-}
-```
+<MethodIndex kind="read">
+  <MethodEntry name="How it works" href="/session-key/how-it-works">
+    Why session keys exist, the `grantDelegation` flow, the key lifecycle, and what this package does and doesn't own.
+  </MethodEntry>
+  <MethodEntry name="Security & storage" href="/session-key/security">
+    The no-encryption contract, the `SessionKeyStorage` interface you implement, and your responsibilities as the
+    consumer.
+  </MethodEntry>
+  <MethodEntry name="Provider integration" href="/session-key/provider-integration">
+    Wiring the manager into `SymmioProvider` so SDK writes sign through the session key instead of the wallet.
+  </MethodEntry>
+</MethodIndex>
 
-The manager passes a plain `SessionKeyRecord` — **including the raw private key as `Hex`** — straight to your adapter. `@symmio/session-key` performs **no encryption**; the adapter must add it. See the [No encryption](#-no-encryption) warning above.
+## API
 
-For browser apps: encrypt `record.privateKey` before writing to localStorage / IndexedDB, decrypt inside `load()`. For scripts / backend tools: use a secrets manager (Vault, KMS) instead of a local file.
+<MethodIndex kind="write">
+  <MethodEntry name="createSessionKeyManager" href="/session-key/manager">
+    The stateful runtime — `initialize`, `sign`, `signTypedData`, `rotate`, `destroy`, `subscribe`, and state.
+  </MethodEntry>
+  <MethodEntry name="Key material helpers" href="/session-key/key-material">
+    `createSessionKey` and `sessionKeyFromPrivateKey` — raw keypairs with no manager, state, or persistence.
+  </MethodEntry>
+  <MethodEntry name="Transfer payloads" href="/session-key/transfer-payloads">
+    `encodeSessionKeyTransferPayload` / `decodeSessionKeyTransferPayload` — short-lived envelopes for device handoff.
+  </MethodEntry>
+</MethodIndex>
 
-Storage should normally be keyed by owner address, not chain ID. A session key can sign for the same owner across chains, and chain-specific authorization belongs in the contracts or delegated permission layer.
+## Reference
 
-Only use `getPrivateKey()` for explicit device-transfer or export flows.
-
-## `createSessionKeyManager`
-
-Create the runtime manager.
-
-```ts
-const manager = createSessionKeyManager({
-  storage,
-  defaultTtlMs: SESSION_KEY_EXPIRY_MS, // default: one year
-  now: () => Date.now(), // default; override for tests
-});
-```
-
-### Options
-
-| Option         | Type                | Default                          | Notes                                                |
-| -------------- | ------------------- | -------------------------------- | ---------------------------------------------------- |
-| `storage`      | `SessionKeyStorage` | **required**                     | Consumer-owned persistence adapter.                  |
-| `defaultTtlMs` | `number`            | `SESSION_KEY_EXPIRY_MS` (1 year) | Lifetime applied to newly generated / imported keys. |
-| `now`          | `() => number`      | `Date.now`                       | Injectable clock for tests.                          |
-
-### Methods
-
-| Method                                | Notes                                                                      |
-| ------------------------------------- | -------------------------------------------------------------------------- |
-| `initialize(owner, options?)`         | Load an existing non-expired key or generate + persist a new one.          |
-| `importPrivateKey(owner, key, opts?)` | Import an existing private key and persist it for `owner`.                 |
-| `rotate(owner, options?)`             | Replace any existing key for `owner` with a newly generated one.           |
-| `sign(message)`                       | Sign a raw string message. Returns `SessionKeySignature` with duration ms. |
-| `signTypedData(params)`               | Sign EIP-712 typed data. Returns the `Hex` signature.                      |
-| `destroy(owner?)`                     | Clear memory; when `owner` is passed, remove the stored key.               |
-| `getState()`                          | Snapshot of `{ isReady, isExpired, publicAddress, expiresAt }`.            |
-| `isReady()`                           | Quick boolean for "session key loaded".                                    |
-| `getAddress()`                        | Loaded session-key public address, or `null`.                              |
-| `getPrivateKey()`                     | Loaded raw private key — **for explicit device-transfer only**.            |
-| `getMetadata(owner)`                  | Stored public metadata via the adapter (no in-memory load required).       |
-| `subscribe(listener)`                 | Subscribe to state changes. Returns an unsubscribe function.               |
-| `getSnapshot()`                       | Framework-integration snapshot (returns the loaded address or `null`).     |
-
-### `SessionKeyState`
-
-The shape `getState()` returns:
-
-```ts
-interface SessionKeyState {
-  isReady: boolean; // valid key currently in memory
-  isExpired: boolean; // last loaded record was expired
-  publicAddress: Address | null;
-  expiresAt: number | null; // ms since epoch
-}
-```
-
-## Key Material Helpers
-
-Use `createSessionKey()` when you only need a fresh key pair and do not need manager state.
-
-```ts
-const key = createSessionKey();
-```
-
-Use `sessionKeyFromPrivateKey()` when importing a private key outside the manager.
-
-```ts
-const key = sessionKeyFromPrivateKey(privateKey);
-```
-
-## Transfer Payloads
-
-Encode + decode short-lived payloads for explicit device-handoff flows (QR code, deep link, cross-tab):
-
-```ts
-const raw = encodeSessionKeyTransferPayload({
-  version: SESSION_KEY_TRANSFER_PAYLOAD_VERSION,
-  owner,
-  sessionPrivateKey: manager.getPrivateKey(),
-  sessionAddress: manager.getAddress() ?? undefined,
-  createdAt: Date.now(),
-  expiresAt: Date.now() + SESSION_KEY_TRANSFER_MAX_AGE_MS,
-});
-
-const decoded = decodeSessionKeyTransferPayload(raw);
-await manager.importPrivateKey(decoded.owner, decoded.sessionPrivateKey!);
-```
-
-Payloads expire after `SESSION_KEY_TRANSFER_MAX_AGE_MS` (**two minutes** by default). `decode` throws when the payload is older than that or its version doesn't match `SESSION_KEY_TRANSFER_PAYLOAD_VERSION`.
-
-**Never** ship a transfer payload over an untrusted channel — the private key is right there. Prefer local QR scans or same-device deep links.
-
-## Constants
-
-| Constant                               | Value                    | Notes                                                          |
-| -------------------------------------- | ------------------------ | -------------------------------------------------------------- |
-| `SESSION_KEY_EXPIRY_MS`                | `365 * 24 * 60 * 60_000` | Default TTL for newly generated / imported keys (1 year).      |
-| `SESSION_KEY_TRANSFER_PAYLOAD_VERSION` | `1`                      | Current transfer payload schema. Bump if the encoding changes. |
-| `SESSION_KEY_TRANSFER_MAX_AGE_MS`      | `120_000`                | Default validity window for transfer payloads (2 minutes).     |
-
-## Integration with `SymmioProvider`
-
-The typical wiring — session-key wallet signs when `from` matches, otherwise wagmi wallet:
-
-```tsx
-function useAppGetWalletClient(manager: SessionKeyManager) {
-  return useCallback(
-    async ({ chainId, from }: { chainId: number; from?: Address }) => {
-      const sessionAddress = manager.getAddress();
-      if (sessionAddress && from?.toLowerCase() === sessionAddress.toLowerCase()) {
-        return sessionKeyWalletClient(manager, chainId);
-      }
-      return await getWalletClient(wagmiConfig, { chainId });
-    },
-    [manager],
-  );
-}
-
-<SymmioProvider getWalletClient={useAppGetWalletClient(manager)}>{children}</SymmioProvider>;
-```
-
-`sessionKeyWalletClient(manager, chainId)` is a small helper the consuming app owns — it turns the session-key private key into a viem `walletClient` bound to the chain. Every SDK write that sets `from` to the session key's address then signs via this path without a wallet prompt.
-
-## Related
-
-- [SymmioProvider](../react/provider) — where `getWalletClient` is injected.
-- [TP/SL](../react/tpsl) — the primary consumer of session-key signing.
-- [Instant Open](../react/solvers/instant-open) / [Instant Close](../react/solvers/instant-close) — same.
-- [InstantLayer](../react/instant-layer) — `useGrantDelegation` authorizes the session key on-chain.
+<MethodIndex kind="type">
+  <MethodEntry name="Types & constants" href="/session-key/reference">
+    Every exported interface — `SessionKeyManager`, `SessionKeyStorage`, `SessionKeyRecord`, and the rest — plus all
+    constants, with signatures.
+  </MethodEntry>
+</MethodIndex>

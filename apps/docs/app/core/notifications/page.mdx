@@ -1,169 +1,67 @@
 # Notifications
 
-Notifications come from a **shared notification service** (Defilytics protocol). Multiple parties — the solver, the TP/SL conditional-order handler, and any future producer — publish their state transitions into this one service, each under its own **`appName`**. Consumers (this SDK included) subscribe to whichever `appName`s they care about and receive the matching stream.
+The SDK consumes a **shared realtime notification service** where the solver publishes quote and position state transitions (instant open accepted, price filled, close requested, failures, and so on). It exposes that service two ways: a **WebSocket live stream** for real-time updates, and a **REST search** over stored history for backfill, replay, or audit.
 
-Today the SDK exposes two of those channels:
+Both surfaces deliver the same normalized [`Notification`](/core/notifications/notification) shape, so a UI can consume live and historical frames through one code path. The stream reuses the SDK's shared, reconnecting socket pool; the search hits the service's `POST /api/v1/search` endpoint.
 
-- **Solver notifications** (`appName: "Hyper-EVM_Solver-Low-Cap_Production"`) — quote lifecycle events: instant open accepted, price filled, quote anchored, close requested, close filled, failures. This page covers them via `watchNotifications` + `searchNotifications`.
-- **TP/SL notifications** (`appName: "Hyper-EVM_COH-Low-Cap_Production"`) — conditional-order state transitions. Same underlying service, different `appName`, so it lives on its own page — see [TP/SL](../tpsl#watchtpslnotifications).
+Each method and type has its own page with the full signature, parameters, return shape, and examples.
 
-Two access modes for each channel:
+## Live stream
 
-- **Live WebSocket stream** — real-time updates as they happen. The SDK maintains one pooled connection per `(wsUrl, appName, account)` triple; every subscriber on the same triple shares that socket.
-- **REST search** — paginated history for backfill, replay, or audit.
+<MethodIndex kind="read">
+  <MethodEntry name="watchNotifications" href="/core/notifications/watch-notifications">
+    Subscribe to live position/quote state notifications for one account over the pooled WebSocket.
+  </MethodEntry>
+</MethodIndex>
 
-Both surfaces on this page (the solver channel) return the same normalized `Notification` shape, so a UI can consume live + history with one code path.
+## REST search
 
-The `appName` for each channel lives in the chain config — you never pass it directly:
+<MethodIndex kind="read">
+  <MethodEntry name="searchNotifications" href="/core/notifications/search-notifications">
+    Search stored notifications with a free-form equality filter over the service's `POST /api/v1/search` endpoint.
+  </MethodEntry>
+</MethodIndex>
 
-```ts
-const chain = config.getChainConfig();
-chain.notifications.channel; // solver appName
-chain.solver.tpsl?.appName; // TP/SL appName
-```
+## Helpers
 
-## Import
+<MethodIndex kind="read">
+  <MethodEntry name="normalizeNotification" href="/core/notifications/normalize-notification">
+    Turn a raw wire frame into a normalized `Notification`.
+  </MethodEntry>
+  <MethodEntry name="classifyNotification" href="/core/notifications/classify-notification">
+    Classify a raw `action_status` into a `NotificationType`.
+  </MethodEntry>
+  <MethodEntry name="parseNotificationFrame" href="/core/notifications/parse-notification-frame">
+    Parse an inbound socket frame into a raw notification, or `null` for control/malformed frames.
+  </MethodEntry>
+  <MethodEntry name="buildSubscribeMessage" href="/core/notifications/build-subscribe-message">
+    Build the JSON subscribe frame sent on every (re)connect.
+  </MethodEntry>
+</MethodIndex>
 
-```ts
-import {
-  watchNotifications,
-  searchNotifications,
-  normalizeNotification,
-  classifyQuoteNotificationAction,
-  NotificationType,
-  type Notification,
-  type SocketStatus,
-} from "@symmio/trading-core";
-```
+## Types
 
-## `watchNotifications` — live stream
-
-Subscribe to the solver's notifications WebSocket for one account. Reuses the SDK's shared socket pool — many watchers on the same `(wsUrl, appName, account)` triple share one connection.
-
-```ts
-const unwatch = watchNotifications(config, {
-  account: subAccount,
-  onNotification: (notification) => {
-    console.log(notification.type, notification.quoteId, notification.lastSeenAction);
-  },
-  onStatusChange: (status) => console.log(status),
-  onError: (err) => console.error(err),
-});
-
-// dispose (idempotent):
-unwatch();
-```
-
-### Parameters
-
-| Name             | Type                         | Default        | Notes                                            |
-| ---------------- | ---------------------------- | -------------- | ------------------------------------------------ |
-| `account`        | `Address`                    | required       | SubAccount to subscribe for.                     |
-| `chainId`        | `number?`                    | config default | Optional chain override.                         |
-| `onNotification` | `(n: Notification) => void`  | required       | Fires per parsed frame.                          |
-| `onStatusChange` | `(s: SocketStatus) => void?` | `undefined`    | Connection status changes.                       |
-| `onError`        | `(e: SymmError) => void?`    | `undefined`    | Transport / parse errors; does not stop the sub. |
-
-### Returns
-
-`() => void` — idempotent disposer. Call to unsubscribe.
-
-## `searchNotifications` — REST history
-
-Paginated search of past notifications. Filter by action, quote id, temp id, action-status, or time range.
-
-```ts
-const page = await searchNotifications(config, {
-  account: subAccount,
-  filter: { quoteId: "42" },
-  page: 0,
-  size: 20,
-});
-
-for (const notification of page.data) {
-  console.log(notification.quoteId, notification.type);
-}
-```
-
-### Parameters
-
-| Name      | Type                        | Notes                                                      |
-| --------- | --------------------------- | ---------------------------------------------------------- |
-| `account` | `Address`                   | SubAccount to scope the search to.                         |
-| `filter`  | `NotificationSearchFilter?` | `quoteId` / `tempQuoteId` / `lastSeenAction` / date range. |
-| `page`    | `number`                    | 0-indexed.                                                 |
-| `size`    | `number`                    | Rows per page.                                             |
-| `chainId` | `number?`                   | Optional chain override.                                   |
-
-### Returns
-
-`NotificationSearchResult` — `{ data: Notification[], total: number }`.
-
-Also exposes `getNotificationSearchQueryOptions` / `getNotificationSearchQueryKey` for TanStack integration.
-
-## `Notification` shape
-
-Normalized frame — camelCase, with `quoteId` resolved to the on-chain id when known (falling back to the temp id) and `type` classified from `actionStatus`.
-
-```ts
-interface Notification {
-  id: string;
-  quoteId: string; // on-chain id (string) or temp id when not yet anchored
-  tempQuoteId: number; // negative pre-chain
-  type: NotificationType; // "success" | "failed" | "seen" | "other"
-  actionStatus: string | null; // raw wire value
-  lastSeenAction: string | null;
-  account: string | null;
-  vaAddress: string | null;
-  counterpartyAddress: string;
-  filledAmountOpen: string | null;
-  filledAmountClose: string | null;
-  avgPriceOpen: string;
-  avgPriceClose: string;
-  failureType: string | null;
-  failureMessage: string | null;
-  errorCode: number | null;
-  stateType: string | null;
-  createTime: string;
-  raw: RawNotification;
-}
-```
-
-The pair `(tempQuoteId, quoteId)` is the temp ↔ on-chain link. A frame with both set is the **anchor frame** — it's how the reconciler learns which temp row is now which on-chain row.
-
-## `NotificationType`
-
-Broad classification derived from `actionStatus`. Enumerated so consumers can `switch` on it without knowing the wire tags:
-
-```ts
-enum NotificationType {
-  SUCCESS = "success",
-  FAILED = "failed",
-  SEEN = "seen",
-  OTHER = "other",
-}
-```
-
-## `classifyQuoteNotificationAction`
-
-Turn a `lastSeenAction` into an "open" / "close" / "other" bucket. Used by higher layers to decide which query slice to invalidate on a notification burst.
-
-```ts
-const kind = classifyQuoteNotificationAction(notification.lastSeenAction);
-// "open" | "close" | "other"
-```
-
-## `normalizeNotification`
-
-Pure helper that turns the raw wire frame into a `Notification`. `watchNotifications` and `searchNotifications` call it internally; expose it directly when consuming the raw feed elsewhere (e.g. replaying a fixture in tests).
-
-```ts
-const notification = normalizeNotification(rawFrame);
-```
+<MethodIndex kind="type">
+  <MethodEntry name="Notification" href="/core/notifications/notification">
+    The normalized, classified notification the SDK delivers to consumers.
+  </MethodEntry>
+  <MethodEntry name="RawPositionNotification" href="/core/notifications/raw-position-notification">
+    The snake_case wire frame as it arrives from the service.
+  </MethodEntry>
+  <MethodEntry name="NotificationType" href="/core/notifications/notification-type">
+    Broad classification derived from a frame's `action_status`.
+  </MethodEntry>
+  <MethodEntry name="NotificationSearchFilter" href="/core/notifications/notification-search-filter">
+    Free-form equality filter accepted by `searchNotifications`.
+  </MethodEntry>
+  <MethodEntry name="NotificationSearchResult" href="/core/notifications/notification-search-result">
+    Normalized result of a notification search: `total`, `count`, `documents`.
+  </MethodEntry>
+</MethodIndex>
 
 ## Related
 
-- [WebSocket concept](../concepts/websocket) — pool, reconnect, `SocketStatus`.
-- [Unified quotes](../quotes) — `applyNotificationToQuotes` consumes these frames.
-- [TP/SL](../tpsl) — a separate WS with its own frame shape.
-- [React `useNotifications`](../../react/provider) — hook wrapper for the stream.
+- [WebSocket concept](/core/concepts/websocket) — the pooled, reconnecting socket primitive and the `SocketStatus` lifecycle behind `watchNotifications`.
+- [Unified Quotes](/core/quotes) — `classifyQuoteNotificationAction` and `applyNotificationToQuotes` consume these frames, but live in the quotes domain, not here.
+- [TP/SL](/core/tpsl) — conditional-order state transitions arrive on a separate channel with their own frame shape.
+- [React `useNotifications`](/react/notifications) — the hook wrapper over this stream and search for React apps.

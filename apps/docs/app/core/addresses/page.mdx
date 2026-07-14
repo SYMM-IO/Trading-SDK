@@ -11,9 +11,14 @@ The registry is the single source of truth for chain-specific values. Every acti
 ## Runtime access
 
 ```ts
-import { createConfig } from "@symmio/trading-core";
+import { createConfig, SymmioSupportedChainId } from "@symmio/trading-core";
 
-const config = createConfig({ getClient: () => publicClient });
+const config = createConfig({
+  symmioConfig: {
+    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+  },
+  getClient: () => publicClient,
+});
 
 const chain = config.getChainConfig(999);
 
@@ -29,32 +34,57 @@ Throws `UNSUPPORTED_CHAIN` when the chain id isn't in the registry. See [Config]
 
 ## What's in the registry
 
-Every entry follows `SymmioChainConfig`:
+Every entry is a `SymmioChainConfig` — the fully-resolved settings for one chain:
 
-```ts
-interface SymmioChainConfig {
-  chainId: number;
-  addresses: SymmioContractAddresses; // on-chain contract addresses
-  subgraphs: SymmioSubgraphUrls; // GraphQL endpoints
-  solver: SymmioSolverConfig; // solver REST + TP/SL handler
-  priceService: SymmioPriceServiceConfig; // Enigma price service
-  notifications: SymmioNotificationsConfig; // solver notifications WS + REST search
-  muon: SymmioMuonConfig; // Muon oracle gateways
-}
-```
+<Properties>
+  <Property name="chainId" type="number">
+    Numeric chain id (e.g. `999` for HyperEVM).
+  </Property>
+  <Property name="addresses" type="SymmioContractAddresses">
+    On-chain contract addresses (detailed below).
+  </Property>
+  <Property name="subgraphs" type="SymmioSubgraphUrls">
+    GraphQL endpoints — `analytics` and `events`.
+  </Property>
+  <Property name="solver" type="SymmioSolverConfig">
+    Solver / hedger REST API and TP/SL handler.
+  </Property>
+  <Property name="priceService" type="SymmioPriceServiceConfig">
+    Enigma price service (REST + WebSocket).
+  </Property>
+  <Property name="notifications" type="SymmioNotificationsConfig">
+    Solver notifications WebSocket + REST search.
+  </Property>
+  <Property name="muon" type="SymmioMuonConfig">
+    Muon oracle gateway URLs.
+  </Property>
+</Properties>
 
-`SymmioContractAddresses` (the "addresses" section people usually want):
+The `addresses` field — the section people usually want:
 
-| Field                 | Type      | Notes                                      |
-| --------------------- | --------- | ------------------------------------------ |
-| `symmioAddress`       | `Address` | SYMMIO diamond contract.                   |
-| `instantLayerAddress` | `Address` | InstantLayer (delegated instant actions).  |
-| `accountLayerAddress` | `Address` | AccountLayer (SubAccount / VA management). |
-| `affiliatesAddress`   | `Address` | Affiliates registry.                       |
-| `collateralAddress`   | `Address` | Collateral token (e.g. USDC).              |
-| `collateralDecimals`  | `number`  | Decimals of the collateral token.          |
+<Properties>
+  <Property name="symmioAddress" type="Address">
+    SYMMIO diamond contract.
+  </Property>
+  <Property name="instantLayerAddress" type="Address">
+    InstantLayer (delegated instant actions).
+  </Property>
+  <Property name="accountLayerAddress" type="Address">
+    AccountLayer (SubAccount / VA management).
+  </Property>
+  <Property name="affiliatesAddress" type="Address">
+    Your frontend's affiliate identity (fee attribution). **Required** per chain via `createConfig`'s
+    `symmioConfig[chainId].addresses.affiliatesAddress`.
+  </Property>
+  <Property name="collateralAddress" type="Address">
+    Collateral token (e.g. USDC).
+  </Property>
+  <Property name="collateralDecimals" type="number">
+    Decimals of the collateral token.
+  </Property>
+</Properties>
 
-Everything else (solver URL, TP/SL handler, subgraph, notifications WS, Muon gateways) lives on sibling fields of the same chain entry.
+Everything else (solver URL, TP/SL handler, subgraph, notifications WS, Muon gateways) lives on the sibling fields above.
 
 ## Current chains
 
@@ -63,7 +93,7 @@ Only **HyperEVM (999)** is deployed today. The registry entry (`packages/trading
 - `symmioAddress` — `0x57331038c21982116EE9b0906E4a5c5cB52dcE2e`
 - `instantLayerAddress` — `0x72DBF07457b2712b160F67A85D338F860c1CA620`
 - `accountLayerAddress` — `0x46493c376758Da47823D7E3Ae5d417eA6546eEB3`
-- `affiliatesAddress` — `0xBcB033C9154401fA000a1Ae60843f79f45741b7c`
+- `affiliatesAddress` — `0xBcB033C9154401fA000a1Ae60843f79f45741b7c` (built-in default; you must override it per chain via the required `symmioConfig[chainId].addresses.affiliatesAddress`)
 - `collateralAddress` — `0xb88339CB7199b77E23DB6E890353E22632Ba630f` (USDC, 6 decimals)
 - `solver.address` — `0x76bc5889c0cfcC20960b0D81F541595d81a95122` (Enigma)
 - `solver.tpsl.cohWalletAddress` — `0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31`
@@ -72,13 +102,14 @@ Plus URLs for solver, TP/SL handler, price service, notifications, subgraphs, an
 
 ## Per-chain overrides
 
-Override any field at runtime via `createConfig({ chainOverrides })`. Deep-merged onto the built-in registry — you can override just the subgraph URL or just one address, keeping the rest.
+Override any field at runtime via `createConfig({ symmioConfig })`. Deep-merged onto the built-in registry — you can override just the subgraph URL or just one address, keeping the rest.
 
 ```ts
 const config = createConfig({
   getClient: () => publicClient,
-  chainOverrides: {
+  symmioConfig: {
     999: {
+      addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" },
       subgraphs: {
         analytics: "https://staging.example/subgraphs/analytics",
       },
@@ -99,6 +130,6 @@ Open a PR. New chains follow the existing entries' conventions.
 
 ## Related
 
-- [Config](../concepts/config) — how `getChainConfig` / `chainOverrides` plug in.
+- [Config](../concepts/config) — how `getChainConfig` / `symmioConfig` plug in.
 - [ABI fragments](../abi) — pair addresses with typed ABIs for viem-direct calls.
 - [Shared Types](../shared-types) — `ChainIdParameter` mixin on every action.

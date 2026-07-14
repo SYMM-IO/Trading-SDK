@@ -1,0 +1,55 @@
+# createClassicWithdrawPart
+
+Build one classic (provider-free) withdraw receiver part. Unlike the read and write actions on this page, this is a pure helper — it takes **no `config`** and makes no network call. Feed the returned part into `initiateWithdraw`.
+
+```ts
+import { createClassicWithdrawPart } from "@symmio/trading-core";
+
+const part = createClassicWithdrawPart({
+  id: 0n,
+  amount: 1_000000n,
+  receiver: "0xabc...",
+  chainId: 999n,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="id" type="bigint" required>
+    Caller-assigned part id, unique within the request.
+  </Property>
+  <Property name="amount" type="bigint" required>
+    Amount of collateral for this part, in the collateral token's smallest unit.
+  </Property>
+  <Property name="receiver" type="Address" required>
+    Destination EVM address.
+  </Property>
+  <Property name="chainId" type="bigint" required>
+    Destination chain id (use the source chain id for a same-chain withdrawal). This is the destination chain, not a
+    config chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="WithdrawReceiverPart">
+  <Property name="id" type="bigint">
+    Caller-assigned part id, unique within the request.
+  </Property>
+  <Property name="amount" type="bigint">
+    Amount of collateral for this part, in the collateral token's smallest unit.
+  </Property>
+  <Property name="chainId" type="bigint">
+    Destination chain id (`int256` on-chain; the source chain for a same-chain part).
+  </Property>
+  <Property name="receiver" type="Hex">
+    Destination address as raw bytes (a 20-byte EVM address is its own byte representation).
+  </Property>
+  <Property name="virtualProvider" type="Address">
+    Virtual (cross-chain) provider, or the zero address for a same-chain part.
+  </Property>
+  <Property name="expressProvider" type="Address">
+    Express (instant) provider, or the zero address for a standard-cooldown part.
+  </Property>
+</Returns>

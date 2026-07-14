@@ -6,6 +6,8 @@ import type { WebSocketConstructor } from "../types/websocket";
 
 /** Deterministic test EOA. Public, never used on a real chain. */
 export const TEST_USER: Address = "0x1111111111111111111111111111111111111111";
+/** Deterministic, non-zero test affiliate address (createConfig requires one). */
+export const TEST_AFFILIATE_ADDRESS: Address = "0x000000000000000000000000000000000000aFF1";
 /** Deterministic test transaction hash returned by the stub wallet client. */
 export const TEST_TX_HASH: Hash = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
 
@@ -47,6 +49,7 @@ export function mockConfig(options?: {
   } as unknown as SymmioWalletClient;
 
   const config = createConfig({
+    symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } } },
     getClient: () => publicClient,
     getWalletClient: options?.withWallet === false ? undefined : async () => walletClient,
     simulateBeforeWrite: options?.simulateBeforeWrite,

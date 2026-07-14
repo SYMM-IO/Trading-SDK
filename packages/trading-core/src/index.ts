@@ -40,6 +40,7 @@ export {
   type CreateConfigParameters,
   type GetClientFn,
   type GetWalletClientFn,
+  type SymmioChainConfigInput,
   type SymmioWalletClient,
 } from "./core/config";
 export type { WebSocketConstructor, WebSocketLike } from "./shared/types/websocket";
@@ -630,6 +631,21 @@ export {
  * extrapolates a per-epoch rate over a day window (linear, non-compounded).
  */
 export {
+  calculatePriceImpact,
+  getEstimatedPrice,
+  getEstimatedPriceQueryKey,
+  getEstimatedPriceQueryOptions,
+  toEstimatedPrice,
+  type CalculatePriceImpactParameters,
+  type EstimatedPriceEntry,
+  type GetEstimatedPriceData,
+  type GetEstimatedPriceOptions,
+  type GetEstimatedPriceParameters,
+  type GetEstimatedPriceQueryKey,
+  type GetEstimatedPriceQueryOptions,
+  type GetEstimatedPriceReturnType,
+} from "./solvers/estimated-price";
+export {
   getFundingInfo,
   getFundingInfoQueryKey,
   getFundingInfoQueryOptions,
@@ -918,6 +934,8 @@ export {
   buildQuoteMetadata,
   // operations
   buildSignedOperation,
+  // trade math — spendable margin for the Max chip (fee + slippage shave)
+  calculateAvailableInstantOpenMargin,
   calculateMargin,
   calculateTradeParams,
   computePlatformFee,
@@ -956,6 +974,7 @@ export {
   // quote constraints — pre-submit validation against market caps/floors
   validateInstantOpenAgainstMarket,
   type BuildSignedOperationParameters,
+  type CalculateAvailableInstantOpenMarginParameters,
   type CalculateMarginParameters,
   type CalculateTradeParamsParameters,
   type CalculateTradeParamsReturnType,

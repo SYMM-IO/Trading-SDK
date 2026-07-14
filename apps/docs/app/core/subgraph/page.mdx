@@ -5,106 +5,50 @@ Historical on-chain data — quote history, funding, balance history, transfers 
 - **`analytics`** — aggregated / derived data. Balance changes over time, quote-level events keyed by quote id, funding accruals, position snapshots. This is what a trading UI usually wants: pre-shaped rows ready to render.
 - **`events`** — raw on-chain event log. `internalTransfers`, deposit / withdraw / allocate events straight from the contract. Use when you need untouched provenance (audit trails, custom analytics, reconciliation against on-chain reads).
 
-Both subgraphs carry a **lot** of data — they hold the entire history of every account, every quote, every transfer since the contracts deployed. GraphQL lets you filter, page, and select exactly the fields you need; the subgraphs happily answer any query the schema supports.
+`@symmio/trading-core` ships the queries most consumers reach for as typed actions; each is a thin wrapper that supplies filters and paging, issues the GraphQL request, and returns strongly-typed rows. For anything the SDK doesn't wrap, `querySubgraph` is the raw escape hatch.
 
-`@symmio/trading-core` ships **the queries most consumers reach for** as typed actions: quote history, quote events by type, quote funding, balance history, transfer history. Each is a thin typed wrapper — the caller supplies filters and paging, the SDK issues the GraphQL request and returns strongly-typed rows.
+## Balance & transfers
 
-**If you need a query the SDK doesn't wrap yet**, two paths:
+<MethodIndex kind="read">
+  <MethodEntry name="getBalanceHistory" href="/core/subgraph/get-balance-history">
+    Deposit / withdraw movements for a set of sub-accounts (analytics subgraph).
+  </MethodEntry>
+  <MethodEntry name="getTransferHistory" href="/core/subgraph/get-transfer-history">
+    Internal collateral transfers in / out of a set of accounts (events subgraph).
+  </MethodEntry>
+</MethodIndex>
 
-1. **Open an issue or a PR** — the pattern is consistent (see the existing files under `packages/trading-core/src/*/get-<slice>/`). A new action lands as one folder: the action fn, its query-options factory, tests. Happy to review.
-2. **Query the subgraph directly** — the URLs are exposed on the chain config (`config.getChainConfig().subgraphs.analytics` / `.events`). Point any GraphQL client at them.
+## Quote history
 
-### Endpoints
+<MethodIndex kind="read">
+  <MethodEntry name="getQuoteHistory" href="/core/subgraph/get-quote-history">
+    Terminal (close / liquidation) events for a sub-account's quotes.
+  </MethodEntry>
+  <MethodEntry name="getQuoteEventsByType" href="/core/subgraph/get-quote-events-by-type">
+    Decoded events for one quote, filtered to specific event types.
+  </MethodEntry>
+  <MethodEntry name="getQuoteFunding" href="/core/subgraph/get-quote-funding">
+    Funding totals (paid / received / net) for a batch of quotes.
+  </MethodEntry>
+</MethodIndex>
 
-Endpoints live in the chain-config registry (`Config.getChainConfig(chainId).subgraphs`). Override via `createConfig({ chainOverrides })` when pointing at a custom deployment or a staging index.
+## Raw query
+
+<MethodIndex kind="read">
+  <MethodEntry name="querySubgraph" href="/core/subgraph/query-subgraph">
+    Issue an arbitrary GraphQL query against a configured subgraph.
+  </MethodEntry>
+</MethodIndex>
+
+## Endpoints
+
+Endpoints live in the chain-config registry (`Config.getChainConfig(chainId).subgraphs`). Override via `createConfig({ symmioConfig })` when pointing at a custom deployment or a staging index.
 
 ```ts
 const chain = config.getChainConfig();
 chain.subgraphs.analytics; // https://.../subgraphs/hyperevm_mainnet_analytics/latest/gn
 chain.subgraphs.events; // https://.../subgraphs/hyperevm_mainnet_events/latest/gn
 ```
-
-## Import
-
-```ts
-import {
-  getBalanceHistory,
-  getTransferHistory,
-  getQuoteHistory,
-  getQuoteEventsByType,
-  getQuoteFunding,
-} from "@symmio/trading-core";
-```
-
-## Balance history
-
-### `getBalanceHistory`
-
-Time-series of an account's deposit / withdraw / allocate / deallocate events.
-
-```ts
-const history = await getBalanceHistory(config, {
-  account,
-  first: 50,
-  skip: 0,
-});
-```
-
-**Returns** — array of `{ id, type, amount, timestamp, txHash, ... }`. Sorted newest-first.
-
-## Transfer history
-
-### `getTransferHistory`
-
-Every collateral in/out for an account, aggregated across deposits, withdraws, and cross-account moves.
-
-```ts
-const transfers = await getTransferHistory(config, {
-  account,
-  first: 50,
-  skip: 0,
-});
-```
-
-## Quote history
-
-### `getQuoteHistory`
-
-Every state transition for one quote — send, lock, fill, close, cancel.
-
-```ts
-const events = await getQuoteHistory(config, {
-  quoteId: 42n,
-  first: 100,
-});
-```
-
-**Returns** — chronologically ordered events with `type`, `blockNumber`, `timestamp`, `txHash`, `partyA`, `partyB`, and event-specific fields.
-
-### `getQuoteEventsByType`
-
-Filter by event type — useful for building per-quote timelines that pull out just fills or just cancels.
-
-```ts
-const fills = await getQuoteEventsByType(config, {
-  quoteId: 42n,
-  type: "FillOpenMarketOrder",
-  first: 20,
-});
-```
-
-## Quote funding
-
-### `getQuoteFunding`
-
-Aggregate funding paid + received for one quote across its lifetime.
-
-```ts
-const funding = await getQuoteFunding(config, { quoteId: 42n });
-// { paid: bigint, received: bigint, net: bigint }
-```
-
-All figures are 18-decimal-wei `bigint`. Net is `received - paid` (signed).
 
 ## GraphQL error handling
 
@@ -116,10 +60,10 @@ The subgraph client normalizes:
 
 ## Query options
 
-Every action has `xyzQueryOptions` / `xyzQueryKey` — same shape as the on-chain reads. See [Query options](../concepts/query-options).
+Every action ships a matching `…QueryOptions` factory and `…QueryKey` builder — same shape as the on-chain reads. See each method's page for the exact call, and [Query options](/core/concepts/query-options) for the shared pattern.
 
 ## Related
 
-- [SYMMIO Contract](../symmio-contract) — live on-chain state; pair with subgraph for history.
-- [Unified quotes](../quotes) — `getQuoteHistory` / `getQuoteFunding` decorate the reconciled row.
-- [Errors](../concepts/errors) — subgraph failures surface as `SymmApiError`.
+- [SYMMIO Contract](/core/symmio-contract) — live on-chain state; pair with the subgraph for history.
+- [Unified quotes](/core/quotes) — `getQuoteHistory` / `getQuoteFunding` decorate the reconciled row.
+- [Errors](/core/concepts/errors) — subgraph failures surface as `SymmApiError` / `SymmError`.

@@ -1,0 +1,38 @@
+# getQuoteFunding
+
+Funding totals — paid, received, and net — for a batch of quotes, read from the analytics subgraph.
+
+```ts
+import { getQuoteFunding } from "@symmio/trading-core";
+
+const { rows, missingQuoteIds } = await getQuoteFunding(config, {
+  quoteIds: [42n, 43n],
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quoteIds" type="readonly bigint[]" required>
+    On-chain quote ids to read funding for.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetQuoteFundingReturnType">
+  <Property name="rows" type="QuoteFundingData[]">One row per quote id the subgraph returned. Each row is `{ quoteId, paid, received, net }` — all amounts are 18-decimal-wei `bigint`, and `net = paid − received` (positive means the user net-paid funding over the position's life; negative means net-received).</Property>
+  <Property name="missingQuoteIds" type="bigint[]">The subset of input ids the subgraph did not return (indexing lag) — so the caller can distinguish "no funding" from "not yet indexed".</Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getQuoteFundingQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getQuoteFundingQueryOptions(config, { quoteIds: [42n] }));
+```

@@ -13,6 +13,7 @@ import {
   useOptimisticQuotesStore,
   useQuoteUpnlAndPnl,
   useQuotePlatformFee,
+  useAccountLiquidationPrice,
   useQuotePriceHistory,
 } from "@symmio/trading-react";
 ```
@@ -101,12 +102,23 @@ Open + close fee for a quote based on `useFeeForUser` + quote size.
 const { openFee, closeFee } = useQuotePlatformFee({ quote });
 ```
 
-### `useQuotePriceHistory`
+### `useAccountLiquidationPrice`
 
-Subgraph-backed price history for a quote.
+Liquidation price for an account, computed from its balance info + open positions via `calculateLiquidationPrice`. Pass the position's VA (`quote.vaAddress ?? quote.partyA`); lowcap isolates each position into its own single-position VA, so the account's liq price **is** that position's.
 
 ```ts
-const history = useQuotePriceHistory({ quoteId: 42n, query: { enabled: showChart } });
+const { liquidationPrice, isLoading } = useAccountLiquidationPrice({ account: quote.vaAddress ?? quote.partyA });
+```
+
+`liquidationPrice` is 18-decimal **wei** `bigint` — `0n` when unavailable (no balance / no positions).
+
+### `useQuotePriceHistory`
+
+Subgraph-backed **open-price history** for a quote → `{ rows, hasMore }`. Each `row` is a settle-uPnL recompute or funding tick (`PRICE_HISTORY_EVENT_TYPES`) with `newPrice` / `prevPrice` (wei) and a `timestamp` (seconds). Needs the on-chain `quoteId`; pass `orderDirection: "asc"` for an oldest-first timeline.
+
+```ts
+const { data } = useQuotePriceHistory({ quoteId: 42n, orderDirection: "asc", query: { enabled: quoteId != null } });
+const priceChanges = (data?.rows ?? []).filter((r) => r.newPrice !== undefined);
 ```
 
 ## Related

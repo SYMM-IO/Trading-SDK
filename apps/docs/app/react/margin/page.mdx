@@ -1,0 +1,77 @@
+import { Callout } from "nextra/components";
+
+# Margin hooks
+
+Derived helpers for how much margin a trade can spend.
+
+**Every hook on this page is a [derived read](../concepts/hook-pattern#reads)** — it composes other reads and a pure calculation; it does not hit a new endpoint of its own.
+
+## Import
+
+```ts
+import { useAvailableInstantOpenMargin } from "@symmio/trading-react";
+```
+
+## `useAvailableInstantOpenMargin`
+
+The maximum **initial margin** an instant open can spend for an account on a market — the raw available balance shaved for fees (both sides, on the leveraged notional) and, for SHORT, a worst-case slippage fill. Wire the result to the trade form's `Max` chip and gate submit on it.
+
+Under the hood it composes [`useAccountBalanceOf`](../account-layer#useaccountbalanceof) (with `live: true`) + [`useFeeForUser`](../fees#usefeeforuser) and feeds them to the pure core function [`calculateAvailableInstantOpenMargin`](../../core/solvers/instant-open#calculateavailableinstantopenmargin). Because the balance read is live, the result **refetches automatically when an open/close settles on-chain** — the `Max` chip stays fresh with no extra wiring.
+
+```tsx
+import { PositionType } from "@symmio/trading-core";
+import { useAvailableInstantOpenMargin } from "@symmio/trading-react";
+
+const { availableMargin, availableMarginWei } = useAvailableInstantOpenMargin({
+  account: subAccount,
+  symbolId: market.symbol_id,
+  leverage,
+  positionType: side === "short" ? PositionType.SHORT : PositionType.LONG,
+  slippage, // percent, e.g. 5
+});
+
+// Max chip
+<button onClick={() => setMargin(availableMargin)}>Max {availableMargin}</button>;
+```
+
+#### Parameters
+
+| Name           | Type                | Default        | Notes                                                 |
+| -------------- | ------------------- | -------------- | ----------------------------------------------------- |
+| `account`      | `Address?`          | `undefined`    | SubAccount to spend margin from. Idle until set.      |
+| `symbolId`     | `bigint \| number?` | `undefined`    | Market symbol id, for the fee lookup. Idle until set. |
+| `leverage`     | `number`            | —              | Requested leverage (integer ≥ 1).                     |
+| `positionType` | `PositionType`      | —              | `LONG` skips the slippage cap; `SHORT` applies it.    |
+| `slippage`     | `number`            | —              | Slippage percent, e.g. `5`.                           |
+| `chainId`      | `number?`           | config default | Optional chain override.                              |
+| `config`       | `Config?`           | provider value | Optional config override.                             |
+
+#### Return type
+
+```ts
+interface UseAvailableInstantOpenMarginReturnType {
+  /** Spendable margin in 18-decimal wei; `undefined` until balance + fees load. */
+  availableMarginWei: bigint | undefined;
+  /** `availableMarginWei` as a decimal string; `"0"` when unavailable. */
+  availableMargin: string;
+  /** `true` while the underlying balance / fee reads are loading. */
+  isLoading: boolean;
+  /** First error from the balance / fee reads, if any. */
+  error: SymmioRequestError | null;
+  /** Refetch the underlying balance + fee reads. */
+  refetch: () => Promise<void>;
+}
+```
+
+<Callout type="info">
+  The shave formula: `available = balance × max(0, 1 − slippageFactor) × max(0, 1 − leverage × (openFee + closeFee))`,
+  where `slippageFactor = slippage` on SHORT and `0` on LONG. See
+  [`calculateAvailableInstantOpenMargin`](../../core/solvers/instant-open#calculateavailableinstantopenmargin) for the
+  framework-agnostic function and the reasoning behind each shave.
+</Callout>
+
+## Related
+
+- [AccountLayer hooks](../account-layer) — `useAccountBalanceOf` (the balance this shaves) and its `live` option.
+- [Fees hooks](../fees) — `useFeeForUser`, the fee rates this consumes.
+- [InstantLayer / Solvers](../solvers) — `useInstantOpenAuto`, which spends the margin.

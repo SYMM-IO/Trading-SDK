@@ -1,0 +1,86 @@
+# RawTpSlNotification
+
+The raw wire shape of one report frame from the TP/SL notifications WebSocket, after the defilytics envelope is unwrapped. Retained on [`TpSlNotification`](/core/tpsl/tpsl-notification)`.raw` for advanced use; the runtime only trusts the outer envelope and walks the `data` payload through its union type.
+
+## Fields
+
+<Properties>
+  <Property name="app_name" type="string" optional>
+    Channel / app name the frame came in on.
+  </Property>
+  <Property name="primary_identifier" type="number" optional>
+    On-chain quote id when anchored, else `0`.
+  </Property>
+  <Property name="secondary_identifier" type="number" optional>
+    Temp id pre-anchor, else `0`.
+  </Property>
+  <Property name="address" type="string" optional>
+    SubAccount address the frame belongs to.
+  </Property>
+  <Property name="type" type='"report" | "alarm"' optional>
+    Frame kind. Only `report` frames are parsed.
+  </Property>
+  <Property name="timestamp" type="number" optional>
+    Frame timestamp (seconds).
+  </Property>
+  <Property name="data" type="RawTpSlNotificationData" optional>
+    The report payload — see below.
+  </Property>
+</Properties>
+
+## RawTpSlNotificationData
+
+A discriminated union on `successful`. The successful branch carries fill details; the failure branch carries error info.
+
+<Properties>
+  <Property name="successful" type="boolean">
+    Discriminant. `true` → details branch, `false` → error branch.
+  </Property>
+  <Property name="conditional_order_type" type='"take_profit" | "stop_loss"'>
+    Which side (required on success; optional on failure).
+  </Property>
+  <Property name="state" type="RawTpSlNotificationState">
+    The lifecycle state (see below).
+  </Property>
+  <Property name="coh_quote_id" type="string" optional>
+    Handler-issued conditional-order id.
+  </Property>
+  <Property name="details" type="RawTpSlNotificationDetails" optional>
+    Fill details (success branch only).
+  </Property>
+  <Property name="error_code" type="number" optional>
+    Failure branch only.
+  </Property>
+  <Property name="status_code" type="number" optional>
+    Failure branch only.
+  </Property>
+  <Property name="error_message" type="string" optional>
+    Failure branch only.
+  </Property>
+</Properties>
+
+## RawTpSlNotificationDetails
+
+<Properties>
+  <Property name="trigger_price" type="number" optional>
+    The trigger price on the order.
+  </Property>
+  <Property name="open_price" type="number" optional>
+    The order's stamped open price.
+  </Property>
+  <Property name="close_price" type="number" optional>
+    Fill price when the order closes.
+  </Property>
+  <Property name="quantity_to_close" type="number" optional>
+    Quantity closed by the order.
+  </Property>
+</Properties>
+
+## RawTpSlNotificationState
+
+The wire state union: `"new" | "edit" | "pending" | "cancelled" | "canceled" | "cancel" | "triggered" | "trigger" | "close"`.
+
+## Related
+
+- [`TpSlNotification`](/core/tpsl/tpsl-notification) — the normalized shape built from this frame.
+- [`parseTpSlFrame`](/core/tpsl/parse-tpsl-frame) — parses this into a `TpSlNotification`.

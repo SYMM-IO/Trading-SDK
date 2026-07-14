@@ -1,0 +1,48 @@
+# getTpSlSigningSpec
+
+Fetch the handler's EIP-712 signing spec for the **POST** endpoint (create / edit). The spec drives the `domain`, `types`, and `primaryType` that [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) signs against, so the SDK never hardcodes the schema — it always matches the deployed handler.
+
+The spec is server-published and stable per deployment; cache it indefinitely (the React layer uses `staleTime: Infinity`). Called internally by `setQuoteTpSl`; exposed for advanced consumers that sign their own messages.
+
+```ts
+import { getTpSlSigningSpec } from "@symmio/trading-core";
+
+const spec = await getTpSlSigningSpec(config);
+// { domain, types, primaryType }
+```
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="TpSlSigningSpec" typeHref="/core/tpsl/tpsl-signing-spec">
+  The EIP-712 typed-data domain + schema. Pass to [`signTpSlRequest`](/core/tpsl/sign-tpsl-request).
+</Returns>
+
+## Throws
+
+- `SymmError` when the chain has no `tpsl` config.
+- `SymmApiError` when the HTTP request fails.
+
+## Query options
+
+```ts
+import { getTpSlSigningSpecQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getTpSlSigningSpecQueryOptions(config));
+```
+
+`getTpSlSigningSpecQueryOptions` takes no required inputs — cache forever. `getTpSlSigningSpecQueryKey` builds the matching cache key.
+
+## Related
+
+- [`getTpSlDeleteSigningSpec`](/core/tpsl/get-tpsl-delete-signing-spec) — the spec for the DELETE endpoint.
+- [`TpSlSigningSpec`](/core/tpsl/tpsl-signing-spec) — the return shape.
+- [`useTpSlSigningSpec`](/react/tpsl) — React binding.

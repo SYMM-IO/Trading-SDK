@@ -117,12 +117,12 @@ function TpSlIndicator({ quote }: { quote: UnifiedQuote }) {
     <span className="mt-0.5 flex flex-col gap-0.5 text-[0.65rem] leading-tight">
       {hasTp ? (
         <span className="text-muted-foreground/90 font-mono">
-          <span className="text-emerald-500">TP</span> {renderSide(data.tp, data.tpState)}
+          <span className="text-positive">TP</span> {renderSide(data.tp, data.tpState)}
         </span>
       ) : null}
       {hasSl ? (
         <span className="text-muted-foreground/90 font-mono">
-          <span className="text-red-500">SL</span> {renderSide(data.sl, data.slState)}
+          <span className="text-negative">SL</span> {renderSide(data.sl, data.slState)}
         </span>
       ) : null}
     </span>

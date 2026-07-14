@@ -68,6 +68,9 @@ import { WebSocket as NodeWebSocket } from "ws";
 import { createConfig } from "@symmio/trading-core";
 
 const config = createConfig({
+  symmioConfig: {
+    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+  },
   getClient: () => publicClient,
   webSocketConstructor: NodeWebSocket as unknown as WebSocketConstructor,
 });
