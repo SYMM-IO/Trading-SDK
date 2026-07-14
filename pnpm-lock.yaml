@@ -9,6 +9,7 @@ overrides:
   '@types/react': ^19.2.17
   react: ^19.2.7
   react-dom: ^19.2.7
+  use-sync-external-store: ^1.6.0
 
 patchedDependencies:
   nextra-theme-docs@4.6.1:
@@ -252,7 +253,7 @@ importers:
         version: 2.49.3(typescript@6.0.3)(zod@4.4.3)
       wagmi:
         specifier: ^3.4.2
-        version: 3.6.11(@safe-global/safe-apps-provider@0.18.6(typescript@6.0.3)(zod@4.4.3))(@safe-global/safe-apps-sdk@9.1.0(typescript@6.0.3)(zod@4.4.3))(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.7))(@types/react@19.2.17)(@walletconnect/ethereum-provider@2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3))(react@19.2.7)(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
+        version: 3.6.11(@safe-global/safe-apps-provider@0.18.6(typescript@6.0.3)(zod@4.4.3))(@safe-global/safe-apps-sdk@9.1.0(typescript@6.0.3)(zod@4.4.3))(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.7))(@types/react@19.2.17)(@walletconnect/ethereum-provider@2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(zod@4.4.3))(react@19.2.7)(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
     devDependencies:
       '@playwright/test':
         specifier: ^1.50.0
@@ -461,9 +462,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.10
         version: 4.1.10(vitest@4.1.10)
-      '@wagmi/connectors':
-        specifier: ^8.0.0
-        version: 8.0.11(@safe-global/safe-apps-provider@0.18.6(typescript@6.0.3)(zod@4.4.3))(@safe-global/safe-apps-sdk@9.1.0(typescript@6.0.3)(zod@4.4.3))(@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)))(@walletconnect/ethereum-provider@2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(zod@4.4.3))(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
       eslint:
         specifier: ^9.39.4
         version: 9.39.4(jiti@2.6.1)
@@ -8601,11 +8599,6 @@ packages:
       '@types/react':
         optional: true
 
-  use-sync-external-store@1.4.0:
-    resolution: {integrity: sha512-9WXSPC5fMv61vaupRkCKCxsPxBocVnwakBEkMIHHpkTTg6icbJtg6jzgtLDm4bl3cSHAca52rYWih0k4K3PfHw==}
-    peerDependencies:
-      react: ^19.2.7
-
   use-sync-external-store@1.6.0:
     resolution: {integrity: sha512-Pp6GSwGP/NrPIrxVFAIkOQeyw8lFenOHijQWkUTrDvrF4ALqylP2C/KCkeS9dpUM3KvYRQhna5vt7IL95+ZQ9w==}
     peerDependencies:
@@ -8972,7 +8965,7 @@ packages:
       '@types/react': ^19.2.17
       immer: '>=9.0.6'
       react: ^19.2.7
-      use-sync-external-store: '>=1.2.0'
+      use-sync-external-store: ^1.6.0
     peerDependenciesMeta:
       '@types/react':
         optional: true
@@ -8990,7 +8983,7 @@ packages:
       '@types/react': ^19.2.17
       immer: '>=9.0.6'
       react: ^19.2.7
-      use-sync-external-store: '>=1.2.0'
+      use-sync-external-store: ^1.6.0
     peerDependenciesMeta:
       '@types/react':
         optional: true
@@ -9008,7 +9001,7 @@ packages:
       '@types/react': ^19.2.17
       immer: '>=9.0.6'
       react: ^19.2.7
-      use-sync-external-store: '>=1.2.0'
+      use-sync-external-store: ^1.6.0
     peerDependenciesMeta:
       '@types/react':
         optional: true
@@ -9173,30 +9166,6 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
-
-  '@base-org/account@2.4.0(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3)':
-    dependencies:
-      '@coinbase/cdp-sdk': 1.52.0(typescript@6.0.3)
-      '@noble/hashes': 1.4.0
-      clsx: 1.2.1
-      eventemitter3: 5.0.1
-      idb-keyval: 6.2.1
-      ox: 0.6.9(typescript@6.0.3)(zod@4.4.3)
-      preact: 10.24.2
-      viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
-      zustand: 5.0.3(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.4.0(react@19.2.7))
-    transitivePeerDependencies:
-      - '@types/react'
-      - bufferutil
-      - debug
-      - fastestsmallesttextencoderdecoder
-      - immer
-      - react
-      - typescript
-      - use-sync-external-store
-      - utf-8-validate
-      - zod
-    optional: true
 
   '@base-org/account@2.4.0(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(zod@4.4.3)':
     dependencies:
@@ -11772,47 +11741,6 @@ snapshots:
       - zod
     optional: true
 
-  '@reown/appkit-pay@1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3)':
-    dependencies:
-      '@reown/appkit-common': 1.8.19(typescript@6.0.3)(zod@4.4.3)
-      '@reown/appkit-controllers': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
-      '@reown/appkit-ui': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
-      '@reown/appkit-utils': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(valtio@2.1.7(@types/react@19.2.17)(react@19.2.7))(zod@4.4.3)
-      lit: 3.3.0
-      valtio: 2.1.7(@types/react@19.2.17)(react@19.2.7)
-    transitivePeerDependencies:
-      - '@azure/app-configuration'
-      - '@azure/cosmos'
-      - '@azure/data-tables'
-      - '@azure/identity'
-      - '@azure/keyvault-secrets'
-      - '@azure/storage-blob'
-      - '@capacitor/preferences'
-      - '@deno/kv'
-      - '@netlify/blobs'
-      - '@planetscale/database'
-      - '@react-native-async-storage/async-storage'
-      - '@types/react'
-      - '@upstash/redis'
-      - '@vercel/blob'
-      - '@vercel/functions'
-      - '@vercel/kv'
-      - aws4fetch
-      - bufferutil
-      - db0
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - immer
-      - ioredis
-      - react
-      - typescript
-      - uploadthing
-      - use-sync-external-store
-      - utf-8-validate
-      - zod
-    optional: true
-
   '@reown/appkit-pay@1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(zod@4.4.3)':
     dependencies:
       '@reown/appkit-common': 1.8.19(typescript@6.0.3)(zod@4.4.3)
@@ -11857,49 +11785,6 @@ snapshots:
   '@reown/appkit-polyfills@1.8.19':
     dependencies:
       buffer: 6.0.3
-    optional: true
-
-  '@reown/appkit-scaffold-ui@1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(valtio@2.1.7(@types/react@19.2.17)(react@19.2.7))(zod@4.4.3)':
-    dependencies:
-      '@reown/appkit-common': 1.8.19(typescript@6.0.3)(zod@4.4.3)
-      '@reown/appkit-controllers': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
-      '@reown/appkit-pay': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3)
-      '@reown/appkit-ui': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
-      '@reown/appkit-utils': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(valtio@2.1.7(@types/react@19.2.17)(react@19.2.7))(zod@4.4.3)
-      '@reown/appkit-wallet': 1.8.19(typescript@6.0.3)
-      lit: 3.3.0
-    transitivePeerDependencies:
-      - '@azure/app-configuration'
-      - '@azure/cosmos'
-      - '@azure/data-tables'
-      - '@azure/identity'
-      - '@azure/keyvault-secrets'
-      - '@azure/storage-blob'
-      - '@capacitor/preferences'
-      - '@deno/kv'
-      - '@netlify/blobs'
-      - '@planetscale/database'
-      - '@react-native-async-storage/async-storage'
-      - '@types/react'
-      - '@upstash/redis'
-      - '@vercel/blob'
-      - '@vercel/functions'
-      - '@vercel/kv'
-      - aws4fetch
-      - bufferutil
-      - db0
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - immer
-      - ioredis
-      - react
-      - typescript
-      - uploadthing
-      - use-sync-external-store
-      - utf-8-validate
-      - valtio
-      - zod
     optional: true
 
   '@reown/appkit-scaffold-ui@1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(valtio@2.1.7(@types/react@19.2.17)(react@19.2.7))(zod@4.4.3)':
@@ -11982,54 +11867,6 @@ snapshots:
       - zod
     optional: true
 
-  '@reown/appkit-utils@1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(valtio@2.1.7(@types/react@19.2.17)(react@19.2.7))(zod@4.4.3)':
-    dependencies:
-      '@reown/appkit-common': 1.8.19(typescript@6.0.3)(zod@4.4.3)
-      '@reown/appkit-controllers': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
-      '@reown/appkit-polyfills': 1.8.19
-      '@reown/appkit-wallet': 1.8.19(typescript@6.0.3)
-      '@wallet-standard/wallet': 1.1.0
-      '@walletconnect/logger': 3.0.2
-      '@walletconnect/universal-provider': 2.23.7(typescript@6.0.3)(zod@4.4.3)
-      valtio: 2.1.7(@types/react@19.2.17)(react@19.2.7)
-      viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
-    optionalDependencies:
-      '@base-org/account': 2.4.0(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3)
-      '@safe-global/safe-apps-provider': 0.18.6(typescript@6.0.3)(zod@4.4.3)
-      '@safe-global/safe-apps-sdk': 9.1.0(typescript@6.0.3)(zod@4.4.3)
-    transitivePeerDependencies:
-      - '@azure/app-configuration'
-      - '@azure/cosmos'
-      - '@azure/data-tables'
-      - '@azure/identity'
-      - '@azure/keyvault-secrets'
-      - '@azure/storage-blob'
-      - '@capacitor/preferences'
-      - '@deno/kv'
-      - '@netlify/blobs'
-      - '@planetscale/database'
-      - '@react-native-async-storage/async-storage'
-      - '@types/react'
-      - '@upstash/redis'
-      - '@vercel/blob'
-      - '@vercel/functions'
-      - '@vercel/kv'
-      - aws4fetch
-      - bufferutil
-      - db0
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - immer
-      - ioredis
-      - react
-      - typescript
-      - uploadthing
-      - use-sync-external-store
-      - utf-8-validate
-      - zod
-    optional: true
-
   '@reown/appkit-utils@1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(valtio@2.1.7(@types/react@19.2.17)(react@19.2.7))(zod@4.4.3)':
     dependencies:
       '@reown/appkit-common': 1.8.19(typescript@6.0.3)(zod@4.4.3)
@@ -12088,56 +11925,6 @@ snapshots:
       - bufferutil
       - typescript
       - utf-8-validate
-    optional: true
-
-  '@reown/appkit@1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3)':
-    dependencies:
-      '@reown/appkit-common': 1.8.19(typescript@6.0.3)(zod@4.4.3)
-      '@reown/appkit-controllers': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
-      '@reown/appkit-pay': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3)
-      '@reown/appkit-polyfills': 1.8.19
-      '@reown/appkit-scaffold-ui': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(valtio@2.1.7(@types/react@19.2.17)(react@19.2.7))(zod@4.4.3)
-      '@reown/appkit-ui': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
-      '@reown/appkit-utils': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(valtio@2.1.7(@types/react@19.2.17)(react@19.2.7))(zod@4.4.3)
-      '@reown/appkit-wallet': 1.8.19(typescript@6.0.3)
-      '@walletconnect/universal-provider': 2.23.7(typescript@6.0.3)(zod@4.4.3)
-      bs58: 6.0.0
-      semver: 7.7.2
-      valtio: 2.1.7(@types/react@19.2.17)(react@19.2.7)
-      viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
-    optionalDependencies:
-      '@lit/react': 1.0.8(@types/react@19.2.17)
-    transitivePeerDependencies:
-      - '@azure/app-configuration'
-      - '@azure/cosmos'
-      - '@azure/data-tables'
-      - '@azure/identity'
-      - '@azure/keyvault-secrets'
-      - '@azure/storage-blob'
-      - '@capacitor/preferences'
-      - '@deno/kv'
-      - '@netlify/blobs'
-      - '@planetscale/database'
-      - '@react-native-async-storage/async-storage'
-      - '@types/react'
-      - '@upstash/redis'
-      - '@vercel/blob'
-      - '@vercel/functions'
-      - '@vercel/kv'
-      - aws4fetch
-      - bufferutil
-      - db0
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - immer
-      - ioredis
-      - react
-      - typescript
-      - uploadthing
-      - use-sync-external-store
-      - utf-8-validate
-      - zod
     optional: true
 
   '@reown/appkit@1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(zod@4.4.3)':
@@ -13703,16 +13490,6 @@ snapshots:
       path-browserify: 1.0.1
       vscode-uri: 3.1.0
 
-  '@wagmi/connectors@8.0.11(@safe-global/safe-apps-provider@0.18.6(typescript@6.0.3)(zod@4.4.3))(@safe-global/safe-apps-sdk@9.1.0(typescript@6.0.3)(zod@4.4.3))(@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)))(@walletconnect/ethereum-provider@2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3))(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))':
-    dependencies:
-      '@wagmi/core': 3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
-      viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
-    optionalDependencies:
-      '@safe-global/safe-apps-provider': 0.18.6(typescript@6.0.3)(zod@4.4.3)
-      '@safe-global/safe-apps-sdk': 9.1.0(typescript@6.0.3)(zod@4.4.3)
-      '@walletconnect/ethereum-provider': 2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3)
-      typescript: 6.0.3
-
   '@wagmi/connectors@8.0.11(@safe-global/safe-apps-provider@0.18.6(typescript@6.0.3)(zod@4.4.3))(@safe-global/safe-apps-sdk@9.1.0(typescript@6.0.3)(zod@4.4.3))(@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)))(@walletconnect/ethereum-provider@2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(zod@4.4.3))(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))':
     dependencies:
       '@wagmi/core': 3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
@@ -13722,21 +13499,6 @@ snapshots:
       '@safe-global/safe-apps-sdk': 9.1.0(typescript@6.0.3)(zod@4.4.3)
       '@walletconnect/ethereum-provider': 2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(zod@4.4.3)
       typescript: 6.0.3
-
-  '@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))':
-    dependencies:
-      eventemitter3: 5.0.1
-      mipd: 0.0.7(typescript@6.0.3)
-      viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
-      zustand: 5.0.0(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.4.0(react@19.2.7))
-    optionalDependencies:
-      '@tanstack/query-core': 5.100.9
-      typescript: 6.0.3
-    transitivePeerDependencies:
-      - '@types/react'
-      - immer
-      - react
-      - use-sync-external-store
 
   '@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))':
     dependencies:
@@ -13854,51 +13616,6 @@ snapshots:
   '@walletconnect/environment@1.0.1':
     dependencies:
       tslib: 1.14.1
-    optional: true
-
-  '@walletconnect/ethereum-provider@2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3)':
-    dependencies:
-      '@reown/appkit': 1.8.19(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3)
-      '@walletconnect/jsonrpc-provider': 1.0.14
-      '@walletconnect/jsonrpc-types': 1.0.4
-      '@walletconnect/jsonrpc-utils': 1.0.8
-      '@walletconnect/keyvaluestorage': 1.1.1
-      '@walletconnect/sign-client': 2.23.10(typescript@6.0.3)(zod@4.4.3)
-      '@walletconnect/types': 2.23.10
-      '@walletconnect/universal-provider': 2.23.10(typescript@6.0.3)(zod@4.4.3)
-      '@walletconnect/utils': 2.23.10(typescript@6.0.3)(zod@4.4.3)
-      events: 3.3.0
-    transitivePeerDependencies:
-      - '@azure/app-configuration'
-      - '@azure/cosmos'
-      - '@azure/data-tables'
-      - '@azure/identity'
-      - '@azure/keyvault-secrets'
-      - '@azure/storage-blob'
-      - '@capacitor/preferences'
-      - '@deno/kv'
-      - '@netlify/blobs'
-      - '@planetscale/database'
-      - '@react-native-async-storage/async-storage'
-      - '@types/react'
-      - '@upstash/redis'
-      - '@vercel/blob'
-      - '@vercel/functions'
-      - '@vercel/kv'
-      - aws4fetch
-      - bufferutil
-      - db0
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - immer
-      - ioredis
-      - react
-      - typescript
-      - uploadthing
-      - use-sync-external-store
-      - utf-8-validate
-      - zod
     optional: true
 
   '@walletconnect/ethereum-provider@2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(zod@4.4.3)':
@@ -19332,10 +19049,6 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.17
 
-  use-sync-external-store@1.4.0(react@19.2.7):
-    dependencies:
-      react: 19.2.7
-
   use-sync-external-store@1.6.0(react@19.2.7):
     dependencies:
       react: 19.2.7
@@ -19496,36 +19209,13 @@ snapshots:
 
   vscode-uri@3.1.0: {}
 
-  wagmi@3.6.11(@safe-global/safe-apps-provider@0.18.6(typescript@6.0.3)(zod@4.4.3))(@safe-global/safe-apps-sdk@9.1.0(typescript@6.0.3)(zod@4.4.3))(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.7))(@types/react@19.2.17)(@walletconnect/ethereum-provider@2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3))(react@19.2.7)(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)):
-    dependencies:
-      '@tanstack/react-query': 5.100.9(react@19.2.7)
-      '@wagmi/connectors': 8.0.11(@safe-global/safe-apps-provider@0.18.6(typescript@6.0.3)(zod@4.4.3))(@safe-global/safe-apps-sdk@9.1.0(typescript@6.0.3)(zod@4.4.3))(@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)))(@walletconnect/ethereum-provider@2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(zod@4.4.3))(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
-      '@wagmi/core': 3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
-      react: 19.2.7
-      use-sync-external-store: 1.4.0(react@19.2.7)
-      viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
-    optionalDependencies:
-      typescript: 6.0.3
-    transitivePeerDependencies:
-      - '@base-org/account'
-      - '@coinbase/wallet-sdk'
-      - '@metamask/connect-evm'
-      - '@safe-global/safe-apps-provider'
-      - '@safe-global/safe-apps-sdk'
-      - '@tanstack/query-core'
-      - '@types/react'
-      - '@walletconnect/ethereum-provider'
-      - accounts
-      - immer
-      - porto
-
   wagmi@3.6.11(@safe-global/safe-apps-provider@0.18.6(typescript@6.0.3)(zod@4.4.3))(@safe-global/safe-apps-sdk@9.1.0(typescript@6.0.3)(zod@4.4.3))(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.7))(@types/react@19.2.17)(@walletconnect/ethereum-provider@2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(zod@4.4.3))(react@19.2.7)(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)):
     dependencies:
       '@tanstack/react-query': 5.100.9(react@19.2.7)
       '@wagmi/connectors': 8.0.11(@safe-global/safe-apps-provider@0.18.6(typescript@6.0.3)(zod@4.4.3))(@safe-global/safe-apps-sdk@9.1.0(typescript@6.0.3)(zod@4.4.3))(@wagmi/core@3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3)))(@walletconnect/ethereum-provider@2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(zod@4.4.3))(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
-      '@wagmi/core': 3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.4.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
+      '@wagmi/core': 3.4.9(@tanstack/query-core@5.100.9)(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
       react: 19.2.7
-      use-sync-external-store: 1.4.0(react@19.2.7)
+      use-sync-external-store: 1.6.0(react@19.2.7)
       viem: 2.49.3(typescript@6.0.3)(zod@4.4.3)
     optionalDependencies:
       typescript: 6.0.3
@@ -19733,12 +19423,6 @@ snapshots:
 
   zod@4.4.3: {}
 
-  zustand@5.0.0(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.4.0(react@19.2.7)):
-    optionalDependencies:
-      '@types/react': 19.2.17
-      react: 19.2.7
-      use-sync-external-store: 1.4.0(react@19.2.7)
-
   zustand@5.0.0(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7)):
     optionalDependencies:
       '@types/react': 19.2.17
@@ -19750,13 +19434,6 @@ snapshots:
       '@types/react': 19.2.17
       react: 19.2.7
       use-sync-external-store: 1.6.0(react@19.2.7)
-
-  zustand@5.0.3(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.4.0(react@19.2.7)):
-    optionalDependencies:
-      '@types/react': 19.2.17
-      react: 19.2.7
-      use-sync-external-store: 1.4.0(react@19.2.7)
-    optional: true
 
   zustand@5.0.3(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7)):
     optionalDependencies:

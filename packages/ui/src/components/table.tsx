@@ -37,7 +37,7 @@ function Table({
   return (
     <div
       data-slot="table-container"
-      className={cn("border-border/70 overflow-hidden rounded-xl border", containerClassName)}
+      className={cn("border-border/70 overflow-hidden rounded-lg border", containerClassName)}
     >
       <div className="overflow-x-auto">
         <table data-slot="table" className={cn("w-full border-collapse text-sm", className)} {...props} />
@@ -52,7 +52,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
     <thead
       data-slot="table-header"
       className={cn(
-        "bg-muted/40 text-muted-foreground text-left text-xs font-medium tracking-wide uppercase",
+        "bg-primary/[0.06] text-muted-foreground text-left text-xs font-medium tracking-wide uppercase",
         className,
       )}
       {...props}

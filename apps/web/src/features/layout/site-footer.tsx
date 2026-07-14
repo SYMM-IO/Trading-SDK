@@ -12,7 +12,7 @@ export function SiteFooter() {
         <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
           <div className="flex max-w-sm flex-col gap-4">
             <Link href="/" className="flex items-center gap-2.5">
-              <LogoMark className="size-8 rounded-lg" />
+              <LogoMark className="h-7 w-auto" />
               <span className="font-display text-foreground text-base font-semibold tracking-tight">
                 Symmio Frontier
               </span>

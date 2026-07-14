@@ -1,37 +1,30 @@
 import { cn } from "@symmio/ui/lib/utils";
 
 /**
- * Brand glyph — a primary-filled rounded square with stacked up-chevrons,
- * nodding to upward market motion. The same mark `apps/web` uses, so the two
- * surfaces read as one product. Size via className (defaults to `size-9`).
+ * The Symmio brand mark — two interlocking bracket forms around a coral center
+ * bar. The same mark `apps/web` uses, so the two surfaces read as one product.
+ * The brackets inherit `currentColor` (light/dark adaptive); the center bar
+ * keeps the fixed Symmio coral. Size via className (defaults to `h-6 w-auto`).
  */
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <span
-      className={cn(
-        "bg-primary text-primary-foreground relative inline-flex size-9 items-center justify-center rounded-xl shadow-sm",
-        "before:absolute before:inset-0 before:rounded-xl before:bg-gradient-to-br before:from-white/25 before:to-transparent",
-        className,
-      )}
-      aria-hidden
+    <svg
+      viewBox="0 0 880 633"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label="Symmio"
+      className={cn("text-foreground h-6 w-auto", className)}
     >
-      <svg viewBox="0 0 24 24" fill="none" className="relative size-[18px]">
-        <path
-          d="M5 13.5 12 7l7 6.5"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M5 18 12 11.5 19 18"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity="0.45"
-        />
-      </svg>
-    </span>
+      <path
+        d="M0 498.172V633H712.968V576.873C712.968 484.621 787.75 409.836 880 409.836V223.866H694.408V493.522L0 498.172Z"
+        fill="currentColor"
+      />
+      <path
+        d="M880 134.828V0H167.032V56.127C167.032 148.379 92.2495 223.164 0 223.164V409.134H185.592V139.478L880 134.828Z"
+        fill="currentColor"
+      />
+      <path d="M270.175 223.866H609.825V409.134H270.175V223.866Z" fill="#ED4A3F" />
+    </svg>
   );
 }

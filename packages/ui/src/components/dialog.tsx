@@ -75,7 +75,7 @@ function DialogContent({
         <DialogPrimitive.Content
           data-slot="dialog-content"
           className={cn(
-            "bg-popover text-popover-foreground border-border data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 relative my-auto w-full max-w-lg rounded-2xl border p-6 shadow-2xl duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] outline-none",
+            "bg-popover text-popover-foreground border-border data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 relative my-auto w-full max-w-lg rounded-xl border p-6 shadow-2xl duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] outline-none",
             className,
           )}
           {...props}
@@ -83,7 +83,7 @@ function DialogContent({
           {children}
           {showClose ? (
             <DialogPrimitive.Close
-              className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring/40 absolute top-4 right-4 inline-flex size-8 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-3 disabled:pointer-events-none"
+              className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring/40 absolute top-4 right-4 inline-flex size-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-3 disabled:pointer-events-none"
               aria-label="Close"
             >
               <X className="size-4" />

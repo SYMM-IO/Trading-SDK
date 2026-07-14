@@ -57,7 +57,7 @@ export function JsonView({
   return (
     <div
       className={cn(
-        "border-border/70 bg-muted/20 relative overflow-hidden rounded-xl border font-mono text-xs",
+        "border-border/70 bg-muted/20 relative overflow-hidden rounded-lg border font-mono text-xs",
         className,
       )}
       {...rest}

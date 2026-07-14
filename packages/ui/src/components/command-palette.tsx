@@ -141,7 +141,7 @@ export function CommandPalette({
         <DialogPrimitive.Content
           aria-describedby={undefined}
           onKeyDown={handleKeyDown}
-          className="bg-card text-card-foreground border-border/70 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 fixed top-[10vh] left-1/2 z-50 flex max-h-[74vh] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 flex-col overflow-hidden rounded-2xl border shadow-2xl ease-[cubic-bezier(0.16,1,0.3,1)]"
+          className="bg-card/90 text-card-foreground border-border/70 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 fixed top-[10vh] left-1/2 z-50 flex max-h-[74vh] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 flex-col overflow-hidden rounded-xl border shadow-2xl backdrop-blur-2xl ease-[cubic-bezier(0.16,1,0.3,1)]"
         >
           <VisuallyHidden.Root>
             <DialogPrimitive.Title>{label}</DialogPrimitive.Title>
@@ -193,7 +193,7 @@ export function CommandPalette({
                           onPointerMove={() => !item.disabled && setActiveId(item.id)}
                           onClick={() => !item.disabled && onSelect(item.id)}
                           className={cn(
-                            "flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-colors",
+                            "flex cursor-pointer items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors",
                             active ? "bg-muted text-foreground" : "text-muted-foreground",
                             item.disabled && "pointer-events-none opacity-50",
                           )}

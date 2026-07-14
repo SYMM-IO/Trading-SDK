@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import { Footer, Layout, Navbar, ThemeSwitch } from "nextra-theme-docs";
 import "nextra-theme-docs/style.css";
 import { Banner, Head, Search } from "nextra/components";
@@ -9,17 +9,17 @@ import "./globals.css";
 import { LibrarySwitcher } from "./library-switcher";
 import { SymmioLogo } from "./logo";
 
-/** Editorial display face — headings and the wordmark (matches apps/web). */
-const display = Bricolage_Grotesque({
+/** Heading face — headings and the wordmark (Explorer uses Inter; matches apps/web). */
+const display = Inter({
   subsets: ["latin"],
-  variable: "--font-bricolage",
+  variable: "--font-inter",
   display: "swap",
 });
 
 /** UI / body face — labels, prose, controls. */
-const sans = Hanken_Grotesk({
+const sans = Manrope({
   subsets: ["latin"],
-  variable: "--font-hanken",
+  variable: "--font-manrope",
   display: "swap",
 });
 
@@ -103,11 +103,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           competing emoji <link>. */}
       <Head
         color={{
-          hue: 225,
+          hue: 6,
           saturation: { dark: 100, light: 80 },
-          lightness: { dark: 62, light: 54 },
+          lightness: { dark: 72, light: 42 },
         }}
-        backgroundColor={{ dark: "#0a0b0f", light: "#f7f8fa" }}
+        backgroundColor={{ dark: "#0a0505", light: "#fbf9f8" }}
       />
       <body>
         <script dangerouslySetInnerHTML={{ __html: scopeSidebarScript }} />

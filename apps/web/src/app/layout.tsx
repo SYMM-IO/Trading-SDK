@@ -1,20 +1,20 @@
 import { SiteFooter } from "@/features/layout/site-footer";
 import { SiteHeader } from "@/features/layout/site-header";
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-/** Editorial display face — headings, the wordmark, and large figures. */
-const display = Bricolage_Grotesque({
-  variable: "--font-bricolage",
+/** Heading face — headings, the wordmark, and large figures (Explorer uses Inter). */
+const display = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   display: "swap",
 });
 
 /** UI / body face — labels, descriptions, controls. */
-const sans = Hanken_Grotesk({
-  variable: "--font-hanken",
+const sans = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
   display: "swap",
 });

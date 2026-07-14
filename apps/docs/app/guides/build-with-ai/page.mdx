@@ -23,7 +23,7 @@ This guide gives you a single, copy-and-paste **master prompt** that turns a cap
 - **Reuse over reinvention** — it names the exact hook for every feature (`useManagedQuotes`, `useInstantOpenAuto`, `useAllocate`, `useGrantDelegation`, …) and forbids hand-rolling contract calls, quote reconciliation, oracle signatures, or realtime plumbing.
 - **The invariants that break integrations** — Virtual-Account fan-out, `tempQuoteId → quoteId` row identity, WebSocket-authoritative close lifecycle, Muon-signed `deallocate` / `removeMargin`, and session-key delegation before instant trades.
 - **Repo conventions & the import boundary** — runtime from `@symmio/trading-react`, types/enums/chain-config from `@symmio/trading-core`; kebab-case files, `function` declarations, named enums, no magic chain ids, pnpm, TypeScript.
-- **A production bar** — loading / empty / error states, responsive and accessible UI, the "Voltage Graphite" aesthetic (or your brand), and verification by actually running the flows.
+- **A production bar** — loading / empty / error states, responsive and accessible UI, the "Ember" aesthetic (or your brand), and verification by actually running the flows.
 - **Framework-agnostic fallback** — targets React web by default, but adapts to Vue, Svelte, Solid, Angular, React Native, or a headless Node service by driving `@symmio/trading-core` directly.
 
 ## The prompt
@@ -219,9 +219,9 @@ Ask only the ones that actually apply to this build. Pre-select the recommended 
 3. **Trading flow emphasis** — _Default: lowcap/instant flow as primary_ (session-key, one-click,
    VA-isolated) since it is the most complete and distinctive path, with classic allocate-based
    margin surfaced in account management. Alternative: classic-first.
-4. **Brand & aesthetic** — _Default: the SYMMIO "Voltage Graphite" theme_ (electric-cobalt on
-   graphite, mint/coral/amber trading semantics, Bricolage/Hanken/JetBrains fonts, soft-rounded,
-   dark-first). If they have a brand (name, colors, logo, font), take it and adapt the tokens.
+4. **Brand & aesthetic** — _Default: the SYMMIO "Ember" theme_ (coral / bright-red accent on
+   warm near-black, mint/red/amber trading semantics, Inter/Manrope/JetBrains fonts, crisp radii,
+   frosted floating surfaces, dark-first). If they have a brand (name, colors, logo, font), take it and adapt the tokens.
 5. **Chain(s) & markets** — _Default: whatever the SDK chain config supports_ (do not hardcode a
    chain id or market list; read them from config/`useMarkets`). Ask only if they want to restrict
    to a subset.
@@ -402,14 +402,15 @@ The app must read as **intentional and premium**, never templated or "AI-generic
   something's missing. If `@symmio/ui` is not available to you, scaffold a **small local primitive
   set** in the same spirit (Tailwind + Radix + `cva` + a `cn()` merger) — do **not** pull a heavy
   third-party component kit.
-- **Aesthetic (default "Voltage Graphite"):** single **electric-cobalt** primary
-  (`#2f5fe6` light / `#3b6cff` dark) over **cool graphite neutrals** (`#f7f8fa` / near-black
-  `#0a0b0f`), with **mint** positive (`#0a9d6e`/`#2fd39a`), **coral** negative
-  (`#e5484d`/`#ff6470`), **amber** warning. **Dark is the primary surface.** Fonts: **Bricolage
-  Grotesque** (display/figures), **Hanken Grotesk** (UI/body), **JetBrains Mono** (addresses,
-  hashes, amounts — with `tabular-nums slashed-zero`). Soft-rounded (`--radius: 0.75rem`; buttons/
-  inputs `rounded-xl`, cards `rounded-2xl`). Subtle atmosphere (faint radial accent glows, a masked
-  fine grid), layered shadows, restrained entrance motion (long ease-out, staggered) that respects
+- **Aesthetic (default "Ember"):** a single **coral / bright-red** primary
+  (`#c0341f` light / `#ff7c70` dark) over **warm near-black neutrals** (warm off-white `#fbf9f8` /
+  void-black `#0a0505`), with **mint** positive (`#1c8f5f`/`#3ddb9f`), **red** negative
+  (`#cf3030`/`#f4756e`), **amber** warning (naples-yellow). **Dark is the primary surface.** Fonts: **Inter**
+  (display/headings), **Manrope** (UI/body), **JetBrains Mono** (addresses,
+  hashes, amounts — with `tabular-nums slashed-zero`). Crisp radii (`--radius: 0.5rem`; buttons/
+  inputs `rounded-md`, cards `rounded-xl`, floating panels `rounded-lg` with a **frosted** backdrop-blur).
+  Soft low-opacity borders, subtle atmosphere (faint radial accent glows, a masked
+  fine grid), layered shadows, a coral glow on focal accents, restrained entrance motion (long ease-out, staggered) that respects
   `prefers-reduced-motion`. If the user gave a brand, adapt these tokens to it faithfully.
 - **Proven UX patterns to imitate** (behavior, not branding): the single **state-machine CTA
   button** (one button, many states) for the trade action; an animated two/three-option **segmented
@@ -523,7 +524,7 @@ build the whole thing.
 
 Steer the build by how you answer the question round — or by editing the prompt before you paste it:
 
-- **Brand and theme** — answer Q4 with your product name, colors, logo, and fonts; the agent adapts the token set instead of using Voltage Graphite.
+- **Brand and theme** — answer Q4 with your product name, colors, logo, and fonts; the agent adapts the token set instead of using Ember.
 - **Scope** — answer Q2 `MVP` for a lean wallet → deposit → open → close slice, or `Full DEX` for everything in section 5.
 - **Framework or platform** — answer Q1 with Vue, Angular, React Native, Node, etc.; the agent switches to the core-direct wiring described in section 9.
 - **Your house rules** — append your repo's own conventions to section 10 before pasting, and the agent treats them as non-negotiable alongside the SDK's.

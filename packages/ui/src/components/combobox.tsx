@@ -174,7 +174,7 @@ function Combobox({
               placeholder={searchPlaceholder}
               aria-label={searchPlaceholder}
               data-testid={`${idPrefix}-search`}
-              className="placeholder:text-muted-foreground/70 h-10 min-w-0 flex-1 bg-transparent text-sm outline-none"
+              className="placeholder:text-muted-foreground h-10 min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
             {onReload ? (
               <button
@@ -245,7 +245,7 @@ function ComboboxList({
             disabled={item.disabled}
             aria-pressed={mode === "multiple" ? isSelected : undefined}
             onClick={() => onSelect(item)}
-            className="hover:bg-muted/60 focus-visible:bg-muted/60 disabled:text-muted-foreground flex w-full items-start justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition-colors outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            className="hover:bg-muted/60 focus-visible:bg-muted/60 disabled:text-muted-foreground flex w-full items-start justify-between gap-3 rounded-md px-2.5 py-2 text-left transition-colors outline-none disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="min-w-0">
               <span className="text-foreground block truncate text-sm font-medium">{item.title}</span>

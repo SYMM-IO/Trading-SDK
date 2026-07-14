@@ -53,7 +53,7 @@ export function WalletConnectDialog({ open, onOpenChange }: WalletConnectDialogP
       <DialogContent className="max-w-sm overflow-hidden p-0">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(115%_100%_at_50%_0%,color-mix(in_oklab,var(--color-primary)_15%,transparent),transparent)]"
+          className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(115%_100%_at_50%_0%,color-mix(in_oklab,var(--primary)_15%,transparent),transparent)]"
         />
 
         <DialogHeader className="relative px-6 pt-6 pb-4">
