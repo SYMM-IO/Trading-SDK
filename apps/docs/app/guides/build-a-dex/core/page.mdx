@@ -599,6 +599,19 @@ async function deposit(config, { owner, account, amount }) {
 
 Read the balance back with [`getAccountBalanceOf`](/core/account-layer/get-account-balance-of) (raw tradeable `bigint`) and [`getAccountBalanceInfo`](/core/account-layer/get-account-balance-info) (the locked/pending breakdown). Once `getAccountBalanceOf(config, { account }) > 0n`, the gate ladder's "Deposit collateral" rung passes.
 
+<Callout type="warning">
+  **Two decimal scales sit side by side — pick the right one per read.** SYMMIO tracks account balances in a normalized
+  **18-decimal** unit, while the collateral token (USDC) carries its own **`collateralDecimals`** (6).
+  `getAccountBalanceOf` and every field of `getAccountBalanceInfo` are 18-decimal — the protocol's internal
+  allocated-balance unit, the same one `addMargin` / `removeMargin` take. `getCollateralBalance` (the user's wallet
+  ERC-20 balance) and the deposit / withdraw `amount` are in `collateralDecimals`, read from
+  `getChainConfig().addresses.collateralDecimals`. So format an account balance with `formatUnits(balance, 18)` and a
+  wallet balance with `formatUnits(balance, collateralDecimals)`. Format an 18-decimal balance with `collateralDecimals`
+  by mistake and it balloons by `10^(18 − collateralDecimals)` — the tell is a tradeable balance the size of `1e18`.
+</Callout>
+
+To show the user's spendable **wallet** balance next to their tradeable balance, read [`getCollateralBalance`](/core/account-layer)`(config, { owner })` — it returns the ERC-20 `balanceOf(owner)` in `collateralDecimals`, invalidated by the same `getCollateralBalanceQueryKey` a deposit already touches.
+
 ### Invalidations after deposit
 
 Nothing invalidates these for you in a core-only build — you own the cache (see [the data & state layer you build](#data-layer)). After each write's success, invalidate the exact query keys below with your subset-match predicate. The `partial` column is the field subset the predicate matches on.
@@ -888,6 +901,14 @@ const health = await getEnigmaPriceServiceHealth(config, {}); // chainId-only
 </Callout>
 
 <Callout type="warning">
+  **Key prices by the market's `name`, not its display `symbol`.** Both `watchEnigmaPrices` ticks
+  (`EnigmaPriceTick.name`) and `getEnigmaPriceServicePricesByNames` key on the price-service **name**, which is the
+  market's `name` field on `SymbolContractSymbol` — this can differ from the user-facing `symbol`. Build your price
+  store keyed by `name` and look a market's price up with `market.name`; using `symbol` silently returns "no price" for
+  any market where the two differ.
+</Callout>
+
+<Callout type="warning">
   **`watchEnigmaPrices` is a WebSocket subscription — it needs a `webSocketConstructor`.** In the browser the global
   `WebSocket` is used automatically. In Node or SSR, pass `webSocketConstructor` to `createConfig`, or
   `config.getWebSocketConstructor()` throws `NO_WEBSOCKET`. It returns an `Unwatch` function — keep it and call it on
@@ -906,14 +927,21 @@ You have a market, a session key with delegation, and deposited collateral. Open
 
 `instantOpenAuto(config, params)` is `prepareInstantOpenParams` + `instantOpen` fused: it fetches market data, mark price, locked-param percentages, and fee rates, runs the trade math, EIP-712-signs both operations with the session key, and POSTs to the hedger.
 
+Your trade form collects **three** user inputs and forwards them here: `initialMargin` (USD), `leverage`, and **`slippage`** — the percent price tolerance (`0.5` = 0.5%). Slippage is not optional-by-default: `instantOpenAuto` uses it to derive the signed order price from the mark price (`mark × (1 ± slippage)`), so a form that omits a slippage field silently defaults the trade's price tolerance. Surface it as its own input next to margin and leverage. The close flow (`instantCloseAuto`) takes the same `slippage` parameter — collect it there too.
+
 ```ts
 const result = await instantOpenAuto(config, {
   subAccountAddress, // the SubAccount you opened + delegated
-  market, // InstantOpenMarketData for the chosen symbol
+  market: {
+    id: symbol.symbol_id, // solver market id
+    name: symbol.name, // ⚠️ the price-service NAME, not the display symbol — see below
+    pricePrecision: symbol.price_precision,
+    quantityPrecision: symbol.quantity_precision,
+  },
   positionType: PositionType.LONG,
-  initialMargin: "250", // USD, as a string
-  leverage: 5,
-  slippage: 0.5,
+  initialMargin: "250", // USD, as a string — user input
+  leverage: 5, // user input
+  slippage: 0.5, // user input — percent tolerance (0.5 = 0.5%)
   from: sessionKey, // signs the hedger payload
 });
 
@@ -924,7 +952,25 @@ if (result.success && result.tempQuoteId !== undefined) {
 }
 ```
 
+<Callout type="warning">
+  **`market.name` must be the price-service name, not the display `symbol`.** `instantOpenAuto` (and `instantCloseAuto`)
+  fetch the mark price internally via `resolveMarkPrice`, which keys on the market's **`name`** field
+  (`SymbolContractSymbol.name`) — the same key the Enigma price feed uses. Passing `symbol` here makes the internal
+  mark-price fetch miss, so the open/close fails or prices at a stale fallback. Always set `market.name = symbol.name`
+  (and `market.id = symbol.symbol_id`). This is the same `name`-vs-`symbol` distinction as the live-price store above.
+</Callout>
+
 Assemble a `PendingInstantOpen` from the result and the trade inputs, then keep it as your optimistic open record (see [the open lifecycle](#data-layer)) so the row renders before the first on-chain poll. Key it by `tempQuoteId`. Clear it only when the reconciled row shows `raw.onchain !== undefined` — never on the notification link alone.
+
+<Callout type="warning">
+  **A failed order never becomes a position — drop the optimistic open, don't leave it "anchoring".** The optimistic
+  seed is a bet that the open will anchor. If the notifications stream reports a **failure** for that `tempQuoteId` — a
+  frame whose `type` is `NotificationType.FAILED` (equivalently `actionStatus === "failed"`) — that bet lost: the quote
+  will never anchor. Remove the optimistic open keyed by `notification.tempQuoteId` and surface `failureMessage` /
+  `failureType` / `errorCode` to the user. Otherwise the seed lingers forever as a stuck "anchoring on-chain…" row for a
+  position that does not exist. As a backstop, also **filter `QuoteLifecycle.FAILED` rows out of the rendered list** —
+  never show a failed quote as a position.
+</Callout>
 
 <Callout type="warning">
   **`instantOpen` returns a temporary negative `tempQuoteId`, not the on-chain id.** TP/SL and per-position reads need
@@ -962,7 +1008,7 @@ const result = await instantOpen(config, params);
 
 ### Attaching TP/SL at open
 
-Core has **no** combined open-with-TP/SL. Open first, then call `setQuoteTpSl` with the `tempQuoteId` that `instant_open` just returned — you do **not** wait for the on-chain `quoteId` (see [TP/SL](#8-tpsl)). Because the position's virtual account isn't on-chain yet, predict it with `getPredictedNextVirtualAccount` (or `resolveQuoteAccounts`) and pass it as `virtualAccount`. When the open anchors, the `tempQuoteId` links to the on-chain `quoteId` and the same order carries over.
+Core has **no** combined open-with-TP/SL. Open first, then call `setQuoteTpSl` with the `tempQuoteId` that `instant_open` just returned — you do **not** wait for the on-chain `quoteId` (see [TP/SL](#8-tpsl)). Because the position's virtual account isn't on-chain yet, predict it with `getPredictedNextVirtualAccount` (or `resolveQuoteAccounts`) and pass it as `virtualAccount`. For the `quantity`, pass the **same `calculateTradeParams(...).quantity` you sized the open with** — not a fresh `notional / price` estimate — so the conditional order matches the position (it is already at `quantity_precision`; see the [TP/SL quantity note](#8-tpsl)). When the open anchors, the `tempQuoteId` links to the on-chain `quoteId` and the same order carries over.
 
 ### Estimated fill price + impact
 
@@ -1087,6 +1133,15 @@ Read the display fields off each `UnifiedQuote` (or the underlying `Quote`). Enu
   `UnifiedQuote` is a raw `bigint`. Format for display; never treat them as human numbers.
 </Callout>
 
+<Callout type="info">
+  **Round to the market's precision, not an arbitrary fixed width.** After scaling a raw `bigint` out of 18-dec wei,
+  round **prices** to the market's `price_precision` and **quantities** to its `quantity_precision` (both on
+  `SymbolContractSymbol`) — e.g. `formatUnits(price, 18)` then to `price_precision` fraction digits. A hard-coded `4`
+  decimals over- or under-states low-cap markets whose precision differs. The same two fields feed the `pricePrecision`
+  / `quantityPrecision` you pass to `instantOpenAuto` / `instantCloseAuto`, so read them once off the market row and
+  reuse them for both display and the trade calls.
+</Callout>
+
 ### A just-opened position isn't closeable yet
 
 A row that is still anchoring on-chain cannot be closed. Gate the close button on the lifecycle, derived from the quote status:
@@ -1196,7 +1251,7 @@ const result = await setQuoteTpSl(config, {
   subAccount, // Address — the SubAccount that owns the VA
   symbolId, // bigint — solver market id
   positionType: PositionType.LONG,
-  quantity: "0.5", // decimal string
+  quantity: "0.5", // from calculateTradeParams(...).quantity — already at quantity_precision
   pricePrecision: 2, // rounds trigger prices to N decimals
   tp: { triggerPrice: "65000", priceType: "markPrice" },
   sl: { triggerPrice: "58000", priceType: "markPrice" },
@@ -1205,6 +1260,17 @@ const result = await setQuoteTpSl(config, {
 ```
 
 `setQuoteTpSl` resolves the handler URL and signing spec, rounds the trigger prices, signs with the session-key wallet client, and POSTs the typed data. It throws `SymmError` when the chain has no `tpsl` config or both legs are omitted, and `SymmApiError` when the handler request fails.
+
+<Callout type="warning">
+  **Source `quantity` from `calculateTradeParams` — `setQuoteTpSl` won't compute or round it for you.** It clamps the
+  `tp` / `sl` trigger prices to `pricePrecision`, but passes `quantity` through untouched. For a TP/SL attached **at
+  open**, pass the same `calculateTradeParams(...).quantity` you size the order with: it is derived from margin,
+  leverage, mark price, and the market's locked-param percentages (`getLockedParams`, keyed by the market **name**) and
+  is already rounded to the market's `quantity_precision`, so the conditional order matches the position exactly. For a
+  TP/SL on an **already-open** position, use the remaining size instead — `formatUnits(quote.quantity -
+  quote.closedAmount, 18)`, rounded to `quantity_precision`. An ad-hoc `notional / price` estimate, or an over-precise
+  value, can be rejected by the handler or mismatch the on-chain quantity.
+</Callout>
 
 ### Cancelling a leg
 
@@ -1218,6 +1284,19 @@ await deleteQuoteTpSl(config, {
   conditionalOrderType: "stop_loss",
 });
 ```
+
+### Hydrate existing orders on load
+
+The TP/SL WebSocket only delivers **transitions** from the moment you subscribe — it does not replay the conditional orders a position already has. So on first load (or a panel/tab reopen) an existing TP/SL is invisible until it next changes. Seed it from the handler: for every anchored quote, read [`getQuoteTpSl`](/core/tpsl/get-quote-tpsl)`(config, { quoteId })` and fold the returned `QuoteTpSlRow[]` into your leg records.
+
+```ts
+// per anchored quote:
+const rows = await getQuoteTpSl(config, { quoteId });
+// each row: { conditional_order_type: "take_profit" | "stop_loss", conditional_order_price,
+//             coh_quote_id, state: "pending" | "new" | "triggered" | "triggered_pending" | "canceled" | "killed", ... }
+```
+
+Per side (`take_profit` / `stop_loss`), take the latest non-terminal row (skip `canceled` / `killed`), and map its `state` onto your leg state (`new` → new, `pending` → pending, `triggered` / `triggered_pending` → triggered), stamping `conditional_order_price` as the trigger and `coh_quote_id`. Merge, don't clobber: leave any side currently in `"confirming"` (a write-time seed still awaiting its report frame) untouched so the REST read doesn't stomp the optimistic value. Drive the read through `getQuoteTpSlQueryOptions` so the same `report`-frame-triggered refetch keeps it fresh.
 
 ### Confirmation is WS-driven — do not finish on the POST
 
@@ -1590,6 +1669,7 @@ Everything below is a hand-built equivalent of machinery `@symmio/trading-react`
 | Approve succeeds but deposit reverts                                                                 | Approved the wrong spender                                    | `approveCollateral` must approve `symmioAddress` (the SYMMIO core), not the account layer                                                                                            |
 | TP/SL box empty after a successful POST                                                              | Flow resolved on the POST 200                                 | Wait for the `watchTpSlNotifications` `report` frame (`state:"new"`); the POST only flips the record to `"confirming"`                                                               |
 | Row flickers out then reappears mid-open                                                             | Optimistic-open cleared on `link` instead of on-chain arrival | Settle the optimistic entry only when the reconciled row carries `raw.onchain`                                                                                                       |
+| Failed order shows a phantom position stuck "anchoring on-chain…"                                    | Optimistic open not dropped on a `FAILED` notification        | On a `NotificationType.FAILED` frame, `removeOptimisticOpen(notification.tempQuoteId)` and surface the failure; also filter `QuoteLifecycle.FAILED` rows out of the rendered list    |
 | Rows go stale after a wifi drop                                                                      | No reconnect re-sync; the stream never replays missed frames  | On socket re-open, invalidate `getPartyAOpenPositionsQueryKey`, `getPartyAPendingQuotesQueryKey`, `getQuoteQueryKey`, `getInstantOpensQueryKey`, and `getInstantClosesQueryKey` once |
 | Balance stale right after a settle                                                                   | Did not re-read on the settlement notification                | Re-read `getAccountBalanceOf` / `getAccountBalanceInfo` after a settle frame                                                                                                         |
 | A just-opened position offers a Close button that fails                                              | Row is still opening                                          | Gate close on `lifecycleFromQuoteStatus(status)` / `QuoteLifecycle`; do not offer close while the row is opening                                                                     |
