@@ -1,0 +1,1695 @@
+import { Callout } from "nextra/components";
+
+# Build a Perps DEX with Core
+
+This guide builds the same perps DEX as [Build a Perps DEX (React)](/guides/build-a-dex/react), but against `@symmio/trading-core` alone — no hooks, no providers, no `@symmio/trading-react`. Core is the framework-agnostic SDK: it gives you actions, query-option factories, and typed errors, and nothing else. The state, caching, invalidation, and WebSocket wiring that the React layer does for you become **your** responsibility. This guide walks the flows and, just as importantly, spells out exactly what you must rebuild yourself — the stores, the invalidation matrix, and the WebSocket-authoritative updates.
+
+<Callout type="info">
+  This is the core-only counterpart to [Build a Perps DEX (React)](/guides/build-a-dex/react). Read that guide first for
+  the hooks-based version — everything here maps onto it one level lower.
+</Callout>
+
+## Architecture
+
+You are building the same perps DEX as the [React guide](/guides/build-a-dex/react) — connect a wallet, pick a market, open and close positions, attach TP/SL — but directly on `@symmio/trading-core`, with no React and no `@symmio/trading-react`. Core is **framework-agnostic on purpose**: it ships pure functions (`getX` reads, `doX` writes, `watchX` subscriptions), pure calculations, and the chain/config registry. It does **not** ship a provider, hooks, stores, a cache, or WebSocket orchestration. Those are the three layers a React app gets for free — and the three layers you now own.
+
+<Callout type="info">
+  New to Core? Read [/core/getting-started](/core/getting-started) and [/core/concepts/config](/core/concepts/config)
+  first. For the React version see [Build a Perps DEX (React)](/guides/build-a-dex/react).
+</Callout>
+
+### The calling convention
+
+Core is a set of plain functions. You build one immutable `config` object with `createConfig`, then pass it as the **first argument** to every call; the call’s own inputs go in a second `params` object. There is no global state and nothing to set up beyond `config`:
+
+- **Reads** — `getX(config, params) => Promise<…>`, each paired with `getXQueryOptions(config, options)` and `getXQueryKey(params)` so you can drive any cache you like.
+- **Writes** — `doX(config, params) => Promise<Hash>` (on-chain contract writes) or a small result object (hedger/handler writes like `instantOpenAuto`, `setQuoteTpSl`), each paired with an `xMutationOptions(config)` factory.
+- **Subscriptions** — `watchNotifications`, `watchTpSlNotifications`, `watchEnigmaPrices`: long-lived WebSocket streams you subscribe to and drain yourself.
+
+Even "chainId-only" reads take the two-argument shape. Always call `getMarkets(config, {})` (or `getMarkets(config, { chainId })`), never `getMarkets(config)`.
+
+<Callout type="warning">
+  **These types live only in `@symmio/trading-core`.** `SymmioSupportedChainId`, `PositionType`, `Quote`,
+  `UnifiedQuote`, and `SymmError` are core-only — they are **not** re-exported through `@symmio/trading-react`. The
+  React guide imports hooks and providers from `-react`; this guide imports nothing from `-react`.
+</Callout>
+
+### The boundary
+
+Everything you write sits on one side of a single seam. `@symmio/trading-core` is the seam; contracts, the hedger, the handler, and the WebSocket feeds sit behind it.
+
+```
+your UI
+   │
+your state / query layer          ← you build (cache, stores, WS wiring)
+   │
+@symmio/trading-core              ← getX / doX / watchX  (this seam)
+   │
+contracts + hedger + handler + WebSocket feeds
+```
+
+The chain is **HyperEVM, chainId `999`**, referenced everywhere as `SymmioSupportedChainId.HYPER_EVM`. It is the only supported chain today, so frame chain-gating as "on the expected chain," not "switch chains." `chainId` is optional on every action and falls back to `config.defaultChainId`; omit it unless a snippet is specifically about the chain gate.
+
+### The parts and their core exports
+
+Each part of the DEX maps to a small set of core functions. This is the whole surface you will touch, grouped by the flow it serves.
+
+| Part              | What it does                                | Primary core exports                                |
+| ----------------- | ------------------------------------------- | --------------------------------------------------- |
+| Wallet + chain    | connect, resolve a wallet client for writes | `createConfig` (you supply `getWalletClient`)       |
+| SubAccount        | list and create trading subaccounts         | `getUserSubAccounts`, `createSubAccounts`           |
+| Collateral        | approve + deposit to a subaccount           | `approveCollateral`, `depositForAccount`            |
+| Delegation        | authorize the session key on-chain          | `grantDelegation`, `getIsDelegationActive`          |
+| Market data       | markets, funding, live prices               | `getMarkets`, `watchEnigmaPrices`, `getFundingInfo` |
+| Open              | sign + submit an instant open               | `instantOpenAuto`                                   |
+| Positions / close | reconcile all quote sources, close          | `reconcileQuotes`, `instantClose`                   |
+| TP/SL             | set conditional orders, confirm over WS     | `setQuoteTpSl`, `watchTpSlNotifications`            |
+
+A representative import — one package, one entry, no named subpaths:
+
+```ts
+import {
+  createConfig,
+  getMarkets,
+  instantOpenAuto,
+  watchNotifications,
+  PositionType,
+  SymmioSupportedChainId,
+  type Config,
+} from "@symmio/trading-core";
+```
+
+<Callout type="info">
+  Everything comes from `@symmio/trading-core` via a single entry plus a `./*` wildcard — never split imports into named
+  subpaths. See [/core/concepts/config](/core/concepts/config) for the shape of `config`, and the [core overview](/core)
+  for the full export index.
+</Callout>
+
+The rest of this guide walks these parts in gate order (wallet → subaccount → collateral → delegation → market data → open → positions → TP/SL), then spells out the three things React does for you that you must now build: the [invalidation matrix](#appendix-a--invalidation-matrix), the [WebSocket-authoritative flows](#appendix-b--websocket-authoritative-flows), and the [state stores](#data-layer) in between.
+
+## Setup
+
+The whole SDK hangs off one immutable object: the [`Config`](/core/concepts/config) returned by `createConfig`. You create it once, hold it, and pass it as the first argument to every read and every write. It is a plain value — nothing to mount, nothing to initialize.
+
+### Install
+
+```sh
+pnpm add @symmio/trading-core viem
+```
+
+`viem` is a peer dependency: `@symmio/trading-core` never bundles it and never creates viem clients for you. You inject the clients through the config's resolvers below.
+
+### `createConfig`
+
+```ts
+const publicClient = createPublicClient({
+  transport: http("https://rpc.hyperliquid.xyz/evm"), // HyperEVM (chainId 999)
+}) as PublicClient;
+
+const config = createConfig({
+  // per-chain overrides deep-merged onto built-in defaults; keyed by chainId
+  symmioConfig: {
+    [SymmioSupportedChainId.HYPER_EVM]: {
+      addresses: {
+        // required, non-zero — see the warning below
+        affiliatesAddress: "0xYourAffiliateAddress",
+      },
+    },
+  },
+  defaultChainId: SymmioSupportedChainId.HYPER_EVM,
+  // (parameters?: { chainId? }) => PublicClient — required
+  getClient: () => publicClient,
+  // omit for a read-only config; required before any doX / sign flow
+  getWalletClient: async ({ chainId, from }) => resolveWalletClient({ chainId, from }),
+});
+```
+
+The full `CreateConfigParameters` surface:
+
+- **`symmioConfig: Partial<Record<number, SymmioChainConfigInput>>`** — **required**. Per-chain overrides deep-merged onto the built-in defaults, keyed by chainId. Each entry's `addresses.affiliatesAddress` is mandatory and must be non-zero.
+- **`getClient: (parameters?: { chainId? }) => PublicClient`** — **required**. Returns a viem `PublicClient` bound to a HyperEVM transport. Every read (`getX`) resolves its client through this.
+- **`getWalletClient?: (parameters: { chainId; from? }) => Promise<SymmioWalletClient>`** — optional. Returns a `SymmioWalletClient` (`WalletClient<Transport, Chain, Account>`). Omit it for a read-only config; every write (`doX`) and sign flow resolves its wallet through this.
+- **`defaultChainId?: number`** — falls back to the first configured chain. Every action's optional `chainId` param falls back to this.
+- **`simulateBeforeWrite?: boolean`** — default `true`. Dry-runs every contract write through its `simulate*` sibling before broadcasting.
+- **`webSocketConstructor?: WebSocketConstructor`** — defaults to `globalThis.WebSocket`. Supply your own in Node/SSR (there is no `WebSocket` global there) or the notification and TP/SL streams will fail.
+
+<Callout type="warning">
+  **`affiliatesAddress` is required per chain.** `createConfig` throws `SymmError("config",
+  "AFFILIATE_ADDRESS_REQUIRED")` for any supported chain whose entry is missing a non-zero affiliate. The check runs
+  against your raw input, so a built-in default cannot mask a gap. Affiliate registration is per-chain — an affiliate
+  registered on one chain is invalid on another.
+</Callout>
+
+<Callout type="warning">
+  **No `getWalletClient` means writes throw.** A read-only config is perfectly
+  valid, but the first `doX` or sign flow will call
+  `config.getWalletClient({ chainId, from })`, which throws `NO_WALLET_CLIENT`
+  when no resolver was supplied. Add the resolver before wiring any deposit,
+  delegation, open, close, or TP/SL flow. Likewise `config.getWebSocketConstructor()`
+  throws `NO_WEBSOCKET` if a stream needs a socket and none is available.
+</Callout>
+
+### One chain today: HyperEVM
+
+The only supported chain is **HyperEVM, chainId `999`**, referenced as `SymmioSupportedChainId.HYPER_EVM`. Every action's `chainId` param is optional and falls back to `config.defaultChainId`, so you rarely pass it. Frame your chain gate as "on the expected chain" (`chainId === SymmioSupportedChainId.HYPER_EVM`) rather than "switch chains" — there is nothing to switch to yet.
+
+<Callout type="info">
+  **`config` is immutable — create it once and hold it.** Do not rebuild it per render or per request.
+  `simulateBeforeWrite` (default `true`) dry-runs every contract write through its `simulate*` sibling; pass
+  `simulateBeforeWrite: false` on an individual write's params to skip the pre-flight for that call. See
+  [/core/getting-started](/core/getting-started) for a full first-run walkthrough.
+</Callout>
+
+For the shape of `Config` and every method it exposes (`getChainConfig`, `getChainConfigKey`, `getClient`, `getWalletClient`, `getWebSocketConstructor`), see [/core/concepts/config](/core/concepts/config).
+
+## Import paths
+
+Everything runs off a single package. `@symmio/trading-core` ships **one entry** plus a `./*` wildcard — there are no named subpaths to remember. Import the config factory, reads, writes, watchers, and types all from the same specifier.
+
+```ts
+import {
+  // config
+  createConfig,
+  type Config,
+  // a read (config first, then a params object)
+  getMarkets,
+  // a write (session-key signed, returns a temp quote id)
+  instantOpenAuto,
+  // a WebSocket watcher
+  watchNotifications,
+  // types + enums (core-only — see below)
+  PositionType,
+  SymmioSupportedChainId,
+  type Quote,
+  type UnifiedQuote,
+  // typed error
+  SymmError,
+} from "@symmio/trading-core";
+```
+
+Every symbol above — `createConfig`, `getMarkets`, `instantOpenAuto`, `watchNotifications`, `PositionType`, `SymmioSupportedChainId`, `Quote`, `UnifiedQuote`, `SymmError` — lives at the package root. You never write `@symmio/trading-core/quotes` or `@symmio/trading-core/tpsl`; the barrel is the whole surface.
+
+<Callout type="warning">
+  **These types live only in `@symmio/trading-core`.** `SymmioSupportedChainId`, `PositionType`, and `UnifiedQuote` are
+  **not** re-exported from `@symmio/trading-react` or anywhere else. This is the opposite of the [React
+  guide](/guides/build-a-dex/react), which imports its hooks and providers from `@symmio/trading-react` — **this guide
+  imports nothing from `-react`.** If you are porting a snippet from the React guide, drop the `-react` import and pull
+  the type from `-core`.
+</Callout>
+
+The only other package you need in the examples ahead is `viem`, for the primitives the config and write flows already speak (`Address`, `Hash`, `maxUint256`, and the `PublicClient` / wallet-client types your resolvers return):
+
+```ts
+import { createPublicClient, createWalletClient, custom, http, maxUint256 } from "viem";
+import type { Address, Hash, PublicClient } from "viem";
+```
+
+<Callout type="info">
+  Naming is regular, so autocomplete does most of the work. Reads are `getX(config, params)` and also export
+  `getXQueryOptions` / `getXQueryKey`. Writes are `doX(config, params)` and export an `xMutationOptions` factory.
+  WebSocket subscriptions are `watchX(...)`. Once you know the action, you know its three companions.
+</Callout>
+
+See the [Core overview](/core) for the full export map.
+
+## The data & state layer you must build [#data-layer]
+
+Core gives you actions, query-option factories, and two notification streams — but it holds no position state and does no caching. You track each position through its lifecycle and drive your own cache. This section is that layer you own: the invalidation predicate, the position lifecycles you follow, and error handling.
+
+Pick [TanStack Query core](/core/concepts/query-options) (or your own cache) and drive it with `getXQueryOptions` for reads and `xMutationOptions` for writes. Every core action already ships both, so the query layer is mostly plumbing. What you build by hand is the **invalidation predicate** and the small **per-position state** you carry through each lifecycle below.
+
+### The subset-match invalidation predicate
+
+Core's `getXQueryKey` factories produce keys shaped `[factoryTag, { ...fields }]`, with every `bigint` field pre-stringified. To invalidate "every subaccount query for this user, across all chains and pagination windows," you need to match on a **subset** of `key[1]` — plain TanStack prefix matching cannot express that. Reimplement the `predicateMatch` primitive:
+
+```ts
+/**
+ * Turn a core key factory + a field-subset partial into an invalidate predicate.
+ * Rule: key[0] === factoryTag AND every DEFINED field in `partial` equals key[1][field].
+ * Bigints are already stringified by the factory, so compare partial fields as-is.
+ */
+function predicateMatch<Partial extends Record<string, unknown>>(factoryKey: readonly unknown[], partial: Partial) {
+  const [tag] = factoryKey;
+  return (query: { queryKey: QueryKey }) => {
+    const [keyTag, keyParams] = query.queryKey as [unknown, Record<string, unknown>];
+    if (keyTag !== tag) return false;
+    if (!keyParams) return Object.keys(partial).length === 0;
+    for (const [field, value] of Object.entries(partial)) {
+      if (value === undefined) continue;
+      if (keyParams[field] !== value) return false;
+    }
+    return true;
+  };
+}
+```
+
+Feed the predicate the exact factory + partial pairs from [Appendix A](#appendix-a--invalidation-matrix). For example, after `createSubAccounts` succeeds you invalidate three keys, each with `{ user }`:
+
+```ts
+import {
+  getUserSubAccountsQueryKey,
+  getUserSubAccountsAddressesQueryKey,
+  getSubAccountsCountOfUserQueryKey,
+} from "@symmio/trading-core";
+
+for (const factory of [
+  getUserSubAccountsQueryKey,
+  getUserSubAccountsAddressesQueryKey,
+  getSubAccountsCountOfUserQueryKey,
+]) {
+  queryClient.invalidateQueries({ predicate: predicateMatch(factory(config, {}), { user }) });
+}
+```
+
+<Callout type="warning">
+  **Plain TanStack prefix matching can't express "invalidate every subaccount query for this user across chains +
+  pagination."** Without the subset-match predicate you either over-invalidate (blow the whole cache) or
+  under-invalidate (miss the paginated pages). The predicate is not optional.
+</Callout>
+
+### Following a position through its lifecycle
+
+A position is not one call — it is a sequence of states that play out across the hedger, the contracts, and two WebSocket streams. Core gives you the calls and the frames; you keep a small record per position and advance it as each event arrives. Here are the three lifecycles, each with its event sequence and the data you hold. The API for every call lives in its own section ([§6 Open](#6-open-a-position), [§7 Positions & close](#7-positions--close), [§8 TP/SL](#8-tpsl)); this is the flow that ties them together.
+
+#### The open lifecycle
+
+An open is a **two-phase** commit: the hedger issues a temporary id first, and the on-chain quote id arrives later.
+
+1. **Submit.** `instantOpenAuto(config, { … })` returns `{ success, tempQuoteId }`. `tempQuoteId` is a **negative** hedger placeholder — the position has no on-chain id yet. Start a record keyed by it so the row renders before the first poll.
+2. **Price fill.** The first frame on [`watchNotifications`](/core/notifications/watch-notifications) (`lastSeenAction: "InstantRFQ"`) carries `avgPriceOpen` — your opened price.
+3. **Anchor — the temp id becomes real.** A later frame (`lastSeenAction: "SendQuoteTransaction"`) carries **both** the `tempQuoteId` **and** a now-nonzero `quoteId`. That frame is where the solver pairs your temp id to the on-chain id; record the `quoteId` on the same entry. If you miss the frame, poll [`getInstantOpenQuoteId`](/core/solvers/instant-open)`(config, { tempQuoteId })` — a **hedger read** (not a contract call) that returns the on-chain id, or `null` until it anchors.
+4. **On-chain.** Read the position with [`getPartyAOpenPositions`](/core/symmio-contract/get-party-a-open-positions) / `getQuote`. [`reconcileQuotes`](/core/quotes/reconcile-quotes) merges your optimistic entry with the on-chain read into one `UnifiedQuote` and returns a `links` map (`tempQuoteId → the on-chain row`).
+
+**What you hold:** `tempQuoteId`, then `quoteId` once anchored; `positionType`, `symbolId`, `partyA`; the requested price/quantity; and `openedPrice` from step 2. Drop the optimistic entry only when the reconciled row carries the on-chain struct (`raw.onchain`) — **not** on the link alone, or the row flickers out mid-anchor.
+
+<Callout type="info">
+  You can compute the **virtual account** (VA) the quote will land on before it anchors, with
+  `getPredictedNextVirtualAccount` (see [`resolveQuoteAccounts`](/core/quotes/resolve-quote-accounts)). You need it to
+  attach TP/SL early (below) and to read positions across the right accounts.
+</Callout>
+
+#### The close lifecycle
+
+A close is **simpler than an open — there is no temporary id.** You already hold the on-chain `quoteId`, so you close against it directly and follow the settlement over notifications.
+
+1. **Submit.** `instantClose(config, { partyA, order: { quoteId, closePrice, quantityToClose } })` returns `{ success }`. No temp id, no mapping — `quoteId` is the real position.
+2. **Close price.** The first close frame (`lastSeenAction: "InstantRequestToClosePosition"`) carries `avgPriceClose`.
+3. **Filled on-chain.** The second frame (`lastSeenAction: "FillMarketOrderInstantClose"`) means the solver has written the close on-chain.
+4. **Settle.** Poll the on-chain quote (`getQuote`): `quoteStatus` moves `CLOSE_PENDING → CLOSED`. The hedger drops the pending-close row (`getInstantCloses`) once it settles.
+
+**What you hold:** the `quoteId`, `quantityToClose`, `closePrice`, and the last close action you saw. There is nothing optimistic to reconcile away — settlement is authoritative over the stream plus the on-chain poll.
+
+#### The TP/SL lifecycle
+
+A conditional order rides the **same id as its position** and is confirmed over a **separate** stream.
+
+1. **Attach — early is fine.** As soon as `instant_open` returns the `tempQuoteId`, you can set TP/SL against it; you do **not** wait for the on-chain `quoteId`. `setQuoteTpSl(config, { quoteId, virtualAccount, … tp/sl })` takes **either** id in `quoteId` — the negative `tempQuoteId` before the anchor, or the on-chain `quoteId` after. The VA isn't on-chain yet, so pass the **predicted** VA (`getPredictedNextVirtualAccount`) as `virtualAccount`.
+2. **Accepted ≠ confirmed.** The POST returns `{ success, cohQuoteId? }` on **accept**; `cohQuoteId` is the handler's id for that leg. Hold the leg as "confirming" and show the trigger price you sent.
+3. **Confirmed.** The **TP/SL** stream ([`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications)) reports the wire state — `new` (live) → `triggered` → `canceled`. That frame is authoritative; do not finish on the POST 200.
+4. **Link.** When the position anchors, the `tempQuoteId → quoteId` pairing arrives on the solver stream (primary) or as the TP/SL stream's `primary_identifier` / `secondary_identifier` (secondary). Point the same order at the on-chain id.
+
+**What you hold, per leg:** the trigger price + price type, the `cohQuoteId`, and the leg state (`confirming → new → triggered / canceled`). Key the record by whichever id you have — `tempQuoteId` before the anchor, `quoteId` after — so **one** record survives the id change instead of splitting into two.
+
+<Callout type="warning">
+  **Two ids, one order.** A TP/SL set right after open binds to the `tempQuoteId`; once the open anchors, the same order
+  must be reachable by the on-chain `quoteId`. Carry both ids on the one record and point them at a single entry — do
+  not create a second record when the id changes.
+</Callout>
+
+### Error normalization
+
+The SDK already throws typed errors — [`SymmError`](/core/concepts/errors) for SDK-level failures (an unknown chain, a missing affiliate, a missing wallet client) and `SymmApiError` when a hedger or handler request fails. Preserve them across your query/mutation layer: let a failing `queryFn` / `mutationFn` surface the original `SymmError` / `SymmApiError` rather than collapsing it into a generic `Error`, so callers can branch on `error.kind`.
+
+See [Query options](/core/concepts/query-options) and [Query keys](/core/concepts/query-keys) for the factory contracts these stores and the predicate depend on.
+
+## The gate ladder
+
+A perps DEX is a **one-CTA-at-a-time** funnel: each rung of the ladder gates everything below it. In the React guide these signals come from hooks; here they are plain function calls against `config`. You evaluate each rung's predicate yourself, render the single active call-to-action, and hide the rest until its precondition holds.
+
+```
+Connect wallet          ← your wallet lib, then config.getWalletClient({ chainId, from }) resolves
+On expected chain        ← chainId === SymmioSupportedChainId.HYPER_EVM (999)
+Select SubAccount        ← getUserSubAccounts(config, { user }).length > 0
+Deposit collateral       ← getAccountBalanceOf(config, { account }) > 0n
+Initialize session key   ← your session-key keypair (you own this)
+Grant delegation         ← getIsDelegationActive(config, { account, delegate, selector }) for each selector
+Open position            ← you orchestrate instantOpenAuto(config, ...)
+```
+
+Each rung maps to one core signal. Note the read is [`getIsDelegationActive`](/core/instant-layer/get-is-delegation-active) — there is no `isDelegationActive` export.
+
+```ts
+import {
+  getUserSubAccounts,
+  getAccountBalanceOf,
+  getIsDelegationActive,
+  SymmioSupportedChainId,
+  INSTANT_TRADE_REQUIRED_SELECTORS,
+} from "@symmio/trading-core";
+
+// Evaluate rungs top-down. The first false rung is the active CTA; everything below stays hidden.
+async function resolveGate(config, ctx) {
+  // rung 1 — wallet connected (your wallet lib owns this)
+  if (!ctx.address) return "connect-wallet";
+
+  // rung 2 — on the expected chain
+  if (ctx.chainId !== SymmioSupportedChainId.HYPER_EVM) return "wrong-chain";
+
+  // rung 3 — has a SubAccount
+  const subAccounts = await getUserSubAccounts(config, { user: ctx.address });
+  if (subAccounts.length === 0) return "create-subaccount";
+  const account = ctx.selectedSubAccount ?? subAccounts[0].accountAddress;
+
+  // rung 4 — collateral deposited
+  const balance = await getAccountBalanceOf(config, { account });
+  if (balance === 0n) return "deposit-collateral";
+
+  // rung 5 — session key exists (you own this keypair)
+  if (!ctx.sessionKey) return "init-session-key";
+
+  // rung 6 — every required selector is delegated to the session key
+  const checks = await Promise.all(
+    INSTANT_TRADE_REQUIRED_SELECTORS.map((selector) =>
+      getIsDelegationActive(config, {
+        account,
+        delegate: ctx.sessionKey.address,
+        selector,
+      }),
+    ),
+  );
+  if (!checks.every(Boolean)) return "grant-delegation";
+
+  // rung 7 — cleared to trade
+  return "open-position";
+}
+```
+
+<Callout type="info">
+  Sections 1–8 of this guide follow the ladder in order: wallet + chain, SubAccount, collateral, session key +
+  delegation, market data, open, positions + close, TP/SL. Read them as the implementation of each rung. The final
+  submit is orchestrated manually — you call [`instantOpenAuto`](/core/solvers/instant-open) yourself once the last rung
+  clears.
+</Callout>
+
+<Callout type="warning">
+  **Frame the chain rung as "on the expected chain," not "switch chains."** HyperEVM (`999`) is the only supported chain
+  today. `SymmioSupportedChainId.HYPER_EVM` is its sole value — do not build a multi-chain switcher against a
+  single-chain enum.
+</Callout>
+
+<Callout type="warning">
+  **The delegation rung must check every selector, not just one.** A partial delegation passes an `open`-only check but
+  fails on `close` or margin top-up later. Gate the trade form on _all_ of
+  [`INSTANT_TRADE_REQUIRED_SELECTORS`](/core/instant-layer/grant-delegation) being active — this is the #1
+  silent-open-failure (see [§4 Session key + delegation](/core/instant-layer/get-is-delegation-active)).
+</Callout>
+
+Two rungs are worth calling out because they have no dedicated read of their own:
+
+- **Session key** — the keypair is yours to generate and persist; core does not manage it. The gate is simply "does a session key exist and is it usable."
+- **On expected chain** — there is no core call; you compare the wallet's `chainId` against `SymmioSupportedChainId.HYPER_EVM`. Writes resolve `config.getWalletClient({ chainId, from })`, so a wrong-chain wallet must make that resolver throw rather than silently sign against the wrong contract.
+
+Every other rung is a single read: [`getUserSubAccounts`](/core/account-layer/get-user-sub-accounts), [`getAccountBalanceOf`](/core/account-layer/get-account-balance-of), and [`getIsDelegationActive`](/core/instant-layer/get-is-delegation-active). Wire each into your query layer with its `getXQueryOptions` factory (see [The data & state layer you build](#data-layer)) so the ladder re-evaluates automatically as each precondition is satisfied.
+
+## 1. Wallet + chain
+
+Core holds no connection state — no active address, no active chain, no notion of a connected session. Which wallet is connected and which chain it is on live entirely in **your** layer. You bridge that state into `config` through the two client resolvers you passed to [`createConfig`](/core/concepts/config): `getClient` (a viem `PublicClient` for reads) and `getWalletClient` (a bound wallet client for writes and signing).
+
+Every write action resolves its signer with `config.getWalletClient({ chainId, from })`. Your resolver is where the connected address and chain enter the SDK, so it is also where you enforce that the wallet is connected and on the expected chain.
+
+```ts
+// Your own connection state — tracked however your app tracks it.
+let connectedAddress: Address | undefined;
+let connectedChainId: number | undefined;
+
+const config = createConfig({
+  symmioConfig: {
+    [SymmioSupportedChainId.HYPER_EVM]: {
+      addresses: { affiliatesAddress: "0x…" }, // required, non-zero (see Setup)
+    },
+  },
+  defaultChainId: SymmioSupportedChainId.HYPER_EVM,
+  getClient: ({ chainId } = {}) => createPublicClient({ transport: http(/* HyperEVM RPC */) }),
+  getWalletClient: async ({ chainId, from }) => {
+    // Fail fast: no connection, or wrong chain, means no signer.
+    if (!connectedAddress) throw new Error("wallet not connected");
+    if (connectedChainId !== chainId) throw new Error("wallet on wrong chain");
+    return createWalletClient({
+      account: from ?? connectedAddress,
+      chain: /* HyperEVM viem chain */ undefined,
+      transport: custom((window as any).ethereum),
+    });
+  },
+});
+```
+
+### The chain gate
+
+HyperEVM (chainId `999`, `SymmioSupportedChainId.HYPER_EVM`) is the only supported chain today. The gate is a plain comparison against your tracked chain id — there is no core read for it:
+
+```ts
+const onExpectedChain = connectedChainId === SymmioSupportedChainId.HYPER_EVM;
+```
+
+Frame the gate as "on the expected chain," not "switch to HyperEVM" — there is no second chain to switch between. When `onExpectedChain` is false, hide everything below this rung in the gate ladder and prompt the wallet to switch to `999`.
+
+<Callout type="warning">
+  **Writes resolve `config.getWalletClient({ chainId, from })` at call time.** If the wallet is disconnected or on the wrong chain, your resolver must **throw** so the write fails fast — before any payload is signed. Do not silently fall back to a client on the wrong chain: signing against the wrong contract address wastes the user's signature and can produce a request the solver rejects. A config created *without* a `getWalletClient` resolver throws `SymmError("config", "NO_WALLET_CLIENT")` on the first write attempt, so read-only configs stay safe.
+</Callout>
+
+<Callout type="info">
+  `SymmioSupportedChainId` is exported **only** from `@symmio/trading-core` — there is no re-export through
+  `@symmio/trading-react`. Import it (and every other type, enum, and chain constant) directly from core. Reads never
+  need a wallet client: a config with only `getClient` supplied is a valid read-only config for balances, markets, and
+  positions.
+</Callout>
+
+Cross-links: [config concept](/core/concepts/config).
+
+## 2. SubAccount
+
+A **SubAccount** is the on-chain trading identity a user owns. One EOA can own many; every deposit, delegation, quote, and position is scoped to a specific SubAccount, not to the wallet directly. Before a user can trade you must have at least one SubAccount and let them pick it. Everything downstream (collateral, delegation, open/close) takes that address.
+
+### Read the user's SubAccounts
+
+The primary read is [`getUserSubAccounts`](/core/account-layer/get-user-sub-accounts). It returns full detail rows; the sibling reads give you just addresses or a count when that's all you need.
+
+```ts
+import {
+  getUserSubAccounts,
+  getSubAccount,
+  getSubAccountsCountOfUser,
+  getUserSubAccountsAddresses,
+  type SubAccountDetail,
+} from "@symmio/trading-core";
+
+// Full detail rows for the connected user. offset/limit default to 0n / 200n.
+const subAccounts: readonly SubAccountDetail[] = await getUserSubAccounts(config, { user });
+
+// Just the addresses, or just the count — cheaper when that's all the UI needs.
+const addresses: readonly Address[] = await getUserSubAccountsAddresses(config, {
+  user,
+});
+const count: bigint = await getSubAccountsCountOfUser(config, { user });
+
+// One SubAccount by its on-chain address.
+const detail: SubAccountDetail = await getSubAccount(config, { account });
+```
+
+`SubAccountDetail` mirrors the on-chain struct: `{ accountAddress, owner, name, isExists, singleVAMode, affiliate, symmioCore, metadata, isolationType }`. `isolationType` is a `SubAccountIsolationType` enum (`POSITION` / `MARKET` / `MARKET_DIRECTION` / `CUSTOM`) that decides how the AccountLayer creates Virtual Accounts for this SubAccount's trades. `isExists` is `false` for a SubAccount that has been deleted on-chain — filter those out of the picker.
+
+<Callout type="info">
+  **Gate the read on `user`.** When no wallet is connected there is no `user` address, so there is nothing to fetch.
+  Drive the query from [`getUserSubAccountsQueryOptions`](/core/concepts/query-options) and disable it (`enabled:
+  Boolean(user)`) until the address exists — this is the core-only equivalent of the React hook's `enabled` gate. See
+  [query options](/core/concepts/query-options) and [query keys](/core/concepts/query-keys).
+</Callout>
+
+### Create a SubAccount
+
+If the user has none (or wants another), create one with the [`createSubAccounts`](/core/account-layer) write. It takes the `affiliate` and an `accountsData` array — you can batch several in one transaction.
+
+```ts
+import { createSubAccounts, SubAccountIsolationType, type SubAccountCreationData } from "@symmio/trading-core";
+
+const accountsData: SubAccountCreationData[] = [
+  {
+    name: "Main", // user-defined display name
+    metadata: "0x", // free-form blob; 0x when unused
+    symmioCore, // the Symmio core (diamond) this SubAccount trades against
+    isolationType: SubAccountIsolationType.MARKET,
+    singleVAMode: true, // reuse the active VA per market instead of one VA per sendQuote
+  },
+];
+
+const hash: Hash = await createSubAccounts(config, { affiliate, accountsData });
+```
+
+`createSubAccounts` returns a viem `Hash`. The newly-created SubAccount addresses are **not** in the return value — read them from the `SubAccountCreated` events on the transaction receipt after you `waitForTransactionReceipt`.
+
+<Callout type="warning">
+  **`singleVAMode` must be applicable to the `isolationType` you pass.** The contract reverts with
+  `SingleVAModeNotApplicable` when the flag does not apply to the chosen isolation strategy. `createSubAccounts`
+  dry-runs through its `simulate*` sibling when `simulateBeforeWrite` is `true` (the default), so a mismatch fails fast
+  at simulation rather than on-chain.
+</Callout>
+
+Renaming and deleting are separate writes:
+
+```ts
+await editAccountName(config, { account, name: "Swing" });
+await deleteSubAccount(config, { subAccount: account });
+```
+
+### Invalidate after a mutation
+
+Every SubAccount write changes the user's list, so invalidate the three list reads on success using a **subset-match predicate** keyed by `{ user }` (see [the data layer](#data-layer) and the [invalidation matrix](#appendix-a--invalidation-matrix)). `createSubAccounts` and `deleteSubAccount` touch all three; `editAccountName` only rewrites the detail rows.
+
+| Mutation            | Core query-key factories invalidated on success                                                          | match partial |
+| ------------------- | -------------------------------------------------------------------------------------------------------- | ------------- |
+| `createSubAccounts` | `getUserSubAccountsQueryKey`, `getUserSubAccountsAddressesQueryKey`, `getSubAccountsCountOfUserQueryKey` | `{ user }`    |
+| `deleteSubAccount`  | `getUserSubAccountsQueryKey`, `getUserSubAccountsAddressesQueryKey`, `getSubAccountsCountOfUserQueryKey` | `{ user }`    |
+| `editAccountName`   | `getUserSubAccountsQueryKey`                                                                             | `{ user }`    |
+
+<Callout type="info">
+  Plain prefix matching cannot express "invalidate every SubAccount query for this user across chains and pagination."
+  Feed each factory above through your `predicateMatch` equivalent — tag match plus defined-field equality on `{user}` —
+  as described in [the data layer](#data-layer).
+</Callout>
+
+Once the user has picked a SubAccount, hold its `accountAddress`: it is the `account` argument for collateral, the `account.addr` for delegation, and the `subAccount` for every open, close, and TP/SL call. See [the account layer](/core/account-layer) for the full read/write surface.
+
+## 3. Collateral: deposit & withdraw
+
+On HyperEVM you fund a subaccount with a single deposit, and withdraw with a single request plus a cooldown. Deposited collateral is directly tradeable — you do **not** allocate it into a separate pool first.
+
+<Callout type="info">
+  **The classic allocate / deallocate pool flow is not supported in `@symmio/trading-core` in this version — it is
+  planned for a later release.** On HyperEVM, deposit straight to the subaccount with `depositForAccount` and withdraw
+  with `initiateWithdraw`. Do not reach for `allocate` / `deallocate` (or the manual virtual-account margin ops
+  `addMargin` / `removeMargin`) — those belong to the classic pool model this guide does not cover yet.
+</Callout>
+
+Every function here is a contract write returning a viem `Hash`. Each write resolves `config.getWalletClient({ chainId, from })` and dry-runs through its `simulate*` sibling unless you pass `simulateBeforeWrite: false`. See [`/core/account-layer`](/core/account-layer) and [`/core/symmio-contract`](/core/symmio-contract) for the full slice reference.
+
+### Deposit
+
+Deposit is a two-guard flow: check the ERC-20 allowance, approve if short, then deposit for the subaccount.
+
+<Callout type="warning">
+  **`approveCollateral` spends to the SYMMIO core, not the account layer.** The spender is `symmioAddress` — approving
+  the account-layer address makes the deposit revert. Pass `maxUint256` for an infinite approval.
+</Callout>
+
+```ts
+import { getCollateralAllowance, approveCollateral, depositForAccount } from "@symmio/trading-core";
+
+// amount is in collateral units (the token's smallest unit, e.g. 6-dec USDC)
+async function deposit(config, { owner, account, amount }) {
+  const allowance = await getCollateralAllowance(config, { owner });
+  if (allowance < amount) {
+    await approveCollateral(config, { amount: maxUint256 });
+    // wait for the receipt before depositing (viem waitForTransactionReceipt)
+  }
+
+  // credits the subaccount — directly tradeable on HyperEVM
+  await depositForAccount(config, { account, amount });
+}
+```
+
+Read the balance back with [`getAccountBalanceOf`](/core/account-layer/get-account-balance-of) (raw tradeable `bigint`) and [`getAccountBalanceInfo`](/core/account-layer/get-account-balance-info) (the locked/pending breakdown). Once `getAccountBalanceOf(config, { account }) > 0n`, the gate ladder's "Deposit collateral" rung passes.
+
+<Callout type="warning">
+  **Two decimal scales sit side by side — pick the right one per read.** SYMMIO tracks account balances in a normalized
+  **18-decimal** unit, while the collateral token (USDC) carries its own **`collateralDecimals`** (6).
+  `getAccountBalanceOf` and every field of `getAccountBalanceInfo` are 18-decimal — the protocol's internal
+  allocated-balance unit, the same one `addMargin` / `removeMargin` take. `getCollateralBalance` (the user's wallet
+  ERC-20 balance) and the deposit / withdraw `amount` are in `collateralDecimals`, read from
+  `getChainConfig().addresses.collateralDecimals`. So format an account balance with `formatUnits(balance, 18)` and a
+  wallet balance with `formatUnits(balance, collateralDecimals)`. Format an 18-decimal balance with `collateralDecimals`
+  by mistake and it balloons by `10^(18 − collateralDecimals)` — the tell is a tradeable balance the size of `1e18`.
+</Callout>
+
+To show the user's spendable **wallet** balance next to their tradeable balance, read [`getCollateralBalance`](/core/account-layer)`(config, { owner })` — it returns the ERC-20 `balanceOf(owner)` in `collateralDecimals`, invalidated by the same `getCollateralBalanceQueryKey` a deposit already touches.
+
+### Invalidations after deposit
+
+Nothing invalidates these for you in a core-only build — you own the cache (see [the data & state layer you build](#data-layer)). After each write's success, invalidate the exact query keys below with your subset-match predicate. The `partial` column is the field subset the predicate matches on.
+
+| Mutation            | Query-key factories to invalidate                                                                                                | match partial                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `approveCollateral` | `getCollateralAllowanceQueryKey`                                                                                                 | `{ owner }`                                                     |
+| `depositForAccount` | `getCollateralAllowanceQueryKey`, `getCollateralBalanceQueryKey`, `getAccountBalanceInfoQueryKey`, `getAccountBalanceOfQueryKey` | `{ owner }` for collateral keys; `{ account }` for balance keys |
+
+### Withdraw
+
+Withdrawing is a cooldown flow: open a withdraw request against the deposited balance, wait out the cooldown, then finalize. You do **not** deallocate first.
+
+```ts
+import {
+  initiateWithdraw,
+  createClassicWithdrawPart,
+  getWithdrawableTime,
+  finalizeWithdrawRequest,
+  requestCancelWithdraw,
+} from "@symmio/trading-core";
+
+async function withdraw(config, { account, receiver, amount /* collateral units */ }) {
+  // 1. open the request. `parts` describes the receiver split (collateral units).
+  const part = createClassicWithdrawPart({
+    id: 0n,
+    amount,
+    receiver,
+    chainId: 999n, // HyperEVM
+  });
+  await initiateWithdraw(config, { account, parts: [part] });
+
+  // 2. wait out the cooldown before finalizing (keyed by the subaccount as `user`)
+  const readyAt = await getWithdrawableTime(config, { user: account });
+  // ...poll until Date.now() / 1000 >= readyAt, then:
+
+  // 3. finalize (permissionless — anyone can trigger it once mature)
+  await finalizeWithdrawRequest(config, { user: account, requestId: 0n });
+
+  // to abort before finalize instead:
+  // await requestCancelWithdraw(config, { account, requestId: 0n });
+}
+```
+
+Track outstanding requests with the reads [`getPendingWithdrawRequests`](/core/symmio-contract/get-pending-withdraw-requests) and [`getLastWithdrawRequestId`](/core/symmio-contract/get-last-withdraw-request-id) — both keyed by the subaccount as `user`; `getWithdrawRequests` and `getWithdrawableTime` have no dedicated doc page — see the [`/core/symmio-contract`](/core/symmio-contract) hub.
+
+### Invalidations after withdraw
+
+| Mutation                  | Query-key factories to invalidate                                                                       | match partial       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------- |
+| `initiateWithdraw`        | `getPendingWithdrawRequestsQueryKey`, `getLastWithdrawRequestIdQueryKey`, `getWithdrawableTimeQueryKey` | `{ user: account }` |
+| `requestCancelWithdraw`   | `getPendingWithdrawRequestsQueryKey`, `getWithdrawRequestsQueryKey`                                     | `{ user: account }` |
+| `finalizeWithdrawRequest` | `getPendingWithdrawRequestsQueryKey`, `getWithdrawRequestsQueryKey`, `getWithdrawableTimeQueryKey`      | `{ user: account }` |
+
+<Callout type="info">
+  **Keep balances fresh after a settle.** When a position settles over the notifications stream (see
+  [WebSocket-authoritative flows](#appendix-b--websocket-authoritative-flows)), re-read `getAccountBalanceOf` /
+  `getAccountBalanceInfo` — settlement changes the tradeable balance and nothing else invalidates those keys for you.
+</Callout>
+
+See [`/core/symmio-contract/create-classic-withdraw-part`](/core/symmio-contract/create-classic-withdraw-part) and [`/core/concepts/query-keys`](/core/concepts/query-keys) for the pieces used above.
+
+## 4. Session key + delegation
+
+A **session key** is a throwaway keypair you generate and hold in the DEX runtime. It signs the EIP-712 payloads that `instantOpenAuto`, `instantClose`, and `setQuoteTpSl` send to the hedger and TP/SL handler — so the user's wallet signs a single on-chain `grantDelegation` transaction once, then never gets prompted again during the trade loop.
+
+The catch: the session key can only act on selectors the SubAccount has **delegated on-chain**. Delegation is a real contract write on the Instant Layer (`instantLayerAddress`); the hedger will happily accept a session-signed payload, but the on-chain anchor reverts if the matching selector isn't delegated. So delegation is a hard gate that sits between "collateral deposited" and "open position."
+
+<Callout type="warning">
+  **Missing delegation is the #1 silent-open-failure.** The hedger accepts the session-key payload and your spinner
+  completes, but the on-chain anchor reverts *after* the fact because the selector was never delegated. There is no
+  synchronous error to catch. Gate the trade form on `allActive === true` (below), not on the hedger POST resolving.
+</Callout>
+
+### Selectors
+
+Grant the three-selector set `INSTANT_TRADE_REQUIRED_SELECTORS` to authorize the full open + close + top-up lifecycle in one transaction. It is exactly `[ADD_MARGIN_TO_NEXT_VA_SELECTOR, SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR, REQUEST_TO_CLOSE_POSITION_SELECTOR]`.
+
+| Selector                                      | What it grants the session key                                                                     |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `ADD_MARGIN_TO_NEXT_VA_SELECTOR`              | Move margin into the next virtual account (the top-up leg of an instant open).                     |
+| `SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR` | Submit the quote — the open leg.                                                                   |
+| `REQUEST_TO_CLOSE_POSITION_SELECTOR`          | Request to close a position — the close leg _and_ the on-chain leg of a conditional (TP/SL) order. |
+
+```ts
+import {
+  INSTANT_TRADE_REQUIRED_SELECTORS,
+  ADD_MARGIN_TO_NEXT_VA_SELECTOR,
+  SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
+  REQUEST_TO_CLOSE_POSITION_SELECTOR,
+} from "@symmio/trading-core";
+
+// The bundle is the union of the three individual selectors:
+// INSTANT_TRADE_REQUIRED_SELECTORS === [
+//   ADD_MARGIN_TO_NEXT_VA_SELECTOR,
+//   SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
+//   REQUEST_TO_CLOSE_POSITION_SELECTOR,
+// ]
+```
+
+### Grant + read
+
+`grantDelegation(config, params)` is a contract write returning a `Hash`. Its `account` is the `InstantLayerAccount` **struct type** (`{ addr, isPartyB }`) — there is no `getInstantLayerAccount` read; you construct the struct from the SubAccount address you already hold. For a trader's SubAccount, `isPartyB` is always `false`.
+
+```ts
+import {
+  grantDelegation,
+  getIsDelegationActive,
+  getDelegationExpiry,
+  INSTANT_TRADE_REQUIRED_SELECTORS,
+  type InstantLayerAccount,
+} from "@symmio/trading-core";
+
+async function grantSessionDelegation(config: Config, subAccount: Address, sessionKey: Address): Promise<Hash> {
+  const account: InstantLayerAccount = { addr: subAccount, isPartyB: false };
+  const oneWeek = BigInt(Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60);
+
+  // signer is the wallet that owns the SubAccount (resolved via config.getWalletClient)
+  return grantDelegation(config, {
+    account,
+    delegatedSigner: sessionKey,
+    selectors: INSTANT_TRADE_REQUIRED_SELECTORS,
+    expiryTimestamp: oneWeek,
+  });
+}
+```
+
+After the write lands, verify each selector on-chain. `getIsDelegationActive` and `getDelegationExpiry` both take `{ account, delegate, selector }` — note `delegate` (not `delegatedSigner`) and a single `selector` per call.
+
+```ts
+// per-selector reads — active status + raw expiry
+const active = await getIsDelegationActive(config, {
+  account: subAccount,
+  delegate: sessionKey,
+  selector: REQUEST_TO_CLOSE_POSITION_SELECTOR,
+}); // => boolean
+
+const expiry = await getDelegationExpiry(config, {
+  account: subAccount,
+  delegate: sessionKey,
+  selector: REQUEST_TO_CLOSE_POSITION_SELECTOR,
+}); // => bigint (Unix seconds)
+```
+
+<Callout type="info">
+  `getIsDelegationActive`'s `account` param is a plain `Address` (the SubAccount
+  address), whereas `grantDelegation`'s `account` is the `InstantLayerAccount`
+  struct (`{ addr, isPartyB }`). Do not pass the struct to the read — pass
+  `subAccount.addr`.
+</Callout>
+
+**Invalidation on grant.** After `grantDelegation` succeeds, invalidate the two delegation reads for this `(account, delegate)` pair using the subset-match predicate from [the data layer](/core/concepts/query-keys):
+
+| Mutation          | Query-key factories invalidated                                | Match partial                                          |
+| ----------------- | -------------------------------------------------------------- | ------------------------------------------------------ |
+| `grantDelegation` | `getDelegationExpiryQueryKey`, `getIsDelegationActiveQueryKey` | `{ account: account.addr, delegate: delegatedSigner }` |
+
+The partial matches on `account.addr` + `delegate`, so every cached per-selector read for that session key refetches — you do not enumerate selectors in the invalidation.
+
+### Gate every write, not just open
+
+Delegation is not an open-only concern — close and TP/SL ride the same session key. Compute one `allActive` flag by awaiting `getIsDelegationActive` for each of the three required selectors, and reuse it to gate the whole trade surface.
+
+```ts
+import { getIsDelegationActive, INSTANT_TRADE_REQUIRED_SELECTORS } from "@symmio/trading-core";
+
+async function areAllSelectorsActive(config: Config, subAccount: Address, sessionKey: Address): Promise<boolean> {
+  const results = await Promise.all(
+    INSTANT_TRADE_REQUIRED_SELECTORS.map((selector) =>
+      getIsDelegationActive(config, {
+        account: subAccount,
+        delegate: sessionKey,
+        selector,
+      }),
+    ),
+  );
+  return results.every(Boolean);
+}
+```
+
+Drive these reads through `getIsDelegationActiveQueryOptions` in your query layer so the burst refetch after a grant flips `allActive` to `true` without a manual re-poll. Enable the open/close/TP-SL CTAs only while `allActive` is `true`; if any selector expired (expiry is per-selector and time-bounded), re-run the grant.
+
+### TP/SL needs the close selector too
+
+Conditional orders (TP/SL) close a position on-chain, so the session key that signs them relies on the **same** `REQUEST_TO_CLOSE_POSITION_SELECTOR` delegation. Because it is already part of `INSTANT_TRADE_REQUIRED_SELECTORS`, a single grant covers open, close, and TP/SL — there is no separate delegation call for conditional orders. Verify it is active before you show the TP/SL panel, exactly as you gate the open form.
+
+<Callout type="info">
+  Set `expiryTimestamp` to a horizon that outlives the trading session (e.g. a week), and surface the per-selector
+  `getDelegationExpiry` value so you can prompt a re-grant before it lapses. An expired delegation reverts on-chain the
+  same way a missing one does.
+</Callout>
+
+Cross-links: [`/core/instant-layer/grant-delegation`](/core/instant-layer/grant-delegation), [`/core/instant-layer/get-is-delegation-active`](/core/instant-layer/get-is-delegation-active), [`/core/instant-layer/get-delegation-expiry`](/core/instant-layer/get-delegation-expiry), [`/core/instant-layer/instant-layer-account`](/core/instant-layer/instant-layer-account).
+
+## 5. Market data
+
+With the gate open, the trade form needs three streams of market data: the **symbol catalog** (what you can trade), the **per-market limits and funding** (what the header strip shows), and **live prices** (what drives the ticket). Core exposes each as a read or a WebSocket subscription. There is no per-function doc page under `/core/solvers/` for the market reads — the domain hub is [`/core/solvers`](/core/solvers).
+
+### The symbol catalog
+
+`getMarkets` returns the tradable `SymbolContractSymbol[]`. It is a **chainId-only** read, but it still takes the `params` argument — pass `{}` (or `{ chainId }`) as the second positional. Never call it as `getMarkets(config)`.
+
+```ts
+// direct
+const markets = await getMarkets(config, {});
+
+// through your query layer
+const options = getMarketsQueryOptions(config, {});
+// queryClient.fetchQuery(options) / your own cache
+```
+
+Per-market limits hang off the symbol:
+
+```ts
+import {
+  getLockedParams,
+  getNotionalCapBySymbolId,
+  getOpenInterestBySymbolId,
+  getNotionalCapAll,
+} from "@symmio/trading-core";
+
+// margin fractions (CVA / LF / partyA-mm / partyB-mm) for a symbol at a leverage
+const locked = await getLockedParams(config, { symbol: "BTCUSDT", leverage: 10 });
+
+// how much open interest the symbol can still absorb
+const cap = await getNotionalCapBySymbolId(config, { symbolId: 1 });
+const oi = await getOpenInterestBySymbolId(config, { symbolId: 1 });
+const allCaps = await getNotionalCapAll(config, {}); // chainId-only — still pass {}
+```
+
+Gate the ticket against the cap before you let the user submit — `checkNotionalCap` is the pure helper that answers "does this candidate size fit?", and `toMarketNotionalCap` shapes the read for display.
+
+<Callout type="warning">
+  **A market at its notional cap rejects new opens at the hedger, not in your form.** Read `getNotionalCapBySymbolId`
+  (and `getOpenInterestBySymbolId`) up front and run the candidate size through `checkNotionalCap`, so the user sees
+  "cap reached" before signing rather than a failed instant-open after the spinner.
+</Callout>
+
+### The header strip: funding
+
+`getFundingInfo` returns `MarketFundingInfo[]` for the symbols you pass (omit `symbols` for all). A positive rate receives funding, a negative rate pays. `projectFundingRate` projects the next accrual and `toMarketFundingInfo` shapes a row for the strip.
+
+```ts
+const funding = await getFundingInfo(config, { symbols: ["BTCUSDT", "ETHUSDT"] });
+const rows = funding.map(toMarketFundingInfo);
+```
+
+### Live prices
+
+Two ways to read prices — a WebSocket subscription for the ticket, and REST batch reads for one-off fills. The subscription is the one to reach for on the trade screen; the REST reads back a snapshot.
+
+```ts
+import {
+  watchEnigmaPrices,
+  getEnigmaPriceServicePricesByAddresses,
+  getEnigmaPriceServicePricesByNames,
+  getEnigmaPriceServiceSymbolsInfo,
+  getEnigmaPriceServiceMetadata,
+  getEnigmaPriceServiceHealth,
+} from "@symmio/trading-core";
+
+// live: push ticks into your price store; keep the returned unwatch function to stop
+const unwatch = watchEnigmaPrices(config, {
+  onPrices: (ticks) => {
+    /* update your price store */
+  },
+});
+// later: unwatch()
+
+// snapshot (max 50 identifiers per call, either shape)
+const byAddress = await getEnigmaPriceServicePricesByAddresses(config, {
+  addresses: ["0x…", "0x…"],
+});
+const byName = await getEnigmaPriceServicePricesByNames(config, { names: ["BTCUSDT"] });
+
+// catalog + service metadata + liveness
+const symbolsInfo = await getEnigmaPriceServiceSymbolsInfo(config, {}); // chainId-only
+const metadata = await getEnigmaPriceServiceMetadata(config, { addresses: ["0x…"] });
+const health = await getEnigmaPriceServiceHealth(config, {}); // chainId-only
+```
+
+<Callout type="info">
+  The price-service reads are all prefixed **`getEnigmaPriceService…`** — there is no `getPricesByAddresses` /
+  `symbolsInfo` / `health` shorthand. The batch reads (`…PricesByAddresses`, `…PricesByNames`, `…Metadata`) accept **at
+  most 50** identifiers per call; page larger lists yourself. Many market and price fields are snake_case and optional —
+  guard for `undefined` before formatting.
+</Callout>
+
+<Callout type="warning">
+  **Key prices by the market's `name`, not its display `symbol`.** Both `watchEnigmaPrices` ticks
+  (`EnigmaPriceTick.name`) and `getEnigmaPriceServicePricesByNames` key on the price-service **name**, which is the
+  market's `name` field on `SymbolContractSymbol` — this can differ from the user-facing `symbol`. Build your price
+  store keyed by `name` and look a market's price up with `market.name`; using `symbol` silently returns "no price" for
+  any market where the two differ.
+</Callout>
+
+<Callout type="warning">
+  **`watchEnigmaPrices` is a WebSocket subscription — it needs a `webSocketConstructor`.** In the browser the global
+  `WebSocket` is used automatically. In Node or SSR, pass `webSocketConstructor` to `createConfig`, or
+  `config.getWebSocketConstructor()` throws `NO_WEBSOCKET`. It returns an `Unwatch` function — keep it and call it on
+  teardown so you do not leak sockets.
+</Callout>
+
+For the estimated fill price and slippage the ticket derives from these prices, see [Open a position](#6-open-a-position) — `getEstimatedPrice` and `calculatePriceImpact` live with the open flow, not the market-data reads.
+
+**Cross-links:** [`/core/price-service/watch-enigma-prices`](/core/price-service/watch-enigma-prices), [`/core/price-service/prices-by-addresses`](/core/price-service/prices-by-addresses), [`/core/price-service`](/core/price-service), [`/core/solvers`](/core/solvers), [`/core`](/core).
+
+## 6. Open a position
+
+You have a market, a session key with delegation, and deposited collateral. Opening a position is a single hedger call — `instantOpenAuto` — but the value it returns is a **temporary, negative** `tempQuoteId`, not the on-chain quote id. Everything downstream (TP/SL, per-position reads) waits for the solver to anchor the quote and assign a positive `quoteId`.
+
+### The one-call path
+
+`instantOpenAuto(config, params)` is `prepareInstantOpenParams` + `instantOpen` fused: it fetches market data, mark price, locked-param percentages, and fee rates, runs the trade math, EIP-712-signs both operations with the session key, and POSTs to the hedger.
+
+Your trade form collects **three** user inputs and forwards them here: `initialMargin` (USD), `leverage`, and **`slippage`** — the percent price tolerance (`0.5` = 0.5%). Slippage is not optional-by-default: `instantOpenAuto` uses it to derive the signed order price from the mark price (`mark × (1 ± slippage)`), so a form that omits a slippage field silently defaults the trade's price tolerance. Surface it as its own input next to margin and leverage. The close flow (`instantCloseAuto`) takes the same `slippage` parameter — collect it there too.
+
+```ts
+const result = await instantOpenAuto(config, {
+  subAccountAddress, // the SubAccount you opened + delegated
+  market: {
+    id: symbol.symbol_id, // solver market id
+    name: symbol.name, // ⚠️ the price-service NAME, not the display symbol — see below
+    pricePrecision: symbol.price_precision,
+    quantityPrecision: symbol.quantity_precision,
+  },
+  positionType: PositionType.LONG,
+  initialMargin: "250", // USD, as a string — user input
+  leverage: 5, // user input
+  slippage: 0.5, // user input — percent tolerance (0.5 = 0.5%)
+  from: sessionKey, // signs the hedger payload
+});
+
+// result: InstantOpenReturnType = { success, tempQuoteId?, partyBmm? }
+if (result.success && result.tempQuoteId !== undefined) {
+  // tempQuoteId is NEGATIVE — a hedger placeholder, not the on-chain id
+  optimisticOpens.add(pendingOpen); // pendingOpen: PendingInstantOpen keyed by tempQuoteId
+}
+```
+
+<Callout type="warning">
+  **`market.name` must be the price-service name, not the display `symbol`.** `instantOpenAuto` (and `instantCloseAuto`)
+  fetch the mark price internally via `resolveMarkPrice`, which keys on the market's **`name`** field
+  (`SymbolContractSymbol.name`) — the same key the Enigma price feed uses. Passing `symbol` here makes the internal
+  mark-price fetch miss, so the open/close fails or prices at a stale fallback. Always set `market.name = symbol.name`
+  (and `market.id = symbol.symbol_id`). This is the same `name`-vs-`symbol` distinction as the live-price store above.
+</Callout>
+
+Assemble a `PendingInstantOpen` from the result and the trade inputs, then keep it as your optimistic open record (see [the open lifecycle](#data-layer)) so the row renders before the first on-chain poll. Key it by `tempQuoteId`. Clear it only when the reconciled row shows `raw.onchain !== undefined` — never on the notification link alone.
+
+<Callout type="warning">
+  **A failed order never becomes a position — drop the optimistic open, don't leave it "anchoring".** The optimistic
+  seed is a bet that the open will anchor. If the notifications stream reports a **failure** for that `tempQuoteId` — a
+  frame whose `type` is `NotificationType.FAILED` (equivalently `actionStatus === "failed"`) — that bet lost: the quote
+  will never anchor. Remove the optimistic open keyed by `notification.tempQuoteId` and surface `failureMessage` /
+  `failureType` / `errorCode` to the user. Otherwise the seed lingers forever as a stuck "anchoring on-chain…" row for a
+  position that does not exist. As a backstop, also **filter `QuoteLifecycle.FAILED` rows out of the rendered list** —
+  never show a failed quote as a position.
+</Callout>
+
+<Callout type="warning">
+  **`instantOpen` returns a temporary negative `tempQuoteId`, not the on-chain id.** TP/SL and per-position reads need
+  the positive `quoteId`, which only exists after the solver anchors the quote. Read the anchored id with
+  `getInstantOpenQuoteId(config, {tempQuoteId})` once it is available, or pick it up from the notifications stream (see
+  [Positions & close](#7-positions--close)).
+</Callout>
+
+### Own the pieces
+
+If you want to render the trade math yourself before submitting, split the call:
+
+```ts
+const params = await prepareInstantOpenParams(config, {
+  subAccountAddress,
+  market,
+  positionType: PositionType.LONG,
+  initialMargin: "250",
+  leverage: 5,
+  slippage: 0.5,
+  from: sessionKey,
+});
+// params is InstantOpenParameters — everything already in wei
+
+const result = await instantOpen(config, params);
+```
+
+`prepareInstantOpenParams` returns `InstantOpenParameters` (all final wei values); `instantOpen` is the pure primitive. Internally it encodes `encodeAddMarginToNextVA` + `encodeSendQuoteWithAffiliateAndData`, wraps each in `buildSignedOperation`, signs both in parallel via `signAndFormatInstantOperation`, and hands off to `sendInstantOpen`. You do not call those directly — but knowing the shape helps when you debug a rejected signature.
+
+<Callout type="info">
+  Every contract write dry-runs through its `simulate*` sibling when `simulateBeforeWrite` is `true`. `instantOpen` is a
+  hedger POST, not a contract write, so it does not dry-run — the on-chain anchor happens later, asynchronously, on the
+  solver side.
+</Callout>
+
+### Attaching TP/SL at open
+
+Core has **no** combined open-with-TP/SL. Open first, then call `setQuoteTpSl` with the `tempQuoteId` that `instant_open` just returned — you do **not** wait for the on-chain `quoteId` (see [TP/SL](#8-tpsl)). Because the position's virtual account isn't on-chain yet, predict it with `getPredictedNextVirtualAccount` (or `resolveQuoteAccounts`) and pass it as `virtualAccount`. For the `quantity`, pass the **same `calculateTradeParams(...).quantity` you sized the open with** — not a fresh `notional / price` estimate — so the conditional order matches the position (it is already at `quantity_precision`; see the [TP/SL quantity note](#8-tpsl)). When the open anchors, the `tempQuoteId` links to the on-chain `quoteId` and the same order carries over.
+
+### Estimated fill price + impact
+
+Preview the fill before submit with `getEstimatedPrice`, then derive slippage and PnL locally:
+
+```ts
+import { getEstimatedPrice, calculatePriceImpact, calculateQuotePnl } from "@symmio/trading-core";
+
+const { estimatedPrice } = await getEstimatedPrice(config, {
+  symbolId,
+  quantity, // string
+  positionType: PositionType.LONG,
+  entry, // EstimatedPriceEntry
+  price, // string mark price
+});
+
+const impact = calculatePriceImpact(/* … */);
+const pnlPreview = calculateQuotePnl(/* … */);
+```
+
+### Available margin (the Max chip)
+
+The "Max" affordance is pure math — no read required. `calculateAvailableInstantOpenMargin` gives the ceiling; feed it (with the leverage/fee shave) into `calculateTradeParams` to size the order.
+
+### Pre-submit validation
+
+Run `calculateTradeParams` then `validateInstantOpenAgainstMarket` before signing. Surface every violation (min notional, leverage bounds, notional cap) in the form so the user never submits a request the solver will reject.
+
+<Callout type="warning">
+  **Missing delegation is the #1 silent-open-failure.** The hedger accepts the session-key payload and returns a
+  `tempQuoteId`, but the on-chain anchor reverts if the required selector was never delegated — after your spinner ends.
+  Gate the trade form on `getIsDelegationActive` for every selector in `INSTANT_TRADE_REQUIRED_SELECTORS` (see [Session
+  key + delegation](#4-session-key--delegation)).
+</Callout>
+
+Invalidate on open success: `getInstantOpensQueryKey` scoped `{ configKey }`. That is the only invalidation — the rest of the open's lifecycle (anchor, fill, settle) arrives over the notifications stream and is reconciled by `reconcileQuotes`, not by refetching.
+
+Cross-links: [instant-open](/core/solvers/instant-open), [resolve-quote-accounts](/core/quotes/resolve-quote-accounts), [account-layer](/core/account-layer).
+
+## 7. Positions & close
+
+You now have an open (or optimistically-seeded) position. Turning the raw on-chain reads, the pending hedger opens, and the notification stream into one stable, deduplicated row list is **your** job in a core-only build — there is no `useManagedQuotes` to lean on. The engine that does the merge is pure and lives in core: [`reconcileQuotes`](/core/quotes/reconcile-quotes).
+
+### Rebuild the managed-quotes list
+
+Feed every quote source into `reconcileQuotes` and render the returned `UnifiedQuote[]`. It is pure and idempotent — call it whenever any input changes.
+
+```ts
+import {
+  reconcileQuotes,
+  resolveQuoteAccounts,
+  getPartyAOpenPositions,
+  getPartyAPendingQuotes,
+  getInstantOpens,
+  getInstantCloses,
+  type ReconcileQuotesInput,
+} from "@symmio/trading-core";
+
+// 1. Resolve the full account set: subAccount + its VAs + predicted VAs of pending opens.
+const { accounts, instantOpenVaByTempId } = await resolveQuoteAccounts(config, {
+  subAccount,
+  instantOpens, // pending hedger opens (+ your optimistic seeds)
+});
+
+// 2. Read every quote source across the resolved accounts.
+const onchainPositions = (
+  await Promise.all(accounts.map((partyA) => getPartyAOpenPositions(config, { partyA })))
+).flat();
+const instantCloses = await getInstantCloses(config, {});
+
+// 3. Merge — feed back only a recent notification window and the previous pendingAnchors.
+const input: ReconcileQuotesInput = {
+  partyA: subAccount,
+  onchainPositions,
+  onchainPendingQuotes, // hydrated via getQuote for ids from getPartyAPendingQuotes
+  instantOpens, // includes your optimistic open records
+  instantCloses,
+  instantOpenVaByTempId,
+  notifications, // recent window from watchNotifications
+  retainedAnchors, // pendingAnchors from the previous reconcileQuotes call
+};
+
+const { quotes, links, pendingAnchors } = reconcileQuotes(input);
+```
+
+Sources you assemble the input from:
+
+- [`getPartyAOpenPositions`](/core/symmio-contract/get-party-a-open-positions) — full `Quote` structs for open positions.
+- `getPartyAPendingQuotes` — quote ids; hydrate each with `getQuote`.
+- `getSubAccountQuotes` — aggregate quote read for a subaccount, when you want everything in one call.
+- `getInstantOpens` / `getInstantCloses` — pending optimistic hedger rows.
+- [`resolveQuoteAccounts`](/core/quotes/resolve-quote-accounts) — async account fan-out: `{ subAccount, instantOpens?, includeVirtualAccounts?, extraAccounts? }` → `{ accounts, instantOpenVaByTempId }`. It unions the subAccount, its existing VAs, and a `getPredictedNextVirtualAccount` per pending open.
+
+<Callout type="warning">
+  **Retain discovered VAs append-only, scoped to `(chainId, partyA)`.** Feed the previous call's `pendingAnchors` back
+  in as `retainedAnchors` and keep every virtual account you have ever seen for a `(chainId, partyA)` pair. Without
+  retention a row **flickers out** during the optimistic→on-chain hand-off: the anchored quote exists on-chain but has
+  not been polled into `onchainPositions` yet, so a naive merge drops it for one tick.
+</Callout>
+
+<Callout type="info">
+  `reconcileQuotes` returns `links` (a `Record<number, string>` mapping each temp id to its anchored
+  on-chain id) alongside the rows. When you have a `tempQuoteId` but need the positive on-chain
+  `quoteId` on demand, `getInstantOpenQuoteId(config, { tempQuoteId })` reads the anchored id once the
+  solver has anchored the quote.
+</Callout>
+
+### Position details
+
+Read the display fields off each `UnifiedQuote` (or the underlying `Quote`). Enums and value structs come from core: `OrderType`, `QuoteStatus`, `PositionType`, and `LockedValues`.
+
+| Detail        | Source field                    | Notes                               |
+| ------------- | ------------------------------- | ----------------------------------- |
+| Side          | `positionType` (`PositionType`) | `LONG` / `SHORT`                    |
+| Order kind    | `orderType` (`OrderType`)       | market vs limit                     |
+| Status        | `quoteStatus` (`QuoteStatus`)   | drives the lifecycle gate below     |
+| Size / price  | quantity, open price fields     | **wei / 18-dec**                    |
+| Locked margin | `lockedValues` (`LockedValues`) | `cva`, `lf`, `partyAmm`, `partyBmm` |
+
+<Callout type="warning">
+  **Amounts are wei (18-dec), not display units.** Every quantity, price, and locked-value field on a `Quote` /
+  `UnifiedQuote` is a raw `bigint`. Format for display; never treat them as human numbers.
+</Callout>
+
+<Callout type="info">
+  **Round to the market's precision, not an arbitrary fixed width.** After scaling a raw `bigint` out of 18-dec wei,
+  round **prices** to the market's `price_precision` and **quantities** to its `quantity_precision` (both on
+  `SymbolContractSymbol`) — e.g. `formatUnits(price, 18)` then to `price_precision` fraction digits. A hard-coded `4`
+  decimals over- or under-states low-cap markets whose precision differs. The same two fields feed the `pricePrecision`
+  / `quantityPrecision` you pass to `instantOpenAuto` / `instantCloseAuto`, so read them once off the market row and
+  reuse them for both display and the trade calls.
+</Callout>
+
+### A just-opened position isn't closeable yet
+
+A row that is still anchoring on-chain cannot be closed. Gate the close button on the lifecycle, derived from the quote status:
+
+```ts
+const lifecycle = lifecycleFromQuoteStatus(quote.quoteStatus);
+const closeable = lifecycle === QuoteLifecycle.ONCHAIN; // do not offer close while still writing on-chain
+```
+
+Helpers for partitioning the list: `isActivePosition`, `isPendingOrder`, `partitionQuotes`.
+
+<Callout type="warning">
+  **Do not offer close while the row is still opening.** Gate on
+  [`lifecycleFromQuoteStatus`](/core/quotes/quote-lifecycle) / `QuoteLifecycle`. There is no `OPENING_STAGES` constant
+  in core — use the lifecycle enum. A fully anchored, closeable position resolves to `QuoteLifecycle.ONCHAIN`; a
+  still-anchoring one sits in `WRITE_ONCHAIN`.
+</Callout>
+
+### Close a position
+
+Sign and POST a close through the hedger. Single or bulk (1..100 orders, one signer). `closePrice` and `quantityToClose` are final wei.
+
+```ts
+// Single close (partial close: scale quantityToClose below the full size).
+await instantClose(config, {
+  partyA, // the VA holding the position
+  order: {
+    quoteId, // positive on-chain id
+    closePrice: 50_000_000_000_000_000_000n,
+    quantityToClose: 1_000_000_000_000_000_000n,
+  },
+});
+
+// Bulk close (one wallet client signs every order).
+await instantCloseBulk(config, {
+  orders: [
+    { partyA: vaA, order: { quoteId: 1n, closePrice, quantityToClose } },
+    { partyA: vaB, order: { quoteId: 2n, closePrice, quantityToClose } },
+  ],
+});
+```
+
+Convenience wrappers that fold in the trade math: `instantCloseAuto`, `instantCloseBulkAuto`, and the wizard `prepareInstantCloseParams`.
+
+**Invalidation on close** (`{ configKey }`):
+
+| Mutation                                                                          | Query-key factory invalidated `onSuccess` | Match partial   |
+| --------------------------------------------------------------------------------- | ----------------------------------------- | --------------- |
+| `instantClose` / `instantCloseAuto` / `instantCloseBulk` / `instantCloseBulkAuto` | `getInstantClosesQueryKey`                | `{ configKey }` |
+
+### Closing is WebSocket-authoritative
+
+Unlike an open, a close has **no optimistic seed**. The settlement self-describes over the notifications stream; do not fake the closed state locally.
+
+<Callout type="warning">
+  **There is no optimistic close seed.** Do not fake the closed state — wait for the settlement notification from
+  [`watchNotifications`](/core/notifications/watch-notifications). The stream is authoritative for close settlement.
+</Callout>
+
+For in-flight rows, poll faster; when idle or socket-connected, don't poll at all:
+
+```ts
+// ~1.5s only while a row is WRITE_ONCHAIN* / CLOSING; ~5s fallback when the socket is down.
+const refetchInterval = shouldAccelerateOnchainReads(quotes) ? 1_500 : 5_000;
+```
+
+[`shouldAccelerateOnchainReads`](/core/quotes/should-accelerate-onchain-reads) accelerates only while a row is in an in-flight `WRITE_ONCHAIN*` / `CLOSING` state; otherwise fall back to the ~5s poll (and no idle poll while the socket is open). There is no `CLOSING_STAGES` constant — the helper reads the lifecycle for you.
+
+### Keep balance fresh after settle
+
+A settle notification changes the account balance. Re-read it so the header and Max chip do not go stale:
+
+```ts
+// On a settle notification from watchNotifications:
+await getAccountBalanceOf(config, { account });
+await getAccountBalanceInfo(config, { account });
+```
+
+<Callout type="info">
+  **Re-read the balance on every settle notification.** Close settlement releases locked margin; without a re-read of
+  [`getAccountBalanceOf`](/core/account-layer/get-account-balance-of) / `getAccountBalanceInfo` the available balance
+  shown to the user lags the on-chain truth.
+</Callout>
+
+The 250ms debounced burst invalidation, the reconnect re-sync, and the full VA fan-out that drive this reconciliation live in [Appendix B — WebSocket-authoritative flows](#appendix-b--websocket-authoritative-flows).
+
+## 8. TP/SL
+
+Take-profit and stop-loss are conditional orders. In Core you **open the position first, then attach TP/SL** — there is no combined "open with TP/SL" primitive. You can attach it **as soon as the open returns a `tempQuoteId`**, using that id; `setQuoteTpSl` accepts either the pre-chain `tempQuoteId` or the on-chain `quoteId`. The set/cancel calls sign with the session key and POST/DELETE to the handler; confirmation arrives over the TP/SL WebSocket, not on the HTTP 200.
+
+<Callout type="warning">
+  **`setQuoteTpSl` takes either id.** Pass the on-chain `quoteId` once the position has anchored, or the pre-chain
+  `tempQuoteId` right after the open — the `quoteId` parameter accepts both (the negative temp id passes straight
+  through). Pre-anchor the position's virtual account does not exist on-chain yet, so pass the **predicted** VA
+  (`getPredictedNextVirtualAccount`) as `virtualAccount`. When the open anchors, point the same order at the on-chain
+  `quoteId`.
+</Callout>
+
+### Setting a TP and/or SL
+
+`setQuoteTpSl(config, params)` returns `SetQuoteTpSlReturnType = { success: true, cohQuoteId? }`. At least one of `tp` / `sl` is required; send only the leg that changed. Each side is a `SetTpSlSide = { triggerPrice: string; priceType: TpSlPriceType }`, where `TpSlPriceType` is `"markPrice" | "lastPrice"`.
+
+```ts
+const result = await setQuoteTpSl(config, {
+  quoteId, // bigint — the tempQuoteId (pre-anchor) or the on-chain quoteId
+  virtualAccount, // Address — the VA (partyA) that owns the quote
+  subAccount, // Address — the SubAccount that owns the VA
+  symbolId, // bigint — solver market id
+  positionType: PositionType.LONG,
+  quantity: "0.5", // from calculateTradeParams(...).quantity — already at quantity_precision
+  pricePrecision: 2, // rounds trigger prices to N decimals
+  tp: { triggerPrice: "65000", priceType: "markPrice" },
+  sl: { triggerPrice: "58000", priceType: "markPrice" },
+});
+// result.cohQuoteId — handler-issued conditional-order id, when reported
+```
+
+`setQuoteTpSl` resolves the handler URL and signing spec, rounds the trigger prices, signs with the session-key wallet client, and POSTs the typed data. It throws `SymmError` when the chain has no `tpsl` config or both legs are omitted, and `SymmApiError` when the handler request fails.
+
+<Callout type="warning">
+  **Source `quantity` from `calculateTradeParams` — `setQuoteTpSl` won't compute or round it for you.** It clamps the
+  `tp` / `sl` trigger prices to `pricePrecision`, but passes `quantity` through untouched. For a TP/SL attached **at
+  open**, pass the same `calculateTradeParams(...).quantity` you size the order with: it is derived from margin,
+  leverage, mark price, and the market's locked-param percentages (`getLockedParams`, keyed by the market **name**) and
+  is already rounded to the market's `quantity_precision`, so the conditional order matches the position exactly. For a
+  TP/SL on an **already-open** position, use the remaining size instead — `formatUnits(quote.quantity -
+  quote.closedAmount, 18)`, rounded to `quantity_precision`. An ad-hoc `notional / price` estimate, or an over-precise
+  value, can be rejected by the handler or mismatch the on-chain quantity.
+</Callout>
+
+### Cancelling a leg
+
+`deleteQuoteTpSl(config, params)` returns `{ success: true }`. It takes the `cohQuoteId` from the earlier set-response (or your record) plus the `conditionalOrderType`, which is `"take_profit" | "stop_loss"`.
+
+```ts
+await deleteQuoteTpSl(config, {
+  quoteId, // bigint
+  virtualAccount, // Address
+  cohQuoteId, // string — from the set response
+  conditionalOrderType: "stop_loss",
+});
+```
+
+### Hydrate existing orders on load
+
+The TP/SL WebSocket only delivers **transitions** from the moment you subscribe — it does not replay the conditional orders a position already has. So on first load (or a panel/tab reopen) an existing TP/SL is invisible until it next changes. Seed it from the handler: for every anchored quote, read [`getQuoteTpSl`](/core/tpsl/get-quote-tpsl)`(config, { quoteId })` and fold the returned `QuoteTpSlRow[]` into your leg records.
+
+```ts
+// per anchored quote:
+const rows = await getQuoteTpSl(config, { quoteId });
+// each row: { conditional_order_type: "take_profit" | "stop_loss", conditional_order_price,
+//             coh_quote_id, state: "pending" | "new" | "triggered" | "triggered_pending" | "canceled" | "killed", ... }
+```
+
+Per side (`take_profit` / `stop_loss`), take the latest non-terminal row (skip `canceled` / `killed`), and map its `state` onto your leg state (`new` → new, `pending` → pending, `triggered` / `triggered_pending` → triggered), stamping `conditional_order_price` as the trigger and `coh_quote_id`. Merge, don't clobber: leave any side currently in `"confirming"` (a write-time seed still awaiting its report frame) untouched so the REST read doesn't stomp the optimistic value. Drive the read through `getQuoteTpSlQueryOptions` so the same `report`-frame-triggered refetch keeps it fresh.
+
+### Confirmation is WS-driven — do not finish on the POST
+
+The handler returns `200` on **accept**, not on **confirm**. The order is only live once the TP/SL stream reports `state: "new"`. Treat the POST as a transition to a `"confirming"` phase and let the WebSocket flip your record to the wire state.
+
+<Callout type="warning">
+  **Do not resolve the TP/SL flow on the POST response.** During the `"confirming"` window your UI shows the target
+  trigger price (seeded from the request you just sent), but the authoritative state arrives on the `report` frame from
+  `watchTpSlNotifications`. Finishing on the HTTP success desyncs the UI from the wire.
+</Callout>
+
+Subscribe with `watchTpSlNotifications` and parse each frame with `parseTpSlFrame`. Map the raw wire state to your own leg state — this fold is **your** code, not a core export. The mapping:
+
+| raw wire state                             | your record state                               |
+| ------------------------------------------ | ----------------------------------------------- |
+| `new`, `edit`                              | `new`                                           |
+| `pending`                                  | `pending`                                       |
+| `triggered`, `trigger`                     | `triggered`                                     |
+| `cancel`, `canceled`, `cancelled`, `close` | `canceled` (clear trigger price + `cohQuoteId`) |
+
+Ignore any frame with `successful: false`. On a `canceled` state, clear the price, open price, and `cohQuoteId`; on every other successful state, stamp the price from `details.trigger_price` and record the `cohQuoteId`. Keep the REST query (`getQuoteTpSl`) **ungated** — do not add an `enabled: !record` guard — so mutation invalidations still refetch. See [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) and [`parseTpSlFrame`](/core/tpsl/parse-tpsl-frame).
+
+<Callout type="info">
+  The `"confirming"` phase is just a value of the leg's state — set it at write-time from the trigger price you sent so
+  the box shows the target immediately, then let the WebSocket flip it to `new`. Key the record by whichever id you hold
+  (`tempQuoteId` or `quoteId`) so one record survives the anchor — see [the TP/SL lifecycle](#data-layer).
+</Callout>
+
+### Linking the temp id to the on-chain id
+
+A TP/SL record may first be written under a `tempQuoteId` (e.g. when you seed at open time) and must become reachable by the on-chain `quoteId` once the quote anchors — with no refetch. The pairing is revealed on the **solver notification stream** (the primary link site): when a frame carries both `tempQuoteId` and `quoteId`, pair the two ids onto one record — e.g. a `link(BigInt(tempId), BigInt(onchainId))` in your own state. The **TP/SL stream** is the secondary link site (fallback when the solver stream is off). For folding a raw notification into your unified quote list, use the pure core helper `applyNotificationToQuotes` (see [`applyNotificationToQuotes`](/core/quotes/apply-notification-to-quotes)). This link/merge logic is detailed in [WebSocket-authoritative flows](#appendix-b--websocket-authoritative-flows).
+
+### Invalidation: none
+
+<Callout type="warning">
+  **`setQuoteTpSl` and `deleteQuoteTpSl` invalidate no query keys — on purpose.** The TP/SL WebSocket is authoritative;
+  adding `invalidateQueries` in the success path fights the stream and causes flicker. The only success-path work is the
+  write-time optimistic seed — set the leg to `"confirming"` from the price you sent. This is the one row in the
+  [invalidation matrix](#appendix-a--invalidation-matrix) that is intentionally empty.
+</Callout>
+
+Cross-references: [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl), [`deleteQuoteTpSl`](/core/tpsl/delete-quote-tpsl), [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications), [`TpSlInfoState`](/core/tpsl/tpsl-info-state), [`parseTpSlFrame`](/core/tpsl/parse-tpsl-frame), and [`applyNotificationToQuotes`](/core/quotes/apply-notification-to-quotes).
+
+## Appendix A — Invalidation matrix
+
+In the React layer every mutation's `onSuccess` invalidates a fixed set of core query-key factories through one primitive: `predicateMatch(factory, partial)`. A core-only DEX must reimplement that primitive and wire the exact same targets. This appendix is the authoritative list — copy it row-for-row.
+
+### The `predicateMatch` rule
+
+`predicateMatch(getXQueryKey, partial)` turns a core key factory plus a field-subset object into an `invalidateQueries` predicate. The match logic is:
+
+```ts
+// key = getXQueryKey(config, params)  →  [factoryTag, { ...fields }]
+function matches(key: readonly unknown[], factoryTag: string, partial: Record<string, unknown>) {
+  if (key[0] !== factoryTag) return false;
+  const fields = key[1] as Record<string, unknown>;
+  // every defined field in the partial must equal the key's field
+  // (bigints are already stringified by the factory, so compare as-is)
+  return Object.entries(partial).every(([k, v]) => v === undefined || fields[k] === v);
+}
+```
+
+This expresses queries that plain TanStack prefix matching cannot — e.g. "invalidate every subaccount query for this `user` across every chain and every pagination window." You need a subset-match predicate; a prefix walk will not do.
+
+<Callout type="info">
+  Bigints are pre-stringified inside every query-key factory, so your partial should carry the same stringified form the
+  factory emits. Build the partial by reading `getXQueryKey(config, params)[1]` rather than hand-serializing bigints.
+</Callout>
+
+### The matrix
+
+`partial` shapes: `{ owner }` = user wallet, `{ user }` = user wallet, `{ account }` = subaccount/VA address, `{ configKey }` = chain scope (`config.getChainConfigKey(chainId)`).
+
+| Mutation                                                                          | Core query-key factories invalidated on success                                                                                  | Match partial                                                                      |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `approveCollateral`                                                               | `getCollateralAllowanceQueryKey`                                                                                                 | `{ owner }`                                                                        |
+| `depositForAccount`                                                               | `getCollateralAllowanceQueryKey`, `getCollateralBalanceQueryKey`, `getAccountBalanceInfoQueryKey`, `getAccountBalanceOfQueryKey` | `{ owner }` for collateral keys; `{ account: variables.account }` for balance keys |
+| `createSubAccounts`                                                               | `getUserSubAccountsQueryKey`, `getUserSubAccountsAddressesQueryKey`, `getSubAccountsCountOfUserQueryKey`                         | `{ user }`                                                                         |
+| `deleteSubAccount`                                                                | `getUserSubAccountsQueryKey`, `getUserSubAccountsAddressesQueryKey`, `getSubAccountsCountOfUserQueryKey`                         | `{ user }`                                                                         |
+| `editAccountName`                                                                 | `getUserSubAccountsQueryKey`                                                                                                     | `{ user }`                                                                         |
+| `grantDelegation`                                                                 | `getDelegationExpiryQueryKey`, `getIsDelegationActiveQueryKey`                                                                   | `{ account: account.addr, delegate: delegatedSigner }`                             |
+| `instantOpen` / `instantOpenAuto`                                                 | `getInstantOpensQueryKey`                                                                                                        | `{ configKey }`                                                                    |
+| `instantClose` / `instantCloseAuto` / `instantCloseBulk` / `instantCloseBulkAuto` | `getInstantClosesQueryKey`                                                                                                       | `{ configKey }`                                                                    |
+| `setQuoteTpSl`                                                                    | **nothing** — WS-authoritative; only the write-time `"confirming"` seed                                                          | n/a                                                                                |
+| `deleteQuoteTpSl`                                                                 | **nothing** — WS-authoritative; only the write-time `"confirming"` seed                                                          | n/a                                                                                |
+| `initiateWithdraw`                                                                | `getPendingWithdrawRequestsQueryKey`, `getLastWithdrawRequestIdQueryKey`, `getWithdrawableTimeQueryKey`                          | `{ user: account }`                                                                |
+| `requestCancelWithdraw`                                                           | `getPendingWithdrawRequestsQueryKey`, `getWithdrawRequestsQueryKey`                                                              | `{ user: account }`                                                                |
+| `finalizeWithdrawRequest`                                                         | `getPendingWithdrawRequestsQueryKey`, `getWithdrawRequestsQueryKey`, `getWithdrawableTimeQueryKey`                               | `{ user: account }`                                                                |
+
+### Wiring one mutation
+
+Every write ships an `xMutationOptions` factory. Attach the invalidations in your cache layer's `onSuccess` — here `createSubAccounts` (using TanStack Query core for illustration):
+
+```ts
+import {
+  createSubAccountsMutationOptions,
+  getUserSubAccountsQueryKey,
+  getUserSubAccountsAddressesQueryKey,
+  getSubAccountsCountOfUserQueryKey,
+} from "@symmio/trading-core";
+
+const base = createSubAccountsMutationOptions(config);
+
+queryClient
+  .getMutationCache()
+  // ... run base.mutationFn(variables) ...
+  .build(queryClient, {
+    ...base,
+    onSuccess: (data, variables) => {
+      const partial = { user: userAddress }; // {user} subset
+      for (const factory of [
+        getUserSubAccountsQueryKey,
+        getUserSubAccountsAddressesQueryKey,
+        getSubAccountsCountOfUserQueryKey,
+      ]) {
+        queryClient.invalidateQueries({
+          predicate: (q) => matches(q.queryKey, factory(config, partial)[0] as string, partial),
+        });
+      }
+    },
+  });
+```
+
+The shape is identical for every row above: read the factory tag from `factory(config, partial)[0]`, then subset-match `key[1]`.
+
+<Callout type="warning">
+  **`setQuoteTpSl` and `deleteQuoteTpSl` invalidate nothing on purpose.** Adding `invalidateQueries` to either fights
+  the TP/SL WebSocket stream, which is the sole authority for the wire state. The POST only flips your record to
+  `"confirming"`; the `report` frame from [watchTpSlNotifications](/core/tpsl/watch-tpsl-notifications) supplies the
+  real state. See [Section 8 — TP/SL](#8-tpsl) and [Appendix B](#appendix-b--websocket-authoritative-flows).
+</Callout>
+
+See [Query keys](/core/concepts/query-keys) for the factory contract and [Query options](/core/concepts/query-options) for how reads and writes share configuration.
+
+## Appendix B — WebSocket-authoritative flows
+
+The React layer's `useManagedQuotes` and `useQuoteTpSl` hide two live sockets and all the wiring around them. A core-only consumer subscribes to the same two streams directly and rebuilds that orchestration by hand. This appendix is the complete replication spec.
+
+Core gives you exactly two subscriptions plus the pure helpers that fold their frames:
+
+- [`watchNotifications`](/core/notifications/watch-notifications) — the quote/position stream.
+- [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) — the TP/SL conditional-order stream.
+- `SocketStatus` for connection state; both wrap a reconnecting-socket primitive internally.
+
+```ts
+import {
+  watchNotifications,
+  watchTpSlNotifications,
+  classifyQuoteNotificationAction,
+  reconcileQuotes,
+  applyNotificationToQuotes,
+  parseNotificationFrame,
+  parseTpSlFrame,
+  searchNotifications,
+  resolveQuoteAccounts,
+  getPredictedNextVirtualAccount,
+  getInstantOpenQuoteId,
+  shouldAccelerateOnchainReads,
+  getPartyAOpenPositionsQueryKey,
+  getPartyAPendingQuotesQueryKey,
+  getQuoteQueryKey,
+  getInstantOpensQueryKey,
+  getInstantClosesQueryKey,
+} from "@symmio/trading-core";
+```
+
+<Callout type="warning">
+  **The stream is authoritative; it does not replay.** Every state transition (open accepted, anchored on-chain,
+  closing, settled, TP/SL new/triggered/canceled) arrives as a frame. You update from the frame — you do **not**
+  invalidate a REST query in a mutation's `onSuccess` for anything the socket reports. And because the socket never
+  re-sends frames you missed while disconnected, a dropped connection leaves rows permanently stale unless you run the
+  one-shot reconnect re-sync below.
+</Callout>
+
+<Callout type="warning">
+  **Non-browser hosts must supply a `webSocketConstructor`.** In Node or SSR there is no `globalThis.WebSocket`; pass
+  one to `createConfig`, or the first subscribe throws `NO_WEBSOCKET` (`config.getWebSocketConstructor()`).
+</Callout>
+
+### The quote stream — replicating the `useManagedQuotes` nucleus
+
+All position state flows through the pure, idempotent [`reconcileQuotes`](/core/quotes/reconcile-quotes). You call it with every source merged, and re-call it on every change; it is a pure function of its inputs, so re-running it never double-counts:
+
+```ts
+const { quotes, links, pendingAnchors } = reconcileQuotes({
+  partyA,
+  onchainPositions, // getPartyAOpenPositions
+  onchainPendingQuotes, // getPartyAPendingQuotes
+  instantOpens, // getInstantOpens + your optimistic-open seeds
+  instantCloses, // getInstantCloses
+  instantOpenVaByTempId, // from resolveQuoteAccounts
+  notifications, // recent window from the stream (cap ~100 frames)
+  retainedAnchors, // append-only VA retention, scoped to (chainId, partyA)
+});
+```
+
+Feed back only a recent notification window (the React layer caps at 100 frames) — reconciliation is idempotent, so a bounded buffer is enough.
+
+On each `watchNotifications` frame, do three things in order.
+
+**1. tempQuoteId ↔ quoteId link (primary link site).** If the frame carries both a `tempQuoteId` and an on-chain `quoteId`, and they differ, pair them onto one record — a `link(BigInt(tempId), BigInt(onchainId))` in your own state. This is where a TP/SL record written under the negative temp id (right after an instant open) becomes reachable by the positive on-chain id with **no refetch**. This is the primary site; the TP/SL stream (below) is the fallback.
+
+```ts
+watchNotifications(config, {
+  onNotification: (n) => {
+    if (n.tempQuoteId && n.quoteId && n.quoteId !== n.tempQuoteId) {
+      tpSlStore.link(BigInt(n.tempQuoteId), BigInt(n.quoteId));
+    }
+    // …classify + buffer for the debounced invalidation below
+  },
+});
+```
+
+`getInstantOpenQuoteId(config, { tempQuoteId })` reads the anchored on-chain id directly once available — a reconciliation aid when you need the mapping outside the stream.
+
+**2. Debounced burst invalidation (~250ms).** Classify each frame with [`classifyQuoteNotificationAction(action)`](/core/quotes) → `QuoteNotificationActionKind`, and accumulate whether the burst contained open events, close events, or both. On the debounce timer firing, invalidate:
+
+| Always (every burst)             | Only if an **open** event was seen | Only if a **close** event was seen |
+| -------------------------------- | ---------------------------------- | ---------------------------------- |
+| `getPartyAOpenPositionsQueryKey` | `getInstantOpensQueryKey`          | `getInstantClosesQueryKey`         |
+| `getPartyAPendingQuotesQueryKey` |                                    |                                    |
+| `getQuoteQueryKey`               |                                    |                                    |
+
+All scoped to `{ configKey }`. Debouncing collapses a burst of frames (a single open emits several transitions) into one invalidation pass.
+
+**3. VA fan-out + append-only retention.** The account set you read positions across is: the subAccount, plus its virtual accounts, plus the predicted-next VA of each pending open, plus any VA seen on the stream, plus extras. Resolve it with [`resolveQuoteAccounts`](/core/quotes/resolve-quote-accounts) and `getPredictedNextVirtualAccount` per pending open:
+
+```ts
+const { accounts, instantOpenVaByTempId } = await resolveQuoteAccounts(config, {
+  subAccount,
+  instantOpens,
+  includeVirtualAccounts: true,
+  extraAccounts,
+});
+```
+
+Retain every discovered VA **append-only, scoped to `(chainId, partyA)`**, and feed it back as `retainedAnchors` (receiving `pendingAnchors` out of `reconcileQuotes` and re-supplying it). Without retention, a row flickers out during the optimistic → on-chain hand-off: the temp id has settled but the on-chain VA has not yet been polled.
+
+### Reconnect re-sync (one-shot)
+
+On socket re-open — skipping the very first connect — invalidate all five keys once:
+
+```ts
+// on SocketStatus transition back to open (not the initial connect):
+// getPartyAOpenPositionsQueryKey, getPartyAPendingQuotesQueryKey,
+// getQuoteQueryKey, getInstantOpensQueryKey, getInstantClosesQueryKey  ({ configKey })
+```
+
+The stream does not replay frames dropped while you were disconnected; this single burst re-syncs everything the socket could not.
+
+<Callout type="warning">
+  **Skip the first connect.** Re-syncing on the initial open is wasteful and can race your first reads. Track a "has
+  been open once" flag and re-sync only on subsequent re-opens.
+</Callout>
+
+### Events-first polling
+
+Polling is a fallback, not the default:
+
+- **Socket open** → no idle poll. The stream drives everything.
+- **In-flight rows** → accelerate on-chain reads to ~1.5s using [`shouldAccelerateOnchainReads`](/core/quotes/should-accelerate-onchain-reads), which returns `true` only while a row is mid-flight (`WRITE_ONCHAIN` / `WRITE_ONCHAIN_CLOSE` / `CLOSING`). This is the RPC-lag retry, not a general poll.
+- **Socket down** → fall back to a ~5s poll of the on-chain reads.
+- **Hedger feeds** → poll only while a matching open/close intent lifecycle is present **and** the channel is down.
+
+<Callout type="info">
+  `shouldAccelerateOnchainReads` is the only export in this area you should name for polling cadence. Do not reference
+  `shouldAccelerateQuotePolling` — it is not part of the core export surface.
+</Callout>
+
+### The TP/SL stream — secondary link site
+
+[`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) carries conditional-order state. Two responsibilities per frame:
+
+1. **Fallback pairing.** If the frame has both a primary and a secondary identifier (both non-zero), pair them onto one record — `link(primary, secondary)` in your own state. This backs up the primary link site (the solver stream) when that channel is off.
+2. **Fold into the matching record.** If the frame matches a tracked quote (look the id up in your records, with a raw-id fallback for the first seed frame), map its wire state onto your leg state. Parse frames with `parseTpSlFrame`.
+
+That state fold is **your** code — core does not ship it. It maps `RawTpSlNotificationState → TpSlInfoState` (see [Section 8](#8-tpsl)): `new`/`edit` → `new`, `pending` → `pending`, `triggered`/`trigger` → `triggered`, `cancel`/`canceled`/`cancelled`/`close` → `canceled`. Ignore frames with `successful: false`. On `canceled`, clear price + open price + `cohQuoteId`; otherwise stamp the leg from `details.trigger_price` + `cohQuoteId`.
+
+<Callout type="warning">
+  **TP/SL confirmation is WS-driven, not POST-driven.** `setQuoteTpSl` / `deleteQuoteTpSl` only flip your record to
+  `"confirming"` (seeded from the request you sent). The wire state arrives on the `report` frame (`state:"new"`). These
+  two writes invalidate **nothing** — adding an invalidation there fights the stream. Keep the REST TP/SL query ungated
+  (no `enabled: !record`) so ordinary mutation invalidations still refetch.
+</Callout>
+
+### Keep balance fresh after a settle
+
+A settlement notification changes on-chain balance, but the balance reads are not part of the quote-key invalidation set above. After a settle frame, re-read `getAccountBalanceOf` / `getAccountBalanceInfo` for the affected account so the header does not show a stale figure.
+
+### Pure helpers to lean on
+
+Everything the streams need to fold state is a pure core function — no framework, no side effects:
+
+| Helper                                                                   | Role                                                                         |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| [`reconcileQuotes`](/core/quotes/reconcile-quotes)                       | Idempotent merge of all quote sources → `{ quotes, links, pendingAnchors }`. |
+| [`applyNotificationToQuotes`](/core/quotes/apply-notification-to-quotes) | Fold one `Notification` into a `UnifiedQuote[]` slice.                       |
+| `classifyQuoteNotificationAction`                                        | Frame `action` → `QuoteNotificationActionKind` (open/close scoping).         |
+| `parseNotificationFrame` / `searchNotifications`                         | Parse a raw quote frame; query the notification service's search endpoint.   |
+| `parseTpSlFrame`                                                         | Parse a raw TP/SL frame before folding it into your record.                  |
+| `resolveQuoteAccounts` / `getPredictedNextVirtualAccount`                | VA account-set resolution for fan-out.                                       |
+| `getInstantOpenQuoteId`                                                  | Read the anchored on-chain id for a temp quote id.                           |
+
+<Callout type="info">
+  For the connection model and reconnection semantics behind both sockets, see
+  [/core/concepts/websocket](/core/concepts/websocket). The debounced-invalidation key factories are the same ones
+  enumerated in [Appendix A](#appendix-a--invalidation-matrix).
+</Callout>
+
+**Cross-links:** [/core/concepts/websocket](/core/concepts/websocket) · [/core/notifications/watch-notifications](/core/notifications/watch-notifications) · [/core/tpsl/watch-tpsl-notifications](/core/tpsl/watch-tpsl-notifications) · [/core/quotes/reconcile-quotes](/core/quotes/reconcile-quotes)
+
+## Checklist
+
+Everything below is a hand-built equivalent of machinery `@symmio/trading-react` supplies for free. Core gives you `createConfig`, the query-key factories, `getXQueryOptions` / `xMutationOptions`, `reconcileQuotes`, `watchNotifications` / `watchTpSlNotifications`, `classifyQuoteNotificationAction`, and `shouldAccelerateOnchainReads` — you wire them together.
+
+### Setup & config
+
+- [ ] Every runtime symbol imported from the single `@symmio/trading-core` entry (no named subpaths). `SymmioSupportedChainId`, `PositionType`, `UnifiedQuote`, `Quote`, `SymmError` are core-only — nothing comes from `@symmio/trading-react`.
+- [ ] `affiliatesAddress` set to a non-zero address per chain in `symmioConfig` (else `createConfig` throws `SymmError("config","AFFILIATE_ADDRESS_REQUIRED")`).
+- [ ] `getWalletClient` resolver supplied on `config` before any write or sign flow (else writes throw `NO_WALLET_CLIENT`).
+- [ ] `webSocketConstructor` supplied if you run outside a browser (Node/SSR) — otherwise `getWebSocketConstructor` throws `NO_WEBSOCKET` the moment a socket is needed.
+- [ ] `simulateBeforeWrite` understood: default `true` dry-runs every contract write through its `simulate*` sibling; disable per write only when you have a reason.
+- [ ] Every read and write called as `(config, params)` — even chainId-only reads (`getMarkets(config, {})`, `getMarketInfo`, `getNotionalCapAll`, `getSolverErrorCodes`, `getEnigmaPriceServiceSymbolsInfo`, `getEnigmaPriceServiceHealth`).
+
+### Data layer
+
+- [ ] A query/cache layer (TanStack Query core or your own) driven by `getXQueryOptions` for reads and `xMutationOptions` for writes.
+- [ ] A **subset-match invalidation predicate** built (the `predicateMatch` equivalent): `key[0] === factoryTag` **and** every defined field of the partial equals `key[1][field]` (bigints already stringified by the factory). Plain prefix matching cannot express "invalidate every subaccount query for this user across chains and pagination."
+- [ ] **Per-position state carried through each lifecycle** (plain records, not framework stores):
+  - Open — a record keyed by `tempQuoteId`, gaining `quoteId` at anchor; cleared only when the reconciled row shows `raw.onchain !== undefined`.
+  - Close — the on-chain `quoteId` + close price/quantity; settlement is stream + on-chain-poll driven, nothing optimistic to reconcile.
+  - TP/SL — per leg: trigger price + price type, `cohQuoteId`, and leg state (`confirming → new → triggered / canceled`), keyed by `tempQuoteId` or `quoteId` so one record survives the anchor.
+- [ ] Error normalization: wrap every `queryFn` / `mutationFn` failure into a discriminated `SymmError` / `SymmApiError`.
+
+### Quote orchestration
+
+- [ ] `reconcileQuotes` invoked with optimistic seeds (`Object.values(entries)`) plus `retainedAnchors`; feed back only a recent notification window.
+- [ ] VA fan-out via `resolveQuoteAccounts` + `getPredictedNextVirtualAccount` per pending open.
+- [ ] Discovered VAs retained append-only, scoped to `(chainId, partyA)`, and fed back through `retainedAnchors` → `pendingAnchors` so a row does not flicker out during the optimistic → on-chain hand-off.
+- [ ] Optimistic-open entry cleared only when its reconciled row carries `raw.onchain`, not on `link`.
+
+### WebSocket
+
+- [ ] Two subscriptions live: `watchNotifications` (quote/position) and `watchTpSlNotifications` (TP/SL).
+- [ ] tempQuoteId ↔ quoteId `link` performed at the solver stream (primary) and the TP/SL stream (secondary).
+- [ ] 250ms debounced burst invalidation, classifying each frame with `classifyQuoteNotificationAction`; always invalidate `getPartyAOpenPositionsQueryKey` + `getPartyAPendingQuotesQueryKey` + `getQuoteQueryKey`; `getInstantOpensQueryKey` only on open events, `getInstantClosesQueryKey` only on close events.
+- [ ] One-shot reconnect re-sync: on socket re-open (skipping the first connect) invalidate all five keys once — the stream does not replay missed frames.
+- [ ] Events-first polling: no idle poll while the socket is open; `shouldAccelerateOnchainReads` (~1.5s) only for in-flight `WRITE_ONCHAIN*` / `CLOSING` rows; ~5s fallback when the socket is down.
+
+### Trade correctness
+
+- [ ] Trade form gated on delegation for **every** required selector via `getIsDelegationActive(config, { account, delegate, selector })` (not `isDelegationActive` — there is no such export).
+- [ ] `approveCollateral` spender is the SYMMIO core (`symmioAddress`), not the account layer.
+- [ ] `depositForAccount` credits a directly-tradeable balance — there is no `allocate` step in this version.
+- [ ] Open treated as returning a **temporary negative** `tempQuoteId` that links to the on-chain `quoteId` at anchor (via the anchor notification or `getInstantOpenQuoteId`). TP/SL can be attached immediately against the `tempQuoteId`; per-position on-chain reads wait for the anchor.
+- [ ] Close is WS-authoritative — no optimistic close seed.
+- [ ] TP/SL confirmed on the WS `report` frame (`state:"new"`), not on the POST 200.
+
+<Callout type="warning">
+  **Missing delegation is the #1 silent-open-failure.** The hedger accepts the session-key payload and your spinner
+  completes, but the on-chain anchor reverts afterward if the selector was never delegated. Gate the trade form on
+  `getIsDelegationActive` returning `true` for every selector in `INSTANT_TRADE_REQUIRED_SELECTORS`.
+</Callout>
+
+## Pitfalls
+
+| Symptom                                                                                              | Cause                                                         | Fix                                                                                                                                                                                  |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Open silently reverts after the spinner ends                                                         | Missing on-chain delegation for a required selector           | Gate on `getIsDelegationActive(config, { account, delegate, selector })` for every selector before enabling the open                                                                 |
+| Approve succeeds but deposit reverts                                                                 | Approved the wrong spender                                    | `approveCollateral` must approve `symmioAddress` (the SYMMIO core), not the account layer                                                                                            |
+| TP/SL box empty after a successful POST                                                              | Flow resolved on the POST 200                                 | Wait for the `watchTpSlNotifications` `report` frame (`state:"new"`); the POST only flips the record to `"confirming"`                                                               |
+| Row flickers out then reappears mid-open                                                             | Optimistic-open cleared on `link` instead of on-chain arrival | Settle the optimistic entry only when the reconciled row carries `raw.onchain`                                                                                                       |
+| Failed order shows a phantom position stuck "anchoring on-chain…"                                    | Optimistic open not dropped on a `FAILED` notification        | On a `NotificationType.FAILED` frame, `removeOptimisticOpen(notification.tempQuoteId)` and surface the failure; also filter `QuoteLifecycle.FAILED` rows out of the rendered list    |
+| Rows go stale after a wifi drop                                                                      | No reconnect re-sync; the stream never replays missed frames  | On socket re-open, invalidate `getPartyAOpenPositionsQueryKey`, `getPartyAPendingQuotesQueryKey`, `getQuoteQueryKey`, `getInstantOpensQueryKey`, and `getInstantClosesQueryKey` once |
+| Balance stale right after a settle                                                                   | Did not re-read on the settlement notification                | Re-read `getAccountBalanceOf` / `getAccountBalanceInfo` after a settle frame                                                                                                         |
+| A just-opened position offers a Close button that fails                                              | Row is still opening                                          | Gate close on `lifecycleFromQuoteStatus(status)` / `QuoteLifecycle`; do not offer close while the row is opening                                                                     |
+| `SymmioSupportedChainId` / `PositionType` / `UnifiedQuote` won't import from `@symmio/trading-react` | Wrong package — these are core-only                           | Import them from `@symmio/trading-core`                                                                                                                                              |
+
+<Callout type="warning">
+  **Closing is WebSocket-authoritative — never fake it.** There is no optimistic close seed. Do not synthesize a closed
+  state on the POST; wait for the settlement notification, then re-read `getAccountBalanceOf` / `getAccountBalanceInfo`.
+  The stream is the source of truth.
+</Callout>
+
+<Callout type="info">
+  **`setQuoteTpSl` / `deleteQuoteTpSl` invalidate nothing on purpose.** They only drive the record into `"confirming"`
+  (seeded from the mutation `variables`); the wire state arrives on the TP/SL `report` frame. Adding invalidations here
+  fights the WS stream. See [Appendix A](#appendix-a--invalidation-matrix).
+</Callout>
+
+## Next steps
+
+- [/core/concepts/config](/core/concepts/config) — the immutable `config` object, `getClient` / `getWalletClient` resolvers, and per-chain `symmioConfig`.
+- [/core/concepts/websocket](/core/concepts/websocket) — `watchNotifications` / `watchTpSlNotifications`, `SocketStatus`, and supplying a `webSocketConstructor` outside the browser.
+- [/core/concepts/query-keys](/core/concepts/query-keys) — the query-key factories the subset-match invalidation predicate keys off of.
+- [Build a Perps DEX (React)](/guides/build-a-dex/react) — the React version of this guide, where `@symmio/trading-react` provides the stores, invalidation matrix, and WS wiring for you.

@@ -34,7 +34,7 @@ const symmioConfig = {
 
 Per-chain SYMMIO configuration, keyed by chain id, deep-merged onto the SDK's built-in defaults (addresses, subgraphs, solver, …).
 
-Its one mandatory field is **`addresses.affiliatesAddress`** for every supported chain — your frontend's on-chain affiliate (your identity in SYMMIO on that chain), attached to every quote so the protocol knows who sourced the trade and routes your share of the trading fee to you. Affiliate addresses are **per chain** (a registration on one chain is not valid on another). Mandatory by design: without it, trades would silently fall back to the built-in default affiliate and you would lose fee attribution. See the [Providers section of the DEX guide](../../guides/build-a-dex#providers) for the full explanation.
+Its one mandatory field is **`addresses.affiliatesAddress`** for every supported chain — your frontend's on-chain affiliate (your identity in SYMMIO on that chain), attached to every quote so the protocol knows who sourced the trade and routes your share of the trading fee to you. Affiliate addresses are **per chain** (a registration on one chain is not valid on another). Mandatory by design: without it, trades would silently fall back to the built-in default affiliate and you would lose fee attribution. See the [Providers section of the DEX guide](/guides/build-a-dex/react#providers) for the full explanation.
 
 ```tsx
 <SymmioProvider
