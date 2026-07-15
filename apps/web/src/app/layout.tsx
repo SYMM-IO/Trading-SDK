@@ -28,8 +28,8 @@ const mono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Symmio Frontier",
-    template: "%s · Symmio Frontier",
+    default: "Symmio Trading-SDK",
+    template: "%s · Symmio Trading-SDK",
   },
   description: "The SYMMIO SDK surface for builders — connect, inspect, and trade on HyperEVM.",
 };

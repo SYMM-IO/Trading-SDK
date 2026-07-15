@@ -4,7 +4,7 @@
 
 Shared internal tooling for the SYMMIO SDK monorepo, published for reference.
 
-**[Documentation](https://symmio-frontier.vercel.app/)**
+**[Documentation](https://doc.trading-sdk.symm.io/)**
 
 ## Installation
 

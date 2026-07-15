@@ -47,7 +47,7 @@ export function SiteFooter() {
             <a href="#top" className="flex items-center gap-2.5">
               <LogoMark className="h-7 w-auto" />
               <span className="font-display text-foreground text-base font-semibold tracking-tight">
-                Symmio Frontier
+                Symmio Trading-SDK
               </span>
             </a>
             <p className="text-muted-foreground text-sm leading-6">
@@ -84,7 +84,7 @@ export function SiteFooter() {
         </div>
 
         <div className="border-border/60 text-muted-foreground mt-12 flex flex-col gap-2 border-t pt-6 text-xs sm:flex-row sm:items-center sm:justify-between">
-          <span>© {year} Symmio Frontier</span>
+          <span>© {year} Symmio Trading-SDK</span>
           <span className="font-mono">
             built with <span className="text-foreground">@symmio</span>
           </span>

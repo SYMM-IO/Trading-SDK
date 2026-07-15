@@ -3,13 +3,13 @@
   "version": "0.1.1",
   "description": "Shared TypeScript configurations for the SYMMIO SDK monorepo.",
   "license": "MIT",
-  "homepage": "https://github.com/SYMM-IO/SYMM-Frontier/tree/main/packages/typescript-config#readme",
+  "homepage": "https://github.com/SYMM-IO/Trading-SDK/tree/main/packages/typescript-config#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SYMM-IO/SYMM-Frontier.git",
+    "url": "git+https://github.com/SYMM-IO/Trading-SDK.git",
     "directory": "packages/typescript-config"
   },
-  "bugs": "https://github.com/SYMM-IO/SYMM-Frontier/issues",
+  "bugs": "https://github.com/SYMM-IO/Trading-SDK/issues",
   "publishConfig": {
     "access": "public"
   },

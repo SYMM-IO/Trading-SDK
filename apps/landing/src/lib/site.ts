@@ -1,17 +1,17 @@
 /**
  * Central place for the outbound destinations the landing page links to — the
- * deployed surfaces of the SYMM Frontier workspace. Update these if the hosts
+ * deployed surfaces of the SYMM Trading-SDK workspace. Update these if the hosts
  * change.
  */
 export const siteLinks = {
   /** The production web console — `apps/web`. */
-  console: "https://symm-frontier-web.vercel.app",
+  console: "https://console.trading-sdk.symm.io",
   /** The Nextra documentation site — `apps/docs`. */
-  docs: "https://symmio-frontier.vercel.app",
+  docs: "https://doc.trading-sdk.symm.io",
   /** The component explorer — `apps/storybook`. TODO: confirm deployed host. */
   storybook: "https://symmio-frontier-storybook.vercel.app",
   /** Source repository. */
-  github: "https://github.com/SYMM-IO",
+  github: "https://github.com/SYMM-IO/Trading-SDK",
   /** Protocol docs for high-level concepts. */
   protocol: "https://docs.symm.io",
 } as const;

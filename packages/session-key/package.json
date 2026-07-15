@@ -3,13 +3,13 @@
   "version": "0.1.2",
   "description": "Framework-agnostic local EVM session-key helpers for SYMMIO SDK consumers.",
   "license": "MIT",
-  "homepage": "https://github.com/SYMM-IO/SYMM-Frontier/tree/main/packages/session-key#readme",
+  "homepage": "https://github.com/SYMM-IO/Trading-SDK/tree/main/packages/session-key#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SYMM-IO/SYMM-Frontier.git",
+    "url": "git+https://github.com/SYMM-IO/Trading-SDK.git",
     "directory": "packages/session-key"
   },
-  "bugs": "https://github.com/SYMM-IO/SYMM-Frontier/issues",
+  "bugs": "https://github.com/SYMM-IO/Trading-SDK/issues",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",

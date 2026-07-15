@@ -35,14 +35,14 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 @min-[1090px]/header:px-8 @xl/header:gap-6 @xl/header:px-6">
-        <Link href="/" className="group flex items-center gap-2.5" aria-label="Symmio Frontier — home">
+        <Link href="/" className="group flex items-center gap-2.5" aria-label="Symmio Trading-SDK — home">
           <LogoMark className="transition-transform duration-300 group-hover:-translate-y-0.5" />
           <span className="flex items-baseline gap-1.5">
             <span className="font-display text-foreground hidden text-base font-semibold tracking-tight @sm/header:inline">
               Symmio
             </span>
             <span className="text-muted-foreground hidden text-[10px] font-medium tracking-[0.22em] uppercase @xl/header:inline">
-              Frontier
+              Trading-SDK
             </span>
           </span>
         </Link>

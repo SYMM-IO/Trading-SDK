@@ -32,8 +32,8 @@ const mono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Symmio Frontier — SDK reference",
-    template: "%s · Symmio Frontier",
+    default: "Symmio Trading-SDK — SDK reference",
+    template: "%s · Symmio Trading-SDK",
   },
   description:
     "The SYMMIO SDK surface for builders — connect a wallet, inspect contract state, and trade on HyperEVM without re-implementing the plumbing.",
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
 const banner = (
   <Banner storageKey="symmio-banner">
     <span className="symm-banner-dot" aria-hidden />
-    Symmio Frontier — the SDK surface for builders on HyperEVM
+    Symmio Trading-SDK — the SDK surface for builders on HyperEVM
   </Banner>
 );
 
@@ -84,7 +84,7 @@ const footer = (
         The SYMMIO SDK surface for builders — connect a wallet, inspect contract state, and trade on HyperEVM.
       </span>
       <span className="symm-footer__meta">
-        © {new Date().getFullYear()} Symmio Frontier · built with <strong>@symmio</strong>
+        © {new Date().getFullYear()} Symmio Trading-SDK · built with <strong>@symmio</strong>
       </span>
     </div>
   </Footer>
@@ -117,7 +117,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           search={search}
           footer={footer}
           pageMap={await getPageMap()}
-          docsRepositoryBase="https://github.com/SYMM-IO/SYMM-Frontier/tree/main/apps/docs"
+          docsRepositoryBase="https://github.com/SYMM-IO/Trading-SDK/tree/main/apps/docs"
           nextThemes={{ attribute: "class", defaultTheme: "dark" }}
           sidebar={{ defaultMenuCollapseLevel: 1, autoCollapse: true }}
         >

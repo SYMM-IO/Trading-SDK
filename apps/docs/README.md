@@ -1,4 +1,4 @@
-# SYMM Frontier Documentation
+# SYMM Trading-SDK Documentation
 
 Documentation site built with [Nextra](https://nextra.site/) 4.x.
 

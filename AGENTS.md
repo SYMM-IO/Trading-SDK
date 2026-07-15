@@ -1,4 +1,4 @@
-# SYMM Frontier — Monorepo Agent Guide
+# SYMM Trading-SDK — Monorepo Agent Guide
 
 Rules for AI coding agents (Claude Code, Cursor, Codex, etc.) working anywhere in this repository.
 
@@ -8,7 +8,7 @@ Subprojects under `apps/*` and `packages/*` may add their own `AGENTS.md`. Those
 
 ## Mission
 
-SYMM Frontier is an **SDK-first** workspace for SYMMIO. The underlying product is built by many vendors with different architectures and tools. Building UIs against that raw surface is complex, so we ship an SDK that hides the complexity behind a **simple, correct, reliable** API.
+SYMM Trading-SDK is an **SDK-first** workspace for SYMMIO. The underlying product is built by many vendors with different architectures and tools. Building UIs against that raw surface is complex, so we ship an SDK that hides the complexity behind a **simple, correct, reliable** API.
 
 The SDK has two layers:
 
@@ -34,7 +34,7 @@ Non-negotiable. Violating any of them is a defect.
 ## Project Vocabulary
 
 - **SYMM / SYMMIO** — the underlying trading protocol and product surface.
-- **SYMM Frontier** — this monorepo. The SDK and its consumers live here.
+- **SYMM Trading-SDK** — this monorepo. The SDK and its consumers live here.
 - **SDK** — `@symmio/trading-core` together with `@symmio/trading-react` (and future framework layers).
 - **core** — `packages/trading-core`. Framework-agnostic SDK. Does not exist on disk yet; see [Current Package State](#current-package-state).
 - **react** — `packages/trading-react`. React layer on top of `core`.
@@ -43,7 +43,7 @@ Non-negotiable. Violating any of them is a defect.
 - **Explorer** — separate reference repo: lower-level data display UI. Contains an **Inspector** section that is the closest existing analogue to the SDK boundary.
 - **vendors** — the multiple teams that produce and manage the product data the SDK wraps. Specifics are not yet documented here; see [Vendors & Data Sources](#vendors--data-sources).
 
-When a task says "this repo" it means SYMM Frontier unless the user explicitly names another repo.
+When a task says "this repo" it means SYMM Trading-SDK unless the user explicitly names another repo.
 
 ## Repository Layout
 
@@ -70,7 +70,7 @@ When a task says "this repo" it means SYMM Frontier unless the user explicitly n
 
 ## Reference Repos
 
-Both reference repos live outside this monorepo. Treat them as **read-only**. Never edit, create, or delete files in them while doing SYMM Frontier work.
+Both reference repos live outside this monorepo. Treat them as **read-only**. Never edit, create, or delete files in them while doing SYMM Trading-SDK work.
 
 - **Vibe-ui** — primary source of truth for **end-to-end user flows** (quote → trade → confirm, account management, withdraw, etc.). Consult it to understand _what the user experience looks like_ and _which behaviors the SDK must enable_.
 - **Explorer (with the Inspector section)** — primary source of truth for **raw data shapes, contract reads, and inspection patterns**. The Inspector section sits closer to the SDK boundary than the rest of Vibe-ui, so it is often the cleanest reference for what `core` should expose.
