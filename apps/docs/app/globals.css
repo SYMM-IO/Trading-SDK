@@ -1108,3 +1108,97 @@ article a.symm-index__card:hover .symm-index__arrow {
     transform: none;
   }
 }
+
+/* =========================================================================
+   Callouts — Ember "borderless warm-tint" treatment
+   Nextra ships callouts with hardcoded Tailwind hues (blue info, yellow
+   warning, green tip, …) and a 1px box border, none of which belong to the
+   warm coral / near-black palette. We drop the border entirely and repaint
+   each type with a soft, low-contrast fill. The type hue is carried only by
+   the icon, the bold lead, and links — body copy stays neutral (--foreground)
+   so it reads cleanly and stacked callouts never become a wall of color.
+
+   The component exposes no `data-type`, so we hook the stable per-type Tailwind
+   background class it emits (e.g. `x:bg-blue-100`) to tell the types apart.
+   Fills and the info/important accents flip by theme through the tokens below;
+   tip / warning / error reuse the base --positive / --warning / --primary
+   tokens, which already flip. These rules are un-layered, so they win over
+   Nextra's layered utilities.
+   ========================================================================= */
+:root {
+  --callout-info-fill: hsl(205 70% 96%);
+  --callout-info-accent: hsl(208 72% 40%);
+  --callout-tip-fill: hsl(150 52% 95%);
+  --callout-warning-fill: hsl(42 92% 93%);
+  --callout-error-fill: hsl(6 82% 96%);
+  --callout-important-fill: hsl(280 58% 96%);
+  --callout-important-accent: hsl(280 52% 46%);
+}
+
+.dark {
+  --callout-info-fill: hsl(210 30% 10% / 0.55);
+  --callout-info-accent: hsl(205 60% 70%);
+  --callout-tip-fill: hsl(152 30% 10% / 0.5);
+  --callout-warning-fill: hsl(40 40% 9% / 0.7);
+  --callout-error-fill: hsl(5 40% 12% / 0.6);
+  --callout-important-fill: hsl(280 28% 12% / 0.5);
+  --callout-important-accent: hsl(280 62% 78%);
+}
+
+/* Base: no border, neutral body copy. */
+.nextra-callout {
+  border: none;
+  color: var(--foreground);
+}
+
+/* Links keep an underline so the accent hue isn't the only affordance. */
+.nextra-callout a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Per type: soft fill + accent on the icon (first child), bold lead, and links. */
+.nextra-callout.x\:bg-blue-100 {
+  background: var(--callout-info-fill);
+}
+.nextra-callout.x\:bg-blue-100 > div:first-child,
+.nextra-callout.x\:bg-blue-100 strong,
+.nextra-callout.x\:bg-blue-100 a {
+  color: var(--callout-info-accent);
+}
+
+.nextra-callout.x\:bg-green-100 {
+  background: var(--callout-tip-fill);
+}
+.nextra-callout.x\:bg-green-100 > div:first-child,
+.nextra-callout.x\:bg-green-100 strong,
+.nextra-callout.x\:bg-green-100 a {
+  color: var(--positive);
+}
+
+.nextra-callout.x\:bg-yellow-50 {
+  background: var(--callout-warning-fill);
+}
+.nextra-callout.x\:bg-yellow-50 > div:first-child,
+.nextra-callout.x\:bg-yellow-50 strong,
+.nextra-callout.x\:bg-yellow-50 a {
+  color: var(--warning);
+}
+
+.nextra-callout.x\:bg-red-100 {
+  background: var(--callout-error-fill);
+}
+.nextra-callout.x\:bg-red-100 > div:first-child,
+.nextra-callout.x\:bg-red-100 strong,
+.nextra-callout.x\:bg-red-100 a {
+  color: var(--primary);
+}
+
+.nextra-callout.x\:bg-purple-100 {
+  background: var(--callout-important-fill);
+}
+.nextra-callout.x\:bg-purple-100 > div:first-child,
+.nextra-callout.x\:bg-purple-100 strong,
+.nextra-callout.x\:bg-purple-100 a {
+  color: var(--callout-important-accent);
+}

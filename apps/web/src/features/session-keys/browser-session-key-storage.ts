@@ -4,7 +4,7 @@ import type { SessionKeyMetadata, SessionKeyStorage } from "@symmio/session-key"
 import { getAddress, type Address } from "viem";
 import { decryptSessionPrivateKey, encryptSessionPrivateKey } from "./session-key-crypto";
 
-const SESSION_KEY_STORAGE_PREFIX = "symm-frontier-session-key";
+const SESSION_KEY_STORAGE_PREFIX = "session-key";
 
 interface SessionKeyStringStorage {
   getItem(key: string): string | null | Promise<string | null>;

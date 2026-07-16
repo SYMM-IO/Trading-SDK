@@ -1,4 +1,4 @@
-# SYMM Trading-SDK Agent Guide
+# SYMMIO Trading-SDK Agent Guide
 
 This file is the working agreement for AI coding agents (Claude, Codex) contributing to this repository. Read it fully before taking any action.
 
