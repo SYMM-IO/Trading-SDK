@@ -35,6 +35,7 @@ export const SOLVER_METHODS: readonly SolverMethodMeta[] = [
     kind: "read",
   },
   { id: "method-getFundingInfo", method: "getFundingInfo", action: "useFundingInfo", kind: "read" },
+  { id: "method-getEstimatedPrice", method: "getEstimatedPrice", action: "useEstimatedPrice", kind: "read" },
   { id: "method-getMarketInfo", method: "getMarketInfo", action: "useMarketInfo", kind: "read" },
   { id: "method-getMarkets", method: "getMarkets", action: "useMarkets", kind: "read" },
   { id: "method-getInstantOpens", method: "getInstantOpens", action: "useInstantOpens", kind: "read" },

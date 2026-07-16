@@ -3,7 +3,7 @@
 import { createSessionKeyManager, type SessionKeyManager } from "@symmio/session-key";
 import { createBrowserSessionKeyStorage } from "./browser-session-key-storage";
 
-const STORAGE_PREFIX = "symm-frontier-session-key";
+const STORAGE_PREFIX = "session-key";
 let manager: SessionKeyManager | null = null;
 
 export function getAppSessionKeyManager(): SessionKeyManager {

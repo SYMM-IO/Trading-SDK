@@ -3,7 +3,7 @@
 import type { Address, Hex } from "viem";
 import { base64ToBytes, bytesToBase64, toArrayBuffer } from "./session-key-base64";
 
-const SESSION_KEY_SALT = "symm-frontier-session-key-salt-v1";
+const SESSION_KEY_SALT = "session-key-salt-v1";
 const SESSION_KEY_PBKDF2_ITERATIONS = 100_000;
 
 interface EncryptionOptions {
