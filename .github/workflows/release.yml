@@ -65,17 +65,14 @@ jobs:
     needs: version
     if: needs.version.outputs.hasChangesets == 'false'
     runs-on: ubuntu-latest
-    # Manual-approval gate. Environments with required reviewers are free on
-    # PUBLIC repos but need a paid plan on private ones, so this is commented out
-    # while the repo is private. Until then, NPM_TOKEN is a repository Actions
-    # secret and this job runs ungated — protect it with a narrowly-scoped,
-    # short-lived npm Granular/Automation token. Uncomment the moment the repo is
-    # public, then create the `release` Environment (required reviewer = you) and
-    # move NPM_TOKEN to be an Environment secret there.
-    # environment: release
+    # Manual-approval gate. The `release` Environment must exist with a required
+    # reviewer, and NPM_TOKEN must be an Environment secret scoped to it — that
+    # way the token is only injected after a human approves the run, so a
+    # compromised main can never publish on its own.
+    environment: release
     permissions:
       contents: write # create git tags + GitHub Releases
-      id-token: write # provenance-ready (used once the repo is public)
+      id-token: write # mint the OIDC token npm signs provenance with
     steps:
       - uses: actions/checkout@v4
         with:
@@ -100,7 +97,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # Supply-chain provenance. Requires a PUBLIC repo — npm rejects
-          # provenance from a private source. Uncomment the moment this repo is
-          # open-sourced; the `id-token: write` permission above is already in place.
-          # NPM_CONFIG_PROVENANCE: "true"
+          # Supply-chain provenance: links each published tarball back to this
+          # repo, commit, and workflow run. `changeset publish` shells out to
+          # `pnpm publish`, which delegates to the npm CLI, so this env var is
+          # what turns provenance on — there is no changesets flag for it.
+          NPM_CONFIG_PROVENANCE: "true"
