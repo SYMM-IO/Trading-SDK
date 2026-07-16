@@ -4,7 +4,7 @@
 
 `@symmio/trading-react` is the React layer of the SYMMIO SDK. It wraps the framework-agnostic `@symmio/trading-core` in hooks and a provider, bridging the SDK to your app's wagmi and TanStack Query setup so you can read positions, quotes, balances, and prices and run trading flows without wiring contract calls yourself.
 
-**[Documentation](https://symmio-frontier.vercel.app/react) · [Live SDK console](https://symm-frontier-web.vercel.app/)**
+**[Documentation](https://doc.trading-sdk.symm.io/react) · [Live SDK console](https://console.trading-sdk.symm.io/)**
 
 ## Installation
 
@@ -40,7 +40,7 @@ function Account() {
 }
 ```
 
-For the full list of hooks and providers, see the [API reference](https://symmio-frontier.vercel.app/react).
+For the full list of hooks and providers, see the [API reference](https://doc.trading-sdk.symm.io/react).
 
 ## License
 

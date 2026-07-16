@@ -28,8 +28,8 @@ const mono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Symmio Frontier — the SYMMIO SDK for builders",
-    template: "%s · Symmio Frontier",
+    default: "Symmio Trading-SDK — the SYMMIO SDK for builders",
+    template: "%s · Symmio Trading-SDK",
   },
   description:
     "One SDK for the entire SYMMIO surface. @symmio/trading-core and trading-react wrap contracts, solvers, prices, and Muon behind a simple, correct, reliable API.",

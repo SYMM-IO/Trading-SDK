@@ -73,7 +73,7 @@ export function CommandSearch({ open, onOpenChange }: Props) {
       onQueryChange={setQuery}
       groups={groups}
       onSelect={handleSelect}
-      label="Search Symmio Frontier"
+      label="Search Symmio Trading-SDK"
       placeholder="Search pages, methods, markets…"
       emptyState={isLoadingDynamic ? "Loading…" : "No matches. Try a method name, market, or symbol."}
       footer={<Footer loading={isLoadingDynamic} />}

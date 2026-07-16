@@ -3,13 +3,13 @@
   "version": "0.2.0",
   "description": "Framework-agnostic utility helpers for SYMMIO SDK consumers: amount formatting, address helpers, Decimal.js bridge.",
   "license": "MIT",
-  "homepage": "https://github.com/SYMM-IO/SYMM-Frontier/tree/main/packages/utils#readme",
+  "homepage": "https://github.com/SYMM-IO/Trading-SDK/tree/main/packages/utils#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SYMM-IO/SYMM-Frontier.git",
+    "url": "git+https://github.com/SYMM-IO/Trading-SDK.git",
     "directory": "packages/utils"
   },
-  "bugs": "https://github.com/SYMM-IO/SYMM-Frontier/issues",
+  "bugs": "https://github.com/SYMM-IO/Trading-SDK/issues",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",

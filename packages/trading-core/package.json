@@ -3,13 +3,13 @@
   "version": "0.2.0",
   "description": "Framework-agnostic SYMMIO SDK. Contract calls, calculations, and transformations with no framework assumptions.",
   "license": "MIT",
-  "homepage": "https://github.com/SYMM-IO/SYMM-Frontier/tree/main/packages/trading-core#readme",
+  "homepage": "https://github.com/SYMM-IO/Trading-SDK/tree/main/packages/trading-core#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SYMM-IO/SYMM-Frontier.git",
+    "url": "git+https://github.com/SYMM-IO/Trading-SDK.git",
     "directory": "packages/trading-core"
   },
-  "bugs": "https://github.com/SYMM-IO/SYMM-Frontier/issues",
+  "bugs": "https://github.com/SYMM-IO/Trading-SDK/issues",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",

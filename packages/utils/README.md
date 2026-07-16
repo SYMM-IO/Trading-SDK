@@ -4,7 +4,7 @@
 
 `@symmio/utils` is the shared helper layer of the SYMMIO SDK. It holds framework-neutral primitives — token amount formatting, display formatters, address shorteners, and a Decimal.js bridge — that any consumer of `@symmio/trading-core` or `@symmio/trading-react` can use, whether in React, another framework, or a plain Node script.
 
-**[Documentation](https://symmio-frontier.vercel.app/utils) · [Live SDK console](https://symm-frontier-web.vercel.app/)**
+**[Documentation](https://doc.trading-sdk.symm.io/utils) · [Live SDK console](https://console.trading-sdk.symm.io/)**
 
 ## Installation
 
@@ -28,7 +28,7 @@ const account = shortenAddress("0x46493c376758da47823d7e3ae5d417ea6546eeb3"); //
 console.log(amount, price, account);
 ```
 
-See the [full API reference](https://symmio-frontier.vercel.app/utils) for every helper and its options.
+See the [full API reference](https://doc.trading-sdk.symm.io/utils) for every helper and its options.
 
 ## License
 

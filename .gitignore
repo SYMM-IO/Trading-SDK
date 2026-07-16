@@ -6,9 +6,10 @@ showcase
 node_modules
 .pnpm-store
 
-# Env
+# Env — ignore every env file (real values) but keep a committed template
 .env
-.env*.local
+.env.*
+!.env.example
 
 # Build
 dist

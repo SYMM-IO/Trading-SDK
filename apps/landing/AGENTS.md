@@ -2,7 +2,7 @@ Read alongside the repository-root `AGENTS.md`. Rules below apply on top of the 
 
 ## Purpose
 
-`apps/landing` is the **marketing landing page** for the SYMM Frontier workspace. It introduces the SDK and the apps built on it, and routes visitors to the docs, the web console, Storybook, and GitHub.
+`apps/landing` is the **marketing landing page** for the SYMM Trading-SDK workspace. It introduces the SDK and the apps built on it, and routes visitors to the docs, the web console, Storybook, and GitHub.
 
 Stack: Next.js + React + Tailwind, built against `@symmio/ui` for tokens and primitives, with `motion` for animation. It mirrors `apps/web`'s stack and theme so the surfaces feel like one product.
 

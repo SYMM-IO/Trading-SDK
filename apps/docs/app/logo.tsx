@@ -1,13 +1,13 @@
 /**
  * Brand lockup for the docs navbar — the Symmio brand mark plus the "Symmio
- * Frontier" wordmark, so the docs read as the same product as the app. The mark
+ * Trading-SDK" wordmark, so the docs read as the same product as the app. The mark
  * is two bracket forms around a coral center bar; the brackets use
  * `currentColor` (light/dark adaptive) and the bar keeps the fixed Symmio coral.
  * Styling lives in globals.css (`.symm-mark`, `.symm-word`, `.symm-tag`).
  */
 export function SymmioLogo() {
   return (
-    <span className="symm-logo" aria-label="Symmio Frontier">
+    <span className="symm-logo" aria-label="Symmio Trading-SDK">
       <span className="symm-mark" aria-hidden="true">
         <svg viewBox="0 0 880 633" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path
@@ -22,7 +22,7 @@ export function SymmioLogo() {
         </svg>
       </span>
       <span className="symm-word">Symmio</span>
-      <span className="symm-tag">Frontier</span>
+      <span className="symm-tag">Trading-SDK</span>
     </span>
   );
 }

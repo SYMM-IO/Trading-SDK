@@ -4,7 +4,7 @@
 
 `@symmio/session-key` handles local EVM session keys: generation, import, runtime manager state, and message/EIP-712 signing. It is a standalone helper layer of the SYMMIO SDK, independent of `@symmio/trading-core` and `@symmio/trading-react`, so any consumer can reuse it while keeping persistence and encryption in the app.
 
-**[Documentation](https://symmio-frontier.vercel.app/session-key) · [Live SDK console](https://symm-frontier-web.vercel.app/)**
+**[Documentation](https://doc.trading-sdk.symm.io/session-key) · [Live SDK console](https://console.trading-sdk.symm.io/)**
 
 ## Installation
 
@@ -31,7 +31,7 @@ await manager.initialize("0xYourWalletAddress");
 const { signature } = await manager.sign("Authorize SYMMIO session");
 ```
 
-See the [full API reference](https://symmio-frontier.vercel.app/session-key) for the complete manager surface, storage interface, and transfer-payload helpers.
+See the [full API reference](https://doc.trading-sdk.symm.io/session-key) for the complete manager surface, storage interface, and transfer-payload helpers.
 
 ## License
 

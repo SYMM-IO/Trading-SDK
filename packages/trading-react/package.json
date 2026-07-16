@@ -3,13 +3,13 @@
   "version": "0.2.0",
   "description": "React adapter for the SYMMIO SDK. Hooks, providers, and React-bound ergonomics on top of @symmio/trading-core.",
   "license": "MIT",
-  "homepage": "https://github.com/SYMM-IO/SYMM-Frontier/tree/main/packages/trading-react#readme",
+  "homepage": "https://github.com/SYMM-IO/Trading-SDK/tree/main/packages/trading-react#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SYMM-IO/SYMM-Frontier.git",
+    "url": "git+https://github.com/SYMM-IO/Trading-SDK.git",
     "directory": "packages/trading-react"
   },
-  "bugs": "https://github.com/SYMM-IO/SYMM-Frontier/issues",
+  "bugs": "https://github.com/SYMM-IO/Trading-SDK/issues",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",

@@ -1,6 +1,6 @@
 # @symmio/landing
 
-The marketing landing page for the SYMM Frontier workspace — the front door that
+The marketing landing page for the SYMM Trading-SDK workspace — the front door that
 introduces the SDK (`@symmio/trading-core`, `@symmio/trading-react`, and the
 supporting libraries) and the apps built on it (the web console, the docs site,
 and Storybook).

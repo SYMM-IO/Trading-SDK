@@ -1,4 +1,4 @@
-# SYMM Frontier Agent Guide
+# SYMM Trading-SDK Agent Guide
 
 This file is the working agreement for AI coding agents (Claude, Codex) contributing to this repository. Read it fully before taking any action.
 
@@ -15,15 +15,15 @@ These are non-negotiable. Violating any of them is a defect.
 
 ## Project Vocabulary
 
-- **frontier project**: this repository.
+- **Trading-SDK project**: this repository.
 - **vibe-ui repo**: the separate Vibe UI reference application. Its local path can differ by machine; ask the user or use the path they provide in the current task.
 - **SYMMIO SDK / core SDK**: the clean, reusable domain layer being built in `packages/trading-core`.
 
-When a task references "current repo", it means the frontier project unless the user explicitly says otherwise.
+When a task references "current repo", it means the Trading-SDK project unless the user explicitly says otherwise.
 
 ## Goal
 
-Frontier is a clean frontend boundary for SYMMIO trading flows:
+Trading-SDK is a clean frontend boundary for SYMMIO trading flows:
 
 - shared domain logic, SDK APIs, and React SDK hooks/providers in `packages/trading-core`;
 - shared design system and reusable UI primitives in `packages/ui`;
@@ -34,14 +34,14 @@ Frontier is a clean frontend boundary for SYMMIO trading flows:
 
 The long-term product goal is to offer simple interfaces over complex SYMMIO flows. A user should eventually be able to provide a small set of parameters and perform high-level actions such as buying a token, while the SDK handles account, quote, solver, contract, backend, inventory, and transaction details underneath.
 
-Frontier is **not** a rewrite of vibe-ui's UI. It is an SDK-first extraction of SYMMIO trading capability, with UI built on top. Every implementation should make that boundary sharper.
+Trading-SDK is **not** a rewrite of vibe-ui's UI. It is an SDK-first extraction of SYMMIO trading capability, with UI built on top. Every implementation should make that boundary sharper.
 
 ## Current Phase Scope
 
 The current phase is focused on **VibeCaps** logic and UI only.
 
 - Work on lowcap/VibeCaps trading flows, services, SDK APIs, and UI.
-- Do not migrate Majors trading logic into frontier in this phase.
+- Do not migrate Majors trading logic into Trading-SDK in this phase.
 - Use Majors code in vibe-ui only as background reference when it clarifies shared concepts.
 - If a task appears to require Majors behavior, stop and confirm scope with the user before implementing.
 
@@ -117,7 +117,7 @@ Rules:
 
 ### `apps/web`
 
-Put the Frontier product app here.
+Put the Trading-SDK product app here.
 
 Examples: routes, pages, app-level layouts; composition of `packages/trading-core` and `packages/ui`; feature screens and browser-specific integration; app-specific providers and environment binding.
 
@@ -151,7 +151,7 @@ For any task that ports or derives behavior from vibe-ui:
 
 2. **Identify the domain boundary.** Separate pure domain logic, service calls, contract interaction, state synchronization, and presentation.
 
-3. **Design the frontier API before writing code.** Decide what is public in `packages/trading-core`, what is internal, which domain folder owns it, and what the app calls.
+3. **Design the Trading-SDK API before writing code.** Decide what is public in `packages/trading-core`, what is internal, which domain folder owns it, and what the app calls.
 
 4. **Output a design proposal and stop.** See "Design Proposal Gate" below.
 
@@ -209,7 +209,7 @@ When in doubt, write the proposal.
 
 - **Scope unclear (VibeCaps vs Majors, this phase vs later)?** Ask.
 - **Package placement unclear (core vs ui vs web)?** Ask.
-- **A vibe-ui pattern seems wrong for frontier?** Ask before copying.
+- **A vibe-ui pattern seems wrong for Trading-SDK?** Ask before copying.
 - **Public API shape unclear?** Propose two options in the design proposal and let the user pick.
 
 Do not guess on these. The cost of a question is small; the cost of unwinding the wrong architecture is large.
@@ -238,11 +238,11 @@ Report the output. If any of these fail, fix before declaring complete.
 - This repo uses pnpm and Turborepo.
 - Do not use Yarn here, even though vibe-ui uses Yarn.
 - Do not edit vibe-ui unless the user explicitly asks.
-- Treat vibe-ui as read-only reference during frontier work.
+- Treat vibe-ui as read-only reference during Trading-SDK work.
 - Preserve user changes in the worktree. Do not stash, reset, or discard uncommitted work.
 - Do not perform unrelated refactors while implementing an SDK slice.
 
-## Current Frontier Baseline
+## Current Trading-SDK Baseline
 
 _Last updated: 2026-05-11. Update this section when the baseline materially changes._
 

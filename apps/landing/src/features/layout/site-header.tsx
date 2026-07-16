@@ -57,12 +57,12 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:px-6 lg:px-8">
-        <a href="#top" className="group flex items-center gap-2.5" aria-label="Symmio Frontier — home">
+        <a href="#top" className="group flex items-center gap-2.5" aria-label="Symmio Trading-SDK — home">
           <LogoMark className="transition-transform duration-300 group-hover:-translate-y-0.5" />
           <span className="flex items-baseline gap-1.5">
             <span className="font-display text-foreground text-base font-semibold tracking-tight">Symmio</span>
             <span className="text-muted-foreground hidden text-[10px] font-medium tracking-[0.22em] uppercase sm:inline">
-              Frontier
+              Trading-SDK
             </span>
           </span>
         </a>
@@ -138,13 +138,13 @@ export function SiteHeader() {
                 href="#top"
                 onClick={() => setOpen(false)}
                 className="group flex items-center gap-2.5"
-                aria-label="Symmio Frontier — home"
+                aria-label="Symmio Trading-SDK — home"
               >
                 <LogoMark />
                 <span className="flex items-baseline gap-1.5">
                   <span className="font-display text-foreground text-base font-semibold tracking-tight">Symmio</span>
                   <span className="text-muted-foreground text-[10px] font-medium tracking-[0.22em] uppercase">
-                    Frontier
+                    Trading-SDK
                   </span>
                 </span>
               </a>

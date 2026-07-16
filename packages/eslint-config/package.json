@@ -3,13 +3,13 @@
   "version": "0.1.2",
   "description": "Shared ESLint flat configs for the SYMMIO SDK monorepo.",
   "license": "MIT",
-  "homepage": "https://github.com/SYMM-IO/SYMM-Frontier/tree/main/packages/eslint-config#readme",
+  "homepage": "https://github.com/SYMM-IO/Trading-SDK/tree/main/packages/eslint-config#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SYMM-IO/SYMM-Frontier.git",
+    "url": "git+https://github.com/SYMM-IO/Trading-SDK.git",
     "directory": "packages/eslint-config"
   },
-  "bugs": "https://github.com/SYMM-IO/SYMM-Frontier/issues",
+  "bugs": "https://github.com/SYMM-IO/Trading-SDK/issues",
   "type": "module",
   "exports": {
     "./base": {
