@@ -1,6 +1,6 @@
 {
   "name": "@symmio/typescript-config",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "description": "Shared TypeScript configurations for the SYMMIO SDK monorepo.",
   "license": "MIT",
   "homepage": "https://github.com/SYMM-IO/Trading-SDK/tree/main/packages/typescript-config#readme",
