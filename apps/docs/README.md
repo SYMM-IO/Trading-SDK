@@ -1,4 +1,4 @@
-# SYMM Trading-SDK Documentation
+# SYMMIO Trading-SDK Documentation
 
 Documentation site built with [Nextra](https://nextra.site/) 4.x.
 

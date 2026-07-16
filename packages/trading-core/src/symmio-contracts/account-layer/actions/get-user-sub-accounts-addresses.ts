@@ -16,7 +16,7 @@ export type GetUserSubAccountsAddressesParameters = Compute<
      */
     offset?: bigint;
     /**
-     * Pagination limit, in subaccounts. The default matches the value the SYMM
+     * Pagination limit, in subaccounts. The default matches the value the SYMMIO
      * Explorer Inspector page uses.
      * @default 200n
      */

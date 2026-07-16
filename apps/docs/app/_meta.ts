@@ -1,5 +1,5 @@
 /**
- * Top-level navigation for the SYMM Trading-SDK docs.
+ * Top-level navigation for the SYMMIO Trading-SDK docs.
  *
  * The keys correspond to directories under `app/`. Introduction and Guides are
  * shared across every library; each library owns its own Getting Started (see

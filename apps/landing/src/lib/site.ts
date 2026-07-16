@@ -1,6 +1,6 @@
 /**
  * Central place for the outbound destinations the landing page links to — the
- * deployed surfaces of the SYMM Trading-SDK workspace. Update these if the hosts
+ * deployed surfaces of the SYMMIO Trading-SDK workspace. Update these if the hosts
  * change.
  */
 export const siteLinks = {
