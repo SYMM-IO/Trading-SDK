@@ -122,10 +122,13 @@ Nest **`WagmiProvider` → `QueryClientProvider` → `SymmioProvider`**. The SDK
   routes that source's share of the trading fee to it. Affiliate addresses are **per chain** — a registration on one chain
   is not valid on another — so `symmioConfig` carries one under each chain's `addresses.affiliatesAddress`.
 
-It's mandatory by design: **the SDK throws (`AFFILIATE_ADDRESS_REQUIRED`) if a supported chain's affiliate is the zero
-address or missing**, so a trade can never silently fall back to the protocol's default affiliate and lose your
-attribution. Running your own frontend and earning a cut of trading fees means **registering your affiliate address**
-with the protocol first, then setting it under `symmioConfig[chainId].addresses.affiliatesAddress`.
+It's mandatory by design: **the SDK throws (`AFFILIATE_ADDRESS_REQUIRED`) if a supported chain's affiliate is
+missing** (present-but-zero is allowed), so a trade can never silently fall back to the protocol's default affiliate and
+lose your attribution. The **zero address** is a testing placeholder — on-chain it is a **no-affiliate sentinel**, so the
+trade still opens but you earn **no fee share**; what reverts is a **non-zero _unregistered_** affiliate, with
+`PartyAFacet: Invalid affiliate` at trade time. Running your own frontend and earning a cut of trading fees means
+**registering your affiliate address** with the protocol first, then setting it under
+`symmioConfig[chainId].addresses.affiliatesAddress`.
 
 </Callout>
 
@@ -605,7 +608,7 @@ See the [TP/SL reference](/react/tpsl) for the full state machine, store shape, 
 - [ ] Exactly one wagmi copy resolves — automatic for a clean single-project install; force it with a package-manager override if two ever appear.
 - [ ] Providers nested wagmi → QueryClient → Symmio, mounted **client-only** so `next build` doesn't fail prerendering `/_not-found`.
 - [ ] `SymmioSupportedChainId`, `UnifiedQuote`, `QuoteLifecycle` imported from `@symmio/trading-core`.
-- [ ] Affiliate set under `SymmioProvider`'s required **`symmioConfig`** — each chain's `addresses.affiliatesAddress` a **registered, non-zero** address (the SDK throws on zero/missing), and a `getWalletClient` resolver wired for session-key signing.
+- [ ] Affiliate set under `SymmioProvider`'s required **`symmioConfig`** — each chain's `addresses.affiliatesAddress` a **registered** address to earn fees (the SDK throws only on **missing**; zero is a no-affiliate sentinel with no fee share, a non-zero unregistered affiliate reverts on-chain at trade time), and a `getWalletClient` resolver wired for session-key signing.
 
 **Trade UX**
 

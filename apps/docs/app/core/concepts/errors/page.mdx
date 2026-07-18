@@ -84,7 +84,7 @@ Codes are stable strings. Group per kind. New codes may appear at any minor vers
 
 | Code                         | Thrown by                                      | Meaning                                                         |
 | ---------------------------- | ---------------------------------------------- | --------------------------------------------------------------- |
-| `AFFILIATE_ADDRESS_REQUIRED` | `createConfig`                                 | A supported chain's `symmioConfig` affiliate missing or zero.   |
+| `AFFILIATE_ADDRESS_REQUIRED` | `createConfig`                                 | A supported chain's `symmioConfig` affiliate was missing.       |
 | `NO_CHAINS_CONFIGURED`       | `createConfig`                                 | No supported chains in the built-in registry.                   |
 | `UNSUPPORTED_CHAIN`          | `Config.getChainConfig`, most reads/writes     | Chain id not in the config registry.                            |
 | `NO_WALLET_CLIENT`           | `Config.getWalletClient`, every write          | `createConfig` was called without a `getWalletClient` resolver. |
