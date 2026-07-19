@@ -24,10 +24,25 @@ export const docsPaths = {
   utils: `${siteLinks.docs}/utils`,
 } as const;
 
-/** In-page anchors used by the header nav. */
+/**
+ * Home-page section anchors, used by the header, footer, and hero.
+ *
+ * Root-relative (`/#sdk`, never a bare `#sdk`) so they resolve from **any**
+ * route. On the home page the browser reads them as a same-document fragment
+ * jump — no reload. From a sub-route like `/affiliate`, a bare `#sdk` would
+ * point at an element that does not exist there and do nothing; the leading `/`
+ * makes it navigate home first and then scroll.
+ */
 export const sectionAnchors = {
-  sdk: "#sdk",
-  libraries: "#libraries",
-  apps: "#apps",
-  start: "#start",
+  top: "/#top",
+  sdk: "/#sdk",
+  libraries: "/#libraries",
+  apps: "/#apps",
+  start: "/#start",
+} as const;
+
+/** Internal routes on the landing site (pages beyond the home page). */
+export const routes = {
+  /** The affiliate registration page — the one wallet-connected surface. */
+  affiliate: "/affiliate",
 } as const;

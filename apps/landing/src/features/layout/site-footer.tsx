@@ -1,6 +1,7 @@
 import { LiveDot } from "@/components/live-dot";
 import { LogoMark } from "@/features/layout/logo";
 import { sectionAnchors, siteLinks } from "@/lib/site";
+import Link from "next/link";
 
 interface FooterLink {
   label: string;
@@ -44,12 +45,12 @@ export function SiteFooter() {
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-12 md:flex-row md:items-start md:justify-between">
           <div className="flex max-w-sm flex-col gap-4">
-            <a href="#top" className="flex items-center gap-2.5">
+            <Link href={sectionAnchors.top} className="flex items-center gap-2.5">
               <LogoMark className="h-7 w-auto" />
               <span className="font-display text-foreground text-base font-semibold tracking-tight">
                 Symmio Trading-SDK
               </span>
-            </a>
+            </Link>
             <p className="text-muted-foreground text-sm leading-6">
               One SDK for the entire SYMMIO surface — contracts, solvers, prices, and Muon, wrapped behind a simple,
               correct, reliable API.

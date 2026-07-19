@@ -3,9 +3,10 @@
 import { LiveDot } from "@/components/live-dot";
 import { LogoMark } from "@/features/layout/logo";
 import { ThemeToggle } from "@/features/layout/theme-toggle";
-import { sectionAnchors, siteLinks } from "@/lib/site";
+import { routes, sectionAnchors, siteLinks } from "@/lib/site";
 import { Button } from "@symmio/ui/components/button";
 import { cn } from "@symmio/ui/lib/utils";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 interface NavLink {
@@ -14,12 +15,21 @@ interface NavLink {
   external?: boolean;
 }
 
+/**
+ * Every internal entry is root-relative, so the nav works identically on the
+ * home page and on `/affiliate`. Internal links render as `next/link` for
+ * client-side navigation; only `external` ones stay plain anchors.
+ */
 const navLinks: NavLink[] = [
   { label: "The SDK", href: sectionAnchors.sdk },
   { label: "Libraries", href: sectionAnchors.libraries },
   { label: "Apps", href: sectionAnchors.apps },
+  { label: "Affiliate", href: routes.affiliate },
   { label: "Docs", href: siteLinks.docs, external: true },
 ];
+
+const navLinkClass =
+  "text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-sm font-medium transition-colors";
 
 /**
  * Fixed, glass site header. Stays transparent over the hero and condenses into
@@ -57,7 +67,11 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:px-6 lg:px-8">
-        <a href="#top" className="group flex items-center gap-2.5" aria-label="Symmio Trading-SDK — home">
+        <Link
+          href={sectionAnchors.top}
+          className="group flex items-center gap-2.5"
+          aria-label="Symmio Trading-SDK — home"
+        >
           <LogoMark className="transition-transform duration-300 group-hover:-translate-y-0.5" />
           <span className="flex items-baseline gap-1.5">
             <span className="font-display text-foreground text-base font-semibold tracking-tight">Symmio</span>
@@ -65,19 +79,20 @@ export function SiteHeader() {
               Trading-SDK
             </span>
           </span>
-        </a>
+        </Link>
 
         <nav className="ml-4 hidden items-center gap-1 md:flex">
-          {navLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              {...(link.external ? { target: "_blank", rel: "noreferrer" } : {})}
-              className="text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
-            >
-              {link.label}
-            </a>
-          ))}
+          {navLinks.map((link) =>
+            link.external ? (
+              <a key={link.href} href={link.href} target="_blank" rel="noreferrer" className={navLinkClass}>
+                {link.label}
+              </a>
+            ) : (
+              <Link key={link.href} href={link.href} className={navLinkClass}>
+                {link.label}
+              </Link>
+            ),
+          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
@@ -134,8 +149,8 @@ export function SiteHeader() {
             </div>
 
             <div className="flex h-16 shrink-0 items-center gap-3 px-4 sm:px-6">
-              <a
-                href="#top"
+              <Link
+                href={sectionAnchors.top}
                 onClick={() => setOpen(false)}
                 className="group flex items-center gap-2.5"
                 aria-label="Symmio Trading-SDK — home"
@@ -147,7 +162,7 @@ export function SiteHeader() {
                     Trading-SDK
                   </span>
                 </span>
-              </a>
+              </Link>
               <button
                 type="button"
                 aria-label="Close menu"
@@ -161,36 +176,41 @@ export function SiteHeader() {
             </div>
 
             <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-4 py-4 sm:px-6">
-              {navLinks.map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setOpen(false)}
-                  {...(link.external ? { target: "_blank", rel: "noreferrer" } : {})}
-                  className="text-foreground/90 hover:bg-muted hover:text-foreground flex items-center justify-between rounded-2xl px-4 py-3.5 text-lg font-medium transition-colors"
-                >
-                  {link.label}
-                  <svg viewBox="0 0 24 24" fill="none" className="text-muted-foreground size-4" aria-hidden>
-                    {link.external ? (
+              {navLinks.map((link) => {
+                const className =
+                  "text-foreground/90 hover:bg-muted hover:text-foreground flex items-center justify-between rounded-2xl px-4 py-3.5 text-lg font-medium transition-colors";
+                const content = (
+                  <>
+                    {link.label}
+                    <svg viewBox="0 0 24 24" fill="none" className="text-muted-foreground size-4" aria-hidden>
                       <path
-                        d="M7 17 17 7M9 7h8v8"
+                        d={link.external ? "M7 17 17 7M9 7h8v8" : "m9 6 6 6-6 6"}
                         stroke="currentColor"
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />
-                    ) : (
-                      <path
-                        d="m9 6 6 6-6 6"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    )}
-                  </svg>
-                </a>
-              ))}
+                    </svg>
+                  </>
+                );
+
+                return link.external ? (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => setOpen(false)}
+                    className={className}
+                  >
+                    {content}
+                  </a>
+                ) : (
+                  <Link key={link.href} href={link.href} onClick={() => setOpen(false)} className={className}>
+                    {content}
+                  </Link>
+                );
+              })}
             </nav>
 
             <div className="border-border/60 flex shrink-0 flex-col gap-4 border-t px-4 py-5 sm:px-6">

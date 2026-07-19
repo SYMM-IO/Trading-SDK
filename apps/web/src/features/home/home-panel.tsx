@@ -59,7 +59,7 @@ export function HomePanel() {
         </span>
 
         <h1 className="font-display text-foreground text-4xl font-semibold tracking-tight text-balance sm:text-6xl sm:leading-[1.04]">
-          Connect, inspect, and trade SYMMIO — <span className="text-primary">without the complexity</span>.
+          Connect, inspect, and trade SYMMIO — <span className="text-sheen">without the complexity</span>.
         </h1>
 
         <p className="text-muted-foreground max-w-2xl text-base leading-7 text-pretty">
