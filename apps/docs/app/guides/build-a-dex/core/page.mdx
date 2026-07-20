@@ -126,7 +126,7 @@ const config = createConfig({
 
 The full `CreateConfigParameters` surface:
 
-- **`symmioConfig: Partial<Record<number, SymmioChainConfigInput>>`** — **required**. Per-chain overrides deep-merged onto the built-in defaults, keyed by chainId. Each entry's `addresses.affiliatesAddress` is mandatory and must be non-zero.
+- **`symmioConfig: Partial<Record<number, SymmioChainConfigInput>>`** — **required**. Per-chain overrides deep-merged onto the built-in defaults, keyed by chainId. Each entry's `addresses.affiliatesAddress` is mandatory (must be present). It may be the **zero address** — on-chain a no-affiliate sentinel with no fee share; a **non-zero _unregistered_** affiliate reverts at trade time.
 - **`getClient: (parameters?: { chainId? }) => PublicClient`** — **required**. Returns a viem `PublicClient` bound to a HyperEVM transport. Every read (`getX`) resolves its client through this.
 - **`getWalletClient?: (parameters: { chainId; from? }) => Promise<SymmioWalletClient>`** — optional. Returns a `SymmioWalletClient` (`WalletClient<Transport, Chain, Account>`). Omit it for a read-only config; every write (`doX`) and sign flow resolves its wallet through this.
 - **`defaultChainId?: number`** — falls back to the first configured chain. Every action's optional `chainId` param falls back to this.
@@ -135,9 +135,10 @@ The full `CreateConfigParameters` surface:
 
 <Callout type="warning">
   **`affiliatesAddress` is required per chain.** `createConfig` throws `SymmError("config",
-  "AFFILIATE_ADDRESS_REQUIRED")` for any supported chain whose entry is missing a non-zero affiliate. The check runs
-  against your raw input, so a built-in default cannot mask a gap. Affiliate registration is per-chain — an affiliate
-  registered on one chain is invalid on another.
+  "AFFILIATE_ADDRESS_REQUIRED")` for any supported chain whose entry is **missing** it. The check runs against your raw
+  input, so a built-in default cannot mask a gap. The **zero address** is accepted — on-chain a no-affiliate sentinel
+  (trades open, no fee share); a **non-zero _unregistered_** affiliate reverts with `PartyAFacet: Invalid affiliate` at
+  trade time. Affiliate registration is per-chain — an affiliate registered on one chain is invalid on another.
 </Callout>
 
 <Callout type="warning">
@@ -425,7 +426,7 @@ let connectedChainId: number | undefined;
 const config = createConfig({
   symmioConfig: {
     [SymmioSupportedChainId.HYPER_EVM]: {
-      addresses: { affiliatesAddress: "0x…" }, // required, non-zero (see Setup)
+      addresses: { affiliatesAddress: "0x…" }, // required; registered to earn fees (see Setup)
     },
   },
   defaultChainId: SymmioSupportedChainId.HYPER_EVM,
@@ -1615,7 +1616,7 @@ Everything below is a hand-built equivalent of machinery `@symmio/trading-react`
 ### Setup & config
 
 - [ ] Every runtime symbol imported from the single `@symmio/trading-core` entry (no named subpaths). `SymmioSupportedChainId`, `PositionType`, `UnifiedQuote`, `Quote`, `SymmError` are core-only — nothing comes from `@symmio/trading-react`.
-- [ ] `affiliatesAddress` set to a non-zero address per chain in `symmioConfig` (else `createConfig` throws `SymmError("config","AFFILIATE_ADDRESS_REQUIRED")`).
+- [ ] `affiliatesAddress` set per chain in `symmioConfig` — a **registered** address to earn fees (missing → `createConfig` throws `SymmError("config","AFFILIATE_ADDRESS_REQUIRED")`; zero is a no-affiliate sentinel with no fee share; a non-zero unregistered affiliate reverts on-chain at trade time).
 - [ ] `getWalletClient` resolver supplied on `config` before any write or sign flow (else writes throw `NO_WALLET_CLIENT`).
 - [ ] `webSocketConstructor` supplied if you run outside a browser (Node/SSR) — otherwise `getWebSocketConstructor` throws `NO_WEBSOCKET` the moment a socket is needed.
 - [ ] `simulateBeforeWrite` understood: default `true` dry-runs every contract write through its `simulate*` sibling; disable per write only when you have a reason.
