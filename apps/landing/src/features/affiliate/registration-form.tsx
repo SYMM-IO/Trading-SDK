@@ -153,13 +153,15 @@ export function RegistrationForm({ api }: FormProps) {
           {...register("admin")}
           labelAction={
             wallet.address ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="xs"
                 onClick={api.fillAdminFromWallet}
-                className="text-primary hover:text-primary/80 text-xs font-medium transition-colors"
+                className="text-primary hover:text-primary/80 -mr-2 cursor-pointer font-medium"
               >
-                Use connected wallet
-              </button>
+                Use my address
+              </Button>
             ) : null
           }
         />

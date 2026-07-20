@@ -7,7 +7,7 @@ import { motion } from "motion/react";
 const HIGHLIGHTS = [
   { title: "Deterministic address", body: "Your affiliate address is derived up front — known before you submit." },
   { title: "Programmable fee split", body: "Route fees across any set of stakeholders and the protocol." },
-  { title: "Permissionless request", body: "Anyone can request. An admin approves to activate." },
+  { title: "Open registration", body: "Anyone can request. An admin approves to activate." },
 ];
 
 /**
