@@ -29,7 +29,7 @@ The shell — wallet connection and the SubAccount picker — is shared by every
 Three rules that hold regardless of layout:
 
 - **Keep the market in the URL** — `/trade/BTCUSDT`, `/perps/BTC-USDT`, or `?symbol=BTCUSDT`. An addressable market survives refresh, back-button, and shared links; component state loses all three.
-- **The header opens a searchable selector, not a `<select>`.** Back it with `useMarkets().data` and let the user filter by symbol.
+- **The header opens a searchable selector, not a `<select>`.** Back it with `useMarkets().data`, label each row with the market's **`symbol`** field (the human ticker you display), and let the user filter on it.
 - **Trade-form field order is fixed:** Side → Margin → Leverage → TP/SL → Slippage → Submit.
 
 <Callout type="info">
@@ -303,10 +303,10 @@ Reference: `apps/web/src/features/integration/instant-open-flow.tsx` and `tpsl-f
 
 <Callout type="warning">
   `SymbolContractSymbol` is generated: **every field is snake_case and optional**. There is no `maxLeverage` / `id` /
-  `pricePrecision`. Read `market.symbol_id`, `market.name`, `market.max_leverage`, `market.price_precision`,
-  `market.quantity_precision`, `market.token_address`, `market.lot_size` — and always guard with a default
-  (`Number(market.max_leverage ?? 50)`), since any field can be absent. When you pass a `market` bag into an instant
-  action, its `id` is `Number(row.symbol_id)`.
+  `pricePrecision`. Read `market.symbol` (the ticker to **display** in the selector / header), `market.symbol_id`,
+  `market.name`, `market.max_leverage`, `market.price_precision`, `market.quantity_precision`, `market.token_address`,
+  `market.lot_size` — and always guard with a default (`Number(market.max_leverage ?? 50)`), since any field can be
+  absent. When you pass a `market` bag into an instant action, its `id` is `Number(row.symbol_id)`.
 </Callout>
 
 ### Market header stats (funding + liquidity)
@@ -476,11 +476,26 @@ Per-row: **[`useQuoteUpnlAndPnl`](/react/quotes#usequoteupnlandpnl)** → `{ upn
 
 The close ticket carries its own **slippage** control — a chip row like the open form (default **5%**). It shaves the request price via `calculateClosePrice({ markPrice, slippage, positionType, pricePrecision })` and is passed straight through to `useInstantCloseAuto`, so surface it to the user rather than hardcoding it.
 
-Closing is session-key-signed, so the close button lives behind the same delegation gate as the open form — a position that survived from a prior session can still show up here with a stale key. Gate the close action on the trading delegation and surface **"Enable trading"** when it is inactive (see [§4 · Gate every write](#gate-every-write-not-just-the-open-form)).
+<Callout type="warning">
+  **Before you show a Close button, confirm 1-click trading is enabled.** Closing is session-key-signed, so it lives
+  behind the same delegation gate as the open form — and a position that survived from a prior session can still show up
+  here with a stale key. When the trading delegation is **inactive**, don't render a live Close action: swap it for an
+  **"Enable trading"** button that prompts the user to grant the session-key delegation, then flips back to Close the
+  moment the grant lands (see [§4 · Gate every write](#gate-every-write-not-just-the-open-form)). Skip this and the
+  hedger accepts the close while the on-chain anchor reverts — a silent failure.
+</Callout>
 
 <Callout type="info">
   Pending rows carry `tempQuoteId` (negative int) until the solver anchors them and assigns an on-chain `quoteId`. Pick
   `quote.quoteId ?? BigInt(quote.tempQuoteId)` for actions — the WS handler links the two once the anchor lands.
+</Callout>
+
+<Callout type="warning">
+  **Show the user when an open fails — don't let the row silently vanish.** When the notifications stream reports a
+  `NotificationType.FAILED` frame for a pending open, `useManagedQuotes` drops that optimistic row automatically (a
+  failed order never becomes a position, so it never renders as one). But a row that just disappears reads as a bug —
+  surface the failure to the user (a toast with the failure reason / error code) so they know the open didn't land, and
+  why.
 </Callout>
 
 ### Position details

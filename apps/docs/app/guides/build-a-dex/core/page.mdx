@@ -827,6 +827,8 @@ const options = getMarketsQueryOptions(config, {});
 // queryClient.fetchQuery(options) / your own cache
 ```
 
+Render this catalog in your market selector / header: **display each market by its `symbol` field** (the human ticker) and let the user filter on it. Keep `market.name` for price lookups — the `name`-vs-`symbol` distinction is spelled out below.
+
 Per-market limits hang off the symbol:
 
 ```ts
@@ -931,7 +933,7 @@ You have a market, a session key with delegation, and deposited collateral. Open
 
 `instantOpenAuto(config, params)` is `prepareInstantOpenParams` + `instantOpen` fused: it fetches market data, mark price, locked-param percentages, and fee rates, runs the trade math, EIP-712-signs both operations with the session key, and POSTs to the hedger.
 
-Your trade form collects **three** user inputs and forwards them here: `initialMargin` (USD), `leverage`, and **`slippage`** — the percent price tolerance (`0.5` = 0.5%). Slippage is not optional-by-default: `instantOpenAuto` uses it to derive the signed order price from the mark price (`mark × (1 ± slippage)`), so a form that omits a slippage field silently defaults the trade's price tolerance. Surface it as its own input next to margin and leverage. The close flow (`instantCloseAuto`) takes the same `slippage` parameter — collect it there too.
+Your trade form collects **three** user inputs and forwards them here: `initialMargin` (USD), `leverage`, and **`slippage`** — the percent price tolerance (`0.5` = 0.5%). Slippage is not optional-by-default: `instantOpenAuto` uses it to derive the signed order price from the mark price (`mark × (1 ± slippage)`), so a form that omits a slippage field silently defaults the trade's price tolerance. Surface it as its own input next to margin and leverage — a chip row (`0.1 / 0.5 / 1 / 5 / custom`), not a raw number field — and **default it to 5%**, since lowcap fills move more than majors and a tighter default rejects too many opens. The close flow (`instantCloseAuto`) takes the same `slippage` parameter — collect it there too, with the same 5% default.
 
 ```ts
 const result = await instantOpenAuto(config, {
