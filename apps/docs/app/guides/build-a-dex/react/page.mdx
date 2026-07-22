@@ -609,7 +609,10 @@ See the [TP/SL reference](/react/tpsl) for the full state machine, store shape, 
 - [ ] Exactly one wagmi copy resolves — automatic for a clean single-project install; force it with a package-manager override if two ever appear.
 - [ ] Providers nested wagmi → QueryClient → Symmio, mounted **client-only** so `next build` doesn't fail prerendering `/_not-found`.
 - [ ] `SymmioSupportedChainId`, `UnifiedQuote`, `QuoteLifecycle` imported from `@symmio/trading-core`.
-- [ ] Affiliate set under `SymmioProvider`'s required **`symmioConfig`** — each chain's `addresses.affiliatesAddress` present (the SDK throws only on a **missing** field; the zero address is accepted as a fee-less test placeholder) and a **registered** address in production (registration whitelists your frontend's domain and earns a share of the trading fees), plus a `getWalletClient` resolver wired for session-key signing.
+      <<<<<<< HEAD
+- [ ] # Affiliate set under `SymmioProvider`'s required **`symmioConfig`** — each chain's `addresses.affiliatesAddress` present (the SDK throws only on a **missing** field; the zero address is accepted as a fee-less test placeholder) and a **registered** address in production (registration whitelists your frontend's domain and earns a share of the trading fees), plus a `getWalletClient` resolver wired for session-key signing.
+- [ ] Affiliate set under `SymmioProvider`'s required **`symmioConfig`** — each chain's `addresses.affiliatesAddress` a **registered** address to earn fees (the SDK throws only on **missing**; zero is a no-affiliate sentinel with no fee share, a non-zero unregistered affiliate reverts on-chain at trade time), and a `getWalletClient` resolver wired for session-key signing.
+  > > > > > > > main
 
 **Trade UX**
 

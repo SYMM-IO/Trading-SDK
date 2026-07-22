@@ -38,7 +38,7 @@ The config is meant to be created once at app start and shared across every call
 ### `symmioConfig`
 
 - Type: `Partial<Record<number, SymmioChainConfigInput>>`
-- **Required.** Every supported chain must set `addresses.affiliatesAddress`, or `createConfig` throws `AFFILIATE_ADDRESS_REQUIRED` — the field must be present, not merely non-zero.
+- **Required.** Every supported chain must set `addresses.affiliatesAddress` — `createConfig` throws `AFFILIATE_ADDRESS_REQUIRED` if it is **missing**. The **zero address** is accepted (a presence-only check) as a **testing placeholder**: on-chain it is treated as a **no-affiliate sentinel**, so the trade **still opens** — you just receive **no share of the trading fee** (nothing is attributed to you). What reverts is a **non-zero _unregistered_** affiliate: that fails on-chain with `PartyAFacet: Invalid affiliate` at trade time. Set your **registered** affiliate to actually earn the fee share.
 
 `SymmioChainConfigInput` makes the affiliate mandatory in the type: every field is optional to override **except** `addresses.affiliatesAddress`, so a chain entry without an affiliate is a compile error.
 

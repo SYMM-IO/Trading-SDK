@@ -30,7 +30,7 @@ const symmioConfig = {
 ### `symmioConfig`
 
 - Type: `Partial<Record<number, SymmioChainConfigInput>>`
-- **Required.** Every supported chain must set `addresses.affiliatesAddress`, or the provider throws `AFFILIATE_ADDRESS_REQUIRED` (via `createConfig`) — the field must be present, not merely non-zero. The affiliate is mandatory in the type — a chain entry without one is a compile error.
+- **Required.** Every supported chain must set `addresses.affiliatesAddress`, or the provider throws `AFFILIATE_ADDRESS_REQUIRED` (via `createConfig`) when it is **missing**. The affiliate is mandatory in the type — a chain entry without one is a compile error. The zero address is accepted (presence-only check) as a **testing placeholder** — on-chain it is a **no-affiliate sentinel**, so the trade still opens; you just receive **no share of the trading fee**. A **non-zero unregistered** affiliate is what reverts, with `PartyAFacet: Invalid affiliate` at trade time. Use a **registered** affiliate to earn the fee share.
 
 Per-chain SYMMIO configuration, keyed by chain id, deep-merged onto the SDK's built-in defaults (addresses, subgraphs, solver, …).
 

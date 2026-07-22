@@ -61,6 +61,13 @@ export interface CreateConfigParameters {
    * unregistered** affiliate is what reverts on-chain (`PartyAFacet: Invalid
    * affiliate`). Register at https://trading-sdk.symm.io/affiliate to earn fees.
    *
+   * The zero address is accepted here (the SDK only checks presence) — treat it
+   * as a **testing placeholder**. On-chain it is a **no-affiliate sentinel**: the
+   * trade still opens, you just receive **no share of the trading fee** (nothing
+   * is attributed to you). What reverts on-chain is a **non-zero _unregistered_**
+   * affiliate — that fails with `PartyAFacet: Invalid affiliate` at trade time. Use
+   * a **registered** affiliate to earn your fee share.
+   *
    * @example
    * ```ts
    * symmioConfig: {

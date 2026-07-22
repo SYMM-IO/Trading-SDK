@@ -429,7 +429,7 @@ let connectedChainId: number | undefined;
 const config = createConfig({
   symmioConfig: {
     [SymmioSupportedChainId.HYPER_EVM]: {
-      addresses: { affiliatesAddress: "0x…" }, // required (must be present); registered to whitelist your domain + earn fees (see Setup)
+      addresses: { affiliatesAddress: "0x…" }, // required; registered to earn fees (see Setup)
     },
   },
   defaultChainId: SymmioSupportedChainId.HYPER_EVM,
@@ -1619,7 +1619,10 @@ Everything below is a hand-built equivalent of machinery `@symmio/trading-react`
 ### Setup & config
 
 - [ ] Every runtime symbol imported from the single `@symmio/trading-core` entry (no named subpaths). `SymmioSupportedChainId`, `PositionType`, `UnifiedQuote`, `Quote`, `SymmError` are core-only — nothing comes from `@symmio/trading-react`.
-- [ ] `affiliatesAddress` set per chain in `symmioConfig` — the field must be present (else `createConfig` throws `SymmError("config","AFFILIATE_ADDRESS_REQUIRED")`); the zero address is accepted as a fee-less test placeholder, so set your registered affiliate to whitelist your frontend's domain and earn a share of the trading fees.
+      <<<<<<< HEAD
+- [ ] # `affiliatesAddress` set per chain in `symmioConfig` — the field must be present (else `createConfig` throws `SymmError("config","AFFILIATE_ADDRESS_REQUIRED")`); the zero address is accepted as a fee-less test placeholder, so set your registered affiliate to whitelist your frontend's domain and earn a share of the trading fees.
+- [ ] `affiliatesAddress` set per chain in `symmioConfig` — a **registered** address to earn fees (missing → `createConfig` throws `SymmError("config","AFFILIATE_ADDRESS_REQUIRED")`; zero is a no-affiliate sentinel with no fee share; a non-zero unregistered affiliate reverts on-chain at trade time).
+  > > > > > > > main
 - [ ] `getWalletClient` resolver supplied on `config` before any write or sign flow (else writes throw `NO_WALLET_CLIENT`).
 - [ ] `webSocketConstructor` supplied if you run outside a browser (Node/SSR) — otherwise `getWebSocketConstructor` throws `NO_WEBSOCKET` the moment a socket is needed.
 - [ ] `simulateBeforeWrite` understood: default `true` dry-runs every contract write through its `simulate*` sibling; disable per write only when you have a reason.

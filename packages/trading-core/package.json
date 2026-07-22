@@ -1,6 +1,6 @@
 {
   "name": "@symmio/trading-core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Framework-agnostic SYMMIO SDK. Contract calls, calculations, and transformations with no framework assumptions.",
   "license": "MIT",
   "homepage": "https://github.com/SYMM-IO/Trading-SDK/tree/main/packages/trading-core#readme",
