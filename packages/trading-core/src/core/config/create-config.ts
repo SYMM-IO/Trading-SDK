@@ -1,4 +1,4 @@
-import { zeroAddress, type Address, type PublicClient } from "viem";
+import { type Address, type PublicClient } from "viem";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { DeepPartial } from "../../shared/types/properties";
 import type { WebSocketConstructor } from "../../shared/types/websocket";
@@ -48,15 +48,18 @@ export interface CreateConfigParameters {
    * SDK's built-in defaults. Each entry may override that chain's `addresses`,
    * `subgraphs`, `solver`, `priceService`, `notifications`, and `muon` endpoints.
    *
-   * **Required.** Every supported chain must supply a non-zero
+   * **Required.** Every supported chain must supply an
    * `addresses.affiliatesAddress` — your frontend's on-chain **affiliate**
    * (your identity in SYMMIO on that chain), attached to every quote
    * (`sendQuoteWithAffiliateAndData`) so the protocol knows who sourced the trade
    * and routes your share of the trading fee to you. Affiliate addresses are per
    * chain: a registration on one chain is not valid on another. `createConfig`
-   * throws `AFFILIATE_ADDRESS_REQUIRED` for any supported chain missing it, so a
-   * trade can never silently fall back to the built-in default affiliate and lose
-   * attribution.
+   * throws `AFFILIATE_ADDRESS_REQUIRED` only when it is **missing**, so a trade
+   * can never silently fall back to the built-in default affiliate and lose
+   * attribution. The **zero address is accepted** as a no-affiliate test
+   * placeholder — trades still open, you just earn no fee share; a **non-zero
+   * unregistered** affiliate is what reverts on-chain (`PartyAFacet: Invalid
+   * affiliate`). Register at https://trading-sdk.symm.io/affiliate to earn fees.
    *
    * @example
    * ```ts
@@ -198,17 +201,20 @@ export function createConfig(parameters: CreateConfigParameters): Config {
     webSocketConstructor,
   } = parameters;
 
-  // Affiliate is mandatory per chain: every supported chain's `symmioConfig`
-  // entry must set a non-zero `addresses.affiliatesAddress`, or a trade would
-  // silently fall back to the built-in default affiliate and lose attribution.
-  // Check the raw input (not the merged config, whose default would mask a gap).
+  // Affiliate is required per chain: every supported chain's `symmioConfig` entry
+  // must set `addresses.affiliatesAddress`, or a trade would silently fall back to
+  // the built-in default affiliate and lose attribution. The zero address is
+  // accepted (a no-affiliate test placeholder — trades open, no fee share); only a
+  // MISSING affiliate throws. A non-zero UNREGISTERED affiliate is not caught here;
+  // it reverts on-chain at trade time (`PartyAFacet: Invalid affiliate`). Check the
+  // raw input (not the merged config, whose default would mask a gap).
   for (const chainId of listSupportedChains()) {
     const affiliate = symmioConfig?.[chainId]?.addresses?.affiliatesAddress;
-    if (!affiliate || affiliate === zeroAddress)
+    if (!affiliate)
       throw new SymmError(
         "config",
         "AFFILIATE_ADDRESS_REQUIRED",
-        `createConfig: \`symmioConfig[${chainId}].addresses.affiliatesAddress\` is required and must be non-zero. Affiliate addresses are per chain — set your registered affiliate for every supported chain so trades are attributed to you and earn your fee share.`,
+        `createConfig: \`symmioConfig[${chainId}].addresses.affiliatesAddress\` is required. Affiliate addresses are per chain — set your registered affiliate for every supported chain to earn your fee share. Use the zero address for local testing (trades open, no fee share); register at https://trading-sdk.symm.io/affiliate.`,
       );
   }
 

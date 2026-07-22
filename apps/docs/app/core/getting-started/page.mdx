@@ -22,18 +22,31 @@ pnpm add @symmio/trading-core viem
 Every action and query-options factory receives a `Config` as its first argument. Create it once with [`createConfig`](/core/concepts/config) and share it. The config never owns viem clients itself — you inject them through resolver callbacks, so you stay in control of the RPC and the wallet.
 
 ```ts
-import { createConfig } from "@symmio/trading-core";
-import { createPublicClient, http } from "viem";
+import { createConfig, SymmioSupportedChainId } from "@symmio/trading-core";
+import { createPublicClient, http, zeroAddress } from "viem";
 import { hyperEvm } from "viem/chains";
 
 const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
 
 const config = createConfig({
   getClient: () => publicClient,
+  symmioConfig: {
+    // `affiliatesAddress` is required per chain. `zeroAddress` is fine for testing —
+    // trades open, but you earn no fee share. Register to collect fees (see below).
+    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } },
+  },
 });
 ```
 
 `getClient` is all a read-only config needs. Add [`getWalletClient`](/core/concepts/config) when you want to send transactions — see step 4.
+
+<Callout type="info">
+  **`affiliatesAddress` is required per chain** — your frontend's on-chain identity. For testing you can pass the **zero
+  address** (as above): trades still open, you just earn **no fee share**. For production, **registration** **whitelists
+  your frontend's domain** and lets your affiliate **collect a share of trading fees**. Then set the registered address.
+  See
+  <AffiliateLink>Register an Affiliate</AffiliateLink>.
+</Callout>
 
 ## 3. Read on-chain data
 
@@ -53,13 +66,15 @@ Want a cache? Every read also ships a matching `getXyzQueryOptions(config, optio
 Writes sign through the wallet client your config resolves. Add `getWalletClient` to `createConfig`, then call `xyz(config, params)`:
 
 ```ts
-import { createConfig, editAccountName } from "@symmio/trading-core";
-import { createPublicClient, createWalletClient, http } from "viem";
+import { createConfig, editAccountName, SymmioSupportedChainId } from "@symmio/trading-core";
+import { createPublicClient, createWalletClient, http, zeroAddress } from "viem";
 import { hyperEvm } from "viem/chains";
 
 const config = createConfig({
   getClient: () => createPublicClient({ chain: hyperEvm, transport: http() }),
   getWalletClient: async () => createWalletClient({ account, chain: hyperEvm, transport: http() }),
+  // required per chain — zeroAddress for testing, a registered affiliate to earn fees
+  symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } } },
 });
 
 const hash = await editAccountName(config, {

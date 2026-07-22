@@ -81,13 +81,12 @@ describe("createConfig", () => {
       expect(() => createConfig({ symmioConfig: {}, getClient: () => stubClient })).toThrow(SymmError);
     });
 
-    it("throws on the zero address", () => {
-      expect(() =>
-        createConfig({
-          symmioConfig: { [HYPEREVM]: { addresses: { affiliatesAddress: zeroAddress } } },
-          getClient: () => stubClient,
-        }),
-      ).toThrow(SymmError);
+    it("allows the zero address (the on-chain contract is the real gate)", () => {
+      const config = createConfig({
+        symmioConfig: { [HYPEREVM]: { addresses: { affiliatesAddress: zeroAddress } } },
+        getClient: () => stubClient,
+      });
+      expect(config.getChainConfig(HYPEREVM).addresses.affiliatesAddress).toBe(zeroAddress);
     });
 
     it("applies the per-chain affiliate to the resolved chain config", () => {

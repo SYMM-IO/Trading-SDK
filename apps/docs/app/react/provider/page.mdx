@@ -30,11 +30,11 @@ const symmioConfig = {
 ### `symmioConfig`
 
 - Type: `Partial<Record<number, SymmioChainConfigInput>>`
-- **Required.** Every supported chain must set a non-zero `addresses.affiliatesAddress`, or the provider throws `AFFILIATE_ADDRESS_REQUIRED` (via `createConfig`). The affiliate is mandatory in the type — a chain entry without one is a compile error.
+- **Required.** Every supported chain must set `addresses.affiliatesAddress`, or the provider throws `AFFILIATE_ADDRESS_REQUIRED` (via `createConfig`) — the field must be present, not merely non-zero. The affiliate is mandatory in the type — a chain entry without one is a compile error.
 
 Per-chain SYMMIO configuration, keyed by chain id, deep-merged onto the SDK's built-in defaults (addresses, subgraphs, solver, …).
 
-Its one mandatory field is **`addresses.affiliatesAddress`** for every supported chain — your frontend's on-chain affiliate (your identity in SYMMIO on that chain), attached to every quote so the protocol knows who sourced the trade and routes your share of the trading fee to you. Affiliate addresses are **per chain** (a registration on one chain is not valid on another). Mandatory by design: without it, trades would silently fall back to the built-in default affiliate and you would lose fee attribution. See the [Providers section of the DEX guide](/guides/build-a-dex/react#providers) for the full explanation.
+Its one mandatory field is **`addresses.affiliatesAddress`** for every supported chain — your frontend's on-chain affiliate (your identity in SYMMIO on that chain), attached to every quote so the protocol knows who sourced the trade and routes your share of the trading fee to you. Affiliate addresses are **per chain** (a registration on one chain is not valid on another). Registration both **whitelists your frontend's domain** (an off-chain approval SYMMIO performs so your app's requests are accepted) **and** lets you **collect a share of the trading fees** — <AffiliateLink>register your affiliate</AffiliateLink> and set the registered address. The **zero address is accepted** as a no-affiliate test placeholder — trades still open but you earn no fee share. See the [Providers section of the DEX guide](/guides/build-a-dex/react#providers) for the full explanation.
 
 ```tsx
 <SymmioProvider

@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 # Register an Affiliate
 
-An **affiliate** is your frontend's on-chain identity — the address that rides on every quote your users open and collects a share of the trading fees. Before you can set `affiliatesAddress` in your [config](/core/concepts/config) and start earning, that affiliate has to exist on-chain **and** be approved by SYMMIO. This guide covers registering through the SYMMIO affiliate form: filling it in, submitting the request from your wallet, getting approved and domain-whitelisted, then wiring the address into your config.
+An **affiliate** is your frontend's on-chain identity — the address that rides on every quote your users open and collects a share of the trading fees. Registering it serves **two** purposes: it **whitelists your frontend's domain** (an off-chain approval SYMMIO performs so your app's requests are accepted) **and** lets your affiliate **collect a share of the trading fees**. Before you can set `affiliatesAddress` in your [config](/core/concepts/config) and start trading, that affiliate has to exist on-chain **and** be approved by SYMMIO. This guide covers registering through the SYMMIO affiliate form: filling it in, submitting the request from your wallet, getting approved and domain-whitelisted, then wiring the address into your config.
 
 <Callout type="warning">
   **Registering is a request, not an instant switch-on.** Submitting the transaction creates a `PENDING` affiliate.
@@ -47,7 +47,7 @@ The happy path:
 
 Register through the SYMMIO affiliate page:
 
-**→ [https://trading-sdk.symm.io/affiliate](https://trading-sdk.symm.io/affiliate)**
+**→ <AffiliateLink />**
 
 It runs the whole flow from the browser:
 
@@ -69,7 +69,7 @@ It also collects two off-chain details the on-chain transaction never carries, s
 
 ## After approval — wire it into your config
 
-Once the state is `ACTIVE`, set your affiliate address as `affiliatesAddress` on every supported chain. It's required per chain; the SDK throws `AFFILIATE_ADDRESS_REQUIRED` if it's missing or zero.
+Once the state is `ACTIVE`, set your affiliate address as `affiliatesAddress` on every supported chain. It's required per chain; the SDK throws `AFFILIATE_ADDRESS_REQUIRED` if it's missing. (The zero address is accepted as a fee-less test placeholder, but only a **registered** affiliate earns a fee share.)
 
 ```ts
 [SymmioSupportedChainId.HYPER_EVM]: {

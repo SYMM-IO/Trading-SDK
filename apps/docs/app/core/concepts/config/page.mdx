@@ -38,13 +38,15 @@ The config is meant to be created once at app start and shared across every call
 ### `symmioConfig`
 
 - Type: `Partial<Record<number, SymmioChainConfigInput>>`
-- **Required.** Every supported chain must set a non-zero `addresses.affiliatesAddress`, or `createConfig` throws `AFFILIATE_ADDRESS_REQUIRED`.
+- **Required.** Every supported chain must set `addresses.affiliatesAddress`, or `createConfig` throws `AFFILIATE_ADDRESS_REQUIRED` — the field must be present, not merely non-zero.
 
 `SymmioChainConfigInput` makes the affiliate mandatory in the type: every field is optional to override **except** `addresses.affiliatesAddress`, so a chain entry without an affiliate is a compile error.
 
 Per-chain SYMMIO configuration, keyed by chain id, deep-merged onto the SDK's built-in defaults. Each entry may override that chain's `addresses`, `subgraphs`, `solver`, `priceService`, `notifications`, and `muon` endpoints — point at a staging subgraph, override an address, and so on.
 
-Its one mandatory field is **`addresses.affiliatesAddress`** for every supported chain: your frontend's on-chain **affiliate** (your identity in SYMMIO on that chain), attached to every quote (`sendQuoteWithAffiliateAndData`) so the protocol knows who sourced the trade and routes your share of the trading fee to you. Affiliate addresses are **per chain** — a registration on one chain is not valid on another. This is deliberately mandatory: without it a trade would silently fall back to the built-in default affiliate and you would lose fee attribution.
+Its one mandatory field is **`addresses.affiliatesAddress`** for every supported chain: your frontend's on-chain **affiliate** (your identity in SYMMIO on that chain), attached to every quote (`sendQuoteWithAffiliateAndData`) so the protocol knows who sourced the trade and routes your share of the trading fee to you. Affiliate addresses are **per chain** — a registration on one chain is not valid on another. Registration does two things: it **whitelists your frontend's domain** (an off-chain approval SYMMIO performs so your app's requests are accepted) **and** lets your affiliate **collect a share of the trading fees**. <AffiliateLink>Register your affiliate</AffiliateLink> and set the registered address here.
+
+The **zero address is accepted** as a no-affiliate test placeholder: trades still open, but you earn no share of the trading fee (it is not rejected and does not revert).
 
 ### `getClient`
 
@@ -116,7 +118,7 @@ In `@symmio/trading-react` the hook reads the config from context (via `SymmioPr
 
 `createConfig` throws `SymmError` synchronously on:
 
-- `AFFILIATE_ADDRESS_REQUIRED` — a supported chain's `symmioConfig[chainId].addresses.affiliatesAddress` was missing or the zero address.
+- `AFFILIATE_ADDRESS_REQUIRED` — a supported chain's `symmioConfig[chainId].addresses.affiliatesAddress` was missing. (The zero address is accepted — see the [`symmioConfig`](#symmioconfig) note.)
 - `NO_CHAINS_CONFIGURED` — no supported chains in the built-in registry.
 
 The `Config` throws on lazy resolution:
