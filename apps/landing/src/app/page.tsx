@@ -1,3 +1,4 @@
+import { BecomeAffiliateCta } from "@/features/affiliate/become-affiliate-cta";
 import { AppsSection } from "@/features/apps/apps-section";
 import { CapabilityTicker } from "@/features/capabilities/capability-ticker";
 import { GetStarted } from "@/features/get-started/get-started";
@@ -15,6 +16,7 @@ export default function LandingPage() {
       <PrinciplesSection />
       <LibrariesSection />
       <AppsSection />
+      <BecomeAffiliateCta />
       <GetStarted />
     </>
   );

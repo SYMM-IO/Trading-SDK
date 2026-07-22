@@ -1,5 +1,6 @@
 import { useMDXComponents as getThemeComponents } from "nextra-theme-docs"; // nextra-theme-blog or your custom theme
 import { MDXComponents } from "nextra/mdx-components";
+import { AffiliateLink } from "./components/affiliate-link";
 import { Properties, Property, Returns } from "./components/api-properties";
 import { CodeBlock } from "./components/code-block";
 import { MethodEntry, MethodIndex } from "./components/method-index";
@@ -19,6 +20,7 @@ export function useMDXComponents(components: MDXComponents) {
     Returns,
     MethodIndex,
     MethodEntry,
+    AffiliateLink,
     ...components,
   };
 }

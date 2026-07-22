@@ -187,3 +187,74 @@ export interface SubAccountCreationData {
    */
   singleVAMode: boolean;
 }
+
+/**
+ * Lifecycle state of an affiliate on the `AccountLayer`.
+ *
+ * @remarks
+ * Names and ordering mirror the on-chain `enum AffiliateState` in
+ * `AffiliateStorage.sol` (perps-core v0.8.5) exactly, so a `uint8` returned by
+ * `getAffiliateState` casts directly to this enum without translation.
+ *
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/storages/AffiliateStorage.sol}
+ */
+export enum AffiliateState {
+  /** No registration exists for this address. */
+  NONE = 0,
+  /** A registration request has been submitted and is awaiting approval. */
+  PENDING = 1,
+  /** The affiliate has been approved and can attribute trades and collect fees. */
+  ACTIVE = 2,
+  /** The affiliate has been paused by an approver; trading attribution is halted. */
+  PAUSED = 3,
+}
+
+/**
+ * A single fee recipient within an affiliate registration, mirrored from the
+ * on-chain `Stakeholder` struct field-for-field (same order).
+ *
+ * @remarks
+ * `share` is scaled to `1e18`; the sum of every stakeholder's `share` plus the
+ * registration's `symmioShare` must equal exactly `1e18` or the contract reverts.
+ *
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/storages/AffiliateStorage.sol}
+ */
+export interface Stakeholder {
+  /** Address that receives this stakeholder's cut of affiliate fees. */
+  receiver: Address;
+  /** This stakeholder's fee share, scaled to `1e18` (e.g. `0.4e18` for 40%). */
+  share: bigint;
+}
+
+/**
+ * The `AffiliateRegistration` tuple passed to {@link requestToRegisterAffiliate},
+ * mirrored from the on-chain struct field-for-field (same order) so the object
+ * encodes directly as the contract tuple without translation.
+ *
+ * @remarks
+ * The returned affiliate address is a **new, deterministic** `AccountManager`
+ * contract derived from `(msg.sender, name)` — not the caller's EOA. Predict it
+ * ahead of time with {@link generateAccountManagerAddress}. Registration only
+ * creates a `PENDING` affiliate; an `APPROVER_ROLE` holder must approve it before
+ * it becomes `ACTIVE`.
+ *
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/storages/AffiliateStorage.sol}
+ */
+export interface AffiliateRegistration {
+  /** Display name for the affiliate. Validated on-chain to 1..maxNameLength characters. */
+  name: string;
+  /** UI brand color for the affiliate (free-form string, e.g. a hex color). */
+  brandColor: string;
+  /** The affiliate admin address. Must be non-zero; controls the affiliate after approval. */
+  admin: Address;
+  /** Fee recipients and their shares. Shares plus `symmioShare` must sum to `1e18`. */
+  stakeholders: Stakeholder[];
+  /** The Symmio protocol's fee share, scaled to `1e18`. With `stakeholders` shares, sums to `1e18`. */
+  symmioShare: bigint;
+  /** Free-form metadata blob. Pass `0x` when unused. */
+  metadata: Hex;
+  /** Legacy `MultiAccount` contracts to migrate into this affiliate. Pass `[]` when none. */
+  legacyMultiAccounts: Address[];
+  /** Symmio core (diamond) addresses to register the affiliate on. Each must be whitelisted. */
+  symmioCores: Address[];
+}

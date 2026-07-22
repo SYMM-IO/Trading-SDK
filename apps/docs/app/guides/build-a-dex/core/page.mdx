@@ -111,7 +111,7 @@ const config = createConfig({
   symmioConfig: {
     [SymmioSupportedChainId.HYPER_EVM]: {
       addresses: {
-        // required, non-zero — see the warning below
+        // required (must be present) — set your registered affiliate; see the warning below
         affiliatesAddress: "0xYourAffiliateAddress",
       },
     },
@@ -126,7 +126,7 @@ const config = createConfig({
 
 The full `CreateConfigParameters` surface:
 
-- **`symmioConfig: Partial<Record<number, SymmioChainConfigInput>>`** — **required**. Per-chain overrides deep-merged onto the built-in defaults, keyed by chainId. Each entry's `addresses.affiliatesAddress` is mandatory (must be present). It may be the **zero address** — on-chain a no-affiliate sentinel with no fee share; a **non-zero _unregistered_** affiliate reverts at trade time.
+- **`symmioConfig: Partial<Record<number, SymmioChainConfigInput>>`** — **required**. Per-chain overrides deep-merged onto the built-in defaults, keyed by chainId. Each entry's `addresses.affiliatesAddress` is mandatory (the field must be present; the zero address is accepted — see the warning below).
 - **`getClient: (parameters?: { chainId? }) => PublicClient`** — **required**. Returns a viem `PublicClient` bound to a HyperEVM transport. Every read (`getX`) resolves its client through this.
 - **`getWalletClient?: (parameters: { chainId; from? }) => Promise<SymmioWalletClient>`** — optional. Returns a `SymmioWalletClient` (`WalletClient<Transport, Chain, Account>`). Omit it for a read-only config; every write (`doX`) and sign flow resolves its wallet through this.
 - **`defaultChainId?: number`** — falls back to the first configured chain. Every action's optional `chainId` param falls back to this.
@@ -135,10 +135,13 @@ The full `CreateConfigParameters` surface:
 
 <Callout type="warning">
   **`affiliatesAddress` is required per chain.** `createConfig` throws `SymmError("config",
-  "AFFILIATE_ADDRESS_REQUIRED")` for any supported chain whose entry is **missing** it. The check runs against your raw
-  input, so a built-in default cannot mask a gap. The **zero address** is accepted — on-chain a no-affiliate sentinel
-  (trades open, no fee share); a **non-zero _unregistered_** affiliate reverts with `PartyAFacet: Invalid affiliate` at
-  trade time. Affiliate registration is per-chain — an affiliate registered on one chain is invalid on another.
+  "AFFILIATE_ADDRESS_REQUIRED")` for any supported chain whose entry is **missing** the affiliate field. The check runs
+  against your raw input, so a built-in default cannot mask a gap. The **zero address is accepted** as a no-affiliate
+  test placeholder — trades still open, but you earn no fee share (it is not rejected and does not revert). Affiliate
+  registration is per-chain — an affiliate registered on one chain is invalid on another. Registration does two things:
+  it **whitelists your frontend's domain** (an off-chain approval SYMMIO performs so your app's requests are accepted)
+  **and** lets your affiliate **collect a share of the trading fees**.
+  <AffiliateLink>Register your affiliate</AffiliateLink> to unlock both.
 </Callout>
 
 <Callout type="warning">
@@ -824,6 +827,8 @@ const options = getMarketsQueryOptions(config, {});
 // queryClient.fetchQuery(options) / your own cache
 ```
 
+Render this catalog in your market selector / header: **display each market by its `symbol` field** (the human ticker) and let the user filter on it. Keep `market.name` for price lookups — the `name`-vs-`symbol` distinction is spelled out below.
+
 Per-market limits hang off the symbol:
 
 ```ts
@@ -928,7 +933,7 @@ You have a market, a session key with delegation, and deposited collateral. Open
 
 `instantOpenAuto(config, params)` is `prepareInstantOpenParams` + `instantOpen` fused: it fetches market data, mark price, locked-param percentages, and fee rates, runs the trade math, EIP-712-signs both operations with the session key, and POSTs to the hedger.
 
-Your trade form collects **three** user inputs and forwards them here: `initialMargin` (USD), `leverage`, and **`slippage`** — the percent price tolerance (`0.5` = 0.5%). Slippage is not optional-by-default: `instantOpenAuto` uses it to derive the signed order price from the mark price (`mark × (1 ± slippage)`), so a form that omits a slippage field silently defaults the trade's price tolerance. Surface it as its own input next to margin and leverage. The close flow (`instantCloseAuto`) takes the same `slippage` parameter — collect it there too.
+Your trade form collects **three** user inputs and forwards them here: `initialMargin` (USD), `leverage`, and **`slippage`** — the percent price tolerance (`0.5` = 0.5%). Slippage is not optional-by-default: `instantOpenAuto` uses it to derive the signed order price from the mark price (`mark × (1 ± slippage)`), so a form that omits a slippage field silently defaults the trade's price tolerance. Surface it as its own input next to margin and leverage — a chip row (`0.1 / 0.5 / 1 / 5 / custom`), not a raw number field — and **default it to 5%**, since lowcap fills move more than majors and a tighter default rejects too many opens. The close flow (`instantCloseAuto`) takes the same `slippage` parameter — collect it there too, with the same 5% default.
 
 ```ts
 const result = await instantOpenAuto(config, {
@@ -1616,7 +1621,7 @@ Everything below is a hand-built equivalent of machinery `@symmio/trading-react`
 ### Setup & config
 
 - [ ] Every runtime symbol imported from the single `@symmio/trading-core` entry (no named subpaths). `SymmioSupportedChainId`, `PositionType`, `UnifiedQuote`, `Quote`, `SymmError` are core-only — nothing comes from `@symmio/trading-react`.
-- [ ] `affiliatesAddress` set per chain in `symmioConfig` — a **registered** address to earn fees (missing → `createConfig` throws `SymmError("config","AFFILIATE_ADDRESS_REQUIRED")`; zero is a no-affiliate sentinel with no fee share; a non-zero unregistered affiliate reverts on-chain at trade time).
+- [ ] `affiliatesAddress` set per chain in `symmioConfig` — the field must be present (else `createConfig` throws `SymmError("config","AFFILIATE_ADDRESS_REQUIRED")`); the zero address is accepted as a fee-less test placeholder, so set your registered affiliate to whitelist your frontend's domain and earn a share of the trading fees.
 - [ ] `getWalletClient` resolver supplied on `config` before any write or sign flow (else writes throw `NO_WALLET_CLIENT`).
 - [ ] `webSocketConstructor` supplied if you run outside a browser (Node/SSR) — otherwise `getWebSocketConstructor` throws `NO_WEBSOCKET` the moment a socket is needed.
 - [ ] `simulateBeforeWrite` understood: default `true` dry-runs every contract write through its `simulate*` sibling; disable per write only when you have a reason.
