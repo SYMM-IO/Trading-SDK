@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # SYMMIO Contract hooks
 
 React hooks over `@symmio/trading-core`'s on-chain SYMMIO contract slice — quote reads, party positions, collateral, allocate / deallocate, on-chain markets. Solver-side reads (`useMarkets`, `useLockedParams`, `useNotionalCap*`) live under [Solvers](../solvers).
@@ -27,6 +29,8 @@ import {
   useSimulateApproveCollateral,
   useDeposit,
   useSimulateDeposit,
+  useDepositAndAllocate,
+  useSimulateDepositAndAllocate,
   useAllocate,
   useSimulateAllocate,
   useDeallocate,
@@ -139,7 +143,7 @@ const mutation = useApproveCollateral();
 
 ### `useDeposit` / `useSimulateDeposit`
 
-Deposit collateral into a SubAccount's **available** balance (after approval). `amount` is in the collateral token's decimals (`getChainConfig().addresses.collateralDecimals`).
+Deposit collateral into a SubAccount's **available** balance (after approval) — the balance instant trading spends, so for the instant (lowcap) flow this is the **entire** funding step (no allocate afterwards; see [Balance Model](/core/concepts/balance-model)). `amount` is in the collateral token's decimals (`getChainConfig().addresses.collateralDecimals`).
 
 ```tsx
 const simulation = useSimulateDeposit({ account: subAccount, amount });
@@ -150,9 +154,25 @@ mutation.mutate({ account: subAccount, amount });
 
 Invalidates the SubAccount's balance reads (`useAccountBalanceOf`) on success.
 
+### `useDepositAndAllocate` / `useSimulateDepositAndAllocate`
+
+Deposit collateral **and allocate it into the classic pool** in one transaction. `amount` is in the collateral token's decimals.
+
+<Callout type="warning">
+  **Not the instant-flow funding step.** Instant trading spends the **available** balance; funds allocated here are not
+  what an instant open consumes — the symptom is "deposited, but the trade form shows zero margin." Use
+  [`useDeposit`](#usedeposit--usesimulatedeposit) instead. See [Balance Model](/core/concepts/balance-model).
+</Callout>
+
+```tsx
+const mutation = useDepositAndAllocate();
+
+mutation.mutate({ account: subAccount, amount });
+```
+
 ### `useAllocate` / `useSimulateAllocate`
 
-Move collateral from the account into the SubAccount's tradable pool.
+Move collateral from the available balance into the SubAccount's **classic pool** (allocated) balance — not what instant opens spend; see [Balance Model](/core/concepts/balance-model).
 
 ```tsx
 const simulation = useSimulateAllocate({ account: subAccount, amount });
@@ -165,7 +185,7 @@ Invalidates `getAllocated`, `getCollateralBalance`, and party-scoped quote reads
 
 ### `useDeallocate` / `useSimulateDeallocate`
 
-Withdraw idle allocated collateral. Requires a Muon UPNL signature.
+Move idle **classic-pool** allocated collateral back to the available balance. Requires a Muon UPNL signature.
 
 ```tsx
 const upnlSigQuery = useDeallocateUpnlSig({ partyA });

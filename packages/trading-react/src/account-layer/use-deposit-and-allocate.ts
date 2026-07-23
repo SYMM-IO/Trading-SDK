@@ -32,10 +32,13 @@ export type UseDepositAndAllocateReturnType = UseMutationResult<
 
 /**
  * Submit a `depositAndAllocateForAccount` transaction, crediting collateral to a
- * subaccount **and allocating it into trading margin** in one transaction. The
- * connected wallet must own the subaccount, and must have approved the collateral
- * to the SYMMIO core first (see `useApproveCollateral`). On success, the connected
- * wallet's collateral allowance and balance queries are invalidated.
+ * subaccount and allocating it into the **classic pool** in one transaction.
+ * Instant trading spends the **available** balance instead — for the instant
+ * flow fund with `useDeposit` alone (funds allocated here are not what an
+ * instant open consumes). The connected wallet must own the subaccount, and must
+ * have approved the collateral to the SYMMIO core first (see
+ * `useApproveCollateral`). On success, the connected wallet's collateral
+ * allowance and balance queries are invalidated.
  *
  * @example
  * ```tsx

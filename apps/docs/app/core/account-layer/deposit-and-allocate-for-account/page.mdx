@@ -1,0 +1,53 @@
+import { Callout } from "nextra/components";
+
+# depositAndAllocateForAccount
+
+Deposit collateral into a subaccount **and allocate it into the classic pool** in one transaction. Calls `AccountLayer.depositAndAllocateForAccount` — equivalent to [`depositForAccount`](/core/account-layer/deposit-for-account) followed by an [`allocate`](/core/account-layer/allocate), but atomic.
+
+<Callout type="warning">
+  **Not the instant-flow funding step.** Instant trading spends the **available** balance; funds allocated here land in
+  the **classic pool**, which an instant open does not consume — the symptom is "deposited, but the trade form shows
+  zero margin." For the instant (lowcap) flow, fund with [`depositForAccount`](/core/account-layer/deposit-for-account)
+  alone. See [Balance Model](/core/concepts/balance-model).
+</Callout>
+
+Like `depositForAccount`, it requires a prior ERC-20 approval of the collateral token to the **SYMMIO core** (`symmioAddress`).
+
+```ts
+import { depositAndAllocateForAccount } from "@symmio/trading-core";
+
+const hash = await depositAndAllocateForAccount(config, {
+  account: "0xsub...",
+  amount: 1_000000n, // collateral decimals (e.g. 1 USDC at 6 decimals)
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The subaccount to credit and allocate for. The signer must equal its on-chain `owner`.
+  </Property>
+  <Property name="amount" type="bigint" required>
+    Amount of collateral to deposit and allocate, in the **collateral token's decimals**
+    (`getChainConfig().addresses.collateralDecimals`) — not 18 decimals.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+  <Property name="simulateBeforeWrite" type="boolean" optional>
+    Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default).
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hash">
+  The broadcast tx hash. Dry-run without sending via `simulateDepositAndAllocateForAccount(config, params)`.
+</Returns>
+
+## Related
+
+- [Balance Model](/core/concepts/balance-model) — instant flow vs. classic pool.
+- [`depositForAccount`](/core/account-layer/deposit-for-account) — the instant-flow funding write.
+- [`allocate`](/core/account-layer/allocate) / [`deallocate`](/core/account-layer/deallocate) — the classic-pool moves.

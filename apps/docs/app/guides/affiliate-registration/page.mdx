@@ -2,7 +2,14 @@ import { Callout } from "nextra/components";
 
 # Register an Affiliate
 
-An **affiliate** is your frontend's on-chain identity — the address that rides on every quote your users open and collects a share of the trading fees. Registering it serves **two** purposes: it **whitelists your frontend's domain** (an off-chain approval SYMMIO performs so your app's requests are accepted) **and** lets your affiliate **collect a share of the trading fees**. Before you can set `affiliatesAddress` in your [config](/core/concepts/config) and start trading, that affiliate has to exist on-chain **and** be approved by SYMMIO. This guide covers registering through the SYMMIO affiliate form: filling it in, submitting the request from your wallet, getting approved and domain-whitelisted, then wiring the address into your config.
+<Callout type="info">
+  **You do not need an affiliate to start trading.** Pass the **zero address** as `affiliatesAddress` in your
+  [config](/core/concepts/config) and every SDK flow works out of the box — quotes open, positions close — you just earn
+  **no share of the trading fees**. Build and test your DEX with the zero address first; register an affiliate when you
+  want to **earn your fee share** and take your own domain to production.
+</Callout>
+
+An **affiliate** is your frontend's on-chain identity — the address that rides on every quote your users open and collects a share of the trading fees. Registering it serves **two** purposes: it **whitelists your frontend's domain** (an off-chain approval SYMMIO performs so your production app's requests are accepted) **and** lets your affiliate **collect a share of the trading fees**. To unlock either, the affiliate has to exist on-chain **and** be approved by SYMMIO. This guide covers registering through the SYMMIO affiliate form: filling it in, submitting the request from your wallet, getting approved and domain-whitelisted, then wiring the address into your config.
 
 <Callout type="warning">
   **Registering is a request, not an instant switch-on.** Submitting the transaction creates a `PENDING` affiliate.
@@ -13,8 +20,9 @@ An **affiliate** is your frontend's on-chain identity — the address that rides
 2. **Domain whitelisting** — SYMMIO whitelists the app/website domain you submit, on its off-chain services (the
    hedger / solver / API). Requests coming from a domain that isn't whitelisted are **rejected**.
 
-Until **both** are done, your frontend cannot call SYMMIO's services. Plan for a review step between submitting and
-going live — don't ship expecting registration alone to unlock trading.
+Until **both** are done, your **production** frontend cannot call SYMMIO's services from its own domain. Plan for a
+review step between submitting and going live — don't ship expecting registration alone to unlock trading. Local
+development is unaffected: the dev origin (`localhost:3000`) works with the **zero address** and no registration at all.
 
 </Callout>
 
@@ -69,7 +77,7 @@ It also collects two off-chain details the on-chain transaction never carries, s
 
 ## After approval — wire it into your config
 
-Once the state is `ACTIVE`, set your affiliate address as `affiliatesAddress` on every supported chain. It's required per chain; the SDK throws `AFFILIATE_ADDRESS_REQUIRED` if it's missing. (The zero address is accepted as a fee-less test placeholder, but only a **registered** affiliate earns a fee share.)
+Once the state is `ACTIVE`, swap the zero address you shipped with for your registered affiliate as `affiliatesAddress` on every supported chain. The field is required per chain — the SDK throws `AFFILIATE_ADDRESS_REQUIRED` only when it is missing entirely; the zero address stays a valid fee-less default — and only a **registered** affiliate earns a fee share.
 
 ```ts
 [SymmioSupportedChainId.HYPER_EVM]: {

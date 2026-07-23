@@ -1,8 +1,8 @@
 # getAccountBalanceInfo
 
-Read the account's **tradable (allocated) balance info** — the collateral that has been allocated to this SubAccount and is available (or locked) for trading, together with the CVA / LF / margin locks currently held against it. Read via `balanceInfoOfPartyA(account)` on the SYMMIO diamond.
+Read the account's **classic-pool (allocated) balance info** — the collateral allocated to this account, together with the CVA / LF / margin locks currently held against it. Read via `balanceInfoOfPartyA(account)` on the SYMMIO diamond.
 
-Pair with [`getAccountBalanceOf`](/core/account-layer/get-account-balance-of) for the full picture: `balanceOf` is the free-to-move pot; `balanceInfoOfPartyA` is the allocated-and-in-play pot.
+**Instant opens do not spend this pool.** The instant (lowcap) flow trades from the **available** balance — read that with [`getAccountBalanceOf`](/core/account-layer/get-account-balance-of); this read reports the classic pool and, when passed a Virtual Account address, that position's locks. See [Balance Model](/core/concepts/balance-model).
 
 ```ts
 import { getAccountBalanceInfo } from "@symmio/trading-core";
@@ -57,7 +57,7 @@ console.log(info.allocatedBalance);
   </Property>
 </Returns>
 
-All fields are returned in raw collateral token units.
+All fields are in the protocol's **18-decimal** internal units (not the collateral token's decimals).
 
 ## Query options
 

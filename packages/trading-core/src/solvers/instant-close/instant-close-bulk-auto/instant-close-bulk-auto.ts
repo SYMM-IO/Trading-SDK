@@ -59,8 +59,8 @@ export type InstantCloseBulkAutoParameters = Compute<
  * await instantCloseBulkAuto(config, {
  *   from: sessionKey,
  *   orders: [
- *     { partyA: vaA, market: { id: 1 }, positionType: PositionType.LONG, quoteId: 1n, quantityToClose: "0.5", slippage: 1 },
- *     { partyA: vaB, market: { id: 2 }, positionType: PositionType.SHORT, quoteId: 2n, quantityToClose: "1.0", slippage: 1 },
+ *     { partyA: vaA, market: { id: 1 }, positionType: PositionType.LONG, quoteId: 1n, quantityToClose: "0.5", slippage: 5 },
+ *     { partyA: vaB, market: { id: 2 }, positionType: PositionType.SHORT, quoteId: 2n, quantityToClose: "1.0", slippage: 5 },
  *   ],
  * });
  * ```

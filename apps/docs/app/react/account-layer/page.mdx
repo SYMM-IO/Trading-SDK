@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # AccountLayer hooks
 
 React-query wrappers over `@symmio/trading-core`'s AccountLayer slice.
@@ -50,7 +52,7 @@ return (
 
 ### `useAccountBalanceOf`
 
-Read the account's **available (deallocated) balance** — collateral that lives on the account but is **not** currently allocated to any SubAccount for trading. This is the amount the user can deposit, withdraw, or allocate. Under the hood: `balanceOf(account)` on the SYMMIO diamond.
+Read the account's **available balance** — deposited collateral idle on the account. **For the instant (lowcap) flow this is the trading balance**: deposits credit it, instant opens spend it, and withdrawals draw from it. Under the hood: `balanceOf(account)` on the SYMMIO diamond. See [Balance Model](/core/concepts/balance-model).
 
 ```tsx
 import { formatEther } from "viem";
@@ -78,11 +80,11 @@ return <span>{data === undefined ? "-" : formatEther(data)}</span>;
 
 `UseQueryResult<bigint, SymmioRequestError>`.
 
-The value is in raw collateral token units. Divide by `1e18` / use `formatEther` when displaying the current deployments' 18-decimal collateral values.
+The value is in the protocol's **18-decimal** internal units (not the collateral token's decimals) — use `formatEther` / `formatUnits(value, 18)` to display.
 
 ### `useAccountBalanceInfo`
 
-Read the account's **tradable (allocated) balance info** — collateral allocated to this SubAccount for trading, plus the CVA / LF / margin locks currently held against it. Pair with [`useAccountBalanceOf`](#useaccountbalanceof) for the full picture: available on one side, allocated-and-in-play on the other. Under the hood: `balanceInfoOfPartyA(account)` on the SYMMIO diamond.
+Read the account's **classic-pool (allocated) balance info** — collateral allocated to this account, plus the CVA / LF / margin locks currently held against it. **Instant opens do not spend this pool** — the instant flow trades from the available balance ([`useAccountBalanceOf`](#useaccountbalanceof)); see [Balance Model](/core/concepts/balance-model). Under the hood: `balanceInfoOfPartyA(account)` on the SYMMIO diamond.
 
 ```tsx
 import { formatEther } from "viem";
@@ -121,7 +123,7 @@ interface AccountBalanceInfo {
 }
 ```
 
-All fields are in raw collateral token units.
+All fields are in the protocol's **18-decimal** internal units (not the collateral token's decimals).
 
 ### `usePredictedNextVirtualAccount`
 
@@ -160,6 +162,13 @@ The query is **disabled until `subAccount`, `isolationType`, and `symbolId` are 
 ## Writes
 
 Every hook below returns react-query's `UseMutationResult` — call `mutate(inputs)` (or `mutateAsync`), watch `isPending` / `data` / `error`, and the hook invalidates the reads it affected on your behalf.
+
+<Callout type="warning">
+  **Building the instant (lowcap) flow? You need neither `useAllocate` nor `useDeallocate`.** Instant trading spends the
+  **available** balance; allocating moves funds into the classic pool and _reduces_ what an instant open can use. Fund
+  with [`useDeposit`](/react/symmio-contract#usedeposit--usesimulatedeposit), exit with the [withdraw
+  hooks](/react/withdraw). See [Balance Model](/core/concepts/balance-model).
+</Callout>
 
 ### `useAllocate`
 

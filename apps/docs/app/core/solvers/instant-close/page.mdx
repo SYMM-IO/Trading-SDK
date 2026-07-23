@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Instant Close
 
 Instant Close is the lowcap flow for closing (fully or partially) an open position. Same shape as Instant Open — sign, submit, get an id — with a bulk variant for closing multiple quotes atomically.
@@ -59,6 +61,14 @@ Pure resolver. Takes the minimal UI-shaped inputs (partyA, market, side, quote i
 3. Clamp `quantityToClose` to the market's `quantityPrecision`.
 4. Convert decimal strings to 18-decimal-wei `bigint`.
 
+<Callout type="warning">
+  **Slippage is a required input — source it from the user.** `slippage` is a percent tolerance applied to the mark
+  price to compute the close fill price (`calculateClosePrice`); thin or fast-moving markets need more of it. Prefer a
+  user-controlled slippage field. If you must hardcode a default, use **5% or higher** — a tight value like `1%`
+  frequently fails to fill on a market close (the price moves past your limit before the solver fills). The examples
+  below use `5` for that reason.
+</Callout>
+
 ```ts
 const resolved = await prepareInstantCloseParams(config, {
   from: sessionKey,
@@ -67,7 +77,7 @@ const resolved = await prepareInstantCloseParams(config, {
   positionType: PositionType.LONG,
   quoteId: 42n,
   quantityToClose: "0.5",
-  slippage: 1,
+  slippage: 5,
 });
 ```
 
@@ -142,7 +152,7 @@ await instantCloseAuto(config, {
   positionType: PositionType.LONG,
   quoteId: 42n,
   quantityToClose: "0.5",
-  slippage: 1,
+  slippage: 5,
 });
 ```
 
@@ -161,7 +171,7 @@ await instantCloseBulkAuto(config, {
     { quoteId: 42n, quantityToClose: "0.5" },
     { quoteId: 43n, quantityToClose: "1.0" },
   ],
-  slippage: 1,
+  slippage: 5,
 });
 ```
 

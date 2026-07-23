@@ -31,9 +31,10 @@ export type DepositForAccountReturnType = Hash;
  * Deposit collateral into a subaccount's **available balance** on the SYMMIO core.
  *
  * Calls `AccountLayer.depositForAccount`, which pulls the collateral from the
- * connected wallet into the core and credits the subaccount. The funds land in
- * the available (withdrawable) balance, not in trading margin — use
- * {@link depositAndAllocateForAccount} to allocate in the same transaction.
+ * connected wallet into the core and credits the subaccount's available
+ * balance — the balance instant trading spends and withdrawals draw from, so
+ * for the instant flow this is the whole funding step (no allocate afterwards).
+ * Only the classic-pool flow allocates — see {@link depositAndAllocateForAccount}.
  *
  * Dry-runs the call with {@link simulateDepositForAccount} first unless
  * `simulateBeforeWrite` is `false` (per-call, falling back to the config default).

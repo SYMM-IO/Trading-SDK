@@ -111,8 +111,9 @@ const config = createConfig({
   symmioConfig: {
     [SymmioSupportedChainId.HYPER_EVM]: {
       addresses: {
-        // required (must be present) — set your registered affiliate; see the warning below
-        affiliatesAddress: "0xYourAffiliateAddress",
+        // required field — `zeroAddress` works out of the box (no fee share);
+        // a registered affiliate earns fees. See the warning below.
+        affiliatesAddress: zeroAddress,
       },
     },
   },
@@ -134,14 +135,14 @@ The full `CreateConfigParameters` surface:
 - **`webSocketConstructor?: WebSocketConstructor`** — defaults to `globalThis.WebSocket`. Supply your own in Node/SSR (there is no `WebSocket` global there) or the notification and TP/SL streams will fail.
 
 <Callout type="warning">
-  **`affiliatesAddress` is required per chain.** `createConfig` throws `SymmError("config",
-  "AFFILIATE_ADDRESS_REQUIRED")` for any supported chain whose entry is **missing** the affiliate field. The check runs
-  against your raw input, so a built-in default cannot mask a gap. The **zero address is accepted** as a no-affiliate
-  test placeholder — trades still open, but you earn no fee share (it is not rejected and does not revert). Affiliate
+  **`affiliatesAddress` must be present per chain — the zero address is a valid no-affiliate default.** `createConfig`
+  throws `SymmError("config", "AFFILIATE_ADDRESS_REQUIRED")` only for a supported chain whose entry is **missing** the
+  affiliate field. The check runs against your raw input, so a built-in default cannot mask a gap. With the **zero
+  address**, trades still open — you just earn no fee share (it is not rejected and does not revert). Affiliate
   registration is per-chain — an affiliate registered on one chain is invalid on another. Registration does two things:
-  it **whitelists your frontend's domain** (an off-chain approval SYMMIO performs so your app's requests are accepted)
-  **and** lets your affiliate **collect a share of the trading fees**.
-  <AffiliateLink>Register your affiliate</AffiliateLink> to unlock both.
+  it **whitelists your frontend's domain** (an off-chain approval SYMMIO performs so your production app's requests are
+  accepted) **and** lets your affiliate **collect a share of the trading fees**. Start with the zero address;
+  <AffiliateLink>register your affiliate</AffiliateLink> when you want to unlock both.
 </Callout>
 
 <Callout type="warning">
@@ -204,7 +205,7 @@ Every symbol above — `createConfig`, `getMarkets`, `instantOpenAuto`, `watchNo
 The only other package you need in the examples ahead is `viem`, for the primitives the config and write flows already speak (`Address`, `Hash`, `maxUint256`, and the `PublicClient` / wallet-client types your resolvers return):
 
 ```ts
-import { createPublicClient, createWalletClient, custom, http, maxUint256 } from "viem";
+import { createPublicClient, createWalletClient, custom, http, maxUint256, zeroAddress } from "viem";
 import type { Address, Hash, PublicClient } from "viem";
 ```
 
@@ -429,7 +430,7 @@ let connectedChainId: number | undefined;
 const config = createConfig({
   symmioConfig: {
     [SymmioSupportedChainId.HYPER_EVM]: {
-      addresses: { affiliatesAddress: "0x…" }, // required; registered to earn fees (see Setup)
+      addresses: { affiliatesAddress: zeroAddress }, // zeroAddress OK — register to earn fees (see Setup)
     },
   },
   defaultChainId: SymmioSupportedChainId.HYPER_EVM,
@@ -680,7 +681,16 @@ See [`/core/symmio-contract/create-classic-withdraw-part`](/core/symmio-contract
 
 ## 4. Session key + delegation
 
-A **session key** is a throwaway keypair you generate and hold in the DEX runtime. It signs the EIP-712 payloads that `instantOpenAuto`, `instantClose`, and `setQuoteTpSl` send to the hedger and TP/SL handler — so the user's wallet signs a single on-chain `grantDelegation` transaction once, then never gets prompted again during the trade loop.
+A **session key** is a local keypair you generate once, **persist to durable storage**, and reload on every app start. It signs the EIP-712 payloads that `instantOpenAuto`, `instantClose`, and `setQuoteTpSl` send to the hedger and TP/SL handler — so the user's wallet signs a single on-chain `grantDelegation` transaction once, then never gets prompted again during the trade loop.
+
+<Callout type="warning">
+  **Persist the key and reload it on start — do not regenerate per session.** Save the keypair through a **durable**
+  `SessionKeyStorage` adapter (`localStorage` / IndexedDB) and load it on boot (`manager.initialize(owner)`), minting a
+  new one only when none exists or the stored one expired. A key held only in memory is lost on every refresh, and a
+  fresh key has **no delegations** — so the user must send another `grantDelegation` transaction before they can trade.
+  Durable storage + reload-on-start keeps the same key and its existing delegation across refreshes. Encrypt the stored
+  private key — see the session-key package's Security &amp; storage guide.
+</Callout>
 
 The catch: the session key can only act on selectors the SubAccount has **delegated on-chain**. Delegation is a real contract write on the Instant Layer (`instantLayerAddress`); the hedger will happily accept a session-signed payload, but the on-chain anchor reverts if the matching selector isn't delegated. So delegation is a hard gate that sits between "collateral deposited" and "open position."
 

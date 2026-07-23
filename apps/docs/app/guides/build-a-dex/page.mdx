@@ -4,6 +4,14 @@ import { Callout } from "nextra/components";
 
 Ship a perpetuals trading UI on SYMMIO — connect a wallet, pick a market, open and close leveraged positions, manage TP/SL. There are two ways to build it, and they walk the **same flows**; pick the path by your stack, not by the feature set.
 
+## Three facts integrators get wrong most often
+
+Read these before you write any integration code — they trip up humans and AI agents alike:
+
+1. **Affiliate is optional for trading.** The `affiliatesAddress` config field must be present, but the **zero address is a valid default** — trading works; register an affiliate only to [earn a fee share](/guides/affiliate-registration).
+2. **Instant trading spends the _available_ balance.** Fund with a plain deposit and trade — no allocate step. `allocate` / `depositAndAllocate` belong to the classic pool and _reduce_ instant margin. See the [Balance Model](/core/concepts/balance-model).
+3. **Two decimal scales.** Deposit/withdraw amounts use the collateral token's decimals; account balances and quote values are 18-decimal internal units.
+
 <Callout type="info">
   **Most teams should build with React.** Reach for the Core path only when you cannot use React — a Node.js service, a
   bot, or a non-React framework. The two guides cover the same DEX; the Core guide additionally makes you rebuild the

@@ -97,15 +97,18 @@ Nest **`WagmiProvider` → `QueryClientProvider` → `SymmioProvider`**. The SDK
 
 - **`WagmiProvider`** — your `createConfig({ chains, transports, connectors })` from `wagmi`. The host owns connectors and RPCs; the SDK never picks them.
 - **`QueryClientProvider`** — one `new QueryClient()`, held in `useState` so it survives remounts.
-- **`SymmioProvider`** — props are **`symmioConfig`** (required), **`defaultChainId`**, **`getWalletClient`** (plus `children`). `symmioConfig` is the per-chain SYMMIO config, keyed by chain id; each supported chain must set `addresses.affiliatesAddress` (your registered affiliate) or the provider throws:
+- **`SymmioProvider`** — props are **`symmioConfig`** (required), **`defaultChainId`**, **`getWalletClient`** (plus `children`). `symmioConfig` is the per-chain SYMMIO config, keyed by chain id; each supported chain must have `addresses.affiliatesAddress` **present** (the provider throws only when it is missing — `zeroAddress` works out of the box; a **registered** affiliate earns fees):
 
   ```tsx
   import { SymmioSupportedChainId } from "@symmio/trading-core";
   import { SymmioProvider } from "@symmio/trading-react";
+  import { zeroAddress } from "viem";
 
   const symmioConfig = {
     [SymmioSupportedChainId.HYPER_EVM]: {
-      addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" },
+      // `zeroAddress` works out of the box — trades open, you earn no fee share.
+      // Swap in your registered affiliate to collect fees (see the callout below).
+      addresses: { affiliatesAddress: zeroAddress },
       // optional: per-chain subgraphs / solver / … overrides
     },
   };
@@ -126,10 +129,9 @@ It's mandatory in the type: **the SDK throws (`AFFILIATE_ADDRESS_REQUIRED`) only
 missing** — the field must be present, not merely non-zero. The **zero address is accepted** as a no-affiliate test
 placeholder (trades still open, but you earn no fee share). Registration serves two purposes: it
 **whitelists your frontend's domain** (an off-chain approval SYMMIO performs so your app's requests are accepted) **and**
-lets your affiliate **collect a share of the trading fees**. Running your own frontend means
-
-<AffiliateLink>**registering your affiliate address**</AffiliateLink> first, then setting the registered address under
-`symmioConfig[chainId].addresses.affiliatesAddress`.
+lets your affiliate **collect a share of the trading fees**. Start with the zero address; when you want to earn fees
+(and take your own domain to production), <AffiliateLink>**register your affiliate address**</AffiliateLink> and swap it
+in under `symmioConfig[chainId].addresses.affiliatesAddress`.
 
 </Callout>
 
@@ -183,7 +185,7 @@ SYMMIO trades happen against a **SubAccount** address, not the EOA. Every tradin
 
 ## 3. Collateral
 
-The user-facing collateral flow for a lowcap DEX is just **deposit** and **withdraw** — funds live in the SubAccount's **available** balance, which instant trading spends directly.
+The user-facing collateral flow for a lowcap DEX is just **deposit** and **withdraw** — funds live in the SubAccount's **available** balance, which instant trading spends directly. (Full picture of every balance and where it lives: [Balance Model](/core/concepts/balance-model).)
 
 - **Available (deallocated)** — deposited collateral idle on the account: what instant open consumes and what a user withdraws. Read via [`useAccountBalanceOf`](/react/account-layer#useaccountbalanceof) (`{ account }` → `bigint`, 18 decimals).
 - **Deposit** (wallet → available) — [`useApproveCollateral`](/react/symmio-contract#useapprovecollateral--usesimulateapprovecollateral) (ERC-20 approve) then [`useDeposit`](/react/symmio-contract#usedeposit--usesimulatedeposit) (`{ account, amount }`).
@@ -214,7 +216,17 @@ Withdrawing returns funds to the wallet from the **available** balance in a two-
 
 Every instant open / close / margin-add is signed by a **session key** — a hot signer the user grants scoped, time-boxed permission to. Without it, every trade prompts the wallet. Without an active delegation, the on-chain call reverts.
 
-**Flow:** mint or load a session key with `@symmio/session-key` (its `SessionKeyManager` owns the keystore) → check the delegation for each required selector → if any is missing, prompt one wallet transaction that grants all three → render the trade form only once all are active.
+**Flow:** on mount, **load** the persisted session key from durable storage (`manager.initialize(owner)`) — mint a new one only if none exists → check the delegation for each required selector → if any is missing, prompt one wallet transaction that grants all three → render the trade form only once all are active.
+
+<Callout type="warning">
+  **Persist the session key — never keep it in memory only.** Back your `SessionKeyManager` with a **durable**
+  `SessionKeyStorage` adapter (`localStorage` or IndexedDB), and **auto-load it on mount** with
+  `manager.initialize(owner)`. If the key lives only in memory (or you don't re-initialize on load), **every page
+  refresh mints a brand-new session-key wallet** — which drops all delegations and forces the user to send **another
+  `grantDelegation` transaction** just to trade again. With durable storage + auto-load, a refresh reuses the same key
+  and its existing (non-expired) delegation, so the trade form is immediately usable and no new wallet tx is needed.
+  Encrypt the stored private key — see [Security &amp; storage](/session-key/security).
+</Callout>
 
 ### Selectors
 
@@ -615,6 +627,16 @@ To receive the stream, **pass `account`** (the SubAccount) to `useQuoteTpSl` —
 
 To show a position's live TP/SL inline (e.g. under the market name in the positions row), read it the same way — `useQuoteTpSl({ quoteId, account: subAccount })` — and render `record.tp` / `record.sl`.
 
+<Callout type="warning">
+  **Existing TP/SL only appears if you mount `useQuoteTpSl` per position — the WebSocket does not backfill on load.** The
+  TP/SL socket streams **transitions from the moment you subscribe**; it never replays the conditional orders a position
+  already has. `useQuoteTpSl({ quoteId, account })` is what performs the REST read on mount that hydrates the current
+  state **and** opens the stream. So on app load — and whenever the positions table first renders — mount it for **every
+  anchored quote** (`quote.quoteId ?? BigInt(quote.tempQuoteId)`). If you render TP/SL only from the store selector
+  (`useTpSlRecord`) or from `useWatchTpSlNotifications` alone — without ever mounting `useQuoteTpSl` — an existing
+  take-profit / stop-loss stays invisible until it next changes. Symptom: **"TP/SL doesn't show after a refresh."**
+</Callout>
+
 See the [TP/SL reference](/react/tpsl) for the full state machine, store shape, and the `tempQuoteId ↔ quoteId` linking rules.
 
 ## Checklist
@@ -624,7 +646,7 @@ See the [TP/SL reference](/react/tpsl) for the full state machine, store shape, 
 - [ ] Exactly one wagmi copy resolves — automatic for a clean single-project install; force it with a package-manager override if two ever appear.
 - [ ] Providers nested wagmi → QueryClient → Symmio, mounted **client-only** so `next build` doesn't fail prerendering `/_not-found`.
 - [ ] `SymmioSupportedChainId`, `UnifiedQuote`, `QuoteLifecycle` imported from `@symmio/trading-core`.
-- [ ] Affiliate set under `SymmioProvider`'s required **`symmioConfig`** — each chain's `addresses.affiliatesAddress` present (the SDK throws only on a **missing** field; the zero address is accepted as a fee-less test placeholder) and a **registered** address in production (registration whitelists your frontend's domain and earns a share of the trading fees), plus a `getWalletClient` resolver wired for session-key signing.
+- [ ] Affiliate set under `SymmioProvider`'s required **`symmioConfig`** — each chain's `addresses.affiliatesAddress` present (the SDK throws only on a **missing** field; `zeroAddress` is the correct no-affiliate default — trades open, no fee share), upgraded to a **registered** address when you monetize or go to production (registration whitelists your frontend's domain and earns a share of the trading fees), plus a `getWalletClient` resolver wired for session-key signing.
 
 **Trade UX**
 
@@ -655,16 +677,19 @@ See the [TP/SL reference](/react/tpsl) for the full state machine, store shape, 
 
 ## Pitfalls
 
-| Symptom                                                                            | Cause                                                            | Fix                                                                |
-| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `Cannot read properties of undefined (reading 'HYPER_EVM')`                        | `SymmioSupportedChainId` imported from react                     | Import from `@symmio/trading-core`                                 |
-| `useConfig must be used within WagmiProvider` (at runtime)                         | Two wagmi copies in `node_modules`                               | Force one copy via a package-manager override ([Setup](#setup))    |
-| `useConfig must be used within WagmiProvider` (during `next build`, `/_not-found`) | Provider tree server-rendered                                    | Mount it client-only — gate on `mounted` ([Providers](#providers)) |
-| `Actions.wallet.send is not exported from 'viem/tempo'` at build                   | Next 15 fails to tree-shake `viem/tempo`                         | Upgrade to Next 16, or add `wagmi` to `transpilePackages`          |
-| Open silently fails after the spinner ends                                         | Selector not delegated                                           | Gate the form on `allActive === true`                              |
-| Positions render then vanish for a second                                          | `invalidateQueries` on a `useManagedQuotes` mutation `onSuccess` | Let the WS handler own state; don't invalidate                     |
-| "Closing…" never clears                                                            | Close state read from `mutation.isSuccess`                       | Read it from `UnifiedQuote.lifecycle`                              |
-| Deallocate reverts right after a prior deallocate                                  | On-chain debounce window                                         | Surface `SymmioRequestError` and prompt the user to wait           |
+| Symptom                                                                            | Cause                                                            | Fix                                                                                              |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `Cannot read properties of undefined (reading 'HYPER_EVM')`                        | `SymmioSupportedChainId` imported from react                     | Import from `@symmio/trading-core`                                                               |
+| `useConfig must be used within WagmiProvider` (at runtime)                         | Two wagmi copies in `node_modules`                               | Force one copy via a package-manager override ([Setup](#setup))                                  |
+| `useConfig must be used within WagmiProvider` (during `next build`, `/_not-found`) | Provider tree server-rendered                                    | Mount it client-only — gate on `mounted` ([Providers](#providers))                               |
+| `Actions.wallet.send is not exported from 'viem/tempo'` at build                   | Next 15 fails to tree-shake `viem/tempo`                         | Upgrade to Next 16, or add `wagmi` to `transpilePackages`                                        |
+| Open silently fails after the spinner ends                                         | Selector not delegated                                           | Gate the form on `allActive === true`                                                            |
+| Positions render then vanish for a second                                          | `invalidateQueries` on a `useManagedQuotes` mutation `onSuccess` | Let the WS handler own state; don't invalidate                                                   |
+| "Closing…" never clears                                                            | Close state read from `mutation.isSuccess`                       | Read it from `UnifiedQuote.lifecycle`                                                            |
+| Deallocate reverts right after a prior deallocate                                  | On-chain debounce window                                         | Surface `SymmioRequestError` and prompt the user to wait                                         |
+| Users told to register an affiliate before they can trade                          | Affiliate treated as a prerequisite                              | `zeroAddress` is the valid no-affiliate default; register to earn fees ([Providers](#providers)) |
+| Trade form shows zero margin right after a deposit                                 | Funds allocated via `useAllocate` / `useDepositAndAllocate`      | Instant trading spends the **available** balance — deposit only ([§3](#3-collateral))            |
+| Balance panel driven by `allocatedBalance`                                         | Classic-pool read used for the instant flow                      | Show `useAccountBalanceOf` (available); see the [Balance Model](/core/concepts/balance-model)    |
 
 ## Next steps
 

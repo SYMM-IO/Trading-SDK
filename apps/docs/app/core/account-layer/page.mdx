@@ -4,6 +4,8 @@ The `AccountLayer` contract is where SYMMIO subaccounts live. Each EOA can own m
 
 This slice also exposes SYMMIO core balance reads for accounts. The `account` input can be a subaccount or virtual account address depending on what the underlying SYMMIO method accepts.
 
+The money flow in one line: **deposit → available balance → instant trading spends it** — there is no allocate step in the instant (lowcap) flow. See [Balance Model](/core/concepts/balance-model) for the full picture of every balance and both flows.
+
 Contract reference: [SYMMIO perps-core v0.8.5 docs](https://github.com/SYMM-IO/perps-core/tree/version_0.8.5/docs/v0.8.5).
 
 Each method has its own page with the full signature, parameters, return shape, examples, query options, and raw ABI usage.
@@ -15,18 +17,24 @@ Each method has its own page with the full signature, parameters, return shape, 
     List an EOA's subaccounts.
   </MethodEntry>
   <MethodEntry name="getAccountBalanceOf" href="/core/account-layer/get-account-balance-of">
-    Available (deallocated) balance — collateral free to transfer, withdraw, or allocate.
+    Available balance — what deposits credit and instant trading spends.
   </MethodEntry>
   <MethodEntry name="getAccountBalanceInfo" href="/core/account-layer/get-account-balance-info">
-    Allocated (tradable) balance plus the CVA / LF / margin locks held against it.
+    Classic-pool (allocated) balance plus the CVA / LF / margin locks held against it.
   </MethodEntry>
 </MethodIndex>
 
 ## Writes
 
 <MethodIndex kind="write">
+  <MethodEntry name="depositForAccount" href="/core/account-layer/deposit-for-account">
+    Deposit into the available balance — the balance instant trading spends.
+  </MethodEntry>
+  <MethodEntry name="depositAndAllocateForAccount" href="/core/account-layer/deposit-and-allocate-for-account">
+    Deposit and allocate into the classic pool in one tx (not the instant-flow path).
+  </MethodEntry>
   <MethodEntry name="allocate" href="/core/account-layer/allocate">
-    Move available balance into allocated (tradable) balance.
+    Move available balance into the classic pool's allocated balance.
   </MethodEntry>
   <MethodEntry name="deallocate" href="/core/account-layer/deallocate">
     Move allocated balance back to available (needs a Muon uPnL sig).

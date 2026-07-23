@@ -7,9 +7,11 @@ The single React context every other SDK hook consumes. Builds the `core` `Confi
 ```tsx
 import { SymmioSupportedChainId } from "@symmio/trading-core";
 import { SymmioProvider } from "@symmio/trading-react";
+import { zeroAddress } from "viem";
 
 const symmioConfig = {
-  [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+  // `zeroAddress` works out of the box (no fee share) — swap in your registered affiliate to earn fees.
+  [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } },
 };
 
 <SymmioProvider symmioConfig={symmioConfig}>{children}</SymmioProvider>;

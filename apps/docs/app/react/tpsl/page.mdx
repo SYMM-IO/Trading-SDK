@@ -71,6 +71,8 @@ if (tpsl.data) {
 
 Pass either the on-chain `quoteId` or the hedger `tempQuoteId`. The store's id index resolves both to the same record; whichever id the WS or solver reveals second is linked in.
 
+**Hydration on load.** The REST fetch `useQuoteTpSl` fires **on mount** is what backfills an **existing** TP/SL — the WebSocket only streams transitions from subscribe onward and never replays current orders. To show TP/SL for positions that already have one (e.g. after a page refresh), mount `useQuoteTpSl` for **every anchored quote**. Reading the store via `useTpSlRecord`, or watching `useWatchTpSlNotifications` alone, will **not** populate it — those have no REST fetch.
+
 #### Parameters
 
 | Name      | Type       | Default        | Notes                                                            |

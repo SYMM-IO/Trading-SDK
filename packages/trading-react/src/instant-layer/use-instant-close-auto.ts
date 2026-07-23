@@ -40,7 +40,7 @@ export type UseInstantCloseAutoReturnType = UseMutationResult<
  * const { mutateAsync } = useInstantCloseAuto();
  * await mutateAsync({
  *   partyA, market: { id: 1 }, positionType: PositionType.LONG,
- *   quoteId: 42n, quantityToClose: "0.5", slippage: 1,
+ *   quoteId: 42n, quantityToClose: "0.5", slippage: 5, // ≥5%: source from user; 1% often fails to fill
  * });
  * ```
  */
