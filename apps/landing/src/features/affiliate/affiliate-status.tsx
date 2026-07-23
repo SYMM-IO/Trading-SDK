@@ -2,6 +2,7 @@
 
 import { AffiliateState } from "@symmio/trading-core";
 import { Button } from "@symmio/ui/components/button";
+import { Celebration } from "./celebration";
 import { Field } from "./field";
 import { WalletIcon } from "./icons";
 import { StatusBadge, type StatusTone } from "./status-badge";
@@ -49,18 +50,22 @@ function Working({ label }: { label: string }) {
 }
 
 /**
- * The "Check status" surface: look up an affiliate by the name you registered
- * (derived against the connected wallet) or by pasting its address, watch its
- * lifecycle state live, and cancel it — but only while it is still `PENDING`,
- * since the contract reverts once it is active or paused. All state and the
- * adaptive primary action come from {@link useStatusLookup}.
+ * The "Check status" surface: look up an affiliate by pasting its address, watch
+ * its lifecycle state live, and cancel it — but only while it is still `PENDING`,
+ * since the contract reverts once it is active or paused. When the looked-up
+ * affiliate is `ACTIVE`, fires the celebration (approval is the moment worth
+ * celebrating). All state and the adaptive primary action come from
+ * {@link useStatusLookup}.
  */
 export function AffiliateStatus() {
   const api = useStatusLookup();
   const view = api.state !== undefined ? STATE_VIEW[api.state] : undefined;
+  const isActive = api.state === AffiliateState.ACTIVE;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8">
+      {isActive ? <Celebration /> : null}
+
       <header className="flex flex-col items-center gap-4 text-center">
         <span className="border-border/70 bg-muted/30 text-muted-foreground inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold tracking-[0.16em] uppercase">
           <span className="bg-primary size-1.5 rounded-full" aria-hidden />
