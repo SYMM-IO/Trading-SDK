@@ -2,7 +2,7 @@ import { toFiniteNumber } from "@symmio/utils/number";
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { getNotionalCap } from "../types/generated/enigma-solver";
 import { toMarketNotionalCap } from "./to-market-notional-cap";
 import type { MarketNotionalCap } from "./types";
@@ -10,7 +10,7 @@ import type { MarketNotionalCap } from "./types";
 /**
  * Parameters for {@link getNotionalCapAll}.
  */
-export type GetNotionalCapAllParameters = Compute<ChainIdParameter>;
+export type GetNotionalCapAllParameters = Compute<ReadSolverParameter>;
 
 /** Return type of {@link getNotionalCapAll}: aggregate totals + per-symbol rows. */
 export interface GetNotionalCapAllReturnType {
@@ -43,7 +43,7 @@ export async function getNotionalCapAll(
   config: Config,
   parameters: GetNotionalCapAllParameters = {},
 ): Promise<GetNotionalCapAllReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   try {
     const response = await getNotionalCap(undefined, { baseURL: solver.url });
     const r = response.data as Record<string, unknown>;

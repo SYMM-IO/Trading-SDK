@@ -2,7 +2,7 @@ import { isAxiosError } from "axios";
 import type { Address } from "viem";
 import type { Config } from "../../../core/config";
 import { SymmApiError, SymmError } from "../../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../../shared/types/properties";
 import { getInstantOpenAccountAddress } from "../../types/generated/enigma-solver";
 import { toPendingInstantOpen, type PendingInstantOpen } from "./to-pending-instant-open";
 
@@ -10,12 +10,15 @@ import { toPendingInstantOpen, type PendingInstantOpen } from "./to-pending-inst
  * Parameters for {@link getInstantOpens}.
  */
 export type GetInstantOpensParameters = Compute<
-  ChainIdParameter & {
+  ReadSolverParameter & {
     /** Sub-account (partyA) to read pending instant-open records for. */
     partyA: Address;
     /**
      * Hedger base URL to query. One call targets one hedger; fan out across
-     * hedgers in the consumer. Defaults to the chain config's `solver.url`.
+     * hedgers in the consumer.
+     *
+     * @deprecated Prefer `solverId` to select a configured solver; `baseUrl`
+     * still wins when set. Defaults to the resolved solver's `url`.
      */
     baseUrl?: string;
   }
@@ -48,7 +51,7 @@ export async function getInstantOpens(
   config: Config,
   parameters: GetInstantOpensParameters,
 ): Promise<GetInstantOpensReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   const baseURL = parameters.baseUrl ?? solver.url;
   try {
     const response = await getInstantOpenAccountAddress(parameters.partyA, { baseURL });

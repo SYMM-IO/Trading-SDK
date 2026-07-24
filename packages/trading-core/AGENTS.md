@@ -10,6 +10,8 @@ A future React layer (`@symmio/trading-react`), Vue layer, or any other framewor
 
 This package follows **wagmi's shape**: a single immutable config, passed as the first argument of every standalone action, plus matching TanStack Query/Mutation option factories.
 
+> [`ARCHITECTURE.md`](./ARCHITECTURE.md) is the companion to this section. It covers how the SDK absorbs **vendor change** — multiple contract versions and multiple solvers — and is required reading before adding a contract version, a solver, or a vendor integration.
+
 - **`createConfig` + standalone actions** are the canonical primitive. `createConfig({ getClient, getWalletClient?, chains?, defaultChainId? })` returns an immutable `Config`. Every action takes the config first: `getXyz(config, params)` (reads) / `doXyz(config, params)` (writes). The action resolves its viem client with `config.getClient({ chainId })` (or `config.getWalletClient({ chainId })` for writes) and its addresses with `config.getChainConfig(chainId)`.
 - **Injected client resolvers.** The config does **not** create viem clients itself; the consumer/framework layer injects `getClient` / `getWalletClient`. `@symmio/trading-react` bridges these to wagmi's `getPublicClient` / `getWalletClient`; a plain Node script passes its own viem clients. This is why core stays framework- **and** wagmi-agnostic.
 - **Query/mutation option factories** ship next to each action: `getXyzQueryOptions(config, options)` and `xyzMutationOptions(config)` return TanStack option bags (typed via `@tanstack/query-core`) with the `queryKey`, `queryFn`, and `enabled` filled in. Framework layers feed them straight into `useQuery` / `useMutation`.
@@ -26,9 +28,9 @@ This package follows **wagmi's shape**: a single immutable config, passed as the
 - **viem is the only crypto-stack dependency.** Do not introduce ethers, web3.js, or **wagmi** here — core stays wagmi-free so non-React framework layers can build on it. `@tanstack/query-core` is allowed (types only) for the query/mutation option factories.
 - **Honor the Design Proposal Gate** for any non-trivial change to the public surface (see root `AGENTS.md`).
 - **Every public export gets JSDoc** with purpose, parameters, return, and a short example for non-obvious APIs.
-- **ABI fragments live under `src/abi/<version>/`.** The current version is `v0.8.5`. When we support a second version, add a sibling folder and route via the registry.
-- **Address registry lives under `src/chains/`** — one file per contract family (e.g. `account-layer-addresses.ts`).
-- **Config & shared helpers live at `src/` root:** `config/` (`createConfig`, `Config`, chain-config merge), `types/properties.ts` (parameter-helper types — `ChainIdParameter`, `Compute`, …), `types/query.ts` (`QueryParameter`, `SymmioQueryOptions`), and `query/utils.ts` (`filterQueryOptions`).
+- **ABI fragments live under `src/symmio-contracts/abi/<version>/`.** The current version is `v0.8.5`, and it is currently hard-coded as an import path in ~59 files — there is **no** version registry today. Before adding a second version, read [`ARCHITECTURE.md`](./ARCHITECTURE.md), which specifies the version-pack registry that must land first.
+- **Address registry lives under `src/core/chains/`** — `registry.ts` holds `CHAIN_CONFIGS` (one entry per chain, covering addresses, subgraphs, solver, price service, notifications, and Muon), with `types.ts` and `supported-chains.ts` alongside it.
+- **Config & shared helpers:** `src/core/config/` (`createConfig`, `Config`, chain-config merge, config-key), `src/shared/types/properties.ts` (parameter-helper types — `ChainIdParameter`, `Compute`, …), `src/shared/types/query.ts` (`QueryParameter`, `SymmioQueryOptions`), and `src/shared/utils/query.ts` (`filterQueryOptions`).
 - **Domain code lives under `src/<domain>/` with one folder per action.** Each action is a self-contained unit: action function, its TanStack option factory, any private sub-units (helpers, resolvers), and the action's `index.ts` barrel. Shared utilities used by ≥2 actions live at slice root.
 
   ```

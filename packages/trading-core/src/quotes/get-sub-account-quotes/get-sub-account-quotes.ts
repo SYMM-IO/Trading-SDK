@@ -1,6 +1,6 @@
 import type { Address } from "viem";
 import type { Config } from "../../core/config";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { getInstantCloses } from "../../solvers/instant-close/get-instant-closes/get-instant-closes";
 import { getInstantOpens } from "../../solvers/instant-open/get-instant-opens/get-instant-opens";
 import { getPartyAOpenPositions } from "../../symmio-contracts/symmio/actions/get-party-a-open-positions";
@@ -15,7 +15,7 @@ import type { UnifiedQuote } from "../unified-quote";
  * Parameters for {@link getSubAccountQuotes}.
  */
 export type GetSubAccountQuotesParameters = Compute<
-  ChainIdParameter & {
+  ReadSolverParameter & {
     /** The subaccount whose full quote picture to assemble. */
     subAccount: Address;
     /**
@@ -77,11 +77,11 @@ export async function getSubAccountQuotes(
   config: Config,
   parameters: GetSubAccountQuotesParameters,
 ): Promise<GetSubAccountQuotesReturnType> {
-  const { chainId, subAccount, baseUrl, includeVirtualAccounts = true, extraAccounts = [] } = parameters;
+  const { chainId, solverId, subAccount, baseUrl, includeVirtualAccounts = true, extraAccounts = [] } = parameters;
 
   const [instantOpens, instantCloses] = await Promise.all([
-    getInstantOpens(config, { chainId, partyA: subAccount, baseUrl }),
-    getInstantCloses(config, { chainId, partyA: subAccount, baseUrl }),
+    getInstantOpens(config, { chainId, solverId, partyA: subAccount, baseUrl }),
+    getInstantCloses(config, { chainId, solverId, partyA: subAccount, baseUrl }),
   ]);
 
   // TODO: could we remove instantOpens from resolveQuoteAccounts? if we drop it it can get paraller with Promise.all

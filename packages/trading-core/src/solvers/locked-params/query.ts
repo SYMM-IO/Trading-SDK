@@ -57,6 +57,11 @@ export function getLockedParamsQueryOptions(
     queryKey: getLockedParamsQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
     enabled: options.query?.enabled ?? true,
     queryFn: () =>
-      getLockedParams(config, { chainId: options.chainId, symbol: options.symbol, leverage: options.leverage }),
+      getLockedParams(config, {
+        chainId: options.chainId,
+        solverId: options.solverId,
+        symbol: options.symbol,
+        leverage: options.leverage,
+      }),
   };
 }

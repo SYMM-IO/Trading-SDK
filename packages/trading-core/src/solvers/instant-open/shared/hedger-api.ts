@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../../core/config";
 import { SymmApiError, SymmError } from "../../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../../shared/types/properties";
 import {
   postInstantTradeInstantOpen,
   type ApiPostInstantOpenResponse,
@@ -20,7 +20,7 @@ export type SendInstantOpenReturnType = ApiPostInstantOpenResponse;
  * Parameters for {@link sendInstantOpen}.
  */
 export type SendInstantOpenParameters = Compute<
-  ChainIdParameter & {
+  ReadSolverParameter & {
     /** Pre-signed addMargin + sendQuote payloads (the orval `ApiV2InstantOpenRequest` shape). */
     request: ApiV2InstantOpenRequest;
   }
@@ -39,7 +39,7 @@ export async function sendInstantOpen(
   config: Config,
   parameters: SendInstantOpenParameters,
 ): Promise<SendInstantOpenReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   try {
     const response = await postInstantTradeInstantOpen(parameters.request, { baseURL: solver.url });
     return response.data;

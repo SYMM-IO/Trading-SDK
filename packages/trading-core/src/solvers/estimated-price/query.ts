@@ -57,6 +57,7 @@ export function getEstimatedPriceQueryOptions(
     queryFn: () =>
       getEstimatedPrice(config, {
         chainId: options.chainId,
+        solverId: options.solverId,
         symbolId: options.symbolId,
         quantity: options.quantity,
         positionType: options.positionType,

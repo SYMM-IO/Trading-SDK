@@ -2,11 +2,12 @@ import { zeroAddress, type Address, type PublicClient } from "viem";
 import { mainnet } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 import { SymmError } from "../../shared/errors/symm-error";
-import { getChainConfig, SymmioSupportedChainId } from "../chains";
+import { getChainConfig, getDefaultSolver, SymmioSupportedChainId } from "../chains";
 import { createConfig } from "./create-config";
 
 const HYPEREVM = SymmioSupportedChainId.HYPER_EVM;
 const DEFAULT = getChainConfig(HYPEREVM);
+const DEFAULT_SOLVER = getDefaultSolver(HYPEREVM);
 const stubClient = {} as PublicClient;
 const AFFILIATE: Address = "0x000000000000000000000000000000000000aFF1";
 /** Minimal valid `symmioConfig`: the mandatory affiliate for the one supported chain. */
@@ -26,13 +27,11 @@ describe("createConfig", () => {
 
   it("deep-merges per-chain config onto defaults", () => {
     const customAccountLayer = "0x9999999999999999999999999999999999999999" as const;
-    const customSolverUrl = "https://custom-solver.example.com/api";
     const config = createConfig({
       getClient: () => stubClient,
       symmioConfig: {
         [HYPEREVM]: {
           addresses: { affiliatesAddress: AFFILIATE, accountLayerAddress: customAccountLayer },
-          solver: { url: customSolverUrl },
         },
       },
     });
@@ -40,8 +39,6 @@ describe("createConfig", () => {
     const merged = config.getChainConfig(HYPEREVM);
     expect(merged.addresses.accountLayerAddress).toBe(customAccountLayer);
     expect(merged.addresses.symmioAddress).toBe(DEFAULT.addresses.symmioAddress);
-    expect(merged.solver.url).toBe(customSolverUrl);
-    expect(merged.solver.name).toBe(DEFAULT.solver.name);
   });
 
   it("getChainConfig throws for an unsupported chain", () => {
@@ -146,6 +143,47 @@ describe("createConfig", () => {
     it("uses the default chain when chainId is omitted", () => {
       const config = createConfig({ symmioConfig: SYMMIO, getClient: () => stubClient });
       expect(config.getChainConfigKey()).toBe(config.getChainConfigKey(HYPEREVM));
+    });
+  });
+
+  describe("getSolver", () => {
+    it("resolves the chain's default solver", () => {
+      const config = createConfig({ symmioConfig: SYMMIO, getClient: () => stubClient });
+      expect(config.getSolver({ chainId: HYPEREVM })).toMatchObject({
+        kind: "enigma",
+        version: "v1",
+        url: DEFAULT_SOLVER.url,
+        address: DEFAULT_SOLVER.address,
+      });
+      expect(config.getChainConfig(HYPEREVM).defaultSolverId).toBe("enigma");
+    });
+
+    it("resolves an explicit solverId", () => {
+      const config = createConfig({ symmioConfig: SYMMIO, getClient: () => stubClient });
+      expect(config.getSolver({ chainId: HYPEREVM, solverId: "enigma" }).url).toBe(DEFAULT_SOLVER.url);
+    });
+
+    it("throws UNKNOWN_SOLVER for an unconfigured solverId", () => {
+      const config = createConfig({ symmioConfig: SYMMIO, getClient: () => stubClient });
+      expect(() => config.getSolver({ chainId: HYPEREVM, solverId: "nope" })).toThrow(SymmError);
+      expect(() => config.getSolver({ chainId: HYPEREVM, solverId: "nope" })).toThrow(/Unknown solver/);
+    });
+
+    it("deep-merges a per-chain solver override via symmioConfig", () => {
+      const config = createConfig({
+        symmioConfig: {
+          [HYPEREVM]: {
+            addresses: { affiliatesAddress: AFFILIATE },
+            solvers: { enigma: { url: "https://custom.example/api" } },
+          },
+        },
+        getClient: () => stubClient,
+      });
+      // Overridden field wins…
+      expect(config.getSolver({ chainId: HYPEREVM }).url).toBe("https://custom.example/api");
+      // …while un-overridden fields are inherited from the built-in solver.
+      expect(config.getSolver({ chainId: HYPEREVM }).name).toBe(DEFAULT_SOLVER.name);
+      expect(config.getSolver({ chainId: HYPEREVM }).address).toBe(DEFAULT_SOLVER.address);
     });
   });
 });

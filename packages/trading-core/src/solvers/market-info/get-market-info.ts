@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { getGetMarketInfo } from "../types/generated/enigma-solver";
 import { toMarketInfo } from "./to-market-info";
 import type { GetMarketInfoReturnType } from "./types";
@@ -9,7 +9,7 @@ import type { GetMarketInfoReturnType } from "./types";
 /**
  * Parameters for {@link getMarketInfo}.
  */
-export type GetMarketInfoParameters = Compute<ChainIdParameter>;
+export type GetMarketInfoParameters = Compute<ReadSolverParameter>;
 
 /**
  * Fetch per-market 24h volume from the chain's solver `/get_market_info`
@@ -38,7 +38,7 @@ export async function getMarketInfo(
   config: Config,
   parameters: GetMarketInfoParameters = {},
 ): Promise<GetMarketInfoReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   return fetchMarketInfo(solver.url);
 }
 

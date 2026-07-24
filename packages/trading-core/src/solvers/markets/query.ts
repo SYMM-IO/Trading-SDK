@@ -49,6 +49,6 @@ export function getMarketsQueryOptions(config: Config, options: GetMarketsOption
     ...options.query,
     queryKey: getMarketsQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
     enabled: options.query?.enabled ?? true,
-    queryFn: () => getMarkets(config, { chainId: options.chainId }),
+    queryFn: () => getMarkets(config, { chainId: options.chainId, solverId: options.solverId }),
   };
 }

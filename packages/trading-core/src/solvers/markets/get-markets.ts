@@ -1,13 +1,13 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { getContractSymbols, type SymbolContractSymbol } from "../types/generated/enigma-solver";
 
 /**
  * Parameters for {@link getMarkets}.
  */
-export type GetMarketsParameters = Compute<ChainIdParameter>;
+export type GetMarketsParameters = Compute<ReadSolverParameter>;
 
 /** Return type of {@link getMarkets}. */
 export type GetMarketsReturnType = SymbolContractSymbol[];
@@ -30,7 +30,7 @@ export type GetMarketsReturnType = SymbolContractSymbol[];
  * ```
  */
 export async function getMarkets(config: Config, parameters: GetMarketsParameters = {}): Promise<GetMarketsReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   return fetchMarkets(solver.url);
 }
 

@@ -71,6 +71,7 @@ export function getInstantOpensQueryOptions(
     queryFn: () =>
       getInstantOpens(config, {
         chainId: options.chainId,
+        solverId: options.solverId,
         partyA: options.partyA,
         baseUrl: options.baseUrl,
       }),

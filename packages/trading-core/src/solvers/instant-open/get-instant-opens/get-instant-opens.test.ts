@@ -1,6 +1,6 @@
 import type { PublicClient } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
+import { getDefaultSolver, SymmioSupportedChainId } from "../../../core/chains";
 import { createConfig } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
 import { OrderType, PositionType } from "../../../symmio-contracts/symmio/types";
@@ -17,7 +17,7 @@ vi.mock("../../types/generated/enigma-solver", async (importOriginal) => {
 
 import { getInstantOpens } from "./get-instant-opens";
 
-const SOLVER_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solver.url;
+const SOLVER_URL = getDefaultSolver(SymmioSupportedChainId.HYPER_EVM).url;
 const PARTY_A = "0x00000000000000000000000000000000000000a1" as const;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,

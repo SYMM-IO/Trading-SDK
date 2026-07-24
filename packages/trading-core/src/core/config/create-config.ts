@@ -2,7 +2,14 @@ import { type Address, type PublicClient } from "viem";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { DeepPartial } from "../../shared/types/properties";
 import type { WebSocketConstructor } from "../../shared/types/websocket";
-import { listSupportedChains, type SymmioChainConfig, type SymmioContractAddresses } from "../chains";
+import {
+  listSupportedChains,
+  resolveSolver,
+  type SolverId,
+  type SymmioChainConfig,
+  type SymmioContractAddresses,
+  type SymmioSolverConfig,
+} from "../chains";
 import { hashChainConfig } from "./config-key";
 import { buildChainConfigs } from "./merge-chain-config";
 import type { SymmioWalletClient } from "./types";
@@ -46,7 +53,7 @@ export interface CreateConfigParameters {
   /**
    * Per-chain SYMMIO configuration, keyed by chain id — deep-merged onto the
    * SDK's built-in defaults. Each entry may override that chain's `addresses`,
-   * `subgraphs`, `solver`, `priceService`, `notifications`, and `muon` endpoints.
+   * `subgraphs`, `solvers`, `priceService`, `notifications`, and `muon` endpoints.
    *
    * **Required.** Every supported chain must supply an
    * `addresses.affiliatesAddress` — your frontend's on-chain **affiliate**
@@ -73,7 +80,7 @@ export interface CreateConfigParameters {
    * symmioConfig: {
    *   [SymmioSupportedChainId.HYPER_EVM]: {
    *     addresses: { affiliatesAddress: "0xYourHyperEvmAffiliate…" },
-   *     // optional: subgraphs, solver, priceService, notifications, muon
+   *     // optional: subgraphs, solvers, priceService, notifications, muon
    *   },
    * }
    * ```
@@ -136,7 +143,7 @@ export interface Config {
    */
   getChainConfig(chainId?: number): SymmioChainConfig;
   /**
-   * Stable fingerprint of a chain's fully-resolved config (addresses, solver,
+   * Stable fingerprint of a chain's fully-resolved config (addresses, solvers,
    * subgraphs). Identical for identical config across reloads and SSR; changes
    * iff that chain's resolved config changes.
    *
@@ -147,6 +154,16 @@ export interface Config {
    * building query options for an unsupported chain).
    */
   getChainConfigKey(chainId?: number): string;
+  /**
+   * Resolve a chain's solver config. When `solverId` is given, returns that
+   * solver; otherwise returns the chain's `defaultSolverId` solver.
+   *
+   * @param parameters - Optional `chainId` (defaults to `defaultChainId`) and
+   *   `solverId` (defaults to the chain's `defaultSolverId`).
+   * @throws {SymmError} `UNSUPPORTED_CHAIN` when the chain is unknown, or
+   *   `UNKNOWN_SOLVER` when the chain has no solver with that id.
+   */
+  getSolver(parameters?: { chainId?: number; solverId?: SolverId }): SymmioSolverConfig;
   /** Resolve the viem `PublicClient` for reads on a chain. */
   getClient(parameters?: { chainId?: number }): PublicClient;
   /**
@@ -249,12 +266,17 @@ export function createConfig(parameters: CreateConfigParameters): Config {
     return chainConfigKeys[id] ?? "unsupported";
   }
 
+  function getSolver(parameters?: { chainId?: number; solverId?: SolverId }): SymmioSolverConfig {
+    return resolveSolver(getChainConfig(parameters?.chainId), parameters?.solverId);
+  }
+
   return {
     chains: chainIds,
     simulateBeforeWrite,
     defaultChainId: resolvedDefaultChainId,
     getChainConfig,
     getChainConfigKey,
+    getSolver,
     getClient(clientParameters) {
       return getClient({ chainId: clientParameters?.chainId ?? resolvedDefaultChainId });
     },

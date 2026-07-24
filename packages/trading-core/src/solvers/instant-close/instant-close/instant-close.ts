@@ -90,6 +90,7 @@ export async function instantClose(
 
   await sendInstantClose(config, {
     chainId: parameters.chainId,
+    solverId: parameters.solverId,
     operations: [signed],
   });
 

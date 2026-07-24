@@ -100,7 +100,7 @@ export interface InstantOpenReturnType {
 export async function instantOpen(config: Config, parameters: InstantOpenParameters): Promise<InstantOpenReturnType> {
   const chainConfig = config.getChainConfig(parameters.chainId);
   const { accountLayerAddress, symmioAddress, affiliatesAddress } = chainConfig.addresses;
-  const { solver } = chainConfig;
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
 
   const walletClient = await config.getWalletClient({ chainId: parameters.chainId, from: parameters.from });
   const signerAddress = walletClient.account.address;
@@ -168,6 +168,7 @@ export async function instantOpen(config: Config, parameters: InstantOpenParamet
 
   const response = await sendInstantOpen(config, {
     chainId: parameters.chainId,
+    solverId: parameters.solverId,
     request: { addMargin, sendQuote },
   });
 

@@ -58,8 +58,7 @@ export function TpSlFlow({ owner, subAccount, subAccountName, onSelectSubAccount
   const sessionKey = sessionKeyAddress ?? undefined;
 
   const config = useSymmioConfig();
-  const chainConfig = config.getChainConfig();
-  const cohWalletAddress = chainConfig.solver.tpsl?.cohWalletAddress;
+  const cohWalletAddress = config.getSolver().tpsl?.cohWalletAddress;
 
   const [virtualAccount, setVirtualAccount] = useState<Address>();
   const [selectedQuoteId, setSelectedQuoteId] = useState<bigint>();

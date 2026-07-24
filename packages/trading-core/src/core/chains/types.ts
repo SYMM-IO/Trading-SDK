@@ -37,13 +37,44 @@ export interface SymmioSubgraphUrls {
 export type SymmioSubgraphName = keyof SymmioSubgraphUrls;
 
 /**
+ * Stable identity of a solver deployment within a config (the registry key).
+ *
+ * Open on purpose — integrators run their own solver deployments, so the SDK
+ * cannot enumerate every id. Contrast {@link SymmioSolverKind}, which is closed.
+ */
+export type SolverId = string;
+
+/**
+ * Schema family a solver's REST API speaks — the discriminant used to select a
+ * generated client and derive capabilities. Closed: the SDK ships one client
+ * per kind, so dispatch must be exhaustive. Widen as new solver kinds land.
+ */
+export type SymmioSolverKind = "enigma";
+
+/**
+ * API generation within a {@link SymmioSolverKind}. A solver may version its API
+ * independently of the contracts. Closed per kind; widen as versions ship.
+ */
+export type SymmioSolverVersion = "v1";
+
+/**
  * Solver / hedger configuration for a SYMMIO chain deployment.
  *
  * In this SDK a "solver" is the same actor that fronts the lowcap hedger REST
  * API (`/instant_trade/instant_open`, `/contract-symbols`, …) and acts as
  * `partyB` on-chain. Its `url` is the API base URL, its `address` is partyB.
+ *
+ * Solvers live under {@link SymmioChainConfig.solvers}, keyed by
+ * {@link SolverId} — the key is the solver's id, and its chain is the parent
+ * chain config, so neither is repeated here. `config.getSolver({ chainId, solverId })`
+ * returns this config for the resolved solver (the caller already knows the
+ * chain and id it asked for).
  */
 export interface SymmioSolverConfig {
+  /** Schema family the solver speaks — selects the generated client. */
+  kind: SymmioSolverKind;
+  /** API generation within the kind. */
+  version: SymmioSolverVersion;
   /** Human-readable solver name */
   name: string;
   /** Solver's on-chain address (used as `partyB` in `sendQuoteWithAffiliateAndData`) */
@@ -145,8 +176,14 @@ export interface SymmioChainConfig {
   addresses: SymmioContractAddresses;
   /** Subgraph endpoints */
   subgraphs: SymmioSubgraphUrls;
-  /** Solver / hedger configuration */
-  solver: SymmioSolverConfig;
+  /**
+   * Solvers available on this chain, keyed by {@link SolverId}. Resolve one with
+   * `config.getSolver({ chainId, solverId })`, which defaults to
+   * {@link defaultSolverId} when `solverId` is omitted.
+   */
+  solvers: Record<SolverId, SymmioSolverConfig>;
+  /** Id of the solver an action targets on this chain when `solverId` is omitted. */
+  defaultSolverId: SolverId;
   /** Price-service configuration */
   priceService: SymmioPriceServiceConfig;
   /** Notifications WebSocket configuration */

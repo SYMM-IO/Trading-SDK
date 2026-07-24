@@ -1,12 +1,12 @@
 import type { Config } from "../../core/config";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { getNotionalCapBySymbolId } from "./get-notional-cap-by-symbol-id";
 
 /**
  * Parameters for {@link getOpenInterestBySymbolId}.
  */
 export type GetOpenInterestBySymbolIdParameters = Compute<
-  ChainIdParameter & {
+  ReadSolverParameter & {
     /** Solver market id (`symbol_id`). */
     symbolId: number;
   }

@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { getNotionalCapSymbolId } from "../types/generated/enigma-solver";
 import { toMarketNotionalCap } from "./to-market-notional-cap";
 import type { MarketNotionalCap } from "./types";
@@ -10,7 +10,7 @@ import type { MarketNotionalCap } from "./types";
  * Parameters for {@link getNotionalCapBySymbolId}.
  */
 export type GetNotionalCapBySymbolIdParameters = Compute<
-  ChainIdParameter & {
+  ReadSolverParameter & {
     /** Solver market id (`symbol_id`). */
     symbolId: number;
   }
@@ -43,7 +43,7 @@ export async function getNotionalCapBySymbolId(
   config: Config,
   parameters: GetNotionalCapBySymbolIdParameters,
 ): Promise<GetNotionalCapBySymbolIdReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   try {
     const response = await getNotionalCapSymbolId(parameters.symbolId, { baseURL: solver.url });
     return toMarketNotionalCap(response.data);

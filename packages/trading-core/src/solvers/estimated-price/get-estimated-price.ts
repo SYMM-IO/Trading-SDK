@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { PositionType } from "../../symmio-contracts/symmio/types";
 import { getEstimatedPrice as requestEstimatedPrice } from "../types/generated/enigma-solver";
 import { toEstimatedPrice } from "./to-estimated-price";
@@ -13,7 +13,7 @@ export type EstimatedPriceEntry = "open" | "close";
  * Parameters for {@link getEstimatedPrice}.
  */
 export type GetEstimatedPriceParameters = Compute<
-  ChainIdParameter & {
+  ReadSolverParameter & {
     /** Solver market id. */
     symbolId: number;
     /** Order quantity (decimal string). */
@@ -73,7 +73,7 @@ export async function getEstimatedPrice(
   config: Config,
   parameters: GetEstimatedPriceParameters,
 ): Promise<GetEstimatedPriceReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   try {
     const response = await requestEstimatedPrice(
       {

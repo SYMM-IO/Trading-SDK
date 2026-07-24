@@ -71,8 +71,11 @@ export function SymmioConfigDebug() {
           <div className="grid gap-4 lg:grid-cols-2">
             <ConfigGroup title="Runtime">
               <DataRow label="Chain ID" value={<Badge variant="info">{chainConfig.chainId}</Badge>} />
-              <DataRow label="Solver" value={chainConfig.solver.name} />
-              <DataRow label="Solver address" value={<AddressTag address={chainConfig.solver.address} chars={6} />} />
+              <DataRow label="Solver" value={config.getSolver({ chainId: chainConfig.chainId }).name} />
+              <DataRow
+                label="Solver address"
+                value={<AddressTag address={config.getSolver({ chainId: chainConfig.chainId }).address} chars={6} />}
+              />
             </ConfigGroup>
 
             <ConfigGroup title="Addresses">

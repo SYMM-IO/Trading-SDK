@@ -61,6 +61,25 @@ export interface SimulateBeforeWriteParameter {
 }
 
 /**
+ * Optional solver-selection mixin. Picks which configured solver an action
+ * targets by its id; when omitted, the config's default solver for the chain is
+ * used (`config.getSolver({ chainId, solverId })`).
+ *
+ * The type is `string` because solver ids are open (integrators register their
+ * own); it is the value-level counterpart of `SolverId` in `@symmio/trading-core`.
+ */
+export interface SolverIdParameter {
+  /** Id of the solver to target. Defaults to the chain's default solver. */
+  solverId?: string;
+}
+
+/**
+ * Standard mixin set every solver/hedger **read** action accepts: optional chain
+ * id plus optional solver selection.
+ */
+export type ReadSolverParameter = ChainIdParameter & SolverIdParameter;
+
+/**
  * Standard mixin set every on-chain write action accepts.
  *
  * Bundles the three mixins every write supports — optional chain id, optional
@@ -96,7 +115,7 @@ export type WriteContractParameter = ChainIdParameter & FromParameter & Simulate
  * >;
  * ```
  */
-export type WriteSolverParameter = ChainIdParameter & FromParameter;
+export type WriteSolverParameter = ChainIdParameter & FromParameter & SolverIdParameter;
 
 /**
  * Like `Partial<T>`, but each property is also explicitly `| undefined`. Used

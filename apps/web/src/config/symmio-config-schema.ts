@@ -109,12 +109,37 @@ export function fieldPath(field: ConfigFieldDef): string {
 }
 
 function readField(config: SymmioChainConfig, field: ConfigFieldDef): unknown {
-  return (config[field.group] as unknown as Record<string, unknown>)[field.key];
+  return (config as unknown as Record<string, Record<string, unknown>>)[field.group]?.[field.key];
+}
+
+/**
+ * Read a field's override value from an app override entry (or `undefined`).
+ *
+ * The editor groups solver fields under a `"solver"` UI group, but they live at
+ * `solvers.<defaultSolverId>.<key>` on the chain config — this bridges the two.
+ */
+function overrideFieldValue(
+  chainId: number,
+  chainOverride: SymmioChainConfigInput | undefined,
+  field: ConfigFieldDef,
+): unknown {
+  if (!chainOverride) return undefined;
+  const record = chainOverride as unknown as Record<string, Record<string, unknown>>;
+  if (field.group === "solver") {
+    const solvers = record.solvers as Record<string, Record<string, unknown>> | undefined;
+    return solvers?.[getChainConfig(chainId).defaultSolverId]?.[field.key];
+  }
+  return record[field.group]?.[field.key];
 }
 
 /** The built-in default value for a field, as the string the input shows. */
 export function defaultFieldValue(chainId: number, field: ConfigFieldDef): string {
-  return String(readField(getChainConfig(chainId), field));
+  const chainConfig = getChainConfig(chainId);
+  if (field.group === "solver") {
+    const solver = chainConfig.solvers[chainConfig.defaultSolverId] as unknown as Record<string, unknown>;
+    return String(solver[field.key]);
+  }
+  return String(readField(chainConfig, field));
 }
 
 /**
@@ -192,7 +217,9 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
     if (affiliate) groups.addresses.affiliatesAddress = affiliate;
 
     const chainOverride: Record<string, unknown> = { addresses: groups.addresses };
-    if (Object.keys(groups.solver).length) chainOverride.solver = groups.solver;
+    if (Object.keys(groups.solver).length) {
+      chainOverride.solvers = { [getChainConfig(chainId).defaultSolverId]: groups.solver };
+    }
     if (Object.keys(groups.subgraphs).length) chainOverride.subgraphs = groups.subgraphs;
     if (Object.keys(groups.notifications).length) chainOverride.notifications = groups.notifications;
     result[chainId] = chainOverride as SymmioChainConfigInput;
@@ -213,8 +240,7 @@ export function draftFromOverrides(overrides: CreateConfigParameters["symmioConf
     const entries: Record<string, string> = {};
 
     for (const field of CONFIG_FIELDS) {
-      const overrideGroup = chainOverride?.[field.group] as Record<string, unknown> | undefined;
-      const overrideValue = overrideGroup?.[field.key];
+      const overrideValue = overrideFieldValue(chainId, chainOverride, field);
       entries[fieldPath(field)] =
         overrideValue !== undefined ? String(overrideValue) : defaultFieldValue(chainId, field);
     }
