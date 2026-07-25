@@ -1,6 +1,13 @@
+import { Callout } from "nextra/components";
+
 # allocate
 
-Move a subaccount's available balance into its allocated (tradeable) balance — the margin Party A trades against. The call is routed through the AccountLayer `_call` proxy so the SYMMIO core attributes it to the subaccount; the connected wallet must be the subaccount's on-chain `owner`. The subaccount must not be suspended or in liquidation as Party A.
+Move a subaccount's available balance into its **classic-pool** allocated balance — the margin classic (non-instant) positions trade against. The call is routed through the AccountLayer `_call` proxy so the SYMMIO core attributes it to the subaccount; the connected wallet must be the subaccount's on-chain `owner`. The subaccount must not be suspended or in liquidation as Party A.
+
+<Callout type="warning">
+  **Instant flow: skip this.** Instant trading spends the **available** balance — allocating moves funds out of it and
+  _reduces_ what an instant open can use. See [Balance Model](/core/concepts/balance-model).
+</Callout>
 
 ```ts
 import { allocate } from "@symmio/trading-core";

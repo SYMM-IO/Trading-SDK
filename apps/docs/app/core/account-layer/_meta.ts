@@ -5,6 +5,8 @@ export default {
   "get-account-balance-of": "getAccountBalanceOf",
   "get-account-balance-info": "getAccountBalanceInfo",
   "-- writes": { type: "separator", title: "Writes" },
+  "deposit-for-account": "depositForAccount",
+  "deposit-and-allocate-for-account": "depositAndAllocateForAccount",
   allocate: "allocate",
   deallocate: "deallocate",
   "edit-account-name": "editAccountName",

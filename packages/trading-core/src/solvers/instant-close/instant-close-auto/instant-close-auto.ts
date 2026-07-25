@@ -23,7 +23,7 @@ import type { InstantCloseReturnType } from "../shared/types";
  *   positionType: PositionType.LONG,
  *   quoteId: 42n,
  *   quantityToClose: "0.5",
- *   slippage: 1,
+ *   slippage: 5, // percent — source from the user; hardcode ≥5% (1% often fails to fill)
  * });
  * ```
  */

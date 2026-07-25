@@ -36,7 +36,7 @@ export type UseInstantCloseBulkAutoReturnType = UseMutationResult<
  * await mutateAsync({
  *   from: sessionKey,
  *   orders: [
- *     { partyA, market: { id: 1 }, positionType: PositionType.LONG, quoteId: 1n, quantityToClose: "0.5", slippage: 1 },
+ *     { partyA, market: { id: 1 }, positionType: PositionType.LONG, quoteId: 1n, quantityToClose: "0.5", slippage: 5 },
  *   ],
  * });
  * ```

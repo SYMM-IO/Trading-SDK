@@ -1,0 +1,51 @@
+import { Callout } from "nextra/components";
+
+# depositForAccount
+
+Deposit collateral into a subaccount's **available balance** — the balance instant trading spends and withdrawals draw from. Calls `AccountLayer.depositForAccount`, which pulls the collateral from the connected wallet into the SYMMIO core and credits the subaccount. For the instant (lowcap) flow this is the **whole** funding step: deposited funds are directly tradeable, with **no allocate step afterwards**. See [Balance Model](/core/concepts/balance-model).
+
+<Callout type="warning">
+  Requires a prior ERC-20 approval of the collateral token to the **SYMMIO core** (`symmioAddress`) — the core is the
+  contract that pulls the funds, so approving the AccountLayer address makes the deposit revert. See
+  [`getCollateralAllowance`](/core/symmio-contract/get-collateral-allowance) and `approveCollateral` under [SYMMIO
+  Contract](/core/symmio-contract).
+</Callout>
+
+```ts
+import { depositForAccount } from "@symmio/trading-core";
+
+const hash = await depositForAccount(config, {
+  account: "0xsub...",
+  amount: 1_000000n, // collateral decimals (e.g. 1 USDC at 6 decimals)
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The subaccount (or virtual account) to credit. The signer must equal its on-chain `owner`.
+  </Property>
+  <Property name="amount" type="bigint" required>
+    Amount of collateral to deposit, in the **collateral token's decimals**
+    (`getChainConfig().addresses.collateralDecimals`) — not 18 decimals.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+  <Property name="simulateBeforeWrite" type="boolean" optional>
+    Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default).
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hash">
+  The broadcast tx hash. Dry-run without sending via `simulateDepositForAccount(config, params)`.
+</Returns>
+
+## Related
+
+- [Balance Model](/core/concepts/balance-model) — which balance a deposit credits, and why you don't allocate.
+- [`getAccountBalanceOf`](/core/account-layer/get-account-balance-of) — read the credited available balance back.
+- [`depositAndAllocateForAccount`](/core/account-layer/deposit-and-allocate-for-account) — the classic-pool variant.

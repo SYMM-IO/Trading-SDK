@@ -14,7 +14,7 @@ import { createConfig, type Config } from "@symmio/trading-core";
 
 ```ts
 import { createConfig, SymmioSupportedChainId } from "@symmio/trading-core";
-import { createPublicClient, createWalletClient, http } from "viem";
+import { createPublicClient, createWalletClient, http, zeroAddress } from "viem";
 import { hyperEvm } from "viem/chains";
 
 const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
@@ -23,7 +23,9 @@ const walletClient = createWalletClient({ account, chain: hyperEvm, transport: h
 const config = createConfig({
   symmioConfig: {
     [SymmioSupportedChainId.HYPER_EVM]: {
-      addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" },
+      // `zeroAddress` works out of the box (no fee share);
+      // swap in your registered affiliate to earn fees.
+      addresses: { affiliatesAddress: zeroAddress },
     },
   },
   getClient: () => publicClient,

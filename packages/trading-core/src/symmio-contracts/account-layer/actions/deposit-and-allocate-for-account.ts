@@ -34,9 +34,10 @@ export type DepositAndAllocateForAccountReturnType = Hash;
  * a single transaction.
  *
  * Calls `AccountLayer.depositAndAllocateForAccount`. Equivalent to
- * {@link depositForAccount} followed by an allocate, but atomic: the deposited
- * funds become usable margin immediately instead of sitting in the available
- * balance.
+ * {@link depositForAccount} followed by an allocate, but atomic. The funds land
+ * in the classic-pool allocated balance — instant trading spends the available
+ * balance instead, so for the instant flow fund with {@link depositForAccount}
+ * alone (funds allocated here are not what an instant open consumes).
  *
  * Dry-runs the call with {@link simulateDepositAndAllocateForAccount} first unless
  * `simulateBeforeWrite` is `false` (per-call, falling back to the config default).

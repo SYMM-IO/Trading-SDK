@@ -57,7 +57,7 @@ It also collects one optional off-chain detail the on-chain transaction never ca
 
 ## After approval — wire it into your config
 
-Once the state is `ACTIVE`, set your affiliate address as `affiliatesAddress` on every supported chain. It's required per chain; the SDK throws `AFFILIATE_ADDRESS_REQUIRED` if it's missing. (The zero address is accepted as a fee-less test placeholder, but only a **registered** affiliate earns a fee share.)
+Once the state is `ACTIVE`, swap the zero address you shipped with for your registered affiliate as `affiliatesAddress` on every supported chain. The field is required per chain — the SDK throws `AFFILIATE_ADDRESS_REQUIRED` only when it is missing entirely; the zero address stays a valid fee-less default — and only a **registered** affiliate earns a fee share.
 
 ```ts
 [SymmioSupportedChainId.HYPER_EVM]: {

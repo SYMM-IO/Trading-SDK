@@ -221,7 +221,7 @@ export function createConfig(parameters: CreateConfigParameters): Config {
       throw new SymmError(
         "config",
         "AFFILIATE_ADDRESS_REQUIRED",
-        `createConfig: \`symmioConfig[${chainId}].addresses.affiliatesAddress\` is required. Affiliate addresses are per chain — set your registered affiliate for every supported chain to earn your fee share. Use the zero address for local testing (trades open, no fee share); register at https://trading-sdk.symm.io/affiliate.`,
+        `createConfig: \`symmioConfig[${chainId}].addresses.affiliatesAddress\` is required. No affiliate yet? Pass the zero address — trades still open, you just earn no fee share. Affiliate addresses are per chain; register at https://trading-sdk.symm.io/affiliate to earn your fee share.`,
       );
   }
 

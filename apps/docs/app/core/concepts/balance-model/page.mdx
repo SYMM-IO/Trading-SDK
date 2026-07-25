@@ -1,0 +1,94 @@
+import { Callout } from "nextra/components";
+
+# Balance Model
+
+Four different numbers can all be called "the balance" in SYMMIO. Wiring the wrong one into a UI is the single most common integration mistake, so this page fixes the model once: which balances exist, which one trading actually spends, and which read backs which part of your UI.
+
+<Callout type="warning">
+  **Instant trading spends the _available_ balance.** Fund a SubAccount with a plain deposit and trade — there is **no
+  allocate step**. `allocate` / `deallocate` / `depositAndAllocateForAccount` belong to the **classic pool** flow, which
+  the instant (lowcap) product does not use; allocating actually _reduces_ what an instant open can spend. If you
+  learned the older SYMMIO "deposit → allocate → trade" model, unlearn it here: on this product the flow is **deposit →
+  trade**.
+</Callout>
+
+## The four balances
+
+| #   | Balance                      | Where it lives                                           | Read (core / react)                                                                               | Units                | In the UI                                                                 |
+| --- | ---------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------- |
+| 1   | **Wallet collateral**        | The user's wallet (ERC-20)                               | [`getCollateralBalance`](/core/symmio-contract/get-collateral-balance) / `useCollateralBalance`   | `collateralDecimals` | The deposit form's "wallet balance" and max                               |
+| 2   | **Available**                | The SubAccount, on the SYMMIO core                       | [`getAccountBalanceOf`](/core/account-layer/get-account-balance-of) / `useAccountBalanceOf`       | 18 decimals          | **The account balance.** Instant opens spend it; withdrawals draw from it |
+| 3   | **Allocated (classic pool)** | The SubAccount's classic pool                            | [`getAccountBalanceInfo`](/core/account-layer/get-account-balance-info) / `useAccountBalanceInfo` | 18 decimals          | Not shown in an instant / lowcap UI                                       |
+| 4   | **Locked position margin**   | Each position's Virtual Account (its `allocatedBalance`) | Per-quote `cva` + `lf` + `partyAmm` via [`useManagedQuotes`](/react/quotes#usemanagedquotes)      | 18 decimals (wei)    | Per-position margin detail in the positions table                         |
+
+## The lifecycle
+
+```
+wallet ERC-20  (collateralDecimals)
+   │  approveCollateral → depositForAccount        ← the whole funding step
+   ▼
+available balance  (18-dec)  =  getAccountBalanceOf
+   │  instant open — margin moves into the position's Virtual Account (becomes its allocatedBalance)
+   ▼
+locked position margin, per-VA  =  cva + lf + partyAmm   (locked within the VA's allocatedBalance)
+   │  close a position (uPnL applied):
+   │    • VA still holds others → margin stays in the VA's allocatedBalance
+   │    • last position closed  → VA's allocatedBalance auto-returns to available
+   ▼
+available balance
+   │  initiateWithdraw → cooldown → finalizeWithdrawRequest
+   ▼
+wallet ERC-20
+```
+
+On an instant open the margin is not burned — it is **moved** from the SubAccount's available balance into the position's **Virtual Account (VA)**, where it becomes that VA's `allocatedBalance`. Of that, the locked position margin is `cva + lf + partyAmm` (Credit Valuation Adjustment + Liquidation Fee + PartyA maintenance margin).
+
+**Margin flow between the SubAccount and its VAs.** A VA can hold **more than one position** — under `MARKET` isolation (one VA per market) or `MARKET_DIRECTION` (one VA per market + side); under `POSITION` / `CUSTOM` each position gets its own VA. So closing a position does not always return funds to the SubAccount:
+
+- **Close a position while the VA still holds others** — the freed margin (with realized uPnL applied) **stays in the VA**: it unlocks and adds to the VA's `allocatedBalance`, usable as margin for the VA's remaining positions.
+- **Close the last position in a VA** — the VA's entire `allocatedBalance` **automatically returns to the SubAccount's available balance**.
+- **Add margin** (`addMargin` to a VA) — moves balance from the SubAccount's **available → the VA's `allocatedBalance`**, topping up the position's margin.
+- **Remove margin** (`removeMargin`) — moves balance from the **VA's `allocatedBalance` → the SubAccount's available**, and requires a Muon uPnL signature proving the VA stays solvent after the deallocation.
+
+The classic pool is a side branch the instant flow never takes:
+
+```
+available ── allocate ──▶ allocated (classic pool) ── deallocate (Muon uPnL sig) ──▶ available
+```
+
+## Instant flow vs. classic pool
+
+The SDK exposes both families because the contracts do, but they serve different products:
+
+- **Instant (lowcap) flow — the default on HyperEVM.** Fund with [`depositForAccount`](/core/account-layer/deposit-for-account) (`useDeposit`), trade with the instant open/close actions, withdraw with the [withdraw slice](/react/withdraw). The only balance the user manages is **available**.
+- **Classic pool flow.** [`allocate`](/core/account-layer/allocate) / [`deallocate`](/core/account-layer/deallocate) / [`depositAndAllocateForAccount`](/core/account-layer/deposit-and-allocate-for-account) move funds into and out of the allocated pool where the CVA / LF locks of classic (non-instant) positions sit. **Not supported end-to-end in this SDK version — planned for a later release.**
+
+<Callout type="warning">
+  **Do not "onboard" users through `depositAndAllocateForAccount` or an allocate step.** Funds parked in the classic
+  pool are not what an instant open consumes — the trade form's margin reads zero even though the user just deposited.
+  The symptom is exactly that: "deposited, but can't trade."
+</Callout>
+
+## Two decimal scales
+
+| Value                                                                                       | Units                                                                                   |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Deposit / withdraw **amounts**, wallet collateral balance                                   | `collateralDecimals` (`getChainConfig().addresses.collateralDecimals`, e.g. 6 for USDC) |
+| Account balances (available, allocated, locks), allocate / deallocate amounts, quote values | **18 decimals** (protocol-internal)                                                     |
+
+Parse deposit inputs with `parseUnits(input, collateralDecimals)` — not `parseEther`. Format an account balance with `formatUnits(value, 18)`. Mixing the scales balloons or collapses the number by `10^(18 − collateralDecimals)`; the tell is a balance the size of `1e18`.
+
+## Which number do I show?
+
+- **Account balance / fund gate** — available balance (`useAccountBalanceOf`, pass `live: true` so it refetches on trade settles).
+- **Trade-form `Max`** — **not** the raw available balance. Use [`useAvailableInstantOpenMargin`](/react/margin#useavailableinstantopenmargin), which shaves the balance for fees and worst-case slippage.
+- **Deposit modal** — wallet collateral balance (`useCollateralBalance`) plus the allowance (`useCollateralAllowance`) for the approve step.
+- **Withdraw max** — available balance.
+- **Per-position margin** — the quote's own locked values via `useManagedQuotes`, not an account-level read.
+
+## Related
+
+- [Build a Perps DEX — Collateral](/guides/build-a-dex/react#3-collateral) — the deposit + withdraw UI recipe.
+- [`depositForAccount`](/core/account-layer/deposit-for-account) — the funding write.
+- [AccountLayer](/core/account-layer) — every balance read and write.
+- [Withdraw hooks](/react/withdraw) — the cooldown-gated exit flow.

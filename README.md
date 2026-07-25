@@ -49,6 +49,8 @@ Not part of the SDK surface — SDK consumers never need these:
 
 If you want to build a product on top of the SDK, read the [documentation](https://doc.trading-sdk.symm.io/) — and especially the [Build a Perps DEX guide](https://doc.trading-sdk.symm.io/guides/build-a-dex/) — to learn the flow of building a trading product: how to deposit, open a trade, set TP/SL, withdraw, and more.
 
+The three integration facts humans and AI agents most often get wrong — affiliate defaults, the available-balance model, and the two decimal scales — are called out at the top of that guide: **[Three facts integrators get wrong most often](https://doc.trading-sdk.symm.io/guides/build-a-dex/#three-facts-integrators-get-wrong-most-often)**.
+
 Requires **Node ≥ 20** and **pnpm** (the version in `packageManager`; `corepack enable` picks it up). This repo is pnpm-only — `npm install` or `yarn` here will produce a broken tree.
 
 ```sh

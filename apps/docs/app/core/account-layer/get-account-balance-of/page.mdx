@@ -1,8 +1,8 @@
 # getAccountBalanceOf
 
-Read the account's **available (deallocated) balance** — collateral that lives on the account but is **not** currently allocated to any SubAccount for trading. This is the amount the user can transfer, withdraw, or allocate. Read via `balanceOf(account)` on the SYMMIO diamond.
+Read the account's **available balance** — deposited collateral idle on the account. **For the instant (lowcap) flow this is the trading balance**: deposits credit it, instant opens spend it, and withdrawals draw from it. Read via `balanceOf(account)` on the SYMMIO diamond. See [Balance Model](/core/concepts/balance-model).
 
-Pair with [`getAccountBalanceInfo`](/core/account-layer/get-account-balance-info) for the full picture: `balanceOf` is the free-to-move pot; `balanceInfoOfPartyA` is the allocated-and-in-play pot.
+Pair with [`getAccountBalanceInfo`](/core/account-layer/get-account-balance-info) for the full picture: `balanceOf` is the free-to-move pot; `balanceInfoOfPartyA` is the classic pool (allocated and locked) — which instant opens do **not** spend.
 
 ```ts
 import { getAccountBalanceOf } from "@symmio/trading-core";
@@ -26,8 +26,8 @@ const balance = await getAccountBalanceOf(config, {
 ## Returns
 
 <Returns type="bigint">
-  Raw collateral token units. Use `formatUnits(value, 18)` / `formatEther(value)` or the utils package when displaying
-  decimal values.
+  The protocol's **18-decimal** internal units (not the collateral token's decimals). Use `formatUnits(value, 18)` /
+  `formatEther(value)` or the utils package when displaying decimal values.
 </Returns>
 
 ## Query options

@@ -32,7 +32,7 @@ The React SDK assumes the host app mounts wagmi and `@tanstack/react-query` itse
 import { SymmioProvider, SymmioSupportedChainId } from "@symmio/trading-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
-import { http } from "viem";
+import { http, zeroAddress } from "viem";
 import { hyperEvm } from "viem/chains";
 import { createConfig, WagmiProvider } from "wagmi";
 import { injected } from "wagmi/connectors";
@@ -52,7 +52,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <SymmioProvider
           symmioConfig={{
             [SymmioSupportedChainId.HYPER_EVM]: {
-              addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" },
+              // `zeroAddress` works out of the box — trades open, you just earn no
+              // fee share. Swap in your registered affiliate to collect fees.
+              addresses: { affiliatesAddress: zeroAddress },
             },
           }}
         >
@@ -67,9 +69,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 The order of providers matters. **Wagmi outside `QueryClient` outside `SymmioProvider`** — the SDK reads both wagmi and `QueryClient` from context. See [SymmioProvider](/react/provider) for chain overrides and the WebSocket constructor.
 
 <Callout type="info">
-  **No affiliate yet?** For testing you can use the **zero address** (`0x0000000000000000000000000000000000000000`) —
-  trades still open, you just earn **no share of the trading fee**. For production, **registration** lets your affiliate
-  **collect a share of trading fees**. Then set the registered address as `affiliatesAddress`. See{" "}
+  **No affiliate yet? The zero address (as above) is the correct default** — every flow works, you just earn **no share
+  of the trading fee**. Registration is how you monetize, not a prerequisite: it lets your affiliate **collect a share
+  of trading fees**. When ready, register and swap the zero address for the registered one. See{" "}
   <AffiliateLink>Register an Affiliate</AffiliateLink>.
 </Callout>
 
@@ -120,6 +122,8 @@ export function RenameButton({ account }: { account: `0x${string}` }) {
 
 ## Next steps
 
+- **[Build a Perps DEX](/guides/build-a-dex/react)** — the end-to-end guide: deposit, open, close, TP/SL, withdraw.
+- **[Balance Model](/core/concepts/balance-model)** — which balance funds trading (deposit → trade; no allocate), and the two decimal scales.
 - **[Overview](/react)** — the full hook catalog and the wrapper guarantees (invalidation, refetch intervals, override knobs).
 - **[Hook pattern](/react/concepts/hook-pattern)** — the three-line shape every read and write hook follows.
 - **[Core](/core/getting-started)** — the framework-agnostic functions each hook wraps, for Node scripts or bypassing the hook layer.
