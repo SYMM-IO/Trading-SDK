@@ -32,23 +32,7 @@ export function truncateAddress(address: string, chars = 4): string {
   return `${address.slice(0, chars + 2)}…${address.slice(-chars)}`;
 }
 
-const DOMAIN_RE = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/** Strip scheme, path, and trailing dots from a domain input → a bare lowercase host. */
-export function normalizeDomain(input: string): string {
-  return input
-    .trim()
-    .replace(/^https?:\/\//i, "")
-    .replace(/\/.*$/, "")
-    .replace(/\.+$/, "")
-    .toLowerCase();
-}
-
-/** True when `input` normalizes to a plausible domain (`app.acme.markets`). */
-export function isValidDomain(input: string): boolean {
-  return DOMAIN_RE.test(normalizeDomain(input));
-}
 
 /** True when `input` looks like an email address. */
 export function isValidEmail(input: string): boolean {
@@ -86,21 +70,20 @@ export interface RegistrationDraft {
   metadata: string;
   symmioCores: string[];
   legacyMultiAccounts: string[];
-  /** Off-chain: the frontend/app domain, shared with the team for review. */
-  domain: string;
   /** Off-chain, optional: where to notify the applicant once approved. */
   email: string;
 }
 
 /**
  * The off-chain payload posted to the notify route on a successful registration.
- * Carries the contact details (domain, email) that never go on-chain, plus the
- * on-chain correlation fields (registrant, affiliate address, tx hash) the team
- * needs to find and approve the request.
+ * Carries the optional contact email that never goes on-chain, plus the on-chain
+ * correlation fields (registrant, affiliate address, tx hash) the team needs to
+ * find and approve the request.
  */
 export interface NotificationPayload {
+  /** Discriminates this from a {@link CancellationPayload} on the shared notify route. */
+  kind: "registration";
   name: string;
-  domain: string;
   email?: string;
   brandColor: string;
   admin: string;
@@ -121,14 +104,34 @@ export interface NotificationPayload {
   honeypot?: string;
 }
 
+/**
+ * The off-chain payload posted to the notify route when a still-`PENDING`
+ * registration is cancelled. Far thinner than a {@link NotificationPayload}: the
+ * status page knows only the affiliate address it looked up, the wallet that
+ * cancelled it, and the cancel transaction — enough for the team to find and
+ * retire the request.
+ */
+export interface CancellationPayload {
+  /** Discriminates this from a {@link NotificationPayload} on the shared notify route. */
+  kind: "cancellation";
+  /** The affiliate (AccountManager) address whose pending registration was cancelled. */
+  affiliate: string;
+  /** The wallet that submitted the cancel — the affiliate `admin`. */
+  canceller: string;
+  chainId: number;
+  txHash: string;
+  /** Anti-spam honeypot — must be empty for a genuine submission. */
+  honeypot?: string;
+}
+
 /** Assemble the {@link NotificationPayload} from a validated draft plus tx context. */
 export function toNotificationPayload(
   draft: RegistrationDraft,
   context: { registrant: string; affiliate?: string; chainId: number; txHash: string; honeypot?: string },
 ): NotificationPayload {
   return {
+    kind: "registration",
     name: draft.name.trim(),
-    domain: normalizeDomain(draft.domain),
     email: draft.email.trim() || undefined,
     brandColor: draft.brandColor.trim(),
     admin: draft.admin,

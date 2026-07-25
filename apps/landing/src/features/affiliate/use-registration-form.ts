@@ -14,7 +14,7 @@ import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { parseEventLogs, type Address, type Hash, type TransactionReceipt } from "viem";
 import { hyperEvm } from "wagmi/chains";
 import { registrationSchema, sharesTotalBps, valuesToDraft, type RegistrationValues } from "./registration-schema";
-import { BPS_SCALE, buildRegistration, normalizeDomain, toNotificationPayload } from "./registration-utils";
+import { BPS_SCALE, buildRegistration, toNotificationPayload } from "./registration-utils";
 
 /** Delivery state of the off-chain notification sent to the team after submit. */
 export type NotifyStatus = "idle" | "sending" | "sent" | "error";
@@ -33,8 +33,7 @@ export interface RegistrationResult {
   name: string;
   registrant: Address;
   hash: Hash;
-  /** Off-chain contact details echoed back for the success screen. */
-  domain: string;
+  /** Off-chain, optional: the contact email captured at registration. */
   email?: string;
   /**
    * The affiliate address the registration transaction actually created, read
@@ -67,7 +66,6 @@ function makeDefaultValues(): RegistrationValues {
     metadata: "",
     symmioCores: [{ value: DEFAULT_SYMMIO_CORE }],
     legacyMultiAccounts: [],
-    domain: "",
     email: "",
   };
 }
@@ -141,7 +139,7 @@ export function useRegistrationForm() {
   }
 
   /**
-   * Forward the off-chain details (domain, email) plus on-chain correlation
+   * Forward the off-chain details (the optional email) plus on-chain correlation
    * fields to the stateless notify route so the team can review and approve.
    * Fire-and-forget: a failure never blocks the on-chain success — it just flips
    * `notifyStatus` so the UI can offer a fallback.
@@ -183,7 +181,6 @@ export function useRegistrationForm() {
         name: values.name.trim(),
         registrant: wallet.address,
         hash: res.hash,
-        domain: normalizeDomain(values.domain),
         email: values.email.trim() || undefined,
         affiliate,
       });

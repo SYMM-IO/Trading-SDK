@@ -1,10 +1,10 @@
 import { hyperEvm } from "viem/chains";
-import { truncateAddress, type NotificationPayload } from "./registration-utils";
+import { truncateAddress, type CancellationPayload, type NotificationPayload } from "./registration-utils";
 
 /**
  * Escape the three characters Telegram's HTML parse mode treats as markup, so a
- * user-supplied value (affiliate name, domain, email, brand color, metadata) can
- * never break the message layout or inject tags.
+ * user-supplied value (affiliate name, email, brand color, metadata) can never
+ * break the message layout or inject tags.
  */
 function escapeHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -33,7 +33,6 @@ export function formatAffiliateNotification(payload: NotificationPayload): strin
   const lines: string[] = ["🤝 <b>New affiliate registration</b>", ""];
 
   lines.push(`<b>Name:</b> ${escapeHtml(payload.name)}`);
-  lines.push(`<b>Domain:</b> ${escapeHtml(payload.domain)}`);
   if (payload.email) lines.push(`<b>Email:</b> ${escapeHtml(payload.email)}`);
   if (payload.brandColor) lines.push(`<b>Brand color:</b> <code>${escapeHtml(payload.brandColor)}</code>`);
 
@@ -63,6 +62,32 @@ export function formatAffiliateNotification(payload: NotificationPayload): strin
   }
 
   if (payload.metadata) lines.push("", `<b>Metadata:</b> ${escapeHtml(payload.metadata)}`);
+
+  lines.push("");
+  const url = explorerTxUrl(payload.chainId, payload.txHash);
+  lines.push(
+    url
+      ? `<b>Tx:</b> <a href="${url}">${truncateAddress(payload.txHash, 8)} ↗</a>`
+      : `<b>Tx:</b> <code>${payload.txHash}</code>`,
+  );
+
+  return lines.join("\n");
+}
+
+/**
+ * Render a {@link CancellationPayload} into the HTML message body posted to the
+ * team's Telegram channel when a still-`PENDING` registration is cancelled. Same
+ * HTML parse mode as {@link formatAffiliateNotification}: `<code>` for the
+ * addresses and an `<a>` link to the transaction on the block explorer.
+ *
+ * @param payload - The affiliate address, canceller, and cancel-tx context.
+ * @returns The message text to pass to the Bot API `sendMessage` call.
+ */
+export function formatAffiliateCancellation(payload: CancellationPayload): string {
+  const lines: string[] = ["🚫 <b>Affiliate registration cancelled</b>", ""];
+
+  lines.push(`<b>Affiliate:</b> <code>${payload.affiliate}</code>`);
+  lines.push(`<b>Cancelled by:</b> <code>${payload.canceller}</code>`);
 
   lines.push("");
   const url = explorerTxUrl(payload.chainId, payload.txHash);

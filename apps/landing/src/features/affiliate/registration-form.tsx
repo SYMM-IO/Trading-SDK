@@ -177,21 +177,9 @@ export function RegistrationForm({ api }: FormProps) {
         <div className="flex flex-col gap-1">
           <h3 className="font-display text-foreground text-lg font-semibold tracking-tight">Contact</h3>
           <p className="text-muted-foreground text-sm">
-            Shared privately with the team to review and approve your request — never stored on-chain.
+            An optional email so the team can reach you once your affiliate is approved — never stored on-chain.
           </p>
         </div>
-
-        <Field
-          id="affiliate-domain"
-          label="App or website domain"
-          placeholder="app.acme.markets"
-          error={errors.domain?.message}
-          hint="Where your SYMMIO frontend lives. Scheme and path are trimmed automatically."
-          spellCheck={false}
-          autoComplete="off"
-          inputMode="url"
-          {...register("domain")}
-        />
 
         <Field
           id="affiliate-email"
