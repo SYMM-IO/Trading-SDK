@@ -17,13 +17,15 @@ type Tab = "register" | "status";
  * The affiliate registration experience. Holds the form state once and offers
  * two modes — registering a new affiliate, or checking (and cancelling) an
  * existing one — behind a tab switcher. A fresh registration takes over the whole
- * surface with the confirmed celebration, so the tabs stand down while it shows.
+ * surface with the pending-approval confirmation, so the tabs stand down while
+ * it shows. Celebration fires later on Check status once the affiliate is
+ * `ACTIVE`.
  */
 export function AffiliateRegister() {
   const api = useRegistrationForm();
   const [tab, setTab] = useState<Tab>("register");
 
-  /** When a registration confirms, bring the celebration takeover into view. */
+  /** When a registration confirms, bring the pending-approval takeover into view. */
   useEffect(() => {
     if (api.result) window.scrollTo({ top: 0, behavior: "smooth" });
   }, [api.result]);

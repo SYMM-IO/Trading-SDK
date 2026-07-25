@@ -1,6 +1,6 @@
 import { isAddress } from "viem";
 import * as yup from "yup";
-import { isValidDomain, isValidEmail, percentToBps, type RegistrationDraft } from "./registration-utils";
+import { isValidEmail, percentToBps, type RegistrationDraft } from "./registration-utils";
 
 /** One editable stakeholder row (a `useFieldArray` item). */
 export interface StakeholderValue {
@@ -29,8 +29,6 @@ export interface RegistrationValues {
   metadata: string;
   symmioCores: AddressValue[];
   legacyMultiAccounts: AddressValue[];
-  /** Off-chain: the frontend/app domain, shared with the team for review. */
-  domain: string;
   /** Off-chain, optional: where to notify the applicant once approved. */
   email: string;
 }
@@ -92,15 +90,6 @@ export const registrationSchema: yup.ObjectSchema<RegistrationValues> = yup.obje
       (rows ?? []).filter((row) => (row.value ?? "").trim() !== "").every((row) => isAddr(row.value)),
     )
     .default([]),
-  domain: yup
-    .string()
-    .default("")
-    .test("required", "Enter your app or website domain.", (value) => (value ?? "").trim() !== "")
-    .test(
-      "valid",
-      "Enter a valid domain (e.g. app.acme.markets).",
-      (value) => (value ?? "").trim() === "" || isValidDomain(value ?? ""),
-    ),
   email: yup
     .string()
     .default("")
@@ -136,7 +125,6 @@ export function valuesToDraft(values: RegistrationValues): RegistrationDraft {
     metadata: values.metadata,
     symmioCores: values.symmioCores.map((row) => row.value),
     legacyMultiAccounts: values.legacyMultiAccounts.map((row) => row.value),
-    domain: values.domain,
     email: values.email,
   };
 }

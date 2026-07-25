@@ -9,7 +9,9 @@ import {
   useWalletAccount,
 } from "@symmio/trading-react";
 import { useEffect, useState } from "react";
-import { isAddress, type Address } from "viem";
+import { isAddress, type Address, type Hash } from "viem";
+import { hyperEvm } from "wagmi/chains";
+import type { CancellationPayload } from "./registration-utils";
 
 /**
  * The single adaptive primary action the status card offers, or `null` when
@@ -79,6 +81,30 @@ export function useStatusLookup() {
 
   const isBusy = cancelMutation.isPending || switchStatus === "pending" || connectStatus === "pending";
 
+  /**
+   * Tell the team a still-`PENDING` registration was cancelled, mirroring the
+   * registration notify call. Fire-and-forget: a failure never blocks the
+   * on-chain cancel — the success banner already reflects the confirmed tx.
+   */
+  async function sendCancellationNotification(affiliate: Address, canceller: Address, txHash: Hash) {
+    try {
+      const payload: CancellationPayload = {
+        kind: "cancellation",
+        affiliate,
+        canceller,
+        chainId: wallet.chainId ?? hyperEvm.id,
+        txHash,
+      };
+      await fetch("/api/affiliate-notify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      /* Best-effort notification; a failure never blocks the on-chain cancel. */
+    }
+  }
+
   /** Run whatever the current {@link StatusPrimary} implies. */
   async function act() {
     if (primary === "connect-to-cancel") {
@@ -91,7 +117,8 @@ export function useStatusLookup() {
       return;
     }
     if (primary === "cancel" && affiliate) {
-      await cancelMutation.mutateAsync({ affiliate }).catch(() => undefined);
+      const res = await cancelMutation.mutateAsync({ affiliate }).catch(() => undefined);
+      if (res && wallet.address) void sendCancellationNotification(affiliate, wallet.address, res.hash);
     }
   }
 

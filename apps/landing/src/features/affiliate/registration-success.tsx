@@ -8,7 +8,6 @@ import { CopyButton } from "@symmio/ui/components/copy-button";
 import { motion } from "motion/react";
 import { hyperEvm } from "wagmi/chains";
 import { AddressReadout } from "./address-readout";
-import { Celebration } from "./celebration";
 import { CheckIcon } from "./icons";
 import { truncateAddress } from "./registration-utils";
 import { StatusBadge, type StatusTone } from "./status-badge";
@@ -46,10 +45,11 @@ interface SuccessProps {
 }
 
 /**
- * The confirmed-registration takeover. Fires the celebration, presents the
- * affiliate name and its now-permanent address, and live-polls the on-chain
- * lifecycle state so the badge advances from confirming → pending → active
- * without a refresh.
+ * The post-registration takeover. Confirms the request is on-chain (still
+ * awaiting admin approval), presents the affiliate name and its permanent
+ * address, and live-polls lifecycle state so the badge advances from confirming
+ * → pending → active without a refresh. Celebration lives on the status checker
+ * once the affiliate is actually `ACTIVE`.
  */
 export function RegistrationSuccess({ result, onRegisterAnother }: SuccessProps) {
   /** The exact address the registration transaction created — never a fresh derivation. */
@@ -64,15 +64,12 @@ export function RegistrationSuccess({ result, onRegisterAnother }: SuccessProps)
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col items-center gap-8 text-center">
-      <Celebration />
-
       <motion.div
         initial={{ scale: 0.6, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="border-positive/30 bg-positive/10 text-positive relative flex size-16 items-center justify-center rounded-2xl border"
+        className="border-primary/30 bg-primary/10 text-primary relative flex size-16 items-center justify-center rounded-2xl border"
       >
-        <span className="bg-positive/20 absolute inset-0 animate-ping rounded-2xl" aria-hidden />
         <CheckIcon width={30} height={30} strokeWidth={2.5} />
       </motion.div>
 
@@ -86,7 +83,8 @@ export function RegistrationSuccess({ result, onRegisterAnother }: SuccessProps)
           {result.name} is registered
         </motion.h2>
         <p className="text-muted-foreground text-base leading-7 text-pretty">
-          Your registration is on-chain. Track approval below — this page updates itself.
+          Your request is on-chain and awaiting approval. Save the address below, then use Check status to track when it
+          goes live.
         </p>
       </div>
 

@@ -127,11 +127,11 @@ Nest **`WagmiProvider` → `QueryClientProvider` → `SymmioProvider`**. The SDK
 
 It's mandatory in the type: **the SDK throws (`AFFILIATE_ADDRESS_REQUIRED`) only if a supported chain's affiliate is
 missing** — the field must be present, not merely non-zero. The **zero address is accepted** as a no-affiliate test
-placeholder (trades still open, but you earn no fee share). Registration serves two purposes: it
-**whitelists your frontend's domain** (an off-chain approval SYMMIO performs so your app's requests are accepted) **and**
-lets your affiliate **collect a share of the trading fees**. Start with the zero address; when you want to earn fees
-(and take your own domain to production), <AffiliateLink>**register your affiliate address**</AffiliateLink> and swap it
-in under `symmioConfig[chainId].addresses.affiliatesAddress`.
+placeholder (trades still open, but you earn no fee share). Registering lets your affiliate **collect a share of the
+trading fees**. Start with the zero address; when you want to earn fees,
+
+<AffiliateLink>**register your affiliate address**</AffiliateLink> and swap it in under
+`symmioConfig[chainId].addresses.affiliatesAddress`.
 
 </Callout>
 
@@ -646,7 +646,7 @@ See the [TP/SL reference](/react/tpsl) for the full state machine, store shape, 
 - [ ] Exactly one wagmi copy resolves — automatic for a clean single-project install; force it with a package-manager override if two ever appear.
 - [ ] Providers nested wagmi → QueryClient → Symmio, mounted **client-only** so `next build` doesn't fail prerendering `/_not-found`.
 - [ ] `SymmioSupportedChainId`, `UnifiedQuote`, `QuoteLifecycle` imported from `@symmio/trading-core`.
-- [ ] Affiliate set under `SymmioProvider`'s required **`symmioConfig`** — each chain's `addresses.affiliatesAddress` present (the SDK throws only on a **missing** field; `zeroAddress` is the correct no-affiliate default — trades open, no fee share), upgraded to a **registered** address when you monetize or go to production (registration whitelists your frontend's domain and earns a share of the trading fees), plus a `getWalletClient` resolver wired for session-key signing.
+- [ ] Affiliate set under `SymmioProvider`'s required **`symmioConfig`** — each chain's `addresses.affiliatesAddress` present (the SDK throws only on a **missing** field; `zeroAddress` is the correct no-affiliate default — trades open, no fee share), upgraded to a **registered** address when you monetize (registration earns a share of the trading fees), plus a `getWalletClient` resolver wired for session-key signing.
 
 **Trade UX**
 

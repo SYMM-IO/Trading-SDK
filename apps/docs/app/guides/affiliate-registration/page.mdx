@@ -2,28 +2,13 @@ import { Callout } from "nextra/components";
 
 # Register an Affiliate
 
-<Callout type="info">
-  **You do not need an affiliate to start trading.** Pass the **zero address** as `affiliatesAddress` in your
-  [config](/core/concepts/config) and every SDK flow works out of the box — quotes open, positions close — you just earn
-  **no share of the trading fees**. Build and test your DEX with the zero address first; register an affiliate when you
-  want to **earn your fee share** and take your own domain to production.
-</Callout>
-
-An **affiliate** is your frontend's on-chain identity — the address that rides on every quote your users open and collects a share of the trading fees. Registering it serves **two** purposes: it **whitelists your frontend's domain** (an off-chain approval SYMMIO performs so your production app's requests are accepted) **and** lets your affiliate **collect a share of the trading fees**. To unlock either, the affiliate has to exist on-chain **and** be approved by SYMMIO. This guide covers registering through the SYMMIO affiliate form: filling it in, submitting the request from your wallet, getting approved and domain-whitelisted, then wiring the address into your config.
+An **affiliate** is your frontend's on-chain identity — the address that rides on every quote your users open and collects a share of the trading fees. Registering it lets your affiliate **collect a share of the trading fees**. Before you can set `affiliatesAddress` in your [config](/core/concepts/config) and start trading, that affiliate has to exist on-chain **and** be approved by SYMMIO. This guide covers registering through the SYMMIO affiliate form: filling it in, submitting the request from your wallet, getting approved, then wiring the address into your config.
 
 <Callout type="warning">
-  **Registering is a request, not an instant switch-on.** Submitting the transaction creates a `PENDING` affiliate.
-  Two things then have to happen on SYMMIO's side before your frontend works:
-
-1. **On-chain approval** — a SYMMIO approver moves your affiliate from `PENDING` to `ACTIVE`. Only an `ACTIVE`
-   affiliate can attribute trades and collect fees.
-2. **Domain whitelisting** — SYMMIO whitelists the app/website domain you submit, on its off-chain services (the
-   hedger / solver / API). Requests coming from a domain that isn't whitelisted are **rejected**.
-
-Until **both** are done, your **production** frontend cannot call SYMMIO's services from its own domain. Plan for a
-review step between submitting and going live — don't ship expecting registration alone to unlock trading. Local
-development is unaffected: the dev origin (`localhost:3000`) works with the **zero address** and no registration at all.
-
+  **Registering is a request, not an instant switch-on.** Submitting the transaction creates a `PENDING` affiliate. A
+  SYMMIO approver then moves it from `PENDING` to `ACTIVE` — only an `ACTIVE` affiliate can attribute trades and collect
+  fees. Plan for a review step between submitting and going live — don't ship expecting registration alone to unlock
+  trading.
 </Callout>
 
 ## The lifecycle
@@ -41,7 +26,7 @@ The happy path:
 
 1. **Fill the form** — your deterministic affiliate address resolves live from your wallet and chosen name.
 2. **Submit** the request from your wallet → the affiliate is created as `PENDING`.
-3. **SYMMIO reviews** — approves the affiliate on-chain **and** whitelists your domain off-chain.
+3. **SYMMIO reviews** — approves the affiliate on-chain, moving it from `PENDING` to `ACTIVE`.
 4. **Track** the status until it flips to `ACTIVE` (the form's **Check status** tab).
 5. **Wire** the address into your SDK config and start trading.
 
@@ -63,12 +48,7 @@ It runs the whole flow from the browser:
 - Set the **admin** address, split fees across **stakeholders** and the protocol (the meter must total 100%), and optionally add metadata, legacy accounts, or extra cores.
 - Submit the on-chain request, then track approval on the **Check status** tab — where a still-`PENDING` registration can also be cancelled.
 
-It also collects two off-chain details the on-chain transaction never carries, shared privately with the SYMMIO team to review your request:
-
-| Field                     | Why it's needed                                                                                             |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **App or website domain** | The frontend origin SYMMIO **whitelists** on its services. Without it, requests from your app are rejected. |
-| **Email** _(optional)_    | Where SYMMIO notifies you once your affiliate is approved.                                                  |
+It also collects one optional off-chain detail the on-chain transaction never carries: an **email**, shared privately with the SYMMIO team, so they can notify you once your affiliate is approved.
 
 <Callout type="info">
   Save the affiliate address the form shows you after submitting. The **Check status** tab looks a registration up **by

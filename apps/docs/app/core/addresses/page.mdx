@@ -74,10 +74,9 @@ The `addresses` field — the section people usually want:
   </Property>
   <Property name="affiliatesAddress" type="Address">
     Your frontend's affiliate identity (fee attribution). **Required** per chain via `createConfig`'s
-    `symmioConfig[chainId].addresses.affiliatesAddress` — the field must be present (`createConfig` throws
-    `AFFILIATE_ADDRESS_REQUIRED` when it is missing). The zero address is accepted as a no-affiliate test placeholder;
-    <AffiliateLink>register your affiliate</AffiliateLink> to whitelist your frontend's domain and earn a share of the
-    trading fees.
+    `symmioConfig[chainId].addresses.affiliatesAddress` — the field must be present (`createConfig` throws ` ` when it
+    is missing). The zero address is accepted as a no-affiliate test placeholder; `{" "}
+    <AffiliateLink>register your affiliate</AffiliateLink> to earn a share of the trading fees.
   </Property>
   <Property name="collateralAddress" type="Address">
     Collateral token (e.g. USDC).
@@ -96,7 +95,7 @@ Only **HyperEVM (999)** is deployed today. The registry entry (`packages/trading
 - `symmioAddress` — `0x57331038c21982116EE9b0906E4a5c5cB52dcE2e`
 - `instantLayerAddress` — `0x72DBF07457b2712b160F67A85D338F860c1CA620`
 - `accountLayerAddress` — `0x46493c376758Da47823D7E3Ae5d417eA6546eEB3`
-- `affiliatesAddress` — `0xBcB033C9154401fA000a1Ae60843f79f45741b7c` (built-in default; override it per chain via the required `symmioConfig[chainId].addresses.affiliatesAddress` — set your <AffiliateLink>registered affiliate</AffiliateLink> to whitelist your domain and earn a share of the trading fees)
+- `affiliatesAddress` — `0xBcB033C9154401fA000a1Ae60843f79f45741b7c` (built-in default; override it per chain via the required `symmioConfig[chainId].addresses.affiliatesAddress` — set your <AffiliateLink>registered affiliate</AffiliateLink> to earn a share of the trading fees)
 - `collateralAddress` — `0xb88339CB7199b77E23DB6E890353E22632Ba630f` (USDC, 6 decimals)
 - `solver.address` — `0x76bc5889c0cfcC20960b0D81F541595d81a95122` (Enigma)
 - `solver.tpsl.cohWalletAddress` — `0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31`

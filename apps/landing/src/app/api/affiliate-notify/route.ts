@@ -1,17 +1,22 @@
-import type { NotificationPayload } from "@/features/affiliate/registration-utils";
-import { formatAffiliateNotification } from "@/features/affiliate/telegram-message";
+import type { CancellationPayload, NotificationPayload } from "@/features/affiliate/registration-utils";
+import { formatAffiliateCancellation, formatAffiliateNotification } from "@/features/affiliate/telegram-message";
 
 /**
- * Notify endpoint for affiliate registrations. The client
- * (`src/features/affiliate/use-registration-form.ts`) posts a
- * {@link NotificationPayload} here as soon as the on-chain
- * `requestToRegisterAffiliate` transaction is mined, and this route forwards a
- * formatted summary to the team's Telegram channel via the Bot API.
+ * Notify endpoint for affiliate lifecycle events. The client posts one of two
+ * bodies here, discriminated by `kind`, and this route forwards a formatted
+ * summary to the team's Telegram channel via the Bot API:
+ *
+ * - `"registration"` — a {@link NotificationPayload} from
+ *   `src/features/affiliate/use-registration-form.ts`, as soon as the on-chain
+ *   `requestToRegisterAffiliate` transaction is mined.
+ * - `"cancellation"` — a {@link CancellationPayload} from
+ *   `src/features/affiliate/use-status-lookup.ts`, once a still-`PENDING`
+ *   registration's `cancelRegistration` transaction is mined.
  *
  * Server-only: it reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` from the
- * environment so the bot token never ships to the browser. This first version
- * trusts the client's confirmed transaction and does no on-chain verification
- * beyond dropping the anti-spam honeypot; add verification or dedup later if the
+ * environment so the bot token never ships to the browser. This version trusts
+ * the client's confirmed transaction and does no on-chain verification beyond
+ * dropping the anti-spam honeypot; add verification or dedup later if the
  * endpoint is ever abused.
  */
 export async function POST(request: Request): Promise<Response> {
@@ -21,9 +26,9 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "Telegram notifications are not configured." }, { status: 500 });
   }
 
-  let payload: NotificationPayload;
+  let payload: NotificationPayload | CancellationPayload;
   try {
-    payload = (await request.json()) as NotificationPayload;
+    payload = (await request.json()) as NotificationPayload | CancellationPayload;
   } catch {
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
@@ -36,8 +41,17 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ ok: true });
   }
 
-  if (!payload.name || !payload.registrant || !payload.txHash) {
-    return Response.json({ error: "Missing required fields." }, { status: 400 });
+  let text: string;
+  if (payload.kind === "cancellation") {
+    if (!payload.affiliate || !payload.canceller || !payload.txHash) {
+      return Response.json({ error: "Missing required fields." }, { status: 400 });
+    }
+    text = formatAffiliateCancellation(payload);
+  } else {
+    if (!payload.name || !payload.registrant || !payload.txHash) {
+      return Response.json({ error: "Missing required fields." }, { status: 400 });
+    }
+    text = formatAffiliateNotification(payload);
   }
 
   try {
@@ -46,7 +60,7 @@ export async function POST(request: Request): Promise<Response> {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         chat_id: chatId,
-        text: formatAffiliateNotification(payload),
+        text,
         parse_mode: "HTML",
         disable_web_page_preview: true,
       }),

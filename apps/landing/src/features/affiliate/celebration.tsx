@@ -104,13 +104,14 @@ function startFireworks(): () => void {
 }
 
 /**
- * The celebration that plays while a confirmed registration is on screen. Three
- * expanding coral light rings bloom out on entry regardless of size. The confetti
- * then adapts to the viewport: tablets and phones (≤ 1024px) get a single light
- * Fireworks show that fits the screen without taxing the device, while desktop
- * gets continuous School Pride streams from both lower corners plus a Symmio-logo
- * and heart shape burst from the top every five seconds. Runs for as long as the
- * success screen is mounted and is fully skipped under `prefers-reduced-motion`.
+ * The celebration that plays when an affiliate is confirmed `ACTIVE` on the
+ * status checker. Three expanding coral light rings bloom out on entry
+ * regardless of size. The confetti then adapts to the viewport: tablets and
+ * phones (≤ 1024px) get a single light Fireworks show that fits the screen
+ * without taxing the device, while desktop gets continuous School Pride streams
+ * from both lower corners plus a Symmio-logo and heart shape burst from the top
+ * every five seconds. Runs for as long as it is mounted and is fully skipped
+ * under `prefers-reduced-motion`.
  */
 export function Celebration() {
   const reduceMotion = useReducedMotion();
