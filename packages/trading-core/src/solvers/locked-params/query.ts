@@ -54,7 +54,10 @@ export function getLockedParamsQueryOptions(
 ): GetLockedParamsQueryOptions {
   return {
     ...options.query,
-    queryKey: getLockedParamsQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
+    queryKey: getLockedParamsQueryKey({
+      ...options,
+      configKey: config.getSolverKey({ chainId: options.chainId, solverId: options.solverId }),
+    }),
     enabled: options.query?.enabled ?? true,
     queryFn: () =>
       getLockedParams(config, {

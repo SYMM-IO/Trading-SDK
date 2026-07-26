@@ -49,7 +49,7 @@ export function getNotionalCapAllQueryOptions(
     ...options.query,
     queryKey: getNotionalCapAllQueryKey({
       ...options,
-      configKey: config.getChainConfigKey(options.chainId),
+      configKey: config.getSolverKey({ chainId: options.chainId, solverId: options.solverId }),
     }),
     enabled: options.query?.enabled ?? true,
     queryFn: () => getNotionalCapAll(config, { chainId: options.chainId, solverId: options.solverId }),

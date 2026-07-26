@@ -3,6 +3,7 @@ import { SymmError } from "../../shared/errors/symm-error";
 import type { DeepPartial } from "../../shared/types/properties";
 import type { WebSocketConstructor } from "../../shared/types/websocket";
 import {
+  assertSupportedSolver,
   listSupportedChains,
   resolveSolver,
   type SolverId,
@@ -10,7 +11,7 @@ import {
   type SymmioContractAddresses,
   type SymmioSolverConfig,
 } from "../chains";
-import { hashChainConfig } from "./config-key";
+import { hashChainConfig, hashSolverConfig } from "./config-key";
 import { buildChainConfigs } from "./merge-chain-config";
 import type { SymmioWalletClient } from "./types";
 
@@ -164,6 +165,29 @@ export interface Config {
    *   `UNKNOWN_SOLVER` when the chain has no solver with that id.
    */
   getSolver(parameters?: { chainId?: number; solverId?: SolverId }): SymmioSolverConfig;
+  /**
+   * Stable fingerprint of ONE resolved solver on a chain (folds `chainId`,
+   * `solverId`, `kind`, `version`, and the solver's endpoints). Solver-facing
+   * query factories fold this into their keys — **instead of**
+   * {@link getChainConfigKey} — so two solvers on the same chain never share a
+   * cache entry, and overriding one solver's config rotates only that solver's
+   * keys. Resolves `solverId` to the chain's `defaultSolverId` when omitted;
+   * returns a stable sentinel (never throws) for an unknown chain or solver, so
+   * it is safe to call while building query options.
+   */
+  getSolverKey(parameters?: { chainId?: number; solverId?: SolverId }): string;
+  /**
+   * Id of the chain's default solver (its `defaultSolverId`) — the solver an
+   * action targets when it omits `solverId`.
+   */
+  getDefaultSolverId(chainId?: number): SolverId;
+  /**
+   * Ids of every solver configured on a chain. Resolve each with
+   * {@link getSolver} — e.g. to build a solver picker.
+   *
+   * @throws {SymmError} `UNSUPPORTED_CHAIN` when the chain is unknown.
+   */
+  listSolverIds(chainId?: number): readonly SolverId[];
   /** Resolve the viem `PublicClient` for reads on a chain. */
   getClient(parameters?: { chainId?: number }): PublicClient;
   /**
@@ -253,6 +277,21 @@ export function createConfig(parameters: CreateConfigParameters): Config {
   const chainConfigKeys: Record<number, string> = {};
   for (const id of chainIds) chainConfigKeys[id] = hashChainConfig(chainConfigs[id]!);
 
+  /**
+   * Per-(chain, solver) fingerprints for solver-facing query keys, precomputed
+   * once. Building them also validates every solver: `assertSupportedSolver`
+   * throws for an unknown `(kind, version)`, so a config can never point at a
+   * solver the SDK has no client for (fail-fast, like the affiliate check above).
+   */
+  const solverConfigKeys: Record<number, Record<SolverId, string>> = {};
+  for (const id of chainIds) {
+    const perSolver: Record<SolverId, string> = {};
+    for (const [solverId, solver] of Object.entries(chainConfigs[id]!.solvers)) {
+      assertSupportedSolver(id, solverId, solver);
+      perSolver[solverId] = hashSolverConfig(id, solverId, solver);
+    }
+    solverConfigKeys[id] = perSolver;
+  }
   function getChainConfig(chainId?: number): SymmioChainConfig {
     const id = chainId ?? resolvedDefaultChainId;
     const config = chainConfigs[id];
@@ -270,6 +309,22 @@ export function createConfig(parameters: CreateConfigParameters): Config {
     return resolveSolver(getChainConfig(parameters?.chainId), parameters?.solverId);
   }
 
+  function getSolverKey(parameters?: { chainId?: number; solverId?: SolverId }): string {
+    const id = parameters?.chainId ?? resolvedDefaultChainId;
+    const chain = chainConfigs[id];
+    if (!chain) return "unsupported-solver";
+    const solverId = parameters?.solverId ?? chain.defaultSolverId;
+    return solverConfigKeys[id]?.[solverId] ?? "unsupported-solver";
+  }
+
+  function getDefaultSolverId(chainId?: number): SolverId {
+    return getChainConfig(chainId).defaultSolverId;
+  }
+
+  function listSolverIds(chainId?: number): readonly SolverId[] {
+    return Object.keys(getChainConfig(chainId).solvers);
+  }
+
   return {
     chains: chainIds,
     simulateBeforeWrite,
@@ -277,6 +332,9 @@ export function createConfig(parameters: CreateConfigParameters): Config {
     getChainConfig,
     getChainConfigKey,
     getSolver,
+    getSolverKey,
+    getDefaultSolverId,
+    listSolverIds,
     getClient(clientParameters) {
       return getClient({ chainId: clientParameters?.chainId ?? resolvedDefaultChainId });
     },

@@ -47,7 +47,10 @@ export type GetMarketsQueryOptions = SymmioQueryOptions<GetMarketsData, Error, G
 export function getMarketsQueryOptions(config: Config, options: GetMarketsOptions = {}): GetMarketsQueryOptions {
   return {
     ...options.query,
-    queryKey: getMarketsQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
+    queryKey: getMarketsQueryKey({
+      ...options,
+      configKey: config.getSolverKey({ chainId: options.chainId, solverId: options.solverId }),
+    }),
     enabled: options.query?.enabled ?? true,
     queryFn: () => getMarkets(config, { chainId: options.chainId, solverId: options.solverId }),
   };

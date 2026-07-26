@@ -49,7 +49,7 @@ export function getMarketInfoQueryOptions(
     ...options.query,
     queryKey: getMarketInfoQueryKey({
       ...options,
-      configKey: config.getChainConfigKey(options.chainId),
+      configKey: config.getSolverKey({ chainId: options.chainId, solverId: options.solverId }),
     }),
     enabled: options.query?.enabled ?? true,
     queryFn: () => getMarketInfo(config, { chainId: options.chainId, solverId: options.solverId }),

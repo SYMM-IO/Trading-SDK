@@ -61,7 +61,7 @@ export function getNotionalCapBySymbolIdQueryOptions(
     ...options.query,
     queryKey: getNotionalCapBySymbolIdQueryKey({
       ...options,
-      configKey: config.getChainConfigKey(options.chainId),
+      configKey: config.getSolverKey({ chainId: options.chainId, solverId: options.solverId }),
     }),
     enabled: (options.query?.enabled ?? true) && options.symbolId > 0,
     queryFn: () =>
