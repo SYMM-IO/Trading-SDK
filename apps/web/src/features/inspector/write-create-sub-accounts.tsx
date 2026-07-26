@@ -59,9 +59,14 @@ export function WriteCreateSubAccounts() {
   const [name, setName] = useState<string>("");
   const [isolation, setIsolation] = useState<SubAccountIsolationType>(SubAccountIsolationType.MARKET_DIRECTION);
   const [singleVAMode, setSingleVAMode] = useState<boolean>(true);
-  // Pre-fill the global defaults from SDK config; the user may override either per submission.
-  const [affiliate, setAffiliate] = useState<string>(addresses.affiliatesAddress);
-  const [symmioCore, setSymmioCore] = useState<string>(addresses.symmioAddress);
+  // Affiliate / Symmio-core default to the chain config; the user may override
+  // either per submission. Store only the OVERRIDE (`null` = "follow the chain
+  // default") and DERIVE the effective value — so switching chains updates the
+  // defaults automatically, with no effect and no stale mirror.
+  const [affiliateOverride, setAffiliateOverride] = useState<string | null>(null);
+  const [symmioCoreOverride, setSymmioCoreOverride] = useState<string | null>(null);
+  const affiliate = affiliateOverride ?? addresses.affiliatesAddress;
+  const symmioCore = symmioCoreOverride ?? addresses.symmioAddress;
 
   const mutation = useCreateSubAccounts();
 
@@ -150,8 +155,8 @@ export function WriteCreateSubAccounts() {
       <OverridesPanel
         affiliate={affiliate}
         symmioCore={symmioCore}
-        onAffiliateChange={setAffiliate}
-        onSymmioCoreChange={setSymmioCore}
+        onAffiliateChange={setAffiliateOverride}
+        onSymmioCoreChange={setSymmioCoreOverride}
         defaultAffiliate={addresses.affiliatesAddress}
         defaultSymmioCore={addresses.symmioAddress}
         affiliateValid={Boolean(validAffiliate)}
@@ -224,8 +229,8 @@ export function WriteCreateSubAccounts() {
 interface OverridesPanelProps {
   affiliate: string;
   symmioCore: string;
-  onAffiliateChange: (value: string) => void;
-  onSymmioCoreChange: (value: string) => void;
+  onAffiliateChange: (value: string | null) => void;
+  onSymmioCoreChange: (value: string | null) => void;
   defaultAffiliate: Address;
   defaultSymmioCore: Address;
   affiliateValid: boolean;
@@ -318,7 +323,7 @@ interface OverrideFieldProps {
   testId: string;
   label: string;
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string | null) => void;
   valid: boolean;
   defaultValue: Address;
 }
@@ -334,7 +339,7 @@ function OverrideField({ id, testId, label, value, onChange, valid, defaultValue
           <button
             type="button"
             className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-2"
-            onClick={() => onChange(defaultValue)}
+            onClick={() => onChange(null)}
             data-testid={`reset-${testId}`}
           >
             Reset to default

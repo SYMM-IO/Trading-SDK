@@ -93,6 +93,7 @@ export const SUPPORTED_CHAIN_IDS: number[] = listSupportedChains();
 
 const CHAIN_LABELS: Record<number, string> = {
   [SymmioSupportedChainId.HYPER_EVM]: "HyperEVM",
+  [SymmioSupportedChainId.BASE]: "Base",
 };
 
 /** Human-readable name for a supported chain id. */
@@ -136,8 +137,10 @@ function overrideFieldValue(
 export function defaultFieldValue(chainId: number, field: ConfigFieldDef): string {
   const chainConfig = getChainConfig(chainId);
   if (field.group === "solver") {
-    const solver = chainConfig.solvers[chainConfig.defaultSolverId] as unknown as Record<string, unknown>;
-    return String(solver[field.key]);
+    // A chain whose solver is not wired yet has an empty `solvers` map, so the
+    // default solver id resolves to nothing — show an empty value, don't crash.
+    const solver = chainConfig.solvers[chainConfig.defaultSolverId] as unknown as Record<string, unknown> | undefined;
+    return String(solver?.[field.key] ?? "");
   }
   return String(readField(chainConfig, field));
 }

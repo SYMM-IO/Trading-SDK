@@ -68,14 +68,24 @@ describe("createConfig", () => {
     expect(config.simulateBeforeWrite).toBe(false);
   });
 
-  describe("affiliate address (mandatory, per chain)", () => {
-    it("requires the symmioConfig field", () => {
+  describe("affiliate address (required per configured chain that can trade)", () => {
+    it("requires the symmioConfig field at the type level", () => {
+      // symmioConfig stays a required parameter — omitting it is a compile error.
+      // At runtime nothing is configured, so the affiliate gate has no chain to check.
       // @ts-expect-error symmioConfig is required
-      expect(() => createConfig({ getClient: () => stubClient })).toThrow(SymmError);
+      expect(() => createConfig({ getClient: () => stubClient })).not.toThrow();
     });
 
-    it("throws when a supported chain has no affiliate entry", () => {
-      expect(() => createConfig({ symmioConfig: {}, getClient: () => stubClient })).toThrow(SymmError);
+    it("throws when a configured chain with a solver omits its affiliate", () => {
+      expect(() =>
+        // @ts-expect-error affiliatesAddress is required by the type — this simulates a JS
+        // consumer bypassing types; the runtime gate is the safety net.
+        createConfig({ symmioConfig: { [HYPEREVM]: { addresses: {} } }, getClient: () => stubClient }),
+      ).toThrow(SymmError);
+    });
+
+    it("allows an empty symmioConfig — nothing configured, registry defaults apply", () => {
+      expect(() => createConfig({ symmioConfig: {}, getClient: () => stubClient })).not.toThrow();
     });
 
     it("allows the zero address (the on-chain contract is the real gate)", () => {

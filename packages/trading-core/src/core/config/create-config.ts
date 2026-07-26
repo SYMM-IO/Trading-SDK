@@ -4,12 +4,12 @@ import type { DeepPartial } from "../../shared/types/properties";
 import type { WebSocketConstructor } from "../../shared/types/websocket";
 import {
   assertSupportedSolver,
-  listSupportedChains,
   resolveSolver,
   type SolverId,
   type SymmioChainConfig,
   type SymmioContractAddresses,
   type SymmioSolverConfig,
+  type SymmioSupportedChainId,
 } from "../chains";
 import { hashChainConfig, hashSolverConfig } from "./config-key";
 import { buildChainConfigs } from "./merge-chain-config";
@@ -249,14 +249,23 @@ export function createConfig(parameters: CreateConfigParameters): Config {
     webSocketConstructor,
   } = parameters;
 
-  // Affiliate is required per chain: every supported chain's `symmioConfig` entry
-  // must set `addresses.affiliatesAddress`, or a trade would silently fall back to
-  // the built-in default affiliate and lose attribution. The zero address is
-  // accepted (a no-affiliate test placeholder — trades open, no fee share); only a
-  // MISSING affiliate throws. A non-zero UNREGISTERED affiliate is not caught here;
-  // it reverts on-chain at trade time (`PartyAFacet: Invalid affiliate`). Check the
-  // raw input (not the merged config, whose default would mask a gap).
-  for (const chainId of listSupportedChains()) {
+  const chainConfigs = buildChainConfigs(symmioConfig);
+
+  // Affiliate is required only for a chain the consumer EXPLICITLY configured (has a
+  // `symmioConfig[chainId]` entry) that can ALSO trade — one with at least one solver.
+  // Configuring a chain is the opt-in that obliges you to name your affiliate for it;
+  // the affiliate rides every quote (`sendQuoteWithAffiliateAndData`). A built-in chain
+  // the consumer never mentions is left alone: it may be an onboarding/placeholder chain
+  // not really tradable yet, and it falls back to its registry affiliate — so we do not
+  // force every consumer to supply an affiliate for a chain they never touch. The zero
+  // address is accepted (a no-affiliate placeholder — trades open, no fee share); only a
+  // MISSING affiliate throws. A non-zero UNREGISTERED affiliate is not caught here; it
+  // reverts on-chain at trade time (`PartyAFacet: Invalid affiliate`). Check the raw
+  // input (not the merged config, whose default would mask a gap).
+  for (const key of Object.keys(symmioConfig ?? {})) {
+    const chainId = Number(key) as SymmioSupportedChainId;
+    const hasSolvers = Object.keys(chainConfigs[chainId]?.solvers ?? {}).length > 0;
+    if (!hasSolvers) continue;
     const affiliate = symmioConfig?.[chainId]?.addresses?.affiliatesAddress;
     if (!affiliate)
       throw new SymmError(
@@ -265,8 +274,6 @@ export function createConfig(parameters: CreateConfigParameters): Config {
         `createConfig: \`symmioConfig[${chainId}].addresses.affiliatesAddress\` is required. No affiliate yet? Pass the zero address — trades still open, you just earn no fee share. Affiliate addresses are per chain; register at https://trading-sdk.symm.io/affiliate to earn your fee share.`,
       );
   }
-
-  const chainConfigs = buildChainConfigs(symmioConfig);
 
   const chainIds = Object.keys(chainConfigs).map(Number);
   if (chainIds.length === 0)

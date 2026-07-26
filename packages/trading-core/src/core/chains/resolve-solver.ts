@@ -15,7 +15,6 @@ import type { SolverId, SymmioChainConfig, SymmioSolverConfig } from "./types";
 export function resolveSolver(chainConfig: SymmioChainConfig, solverId?: SolverId): SymmioSolverConfig {
   const id = solverId ?? chainConfig.defaultSolverId;
   const solver = chainConfig.solvers[id];
-
   if (!solver) {
     throw new SymmError("config", "UNKNOWN_SOLVER", `Unknown solver id "${id}" for chain ${chainConfig.chainId}.`);
   }
