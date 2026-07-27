@@ -172,13 +172,11 @@ The single-value unions `SymmioPriceServiceType = "enigma"` and `SymmioNotificat
 
 This is the most important implementation detail in the solver axis, and it is the opposite of what one would assume.
 
-**Query keys are safe.** Every solver query factory builds its key by spreading options and folding the solver cache key — the plain `"<chainId>:<solverId>"` composite from `config.getSolverKey` (identity, not a content hash):
+**Query keys are safe.** Every query factory — chain-scoped and solver-facing alike — folds the same `config.getChainConfigKey(chainId)` content hash. Solver isolation comes from the `solverId` field itself, spread from the options into the key:
 
 ```ts
-queryKey: getMarketsQueryKey({
-  ...options,
-  configKey: config.getSolverKey({ chainId: options.chainId, solverId: options.solverId }),
-}),
+queryKey: getMarketsQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
+// isolation: `solverId` rides in `...options`; freshness: the chain hash rotates on any override
 ```
 
 and [`filterQueryOptions`](./src/shared/utils/query.ts) is a **blacklist** — it strips only `query`, `enabled`, `config`, functions, and `undefined`. So adding `solverId` to a `Parameters` type propagates into the cache key **automatically**, across all 11 factories. No manual work, no risk of a missed key.
@@ -274,8 +272,6 @@ export interface Config {
    * @throws {SymmError} `UNKNOWN_SOLVER` when the id is not configured.
    */
   getSolver(parameters?: { chainId?: number; solverId?: SolverId }): SymmioSolverConfig;
-  /** Plain `"<chainId>:<solverId>"` cache key for solver-facing queries. Never throws. */
-  getSolverKey(parameters?: { chainId?: number; solverId?: SolverId }): string;
   /** Id of the chain's default solver. */
   getDefaultSolverId(chainId?: number): SolverId;
   /** Ids of every solver configured on a chain. */
@@ -286,7 +282,7 @@ export interface Config {
 Two different cache-key kinds, on purpose:
 
 - **Chain-scoped factories** fold `getChainConfigKey` — a **content hash** of the resolved chain config, so a runtime override rotates their keys.
-- **Solver-facing factories** fold `getSolverKey` — the plain **identity composite** `"<chainId>:<solverId>"`, so two solvers on one chain never share a cache entry and keys stay human-readable. The trade-off is explicit: overriding a solver's endpoints at runtime does **not** rotate its keys (the identity did not change). Accepted for simplicity — endpoint overrides are a dev-time concern, and a reload clears the cache.
+- **Solver-facing factories** fold the SAME hash — no separate solver key function. Their isolation comes from the `solverId` option riding in the key (spread via `...options`), and the key + `queryFn` read the same `options.solverId`, so they cannot disagree. The trade-off is deliberate coarseness: overriding ONE solver's endpoints rotates every query key on that chain (siblings included). Accepted — config changes are rare and deliberate; serving stale data after an override is worse than an extra refetch.
 
 ---
 
@@ -308,14 +304,14 @@ Until then the existing raw escape hatch — `querySubgraph(config, { document, 
 
 ## 7. Status
 
-| Work                                                                                                                              | State    |
-| --------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| Solver registry (`solvers` + `defaultSolverId`), per-call `solverId?`, `getSolver` / `getSolverKey` / `listSolverIds`, kind guard | **Done** |
-| Solver-facing query factories keyed by `getSolverKey`; `queryFn` arg lists forward `solverId` (§3.5)                              | **Done** |
-| Per-key solver merge in `mergeChainConfig` (§3.6)                                                                                 | **Done** |
-| Rasa client: generate from Rasa's spec, add the `"rasa"` kind, implement dispatch                                                 | Pending  |
-| React layer: thread `solverId` through the remaining hooks                                                                        | Pending  |
-| Per-solver satellite-infra overrides (§3.4)                                                                                       | Pending  |
+| Work                                                                                                             | State    |
+| ---------------------------------------------------------------------------------------------------------------- | -------- |
+| Solver registry (`solvers` + `defaultSolverId`), per-call `solverId?`, `getSolver` / `listSolverIds`, kind guard | **Done** |
+| Solver-facing query keys carry `solverId` + the chain configKey; `queryFn` arg lists forward `solverId` (§3.5)   | **Done** |
+| Per-key solver merge in `mergeChainConfig` (§3.6)                                                                | **Done** |
+| Rasa client: generate from Rasa's spec, add the `"rasa"` kind, implement dispatch                                | Pending  |
+| React layer: thread `solverId` through the remaining hooks                                                       | Pending  |
+| Per-solver satellite-infra overrides (§3.4)                                                                      | Pending  |
 
 ---
 
@@ -330,7 +326,7 @@ Until then the existing raw escape hatch — `querySubgraph(config, { document, 
 | 5   | Solver `id` **open**, solver `kind` **closed**                       | Integrators run their own deployments; the SDK ships a client per schema |
 | 6   | **No solver API version axis** — one generation per kind per release | Same doctrine as contracts; a lagging generation becomes its own `kind`  |
 | 7   | Divergence via `kind` union, **not** a capability `Set`              | A union narrows at compile time and cannot drift from the client         |
-| 8   | Solver cache keys are the plain `"<chainId>:<solverId>"` identity    | Readable, stable, never collide across solvers; content hashing dropped  |
+| 8   | One cache key fn: chain configKey hash + `solverId` as a key field   | `solverId` isolates solvers; the hash rotates on any override — no stale |
 | 9   | Satellite infra: per-solver override, chain fallback (future)        | Some infra is genuinely shared, some genuinely is not                    |
 | 10  | `queryFn` arg lists are the hazard, not query keys                   | Keys spread options; `queryFn`s enumerate them                           |
 | 11  | Subgraph versioning **deferred**                                     | Unpinned endpoints + path-based codegen routing make it half a solution  |

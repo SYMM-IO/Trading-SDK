@@ -148,11 +148,14 @@ export interface Config {
    * subgraphs). Identical for identical config across reloads and SSR; changes
    * iff that chain's resolved config changes.
    *
-   * The query option factories fold this into every query key, so a runtime
-   * override produces a fresh key — TanStack refetches with the new config
-   * instead of serving stale cache. Returns a stable sentinel for chains the
-   * config does not know about (it never throws, so it is safe to call while
-   * building query options for an unsupported chain).
+   * ALL query option factories — chain-scoped and solver-facing — fold this
+   * into their query keys, so a runtime override produces a fresh key and
+   * TanStack refetches with the new config instead of serving stale cache.
+   * Solver-facing keys additionally carry the `solverId` field (spread from
+   * their options), which is what keeps two solvers on the same chain in
+   * separate cache entries. Returns a stable sentinel for chains the config
+   * does not know about (it never throws, so it is safe to call while building
+   * query options for an unsupported chain).
    */
   getChainConfigKey(chainId?: number): string;
   /**
@@ -165,19 +168,6 @@ export interface Config {
    *   `UNKNOWN_SOLVER` when the chain has no solver with that id.
    */
   getSolver(parameters?: { chainId?: number; solverId?: SolverId }): SymmioSolverConfig;
-  /**
-   * Cache key of ONE solver on a chain — the plain `"<chainId>:<solverId>"`
-   * composite. Solver-facing query factories fold this into their keys —
-   * **instead of** {@link getChainConfigKey} — so two solvers on the same chain
-   * never share a cache entry. Resolves `solverId` to the chain's
-   * `defaultSolverId` when omitted; never throws (an unknown chain with no
-   * `solverId` yields `"<chainId>:unknown"`), so it is safe to call while
-   * building query options.
-   *
-   * The key is pure identity, not a content hash: overriding a solver's
-   * endpoints at runtime does not rotate its cache entries.
-   */
-  getSolverKey(parameters?: { chainId?: number; solverId?: SolverId }): string;
   /**
    * Id of the chain's default solver (its `defaultSolverId`) — the solver an
    * action targets when it omits `solverId`.
@@ -313,12 +303,6 @@ export function createConfig(parameters: CreateConfigParameters): Config {
     return resolveSolver(getChainConfig(parameters?.chainId), parameters?.solverId);
   }
 
-  function getSolverKey(parameters?: { chainId?: number; solverId?: SolverId }): string {
-    const id = parameters?.chainId ?? resolvedDefaultChainId;
-    const solverId = parameters?.solverId ?? chainConfigs[id]?.defaultSolverId;
-    return `${id}:${solverId ?? "unknown"}`;
-  }
-
   function getDefaultSolverId(chainId?: number): SolverId {
     return getChainConfig(chainId).defaultSolverId;
   }
@@ -334,7 +318,6 @@ export function createConfig(parameters: CreateConfigParameters): Config {
     getChainConfig,
     getChainConfigKey,
     getSolver,
-    getSolverKey,
     getDefaultSolverId,
     listSolverIds,
     getClient(clientParameters) {

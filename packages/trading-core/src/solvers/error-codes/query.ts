@@ -65,7 +65,7 @@ export function getSolverErrorCodesQueryOptions(
     ...options.query,
     queryKey: getSolverErrorCodesQueryKey({
       ...options,
-      configKey: config.getSolverKey({ chainId: options.chainId, solverId: options.solverId }),
+      configKey: config.getChainConfigKey(options.chainId),
     }),
     enabled: options.query?.enabled ?? true,
     queryFn: () => getSolverErrorCodes(config, { chainId: options.chainId, solverId: options.solverId }),

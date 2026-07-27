@@ -67,7 +67,7 @@ export function getInstantOpenQuoteIdQueryOptions(
     ...options.query,
     queryKey: getInstantOpenQuoteIdQueryKey({
       ...options,
-      configKey: config.getSolverKey({ chainId: options.chainId, solverId: options.solverId }),
+      configKey: config.getChainConfigKey(options.chainId),
     }),
     enabled: options.query?.enabled ?? true,
     queryFn: () =>

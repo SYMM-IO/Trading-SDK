@@ -48,7 +48,7 @@ export function getFundingInfoQueryOptions(
     ...options.query,
     queryKey: getFundingInfoQueryKey({
       ...options,
-      configKey: config.getSolverKey({ chainId: options.chainId, solverId: options.solverId }),
+      configKey: config.getChainConfigKey(options.chainId),
     }),
     enabled: options.query?.enabled ?? true,
     queryFn: () =>

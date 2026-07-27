@@ -61,11 +61,14 @@ describe("Base chain", () => {
     expect(solver.kind).toBe("enigma"); // placeholder kind
   });
 
-  it("getSolverKey on Base is the plain `chainId:solverId` composite", () => {
+  it("getChainConfigKey on Base is defined and distinct from HyperEVM's", () => {
     const config = createConfig({
       symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } } },
       getClient: noopClient,
     });
-    expect(config.getSolverKey({ chainId: SymmioSupportedChainId.BASE })).toBe(`${SymmioSupportedChainId.BASE}:rasa`);
+    expect(config.getChainConfigKey(SymmioSupportedChainId.BASE)).not.toBe("unsupported");
+    expect(config.getChainConfigKey(SymmioSupportedChainId.BASE)).not.toBe(
+      config.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM),
+    );
   });
 });

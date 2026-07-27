@@ -51,7 +51,7 @@ export function getEstimatedPriceQueryOptions(
     ...options.query,
     queryKey: getEstimatedPriceQueryKey({
       ...options,
-      configKey: config.getSolverKey({ chainId: options.chainId, solverId: options.solverId }),
+      configKey: config.getChainConfigKey(options.chainId),
     }),
     enabled: (options.query?.enabled ?? true) && options.quantity.length > 0 && options.price.length > 0,
     queryFn: () =>

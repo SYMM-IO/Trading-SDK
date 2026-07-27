@@ -8,9 +8,11 @@ import type { SymmioChainConfig } from "../chains";
  * reloads, and separate `Config` instances, which is what makes it safe to embed
  * in a TanStack query key.
  *
- * Solver-facing query factories do NOT use this hash — they fold the plain
- * `config.getSolverKey()` composite (`"<chainId>:<solverId>"`) instead, so two
- * solvers on the same chain never share a cache entry.
+ * ALL query factories fold this into their keys — chain-scoped and
+ * solver-facing alike. Solver-facing keys additionally carry the `solverId`
+ * field (spread from their options), which is what keeps two solvers on the
+ * same chain in separate cache entries; the hash handles freshness (any config
+ * change, including a solver override, rotates it).
  *
  * @internal
  */

@@ -1,6 +1,7 @@
 import type { PublicClient } from "viem";
 import { describe, expect, it } from "vitest";
 import { TEST_AFFILIATE_ADDRESS } from "../../shared/test/mock-config";
+import { getMarketsQueryOptions } from "../../solvers/markets/query";
 import { SymmioSupportedChainId } from "../chains";
 import { createConfig, type CreateConfigParameters } from "./create-config";
 
@@ -37,36 +38,30 @@ function twoSolverConfig(enigma2?: { url?: string; withTpsl?: boolean }) {
   });
 }
 
-describe("getSolverKey — cache isolation", () => {
-  it("is the plain `chainId:solverId` composite", () => {
+describe("solver query cache isolation — chain configKey + solverId key field", () => {
+  it("two solvers on the same chain get distinct query keys (solverId field)", () => {
     const config = twoSolverConfig();
-    expect(config.getSolverKey({ chainId: CHAIN, solverId: "enigma" })).toBe(`${CHAIN}:enigma`);
-    expect(config.getSolverKey({ chainId: CHAIN, solverId: "enigma2" })).toBe(`${CHAIN}:enigma2`);
+    const a = getMarketsQueryOptions(config, { chainId: CHAIN, solverId: "enigma" }).queryKey;
+    const b = getMarketsQueryOptions(config, { chainId: CHAIN, solverId: "enigma2" }).queryKey;
+    expect(a).not.toEqual(b);
   });
 
-  it("two solvers on the same chain get distinct keys", () => {
+  it("omitting solverId targets the default solver — key differs from an explicit non-default", () => {
     const config = twoSolverConfig();
-    expect(config.getSolverKey({ chainId: CHAIN, solverId: "enigma" })).not.toBe(
-      config.getSolverKey({ chainId: CHAIN, solverId: "enigma2" }),
-    );
+    const dflt = getMarketsQueryOptions(config, { chainId: CHAIN }).queryKey;
+    const other = getMarketsQueryOptions(config, { chainId: CHAIN, solverId: "enigma2" }).queryKey;
+    expect(dflt).not.toEqual(other);
   });
 
-  it("omitting solverId resolves the chain's default solver", () => {
-    const config = twoSolverConfig();
-    expect(config.getSolverKey({ chainId: CHAIN })).toBe(config.getSolverKey({ chainId: CHAIN, solverId: "enigma" }));
-  });
-
-  it("never throws — an unknown chain without a solverId yields the `unknown` sentinel", () => {
-    const config = twoSolverConfig();
-    expect(config.getSolverKey({ chainId: CHAIN, solverId: "nope" })).toBe(`${CHAIN}:nope`);
-    expect(config.getSolverKey({ chainId: 1 })).toBe("1:unknown");
-  });
-
-  it("is identity, not content — changing a solver's endpoints does not rotate its key", () => {
+  it("changing a solver's config rotates the chain configKey — overrides never serve stale cache", () => {
     const a = twoSolverConfig({ url: "https://a.example/api" });
     const b = twoSolverConfig({ url: "https://b.example/api" });
-    expect(a.getSolverKey({ chainId: CHAIN, solverId: "enigma2" })).toBe(
-      b.getSolverKey({ chainId: CHAIN, solverId: "enigma2" }),
+    expect(a.getChainConfigKey(CHAIN)).not.toBe(b.getChainConfigKey(CHAIN));
+    // Deliberately coarse: the chain-level hash also rotates sibling solvers'
+    // keys (enigma here, though only enigma2's url changed). Accepted
+    // over-invalidation — config changes are rare, staleness is worse.
+    expect(getMarketsQueryOptions(a, { chainId: CHAIN, solverId: "enigma" }).queryKey).not.toEqual(
+      getMarketsQueryOptions(b, { chainId: CHAIN, solverId: "enigma" }).queryKey,
     );
   });
 });
