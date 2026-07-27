@@ -161,7 +161,6 @@ describe("createConfig", () => {
       const config = createConfig({ symmioConfig: SYMMIO, getClient: () => stubClient });
       expect(config.getSolver({ chainId: HYPEREVM })).toMatchObject({
         kind: "enigma",
-        version: "v1",
         url: DEFAULT_SOLVER.url,
         address: DEFAULT_SOLVER.address,
       });

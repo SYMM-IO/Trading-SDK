@@ -511,7 +511,6 @@ export {
   type SymmioPriceServiceType,
   type SymmioSolverConfig,
   type SymmioSolverKind,
-  type SymmioSolverVersion,
   type SymmioSubgraphName,
   type SymmioSubgraphUrls,
   type SymmioTpSlConfig,

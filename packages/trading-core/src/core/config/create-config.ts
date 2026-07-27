@@ -11,7 +11,7 @@ import {
   type SymmioSolverConfig,
   type SymmioSupportedChainId,
 } from "../chains";
-import { hashChainConfig, hashSolverConfig } from "./config-key";
+import { hashChainConfig } from "./config-key";
 import { buildChainConfigs } from "./merge-chain-config";
 import type { SymmioWalletClient } from "./types";
 
@@ -166,14 +166,16 @@ export interface Config {
    */
   getSolver(parameters?: { chainId?: number; solverId?: SolverId }): SymmioSolverConfig;
   /**
-   * Stable fingerprint of ONE resolved solver on a chain (folds `chainId`,
-   * `solverId`, `kind`, `version`, and the solver's endpoints). Solver-facing
-   * query factories fold this into their keys — **instead of**
-   * {@link getChainConfigKey} — so two solvers on the same chain never share a
-   * cache entry, and overriding one solver's config rotates only that solver's
-   * keys. Resolves `solverId` to the chain's `defaultSolverId` when omitted;
-   * returns a stable sentinel (never throws) for an unknown chain or solver, so
-   * it is safe to call while building query options.
+   * Cache key of ONE solver on a chain — the plain `"<chainId>:<solverId>"`
+   * composite. Solver-facing query factories fold this into their keys —
+   * **instead of** {@link getChainConfigKey} — so two solvers on the same chain
+   * never share a cache entry. Resolves `solverId` to the chain's
+   * `defaultSolverId` when omitted; never throws (an unknown chain with no
+   * `solverId` yields `"<chainId>:unknown"`), so it is safe to call while
+   * building query options.
+   *
+   * The key is pure identity, not a content hash: overriding a solver's
+   * endpoints at runtime does not rotate its cache entries.
    */
   getSolverKey(parameters?: { chainId?: number; solverId?: SolverId }): string;
   /**
@@ -285,19 +287,14 @@ export function createConfig(parameters: CreateConfigParameters): Config {
   for (const id of chainIds) chainConfigKeys[id] = hashChainConfig(chainConfigs[id]!);
 
   /**
-   * Per-(chain, solver) fingerprints for solver-facing query keys, precomputed
-   * once. Building them also validates every solver: `assertSupportedSolver`
-   * throws for an unknown `(kind, version)`, so a config can never point at a
-   * solver the SDK has no client for (fail-fast, like the affiliate check above).
+   * Validate every configured solver up front: `assertSupportedSolver` throws
+   * for an unknown `kind`, so a config can never point at a solver the SDK has
+   * no client for (fail-fast, like the affiliate check above).
    */
-  const solverConfigKeys: Record<number, Record<SolverId, string>> = {};
   for (const id of chainIds) {
-    const perSolver: Record<SolverId, string> = {};
     for (const [solverId, solver] of Object.entries(chainConfigs[id]!.solvers)) {
       assertSupportedSolver(id, solverId, solver);
-      perSolver[solverId] = hashSolverConfig(id, solverId, solver);
     }
-    solverConfigKeys[id] = perSolver;
   }
   function getChainConfig(chainId?: number): SymmioChainConfig {
     const id = chainId ?? resolvedDefaultChainId;
@@ -318,10 +315,8 @@ export function createConfig(parameters: CreateConfigParameters): Config {
 
   function getSolverKey(parameters?: { chainId?: number; solverId?: SolverId }): string {
     const id = parameters?.chainId ?? resolvedDefaultChainId;
-    const chain = chainConfigs[id];
-    if (!chain) return "unsupported-solver";
-    const solverId = parameters?.solverId ?? chain.defaultSolverId;
-    return solverConfigKeys[id]?.[solverId] ?? "unsupported-solver";
+    const solverId = parameters?.solverId ?? chainConfigs[id]?.defaultSolverId;
+    return `${id}:${solverId ?? "unknown"}`;
   }
 
   function getDefaultSolverId(chainId?: number): SolverId {

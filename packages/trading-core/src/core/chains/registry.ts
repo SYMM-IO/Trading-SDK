@@ -26,7 +26,6 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     solvers: {
       enigma: {
         kind: "enigma",
-        version: "v1",
         name: "Enigma",
         address: "0x76bc5889c0cfcC20960b0D81F541595d81a95122",
         url: "https://solver.enigma.bz/api",
@@ -70,9 +69,6 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
       symmioAddress: "0x91Cf2D8Ed503EC52768999aA6D8DBeA6e52dbe43",
       instantLayerAddress: "0x0825435285ac0E5c02c7a7c443F631f3e07fE375",
       accountLayerAddress: "0x56caf00c6C5cB5478570Bb23807B9d1D697863DC",
-      // No frontend affiliate registered on Base yet — zero address is the
-      // no-affiliate placeholder. Not required from consumers until a solver is
-      // wired (see the affiliate gate in `createConfig`).
       affiliatesAddress: "0x45Eecd7B4f442388ACD90467E423A5CAAC3a9C3f",
       collateralAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
       collateralDecimals: 6,
@@ -83,11 +79,10 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     // runs) instead of throwing UNKNOWN_SOLVER. It points at Enigma's endpoints /
     // partyB — NOT a real Base solver — so its reads return Enigma data and you
     // must NOT trade against it. When the Rasa client lands: widen SymmioSolverKind
-    // + SUPPORTED_SOLVER_VERSIONS to "rasa", then flip kind→"rasa" + real url/address.
+    // + SUPPORTED_SOLVER_KINDS with "rasa", then flip kind→"rasa" + real url/address.
     solvers: {
       rasa: {
         kind: "enigma",
-        version: "v1",
         name: "Rasa (placeholder → Enigma)",
         address: "0x76bc5889c0cfcC20960b0D81F541595d81a95122",
         url: "https://solver.enigma.bz/api",

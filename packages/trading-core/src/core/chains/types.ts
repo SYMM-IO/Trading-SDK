@@ -46,16 +46,15 @@ export type SolverId = string;
 
 /**
  * Schema family a solver's REST API speaks — the discriminant used to select a
- * generated client and derive capabilities. Closed: the SDK ships one client
- * per kind, so dispatch must be exhaustive. Widen as new solver kinds land.
+ * generated client. Closed: the SDK ships one client per kind, so dispatch must
+ * be exhaustive. Widen as new solver kinds land.
+ *
+ * There is deliberately no version axis: each SDK release supports exactly one
+ * API generation per kind. When a solver ships a new API generation, the SDK
+ * regenerates that kind's client in a new release — consumers pick the
+ * generation by pinning the SDK version, not through config.
  */
 export type SymmioSolverKind = "enigma";
-
-/**
- * API generation within a {@link SymmioSolverKind}. A solver may version its API
- * independently of the contracts. Closed per kind; widen as versions ship.
- */
-export type SymmioSolverVersion = "v1";
 
 /**
  * Solver / hedger configuration for a SYMMIO chain deployment.
@@ -73,8 +72,6 @@ export type SymmioSolverVersion = "v1";
 export interface SymmioSolverConfig {
   /** Schema family the solver speaks — selects the generated client. */
   kind: SymmioSolverKind;
-  /** API generation within the kind. */
-  version: SymmioSolverVersion;
   /** Human-readable solver name */
   name: string;
   /** Solver's on-chain address (used as `partyB` in `sendQuoteWithAffiliateAndData`) */

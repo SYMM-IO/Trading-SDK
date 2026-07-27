@@ -16,7 +16,6 @@ function twoSolverConfig(enigma2?: { url?: string; withTpsl?: boolean }) {
         solvers: {
           enigma2: {
             kind: "enigma",
-            version: "v1",
             name: "Enigma 2",
             address: "0x0000000000000000000000000000000000000002",
             url: enigma2?.url ?? "https://solver2.example/api",
@@ -39,6 +38,12 @@ function twoSolverConfig(enigma2?: { url?: string; withTpsl?: boolean }) {
 }
 
 describe("getSolverKey — cache isolation", () => {
+  it("is the plain `chainId:solverId` composite", () => {
+    const config = twoSolverConfig();
+    expect(config.getSolverKey({ chainId: CHAIN, solverId: "enigma" })).toBe(`${CHAIN}:enigma`);
+    expect(config.getSolverKey({ chainId: CHAIN, solverId: "enigma2" })).toBe(`${CHAIN}:enigma2`);
+  });
+
   it("two solvers on the same chain get distinct keys", () => {
     const config = twoSolverConfig();
     expect(config.getSolverKey({ chainId: CHAIN, solverId: "enigma" })).not.toBe(
@@ -51,19 +56,16 @@ describe("getSolverKey — cache isolation", () => {
     expect(config.getSolverKey({ chainId: CHAIN })).toBe(config.getSolverKey({ chainId: CHAIN, solverId: "enigma" }));
   });
 
-  it("returns a stable sentinel for an unknown solver (never throws)", () => {
-    expect(twoSolverConfig().getSolverKey({ chainId: CHAIN, solverId: "nope" })).toBe("unsupported-solver");
+  it("never throws — an unknown chain without a solverId yields the `unknown` sentinel", () => {
+    const config = twoSolverConfig();
+    expect(config.getSolverKey({ chainId: CHAIN, solverId: "nope" })).toBe(`${CHAIN}:nope`);
+    expect(config.getSolverKey({ chainId: 1 })).toBe("1:unknown");
   });
 
-  it("changing one solver's config does not change another solver's key (scoped invalidation)", () => {
+  it("is identity, not content — changing a solver's endpoints does not rotate its key", () => {
     const a = twoSolverConfig({ url: "https://a.example/api" });
     const b = twoSolverConfig({ url: "https://b.example/api" });
-    // `enigma` (built-in, untouched) keeps the same key across both configs…
-    expect(a.getSolverKey({ chainId: CHAIN, solverId: "enigma" })).toBe(
-      b.getSolverKey({ chainId: CHAIN, solverId: "enigma" }),
-    );
-    // …while `enigma2`, whose url changed, rotates.
-    expect(a.getSolverKey({ chainId: CHAIN, solverId: "enigma2" })).not.toBe(
+    expect(a.getSolverKey({ chainId: CHAIN, solverId: "enigma2" })).toBe(
       b.getSolverKey({ chainId: CHAIN, solverId: "enigma2" }),
     );
   });
@@ -87,7 +89,6 @@ describe("createConfig — solver validation guard", () => {
             solvers: {
               bad: {
                 kind: "rasa",
-                version: "v1",
                 name: "x",
                 address: "0x0000000000000000000000000000000000000002",
                 url: "u",
@@ -98,27 +99,5 @@ describe("createConfig — solver validation guard", () => {
         getClient: noopClient,
       }),
     ).toThrow(/unknown kind/i);
-  });
-
-  it("throws for an unsupported version of a known kind", () => {
-    expect(() =>
-      createConfig({
-        symmioConfig: {
-          [CHAIN]: {
-            addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
-            solvers: {
-              bad: {
-                kind: "enigma",
-                version: "v2",
-                name: "x",
-                address: "0x0000000000000000000000000000000000000002",
-                url: "u",
-              },
-            },
-          },
-        } as unknown as CreateConfigParameters["symmioConfig"],
-        getClient: noopClient,
-      }),
-    ).toThrow(/unsupported version/i);
   });
 });

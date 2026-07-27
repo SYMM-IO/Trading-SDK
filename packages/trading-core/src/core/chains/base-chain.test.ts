@@ -27,7 +27,6 @@ describe("Base chain", () => {
     expect(base.defaultSolverId).toBe("rasa");
     // Placeholder speaks Enigma's API/values until Rasa's own client is built.
     expect(base.solvers.rasa?.kind).toBe("enigma");
-    expect(base.solvers.rasa?.version).toBe("v1");
   });
 
   it("carries placeholder service configs until Base's own are integrated", () => {
@@ -62,13 +61,11 @@ describe("Base chain", () => {
     expect(solver.kind).toBe("enigma"); // placeholder kind
   });
 
-  it("getSolverKey on Base returns a real key now the placeholder solver resolves", () => {
+  it("getSolverKey on Base is the plain `chainId:solverId` composite", () => {
     const config = createConfig({
       symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } } },
       getClient: noopClient,
     });
-    const key = config.getSolverKey({ chainId: SymmioSupportedChainId.BASE });
-    expect(key).not.toBe("unsupported-solver");
-    expect(key.length).toBeGreaterThan(0);
+    expect(config.getSolverKey({ chainId: SymmioSupportedChainId.BASE })).toBe(`${SymmioSupportedChainId.BASE}:rasa`);
   });
 });
