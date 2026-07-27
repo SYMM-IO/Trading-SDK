@@ -16,6 +16,26 @@ export default defineConfig({
       },
     },
   },
+  rasaSolver: {
+    input: {
+      // Rasa staging spec (only one published so far). The JSON itself is
+      // public — only the swagger UI is credential-gated. Swap to the
+      // production spec URL when the vendor publishes one.
+      target: "https://stage-archon.rasa.capital/openapi.json",
+    },
+    output: {
+      // No `clean` here: this file shares `generated/` with enigma-solver.ts,
+      // and orval's clean wipes the whole output directory — it would delete
+      // the sibling during generation.
+      mode: "single",
+      httpClient: "axios",
+      formatter: "prettier",
+      target: "./src/solvers/types/generated/rasa-solver.ts",
+      override: {
+        enumGenerationType: "enum",
+      },
+    },
+  },
   tpslHandler: {
     input: {
       target: "https://conditional-orders-handler-lowcap85.rasa.capital/conditional-orders/openapi.json",

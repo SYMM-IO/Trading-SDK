@@ -73,25 +73,21 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
       collateralAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
       collateralDecimals: 6,
     },
-    // Rasa is Base's real solver — a NEW solver kind whose client/strategy is not
-    // built yet. Until then a PLACEHOLDER solver under id "rasa" is registered
-    // with `kind: "enigma"` and Enigma's values, so `getSolver` RESOLVES (the app
-    // runs) instead of throwing UNKNOWN_SOLVER. It points at Enigma's endpoints /
-    // partyB — NOT a real Base solver — so its reads return Enigma data and you
-    // must NOT trade against it. When the Rasa client lands: widen SymmioSolverKind
-    // + SUPPORTED_SOLVER_KINDS with "rasa", then flip kind→"rasa" + real url/address.
+    // Rasa — Base's real solver. Rasa's API shares Enigma's paths for the
+    // shared reads (contract-symbols, funding, locked params, error codes,
+    // notional_cap/{id}, instant lists), so those work today; the diverging
+    // endpoints (`/instant_trade/open|close` execution, `/estimated-price`,
+    // `/notional_cap` list) return 404 until per-kind dispatch is wired into
+    // the solver actions.
+    // No `tpsl` block: Base COH deployment not confirmed yet — absence marks
+    // conditional orders unsupported (add the block when the vendor provides it).
     solvers: {
       rasa: {
-        kind: "enigma",
-        name: "Rasa (placeholder → Enigma)",
-        address: "0x76bc5889c0cfcC20960b0D81F541595d81a95122",
-        url: "https://solver.enigma.bz/api",
-        tpsl: {
-          url: "https://conditional-orders-handler-lowcap85.rasa.capital",
-          wsUrl: "wss://notification.rasa.capital/ws/v1/subscribe",
-          appName: "Hyper-EVM_COH-Low-Cap_Production",
-          cohWalletAddress: "0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31",
-        },
+        kind: "rasa",
+        name: "Rasa",
+        address: "0x81631953E0C093e72935C1CAA4C7D519B2A0E407",
+        // Staging URL — swap to the production solver URL when published.
+        url: "https://stage-archon.rasa.capital",
       },
     },
     defaultSolverId: "rasa",

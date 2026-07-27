@@ -56,13 +56,19 @@ export interface ApiCustomTable {
   title?: string;
 }
 
+export interface ApiFundingInfoItem {
+  funding_rate_epoch_duration?: number;
+  next_funding_rate_long?: string;
+  next_funding_rate_short?: string;
+  next_funding_time?: number;
+}
+
+export interface ApiFundingInfoBySymbolsResponse {
+  [key: string]: ApiFundingInfoItem;
+}
+
 export interface ApiFundingInfoResponse {
-  [key: string]: {
-    funding_rate_epoch_duration?: number;
-    next_funding_rate_long?: string;
-    next_funding_rate_short?: string;
-    next_funding_time?: number;
-  };
+  [key: string]: ApiFundingInfoItem;
 }
 
 export enum ApiGaslessAction {
@@ -232,6 +238,7 @@ export interface ApiGetStatsResponse {
 }
 
 export interface ApiGetTempQuoteStatusResponse {
+  completion_source?: string;
   cva?: string;
   error_category?: string;
   /** Populated only when State is "Failed" or "Cancelled". ErrorCode mirrors
@@ -252,6 +259,10 @@ export interface ApiGetTempQuoteStatusResponse {
   price?: string;
   quantity?: string;
   quote_id?: number;
+  recovered_at?: string;
+  recovery_log_index?: number;
+  recovery_reason?: string;
+  recovery_tx_hash?: string;
   state?: string;
   sub_account?: string;
   symbol_id?: number;
@@ -380,6 +391,13 @@ export type GetEstimatedPriceParams = {
   price: string;
 };
 
+export type GetFundingInfoParams = {
+  /**
+   * Symbol IDs (omit for all)
+   */
+  symbol_ids?: number[];
+};
+
 export type GetGetFundingInfoParams = {
   /**
    * Symbol names (omit for all)
@@ -397,6 +415,8 @@ export type GetGetLockedParamsSymbolParams = {
 export type GetGetMarketInfo200 = { [key: string]: unknown };
 
 export type GetInstantTradeEip712Config200 = { [key: string]: unknown };
+
+export type GetMarketInfo200 = { [key: string]: unknown };
 
 export type GetNotionalCapParams = {
   /**
@@ -569,12 +589,26 @@ export const getEstimatedPrice = (
 };
 
 /**
- * @summary Get funding info
+ * @summary Get funding info by symbol ID
+ */
+export const getFundingInfo = (
+  params?: GetFundingInfoParams,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<ApiFundingInfoResponse>> => {
+  return axios.get(`/funding-info`, {
+    ...options,
+    params: { ...params, ...options?.params },
+  });
+};
+
+/**
+ * @deprecated
+ * @summary Get funding info by symbol name
  */
 export const getGetFundingInfo = (
   params?: GetGetFundingInfoParams,
   options?: AxiosRequestConfig,
-): Promise<AxiosResponse<ApiFundingInfoResponse>> => {
+): Promise<AxiosResponse<ApiFundingInfoBySymbolsResponse>> => {
   return axios.get(`/get_funding_info`, {
     ...options,
     params: { ...params, ...options?.params },
@@ -597,7 +631,8 @@ export const getGetLockedParamsSymbol = (
 
 /**
  * Returns a JSON object whose keys are symbol names (dynamic — sourced from contract-symbol data) mapping to {trading_volume, lifetime_value}, plus top-level aggregate fields total_value_24h and total_lifetime_value.
- * @summary Get 24h market info
+ * @deprecated
+ * @summary Get 24h market info by symbol name
  */
 export const getGetMarketInfo = (options?: AxiosRequestConfig): Promise<AxiosResponse<GetGetMarketInfo200>> => {
   return axios.get(`/get_market_info`, options);
@@ -685,6 +720,14 @@ export const postInstantTradeInstantOpen = (
   options?: AxiosRequestConfig,
 ): Promise<AxiosResponse<ApiPostInstantOpenResponse>> => {
   return axios.post(`/instant_trade/instant_open`, apiV2InstantOpenRequest, options);
+};
+
+/**
+ * Returns a JSON object whose keys are symbol IDs mapping to {trading_volume, lifetime_value}, plus top-level aggregate fields total_value_24h and total_lifetime_value.
+ * @summary Get 24h market info by symbol ID
+ */
+export const getMarketInfo = (options?: AxiosRequestConfig): Promise<AxiosResponse<GetMarketInfo200>> => {
+  return axios.get(`/market-info`, options);
 };
 
 /**
@@ -822,7 +865,8 @@ export type GetContractSymbolsResult = AxiosResponse<ApiContractSymbolsResponse>
 export type GetErrorCodesResult = AxiosResponse<GetErrorCodes200>;
 export type GetErrorCodesDetailedResult = AxiosResponse<ClientErrorCodeInfo[]>;
 export type GetEstimatedPriceResult = AxiosResponse<ApiGetEstimatedPriceResponse>;
-export type GetGetFundingInfoResult = AxiosResponse<ApiFundingInfoResponse>;
+export type GetFundingInfoResult = AxiosResponse<ApiFundingInfoResponse>;
+export type GetGetFundingInfoResult = AxiosResponse<ApiFundingInfoBySymbolsResponse>;
 export type GetGetLockedParamsSymbolResult = AxiosResponse<ApiLockedParamsBySymbolIdResponse>;
 export type GetGetMarketInfoResult = AxiosResponse<GetGetMarketInfo200>;
 export type GetInstantCloseAccountAddressResult = AxiosResponse<ApiGetInstantCloseResponse[]>;
@@ -832,6 +876,7 @@ export type GetInstantTradeEip712ConfigResult = AxiosResponse<GetInstantTradeEip
 export type PostInstantTradeExecuteOperationResult = AxiosResponse<ApiGaslessResponse>;
 export type PostInstantTradeInstantCloseResult = AxiosResponse<void>;
 export type PostInstantTradeInstantOpenResult = AxiosResponse<ApiPostInstantOpenResponse>;
+export type GetMarketInfoResult = AxiosResponse<GetMarketInfo200>;
 export type GetNotionalCapResult = AxiosResponse<ApiNotionalCapAllSymbolsResponse>;
 export type GetNotionalCapBatchResult = AxiosResponse<ApiNotionalCapAllSymbolsResponse>;
 export type GetNotionalCapSymbolIdResult = AxiosResponse<ApiNotionalCapBySymbolResponse>;

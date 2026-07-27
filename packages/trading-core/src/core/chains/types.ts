@@ -45,16 +45,27 @@ export type SymmioSubgraphName = keyof SymmioSubgraphUrls;
 export type SolverId = string;
 
 /**
+ * The solver kinds the SDK can actually serve — one generated client and
+ * behavior set per entry. Single source of truth: {@link SymmioSolverKind} is
+ * derived from this list, and `createConfig` validates every configured solver
+ * against it (`assertSupportedSolver` in `solver-support.ts`). To add a kind,
+ * append it here and ship its generated client + dispatch in the same change.
+ *
+ * @internal
+ */
+export const SUPPORTED_SOLVER_KINDS = ["enigma", "rasa"] as const;
+
+/**
  * Schema family a solver's REST API speaks — the discriminant used to select a
- * generated client. Closed: the SDK ships one client per kind, so dispatch must
- * be exhaustive. Widen as new solver kinds land.
+ * generated client. Closed (derived from {@link SUPPORTED_SOLVER_KINDS}): the
+ * SDK ships one client per kind, so dispatch must be exhaustive.
  *
  * There is deliberately no version axis: each SDK release supports exactly one
  * API generation per kind. When a solver ships a new API generation, the SDK
  * regenerates that kind's client in a new release — consumers pick the
  * generation by pinning the SDK version, not through config.
  */
-export type SymmioSolverKind = "enigma";
+export type SymmioSolverKind = (typeof SUPPORTED_SOLVER_KINDS)[number];
 
 /**
  * Solver / hedger configuration for a SYMMIO chain deployment.

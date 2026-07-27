@@ -21,12 +21,15 @@ describe("Base chain", () => {
     expect(base.addresses.collateralDecimals).toBe(6);
   });
 
-  it("registers a placeholder Rasa solver (kind enigma) until the real Rasa client lands", () => {
+  it("registers the Rasa solver with its real endpoint, partyB, and kind", () => {
     const base = getChainConfig(SymmioSupportedChainId.BASE);
     expect(Object.keys(base.solvers)).toEqual(["rasa"]);
     expect(base.defaultSolverId).toBe("rasa");
-    // Placeholder speaks Enigma's API/values until Rasa's own client is built.
-    expect(base.solvers.rasa?.kind).toBe("enigma");
+    expect(base.solvers.rasa?.address).toBe("0x81631953E0C093e72935C1CAA4C7D519B2A0E407");
+    expect(base.solvers.rasa?.url).toBe("https://stage-archon.rasa.capital");
+    expect(base.solvers.rasa?.kind).toBe("rasa");
+    // No COH confirmed on Base yet — absence marks TP/SL unsupported.
+    expect(base.solvers.rasa?.tpsl).toBeUndefined();
   });
 
   it("carries placeholder service configs until Base's own are integrated", () => {
@@ -51,14 +54,14 @@ describe("Base chain", () => {
     ).not.toThrow();
   });
 
-  it("getSolver on Base resolves the placeholder Rasa solver", () => {
+  it("getSolver on Base resolves the Rasa solver", () => {
     const config = createConfig({
       symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } } },
       getClient: noopClient,
     });
     const solver = config.getSolver({ chainId: SymmioSupportedChainId.BASE });
-    expect(solver.name).toMatch(/rasa/i);
-    expect(solver.kind).toBe("enigma"); // placeholder kind
+    expect(solver.name).toBe("Rasa");
+    expect(solver.kind).toBe("rasa");
   });
 
   it("getChainConfigKey on Base is defined and distinct from HyperEVM's", () => {

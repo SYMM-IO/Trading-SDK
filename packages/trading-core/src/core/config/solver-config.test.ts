@@ -83,7 +83,7 @@ describe("createConfig — solver validation guard", () => {
             addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
             solvers: {
               bad: {
-                kind: "rasa",
+                kind: "not-a-kind",
                 name: "x",
                 address: "0x0000000000000000000000000000000000000002",
                 url: "u",
