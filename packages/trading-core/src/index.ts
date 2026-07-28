@@ -702,6 +702,133 @@ export {
 } from "./solvers/funding-info";
 
 /**
+ * Rasa-only solver reads
+ * ----------------------
+ * Endpoints only the `rasa` solver kind exposes: solver-side balance info,
+ * partyA uPnL, global open interest, symbol price range, position-state and
+ * notification searches, single error-code lookup, whitelist check/add, and
+ * readiness. Each action throws a typed `UNSUPPORTED_BY_SOLVER` `SymmError`
+ * when the resolved solver is not a `rasa` solver.
+ */
+export {
+  addSolverWhitelist,
+  addSolverWhitelistMutationOptions,
+  type AddSolverWhitelistParameters,
+  type AddSolverWhitelistReturnType,
+} from "./solvers/add-solver-whitelist";
+export {
+  checkSolverWhitelist,
+  checkSolverWhitelistQueryKey,
+  checkSolverWhitelistQueryOptions,
+  type CheckSolverWhitelistData,
+  type CheckSolverWhitelistOptions,
+  type CheckSolverWhitelistParameters,
+  type CheckSolverWhitelistQueryKey,
+  type CheckSolverWhitelistQueryOptions,
+  type CheckSolverWhitelistReturnType,
+} from "./solvers/check-solver-whitelist";
+export {
+  getErrorMessage,
+  getErrorMessageQueryKey,
+  getErrorMessageQueryOptions,
+  type GetErrorMessageData,
+  type GetErrorMessageOptions,
+  type GetErrorMessageParameters,
+  type GetErrorMessageQueryKey,
+  type GetErrorMessageQueryOptions,
+  type GetErrorMessageReturnType,
+} from "./solvers/get-error-message";
+export {
+  getPartyAUpnl,
+  getPartyAUpnlQueryKey,
+  getPartyAUpnlQueryOptions,
+  type GetPartyAUpnlData,
+  type GetPartyAUpnlOptions,
+  type GetPartyAUpnlParameters,
+  type GetPartyAUpnlQueryKey,
+  type GetPartyAUpnlQueryOptions,
+  type GetPartyAUpnlReturnType,
+} from "./solvers/get-party-a-upnl";
+export {
+  getSolverBalanceInfo,
+  getSolverBalanceInfoQueryKey,
+  getSolverBalanceInfoQueryOptions,
+  type GetSolverBalanceInfoData,
+  type GetSolverBalanceInfoOptions,
+  type GetSolverBalanceInfoParameters,
+  type GetSolverBalanceInfoQueryKey,
+  type GetSolverBalanceInfoQueryOptions,
+  type GetSolverBalanceInfoReturnType,
+} from "./solvers/get-solver-balance-info";
+export {
+  getSolverOpenInterest,
+  getSolverOpenInterestQueryKey,
+  getSolverOpenInterestQueryOptions,
+  type GetSolverOpenInterestData,
+  type GetSolverOpenInterestOptions,
+  type GetSolverOpenInterestParameters,
+  type GetSolverOpenInterestQueryKey,
+  type GetSolverOpenInterestQueryOptions,
+  type GetSolverOpenInterestReturnType,
+} from "./solvers/get-solver-open-interest";
+export {
+  getSolverPriceRange,
+  getSolverPriceRangeQueryKey,
+  getSolverPriceRangeQueryOptions,
+  type GetSolverPriceRangeData,
+  type GetSolverPriceRangeOptions,
+  type GetSolverPriceRangeParameters,
+  type GetSolverPriceRangeQueryKey,
+  type GetSolverPriceRangeQueryOptions,
+  type GetSolverPriceRangeReturnType,
+} from "./solvers/get-solver-price-range";
+export {
+  getSolverReadiness,
+  getSolverReadinessQueryKey,
+  getSolverReadinessQueryOptions,
+  type GetSolverReadinessData,
+  type GetSolverReadinessOptions,
+  type GetSolverReadinessParameters,
+  type GetSolverReadinessQueryKey,
+  type GetSolverReadinessQueryOptions,
+  type GetSolverReadinessReturnType,
+} from "./solvers/get-solver-readiness";
+export {
+  searchPositionStates,
+  searchPositionStatesQueryKey,
+  searchPositionStatesQueryOptions,
+  type SearchPositionStatesData,
+  type SearchPositionStatesOptions,
+  type SearchPositionStatesParameters,
+  type SearchPositionStatesQueryKey,
+  type SearchPositionStatesQueryOptions,
+  type SearchPositionStatesReturnType,
+} from "./solvers/search-position-states";
+export {
+  searchSolverNotifications,
+  searchSolverNotificationsQueryKey,
+  searchSolverNotificationsQueryOptions,
+  type SearchSolverNotificationsData,
+  type SearchSolverNotificationsOptions,
+  type SearchSolverNotificationsParameters,
+  type SearchSolverNotificationsQueryKey,
+  type SearchSolverNotificationsQueryOptions,
+  type SearchSolverNotificationsReturnType,
+} from "./solvers/search-solver-notifications";
+export type {
+  BalanceInfoResponseSchema,
+  BothUpnlData,
+  NotificationsSearchResponseSchema,
+  OpenInterestResponseSchema,
+  PositionStateResponseSchema,
+  PositionsStateOutputSchema,
+  ReadinessResponseSchema,
+  StatusResponse,
+  SymbolPriceRangeInputSchema,
+  UpnlData,
+} from "./solvers/types/generated/rasa-solver";
+
+/**
  * Market info (solver)
  * --------------------
  * Per-market 24h trading volume and lifetime value from the chain's solver,

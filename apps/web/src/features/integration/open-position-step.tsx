@@ -1061,7 +1061,12 @@ function TradeSideControl({
 
 function getOpenMarkets(markets: Market[]): Market[] {
   return markets
-    .filter((market) => market.symbol_id !== undefined && (market.state === 2 || market.state === 3))
+    .filter(
+      // Solvers that omit `state` (e.g. Rasa) are treated as tradable; only an
+      // explicit non-open state filters a market out.
+      (market) =>
+        market.symbol_id !== undefined && (market.state === undefined || market.state === 2 || market.state === 3),
+    )
     .sort((a, b) => (a.symbol ?? a.name ?? "").localeCompare(b.symbol ?? b.name ?? ""));
 }
 
