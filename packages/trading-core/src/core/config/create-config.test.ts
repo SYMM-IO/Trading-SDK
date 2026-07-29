@@ -160,7 +160,7 @@ describe("createConfig", () => {
     it("resolves the chain's default solver", () => {
       const config = createConfig({ symmioConfig: SYMMIO, getClient: () => stubClient });
       expect(config.getSolver({ chainId: HYPEREVM })).toMatchObject({
-        kind: "enigma",
+        id: "enigma",
         url: DEFAULT_SOLVER.url,
         address: DEFAULT_SOLVER.address,
       });
@@ -172,10 +172,11 @@ describe("createConfig", () => {
       expect(config.getSolver({ chainId: HYPEREVM, solverId: "enigma" }).url).toBe(DEFAULT_SOLVER.url);
     });
 
-    it("throws UNKNOWN_SOLVER for an unconfigured solverId", () => {
+    it("throws UNKNOWN_SOLVER for a valid kind not registered on the chain", () => {
       const config = createConfig({ symmioConfig: SYMMIO, getClient: () => stubClient });
-      expect(() => config.getSolver({ chainId: HYPEREVM, solverId: "nope" })).toThrow(SymmError);
-      expect(() => config.getSolver({ chainId: HYPEREVM, solverId: "nope" })).toThrow(/Unknown solver/);
+      // "rasa" is a valid kind, but HyperEVM only registers "enigma".
+      expect(() => config.getSolver({ chainId: HYPEREVM, solverId: "rasa" })).toThrow(SymmError);
+      expect(() => config.getSolver({ chainId: HYPEREVM, solverId: "rasa" })).toThrow(/Unknown solver/);
     });
 
     it("deep-merges a per-chain solver override via symmioConfig", () => {

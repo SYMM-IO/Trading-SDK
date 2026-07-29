@@ -8,7 +8,7 @@ import {
   type SolverId,
   type SymmioChainConfig,
   type SymmioContractAddresses,
-  type SymmioSolverConfig,
+  type SymmioResolvedSolver,
   type SymmioSupportedChainId,
 } from "../chains";
 import { hashChainConfig } from "./config-key";
@@ -167,7 +167,7 @@ export interface Config {
    * @throws {SymmError} `UNSUPPORTED_CHAIN` when the chain is unknown, or
    *   `UNKNOWN_SOLVER` when the chain has no solver with that id.
    */
-  getSolver(parameters?: { chainId?: number; solverId?: SolverId }): SymmioSolverConfig;
+  getSolver(parameters?: { chainId?: number; solverId?: SolverId }): SymmioResolvedSolver;
   /**
    * Id of the chain's default solver (its `defaultSolverId`) — the solver an
    * action targets when it omits `solverId`.
@@ -282,8 +282,8 @@ export function createConfig(parameters: CreateConfigParameters): Config {
    * no client for (fail-fast, like the affiliate check above).
    */
   for (const id of chainIds) {
-    for (const [solverId, solver] of Object.entries(chainConfigs[id]!.solvers)) {
-      assertSupportedSolver(id, solverId, solver);
+    for (const solverId of Object.keys(chainConfigs[id]!.solvers)) {
+      assertSupportedSolver(id, solverId);
     }
   }
   function getChainConfig(chainId?: number): SymmioChainConfig {
@@ -299,7 +299,7 @@ export function createConfig(parameters: CreateConfigParameters): Config {
     return chainConfigKeys[id] ?? "unsupported";
   }
 
-  function getSolver(parameters?: { chainId?: number; solverId?: SolverId }): SymmioSolverConfig {
+  function getSolver(parameters?: { chainId?: number; solverId?: SolverId }): SymmioResolvedSolver {
     return resolveSolver(getChainConfig(parameters?.chainId), parameters?.solverId);
   }
 
@@ -308,7 +308,7 @@ export function createConfig(parameters: CreateConfigParameters): Config {
   }
 
   function listSolverIds(chainId?: number): readonly SolverId[] {
-    return Object.keys(getChainConfig(chainId).solvers);
+    return Object.keys(getChainConfig(chainId).solvers) as SolverId[];
   }
 
   return {

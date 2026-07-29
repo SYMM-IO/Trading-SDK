@@ -22,7 +22,7 @@ const config = createConfig({
 describe("checkSolverWhitelistQueryOptions", () => {
   it("separates cache entries by solverId and includes the required address", () => {
     const a = checkSolverWhitelistQueryKey({ chainId: BASE, solverId: "rasa", address: USER });
-    const b = checkSolverWhitelistQueryKey({ chainId: BASE, solverId: "other", address: USER });
+    const b = checkSolverWhitelistQueryKey({ chainId: BASE, solverId: "enigma", address: USER });
     expect(a).not.toEqual(b);
     expect(JSON.stringify(a)).toContain(USER);
   });

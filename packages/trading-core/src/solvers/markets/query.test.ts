@@ -21,7 +21,7 @@ const config = createConfig({
 describe("getMarketsQueryOptions", () => {
   it("separates cache entries by solverId", () => {
     const a = getMarketsQueryKey({ chainId: HYPEREVM, solverId: "enigma" });
-    const b = getMarketsQueryKey({ chainId: HYPEREVM, solverId: "other" });
+    const b = getMarketsQueryKey({ chainId: HYPEREVM, solverId: "rasa" });
     expect(a).not.toEqual(b);
   });
 

@@ -21,9 +21,9 @@ const config = createConfig({
 
 describe("searchSolverNotificationsQueryOptions", () => {
   it("separates cache entries by solverId and by filters", () => {
-    const base = { chainId: BASE, solverId: "rasa", start: 0, size: 5 };
+    const base = { chainId: BASE, solverId: "rasa" as const, start: 0, size: 5 };
     expect(searchSolverNotificationsQueryKey(base)).not.toEqual(
-      searchSolverNotificationsQueryKey({ ...base, solverId: "other" }),
+      searchSolverNotificationsQueryKey({ ...base, solverId: "enigma" }),
     );
     expect(searchSolverNotificationsQueryKey(base)).not.toEqual(
       searchSolverNotificationsQueryKey({ ...base, timestampGte: 5 }),

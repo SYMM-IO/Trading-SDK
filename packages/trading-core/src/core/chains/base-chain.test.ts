@@ -21,13 +21,13 @@ describe("Base chain", () => {
     expect(base.addresses.collateralDecimals).toBe(6);
   });
 
-  it("registers the Rasa solver with its real endpoint, partyB, and kind", () => {
+  it("registers the Rasa solver with its real endpoint and partyB", () => {
     const base = getChainConfig(SymmioSupportedChainId.BASE);
+    // The registry key is the solver's kind — no separate `kind` field.
     expect(Object.keys(base.solvers)).toEqual(["rasa"]);
     expect(base.defaultSolverId).toBe("rasa");
     expect(base.solvers.rasa?.address).toBe("0x81631953E0C093e72935C1CAA4C7D519B2A0E407");
     expect(base.solvers.rasa?.url).toBe("https://stage-archon.rasa.capital");
-    expect(base.solvers.rasa?.kind).toBe("rasa");
     // No COH confirmed on Base yet — absence marks TP/SL unsupported.
     expect(base.solvers.rasa?.tpsl).toBeUndefined();
   });
@@ -61,7 +61,7 @@ describe("Base chain", () => {
     });
     const solver = config.getSolver({ chainId: SymmioSupportedChainId.BASE });
     expect(solver.name).toBe("Rasa");
-    expect(solver.kind).toBe("rasa");
+    expect(solver.id).toBe("rasa");
   });
 
   it("getChainConfigKey on Base is defined and distinct from HyperEVM's", () => {

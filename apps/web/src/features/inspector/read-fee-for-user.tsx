@@ -37,10 +37,10 @@ export function ReadFeeForUser() {
   const [affiliate, setAffiliate] = useState<string>("");
 
   const selectedMarket = useMemo(
-    () => markets.find((market) => String(market.symbol_id) === marketId),
+    () => markets.find((market) => String(market.symbolId) === marketId),
     [marketId, markets],
   );
-  const validSymbolId = selectedMarket?.symbol_id;
+  const validSymbolId = selectedMarket?.symbolId;
   const validAffiliate = isAddress(affiliate) ? (affiliate as Address) : undefined;
   const affiliateInvalid = affiliate.length > 0 && !validAffiliate;
   const ready = Boolean(selection.subAccount) && validSymbolId !== undefined && !affiliateInvalid;
@@ -124,22 +124,21 @@ function getOpenMarkets(markets: Market[]): Market[] {
     .filter(
       // Solvers that omit `state` (e.g. Rasa) are treated as tradable; only an
       // explicit non-open state filters a market out.
-      (market) =>
-        market.symbol_id !== undefined && (market.state === undefined || market.state === 2 || market.state === 3),
+      (market) => market.kind !== "enigma" || market.state === 2 || market.state === 3,
     )
     .sort((a, b) => (a.symbol ?? a.name ?? "").localeCompare(b.symbol ?? b.name ?? ""));
 }
 
 function toMarketSelectItems(markets: Market[]): MarketSelectItem[] {
   return markets.map((market) => {
-    const id = String(market.symbol_id);
+    const id = String(market.symbolId);
     const label = getMarketLabel(market);
     const name = market.name && market.name !== label ? market.name : undefined;
 
     return {
       id,
       label,
-      description: name ? `${name} · max ${market.max_leverage ?? "1"}x` : `Max ${market.max_leverage ?? "1"}x`,
+      description: name ? `${name} · max ${market.maxLeverage ?? "1"}x` : `Max ${market.maxLeverage ?? "1"}x`,
       meta: `ID ${id}`,
       searchText: [id, market.symbol, market.name].filter(Boolean).join(" "),
     };
@@ -147,7 +146,7 @@ function toMarketSelectItems(markets: Market[]): MarketSelectItem[] {
 }
 
 function getMarketLabel(market: Market): string {
-  return market.symbol ?? market.name ?? `Market ${market.symbol_id}`;
+  return market.symbol ?? market.name ?? `Market ${market.symbolId}`;
 }
 
 function ResultPanel({ testId, query }: { testId: string; query: ReturnType<typeof useFeeForUser> }) {

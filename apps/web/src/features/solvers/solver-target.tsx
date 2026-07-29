@@ -10,10 +10,8 @@ export interface SolverTarget {
   id: string;
   /** Chain the solver lives on. */
   chainId: number;
-  /** Solver id within that chain's config. */
-  solverId: string;
-  /** Solver kind — drives per-card availability. */
-  kind: SymmioSolverKind;
+  /** Solver id within that chain's config — which is its kind ("enigma" | "rasa"). */
+  solverId: SymmioSolverKind;
   /** Display label. */
   label: string;
 }
@@ -24,10 +22,9 @@ export const SOLVER_TARGETS: readonly SolverTarget[] = [
     id: "enigma",
     chainId: SymmioSupportedChainId.HYPER_EVM,
     solverId: "enigma",
-    kind: "enigma",
     label: "Enigma · HyperEVM",
   },
-  { id: "rasa", chainId: SymmioSupportedChainId.BASE, solverId: "rasa", kind: "rasa", label: "Rasa · Base" },
+  { id: "rasa", chainId: SymmioSupportedChainId.BASE, solverId: "rasa", label: "Rasa · Base" },
 ];
 
 /**
@@ -37,7 +34,7 @@ export const SOLVER_TARGETS: readonly SolverTarget[] = [
  */
 export function useSolverTargetState(options?: { requireKind?: SymmioSolverKind }) {
   const initial = options?.requireKind
-    ? (SOLVER_TARGETS.find((target) => target.kind === options.requireKind) ?? SOLVER_TARGETS[0]!)
+    ? (SOLVER_TARGETS.find((target) => target.solverId === options.requireKind) ?? SOLVER_TARGETS[0]!)
     : SOLVER_TARGETS[0]!;
   const [target, setTarget] = useState<SolverTarget>(initial);
   return { target, setTarget };
@@ -57,7 +54,7 @@ export function SolverTargetSelect({ value, onChange, requireKind, testId }: Pro
     <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
       <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Solver</span>
       {SOLVER_TARGETS.map((target) => {
-        const unsupported = requireKind !== undefined && target.kind !== requireKind;
+        const unsupported = requireKind !== undefined && target.solverId !== requireKind;
         return (
           <Button
             key={target.id}

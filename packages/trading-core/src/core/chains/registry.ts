@@ -25,7 +25,6 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     },
     solvers: {
       enigma: {
-        kind: "enigma",
         name: "Enigma",
         address: "0x76bc5889c0cfcC20960b0D81F541595d81a95122",
         url: "https://solver.enigma.bz/api",
@@ -83,7 +82,6 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     // conditional orders unsupported (add the block when the vendor provides it).
     solvers: {
       rasa: {
-        kind: "rasa",
         name: "Rasa",
         address: "0x81631953E0C093e72935C1CAA4C7D519B2A0E407",
         // Staging URL — swap to the production solver URL when published.

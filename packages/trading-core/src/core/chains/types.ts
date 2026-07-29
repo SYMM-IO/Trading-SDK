@@ -37,12 +37,11 @@ export interface SymmioSubgraphUrls {
 export type SymmioSubgraphName = keyof SymmioSubgraphUrls;
 
 /**
- * Stable identity of a solver deployment within a config (the registry key).
- *
- * Open on purpose — integrators run their own solver deployments, so the SDK
- * cannot enumerate every id. Contrast {@link SymmioSolverKind}, which is closed.
+ * A solver's id within a chain config — its registry key. Equal to its
+ * {@link SymmioSolverKind}: each chain registers at most one solver per kind, so
+ * the id *is* the kind (`"enigma" | "rasa"`). Closed for that reason.
  */
-export type SolverId = string;
+export type SolverId = SymmioSolverKind;
 
 /**
  * The solver kinds the SDK can actually serve — one generated client and
@@ -75,14 +74,11 @@ export type SymmioSolverKind = (typeof SUPPORTED_SOLVER_KINDS)[number];
  * `partyB` on-chain. Its `url` is the API base URL, its `address` is partyB.
  *
  * Solvers live under {@link SymmioChainConfig.solvers}, keyed by
- * {@link SolverId} — the key is the solver's id, and its chain is the parent
- * chain config, so neither is repeated here. `config.getSolver({ chainId, solverId })`
- * returns this config for the resolved solver (the caller already knows the
- * chain and id it asked for).
+ * {@link SolverId} — the key is the solver's id, which is also its kind, so the
+ * kind is not repeated here. `config.getSolver({ chainId, solverId })` returns a
+ * {@link SymmioResolvedSolver} (this config plus its resolved `id`).
  */
 export interface SymmioSolverConfig {
-  /** Schema family the solver speaks — selects the generated client. */
-  kind: SymmioSolverKind;
   /** Human-readable solver name */
   name: string;
   /** Solver's on-chain address (used as `partyB` in `sendQuoteWithAffiliateAndData`) */
@@ -91,6 +87,16 @@ export interface SymmioSolverConfig {
   url: string;
   /** Optional TP/SL handler — solver supports conditional orders only when set. */
   tpsl?: SymmioTpSlConfig;
+}
+
+/**
+ * A {@link SymmioSolverConfig} resolved from the registry, with its `id`
+ * attached. The `id` is the solver's kind (`"enigma" | "rasa"`) and drives
+ * per-kind dispatch inside solver actions. Returned by `config.getSolver`.
+ */
+export interface SymmioResolvedSolver extends SymmioSolverConfig {
+  /** The resolved solver id — equal to its kind. */
+  id: SolverId;
 }
 
 /**
@@ -185,11 +191,12 @@ export interface SymmioChainConfig {
   /** Subgraph endpoints */
   subgraphs: SymmioSubgraphUrls;
   /**
-   * Solvers available on this chain, keyed by {@link SolverId}. Resolve one with
-   * `config.getSolver({ chainId, solverId })`, which defaults to
+   * Solvers available on this chain, keyed by {@link SolverId} (which is the
+   * solver's kind). A chain registers a subset of the kinds, so this is partial.
+   * Resolve one with `config.getSolver({ chainId, solverId })`, which defaults to
    * {@link defaultSolverId} when `solverId` is omitted.
    */
-  solvers: Record<SolverId, SymmioSolverConfig>;
+  solvers: Partial<Record<SolverId, SymmioSolverConfig>>;
   /** Id of the solver an action targets on this chain when `solverId` is omitted. */
   defaultSolverId: SolverId;
   /** Price-service configuration */

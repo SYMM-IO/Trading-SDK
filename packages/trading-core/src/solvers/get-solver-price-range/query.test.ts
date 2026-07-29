@@ -21,7 +21,7 @@ const config = createConfig({
 describe("getSolverPriceRangeQueryOptions", () => {
   it("separates cache entries by solverId and includes the required symbol", () => {
     const a = getSolverPriceRangeQueryKey({ chainId: BASE, solverId: "rasa", symbol: "BTCUSDT" });
-    const b = getSolverPriceRangeQueryKey({ chainId: BASE, solverId: "other", symbol: "BTCUSDT" });
+    const b = getSolverPriceRangeQueryKey({ chainId: BASE, solverId: "enigma", symbol: "BTCUSDT" });
     expect(a).not.toEqual(b);
     expect(JSON.stringify(a)).toContain("BTCUSDT");
   });

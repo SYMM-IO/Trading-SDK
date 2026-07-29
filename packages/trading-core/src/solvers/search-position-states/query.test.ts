@@ -21,9 +21,9 @@ const config = createConfig({
 
 describe("searchPositionStatesQueryOptions", () => {
   it("separates cache entries by solverId and by filters", () => {
-    const base = { chainId: BASE, solverId: "rasa", start: 0, size: 10 };
+    const base = { chainId: BASE, solverId: "rasa" as const, start: 0, size: 10 };
     expect(searchPositionStatesQueryKey(base)).not.toEqual(
-      searchPositionStatesQueryKey({ ...base, solverId: "other" }),
+      searchPositionStatesQueryKey({ ...base, solverId: "enigma" }),
     );
     expect(searchPositionStatesQueryKey(base)).not.toEqual(searchPositionStatesQueryKey({ ...base, quoteId: 7 }));
   });

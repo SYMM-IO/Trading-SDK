@@ -26,7 +26,7 @@ export function RasaPriceRangeCard() {
 
   const [marketId, setMarketId] = useState("");
   const selectedMarket = useMemo(
-    () => markets.find((market) => String(market.symbol_id) === marketId),
+    () => markets.find((market) => String(market.symbolId) === marketId),
     [marketId, markets],
   );
   const symbol = selectedMarket ? (selectedMarket.name ?? selectedMarket.symbol ?? "") : "";
@@ -87,16 +87,13 @@ export function RasaPriceRangeCard() {
 /** Tradable markets — a missing `state` (e.g. Rasa) counts as open. */
 function getOpenMarkets(markets: readonly Market[]): Market[] {
   return markets
-    .filter(
-      (market) =>
-        market.symbol_id !== undefined && (market.state === undefined || market.state === 2 || market.state === 3),
-    )
+    .filter((market) => market.kind !== "enigma" || market.state === 2 || market.state === 3)
     .sort((a, b) => (a.symbol ?? a.name ?? "").localeCompare(b.symbol ?? b.name ?? ""));
 }
 
 function toMarketSelectItems(markets: readonly Market[]): MarketSelectItem[] {
   return markets.map((market) => {
-    const id = String(market.symbol_id);
+    const id = String(market.symbolId);
     const label = market.symbol ?? market.name ?? `Market ${id}`;
     return {
       id,

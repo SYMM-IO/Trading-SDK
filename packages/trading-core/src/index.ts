@@ -652,13 +652,16 @@ export {
   getMarkets,
   getMarketsQueryKey,
   getMarketsQueryOptions,
+  type EnigmaMarket,
   type GetMarketsData,
   type GetMarketsOptions,
   type GetMarketsParameters,
   type GetMarketsQueryKey,
   type GetMarketsQueryOptions,
   type GetMarketsReturnType,
-  type SymbolContractSymbol,
+  type Market,
+  type NormalizedMarketByKind,
+  type RasaMarket,
 } from "./solvers/markets";
 
 /**

@@ -21,7 +21,7 @@ const config = createConfig({
 describe("getSolverOpenInterestQueryOptions", () => {
   it("separates cache entries by solverId", () => {
     const a = getSolverOpenInterestQueryKey({ chainId: BASE, solverId: "rasa" });
-    const b = getSolverOpenInterestQueryKey({ chainId: BASE, solverId: "other" });
+    const b = getSolverOpenInterestQueryKey({ chainId: BASE, solverId: "enigma" });
     expect(a).not.toEqual(b);
   });
 

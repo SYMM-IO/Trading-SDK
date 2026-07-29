@@ -5,6 +5,7 @@
  * action's parameter type via `Compute<A & B>`.
  */
 import type { Address } from "viem";
+import type { SymmioSolverKind } from "../../core/chains/types";
 
 /**
  * Flatten an intersection of object types into a single, readable object type.
@@ -62,15 +63,13 @@ export interface SimulateBeforeWriteParameter {
 
 /**
  * Optional solver-selection mixin. Picks which configured solver an action
- * targets by its id; when omitted, the config's default solver for the chain is
- * used (`config.getSolver({ chainId, solverId })`).
- *
- * The type is `string` because solver ids are open (integrators register their
- * own); it is the value-level counterpart of `SolverId` in `@symmio/trading-core`.
+ * targets by its id — which is its kind (`"enigma" | "rasa"`); when omitted, the
+ * config's default solver for the chain is used
+ * (`config.getSolver({ chainId, solverId })`).
  */
 export interface SolverIdParameter {
-  /** Id of the solver to target. Defaults to the chain's default solver. */
-  solverId?: string;
+  /** Solver kind to target. Defaults to the chain's default solver. */
+  solverId?: SymmioSolverKind;
 }
 
 /**

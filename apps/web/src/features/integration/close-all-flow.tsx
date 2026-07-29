@@ -148,12 +148,12 @@ export function CloseAllFlow({ owner, subAccount, subAccountName, onSelectSubAcc
   const marketsBySymbolId = useMemo(() => {
     const map = new Map<bigint, { id: number; name: string; pricePrecision: number; quantityPrecision: number }>();
     for (const market of marketsQuery.data ?? []) {
-      if (market.symbol_id === undefined || !market.name) continue;
-      map.set(BigInt(market.symbol_id), {
-        id: market.symbol_id,
+      if (market.symbolId === undefined || !market.name) continue;
+      map.set(BigInt(market.symbolId), {
+        id: market.symbolId,
         name: market.name,
-        pricePrecision: Number(market.price_precision ?? 0),
-        quantityPrecision: Number(market.quantity_precision ?? 0),
+        pricePrecision: Number(market.pricePrecision ?? 0),
+        quantityPrecision: Number(market.quantityPrecision ?? 0),
       });
     }
     return map;

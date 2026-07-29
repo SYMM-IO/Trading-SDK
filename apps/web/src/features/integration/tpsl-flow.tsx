@@ -523,10 +523,10 @@ function SetTpSlStep({
 }) {
   const marketsQuery = useMarkets();
   const market = useMemo(
-    () => marketsQuery.data?.find((m) => BigInt(m.symbol_id ?? -1) === position.symbolId),
+    () => marketsQuery.data?.find((m) => BigInt(m.symbolId ?? -1) === position.symbolId),
     [marketsQuery.data, position.symbolId],
   );
-  const pricePrecision = Number(market?.price_precision ?? 4);
+  const pricePrecision = Number(market?.pricePrecision ?? 4);
   const remainingQty = position.quantity - position.closedAmount;
   const openedPriceDecimal = formatUnits(position.openedPrice, WEI_DECIMALS);
 

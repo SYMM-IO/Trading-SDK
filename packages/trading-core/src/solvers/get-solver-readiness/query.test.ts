@@ -21,7 +21,7 @@ const config = createConfig({
 describe("getSolverReadinessQueryOptions", () => {
   it("separates cache entries by solverId", () => {
     expect(getSolverReadinessQueryKey({ chainId: BASE, solverId: "rasa" })).not.toEqual(
-      getSolverReadinessQueryKey({ chainId: BASE, solverId: "other" }),
+      getSolverReadinessQueryKey({ chainId: BASE, solverId: "enigma" }),
     );
   });
 

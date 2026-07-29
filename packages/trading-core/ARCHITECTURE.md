@@ -91,7 +91,7 @@ Individual selectors are **derived** from the ABI, so they self-correct when a s
 Replace the single solver with a keyed registry plus a default, and make selection a per-call parameter:
 
 ```ts
-solvers: Record<SolverId, SymmioSolverConfig>;
+solvers: Partial<Record<SolverId, SymmioSolverConfig>>;
 defaultSolverId: SolverId;
 ```
 
@@ -104,23 +104,26 @@ const markets = await getContractSymbols({ baseURL: solver.url });
 
 This subsumes and replaces the inconsistent `baseUrl?` overrides currently on `get-instant-opens`, `get-instant-closes`, `get-instant-open-quote-id`, and `get-sub-account-quotes` — an escape hatch that existed only because there was no way to name a solver.
 
-### 3.2 Open identity, closed schema — the key distinction
+### 3.2 A solver's id IS its kind — one closed axis
 
-Two different things are being modelled, and they need different type treatments:
+`id` and `kind` are the **same axis**. A solver's registry key is its kind:
 
 ```ts
-/** WHICH deployment. Open — integrators may register their own. */
-export type SolverId = string;
-
-/** WHAT API schema it speaks. Closed — drives typed dispatch. */
+/** The solver kinds the SDK ships a generated client for. Closed. */
 export type SymmioSolverKind = "enigma" | "rasa";
+
+/** A solver's id within a chain config — its registry key, which is its kind. */
+export type SolverId = SymmioSolverKind;
 ```
 
-`id` answers _"which solver instance?"_ and must stay **open**, because integrators run their own solver deployments and the SDK cannot enumerate them. `kind` answers _"what shape is its API?"_ and must be **closed**, because the SDK ships a generated client per schema family and dispatch must be exhaustive.
+A **solver is a kind**. The SDK ships one generated client per solver it supports, so every solver the SDK can serve is its own `kind`, and **adding a solver means adding a new `kind` in a new SDK release** (§2) — the same doctrine as contract versions. The solver's id and its kind are therefore the same thing; `SymmioSolverConfig` has **no `kind` field** (the registry key is the kind). `config.getSolver` returns a `SymmioResolvedSolver` — the stored config plus its resolved `id` — and that `id` drives per-kind dispatch (§3.3).
 
-Three deployments of Enigma's software are three `id`s with one `kind`.
+**Why not keep an open id?** An earlier design kept `id` open (`string`) so integrators could register their own deployments, with a _separate_ closed `kind` field for dispatch — supporting several deployments of one kind on a chain (`enigma`, `enigma2`, …). That flexibility was deliberately dropped: the product ships exactly the solvers the SDK has clients for, one per kind. Closing the id to `SymmioSolverKind` buys two things:
 
-There is **no solver API version axis** — same doctrine as contracts (§2): each SDK release ships one generated client per `kind`, tracking one API generation. When a solver ships a breaking API generation, the SDK regenerates that kind's client in a new release. If two generations of one kind ever had to be served _simultaneously_ (one deployment migrated, another lagging), the lagging shape would be modelled as its own `kind` — an explicit, temporary fork — rather than a `version` field in config.
+- **Typos are compile errors.** `solverId: "enimga"` is caught in the editor, not thrown at runtime by `getSolver`.
+- **Return types narrow on the id.** `getMarkets(config, { solverId: "rasa" })` returns `RasaMarket[]` because `"rasa"` is a literal that binds the generic — no runtime `id → kind` lookup is possible or needed (the markets slice, `NormalizedMarketByKind`).
+
+Adding a solver is a new `kind` in a new SDK release — exactly like a new contract version (§2). There is **no solver API version axis**: each release ships one generated client per kind; a breaking API generation is a client regeneration in a new release.
 
 ### 3.3 Schema divergence via `kind`, not a capability `Set`
 
@@ -136,10 +139,10 @@ This is rejected for two reasons:
 - **It yields no compile-time narrowing.** Calling code still cannot know at build time that Rasa lacks a method; every call site degrades to a runtime check that is easy to forget.
 - **It can drift.** A hand-maintained set in config can disagree with what the generated client actually contains, and nothing detects the divergence.
 
-Instead, `kind` is a **discriminated union**, so a `switch` narrows to the correct generated client type and the compiler enforces exhaustiveness:
+Instead, the resolved solver's `id` is a **discriminated union** (it is the kind), so a `switch` narrows to the correct generated client type and the compiler enforces exhaustiveness:
 
 ```ts
-switch (solver.kind) {
+switch (solver.id) {
   case "enigma":
     return enigma.getContractSymbols({ baseURL: solver.url });
   case "rasa":
@@ -227,15 +230,13 @@ As implemented in [`chains/types.ts`](./src/core/chains/types.ts) and [`create-c
 ```ts
 /** ---- Solver identity ---- */
 
-/** Which solver deployment. Open — integrators may register their own. */
-export type SolverId = string;
-
 /** What API schema a solver speaks. Closed — drives exhaustive typed dispatch. */
-export type SymmioSolverKind = "enigma";
+export type SymmioSolverKind = "enigma" | "rasa";
+
+/** A solver's id — its registry key, which is its kind. */
+export type SolverId = SymmioSolverKind;
 
 export interface SymmioSolverConfig {
-  /** Schema family; selects the generated client. (The registry key is the solver's id.) */
-  kind: SymmioSolverKind;
   /** Human-readable name for UI. */
   name: string;
   /** Solver's on-chain address, used as `partyB`. */
@@ -246,14 +247,19 @@ export interface SymmioSolverConfig {
   tpsl?: SymmioTpSlConfig;
 }
 
+/** Returned by `config.getSolver`: the stored config plus its resolved id (= kind). */
+export interface SymmioResolvedSolver extends SymmioSolverConfig {
+  id: SolverId;
+}
+
 /** ---- Chain config ---- */
 
 export interface SymmioChainConfig {
   chainId: number;
   addresses: SymmioContractAddresses;
   subgraphs: SymmioSubgraphUrls;
-  /** All solvers available on this chain, keyed by id. */
-  solvers: Record<SolverId, SymmioSolverConfig>;
+  /** Solvers available on this chain, keyed by id (= kind). A chain has a subset of kinds. */
+  solvers: Partial<Record<SolverId, SymmioSolverConfig>>;
   /** Solver used when an action omits `solverId`. */
   defaultSolverId: SolverId;
   /** Chain-level infrastructure defaults (per-solver overrides may layer on later, §3.4). */
@@ -317,16 +323,16 @@ Until then the existing raw escape hatch — `querySubgraph(config, { document, 
 
 ## 8. Summary of decisions
 
-| #   | Decision                                                             | Rationale                                                                |
-| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| 1   | **One contract version per SDK release** — no version registry       | Registry only pays off for one-app-two-versions, which does not occur    |
-| 2   | ABIs stay direct `as const` imports                                  | Registry indirection breaks viem inference — green types, wrong encoding |
-| 3   | Contract version is **not** auto-detected                            | Diamond has no `version()`; probing is brittle and costs an RPC          |
-| 4   | EIP-712 domain version is **independent** of the contracts version   | Conflating silently invalidates every signature                          |
-| 5   | Solver `id` **open**, solver `kind` **closed**                       | Integrators run their own deployments; the SDK ships a client per schema |
-| 6   | **No solver API version axis** — one generation per kind per release | Same doctrine as contracts; a lagging generation becomes its own `kind`  |
-| 7   | Divergence via `kind` union, **not** a capability `Set`              | A union narrows at compile time and cannot drift from the client         |
-| 8   | One cache key fn: chain configKey hash + `solverId` as a key field   | `solverId` isolates solvers; the hash rotates on any override — no stale |
-| 9   | Satellite infra: per-solver override, chain fallback (future)        | Some infra is genuinely shared, some genuinely is not                    |
-| 10  | `queryFn` arg lists are the hazard, not query keys                   | Keys spread options; `queryFn`s enumerate them                           |
-| 11  | Subgraph versioning **deferred**                                     | Unpinned endpoints + path-based codegen routing make it half a solution  |
+| #   | Decision                                                             | Rationale                                                                 |
+| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 1   | **One contract version per SDK release** — no version registry       | Registry only pays off for one-app-two-versions, which does not occur     |
+| 2   | ABIs stay direct `as const` imports                                  | Registry indirection breaks viem inference — green types, wrong encoding  |
+| 3   | Contract version is **not** auto-detected                            | Diamond has no `version()`; probing is brittle and costs an RPC           |
+| 4   | EIP-712 domain version is **independent** of the contracts version   | Conflating silently invalidates every signature                           |
+| 5   | Solver `id` **is** its `kind` (closed) — no separate `kind` field    | One solver per kind; a typo is a compile error and the id drives dispatch |
+| 6   | **No solver API version axis** — one generation per kind per release | Same doctrine as contracts; a lagging generation becomes its own `kind`   |
+| 7   | Divergence via `kind` union, **not** a capability `Set`              | A union narrows at compile time and cannot drift from the client          |
+| 8   | One cache key fn: chain configKey hash + `solverId` as a key field   | `solverId` isolates solvers; the hash rotates on any override — no stale  |
+| 9   | Satellite infra: per-solver override, chain fallback (future)        | Some infra is genuinely shared, some genuinely is not                     |
+| 10  | `queryFn` arg lists are the hazard, not query keys                   | Keys spread options; `queryFn`s enumerate them                            |
+| 11  | Subgraph versioning **deferred**                                     | Unpinned endpoints + path-based codegen routing make it half a solution   |

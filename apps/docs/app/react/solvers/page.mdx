@@ -28,10 +28,11 @@ import {
 Solver-side market catalog. Prefer this over `useOnchainContractMarkets` for UI catalogs — the solver adds precision / tick metadata.
 
 ```ts
-const markets = useMarkets();
+const markets = useMarkets(); // Market[] — the union; narrow on `kind`
+const rasa = useMarkets({ solverId: "rasa" }); // RasaMarket[]
 ```
 
-Returns `SymbolContractSymbol[]`.
+Returns `UseQueryResult<Market[]>` — the normalized SDK market shape (camelCase fields, `maxLeverage` as a `number`). `Market` is a discriminated union `EnigmaMarket | RasaMarket` on `kind`; pass a literal `solverId` (`"enigma"` / `"rasa"`) to narrow the returned market type to that solver.
 
 ### `useLockedParams`
 

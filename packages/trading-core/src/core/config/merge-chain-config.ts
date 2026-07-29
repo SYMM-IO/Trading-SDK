@@ -61,12 +61,12 @@ function mergeChainConfig(base: SymmioChainConfig, override: DeepPartial<SymmioC
  * are inherited unchanged.
  */
 function mergeSolvers(
-  base: Record<SolverId, SymmioSolverConfig>,
+  base: Partial<Record<SolverId, SymmioSolverConfig>>,
   override: DeepPartial<Record<SolverId, SymmioSolverConfig>> | undefined,
-): Record<SolverId, SymmioSolverConfig> {
+): Partial<Record<SolverId, SymmioSolverConfig>> {
   if (!override) return base;
-  const merged: Record<SolverId, SymmioSolverConfig> = { ...base };
-  for (const [id, solverOverride] of Object.entries(override)) {
+  const merged: Partial<Record<SolverId, SymmioSolverConfig>> = { ...base };
+  for (const [id, solverOverride] of Object.entries(override) as [SolverId, DeepPartial<SymmioSolverConfig>][]) {
     if (!solverOverride) continue;
     merged[id] = mergeSolver(base[id], solverOverride);
   }

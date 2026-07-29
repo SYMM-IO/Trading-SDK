@@ -1,23 +1,23 @@
 import { SymmError } from "../../shared/errors/symm-error";
-import type { SolverId, SymmioChainConfig, SymmioSolverConfig } from "./types";
+import type { SolverId, SymmioChainConfig, SymmioResolvedSolver } from "./types";
 
 /**
- * Resolve a chain's solver config by id. When `solverId` is omitted, the chain's
- * `defaultSolverId` is used. The returned object is the stored
- * {@link SymmioSolverConfig} — the caller already knows the chain and id it
- * asked for, so neither is re-attached.
+ * Resolve a chain's solver by id. When `solverId` is omitted, the chain's
+ * `defaultSolverId` is used. Returns the stored config with its resolved `id`
+ * (which is the solver's kind) attached, so callers can dispatch by kind without
+ * re-deriving it.
  *
  * @throws {SymmError} `UNKNOWN_SOLVER` when no solver with that id is configured
  *   for the chain.
  *
  * @internal
  */
-export function resolveSolver(chainConfig: SymmioChainConfig, solverId?: SolverId): SymmioSolverConfig {
+export function resolveSolver(chainConfig: SymmioChainConfig, solverId?: SolverId): SymmioResolvedSolver {
   const id = solverId ?? chainConfig.defaultSolverId;
   const solver = chainConfig.solvers[id];
   if (!solver) {
     throw new SymmError("config", "UNKNOWN_SOLVER", `Unknown solver id "${id}" for chain ${chainConfig.chainId}.`);
   }
 
-  return solver;
+  return { ...solver, id };
 }

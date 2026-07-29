@@ -130,14 +130,14 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
 
 function getOpenMarkets(markets: Market[]): Market[] {
   return markets
-    .filter((market) => market.symbol_id !== undefined && (market.state === 2 || market.state === 3))
+    .filter((market) => market.kind === "enigma" && (market.state === 2 || market.state === 3))
     .sort((a, b) => (a.symbol ?? a.name ?? "").localeCompare(b.symbol ?? b.name ?? ""));
 }
 
 function toMarketSelectItems(markets: Market[]): MarketSelectItem[] {
   return markets.map((market) => {
-    const id = String(market.symbol_id);
-    const label = market.symbol ?? market.name ?? `Market ${market.symbol_id}`;
+    const id = String(market.symbolId);
+    const label = market.symbol ?? market.name ?? `Market ${market.symbolId}`;
     const name = market.name && market.name !== label ? market.name : undefined;
     return {
       id,

@@ -20,6 +20,22 @@ This package follows **wagmi's shape**: a single immutable config, passed as the
 - **Address registry** is built in per chain; `createConfig({ chains })` deep-merges per-chain overrides onto the defaults.
 - **viem is a peer dependency** (never bundled). `@tanstack/query-core` is a runtime dependency used **only for types** in the option factories.
 
+### Per-solver endpoint divergence — normalize to a per-kind union
+
+Different solver **kinds** serve the **same logical endpoint** with **different response shapes** — different fields, optionality, value types, and even which fields exist. The generated clients expose those raw shapes; the SDK's job is to hide that divergence behind **one stable, documented contract** so consumers never branch on vendor quirks. Most per-solver reads hit this, so normalize every one the same way.
+
+**The shape of the pattern:** the public return type is a **discriminated union on `kind`** — one variant per solver over a shared base, with each solver's exclusive fields living only on its variant. Consumers narrow on `kind` to reach solver-specific data; a caller that targets a specific solver gets that variant directly. The raw vendor types stay internal.
+
+**To add a new normalized per-solver endpoint:**
+
+1. **Define the normalized types** — a documented per-kind union plus its shared base. They are the public contract: hand-write them with field docs, keep them independent of the generated types, and keep them **central** (one `types.ts` — the union has to see every variant, so it never splits per solver).
+2. **Give each kind an adapter.** Under the action folder, add an `adapters/` directory with one module per kind (`adapters/enigma-<x>.ts`, `adapters/rasa-<x>.ts`). Each adapter owns that solver's whole fetch story for the endpoint — its client call(s) plus the mapping into the normalized shape (renaming, reconciling value-type conflicts, defaulting gaps, dropping unusable rows). All of one vendor's quirks live in its adapter, so solvers that diverge deeply — a different endpoint, several calls, distinct auth or paging — stay isolated from each other.
+3. **Dispatch from the action.** The action is generic over the kind: it resolves the target solver and calls that kind's adapter (exhaustively — a new kind must fail to compile until its adapter is wired in), then returns the normalized shape. Targeting a specific solver narrows the return to that variant; omitting the solver returns the union.
+4. **Carry the kind through** the query-options factory and the React hook so the narrowing reaches the caller.
+5. **Keep raw shapes internal** — never re-export the generated types from the package root. Where a kind cannot serve the endpoint at all, fail with a typed error instead of dispatching.
+
+The markets slice ([`src/solvers/markets/`](./src/solvers/markets/)) is the reference for this layout — normalized types central, one adapter per kind, thin dispatch. Cover each piece with tests: the adapters (mapping + fetch), the per-kind dispatch, and the return-type narrowing. See [`ARCHITECTURE.md`](./ARCHITECTURE.md) §3.2–3.3 for the `id === kind` model this builds on.
+
 ## Rules
 
 - **No framework imports.** No React, Vue, or any framework. No browser-only globals at module scope (`window`, `document`, `localStorage`).
@@ -68,5 +84,5 @@ Re-export from `src/index.ts`. Sub-entries (`./abi`, `./account-layer`, `./chain
 - Follow repo-wide rules (kebab-case filenames, `function` keyword at module scope).
 - The **`config` is the first positional argument** of every action and option factory; remaining inputs go in a `params` / `options` object (forward-compatible — new fields don't break call sites).
 - Follow wagmi's type-naming convention: `{Name}Parameters`, `{Name}ReturnType`, `Get{Name}QueryOptions` / `...QueryKey` / `...Data`.
-- Return raw viem types where possible; only introduce SDK-specific types when the contract output needs an enum/discriminant the consumer should not have to compute themselves.
+- Return raw viem types where possible; only introduce SDK-specific types when the contract output needs an enum/discriminant the consumer should not have to compute themselves. **Exception — solver REST endpoints:** when a per-solver endpoint's shape diverges by kind, normalize to a per-kind union instead of returning the raw generated type (see [Per-solver endpoint divergence](#per-solver-endpoint-divergence--normalize-to-a-per-kind-union)).
 - Throw `SymmError` (from `src/errors`) for SDK-level failures (unknown chain, missing config). Let viem's own errors pass through for on-chain failures.

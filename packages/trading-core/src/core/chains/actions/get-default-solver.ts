@@ -1,5 +1,5 @@
 import { resolveSolver } from "../resolve-solver";
-import type { SymmioSolverConfig } from "../types";
+import type { SymmioResolvedSolver } from "../types";
 import { getChainConfig } from "./get-chain-config";
 
 /**
@@ -21,6 +21,6 @@ import { getChainConfig } from "./get-chain-config";
  * console.log(solver.url); // "https://solver.enigma.bz/api"
  * ```
  */
-export function getDefaultSolver(chainId: number): SymmioSolverConfig {
+export function getDefaultSolver(chainId: number): SymmioResolvedSolver {
   return resolveSolver(getChainConfig(chainId));
 }

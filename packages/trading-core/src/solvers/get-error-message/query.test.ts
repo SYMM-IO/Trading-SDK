@@ -21,7 +21,7 @@ const config = createConfig({
 describe("getErrorMessageQueryOptions", () => {
   it("separates cache entries by solverId and by error code", () => {
     const a = getErrorMessageQueryKey({ chainId: BASE, solverId: "rasa", errorCode: 2000 });
-    expect(a).not.toEqual(getErrorMessageQueryKey({ chainId: BASE, solverId: "other", errorCode: 2000 }));
+    expect(a).not.toEqual(getErrorMessageQueryKey({ chainId: BASE, solverId: "enigma", errorCode: 2000 }));
     expect(a).not.toEqual(getErrorMessageQueryKey({ chainId: BASE, solverId: "rasa", errorCode: 2001 }));
   });
 
