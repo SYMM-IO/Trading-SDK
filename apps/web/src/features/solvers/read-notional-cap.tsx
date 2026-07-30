@@ -50,7 +50,7 @@ export function ReadNotionalCap() {
             placeholder={marketsQuery.isLoading ? "Loading markets..." : "Select a market..."}
             disabled={marketsQuery.isLoading}
             searchPlaceholder="Search symbol, name, or ID..."
-            emptyLabel="No open Enigma markets."
+            emptyLabel="No open markets."
             emptyResultsLabel="No markets match this search."
             clearLabel="Clear market"
           />
@@ -111,8 +111,22 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
   }
 
   const data = query.data;
+
+  // Show only the fields each solver's response actually returns — Rasa exposes
+  // just totalCap / used; Enigma the full breakdown.
+  if (data.kind === "rasa") {
+    return (
+      <DataList data-testid={`${testId}-data`}>
+        <DataRow label="kind" value={data.kind} mono />
+        <DataRow label="totalCap" value={String(data.totalCap)} mono />
+        <DataRow label="used" value={String(data.used)} mono />
+      </DataList>
+    );
+  }
+
   return (
     <DataList data-testid={`${testId}-data`}>
+      <DataRow label="kind" value={data.kind} mono />
       <DataRow label="symbolId" value={String(data.symbolId)} mono />
       <DataRow label="symbol" value={data.symbol || "—"} mono />
       <DataRow label="error" value={data.error ?? "—"} mono />
@@ -129,15 +143,20 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
 }
 
 function getOpenMarkets(markets: Market[]): Market[] {
-  return markets
-    .filter((market) => market.symbol_id !== undefined && (market.state === 2 || market.state === 3))
-    .sort((a, b) => (a.symbol ?? a.name ?? "").localeCompare(b.symbol ?? b.name ?? ""));
+  return (
+    markets
+      // `/notional_cap/{symbolId}` is a shared endpoint — show the active solver's
+      // markets. Rasa markets carry no `state`, so they count as open; Enigma
+      // markets keep the open-state filter.
+      .filter((market) => market.kind !== "enigma" || market.state === 2 || market.state === 3)
+      .sort((a, b) => (a.symbol ?? a.name ?? "").localeCompare(b.symbol ?? b.name ?? ""))
+  );
 }
 
 function toMarketSelectItems(markets: Market[]): MarketSelectItem[] {
   return markets.map((market) => {
-    const id = String(market.symbol_id);
-    const label = market.symbol ?? market.name ?? `Market ${market.symbol_id}`;
+    const id = String(market.symbolId);
+    const label = market.symbol ?? market.name ?? `Market ${market.symbolId}`;
     const name = market.name && market.name !== label ? market.name : undefined;
     return {
       id,

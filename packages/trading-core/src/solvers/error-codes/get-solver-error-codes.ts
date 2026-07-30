@@ -1,13 +1,13 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { getErrorCodes } from "../types/generated/enigma-solver";
 
 /**
  * Parameters for {@link getSolverErrorCodes}.
  */
-export type GetSolverErrorCodesParameters = Compute<ChainIdParameter>;
+export type GetSolverErrorCodesParameters = Compute<ReadSolverParameter>;
 
 /**
  * Return type of {@link getSolverErrorCodes}: a flat map of numeric solver error
@@ -40,7 +40,7 @@ export async function getSolverErrorCodes(
   config: Config,
   parameters: GetSolverErrorCodesParameters = {},
 ): Promise<GetSolverErrorCodesReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   return fetchSolverErrorCodes(solver.url);
 }
 

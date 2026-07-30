@@ -13,6 +13,7 @@ vi.mock("@symmio/trading-core", async (importOriginal) => {
 import { DEFAULT_NOTIONAL_CAP_POLLING_MS, useNotionalCapBySymbolId } from "./use-notional-cap-by-symbol-id";
 
 const RESULT: GetNotionalCapBySymbolIdReturnType = {
+  kind: "enigma",
   symbolId: 132,
   symbol: "BTCUSDT",
   totalCap: 1_000_000,

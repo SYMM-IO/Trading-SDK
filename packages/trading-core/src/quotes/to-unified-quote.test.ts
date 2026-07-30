@@ -1,7 +1,7 @@
 import type { Address, Hex } from "viem";
 import { describe, expect, it } from "vitest";
 import type { PendingInstantClose } from "../solvers/instant-close/get-instant-closes/to-pending-instant-close";
-import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/to-pending-instant-open";
+import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/types";
 import { OrderType, PositionType, QuoteStatus, type Quote } from "../symmio-contracts/symmio/types";
 import { quoteOpenQuantity } from "./open-quantity";
 import {
@@ -72,6 +72,8 @@ function makeQuote(overrides: Partial<Quote> = {}): Quote {
  */
 function makePendingInstantOpen(overrides: Partial<PendingInstantOpen> = {}): PendingInstantOpen {
   const base: PendingInstantOpen = {
+    kind: "enigma",
+    uuid: "",
     tempQuoteId: 99,
     marketId: 7,
     positionType: PositionType.SHORT,

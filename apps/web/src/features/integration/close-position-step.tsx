@@ -81,7 +81,7 @@ export function ClosePositionStep({
 }: Props) {
   const marketsQuery = useMarkets();
   const market = useMemo<Market | undefined>(
-    () => marketsQuery.data?.find((m) => BigInt(m.symbol_id ?? -1) === position.symbolId),
+    () => marketsQuery.data?.find((m) => BigInt(m.symbolId ?? -1) === position.symbolId),
     [marketsQuery.data, position.symbolId],
   );
   const marketName = market?.name;
@@ -115,7 +115,7 @@ export function ClosePositionStep({
       markPrice: String(cachedMarkPrice),
       slippage: validSlippage,
       positionType: position.positionType,
-      pricePrecision: Number(market.price_precision ?? 0),
+      pricePrecision: Number(market.pricePrecision ?? 0),
     });
   }, [market, cachedMarkPrice, validSlippage, position.positionType]);
 
@@ -171,10 +171,10 @@ export function ClosePositionStep({
       partyA,
       from: sessionKey,
       market: {
-        id: Number(market.symbol_id ?? 0),
+        id: Number(market.symbolId ?? 0),
         name: marketName,
-        pricePrecision: Number(market.price_precision ?? 0),
-        quantityPrecision: Number(market.quantity_precision ?? 0),
+        pricePrecision: Number(market.pricePrecision ?? 0),
+        quantityPrecision: Number(market.quantityPrecision ?? 0),
       },
       positionType: position.positionType,
       quoteId: position.id,
@@ -263,7 +263,7 @@ export function ClosePositionStep({
         entry="close"
         requestPrice={closePrice ?? undefined}
         markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
-        pricePrecision={Number(market?.price_precision ?? 2)}
+        pricePrecision={Number(market?.pricePrecision ?? 2)}
         idPrefix={idPrefix}
       />
 
@@ -301,8 +301,8 @@ function PositionSummary({
   const sideVariant = position.positionType === PositionType.LONG ? "positive" : "destructive";
   const quantityDec = formatUnits(position.quantity, WEI_DECIMALS);
   const closedDec = formatUnits(position.closedAmount, WEI_DECIMALS);
-  const pricePrecision = Number(market?.price_precision ?? 2);
-  const quantityPrecision = Number(market?.quantity_precision ?? 4);
+  const pricePrecision = Number(market?.pricePrecision ?? 2);
+  const quantityPrecision = Number(market?.quantityPrecision ?? 4);
 
   return (
     <div

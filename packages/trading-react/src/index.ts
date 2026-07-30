@@ -720,3 +720,46 @@ export {
   type UseWatchTpSlNotificationsParameters,
   type UseWatchTpSlNotificationsReturnType,
 } from "./tpsl";
+
+/**
+ * Rasa-only solver hooks
+ * ----------------------
+ * Hooks over the endpoints only the `rasa` solver kind exposes: solver-side
+ * balance info, partyA uPnL, global open interest, symbol price range,
+ * position-state and notification searches, single error-code lookup,
+ * whitelist check/add, and readiness. Each surfaces a typed
+ * `UNSUPPORTED_BY_SOLVER` error when the resolved solver is not a `rasa`
+ * solver.
+ */
+export {
+  useAddSolverWhitelist,
+  useCheckSolverWhitelist,
+  useErrorMessage,
+  usePartyAUpnl,
+  useSearchPositionStates,
+  useSearchSolverNotifications,
+  useSolverBalanceInfo,
+  useSolverOpenInterest,
+  useSolverPriceRange,
+  useSolverReadiness,
+  type UseAddSolverWhitelistParameters,
+  type UseAddSolverWhitelistReturnType,
+  type UseCheckSolverWhitelistParameters,
+  type UseCheckSolverWhitelistReturnType,
+  type UseErrorMessageParameters,
+  type UseErrorMessageReturnType,
+  type UsePartyAUpnlParameters,
+  type UsePartyAUpnlReturnType,
+  type UseSearchPositionStatesParameters,
+  type UseSearchPositionStatesReturnType,
+  type UseSearchSolverNotificationsParameters,
+  type UseSearchSolverNotificationsReturnType,
+  type UseSolverBalanceInfoParameters,
+  type UseSolverBalanceInfoReturnType,
+  type UseSolverOpenInterestParameters,
+  type UseSolverOpenInterestReturnType,
+  type UseSolverPriceRangeParameters,
+  type UseSolverPriceRangeReturnType,
+  type UseSolverReadinessParameters,
+  type UseSolverReadinessReturnType,
+} from "./rasa-solver";

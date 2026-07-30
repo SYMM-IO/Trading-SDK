@@ -28,27 +28,33 @@ Fetch tradable markets from the chain solver's `/contract-symbols` endpoint.
 ```ts
 import { getMarkets } from "@symmio/trading-core";
 
-const markets = await getMarkets(config);
+// Omit `solverId` → the `Market` union; narrow on `kind` for solver-specific fields.
+const markets = await getMarkets(config, {});
 const btc = markets.find((market) => market.name === "BTCUSDT");
+
+// Pass a literal solver kind → the exact per-solver market type.
+const rasa = await getMarkets(config, { solverId: "rasa" }); // RasaMarket[]
 ```
 
 **Parameters**
 
-| Name      | Type      | Default        | Notes                    |
-| --------- | --------- | -------------- | ------------------------ |
-| `chainId` | `number?` | config default | Optional chain override. |
+| Name       | Type      | Default        | Notes                                                                           |
+| ---------- | --------- | -------------- | ------------------------------------------------------------------------------- |
+| `chainId`  | `number?` | config default | Optional chain override.                                                        |
+| `solverId` | `string?` | default solver | A literal solver kind (`"enigma"` / `"rasa"`) narrows the returned market type. |
 
-**Returns** — `SymbolContractSymbol[]`.
+**Returns** — `Market[]`, the normalized SDK market shape. `Market` is a discriminated union `EnigmaMarket | RasaMarket` on `kind`; fields are camelCase and required (the SDK fills solver gaps), and `maxLeverage` is a `number` on every solver. Passing a literal `solverId` narrows the return to that kind (`getMarkets(config, { solverId: "rasa" })` → `RasaMarket[]`); omitting it yields the union, which you narrow on `kind` to reach solver-specific fields.
 
-Important market fields:
+Important market fields (all on `Market`):
 
-| Field          | Type      | Notes                                                     |
-| -------------- | --------- | --------------------------------------------------------- |
-| `symbol_id`    | `number?` | Contract symbol id.                                       |
-| `name`         | `string?` | Solver market name, often the value to pass as `symbol`.  |
-| `symbol`       | `string?` | Display symbol.                                           |
-| `state`        | `number?` | `0` disabled, `1` close only, `2` open only, `3` enabled. |
-| `max_leverage` | `string?` | Maximum leverage accepted for this market.                |
+| Field              | Type     | Notes                                                                                                            |
+| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `kind`             | `string` | Discriminant: `"enigma"` or `"rasa"`.                                                                            |
+| `symbolId`         | `number` | Contract symbol id.                                                                                              |
+| `name`             | `string` | Solver market name, often the value to pass as `symbol`.                                                         |
+| `symbol`           | `string` | Display symbol.                                                                                                  |
+| `maxLeverage`      | `number` | Maximum leverage accepted for this market.                                                                       |
+| `state` _(Enigma)_ | `number` | Enigma only — `0` disabled, `1` close only, `2` open only, `3` enabled. Narrow on `kind === "enigma"` to access. |
 
 ### `getMarketsQueryOptions`
 

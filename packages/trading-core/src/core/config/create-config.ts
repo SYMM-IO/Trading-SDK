@@ -2,7 +2,15 @@ import { type Address, type PublicClient } from "viem";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { DeepPartial } from "../../shared/types/properties";
 import type { WebSocketConstructor } from "../../shared/types/websocket";
-import { listSupportedChains, type SymmioChainConfig, type SymmioContractAddresses } from "../chains";
+import {
+  assertSupportedSolver,
+  resolveSolver,
+  type SolverId,
+  type SymmioChainConfig,
+  type SymmioContractAddresses,
+  type SymmioResolvedSolver,
+  type SymmioSupportedChainId,
+} from "../chains";
 import { hashChainConfig } from "./config-key";
 import { buildChainConfigs } from "./merge-chain-config";
 import type { SymmioWalletClient } from "./types";
@@ -46,7 +54,7 @@ export interface CreateConfigParameters {
   /**
    * Per-chain SYMMIO configuration, keyed by chain id — deep-merged onto the
    * SDK's built-in defaults. Each entry may override that chain's `addresses`,
-   * `subgraphs`, `solver`, `priceService`, `notifications`, and `muon` endpoints.
+   * `subgraphs`, `solvers`, `priceService`, `notifications`, and `muon` endpoints.
    *
    * **Required.** Every supported chain must supply an
    * `addresses.affiliatesAddress` — your frontend's on-chain **affiliate**
@@ -73,7 +81,7 @@ export interface CreateConfigParameters {
    * symmioConfig: {
    *   [SymmioSupportedChainId.HYPER_EVM]: {
    *     addresses: { affiliatesAddress: "0xYourHyperEvmAffiliate…" },
-   *     // optional: subgraphs, solver, priceService, notifications, muon
+   *     // optional: subgraphs, solvers, priceService, notifications, muon
    *   },
    * }
    * ```
@@ -136,17 +144,42 @@ export interface Config {
    */
   getChainConfig(chainId?: number): SymmioChainConfig;
   /**
-   * Stable fingerprint of a chain's fully-resolved config (addresses, solver,
+   * Stable fingerprint of a chain's fully-resolved config (addresses, solvers,
    * subgraphs). Identical for identical config across reloads and SSR; changes
    * iff that chain's resolved config changes.
    *
-   * The query option factories fold this into every query key, so a runtime
-   * override produces a fresh key — TanStack refetches with the new config
-   * instead of serving stale cache. Returns a stable sentinel for chains the
-   * config does not know about (it never throws, so it is safe to call while
-   * building query options for an unsupported chain).
+   * ALL query option factories — chain-scoped and solver-facing — fold this
+   * into their query keys, so a runtime override produces a fresh key and
+   * TanStack refetches with the new config instead of serving stale cache.
+   * Solver-facing keys additionally carry the `solverId` field (spread from
+   * their options), which is what keeps two solvers on the same chain in
+   * separate cache entries. Returns a stable sentinel for chains the config
+   * does not know about (it never throws, so it is safe to call while building
+   * query options for an unsupported chain).
    */
   getChainConfigKey(chainId?: number): string;
+  /**
+   * Resolve a chain's solver config. When `solverId` is given, returns that
+   * solver; otherwise returns the chain's `defaultSolverId` solver.
+   *
+   * @param parameters - Optional `chainId` (defaults to `defaultChainId`) and
+   *   `solverId` (defaults to the chain's `defaultSolverId`).
+   * @throws {SymmError} `UNSUPPORTED_CHAIN` when the chain is unknown, or
+   *   `UNKNOWN_SOLVER` when the chain has no solver with that id.
+   */
+  getSolver(parameters?: { chainId?: number; solverId?: SolverId }): SymmioResolvedSolver;
+  /**
+   * Id of the chain's default solver (its `defaultSolverId`) — the solver an
+   * action targets when it omits `solverId`.
+   */
+  getDefaultSolverId(chainId?: number): SolverId;
+  /**
+   * Ids of every solver configured on a chain. Resolve each with
+   * {@link getSolver} — e.g. to build a solver picker.
+   *
+   * @throws {SymmError} `UNSUPPORTED_CHAIN` when the chain is unknown.
+   */
+  listSolverIds(chainId?: number): readonly SolverId[];
   /** Resolve the viem `PublicClient` for reads on a chain. */
   getClient(parameters?: { chainId?: number }): PublicClient;
   /**
@@ -208,14 +241,23 @@ export function createConfig(parameters: CreateConfigParameters): Config {
     webSocketConstructor,
   } = parameters;
 
-  // Affiliate is required per chain: every supported chain's `symmioConfig` entry
-  // must set `addresses.affiliatesAddress`, or a trade would silently fall back to
-  // the built-in default affiliate and lose attribution. The zero address is
-  // accepted (a no-affiliate test placeholder — trades open, no fee share); only a
-  // MISSING affiliate throws. A non-zero UNREGISTERED affiliate is not caught here;
-  // it reverts on-chain at trade time (`PartyAFacet: Invalid affiliate`). Check the
-  // raw input (not the merged config, whose default would mask a gap).
-  for (const chainId of listSupportedChains()) {
+  const chainConfigs = buildChainConfigs(symmioConfig);
+
+  // Affiliate is required only for a chain the consumer EXPLICITLY configured (has a
+  // `symmioConfig[chainId]` entry) that can ALSO trade — one with at least one solver.
+  // Configuring a chain is the opt-in that obliges you to name your affiliate for it;
+  // the affiliate rides every quote (`sendQuoteWithAffiliateAndData`). A built-in chain
+  // the consumer never mentions is left alone: it may be an onboarding/placeholder chain
+  // not really tradable yet, and it falls back to its registry affiliate — so we do not
+  // force every consumer to supply an affiliate for a chain they never touch. The zero
+  // address is accepted (a no-affiliate placeholder — trades open, no fee share); only a
+  // MISSING affiliate throws. A non-zero UNREGISTERED affiliate is not caught here; it
+  // reverts on-chain at trade time (`PartyAFacet: Invalid affiliate`). Check the raw
+  // input (not the merged config, whose default would mask a gap).
+  for (const key of Object.keys(symmioConfig ?? {})) {
+    const chainId = Number(key) as SymmioSupportedChainId;
+    const hasSolvers = Object.keys(chainConfigs[chainId]?.solvers ?? {}).length > 0;
+    if (!hasSolvers) continue;
     const affiliate = symmioConfig?.[chainId]?.addresses?.affiliatesAddress;
     if (!affiliate)
       throw new SymmError(
@@ -224,8 +266,6 @@ export function createConfig(parameters: CreateConfigParameters): Config {
         `createConfig: \`symmioConfig[${chainId}].addresses.affiliatesAddress\` is required. No affiliate yet? Pass the zero address — trades still open, you just earn no fee share. Affiliate addresses are per chain; register at https://trading-sdk.symm.io/affiliate to earn your fee share.`,
       );
   }
-
-  const chainConfigs = buildChainConfigs(symmioConfig);
 
   const chainIds = Object.keys(chainConfigs).map(Number);
   if (chainIds.length === 0)
@@ -236,6 +276,16 @@ export function createConfig(parameters: CreateConfigParameters): Config {
   const chainConfigKeys: Record<number, string> = {};
   for (const id of chainIds) chainConfigKeys[id] = hashChainConfig(chainConfigs[id]!);
 
+  /**
+   * Validate every configured solver up front: `assertSupportedSolver` throws
+   * for an unknown `kind`, so a config can never point at a solver the SDK has
+   * no client for (fail-fast, like the affiliate check above).
+   */
+  for (const id of chainIds) {
+    for (const solverId of Object.keys(chainConfigs[id]!.solvers)) {
+      assertSupportedSolver(id, solverId);
+    }
+  }
   function getChainConfig(chainId?: number): SymmioChainConfig {
     const id = chainId ?? resolvedDefaultChainId;
     const config = chainConfigs[id];
@@ -249,12 +299,27 @@ export function createConfig(parameters: CreateConfigParameters): Config {
     return chainConfigKeys[id] ?? "unsupported";
   }
 
+  function getSolver(parameters?: { chainId?: number; solverId?: SolverId }): SymmioResolvedSolver {
+    return resolveSolver(getChainConfig(parameters?.chainId), parameters?.solverId);
+  }
+
+  function getDefaultSolverId(chainId?: number): SolverId {
+    return getChainConfig(chainId).defaultSolverId;
+  }
+
+  function listSolverIds(chainId?: number): readonly SolverId[] {
+    return Object.keys(getChainConfig(chainId).solvers) as SolverId[];
+  }
+
   return {
     chains: chainIds,
     simulateBeforeWrite,
     defaultChainId: resolvedDefaultChainId,
     getChainConfig,
     getChainConfigKey,
+    getSolver,
+    getDefaultSolverId,
+    listSolverIds,
     getClient(clientParameters) {
       return getClient({ chainId: clientParameters?.chainId ?? resolvedDefaultChainId });
     },

@@ -2,7 +2,7 @@ import { isAxiosError } from "axios";
 import type { Address } from "viem";
 import type { Config } from "../../../core/config";
 import { SymmApiError, SymmError } from "../../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../../shared/types/properties";
 import { getInstantCloseAccountAddress } from "../../types/generated/enigma-solver";
 import { toPendingInstantClose, type PendingInstantClose } from "./to-pending-instant-close";
 
@@ -10,7 +10,7 @@ import { toPendingInstantClose, type PendingInstantClose } from "./to-pending-in
  * Parameters for {@link getInstantCloses}.
  */
 export type GetInstantClosesParameters = Compute<
-  ChainIdParameter & {
+  ReadSolverParameter & {
     /** Sub-account (partyA) to read pending instant-close records for. */
     partyA: Address;
     /**
@@ -48,7 +48,7 @@ export async function getInstantCloses(
   config: Config,
   parameters: GetInstantClosesParameters,
 ): Promise<GetInstantClosesReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   const baseURL = parameters.baseUrl ?? solver.url;
   try {
     const response = await getInstantCloseAccountAddress(parameters.partyA, { baseURL });

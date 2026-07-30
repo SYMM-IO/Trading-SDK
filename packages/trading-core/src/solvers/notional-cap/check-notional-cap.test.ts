@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { PositionType } from "../../symmio-contracts/symmio/types";
 import { checkNotionalCap } from "./check-notional-cap";
-import type { MarketNotionalCap } from "./types";
+import type { EnigmaNotionalCap, RasaNotionalCap } from "./types";
 
-function makeCap(overrides: Partial<MarketNotionalCap> = {}): MarketNotionalCap {
+function makeCap(overrides: Partial<EnigmaNotionalCap> = {}): EnigmaNotionalCap {
   return {
+    kind: "enigma",
     symbolId: 132,
     symbol: "DOGEUSDT",
     totalCap: 0,
@@ -23,6 +24,13 @@ function makeCap(overrides: Partial<MarketNotionalCap> = {}): MarketNotionalCap 
 describe("checkNotionalCap", () => {
   it("accepts a long trade that fits within availableToLong", () => {
     expect(checkNotionalCap({ positionType: PositionType.LONG, notional: "900", cap: makeCap() })).toEqual({
+      ok: true,
+    });
+  });
+
+  it("skips the check for a Rasa cap (no per-side availability)", () => {
+    const rasaCap: RasaNotionalCap = { kind: "rasa", totalCap: 1000, used: 200 };
+    expect(checkNotionalCap({ positionType: PositionType.LONG, notional: "999999", cap: rasaCap })).toEqual({
       ok: true,
     });
   });

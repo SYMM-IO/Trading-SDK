@@ -58,7 +58,16 @@ interface Props {
  */
 export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-open" }: Props) {
   const marketsQuery = useMarkets();
+  if (marketsQuery?.data) {
+    const datak = marketsQuery?.data;
+    const pp = datak[0];
+    if (pp?.kind === "enigma") {
+      console.log("hell", pp.state);
+    }
+  }
+
   const markets = useMemo(() => getOpenMarkets(marketsQuery.data ?? []), [marketsQuery.data]);
+
   const marketItems = useMemo(() => toMarketSelectItems(markets), [markets]);
 
   const [marketId, setMarketId] = useState("");
@@ -70,7 +79,7 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
   const [slippage, setSlippage] = useState("5");
 
   const selectedMarket = useMemo(
-    () => markets.find((market) => String(market.symbol_id) === marketId),
+    () => markets.find((market) => String(market.symbolId) === marketId),
     [marketId, markets],
   );
   const maxLeverage = getMaxLeverage(selectedMarket);
@@ -101,11 +110,11 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
   });
   const feeQuery = useFeeForUser({
     user: subAccount,
-    symbolId: selectedMarket?.symbol_id !== undefined ? BigInt(selectedMarket.symbol_id) : 0n,
-    query: { enabled: Boolean(selectedMarket?.symbol_id), staleTime: 30_000 },
+    symbolId: selectedMarket?.symbolId !== undefined ? BigInt(selectedMarket.symbolId) : 0n,
+    query: { enabled: Boolean(selectedMarket?.symbolId), staleTime: 30_000 },
   });
   const notionalCapQuery = useNotionalCapBySymbolId({
-    symbolId: Number(selectedMarket?.symbol_id ?? 0),
+    symbolId: Number(selectedMarket?.symbolId ?? 0),
   });
 
   /**
@@ -145,7 +154,7 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
 
   const marginInfo = useAvailableInstantOpenMargin({
     account: subAccount,
-    symbolId: selectedMarket?.symbol_id,
+    symbolId: selectedMarket?.symbolId,
     leverage,
     positionType: side === "short" ? PositionType.SHORT : PositionType.LONG,
     slippage: validSlippage ?? 0,
@@ -181,8 +190,8 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
       userInput: initialMargin,
       inputField: "PRICE",
       leverage,
-      pricePrecision: Number(selectedMarket.price_precision ?? 0),
-      quantityPrecision: Number(selectedMarket.quantity_precision ?? 0),
+      pricePrecision: Number(selectedMarket.pricePrecision ?? 0),
+      quantityPrecision: Number(selectedMarket.quantityPrecision ?? 0),
       cvaPercent: lockedParamsQuery.data.cva,
       lfPercent: lockedParamsQuery.data.lf,
       partyAmmPercent: lockedParamsQuery.data.partyAmm,
@@ -227,7 +236,7 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
   const [slPriceType, setSlPriceType] = useState<TpSlPriceType>("markPrice");
 
   const positionTypeForSide = side === "long" ? PositionType.LONG : PositionType.SHORT;
-  const marketSymbolId = selectedMarket ? BigInt(selectedMarket.symbol_id ?? 0) : undefined;
+  const marketSymbolId = selectedMarket ? BigInt(selectedMarket.symbolId ?? 0) : undefined;
   const predictedVaQuery = usePredictedNextVirtualAccount({
     subAccount,
     isolationType: isolationTypeForSide(positionTypeForSide),
@@ -257,10 +266,10 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
             from: sessionKey,
             virtualAccount,
             subAccount,
-            symbolId: BigInt(selectedMarket.symbol_id ?? 0),
+            symbolId: BigInt(selectedMarket.symbolId ?? 0),
             positionType: positionTypeForSide,
             quantity: tradeParams.quantity,
-            pricePrecision: Number(selectedMarket.price_precision ?? 4),
+            pricePrecision: Number(selectedMarket.pricePrecision ?? 4),
             tp: hasTp ? { triggerPrice: tpPrice, priceType: tpPriceType } : undefined,
             sl: hasSl ? { triggerPrice: slPrice, priceType: slPriceType } : undefined,
           }
@@ -269,10 +278,10 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
       subAccountAddress: subAccount,
       from: sessionKey,
       market: {
-        id: Number(selectedMarket.symbol_id ?? 0),
+        id: Number(selectedMarket.symbolId ?? 0),
         name: marketName,
-        pricePrecision: Number(selectedMarket.price_precision ?? 0),
-        quantityPrecision: Number(selectedMarket.quantity_precision ?? 0),
+        pricePrecision: Number(selectedMarket.pricePrecision ?? 0),
+        quantityPrecision: Number(selectedMarket.quantityPrecision ?? 0),
       },
       positionType: positionTypeForSide,
       initialMargin,
@@ -435,11 +444,11 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
           tradeParams={tradeParams}
           feeRates={feeQuery.data}
           markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
-          notionalCap={notionalCapQuery.data}
+          notionalCap={notionalCapQuery.data?.kind === "enigma" ? notionalCapQuery.data : undefined}
           notionalCapLoading={notionalCapQuery.isLoading}
           side={side}
-          pricePrecision={Number(selectedMarket?.price_precision ?? 2)}
-          quantityPrecision={Number(selectedMarket?.quantity_precision ?? 4)}
+          pricePrecision={Number(selectedMarket?.pricePrecision ?? 2)}
+          quantityPrecision={Number(selectedMarket?.quantityPrecision ?? 4)}
           idPrefix={idPrefix}
         />
       ) : (
@@ -454,13 +463,13 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
       )}
 
       <EstimatedPricePreview
-        symbolId={selectedMarket ? Number(selectedMarket.symbol_id ?? 0) : undefined}
+        symbolId={selectedMarket ? Number(selectedMarket.symbolId ?? 0) : undefined}
         quantity={tradeParams?.quantity}
         positionType={positionTypeForSide}
         entry="open"
         requestPrice={tradeParams?.requestedOpenPrice}
         markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
-        pricePrecision={Number(selectedMarket?.price_precision ?? 2)}
+        pricePrecision={Number(selectedMarket?.pricePrecision ?? 2)}
         idPrefix={idPrefix}
       />
 
@@ -1061,19 +1070,23 @@ function TradeSideControl({
 
 function getOpenMarkets(markets: Market[]): Market[] {
   return markets
-    .filter((market) => market.symbol_id !== undefined && (market.state === 2 || market.state === 3))
+    .filter(
+      // Solvers that omit `state` (e.g. Rasa) are treated as tradable; only an
+      // explicit non-open state filters a market out.
+      (market) => market.kind !== "enigma" || market.state === 2 || market.state === 3,
+    )
     .sort((a, b) => (a.symbol ?? a.name ?? "").localeCompare(b.symbol ?? b.name ?? ""));
 }
 
 function toMarketSelectItems(markets: Market[]): MarketSelectItem[] {
   return markets.map((market) => {
-    const id = String(market.symbol_id);
-    const label = market.symbol ?? market.name ?? `Market ${market.symbol_id}`;
+    const id = String(market.symbolId);
+    const label = market.symbol ?? market.name ?? `Market ${market.symbolId}`;
     const name = market.name && market.name !== label ? market.name : undefined;
     return {
       id,
       label,
-      description: name ? `${name} · max ${market.max_leverage ?? "1"}x` : `Max ${market.max_leverage ?? "1"}x`,
+      description: name ? `${name} · max ${market.maxLeverage ?? "1"}x` : `Max ${market.maxLeverage ?? "1"}x`,
       meta: `ID ${id}`,
       searchText: [id, market.symbol, market.name].filter(Boolean).join(" "),
     };
@@ -1082,7 +1095,7 @@ function toMarketSelectItems(markets: Market[]): MarketSelectItem[] {
 
 function getMaxLeverage(market?: Market): number {
   if (!market) return 1;
-  const parsed = Math.floor(Number(market.max_leverage ?? 1));
+  const parsed = Math.floor(Number(market.maxLeverage ?? 1));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 

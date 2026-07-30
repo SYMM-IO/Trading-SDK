@@ -18,10 +18,12 @@ import {
 import { STAGING_CHAIN_OVERRIDES, STAGING_PRESET } from "@/config/symmio-presets";
 import { ConfigFieldRow } from "@/features/config/config-field-row";
 import { useSymmioOverrides } from "@/features/config/symmio-overrides-store";
+import { useSymmioChainId } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@symmio/ui/components/sheet";
 import { cn } from "@symmio/ui/lib/utils";
 import { useEffect, useMemo, useState } from "react";
+import { useSwitchChain } from "wagmi";
 
 interface Props {
   open: boolean;
@@ -36,8 +38,23 @@ interface Props {
  */
 export function ConfigPanel({ open, onOpenChange }: Props) {
   const { overrides, setOverrides, overrideCount } = useSymmioOverrides();
-  const [activeChain, setActiveChain] = useState<number>(SUPPORTED_CHAIN_IDS[0] ?? 0);
   const [draft, setDraft] = useState<ConfigDraft>(() => draftFromOverrides(overrides));
+  const { switchChain } = useSwitchChain();
+
+  // The active chain IS the connected wallet's chain (once wagmi hydrates it), not
+  // separate local state — so the panel always reflects the real chain, even after
+  // a refresh. Clamp to a supported chain for the editor.
+  const connectedChainId = useSymmioChainId();
+  const activeChain = SUPPORTED_CHAIN_IDS.includes(connectedChainId) ? connectedChainId : (SUPPORTED_CHAIN_IDS[0] ?? 0);
+
+  /**
+   * Picking a chain switches the app's active chain (the connected wallet's
+   * network) via wagmi; `activeChain` then follows `useChainId()`. The SDK's reads
+   * default to that chain, so this is what makes reads follow the picker.
+   */
+  function selectChain(chainId: number) {
+    switchChain({ chainId });
+  }
 
   /** Resync the editor from the applied config whenever it opens or is committed. */
   useEffect(() => {
@@ -130,7 +147,7 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
                   <button
                     key={chainId}
                     type="button"
-                    onClick={() => setActiveChain(chainId)}
+                    onClick={() => selectChain(chainId)}
                     aria-pressed={active}
                     className={cn(
                       "focus-visible:ring-ring/40 inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm transition-colors outline-none focus-visible:ring-2",

@@ -62,7 +62,7 @@ export function useEnigmaPriceByMarketId(
 
   const marketName = useMemo<string | null>(() => {
     if (!marketsQuery.data) return null;
-    const market = marketsQuery.data.find((m) => m.symbol_id === targetId);
+    const market = marketsQuery.data.find((m) => m.symbolId === targetId);
     return market?.name ?? null;
   }, [marketsQuery.data, targetId]);
 

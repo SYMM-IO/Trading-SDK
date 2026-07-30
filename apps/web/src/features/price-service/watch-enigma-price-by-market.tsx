@@ -20,7 +20,7 @@ export function WatchEnigmaPriceByMarket() {
   const markets = useMemo(() => sortMarkets(marketsQuery.data ?? []), [marketsQuery.data]);
   const items = useMemo(() => toMarketSelectItems(markets), [markets]);
   const [marketId, setMarketId] = useState("");
-  const selectedMarket = useMemo(() => markets.find((m) => String(m.symbol_id) === marketId), [markets, marketId]);
+  const selectedMarket = useMemo(() => markets.find((m) => String(m.symbolId) === marketId), [markets, marketId]);
   const name = selectedMarket?.name;
 
   return (
@@ -90,8 +90,8 @@ function sortMarkets(markets: Market[]): Market[] {
 
 function toMarketSelectItems(markets: Market[]): MarketSelectItem[] {
   return markets.map((market) => {
-    const id = String(market.symbol_id);
-    const label = market.symbol ?? market.name ?? `Market ${market.symbol_id}`;
+    const id = String(market.symbolId);
+    const label = market.symbol ?? market.name ?? `Market ${market.symbolId}`;
     const name = market.name && market.name !== label ? market.name : undefined;
     return {
       id,

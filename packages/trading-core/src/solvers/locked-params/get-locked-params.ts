@@ -1,14 +1,14 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { getGetLockedParamsSymbol, type ApiLockedParamsBySymbolIdResponse } from "../types/generated/enigma-solver";
 
 /**
  * Parameters for {@link getLockedParams}.
  */
 export type GetLockedParamsParameters = Compute<
-  ChainIdParameter & {
+  ReadSolverParameter & {
     /** Solver market path value for `/get_locked_params/{symbol}`. */
     symbol: string;
     /** Leverage used by the solver to calculate locked percentages. */
@@ -38,7 +38,7 @@ export async function getLockedParams(
   config: Config,
   parameters: GetLockedParamsParameters,
 ): Promise<GetLockedParamsReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   return fetchLockedParams(solver.url, parameters.symbol, parameters.leverage);
 }
 

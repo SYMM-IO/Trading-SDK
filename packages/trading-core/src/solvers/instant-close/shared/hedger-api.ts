@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../../core/config";
 import { SymmApiError, SymmError } from "../../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../../shared/types/properties";
 import { postInstantTradeInstantClose, type ApiV2InstantCloseRequest } from "../../types/generated/enigma-solver";
 
 /**
@@ -14,7 +14,7 @@ import { postInstantTradeInstantClose, type ApiV2InstantCloseRequest } from "../
  * hedger layer.
  */
 export type SendInstantCloseParameters = Compute<
-  ChainIdParameter & {
+  ReadSolverParameter & {
     /** Pre-signed `requestToClosePosition` payloads (1–100). */
     operations: ApiV2InstantCloseRequest["operations"];
   }
@@ -42,7 +42,7 @@ export async function sendInstantClose(
   config: Config,
   parameters: SendInstantCloseParameters,
 ): Promise<SendInstantCloseReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   try {
     await postInstantTradeInstantClose({ operations: parameters.operations }, { baseURL: solver.url });
     return { success: true };

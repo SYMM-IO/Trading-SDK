@@ -1,7 +1,7 @@
 import { getAddress, type Address } from "viem";
 import type { Config } from "../core/config";
 import type { ChainIdParameter, Compute } from "../shared/types/properties";
-import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/to-pending-instant-open";
+import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/types";
 import { isolationTypeForSide } from "../solvers/instant-open/shared/types";
 import { getVirtualAccountsAddressesOfSubAccount } from "../symmio-contracts/account-layer/actions/get-virtual-accounts-addresses-of-sub-account";
 import { getPredictedNextVirtualAccount } from "../symmio-contracts/account-layer/actions/predict-next-virtual-account";

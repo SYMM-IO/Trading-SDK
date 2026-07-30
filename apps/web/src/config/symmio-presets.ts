@@ -30,10 +30,12 @@ export const STAGING_CHAIN_OVERRIDES = {
       collateralAddress: "0x6aA554A167864027A02051D3F5C553244439B7Fd",
       collateralDecimals: 18,
     },
-    solver: {
-      name: "Enigma (staging)",
-      address: "0xf62a670cda28FfAE65eE2a42D6cf6CF05EC5E775",
-      url: "https://solver-staging.enigma.bz/api",
+    solvers: {
+      enigma: {
+        name: "Enigma (staging)",
+        address: "0xf62a670cda28FfAE65eE2a42D6cf6CF05EC5E775",
+        url: "https://solver-staging.enigma.bz/api",
+      },
     },
     subgraphs: {
       analytics:

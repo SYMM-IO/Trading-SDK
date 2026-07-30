@@ -59,6 +59,9 @@ export type CheckNotionalCapResult =
  */
 export function checkNotionalCap(inputs: CheckNotionalCapInputs): CheckNotionalCapResult {
   const { positionType, notional, cap } = inputs;
+  // Rasa reports no per-side availability (only total_cap / used), so the
+  // side-gated check cannot run — skip it (permissive), same as "no cap data".
+  if (cap.kind === "rasa") return { ok: true };
   if (cap.error) return { ok: true };
 
   const available = positionType === PositionType.LONG ? cap.availableToLong : cap.availableToShort;

@@ -37,11 +37,46 @@ export interface SymmioSubgraphUrls {
 export type SymmioSubgraphName = keyof SymmioSubgraphUrls;
 
 /**
+ * A solver's id within a chain config — its registry key. Equal to its
+ * {@link SymmioSolverKind}: each chain registers at most one solver per kind, so
+ * the id *is* the kind (`"enigma" | "rasa"`). Closed for that reason.
+ */
+export type SolverId = SymmioSolverKind;
+
+/**
+ * The solver kinds the SDK can actually serve — one generated client and
+ * behavior set per entry. Single source of truth: {@link SymmioSolverKind} is
+ * derived from this list, and `createConfig` validates every configured solver
+ * against it (`assertSupportedSolver` in `solver-support.ts`). To add a kind,
+ * append it here and ship its generated client + dispatch in the same change.
+ *
+ * @internal
+ */
+export const SUPPORTED_SOLVER_KINDS = ["enigma", "rasa"] as const;
+
+/**
+ * Schema family a solver's REST API speaks — the discriminant used to select a
+ * generated client. Closed (derived from {@link SUPPORTED_SOLVER_KINDS}): the
+ * SDK ships one client per kind, so dispatch must be exhaustive.
+ *
+ * There is deliberately no version axis: each SDK release supports exactly one
+ * API generation per kind. When a solver ships a new API generation, the SDK
+ * regenerates that kind's client in a new release — consumers pick the
+ * generation by pinning the SDK version, not through config.
+ */
+export type SymmioSolverKind = (typeof SUPPORTED_SOLVER_KINDS)[number];
+
+/**
  * Solver / hedger configuration for a SYMMIO chain deployment.
  *
  * In this SDK a "solver" is the same actor that fronts the lowcap hedger REST
  * API (`/instant_trade/instant_open`, `/contract-symbols`, …) and acts as
  * `partyB` on-chain. Its `url` is the API base URL, its `address` is partyB.
+ *
+ * Solvers live under {@link SymmioChainConfig.solvers}, keyed by
+ * {@link SolverId} — the key is the solver's id, which is also its kind, so the
+ * kind is not repeated here. `config.getSolver({ chainId, solverId })` returns a
+ * {@link SymmioResolvedSolver} (this config plus its resolved `id`).
  */
 export interface SymmioSolverConfig {
   /** Human-readable solver name */
@@ -52,6 +87,16 @@ export interface SymmioSolverConfig {
   url: string;
   /** Optional TP/SL handler — solver supports conditional orders only when set. */
   tpsl?: SymmioTpSlConfig;
+}
+
+/**
+ * A {@link SymmioSolverConfig} resolved from the registry, with its `id`
+ * attached. The `id` is the solver's kind (`"enigma" | "rasa"`) and drives
+ * per-kind dispatch inside solver actions. Returned by `config.getSolver`.
+ */
+export interface SymmioResolvedSolver extends SymmioSolverConfig {
+  /** The resolved solver id — equal to its kind. */
+  id: SolverId;
 }
 
 /**
@@ -145,8 +190,15 @@ export interface SymmioChainConfig {
   addresses: SymmioContractAddresses;
   /** Subgraph endpoints */
   subgraphs: SymmioSubgraphUrls;
-  /** Solver / hedger configuration */
-  solver: SymmioSolverConfig;
+  /**
+   * Solvers available on this chain, keyed by {@link SolverId} (which is the
+   * solver's kind). A chain registers a subset of the kinds, so this is partial.
+   * Resolve one with `config.getSolver({ chainId, solverId })`, which defaults to
+   * {@link defaultSolverId} when `solverId` is omitted.
+   */
+  solvers: Partial<Record<SolverId, SymmioSolverConfig>>;
+  /** Id of the solver an action targets on this chain when `solverId` is omitted. */
+  defaultSolverId: SolverId;
   /** Price-service configuration */
   priceService: SymmioPriceServiceConfig;
   /** Notifications WebSocket configuration */
