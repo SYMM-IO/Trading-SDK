@@ -889,9 +889,9 @@ export {
   getOpenInterestBySymbolId,
   getOpenInterestBySymbolIdQueryKey,
   getOpenInterestBySymbolIdQueryOptions,
-  toMarketNotionalCap,
   type CheckNotionalCapInputs,
   type CheckNotionalCapResult,
+  type EnigmaNotionalCap,
   type GetNotionalCapAllData,
   type GetNotionalCapAllOptions,
   type GetNotionalCapAllParameters,
@@ -911,6 +911,8 @@ export {
   type GetOpenInterestBySymbolIdQueryOptions,
   type GetOpenInterestBySymbolIdReturnType,
   type MarketNotionalCap,
+  type NormalizedNotionalCapByKind,
+  type RasaNotionalCap,
 } from "./solvers/notional-cap";
 
 /**

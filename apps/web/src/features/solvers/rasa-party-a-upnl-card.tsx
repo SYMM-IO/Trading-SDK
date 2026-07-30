@@ -9,7 +9,7 @@ import type { Address } from "viem";
 import { isAddress } from "viem";
 import { MethodCard } from "../inspector/method-card";
 import { SubAccountPicker } from "../inspector/subaccount-picker";
-import { SolverTargetSelect, useSolverTargetState } from "./solver-target";
+import { SolverTargetSelect, useSolverKindActive, useSolverTargetState } from "./solver-target";
 
 /**
  * Rasa-only card: partyA unrealized PnL (`/partyA_upnl/{address}`). The partyA
@@ -17,6 +17,7 @@ import { SolverTargetSelect, useSolverTargetState } from "./solver-target";
  */
 export function RasaPartyAUpnlCard() {
   const { target, setTarget } = useSolverTargetState({ requireKind: "rasa" });
+  const active = useSolverKindActive("rasa");
   const [address, setAddress] = useState("");
   const validAddress = isAddress(address) ? (address as Address) : undefined;
 
@@ -46,7 +47,7 @@ export function RasaPartyAUpnlCard() {
       <Button
         type="button"
         size="sm"
-        disabled={!validAddress || query.isFetching}
+        disabled={!active || !validAddress || query.isFetching}
         onClick={() => void query.refetch()}
         data-testid="button-read-rasa-upnl"
       >

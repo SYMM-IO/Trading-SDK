@@ -63,8 +63,9 @@ function ChainSwitch() {
  * Solvers page. The solver is an off-chain API (not a contract), so it sits
  * outside the Contracts hub. Renders solver reads and writes in the same
  * collapsible method groups as contract pages. Cards carry their own solver
- * selector (Enigma · HyperEVM / Rasa · Base); the Rasa-only group is served
- * exclusively by the `rasa` solver kind.
+ * selector (Enigma · HyperEVM / Rasa · Base); the Enigma-only and Rasa-only
+ * groups are each served exclusively by that one solver kind (their endpoints
+ * 404 on the other).
  */
 export function SolversShell() {
   const activeChainId = useChainId();
@@ -80,18 +81,24 @@ export function SolversShell() {
       <WalletPanel />
       <ChainSwitch />
 
-      <MethodGroup label="Reads" count={11} fullWidth>
+      <MethodGroup label="Reads" count={9} fullWidth>
         <ReadLockedParams />
         <ReadNotionalCap />
-        <ReadNotionalCapTotals />
         <ReadOpenInterest />
         <ReadFundingInfoCard />
-        <EnigmaEstimatedPriceCard />
         <ReadMarketInfoCard />
         <ReadMarkets />
         <ReadInstantOpensCard />
         <SolverErrorCodesCard />
         <QuotesCard />
+      </MethodGroup>
+
+      {/* Solver-exclusive reads: always shown, but each card only fires its
+          query when its solver's chain is active (endpoints 404 on the other).
+          Gating lives in the cards via `useSolverKindActive`. */}
+      <MethodGroup label="Enigma-only reads" count={2} fullWidth>
+        <ReadNotionalCapTotals />
+        <EnigmaEstimatedPriceCard />
       </MethodGroup>
 
       <MethodGroup label="Rasa-only reads" count={8} fullWidth>

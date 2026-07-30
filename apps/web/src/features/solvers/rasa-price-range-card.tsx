@@ -9,7 +9,7 @@ import { MarketSelect, type MarketSelectItem } from "@symmio/ui/components/marke
 import { Spinner } from "@symmio/ui/components/spinner";
 import { useMemo, useState } from "react";
 import { MethodCard } from "../inspector/method-card";
-import { SolverTargetSelect, useSolverTargetState } from "./solver-target";
+import { SolverTargetSelect, useSolverKindActive, useSolverTargetState } from "./solver-target";
 
 type Market = NonNullable<ReturnType<typeof useMarkets>["data"]>[number];
 
@@ -20,7 +20,8 @@ type Market = NonNullable<ReturnType<typeof useMarkets>["data"]>[number];
  */
 export function RasaPriceRangeCard() {
   const { target, setTarget } = useSolverTargetState({ requireKind: "rasa" });
-  const marketsQuery = useMarkets({ chainId: target.chainId, solverId: target.solverId });
+  const active = useSolverKindActive("rasa");
+  const marketsQuery = useMarkets({ chainId: target.chainId, solverId: target.solverId, query: { enabled: active } });
   const markets = useMemo(() => getOpenMarkets(marketsQuery.data ?? []), [marketsQuery.data]);
   const marketItems = useMemo(() => toMarketSelectItems(markets), [markets]);
 
@@ -58,7 +59,7 @@ export function RasaPriceRangeCard() {
       <Button
         type="button"
         size="sm"
-        disabled={!symbol || query.isFetching}
+        disabled={!active || !symbol || query.isFetching}
         onClick={() => void query.refetch()}
         data-testid="button-read-rasa-price-range"
       >

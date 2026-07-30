@@ -9,11 +9,12 @@ import { JsonView } from "@symmio/ui/components/json-view";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
 import { MethodCard } from "../inspector/method-card";
-import { SolverTargetSelect, useSolverTargetState } from "./solver-target";
+import { SolverTargetSelect, useSolverKindActive, useSolverTargetState } from "./solver-target";
 
 /** Rasa-only card: single error-code lookup (`/error_codes/{error_code}`). */
 export function RasaErrorMessageCard() {
   const { target, setTarget } = useSolverTargetState({ requireKind: "rasa" });
+  const active = useSolverKindActive("rasa");
   const [code, setCode] = useState("2000");
   const parsed = Number(code);
   const validCode = Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
@@ -46,7 +47,7 @@ export function RasaErrorMessageCard() {
       <Button
         type="button"
         size="sm"
-        disabled={validCode === undefined || query.isFetching}
+        disabled={!active || validCode === undefined || query.isFetching}
         onClick={() => void query.refetch()}
         data-testid="button-read-rasa-error-message"
       >

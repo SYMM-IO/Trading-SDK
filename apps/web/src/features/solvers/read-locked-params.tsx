@@ -56,7 +56,7 @@ export function ReadLockedParams() {
             placeholder={marketsQuery.isLoading ? "Loading markets..." : "Select a market..."}
             disabled={marketsQuery.isLoading}
             searchPlaceholder="Search symbol, name, or ID..."
-            emptyLabel="No open Enigma markets."
+            emptyLabel="No open markets."
             emptyResultsLabel="No markets match this search."
             clearLabel="Clear market"
           />

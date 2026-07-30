@@ -6,6 +6,7 @@ import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { ApiNotionalCapBySymbolResponse } from "../types/generated/enigma-solver";
 
 const getNotionalCapSymbolId = vi.hoisted(() => vi.fn());
+const getNotionalCapNotionalCapSymbolIdGet = vi.hoisted(() => vi.fn());
 
 vi.mock("../types/generated/enigma-solver", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../types/generated/enigma-solver")>();
@@ -13,6 +14,11 @@ vi.mock("../types/generated/enigma-solver", async (importOriginal) => {
     ...actual,
     getNotionalCapSymbolId,
   };
+});
+
+vi.mock("../types/generated/rasa-solver", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../types/generated/rasa-solver")>();
+  return { ...actual, getNotionalCapNotionalCapSymbolIdGet };
 });
 
 import { getNotionalCapBySymbolId } from "./get-notional-cap-by-symbol-id";
@@ -61,7 +67,21 @@ describe("getNotionalCapBySymbolId", () => {
 
     const cap = await getNotionalCapBySymbolId(config, { symbolId: 132 });
 
+    expect(cap.kind).toBe("enigma");
+    if (cap.kind !== "enigma") throw new Error("expected an enigma cap");
     expect(cap.error).toBe("market paused");
+  });
+
+  it("dispatches to the Rasa adapter on a Rasa chain (only totalCap / used)", async () => {
+    getNotionalCapNotionalCapSymbolIdGet.mockResolvedValue({ data: { total_cap: "4000", used: "500" } });
+
+    const cap = await getNotionalCapBySymbolId(config, { chainId: SymmioSupportedChainId.BASE, symbolId: 7 });
+
+    expect(getNotionalCapNotionalCapSymbolIdGet).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ baseURL: expect.any(String) }),
+    );
+    expect(cap).toEqual({ kind: "rasa", totalCap: 4000, used: 500 });
   });
 
   it("wraps a generic request failure in a SymmError", async () => {

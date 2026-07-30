@@ -444,7 +444,7 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
           tradeParams={tradeParams}
           feeRates={feeQuery.data}
           markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
-          notionalCap={notionalCapQuery.data}
+          notionalCap={notionalCapQuery.data?.kind === "enigma" ? notionalCapQuery.data : undefined}
           notionalCapLoading={notionalCapQuery.isLoading}
           side={side}
           pricePrecision={Number(selectedMarket?.pricePrecision ?? 2)}

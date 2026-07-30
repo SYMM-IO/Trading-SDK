@@ -6,11 +6,12 @@ import { useSolverOpenInterest } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { MethodCard } from "../inspector/method-card";
-import { SolverTargetSelect, useSolverTargetState } from "./solver-target";
+import { SolverTargetSelect, useSolverKindActive, useSolverTargetState } from "./solver-target";
 
 /** Rasa-only card: solver-wide open interest (`/open-interest`). */
 export function RasaOpenInterestCard() {
   const { target, setTarget } = useSolverTargetState({ requireKind: "rasa" });
+  const active = useSolverKindActive("rasa");
   const query = useSolverOpenInterest({
     chainId: target.chainId,
     solverId: target.solverId,
@@ -28,7 +29,7 @@ export function RasaOpenInterestCard() {
       <Button
         type="button"
         size="sm"
-        disabled={query.isFetching}
+        disabled={!active || query.isFetching}
         onClick={() => void query.refetch()}
         data-testid="button-read-rasa-open-interest"
       >

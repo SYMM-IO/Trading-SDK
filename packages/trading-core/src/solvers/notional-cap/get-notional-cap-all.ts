@@ -4,8 +4,8 @@ import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { getNotionalCap } from "../types/generated/enigma-solver";
-import { toMarketNotionalCap } from "./to-market-notional-cap";
-import type { MarketNotionalCap } from "./types";
+import { toEnigmaNotionalCap } from "./adapters";
+import type { EnigmaNotionalCap } from "./types";
 
 /**
  * Parameters for {@link getNotionalCapAll}.
@@ -20,8 +20,8 @@ export interface GetNotionalCapAllReturnType {
   totalOpenInterest: number;
   /** Σ `used` across every market (dollars). */
   totalUsed: number;
-  /** Per-symbol rows, decoded with the same mapper as {@link getNotionalCapBySymbolId}. */
-  symbols: MarketNotionalCap[];
+  /** Per-symbol rows. `/notional_cap` (list) is Enigma-only, so rows are always Enigma-shaped. */
+  symbols: EnigmaNotionalCap[];
 }
 
 /**
@@ -47,12 +47,12 @@ export async function getNotionalCapAll(
   try {
     const response = await getNotionalCap(undefined, { baseURL: solver.url });
     const r = response.data as Record<string, unknown>;
-    const rawSymbols = Array.isArray(r.symbols) ? (r.symbols as Parameters<typeof toMarketNotionalCap>[0][]) : [];
+    const rawSymbols = Array.isArray(r.symbols) ? (r.symbols as Parameters<typeof toEnigmaNotionalCap>[0][]) : [];
     return {
       count: toFiniteNumber(r.count as number | string | undefined),
       totalOpenInterest: toFiniteNumber(r.total_open_interest as number | string | undefined),
       totalUsed: toFiniteNumber(r.total_used as number | string | undefined),
-      symbols: rawSymbols.map(toMarketNotionalCap),
+      symbols: rawSymbols.map(toEnigmaNotionalCap),
     };
   } catch (err) {
     if (err instanceof SymmError) throw err;

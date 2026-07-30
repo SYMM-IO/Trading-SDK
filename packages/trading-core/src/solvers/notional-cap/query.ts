@@ -1,3 +1,4 @@
+import type { SymmioSolverKind } from "../../core/chains/types";
 import type { Config } from "../../core/config";
 import type { Compute, ConfigKeyParameter } from "../../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../../shared/types/query";
@@ -8,8 +9,9 @@ import {
   type GetNotionalCapBySymbolIdReturnType,
 } from "./get-notional-cap-by-symbol-id";
 
-/** Data resolved by the {@link getNotionalCapBySymbolIdQueryOptions} query. */
-export type GetNotionalCapBySymbolIdData = GetNotionalCapBySymbolIdReturnType;
+/** Data resolved by the {@link getNotionalCapBySymbolIdQueryOptions} query, generic over solver kind `K`. */
+export type GetNotionalCapBySymbolIdData<K extends SymmioSolverKind = SymmioSolverKind> =
+  GetNotionalCapBySymbolIdReturnType<K>;
 
 /**
  * Build the TanStack Query key for {@link getNotionalCapBySymbolIdQueryOptions}.
@@ -25,24 +27,30 @@ export type GetNotionalCapBySymbolIdQueryKey = ReturnType<typeof getNotionalCapB
 
 /**
  * Options accepted by {@link getNotionalCapBySymbolIdQueryOptions}: the action's
- * parameters plus TanStack overrides.
+ * parameters (generic over solver kind `K`) plus TanStack overrides.
  */
-export type GetNotionalCapBySymbolIdOptions = Compute<
-  GetNotionalCapBySymbolIdParameters &
-    QueryParameter<GetNotionalCapBySymbolIdData, Error, GetNotionalCapBySymbolIdData, GetNotionalCapBySymbolIdQueryKey>
+export type GetNotionalCapBySymbolIdOptions<K extends SymmioSolverKind = SymmioSolverKind> = Compute<
+  GetNotionalCapBySymbolIdParameters<K> &
+    QueryParameter<
+      GetNotionalCapBySymbolIdData<K>,
+      Error,
+      GetNotionalCapBySymbolIdData<K>,
+      GetNotionalCapBySymbolIdQueryKey
+    >
 >;
 
 /** TanStack Query options returned by {@link getNotionalCapBySymbolIdQueryOptions}. */
-export type GetNotionalCapBySymbolIdQueryOptions = SymmioQueryOptions<
-  GetNotionalCapBySymbolIdData,
+export type GetNotionalCapBySymbolIdQueryOptions<K extends SymmioSolverKind = SymmioSolverKind> = SymmioQueryOptions<
+  GetNotionalCapBySymbolIdData<K>,
   Error,
-  GetNotionalCapBySymbolIdData,
+  GetNotionalCapBySymbolIdData<K>,
   GetNotionalCapBySymbolIdQueryKey
 >;
 
 /**
- * Build TanStack Query options for {@link getNotionalCapBySymbolId}. The query
- * is disabled when `symbolId` is `0` (the sentinel for "no market selected").
+ * Build TanStack Query options for {@link getNotionalCapBySymbolId}. Generic over
+ * solver kind `K`, so a literal `solverId` narrows the query's data type. The
+ * query is disabled when `symbolId` is `0` (the sentinel for "no market selected").
  *
  * @param config - The SDK config.
  * @param options - Query parameters and TanStack overrides.
@@ -53,10 +61,10 @@ export type GetNotionalCapBySymbolIdQueryOptions = SymmioQueryOptions<
  * useQuery(getNotionalCapBySymbolIdQueryOptions(config, { symbolId: 132 }));
  * ```
  */
-export function getNotionalCapBySymbolIdQueryOptions(
+export function getNotionalCapBySymbolIdQueryOptions<K extends SymmioSolverKind = SymmioSolverKind>(
   config: Config,
-  options: GetNotionalCapBySymbolIdOptions,
-): GetNotionalCapBySymbolIdQueryOptions {
+  options: GetNotionalCapBySymbolIdOptions<K>,
+): GetNotionalCapBySymbolIdQueryOptions<K> {
   return {
     ...options.query,
     queryKey: getNotionalCapBySymbolIdQueryKey({
@@ -65,7 +73,7 @@ export function getNotionalCapBySymbolIdQueryOptions(
     }),
     enabled: (options.query?.enabled ?? true) && options.symbolId > 0,
     queryFn: () =>
-      getNotionalCapBySymbolId(config, {
+      getNotionalCapBySymbolId<K>(config, {
         chainId: options.chainId,
         solverId: options.solverId,
         symbolId: options.symbolId,

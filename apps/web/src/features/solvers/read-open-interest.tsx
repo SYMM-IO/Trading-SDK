@@ -50,7 +50,7 @@ export function ReadOpenInterest() {
             placeholder={marketsQuery.isLoading ? "Loading markets..." : "Select a market..."}
             disabled={marketsQuery.isLoading}
             searchPlaceholder="Search symbol, name, or ID..."
-            emptyLabel="No open Enigma markets."
+            emptyLabel="No open markets."
             emptyResultsLabel="No markets match this search."
             clearLabel="Clear market"
           />
@@ -122,9 +122,13 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
 }
 
 function getOpenMarkets(markets: Market[]): Market[] {
-  return markets
-    .filter((market) => market.kind === "enigma" && (market.state === 2 || market.state === 3))
-    .sort((a, b) => (a.symbol ?? a.name ?? "").localeCompare(b.symbol ?? b.name ?? ""));
+  return (
+    markets
+      // Shared endpoint — show the active solver's markets. Rasa markets have no
+      // `state` (count as open); Enigma markets keep the open-state filter.
+      .filter((market) => market.kind !== "enigma" || market.state === 2 || market.state === 3)
+      .sort((a, b) => (a.symbol ?? a.name ?? "").localeCompare(b.symbol ?? b.name ?? ""))
+  );
 }
 
 function toMarketSelectItems(markets: Market[]): MarketSelectItem[] {

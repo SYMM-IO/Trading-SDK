@@ -10,6 +10,7 @@ import { cn } from "@symmio/ui/lib/utils";
 import { formatPercentage } from "@symmio/utils";
 import { useState } from "react";
 import { MethodCard } from "../inspector/method-card";
+import { useSolverKindActive } from "./solver-target";
 
 /**
  * Solvers-page card for `GET /estimated-price` — simulate an open/close and get
@@ -25,6 +26,7 @@ export function EnigmaEstimatedPriceCard() {
   const [price, setPrice] = useState("");
   const [side, setSide] = useState<PositionType>(PositionType.LONG);
   const [entry, setEntry] = useState<EstimatedPriceEntry>("open");
+  const active = useSolverKindActive("enigma");
 
   const parsedSymbolId = Number(symbolId);
   const query = useEstimatedPrice({
@@ -33,7 +35,9 @@ export function EnigmaEstimatedPriceCard() {
     positionType: side,
     entry,
     price,
-    query: { enabled: Number.isFinite(parsedSymbolId) && quantity.trim().length > 0 && price.trim().length > 0 },
+    query: {
+      enabled: active && Number.isFinite(parsedSymbolId) && quantity.trim().length > 0 && price.trim().length > 0,
+    },
   });
 
   const estimated = query.data?.estimatedPrice;

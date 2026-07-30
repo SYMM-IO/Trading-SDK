@@ -3,6 +3,7 @@
 import { SymmioSupportedChainId, type SymmioSolverKind } from "@symmio/trading-core";
 import { Button } from "@symmio/ui/components/button";
 import { useState } from "react";
+import { useChainId } from "wagmi";
 
 /** One selectable solver deployment: the `{chainId, solverId}` pair a hook targets. */
 export interface SolverTarget {
@@ -14,6 +15,17 @@ export interface SolverTarget {
   solverId: SymmioSolverKind;
   /** Display label. */
   label: string;
+}
+
+/**
+ * True when the given solver kind's chain is the active wallet chain. Use it to
+ * gate a solver-exclusive card's query so the endpoint is only called when its
+ * solver is active (Enigma → HyperEVM, Rasa → Base) — the endpoints 404 on the
+ * other chain.
+ */
+export function useSolverKindActive(kind: SymmioSolverKind): boolean {
+  const chainId = useChainId();
+  return SOLVER_TARGETS.some((target) => target.solverId === kind && target.chainId === chainId);
 }
 
 /** Every solver the app can target, across chains. */

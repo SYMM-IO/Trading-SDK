@@ -13,7 +13,7 @@ import type { Address } from "viem";
 import { isAddress } from "viem";
 import { MethodCard } from "../inspector/method-card";
 import { SubAccountPicker } from "../inspector/subaccount-picker";
-import { SolverTargetSelect, useSolverTargetState } from "./solver-target";
+import { SolverTargetSelect, useSolverKindActive, useSolverTargetState } from "./solver-target";
 
 /** Parse an optional non-negative integer input; empty → undefined. */
 function parseOptionalInt(value: string): number | undefined {
@@ -30,6 +30,7 @@ function parseOptionalInt(value: string): number | undefined {
  */
 export function RasaPositionStatesCard() {
   const { target, setTarget } = useSolverTargetState({ requireKind: "rasa" });
+  const active = useSolverKindActive("rasa");
   const [address, setAddress] = useState("");
   const [size, setSize] = useState("10");
   const [quoteId, setQuoteId] = useState("");
@@ -138,7 +139,7 @@ export function RasaPositionStatesCard() {
       <Button
         type="button"
         size="sm"
-        disabled={query.isFetching || !filtersValid}
+        disabled={!active || query.isFetching || !filtersValid}
         onClick={() => void query.refetch()}
         data-testid="button-read-rasa-position-states"
       >

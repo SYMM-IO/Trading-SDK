@@ -13,7 +13,7 @@ import type { Address } from "viem";
 import { isAddress } from "viem";
 import { MethodCard } from "../inspector/method-card";
 import { SubAccountPicker } from "../inspector/subaccount-picker";
-import { SolverTargetSelect, useSolverTargetState } from "./solver-target";
+import { SolverTargetSelect, useSolverKindActive, useSolverTargetState } from "./solver-target";
 
 /**
  * Rasa-only card: solver-side balance info for one account (`/get_balance_info`).
@@ -23,6 +23,7 @@ import { SolverTargetSelect, useSolverTargetState } from "./solver-target";
  */
 export function RasaBalanceInfoCard() {
   const { target, setTarget } = useSolverTargetState({ requireKind: "rasa" });
+  const active = useSolverKindActive("rasa");
   const config = useSymmioConfig();
   const [account, setAccount] = useState("");
   const [multiAccount, setMultiAccount] = useState("");
@@ -94,7 +95,7 @@ export function RasaBalanceInfoCard() {
       <Button
         type="button"
         size="sm"
-        disabled={!validAccount || (multiAccount.length > 0 && !validMultiAccount) || query.isFetching}
+        disabled={!active || !validAccount || (multiAccount.length > 0 && !validMultiAccount) || query.isFetching}
         onClick={() => void query.refetch()}
         data-testid="button-read-rasa-balance-info"
       >
