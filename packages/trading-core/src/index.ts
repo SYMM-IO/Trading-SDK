@@ -842,14 +842,18 @@ export {
   getMarketInfo,
   getMarketInfoQueryKey,
   getMarketInfoQueryOptions,
-  toMarketInfo,
+  type EnigmaMarketInfo,
   type GetMarketInfoData,
   type GetMarketInfoOptions,
   type GetMarketInfoParameters,
   type GetMarketInfoQueryKey,
   type GetMarketInfoQueryOptions,
   type GetMarketInfoReturnType,
+  type MarketInfo,
   type MarketVolume,
+  type NormalizedMarketInfoByKind,
+  type RasaMarketInfo,
+  type RasaMarketInfoRow,
 } from "./solvers/market-info";
 
 /**
