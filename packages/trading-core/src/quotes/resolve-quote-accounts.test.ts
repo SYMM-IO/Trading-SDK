@@ -2,7 +2,7 @@ import { getAddress, type Address, type PublicClient } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmioSupportedChainId } from "../core/chains";
 import { createConfig } from "../core/config";
-import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/to-pending-instant-open";
+import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/types";
 import { VIRTUAL_ACCOUNT_ISOLATION_TYPE } from "../solvers/instant-open/shared/types";
 import { OrderType, PositionType } from "../symmio-contracts/symmio/types";
 import { resolveQuoteAccounts } from "./resolve-quote-accounts";
@@ -48,6 +48,8 @@ const config = createConfig({
  */
 function makeOpen(overrides: Partial<PendingInstantOpen> = {}): PendingInstantOpen {
   return {
+    kind: "enigma",
+    uuid: "",
     tempQuoteId: -1,
     marketId: 1,
     positionType: PositionType.LONG,

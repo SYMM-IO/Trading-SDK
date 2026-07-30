@@ -6,6 +6,7 @@ import { SymmError } from "../../../shared/errors/symm-error";
 import { OrderType, PositionType } from "../../../symmio-contracts/symmio/types";
 
 const getInstantOpenAccountAddress = vi.hoisted(() => vi.fn());
+const getInstantRequestForQuotesInstantOpenAccountAddressGet = vi.hoisted(() => vi.fn());
 
 vi.mock("../../types/generated/enigma-solver", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../types/generated/enigma-solver")>();
@@ -13,6 +14,11 @@ vi.mock("../../types/generated/enigma-solver", async (importOriginal) => {
     ...actual,
     getInstantOpenAccountAddress,
   };
+});
+
+vi.mock("../../types/generated/rasa-solver", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../types/generated/rasa-solver")>();
+  return { ...actual, getInstantRequestForQuotesInstantOpenAccountAddressGet };
 });
 
 import { getInstantOpens } from "./get-instant-opens";
@@ -44,12 +50,14 @@ describe("getInstantOpens", () => {
           lf: "0.5",
           partyAmm: "1",
           partyBmm: "0",
+          uuid: "uuid-abc",
         },
       ],
     });
 
     await expect(getInstantOpens(config, { partyA: PARTY_A })).resolves.toEqual([
       {
+        kind: "enigma",
         tempQuoteId: -1001,
         marketId: 7,
         positionType: PositionType.SHORT,
@@ -61,6 +69,7 @@ describe("getInstantOpens", () => {
         lf: "0.5",
         partyAmm: "1",
         partyBmm: "0",
+        uuid: "uuid-abc",
       },
     ]);
     expect(getInstantOpenAccountAddress).toHaveBeenCalledWith(PARTY_A, { baseURL: SOLVER_URL });
@@ -80,6 +89,7 @@ describe("getInstantOpens", () => {
 
     await expect(getInstantOpens(config, { partyA: PARTY_A })).resolves.toEqual([
       {
+        kind: "enigma",
         tempQuoteId: 0,
         marketId: 0,
         positionType: PositionType.LONG,
@@ -91,8 +101,50 @@ describe("getInstantOpens", () => {
         lf: "0",
         partyAmm: "0",
         partyBmm: "0",
+        uuid: "",
       },
     ]);
+  });
+
+  it("dispatches to the Rasa adapter on a Rasa chain, into the same unified shape", async () => {
+    getInstantRequestForQuotesInstantOpenAccountAddressGet.mockResolvedValue({
+      data: [
+        {
+          temp_quote_id: 42,
+          symbol_id: 7,
+          position_type: PositionType.SHORT,
+          order_type: OrderType.MARKET,
+          party_a_address: PARTY_A,
+          requested_open_price: "1.5",
+          quantity: "100",
+          cva: "2",
+          lf: "0.5",
+          partyAmm: "1",
+          partyBmm: "0",
+        },
+      ],
+    });
+
+    await expect(getInstantOpens(config, { chainId: SymmioSupportedChainId.BASE, partyA: PARTY_A })).resolves.toEqual([
+      {
+        kind: "rasa",
+        tempQuoteId: 42,
+        marketId: 7,
+        positionType: PositionType.SHORT,
+        orderType: OrderType.MARKET,
+        partyA: PARTY_A,
+        requestedOpenPrice: "1.5",
+        quantity: "100",
+        cva: "2",
+        lf: "0.5",
+        partyAmm: "1",
+        partyBmm: "0",
+      },
+    ]);
+    expect(getInstantRequestForQuotesInstantOpenAccountAddressGet).toHaveBeenCalledWith(
+      PARTY_A,
+      expect.objectContaining({ baseURL: expect.any(String) }),
+    );
   });
 
   it("wraps request failures in a SymmError", async () => {

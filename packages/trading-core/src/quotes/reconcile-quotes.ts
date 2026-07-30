@@ -1,6 +1,6 @@
 import type { Address } from "viem";
 import type { PendingInstantClose } from "../solvers/instant-close/get-instant-closes/to-pending-instant-close";
-import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/to-pending-instant-open";
+import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/types";
 import type { Quote } from "../symmio-contracts/symmio/types";
 import type { Notification } from "../websocket/notifications/types";
 import { applyNotificationToQuotes } from "./apply-notification";

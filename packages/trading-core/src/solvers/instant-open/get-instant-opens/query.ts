@@ -1,11 +1,12 @@
+import type { SymmioSolverKind } from "../../../core/chains/types";
 import type { Config } from "../../../core/config";
 import type { Compute, ConfigKeyParameter, ExactPartial } from "../../../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../../../shared/types/query";
 import { filterQueryOptions } from "../../../shared/utils/query";
 import { getInstantOpens, type GetInstantOpensParameters, type GetInstantOpensReturnType } from "./get-instant-opens";
 
-/** Data resolved by the {@link getInstantOpensQueryOptions} query. */
-export type GetInstantOpensData = GetInstantOpensReturnType;
+/** Data resolved by the {@link getInstantOpensQueryOptions} query, generic over solver kind `K`. */
+export type GetInstantOpensData<K extends SymmioSolverKind = SymmioSolverKind> = GetInstantOpensReturnType<K>;
 
 /**
  * Build the TanStack Query key for {@link getInstantOpensQueryOptions}.
@@ -24,17 +25,18 @@ export type GetInstantOpensQueryKey = ReturnType<typeof getInstantOpensQueryKey>
 
 /**
  * Options accepted by {@link getInstantOpensQueryOptions}: the action's
- * parameters, an optional cache scope, and TanStack overrides.
+ * parameters (generic over solver kind `K`) and TanStack overrides.
  */
-export type GetInstantOpensOptions = Compute<
-  GetInstantOpensParameters & QueryParameter<GetInstantOpensData, Error, GetInstantOpensData, GetInstantOpensQueryKey>
+export type GetInstantOpensOptions<K extends SymmioSolverKind = SymmioSolverKind> = Compute<
+  GetInstantOpensParameters<K> &
+    QueryParameter<GetInstantOpensData<K>, Error, GetInstantOpensData<K>, GetInstantOpensQueryKey>
 >;
 
 /** TanStack Query options returned by {@link getInstantOpensQueryOptions}. */
-export type GetInstantOpensQueryOptions = SymmioQueryOptions<
-  GetInstantOpensData,
+export type GetInstantOpensQueryOptions<K extends SymmioSolverKind = SymmioSolverKind> = SymmioQueryOptions<
+  GetInstantOpensData<K>,
   Error,
-  GetInstantOpensData,
+  GetInstantOpensData<K>,
   GetInstantOpensQueryKey
 >;
 
@@ -57,10 +59,10 @@ export type GetInstantOpensQueryOptions = SymmioQueryOptions<
  * );
  * ```
  */
-export function getInstantOpensQueryOptions(
+export function getInstantOpensQueryOptions<K extends SymmioSolverKind = SymmioSolverKind>(
   config: Config,
-  options: GetInstantOpensOptions,
-): GetInstantOpensQueryOptions {
+  options: GetInstantOpensOptions<K>,
+): GetInstantOpensQueryOptions<K> {
   return {
     ...options.query,
     queryKey: getInstantOpensQueryKey({
@@ -69,7 +71,7 @@ export function getInstantOpensQueryOptions(
     }),
     enabled: options.query?.enabled ?? true,
     queryFn: () =>
-      getInstantOpens(config, {
+      getInstantOpens<K>(config, {
         chainId: options.chainId,
         solverId: options.solverId,
         partyA: options.partyA,

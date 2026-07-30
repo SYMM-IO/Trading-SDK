@@ -24,11 +24,33 @@ This package follows **wagmi's shape**: a single immutable config, passed as the
 
 Different solver **kinds** serve the **same logical endpoint** with **different response shapes** — different fields, optionality, value types, and even which fields exist. The generated clients expose those raw shapes; the SDK's job is to hide that divergence behind **one stable, documented contract** so consumers never branch on vendor quirks. Most per-solver reads hit this, so normalize every one the same way.
 
-**The shape of the pattern:** the public return type is a **discriminated union on `kind`** — one variant per solver over a shared base, with each solver's exclusive fields living only on its variant. Consumers narrow on `kind` to reach solver-specific data; a caller that targets a specific solver gets that variant directly. The raw vendor types stay internal.
+**The shape of the pattern:** implement a **shared base type**, then one variant per solver that `extends` it and adds only that solver's exclusive fields plus a `kind` discriminant, and union the variants. Consumers narrow on `kind` to reach solver-specific data; a caller that targets a specific solver gets that variant directly. The raw vendor types stay internal.
 
 **To add a new normalized per-solver endpoint:**
 
-1. **Define the normalized types** — a documented per-kind union plus its shared base. They are the public contract: hand-write them with field docs, keep them independent of the generated types, and keep them **central** (one `types.ts` — the union has to see every variant, so it never splits per solver).
+1. **Define the normalized types — a shared base + one variant per kind, unioned.** Write a base interface of the fields **every** kind returns; each kind's type `extends` it and adds a `kind` discriminant plus only that kind's exclusive fields; union them:
+
+   ```ts
+   interface BaseFoo {
+     /* fields both solvers return */
+   }
+   export interface EnigmaFoo extends BaseFoo {
+     kind: "enigma";
+     /* Enigma-only fields */
+   }
+   export interface RasaFoo extends BaseFoo {
+     kind: "rasa";
+     /* Rasa-only fields */
+   }
+   export type Foo = EnigmaFoo | RasaFoo;
+   export interface NormalizedFooByKind {
+     enigma: EnigmaFoo;
+     rasa: RasaFoo;
+   }
+   ```
+
+   A kind-exclusive field lives on **that variant only** — never as an optional field on a shared shape (`uuid?`). Do this **even when the two shapes are nearly identical** (one extra field): still use base + variants, not one shape with `field?`. Hand-write them with field docs, keep them independent of the generated types, and **central** (one `types.ts` — the union has to see every variant, so it never splits per solver).
+
 2. **Give each kind an adapter.** Under the action folder, add an `adapters/` directory with one module per kind (`adapters/enigma-<x>.ts`, `adapters/rasa-<x>.ts`). Each adapter owns that solver's whole fetch story for the endpoint — its client call(s) plus the mapping into the normalized shape (renaming, reconciling value-type conflicts, defaulting gaps, dropping unusable rows). All of one vendor's quirks live in its adapter, so solvers that diverge deeply — a different endpoint, several calls, distinct auth or paging — stay isolated from each other.
 3. **Dispatch from the action.** The action is generic over the kind: it resolves the target solver and calls that kind's adapter (exhaustively — a new kind must fail to compile until its adapter is wired in), then returns the normalized shape. Targeting a specific solver narrows the return to that variant; omitting the solver returns the union.
 4. **Carry the kind through** the query-options factory and the React hook so the narrowing reaches the caller.

@@ -5,6 +5,7 @@ import {
   type ConfigParameter,
   type GetInstantOpensOptions,
   type GetInstantOpensReturnType,
+  type SymmioSolverKind,
 } from "@symmio/trading-core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
@@ -15,12 +16,16 @@ import { useSymmioConfig } from "../provider/use-symmio-config";
 /**
  * Parameters for {@link useInstantOpens}: the core query options (partyA,
  * optional hedger `baseUrl`, chain id, TanStack `query` overrides incl.
- * `refetchInterval`) plus an optional `config`.
+ * `refetchInterval`) plus an optional `config`. Generic over the solver kind `K`.
  */
-export type UseInstantOpensParameters = GetInstantOpensOptions & ConfigParameter;
+export type UseInstantOpensParameters<K extends SymmioSolverKind = SymmioSolverKind> = GetInstantOpensOptions<K> &
+  ConfigParameter;
 
-/** Return type of {@link useInstantOpens}. */
-export type UseInstantOpensReturnType = UseQueryResult<GetInstantOpensReturnType, SymmioRequestError>;
+/** Return type of {@link useInstantOpens}, generic over the solver kind `K`. */
+export type UseInstantOpensReturnType<K extends SymmioSolverKind = SymmioSolverKind> = UseQueryResult<
+  GetInstantOpensReturnType<K>,
+  SymmioRequestError
+>;
 
 /**
  * Read a sub-account's pending instant-open records from one hedger, with
@@ -34,10 +39,12 @@ export type UseInstantOpensReturnType = UseQueryResult<GetInstantOpensReturnType
  * const { data } = useInstantOpens({ partyA, query: { refetchInterval: 3_000 } });
  * ```
  */
-export function useInstantOpens(parameters: UseInstantOpensParameters): UseInstantOpensReturnType {
+export function useInstantOpens<K extends SymmioSolverKind = SymmioSolverKind>(
+  parameters: UseInstantOpensParameters<K>,
+): UseInstantOpensReturnType<K> {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
-  const options = getInstantOpensQueryOptions(config, {
+  const options = getInstantOpensQueryOptions<K>(config, {
     ...parameters,
     chainId: parameters.chainId ?? chainId,
   });
@@ -51,5 +58,5 @@ export function useInstantOpens(parameters: UseInstantOpensParameters): UseInsta
         throw normalizeSymmError(err);
       }
     },
-  }) as UseInstantOpensReturnType;
+  }) as UseInstantOpensReturnType<K>;
 }

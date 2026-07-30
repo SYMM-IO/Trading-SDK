@@ -1,6 +1,6 @@
 import type { Address } from "viem";
 import type { PendingInstantClose } from "../solvers/instant-close/get-instant-closes/to-pending-instant-close";
-import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/to-pending-instant-open";
+import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/types";
 import { toWeiBigInt } from "../solvers/instant-open/shared/trade-math";
 import { QuoteStatus, type LockedValues, type Quote } from "../symmio-contracts/symmio/types";
 import { quoteOpenQuantity } from "./open-quantity";
