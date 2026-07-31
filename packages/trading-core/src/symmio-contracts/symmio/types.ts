@@ -1,4 +1,81 @@
 import type { Address, Hex } from "viem";
+import type { SchnorrSign } from "../account-layer/types";
+
+/**
+ * A Muon attestation covering a party's uPnL **and** a symbol price, mirrored
+ * from the on-chain `SingleUpnlAndPriceSig` struct field-for-field (same order)
+ * so the object encodes directly as the contract tuple without translation.
+ *
+ * @remarks
+ * This is the `upnlSig` argument of `sendQuoteWithAffiliateAndData`. Solvers
+ * that enforce Muon verification (Rasa / majors) require a live attestation
+ * here; the lowcap InstantLayer flow instead passes a placeholder and delegates
+ * the byte range to the solver. Fetch a fresh one with `getSendQuoteUpnlSig`
+ * immediately before signing — the attestation is timestamped and short-lived.
+ *
+ * Compare {@link SingleUpnlSig}, which is the uPnL-only variant (no `price`).
+ *
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/MuonStorage.sol}
+ */
+export interface SingleUpnlAndPriceSig {
+  /** Muon request id (opaque bytes). */
+  reqId: Hex;
+  /** Attestation timestamp (seconds). */
+  timestamp: bigint;
+  /** Signed unrealized PnL of the party, `int256` (may be negative). */
+  upnl: bigint;
+  /** Attested symbol price as 18-decimal fixed point. */
+  price: bigint;
+  /** Muon gateway signature over the request (opaque bytes). */
+  gatewaySignature: Hex;
+  /** The Schnorr TSS signature pieces. */
+  sigs: SchnorrSign;
+}
+
+/**
+ * A Muon attestation covering a symbol's price range over a time window,
+ * mirrored from the on-chain `HighLowPriceSig` struct field-for-field (same
+ * order) so the object encodes directly as the contract tuple without
+ * translation.
+ *
+ * @remarks
+ * This is what `forceClosePosition` / `settleAndForceClosePosition` verify to
+ * prove the market traded through the position's close price during the window.
+ * Fetch one with `getForceClosePriceSig`.
+ *
+ * **Field-order footgun:** `upnlPartyB` comes **before** `upnlPartyA`. Swapping
+ * them type-checks green (both are `bigint`) and silently mis-encodes the call.
+ *
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/MuonStorage.sol}
+ */
+export interface HighLowPriceSig {
+  /** Muon request id (opaque bytes). */
+  reqId: Hex;
+  /** Attestation timestamp (seconds). */
+  timestamp: bigint;
+  /** Symbol id the price range is for. */
+  symbolId: bigint;
+  /** Highest price observed in the window, 18-decimal fixed point. */
+  highest: bigint;
+  /** Lowest price observed in the window, 18-decimal fixed point. */
+  lowest: bigint;
+  /** Mean price over the window, 18-decimal fixed point (Muon returns it as `mean`). */
+  averagePrice: bigint;
+  /** Window start timestamp (seconds). */
+  startTime: bigint;
+  /** Window end timestamp (seconds). */
+  endTime: bigint;
+  /** PartyB's signed unrealized PnL, `int256`. Declared **before** `upnlPartyA`. */
+  upnlPartyB: bigint;
+  /** PartyA's signed unrealized PnL, `int256`. */
+  upnlPartyA: bigint;
+  /** Current price at attestation time, 18-decimal fixed point. */
+  currentPrice: bigint;
+  /** Muon gateway signature over the request (opaque bytes). */
+  gatewaySignature: Hex;
+  /** The Schnorr TSS signature pieces. */
+  sigs: SchnorrSign;
+}
 
 /**
  * Lifecycle status of a SYMMIO withdraw request.

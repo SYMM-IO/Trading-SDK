@@ -30,7 +30,7 @@ const VARS: PrepareInstantOpenParameters = {
   leverage: 5,
   slippage: 1,
 };
-const RESULT: InstantOpenReturnType = { success: true, tempQuoteId: "-1001" };
+const RESULT: InstantOpenReturnType = { kind: "enigma", success: true, tempQuoteId: "-1001" };
 
 /** `predicateMatch` only reads `query.queryKey`, so a minimal stub cast to `Query` is enough. */
 function queryWith(key: QueryKey): Query<unknown, Error, unknown, QueryKey> {

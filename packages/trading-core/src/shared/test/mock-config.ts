@@ -1,4 +1,4 @@
-import type { Account, Address, Chain, Hash, PublicClient } from "viem";
+import type { Account, Address, Chain, Hash, Hex, PublicClient } from "viem";
 import { vi, type Mock } from "vitest";
 import { SymmioSupportedChainId } from "../../core/chains";
 import { createConfig, type Config, type SymmioWalletClient } from "../../core/config";
@@ -6,10 +6,18 @@ import type { WebSocketConstructor } from "../types/websocket";
 
 /** Deterministic test EOA. Public, never used on a real chain. */
 export const TEST_USER: Address = "0x1111111111111111111111111111111111111111";
-/** Deterministic, non-zero test affiliate address (createConfig requires one). */
-export const TEST_AFFILIATE_ADDRESS: Address = "0x000000000000000000000000000000000000aFF1";
+/**
+ * Deterministic, non-zero test affiliate address (createConfig requires one).
+ *
+ * Checksummed on purpose: write paths that ABI-encode the affiliate (the
+ * instant-open quote calldata) go through viem's address validation, which
+ * rejects a mis-cased address.
+ */
+export const TEST_AFFILIATE_ADDRESS: Address = "0x000000000000000000000000000000000000AfF1";
 /** Deterministic test transaction hash returned by the stub wallet client. */
 export const TEST_TX_HASH: Hash = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+/** Deterministic EIP-712 signature returned by the stub wallet client. */
+export const TEST_TYPED_SIGNATURE: Hex = `0x${"ab".repeat(65)}`;
 
 /** What {@link mockConfig} returns: a real {@link Config} plus its stubbed viem fns. */
 export interface MockConfigResult {
@@ -17,6 +25,8 @@ export interface MockConfigResult {
   readContract: Mock;
   writeContract: Mock;
   simulateContract: Mock;
+  /** Stub EIP-712 signer — instant-layer write paths sign operations through this. */
+  signTypedData: Mock;
 }
 
 /**
@@ -39,6 +49,7 @@ export function mockConfig(options?: {
   const readContract = vi.fn().mockResolvedValue([]);
   const writeContract = vi.fn().mockResolvedValue(TEST_TX_HASH);
   const simulateContract = vi.fn().mockResolvedValue({ result: undefined, request: {} });
+  const signTypedData = vi.fn().mockResolvedValue(TEST_TYPED_SIGNATURE);
 
   const publicClient = { readContract, simulateContract } as unknown as PublicClient;
   const account = { address: TEST_USER, type: "json-rpc" } as Account;
@@ -46,6 +57,7 @@ export function mockConfig(options?: {
     account,
     chain: { id: SymmioSupportedChainId.HYPER_EVM } as Chain,
     writeContract,
+    signTypedData,
   } as unknown as SymmioWalletClient;
 
   const config = createConfig({
@@ -56,5 +68,5 @@ export function mockConfig(options?: {
     webSocketConstructor: options?.webSocketConstructor,
   });
 
-  return { config, readContract, writeContract, simulateContract };
+  return { config, readContract, writeContract, simulateContract, signTypedData };
 }

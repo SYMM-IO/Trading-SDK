@@ -2,7 +2,7 @@
 
 React hooks over the [Core Muon](../../core/muon) slice. Fetch Muon-attested signature payloads (UPNL, price, price range, partyA overview) reactively — most consumers reach for these when preparing on-chain writes that require a Muon signature (`deallocate`, settlement).
 
-**Every hook on this page is a [read](../concepts/hook-pattern#reads).** Muon has no writes — the on-chain writes that consume these signatures live on their own slices (see [SYMMIO Contract](../symmio-contract)).
+**Every hook on this page is a mutation, not a query.** Muon attestations are timestamped and short-lived, so they must be fetched on an explicit action rather than eagerly on mount — call `mutateAsync(...)` with the action's inputs as the mutation variables. The on-chain writes that consume these signatures live on their own slices (see [SYMMIO Contract](../symmio-contract)).
 
 ## Import
 
@@ -17,7 +17,43 @@ import {
   useMuonUpnlAWithSymbolPrice,
   useMuonSettleUpnl,
   useMuonPartyAOverview,
+  useDeallocateUpnlSig,
+  useSendQuoteUpnlSig,
+  useForceClosePriceSig,
 } from "@symmio/trading-react";
+```
+
+## Contract signatures
+
+The three `…Sig` hooks return **contract-ready structs** rather than raw attestations, so their results pass straight into the matching write. The corresponding write hooks (`useRemoveMargin`, `useInstantOpen`) already fetch these internally — reach for them only when you drive the calldata yourself.
+
+### `useDeallocateUpnlSig`
+
+A `uPnl_A` attestation assembled into the `SingleUpnlSig` that `removeMargin` / `deallocate` require.
+
+```ts
+const { mutateAsync } = useDeallocateUpnlSig();
+const upnlSig = await mutateAsync({ virtualAccount });
+```
+
+### `useSendQuoteUpnlSig`
+
+A `uPnl_A_withSymbolPrice` attestation assembled into the `SingleUpnlAndPriceSig` that `sendQuote` requires. Solvers enforcing Muon verification need a live one; the lowcap flow signs a placeholder instead.
+
+```ts
+const { mutateAsync } = useSendQuoteUpnlSig();
+const upnlSig = await mutateAsync({ partyA: subAccount, symbolId: 1n });
+```
+
+The signature is signed **inside** the quote calldata, so it must be fetched immediately before signing — never from cache.
+
+### `useForceClosePriceSig`
+
+A `priceRange` attestation assembled into the `HighLowPriceSig` that `forceClosePosition` verifies.
+
+```ts
+const { mutateAsync } = useForceClosePriceSig();
+const sig = await mutateAsync({ partyA, partyB: solverAddress, symbolId: 1n, t0, t1 });
 ```
 
 ## Price attestations

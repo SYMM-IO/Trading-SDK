@@ -1,3 +1,4 @@
+import type { SolverId } from "../../../core/chains/types";
 import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
 import { getMarkets } from "../../markets/get-markets";
@@ -8,6 +9,12 @@ import type { ResolvedMarket } from "./types";
  */
 export interface ResolveMarketParameters {
   chainId?: number;
+  /**
+   * Solver whose `/contract-symbols` listing to read. **Must match the solver
+   * the trade is sent to** — the resolved `name` and precisions are encoded into
+   * the signed quote. Defaults to the chain's `defaultSolverId`.
+   */
+  solverId?: SolverId;
   marketId: number;
   marketName?: string;
   pricePrecision?: number;
@@ -31,7 +38,7 @@ export async function resolveMarket(config: Config, parameters: ResolveMarketPar
     return { name: marketName, pricePrecision, quantityPrecision };
   }
 
-  const markets = await getMarkets(config, { chainId: parameters.chainId });
+  const markets = await getMarkets(config, { chainId: parameters.chainId, solverId: parameters.solverId });
   const match = markets.find((m) => m.symbolId === parameters.marketId);
   if (!match) {
     throw new SymmError(

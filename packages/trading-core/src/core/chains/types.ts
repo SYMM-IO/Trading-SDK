@@ -87,6 +87,16 @@ export interface SymmioSolverConfig {
   url: string;
   /** Optional TP/SL handler — solver supports conditional orders only when set. */
   tpsl?: SymmioTpSlConfig;
+  /**
+   * Price source for **this solver's** markets. Falls back to the chain's
+   * {@link SymmioChainConfig.priceService} when omitted, so set it only where a
+   * solver diverges from the chain default — do not duplicate the default.
+   *
+   * Needed because a chain may register several solvers that price differently:
+   * a lowcap solver reads its own price service while a majors solver reads
+   * Binance. A single chain-level value cannot be right for both.
+   */
+  priceService?: SymmioPriceServiceConfig;
 }
 
 /**
@@ -119,19 +129,49 @@ export interface SymmioTpSlConfig {
 }
 
 /**
- * Supported price-service providers.
+ * The price providers the SDK ships a client for. Closed: it drives exhaustive
+ * dispatch in `getMarkPrices` / `watchPrices`, and `createConfig` validates every
+ * configured price service against it (`assertSupportedPriceServiceType` in
+ * `price-service-support.ts`). To add a provider, append it here and ship its
+ * adapter + dispatch in the same change.
+ *
+ * @internal
  */
-export type SymmioPriceServiceType = "enigma";
+export const SUPPORTED_PRICE_SERVICE_TYPES = ["enigma", "binance"] as const;
+
+/**
+ * Supported price-service providers.
+ *
+ * A **second, independent axis** from {@link SymmioSolverKind}: a Rasa solver is
+ * priced off Binance today, and nothing in the type system ties the two
+ * together. The provider is *derived* from `{ chainId, solverId }` via
+ * `solver.priceService ?? chain.priceService` — never selected per call.
+ */
+export type SymmioPriceServiceType = (typeof SUPPORTED_PRICE_SERVICE_TYPES)[number];
 
 /**
  * Price-service configuration for a SYMMIO chain deployment.
+ *
+ * Both URLs stay **required, including for Binance**. Binance's endpoints are
+ * public constants, but keeping them in config is the geo-restriction escape
+ * hatch: an integrator whose users are in a blocked region repoints both at
+ * their own proxy with no SDK change.
  */
 export interface SymmioPriceServiceConfig {
-  /** Price-service provider type */
+  /** Price-service provider type. Selects which client the SDK uses. */
   type: SymmioPriceServiceType;
-  /** Price-service API base URL */
+  /**
+   * REST host root, no trailing slash — the client appends the provider's path.
+   * `enigma`: `https://lowcap-price.enigma.bz` (+ `/api/v1/prices/names`).
+   * `binance`: `https://fapi.binance.com` (+ `/fapi/v1/premiumIndex`).
+   */
   url: string;
-  /** WebSocket URL for live mark-price broadcasts. */
+  /**
+   * **Full** WebSocket endpoint — the exact URL the SDK dials, identically for
+   * every provider, so nothing downstream needs to know which provider it holds.
+   * `enigma`: `wss://lowcap-price.enigma.bz/ws`.
+   * `binance`: `wss://fstream.binance.com/market/ws/!markPrice@arr@1s`.
+   */
   wsUrl: string;
 }
 

@@ -605,17 +605,96 @@ export type { SocketStatus } from "./websocket/socket";
 /**
  * Price-service stream
  * --------------------
- * `watchEnigmaPrices` subscribes to the chain's Enigma lowcap price WebSocket
- * and delivers parsed `EnigmaPriceTick` batches. Broadcast-only — no subscribe
- * message; watchers sharing the same `wsUrl` share one socket.
+ * `watchPrices` is the provider-agnostic entry point: it subscribes to whichever
+ * live feed serves the resolved solver and delivers `MarkPriceTick` batches, so
+ * a positions table or trade ticket never branches on provider.
+ *
+ * `watchEnigmaPrices` / `watchBinancePrices` are the provider-specific twins for
+ * callers that already know their source. All are broadcast-only — no subscribe
+ * message; watchers sharing the same `wsUrl` share one socket, and a per-watcher
+ * `names` filter is applied after parsing so filters never starve siblings.
  */
 export {
+  parseBinancePriceFrame,
   parsePriceFrame,
+  watchBinancePrices,
   watchEnigmaPrices,
+  watchPrices,
   type EnigmaPriceTick,
   type RawEnigmaPriceFrame,
+  type WatchBinancePricesParameters,
   type WatchEnigmaPricesParameters,
+  type WatchPricesParameters,
 } from "./websocket/prices";
+/**
+ * Mark prices
+ * -----------
+ * `getMarkPrices` reads a one-shot snapshot from whichever price provider serves
+ * the resolved solver — Enigma's lowcap service, or Binance USD-M Futures for
+ * major markets. The provider is derived from `{ chainId, solverId }` via
+ * `solver.priceService ?? chain.priceService`; it is never selected per call.
+ *
+ * `MarkPriceTick` is a discriminated union on `provider`: read `name` /
+ * `markPrice` without narrowing, and narrow to reach provider-specific fields
+ * such as Binance's `indexPrice`.
+ */
+/**
+ * Binance-only price reads
+ * ------------------------
+ * The provider-specific twins of the Enigma price-service family, for callers
+ * that already know their source. Each throws `UNSUPPORTED_BY_PRICE_SERVICE`
+ * when the resolved provider is not Binance.
+ */
+export {
+  getBinanceHealth,
+  getBinanceHealthQueryKey,
+  getBinanceHealthQueryOptions,
+  getBinancePremiumIndex,
+  getBinancePremiumIndexQueryKey,
+  getBinancePremiumIndexQueryOptions,
+  getBinanceSymbolsInfo,
+  getBinanceSymbolsInfoQueryKey,
+  getBinanceSymbolsInfoQueryOptions,
+} from "./price-service/binance";
+export type {
+  BinanceExchangeSymbol,
+  GetBinanceHealthData,
+  GetBinanceHealthOptions,
+  GetBinanceHealthParameters,
+  GetBinanceHealthQueryKey,
+  GetBinanceHealthQueryOptions,
+  GetBinanceHealthReturnType,
+  GetBinancePremiumIndexData,
+  GetBinancePremiumIndexOptions,
+  GetBinancePremiumIndexParameters,
+  GetBinancePremiumIndexQueryKey,
+  GetBinancePremiumIndexQueryOptions,
+  GetBinancePremiumIndexReturnType,
+  GetBinanceSymbolsInfoData,
+  GetBinanceSymbolsInfoOptions,
+  GetBinanceSymbolsInfoParameters,
+  GetBinanceSymbolsInfoQueryKey,
+  GetBinanceSymbolsInfoQueryOptions,
+  GetBinanceSymbolsInfoReturnType,
+  RawBinanceExchangeInfo,
+  RawBinanceMarkPriceFrame,
+  RawBinancePremiumIndexRow,
+} from "./price-service/binance";
+export { getMarkPrices, getMarkPricesQueryKey, getMarkPricesQueryOptions } from "./price-service/get-mark-prices";
+export type {
+  GetMarkPricesData,
+  GetMarkPricesOptions,
+  GetMarkPricesParameters,
+  GetMarkPricesQueryKey,
+  GetMarkPricesQueryOptions,
+  GetMarkPricesReturnType,
+} from "./price-service/get-mark-prices";
+export type {
+  BinanceMarkPriceTick,
+  EnigmaMarkPriceTick,
+  MarkPriceTick,
+  NormalizedMarkPriceByProvider,
+} from "./price-service/types";
 /**
  * Notifications search
  * --------------------
@@ -938,11 +1017,21 @@ export {
 } from "./solvers/error-codes";
 
 /**
+ * Muon attestation structs mirrored from the SYMMIO diamond
+ * ---------------------------------------------------------
+ * The contract-ready tuples the Muon assemblers below produce.
+ * {@link SingleUpnlSig} (uPnL only) is exported with the AccountLayer slice.
+ */
+export type { HighLowPriceSig, SingleUpnlAndPriceSig } from "./symmio-contracts/symmio";
+
+/**
  * Muon oracle service
  * -------------------
- * Fetch the Muon `uPnl_A` attestation `removeMargin` requires, assembled into a
- * contract-ready `SingleUpnlSig`. The gateway is a query-param REST endpoint
- * with no OpenAPI spec, so its request/response types are hand-written.
+ * Fetch the Muon attestations the contracts require, assembled into
+ * contract-ready structs (`SingleUpnlSig` for `removeMargin`,
+ * `SingleUpnlAndPriceSig` for `sendQuote`, `HighLowPriceSig` for force-close).
+ * The gateway is a query-param REST endpoint with no OpenAPI spec, so its
+ * request/response types are hand-written.
  */
 export {
   MUON_APP,
@@ -959,6 +1048,10 @@ export {
   getDeallocateUpnlSig,
   getDeallocateUpnlSigQueryKey,
   getDeallocateUpnlSigQueryOptions,
+  // priceRange assembled into the contract-ready HighLowPriceSig (for force-close)
+  getForceClosePriceSig,
+  getForceClosePriceSigQueryKey,
+  getForceClosePriceSigQueryOptions,
   getMuonPartyAOverview,
   getMuonPartyAOverviewQueryKey,
   getMuonPartyAOverviewQueryOptions,
@@ -987,12 +1080,22 @@ export {
   getMuonUpnlWithSymbolPrice,
   getMuonUpnlWithSymbolPriceQueryKey,
   getMuonUpnlWithSymbolPriceQueryOptions,
+  // uPnl_A_withSymbolPrice assembled into the contract-ready SingleUpnlAndPriceSig (for sendQuote)
+  getSendQuoteUpnlSig,
+  getSendQuoteUpnlSigQueryKey,
+  getSendQuoteUpnlSigQueryOptions,
   type GetDeallocateUpnlSigData,
   type GetDeallocateUpnlSigOptions,
   type GetDeallocateUpnlSigParameters,
   type GetDeallocateUpnlSigQueryKey,
   type GetDeallocateUpnlSigQueryOptions,
   type GetDeallocateUpnlSigReturnType,
+  type GetForceClosePriceSigData,
+  type GetForceClosePriceSigOptions,
+  type GetForceClosePriceSigParameters,
+  type GetForceClosePriceSigQueryKey,
+  type GetForceClosePriceSigQueryOptions,
+  type GetForceClosePriceSigReturnType,
   type GetMuonPartyAOverviewData,
   type GetMuonPartyAOverviewOptions,
   type GetMuonPartyAOverviewParameters,
@@ -1047,6 +1150,12 @@ export {
   type GetMuonUpnlWithSymbolPriceQueryKey,
   type GetMuonUpnlWithSymbolPriceQueryOptions,
   type GetMuonUpnlWithSymbolPriceReturnType,
+  type GetSendQuoteUpnlSigData,
+  type GetSendQuoteUpnlSigOptions,
+  type GetSendQuoteUpnlSigParameters,
+  type GetSendQuoteUpnlSigQueryKey,
+  type GetSendQuoteUpnlSigQueryOptions,
+  type GetSendQuoteUpnlSigReturnType,
   type MuonAttestationBase,
   type MuonRawResult,
   type MuonResponse,
@@ -1146,6 +1255,8 @@ export {
   resolveMarket,
   // hedger api
   sendInstantOpen,
+  sendQuoteUpnlSigFlexRange,
+  sendRasaInstantOpen,
   signAndFormatInstantOperation,
   signSignedOperation,
   toWeiBigInt,
@@ -1160,6 +1271,7 @@ export {
   type EncodeAddMarginToNextVAParameters,
   type EncodeSendQuoteWithAffiliateAndDataParameters,
   type EnigmaInstantOpen,
+  type EnigmaInstantOpenResult,
   type FlexField,
   // instant-open read types
   type GetInstantOpenQuoteIdData,
@@ -1179,6 +1291,7 @@ export {
   type InstantOpenMarketData,
   type InstantOpenOrder,
   type InstantOpenParameters,
+  type InstantOpenResultByKind,
   type InstantOpenReturnType,
   type InstantOperationPayload,
   type NormalizedInstantOpenByKind,
@@ -1186,6 +1299,7 @@ export {
   type PrepareInstantOpenParameters,
   type QuoteConstraintViolation,
   type RasaInstantOpen,
+  type RasaInstantOpenResult,
   type ReplayAttackHeader,
   type ResolveFeeRatesParameters,
   type ResolveLockedParamsParameters,
@@ -1195,6 +1309,9 @@ export {
   type ResolvedMarket,
   type SendInstantOpenParameters,
   type SendInstantOpenReturnType,
+  type SendQuoteUpnlSigFlexRange,
+  type SendRasaInstantOpenParameters,
+  type SendRasaInstantOpenReturnType,
   type SignAndFormatInstantOperationParameters,
   type SignedOperation,
   type SignedOperationPayload,

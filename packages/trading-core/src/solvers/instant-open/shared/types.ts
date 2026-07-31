@@ -1,6 +1,6 @@
 import type { Address, Hex } from "viem";
 import type { InstantLayerAccount } from "../../../symmio-contracts/instant-layer/types";
-import { PositionType } from "../../../symmio-contracts/symmio/types";
+import { PositionType, type SingleUpnlAndPriceSig } from "../../../symmio-contracts/symmio/types";
 
 /**
  * Re-export the canonical trade-side enum (defined in
@@ -62,29 +62,14 @@ export function isolationTypeForSide(positionType: PositionType): VirtualAccount
  * Muon oracle signature accepted by `sendQuoteWithAffiliateAndData`.
  *
  * For lowcap flows, pass `ZERO_UPNL_SIG` or build a placeholder with
- * `getFakeSendQuoteMuonSignature`.
+ * `getFakeSendQuoteMuonSignature`. Solvers that enforce Muon verification
+ * (Rasa / majors) need a live attestation from `getSendQuoteUpnlSig`.
+ *
+ * @deprecated Renamed to {@link SingleUpnlAndPriceSig} to match the on-chain
+ * struct name. This alias is kept for one release and will be removed in the
+ * next major.
  */
-export interface UpnlSig {
-  /** Request id (typically `0x` for lowcap). */
-  reqId: Hex;
-  /** Unix-seconds timestamp. */
-  timestamp: bigint;
-  /** Signed unrealized PnL. */
-  upnl: bigint;
-  /** Mark price encoded as 18-decimal fixed point. */
-  price: bigint;
-  /** Gateway signature bytes. */
-  gatewaySignature: Hex;
-  /** Inner Muon signature tuple. */
-  sigs: {
-    /** Aggregated signature scalar. */
-    signature: bigint;
-    /** Owner address. */
-    owner: Address;
-    /** Nonce address. */
-    nonce: Address;
-  };
-}
+export type UpnlSig = SingleUpnlAndPriceSig;
 
 /**
  * InstantLayer EIP-712 `ReplayAttackHeader` struct.

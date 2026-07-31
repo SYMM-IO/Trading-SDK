@@ -90,20 +90,36 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     },
     defaultSolverId: "rasa",
     // ── PLACEHOLDER services (HyperEVM values) ──────────────────────────────
-    // Base does not have its own subgraphs / price service / notifications / muon
-    // yet. These point at HyperEVM's endpoints so the config is complete and the
-    // SDK compiles/runs; they return HyperEVM data, NOT Base data. Replace each
-    // block with Base's real endpoint as that service is integrated — one at a time.
+    // Base does not have its own subgraphs / notifications yet. These point at
+    // HyperEVM's endpoints so the config is complete and the SDK compiles/runs;
+    // they return HyperEVM data, NOT Base data. Replace each block with Base's
+    // real endpoint as that service is integrated — one at a time.
     subgraphs: {
       analytics:
         "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_mainnet_analytics/latest/gn",
       events:
         "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_mainnet_events/latest/gn",
     },
+    // Rasa serves majors and has no mark-price feed of its own — no REST mark
+    // price, no mark-price WebSocket, no index price. Binance USD-M Futures is
+    // the price source, matching how the reference UI configures this solver.
+    //
+    // Both URLs are public constants but stay in config on purpose: they are the
+    // escape hatch for Binance's regional restrictions, so an integrator whose
+    // users are blocked repoints them at their own proxy with no SDK change.
     priceService: {
-      type: "enigma",
-      url: "https://lowcap-price.enigma.bz",
-      wsUrl: "wss://lowcap-price.enigma.bz/ws",
+      type: "binance",
+      /** USD-M Futures REST root. The client appends `/fapi/v1/…`. */
+      url: "https://fapi.binance.com",
+      /**
+       * All-symbols mark-price broadcast, 1 push/sec.
+       *
+       * The `/market/ws/` prefix is deliberate and was verified against the live
+       * endpoint: Binance's *documented* `/ws/<stream>` form (and
+       * `/stream?streams=`) connect and then never push a frame, which would ship
+       * a feed that reports `open` and silently never ticks.
+       */
+      wsUrl: "wss://fstream.binance.com/market/ws/!markPrice@arr@1s",
     },
     notifications: {
       url: "wss://notification.rasa.capital/ws/v1/subscribe",
@@ -111,6 +127,10 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
       protocol: "defilytics",
       searchUrl: "https://notification.rasa.capital/notification",
     },
+    // Muon is deployment-agnostic: one `symmio` app on one shared gateway set
+    // serves every SYMMIO deployment, and the per-deployment input is the
+    // `symmio` request param (this chain's diamond, from `addresses` above).
+    // So these are Base's real gateways, not a HyperEVM stand-in.
     muon: {
       urls: [
         "https://muon-oracle1.rasa.capital/v1/",

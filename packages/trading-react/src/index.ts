@@ -521,9 +521,61 @@ export { useMarketInfo, type UseMarketInfoParameters, type UseMarketInfoReturnTy
 export { useFeeForUser, type UseFeeForUserParameters, type UseFeeForUserReturnType } from "./fees";
 
 /**
- * Price-service hooks
- * -------------------
- * Read Enigma price-service prices, metadata, symbols info, and health.
+ * Mark-price hooks
+ * ----------------
+ * Provider-agnostic prices: each of these resolves whichever price provider
+ * serves the target solver — Enigma's lowcap service, or Binance USD-M Futures
+ * for major markets — so a component never branches on provider.
+ *
+ * `usePrices` subscribes to the live feed and returns both the ergonomic
+ * `prices` map and the full `ticks` map (narrow on `provider` for Binance's
+ * `indexPrice`). `usePriceByName` tracks one market with re-render gating.
+ * `useMarkPrices` is the one-shot REST read.
+ *
+ * Pass `names` on Binance: its stream pushes every listed symbol once per
+ * second, and the filter is what keeps that from churning your component tree.
+ */
+export {
+  useMarkPrices,
+  usePriceByName,
+  usePrices,
+  type UseMarkPricesParameters,
+  type UseMarkPricesReturnType,
+  type UsePriceByNameParameters,
+  type UsePriceByNameReturnType,
+  type UsePricesParameters,
+  type UsePricesRestFallback,
+  type UsePricesReturnType,
+} from "./price-service";
+
+/**
+ * Binance-only price hooks
+ * ------------------------
+ * Provider-specific twins of the mark-price hooks, for callers that already know
+ * their source. Every tick is a `BinanceMarkPriceTick`, so `indexPrice` and the
+ * Binance funding fields are reachable without narrowing. Each surfaces
+ * `UNSUPPORTED_BY_PRICE_SERVICE` when the target solver is not priced by Binance.
+ */
+export {
+  useBinanceHealth,
+  useBinancePremiumIndex,
+  useBinancePrices,
+  useBinanceSymbolsInfo,
+  type UseBinanceHealthParameters,
+  type UseBinanceHealthReturnType,
+  type UseBinancePremiumIndexParameters,
+  type UseBinancePremiumIndexReturnType,
+  type UseBinancePricesParameters,
+  type UseBinancePricesReturnType,
+  type UseBinanceSymbolsInfoParameters,
+  type UseBinanceSymbolsInfoReturnType,
+} from "./price-service";
+
+/**
+ * Price-service hooks (Enigma-specific)
+ * -------------------------------------
+ * Read Enigma price-service prices, metadata, symbols info, and health. These
+ * throw `UNSUPPORTED_BY_PRICE_SERVICE` on a chain whose provider is not Enigma.
  */
 export {
   useEnigmaPriceByMarketId,
@@ -579,11 +631,19 @@ export {
 /**
  * Muon hooks
  * ----------
- * Fetch the Muon uPnL signature `removeMargin` requires, on demand. `useRemoveMargin`
- * already does this internally; use this hook only for the raw signature.
+ * Fetch Muon attestations on demand. The three `…Sig` hooks return
+ * contract-ready structs (`SingleUpnlSig` for `removeMargin`,
+ * `SingleUpnlAndPriceSig` for `sendQuote`, `HighLowPriceSig` for force-close);
+ * the `useMuon…` hooks return the raw normalized attestations. `useRemoveMargin`
+ * and `useInstantOpen` already fetch their signatures internally — reach for
+ * these only when you drive the calldata yourself.
+ *
+ * All of them are **mutations**, not queries: attestations are timestamped and
+ * short-lived, so they must be fetched on an explicit action, not on mount.
  */
 export {
   useDeallocateUpnlSig,
+  useForceClosePriceSig,
   useMuonPartyAOverview,
   useMuonPrice,
   useMuonPriceRange,
@@ -593,8 +653,11 @@ export {
   useMuonUpnlAWithSymbolPrice,
   useMuonUpnlB,
   useMuonUpnlWithSymbolPrice,
+  useSendQuoteUpnlSig,
   type UseDeallocateUpnlSigParameters,
   type UseDeallocateUpnlSigReturnType,
+  type UseForceClosePriceSigParameters,
+  type UseForceClosePriceSigReturnType,
   type UseMuonPartyAOverviewParameters,
   type UseMuonPartyAOverviewReturnType,
   type UseMuonPriceParameters,
@@ -613,6 +676,8 @@ export {
   type UseMuonUpnlReturnType,
   type UseMuonUpnlWithSymbolPriceParameters,
   type UseMuonUpnlWithSymbolPriceReturnType,
+  type UseSendQuoteUpnlSigParameters,
+  type UseSendQuoteUpnlSigReturnType,
 } from "./muon";
 
 /**

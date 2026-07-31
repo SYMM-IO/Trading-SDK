@@ -3,6 +3,7 @@ import { SymmError } from "../../shared/errors/symm-error";
 import type { DeepPartial } from "../../shared/types/properties";
 import type { WebSocketConstructor } from "../../shared/types/websocket";
 import {
+  assertSupportedPriceServiceType,
   assertSupportedSolver,
   resolveSolver,
   type SolverId,
@@ -280,12 +281,21 @@ export function createConfig(parameters: CreateConfigParameters): Config {
    * Validate every configured solver up front: `assertSupportedSolver` throws
    * for an unknown `kind`, so a config can never point at a solver the SDK has
    * no client for (fail-fast, like the affiliate check above).
+   *
+   * The same applies to price providers, on both levels they can appear: the
+   * chain-level block and any solver-nested override.
    */
   for (const id of chainIds) {
-    for (const solverId of Object.keys(chainConfigs[id]!.solvers)) {
+    const chainConfig = chainConfigs[id]!;
+
+    assertSupportedPriceServiceType(id, chainConfig.priceService.type);
+
+    for (const [solverId, solver] of Object.entries(chainConfig.solvers)) {
       assertSupportedSolver(id, solverId);
+      if (solver?.priceService) assertSupportedPriceServiceType(id, solver.priceService.type, solverId);
     }
   }
+
   function getChainConfig(chainId?: number): SymmioChainConfig {
     const id = chainId ?? resolvedDefaultChainId;
     const config = chainConfigs[id];
