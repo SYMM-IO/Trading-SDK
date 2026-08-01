@@ -11,6 +11,8 @@ export interface CalculateQuoteLeverageParameters {
   quantity: bigint;
   /** Quote's requested open price (used as the notional reference price). */
   requestedOpenPrice: bigint;
+  /** Settled open price (wei) — fallback reference used only when `requestedOpenPrice` is `0`. */
+  openedPrice?: bigint;
   /** Locked-margin legs (partyA + partyB) committed when the quote opened. */
   lockedValues: { cva: bigint; lf: bigint; partyAmm: bigint; partyBmm: bigint };
 }
@@ -18,7 +20,9 @@ export interface CalculateQuoteLeverageParameters {
 /**
  * Quote leverage as a decimal string.
  *
- * `leverage = quantity × requestedOpenPrice / (CVA + LF + partyAMM + partyBMM)`.
+ * `leverage = quantity × (requestedOpenPrice ?? openedPrice) / (CVA + LF + partyAMM + partyBMM)`
+ * — the requested open price is the reference; the settled `openedPrice` steps in
+ * only when the requested price is `0`.
  *
  * Returns `"0"` when the locked-margin sum is zero (i.e. the quote has no
  * partyA-locked collateral on record yet) or when any input is non-finite.
@@ -33,8 +37,10 @@ export interface CalculateQuoteLeverageParameters {
  * ```
  */
 export function calculateQuoteLeverage(parameters: CalculateQuoteLeverageParameters): string {
+  const referencePriceWei =
+    parameters.requestedOpenPrice !== 0n ? parameters.requestedOpenPrice : (parameters.openedPrice ?? 0n);
   const quantity = Number(formatUnits(parameters.quantity, WEI_DECIMALS));
-  const requestedOpenPrice = Number(formatUnits(parameters.requestedOpenPrice, WEI_DECIMALS));
+  const referencePrice = Number(formatUnits(referencePriceWei, WEI_DECIMALS));
   const lockedSum = Number(
     formatUnits(
       parameters.lockedValues.cva +
@@ -44,9 +50,9 @@ export function calculateQuoteLeverage(parameters: CalculateQuoteLeverageParamet
       WEI_DECIMALS,
     ),
   );
-  if (!Number.isFinite(quantity) || !Number.isFinite(requestedOpenPrice) || !Number.isFinite(lockedSum)) return "0";
+  if (!Number.isFinite(quantity) || !Number.isFinite(referencePrice) || !Number.isFinite(lockedSum)) return "0";
   if (lockedSum === 0) return "0";
-  const leverage = (quantity * requestedOpenPrice) / lockedSum;
+  const leverage = (quantity * referencePrice) / lockedSum;
   if (!Number.isFinite(leverage)) return "0";
   return String(leverage);
 }

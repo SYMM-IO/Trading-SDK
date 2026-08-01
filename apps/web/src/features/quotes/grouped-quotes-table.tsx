@@ -2,6 +2,7 @@
 import { WEI_DECIMALS } from "@/lib/format";
 import type { QuoteGroup } from "@symmio/trading-core";
 import { PositionType, QuoteLifecycle } from "@symmio/trading-core";
+import { useAccountBalanceInfo } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
@@ -33,9 +34,15 @@ function formatLeverage(raw?: bigint): string {
   return raw === undefined ? EMPTY : `${formatTokenAmount(raw, WEI_DECIMALS, { maxFractionDigits: 2 })}×`;
 }
 
-/** Sum of the partyA-locked margin legs a group displays (CVA + LF), wei. */
-function groupMargin(group: QuoteGroup): bigint {
-  return group.metrics.lockedValues.cva + group.metrics.lockedValues.lf;
+/**
+ * Margin cell: a group's margin is the `allocatedBalance` of its Virtual
+ * Account (`balanceInfoOfPartyA`), not a sum over its quotes' locked legs.
+ * Shows {@link EMPTY} while the group has no anchored VA yet or the balance is
+ * still loading; `live` keeps it fresh across settles.
+ */
+function GroupMarginCell({ group }: { group: QuoteGroup }) {
+  const balanceInfo = useAccountBalanceInfo({ account: group.vaAddress, live: true });
+  return <>{formatOptionalFixedPoint(balanceInfo.data?.allocatedBalance)}</>;
 }
 
 /**
@@ -205,31 +212,32 @@ function buildColumns(marketNameById: Map<string, string>): DataTableColumn<Quot
       cellClassName: "text-foreground font-mono",
     },
     {
-      id: "notional",
+      id: "initialNotional",
       header: (
         <CalculatedHeader
-          label="Notional"
-          formula="Notional = Σ (openQty × price) across the group — the position's notional value at its open price."
+          label="Initial notional"
+          formula="Initial notional = Σ (quantity × initialOpenedPrice, else requestedOpenPrice) across the group — the frozen at-open notional; partial closes do not shrink it."
         />
       ),
       align: "end",
       widthClassName: NUMERIC_COLUMN_WIDTH,
-      cell: (group) => formatFixedPoint(group.metrics.notional),
-      sortAccessor: (group) => Number(group.metrics.notional),
+      // Optional formatter on purpose: a stale SDK build without the field must render "—", not crash the sidebar.
+      cell: (group) => formatOptionalFixedPoint(group.metrics.initialNotional),
+      sortAccessor: (group) => Number(group.metrics.initialNotional),
       cellClassName: "text-muted-foreground font-mono",
     },
     {
       id: "margin",
       header: (
         <CalculatedHeader
-          label="Margin (cva+lf)"
-          formula="Margin = Σ CVA + Σ LF locked across the group's quotes (the partyA collateral at risk, excluding maintenance margin)."
+          label="Margin"
+          formula="Margin = allocatedBalance of the group's Virtual Account (balanceInfoOfPartyA) — the collateral allocated to the VA backing these positions."
         />
       ),
       align: "end",
       widthClassName: NUMERIC_COLUMN_WIDTH,
-      cell: (group) => formatFixedPoint(groupMargin(group)),
-      sortAccessor: (group) => Number(groupMargin(group)),
+      // Per-row on-chain read — no sync sortAccessor, so the column is not sortable.
+      cell: (group) => <GroupMarginCell group={group} />,
       cellClassName: "text-muted-foreground font-mono",
     },
     {
@@ -237,7 +245,7 @@ function buildColumns(marketNameById: Map<string, string>): DataTableColumn<Quot
       header: (
         <CalculatedHeader
           label="Leverage"
-          formula="Leverage = notional ÷ Σ (CVA + LF + partyAMM) — the group's blended leverage against its partyA-locked margin."
+          formula="Leverage = Σ (quantity × requestedOpenPrice) ÷ Σ (CVA + LF + partyAMM + partyBMM) — the group's blended opening leverage against its initial locked margin."
         />
       ),
       align: "end",

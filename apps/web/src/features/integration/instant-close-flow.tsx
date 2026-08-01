@@ -9,6 +9,7 @@ import {
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
   VIRTUAL_ACCOUNT_ISOLATION_TYPE,
   useGrantDelegation,
+  useGroupedQuotes,
   useIsDelegationActive,
   useOnchainContractMarkets,
   usePartyAOpenPositions,
@@ -27,6 +28,7 @@ import { formatUnits, zeroAddress, type Address } from "viem";
 import { WalletPanel } from "../inspector/wallet-panel";
 import { ClosePositionStep, type ClosablePosition } from "./close-position-step";
 import { FlowRail, type FlowStep } from "./flow-rail";
+import { GroupCloseStep } from "./group-close-step";
 import { SubaccountStep } from "./subaccount-step";
 
 const WEI_DECIMALS = 18;
@@ -54,6 +56,8 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
 
   const [virtualAccount, setVirtualAccount] = useState<Address>();
   const [selectedQuoteId, setSelectedQuoteId] = useState<bigint>();
+  /** When on, the picked position's whole market + side cohort closes as one. */
+  const [groupMode, setGroupMode] = useState(false);
 
   // Reset the VA + position picks whenever the subaccount changes.
   useEffect(() => {
@@ -106,6 +110,24 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
   );
   const selectedPosition = useMemo(() => positions.find((p) => p.id === selectedQuoteId), [positions, selectedQuoteId]);
 
+  // Group mode: fold the VA's quotes into market + side groups and pick the one
+  // containing the selected position — its quantities concatenate into one total.
+  const groupedQuotes = useGroupedQuotes({
+    partyA: virtualAccount,
+    enabled: groupMode && Boolean(virtualAccount),
+    includeVirtualAccounts: false,
+  });
+  // The group to close: the one containing an explicitly picked position, else
+  // the VA's first group (a lowcap VA is isolated per market + side, so there
+  // is normally exactly one).
+  const selectedGroup = useMemo(() => {
+    const byPick =
+      selectedQuoteId === undefined
+        ? undefined
+        : groupedQuotes.groups.find((group) => group.quotes.some((quote) => quote.quoteId === selectedQuoteId));
+    return byPick ?? groupedQuotes.groups[0];
+  }, [groupedQuotes.groups, selectedQuoteId]);
+
   // Step gating: 0 connect → 1 subaccount → 2 VA → 3 session-key → 4 delegation → 5 position → 6 close
   const maxStep = !ready
     ? 0
@@ -117,7 +139,7 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
           ? 3
           : !delegationActive
             ? 4
-            : !selectedPosition
+            : !selectedPosition && !groupMode
               ? 5
               : 6;
 
@@ -161,10 +183,14 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
     },
     {
       label: "Pick position",
-      hint: selectedPosition ? `Quote #${selectedPosition.id.toString()}` : "Choose a position",
-      done: Boolean(selectedPosition),
+      hint: groupMode
+        ? "Skipped — group close"
+        : selectedPosition
+          ? `Quote #${selectedPosition.id.toString()}`
+          : "Choose a position",
+      done: Boolean(selectedPosition) || groupMode,
     },
-    { label: "Close", hint: "Configure and submit", done: false },
+    { label: "Close", hint: groupMode ? "Close the whole group" : "Configure and submit", done: false },
   ];
 
   return (
@@ -216,7 +242,28 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
               setSelectedQuoteId(id);
               setStep(6);
             }}
+            groupMode={groupMode}
+            onToggleGroupMode={(on) => {
+              setGroupMode(on);
+              // Group close needs no single position — jump straight to the close step.
+              if (on) setStep(6);
+            }}
           />
+        ) : groupMode ? (
+          selectedGroup ? (
+            <GroupCloseStep
+              group={selectedGroup}
+              sessionKey={sessionKey!}
+              subAccount={subAccount!}
+              onRefresh={() => void positionsQuery.refetch()}
+              isRefreshing={positionsQuery.isRefetching}
+              idPrefix="integration-instant-close"
+            />
+          ) : (
+            <ResultNote testId="integration-instant-close-group-loading" loading>
+              Folding the VA&apos;s positions into a group…
+            </ResultNote>
+          )
         ) : (
           <ClosePositionStep
             partyA={virtualAccount!}
@@ -527,6 +574,26 @@ function DelegationPrompt({
 // Step 5 — Position picker
 // ---------------------------------------------------------------------------
 
+/** Inline "stacked layers" glyph for the group-close toggle (apps/web uses inline SVG, never lucide). */
+function LayersIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-3.5"
+      aria-hidden
+    >
+      <path d="m12 2 8.5 4.5L12 11 3.5 6.5 12 2Z" />
+      <path d="m3.5 12 8.5 4.5 8.5-4.5" />
+      <path d="m3.5 17 8.5 4.5 8.5-4.5" />
+    </svg>
+  );
+}
+
 function PositionPickerStep({
   virtualAccount,
   positions,
@@ -536,6 +603,8 @@ function PositionPickerStep({
   onRefetch,
   selected,
   onSelect,
+  groupMode,
+  onToggleGroupMode,
 }: {
   virtualAccount?: Address;
   positions: ClosablePosition[];
@@ -545,6 +614,8 @@ function PositionPickerStep({
   onRefetch: () => void;
   selected?: bigint;
   onSelect: (id: bigint) => void;
+  groupMode: boolean;
+  onToggleGroupMode: (on: boolean) => void;
 }) {
   if (!virtualAccount) {
     return <ResultNote testId="instant-close-positions-empty">Pick a virtual account first.</ResultNote>;
@@ -569,7 +640,21 @@ function PositionPickerStep({
       <span className="text-muted-foreground text-xs">
         {positions.length} position{positions.length === 1 ? "" : "s"}
       </span>
-      <RefetchButton isRefetching={isRefetching} onClick={onRefetch} testId="instant-close-positions-retry" />
+      <span className="flex items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant={groupMode ? "default" : "outline"}
+          onClick={() => onToggleGroupMode(!groupMode)}
+          disabled={positions.length === 0}
+          data-testid="instant-close-group-toggle"
+          className="gap-1.5"
+        >
+          <LayersIcon />
+          Group close
+        </Button>
+        <RefetchButton isRefetching={isRefetching} onClick={onRefetch} testId="instant-close-positions-retry" />
+      </span>
     </div>
   );
   if (positions.length === 0) {
@@ -584,6 +669,12 @@ function PositionPickerStep({
   return (
     <div className="flex flex-col gap-3">
       {header}
+      {groupMode ? (
+        <ResultNote testId="instant-close-group-note">
+          Group close is on — every quote of the same market and side closes together, their quantities concatenated
+          into one total. No single position pick needed.
+        </ResultNote>
+      ) : null}
       <div className="grid grid-cols-1 gap-2" data-testid="instant-close-positions-list">
         {positions.map((p) => {
           const active = p.id === selected;

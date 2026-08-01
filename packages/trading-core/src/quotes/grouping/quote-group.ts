@@ -84,14 +84,19 @@ export interface QuoteGroupMetrics {
    * optimistic open) — render a loading state in that case.
    */
   weightedOpenPrice?: bigint;
-  /** Σ initial notional (`openQuantity × price`) across children, wei. */
-  notional: bigint;
+  /**
+   * Σ frozen at-open notional (`quantity × (initialOpenedPrice ?? requestedOpenPrice)`)
+   * across children, wei. Partial closes do not shrink it.
+   */
+  initialNotional: bigint;
   /** Σ of each {@link LockedValues} leg (`cva`, `lf`, `partyAmm`, `partyBmm`) across children, wei. */
   lockedValues: LockedValues;
   /**
-   * Blended leverage as an 18-decimal fixed-point `bigint` (e.g. `2.5x →
-   * 2_500000000000000000n`): `notional / (Σ cva + lf + partyAmm)`. `undefined`
-   * when the locked partyA margin is `0` (nothing to leverage against).
+   * Blended opening leverage as an 18-decimal fixed-point `bigint` (e.g. `2.5x →
+   * 2_500000000000000000n`): `Σ(quantity × (requestedOpenPrice ?? openedPrice)) /
+   * Σ(cva + lf + partyAmm + partyBmm)`, each child using its frozen
+   * `initialLockedValues` (else `lockedValues`). `undefined` when that locked
+   * margin is `0` (nothing to leverage against).
    */
   leverage?: bigint;
 }
