@@ -32,6 +32,7 @@ export {
   SymmApiError,
   SymmError,
   VIRTUAL_ACCOUNT_ISOLATION_TYPE,
+  calculateAvailableForOrder,
   calculateAvailableInstantOpenMargin,
   calculateClosePrice,
   calculatePriceImpact,
@@ -41,6 +42,7 @@ export {
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
   isolationTypeForSide,
+  supportsEstimatedPrice,
   validateInstantCloseAgainstMarket,
   validateInstantOpenAgainstMarket,
   type CalculateAvailableInstantOpenMarginParameters,
@@ -380,8 +382,10 @@ export {
  */
 export {
   useAccountLiquidationPrice,
+  useAccountUpnl,
   useGroupedQuotes,
   useManagedQuotes,
+  useOffchainPendingLocked,
   useOptimisticQuotesStore,
   usePartyAOpenPositions,
   usePartyAPendingQuotes,
@@ -399,10 +403,14 @@ export {
   type QuotesFundingInputQuote,
   type UseAccountLiquidationPriceParameters,
   type UseAccountLiquidationPriceReturnType,
+  type UseAccountUpnlParameters,
+  type UseAccountUpnlReturnType,
   type UseGroupedQuotesParameters,
   type UseGroupedQuotesResult,
   type UseManagedQuotesParameters,
   type UseManagedQuotesResult,
+  type UseOffchainPendingLockedParameters,
+  type UseOffchainPendingLockedReturnType,
   type UsePartyAOpenPositionsParameters,
   type UsePartyAOpenPositionsReturnType,
   type UsePartyAPendingQuotesParameters,
@@ -529,7 +537,8 @@ export { useFeeForUser, type UseFeeForUserParameters, type UseFeeForUserReturnTy
  *
  * `usePrices` subscribes to the live feed and returns both the ergonomic
  * `prices` map and the full `ticks` map (narrow on `provider` for Binance's
- * `indexPrice`). `usePriceByName` tracks one market with re-render gating.
+ * `indexPrice`). `usePriceByName` tracks one market with re-render gating;
+ * `usePriceByMarketId` does the same from a solver `symbol_id`.
  * `useMarkPrices` is the one-shot REST read.
  *
  * Pass `names` on Binance: its stream pushes every listed symbol once per
@@ -537,10 +546,13 @@ export { useFeeForUser, type UseFeeForUserParameters, type UseFeeForUserReturnTy
  */
 export {
   useMarkPrices,
+  usePriceByMarketId,
   usePriceByName,
   usePrices,
   type UseMarkPricesParameters,
   type UseMarkPricesReturnType,
+  type UsePriceByMarketIdParameters,
+  type UsePriceByMarketIdReturnType,
   type UsePriceByNameParameters,
   type UsePriceByNameReturnType,
   type UsePricesParameters,

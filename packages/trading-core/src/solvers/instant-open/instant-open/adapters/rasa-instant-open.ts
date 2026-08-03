@@ -73,7 +73,9 @@ export async function submitRasaInstantOpen(
 
   const response = await sendRasaInstantOpen(config, {
     chainId: context.chainId,
-    solverId: "rasa",
+    // The resolved solver's own id — never a hardcoded kind, so a differently-id'd
+    // solver of the same kind can never be re-resolved onto the wrong endpoint.
+    solverId: solver.id,
     sendQuote,
   });
 

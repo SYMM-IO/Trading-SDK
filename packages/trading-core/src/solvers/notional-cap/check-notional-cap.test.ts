@@ -28,11 +28,20 @@ describe("checkNotionalCap", () => {
     });
   });
 
-  it("skips the check for a Rasa cap (no per-side availability)", () => {
+  it("accepts a trade that fits within a Rasa cap's market-wide remaining capacity", () => {
     const rasaCap: RasaNotionalCap = { kind: "rasa", totalCap: 1000, used: 200 };
-    expect(checkNotionalCap({ positionType: PositionType.LONG, notional: "999999", cap: rasaCap })).toEqual({
-      ok: true,
-    });
+    expect(checkNotionalCap({ positionType: PositionType.LONG, notional: "800", cap: rasaCap })).toEqual({ ok: true });
+  });
+
+  it("rejects a trade exceeding a Rasa cap's remaining capacity (totalCap − used), either side", () => {
+    const rasaCap: RasaNotionalCap = { kind: "rasa", totalCap: 1000, used: 200 };
+    for (const positionType of [PositionType.LONG, PositionType.SHORT]) {
+      expect(checkNotionalCap({ positionType, notional: "801", cap: rasaCap })).toMatchObject({
+        ok: false,
+        kind: "CAP_REACHED",
+        available: 800,
+      });
+    }
   });
 
   it("rejects a long trade whose notional exceeds availableToLong", () => {

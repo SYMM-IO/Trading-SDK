@@ -94,7 +94,9 @@ export async function submitEnigmaInstantOpen(
 
   const response = await sendInstantOpen(config, {
     chainId: context.chainId,
-    solverId: "enigma",
+    // The resolved solver's own id — never a hardcoded kind, so a differently-id'd
+    // solver of the same kind can never be re-resolved onto the wrong endpoint.
+    solverId: solver.id,
     request: { addMargin, sendQuote },
   });
 

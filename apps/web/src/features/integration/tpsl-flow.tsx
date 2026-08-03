@@ -8,11 +8,11 @@ import {
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
   SymmioRequestError,
   useDeleteQuoteTpSl,
-  useEnigmaPriceByMarketId,
   useGrantDelegation,
   useIsDelegationActive,
   useMarkets,
   usePartyAOpenPositions,
+  usePriceByMarketId,
   useQuoteTpSl,
   useSetQuoteTpSl,
   useSymmioConfig,
@@ -530,7 +530,7 @@ function SetTpSlStep({
   const remainingQty = position.quantity - position.closedAmount;
   const openedPriceDecimal = formatUnits(position.openedPrice, WEI_DECIMALS);
 
-  const priceQuery = useEnigmaPriceByMarketId({ marketId: position.symbolId });
+  const priceQuery = usePriceByMarketId({ marketId: position.symbolId });
   const markPriceDecimal = priceQuery.markPrice ?? "";
 
   const current = useQuoteTpSl({ quoteId: position.id, account: subAccount });

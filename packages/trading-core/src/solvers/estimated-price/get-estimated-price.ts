@@ -3,6 +3,7 @@ import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { PositionType } from "../../symmio-contracts/symmio/types";
+import { assertSolverKind } from "../assert-solver-kind";
 import { getEstimatedPrice as requestEstimatedPrice } from "../types/generated/enigma-solver";
 import { toEstimatedPrice } from "./to-estimated-price";
 
@@ -74,6 +75,7 @@ export async function getEstimatedPrice(
   parameters: GetEstimatedPriceParameters,
 ): Promise<GetEstimatedPriceReturnType> {
   const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
+  assertSolverKind(solver, "enigma", "getEstimatedPrice");
   try {
     const response = await requestEstimatedPrice(
       {

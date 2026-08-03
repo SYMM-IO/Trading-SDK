@@ -28,6 +28,7 @@ export * from "./actions/simulate-deposit-for-account";
 export * from "./actions/simulate-edit-account-name";
 export * from "./actions/simulate-remove-margin";
 export * from "./actions/simulate-request-to-register-affiliate";
+export * from "./calculate-available-for-order";
 export * from "./query/add-margin";
 export * from "./query/cancel-registration";
 export * from "./query/create-sub-accounts";

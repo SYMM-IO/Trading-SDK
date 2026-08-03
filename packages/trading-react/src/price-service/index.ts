@@ -11,5 +11,6 @@ export * from "./use-enigma-price-service-prices-by-names";
 export * from "./use-enigma-price-service-symbols-info";
 export * from "./use-enigma-prices";
 export * from "./use-mark-prices";
+export * from "./use-price-by-market-id";
 export * from "./use-price-by-name";
 export * from "./use-prices";
