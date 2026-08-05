@@ -1,6 +1,6 @@
 # parseTpSlFrame
 
-Parse a raw defilytics frame into a [`TpSlNotification`](/core/tpsl/tpsl-notification), or `null` when the frame isn't a `report` (control frames, malformed JSON, missing payload, or wrong shape). [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) calls this on every inbound message; call it directly to parse frames you receive on your own socket.
+Parse a raw enigma frame into a [`TpSlNotification`](/core/tpsl/tpsl-notification), or `null` when the frame isn't a `report` (control frames, malformed JSON, missing payload, or wrong shape). [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) calls this on every inbound message; call it directly to parse frames you receive on your own socket.
 
 The wire shape is single-wrapped — the `data` field **is** the payload, not a nested envelope:
 

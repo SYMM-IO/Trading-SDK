@@ -5,6 +5,7 @@ import {
   listSupportedChains,
   type SolverId,
   type SymmioChainConfig,
+  type SymmioNotificationsConfig,
   type SymmioPriceServiceConfig,
   type SymmioSolverConfig,
   type SymmioTpSlConfig,
@@ -49,7 +50,7 @@ function mergeChainConfig(base: SymmioChainConfig, override: DeepPartial<SymmioC
     solvers: mergeSolvers(base.chainId, base.solvers, override.solvers),
     defaultSolverId: override.defaultSolverId ?? base.defaultSolverId,
     priceService: mergePriceService(base.chainId, base.priceService, override.priceService),
-    notifications: { ...base.notifications, ...override.notifications },
+    notifications: mergeNotifications(base.chainId, base.notifications, override.notifications),
     muon: {
       /** `urls` is replaced wholesale when overridden, otherwise inherited from base. */
       urls: override.muon?.urls ?? base.muon.urls,
@@ -87,6 +88,57 @@ function mergePriceService(
       "PRICE_SERVICE_OVERRIDE_INCOMPLETE",
       `createConfig: the priceService override for chain ${chainId} changes type from "${base.type}" to "${override.type}" but omits ${override.url === undefined ? "`url`" : "`wsUrl`"}. Supply both URLs when switching provider — inheriting the previous provider's endpoints would point the "${override.type}" client at "${base.type}" hosts.`,
     );
+  }
+  return merged;
+}
+
+/**
+ * Merge a notifications override onto its base.
+ *
+ * Same trap as {@link mergePriceService}: once the config is a per-protocol
+ * union, an override that switches `protocol` without restating the endpoint
+ * would inherit the *previous* protocol's fields — a `rasa → enigma` swap
+ * without a `channel` (or either swap without a `url`) type-checks as a
+ * `DeepPartial` and fails at runtime. So a `protocol` swap must supply the
+ * whole block; a same-protocol override still merges field-by-field.
+ *
+ * A swap takes the override block **alone** — nothing is inherited, including
+ * the optional `searchUrl` (the previous protocol's REST search service does
+ * not index the new protocol's stream).
+ *
+ * @throws {SymmError} `NOTIFICATIONS_OVERRIDE_INCOMPLETE` when the override
+ *   changes `protocol` but omits `url`, or targets `enigma` without a
+ *   `channel`.
+ */
+function mergeNotifications(
+  chainId: number,
+  base: SymmioNotificationsConfig,
+  override: DeepPartial<SymmioNotificationsConfig> | undefined,
+): SymmioNotificationsConfig {
+  if (!override) return base;
+
+  const swapsProtocol = override.protocol !== undefined && override.protocol !== base.protocol;
+  if (swapsProtocol) {
+    const missing =
+      override.url === undefined
+        ? "`url`"
+        : override.protocol === "enigma" && (override as { channel?: string }).channel === undefined
+          ? "`channel`"
+          : null;
+    if (missing) {
+      throw new SymmError(
+        "config",
+        "NOTIFICATIONS_OVERRIDE_INCOMPLETE",
+        `createConfig: the notifications override for chain ${chainId} changes protocol from "${base.protocol}" to "${override.protocol}" but omits ${missing}. Supply the whole block when switching protocol — inheriting the previous protocol's fields would point the "${override.protocol}" subscriber at "${base.protocol}" endpoints.`,
+      );
+    }
+    return { ...override } as SymmioNotificationsConfig;
+  }
+
+  const merged = { ...base, ...override } as SymmioNotificationsConfig;
+  if (merged.protocol === "rasa") {
+    // A cast override could still sneak a `channel` key onto the rasa variant.
+    delete (merged as { channel?: string }).channel;
   }
   return merged;
 }

@@ -3,7 +3,7 @@ import type { Config } from "../../core/config";
 import { resolvePriceService } from "../../price-service/resolve-price-service";
 import type { MarkPriceTick } from "../../price-service/types";
 import { SymmError } from "../../shared/errors/symm-error";
-import type { Unwatch } from "../notifications/watch-notifications";
+import type { Unwatch } from "../notifications/types";
 import type { SocketStatus } from "../socket/socket-status";
 import { watchBinancePrices } from "./watch-binance-prices";
 import { watchEnigmaPrices } from "./watch-enigma-prices";

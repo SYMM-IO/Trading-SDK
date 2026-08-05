@@ -169,7 +169,7 @@ const infra = solver.notifications ?? chainConfig.notifications;
 
 This is deliberately a hybrid rather than a forced move. Some infrastructure genuinely is shared across solvers (a Muon oracle set), and some genuinely is not (a notification stream). Forcing everything under the solver would duplicate shared endpoints and invent a taxonomy that does not match reality.
 
-The single-value unions `SymmioPriceServiceType = "enigma"` and `SymmioNotificationsProtocol = "defilytics"` are the widening seams for a second solver's protocol; adding members is non-breaking.
+The closed unions `SymmioPriceServiceType = "enigma" | "binance"` and `SymmioNotificationsProtocol = "enigma" | "rasa"` are the widening seams for a further solver's protocol; adding members is non-breaking. Both have already widened once — each member has its own adapter and an exhaustive dispatch arm, so a new member fails to compile until its adapter is wired in.
 
 ### 3.5 Query plumbing — the real hazard is `queryFn`, not `queryKey`
 

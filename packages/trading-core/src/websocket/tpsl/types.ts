@@ -2,7 +2,7 @@ import type { TpSlConditionalOrderType } from "../../tpsl/types";
 
 /**
  * Wire shape of one report frame from the TP/SL notifications WS, after the
- * defilytics envelope is unwrapped.
+ * enigma envelope is unwrapped.
  */
 export interface RawTpSlNotification {
   app_name?: string;

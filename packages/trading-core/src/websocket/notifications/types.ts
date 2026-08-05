@@ -1,47 +1,120 @@
+import type { Address } from "viem";
+import type { SymmError } from "../../shared/errors/symm-error";
+import type { SocketStatus } from "../socket/socket-status";
+
 /**
- * Raw position-state notification frame as it arrives on the wire (snake_case),
- * mirroring the hedger/solver payload. Consumers normally receive the
- * normalized {@link Notification}; the raw frame is retained on it as `raw`.
- *
- * The endpoint omits fields that do not apply to a given frame (e.g. an
- * `InstantRFQ` report carries no `id`), so almost every field is optional;
- * {@link normalizeNotification} fills sensible defaults.
+ * Stop a {@link watchNotifications} subscription. Idempotent; the shared socket
+ * closes once the last watcher on an endpoint releases.
  */
-export interface RawPositionNotification {
+export type Unwatch = () => void;
+
+/**
+ * Parameters for `watchNotifications`.
+ */
+export interface WatchNotificationsParameters {
+  /** SubAccount address to subscribe for. */
+  account: Address;
+  /** Target chain id. Defaults to the config's `defaultChainId`. */
+  chainId?: number;
+  /** Called for every normalized notification frame. */
+  onNotification: (notification: Notification) => void;
+  /** Called whenever the underlying connection status changes. */
+  onStatusChange?: (status: SocketStatus) => void;
+  /** Called on a transport or parse error; does not stop the subscription. */
+  onError?: (error: SymmError) => void;
+}
+
+/**
+ * Fields every notifications wire returns, snake_case as they arrive. The
+ * endpoints omit fields that do not apply to a given frame (e.g. an
+ * `InstantRFQ` report carries no `id`), so almost every field is optional;
+ * {@link normalizeNotification} fills sensible defaults and reconciles the
+ * per-wire value quirks.
+ *
+ * Amount/price fields are typed to the **widest** wire form here (`number |
+ * string | null`) because that is what covers every wire: the rasa endpoint
+ * sends a numeric `0` for "no value", the enigma endpoint only ever sends a
+ * decimal string. Only fields **exclusive** to one wire live on the variants
+ * below.
+ */
+interface RawPositionNotificationBase {
   id?: string;
-  /** On-chain quote id, or `0` while the order is still off-chain. */
+  /** On-chain quote id — `0` (enigma) or the negative temp id (rasa) while the order is still off-chain. */
   quote_id?: number;
   /** Negative placeholder id assigned before the on-chain quote id exists. */
   temp_quote_id?: number;
   create_time?: number;
   modify_time?: number;
   counterparty_address?: string;
-  /** SubAccount address the notification belongs to. */
+  /**
+   * SubAccount address the notification belongs to. On the enigma wire it is
+   * hoisted from the envelope; rasa frames do not carry it — the watcher
+   * stamps it from its own subscription.
+   */
   address?: string;
-  /** Solver-assigned Virtual Account address (lowcap), when present. */
-  va_address?: string;
-  filled_amount_open?: string | null;
-  filled_amount_close?: string | null;
+  /**
+   * Filled base amount on the open leg. Decimal string when present (enigma
+   * always; rasa on a `report`); numeric `0` on a rasa `alert` duplicate;
+   * absent/`null` otherwise. Same for the three fields below.
+   */
+  filled_amount_open?: number | string | null;
+  filled_amount_close?: number | string | null;
+  avg_price_open?: number | string | null;
+  avg_price_close?: number | string | null;
   /** Last solver action seen for this quote (e.g. `SendQuoteTransaction`). */
   last_seen_action?: string | null;
   /** `success` | `failed` | `seen`. */
   action_status?: string | null;
   failure_type?: string | null;
-  failure_message?: string | null;
   error_code?: number | null;
   /** `report` | `alert`. */
   state_type?: string | null;
-  version?: number;
-  avg_price_open?: string;
-  avg_price_close?: string;
 }
 
 /**
- * Envelope used by the `defilytics` endpoint: the notification is nested under
+ * Raw frame as the enigma (channel-scoped) endpoint sends it, after the
+ * `{ data, address }` envelope unwrap. Adds the fields only this wire carries;
+ * on this wire the shared amount/price fields are always decimal strings (or
+ * `null`/absent), never numbers.
+ */
+export interface RawEnigmaPositionNotification extends RawPositionNotificationBase {
+  /** Solver-assigned Virtual Account address (lowcap), when present. */
+  va_address?: string;
+  failure_message?: string | null;
+  version?: number;
+}
+
+/**
+ * Raw frame as the rasa position-state endpoint sends it, bare (no envelope).
+ * Wire quirks, preserved as-is (the shared {@link normalizeNotification}
+ * reconciles them):
+ *
+ * - the shared amount/price fields are the numeric `0` when the frame carries
+ *   no value (an `alert` duplicate) and a decimal **string** when it does (a
+ *   `report`);
+ * - there is no `address` / `va_address` on the wire — the SubAccount arrives
+ *   as `counterparty_address` only, and `quote_id` equals the negative
+ *   `temp_quote_id` until the on-chain id is assigned.
+ */
+export interface RawRasaPositionNotification extends RawPositionNotificationBase {
+  /** Order type discriminant the rasa wire attaches (e.g. `1`). */
+  order_type?: number;
+}
+
+/**
+ * Raw position-state notification frame as it arrives on the wire — one
+ * variant per notifications protocol. Consumers normally receive the
+ * normalized {@link Notification}; the wire-faithful frame is retained on it
+ * as `raw`.
+ */
+export type RawPositionNotification = RawEnigmaPositionNotification | RawRasaPositionNotification;
+
+/**
+ * Envelope used by the `enigma` endpoint: the notification is nested under
  * `data`, with the SubAccount address hoisted to the top level.
  */
-export interface DefilyticsNotificationEnvelope {
-  data: RawPositionNotification;
+export interface EnigmaNotificationEnvelope {
+  data: RawEnigmaPositionNotification;
   address: string;
 }
 

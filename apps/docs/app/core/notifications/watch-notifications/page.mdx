@@ -2,7 +2,12 @@
 
 Subscribe to live position/quote state notifications for one account.
 
-Opens (or reuses) one reconnecting socket to the chain's notifications endpoint, sends the subscribe frame on every (re)connect, normalizes inbound frames into [`Notification`](/core/notifications/notification)s, and invokes your handlers. Watchers sharing the same endpoint and account share one socket; it closes when the last one unwatches.
+Opens (or reuses) one reconnecting socket to the chain's notifications endpoint, sends the subscribe frame on every (re)connect, normalizes inbound frames into [`Notification`](/core/notifications/notification)s, and invokes your handlers. Socket sharing follows the endpoint's wire protocol — the call site is identical either way:
+
+- **`enigma`** (HyperEVM lowcap): watchers sharing the same endpoint and account share one socket.
+- **`rasa`** (Base position-state): every account multiplexes onto one socket per endpoint — the subscribe frame carries the full address list, and each watcher receives only its own account's frames, with `notification.account` stamped from the subscription (the rasa wire only carries `counterparty_address`).
+
+Either way, the socket closes when the last watcher unwatches.
 
 This is a subscribe function, not a query — there are no query options. For a React binding, use the [`useNotifications`](/react/notifications) hook.
 

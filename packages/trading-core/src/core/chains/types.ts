@@ -120,7 +120,7 @@ export interface SymmioResolvedSolver extends SymmioSolverConfig {
 export interface SymmioTpSlConfig {
   /** Handler REST root URL (no `/api/v5/` suffix — orval-generated paths add it). */
   url: string;
-  /** Handler WebSocket URL — defilytics-protocol notifications scoped by `appName`. */
+  /** Handler WebSocket URL — enigma-protocol notifications scoped by `appName`. */
   wsUrl: string;
   /** `App-Name` header value, e.g. `Hyper-EVM_COH-Low-Cap_Production`. */
   appName: string;
@@ -176,27 +176,25 @@ export interface SymmioPriceServiceConfig {
 }
 
 /**
- * Wire protocol a notifications endpoint speaks.
+ * Wire protocol a notifications endpoint speaks. Closed: it drives exhaustive
+ * dispatch in `watchNotifications` / `parseNotificationFrame`; to add a
+ * protocol, append it here and ship its subscribe + parse path in the same
+ * change.
  *
- * - `defilytics` — the lowcap solver endpoint (`…/ws/v1/subscribe`). Subscribes
+ * - `enigma` — the lowcap solver endpoint (`…/ws/v1/subscribe`). Subscribes
  *   with a `channel_patterns` frame and wraps each push as `{ data, address }`.
+ * - `rasa` — the Rasa position-state endpoint (`…/ws/position-state-ws3`).
+ *   Subscribes with an `{ address: [...] }` frame (one socket can carry many
+ *   SubAccounts) and pushes bare notification frames, no envelope.
  */
-export type SymmioNotificationsProtocol = "defilytics";
+export type SymmioNotificationsProtocol = "enigma" | "rasa";
 
 /**
- * Notifications WebSocket configuration for a SYMMIO chain deployment.
- *
- * The notifications endpoint streams position/quote state transitions (instant
- * open/close confirmations, fills, cancels, liquidations) for a SubAccount. It
- * is a push channel, not a REST endpoint — `url` is a `ws://`/`wss://` URL.
+ * Fields every notifications endpoint shares, regardless of wire protocol.
  */
-export interface SymmioNotificationsConfig {
+interface SymmioNotificationsConfigBase {
   /** Notifications WebSocket URL (`wss://…`). */
   url: string;
-  /** Channel / `app_name` the subscribe frame targets on this endpoint. */
-  channel: string;
-  /** Wire protocol the endpoint speaks. */
-  protocol: SymmioNotificationsProtocol;
   /**
    * Base URL of the notification REST service that backs `searchNotifications`
    * (`POST /api/v1/search`), e.g. `https://notification.rasa.capital/notification`.
@@ -204,6 +202,37 @@ export interface SymmioNotificationsConfig {
    */
   searchUrl?: string;
 }
+
+/**
+ * Notifications endpoint speaking the `enigma` protocol (the lowcap
+ * solver's channel-scoped stream).
+ */
+export interface SymmioEnigmaNotificationsConfig extends SymmioNotificationsConfigBase {
+  /** Wire protocol the endpoint speaks. */
+  protocol: "enigma";
+  /** Channel / `app_name` the subscribe frame targets on this endpoint. */
+  channel: string;
+}
+
+/**
+ * Notifications endpoint speaking the `rasa` position-state protocol. No
+ * channel — the subscribe frame is just the watched SubAccount addresses.
+ */
+export interface SymmioRasaNotificationsConfig extends SymmioNotificationsConfigBase {
+  /** Wire protocol the endpoint speaks. */
+  protocol: "rasa";
+}
+
+/**
+ * Notifications WebSocket configuration for a SYMMIO chain deployment.
+ *
+ * The notifications endpoint streams position/quote state transitions (instant
+ * open/close confirmations, fills, cancels, liquidations) for a SubAccount. It
+ * is a push channel, not a REST endpoint — `url` is a `ws://`/`wss://` URL.
+ * Discriminated on `protocol`; narrow to reach protocol-specific fields
+ * (e.g. the enigma `channel`).
+ */
+export type SymmioNotificationsConfig = SymmioEnigmaNotificationsConfig | SymmioRasaNotificationsConfig;
 
 /**
  * Muon oracle configuration for a SYMMIO chain deployment.

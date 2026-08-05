@@ -1,15 +1,21 @@
 # RawPositionNotification
 
-The raw position-state notification frame as it arrives on the wire (snake_case), mirroring the hedger/solver payload. Consumers normally receive the normalized [`Notification`](/core/notifications/notification); the raw frame is retained on it as `raw`.
+The raw position-state notification frame as it arrives on the wire (snake_case), mirroring the hedger/solver payload — **one variant per notifications protocol**, unioned:
 
-The endpoint omits fields that do not apply to a given frame (for example an `InstantRFQ` report carries no `id`), so almost every field is optional; [`normalizeNotification`](/core/notifications/normalize-notification) fills sensible defaults.
+```ts
+type RawPositionNotification = RawEnigmaPositionNotification | RawRasaPositionNotification;
+```
 
-## Fields
+Consumers normally receive the normalized [`Notification`](/core/notifications/notification); the wire-faithful frame is retained on it as `raw`. The endpoints omit fields that do not apply to a given frame (for example an `InstantRFQ` report carries no `id`), so almost every field is optional; [`normalizeNotification`](/core/notifications/normalize-notification) fills sensible defaults and reconciles the per-wire value quirks.
+
+## Shared fields (both variants)
+
+Fields both wires return. Amount/price fields are typed to the widest wire form (`number | string | null`) — rasa sends a numeric `0` for "no value", enigma only ever a decimal string. Only fields **exclusive** to one wire live on the variants.
 
 <Properties>
   <Property name="id" type="string" optional />
   <Property name="quote_id" type="number" optional>
-    On-chain quote id, or `0` while the order is still off-chain.
+    On-chain quote id — `0` (enigma) or the negative temp id (rasa) while the order is still off-chain.
   </Property>
   <Property name="temp_quote_id" type="number" optional>
     Negative placeholder id assigned before the on-chain quote id exists.
@@ -18,13 +24,16 @@ The endpoint omits fields that do not apply to a given frame (for example an `In
   <Property name="modify_time" type="number" optional />
   <Property name="counterparty_address" type="string" optional />
   <Property name="address" type="string" optional>
-    SubAccount address the notification belongs to.
+    SubAccount address the notification belongs to. On the enigma wire it is hoisted from the envelope; rasa frames do
+    not carry it — the watcher stamps it from its own subscription.
   </Property>
-  <Property name="va_address" type="string" optional>
-    Solver-assigned Virtual Account address (lowcap), when present.
+  <Property name="filled_amount_open" type="number | string | null" optional>
+    Filled base amount on the open leg. Decimal string when present (enigma always; rasa on a `report`); numeric `0` on
+    a rasa `alert` duplicate; absent/`null` otherwise. Same for the three fields below.
   </Property>
-  <Property name="filled_amount_open" type="string | null" optional />
-  <Property name="filled_amount_close" type="string | null" optional />
+  <Property name="filled_amount_close" type="number | string | null" optional />
+  <Property name="avg_price_open" type="number | string | null" optional />
+  <Property name="avg_price_close" type="number | string | null" optional />
   <Property name="last_seen_action" type="string | null" optional>
     Last solver action seen for this quote (e.g. `SendQuoteTransaction`).
   </Property>
@@ -32,22 +41,40 @@ The endpoint omits fields that do not apply to a given frame (for example an `In
     `success` | `failed` | `seen`.
   </Property>
   <Property name="failure_type" type="string | null" optional />
-  <Property name="failure_message" type="string | null" optional />
   <Property name="error_code" type="number | null" optional />
   <Property name="state_type" type="string | null" optional>
     `report` | `alert`.
   </Property>
-  <Property name="version" type="number" optional />
-  <Property name="avg_price_open" type="string" optional />
-  <Property name="avg_price_close" type="string" optional />
 </Properties>
 
-## DefilyticsNotificationEnvelope
+## RawEnigmaPositionNotification
 
-The `defilytics` endpoint nests the notification under `data`, with the SubAccount address hoisted to the top level. [`parseNotificationFrame`](/core/notifications/parse-notification-frame) unwraps it back into a `RawPositionNotification`.
+The `enigma` (channel-scoped) wire, after the envelope unwrap. Adds the fields only this wire carries; on this wire the shared amount/price fields are always decimal strings (or `null`/absent), never numbers.
 
 <Properties>
-  <Property name="data" type="RawPositionNotification">
+  <Property name="va_address" type="string" optional>
+    Solver-assigned Virtual Account address (lowcap), when present.
+  </Property>
+  <Property name="failure_message" type="string | null" optional />
+  <Property name="version" type="number" optional />
+</Properties>
+
+## RawRasaPositionNotification
+
+The `rasa` position-state wire, bare (no envelope), kept exactly as sent. The shared amount/price fields are the numeric `0` when the frame carries no value (an `alert` duplicate) and a decimal string when it does (a `report`); `normalizeNotification` reconciles them.
+
+<Properties>
+  <Property name="order_type" type="number" optional>
+    Order type discriminant the rasa wire attaches (e.g. `1`).
+  </Property>
+</Properties>
+
+## EnigmaNotificationEnvelope
+
+The `enigma` endpoint nests the notification under `data`, with the SubAccount address hoisted to the top level. [`parseNotificationFrame`](/core/notifications/parse-notification-frame) unwraps it back into a `RawEnigmaPositionNotification`.
+
+<Properties>
+  <Property name="data" type="RawEnigmaPositionNotification">
     The nested notification frame.
   </Property>
   <Property name="address" type="string">
@@ -58,4 +85,5 @@ The `defilytics` endpoint nests the notification under `data`, with the SubAccou
 ## Related
 
 - [Notification](/core/notifications/notification) — the normalized shape this becomes.
-- [parseNotificationFrame](/core/notifications/parse-notification-frame) — parses an inbound frame into this type.
+- [normalizeNotification](/core/notifications/normalize-notification) — the mapping, including the per-wire value reconciliation.
+- [parseNotificationFrame](/core/notifications/parse-notification-frame) — produces the variant for each protocol.

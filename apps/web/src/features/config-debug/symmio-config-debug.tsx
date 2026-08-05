@@ -126,7 +126,11 @@ export function SymmioConfigDebug() {
               value={<span className="truncate">{chainConfig.notifications.url}</span>}
               copyValue={chainConfig.notifications.url}
             />
-            <DataRow label="Channel" mono value={chainConfig.notifications.channel} />
+            <DataRow label="Protocol" mono value={chainConfig.notifications.protocol} />
+            {/* Channel only exists on the enigma protocol; rasa subscribes by address list. */}
+            {chainConfig.notifications.protocol === "enigma" ? (
+              <DataRow label="Channel" mono value={chainConfig.notifications.channel} />
+            ) : null}
           </ConfigGroup>
         </>
       )}

@@ -45,7 +45,7 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     notifications: {
       url: "wss://notification.rasa.capital/ws/v1/subscribe",
       channel: "Hyper-EVM_Solver-Low-Cap_Production",
-      protocol: "defilytics",
+      protocol: "enigma",
       // Same host as the WebSocket stream; the REST search API is served under
       // the `/notification` prefix (OpenAPI `servers[0].url`).
       searchUrl: "https://notification.rasa.capital/notification",
@@ -90,9 +90,9 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     },
     defaultSolverId: "rasa",
     // ── PLACEHOLDER services (HyperEVM values) ──────────────────────────────
-    // Base does not have its own subgraphs / notifications yet. These point at
-    // HyperEVM's endpoints so the config is complete and the SDK compiles/runs;
-    // they return HyperEVM data, NOT Base data. Replace each block with Base's
+    // Base does not have its own subgraphs yet. These point at HyperEVM's
+    // endpoints so the config is complete and the SDK compiles/runs; they
+    // return HyperEVM data, NOT Base data. Replace each block with Base's
     // real endpoint as that service is integrated — one at a time.
     subgraphs: {
       analytics:
@@ -121,11 +121,12 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
        */
       wsUrl: "wss://fstream.binance.com/market/ws/!markPrice@arr@1s",
     },
+    // Rasa's own position-state stream — real Base data, not a placeholder.
+    // No `searchUrl`: the rasa protocol has no known REST search service, so
+    // `searchNotifications` on Base requires a per-call `baseUrl`.
     notifications: {
-      url: "wss://notification.rasa.capital/ws/v1/subscribe",
-      channel: "Hyper-EVM_Solver-Low-Cap_Production",
-      protocol: "defilytics",
-      searchUrl: "https://notification.rasa.capital/notification",
+      url: "wss://stage-archon.rasa.capital/ws/position-state-ws3",
+      protocol: "rasa",
     },
     // Muon is deployment-agnostic: one `symmio` app on one shared gateway set
     // serves every SYMMIO deployment, and the per-deployment input is the

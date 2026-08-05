@@ -2,7 +2,7 @@ import type { Address } from "viem";
 import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import { resolveTpSlConfig } from "../../tpsl/internal/resolve-tpsl-config";
-import { buildSubscribeMessage } from "../notifications/build-subscribe-message";
+import { buildSubscribeMessage } from "../notifications/adapters/enigma-notifications";
 import { createReconnectingSocket } from "../socket/create-reconnecting-socket";
 import { getSocketPool } from "../socket/get-socket-pool";
 import type { SocketStatus } from "../socket/socket-status";
@@ -38,7 +38,7 @@ function toTpSlError(event: unknown): SymmError {
 
 /**
  * Subscribe to live TP/SL notifications for an account. Reuses the
- * defilytics-protocol subscribe-frame builder and the SDK's socket pool, so
+ * enigma-protocol subscribe-frame builder and the SDK's socket pool, so
  * many watchers across the app share one underlying connection per
  * `(wsUrl, appName, account)` triple. Scoped by `tpsl.appName` (e.g.
  * `Hyper-EVM_COH-Low-Cap_Production`), distinct from the quote-state
@@ -52,8 +52,8 @@ export function watchTpSlNotifications(config: Config, parameters: WatchTpSlNoti
   const tpsl = resolveTpSlConfig(config, chainId);
   const webSocketConstructor = config.getWebSocketConstructor();
 
-  // Defilytics protocol with the TP/SL appName as the channel.
-  const subscribeMessage = buildSubscribeMessage({ account, channel: tpsl.appName, protocol: "defilytics" });
+  // Enigma protocol with the TP/SL appName as the channel.
+  const subscribeMessage = buildSubscribeMessage({ account, channel: tpsl.appName, protocol: "enigma" });
 
   const key = `${tpsl.wsUrl}|${tpsl.appName}|${account.toLowerCase()}`;
 

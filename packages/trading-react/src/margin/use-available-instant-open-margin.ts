@@ -152,7 +152,6 @@ export function useAvailableInstantOpenMargin(
   });
   const accountUpnl = useAccountUpnl({ account, chainId, solverId, config, enabled: isCrossMargin, live: true });
   const offchainLocked = useOffchainPendingLocked({ account, chainId, enabled: isCrossMargin, live: true });
-
   const { data: balance, isLoading: balanceLoading, error: balanceError, refetch: refetchBalance } = balanceQuery;
   const { data: fees, isLoading: feeLoading, error: feeError, refetch: refetchFees } = feeQuery;
   const {

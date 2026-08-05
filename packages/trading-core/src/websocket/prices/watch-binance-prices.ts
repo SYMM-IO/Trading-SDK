@@ -4,7 +4,7 @@ import { assertPriceServiceProvider } from "../../price-service/assert-price-ser
 import { resolvePriceService } from "../../price-service/resolve-price-service";
 import type { BinanceMarkPriceTick } from "../../price-service/types";
 import { SymmError } from "../../shared/errors/symm-error";
-import type { Unwatch } from "../notifications/watch-notifications";
+import type { Unwatch } from "../notifications/types";
 import { createReconnectingSocket } from "../socket/create-reconnecting-socket";
 import { getSocketPool } from "../socket/get-socket-pool";
 import type { SocketStatus } from "../socket/socket-status";

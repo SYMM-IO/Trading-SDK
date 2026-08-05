@@ -2,7 +2,7 @@
 
 Subscribe to live TP/SL notifications for one SubAccount.
 
-Reuses the defilytics-protocol subscribe-frame builder and the SDK's shared socket pool, so many watchers across the app share one underlying connection per `(wsUrl, appName, account)` triple. The channel is scoped by the chain's `tpsl.appName` (e.g. `Hyper-EVM_COH-Low-Cap_Production`), distinct from the quote-state [notifications](/core/notifications) stream. Inbound `report` frames are parsed by [`parseTpSlFrame`](/core/tpsl/parse-tpsl-frame) into [`TpSlNotification`](/core/tpsl/tpsl-notification)s before your handler fires.
+Reuses the enigma-protocol subscribe-frame builder and the SDK's shared socket pool, so many watchers across the app share one underlying connection per `(wsUrl, appName, account)` triple. The channel is scoped by the chain's `tpsl.appName` (e.g. `Hyper-EVM_COH-Low-Cap_Production`), distinct from the quote-state [notifications](/core/notifications) stream. Inbound `report` frames are parsed by [`parseTpSlFrame`](/core/tpsl/parse-tpsl-frame) into [`TpSlNotification`](/core/tpsl/tpsl-notification)s before your handler fires.
 
 This is a subscribe function, not a query — there are no query options. For a React binding, use [`useWatchTpSlNotifications`](/react/tpsl).
 

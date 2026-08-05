@@ -1,7 +1,7 @@
 import type { RawTpSlNotification, TpSlNotification } from "./types";
 
 /**
- * Parse a raw defilytics frame into a {@link TpSlNotification}, or `null` when
+ * Parse a raw enigma frame into a {@link TpSlNotification}, or `null` when
  * the frame isn't a `report` (control frames, malformed JSON, missing payload,
  * wrong shape).
  *
