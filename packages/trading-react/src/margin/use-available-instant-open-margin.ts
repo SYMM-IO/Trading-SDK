@@ -17,7 +17,6 @@ import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useFeeForUser } from "../fees/use-fee-for-user";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 import { useAccountUpnl } from "../quotes/use-account-upnl";
-import { useOffchainPendingLocked } from "../quotes/use-offchain-pending-locked";
 
 /** Convert a slippage percent (e.g. `5`) to an 18-decimal fraction (`5e16`). */
 function slippagePercentToFractionWei(slippage: number): bigint {
@@ -151,7 +150,6 @@ export function useAvailableInstantOpenMargin(
     query: { enabled: isCrossMargin && Boolean(account) },
   });
   const accountUpnl = useAccountUpnl({ account, chainId, solverId, config, enabled: isCrossMargin, live: true });
-  const offchainLocked = useOffchainPendingLocked({ account, chainId, enabled: isCrossMargin, live: true });
   const { data: balance, isLoading: balanceLoading, error: balanceError, refetch: refetchBalance } = balanceQuery;
   const { data: fees, isLoading: feeLoading, error: feeError, refetch: refetchFees } = feeQuery;
   const {
@@ -161,16 +159,14 @@ export function useAvailableInstantOpenMargin(
     refetch: refetchBalanceInfo,
   } = balanceInfoQuery;
   const { upnl, isLoading: upnlLoading, refetch: refetchUpnl } = accountUpnl;
-  const { offchainPendingLocked, refetch: refetchOffchainLocked } = offchainLocked;
 
   const refetch = useCallback(async () => {
     if (isCrossMargin) {
-      refetchOffchainLocked();
       await Promise.all([refetchBalanceInfo(), refetchUpnl()]);
       return;
     }
     await Promise.all([refetchBalance(), refetchFees()]);
-  }, [isCrossMargin, refetchBalance, refetchFees, refetchBalanceInfo, refetchUpnl, refetchOffchainLocked]);
+  }, [isCrossMargin, refetchBalance, refetchFees, refetchBalanceInfo, refetchUpnl]);
 
   return useMemo<UseAvailableInstantOpenMarginReturnType>(() => {
     const isolationLoading = Boolean(account) && !isolationKnown;
@@ -182,8 +178,7 @@ export function useAvailableInstantOpenMargin(
       if (balanceInfo === undefined || upnl === undefined) {
         return { availableMarginWei: undefined, availableMargin: "0", isLoading, error, refetch };
       }
-
-      const available = calculateAvailableForOrder({ balanceInfo, upnl, offchainPendingLocked });
+      const available = calculateAvailableForOrder({ balanceInfo, upnl });
       const clamped = available > 0n ? available : 0n;
       // Rasa-only 10% spend buffer — see RASA_SPENDABLE_BPS.
       const availableMarginWei = isRasaSolver ? (clamped * RASA_SPENDABLE_BPS) / 10_000n : clamped;
@@ -222,7 +217,6 @@ export function useAvailableInstantOpenMargin(
     balanceInfoLoading,
     balanceInfoError,
     upnl,
-    offchainPendingLocked,
     upnlLoading,
     slippage,
     leverage,

@@ -1383,6 +1383,7 @@ export {
   type InstantCloseBulkOrder,
   type InstantCloseBulkParameters,
   type InstantCloseBulkReturnType,
+  type InstantCloseConstraintFields,
   type InstantCloseMarketData,
   type InstantCloseOrder,
   type InstantCloseParameters,

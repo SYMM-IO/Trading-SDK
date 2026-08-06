@@ -16,7 +16,11 @@ import { ORDER_TYPE_MARKET, type InstantCloseOrder, type InstantCloseReturnType 
  */
 export type InstantCloseParameters = Compute<
   WriteSolverParameter & {
-    /** PartyA — the VA address that owns the position (EIP-712 `signerAccount`). */
+    /**
+     * PartyA — the account that owns the position and signs the close
+     * (EIP-712 `signerAccount`). The VA address on Enigma (lowcap); the
+     * sub-account itself on Rasa (cross-margin, no VA).
+     */
     partyA: Address;
     /** Order-side values (`quoteId`, `closePrice`, `quantityToClose`). */
     order: InstantCloseOrder;

@@ -9,15 +9,6 @@ export interface CalculateAvailableForOrderParameters {
   balanceInfo: AccountBalanceInfo;
   /** Account-level unrealized PnL, signed wei. */
   upnl: bigint;
-  /**
-   * Margin already committed to **off-chain** quotes the chain has not
-   * anchored yet (Σ locked legs of optimistic opens) — the on-chain snapshot's
-   * locked/pending fields cannot know it, so it is subtracted like the pending
-   * locked legs. Once a quote anchors, drop it from this figure: the snapshot
-   * covers it from then on.
-   * @default 0n
-   */
-  offchainPendingLocked?: bigint;
 }
 
 /**
@@ -47,7 +38,7 @@ export interface CalculateAvailableForOrderParameters {
  * ```
  */
 export function calculateAvailableForOrder(parameters: CalculateAvailableForOrderParameters): bigint {
-  const { balanceInfo, upnl, offchainPendingLocked = 0n } = parameters;
+  const { balanceInfo, upnl } = parameters;
   const {
     allocatedBalance,
     lockedCVA,
@@ -59,8 +50,7 @@ export function calculateAvailableForOrder(parameters: CalculateAvailableForOrde
     pendingLockedPartyBMM,
   } = balanceInfo;
 
-  const totalPendingLocked =
-    pendingLockedCVA + pendingLockedLF + pendingLockedPartyAMM + pendingLockedPartyBMM + offchainPendingLocked;
+  const totalPendingLocked = pendingLockedCVA + pendingLockedLF + pendingLockedPartyAMM + pendingLockedPartyBMM;
 
   if (upnl >= 0n) {
     const totalLocked = lockedCVA + lockedLF + lockedPartyAMM;

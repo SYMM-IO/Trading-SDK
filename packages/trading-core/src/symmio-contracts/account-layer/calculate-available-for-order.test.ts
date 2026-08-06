@@ -39,15 +39,4 @@ describe("calculateAvailableForOrder", () => {
     const balanceInfo = makeBalanceInfo({ allocatedBalance: 100n * ONE });
     expect(calculateAvailableForOrder({ balanceInfo, upnl: -150n * ONE })).toBeLessThan(0n);
   });
-
-  it("subtracts margin committed to unanchored off-chain quotes like a pending leg", () => {
-    // 868 (positive-upnl case) − 30 off-chain committed = 838
-    expect(
-      calculateAvailableForOrder({
-        balanceInfo: makeBalanceInfo(),
-        upnl: 40n * ONE,
-        offchainPendingLocked: 30n * ONE,
-      }),
-    ).toBe(838n * ONE);
-  });
 });

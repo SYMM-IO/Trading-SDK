@@ -56,8 +56,7 @@ export interface UseAccountUpnlReturnType {
  * sum. Positions come from the **managed (unified) pipeline**, so off-chain
  * optimistic opens count from the moment they exist and hand over seamlessly
  * once they anchor on-chain. Feed `upnl` to `calculateAvailableForOrder` for
- * the spendable balance of a cross-margin account (pair it with
- * `useOffchainPendingLocked` for the not-yet-anchored locked margin).
+ * the spendable balance of a cross-margin account.
  *
  * A position without any price reference, with nothing left open, or whose
  * market has no live tick yet keeps `upnl` at `undefined` until it is priced;
@@ -69,7 +68,7 @@ export interface UseAccountUpnlReturnType {
  * const { upnl } = useAccountUpnl({ account: subAccount, live: true });
  * const available =
  *   balanceInfo && upnl !== undefined
- *     ? calculateAvailableForOrder({ balanceInfo, upnl, offchainPendingLocked })
+ *     ? calculateAvailableForOrder({ balanceInfo, upnl })
  *     : undefined;
  * ```
  */

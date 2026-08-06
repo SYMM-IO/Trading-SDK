@@ -2,14 +2,16 @@
 
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
+import type { SolverId } from "@symmio/trading-core";
 import {
   calculateClosePrice,
   PositionType,
   SymmioRequestError,
-  useEnigmaPriceServicePricesByNames,
   useFeeForUser,
   useInstantCloseAuto,
   useMarkets,
+  usePriceByName,
+  useSymmioConfig,
   validateInstantCloseAgainstMarket,
   type CloseQuoteConstraintViolation,
 } from "@symmio/trading-react";
@@ -45,10 +47,12 @@ export interface ClosablePosition {
 }
 
 interface Props {
-  /** PartyA (the VA address) that owns the position. */
+  /** PartyA that owns the position — the VA (enigma) or the sub-account (rasa cross-margin). */
   partyA: Address;
   /** Session-key address used to sign the operation (display-only). */
   sessionKey: Address;
+  /** Target solver. Defaults to the chain's default solver. Routes the mark price + hedger endpoint. */
+  solverId?: SolverId;
   /** Position the user is closing. */
   position: ClosablePosition;
   /**
@@ -74,21 +78,26 @@ interface Props {
 export function ClosePositionStep({
   partyA,
   sessionKey,
+  solverId,
   position,
   onRefreshPosition,
   isRefreshingPosition = false,
   idPrefix = "instant-close",
 }: Props) {
-  const marketsQuery = useMarkets();
+  const config = useSymmioConfig();
+  const resolvedSolverId = solverId ?? config.getDefaultSolverId();
+  const marketsQuery = useMarkets({ solverId: resolvedSolverId });
   const market = useMemo<Market | undefined>(
     () => marketsQuery.data?.find((m) => BigInt(m.symbolId ?? -1) === position.symbolId),
     [marketsQuery.data, position.symbolId],
   );
   const marketName = market?.name;
 
-  const priceQuery = useEnigmaPriceServicePricesByNames({
-    names: marketName ? [marketName] : [],
-    query: { enabled: Boolean(marketName), staleTime: 5_000 },
+  // Provider-agnostic mark price: Enigma's service on lowcap chains, Binance on majors.
+  const priceQuery = usePriceByName({
+    name: marketName,
+    solverId: resolvedSolverId,
+    enabled: Boolean(marketName),
   });
   const feeQuery = useFeeForUser({
     user: partyA,
@@ -102,7 +111,7 @@ export function ClosePositionStep({
   const validQuantity = parsePositiveNumber(quantity);
   const validSlippage = parsePositiveNumber(slippage);
 
-  const cachedMarkPrice = marketName ? priceQuery.data?.[marketName]?.markPrice : undefined;
+  const cachedMarkPrice = priceQuery.markPrice ?? undefined;
   const remainingQuantityDecimal = useMemo(() => {
     const remainingWei = position.quantity - position.closedAmount;
     return formatUnits(remainingWei, WEI_DECIMALS);
@@ -155,13 +164,13 @@ export function ClosePositionStep({
     !mutation.isPending,
   );
 
-  const isRefreshing =
-    isRefreshingPosition || marketsQuery.isRefetching || priceQuery.isRefetching || feeQuery.isRefetching;
+  // The mark price streams off a live socket (no manual refetch); refresh the
+  // query-backed reads only.
+  const isRefreshing = isRefreshingPosition || marketsQuery.isRefetching || feeQuery.isRefetching;
 
   function handleRefresh() {
     onRefreshPosition?.();
     void marketsQuery.refetch();
-    void priceQuery.refetch();
     void feeQuery.refetch();
   }
 
@@ -170,6 +179,7 @@ export function ClosePositionStep({
     await mutation.mutateAsync({
       partyA,
       from: sessionKey,
+      solverId: resolvedSolverId,
       market: {
         id: Number(market.symbolId ?? 0),
         name: marketName,
@@ -294,7 +304,8 @@ function PositionSummary({
 }: {
   position: ClosablePosition;
   market: Market | undefined;
-  markPrice: number | string | undefined;
+  /** Live mark price as a decimal string (from the price socket), or undefined before the first tick. */
+  markPrice: string | undefined;
   idPrefix: string;
 }) {
   const sideLabel = position.positionType === PositionType.LONG ? "Long" : "Short";
