@@ -1197,14 +1197,27 @@ function toMarketSelectItems(markets: Market[]): MarketSelectItem[] {
     const id = String(market.symbolId);
     const label = market.symbol ?? market.name ?? `Market ${market.symbolId}`;
     const name = market.name && market.name !== label ? market.name : undefined;
+    // Rasa is cross-margin with per-market fees, so its dropdown surfaces the
+    // trading fee; Enigma surfaces max leverage.
+    const detail =
+      market.kind === "rasa"
+        ? `fee ${formatTradingFeePercent(market.tradingFee)}`
+        : `max ${market.maxLeverage ?? "1"}x`;
     return {
       id,
       label,
-      description: name ? `${name} · max ${market.maxLeverage ?? "1"}x` : `Max ${market.maxLeverage ?? "1"}x`,
+      description: name ? `${name} · ${detail}` : `${detail.charAt(0).toUpperCase()}${detail.slice(1)}`,
       meta: `ID ${id}`,
       searchText: [id, market.symbol, market.name].filter(Boolean).join(" "),
     };
   });
+}
+
+/** Format a decimal-fraction trading fee (e.g. `"0.0006"`) as a percent (`"0.06%"`). */
+function formatTradingFeePercent(fee: string): string {
+  const pct = Number(fee) * 100;
+  if (!Number.isFinite(pct)) return fee;
+  return `${parseFloat(pct.toFixed(4))}%`;
 }
 
 function getMaxLeverage(market?: Market): number {
