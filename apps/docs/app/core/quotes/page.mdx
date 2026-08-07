@@ -55,6 +55,54 @@ Each type and function has its own page with the full signature, fields or param
   </MethodEntry>
 </MethodIndex>
 
+## Grouped positions
+
+Several quotes in the same market — and, depending on the strategy, the same side — fold into one row: a [`QuoteGroup`](/core/quotes/quote-group). The `aggregate*` functions roll a group's children into one figure each. `aggregateGroupMetrics` is price-independent and runs inside `groupQuotes`; the other two take the inputs they need explicitly, because a mark price and a subgraph read are not the reconciler's to fetch.
+
+<MethodIndex kind="read">
+  <MethodEntry name="groupQuotes" href="/core/quotes/group-quotes">
+    Fold reconciled quotes into one row per market (and side), under a built-in or custom strategy.
+  </MethodEntry>
+  <MethodEntry name="partitionQuotes" href="/core/quotes/partition-quotes">
+    Split rows into active positions and resting orders — the grouped-view-vs-orders-tab split.
+  </MethodEntry>
+  <MethodEntry name="aggregateGroupMetrics" href="/core/quotes/aggregate-group-metrics">
+    Price-independent aggregations over a group's children: size, weighted open price, notional, locked legs, leverage.
+  </MethodEntry>
+  <MethodEntry name="aggregateGroupFunding" href="/core/quotes/aggregate-group-funding">
+    Fold the group's settled-to-date funding from subgraph rows. `net = paid − received`, so positive means net-paid.
+  </MethodEntry>
+  <MethodEntry name="aggregateGroupUpnl" href="/core/quotes/aggregate-group-upnl">
+    Fold the group's unrealized PnL at a mark price. Positive means in profit — the opposite sign to funding.
+  </MethodEntry>
+</MethodIndex>
+
+<MethodIndex kind="type">
+  <MethodEntry name="QuoteGroup" href="/core/quotes/quote-group">
+    One grouped position: its identity, children, and aggregated metrics.
+  </MethodEntry>
+  <MethodEntry name="QuoteGroupMetrics" href="/core/quotes/quote-group-metrics">
+    The price-independent aggregations carried on every group.
+  </MethodEntry>
+  <MethodEntry name="QuoteGroupFunding" href="/core/quotes/quote-group-funding">
+    The folded funding totals, with `isComplete` guarding a partial subgraph read.
+  </MethodEntry>
+  <MethodEntry name="QuoteGroupUpnl" href="/core/quotes/quote-group-upnl">
+    The folded unrealized PnL, with `isComplete` guarding a missing price or unsettled fill.
+  </MethodEntry>
+</MethodIndex>
+
+## Closing a group
+
+<MethodIndex kind="read">
+  <MethodEntry name="toGroupCloseCandidates" href="/core/quotes/to-group-close-candidates">
+    Narrow a group's children to the quotes that can actually be closed, with each one's dust floor attached.
+  </MethodEntry>
+  <MethodEntry name="planGroupClose" href="/core/quotes/plan-group-close">
+    Allocate a target close size across those candidates, or explain exactly why it cannot be met.
+  </MethodEntry>
+</MethodIndex>
+
 ## Adapters
 
 <MethodIndex kind="read">
@@ -75,3 +123,4 @@ Each type and function has its own page with the full signature, fields or param
 - [`getSubAccountQuotes`](/core/symmio-contract/get-sub-account-quotes) — the convenience read that runs `resolveQuoteAccounts` + the source reads + `reconcileQuotes` in one call.
 - [Solvers](/core/solvers) — `PendingInstantOpen` / `PendingInstantClose` from `getInstantOpens` / `getInstantCloses` feed the reconciler.
 - [React `useManagedQuotes`](/react/quotes) — the hook composed on top of everything here.
+- [Margin & risk](/core/margin) — `calculateMarginRisk` turns a group's uPnL plus its account balance into equity and distance to liquidation.

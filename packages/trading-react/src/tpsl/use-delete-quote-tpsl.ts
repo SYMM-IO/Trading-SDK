@@ -6,11 +6,12 @@ import {
   type DeleteQuoteTpSlParameters,
   type DeleteQuoteTpSlReturnType,
 } from "@symmio/trading-core";
-import { useMutation, type UseMutationResult } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
+import { invalidateTpSlReads } from "./invalidate-tpsl";
 import { useTpSlStore } from "./tpsl-store";
 
 /** Parameters for {@link useDeleteQuoteTpSl}. */
@@ -32,6 +33,7 @@ export type UseDeleteQuoteTpSlReturnType = UseMutationResult<
 export function useDeleteQuoteTpSl(parameters: UseDeleteQuoteTpSlParameters = {}): UseDeleteQuoteTpSlReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
+  const queryClient = useQueryClient();
   const base = deleteQuoteTpSlMutationOptions(config);
   const markConfirming = useTpSlStore((state) => state.markConfirming);
 
@@ -47,6 +49,7 @@ export function useDeleteQuoteTpSl(parameters: UseDeleteQuoteTpSlParameters = {}
     onSuccess: (_result, variables) => {
       if (variables.conditionalOrderType === "take_profit") markConfirming(variables.quoteId, "tp");
       if (variables.conditionalOrderType === "stop_loss") markConfirming(variables.quoteId, "sl");
+      void invalidateTpSlReads(queryClient, [variables.quoteId]);
     },
   });
 }

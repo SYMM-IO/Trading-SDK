@@ -3,9 +3,9 @@ import { PositionType } from "../symmio-contracts/symmio/types";
 
 /**
  * Default slippage percent applied when deriving the conditional order's
- * "opened" price for vibecaps (lowcap) markets. The handler quotes against a
- * very wide tolerance — vibe-ui's `DEFAULT_SLIPPAGE_LOWCAPS` is 90 percent —
- * so the SDK mirrors that as the default unless the caller overrides.
+ * "opened" price for lowcap markets. The handler quotes against a very wide
+ * tolerance — 90 percent — so the SDK mirrors that as the default unless the
+ * caller overrides it.
  */
 export const DEFAULT_TPSL_SLIPPAGE_LOWCAPS = 90;
 

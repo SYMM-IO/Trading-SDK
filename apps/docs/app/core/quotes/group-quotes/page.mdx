@@ -1,0 +1,50 @@
+# groupQuotes
+
+Fold a flat list of quotes into grouped positions — one [`QuoteGroup`](/core/quotes/quote-group) per market, or per market + side, or per whatever a custom key function decides.
+
+```ts
+import { groupQuotes, partitionQuotes, SubAccountIsolationType } from "@symmio/trading-core";
+
+const { positions } = partitionQuotes(quotes);
+const groups = groupQuotes(positions, SubAccountIsolationType.MARKET_DIRECTION);
+```
+
+## Strategies
+
+A `QuoteGroupingStrategy` is either a `SubAccountIsolationType` or `{ keyOf }`:
+
+| Strategy           | Key                            | Result                      |
+| ------------------ | ------------------------------ | --------------------------- |
+| `POSITION`         | the quote's own key            | One group per quote         |
+| `MARKET`           | `m:<symbolId>`                 | One group per market        |
+| `MARKET_DIRECTION` | `md:<symbolId>:<positionType>` | One group per market + side |
+| `CUSTOM`           | the quote's own key            | One group per quote         |
+| `{ keyOf }`        | whatever you return            | Whatever you group on       |
+
+Reusing the on-chain isolation enum keeps the grouping faithful to how the AccountLayer actually allocates Virtual Accounts.
+
+## Parameters
+
+<Properties>
+  <Property name="quotes" type="readonly UnifiedQuote[]" typeHref="/core/quotes/unified-quote" required>
+    Quotes to fold. Pass `partitionQuotes(...).positions` to keep pending orders flat.
+  </Property>
+  <Property name="strategy" type="QuoteGroupingStrategy" required>
+    A `SubAccountIsolationType` or a custom `{keyOf}`.
+  </Property>
+  <Property name="options.sort" type="(a: QuoteGroup, b: QuoteGroup) => number" optional>
+    Group ordering override. Defaults to newest-first by the group's newest child.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="QuoteGroup[]" typeHref="/core/quotes/quote-group">
+  One group per distinct key, newest-first, each with child quotes newest-first.
+</Returns>
+
+## Related
+
+- [`aggregateGroupMetrics`](/core/quotes/aggregate-group-metrics) — the metrics each group carries.
+- [`partitionQuotes`](/core/quotes/partition-quotes) — split positions from resting orders first.
+- [`useGroupedQuotes`](/react/quotes#usegroupedquotes) — the React hook.

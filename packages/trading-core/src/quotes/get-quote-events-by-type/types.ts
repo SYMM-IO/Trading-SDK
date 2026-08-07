@@ -30,6 +30,20 @@ export const PRICE_HISTORY_EVENT_TYPES: readonly QuoteEventType[] = [
 ];
 
 /**
+ * Every event type that settles funding on a quote — the per-tick rows behind a
+ * position's funding history.
+ *
+ * A subset of {@link PRICE_HISTORY_EVENT_TYPES}: it drops `SETTLE_UPNL` (an
+ * open-price recompute that moves no funding) and keeps only the two charge
+ * events, each of which carries `fundingPaid` / `fundingReceived` / `rate` in its
+ * metadata. Pair with `getQuotesEventsByType` for a whole {@link QuoteGroup}.
+ */
+export const FUNDING_HISTORY_EVENT_TYPES: readonly QuoteEventType[] = [
+  QuoteEventType.ChargeFundingRate,
+  QuoteEventType.ChargeAccumulatedFundingFee,
+];
+
+/**
  * One decoded `QuoteEvent` row. `type` identifies which event family this row
  * belongs to (price update vs funding charge); the decoded metadata fields are
  * present whenever the underlying JSON carried them.

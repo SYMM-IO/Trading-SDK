@@ -8,6 +8,7 @@ import type {
   TpSlPriceType,
 } from "@symmio/trading-core";
 import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import { toQuoteTpSl } from "./to-quote-tpsl";
 
 /**
@@ -326,6 +327,29 @@ export function useTpSlRecord(id: bigint | undefined): TpSlRecord | undefined {
     const key = state.index.get(id);
     return key === undefined ? undefined : state.records.get(key);
   });
+}
+
+/**
+ * Selector hook: subscribe to the records addressed by `ids`, in input order.
+ * The grouped counterpart of {@link useTpSlRecord} — one subscription for N
+ * children, which a `.map` over children could not do legally anyway.
+ *
+ * Shallow-compared, so an unrelated record's update does not re-render the
+ * group. Pass a stable `ids` array (memoize it) to avoid recomputing per render.
+ *
+ * @param ids - Quote ids, on-chain or temp. `undefined` entries yield `undefined`.
+ * @returns One record (or `undefined`) per input id, in the same order.
+ */
+export function useTpSlRecords(ids: readonly (bigint | undefined)[]): Array<TpSlRecord | undefined> {
+  return useTpSlStore(
+    useShallow((state) =>
+      ids.map((id) => {
+        if (id === undefined) return undefined;
+        const key = state.index.get(id);
+        return key === undefined ? undefined : state.records.get(key);
+      }),
+    ),
+  );
 }
 
 /** Reset the store — intended for tests only. */

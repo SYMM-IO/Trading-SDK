@@ -31,7 +31,7 @@ export type GetVirtualAccountsAddressesOfSubAccountReturnType = readonly Address
  * List the Virtual Account (VA) addresses owned by a subaccount, within a
  * paginated range.
  *
- * In VibeCaps/Lowcap each isolated position lives under a distinct VA, and the VA
+ * In lowcap trading each isolated position lives under a distinct VA, and the VA
  * — not the subaccount — is the on-chain `partyA` for quote reads. Use this to
  * enumerate the VAs to pass to {@link "getPartyAOpenPositions"} /
  * {@link "getPartyAPendingQuotes"}.

@@ -1,0 +1,23 @@
+# QuoteGroupTpSlSummary
+
+Folded TP/SL state of a whole grouped position — the data model behind both a table cell and a coverage footer. Produced by [`summarizeQuoteGroupTpSl`](/core/tpsl/summarize-quote-group-tpsl).
+
+## Properties
+
+<Properties>
+  <Property name="childCount" type="number" required>
+    Children the summary folded over.
+  </Property>
+  <Property name="totalNotional" type="bigint" required>
+    Σ open notional across children, wei — the coverage denominator.
+  </Property>
+  <Property name="takeProfit" type="GroupTpSlSideSummary" typeHref="/core/tpsl/group-tpsl-side-summary" required>
+    Take-profit side.
+  </Property>
+  <Property name="stopLoss" type="GroupTpSlSideSummary" typeHref="/core/tpsl/group-tpsl-side-summary" required>
+    Stop-loss side.
+  </Property>
+  <Property name="isEmpty" type="boolean" required>
+    `true` when neither side carries a single trigger — the "Not set" render branch.
+  </Property>
+</Properties>

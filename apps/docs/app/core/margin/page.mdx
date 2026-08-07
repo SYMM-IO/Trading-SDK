@@ -1,0 +1,46 @@
+# Margin & risk
+
+A position's margin figures answer one question: **how much room is there before the protocol takes it away.** `@symmio/trading-core` exposes that as a single pure fold, [`calculateMarginRisk`](/core/margin/calculate-margin-risk), over an account's on-chain balance and its unrealized PnL.
+
+Everything a margin panel shows — total, maintenance and initial margin, equity, the cushion left before liquidation, and how much of that cushion is intact — comes out of that one call. They are not independent numbers: each is derived from the same five inputs and from each other, so computing them together is what keeps them consistent.
+
+## The liquidation domain
+
+**Every figure describes exactly one account.** On SYMMIO, an account — a sub-account, or one of the Virtual Accounts a sub-account trades through — is liquidated on its own balance. The protocol's own test, from `LibAccount.partyAAvailableBalanceForLiquidation` in perps-core v0.8.5, is:
+
+```
+allocatedBalance − (lockedCVA + lockedLF) + upnl < 0
+```
+
+which is the same thing as `equity < maintenanceMargin`. `calculateMarginRisk` returns that comparison directly as `isLiquidatable`.
+
+Because each account is judged separately, **margin figures must never be summed across accounts.** The totals would add up correctly, but the buffer would not: an account sitting at a 2% cushion averaged with one at 200% reads as comfortable while the first is about to be liquidated. When a grouped position spans several accounts, describe each one, or say that you cannot describe them as one — which is what [`useQuoteGroupMarginRisk`](/react/quotes) does.
+
+## Where the inputs come from
+
+- The four balance fields are `balanceInfoOfPartyA(account)` — read them with [`getAccountBalanceInfo`](/core/account-layer/get-account-balance-info). An `AccountBalanceInfo` spreads straight into the inputs.
+- The unrealized PnL is yours to supply. For a grouped position, fold it with [`aggregateGroupUpnl`](/core/quotes/aggregate-group-upnl); for an account-wide figure, a Muon uPnL attestation works too. Pass the uPnL of the **same** account the balance describes.
+
+The **price** at which liquidation happens is a separate question with different inputs — see [`calculateLiquidationPrice`](/core/quotes/aggregate-group-upnl#related).
+
+## Calculations
+
+<MethodIndex kind="read">
+  <MethodEntry name="calculateMarginRisk" href="/core/margin/calculate-margin-risk">
+    Fold one account's balance fields and unrealized PnL into its margin, equity, liquidation cushion and solvency flag.
+    Pure bigint.
+  </MethodEntry>
+</MethodIndex>
+
+## Types
+
+<MethodIndex kind="type">
+  <MethodEntry name="MarginRiskMetrics" href="/core/margin/margin-risk-metrics">
+    The six figures plus the solvency flag, field by field.
+  </MethodEntry>
+</MethodIndex>
+
+## React
+
+- [`useAccountMarginRisk`](/react/margin) — reads one account's balance and runs this fold.
+- [`useQuoteGroupMarginRisk`](/react/quotes) — does the same for a grouped position, folding the group's uPnL against a mark price.

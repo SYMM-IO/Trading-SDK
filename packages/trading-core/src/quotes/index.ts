@@ -5,6 +5,7 @@ export * from "./fingerprint";
 export * from "./get-quote-events-by-type";
 export * from "./get-quote-funding";
 export * from "./get-quote-history";
+export * from "./get-quotes-events-by-type";
 export * from "./get-sub-account-quotes";
 export * from "./grouping";
 export * from "./liquidation";

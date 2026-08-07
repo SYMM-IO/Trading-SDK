@@ -8,6 +8,7 @@ import { useEffect, useRef } from "react";
 import { isAddress, type Address } from "viem";
 import type { MagicMethodPanelProps } from "../magic-sidebar/magic-types";
 import { magicInputPersistKey, usePersistentPinState } from "../magic-sidebar/magic-value-store";
+import { useSessionKey } from "../session-keys/use-session-key";
 import { GroupedQuotesTable } from "./grouped-quotes-table";
 
 /** Persisted snapshot of the last loaded grouped feed, restored on reload. */
@@ -33,6 +34,7 @@ export function GroupedQuotesMagicPanel({
   const [input, setInput] = usePersistentPinState(magicInputPersistKey(persistKey), initialInput ?? "", seedToken);
   const partyA = isAddress(input) ? (input as Address) : undefined;
   const active = enabled && Boolean(partyA);
+  const { sessionKeyAddress } = useSessionKey();
 
   const { groups, accounts, isLoading, socketStatus } = useGroupedQuotes({
     partyA,
@@ -96,6 +98,8 @@ export function GroupedQuotesMagicPanel({
         <GroupedQuotesTable
           testId="magic-grouped-quotes-table"
           groups={displayGroups}
+          subAccount={partyA}
+          sessionKey={sessionKeyAddress ?? undefined}
           hidePagination
           emptyMessage="No grouped positions for this partyA yet."
         />

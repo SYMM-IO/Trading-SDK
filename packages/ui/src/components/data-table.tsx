@@ -52,6 +52,25 @@ export interface DataTableColumn<TRow> {
 }
 
 /**
+ * One detail panel a row can expand into, with the icon toggle that opens it.
+ *
+ * @typeParam TRow - Shape of one row of data.
+ */
+export interface DataTableExpansion<TRow> {
+  /** Stable identity, unique within the table. Also used in the toggle's test id. */
+  id: string;
+  /** Accessible name for the toggle — what the panel shows, e.g. "Position details". */
+  label: string;
+  /** Icon rendered inside the toggle. Sized by the button; keep it around 14px. */
+  icon: React.ReactNode;
+  /** The panel, rendered full-width beneath the row while this expansion is open. */
+  render: (row: TRow) => React.ReactNode;
+}
+
+/** Expansion id used for the single-panel {@link DataTableProps.renderExpanded} shorthand. */
+const DEFAULT_EXPANSION_ID = "default";
+
+/**
  * Props for {@link DataTable}.
  *
  * @typeParam TRow - Shape of one row of data.
@@ -72,9 +91,22 @@ export interface DataTableProps<TRow> {
    * a full-width detail row, spanning every column, rendered directly beneath the
    * row with this function's output. Omit to render a plain table (no expander
    * column, no behavior change).
+   *
+   * Shorthand for a single unlabelled {@link DataTableProps.expansions} entry; pass
+   * `expansions` instead when a row needs more than one detail panel.
    */
   renderExpanded?: (row: TRow) => React.ReactNode;
-  /** Row ids (per {@link DataTableProps.getRowId}) expanded on first render. Ignored when `renderExpanded` is absent. */
+  /**
+   * Two or more detail panels per row, each with its own icon toggle in the
+   * leading expander column — for example one for a row's summary and one for its
+   * underlying records.
+   *
+   * At most one panel is open per row: activating another switches to it, and
+   * activating the open one closes it. Takes precedence over
+   * {@link DataTableProps.renderExpanded}.
+   */
+  expansions?: readonly DataTableExpansion<TRow>[];
+  /** Row ids (per {@link DataTableProps.getRowId}) expanded on first render, showing their first expansion. Ignored when the table has no expansions. */
   defaultExpandedRowIds?: readonly string[];
   /** Initial sort. Omit to start in the data's natural order. */
   initialSort?: DataTableSort;
@@ -133,6 +165,7 @@ export function DataTable<TRow>({
   getRowId,
   rowAttributes,
   renderExpanded,
+  expansions,
   defaultExpandedRowIds,
   initialSort,
   pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
@@ -147,8 +180,26 @@ export function DataTable<TRow>({
   const [sort, setSort] = React.useState<DataTableSort | undefined>(initialSort);
   const [pageSize, setPageSize] = React.useState<number>(defaultPageSize ?? pageSizeOptions[0] ?? 10);
   const [page, setPage] = React.useState(1);
-  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(() => new Set(defaultExpandedRowIds));
-  const isExpandable = Boolean(renderExpanded);
+  /**
+   * `expansions` wins when supplied; otherwise `renderExpanded` becomes a single
+   * chevron-toggled panel, so existing callers keep their exact behaviour.
+   */
+  const resolvedExpansions = React.useMemo<readonly DataTableExpansion<TRow>[]>(() => {
+    if (expansions && expansions.length > 0) return expansions;
+    if (renderExpanded) {
+      return [{ id: DEFAULT_EXPANSION_ID, label: "Row details", icon: null, render: renderExpanded }];
+    }
+    return [];
+  }, [expansions, renderExpanded]);
+
+  const isExpandable = resolvedExpansions.length > 0;
+  /** Which panel each row currently shows, by row id. At most one per row. */
+  const [openExpansionByRow, setOpenExpansionByRow] = React.useState<Map<string, string>>(() => {
+    const initial = new Map<string, string>();
+    const firstId = expansions?.[0]?.id ?? DEFAULT_EXPANSION_ID;
+    for (const rowId of defaultExpandedRowIds ?? []) initial.set(rowId, firstId);
+    return initial;
+  });
   /** Total column count including the leading expander, used for full-width spans. */
   const totalColumnCount = columns.length + (isExpandable ? 1 : 0);
 
@@ -192,11 +243,12 @@ export function DataTable<TRow>({
     );
   }
 
-  function toggleExpanded(rowId: string) {
-    setExpandedIds((current) => {
-      const next = new Set(current);
-      if (next.has(rowId)) next.delete(rowId);
-      else next.add(rowId);
+  function toggleExpansion(rowId: string, expansionId: string) {
+    setOpenExpansionByRow((current) => {
+      const next = new Map(current);
+      /** Re-activating the open panel closes the row; any other switches to it. */
+      if (next.get(rowId) === expansionId) next.delete(rowId);
+      else next.set(rowId, expansionId);
       return next;
     });
   }
@@ -259,17 +311,31 @@ export function DataTable<TRow>({
           ) : (
             rows.map((row, index) => {
               const rowId = getRowId(row, start + index);
-              const isExpanded = isExpandable && expandedIds.has(rowId);
+              const openExpansionId = isExpandable ? openExpansionByRow.get(rowId) : undefined;
+              const openExpansion = resolvedExpansions.find((candidate) => candidate.id === openExpansionId);
               return (
                 <React.Fragment key={rowId}>
                   <TableRow {...rowAttributes?.(row)}>
                     {isExpandable ? (
-                      <TableCell className="w-9 px-2 align-middle">
-                        <ExpanderButton
-                          expanded={isExpanded}
-                          onToggle={() => toggleExpanded(rowId)}
-                          data-testid={testId ? `${testId}-expander-${rowId}` : undefined}
-                        />
+                      <TableCell className={cn("px-2 align-middle", resolvedExpansions.length > 1 ? "w-16" : "w-9")}>
+                        <div className="flex items-center gap-0.5">
+                          {resolvedExpansions.map((expansion) => (
+                            <ExpanderButton
+                              key={expansion.id}
+                              expanded={openExpansionId === expansion.id}
+                              label={expansion.label}
+                              icon={expansion.icon}
+                              onToggle={() => toggleExpansion(rowId, expansion.id)}
+                              data-testid={
+                                testId
+                                  ? expansion.id === DEFAULT_EXPANSION_ID
+                                    ? `${testId}-expander-${rowId}`
+                                    : `${testId}-expander-${expansion.id}-${rowId}`
+                                  : undefined
+                              }
+                            />
+                          ))}
+                        </div>
                       </TableCell>
                     ) : null}
                     {columns.map((column) => (
@@ -282,13 +348,19 @@ export function DataTable<TRow>({
                       </TableCell>
                     ))}
                   </TableRow>
-                  {isExpanded ? (
+                  {openExpansion ? (
                     <TableRow
                       data-slot="table-row-expanded"
-                      data-testid={testId ? `${testId}-expanded-${rowId}` : undefined}
+                      data-testid={
+                        testId
+                          ? openExpansion.id === DEFAULT_EXPANSION_ID
+                            ? `${testId}-expanded-${rowId}`
+                            : `${testId}-expanded-${openExpansion.id}-${rowId}`
+                          : undefined
+                      }
                     >
                       <TableCell colSpan={totalColumnCount} className="bg-muted/20 p-0">
-                        {renderExpanded?.(row)}
+                        {openExpansion.render(row)}
                       </TableCell>
                     </TableRow>
                   ) : null}
@@ -320,21 +392,39 @@ export function DataTable<TRow>({
 function ExpanderButton({
   expanded,
   onToggle,
+  label,
+  icon,
   ...props
 }: {
   expanded: boolean;
   onToggle: () => void;
+  /** Accessible name. Falls back to generic expand/collapse wording for the chevron. */
+  label?: string;
+  /** Custom glyph; `null`/omitted renders the rotating chevron. */
+  icon?: React.ReactNode;
 } & Record<`data-${string}`, string | undefined>) {
+  const accessibleName = label
+    ? `${expanded ? "Hide" : "Show"} ${label.toLowerCase()}`
+    : expanded
+      ? "Collapse row"
+      : "Expand row";
   return (
     <button
       type="button"
       onClick={onToggle}
       aria-expanded={expanded}
-      aria-label={expanded ? "Collapse row" : "Expand row"}
-      className="text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring/50 inline-flex size-6 items-center justify-center rounded transition-colors focus-visible:ring-[3px] focus-visible:outline-none"
+      aria-label={accessibleName}
+      title={label}
+      className={cn(
+        "focus-visible:ring-ring/50 inline-flex size-6 items-center justify-center rounded transition-colors focus-visible:ring-[3px] focus-visible:outline-none",
+        /** An icon toggle has no rotation to signal state, so it carries an active fill instead. */
+        icon && expanded
+          ? "bg-primary/15 text-primary"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+      )}
       {...props}
     >
-      <ExpanderChevron expanded={expanded} />
+      {icon ?? <ExpanderChevron expanded={expanded} />}
     </button>
   );
 }

@@ -130,7 +130,15 @@ export interface UnifiedQuote {
   initialLockedValues?: LockedValues;
   /** Maximum funding rate partyA accepts, when known. */
   maxFundingRate?: bigint;
-  /** Net funding paid (positive) or received (negative) over the position's life (wei), when known. */
+  /**
+   * Cumulative funding-**rate index** already settled on the quote (18-decimal
+   * fixed point) — the position's funding rate multiplied by the epochs elapsed
+   * since the funding fee started, when known. **Not a currency amount**: the
+   * settled fee is only obtained as
+   * `openAmount × (currentFee − accumulatedPaidFunding) / 1e18`, so summing this
+   * field across quotes is meaningless. For real settled funding amounts use
+   * {@link getQuoteFunding} / {@link aggregateGroupFunding}.
+   */
   accumulatedPaidFunding?: bigint;
   /** Block timestamp funding was last applied, when known. */
   lastFundingPaymentTimestamp?: bigint;

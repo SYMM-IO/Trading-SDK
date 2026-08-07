@@ -15,6 +15,8 @@ import {
   useQuoteEventsByType,
   useQuoteFunding,
   useQuotesFunding,
+  useQuoteGroupFunding,
+  useQuoteGroupFundingHistory,
   useDepositHistory,
   useWithdrawHistory,
 } from "@symmio/trading-react";
@@ -69,42 +71,97 @@ Filtered projections of the balance history for the two most common UI needs.
 
 ### `useQuoteHistory`
 
-Every state transition for one quote — send, lock, fill, close, cancel — chronologically ordered.
+Terminal (close / liquidation) events for a set of **accounts**, newest first. Keyed on `subAccounts` — not on a quote id — because the subgraph filters history by the quote's owning account. Pass the parent SubAccount and, when the positions are isolated, its Virtual Accounts.
 
 ```ts
-const events = useQuoteHistory({ quoteId: 42n, first: 100 });
+const { data } = useQuoteHistory({ subAccounts: [subAccount], first: 100 });
+const rows = data?.rows ?? [];
 ```
 
 ### `useQuoteEventsByType`
 
-Filter by event type. Handy for per-quote timelines that only need fills or only cancels.
+Non-terminal events for **one** quote, filtered to the `QuoteEventType`s you ask for → `{ rows, hasMore }`. The indexed types are `SettleUpnl` (open-price recompute), `ChargeFundingRate`, and `ChargeAccumulatedFundingFee`; two presets ship with the SDK — `PRICE_HISTORY_EVENT_TYPES` (all three, the open-price timeline) and `FUNDING_HISTORY_EVENT_TYPES` (the two funding charges only).
 
 ```ts
-const fills = useQuoteEventsByType({
+import { FUNDING_HISTORY_EVENT_TYPES } from "@symmio/trading-core";
+
+const { data } = useQuoteEventsByType({
   quoteId: 42n,
-  type: "FillOpenMarketOrder",
+  types: FUNDING_HISTORY_EVENT_TYPES,
   first: 20,
 });
 ```
 
 ### `useQuoteFunding`
 
-Aggregate funding paid + received for one quote across its lifetime.
+Funding totals — paid, received, net — for one quote across its lifetime. Disabled while `quoteId` is `undefined` (an off-chain row).
 
 ```ts
-const { paid, received, net } = useQuoteFunding({ quoteId: 42n }).data ?? {};
+const { data, isLoading } = useQuoteFunding({ quoteId: 42n });
+/** `data` is `QuoteFundingData | null`: { quoteId, paid, received, net }, all wei. */
+const net = data?.net ?? 0n;
 ```
 
 ### `useQuotesFunding`
 
-Batch variant — funding for many quotes in one request. Feeds "sum of funding across open positions" UI.
+Batch variant — funding for many quotes in one request, plus the running sums. Feeds "sum of funding across open positions" UI.
+
+It takes **quote-shaped rows**, not bare ids: anything with an optional `quoteId` (a `UnifiedQuote` works as-is). Off-chain rows (`quoteId === undefined`) are skipped silently and duplicate ids are fetched — and summed — exactly once.
 
 ```ts
-const funding = useQuotesFunding({ quoteIds: [42n, 43n, 44n] });
+const { rows, net, missingQuoteIds, isLoading } = useQuotesFunding({ quotes: group.quotes });
 ```
+
+`rows` is aligned 1:1 with the input `quotes` (`null` for an off-chain or not-yet-indexed row). `missingQuoteIds` is every requested id while the query is in flight or failed, and the not-yet-indexed subset once it settles.
+
+## Group funding
+
+Both hooks take a [`QuoteGroup`](../../core/quotes/quote-group) and derive the child quote ids themselves: optimistic children (no `quoteId`) are dropped and duplicates collapsed, so one grouped position costs one subgraph round-trip.
+
+**Sign convention** — shared with `useQuoteFunding` and `useQuotesFunding` above: `net = paid − received`, so a **positive** `net` means the user net-**paid** funding. This matches `QuoteFundingData.net` and the on-chain `int256`. A UI that colors "money in" green must negate at the render layer — the SDK never flips the sign.
+
+**Settled to date only.** These are funding charges the protocol has already applied and the analytics subgraph has indexed. Funding accrued since a quote's last charge is not indexed anywhere and is therefore not included.
+
+### `useQuoteGroupFunding`
+
+Aggregated settled funding for a whole group — the group-level counterpart of `useQuoteFunding`. Reads every child in one round-trip via `useQuotesFunding`, then folds with core's pure [`aggregateGroupFunding`](../../core/quotes/aggregate-group-funding). The result is memoized, so it is referentially stable while the group and its rows are unchanged.
+
+```tsx
+function GroupedPositionFunding({ group }: { group: QuoteGroup }) {
+  const { funding, isLoading } = useQuoteGroupFunding({ group });
+
+  /** `funding.net` is a LOWER BOUND until `isComplete` is true — never render it as final before checking. */
+  if (isLoading || !funding.isComplete) return <FundingSkeleton />;
+
+  /** `net > 0n` means the group net-PAID funding. Negate for "green = income". */
+  return <Money amount={-funding.net} label="Funding" />;
+}
+```
+
+`funding` is a [`QuoteGroupFunding`](../../core/quotes/quote-group-funding): `paid` / `received` / `net` (wei), `resolvedCount`, `expectedCount`, `missingQuoteIds`, and `isComplete`. Treat `isComplete: false` as **"funding unknown"**, not "no funding" — an all-optimistic or empty group reports `false` with `net: 0n`. `rows` is the per-child `QuoteFundingData | null`, aligned 1:1 with `group.quotes`.
+
+### `useQuoteGroupFundingHistory`
+
+The per-tick timeline behind that total: every child's funding events as **one merged, time-sorted stream**. `types` is locked to `FUNDING_HISTORY_EVENT_TYPES`, so the hook takes only the group plus paging / sort.
+
+```tsx
+const { data, isLoading } = useQuoteGroupFundingHistory({ group, first: 100 });
+
+for (const row of data?.rows ?? []) {
+  /** Rows arrive interleaved across quotes — `row.quoteId` says which leg this tick belongs to. */
+  const net = (row.fundingPaid ?? 0n) - (row.fundingReceived ?? 0n);
+  /** net > 0n → the user paid funding on this tick. `row.rate` is the signed rate applied (wei). */
+}
+```
+
+Returns a TanStack `UseQueryResult<{ rows: QuoteEventRow[]; hasMore: boolean }, SymmioRequestError>`. Paging is over the **merged** stream, not per quote id: pass `first` / `skip` and keep going while `data.hasMore` is `true`. Omitting `first` asks for the 1000-row ceiling the subgraph enforces, so an un-paged call loads the whole timeline unless the group has more ticks than one request can return. Pass `orderDirection: "asc"` for an oldest-first timeline. The query stays disabled while the group has no on-chain children.
+
+On current deployments effectively every row is `CHARGE_FUNDING_RATE`; `CHARGE_ACCUMULATED_FUNDING_FEE` is part of the preset for completeness but is not yet emitted, so do not rely on seeing it.
 
 ## Related
 
 - [Core Subgraph](../../core/subgraph) — the two subgraphs, contract sync, adding queries.
+- [`getQuotesEventsByType`](../../core/subgraph/get-quotes-events-by-type) — the batched core action behind `useQuoteGroupFundingHistory`.
+- [`aggregateGroupFunding`](../../core/quotes/aggregate-group-funding) — the pure fold behind `useQuoteGroupFunding`.
 - [Unified Quotes](../quotes) — `useQuoteHistory` decorates rendered rows.
 - [Errors](../errors) — subgraph failures surface as `SymmioRequestError` `kind: "api"`.

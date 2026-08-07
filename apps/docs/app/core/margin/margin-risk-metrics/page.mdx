@@ -1,0 +1,67 @@
+# MarginRiskMetrics
+
+Margin and liquidation-risk state of **one account**, produced by [`calculateMarginRisk`](/core/margin/calculate-margin-risk).
+
+All amounts are 18-decimal wei `bigint` and may be negative where the arithmetic allows it. Every figure describes a single liquidation domain — see [the overview](/core/margin) for why they must never be summed across accounts.
+
+## Properties
+
+<Properties>
+  <Property name="totalMargin" type="bigint" required>
+    The collateral allocated to the account — `allocatedBalance`, unchanged.
+  </Property>
+  <Property name="maintenanceMargin" type="bigint" required>
+    `lockedCVA + lockedLF` — the level equity liquidates at.
+  </Property>
+  <Property name="initialMargin" type="bigint" required>
+    `lockedPartyAMM + maintenanceMargin` — every leg partyA has locked, matching the contract's
+    `LockedValuesOps.totalForPartyA()`. These are live locked values, so the figure shrinks on a partial close.
+  </Property>
+  <Property name="equity" type="bigint" required>
+    `totalMargin + upnl` — the account's mark-to-market value.
+  </Property>
+  <Property name="remainingToLiquidation" type="bigint" required>
+    `equity − maintenanceMargin` — the cushion left before liquidation. **Negative means already liquidatable.**
+  </Property>
+  <Property name="liquidationBufferPercent" type="bigint | undefined">
+    `remainingToLiquidation / (totalMargin − maintenanceMargin) × 100` as an 18-decimal fixed-point percent: how much
+    of the zero-uPnL cushion is still intact. Exceeds `100%` in profit, goes negative once liquidatable, and is **not
+    clamped**. `undefined` when the zero-uPnL cushion is not positive.
+  </Property>
+  <Property name="isLiquidatable" type="boolean" required>
+    `remainingToLiquidation < 0n` — bit-for-bit the on-chain predicate
+    `allocatedBalance − (cva + lf) + upnl < 0` from `LibAccount.partyAAvailableBalanceForLiquidation` (perps-core
+    v0.8.5). The boundary is strict: equity exactly equal to the maintenance margin is still solvent.
+  </Property>
+</Properties>
+
+## Why `liquidationBufferPercent` is optional
+
+It is a ratio, and its denominator — the cushion the account would have at zero unrealized PnL — can be zero or negative. When it is, the ratio does not exist, and the SDK says so rather than substituting `0`:
+
+```ts
+if (metrics.liquidationBufferPercent === undefined) {
+  /**
+   * `allocatedBalance ≤ maintenanceMargin`. The account may still be perfectly
+   * solvent on unrealized profit — read `isLiquidatable`, not the percent.
+   */
+  return <BufferUnavailable liquidatable={metrics.isLiquidatable} />;
+}
+```
+
+Reporting `0%` here would paint a profitable account as maximum risk. The same reasoning drives the other optional figures across the SDK ([`QuoteGroupMetrics.leverage`](/core/quotes/quote-group-metrics), `weightedOpenPrice`): an indeterminate value is `undefined`, never a zero standing in for one.
+
+## Rendering the buffer
+
+The percent is unclamped on purpose. Clamp the **bar**, not the number:
+
+```tsx
+const width = Math.min(Math.max(Number(buffer / 10n ** 16n) / 100, 0), 100);
+```
+
+Colour on `isLiquidatable` first, and only then on a threshold — a low percent is a warning, but the flag is the fact.
+
+## Related
+
+- [`calculateMarginRisk`](/core/margin/calculate-margin-risk) — the fold that produces this.
+- [`QuoteGroupUpnl`](/core/quotes/quote-group-upnl) — where the `upnl` input comes from for a grouped position.

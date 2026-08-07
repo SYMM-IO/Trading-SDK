@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Unified Quotes hooks
 
 Live, reconciled quote list — the primary abstraction UI code binds to. Composes on-chain reads, pending instant-opens, pending instant-closes, and solver notifications into one reactive stream of `UnifiedQuote[]`.
@@ -14,6 +16,7 @@ import {
   useQuoteUpnlAndPnl,
   useQuotePlatformFee,
   useAccountLiquidationPrice,
+  useQuoteGroupMarginRisk,
   useQuotePriceHistory,
 } from "@symmio/trading-react";
 ```
@@ -64,11 +67,45 @@ The React hook is the recommended entry point — it wires stores, polling, and 
 
 ## `useGroupedQuotes`
 
-Groups a `UnifiedQuote[]` by market + side. Useful for a "positions grouped by symbol" table.
+Everything [`useManagedQuotes`](#usemanagedquotes) returns, with the active positions folded into [`QuoteGroup`](/core/quotes/quote-group)s and the resting limit orders kept flat.
 
 ```ts
-const grouped = useGroupedQuotes({ quotes: managed.quotes });
+const { groups, pending, quotes } = useGroupedQuotes({
+  partyA: subAccount,
+  strategy: SubAccountIsolationType.MARKET_DIRECTION, // the default
+});
 ```
+
+It takes the same parameters as `useManagedQuotes` — it reads the quotes itself, you do not pass them in — plus:
+
+- `strategy` — a `SubAccountIsolationType` or a custom `{ keyOf }`. Defaults to `MARKET_DIRECTION` (one group per market + side). Memoize a custom strategy; a fresh object every render regroups every render.
+- `groupSort` — group ordering override. Defaults to newest-first.
+
+Each group carries pure [`QuoteGroupMetrics`](/core/quotes/quote-group-metrics): open size, weighted average open price, frozen at-open notional, summed locked margin, and blended leverage. Price-dependent figures are not included — inject a mark price yourself.
+
+Note that a group can span Virtual Accounts, since the VA is not part of the group key. Any write that fans out over `group.quotes` must use each child's own `vaAddress`.
+
+## `useCloseQuoteGroup`
+
+Close an exact quantity across a grouped position.
+
+```tsx
+const { close, status, progressPercent, steps } = useCloseQuoteGroup();
+
+const summary = await close({
+  group,
+  targetQuantity: parseUnits("2.8", 18),
+  minAcceptableQuoteValue: market.minAcceptableQuoteValue,
+  slippage: 5,
+});
+if (!summary.ok) showError(summary.planFailure ?? summary.error);
+```
+
+The run plans the allocation with [`planGroupClose`](/core/quotes/plan-group-close) — largest leg first, every partially closed leg keeping the symbol's dust floor, summing to the target exactly or failing without closing anything — then submits **every allocation in one bulk request**. A submitted leg stays `closing` until its close-fill notification arrives, which advances `closedQuantity` and `progressPercent`.
+
+`close()` never rejects; inspect the returned summary. An infeasible plan comes back as `summary.planFailure` with nothing closed.
+
+For take profit and stop loss across the same grouped position, see [Grouped TP/SL](/react/tpsl#grouped-tpsl).
 
 ## `useOptimisticQuotesStore`
 
@@ -111,6 +148,63 @@ const { liquidationPrice, isLoading } = useAccountLiquidationPrice({ account: qu
 ```
 
 `liquidationPrice` is 18-decimal **wei** `bigint` — `0n` when unavailable (no balance / no positions).
+
+### `useQuoteGroupMarginRisk`
+
+Margin and liquidation risk for a whole [`QuoteGroup`](../../core/quotes/quote-group): resolves the group's Virtual Account, folds its children's unrealized PnL at the mark price with [`aggregateGroupUpnl`](../../core/quotes/aggregate-group-upnl), and runs both through [`calculateMarginRisk`](../../core/margin/calculate-margin-risk). The account's liquidation price comes from `useAccountLiquidationPrice`.
+
+```tsx
+const { metrics, upnl, liquidationPrice, isMultiAccount } = useQuoteGroupMarginRisk({ group });
+
+if (!metrics) return <Skeleton />;
+// The margin legs are uPnL-independent — render them immediately.
+// Gate equity and the buffer on `upnl.isComplete`.
+```
+
+**Mark price: injected wins.** Pass `markPrice` (18-decimal wei) and no price subscription is opened; omit it and the hook subscribes to the group's market itself. Inject it when the surrounding screen already holds the price, so the two cannot disagree by a tick.
+
+**`metrics` is withheld when the group spans several accounts.** A group normally maps 1:1 to a Virtual Account, because the built-in grouping strategies mirror the sub-account's on-chain isolation type. When it does not — a custom `keyOf`, or grouping by `MARKET` an account isolated by `MARKET_DIRECTION` — `isMultiAccount` is `true` and `metrics` is `undefined` rather than blended: each account is liquidated independently, so one averaged buffer would read as safe while one of them is about to go. Fan out with [`useAccountMarginRisk`](../margin#useaccountmarginrisk) over the returned `accounts`.
+
+<Callout type="warning">
+  `equity = allocatedBalance + upnl` mixes an account-wide balance with the group's uPnL. That is exact whenever the
+  grouping strategy matches the sub-account's isolation type. Group a `MARKET`-isolated account by `MARKET_DIRECTION`
+  and each group is a *subset* of its account, which understates equity — the hook cannot detect that without a second
+  read.
+</Callout>
+
+#### Parameters
+
+| Name        | Type         | Default        | Notes                                                                      |
+| ----------- | ------------ | -------------- | -------------------------------------------------------------------------- |
+| `group`     | `QuoteGroup` | —              | The merged position to describe.                                           |
+| `markPrice` | `bigint?`    | subscribed     | Mark price override, wei. Omit to subscribe to the group's market.         |
+| `account`   | `Address?`   | group's VA     | Account override. The uPnL fold narrows to it, so equity stays consistent. |
+| `live`      | `boolean?`   | `true`         | Refetch the balance when an open/close settles on-chain.                   |
+| `enabled`   | `boolean?`   | `true`         | Gate the underlying reads (e.g. while the panel is collapsed).             |
+| `chainId`   | `number?`    | config default | Optional chain override.                                                   |
+| `config`    | `Config?`    | provider value | Optional config override.                                                  |
+
+#### Return type
+
+```ts
+interface UseQuoteGroupMarginRiskReturnType {
+  /** `undefined` while the balance loads, or whenever `isMultiAccount` is true. */
+  metrics?: MarginRiskMetrics;
+  /** The group's aggregated unrealized PnL. Check `upnl.isComplete` before trusting it. */
+  upnl: QuoteGroupUpnl;
+  /** Liquidation price of the resolved account, wei; `0n` when unavailable. */
+  liquidationPrice: bigint;
+  /** The mark price actually used, wei; `undefined` before the first tick. */
+  markPrice?: bigint;
+  /** The account `metrics` and `liquidationPrice` describe. */
+  account?: Address;
+  /** Distinct liquidation domains among the group's children. */
+  accounts: Address[];
+  isMultiAccount: boolean;
+  isLoading: boolean;
+  error: SymmioRequestError | null;
+}
+```
 
 ### `useQuotePriceHistory`
 

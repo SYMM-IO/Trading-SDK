@@ -1,0 +1,26 @@
+# partitionQuotes
+
+Split a flat quote list into active positions and resting/pending orders. Run this before [`groupQuotes`](/core/quotes/group-quotes) — a limit order that has not filled is not part of a position and must not be folded into one.
+
+```ts
+import { partitionQuotes, groupQuotes, SubAccountIsolationType } from "@symmio/trading-core";
+
+const { positions, pending } = partitionQuotes(quotes);
+const groups = groupQuotes(positions, SubAccountIsolationType.MARKET_DIRECTION);
+```
+
+`isPendingOrder` and `isActivePosition` are exported separately for callers that need the predicate rather than the split.
+
+## Parameters
+
+<Properties>
+  <Property name="quotes" type="readonly UnifiedQuote[]" typeHref="/core/quotes/unified-quote" required>
+    The flat quote list.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="PartitionedQuotes">
+  `{ positions, pending }`, each preserving input order.
+</Returns>

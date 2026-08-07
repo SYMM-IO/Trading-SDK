@@ -1,0 +1,27 @@
+# toGroupCloseCandidates
+
+Build the candidate list [`planGroupClose`](/core/quotes/plan-group-close) plans over.
+
+Only children that can actually receive a close order qualify: anchored on-chain, status `OPENED` (a child with a close already in flight is excluded), and open size left. Each candidate carries its contract min-remainder, derived from the symbol's `minAcceptableQuoteValue` — the dust floor a partially closed child must keep.
+
+```ts
+import { toGroupCloseCandidates, planGroupClose } from "@symmio/trading-core";
+
+const candidates = toGroupCloseCandidates(group.quotes, market.minAcceptableQuoteValue);
+const plan = planGroupClose(candidates, parseUnits("2.8", 18));
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quotes" type="readonly UnifiedQuote[]" typeHref="/core/quotes/unified-quote" required>
+    The group's child quotes.
+  </Property>
+  <Property name="minAcceptableQuoteValue" type="bigint" required>
+    The symbol's `minAcceptableQuoteValue`, wei.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GroupCloseCandidate[]">Candidates in input order.</Returns>

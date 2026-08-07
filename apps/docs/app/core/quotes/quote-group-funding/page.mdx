@@ -1,0 +1,60 @@
+# QuoteGroupFunding
+
+Aggregated funding for one grouped position, folded from the per-quote [`QuoteFundingData`](/core/subgraph/get-quote-funding) rows the analytics subgraph returned for its children. Produced by [`aggregateGroupFunding`](/core/quotes/aggregate-group-funding).
+
+Every amount is 18-decimal wei `bigint`, matching [`UnifiedQuote`](/core/quotes/unified-quote).
+
+**Sign convention** — `net = paid − received`. A **positive** `net` means the group has net-**paid** funding; a negative `net` means it has net-**received** it. This matches `QuoteFundingData.net` and the on-chain `int256`. A UI that prefers "green = income" must invert for display at the render layer, not here.
+
+**Settled to date only** — these totals cover funding the protocol has already charged and the analytics subgraph has indexed. Funding accrued since the last charge is **not** included: it is not indexed anywhere, so it cannot be part of this sum.
+
+## Properties
+
+<Properties>
+  <Property name="paid" type="bigint" required>
+    Σ funding partyA paid across the group's resolved children (wei).
+  </Property>
+  <Property name="received" type="bigint" required>
+    Σ funding partyA received across the group's resolved children (wei).
+  </Property>
+  <Property name="net" type="bigint" required>
+    Σ `paid − received` across the group's resolved children (wei). **Positive = the group net-paid funding**; negative
+    = it net-received it. A lower bound while `isComplete` is `false` — it is never suppressed to `0n`.
+  </Property>
+  <Property name="resolvedCount" type="number" required>
+    Number of distinct child quote ids that produced a funding row.
+  </Property>
+  <Property name="expectedCount" type="number" required>
+    Number of distinct on-chain quote ids among the children — the rows this group expects. Optimistic children (no
+    `quoteId` yet) are not counted.
+  </Property>
+  <Property name="missingQuoteIds" type="bigint[]" required>
+    Expected quote ids with no funding row yet (subgraph indexing lag), in the order the ids first appear in the group's
+    children.
+  </Property>
+  <Property name="isComplete" type="boolean" required>
+    `true` only when the group has at least one on-chain child **and** every one of them resolved — i.e. the amounts
+    above are the group's complete settled-to-date funding. Check it before presenting `net` as final.
+  </Property>
+</Properties>
+
+## Why a consumer must check `isComplete`
+
+`net` is always the sum over whatever resolved, so an incomplete aggregate still renders a number — just a smaller one than the truth. `isComplete: false` means one of two things, and both are **"funding unknown"**, never "no funding":
+
+- `missingQuoteIds` is non-empty — the subgraph has not indexed those children yet. Show a loading or partial state.
+- `expectedCount` is `0` — the group is all-optimistic (or empty), so there is nothing to resolve. `net` is `0n` because nothing was summed, not because funding was zero.
+
+```ts
+if (!funding.isComplete) {
+  /** Still indexing (or nothing on-chain yet) — do not render `net` as the final total. */
+  return <FundingSkeleton />;
+}
+```
+
+## Related
+
+- [`aggregateGroupFunding`](/core/quotes/aggregate-group-funding) — produces this.
+- [`QuoteGroup`](/core/quotes/quote-group) — the grouped position whose `quotes` are folded.
+- [`QuoteGroupMetrics`](/core/quotes/quote-group-metrics) — the price-independent metrics on the same group.
+- [React `useQuoteGroupFunding`](/react/subgraph) — the hook that returns this for a live group.

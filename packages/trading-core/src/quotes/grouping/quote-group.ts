@@ -60,10 +60,13 @@ export type QuoteGroupingStrategy = SubAccountIsolationType | { readonly keyOf: 
 
 /**
  * Pure, price-independent aggregations over a group's child quotes. Every amount
- * is 18-decimal wei `bigint`, matching {@link UnifiedQuote}. Metrics that need a
- * live mark price or VA balance (unrealized PnL, market value, liquidation price)
- * are intentionally **not** here — they belong to a follow-up slice that injects
- * those inputs.
+ * is 18-decimal wei `bigint`, matching {@link UnifiedQuote}.
+ *
+ * Metrics that need a live mark price or Virtual Account balance are
+ * intentionally **not** here — they take those inputs explicitly instead:
+ * `aggregateGroupUpnl` (unrealized PnL at a mark price), `calculateMarginRisk`
+ * (margin, equity and liquidation buffer from an account's balance), and
+ * `calculateLiquidationPrice` (the price liquidation happens at).
  */
 export interface QuoteGroupMetrics {
   /** Number of child quotes in the group. */

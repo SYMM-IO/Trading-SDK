@@ -376,7 +376,13 @@ export {
  * (on-chain reads fanned out across the sub-account's Virtual Accounts + hedger
  * instant-ops + live notifications) into one reconciled, lifecycle-tagged table,
  * seeded by the optimistic `useOptimisticQuotesStore`. Import the `UnifiedQuote`
- * / `QuoteLifecycle` value types from `@symmio/trading-core`.
+ * / `QuoteLifecycle` value types from `@symmio/trading-core`. The
+ * `useQuoteGroupFunding*` hooks read a whole group's settled-to-date funding —
+ * one aggregate total, one merged timeline — where `net = paid − received`, so a
+ * **positive** net means the group net-**paid**.
+ * `useQuoteGroupMarginRisk` describes a group's margin, equity and distance to
+ * liquidation; it withholds `metrics` when the group spans several accounts,
+ * since each is liquidated independently.
  */
 export {
   useAccountLiquidationPrice,
@@ -389,6 +395,9 @@ export {
   useQuote,
   useQuoteEventsByType,
   useQuoteFunding,
+  useQuoteGroupFunding,
+  useQuoteGroupFundingHistory,
+  useQuoteGroupMarginRisk,
   useQuoteHistory,
   useQuotePlatformFee,
   useQuotePriceHistory,
@@ -419,6 +428,12 @@ export {
   type UseQuoteEventsByTypeReturnType,
   type UseQuoteFundingParameters,
   type UseQuoteFundingReturnType,
+  type UseQuoteGroupFundingHistoryParameters,
+  type UseQuoteGroupFundingHistoryReturnType,
+  type UseQuoteGroupFundingParameters,
+  type UseQuoteGroupFundingReturnType,
+  type UseQuoteGroupMarginRiskParameters,
+  type UseQuoteGroupMarginRiskReturnType,
   type UseQuoteHistoryParameters,
   type UseQuoteHistoryReturnType,
   type UseQuoteParameters,
@@ -435,10 +450,17 @@ export {
 } from "./quotes";
 
 /**
- * Margin — derived spendable-margin helpers for the trade form.
+ * Margin — derived spendable-margin helpers for the trade form, plus
+ * `useAccountMarginRisk`: one account's margin, equity and distance to
+ * liquidation, folded by core's `calculateMarginRisk`. Every figure it returns
+ * describes a single liquidation domain, so call it once per account rather than
+ * summing across them.
  */
 export {
+  useAccountMarginRisk,
   useAvailableInstantOpenMargin,
+  type UseAccountMarginRiskParameters,
+  type UseAccountMarginRiskReturnType,
   type UseAvailableInstantOpenMarginParameters,
   type UseAvailableInstantOpenMarginReturnType,
 } from "./margin";
@@ -667,21 +689,50 @@ export {
  */
 export {
   DEFAULT_TPSL_SLIPPAGE_LOWCAPS,
+  GROUP_TPSL_SIDES,
   ZERO_LEG,
   buildConditionalOrderLeg,
   buildConditionalOrderMessage,
   buildTpSlDeleteMessage,
+  childNotional,
   deleteQuoteTpSl,
   deleteQuoteTpSlMutationOptions,
+  estimateGroupTpSlReturn,
   generateTpSlSalt,
   parseTpSlFrame,
+  planGroupTpSl,
+  planGroupTpSlDelete,
   priceSlippageCalculation,
+  sharePercent,
   signTpSlRequest,
+  summarizeQuoteGroupTpSl,
+  toGroupTpSlChildren,
+  toGroupTpSlOrders,
   toSignableTpSlMessage,
   validateTpSl,
   watchTpSlNotifications,
   type DeleteQuoteTpSlParameters,
   type DeleteQuoteTpSlReturnType,
+  type EstimateGroupTpSlReturnParameters,
+  type GroupTpSlAction,
+  type GroupTpSlChild,
+  type GroupTpSlDeleteScope,
+  type GroupTpSlDeleteSkip,
+  type GroupTpSlDeleteTarget,
+  type GroupTpSlDesiredMap,
+  type GroupTpSlDesiredSide,
+  type GroupTpSlDesiredSides,
+  type GroupTpSlOrder,
+  type GroupTpSlReturnEstimate,
+  type GroupTpSlReturnLeg,
+  type GroupTpSlSideDisplay,
+  type GroupTpSlSideKey,
+  type GroupTpSlSideSummary,
+  type GroupTpSlSkipReason,
+  type PlanGroupTpSlDeleteResult,
+  type PlanGroupTpSlParameters,
+  type PlanGroupTpSlResult,
+  type QuoteGroupTpSlSummary,
   type QuoteTpSl,
   type QuoteTpSlActionPriceType,
   type QuoteTpSlConditionalOrderType,
@@ -704,21 +755,46 @@ export {
   type WatchTpSlNotificationsParameters,
 } from "@symmio/trading-core";
 export {
+  invalidateTpSlReads,
   toQuoteTpSl,
+  useDeleteQuoteGroupTpSl,
   useDeleteQuoteTpSl,
+  useQuoteGroupTpSl,
+  useQuoteGroupTpSlEditor,
   useQuoteTpSl,
+  useSetQuoteGroupTpSl,
   useSetQuoteTpSl,
   useTpSlConfig,
   useTpSlRecord,
+  useTpSlRecords,
   useTpSlSigningSpec,
   useTpSlStore,
   useWatchTpSlNotifications,
+  type DeleteQuoteGroupTpSlParameters,
+  type DeleteQuoteGroupTpSlStatus,
+  type DeleteQuoteGroupTpSlStep,
+  type DeleteQuoteGroupTpSlStepStatus,
+  type DeleteQuoteGroupTpSlSummary,
+  type SetQuoteGroupTpSlParameters,
+  type SetQuoteGroupTpSlStatus,
+  type SetQuoteGroupTpSlStep,
+  type SetQuoteGroupTpSlStepKind,
+  type SetQuoteGroupTpSlStepStatus,
+  type SetQuoteGroupTpSlSummary,
   type TpSlRecord,
   type TpSlStoreState,
+  type UseDeleteQuoteGroupTpSlParameters,
+  type UseDeleteQuoteGroupTpSlReturnType,
   type UseDeleteQuoteTpSlParameters,
   type UseDeleteQuoteTpSlReturnType,
+  type UseQuoteGroupTpSlEditorParameters,
+  type UseQuoteGroupTpSlEditorReturnType,
+  type UseQuoteGroupTpSlParameters,
+  type UseQuoteGroupTpSlReturnType,
   type UseQuoteTpSlParameters,
   type UseQuoteTpSlReturnType,
+  type UseSetQuoteGroupTpSlParameters,
+  type UseSetQuoteGroupTpSlReturnType,
   type UseSetQuoteTpSlParameters,
   type UseSetQuoteTpSlReturnType,
   type UseTpSlConfigParameters,

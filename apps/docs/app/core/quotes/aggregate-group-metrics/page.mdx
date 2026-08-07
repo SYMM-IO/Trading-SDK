@@ -1,0 +1,24 @@
+# aggregateGroupMetrics
+
+Compute the pure, price-independent [`QuoteGroupMetrics`](/core/quotes/quote-group-metrics) for a set of child quotes. Called for you by [`groupQuotes`](/core/quotes/group-quotes); exported so a consumer can re-aggregate an arbitrary subset (for example, only the legs a user selected).
+
+- `openQuantity` / `quantity` are plain sums.
+- `initialNotional = Σ(quantity × (initialOpenedPrice ?? requestedOpenPrice))` — the frozen at-open notional; partial closes do not shrink it.
+- `weightedOpenPrice = Σ(openQuantity × openPrice) / Σ openQuantity`, suppressed when there is no open size or any child has an unsettled open price.
+- `leverage` divides the at-open notional by Σ of every locked leg, each child preferring its frozen `initialLockedValues`.
+
+Pure and order-independent. Empty input yields all-zero amounts with the optional fields `undefined`.
+
+## Parameters
+
+<Properties>
+  <Property name="quotes" type="readonly UnifiedQuote[]" typeHref="/core/quotes/unified-quote" required>
+    The group's child quotes.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="QuoteGroupMetrics" typeHref="/core/quotes/quote-group-metrics">
+  The aggregated metrics.
+</Returns>

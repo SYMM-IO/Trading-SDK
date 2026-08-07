@@ -1,0 +1,54 @@
+# QuoteGroupUpnl
+
+Aggregated unrealized PnL for one grouped position, valued at a single mark price. Produced by [`aggregateGroupUpnl`](/core/quotes/aggregate-group-upnl).
+
+Every amount is 18-decimal wei `bigint`, matching [`UnifiedQuote`](/core/quotes/unified-quote).
+
+**Sign convention** — plain trader convention: a **positive** `upnl` means the group is in profit. This is the opposite polarity to [`QuoteGroupFunding.net`](/core/quotes/quote-group-funding), where positive means net-**paid**.
+
+## Properties
+
+<Properties>
+  <Property name="upnl" type="bigint" required>
+    Σ signed unrealized PnL across the group's valued children (wei). **Positive = in profit.** A lower bound in
+    magnitude while `isComplete` is `false` — it is never suppressed to `0n`.
+  </Property>
+  <Property name="openNotional" type="bigint" required>
+    Σ `openQuantity × openedPrice` across the valued children (wei) — the at-entry basis a return percentage would
+    divide by. `0n` when nothing was valued.
+  </Property>
+  <Property name="valuedCount" type="number" required>
+    Number of children with open size that were valued against the mark price.
+  </Property>
+  <Property name="unvaluedCount" type="number" required>
+    Number of children with open size whose open price is not settled yet, so their PnL is unknown. Resting orders and
+    fully-closed children are **not** counted here — they have no unrealized PnL to be missing.
+  </Property>
+  <Property name="isComplete" type="boolean" required>
+    `true` only when a mark price was given, at least one child was valued, and none was left unvalued. Check it before
+    presenting `upnl` — or anything derived from it, such as equity — as final.
+  </Property>
+</Properties>
+
+## Why a consumer must check `isComplete`
+
+`upnl` always renders a number, so an incomplete fold looks identical to a complete one — just smaller. `isComplete: false` means one of three things, and all of them are **"PnL unknown"**, never "no PnL":
+
+- No mark price yet. The feed has not ticked; `upnl` is `0n` because nothing was valued.
+- `unvaluedCount > 0`. Some position's fill price has not settled, so its contribution is missing.
+- Nothing to value at all — every child is a resting order, closed, or the group is empty.
+
+```ts
+if (!upnl.isComplete) {
+  /** Show a skeleton. Do not render `0` as the position's PnL. */
+  return <Skeleton />;
+}
+```
+
+This matters most downstream: `equity = totalMargin + upnl`, so an incomplete uPnL silently produces an equity figure that is wrong by the missing amount. Gate equity and the liquidation buffer on this flag; the margin legs themselves are uPnL-independent and can render immediately.
+
+## Related
+
+- [`aggregateGroupUpnl`](/core/quotes/aggregate-group-upnl) — the fold that produces this.
+- [`calculateMarginRisk`](/core/margin/calculate-margin-risk) — takes `upnl` as its unrealized-PnL input.
+- [`QuoteGroupMetrics`](/core/quotes/quote-group-metrics) — the price-independent aggregations over the same children.
