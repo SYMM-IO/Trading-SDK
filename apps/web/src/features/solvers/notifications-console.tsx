@@ -3,6 +3,8 @@
 import { ResultError, ResultNote } from "@/components/result";
 import { StatusDot } from "@/components/status-dot";
 import { MagicPinButton } from "@/features/magic-sidebar/magic-pin-button";
+import { NotificationLogRow } from "@/features/notifications/notification-log-row";
+import { socketStatusLabel, socketStatusTone } from "@/features/notifications/socket-status-display";
 import type { Notification } from "@symmio/trading-core";
 import { useNotifications } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
@@ -11,8 +13,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { useRef, useState } from "react";
 import type { Address } from "viem";
 import { SubAccountPicker } from "../inspector/subaccount-picker";
-import { NotificationLogRow } from "./notification-log-row";
-import { socketStatusLabel, socketStatusTone } from "./socket-status-display";
+import { SolverTargetSelect, useSolverTargetState } from "./solver-target";
 
 /** Max log rows kept on screen. */
 const MAX_ROWS = 200;
@@ -29,11 +30,14 @@ interface LogEntry {
 }
 
 /**
- * Interactive notifications console: pick a SubAccount, subscribe, and watch the
- * live notification stream with a connection-status badge and pause/clear
- * controls. Renders two cards — a subscription card and a live-log card.
+ * Interactive notifications console: pick a solver and a SubAccount, subscribe,
+ * and watch the live notification stream with a connection-status badge and
+ * pause/clear controls. Works for both solver kinds (enigma and rasa) — the
+ * selected solver's chain id and id are passed to {@link useNotifications}.
+ * Renders two cards — a subscription card and a live-log card.
  */
 export function NotificationsConsole() {
+  const { target, setTarget } = useSolverTargetState();
   const [selection, setSelection] = useState<Selection>({});
   const [account, setAccount] = useState<Address | undefined>(undefined);
   const [paused, setPaused] = useState(false);
@@ -45,6 +49,8 @@ export function NotificationsConsole() {
 
   const { status, error } = useNotifications({
     account,
+    chainId: target.chainId,
+    solverId: target.solverId,
     enabled: Boolean(account),
     onNotification: (notification) => {
       if (pausedRef.current) return;
@@ -69,7 +75,9 @@ export function NotificationsConsole() {
       <Card className="animate-enter-up">
         <CardHeader>
           <CardTitle>Subscription</CardTitle>
-          <CardDescription>Pick a SubAccount and subscribe to its live notifications stream.</CardDescription>
+          <CardDescription>
+            Pick a solver and a SubAccount, then subscribe to its live notifications stream.
+          </CardDescription>
           <CardAction className="flex items-center gap-2">
             <StatusDot tone={socketStatusTone(status)} pulse={status === "open"} />
             <span className="text-sm">{socketStatusLabel(status)}</span>
@@ -77,7 +85,8 @@ export function NotificationsConsole() {
           </CardAction>
         </CardHeader>
         <CardContent className="space-y-4">
-          <SubAccountPicker idPrefix="websocket" selected={selection} onSelect={setSelection} />
+          <SolverTargetSelect value={target} onChange={setTarget} testId="select-notifications-solver" />
+          <SubAccountPicker idPrefix="notifications-console" selected={selection} onSelect={setSelection} />
 
           <div className="flex flex-wrap items-center gap-3">
             {subscribed ? (
@@ -86,7 +95,7 @@ export function NotificationsConsole() {
                 variant="outline"
                 size="sm"
                 onClick={unsubscribe}
-                data-testid="websocket-unsubscribe"
+                data-testid="notifications-unsubscribe"
               >
                 Unsubscribe
               </Button>
@@ -96,7 +105,7 @@ export function NotificationsConsole() {
                 size="sm"
                 disabled={!selection.subAccount}
                 onClick={subscribe}
-                data-testid="websocket-subscribe"
+                data-testid="notifications-subscribe"
               >
                 Subscribe
               </Button>
@@ -104,9 +113,11 @@ export function NotificationsConsole() {
             {subscribed ? <span className="text-muted-foreground font-mono text-xs">{account}</span> : null}
           </div>
 
-          {error ? <ResultError testId="websocket-error" kind={error.kind} message={error.message} /> : null}
+          {error ? <ResultError testId="notifications-error" kind={error.kind} message={error.message} /> : null}
           {!subscribed && !error ? (
-            <ResultNote testId="websocket-idle">Pick a SubAccount and subscribe to stream notifications.</ResultNote>
+            <ResultNote testId="notifications-idle">
+              Pick a SubAccount and subscribe to stream notifications.
+            </ResultNote>
           ) : null}
         </CardContent>
       </Card>
@@ -126,7 +137,7 @@ export function NotificationsConsole() {
               size="sm"
               disabled={!subscribed}
               onClick={() => setPaused((p) => !p)}
-              data-testid="websocket-pause"
+              data-testid="notifications-pause"
             >
               {paused ? "Resume" : "Pause"}
             </Button>
@@ -136,7 +147,7 @@ export function NotificationsConsole() {
               size="sm"
               disabled={log.length === 0}
               onClick={() => setLog([])}
-              data-testid="websocket-clear"
+              data-testid="notifications-clear"
             >
               Clear
             </Button>
@@ -144,11 +155,11 @@ export function NotificationsConsole() {
         </CardHeader>
         <CardContent>
           {log.length === 0 ? (
-            <ResultNote testId="websocket-log-empty">
+            <ResultNote testId="notifications-log-empty">
               {subscribed ? "Waiting for notifications…" : "No notifications yet."}
             </ResultNote>
           ) : (
-            <ul className="flex flex-col gap-2" data-testid="websocket-log">
+            <ul className="flex flex-col gap-2" data-testid="notifications-log">
               {log.map((entry) => (
                 <NotificationLogRow key={entry.key} notification={entry.notification} receivedAt={entry.receivedAt} />
               ))}

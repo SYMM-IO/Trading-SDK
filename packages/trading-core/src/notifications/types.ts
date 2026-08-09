@@ -78,15 +78,3 @@ export interface NotificationDocument {
   data?: RawPositionNotification & Record<string, unknown>;
   [key: string]: unknown;
 }
-
-/**
- * Normalized result of {@link searchNotifications}.
- */
-export interface NotificationSearchResult {
-  /** Total number of documents matching the filter, ignoring pagination. */
-  total: number;
-  /** Number of documents returned in this page (`documents.length`). */
-  count: number;
-  /** The matched documents for the requested `start`/`size` window. */
-  documents: NotificationDocument[];
-}

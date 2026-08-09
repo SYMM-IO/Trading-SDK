@@ -705,22 +705,26 @@ export type {
 /**
  * Notifications search
  * --------------------
- * `searchNotifications` queries the notification service's `POST /api/v1/search`
- * endpoint — a free-form equality filter over stored notifications. Keys are
- * matched exactly, whether top-level (`app_name`, …) or a dotted payload path
- * (`data.temp_quote_id`, …); {@link NotificationSearchFilter} types the known
- * keys while still accepting any string key. The REST counterpart to the live
- * `watchNotifications` stream.
+ * `searchNotifications` is one interface over both solver kinds, dispatched by
+ * the resolved `solverId`: an **enigma** solver hits the notification service
+ * (`POST /api/v1/search`, a free-form equality filter over stored documents),
+ * while a **rasa** solver hits its own position-state endpoint. The result is a
+ * per-kind union ({@link NotificationSearchResult}) — pass a literal `solverId`
+ * to narrow it, or branch on the returned `kind`. The REST counterpart to the
+ * live `watchNotifications` stream.
  */
 export {
   searchNotifications,
   searchNotificationsQueryKey,
   searchNotificationsQueryOptions,
+  type EnigmaNotificationSearchResult,
   type NotificationDocument,
   type NotificationQueryValue,
   type NotificationSearchField,
   type NotificationSearchFilter,
   type NotificationSearchResult,
+  type NotificationSearchResultByKind,
+  type RasaNotificationSearchResult,
   type SearchNotificationsData,
   type SearchNotificationsOptions,
   type SearchNotificationsParameters,
@@ -884,28 +888,6 @@ export {
   type GetSolverReadinessQueryOptions,
   type GetSolverReadinessReturnType,
 } from "./solvers/get-solver-readiness";
-export {
-  searchPositionStates,
-  searchPositionStatesQueryKey,
-  searchPositionStatesQueryOptions,
-  type SearchPositionStatesData,
-  type SearchPositionStatesOptions,
-  type SearchPositionStatesParameters,
-  type SearchPositionStatesQueryKey,
-  type SearchPositionStatesQueryOptions,
-  type SearchPositionStatesReturnType,
-} from "./solvers/search-position-states";
-export {
-  searchSolverNotifications,
-  searchSolverNotificationsQueryKey,
-  searchSolverNotificationsQueryOptions,
-  type SearchSolverNotificationsData,
-  type SearchSolverNotificationsOptions,
-  type SearchSolverNotificationsParameters,
-  type SearchSolverNotificationsQueryKey,
-  type SearchSolverNotificationsQueryOptions,
-  type SearchSolverNotificationsReturnType,
-} from "./solvers/search-solver-notifications";
 export type {
   BalanceInfoResponseSchema,
   BothUpnlData,

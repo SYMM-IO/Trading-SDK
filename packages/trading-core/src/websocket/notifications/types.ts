@@ -1,4 +1,5 @@
 import type { Address } from "viem";
+import type { SolverId } from "../../core/chains";
 import type { SymmError } from "../../shared/errors/symm-error";
 import type { SocketStatus } from "../socket/socket-status";
 
@@ -16,6 +17,8 @@ export interface WatchNotificationsParameters {
   account: Address;
   /** Target chain id. Defaults to the config's `defaultChainId`. */
   chainId?: number;
+  /** Target solver. Defaults to the chain's default solver; selects the notifications endpoint + protocol. */
+  solverId?: SolverId;
   /** Called for every normalized notification frame. */
   onNotification: (notification: Notification) => void;
   /** Called whenever the underlying connection status changes. */

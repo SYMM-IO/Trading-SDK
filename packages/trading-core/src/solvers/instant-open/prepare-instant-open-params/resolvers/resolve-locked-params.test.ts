@@ -26,7 +26,12 @@ const config = createConfig({
       addresses: { affiliatesAddress: AFFILIATE },
       defaultSolverId: "enigma",
       solvers: {
-        enigma: { name: "Enigma", address: AFFILIATE, url: "https://enigma.test" },
+        enigma: {
+          name: "Enigma",
+          address: AFFILIATE,
+          url: "https://enigma.test",
+          notifications: { url: "wss://enigma.test/ws", protocol: "enigma", channel: "test" },
+        },
         rasa: { name: "Rasa", address: AFFILIATE, url: "https://rasa.test" },
       },
     },

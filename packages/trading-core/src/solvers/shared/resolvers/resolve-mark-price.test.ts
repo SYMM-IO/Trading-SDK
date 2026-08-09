@@ -29,12 +29,18 @@ const config = createConfig({
       priceService: ENIGMA,
       defaultSolverId: "enigma",
       solvers: {
-        enigma: { name: "Enigma", address: TEST_AFFILIATE_ADDRESS, url: "https://enigma.test" },
+        enigma: {
+          name: "Enigma",
+          address: TEST_AFFILIATE_ADDRESS,
+          url: "https://enigma.test",
+          notifications: { url: "wss://enigma.test/ws", protocol: "enigma", channel: "test" },
+        },
         rasa: {
           name: "Rasa",
           address: TEST_AFFILIATE_ADDRESS,
           url: "https://rasa.test",
           priceService: BINANCE,
+          notifications: { url: "wss://rasa.test/ws", protocol: "rasa" },
         },
       },
     },

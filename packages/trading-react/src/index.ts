@@ -627,11 +627,13 @@ export { useNotifications, type UseNotificationsParameters, type UseNotification
 /**
  * Notification search hooks
  * -------------------------
- * `useSearchNotifications` queries the notification service's free-form
- * `POST /api/v1/search` endpoint (the REST counterpart to the live
- * `useNotifications` stream). Import the filter/result value types
- * (`NotificationSearchFilter`, `NotificationDocument`, `NotificationSearchResult`)
- * from `@symmio/trading-core`.
+ * `useSearchNotifications` is one hook over both solver kinds, dispatched by
+ * `solverId`: an enigma solver hits the notification service (`POST /api/v1/search`),
+ * a rasa solver hits its own position-state endpoint. It returns a per-kind union
+ * (narrow on `data.kind`) and is the REST counterpart to the live
+ * `useNotifications` stream. Import the filter/result value types
+ * (`NotificationSearchFilter`, `NotificationDocument`, `NotificationSearchResult`,
+ * `EnigmaNotificationSearchResult`, `RasaNotificationSearchResult`) from `@symmio/trading-core`.
  */
 export {
   useSearchNotifications,
@@ -802,18 +804,15 @@ export {
  * ----------------------
  * Hooks over the endpoints only the `rasa` solver kind exposes: solver-side
  * balance info, partyA uPnL, global open interest, symbol price range,
- * position-state and notification searches, single error-code lookup,
- * whitelist check/add, and readiness. Each surfaces a typed
- * `UNSUPPORTED_BY_SOLVER` error when the resolved solver is not a `rasa`
- * solver.
+ * single error-code lookup, whitelist check/add, and readiness. Each surfaces a
+ * typed `UNSUPPORTED_BY_SOLVER` error when the resolved solver is not a `rasa`
+ * solver. (Notification history search is the unified `useSearchNotifications`.)
  */
 export {
   useAddSolverWhitelist,
   useCheckSolverWhitelist,
   useErrorMessage,
   usePartyAUpnl,
-  useSearchPositionStates,
-  useSearchSolverNotifications,
   useSolverBalanceInfo,
   useSolverOpenInterest,
   useSolverPriceRange,
@@ -826,10 +825,6 @@ export {
   type UseErrorMessageReturnType,
   type UsePartyAUpnlParameters,
   type UsePartyAUpnlReturnType,
-  type UseSearchPositionStatesParameters,
-  type UseSearchPositionStatesReturnType,
-  type UseSearchSolverNotificationsParameters,
-  type UseSearchSolverNotificationsReturnType,
   type UseSolverBalanceInfoParameters,
   type UseSolverBalanceInfoReturnType,
   type UseSolverOpenInterestParameters,

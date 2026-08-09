@@ -36,7 +36,7 @@ import type { Unwatch, WatchNotificationsParameters } from "./types";
  * ```
  */
 export function watchNotifications(config: Config, parameters: WatchNotificationsParameters): Unwatch {
-  const { notifications } = config.getChainConfig(parameters.chainId);
+  const { notifications } = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   switch (notifications.protocol) {
     case "enigma":
       return watchEnigmaNotifications(config, notifications, parameters);

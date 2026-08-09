@@ -9,8 +9,6 @@ const mocks = vi.hoisted(() => ({
   getCounterpartyUpnlPartyAUpnlAddressGet: vi.fn(),
   getOpenInterestOpenInterestGet: vi.fn(),
   getSymbolPriceRangePriceRangeSymbolGet: vi.fn(),
-  searchPositionStatePositionStateStartSizePost: vi.fn(),
-  searchNotificationNotificationsStartSizePost: vi.fn(),
   getErrorMessageErrorCodesErrorCodeGet: vi.fn(),
   checkInWhiteListCheckInWhitelistAddressMultiAccountAddressGet: vi.fn(),
   whitelistCheckSubAddressAddSubAddressInWhitelistAddressMultiAccountAddressGet: vi.fn(),
@@ -30,8 +28,6 @@ import { getSolverBalanceInfo } from "./get-solver-balance-info";
 import { getSolverOpenInterest } from "./get-solver-open-interest";
 import { getSolverPriceRange } from "./get-solver-price-range";
 import { getSolverReadiness } from "./get-solver-readiness";
-import { searchPositionStates } from "./search-position-states";
-import { searchSolverNotifications } from "./search-solver-notifications";
 
 const BASE = SymmioSupportedChainId.BASE;
 const HYPER = SymmioSupportedChainId.HYPER_EVM;
@@ -76,25 +72,6 @@ const CASES = [
     expectedArgs: ["BTCUSDT", { baseURL: RASA_URL }],
   },
   {
-    name: "searchPositionStates",
-    run: () => searchPositionStates(config, { chainId: BASE, start: 0, size: 10, quoteId: 7 }),
-    mock: mocks.searchPositionStatePositionStateStartSizePost,
-    response: { count: 0, position_state: [] },
-    expectedArgs: [
-      0,
-      10,
-      { address: null, quote_id: 7, create_time_gte: null, modify_time_gte: null },
-      { baseURL: RASA_URL },
-    ],
-  },
-  {
-    name: "searchSolverNotifications",
-    run: () => searchSolverNotifications(config, { chainId: BASE, start: 0, size: 5, counterpartyAddress: USER }),
-    mock: mocks.searchNotificationNotificationsStartSizePost,
-    response: { count: 0, notification_data: [] },
-    expectedArgs: [0, 5, { counterparty_address: USER, quote_id: null, timestamp_gte: null }, { baseURL: RASA_URL }],
-  },
-  {
     name: "getErrorMessage",
     run: () => getErrorMessage(config, { chainId: BASE, errorCode: 2000 }),
     mock: mocks.getErrorMessageErrorCodesErrorCodeGet,
@@ -130,8 +107,6 @@ const ENIGMA_RUNS = [
   () => getPartyAUpnl(config, { chainId: HYPER, address: USER }),
   () => getSolverOpenInterest(config, { chainId: HYPER }),
   () => getSolverPriceRange(config, { chainId: HYPER, symbol: "BTCUSDT" }),
-  () => searchPositionStates(config, { chainId: HYPER, start: 0, size: 10 }),
-  () => searchSolverNotifications(config, { chainId: HYPER, start: 0, size: 10 }),
   () => getErrorMessage(config, { chainId: HYPER, errorCode: 1 }),
   () => checkSolverWhitelist(config, { chainId: HYPER, address: USER }),
   () => addSolverWhitelist(config, { chainId: HYPER, address: USER }),

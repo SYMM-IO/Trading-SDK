@@ -18,8 +18,19 @@ const config = createConfig({
       priceService: CHAIN_LEVEL,
       defaultSolverId: "enigma",
       solvers: {
-        enigma: { name: "Enigma", address: AFFILIATE, url: "https://enigma.test" },
-        rasa: { name: "Rasa", address: AFFILIATE, url: "https://rasa.test", priceService: SOLVER_LEVEL },
+        enigma: {
+          name: "Enigma",
+          address: AFFILIATE,
+          url: "https://enigma.test",
+          notifications: { url: "wss://enigma.test/ws", protocol: "enigma", channel: "test" },
+        },
+        rasa: {
+          name: "Rasa",
+          address: AFFILIATE,
+          url: "https://rasa.test",
+          priceService: SOLVER_LEVEL,
+          notifications: { url: "wss://rasa.test/ws", protocol: "rasa" },
+        },
       },
     },
   },
@@ -64,7 +75,14 @@ describe("resolvePriceService", () => {
           addresses: { affiliatesAddress: AFFILIATE },
           priceService: CHAIN_LEVEL,
           defaultSolverId: "enigma",
-          solvers: { enigma: { name: "Enigma", address: AFFILIATE, url: "https://enigma.test" } },
+          solvers: {
+            enigma: {
+              name: "Enigma",
+              address: AFFILIATE,
+              url: "https://enigma.test",
+              notifications: { url: "wss://enigma.test/ws", protocol: "enigma", channel: "test" },
+            },
+          },
         },
       },
     });

@@ -1,0 +1,158 @@
+import { Callout } from "nextra/components";
+
+# Solvers & Chains
+
+SYMMIO is a **multi-solver, multi-chain** protocol, and the SDK models both axes explicitly. Reach for this page before you wire market data, prices, notifications, or a trade flow — it explains how one config serves two very different products, and how the SDK normalizes the differences so your components rarely branch on them.
+
+## Two axes: solver kind and chain
+
+A deployment is one **chain** running one or more **solvers**. Every solver has an `id`, and in this SDK the **solver `id` _is_ its kind** — there is no separate version axis. Two kinds ship today:
+
+| Kind       | Product      | Chain            | Margin model                       | Price provider        | Notifications protocol          |
+| ---------- | ------------ | ---------------- | ---------------------------------- | --------------------- | ------------------------------- |
+| **enigma** | lowcap perps | HyperEVM (`999`) | Virtual Accounts (per market/side) | Enigma price service  | `enigma` — notification service |
+| **rasa**   | majors perps | Base (`8453`)    | cross-margin on the sub-account    | Binance USD-M Futures | `rasa` — solver position-state  |
+
+The two are not tiers of the same thing — they are different counterparties with different endpoints, response shapes, and lifecycles. The SDK's job is to hide that behind one stable surface.
+
+<Callout type="info">
+  **`SolverId` ≡ solver kind.** `type SolverId = SymmioSolverKind` (`"enigma" | "rasa"`), derived from
+  `SUPPORTED_SOLVER_KINDS`. A chain's registry entry keys its solvers by that id, so resolving a solver and dispatching
+  by kind are the same operation.
+</Callout>
+
+## Targeting a solver
+
+Every solver-aware action and hook takes an optional `solverId`. Omit it and the SDK resolves the chain's **default solver** (`defaultSolverId` in the registry — `enigma` on HyperEVM, `rasa` on Base). Pass a literal kind to target a specific solver and, where the return is a normalized union, **narrow the return type to that kind**.
+
+```ts
+import { getMarkets } from "@symmio/trading-core";
+
+// No solverId → the chain default; the Market union (narrow on `kind`).
+const markets = await getMarkets(config, {});
+
+// Literal kind → the exact per-kind type.
+const rasa = await getMarkets(config, { solverId: "rasa" }); // RasaMarket[]
+```
+
+Read the chain's default at runtime with `config.getDefaultSolverId(chainId?)`:
+
+```ts
+const solverId = config.getDefaultSolverId(); // "enigma" on HyperEVM, "rasa" on Base
+```
+
+In React, pass `solverId` to the hook the same way — `useMarkets({ solverId })`, `usePriceByName({ name, solverId })`, and so on — or omit it to follow the connected chain's default.
+
+## Per-solver divergence → normalized per-kind unions
+
+The same logical endpoint returns **different shapes per kind**: different fields, optionality, and value types. Rather than leak those raw shapes, the SDK normalizes each divergent endpoint to a **shared base type + one variant per kind, unioned on `kind`**. You narrow on `kind` to reach a solver's exclusive fields; a caller that already targets one solver gets that variant directly.
+
+```ts
+interface BaseMarket {
+  /* fields both solvers return — camelCase, required */
+}
+export interface EnigmaMarket extends BaseMarket {
+  kind: "enigma";
+  state: number; // Enigma-only — narrow on kind to read it
+  /* … */
+}
+export interface RasaMarket extends BaseMarket {
+  kind: "rasa";
+  /* Rasa-only fields */
+}
+export type Market = EnigmaMarket | RasaMarket;
+```
+
+The same pattern applies across the SDK:
+
+- **Markets** — `Market = EnigmaMarket | RasaMarket` (see [`getMarkets`](/core/solvers)).
+- **Mark prices** — `MarkPriceTick = EnigmaMarkPriceTick | BinanceMarkPriceTick`; narrow on `provider` for Binance's `indexPrice`. See [Price Service](/core/price-service).
+- **Position notifications** — `RawPositionNotification` is a base plus `RawEnigmaPositionNotification` / `RawRasaPositionNotification`. See [Notifications](/core/notifications).
+
+<Callout type="info">
+  A kind-exclusive field lives on **that variant only**, never as an optional field on a shared shape. That is how the
+  types tell you a Rasa market has no `state`: accessing it without first narrowing `kind === "enigma"` is a compile
+  error.
+</Callout>
+
+## Margin models: Virtual Accounts vs cross-margin
+
+The margin and execution model follows the **sub-account's isolation type**, and the two products use different ones:
+
+- **Enigma (lowcap)** isolates positions into a **Virtual Account (VA)** scoped **per market and side** (long/short) — not one VA per position. TP/SL is signed against the VA, liquidation is per-VA, and the SDK predicts the next VA before an open lands ([`usePredictedNextVirtualAccount`](/react/account-layer#usepredictednextvirtualaccount), keyed by the market `symbolId` and the side's isolation type).
+- **Rasa (majors)** trades **cross-margin directly on the sub-account** (`SubAccountIsolationType.CUSTOM`) — **there is no Virtual Account**. Positions share the sub-account's allocated margin, so a trade UI on Base must not select a VA, must not predict one, and reads liquidation at the account level.
+
+```ts
+import { SubAccountIsolationType } from "@symmio/trading-core";
+
+// A rasa/majors sub-account is cross-margin — branch the UI on this, not on the solver.
+const isCrossMargin = subAccount.isolationType === SubAccountIsolationType.CUSTOM;
+```
+
+<Callout type="warning">
+  **Branch on the sub-account isolation type, not on a hardcoded chain.** Cross-margin (`CUSTOM`) means no VA leg: skip
+  VA prediction and the TP/SL-against-VA step, and fund from the allocated balance. Assuming a VA on a rasa sub-account
+  is the most common majors-integration bug.
+</Callout>
+
+## Price providers
+
+The active solver's chain decides the price service, and the SDK's mark-price reads are **provider-agnostic** — they serve whichever provider the target solver uses, so a component never branches on it:
+
+- **Enigma** — the Enigma price service (REST + WebSocket) on HyperEVM.
+- **Rasa** — **Binance USD-M Futures**: REST at `fapi.binance.com` and the mark-price stream `wss://fstream.binance.com/market/ws/!markPrice@arr@1s`.
+
+`usePriceByName` / `useMarkPrices` return the same shape for both; narrow the tick on `provider` when you need a Binance-only field (`indexPrice`, funding). Provider-specific twins (`useBinancePrices`, `useBinanceHealth`, …) exist for callers that already know their source and want the Binance fields without narrowing — they surface `UNSUPPORTED_BY_PRICE_SERVICE` when the target solver is not priced by Binance. See [Price Service](/core/price-service).
+
+## Notifications protocols
+
+Notifications are configured **per solver** — each solver carries a required `notifications: SymmioNotificationsConfig`, resolved via `config.getSolver({ chainId, solverId }).notifications`. Both products broadcast a `report` frame for every state transition, but over **different transports**, captured by the config's `protocol` discriminant (`SymmioNotificationsProtocol`, `"enigma" | "rasa"`):
+
+- **enigma** — channel-scoped subscription, **envelope-wrapped** frames (`EnigmaNotificationEnvelope`), and history from a standalone **notification service** (`searchUrl` + `POST /api/v1/search`).
+- **rasa** — subscribe by an **address list** (`buildRasaSubscribeMessage` → `{"address":[…]}`), a single multiplexed hub connection, and **bare** frames. History comes from the solver's own position-state endpoint (`POST /position-state/{start}/{size}`); its notifications config carries no `searchUrl`.
+
+Both the live [`watchNotifications`](/core/notifications) stream and the REST [`searchNotifications`](/core/notifications) take an optional `solverId` and dispatch on the resolved solver's `notifications.protocol`, so callers subscribe and search the same way on either solver. `searchNotifications` is **one interface over both kinds** — the enigma notification service or the rasa position-state endpoint — returning a per-kind union you narrow on `kind`. See [Notifications](/core/notifications).
+
+## Rasa-only solver endpoints
+
+The rasa solver exposes reads the enigma solver does not. Each has a core action (and a React hook); calling one against a non-rasa solver throws a typed `UNSUPPORTED_BY_SOLVER` error rather than dispatching:
+
+| Endpoint              | Core action                                   | React hook                                          |
+| --------------------- | --------------------------------------------- | --------------------------------------------------- |
+| Solver readiness      | `getSolverReadiness`                          | `useSolverReadiness`                                |
+| Whitelist check / add | `checkSolverWhitelist` / `addSolverWhitelist` | `useCheckSolverWhitelist` / `useAddSolverWhitelist` |
+| Solver-side balance   | `getSolverBalanceInfo`                        | `useSolverBalanceInfo`                              |
+| PartyA uPnL           | `getPartyAUpnl`                               | `usePartyAUpnl`                                     |
+| Global open interest  | `getSolverOpenInterest`                       | `useSolverOpenInterest`                             |
+| Symbol price range    | `getSolverPriceRange`                         | `useSolverPriceRange`                               |
+| Error-code message    | `getErrorMessage`                             | `useErrorMessage`                                   |
+
+Notification history search is **not** rasa-only — it is the unified [`searchNotifications`](/core/notifications), which dispatches to the rasa solver's position-state endpoint for a rasa solver. See the [Rasa Solver hooks](/react/rasa-solver) page for signatures and examples.
+
+## Configuring chains and solvers
+
+Each registry entry carries a `solvers` map keyed by solver id plus a `defaultSolverId`. You override any of it per chain through `createConfig`'s `symmioConfig` — see [Config](/core/concepts/config) and [Addresses](/core/addresses).
+
+```ts
+import { createConfig, SymmioSupportedChainId } from "@symmio/trading-core";
+import { zeroAddress } from "viem";
+
+const config = createConfig({
+  getClient: () => publicClient,
+  symmioConfig: {
+    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } }, // enigma / lowcap
+    [SymmioSupportedChainId.BASE]: {
+      // Base requires a registered (non-zero) affiliate — the built-in default is used when you omit it.
+      addresses: { affiliatesAddress: "0x45Eecd7B4f442388ACD90467E423A5CAAC3a9C3f" },
+    }, // rasa / majors
+  },
+});
+```
+
+## Related
+
+- [Addresses](/core/addresses) — the per-chain registry, including Base and the rasa solver.
+- [Solvers](/core/solvers) — `getMarkets` and the solver read actions.
+- [Price Service](/core/price-service) — Enigma vs Binance, and the provider-agnostic mark-price reads.
+- [Notifications](/core/notifications) — the enigma and rasa protocols.
+- [Build a Perps DEX](/guides/build-a-dex) — the end-to-end guide, for lowcap and majors.

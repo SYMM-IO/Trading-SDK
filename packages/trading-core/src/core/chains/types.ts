@@ -97,6 +97,13 @@ export interface SymmioSolverConfig {
    * Binance. A single chain-level value cannot be right for both.
    */
   priceService?: SymmioPriceServiceConfig;
+  /**
+   * Notifications endpoint for **this solver's** position/quote state stream and
+   * history search. Required per solver: notifications are inherently
+   * solver-specific — the enigma `channel` and the rasa position-state URL are
+   * the solver's own — so there is no chain-level default to inherit.
+   */
+  notifications: SymmioNotificationsConfig;
 }
 
 /**
@@ -270,8 +277,6 @@ export interface SymmioChainConfig {
   defaultSolverId: SolverId;
   /** Price-service configuration */
   priceService: SymmioPriceServiceConfig;
-  /** Notifications WebSocket configuration */
-  notifications: SymmioNotificationsConfig;
   /** Muon oracle configuration */
   muon: SymmioMuonConfig;
 }

@@ -50,7 +50,6 @@ function mergeChainConfig(base: SymmioChainConfig, override: DeepPartial<SymmioC
     solvers: mergeSolvers(base.chainId, base.solvers, override.solvers),
     defaultSolverId: override.defaultSolverId ?? base.defaultSolverId,
     priceService: mergePriceService(base.chainId, base.priceService, override.priceService),
-    notifications: mergeNotifications(base.chainId, base.notifications, override.notifications),
     muon: {
       /** `urls` is replaced wholesale when overridden, otherwise inherited from base. */
       urls: override.muon?.urls ?? base.muon.urls,
@@ -202,6 +201,23 @@ function mergeSolver(
     delete merged.priceService;
   }
 
+  const overrideNotifications = override.notifications;
+  if (overrideNotifications) {
+    // With a base solver, deep-merge (same protocol-swap guard as the chain path
+    // used to apply). With no base, the override must be a complete block.
+    merged.notifications = base?.notifications
+      ? mergeNotifications(chainId, base.notifications, overrideNotifications)
+      : assertCompleteNotifications(chainId, overrideNotifications);
+  } else if (base?.notifications) {
+    merged.notifications = base.notifications;
+  } else {
+    throw new SymmError(
+      "config",
+      "SOLVER_NOTIFICATIONS_REQUIRED",
+      `createConfig: a new solver on chain ${chainId} added via symmioConfig must declare a \`notifications\` block — it is required per solver and there is no base to inherit it from.`,
+    );
+  }
+
   return merged;
 }
 
@@ -223,4 +239,33 @@ function assertCompletePriceService(
     );
   }
   return override as SymmioPriceServiceConfig;
+}
+
+/**
+ * Validate a solver-nested notifications block that has no base to inherit from
+ * (a brand-new solver added via `symmioConfig`): `url` and `protocol` are always
+ * required, and `enigma` additionally requires a `channel`.
+ *
+ * @throws {SymmError} `NOTIFICATIONS_OVERRIDE_INCOMPLETE`
+ */
+function assertCompleteNotifications(
+  chainId: number,
+  override: DeepPartial<SymmioNotificationsConfig>,
+): SymmioNotificationsConfig {
+  const missing =
+    override.url === undefined
+      ? "`url`"
+      : override.protocol === undefined
+        ? "`protocol`"
+        : override.protocol === "enigma" && (override as { channel?: string }).channel === undefined
+          ? "`channel`"
+          : null;
+  if (missing) {
+    throw new SymmError(
+      "config",
+      "NOTIFICATIONS_OVERRIDE_INCOMPLETE",
+      `createConfig: a solver-nested notifications block on chain ${chainId} must declare ${missing} — there is no per-solver base to inherit the missing fields from.`,
+    );
+  }
+  return override as SymmioNotificationsConfig;
 }

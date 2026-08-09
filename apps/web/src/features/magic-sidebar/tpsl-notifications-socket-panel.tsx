@@ -2,7 +2,7 @@
 
 import { StatusDot } from "@/components/status-dot";
 import { PartyAField } from "@/features/inspector/party-a-field";
-import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
+import { socketStatusLabel, socketStatusTone } from "@/features/notifications/socket-status-display";
 import { useWatchTpSlNotifications, type TpSlNotification } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { JsonView } from "@symmio/ui/components/json-view";

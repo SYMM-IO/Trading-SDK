@@ -1,13 +1,23 @@
+import { Callout } from "nextra/components";
+
 # watchNotifications
 
 Subscribe to live position/quote state notifications for one account.
 
-Opens (or reuses) one reconnecting socket to the chain's notifications endpoint, sends the subscribe frame on every (re)connect, normalizes inbound frames into [`Notification`](/core/notifications/notification)s, and invokes your handlers. Socket sharing follows the endpoint's wire protocol — the call site is identical either way:
+Opens (or reuses) one reconnecting socket to the resolved solver's notifications endpoint, sends the subscribe frame on every (re)connect, normalizes inbound frames into [`Notification`](/core/notifications/notification)s, and invokes your handlers.
 
-- **`enigma`** (HyperEVM lowcap): watchers sharing the same endpoint and account share one socket.
-- **`rasa`** (Base position-state): every account multiplexes onto one socket per endpoint — the subscribe frame carries the full address list, and each watcher receives only its own account's frames, with `notification.account` stamped from the subscription (the rasa wire only carries `counterparty_address`).
+It is a thin **per-protocol dispatch**: it resolves the target solver (`config.getSolver({ chainId, solverId })`), reads its `notifications.protocol`, and hands off to that protocol's adapter, which owns the subscribe frame, parse, and socket-sharing story. The call site is identical either way:
+
+- **`enigma`** (HyperEVM lowcap): watchers sharing the same endpoint and account share one pooled socket. The subscribe frame is a `channel_patterns` frame ([`buildSubscribeMessage`](/core/notifications/build-subscribe-message)), and each inbound push is unwrapped from its [`EnigmaNotificationEnvelope`](/core/notifications/raw-position-notification).
+- **`rasa`** (Base position-state): every account multiplexes onto **one hub socket per endpoint** — the subscribe frame carries the full watched-address list ([`buildRasaSubscribeMessage`](#buildrasasubscribemessage)), and each watcher receives only its own account's frames, with `notification.account` stamped from the subscription (the rasa wire only carries `counterparty_address`, no `address`).
 
 Either way, the socket closes when the last watcher unwatches.
+
+<Callout type="info">
+  The protocol is fixed by the resolved solver's registry entry — see [Solvers &
+  Chains](/core/concepts/solvers-and-chains). Pass `solverId` to pick a non-default solver; you never pass or branch on
+  the protocol here.
+</Callout>
 
 This is a subscribe function, not a query — there are no query options. For a React binding, use the [`useNotifications`](/react/notifications) hook.
 
@@ -34,6 +44,9 @@ unwatch();
   <Property name="chainId" type="number" optional>
     Target chain id. Defaults to the config's `defaultChainId`.
   </Property>
+  <Property name="solverId" type="SolverId" typeHref="/core/concepts/solvers-and-chains" optional>
+    Target solver — selects the notifications endpoint and protocol. Defaults to the chain's default solver.
+  </Property>
   <Property name="onNotification" type="(n: Notification) => void" typeHref="/core/notifications/notification" required>
     Called for every normalized notification frame.
   </Property>
@@ -56,7 +69,31 @@ unwatch();
 
 Throws a `SymmError` synchronously when the chain is unsupported or no `WebSocket` implementation is available.
 
+## `buildRasaSubscribeMessage`
+
+The subscribe frame builder for the `rasa` protocol. `watchNotifications` calls it internally on the shared hub socket; it is exported for tooling and tests that assert the exact wire frame. The `enigma` protocol uses [`buildSubscribeMessage`](/core/notifications/build-subscribe-message) instead.
+
+```ts
+import { buildRasaSubscribeMessage } from "@symmio/trading-core";
+
+buildRasaSubscribeMessage(["0xabc…", "0xdef…"]);
+// '{"address":["0xabc…","0xdef…"]}'
+```
+
+A `rasa` endpoint carries **many** SubAccounts on one connection, so the hub always (re)sends the complete current address list — correct whether the server treats the frame as a replacement or as cumulative.
+
+<Properties>
+  <Property name="addresses" type="readonly Address[]" required>
+    The full list of SubAccount addresses this socket currently watches.
+  </Property>
+</Properties>
+
+<Returns type="string">The `{ "address": [...] }` frame serialized as a JSON string, ready to send.</Returns>
+
 ## Related
 
+- [Notifications overview](/core/notifications) — the `enigma` vs `rasa` protocol axis.
+- [Solvers & Chains](/core/concepts/solvers-and-chains) — which chain speaks which notifications protocol.
 - [WebSocket concept](/core/concepts/websocket) — pool, reconnect, and the `SocketStatus` lifecycle.
-- [searchNotifications](/core/notifications/search-notifications) — REST history over the same channel.
+- [buildSubscribeMessage](/core/notifications/build-subscribe-message) — the `enigma` subscribe-frame builder.
+- [searchNotifications](/core/notifications/search-notifications) — the REST history counterpart, one interface over both solver kinds.

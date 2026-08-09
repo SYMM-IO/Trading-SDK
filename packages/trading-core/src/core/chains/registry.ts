@@ -34,6 +34,14 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
           appName: "Hyper-EVM_COH-Low-Cap_Production",
           cohWalletAddress: "0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31",
         },
+        notifications: {
+          url: "wss://notification.rasa.capital/ws/v1/subscribe",
+          channel: "Hyper-EVM_Solver-Low-Cap_Production",
+          protocol: "enigma",
+          // Same host as the WebSocket stream; the REST search API is served under
+          // the `/notification` prefix (OpenAPI `servers[0].url`).
+          searchUrl: "https://notification.rasa.capital/notification",
+        },
       },
     },
     defaultSolverId: "enigma",
@@ -41,14 +49,6 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
       type: "enigma",
       url: "https://lowcap-price.enigma.bz",
       wsUrl: "wss://lowcap-price.enigma.bz/ws",
-    },
-    notifications: {
-      url: "wss://notification.rasa.capital/ws/v1/subscribe",
-      channel: "Hyper-EVM_Solver-Low-Cap_Production",
-      protocol: "enigma",
-      // Same host as the WebSocket stream; the REST search API is served under
-      // the `/notification` prefix (OpenAPI `servers[0].url`).
-      searchUrl: "https://notification.rasa.capital/notification",
     },
     muon: {
       // Muon oracle gateways (https://docs.symm.io/api-endpoints-and-deployments/muon-api),
@@ -86,6 +86,13 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
         address: "0x81631953E0C093e72935C1CAA4C7D519B2A0E407",
         // Staging URL — swap to the production solver URL when published.
         url: "https://stage-archon.rasa.capital",
+        // Rasa's own position-state stream — real Base data. No `searchUrl`: the
+        // rasa protocol serves notification history from the solver's own
+        // position-state endpoint (via `searchNotifications`), not a REST service.
+        notifications: {
+          url: "wss://stage-archon.rasa.capital/ws/position-state-ws3",
+          protocol: "rasa",
+        },
       },
     },
     defaultSolverId: "rasa",
@@ -120,13 +127,6 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
        * a feed that reports `open` and silently never ticks.
        */
       wsUrl: "wss://fstream.binance.com/market/ws/!markPrice@arr@1s",
-    },
-    // Rasa's own position-state stream — real Base data, not a placeholder.
-    // No `searchUrl`: the rasa protocol has no known REST search service, so
-    // `searchNotifications` on Base requires a per-call `baseUrl`.
-    notifications: {
-      url: "wss://stage-archon.rasa.capital/ws/position-state-ws3",
-      protocol: "rasa",
     },
     // Muon is deployment-agnostic: one `symmio` app on one shared gateway set
     // serves every SYMMIO deployment, and the per-deployment input is the

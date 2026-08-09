@@ -119,18 +119,27 @@ export function SymmioConfigDebug() {
             />
           </ConfigGroup>
 
-          <ConfigGroup title="Notifications">
-            <DataRow
-              label="WebSocket"
-              mono
-              value={<span className="truncate">{chainConfig.notifications.url}</span>}
-              copyValue={chainConfig.notifications.url}
-            />
-            <DataRow label="Protocol" mono value={chainConfig.notifications.protocol} />
-            {/* Channel only exists on the enigma protocol; rasa subscribes by address list. */}
-            {chainConfig.notifications.protocol === "enigma" ? (
-              <DataRow label="Channel" mono value={chainConfig.notifications.channel} />
-            ) : null}
+          <ConfigGroup title="Notifications (default solver)">
+            {(() => {
+              // Notifications are per-solver; show the chain's default solver's block.
+              const notifications = chainConfig.solvers[chainConfig.defaultSolverId]?.notifications;
+              if (!notifications) return <DataRow label="WebSocket" mono value="—" />;
+              return (
+                <>
+                  <DataRow
+                    label="WebSocket"
+                    mono
+                    value={<span className="truncate">{notifications.url}</span>}
+                    copyValue={notifications.url}
+                  />
+                  <DataRow label="Protocol" mono value={notifications.protocol} />
+                  {/* Channel only exists on the enigma protocol; rasa subscribes by address list. */}
+                  {notifications.protocol === "enigma" ? (
+                    <DataRow label="Channel" mono value={notifications.channel} />
+                  ) : null}
+                </>
+              );
+            })()}
           </ConfigGroup>
         </>
       )}

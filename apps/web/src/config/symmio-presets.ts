@@ -35,6 +35,12 @@ export const STAGING_CHAIN_OVERRIDES = {
         name: "Enigma (staging)",
         address: "0xf62a670cda28FfAE65eE2a42D6cf6CF05EC5E775",
         url: "https://solver-staging.enigma.bz/api",
+        // Notifications are per-solver: this staging override merges onto the
+        // built-in enigma notifications block (same `enigma` protocol).
+        notifications: {
+          url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
+          channel: "Hyper-evm_Solver-lowcap_Stage",
+        },
       },
     },
     subgraphs: {
@@ -42,10 +48,6 @@ export const STAGING_CHAIN_OVERRIDES = {
         "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_analytics/latest/gn",
       events:
         "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_events/latest/gn",
-    },
-    notifications: {
-      url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
-      channel: "Hyper-evm_Solver-lowcap_Stage",
     },
     priceService: {
       url: "https://lowcap-price-staging.enigma.bz",

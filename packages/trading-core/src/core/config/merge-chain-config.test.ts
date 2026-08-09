@@ -83,8 +83,18 @@ describe("mergeChainConfig — per-solver priceService override", () => {
     addresses: { affiliatesAddress: AFFILIATE },
     defaultSolverId: "enigma",
     solvers: {
-      enigma: { name: "Enigma", address: AFFILIATE, url: "https://enigma.test" },
-      rasa: { name: "Rasa", address: AFFILIATE, url: "https://rasa.test" },
+      enigma: {
+        name: "Enigma",
+        address: AFFILIATE,
+        url: "https://enigma.test",
+        notifications: { url: "wss://enigma.test/ws", protocol: "enigma", channel: "test" },
+      },
+      rasa: {
+        name: "Rasa",
+        address: AFFILIATE,
+        url: "https://rasa.test",
+        notifications: { url: "wss://rasa.test/ws", protocol: "rasa" },
+      },
     },
   } as const;
 
@@ -131,25 +141,27 @@ describe("mergeChainConfig — per-solver priceService override", () => {
   });
 });
 
-describe("mergeChainConfig — notifications", () => {
+describe("mergeChainConfig — notifications (per-solver)", () => {
   const BASE_CHAIN = SymmioSupportedChainId.BASE;
 
-  function buildNotifications(chainId: number, notifications: Record<string, unknown>) {
+  function buildNotifications(chainId: number, solverId: "enigma" | "rasa", notifications: Record<string, unknown>) {
     return createConfig({
       getClient: () => ({}) as PublicClient,
-      symmioConfig: { [chainId]: { addresses: { affiliatesAddress: AFFILIATE }, notifications } },
+      symmioConfig: {
+        [chainId]: { addresses: { affiliatesAddress: AFFILIATE }, solvers: { [solverId]: { notifications } } },
+      },
     });
   }
 
   it("merges a same-protocol override field-by-field", () => {
-    const config = buildNotifications(CHAIN, { url: "wss://staging.test/ws" });
-    const { notifications } = config.getChainConfig(CHAIN);
+    const config = buildNotifications(CHAIN, "enigma", { url: "wss://staging.test/ws" });
+    const { notifications } = config.getSolver({ chainId: CHAIN, solverId: "enigma" });
 
     expect(notifications.url).toBe("wss://staging.test/ws");
     expect(notifications.protocol).toBe("enigma");
     expect(notifications.protocol === "enigma" && notifications.channel).toBe(
       (() => {
-        const built = getBuiltInChainConfig(CHAIN).notifications;
+        const built = getBuiltInChainConfig(CHAIN).solvers.enigma!.notifications;
         return built.protocol === "enigma" ? built.channel : "";
       })(),
     );
@@ -157,28 +169,32 @@ describe("mergeChainConfig — notifications", () => {
 
   /** Same trap as priceService: a bare protocol swap would inherit the previous protocol's endpoint. */
   it("throws when a protocol swap omits the url", () => {
-    expect(() => buildNotifications(CHAIN, { protocol: "rasa" })).toThrow(/NOTIFICATIONS_OVERRIDE_INCOMPLETE|url/);
+    expect(() => buildNotifications(CHAIN, "enigma", { protocol: "rasa" })).toThrow(
+      /NOTIFICATIONS_OVERRIDE_INCOMPLETE|url/,
+    );
   });
 
   it("throws when a swap to enigma omits the channel", () => {
-    expect(() => buildNotifications(BASE_CHAIN, { protocol: "enigma", url: "wss://x.test" })).toThrow(/channel/);
+    expect(() => buildNotifications(BASE_CHAIN, "rasa", { protocol: "enigma", url: "wss://x.test" })).toThrow(
+      /channel/,
+    );
   });
 
   /** A swap takes the override block alone — no stale `channel`, no stale `searchUrl`. */
   it("drops every stale enigma field when swapping to rasa", () => {
-    const config = buildNotifications(CHAIN, { protocol: "rasa", url: "wss://rasa.test/ws" });
-    const { notifications } = config.getChainConfig(CHAIN);
+    const config = buildNotifications(CHAIN, "enigma", { protocol: "rasa", url: "wss://rasa.test/ws" });
+    const { notifications } = config.getSolver({ chainId: CHAIN, solverId: "enigma" });
 
     expect(notifications).toEqual({ protocol: "rasa", url: "wss://rasa.test/ws" });
   });
 
   it("accepts a complete swap to enigma", () => {
-    const config = buildNotifications(BASE_CHAIN, {
+    const config = buildNotifications(BASE_CHAIN, "rasa", {
       protocol: "enigma",
       url: "wss://notification.test/ws/v1/subscribe",
       channel: "Base_Solver_Production",
     });
-    const { notifications } = config.getChainConfig(BASE_CHAIN);
+    const { notifications } = config.getSolver({ chainId: BASE_CHAIN, solverId: "rasa" });
 
     expect(notifications.protocol).toBe("enigma");
     expect(notifications.protocol === "enigma" && notifications.channel).toBe("Base_Solver_Production");

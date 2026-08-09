@@ -14,28 +14,28 @@ import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /**
  * Parameters for {@link useSearchNotifications}: the core search options
- * (`filter`, `size`, `start`, chain id, TanStack `query` overrides) plus an
+ * (`solverId`, common filters `account` / `quoteId` / `tempQuoteId` /
+ * `timestampGte`, `size`, `start`, chain id, TanStack `query` overrides) plus an
  * optional `config`.
  */
 export type UseSearchNotificationsParameters = SearchNotificationsOptions & ConfigParameter;
 
-/** Return type of {@link useSearchNotifications}. */
+/** Return type of {@link useSearchNotifications}: the per-kind {@link SearchNotificationsReturnType} union. */
 export type UseSearchNotificationsReturnType = UseQueryResult<SearchNotificationsReturnType, SymmioRequestError>;
 
 /**
- * Search stored notifications via the notification service's free-form
- * `POST /api/v1/search` endpoint. The `filter` matches keys exactly — top-level
- * fields (`app_name`, …) or dotted payload paths (`data.temp_quote_id`, …).
- *
- * The query is disabled until `filter` has at least one key. `chainId` defaults
- * to the connected chain. Errors are normalized to {@link SymmioRequestError}.
+ * Search stored notifications for a solver — one hook over both kinds, dispatched
+ * by the resolved `solverId`: an **enigma** solver hits the notification service
+ * (`POST /api/v1/search`), a **rasa** solver hits its own position-state
+ * endpoint. `chainId` / `solverId` default to the connected chain's default
+ * solver. The result is a per-kind union — narrow on `data.kind`. Errors are
+ * normalized to {@link SymmioRequestError}.
  *
  * @example
  * ```tsx
- * const { data, isLoading } = useSearchNotifications({
- *   filter: { app_name: "Base_Superflow_Stage", "data.temp_quote_id": -172 },
- * });
- * data?.documents.forEach((d) => console.log(d.id));
+ * const { data } = useSearchNotifications({ account: subAccount, quoteId: 1024 });
+ * if (data?.kind === "enigma") data.rows.forEach((d) => console.log(d.id));
+ * if (data?.kind === "rasa") data.rows.forEach((r) => console.log(r.quote_id));
  * ```
  */
 export function useSearchNotifications(parameters: UseSearchNotificationsParameters): UseSearchNotificationsReturnType {

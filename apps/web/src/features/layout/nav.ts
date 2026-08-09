@@ -17,7 +17,6 @@ export const primaryNavLinks: NavLink[] = [
 export const secondaryNavLinks: NavLink[] = [
   { href: "/price-service", label: "Price Service", description: "Enigma & Binance mark prices" },
   { href: "/muon", label: "Muon API", description: "Oracle uPnL, price & settlement signatures" },
-  { href: "/websocket", label: "WebSockets", description: "Live notification, price & order streams" },
   { href: "/session-keys", label: "Session Keys", description: "Browser-local delegated signing key" },
   { href: "/config", label: "Config", description: "Resolved SYMMIO chain config" },
 ];

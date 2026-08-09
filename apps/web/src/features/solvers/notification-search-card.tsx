@@ -1,8 +1,9 @@
 "use client";
 
+import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import type { NotificationSearchFilter } from "@symmio/trading-core";
-import { useSearchNotifications } from "@symmio/trading-react";
+import { useSearchNotifications, type UseSearchNotificationsReturnType } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { Button } from "@symmio/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symmio/ui/components/card";
@@ -12,6 +13,9 @@ import { JsonView } from "@symmio/ui/components/json-view";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { cn } from "@symmio/ui/lib/utils";
 import { useRef, useState } from "react";
+import { isAddress, type Address } from "viem";
+import { SubAccountPicker } from "../inspector/subaccount-picker";
+import { SolverTargetSelect, useSolverTargetState } from "./solver-target";
 
 /** A single editable key/value pair in the filter builder. */
 interface FilterRow {
@@ -87,7 +91,7 @@ function coerceValue(raw: string): string | number | boolean | null {
   return raw;
 }
 
-/** Build the request `query` object from the rows, dropping rows with an empty key or value. */
+/** Build the enigma advanced `filter` object from the rows, dropping rows with an empty key or value. */
 function buildFilter(rows: FilterRow[]): NotificationSearchFilter {
   const filter: NotificationSearchFilter = {};
   for (const row of rows) {
@@ -99,28 +103,62 @@ function buildFilter(rows: FilterRow[]): NotificationSearchFilter {
   return filter;
 }
 
+/** Parse an optional non-negative integer input; empty → undefined. */
+function parseOptionalInt(value: string): number | undefined {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+/** The submitted search inputs, kept stable so React Query keys off them. */
+interface Submitted {
+  account?: Address;
+  quoteId?: number;
+  filter: NotificationSearchFilter;
+  size: number;
+}
+
 /**
- * Interactive console for the notification search REST endpoint
- * (`searchNotifications` / `useSearchNotifications`). Build a free-form equality
- * filter as key/value rows — top-level fields or dotted `data.*` paths — preview
- * the exact request body, and run it against the chain's notification service.
+ * Interactive console for the unified notification search
+ * (`searchNotifications` / `useSearchNotifications`). Works for both solver
+ * kinds, dispatched by the selected solver: the common `account` / `quoteId`
+ * filters map to each kind's native query, and the free-form key/value builder is
+ * the enigma-only advanced `filter`. The result is a per-kind union — rendered by
+ * branching on `data.kind`.
  */
 export function NotificationSearchCard() {
+  const { target, setTarget } = useSolverTargetState();
   const idRef = useRef(2);
   const [rows, setRows] = useState<FilterRow[]>([{ id: 1, key: "", value: "" }]);
+  const [address, setAddress] = useState("");
+  const [quoteId, setQuoteId] = useState("");
   const [limit, setLimit] = useState("100");
-  const [submitted, setSubmitted] = useState<{ filter: NotificationSearchFilter; size: number } | null>(null);
+  const [submitted, setSubmitted] = useState<Submitted | null>(null);
 
   const query = useSearchNotifications({
+    chainId: target.chainId,
+    solverId: target.solverId,
+    account: submitted?.account,
+    quoteId: submitted?.quoteId,
     filter: submitted?.filter ?? {},
     size: submitted?.size,
     query: { enabled: submitted !== null },
   });
 
+  const validAddress = isAddress(address) ? (address as Address) : undefined;
+  const validQuoteId = parseOptionalInt(quoteId);
   const liveFilter = buildFilter(rows);
   const filterKeyCount = Object.keys(liveFilter).length;
   const size = clampSize(limit);
-  const requestBody = { query: liveFilter, size };
+  const hasCriteria = filterKeyCount > 0 || validAddress !== undefined || validQuoteId !== undefined;
+  const filtersValid =
+    (address.length === 0 || validAddress !== undefined) && (quoteId.trim().length === 0 || validQuoteId !== undefined);
+  const requestBody = {
+    account: validAddress,
+    quoteId: validQuoteId,
+    filter: liveFilter,
+    size,
+  };
 
   const addRow = () => setRows((prev) => [...prev, { id: idRef.current++, key: "", value: "" }]);
   const removeRow = (id: number) =>
@@ -131,11 +169,11 @@ export function NotificationSearchCard() {
   const applySuggestion = (s: Suggestion) => setRows([{ id: idRef.current++, key: s.key, value: s.value }]);
 
   const search = () => {
-    if (filterKeyCount === 0) return;
-    const next = { filter: liveFilter, size };
-    // Same filter + limit as the last run produces an identical query key, so
-    // React Query would serve the cache instead of refetching. Force a fresh
-    // request in that case; otherwise the new key fetches on its own.
+    if (!hasCriteria || !filtersValid) return;
+    const next: Submitted = { account: validAddress, quoteId: validQuoteId, filter: liveFilter, size };
+    // Same criteria as the last run produces an identical query key, so React
+    // Query would serve the cache instead of refetching. Force a fresh request
+    // in that case; otherwise the new key fetches on its own.
     if (submitted && JSON.stringify(submitted) === JSON.stringify(next)) {
       void query.refetch();
     } else {
@@ -148,30 +186,57 @@ export function NotificationSearchCard() {
       <CardHeader>
         <CardTitle>Search notifications</CardTitle>
         <CardDescription>
-          Match stored notifications by any field — top-level (<code className="font-mono text-xs">app_name</code>) or a
-          dotted payload path (<code className="font-mono text-xs">data.temp_quote_id</code>). Every key is an exact
-          match.
+          Search stored notifications for the selected solver. The common{" "}
+          <code className="font-mono text-xs">account</code> / <code className="font-mono text-xs">quoteId</code>{" "}
+          filters work for both kinds; the free-form key/value builder is the enigma-only advanced filter (every key is
+          an exact match).
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-5">
-        <div className="flex flex-wrap gap-2" data-testid="notif-search-suggestions">
-          {SUGGESTIONS.map((s) => (
-            <button
-              key={s.label}
-              type="button"
-              onClick={() => applySuggestion(s)}
-              title={s.hint}
-              data-testid={`notif-search-suggestion-${s.key}`}
-              className="border-border/70 bg-muted/30 text-muted-foreground hover:border-ring/50 hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring/40 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors outline-none focus-visible:ring-2"
-            >
-              <SparkIcon />
-              {s.label}
-            </button>
-          ))}
-        </div>
+        <SolverTargetSelect value={target} onChange={setTarget} testId="select-notif-search-solver" />
+
+        <SubAccountPicker
+          idPrefix="notif-search-account"
+          selected={{ subAccount: validAddress }}
+          onSelect={(selection) => setAddress(selection.subAccount ?? "")}
+          accountLabel="account filter (optional)"
+          accountEmptyHint="Pick one of the connected wallet's subaccounts, enter any address, or leave empty for all accounts."
+          selectedHintLabel="Account"
+        />
+
+        <Field label="quote id (optional)" htmlFor="input-notif-search-quote-id">
+          <Input
+            id="input-notif-search-quote-id"
+            value={quoteId}
+            onChange={(event) => setQuoteId(event.target.value)}
+            placeholder="e.g. 1024"
+            inputMode="numeric"
+            aria-invalid={quoteId.trim().length > 0 && validQuoteId === undefined}
+            data-testid="input-notif-search-quote-id"
+          />
+        </Field>
 
         <div className="space-y-2">
+          <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+            Advanced filter · enigma only
+          </span>
+          <div className="flex flex-wrap gap-2" data-testid="notif-search-suggestions">
+            {SUGGESTIONS.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                onClick={() => applySuggestion(s)}
+                title={s.hint}
+                data-testid={`notif-search-suggestion-${s.key}`}
+                className="border-border/70 bg-muted/30 text-muted-foreground hover:border-ring/50 hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring/40 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors outline-none focus-visible:ring-2"
+              >
+                <SparkIcon />
+                {s.label}
+              </button>
+            ))}
+          </div>
+
           {rows.map((row) => (
             <div key={row.id} className="flex items-center gap-2">
               <Combobox
@@ -235,7 +300,7 @@ export function NotificationSearchCard() {
           <Button
             type="button"
             size="sm"
-            disabled={filterKeyCount === 0 || query.isFetching}
+            disabled={!hasCriteria || !filtersValid || query.isFetching}
             onClick={search}
             data-testid="notif-search-run"
             className="ml-auto"
@@ -252,23 +317,21 @@ export function NotificationSearchCard() {
           </Button>
         </div>
 
-        {/* Signature: the live wire request, exactly as the SDK sends it. */}
+        {/* Signature: the search inputs, exactly as they are passed to the SDK. */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <span className="bg-info/10 text-info rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider">
-              POST
+              GET
             </span>
-            <code className="text-muted-foreground font-mono text-xs">/api/v1/search</code>
-            {filterKeyCount === 0 ? (
-              <span className="text-muted-foreground/70 text-xs">· add a filter to enable</span>
-            ) : null}
+            <code className="text-muted-foreground font-mono text-xs">searchNotifications</code>
+            {!hasCriteria ? <span className="text-muted-foreground/70 text-xs">· add a filter to enable</span> : null}
           </div>
           <JsonView
             data={requestBody}
             hideToolbar
             scroll={false}
             defaultExpandedDepth={4}
-            className={cn("transition-opacity", filterKeyCount === 0 && "opacity-60")}
+            className={cn("transition-opacity", !hasCriteria && "opacity-60")}
             data-testid="notif-search-request"
           />
         </div>
@@ -279,8 +342,8 @@ export function NotificationSearchCard() {
   );
 }
 
-/** Result region: error, idle prompt, loading, empty, or the matched documents. */
-function SearchResult({ query, submitted }: { query: ReturnType<typeof useSearchNotifications>; submitted: boolean }) {
+/** Result region: error, idle prompt, loading, empty, or the matched rows (per-kind union). */
+function SearchResult({ query, submitted }: { query: UseSearchNotificationsReturnType; submitted: boolean }) {
   if (query.error) {
     return <ResultError testId="notif-search-error" kind={query.error.kind} message={query.error.message} />;
   }
@@ -295,20 +358,24 @@ function SearchResult({ query, submitted }: { query: ReturnType<typeof useSearch
     );
   }
   const result = query.data;
-  if (!result || result.documents.length === 0) {
+  if (!result || result.rows.length === 0) {
     return <ResultNote testId="notif-search-empty">No notifications matched this filter.</ResultNote>;
   }
+  const total = result.kind === "enigma" ? result.total : result.count;
   return (
     <div className="space-y-2" data-testid="notif-search-result">
       <div className="flex items-center gap-2 text-sm">
         <Badge variant="secondary" className="font-mono">
-          {result.total}
+          {result.kind}
+        </Badge>
+        <Badge variant="secondary" className="font-mono">
+          {total}
         </Badge>
         <span className="text-muted-foreground">
-          {result.total === 1 ? "match" : "matches"} · showing {result.count}
+          {total === 1 ? "match" : "matches"} · showing {result.count}
         </span>
       </div>
-      <JsonView data={result.documents} defaultExpandedDepth={2} />
+      <JsonView data={result.rows} defaultExpandedDepth={2} />
     </div>
   );
 }

@@ -1,24 +1,52 @@
 # NotificationSearchResult
 
-The normalized result of [`searchNotifications`](/core/notifications/search-notifications).
+The result of [`searchNotifications`](/core/notifications/search-notifications), normalized **per solver kind**. It is a discriminated union on `kind` — narrow on it (or pass a literal `solverId` to `searchNotifications`) to reach the variant's fields.
 
-## Fields
+```ts
+type NotificationSearchResult = EnigmaNotificationSearchResult | RasaNotificationSearchResult;
+```
+
+`NotificationSearchResultByKind` maps each kind to its variant (`{ enigma: EnigmaNotificationSearchResult; rasa: RasaNotificationSearchResult }`); indexing it by the caller's `solverId` is how the `searchNotifications` return narrows.
+
+## EnigmaNotificationSearchResult
+
+A page from an **enigma** solver — the standalone notification service's stored documents.
 
 <Properties>
+  <Property name="kind" type='"enigma"'>
+    Discriminant: this page came from an enigma solver.
+  </Property>
   <Property name="total" type="number">
-    Total number of documents matching the filter, ignoring pagination.
+    Total documents matching the filter, ignoring pagination (enigma service only).
   </Property>
   <Property name="count" type="number">
-    Number of documents returned in this page (`documents.length`).
+    Number of rows returned in this page.
   </Property>
-  <Property name="documents" type="NotificationDocument[]">
-    The matched documents for the requested `start`/`size` window.
+  <Property name="rows" type="NotificationDocument[]">
+    The matched documents for the requested `start` / `size` window.
+  </Property>
+</Properties>
+
+## RasaNotificationSearchResult
+
+A page from a **rasa** solver — the solver's own position-state records (`POST /position-state/{start}/{size}`), which are the rasa protocol's notification history. There is **no `total`** field.
+
+<Properties>
+  <Property name="kind" type='"rasa"'>
+    Discriminant: this page came from a rasa solver.
+  </Property>
+  <Property name="count" type="number">
+    Total matching rows on the solver, for paging.
+  </Property>
+  <Property name="rows" type="PositionStateResponseSchema[]">
+    The matched position-state rows for the requested window (`quote_id`, `counterparty_address`, `filled_amount_open` /
+    `filled_amount_close`, `avg_price_open` / `avg_price_close`, `last_seen_action`, `action_status`, timing fields, …).
   </Property>
 </Properties>
 
 ## NotificationDocument
 
-A stored notification document as returned by the search endpoint. Only the well-known top-level fields are typed; an index signature (`[key: string]: unknown`) keeps app-specific fields reachable. For trading notifications the `data` payload is the position wire frame ([`RawPositionNotification`](/core/notifications/raw-position-notification)).
+A stored notification document as returned by the **enigma** search endpoint. Only the well-known top-level fields are typed; an index signature (`[key: string]: unknown`) keeps app-specific fields reachable. For trading notifications the `data` payload is the position wire frame ([`RawPositionNotification`](/core/notifications/raw-position-notification)).
 
 <Properties>
   <Property name="id" type="string" optional />
@@ -47,5 +75,5 @@ A stored notification document as returned by the search endpoint. Only the well
 
 ## Related
 
-- [searchNotifications](/core/notifications/search-notifications) — returns this result.
-- [NotificationSearchFilter](/core/notifications/notification-search-filter) — the filter that produces it.
+- [searchNotifications](/core/notifications/search-notifications) — returns this union.
+- [NotificationSearchFilter](/core/notifications/notification-search-filter) — the enigma-only advanced filter.

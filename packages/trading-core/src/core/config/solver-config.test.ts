@@ -59,6 +59,7 @@ describe("createConfig — solver validation guard", () => {
                 name: "x",
                 address: "0x0000000000000000000000000000000000000002",
                 url: "u",
+                notifications: { url: "wss://x.test/ws", protocol: "rasa" },
               },
             },
           },

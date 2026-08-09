@@ -38,7 +38,7 @@ describe("Base chain", () => {
     const base = getChainConfig(SymmioSupportedChainId.BASE);
     expect(base.subgraphs).toBeDefined();
     expect(base.priceService).toBeDefined();
-    expect(base.notifications).toBeDefined();
+    expect(base.solvers.rasa?.notifications).toBeDefined();
     expect(base.muon).toBeDefined();
   });
 

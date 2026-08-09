@@ -45,20 +45,9 @@ export const SOLVER_METHODS: readonly SolverMethodMeta[] = [
   { id: "method-rasa-partyAUpnl", method: "getPartyAUpnl", action: "usePartyAUpnl", kind: "read" },
   { id: "method-rasa-openInterest", method: "getSolverOpenInterest", action: "useSolverOpenInterest", kind: "read" },
   { id: "method-rasa-priceRange", method: "getSolverPriceRange", action: "useSolverPriceRange", kind: "read" },
-  {
-    id: "method-rasa-positionStates",
-    method: "searchPositionStates",
-    action: "useSearchPositionStates",
-    kind: "read",
-  },
-  {
-    id: "method-rasa-solverNotifications",
-    method: "searchSolverNotifications",
-    action: "useSearchSolverNotifications",
-    kind: "read",
-  },
   { id: "method-rasa-errorMessage", method: "getErrorMessage", action: "useErrorMessage", kind: "read" },
   { id: "method-rasa-readiness", method: "getSolverReadiness", action: "useSolverReadiness", kind: "read" },
+  { id: "method-searchNotifications", method: "searchNotifications", action: "useSearchNotifications", kind: "read" },
   { id: "method-enigma-instant-open", method: "instantOpen", action: "useInstantOpen", kind: "write" },
   { id: "method-enigma-instant-close", method: "instantClose", action: "useInstantClose", kind: "write" },
   {

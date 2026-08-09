@@ -8,7 +8,7 @@ import type { SocketStatus } from "../socket/socket-status";
 import type { Notification } from "./types";
 import { watchNotifications } from "./watch-notifications";
 
-const HYPER_EVM_NOTIFICATIONS = getChainConfig(SymmioSupportedChainId.HYPER_EVM).notifications;
+const HYPER_EVM_NOTIFICATIONS = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solvers.enigma!.notifications;
 const CHANNEL = HYPER_EVM_NOTIFICATIONS.protocol === "enigma" ? HYPER_EVM_NOTIFICATIONS.channel : "";
 
 describe("watchNotifications", () => {

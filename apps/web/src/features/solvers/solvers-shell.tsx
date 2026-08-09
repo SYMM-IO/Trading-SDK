@@ -12,12 +12,12 @@ import { QuotesCard } from "../quotes/quotes-card";
 import { EnigmaEstimatedPriceCard } from "./enigma-estimated-price-card";
 import { EnigmaInstantCloseCard } from "./enigma-instant-close-card";
 import { EnigmaInstantOpenCard } from "./enigma-instant-open-card";
+import { NotificationSearchCard } from "./notification-search-card";
+import { NotificationsConsole } from "./notifications-console";
 import { RasaBalanceInfoCard } from "./rasa-balance-info-card";
 import { RasaErrorMessageCard } from "./rasa-error-message-card";
-import { RasaNotificationsCard } from "./rasa-notifications-card";
 import { RasaOpenInterestCard } from "./rasa-open-interest-card";
 import { RasaPartyAUpnlCard } from "./rasa-party-a-upnl-card";
-import { RasaPositionStatesCard } from "./rasa-position-states-card";
 import { RasaPriceRangeCard } from "./rasa-price-range-card";
 import { RasaReadinessCard } from "./rasa-readiness-card";
 import { RasaWhitelistCard } from "./rasa-whitelist-card";
@@ -101,15 +101,18 @@ export function SolversShell() {
         <EnigmaEstimatedPriceCard />
       </MethodGroup>
 
-      <MethodGroup label="Rasa-only reads" count={8} fullWidth>
+      <MethodGroup label="Rasa-only reads" count={6} fullWidth>
         <RasaBalanceInfoCard />
         <RasaPartyAUpnlCard />
         <RasaOpenInterestCard />
         <RasaPriceRangeCard />
-        <RasaPositionStatesCard />
-        <RasaNotificationsCard />
         <RasaErrorMessageCard />
         <RasaReadinessCard />
+      </MethodGroup>
+
+      <MethodGroup label="Notifications" count={2} fullWidth>
+        <NotificationsConsole />
+        <NotificationSearchCard />
       </MethodGroup>
 
       <MethodGroup label="Writes" count={3} fullWidth>
