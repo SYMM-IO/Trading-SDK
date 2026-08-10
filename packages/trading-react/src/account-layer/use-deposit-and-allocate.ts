@@ -2,6 +2,8 @@
 
 import {
   depositAndAllocateForAccountMutationOptions,
+  getAccountBalanceInfoQueryKey,
+  getAccountBalanceOfQueryKey,
   getCollateralAllowanceQueryKey,
   getCollateralBalanceQueryKey,
   type DepositAndAllocateForAccountParameters,
@@ -37,8 +39,10 @@ export type UseDepositAndAllocateReturnType = UseMutationResult<
  * flow fund with `useDeposit` alone (funds allocated here are not what an
  * instant open consumes). The connected wallet must own the subaccount, and must
  * have approved the collateral to the SYMMIO core first (see
- * `useApproveCollateral`). On success, the connected wallet's collateral
- * allowance and balance queries are invalidated.
+ * `useApproveCollateral`). On success (after the receipt), the wallet's
+ * collateral allowance + balance **and** the target subaccount's balance-info +
+ * balance-of queries are invalidated — so a cross-margin (rasa/Base) UI sees the
+ * new allocated margin without a manual refetch.
  *
  * @example
  * ```tsx
@@ -76,10 +80,16 @@ export function useDepositAndAllocate(
         throw normalizeSymmError(err);
       }
     },
-    onSuccess: () => {
-      const partial = address ? { owner: address } : undefined;
-      void queryClient.invalidateQueries({ predicate: predicateMatch(getCollateralAllowanceQueryKey, partial) });
-      void queryClient.invalidateQueries({ predicate: predicateMatch(getCollateralBalanceQueryKey, partial) });
+    onSuccess: (_result, variables) => {
+      // Deposit side: the connected wallet's collateral allowance + balance drop.
+      const walletPartial = address ? { owner: address } : undefined;
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getCollateralAllowanceQueryKey, walletPartial) });
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getCollateralBalanceQueryKey, walletPartial) });
+      // Allocate side: the target subaccount's allocated balance rises — refetch its
+      // balance-info + balance-of so cross-margin (rasa/Base) reflects the new margin.
+      const accountPartial = { account: variables.account };
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceInfoQueryKey, accountPartial) });
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceOfQueryKey, accountPartial) });
     },
   });
 }

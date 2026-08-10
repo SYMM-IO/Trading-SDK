@@ -55,7 +55,7 @@ your state / query layer          ← you build (cache, stores, WS wiring)
 contracts + hedger + handler + WebSocket feeds
 ```
 
-The chain is **HyperEVM, chainId `999`**, referenced everywhere as `SymmioSupportedChainId.HYPER_EVM`. It is the only supported chain today, so frame chain-gating as "on the expected chain," not "switch chains." `chainId` is optional on every action and falls back to `config.defaultChainId`; omit it unless a snippet is specifically about the chain gate.
+Two chains ship today — **HyperEVM (`999`, lowcap/enigma)** and **Base (`8453`, majors/rasa)**, as `SymmioSupportedChainId.HYPER_EVM` / `.BASE`. Frame chain-gating as "on the **target** chain": the chain of the product you're building. `chainId` is optional on every action and falls back to `config.defaultChainId`; pass it (and gate the wallet against it) when your app serves a specific chain.
 
 ### The parts and their core exports
 
@@ -160,9 +160,9 @@ The full `CreateConfigParameters` surface:
   throws `NO_WEBSOCKET` if a stream needs a socket and none is available.
 </Callout>
 
-### One chain today: HyperEVM
+### Two chains: HyperEVM (lowcap) and Base (majors)
 
-The only supported chain is **HyperEVM, chainId `999`**, referenced as `SymmioSupportedChainId.HYPER_EVM`. Every action's `chainId` param is optional and falls back to `config.defaultChainId`, so you rarely pass it. Frame your chain gate as "on the expected chain" (`chainId === SymmioSupportedChainId.HYPER_EVM`) rather than "switch chains" — there is nothing to switch to yet.
+Two chains ship: **HyperEVM (`999`)** for lowcap/enigma and **Base (`8453`)** for majors/rasa (`SymmioSupportedChainId.HYPER_EVM` / `.BASE`). Every action's `chainId` param is optional and falls back to `config.defaultChainId`. Pick a **target** chain from the product you're building, gate the wallet on `chainId === targetChainId`, and — when it differs — prompt the wallet to switch to that exact id.
 
 <Callout type="info">
   **`config` is immutable — create it once and hold it.** Do not rebuild it per render or per request.
@@ -339,7 +339,7 @@ A perps DEX is a **one-CTA-at-a-time** funnel: each rung of the ladder gates eve
 
 ```
 Connect wallet          ← your wallet lib, then config.getWalletClient({ chainId, from }) resolves
-On expected chain        ← chainId === SymmioSupportedChainId.HYPER_EVM (999)
+On target chain          ← chainId === targetChainId (999 lowcap / 8453 majors)
 Select SubAccount        ← getUserSubAccounts(config, { user }).length > 0
 Deposit collateral       ← getAccountBalanceOf(config, { account }) > 0n
 Initialize session key   ← your session-key keypair (you own this)
@@ -363,8 +363,8 @@ async function resolveGate(config, ctx) {
   // rung 1 — wallet connected (your wallet lib owns this)
   if (!ctx.address) return "connect-wallet";
 
-  // rung 2 — on the expected chain
-  if (ctx.chainId !== SymmioSupportedChainId.HYPER_EVM) return "wrong-chain";
+  // rung 2 — on the target chain (the product's chain: 999 lowcap / 8453 majors)
+  if (ctx.chainId !== ctx.targetChainId) return "wrong-chain";
 
   // rung 3 — has a SubAccount
   const subAccounts = await getUserSubAccounts(config, { user: ctx.address });
@@ -403,9 +403,10 @@ async function resolveGate(config, ctx) {
 </Callout>
 
 <Callout type="warning">
-  **Frame the chain rung as "on the expected chain," not "switch chains."** HyperEVM (`999`) is the only supported chain
-  today. `SymmioSupportedChainId.HYPER_EVM` is its sole value — do not build a multi-chain switcher against a
-  single-chain enum.
+  **Gate the chain rung on the _target_ chain — the product's chain, not "any supported chain."** Two chains ship
+  (`SymmioSupportedChainId.HYPER_EVM` = `999` lowcap, `.BASE` = `8453` majors). Pick the target from the product you're
+  building, compare the wallet's `chainId` against it, and — when it differs — prompt a switch to that **exact** id (a
+  wallet on HyperEVM is still "wrong chain" for a majors/Base DEX).
 </Callout>
 
 <Callout type="warning">
@@ -456,13 +457,14 @@ const config = createConfig({
 
 ### The chain gate
 
-HyperEVM (chainId `999`, `SymmioSupportedChainId.HYPER_EVM`) is the only supported chain today. The gate is a plain comparison against your tracked chain id — there is no core read for it:
+Two chains ship — HyperEVM (`999`, lowcap) and Base (`8453`, majors). Pick the **target** chain from the product you're building; the gate is a plain comparison against your tracked chain id — there is no core read for it:
 
 ```ts
-const onExpectedChain = connectedChainId === SymmioSupportedChainId.HYPER_EVM;
+const targetChainId = isMajors ? SymmioSupportedChainId.BASE : SymmioSupportedChainId.HYPER_EVM;
+const onExpectedChain = connectedChainId === targetChainId;
 ```
 
-Frame the gate as "on the expected chain," not "switch to HyperEVM" — there is no second chain to switch between. When `onExpectedChain` is false, hide everything below this rung in the gate ladder and prompt the wallet to switch to `999`.
+When `onExpectedChain` is false, hide everything below this rung in the gate ladder and **prompt the wallet to switch to `targetChainId`** — a wallet on HyperEVM is still wrong for a majors/Base DEX, so gate on the target chain, not "any supported chain."
 
 <Callout type="warning">
   **Writes resolve `config.getWalletClient({ chainId, from })` at call time.** If the wallet is disconnected or on the wrong chain, your resolver must **throw** so the write fails fast — before any payload is signed. Do not silently fall back to a client on the wrong chain: signing against the wrong contract address wastes the user's signature and can produce a request the solver rejects. A config created *without* a `getWalletClient` resolver throws `SymmError("config", "NO_WALLET_CLIENT")` on the first write attempt, so read-only configs stay safe.

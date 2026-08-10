@@ -169,7 +169,7 @@ A trading page reveals one call-to-action at a time. Each gate hides everything 
 
 ```
 Connect wallet          ← useWalletAccount.isConnected
-Switch to SDK chain      ← useWalletAccount.isOnExpectedChain (HyperEVM or Base)
+Switch to target chain   ← wallet.chainId === targetChainId (Base majors / HyperEVM lowcap)
 Select SubAccount        ← your SubAccount picker
 Deposit collateral       ← useAccountBalanceOf > 0
 Initialize session key   ← @symmio/session-key
@@ -183,12 +183,38 @@ The sections below follow this order.
 
 Every trading page starts with the same guard — connected, on the right chain, then render.
 
-- **[`useWalletAccount`](/react/wallet#usewalletaccount)** → `{ address, chainId, isConnected, isReconnecting, isOnExpectedChain }`. `isOnExpectedChain` saves comparing chain IDs by hand.
+- **[`useWalletAccount`](/react/wallet#usewalletaccount)** → `{ address, chainId, isConnected, isReconnecting, isOnExpectedChain }`. `isOnExpectedChain` is true when the wallet is on **any** SDK-supported chain (HyperEVM **or** Base).
 - **[`useConnectWallet`](/react/wallet#useconnectwallet)** → `{ connectors, connect, status, error }`. Connectors come from your wagmi config.
 - **[`useDisconnectWallet`](/react/wallet#usedisconnectwallet)** → `{ disconnect }`.
-- **[`useSwitchToSymmioChain`](/react/wallet#useswitchtosymmiochain)** → `{ switchChain, status, error }`. Targets the SDK's chain — no hardcoded id.
+- **[`useSwitchToSymmioChain`](/react/wallet#useswitchtosymmiochain)** → `{ switchChain, status, error }`. Switches to the config's **default** chain — enough for a single-chain app.
 
-A single `WalletButton` renders three states off `useWalletAccount()`: **not-connected**, **wrong-chain**, **connected**.
+A single `WalletButton` renders three states off `useWalletAccount()`: **not-connected**, **wrong-chain**, **connected**. When the wallet is on the wrong chain, render a **"Switch to _<chain>_"** button that calls the switch action; it flips back to **connected** the moment the wallet reports the new chain.
+
+<Callout type="warning">
+  **Serving both products? Gate on the _target_ chain, not just "any supported chain."** `isOnExpectedChain` and
+  `useSwitchToSymmioChain` are chain-agnostic — a wallet on HyperEVM passes `isOnExpectedChain` even when you're building
+  the **majors** DEX (Base). Pick the target chain from the product/solver you're showing, compare the wallet against it,
+  and prompt a switch to that **exact** id (wagmi's `useSwitchChain`), so a majors user lands on Base, not HyperEVM:
+
+```tsx
+import { SymmioSupportedChainId } from "@symmio/trading-core";
+import { useSwitchChain } from "wagmi";
+
+// targetChainId = the chain of the product you're rendering (majors → Base, lowcap → HyperEVM).
+const targetChainId = isMajors ? SymmioSupportedChainId.BASE : SymmioSupportedChainId.HYPER_EVM;
+const { chainId, isConnected } = useWalletAccount();
+const { switchChain } = useSwitchChain();
+
+if (isConnected && chainId !== targetChainId) {
+  return (
+    <button type="button" onClick={() => switchChain({ chainId: targetChainId })}>
+      Switch to {isMajors ? "Base" : "HyperEVM"}
+    </button>
+  );
+}
+```
+
+</Callout>
 
 ## 2. SubAccount
 

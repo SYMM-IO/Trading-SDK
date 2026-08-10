@@ -6,5 +6,6 @@ export * from "./use-request-cancel-withdraw";
 export * from "./use-simulate-finalize-withdraw-request";
 export * from "./use-simulate-initiate-withdraw";
 export * from "./use-simulate-request-cancel-withdraw";
+export * from "./use-withdraw";
 export * from "./use-withdraw-requests";
 export * from "./use-withdrawable-time";

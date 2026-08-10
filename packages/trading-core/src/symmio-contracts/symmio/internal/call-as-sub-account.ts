@@ -13,21 +13,34 @@ import { simulateCallAsSubAccount } from "./simulate-call-as-sub-account";
  * `requestCancelWithdraw` — and therefore cannot be sent to the core directly by
  * the owner EOA.
  *
+ * `data` may be a single calldata or an **array**. An array batches several core
+ * calls into one `_call(account, callDatas[])`, which runs them in order in a
+ * single transaction and reverts the whole transaction if any inner call reverts.
+ *
  * @remarks
  * When the resolved `simulateBeforeWrite` is `true`, the routed `_call` is
  * dry-run via {@link simulateCallAsSubAccount} first; if it would revert the
  * decoded error is thrown and nothing is signed or broadcast.
  *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
- * @param parameters - Subaccount address, the encoded core calldata, optional chain id, optional pre-flight opt-out.
+ * @param parameters - Subaccount address, the encoded core calldata (a single
+ *   `Hex`, or an array of `Hex` to batch several core calls into one atomic
+ *   `_call`), optional chain id, optional pre-flight opt-out.
  * @returns The submitted transaction hash.
  * @throws {SymmError} when the chain is unsupported or no wallet is available.
  */
 export async function callAsSubAccount(
   config: Config,
-  parameters: { account: Address; data: Hex; chainId?: number; from?: Address; simulateBeforeWrite?: boolean },
+  parameters: {
+    account: Address;
+    data: Hex | readonly Hex[];
+    chainId?: number;
+    from?: Address;
+    simulateBeforeWrite?: boolean;
+  },
 ): Promise<Hash> {
   const { account, data, chainId, from } = parameters;
+  const callDatas = typeof data === "string" ? [data] : data;
 
   const { addresses } = config.getChainConfig(chainId);
   const walletClient = await config.getWalletClient({ chainId, from });
@@ -40,7 +53,7 @@ export async function callAsSubAccount(
     address: addresses.accountLayerAddress,
     abi: accountLayerAbi,
     functionName: "_call",
-    args: [account, [data]],
+    args: [account, callDatas],
     account: walletClient.account,
     chain: walletClient.chain,
   });

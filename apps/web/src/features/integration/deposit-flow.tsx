@@ -2,7 +2,10 @@
 
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { formatUsd } from "@/lib/format";
 import {
+  useAccountBalanceInfo,
+  useAccountBalanceOf,
   useApproveCollateral,
   useCollateralAllowance,
   useDeposit,
@@ -56,6 +59,13 @@ export function DepositFlow({
   const deposit = useDeposit();
   const depositAndAllocate = useDepositAndAllocate();
   const activeDeposit = allocate ? depositAndAllocate : deposit;
+
+  // Resulting subaccount balance, per mode: a plain deposit lands in the
+  // AVAILABLE balance (`balanceOf`); "allocate to margin" lands in the ALLOCATED
+  // balance (`balanceInfo.allocatedBalance`). Both refetch after the deposit
+  // settles (the mutation invalidates them), so the shown value updates to the new balance.
+  const availableBalance = useAccountBalanceOf({ account: subAccount, query: { enabled: !allocate } });
+  const marginBalance = useAccountBalanceInfo({ account: subAccount, query: { enabled: allocate } });
 
   const parsed = parseAmount(amount, decimals);
   const needsApproval = parsed !== undefined && (allowance.data ?? 0n) < parsed;
@@ -167,6 +177,23 @@ export function DepositFlow({
             </Button>
 
             <StatusArea approve={approve} deposit={activeDeposit} approved={!needsApproval && parsed !== undefined} />
+
+            {subAccount ? (
+              <div className="border-border/60 bg-muted/20 flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm">
+                <span className="text-muted-foreground">
+                  {allocate ? "Subaccount margin (allocated) balance" : "Subaccount available balance"}
+                </span>
+                <span className="text-foreground font-mono" data-testid="integration-deposit-subaccount-balance">
+                  {allocate
+                    ? marginBalance.data
+                      ? formatUsd(marginBalance.data.allocatedBalance)
+                      : "—"
+                    : availableBalance.data !== undefined
+                      ? formatUsd(availableBalance.data)
+                      : "—"}
+                </span>
+              </div>
+            ) : null}
           </>
         )}
       </div>

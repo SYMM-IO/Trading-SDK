@@ -103,9 +103,8 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     // real endpoint as that service is integrated — one at a time.
     subgraphs: {
       analytics:
-        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_mainnet_analytics/latest/gn",
-      events:
-        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_mainnet_events/latest/gn",
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/base_analytics/latest/gn",
+      events: "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/base_events/latest/gn",
     },
     // Rasa serves majors and has no mark-price feed of its own — no REST mark
     // price, no mark-price WebSocket, no index price. Binance USD-M Futures is
