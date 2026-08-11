@@ -2,7 +2,7 @@
 import { PartyAField } from "@/features/inspector/party-a-field";
 import type { QuoteHistoryRow } from "@symmio/trading-core";
 import { QuoteCloseType } from "@symmio/trading-core";
-import { useQuoteHistory } from "@symmio/trading-react";
+import { useQuoteHistory, useSubAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symmio/ui/components/select";
 import { useEffect, useMemo, useRef } from "react";
@@ -78,8 +78,14 @@ export function QuoteHistoryMagicPanel({
     setPage(1);
   }, [seedToken, setPage]);
 
+  // A cross-margin (CUSTOM) subaccount's quotes carry no `subAccount` on the
+  // subgraph, so history must filter by `partyA`; VA isolation filters by
+  // `subAccount`. Read the entered subaccount's isolation type to pick the filter.
+  const { data: subAccount } = useSubAccount({ account: partyA, query: { enabled: active } });
+
   const { data, isLoading } = useQuoteHistory({
     subAccounts: partyA ? [partyA] : [],
+    isolationType: subAccount?.isolationType,
     closeType,
     first: FETCH_SIZE,
     skip: (page - 1) * PAGE_SIZE,
