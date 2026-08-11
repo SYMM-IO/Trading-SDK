@@ -81,6 +81,25 @@ export function classifyQuoteNotificationAction(action: string | null | undefine
 }
 
 /**
+ * Whether a notification's `lastSeenAction` is a close **fill** — the close actually
+ * executed (`FillMarketOrderInstantClose` / `FillLimitOrderClose`), as opposed to a
+ * close *request*. Narrower than {@link classifyQuoteNotificationAction} `=== "close"`,
+ * which also matches the request. Use this to react only once the close has filled —
+ * e.g. to start chasing the on-chain settle, which only begins after the fill.
+ *
+ * @param action - The notification's `lastSeenAction` (may be `null`/absent).
+ * @returns `true` for a close-fill action, otherwise `false`.
+ *
+ * @example
+ * ```ts
+ * if (isCloseFillAction(n.lastSeenAction)) startCloseConfirmChase(n.quoteId);
+ * ```
+ */
+export function isCloseFillAction(action: string | null | undefined): boolean {
+  return action != null && CLOSE_FILL_ACTIONS.has(action);
+}
+
+/**
  * Decide whether a notification refers to a given unified row, matching first by
  * on-chain quote id and then by the pre-chain temp id.
  */

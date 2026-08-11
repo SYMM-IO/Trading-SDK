@@ -1422,6 +1422,7 @@ export {
   getSubAccountQuotesQueryOptions,
   groupQuotes,
   isActivePosition,
+  isCloseFillAction,
   isPendingOrder,
   lifecycleFromQuoteStatus,
   partitionQuotes,
