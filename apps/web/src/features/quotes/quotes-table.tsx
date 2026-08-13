@@ -103,7 +103,7 @@ function TpSlIndicator({ quote }: { quote: UnifiedQuote }) {
       ) : null}
       {hasSl ? (
         <span className="text-muted-foreground/90 font-mono">
-          <span className="text-negative">SL</span> {renderSide(data.sl, data.slState)}
+          <span className="text-info">SL</span> {renderSide(data.sl, data.slState)}
         </span>
       ) : null}
     </span>

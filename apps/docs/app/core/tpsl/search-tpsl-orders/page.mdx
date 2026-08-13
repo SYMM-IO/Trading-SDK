@@ -1,0 +1,80 @@
+# searchTpSlOrders
+
+Search one account's conditional orders at the TP/SL handler.
+
+Hits `POST /api/v5/search/`. Where [`getQuoteTpSl`](/core/tpsl/get-quote-tpsl) reads a single quote, this returns every matching order for an **account** in one request — so a merged position's legs cost one call rather than one call per leg. The handler files conditional orders under the Virtual Account that owns them, so that is what `account` takes.
+
+```ts
+import { searchTpSlOrders } from "@symmio/trading-core";
+
+const { orders, isComplete } = await searchTpSlOrders(config, {
+  account: virtualAccount,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    Account whose orders to search — the Virtual Account the handler stores as `party_a_address`.
+  </Property>
+  <Property name="state" type="QuoteTpSlRowState[]" optional>
+    Row states to include. Defaults to `TPSL_LIVE_ORDER_STATES` — `pending`, `new`, `triggered`, `triggered_pending`.
+  </Property>
+  <Property name="symbolId" type="number" optional>
+    Restrict to one market.
+  </Property>
+  <Property name="conditionalOrderType" type="QuoteTpSlConditionalOrderType" optional>
+    Restrict to one side.
+  </Property>
+  <Property name="conditionalPriceType" type="QuoteTpSlActionPriceType" optional>
+    Restrict to one trigger-price source.
+  </Property>
+  <Property name="start" type="number" optional>
+    Page offset. Defaults to `0`.
+  </Property>
+  <Property name="size" type="number" optional>
+    Page size. Defaults to `200`.
+  </Property>
+  <Property name="timeoutMs" type="number" optional>
+    Abort the request after this many milliseconds. Unset means axios's "wait forever" — pass one when the call is on a
+    repeating schedule, so a stalled connection fails the attempt instead of hanging it.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="SearchTpSlOrdersReturnType">
+  `orders` — the page's rows ([`QuoteTpSlRow`](/core/tpsl/quote-tpsl-row)). `count` — the handler's reported total,
+  advisory only. `isComplete` — whether this page provably exhausted the filtered result set.
+</Returns>
+
+### Why the default state filter matters
+
+Absence from the result is how a caller learns an order is **gone**. That inference is only sound if the filter matches the set of states that represent a live order, which is why `TPSL_LIVE_ORDER_STATES` includes the two `triggered` states: filtering to `["pending", "new"]` would drop a take-profit that fired between two reads, and its absence would read as "cancelled".
+
+### Why `isComplete` ignores `count`
+
+`isComplete` is derived from `orders.length < size`, not from `count`. A short page provably exhausted the result set under any interpretation of `count`, whereas `count`'s exact meaning on this endpoint is unverified — and this endpoint's sibling `GET` already contradicts its own spec. Reading absence from a truncated page would report a live order as cancelled, so the safe signal is the one that cannot be misread.
+
+## Throws
+
+- `SymmError` when the chain has no `tpsl` config.
+- `SymmApiError` when the HTTP request fails, tagged `SEARCH_TPSL_FAILED`.
+
+## Query options
+
+```ts
+import { searchTpSlOrdersQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(searchTpSlOrdersQueryOptions(config, { account: virtualAccount }));
+```
+
+Disabled until `account` is set — the account filter is what scopes the search.
+
+## Related
+
+- [`getQuoteTpSl`](/core/tpsl/get-quote-tpsl) — the per-quote read.
+- [`QuoteTpSlRow`](/core/tpsl/quote-tpsl-row) — the raw row shape.
+- [TP/SL hooks](/react/tpsl) — the React layer, where this backs the confirmation fallback sweep.

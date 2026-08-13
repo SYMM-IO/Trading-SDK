@@ -161,6 +161,8 @@ if (!metrics) return <Skeleton />;
 // Gate equity and the buffer on `upnl.isComplete`.
 ```
 
+The same `upnl` carries the group's return as well as its amount: `upnl.upnlPercent` is the leveraged return on the margin behind the open size — the figure to show beside the PnL — and `upnl.returnPercent` is the unleveraged move on the position itself. Both are 18-decimal fixed-point percents, and `undefined` rather than `0n` when there is no basis to divide by. See [`QuoteGroupUpnl`](../../core/quotes/quote-group-upnl).
+
 **Mark price: injected wins.** Pass `markPrice` (18-decimal wei) and no price subscription is opened; omit it and the hook subscribes to the group's market itself. Inject it when the surrounding screen already holds the price, so the two cannot disagree by a tick.
 
 **`metrics` is withheld when the group spans several accounts.** A group normally maps 1:1 to a Virtual Account, because the built-in grouping strategies mirror the sub-account's on-chain isolation type. When it does not — a custom `keyOf`, or grouping by `MARKET` an account isolated by `MARKET_DIRECTION` — `isMultiAccount` is `true` and `metrics` is `undefined` rather than blended: each account is liquidated independently, so one averaged buffer would read as safe while one of them is about to go. Fan out with [`useAccountMarginRisk`](../margin#useaccountmarginrisk) over the returned `accounts`.

@@ -12,7 +12,6 @@ import {
   type PlanGroupTpSlResult,
   type TpSlConditionalOrderType,
   type TpSlConfig,
-  type TpSlNotification,
   type TpSlValidation,
 } from "@symmio/trading-core";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,12 +21,18 @@ import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
+import {
+  awaitTpSlConfirmation,
+  DEFAULT_TPSL_CONFIRMATION_TIMEOUT_MS,
+  TPSL_CONFIRMATION_TIMEOUT_CODE,
+  tpslConfirmationTimeoutError,
+} from "./await-tpsl-confirmation";
 import { invalidateTpSlReads } from "./invalidate-tpsl";
-import { linkTpSlNotificationIds, matchTpSlNotification } from "./match-tpsl-notification";
 import { runWithConcurrency } from "./run-with-concurrency";
 import { isCancelSideSettled, isWriteSideSettled } from "./settled-side";
+import { startTpSlFallbackPoll, type TpSlPollWaitingSide } from "./tpsl-fallback-poll";
 import { useTpSlRecords, useTpSlStore } from "./tpsl-store";
-import { useWatchTpSlNotifications } from "./use-watch-tpsl-notifications";
+import { dedupeAddresses, useWatchTpSlAccounts } from "./use-watch-tpsl-accounts";
 
 /**
  * Lifecycle of one step inside a grouped TP/SL run:
@@ -118,8 +123,40 @@ export interface SetQuoteGroupTpSlParameters {
    * not consent to five more.
    */
   stopOnUserRejection?: boolean;
-  /** Account whose live stream confirms the run. Defaults to `subAccount`. */
+  /**
+   * Accounts whose live streams confirm the run. Defaults to the deduped
+   * Virtual Account of every leg the plan touches — the channel the handler
+   * reports these orders on, and the reason a group spanning several VAs is
+   * fully covered.
+   */
+  notificationsAccounts?: readonly Address[];
+  /**
+   * Single-account form of {@link SetQuoteGroupTpSlParameters.notificationsAccounts}.
+   *
+   * @deprecated Pass `notificationsAccounts`. A grouped position can span
+   *   Virtual Accounts, so one address rarely covers the whole run.
+   */
   notificationsAccount?: Address;
+  /**
+   * How long a step may wait for its report before the run refetches the
+   * handler's rows and, failing that, gives up on it. Defaults to
+   * {@link DEFAULT_TPSL_CONFIRMATION_TIMEOUT_MS}.
+   */
+  confirmationTimeoutMs?: number;
+  /**
+   * How long the WebSocket report gets on its own before the fallback sweep
+   * starts, in milliseconds. Defaults to {@link TPSL_FALLBACK_POLL_DELAY_MS}.
+   *
+   * The sweep exists for reports that never come; while one can still
+   * plausibly arrive, reading the handler adds load and answers nothing.
+   */
+  fallbackPollDelayMs?: number;
+  /**
+   * Cadence of the fallback sweep once it has started, in milliseconds.
+   * Defaults to {@link TPSL_FALLBACK_POLL_INTERVAL_MS}; `0` disables the sweep
+   * and leaves the WebSocket report as the only confirmation signal.
+   */
+  fallbackPollIntervalMs?: number;
   /** Chain override; defaults to the connected chain. */
   chainId?: number;
   /** Restrict the run to these leg keys — the retry-failed-only path. */
@@ -127,15 +164,17 @@ export interface SetQuoteGroupTpSlParameters {
 }
 
 /**
- * Outcome of one run. Resolves once every planned request has settled;
- * *confirmation* continues asynchronously per step via the WebSocket report,
- * tracked on `status` / `steps` / `progressPercent`.
+ * Outcome of one run, reported once every step has been confirmed by the
+ * handler's report — or given up on. Nothing about the run is still in flight
+ * when this resolves.
  */
 export interface SetQuoteGroupTpSlSummary {
-  /** `true` when every planned step was accepted by the handler. */
+  /** `true` when every planned step was accepted **and** confirmed. */
   ok: boolean;
   /** Steps the handler accepted (writes and cancels). */
   submittedCount: number;
+  /** Steps the handler's report confirmed. */
+  confirmedCount: number;
   /** Steps that failed. */
   failedCount: number;
   /** Legs the plan skipped. */
@@ -152,7 +191,10 @@ export interface SetQuoteGroupTpSlSummary {
 
 /** Return type of {@link useSetQuoteGroupTpSl}. */
 export interface UseSetQuoteGroupTpSlReturnType {
-  /** Plan and apply. Resolves with the run's summary (never rejects). */
+  /**
+   * Plan and apply. Resolves once every step has been confirmed by the
+   * handler's report or given up on (never rejects).
+   */
   set: (parameters: SetQuoteGroupTpSlParameters) => Promise<SetQuoteGroupTpSlSummary>;
   /**
    * Re-run only the steps that failed, against fresh children when supplied
@@ -168,10 +210,16 @@ export interface UseSetQuoteGroupTpSlReturnType {
   isSubmitting: boolean;
   /** `true` while every request has settled but some step still awaits its handler report. */
   isConfirming: boolean;
-  /** Share of steps that have settled either way, `0`–`100` (2-decimal resolution). */
+  /**
+   * Share of steps that reached a terminal state — confirmed or failed — as
+   * `0`–`100` (2-decimal resolution). A step the handler accepted but has not
+   * reported on yet does **not** count.
+   */
   progressPercent: number;
   /** Steps the handler accepted so far — **excludes** failures. */
   acceptedCount: number;
+  /** Steps the handler's report has confirmed so far. */
+  confirmedCount: number;
   /** Steps that failed so far. */
   failedCount: number;
   /** Steps the current/last run intends to execute (writes + cancels). */
@@ -223,16 +271,22 @@ const EMPTY_PLAN: PlanGroupTpSlResult = {
  * A step goes `confirming` as soon as the handler returns 200 (the shared TP/SL
  * store is marked so the UI can show the target price straight away) and `done`
  * once the WebSocket reports the matching transition — live for a write, gone
- * for a cancel. `set()` resolves at the `confirming` boundary; a failed step
- * fails only itself and the run ends as `"partial"`, except when the wallet
- * rejects a signature, which stops the run rather than prompting again.
+ * for a cancel. **`set()` waits for those reports**: it resolves only when every
+ * step is confirmed, so a caller that awaits it can trust the exits are real.
+ * A step whose report never arrives falls back to the handler's REST rows after
+ * `confirmationTimeoutMs` and fails if those do not show it either.
+ *
+ * A failed step fails only itself and the run ends as `"partial"`, except when
+ * the wallet rejects a signature, which stops the run rather than prompting
+ * again.
  *
  * @param parameters - Optional config override.
  * @returns The run controls and its live per-step state.
  *
  * @example
  * ```tsx
- * const { set, steps, progressPercent } = useSetQuoteGroupTpSl();
+ * const { set, steps, isConfirming } = useSetQuoteGroupTpSl();
+ * // Resolves once the handler has reported every leg live.
  * const summary = await set({ children, desired: editor.desired, subAccount, pricePrecision });
  * if (!summary.ok) showError(summary.error);
  * ```
@@ -247,7 +301,7 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
   const inFlight = useRef(false);
   /** Inputs of the last run, so `retryFailed` can replay them. */
   const lastRunRef = useRef<SetQuoteGroupTpSlParameters | undefined>(undefined);
-  const [watchAccount, setWatchAccount] = useState<Address>();
+  const [watchAccounts, setWatchAccounts] = useState<Address[]>([]);
   const watchChainIdRef = useRef<number | undefined>(undefined);
 
   const commit = useCallback((next: RunState) => {
@@ -255,60 +309,43 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
     setState(next);
   }, []);
 
-  /** Confirming steps' quote ids, read live inside the socket handler. */
+  /** Confirming steps' quote ids — the frames this run is listening for. */
   const confirmingIds = useMemo(
     () => Array.from(new Set(state.steps.filter((step) => step.status === "confirming").map((step) => step.quoteId))),
     [state.steps],
   );
-  const confirmingIdsRef = useRef(confirmingIds);
-  confirmingIdsRef.current = confirmingIds;
 
   /**
-   * This hook's own subscription feeds the shared store — it does **not**
-   * resolve steps directly. Step resolution is driven entirely by the store
-   * (below), which is fed by every TP/SL signal: this subscription, a
-   * co-mounted read hook's VA-channel subscription, and the success refetch. So
-   * a step advances no matter which channel delivered the update — the
-   * "stuck on waiting for the handler" case, where the frame arrived on the read
-   * hook's subscription and this hook's own matcher never saw it.
+   * Watch every Virtual Account the run touches. The frames land in the shared
+   * store rather than here, and step resolution reads that store — so a step
+   * advances no matter which subscription delivered the update, including a
+   * co-mounted read hook's.
    */
-  const onNotification = useCallback((notification: TpSlNotification) => {
-    linkTpSlNotificationIds(notification);
-    const target = matchTpSlNotification(notification, confirmingIdsRef.current);
-    if (target !== undefined) useTpSlStore.getState().applyNotification(target, notification);
-  }, []);
-
-  useWatchTpSlNotifications({
-    account: watchAccount,
+  useWatchTpSlAccounts({
+    accounts: watchAccounts,
+    ids: confirmingIds,
     chainId: watchChainIdRef.current,
     config: parameters.config,
-    enabled: Boolean(watchAccount) && confirmingIds.length > 0,
-    onNotification,
+    enabled: watchAccounts.length > 0 && confirmingIds.length > 0,
   });
 
-  // The single source of step resolution: reconcile confirming steps against
-  // the shared store whenever it changes.
-  const confirmingRecords = useTpSlRecords(confirmingIds);
-  useEffect(() => {
+  /** Reconcile confirming steps against the store. Safe to call at any time. */
+  const settle = useCallback(() => {
     const run = runRef.current;
     if (!run.steps.some((step) => step.status === "confirming")) return;
-    const store = useTpSlStore.getState();
-    let changed = false;
-    const steps = run.steps.map((step) => {
-      if (step.status !== "confirming") return step;
-      const record = store.get(step.quoteId);
-      if (!record) return step;
-      const remaining = step.sides.filter((side) =>
-        step.kind === "cancel" ? !isCancelSideSettled(record, side) : !isWriteSideSettled(record, side),
-      );
-      if (remaining.length === step.sides.length) return step;
-      changed = true;
-      return remaining.length > 0 ? { ...step, sides: remaining } : { ...step, sides: [], status: "done" as const };
-    });
-    if (changed) commit({ ...run, steps, status: resolveStatus(steps) });
+    const next = settleSteps(run.steps);
+    if (next) commit({ ...run, steps: next, status: resolveStatus(next) });
+  }, [commit]);
+
+  // Keep the rendered state in step with the store for as long as this hook is
+  // mounted. The run's own waiter drives the same reconcile off its store
+  // subscription, so a run still resolves after the component unmounts.
+  const confirmingRecords = useTpSlRecords(confirmingIds);
+  useEffect(() => {
+    settle();
     // `confirmingRecords` is the store subscription that drives this; `runRef`
     // and the store are read live.
-  }, [confirmingRecords, commit]);
+  }, [confirmingRecords, settle]);
 
   const run = useCallback(
     async (
@@ -320,6 +357,7 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
         return {
           ok: false,
           submittedCount: 0,
+          confirmedCount: 0,
           failedCount: 0,
           skippedCount: 0,
           steps: [],
@@ -341,6 +379,11 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
 
       /** Walk `plan.actions` so a leg's cancel keeps its planned place before its write. */
       const work = plan.actions.filter((action) => action.action !== "skip");
+      /** Which Virtual Account each leg lives under — the account its orders are filed under. */
+      const virtualAccountByQuoteId = new Map<bigint, Address>();
+      for (const action of plan.actions) {
+        if (action.action !== "skip") virtualAccountByQuoteId.set(action.quoteId, action.virtualAccount);
+      }
       const steps: SetQuoteGroupTpSlStep[] = [
         ...carryOver,
         ...plan.actions.map<SetQuoteGroupTpSlStep>((action) => toStep(action)),
@@ -348,12 +391,13 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
 
       lastRunRef.current = runParameters;
       watchChainIdRef.current = chainId;
-      setWatchAccount(runParameters.notificationsAccount ?? runParameters.subAccount);
+      setWatchAccounts(watchAccountsOf(runParameters, plan));
       commit({ status: work.length > 0 ? "submitting" : resolveStatus(steps), steps, plan });
       if (work.length === 0) {
         return {
           ok: true,
           submittedCount: 0,
+          confirmedCount: 0,
           failedCount: 0,
           skippedCount: plan.skips.length,
           steps,
@@ -384,6 +428,30 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
         patchStep(id, (step) => ({ ...step, status: "failed", error }));
       }
 
+      /**
+       * Stop waiting on the steps the handler never reported. Their store-side
+       * guard is dropped first, so the refetch that follows writes the
+       * handler's real rows through instead of being held off by a
+       * confirmation that is not coming.
+       */
+      function expirePending(): void {
+        const store = useTpSlStore.getState();
+        const expired: bigint[] = [];
+        for (const step of runRef.current.steps) {
+          if (step.status !== "confirming") continue;
+          for (const side of step.sides) store.clearConfirming(step.quoteId, side === "take_profit" ? "tp" : "sl");
+          expired.push(step.quoteId);
+        }
+        if (expired.length === 0) return;
+        const error = tpslConfirmationTimeoutError();
+        const current = runRef.current;
+        const next = current.steps.map((step) =>
+          step.status === "confirming" ? { ...step, status: "failed" as const, error } : step,
+        );
+        commit({ ...current, steps: next, status: resolveStatus(next), error: current.error ?? error });
+        void invalidateTpSlReads(queryClient, expired);
+      }
+
       const execute = async (action: GroupTpSlAction) => {
         const id = stepIdOf(action);
         patchStep(id, (step) => ({ ...step, status: "submitting" }));
@@ -398,7 +466,11 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
               from: runParameters.from,
               chainId,
             });
-            markConfirming(action.quoteId, action.conditionalOrderType === "take_profit" ? "tp" : "sl");
+            // `intent: "cancel"` — this side is waiting to disappear, so an
+            // empty refetch confirms it rather than being held as a write.
+            markConfirming(action.quoteId, action.conditionalOrderType === "take_profit" ? "tp" : "sl", {
+              intent: "cancel",
+            });
             patchStep(id, (step) => ({ ...step, status: "confirming" }));
           } catch (err) {
             fail(id, err);
@@ -448,35 +520,67 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
         await runWithConcurrency(work, runParameters.concurrency ?? 1, execute, () =>
           stopOnUserRejection ? stoppedByUser : false,
         );
+
+        /** Anything the abort left `queued` never reached the handler — say so. */
+        if (stoppedByUser) {
+          const current = runRef.current;
+          const cancelled = normalizeSymmError(
+            new Error("Signature rejected — the remaining legs were not submitted."),
+          );
+          const next = current.steps.map((step) =>
+            step.status === "queued" ? { ...step, status: "failed" as const, error: cancelled } : step,
+          );
+          commit({ ...current, steps: next, status: resolveStatus(next) });
+        }
+
+        /** Surface the first failure while the rest of the run is still confirming. */
+        const submitted = runRef.current;
+        commit({ ...submitted, error: submitted.steps.find((step) => step.status === "failed")?.error });
+
+        // Every request has been answered; now wait for the handler to report
+        // each accepted step — live for a write, gone for a cancel. Refetching
+        // is the fallback, not the signal, so it fires only once a report is
+        // overdue.
+        await awaitTpSlConfirmation({
+          settle,
+          hasPending: () => runRef.current.steps.some((step) => step.status === "confirming"),
+          onTimeout: () =>
+            void invalidateTpSlReads(
+              queryClient,
+              runRef.current.steps.filter((step) => step.status === "confirming").map((step) => step.quoteId),
+            ),
+          onExpire: expirePending,
+          onWait: () =>
+            startTpSlFallbackPoll(config, {
+              chainId,
+              delayMs: runParameters.fallbackPollDelayMs,
+              intervalMs: runParameters.fallbackPollIntervalMs,
+              getWaiting: () => waitingSidesOf(runRef.current.steps, virtualAccountByQuoteId),
+            }).stop,
+          timeoutMs: runParameters.confirmationTimeoutMs ?? DEFAULT_TPSL_CONFIRMATION_TIMEOUT_MS,
+        });
       } finally {
         inFlight.current = false;
       }
 
-      /** Anything the abort left `queued` never reached the handler — say so. */
-      if (stoppedByUser) {
-        const current = runRef.current;
-        const cancelled = normalizeSymmError(new Error("Signature rejected — the remaining legs were not submitted."));
-        const next = current.steps.map((step) =>
-          step.status === "queued" ? { ...step, status: "failed" as const, error: cancelled } : step,
-        );
-        commit({ ...current, steps: next, status: resolveStatus(next) });
-      }
-
       const finalSteps = runRef.current.steps;
       const failed = finalSteps.filter((step) => step.status === "failed");
+      const confirmed = finalSteps.filter((step) => step.status === "done");
+      /** Accepted but never reported — the handler took it, the confirmation never came. */
+      const unconfirmed = failed.filter((step) => step.error?.code === TPSL_CONFIRMATION_TIMEOUT_CODE);
       commit({ ...runRef.current, status: resolveStatus(finalSteps), error: failed[0]?.error });
 
-      // Pull the handler's authoritative rows for every leg the run touched, so
-      // the box resolves out of `confirming` (and a cancelled side clears) even
-      // when the live WebSocket frame never lands.
+      // Reconcile against the handler's rows now that the run is over: the
+      // reports carried the state, this makes sure the resting snapshot agrees.
       void invalidateTpSlReads(
         queryClient,
-        finalSteps.filter((step) => step.status === "confirming" || step.status === "done").map((step) => step.quoteId),
+        confirmed.map((step) => step.quoteId),
       );
 
       return {
         ok: failed.length === 0,
-        submittedCount: finalSteps.filter((step) => step.status === "confirming" || step.status === "done").length,
+        submittedCount: confirmed.length + unconfirmed.length,
+        confirmedCount: confirmed.length,
         failedCount: failed.length,
         skippedCount: plan.skips.length,
         steps: [...finalSteps],
@@ -485,7 +589,7 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
         error: failed[0]?.error,
       };
     },
-    [commit, config, connectedChainId, queryClient],
+    [commit, config, connectedChainId, queryClient, settle],
   );
 
   const set = useCallback((runParameters: SetQuoteGroupTpSlParameters) => run(runParameters), [run]);
@@ -499,6 +603,7 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
         return {
           ok: true,
           submittedCount: 0,
+          confirmedCount: 0,
           failedCount: 0,
           skippedCount: 0,
           steps: [...previous],
@@ -517,7 +622,7 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
   const reset = useCallback(() => {
     if (inFlight.current) return;
     watchChainIdRef.current = undefined;
-    setWatchAccount(undefined);
+    setWatchAccounts([]);
     lastRunRef.current = undefined;
     commit(IDLE);
   }, [commit]);
@@ -525,10 +630,13 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
   const counts = useMemo(() => {
     const executed = state.steps.filter((step) => step.status !== "skipped");
     const accepted = executed.filter((step) => step.status === "confirming" || step.status === "done").length;
+    const confirmed = executed.filter((step) => step.status === "done").length;
     const failed = executed.filter((step) => step.status === "failed").length;
-    const settled = accepted + failed;
+    /** A step the handler accepted but has not reported on is not progress yet. */
+    const settled = confirmed + failed;
     return {
       acceptedCount: accepted,
+      confirmedCount: confirmed,
       failedCount: failed,
       totalCount: executed.length,
       progressPercent: executed.length === 0 ? 0 : Math.round((settled / executed.length) * 10_000) / 100,
@@ -547,6 +655,71 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
     plan: state.plan,
     error: state.error,
   };
+}
+
+/**
+ * Reconcile confirming steps against the shared store: drop each side the
+ * handler has reported on and mark the step `done` once none are left.
+ *
+ * @param steps - The run's current steps.
+ * @returns The updated list, or `undefined` when nothing moved.
+ */
+function settleSteps(steps: SetQuoteGroupTpSlStep[]): SetQuoteGroupTpSlStep[] | undefined {
+  const store = useTpSlStore.getState();
+  let changed = false;
+  const next = steps.map((step) => {
+    if (step.status !== "confirming") return step;
+    const record = store.get(step.quoteId);
+    if (!record) return step;
+    const remaining = step.sides.filter((side) =>
+      step.kind === "cancel" ? !isCancelSideSettled(record, side) : !isWriteSideSettled(record, side),
+    );
+    if (remaining.length === step.sides.length) return step;
+    changed = true;
+    return remaining.length > 0 ? { ...step, sides: remaining } : { ...step, sides: [], status: "done" as const };
+  });
+  return changed ? next : undefined;
+}
+
+/**
+ * The sides this run is still waiting on, in the shape the fallback sweep
+ * needs: one entry per `(quote, side)` still `confirming`, tagged with the
+ * account whose orders it will be found among and with what it is waiting for.
+ *
+ * Read live on every tick, so a side settled by a WebSocket frame between two
+ * ticks drops out on its own.
+ */
+function waitingSidesOf(
+  steps: readonly SetQuoteGroupTpSlStep[],
+  accounts: ReadonlyMap<bigint, Address>,
+): TpSlPollWaitingSide[] {
+  const waiting: TpSlPollWaitingSide[] = [];
+  for (const step of steps) {
+    if (step.status !== "confirming") continue;
+    const account = accounts.get(step.quoteId);
+    if (!account) continue;
+    for (const side of step.sides) {
+      waiting.push({
+        quoteId: step.quoteId,
+        side,
+        intent: step.kind === "cancel" ? "cancel" : "write",
+        cohQuoteId: step.cohQuoteId,
+        account,
+      });
+    }
+  }
+  return waiting;
+}
+
+/**
+ * The accounts whose streams report on this run — every Virtual Account the
+ * plan touches, deduped. The SubAccount is not one of them: the handler
+ * publishes a leg's conditional orders on the VA that owns it.
+ */
+function watchAccountsOf(parameters: SetQuoteGroupTpSlParameters, plan: PlanGroupTpSlResult): Address[] {
+  if (parameters.notificationsAccounts) return dedupeAddresses(parameters.notificationsAccounts);
+  if (parameters.notificationsAccount) return [parameters.notificationsAccount];
+  return dedupeAddresses(plan.actions.map((action) => (action.action === "skip" ? undefined : action.virtualAccount)));
 }
 
 /** Stable, unique step identity. A cancel is per-side; a write covers both sides of one leg. */

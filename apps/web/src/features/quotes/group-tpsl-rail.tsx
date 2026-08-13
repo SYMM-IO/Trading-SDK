@@ -81,7 +81,7 @@ export function GroupTpSlRail({
     <div className="flex flex-col">
       <Rail rung={upper} legs={legs} overrides={overrides} onChange={onChange} onClear={onClear} disabled={disabled} />
 
-      <div className="flex items-center gap-3 py-2.5 pl-[3px]">
+      <div className="flex items-center gap-3 py-2.5">
         <span className="via-border to-border h-px flex-1 bg-gradient-to-r from-transparent" aria-hidden />
         <span className="text-muted-foreground flex items-baseline gap-2 font-mono text-xs">
           <span className="text-[0.6rem] tracking-[0.18em] uppercase">mark</span>
@@ -95,10 +95,46 @@ export function GroupTpSlRail({
   );
 }
 
+/**
+ * Per-side copy and the glyph that names the side.
+ *
+ * Identity lives on the leading icon and the coverage bar below — never on the
+ * field itself, which wears the same chrome as every other input in the app.
+ * The glyphs' arrows read as *outcome*, not as price direction: taking profit
+ * is the up case and stopping out the down case for a short as much as a long.
+ */
 const COPY = {
-  tp: { label: "take profit", empty: "No take profit", aria: "Take profit price for the whole position" },
-  sl: { label: "stop loss", empty: "No stop loss", aria: "Stop loss price for the whole position" },
+  tp: {
+    label: "take profit",
+    empty: "No take profit",
+    aria: "Take profit price for the whole position",
+    tone: "text-positive",
+  },
+  sl: {
+    label: "stop loss",
+    empty: "No stop loss",
+    aria: "Stop loss price for the whole position",
+    tone: "text-info",
+  },
 } as const;
+
+/**
+ * The field box, mirroring `@symmio/ui`'s `Input` through `focus-within` — the
+ * real input inside is stripped bare so the box can hold the readout and the
+ * clear button too. Hover follows `SelectTrigger`, the design system's one
+ * field-shaped control that defines one.
+ */
+const FIELD = "border-border bg-input/40 hover:bg-input/60";
+const FIELD_FOCUS = "focus-within:border-ring focus-within:bg-input/60 focus-within:ring-ring/30 focus-within:ring-3";
+
+/**
+ * The rejected-price box — the primitive's own `aria-invalid` treatment, so a
+ * bad exit price looks like a bad value anywhere else in the app. Swapped in
+ * rather than layered on: an exclusive branch is the only way to guarantee no
+ * resting class survives inside an errored field.
+ */
+const FIELD_INVALID =
+  "border-destructive bg-destructive/5 ring-destructive/25 ring-3 dark:bg-destructive/10 dark:ring-destructive/35 focus-within:border-destructive focus-within:ring-destructive/25";
 
 /** One rung: label, price input, distance, PnL, coverage. */
 function Rail({
@@ -117,8 +153,9 @@ function Rail({
   disabled: boolean;
 }) {
   const copy = COPY[rung.side];
-  const tone = rung.side === "tp" ? "text-positive" : "text-negative";
   const set = rung.triggerPrice.length > 0;
+  const invalid = Boolean(rung.error);
+  const errorId = `group-tpsl-${rung.side}-error`;
   /**
    * The leg count only earns its place when coverage is uneven — `3/3` says
    * nothing the bar and the percentage below it do not already say.
@@ -128,9 +165,7 @@ function Rail({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-3">
-        <span className={cn("text-[0.6rem] tracking-[0.18em] uppercase", set ? tone : "text-muted-foreground")}>
-          {copy.label}
-        </span>
+        <span className="text-muted-foreground text-[0.6rem] tracking-[0.18em] uppercase">{copy.label}</span>
         {partial ? (
           <span className="text-muted-foreground/80 font-mono text-[0.65rem] tabular-nums">
             {rung.count} of {rung.total} legs
@@ -140,10 +175,13 @@ function Rail({
 
       <div
         className={cn(
-          "border-border/70 bg-card/40 focus-within:border-primary/60 focus-within:bg-card/70 flex items-stretch rounded-md border transition-colors",
-          rung.error && "border-negative/70",
+          "flex items-stretch overflow-hidden rounded-md border transition-[color,box-shadow,background-color,border-color]",
+          invalid ? FIELD_INVALID : cn(FIELD, FIELD_FOCUS),
         )}
       >
+        <span className={cn("flex shrink-0 items-center pl-3", copy.tone)} aria-hidden>
+          {rung.side === "tp" ? <TakeProfitGlyph /> : <StopLossGlyph />}
+        </span>
         <Input
           value={rung.triggerPrice}
           onChange={(event) => onChange(rung.side, event.target.value)}
@@ -151,18 +189,24 @@ function Rail({
           inputMode="decimal"
           disabled={disabled}
           aria-label={copy.aria}
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? errorId : undefined}
           data-testid={`group-tpsl-${rung.side}-input`}
           className={cn(
-            "h-auto flex-1 border-0 bg-transparent px-3 py-2.5 font-mono text-xl tabular-nums shadow-none focus-visible:bg-transparent focus-visible:ring-0",
-            set ? tone : "text-muted-foreground",
+            "h-auto flex-1 border-0 bg-transparent px-2.5 py-2.5 font-mono text-xl tabular-nums shadow-none",
+            "focus-visible:bg-transparent focus-visible:ring-0",
+            /** The box owns both the focus and the invalid treatment; stop the primitive drawing a second one inside it. */
+            "aria-invalid:border-transparent aria-invalid:bg-transparent aria-invalid:ring-0 aria-invalid:ring-transparent dark:aria-invalid:bg-transparent dark:aria-invalid:ring-transparent",
+            set ? "text-foreground" : "text-muted-foreground",
           )}
         />
         <span className="grid shrink-0 grid-cols-[auto_auto] items-baseline gap-x-2 gap-y-0.5 py-2 pr-3 text-right">
           <span className="text-muted-foreground/60 text-[0.55rem] tracking-[0.1em] uppercase">from mark</span>
+          {/** Achromatic on purpose: the sign already says which way, and a red −85% on a valid stop is the exact thing being fixed. */}
           <span
             className={cn(
               "font-mono text-[0.7rem] tabular-nums",
-              rung.distancePercent === undefined ? "text-muted-foreground/60" : tone,
+              rung.distancePercent === undefined ? "text-muted-foreground/60" : "text-foreground",
             )}
           >
             {formatSignedPercent(rung.distancePercent)}
@@ -179,7 +223,7 @@ function Rail({
             disabled={disabled}
             aria-label={`Remove the ${copy.label}`}
             title={`Remove the ${copy.label}`}
-            className="text-muted-foreground/60 hover:text-negative focus-visible:ring-ring border-border/60 flex w-9 items-center justify-center border-l transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring border-border/60 flex w-9 items-center justify-center border-l transition-colors focus-visible:ring-2 focus-visible:outline-none"
           >
             <CloseGlyph />
           </button>
@@ -198,7 +242,12 @@ function Rail({
         </span>
       </div>
 
-      {rung.error ? <p className="text-negative text-[0.7rem]">{rung.error}</p> : null}
+      {rung.error ? (
+        <p id={errorId} role="alert" className="text-destructive flex items-center gap-1.5 text-[0.7rem]">
+          <AlertGlyph />
+          {rung.error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -245,6 +294,66 @@ export function distancePercentOf(price: string, reference: string): number | un
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Take profit — price action running up into the level that closes the trade in
+ * profit. The rule bar is the level; the arrow is what the position does to reach it.
+ */
+function TakeProfitGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-5 shrink-0"
+      aria-hidden
+    >
+      <path d="M3.25 3.25h17.5" />
+      <path d="M2.75 19.5 7.5 14.5 11 18 17.25 10" />
+      <path d="M12.9 11.6 17.25 10l-.5 4.6" />
+    </svg>
+  );
+}
+
+/** Stop loss — the mirror: price running down into the level that closes the trade out. */
+function StopLossGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-5 shrink-0"
+      aria-hidden
+    >
+      <path d="M2.75 4.5 7.5 9.5 11 6l6.25 8" />
+      <path d="M12.9 12.4 17.25 14l-.5-4.6" />
+      <path d="M3.25 20.75h17.5" />
+    </svg>
+  );
+}
+
+/** Marks a rejected price. The one thing in the rail that only ever means "invalid". */
+function AlertGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      className="size-3.5 shrink-0"
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5M12 16.5h.01" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function CloseGlyph() {

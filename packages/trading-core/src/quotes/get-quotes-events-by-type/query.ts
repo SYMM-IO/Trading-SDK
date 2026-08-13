@@ -2,6 +2,7 @@ import type { Config } from "../../core/config";
 import type { Compute, ConfigKeyParameter } from "../../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../../shared/types/query";
 import { filterQueryOptions } from "../../shared/utils/query";
+import { toQuoteIdKeyPart } from "../quote-id-key-part";
 import {
   getQuotesEventsByType,
   type GetQuotesEventsByTypeParameters,
@@ -10,15 +11,6 @@ import {
 
 /** Data resolved by the {@link getQuotesEventsByTypeQueryOptions} query. */
 export type GetQuotesEventsByTypeData = GetQuotesEventsByTypeReturnType;
-
-/**
- * Stringify the quote ids for the query key, sorted ascending so that two calls
- * that pass the same ids in a different order share one cache entry. Sorts a
- * copy — the caller's array is never mutated.
- */
-function toQuoteIdKeyPart(quoteIds: readonly bigint[]): string[] {
-  return [...quoteIds].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).map((id) => id.toString());
-}
 
 /**
  * Build the TanStack Query key for {@link getQuotesEventsByTypeQueryOptions}.

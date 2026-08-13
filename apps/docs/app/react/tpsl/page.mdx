@@ -33,12 +33,14 @@ interface TpSlRecord {
 
 ### Store actions
 
-| Action                                | When it fires                                                                | Effect                                                                                                                        |
-| ------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `setRows(id, rows)`                   | REST `GET /api/v5/?quote_id=…` returns.                                      | Folds rows via `toQuoteTpSl`; auto-indexes each row's `quote_id` alias.                                                       |
-| `markConfirming(id, side, patch?)`    | `useSetQuoteTpSl` / `useDeleteQuoteTpSl` / `useInstantOpenWithTpSl` succeed. | Sets that side's state to `"confirming"`; optional `patch` seeds `{ price, priceType, cohQuoteId }`.                          |
-| `applyNotification(id, notification)` | WS `report` frame arrives (`successful: true`).                              | Maps `notification.state` → `TpSlInfoState`; stamps `trigger_price` from `details` when present; clears fields on `canceled`. |
-| `link(a, b)`                          | Solver notification anchors a pre-chain quote (temp ↔ on-chain).             | Both ids resolve to the same record; merges if two records existed.                                                           |
+| Action                                | When it fires                                                                | Effect                                                                                                                                                                         |
+| ------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `setRows(id, rows)`                   | REST `GET /api/v5/?quote_id=…` returns.                                      | Folds **one quote's** rows via `toQuoteTpSl`; auto-indexes each row's `quote_id` alias. A snapshot that does not evidence a pending write **holds** it instead of clearing it. |
+| `setRowsForSides(id, rows, sides)`    | The fallback sweep folds an account-scoped page.                             | `setRows` restricted to `sides`, without the `quote_id` aliasing — so a partial page cannot blank a side nobody asked about, or fuse two legs into one record.                 |
+| `markConfirming(id, side, patch?)`    | `useSetQuoteTpSl` / `useDeleteQuoteTpSl` / `useInstantOpenWithTpSl` succeed. | Sets that side's state to `"confirming"`; optional `patch` seeds `{ price, priceType, cohQuoteId }` and `intent` (`"write"` default, `"cancel"` for a delete).                 |
+| `applyNotification(id, notification)` | WS `report` frame arrives (`successful: true`).                              | Maps `notification.state` → `TpSlInfoState`; stamps `trigger_price` from `details` when present; clears fields on `canceled`.                                                  |
+| `clearConfirming(id, side)`           | A run stops waiting for the report.                                          | Drops the guard so the next `setRows` writes the handler's rows through unheld.                                                                                                |
+| `link(a, b)`                          | Solver notification anchors a pre-chain quote (temp ↔ on-chain).             | Both ids resolve to the same record; merges if two records existed.                                                                                                            |
 
 ### Selector
 
@@ -272,9 +274,23 @@ if (!summary.ok) showError(summary.error);
 
 It executes **both** halves of the plan: a side you cleared becomes a cancel, a side with a new value becomes a write, and one leg can do both in the same run. Steps therefore carry a stable `id` and a `kind` (`"write" | "cancel" | "skip"`) — use `id` as your list key, not `key`.
 
-A step's lifecycle is `queued → submitting → confirming → done`. `set()` resolves at the **`confirming`** boundary — the handler has accepted every request — and confirmation continues asynchronously as the WebSocket reports the transition each step is waiting for (_live_ for a write, _gone_ for a cancel, so a shared socket cannot cross-confirm).
+A step's lifecycle is `queued → submitting → confirming → done`. **`set()` waits for the handler's report** — it resolves only once every step is `done`, so awaiting it means the exits are real, not merely accepted. The report each step waits for is the transition it asked for: _live_ for a write, _gone_ for a cancel, so a shared socket cannot cross-confirm.
 
-`confirming` outranks `partial`: a failure on one leg does not make the run terminal while another still awaits its report. `acceptedCount` excludes failures — read `failedCount` for those. `retryFailed()` re-runs only the failed legs, merged onto the existing steps so successful ones keep their state, and re-diffed against fresh children so a leg that confirmed via a race is dropped.
+Reports arrive on the **Virtual Account** channel, and the run subscribes to every VA its plan touches — a grouped position can span several, and the sub-account's stream carries none of them. Pass `notificationsAccounts` only to override that.
+
+### When the report never arrives
+
+The report gets the first **30 seconds** to itself (`fallbackPollDelayMs`). A socket that looks healthy is no guarantee a frame was delivered, so once that window closes without one, the run stops waiting and reads the handler directly via [`searchTpSlOrders`](/core/tpsl/search-tpsl-orders), every 2s (`fallbackPollIntervalMs`, `0` to disable), confirming from whichever signal arrives first.
+
+The delay is what keeps this a fallback rather than a second opinion: in the normal case the report lands in well under a second, the wait resolves, and **not a single sweep request is ever sent**.
+
+Once it does start, the sweep costs **one request per Virtual Account per tick**, never one per leg, and leases on the same account share a single loop and a single in-flight request; a set-run and a cancel-run confirming on the same VA cost one request between them. It is single-flight (a slow tick reschedules rather than stacking), backs off exponentially when the handler errors, and stops the moment nothing is waiting. It is owned by the wait itself rather than by a component, so closing the modal mid-run does not silence it.
+
+Two rules keep an account-wide page from doing damage. A **write** is only confirmed by evidence of the order that was submitted — a matching `coh_quote_id`, or a matching trigger price and price type — so a stale row for the order being replaced cannot report an edit as landed. A **cancel** is only confirmed when its specific `coh_quote_id` is absent from a page that is provably complete; a truncated response contributes positive rows only.
+
+`confirmationTimeoutMs` (default 60s) bounds the whole wait — 30s belonging to the report, then roughly fifteen sweeps. Only then does the step fail with `error.code === "TPSL_CONFIRMATION_TIMEOUT"` — distinct from a rejected request, and still counted in `submittedCount`. Until then the shared store keeps the side `"confirming"`, so a racing refetch cannot blank the price the trader just set.
+
+`confirming` outranks `partial`: a failure on one leg does not make the run terminal while another still awaits its report. `acceptedCount` counts steps the handler accepted, `confirmedCount` only those it reported back, and `progressPercent` moves on confirmations — not on acceptances. `retryFailed()` re-runs only the failed legs, merged onto the existing steps so successful ones keep their state, and re-diffed against fresh children so a leg that confirmed via a race is dropped.
 
 A rejected wallet signature stops the run by default rather than prompting for every remaining leg; pass `stopOnUserRejection: false` to opt out. `set()` never rejects — inspect the returned summary, including `stoppedByUser`.
 
@@ -288,6 +304,8 @@ await deleteOrders({ children, scope: "all" });
 ```
 
 Bounded-parallel (4 at a time by default) with **no short-circuit** — one rejection fails only its own step. Each `cohQuoteId` comes from the leg's confirmed snapshot, never from an edit buffer, and sides that are still `"pending"` / `"confirming"` are excluded rather than raced.
+
+Like `set()`, `deleteOrders()` waits for the handler to report each order **gone** before resolving, subscribes to the targeted orders' Virtual Accounts, and honours the same `fallbackPollIntervalMs` sweep and `confirmationTimeoutMs` ceiling.
 
 ## Related
 

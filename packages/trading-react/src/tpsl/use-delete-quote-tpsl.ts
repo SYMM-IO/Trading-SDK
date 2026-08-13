@@ -47,8 +47,14 @@ export function useDeleteQuoteTpSl(parameters: UseDeleteQuoteTpSlParameters = {}
       }
     },
     onSuccess: (_result, variables) => {
-      if (variables.conditionalOrderType === "take_profit") markConfirming(variables.quoteId, "tp");
-      if (variables.conditionalOrderType === "stop_loss") markConfirming(variables.quoteId, "sl");
+      // `intent: "cancel"` — this side is waiting to disappear, so an empty
+      // refetch confirms it instead of being held off as a pending write.
+      if (variables.conditionalOrderType === "take_profit") {
+        markConfirming(variables.quoteId, "tp", { intent: "cancel" });
+      }
+      if (variables.conditionalOrderType === "stop_loss") {
+        markConfirming(variables.quoteId, "sl", { intent: "cancel" });
+      }
       void invalidateTpSlReads(queryClient, [variables.quoteId]);
     },
   });

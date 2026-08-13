@@ -1,27 +1,13 @@
 import { WEI } from "../../shared/utils/wei";
 import type { LockedValues } from "../../symmio-contracts/symmio/types";
+import { hasUnsettledOpenPrice, leveragePriceOf, openPriceOf } from "../open-price";
 import type { UnifiedQuote } from "../unified-quote";
 import { isActivePosition, isPendingOrder } from "./partition-quotes";
 import type { QuoteGroupMetrics } from "./quote-group";
 
-/** A quote's open price for valuation: the settled `openedPrice`, else the requested one. */
-function openPriceOf(quote: UnifiedQuote): bigint {
-  return quote.openedPrice !== undefined && quote.openedPrice !== 0n ? quote.openedPrice : quote.requestedOpenPrice;
-}
-
-/** Whether a quote still lacks a settled open price (a pending or optimistic open). */
-function hasUnsettledOpenPrice(quote: UnifiedQuote): boolean {
-  return quote.openedPrice === undefined || quote.openedPrice === 0n;
-}
-
 /** A quote's price for the frozen at-open notional: `initialOpenedPrice`, else the requested one. */
 function initialNotionalPriceOf(quote: UnifiedQuote): bigint {
   return quote.initialOpenedPrice ?? quote.requestedOpenPrice;
-}
-
-/** A quote's reference price for leverage: `requestedOpenPrice`, else the settled `openedPrice`. */
-function leveragePriceOf(quote: UnifiedQuote): bigint {
-  return quote.requestedOpenPrice !== 0n ? quote.requestedOpenPrice : (quote.openedPrice ?? 0n);
 }
 
 /**
@@ -58,7 +44,15 @@ function leverageMarginOf(quote: UnifiedQuote): bigint {
 export function aggregateGroupMetrics(quotes: readonly UnifiedQuote[]): QuoteGroupMetrics {
   let quantity = 0n;
   let openQuantity = 0n;
-  /** Σ(openQuantity × openPrice), scaled by `WEI²`; feeds `weightedOpenPrice` only. */
+  /**
+   * Σ(openQuantity × openPrice), scaled by `WEI²`; feeds `weightedOpenPrice` only.
+   *
+   * **Deliberately not `mulWei`.** Every other `quantity × price` fold in the SDK
+   * rescales to wei per item, but this one must stay at `WEI²`: the divide at the
+   * bottom is by `openQuantity` (wei), not by `WEI`, and it is that surviving
+   * factor which lands `weightedOpenPrice` back on wei scale. Truncating here
+   * would return a price 1e18 too small.
+   */
   let notionalNumerator = 0n;
   /** Σ(quantity × (initialOpenedPrice ?? requestedOpenPrice)), scaled by `WEI²` until the final rescale. */
   let initialNotionalNumerator = 0n;
@@ -94,7 +88,7 @@ export function aggregateGroupMetrics(quotes: readonly UnifiedQuote[]): QuoteGro
   const initialNotional = initialNotionalNumerator / WEI;
 
   const weightedOpenPrice = openQuantity > 0n && !anyUnsettledOpenPrice ? notionalNumerator / openQuantity : undefined;
-  // `leverageNumerator` is scaled by WEI²; dividing by the WEI-scaled margin yields an 18-decimal ratio.
+  /** `leverageNumerator` is scaled by WEI²; dividing by the WEI-scaled margin yields an 18-decimal ratio. */
   const leverage = leverageMargin > 0n ? leverageNumerator / leverageMargin : undefined;
 
   return {

@@ -127,8 +127,15 @@ function LegCell({
   const staged = overrides[leg.key]?.[side];
   const confirmed = side === "tp" ? leg.tpsl.tp : leg.tpsl.sl;
   const value = staged ? staged.triggerPrice : confirmed;
-  const tone = side === "tp" ? "text-positive" : "text-negative";
   const anchored = leg.quoteId !== undefined && leg.openQuantity > 0n;
+  const invalid = Boolean(message);
+  /**
+   * Which legs the handler has answered for and which it has not — the one
+   * thing the whole-position controls above cannot say. A run confirms leg by
+   * leg, so this is where a trader finds out that four of five went through.
+   */
+  const state = side === "tp" ? leg.tpsl.tpState : leg.tpsl.slState;
+  const pending = state === "confirming" || state === "pending";
 
   return (
     <td className="py-1 align-middle">
@@ -139,14 +146,23 @@ function LegCell({
         inputMode="decimal"
         disabled={disabled || !anchored}
         aria-label={`${side === "tp" ? "Take profit" : "Stop loss"} price for the ${formatTokenAmount(leg.openQuantity, WEI_DECIMALS, { maxFractionDigits: 4 })} leg`}
-        title={message}
+        aria-invalid={invalid || undefined}
+        aria-busy={pending || undefined}
+        title={message ?? (pending ? "Waiting for the handler to confirm" : undefined)}
         className={cn(
           "h-7 max-w-32 border-transparent bg-transparent px-1.5 font-mono text-[0.7rem] tabular-nums shadow-none",
-          "hover:border-border/60 focus-visible:border-primary/60",
-          value ? tone : "text-muted-foreground",
-          message && "border-negative/70",
+          "hover:border-border/60 focus-visible:border-ring",
+          /** Neutral like the rail above: the column header says which side this is, so red can mean only "rejected". */
+          value ? "text-foreground" : "text-muted-foreground",
+          /** A 3px ring is too loud for a table row; the primitive's border and tint still carry it. */
+          "aria-invalid:ring-1",
         )}
       />
+      {pending ? (
+        <span className="text-muted-foreground/80 block px-1.5 text-[0.6rem] tracking-[0.1em] uppercase">
+          confirming…
+        </span>
+      ) : null}
     </td>
   );
 }

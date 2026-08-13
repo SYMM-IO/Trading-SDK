@@ -2,6 +2,7 @@ export default {
   index: "Overview",
   "-- reads": { type: "separator", title: "Reads" },
   "get-quote-tpsl": "getQuoteTpSl",
+  "search-tpsl-orders": "searchTpSlOrders",
   "get-tpsl-config": "getTpSlConfig",
   "get-tpsl-signing-spec": "getTpSlSigningSpec",
   "get-tpsl-delete-signing-spec": "getTpSlDeleteSigningSpec",

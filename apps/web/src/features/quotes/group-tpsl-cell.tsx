@@ -71,21 +71,32 @@ export function GroupTpSlCell({ group, subAccount, from }: Props) {
   );
 }
 
-/** One side's compact readout: the shared price when uniform, the covered share when split. */
+/**
+ * One side's compact readout: the shared price when uniform, the covered share
+ * when split — and `processing…` while the handler has yet to confirm it.
+ *
+ * An unconfirmed exit is not an exit. Showing the target price as though it
+ * were live would tell the trader they are protected before anyone agreed to
+ * protect them, so the pending state replaces the value rather than decorating
+ * it — the same wording the single-quote cell uses.
+ */
 function SideValue({
   side,
   summary,
 }: {
   side: "tp" | "sl";
-  summary: { display: string; price?: string; count: number; coveragePercent?: bigint };
+  summary: { display: string; price?: string; count: number; coveragePercent?: bigint; isPending: boolean };
 }) {
   if (summary.count === 0) return null;
-  const tone = side === "tp" ? "text-positive" : "text-negative";
+  /** Matches the exit rail's plates — the stop loss reads blue everywhere, never loss-red. */
+  const tone = side === "tp" ? "text-positive" : "text-info";
   const label = side === "tp" ? "TP" : "SL";
   return (
     <span className={cn("flex items-baseline gap-1", tone)}>
       <span className="text-[0.65rem] opacity-70">{label}</span>
-      {summary.display === "uniform" ? (
+      {summary.isPending ? (
+        <span className="text-muted-foreground animate-pulse motion-reduce:animate-none">processing…</span>
+      ) : summary.display === "uniform" ? (
         <span>{summary.price}</span>
       ) : (
         <span title={`${summary.count} legs protected`}>{formatCoveragePercent(summary.coveragePercent)}%</span>

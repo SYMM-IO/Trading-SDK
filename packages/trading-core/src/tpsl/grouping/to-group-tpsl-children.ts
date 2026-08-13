@@ -1,3 +1,4 @@
+import { openPriceOf } from "../../quotes/open-price";
 import type { UnifiedQuote } from "../../quotes/unified-quote";
 import type { QuoteTpSl } from "../types";
 import type { GroupTpSlChild } from "./types";
@@ -45,11 +46,6 @@ export function toGroupTpSlChildren(
     openPrice: openPriceOf(quote),
     tpsl: snapshot(quote) ?? blankQuoteTpSl(),
   }));
-}
-
-/** A quote's open price for valuation: the settled `openedPrice`, else the requested one. */
-function openPriceOf(quote: UnifiedQuote): bigint {
-  return quote.openedPrice !== undefined && quote.openedPrice !== 0n ? quote.openedPrice : quote.requestedOpenPrice;
 }
 
 /** A snapshot with no orders on either side. */

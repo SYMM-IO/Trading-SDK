@@ -1,4 +1,5 @@
 import { formatUnits } from "viem";
+import { leveragePriceOf } from "../open-price";
 
 /** Decimal places of an 18-decimal-wei fixed-point value. */
 const WEI_DECIMALS = 18;
@@ -37,8 +38,7 @@ export interface CalculateQuoteLeverageParameters {
  * ```
  */
 export function calculateQuoteLeverage(parameters: CalculateQuoteLeverageParameters): string {
-  const referencePriceWei =
-    parameters.requestedOpenPrice !== 0n ? parameters.requestedOpenPrice : (parameters.openedPrice ?? 0n);
+  const referencePriceWei = leveragePriceOf(parameters);
   const quantity = Number(formatUnits(parameters.quantity, WEI_DECIMALS));
   const referencePrice = Number(formatUnits(referencePriceWei, WEI_DECIMALS));
   const lockedSum = Number(

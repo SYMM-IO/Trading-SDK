@@ -1,5 +1,5 @@
 import { sharePercent } from "../../shared/utils/percent";
-import { WEI } from "../../shared/utils/wei";
+import { mulWei } from "../../shared/utils/wei";
 import { PositionType } from "../../symmio-contracts/symmio/types";
 import type { TpSlConditionalOrderType } from "../types";
 import { childNotional, triggerPriceToWei } from "./notional";
@@ -54,7 +54,7 @@ export function estimateGroupTpSlReturn(
     const triggerPrice = triggerPriceToWei(resolved.triggerPrice);
     const delta = triggerPrice - child.openPrice;
     const signed = child.positionType === PositionType.SHORT ? -delta : delta;
-    const pnl = (child.openQuantity * signed) / WEI;
+    const pnl = mulWei(child.openQuantity, signed);
     const notional = childNotional(child);
 
     legs.push({ key: child.key, triggerPrice: resolved.triggerPrice, pnl, notional });

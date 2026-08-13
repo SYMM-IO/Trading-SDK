@@ -46,6 +46,15 @@ function formatPercent(raw?: bigint): string {
   return String(Math.trunc(toPercentNumber(raw)));
 }
 
+/**
+ * A signed return, e.g. `+12.34%` / `−12.34%`. Two decimals, because a return on
+ * margin is read at a glance and rounding it to whole points hides small moves.
+ */
+function formatSignedPercent(raw: bigint): string {
+  const percent = toPercentNumber(raw);
+  return `${percent < 0 ? "−" : "+"}${Math.abs(percent).toFixed(2)}%`;
+}
+
 /** Bar fill, clamped to the track. The underlying figure is deliberately unclamped. */
 function barWidth(raw?: bigint): number {
   if (raw === undefined) return 0;
@@ -246,8 +255,30 @@ export function GroupMarginRiskSection({ group }: Props) {
             <Operator symbol="+" />
             <Figure
               label="Unrealized PnL"
-              formula="Σ across the position's quotes of openQuantity × (mark price − open price), negated for a short. Quotes still awaiting a fill price are excluded."
-              value={showLive ? formatSignedAmount(upnl.upnl) : EMPTY}
+              formula="Σ across the position's quotes of openQuantity × (mark price − open price), negated for a short. Quotes still awaiting a fill price are excluded. The percentage is the return on the margin behind the open size — the position's own move, before leverage, is the smaller figure in the tooltip."
+              value={
+                showLive ? (
+                  <span className="inline-flex items-baseline gap-1.5">
+                    {formatSignedAmount(upnl.upnl)}
+                    {upnl.upnlPercent !== undefined && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help text-xs opacity-80">
+                            {formatSignedPercent(upnl.upnlPercent)}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-64 text-left font-normal normal-case">
+                          {`Return on margin. The position itself moved ${
+                            upnl.returnPercent === undefined ? EMPTY : formatSignedPercent(upnl.returnPercent)
+                          }.`}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </span>
+                ) : (
+                  EMPTY
+                )
+              }
               tone={upnl.isComplete && upnl.upnl < 0n ? "text-negative" : "text-positive"}
             />
           </div>

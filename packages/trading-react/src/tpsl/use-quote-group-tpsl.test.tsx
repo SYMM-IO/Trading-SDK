@@ -76,11 +76,17 @@ function takeProfitRow(quoteId: number, price: number): QuoteTpSlRow {
   } as unknown as QuoteTpSlRow;
 }
 
+/** Every quote id whose `queryFn` actually ran, in order. */
+const fetched: string[] = [];
+
 /** Stub the shared query factory with per-quote row sets. */
 function stubRows(rowsByQuoteId: Record<string, QuoteTpSlRow[]>) {
   getQuoteTpSlQueryOptions.mockImplementation((_config: unknown, options: { quoteId: bigint }) => ({
     queryKey: ["getQuoteTpSl", { quoteId: options.quoteId.toString() }] as const,
-    queryFn: async () => rowsByQuoteId[options.quoteId.toString()] ?? [],
+    queryFn: async () => {
+      fetched.push(options.quoteId.toString());
+      return rowsByQuoteId[options.quoteId.toString()] ?? [];
+    },
     enabled: options.quoteId !== 0n,
     retry: false,
   }));
@@ -89,6 +95,7 @@ function stubRows(rowsByQuoteId: Record<string, QuoteTpSlRow[]>) {
 beforeEach(() => {
   __resetTpSlStore();
   watchSpy.live.length = 0;
+  fetched.length = 0;
   getQuoteTpSlQueryOptions.mockReset();
 });
 
@@ -261,12 +268,17 @@ describe("useQuoteGroupTpSl", () => {
       useQuoteGroupTpSl({ quotes, config: createMockSymmioConfig().config }),
     );
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    const before = getQuoteTpSlQueryOptions.mock.calls.length;
+    fetched.length = 0;
 
     await act(async () => {
       await result.current.refetch();
     });
 
-    expect(getQuoteTpSlQueryOptions.mock.calls.length).toBeGreaterThan(before);
+    /**
+     * Assert the fetches, not the renders: identical rows no longer re-render
+     * the group (the store skips a no-op commit), so a render count would say
+     * nothing about whether the children actually refetched.
+     */
+    expect(fetched).toEqual(["1", "2"]);
   });
 });

@@ -5,7 +5,6 @@ import {
   summarizeQuoteGroupTpSl,
   toGroupTpSlChildren,
   toGroupTpSlOrders,
-  watchTpSlNotifications,
   type ConfigParameter,
   type GetQuoteTpSlOptions,
   type GroupTpSlChild,
@@ -13,18 +12,17 @@ import {
   type GroupTpSlOrder,
   type QuoteGroupTpSlSummary,
   type QuoteTpSl,
-  type TpSlNotification,
   type UnifiedQuote,
 } from "@symmio/trading-core";
 import { useQueries } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { Address } from "viem";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
-import { linkTpSlNotificationIds, matchTpSlNotification } from "./match-tpsl-notification";
 import { useTpSlRecords, useTpSlStore } from "./tpsl-store";
+import { dedupeAddresses, useWatchTpSlAccounts } from "./use-watch-tpsl-accounts";
 
 /** Parameters for {@link useQuoteGroupTpSl}. */
 export interface UseQuoteGroupTpSlParameters extends ConfigParameter {
@@ -124,7 +122,7 @@ export function useQuoteGroupTpSl(parameters: UseQuoteGroupTpSlParameters): UseQ
     return dedupeAddresses(source);
   }, [parameters.accounts, quotes]);
 
-  useWatchGroupTpSlNotifications({
+  useWatchTpSlAccounts({
     accounts,
     ids,
     chainId,
@@ -160,70 +158,9 @@ export function useQuoteGroupTpSl(parameters: UseQuoteGroupTpSlParameters): UseQ
   };
 }
 
-/** Parameters for {@link useWatchGroupTpSlNotifications}. */
-interface WatchGroupParameters extends ConfigParameter {
-  accounts: readonly Address[];
-  ids: readonly (bigint | undefined)[];
-  chainId: number | undefined;
-  enabled: boolean;
-}
-
-/**
- * Subscribe to every account the group's children live under, in one effect.
- *
- * A hook cannot be called once per account (the count changes as the group
- * grows), so this drives the core watcher directly. The SDK's socket pool keys
- * on `(wsUrl, appName, account)`, so this adds handlers to sockets the
- * per-quote hooks already opened rather than new connections.
- */
-function useWatchGroupTpSlNotifications(parameters: WatchGroupParameters): void {
-  const { accounts, ids, chainId, enabled } = parameters;
-  const config = useSymmioConfig(parameters);
-
-  /** Read the live id list from inside the long-lived socket handler. */
-  const idsRef = useRef(ids);
-  idsRef.current = ids;
-
-  /** Re-subscribe only when the account set genuinely changes. */
-  const accountsKey = accounts.map((account) => account.toLowerCase()).join(",");
-
-  useEffect(() => {
-    if (!enabled || accounts.length === 0) return;
-
-    const onNotification = (notification: TpSlNotification) => {
-      linkTpSlNotificationIds(notification);
-      const target = matchTpSlNotification(notification, idsRef.current);
-      if (target === undefined) return;
-      useTpSlStore.getState().applyNotification(target, notification);
-    };
-
-    const unwatchers = accounts.map((account) => watchTpSlNotifications(config, { account, chainId, onNotification }));
-    return () => {
-      for (const unwatch of unwatchers) unwatch();
-    };
-    // `accountsKey` stands in for `accounts` — a fresh array with the same
-    // members must not tear down and rebuild the subscriptions.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountsKey, chainId, config, enabled]);
-}
-
 /** The id a quote's TP/SL record is addressed by: on-chain first, else the hedger temp id. */
 function tpslIdOf(quote: UnifiedQuote): bigint | undefined {
   if (quote.quoteId !== undefined) return quote.quoteId;
   if (quote.tempQuoteId !== undefined) return BigInt(quote.tempQuoteId);
   return undefined;
-}
-
-/** Case-insensitive address dedupe that preserves first-seen order. */
-function dedupeAddresses(addresses: readonly (Address | undefined)[]): Address[] {
-  const seen = new Set<string>();
-  const unique: Address[] = [];
-  for (const address of addresses) {
-    if (!address) continue;
-    const normalized = address.toLowerCase();
-    if (seen.has(normalized)) continue;
-    seen.add(normalized);
-    unique.push(address);
-  }
-  return unique;
 }

@@ -8,7 +8,8 @@ import { aggregateGroupUpnl, decimalPriceToWei } from "@symmio/trading-core";
 const upnl = aggregateGroupUpnl(group.quotes, decimalPriceToWei(markPrice));
 
 if (!upnl.isComplete) showSkeleton();
-else render(upnl.upnl); // positive = in profit
+// positive = in profit; the percent is 18-decimal fixed point, so format it as wei
+else render(upnl.upnl, upnl.upnlPercent);
 ```
 
 ## The formula
@@ -21,7 +22,32 @@ signed = positionType === SHORT ? −delta : delta
 upnl  += openQuantity × signed / 1e18
 ```
 
-`openNotional` accumulates `openQuantity × openedPrice` over the same children — the at-entry basis a return percentage would divide by.
+Over the same valued children the fold also accumulates the two denominators a percentage needs, and divides once at the end:
+
+```
+openNotional += openQuantity × openedPrice / 1e18
+openMargin   += lockedLegs × openQuantity / quantity
+returnPercent = upnl / openNotional × 100     // unleveraged
+upnlPercent   = upnl / openMargin   × 100     // return on capital
+```
+
+`lockedLegs` is every leg of the child's frozen `initialLockedValues` (else its current `lockedValues`) — the same preference [`aggregateGroupMetrics`](/core/quotes/aggregate-group-metrics) applies, prorated here to the still-open share so a half-closed child counts half its capital.
+
+## The percentages are folds, not averages
+
+`upnlPercent` divides the group's **total** uPnL by its **total** open margin. It is deliberately not a notional-weighted mean of the children's individual returns, which is what a naive port of a per-quote calculation produces:
+
+```ts
+/** 1 unit @ 100 at 10× and 1 unit @ 100 at 2×, mark 110. */
+upnl.upnl; // 20 — each child made 10
+upnl.openMargin; // 60 — 10 + 50 of capital behind them
+upnl.upnlPercent; // +33.33% — the return the pair actually earned
+/** Averaging the children's own returns (100% and 20%) by notional would say 60%. */
+```
+
+The two definitions agree whenever the children share a leverage, and diverge exactly when they do not. Folding also keeps this consistent with [`QuoteGroupMetrics.leverage`](/core/quotes/quote-group-metrics), which is likewise `Σ notional / Σ margin` — so `upnlPercent ≈ returnPercent × leverage` holds by construction rather than by coincidence.
+
+Both percentages are `undefined` rather than `0n` when their basis is missing: `0n` is a real flat return. `upnlPercent` alone drops out when the valued children carry no locked collateral.
 
 ## Sign convention
 
@@ -41,6 +67,8 @@ Use [`decimalPriceToWei`](/core/shared-types) to convert a feed's decimal string
 
 - `isComplete: true` — a mark price was given, at least one child was valued, and none was left unvalued. The total is the group's complete unrealized PnL.
 - `isComplete: false` — either no mark price yet, or some position's open price has not settled. Treat it as **"PnL unknown"** and render a loading state; rendering it as "no PnL" is a different claim.
+
+Both percentages inherit the caveat — they describe the valued subset, so an incomplete fold reports the return of the children that could be priced rather than of the group.
 
 A group with nothing to value — all resting orders, all closed, or empty — also reports `false` with `upnl: 0n`, which is exactly why the flag exists.
 
@@ -72,7 +100,8 @@ Each child's term is floored independently, so the maximum error is 1 wei per ch
 ## Returns
 
 <Returns type="QuoteGroupUpnl" typeHref="/core/quotes/quote-group-upnl">
-  The aggregated unrealized PnL, its at-entry basis, the valuation counters, and `isComplete`.
+  The aggregated unrealized PnL, its two bases and the return percentages over them, the valuation counters, and
+  `isComplete`.
 </Returns>
 
 ## Related

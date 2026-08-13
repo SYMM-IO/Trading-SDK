@@ -5,6 +5,7 @@ import type { GroupTpSlSideKey, QuoteGroup, TpSlPriceType } from "@symmio/tradin
 import { PositionType } from "@symmio/trading-core";
 import {
   childNotional,
+  decimalPriceToWei,
   summarizeQuoteGroupTpSl,
   useDeleteQuoteGroupTpSl,
   useEnigmaPriceByMarketId,
@@ -93,10 +94,21 @@ export function GroupTpSlModal({ group, subAccount, from, open, onOpenChange }: 
       ? "position"
       : (marketNameById.get(String(group.by.symbolId)) ?? String(group.by.symbolId));
   const isShort = group.by.positionType === PositionType.SHORT;
-  const notional = childNotional({ openQuantity: group.metrics.openQuantity, openPrice: markPriceWei(markPrice) });
+  /** The header's USD figure. `0n` before the first tick, which reads as "no notional yet". */
+  const notional = childNotional({
+    openQuantity: group.metrics.openQuantity,
+    openPrice: decimalPriceToWei(markPrice ?? "") ?? 0n,
+  });
 
   const writeCount = editor.plan.sets.length + editor.plan.deletes.length;
-  const busy = setRun.isSubmitting || deleteRun.isDeleting;
+  /**
+   * A run is not over when the requests are: until the handler reports back,
+   * the exits on screen are a request, not a fact. Editing or re-submitting
+   * against that half-applied state is how a trader ends up with two orders on
+   * one leg, so the form stays locked through the confirming window too.
+   */
+  const confirming = setRun.isConfirming || deleteRun.isConfirming;
+  const busy = setRun.isSubmitting || deleteRun.isDeleting || confirming;
   const liveOrders = groupTpSl.orders.filter((order) => order.hasLiveOrder);
 
   /** The price a rail rung shows: staged if uniform, otherwise blank with a hint below. */
@@ -237,11 +249,11 @@ export function GroupTpSlModal({ group, subAccount, from, open, onOpenChange }: 
                   size="sm"
                   onClick={handleCancelAll}
                   disabled={busy}
-                  className="text-muted-foreground hover:text-negative h-6 px-1.5 text-xs"
+                  className="text-muted-foreground hover:text-destructive h-6 px-1.5 text-xs"
                   data-testid="group-tpsl-cancel-all"
                 >
-                  {deleteRun.isDeleting ? <Spinner className="size-3" /> : null}
-                  {deleteRun.isDeleting ? "Cancelling…" : "Cancel all"}
+                  {deleteRun.isDeleting || deleteRun.isConfirming ? <Spinner className="size-3" /> : null}
+                  {deleteRun.isDeleting ? "Cancelling…" : deleteRun.isConfirming ? "Confirming…" : "Cancel all"}
                 </Button>
               </div>
             ) : null}
@@ -254,8 +266,10 @@ export function GroupTpSlModal({ group, subAccount, from, open, onOpenChange }: 
         <div className="border-border/60 flex items-center justify-between gap-3 border-t px-5 py-3.5">
           {delegation.ready ? (
             <>
-              <span className={cn("text-[0.7rem]", editor.hasInvalid ? "text-negative" : "text-muted-foreground")}>
-                {footerCopy(editor.hasInvalid, writeCount, editor.plan.deletes.length)}
+              <span className={cn("text-[0.7rem]", editor.hasInvalid ? "text-destructive" : "text-muted-foreground")}>
+                {confirming
+                  ? "Waiting for the handler to confirm these exits."
+                  : footerCopy(editor.hasInvalid, writeCount, editor.plan.deletes.length)}
               </span>
               <Button
                 type="button"
@@ -263,8 +277,12 @@ export function GroupTpSlModal({ group, subAccount, from, open, onOpenChange }: 
                 disabled={busy || editor.hasInvalid || writeCount === 0}
                 data-testid="group-tpsl-submit"
               >
-                {setRun.isSubmitting ? <Spinner className="size-3" /> : null}
-                {setRun.isSubmitting ? `Writing ${setRun.acceptedCount}/${setRun.totalCount}…` : "Set exits"}
+                {setRun.isSubmitting || setRun.isConfirming ? <Spinner className="size-3" /> : null}
+                {setRun.isSubmitting
+                  ? `Writing ${setRun.acceptedCount}/${setRun.totalCount}…`
+                  : setRun.isConfirming
+                    ? `Confirming ${setRun.confirmedCount}/${setRun.totalCount}…`
+                    : "Set exits"}
               </Button>
             </>
           ) : (
@@ -321,7 +339,9 @@ function RunLedger({ setRun }: { setRun: ReturnType<typeof useSetQuoteGroupTpSl>
           <button
             type="button"
             onClick={() => void setRun.retryFailed()}
-            className="text-primary text-[0.7rem] underline-offset-2 hover:underline"
+            /** A retry mid-run is refused by the hook; better to say so than to no-op. */
+            disabled={setRun.isSubmitting || setRun.isConfirming}
+            className="text-primary text-[0.7rem] underline-offset-2 hover:underline disabled:opacity-50 disabled:hover:no-underline"
             data-testid="group-tpsl-retry"
           >
             Retry {failed.length} failed
@@ -338,7 +358,7 @@ function RunLedger({ setRun }: { setRun: ReturnType<typeof useSetQuoteGroupTpSl>
             <span
               className={cn(
                 step.status === "failed"
-                  ? "text-negative"
+                  ? "text-destructive"
                   : step.status === "done"
                     ? "text-positive"
                     : "text-muted-foreground",
@@ -346,7 +366,7 @@ function RunLedger({ setRun }: { setRun: ReturnType<typeof useSetQuoteGroupTpSl>
             >
               {STEP_COPY[step.status]}
             </span>
-            {step.error ? <span className="text-negative truncate">{step.error.message}</span> : null}
+            {step.error ? <span className="text-destructive truncate">{step.error.message}</span> : null}
           </li>
         ))}
       </ul>
@@ -367,7 +387,8 @@ function CancelLedger({ deleteRun }: { deleteRun: ReturnType<typeof useDeleteQuo
           <button
             type="button"
             onClick={() => void deleteRun.retryFailed()}
-            className="text-primary text-[0.7rem] underline-offset-2 hover:underline"
+            disabled={deleteRun.isDeleting || deleteRun.isConfirming}
+            className="text-primary text-[0.7rem] underline-offset-2 hover:underline disabled:opacity-50 disabled:hover:no-underline"
             data-testid="group-tpsl-cancel-retry"
           >
             Retry {failed.length} failed
@@ -382,7 +403,7 @@ function CancelLedger({ deleteRun }: { deleteRun: ReturnType<typeof useDeleteQuo
             <span
               className={cn(
                 step.status === "failed"
-                  ? "text-negative"
+                  ? "text-destructive"
                   : step.status === "done"
                     ? "text-positive"
                     : "text-muted-foreground",
@@ -390,7 +411,7 @@ function CancelLedger({ deleteRun }: { deleteRun: ReturnType<typeof useDeleteQuo
             >
               {CANCEL_STEP_COPY[step.status]}
             </span>
-            {step.error ? <span className="text-negative truncate">{step.error.message}</span> : null}
+            {step.error ? <span className="text-destructive truncate">{step.error.message}</span> : null}
           </li>
         ))}
       </ul>
@@ -425,17 +446,5 @@ function roundToPrecision(price: string | undefined, pricePrecision: number): st
     return decimal.isFinite() ? decimal.toFixed(pricePrecision) : "";
   } catch {
     return "";
-  }
-}
-
-/** Mark price as 18-decimal wei, for the header's USD figure. `0n` before the first tick. */
-function markPriceWei(markPrice?: string): bigint {
-  if (!markPrice) return 0n;
-  const [whole, fraction = ""] = markPrice.split(".");
-  const padded = (fraction + "0".repeat(WEI_DECIMALS)).slice(0, WEI_DECIMALS);
-  try {
-    return BigInt(`${whole || "0"}${padded}`);
-  } catch {
-    return 0n;
   }
 }

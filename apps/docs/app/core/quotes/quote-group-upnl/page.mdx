@@ -14,8 +14,23 @@ Every amount is 18-decimal wei `bigint`, matching [`UnifiedQuote`](/core/quotes/
     magnitude while `isComplete` is `false` — it is never suppressed to `0n`.
   </Property>
   <Property name="openNotional" type="bigint" required>
-    Σ `openQuantity × openedPrice` across the valued children (wei) — the at-entry basis a return percentage would
-    divide by. `0n` when nothing was valued.
+    Σ `openQuantity × openedPrice` across the valued children (wei) — the at-entry position value `returnPercent`
+    divides by. `0n` when nothing was valued.
+  </Property>
+  <Property name="openMargin" type="bigint" required>
+    Σ locked margin backing the still-open size of the valued children (wei) — the capital at risk `upnlPercent` divides
+    by. Each child contributes every leg of its frozen `initialLockedValues` (else `lockedValues`) prorated by
+    `openQuantity / quantity`. `0n` when nothing was valued.
+  </Property>
+  <Property name="returnPercent" type="bigint | undefined">
+    Unleveraged return — `upnl / openNotional × 100` as an 18-decimal fixed-point percent (`12.5% →
+    12_500000000000000000n`), signed with `upnl`. How far the market moved in the group's favour. `undefined` — never
+    `0n` — when nothing was valued.
+  </Property>
+  <Property name="upnlPercent" type="bigint | undefined">
+    Leveraged return on capital — `upnl / openMargin × 100`, same fixed-point convention and sign. The group counterpart
+    of `calculateQuoteUpnl`'s `upnlPercent`, and the figure to show beside the uPnL amount. `undefined` when
+    `openMargin` is `0n`.
   </Property>
   <Property name="valuedCount" type="number" required>
     Number of children with open size that were valued against the mark price.
@@ -29,6 +44,20 @@ Every amount is 18-decimal wei `bigint`, matching [`UnifiedQuote`](/core/quotes/
     presenting `upnl` — or anything derived from it, such as equity — as final.
   </Property>
 </Properties>
+
+## Two percentages, two questions
+
+`returnPercent` answers _how far did the market move for this position_; `upnlPercent` answers _what did that do to the capital behind it_. They differ by the group's leverage, and the second is the one traders read:
+
+```ts
+/** A 10× position 10% in the money is up 100% on margin. */
+upnl.returnPercent; // 10_000000000000000000n  → +10%
+upnl.upnlPercent; //  100_000000000000000000n → +100%
+```
+
+Both are folds of the group's totals — `Σ upnl / Σ basis` — never an average of the children's individual percentages. Where the children share a leverage the two definitions agree; where they differ, a mean of ratios is a number no position actually earned. The fold's denominator is also the one [`QuoteGroupMetrics.leverage`](/core/quotes/quote-group-metrics) uses, so `upnlPercent ≈ returnPercent × leverage` holds by construction.
+
+Both are `undefined` rather than `0n` when their basis is missing, because `0n` is a real flat return. `upnlPercent` alone drops out when the valued children carry no locked collateral — there is no capital base to return _on_ — while `returnPercent` still stands.
 
 ## Why a consumer must check `isComplete`
 
@@ -46,6 +75,8 @@ if (!upnl.isComplete) {
 ```
 
 This matters most downstream: `equity = totalMargin + upnl`, so an incomplete uPnL silently produces an equity figure that is wrong by the missing amount. Gate equity and the liquidation buffer on this flag; the margin legs themselves are uPnL-independent and can render immediately.
+
+The same caveat covers both percentages: they describe the valued subset only, so an incomplete fold reports the return of the children that could be priced, not of the group.
 
 ## Related
 

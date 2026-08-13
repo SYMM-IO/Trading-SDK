@@ -29,14 +29,18 @@ interface Props {
  */
 export function GroupTpSlCoverageBar({ legs, side, overrides, compact = false }: Props) {
   const total = legs.reduce((sum, leg) => sum + childNotional(leg), 0n);
-  const tone = side === "tp" ? "bg-positive" : "bg-negative";
+  /** Success for the profit side, info for the stop — red is reserved for rejected input. */
+  const tone = side === "tp" ? "bg-positive" : "bg-info";
   const height = compact ? "h-1" : "h-1.5";
 
-  if (total <= 0n) return <span className={cn("bg-muted/40 flex-1 rounded-full", height)} aria-hidden />;
+  if (total <= 0n) return <span className={cn("bg-muted dark:bg-muted/40 flex-1 rounded-full", height)} aria-hidden />;
 
   return (
     <span
-      className={cn("bg-muted/40 ring-border/50 flex flex-1 overflow-hidden rounded-full ring-1 ring-inset", height)}
+      className={cn(
+        "bg-muted dark:bg-muted/40 ring-border dark:ring-border/50 flex flex-1 overflow-hidden rounded-full ring-1 ring-inset",
+        height,
+      )}
       role="img"
       aria-label={`${side === "tp" ? "Take profit" : "Stop loss"} coverage by position size`}
     >

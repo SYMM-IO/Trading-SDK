@@ -64,7 +64,8 @@ export type QuoteGroupingStrategy = SubAccountIsolationType | { readonly keyOf: 
  *
  * Metrics that need a live mark price or Virtual Account balance are
  * intentionally **not** here — they take those inputs explicitly instead:
- * `aggregateGroupUpnl` (unrealized PnL at a mark price), `calculateMarginRisk`
+ * `aggregateGroupUpnl` (unrealized PnL — and its return percentages — at a mark
+ * price), `calculateMarginRisk`
  * (margin, equity and liquidation buffer from an account's balance), and
  * `calculateLiquidationPrice` (the price liquidation happens at).
  */

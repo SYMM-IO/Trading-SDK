@@ -2,6 +2,7 @@ import type { Config } from "../../core/config";
 import type { Compute, ConfigKeyParameter } from "../../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../../shared/types/query";
 import { filterQueryOptions } from "../../shared/utils/query";
+import { toQuoteIdKeyPart } from "../quote-id-key-part";
 import { getQuoteFunding, type GetQuoteFundingParameters, type GetQuoteFundingReturnType } from "./get-quote-funding";
 
 /** Data resolved by the {@link getQuoteFundingQueryOptions} query. */
@@ -11,12 +12,12 @@ export type GetQuoteFundingData = GetQuoteFundingReturnType;
  * Build the TanStack Query key for {@link getQuoteFundingQueryOptions}.
  *
  * @param options - Query parameters (quote ids, chain id, config key).
- * @returns A stable, hashable query key. `bigint` ids are stringified so the
- *   key is JSON-safe.
+ * @returns A stable, hashable query key. The `bigint` quote ids are stringified so
+ *   the key is JSON-safe, and sorted so id order does not fragment the cache.
  */
 export function getQuoteFundingQueryKey(options: Compute<GetQuoteFundingParameters & ConfigKeyParameter>) {
   const filtered = filterQueryOptions(options);
-  return ["getQuoteFunding", { ...filtered, quoteIds: options.quoteIds.map((id) => id.toString()) }] as const;
+  return ["getQuoteFunding", { ...filtered, quoteIds: toQuoteIdKeyPart(options.quoteIds) }] as const;
 }
 
 /** Query-key type produced by {@link getQuoteFundingQueryKey}. */

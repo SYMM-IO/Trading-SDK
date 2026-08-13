@@ -38,6 +38,7 @@ export {
   calculateQuotePnl,
   calculateTradeParams,
   clampClosePrecision,
+  decimalPriceToWei,
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
   isolationTypeForSide,

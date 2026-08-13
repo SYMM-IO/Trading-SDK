@@ -1,5 +1,5 @@
 import { decimalPriceToWei } from "../../shared/utils/price";
-import { WEI } from "../../shared/utils/wei";
+import { mulWei } from "../../shared/utils/wei";
 import type { GroupTpSlChild } from "./types";
 
 /**
@@ -9,7 +9,7 @@ import type { GroupTpSlChild } from "./types";
  * @returns The child's open notional in wei.
  */
 export function childNotional(child: Pick<GroupTpSlChild, "openQuantity" | "openPrice">): bigint {
-  return (child.openQuantity * child.openPrice) / WEI;
+  return mulWei(child.openQuantity, child.openPrice);
 }
 
 /**

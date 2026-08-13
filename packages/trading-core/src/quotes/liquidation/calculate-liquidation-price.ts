@@ -1,4 +1,4 @@
-import { WEI } from "../../shared/utils/wei";
+import { mulWei, WEI } from "../../shared/utils/wei";
 import { PositionType } from "../../symmio-contracts/symmio/types";
 
 /**
@@ -70,7 +70,7 @@ export function calculateLiquidationPrice(inputs: CalculateLiquidationPriceInput
     const openQty = position.quantity - (position.closedAmount ?? 0n);
     if (openQty <= 0n) continue;
     totalQty += openQty;
-    totalNotional += (openQty * position.openedPrice) / WEI;
+    totalNotional += mulWei(openQty, position.openedPrice);
   }
   if (totalQty === 0n) return 0n;
 

@@ -15,6 +15,28 @@ describe("getQuoteFundingQueryKey", () => {
     expect(key[0]).toBe("getQuoteFunding");
     expect(key[1]).toMatchObject({ quoteIds: ["7334", "7335"], configKey: "k" });
   });
+
+  it("sorts the quote ids so id order does not fragment the cache", () => {
+    const ascending = getQuoteFundingQueryKey({ quoteIds: [7334n, 7335n], configKey: "k" });
+    const descending = getQuoteFundingQueryKey({ quoteIds: [7335n, 7334n], configKey: "k" });
+
+    expect(descending).toEqual(ascending);
+    expect(descending[1].quoteIds).toEqual(["7334", "7335"]);
+  });
+
+  it("sorts numerically, not lexicographically", () => {
+    const key = getQuoteFundingQueryKey({ quoteIds: [10n, 9n, 100n], configKey: "k" });
+
+    expect(key[1].quoteIds).toEqual(["9", "10", "100"]);
+  });
+
+  it("sorts a copy so the caller's quote-id array is never mutated", () => {
+    const quoteIds = [7335n, 7334n];
+    const key = getQuoteFundingQueryKey({ quoteIds, configKey: "k" });
+
+    expect(quoteIds).toEqual([7335n, 7334n]);
+    expect(key[1].quoteIds).toEqual(["7334", "7335"]);
+  });
 });
 
 describe("getQuoteFundingQueryOptions", () => {
