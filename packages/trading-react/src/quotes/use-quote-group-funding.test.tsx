@@ -73,20 +73,20 @@ const FIRST_ROW: QuoteFundingData = {
   quoteId: 1n,
   paid: 30_000000000000000000n,
   received: 10_000000000000000000n,
-  net: 20_000000000000000000n,
+  netReceived: -20_000000000000000000n,
 };
 const SECOND_ROW: QuoteFundingData = {
   quoteId: 2n,
   paid: 1_000000000000000000n,
   received: 4_000000000000000000n,
-  net: -3_000000000000000000n,
+  netReceived: 3_000000000000000000n,
 };
 
 /** Sentinel the mocked core fold returns; identity is what the assertions check. */
 const AGGREGATE: QuoteGroupFunding = {
   paid: 31_000000000000000000n,
   received: 14_000000000000000000n,
-  net: 17_000000000000000000n,
+  netReceived: -17_000000000000000000n,
   resolvedCount: 2,
   expectedCount: 2,
   missingQuoteIds: [],
@@ -103,7 +103,7 @@ function mockBatch(overrides: {
     rows: overrides.rows,
     paid: 0n,
     received: 0n,
-    net: 0n,
+    netReceived: 0n,
     missingQuoteIds: [],
     isLoading: overrides.isLoading ?? false,
     error: overrides.error ?? null,
@@ -136,8 +136,8 @@ describe("useQuoteGroupFunding", () => {
 
     expect(aggregateGroupFundingMock).toHaveBeenCalledWith(group.quotes, [FIRST_ROW, SECOND_ROW]);
     expect(result.current.funding).toBe(AGGREGATE);
-    /** Positive `net` means the group NET-PAID funding. */
-    expect(result.current.funding.net > 0n).toBe(true);
+    /** Negative `netReceived` means the group PAID more funding than it earned. */
+    expect(result.current.funding.netReceived < 0n).toBe(true);
   });
 
   it("passes only the non-null rows to the fold and still returns them aligned 1:1", () => {

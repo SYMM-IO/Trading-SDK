@@ -66,10 +66,11 @@ export interface GetQuotesEventsByTypeReturnType {
  * - These are the funding charges **settled to date** — what the analytics
  *   subgraph has indexed. Funding that has accrued since the last on-chain charge
  *   is not indexed and therefore not included here.
- * - The sign convention when netting a row is `net = fundingPaid - fundingReceived`:
- *   a **positive** net means the user net-**paid** funding. This matches
- *   `QuoteFundingData.net` and the on-chain `int256`. A UI that colors "money in"
- *   green may want the inverse, but that inversion belongs in the UI.
+ * - The metadata carries the raw on-chain amounts. Net a row the way the rest of
+ *   the SDK does — `fundingReceived − fundingPaid`, so a **positive** net means
+ *   the position **earned** funding on that tick, matching
+ *   `QuoteFundingData.netReceived`. The raw fields themselves are verbatim from
+ *   the subgraph and are never re-signed.
  *
  * The action does no event-type interpretation beyond decoding the metadata JSON.
  *

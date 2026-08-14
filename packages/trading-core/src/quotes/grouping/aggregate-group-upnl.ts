@@ -26,9 +26,9 @@ function openMarginOf(quote: UnifiedQuote): bigint {
  * price. Every amount is 18-decimal wei `bigint`.
  *
  * **Sign convention** — plain trader convention: a **positive** `upnl` means the
- * group is in profit. Note this is the *opposite* polarity to
- * {@link QuoteGroupFunding.net}, where positive means net-**paid**. The two
- * folds sit beside each other; do not assume a shared sign.
+ * group is in profit. This is the same polarity as
+ * {@link QuoteGroupFunding.netReceived}, so the two folds — which sit beside each
+ * other — can be read, coloured, and added together without either being negated.
  *
  * **Completeness** — `upnl` is always the sum over the children that *could* be
  * valued, i.e. a lower bound in magnitude while some could not; it is never

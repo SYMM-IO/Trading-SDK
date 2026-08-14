@@ -3,9 +3,9 @@ import type { QuoteFundingData } from "../get-quote-funding/types";
 import { makeOptimisticQuote, makeUnifiedQuote } from "../unified-quote.test";
 import { aggregateGroupFunding } from "./aggregate-group-funding";
 
-/** Build a funding row that satisfies the row-level `net = paid − received` invariant. */
+/** Build a funding row that satisfies the row-level `netReceived = received − paid` invariant. */
 function makeFundingRow(quoteId: bigint, paid: bigint, received: bigint): QuoteFundingData {
-  return { quoteId, paid, received, net: paid - received };
+  return { quoteId, paid, received, netReceived: received - paid };
 }
 
 /** On-chain child with quote id 1. */
@@ -15,9 +15,9 @@ const quote2 = makeUnifiedQuote({ key: "onchain:2", quoteId: 2n });
 /** On-chain child with quote id 3. */
 const quote3 = makeUnifiedQuote({ key: "onchain:3", quoteId: 3n });
 
-/** Quote 1 net-paid 2 (paid 3, received 1). */
+/** Quote 1 paid 2 net (paid 3, received 1), i.e. `netReceived` −2. */
 const row1 = makeFundingRow(1n, 3_000000000000000000n, 1_000000000000000000n);
-/** Quote 2 net-received 4 (paid 1, received 5). */
+/** Quote 2 earned 4 net (paid 1, received 5), i.e. `netReceived` +4. */
 const row2 = makeFundingRow(2n, 1_000000000000000000n, 5_000000000000000000n);
 
 describe("aggregateGroupFunding", () => {
@@ -25,7 +25,7 @@ describe("aggregateGroupFunding", () => {
     expect(aggregateGroupFunding([], [])).toEqual({
       paid: 0n,
       received: 0n,
-      net: 0n,
+      netReceived: 0n,
       resolvedCount: 0,
       expectedCount: 0,
       missingQuoteIds: [],
@@ -33,7 +33,7 @@ describe("aggregateGroupFunding", () => {
     });
   });
 
-  it("sums paid, received, and net across resolved children", () => {
+  it("sums paid, received, and netReceived across resolved children", () => {
     const funding = aggregateGroupFunding([quote1, quote2], [row1, row2]);
     expect(funding.paid).toBe(4_000000000000000000n);
     expect(funding.received).toBe(6_000000000000000000n);
@@ -43,23 +43,23 @@ describe("aggregateGroupFunding", () => {
     expect(funding.isComplete).toBe(true);
   });
 
-  it("reports a positive net when the group net-paid funding", () => {
-    /** paid 3 − received 1 = +2. */
+  it("reports a negative netReceived when the group paid more funding than it earned", () => {
+    /** received 1 − paid 3 = −2. */
     const funding = aggregateGroupFunding([quote1], [row1]);
-    expect(funding.net).toBe(2_000000000000000000n);
-    expect(funding.net > 0n).toBe(true);
+    expect(funding.netReceived).toBe(-2_000000000000000000n);
+    expect(funding.netReceived < 0n).toBe(true);
   });
 
-  it("reports a negative net when the group net-received funding", () => {
-    /** paid 1 − received 5 = −4. */
+  it("reports a positive netReceived when the group earned more funding than it paid", () => {
+    /** received 5 − paid 1 = +4. */
     const funding = aggregateGroupFunding([quote2], [row2]);
-    expect(funding.net).toBe(-4_000000000000000000n);
-    expect(funding.net < 0n).toBe(true);
+    expect(funding.netReceived).toBe(4_000000000000000000n);
+    expect(funding.netReceived > 0n).toBe(true);
   });
 
-  it("nets a mixed group down to paid − received across children", () => {
-    /** (+2) + (−4) = −2: the group net-received overall. */
-    expect(aggregateGroupFunding([quote1, quote2], [row1, row2]).net).toBe(-2_000000000000000000n);
+  it("nets a mixed group down to received − paid across children", () => {
+    /** (−2) + (+4) = +2: the group earned funding overall. */
+    expect(aggregateGroupFunding([quote1, quote2], [row1, row2]).netReceived).toBe(2_000000000000000000n);
   });
 
   it("counts a duplicated quoteId once (never double-counts funding)", () => {
@@ -68,7 +68,7 @@ describe("aggregateGroupFunding", () => {
     const funding = aggregateGroupFunding([quote1, duplicate], [row1]);
     expect(funding.paid).toBe(3_000000000000000000n);
     expect(funding.received).toBe(1_000000000000000000n);
-    expect(funding.net).toBe(2_000000000000000000n);
+    expect(funding.netReceived).toBe(-2_000000000000000000n);
     expect(funding.resolvedCount).toBe(1);
     expect(funding.expectedCount).toBe(1);
     expect(funding.isComplete).toBe(true);
@@ -77,7 +77,7 @@ describe("aggregateGroupFunding", () => {
   it("counts a duplicated funding row once", () => {
     const funding = aggregateGroupFunding([quote1], [row1, { ...row1 }]);
     expect(funding.paid).toBe(3_000000000000000000n);
-    expect(funding.net).toBe(2_000000000000000000n);
+    expect(funding.netReceived).toBe(-2_000000000000000000n);
     expect(funding.resolvedCount).toBe(1);
   });
 
@@ -89,7 +89,7 @@ describe("aggregateGroupFunding", () => {
     expect(funding.missingQuoteIds).toEqual([]);
     /** The optimistic child is not "missing" — it simply has nothing to resolve yet. */
     expect(funding.isComplete).toBe(true);
-    expect(funding.net).toBe(2_000000000000000000n);
+    expect(funding.netReceived).toBe(-2_000000000000000000n);
   });
 
   it("reports isComplete false with zero amounts for an all-optimistic group", () => {
@@ -101,7 +101,7 @@ describe("aggregateGroupFunding", () => {
     expect(funding).toEqual({
       paid: 0n,
       received: 0n,
-      net: 0n,
+      netReceived: 0n,
       resolvedCount: 0,
       expectedCount: 0,
       missingQuoteIds: [],
@@ -115,8 +115,8 @@ describe("aggregateGroupFunding", () => {
     expect(funding.resolvedCount).toBe(1);
     expect(funding.expectedCount).toBe(2);
     expect(funding.isComplete).toBe(false);
-    /** `net` is still exposed — a lower bound over what resolved, never suppressed. */
-    expect(funding.net).toBe(2_000000000000000000n);
+    /** `netReceived` is still exposed — a lower bound over what resolved, never suppressed. */
+    expect(funding.netReceived).toBe(-2_000000000000000000n);
   });
 
   it("preserves the order missing ids first appear in the children", () => {
@@ -136,7 +136,7 @@ describe("aggregateGroupFunding", () => {
     const stranger = makeFundingRow(999n, 100_000000000000000000n, 0n);
     const funding = aggregateGroupFunding([quote1], [row1, stranger]);
     expect(funding.paid).toBe(3_000000000000000000n);
-    expect(funding.net).toBe(2_000000000000000000n);
+    expect(funding.netReceived).toBe(-2_000000000000000000n);
     expect(funding.resolvedCount).toBe(1);
     expect(funding.expectedCount).toBe(1);
     expect(funding.isComplete).toBe(true);
@@ -147,7 +147,7 @@ describe("aggregateGroupFunding", () => {
     const reversed = aggregateGroupFunding([quote2, quote1], [row2, row1]);
     expect(reversed.paid).toBe(forward.paid);
     expect(reversed.received).toBe(forward.received);
-    expect(reversed.net).toBe(forward.net);
+    expect(reversed.netReceived).toBe(forward.netReceived);
     expect(reversed.resolvedCount).toBe(forward.resolvedCount);
     expect(reversed.expectedCount).toBe(forward.expectedCount);
     expect(reversed.isComplete).toBe(forward.isComplete);

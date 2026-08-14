@@ -54,11 +54,11 @@ export interface UseQuotesFundingReturnType {
    */
   received: bigint;
   /**
-   * Σ `paid − received` across the resolved rows (wei). **Positive = the user
-   * net-paid funding**; negative = they net-received it. A lower bound while
+   * Σ `received − paid` across the resolved rows (wei). **Positive = the position
+   * earned funding**; negative = it paid for it. A lower bound while
    * `missingQuoteIds` is non-empty.
    */
-  net: bigint;
+  netReceived: bigint;
   /**
    * Requested on-chain ids that have no funding row yet. While the query is in
    * flight — and if it fails — this is **every** requested id, since nothing has
@@ -78,13 +78,13 @@ export interface UseQuotesFundingReturnType {
  *
  * The hook is the canonical entry point for both single-quote details panels
  * ({@link useQuoteFunding} delegates here with a 1-element list) and grouped
- * quote cards (which want `Σ net`). Off-chain rows are skipped silently, and
- * duplicate ids are fetched — and summed — exactly once.
+ * quote cards (which want `Σ netReceived`). Off-chain rows are skipped silently,
+ * and duplicate ids are fetched — and summed — exactly once.
  *
- * **Sign convention** — `net = paid − received`, so a **positive** `net` means
- * the user has net-**paid** funding. This matches `QuoteFundingData.net` and the
- * on-chain `int256`. A UI that prefers "green = income" must invert for display
- * at the render layer, not here.
+ * **Sign convention** — `netReceived = received − paid`, the P&L perspective, so
+ * a **positive** value means the position **earned** funding. This matches
+ * `QuoteFundingData.netReceived` and the uPnL folds, and is the inverse of the
+ * cost-positive on-chain `int256`. A "green = income" UI renders it directly.
  *
  * **Settled to date only** — the totals cover funding the protocol has already
  * charged and the analytics subgraph has indexed. Funding accrued since a
@@ -96,8 +96,8 @@ export interface UseQuotesFundingReturnType {
  *
  * @example
  * ```tsx
- * const { rows, net, missingQuoteIds, isLoading } = useQuotesFunding({ quotes: group.quotes });
- * // `net > 0n` → the user net-paid funding across the resolved rows.
+ * const { rows, netReceived, missingQuoteIds, isLoading } = useQuotesFunding({ quotes: group.quotes });
+ * // `netReceived > 0n` → the position earned funding across the resolved rows.
  * ```
  */
 export function useQuotesFunding(parameters: UseQuotesFundingParameters): UseQuotesFundingReturnType {
@@ -142,7 +142,7 @@ export function useQuotesFunding(parameters: UseQuotesFundingParameters): UseQuo
         rows: quotes.map(() => null),
         paid: 0n,
         received: 0n,
-        net: 0n,
+        netReceived: 0n,
         missingQuoteIds: [],
         isLoading: false,
         error: null,
@@ -155,7 +155,7 @@ export function useQuotesFunding(parameters: UseQuotesFundingParameters): UseQuo
         rows: quotes.map(() => null),
         paid: 0n,
         received: 0n,
-        net: 0n,
+        netReceived: 0n,
         /** In flight (or failed): nothing resolved, so every requested id is still outstanding. */
         missingQuoteIds: [...onchainQuoteIds],
         isLoading: query.isLoading,
@@ -189,8 +189,8 @@ export function useQuotesFunding(parameters: UseQuotesFundingParameters): UseQuo
       rows,
       paid,
       received,
-      /** Derived from the sums so the aggregate keeps the row-level `net = paid − received` invariant. */
-      net: paid - received,
+      /** Derived from the sums so the aggregate keeps the row-level `netReceived = received − paid` invariant. */
+      netReceived: received - paid,
       missingQuoteIds: data.missingQuoteIds,
       isLoading: query.isLoading,
       error: query.error ?? null,

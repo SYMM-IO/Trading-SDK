@@ -24,21 +24,16 @@ function formatAmount(value: bigint): string {
   return formatTokenAmount(value, WEI_DECIMALS, { maxFractionDigits: FUNDING_PRECISION });
 }
 
-/**
- * The direction of a net figure, spelled out.
- *
- * The SDK's convention is `net = paid − received`, so a positive `net` means the
- * user *paid*. That is the opposite of the "positive is income" reflex, so this
- * panel never shows a bare `+`/`-` — it names the direction instead.
- */
-function netLabel(net: bigint): string {
-  if (net === 0n) return "Net";
-  return net > 0n ? "Net paid" : "Net received";
+/** Signed funding figure, e.g. `+0.0238` / `−0.7010`. The sign is the direction, so it is never dropped. */
+function formatSignedAmount(value: bigint): string {
+  if (value === 0n) return "0";
+  return `${value < 0n ? "−" : "+"}${formatAmount(value < 0n ? -value : value)}`;
 }
 
-/** Magnitude of the net figure; the direction is carried by {@link netLabel}. */
-function netMagnitude(net: bigint): bigint {
-  return net < 0n ? -net : net;
+/** Green when the position earned funding, red when it paid; neutral at exactly zero. */
+function netTone(net: bigint): string {
+  if (net === 0n) return "text-foreground";
+  return net < 0n ? "text-negative" : "text-positive";
 }
 
 /**
@@ -98,22 +93,8 @@ export function GroupFundingPanel({ group }: Props) {
   /** Nothing resolved yet — showing `0` here would read as "no funding", which is a different claim. */
   const showAmounts = !isLoading && error === null && funding.resolvedCount > 0;
 
-  /**
-   * The derivation always reads left-to-right as a true subtraction: net-paid is
-   * `paid − received`, net-received is the same sum the other way round. Flipping
-   * the operands keeps the equation honest instead of showing a magnitude that
-   * does not match the operator.
-   */
-  const isNetReceived = funding.net < 0n;
-  const derivation = isNetReceived
-    ? ([
-        { label: "Received", value: funding.received },
-        { label: "Paid", value: funding.paid },
-      ] as const)
-    : ([
-        { label: "Paid", value: funding.paid },
-        { label: "Received", value: funding.received },
-      ] as const);
+  /** The SDK already nets income-positive, so the equation on screen is exactly the one behind the figure. */
+  const net = funding.netReceived;
 
   return (
     <ExpandedRowSection
@@ -130,11 +111,9 @@ export function GroupFundingPanel({ group }: Props) {
           scrolling table, so anything pushed to the far edge lands off-screen. */}
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
         <div className="flex flex-col gap-1">
-          <span className="text-muted-foreground text-[0.6rem] font-medium tracking-wider uppercase">
-            {netLabel(funding.net)}
-          </span>
+          <span className="text-muted-foreground text-[0.6rem] font-medium tracking-wider uppercase">Net funding</span>
           <span
-            className={`font-mono text-xl leading-none ${isNetReceived ? "text-primary" : "text-foreground"}`}
+            className={`font-mono text-xl leading-none ${showAmounts ? netTone(net) : "text-foreground"}`}
             data-testid="group-funding-net"
           >
             {error !== null ? (
@@ -142,7 +121,7 @@ export function GroupFundingPanel({ group }: Props) {
             ) : isLoading ? (
               <Spinner className="size-4" />
             ) : showAmounts ? (
-              formatAmount(netMagnitude(funding.net))
+              formatSignedAmount(net)
             ) : (
               EMPTY
             )}
@@ -150,9 +129,9 @@ export function GroupFundingPanel({ group }: Props) {
         </div>
 
         <Operator symbol="=" />
-        <Term label={derivation[0].label} value={showAmounts ? formatAmount(derivation[0].value) : EMPTY} />
+        <Term label="Received" value={showAmounts ? formatAmount(funding.received) : EMPTY} />
         <Operator symbol="−" />
-        <Term label={derivation[1].label} value={showAmounts ? formatAmount(derivation[1].value) : EMPTY} />
+        <Term label="Paid" value={showAmounts ? formatAmount(funding.paid) : EMPTY} />
 
         <GroupFundingHistoryButton group={group} />
       </div>
@@ -160,7 +139,7 @@ export function GroupFundingPanel({ group }: Props) {
   );
 }
 
-/** One operand of the `net = paid − received` derivation. */
+/** One operand of the `net = received − paid` derivation. */
 function Term({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">

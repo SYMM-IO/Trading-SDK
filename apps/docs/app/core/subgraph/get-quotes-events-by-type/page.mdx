@@ -75,7 +75,7 @@ On current deployments effectively every funding row is `CHARGE_FUNDING_RATE`; `
 
 ## Funding semantics
 
-When netting a funding row, the convention is `net = fundingPaid − fundingReceived`: a **positive** net means the user net-**paid** funding on that tick. This matches [`QuoteFundingData.net`](/core/subgraph/get-quote-funding) and the on-chain `int256`. A UI that colors "money in" green wants the inverse — do that inversion at the render layer, never here.
+The metadata carries the raw on-chain amounts. Net a row the way the rest of the SDK does — `fundingReceived − fundingPaid`, so a **positive** net means the position **earned** funding on that tick, matching [`QuoteFundingData.netReceived`](/core/subgraph/get-quote-funding). The raw `fundingPaid` / `fundingReceived` fields are verbatim from the subgraph and are never re-signed.
 
 These are the charges **settled to date**, i.e. what the analytics subgraph has indexed. Funding that has accrued since a quote's last on-chain charge is not indexed anywhere and is therefore absent from the timeline.
 

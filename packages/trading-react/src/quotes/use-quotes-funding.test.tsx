@@ -24,14 +24,14 @@ const ROW: QuoteFundingData = {
   quoteId: QUOTE_ID,
   paid: 30_000000000000000000n,
   received: 10_000000000000000000n,
-  net: 20_000000000000000000n,
+  netReceived: -20_000000000000000000n,
 };
 
 const OTHER_ROW: QuoteFundingData = {
   quoteId: OTHER_QUOTE_ID,
   paid: 1_000000000000000000n,
   received: 4_000000000000000000n,
-  net: -3_000000000000000000n,
+  netReceived: 3_000000000000000000n,
 };
 
 /** A promise the test resolves by hand, to hold the query in its loading state. */
@@ -82,7 +82,7 @@ describe("useQuotesFunding", () => {
     /** …and the funding counted once, not twice. */
     expect(result.current.paid).toBe(ROW.paid);
     expect(result.current.received).toBe(ROW.received);
-    expect(result.current.net).toBe(ROW.net);
+    expect(result.current.netReceived).toBe(ROW.netReceived);
     /** `rows` still mirrors the input, so both duplicates render their row. */
     expect(result.current.rows).toEqual([ROW, ROW]);
   });
@@ -94,10 +94,10 @@ describe("useQuotesFunding", () => {
     const { result } = renderHookWithProviders(() => useQuotesFunding({ quotes: [{ quoteId: QUOTE_ID }], config }));
 
     await waitFor(() => expect(result.current.rows[0]).not.toBeNull());
-    expect(result.current.net).toBe(ROW.net);
+    expect(result.current.netReceived).toBe(ROW.netReceived);
   });
 
-  it("keeps `net = paid − received` positive when the user net-paid", async () => {
+  it("keeps `netReceived = received − paid` negative when the position net-paid", async () => {
     const { config } = createMockSymmioConfig();
     mockQuery(vi.fn().mockResolvedValue({ rows: [ROW, OTHER_ROW], missingQuoteIds: [] }));
 
@@ -109,8 +109,8 @@ describe("useQuotesFunding", () => {
 
     expect(result.current.paid).toBe(ROW.paid + OTHER_ROW.paid);
     expect(result.current.received).toBe(ROW.received + OTHER_ROW.received);
-    expect(result.current.net).toBe(result.current.paid - result.current.received);
-    expect(result.current.net > 0n).toBe(true);
+    expect(result.current.netReceived).toBe(result.current.received - result.current.paid);
+    expect(result.current.netReceived < 0n).toBe(true);
   });
 
   it("returns one `rows` entry per input quote when every quote is off-chain", () => {
@@ -127,7 +127,7 @@ describe("useQuotesFunding", () => {
     expect(queryFn).not.toHaveBeenCalled();
     expect(result.current.isLoading).toBe(false);
     expect(result.current.missingQuoteIds).toEqual([]);
-    expect(result.current.net).toBe(0n);
+    expect(result.current.netReceived).toBe(0n);
   });
 
   it("keeps `rows` aligned with mixed on-chain and off-chain input", async () => {
@@ -162,7 +162,7 @@ describe("useQuotesFunding", () => {
     /** Once settled, only the ids the subgraph really withheld are reported. */
     expect(result.current.missingQuoteIds).toEqual([MISSING_QUOTE_ID]);
     expect(result.current.rows).toEqual([ROW, null]);
-    expect(result.current.net).toBe(ROW.net);
+    expect(result.current.netReceived).toBe(ROW.netReceived);
   });
 
   it("reports every requested id as missing when the query fails", async () => {

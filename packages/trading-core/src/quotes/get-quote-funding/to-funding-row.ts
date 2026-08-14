@@ -10,8 +10,9 @@ function toBigInt(value: string | null | undefined): bigint {
 }
 
 /**
- * Build a {@link QuoteFundingData} from one raw subgraph `quotes` row. `net` is
- * `paid − received`, so a positive value means net-paid.
+ * Build a {@link QuoteFundingData} from one raw subgraph `quotes` row.
+ * `netReceived` is `received − paid`, so a positive value means the position
+ * earned funding.
  */
 export function toQuoteFundingRow(row: RawQuoteFundingRow): QuoteFundingData {
   const paid = toBigInt(row.userPaidFunding);
@@ -20,6 +21,6 @@ export function toQuoteFundingRow(row: RawQuoteFundingRow): QuoteFundingData {
     quoteId: toBigInt(row.quoteId),
     paid,
     received,
-    net: paid - received,
+    netReceived: received - paid,
   };
 }

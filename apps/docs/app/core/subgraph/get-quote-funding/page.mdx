@@ -24,7 +24,7 @@ const { rows, missingQuoteIds } = await getQuoteFunding(config, {
 ## Returns
 
 <Returns type="GetQuoteFundingReturnType">
-  <Property name="rows" type="QuoteFundingData[]">One row per quote id the subgraph returned. Each row is `{ quoteId, paid, received, net }` — all amounts are 18-decimal-wei `bigint`, and `net = paid − received` (positive means the user net-paid funding over the position's life; negative means net-received).</Property>
+  <Property name="rows" type="QuoteFundingData[]">One row per quote id the subgraph returned. Each row is `{ quoteId, paid, received, netReceived }` — all amounts are 18-decimal-wei `bigint`, and `netReceived = received − paid` (positive means the position earned funding over its life; negative means it paid for it).</Property>
   <Property name="missingQuoteIds" type="bigint[]">The subset of input ids the subgraph did not return (indexing lag) — so the caller can distinguish "no funding" from "not yet indexed".</Property>
 </Returns>
 

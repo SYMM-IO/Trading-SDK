@@ -70,7 +70,8 @@ Several quotes in the same market — and, depending on the strategy, the same s
     Price-independent aggregations over a group's children: size, weighted open price, notional, locked legs, leverage.
   </MethodEntry>
   <MethodEntry name="aggregateGroupFunding" href="/core/quotes/aggregate-group-funding">
-    Fold the group's settled-to-date funding from subgraph rows. `net = paid − received`, so positive means net-paid.
+    Fold the group's settled-to-date funding from subgraph rows. `netReceived = received − paid`, so positive means the
+    group earned funding.
   </MethodEntry>
   <MethodEntry name="aggregateGroupUpnl" href="/core/quotes/aggregate-group-upnl">
     Fold the group's unrealized PnL at a mark price. Positive means in profit — the opposite sign to funding.

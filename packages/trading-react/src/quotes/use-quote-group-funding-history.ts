@@ -41,11 +41,10 @@ export type UseQuoteGroupFundingHistoryReturnType = UseQueryResult<GetQuotesEven
  * field client-side.
  *
  * Per-row funding fields are `fundingPaid` / `fundingReceived` (18-decimal wei)
- * plus the `rate` applied for that tick (a signed `int256` as wei). The sign
- * convention when netting a row is `net = fundingPaid - fundingReceived`: a
- * **positive** net means the user net-**paid** funding. This matches
- * `QuoteFundingData.net` and the on-chain `int256`. A UI that colors "money in"
- * green wants the inverse — do that inversion in the UI, not here.
+ * plus the `rate` applied for that tick (a signed `int256` as wei). Those fields
+ * are verbatim from the subgraph; net a row the way the rest of the SDK does —
+ * `fundingReceived − fundingPaid`, so a **positive** net means the position
+ * **earned** funding on that tick, matching `QuoteFundingData.netReceived`.
  *
  * Children with no on-chain `quoteId` (optimistic rows that have not anchored
  * yet) have no subgraph events and are dropped from the request; ids are

@@ -53,7 +53,7 @@ Both percentages are `undefined` rather than `0n` when their basis is missing: `
 
 Plain trader convention: a **positive** `upnl` means the group is in profit.
 
-Note this is the **opposite** polarity to [`QuoteGroupFunding.net`](/core/quotes/quote-group-funding), where positive means net-**paid**. The two folds sit beside each other in the same slice and do not share a sign — read each one's convention rather than assuming.
+This is the **same** polarity as [`QuoteGroupFunding.netReceived`](/core/quotes/quote-group-funding), where positive means the group earned funding. The two folds sit beside each other in the same slice and share one sign, so a card can colour and total them together.
 
 ## The mark price is `bigint | undefined`, never a string
 

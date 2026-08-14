@@ -7,21 +7,22 @@ import type { UnifiedQuote } from "../unified-quote";
  *
  * Every amount is 18-decimal wei `bigint`, matching {@link UnifiedQuote}.
  *
- * **Sign convention** — `net = paid − received`. A **positive** `net` means the
- * group has net-**paid** funding; a negative `net` means it has net-**received**
- * it. This matches {@link QuoteFundingData.net} and the on-chain `int256`. A UI
- * that prefers "green = income" must invert for display at the render layer, not
- * here.
+ * **Sign convention** — `netReceived = received − paid`, the P&L perspective. A
+ * **positive** `netReceived` means the group has **earned** funding; a negative
+ * one means it has **paid** for it. This matches
+ * {@link QuoteFundingData.netReceived} and {@link QuoteGroupUpnl.upnl}, so a
+ * "green = income" UI renders it directly. It is the inverse of the on-chain
+ * `int256`, which is cost-positive.
  *
  * **Settled-to-date only** — these totals cover funding the protocol has already
  * charged and the analytics subgraph has indexed. Funding accrued since the last
  * charge is **not** included: it is not indexed anywhere, so it cannot be part of
  * this sum.
  *
- * **Completeness** — `net` is always the sum over the children that *did* resolve,
- * i.e. a lower bound while rows are still missing; it is never suppressed. Read
- * {@link isComplete} to decide whether to trust it, and treat `isComplete: false`
- * as "funding unknown", not as "no funding".
+ * **Completeness** — `netReceived` is always the sum over the children that *did*
+ * resolve, i.e. a lower bound while rows are still missing; it is never
+ * suppressed. Read {@link isComplete} to decide whether to trust it, and treat
+ * `isComplete: false` as "funding unknown", not as "no funding".
  */
 export interface QuoteGroupFunding {
   /** Σ funding partyA paid across the group's resolved children (wei). */
@@ -29,11 +30,11 @@ export interface QuoteGroupFunding {
   /** Σ funding partyA received across the group's resolved children (wei). */
   received: bigint;
   /**
-   * Σ `paid − received` across the group's resolved children (wei). **Positive =
-   * the group net-paid funding**; negative = it net-received it. A lower bound
-   * while {@link isComplete} is `false`.
+   * Σ `received − paid` across the group's resolved children (wei). **Positive =
+   * the group earned funding**; negative = it paid for it. A lower bound while
+   * {@link isComplete} is `false`.
    */
-  net: bigint;
+  netReceived: bigint;
   /** Number of distinct child quote ids that produced a funding row. */
   resolvedCount: number;
   /**
@@ -72,20 +73,22 @@ export interface QuoteGroupFunding {
  *   `missingQuoteIds`.
  * - **Extra rows are ignored.** A row whose `quoteId` is not among the children
  *   is never summed — passing a shared, over-fetched row set is safe.
- * - **`net` is never suppressed.** It is the sum over whatever resolved: a lower
- *   bound while `isComplete` is `false`.
+ * - **`netReceived` is never suppressed.** It is the sum over whatever resolved:
+ *   a lower bound while `isComplete` is `false`.
  * - **`isComplete` is `expectedCount > 0 && missingQuoteIds.length === 0`.** An
  *   all-optimistic or empty group therefore reports `isComplete: false` with
  *   zero amounts — "funding unknown", not "no funding".
  *
- * Sign convention: `net = paid − received`, so **positive means net-paid**
- * (see {@link QuoteGroupFunding}). The totals are funding **settled to date**;
- * funding accrued since the last charge is not indexed and not included.
+ * Sign convention: `netReceived = received − paid`, so **positive means the group
+ * earned funding** (see {@link QuoteGroupFunding}). The totals are funding
+ * **settled to date**; funding accrued since the last charge is not indexed and
+ * not included.
  *
  * Do **not** substitute `Σ UnifiedQuote.accumulatedPaidFunding` as a shortcut.
  * That field is the quote's cumulative funding *rate index* on-chain
  * (`accumulatedRate × epochsSinceStart`), not a settled amount — summing it
- * across quotes is dimensionally meaningless and will not equal `net`.
+ * across quotes is dimensionally meaningless, and it is cost-positive where
+ * `netReceived` is income-positive.
  *
  * Pure, order-independent, no IO. Empty input yields all-zero amounts with
  * `isComplete: false`.
@@ -99,8 +102,8 @@ export interface QuoteGroupFunding {
  * const funding = aggregateGroupFunding(group.quotes, rows);
  * if (!funding.isComplete) {
  *   // still indexing — show a loading state rather than "0 funding"
- * } else if (funding.net > 0n) {
- *   // the group has net-paid funding
+ * } else if (funding.netReceived > 0n) {
+ *   // the group has earned funding
  * }
  * ```
  */
@@ -145,8 +148,8 @@ export function aggregateGroupFunding(
   return {
     paid,
     received,
-    /** Derived from the sums so the aggregate keeps the row-level `net = paid − received` invariant. */
-    net: paid - received,
+    /** Derived from the sums so the aggregate keeps the row-level `netReceived = received − paid` invariant. */
+    netReceived: received - paid,
     resolvedCount,
     expectedCount: expectedQuoteIds.length,
     missingQuoteIds,

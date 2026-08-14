@@ -30,8 +30,8 @@ export interface UseQuoteFundingReturnType {
 const EMPTY_QUOTES: readonly { quoteId?: bigint }[] = [];
 
 /**
- * Read funding totals (paid / received / net) for a single on-chain quote.
- * Disabled while `quoteId` is `undefined` (off-chain row).
+ * Read funding totals (paid / received / netReceived) for a single on-chain
+ * quote. Disabled while `quoteId` is `undefined` (off-chain row).
  *
  * Thin wrapper over {@link useQuotesFunding} with a one-element batch.
  *

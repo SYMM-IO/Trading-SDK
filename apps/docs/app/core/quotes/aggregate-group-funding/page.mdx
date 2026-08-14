@@ -13,9 +13,9 @@ const funding = aggregateGroupFunding(group.quotes, rows);
 
 ## Sign convention
 
-`net = paid − received`. A **positive** `net` means the group has net-**paid** funding; a negative `net` means it has net-**received** it. This matches [`QuoteFundingData.net`](/core/subgraph/get-quote-funding) and the on-chain `int256`.
+`netReceived = received − paid`, the P&L perspective every trading venue presents. A **positive** `netReceived` means the group has **earned** funding; a negative one means it has **paid** for it. This matches [`QuoteFundingData.netReceived`](/core/subgraph/get-quote-funding) and [`aggregateGroupUpnl`](/core/quotes/aggregate-group-upnl), and is the inverse of the cost-positive on-chain `int256`.
 
-A UI that renders "green = income" must negate `net` at the render layer. Do not invert it here — every SDK surface that carries funding uses the one convention, and flipping it in one place is how sign bugs get shipped.
+A UI that renders "green = income" uses the value as-is — no negation anywhere. Every SDK surface that carries funding uses this one convention, and flipping it in one place is how sign bugs get shipped.
 
 ## Settled to date only
 
@@ -23,12 +23,12 @@ The totals cover funding the protocol has already charged and the analytics subg
 
 ## `isComplete` is not optional reading
 
-`net` is always the sum over the children that _did_ resolve — a **lower bound** while rows are still missing, never suppressed to `0n`. `isComplete` is the flag that tells you whether to trust it:
+`netReceived` is always the sum over the children that _did_ resolve — a **lower bound** while rows are still missing, never suppressed to `0n`. `isComplete` is the flag that tells you whether to trust it:
 
 - `isComplete: true` — every on-chain child produced a row; the amounts are the group's complete settled-to-date funding.
 - `isComplete: false` — either the subgraph is still indexing (`missingQuoteIds` non-empty) or the group has no on-chain children at all. Treat this as **"funding unknown"** and render a loading/partial state; rendering it as "no funding" is wrong.
 
-An all-optimistic group (every child still off-chain) and an empty group both report `isComplete: false` with `net: 0n` — which is exactly why the flag exists.
+An all-optimistic group (every child still off-chain) and an empty group both report `isComplete: false` with `netReceived: 0n` — which is exactly why the flag exists.
 
 ## Behaviour
 
@@ -37,7 +37,7 @@ An all-optimistic group (every child still off-chain) and an empty group both re
 - **Extra rows are ignored.** A row whose `quoteId` is not among the children is never summed — passing a shared, over-fetched row set is safe.
 - Empty input yields all-zero amounts with `isComplete: false`.
 
-**Do not substitute `Σ UnifiedQuote.accumulatedPaidFunding` as a shortcut.** That field is the quote's cumulative funding _rate index_ on-chain (`accumulatedRate × epochsSinceStart`), not a settled amount — summing it across quotes is dimensionally meaningless and will not equal `net`.
+**Do not substitute `Σ UnifiedQuote.accumulatedPaidFunding` as a shortcut.** That field is the quote's cumulative funding _rate index_ on-chain (`accumulatedRate × epochsSinceStart`), not a settled amount — summing it across quotes is dimensionally meaningless, and it is cost-positive where `netReceived` is income-positive.
 
 ## Parameters
 
@@ -46,7 +46,7 @@ An all-optimistic group (every child still off-chain) and an empty group both re
     The group's child quotes (pass `group.quotes`). Optimistic children are allowed and are skipped.
   </Property>
   <Property name="rows" type="readonly QuoteFundingData[]" required>
-    Funding rows fetched for those quotes — `{ quoteId, paid, received, net }`, all wei. Extras and duplicates are
+    Funding rows fetched for those quotes — `{ quoteId, paid, received, netReceived }`, all wei. Extras and duplicates are
     tolerated.
   </Property>
 </Properties>

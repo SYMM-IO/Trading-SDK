@@ -94,12 +94,12 @@ const { data } = useQuoteEventsByType({
 
 ### `useQuoteFunding`
 
-Funding totals — paid, received, net — for one quote across its lifetime. Disabled while `quoteId` is `undefined` (an off-chain row).
+Funding totals — paid, received, netReceived — for one quote across its lifetime. Disabled while `quoteId` is `undefined` (an off-chain row).
 
 ```ts
 const { data, isLoading } = useQuoteFunding({ quoteId: 42n });
-/** `data` is `QuoteFundingData | null`: { quoteId, paid, received, net }, all wei. */
-const net = data?.net ?? 0n;
+/** `data` is `QuoteFundingData | null`: { quoteId, paid, received, netReceived }, all wei. */
+const netReceived = data?.netReceived ?? 0n;
 ```
 
 ### `useQuotesFunding`
@@ -109,7 +109,7 @@ Batch variant — funding for many quotes in one request, plus the running sums.
 It takes **quote-shaped rows**, not bare ids: anything with an optional `quoteId` (a `UnifiedQuote` works as-is). Off-chain rows (`quoteId === undefined`) are skipped silently and duplicate ids are fetched — and summed — exactly once.
 
 ```ts
-const { rows, net, missingQuoteIds, isLoading } = useQuotesFunding({ quotes: group.quotes });
+const { rows, netReceived, missingQuoteIds, isLoading } = useQuotesFunding({ quotes: group.quotes });
 ```
 
 `rows` is aligned 1:1 with the input `quotes` (`null` for an off-chain or not-yet-indexed row). `missingQuoteIds` is every requested id while the query is in flight or failed, and the not-yet-indexed subset once it settles.
@@ -118,7 +118,7 @@ const { rows, net, missingQuoteIds, isLoading } = useQuotesFunding({ quotes: gro
 
 Both hooks take a [`QuoteGroup`](../../core/quotes/quote-group) and derive the child quote ids themselves: optimistic children (no `quoteId`) are dropped and duplicates collapsed, so one grouped position costs one subgraph round-trip.
 
-**Sign convention** — shared with `useQuoteFunding` and `useQuotesFunding` above: `net = paid − received`, so a **positive** `net` means the user net-**paid** funding. This matches `QuoteFundingData.net` and the on-chain `int256`. A UI that colors "money in" green must negate at the render layer — the SDK never flips the sign.
+**Sign convention** — shared with `useQuoteFunding` and `useQuotesFunding` above: `netReceived = received − paid`, the P&L perspective, so a **positive** value means the position **earned** funding. This matches `QuoteFundingData.netReceived` and the uPnL folds, and is the inverse of the cost-positive on-chain `int256`. A UI that colors "money in" green renders it as-is — no negation anywhere.
 
 **Settled to date only.** These are funding charges the protocol has already applied and the analytics subgraph has indexed. Funding accrued since a quote's last charge is not indexed anywhere and is therefore not included.
 
@@ -130,15 +130,15 @@ Aggregated settled funding for a whole group — the group-level counterpart of 
 function GroupedPositionFunding({ group }: { group: QuoteGroup }) {
   const { funding, isLoading } = useQuoteGroupFunding({ group });
 
-  /** `funding.net` is a LOWER BOUND until `isComplete` is true — never render it as final before checking. */
+  /** `funding.netReceived` is a LOWER BOUND until `isComplete` is true — never render it as final before checking. */
   if (isLoading || !funding.isComplete) return <FundingSkeleton />;
 
-  /** `net > 0n` means the group net-PAID funding. Negate for "green = income". */
-  return <Money amount={-funding.net} label="Funding" />;
+  /** Already income-positive: `netReceived > 0n` means the group EARNED funding. */
+  return <Money amount={funding.netReceived} label="Funding" />;
 }
 ```
 
-`funding` is a [`QuoteGroupFunding`](../../core/quotes/quote-group-funding): `paid` / `received` / `net` (wei), `resolvedCount`, `expectedCount`, `missingQuoteIds`, and `isComplete`. Treat `isComplete: false` as **"funding unknown"**, not "no funding" — an all-optimistic or empty group reports `false` with `net: 0n`. `rows` is the per-child `QuoteFundingData | null`, aligned 1:1 with `group.quotes`.
+`funding` is a [`QuoteGroupFunding`](../../core/quotes/quote-group-funding): `paid` / `received` / `netReceived` (wei), `resolvedCount`, `expectedCount`, `missingQuoteIds`, and `isComplete`. Treat `isComplete: false` as **"funding unknown"**, not "no funding" — an all-optimistic or empty group reports `false` with `netReceived: 0n`. `rows` is the per-child `QuoteFundingData | null`, aligned 1:1 with `group.quotes`.
 
 ### `useQuoteGroupFundingHistory`
 
@@ -149,8 +149,8 @@ const { data, isLoading } = useQuoteGroupFundingHistory({ group, first: 100 });
 
 for (const row of data?.rows ?? []) {
   /** Rows arrive interleaved across quotes — `row.quoteId` says which leg this tick belongs to. */
-  const net = (row.fundingPaid ?? 0n) - (row.fundingReceived ?? 0n);
-  /** net > 0n → the user paid funding on this tick. `row.rate` is the signed rate applied (wei). */
+  const netReceived = (row.fundingReceived ?? 0n) - (row.fundingPaid ?? 0n);
+  /** netReceived > 0n → the position earned funding on this tick. `row.rate` is the signed rate applied (wei). */
 }
 ```
 

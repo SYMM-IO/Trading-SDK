@@ -144,7 +144,8 @@ export function QuoteEventsList({
       {rows.map((row) => {
         const paid = row.fundingPaid ?? 0n;
         const received = row.fundingReceived ?? 0n;
-        const settled = paid - received;
+        /** Income-positive, matching the SDK's `netReceived`: earned on this tick is `> 0n`. */
+        const settled = received - paid;
         const movesFunding = row.fundingPaid !== undefined || row.fundingReceived !== undefined;
         const showsPrice = row.prevPrice !== undefined || row.newPrice !== undefined;
 
@@ -169,9 +170,9 @@ export function QuoteEventsList({
               {movesFunding ? (
                 <Stat
                   hero
-                  label={settled === 0n ? "Funding" : settled > 0n ? "Paid" : "Received"}
+                  label={settled === 0n ? "Funding" : settled > 0n ? "Received" : "Paid"}
                   value={formatWei(settled < 0n ? -settled : settled, 4)}
-                  toneClassName={settled < 0n ? "text-primary" : "text-foreground"}
+                  toneClassName={settled > 0n ? "text-primary" : "text-foreground"}
                 />
               ) : (
                 /** A settle-uPnL moves no money — the price change is what happened. */

@@ -379,8 +379,8 @@ export {
  * seeded by the optimistic `useOptimisticQuotesStore`. Import the `UnifiedQuote`
  * / `QuoteLifecycle` value types from `@symmio/trading-core`. The
  * `useQuoteGroupFunding*` hooks read a whole group's settled-to-date funding —
- * one aggregate total, one merged timeline — where `net = paid − received`, so a
- * **positive** net means the group net-**paid**.
+ * one aggregate total, one merged timeline — where `netReceived = received −
+ * paid`, so a **positive** value means the group **earned** funding.
  * `useQuoteGroupMarginRisk` describes a group's margin, equity and distance to
  * liquidation; it withholds `metrics` when the group spans several accounts,
  * since each is liquidated independently.

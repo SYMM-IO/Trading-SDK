@@ -1136,9 +1136,9 @@ export {
  * layer drives the clock and polling cadence). `shouldAccelerateQuotePolling`
  * tells the consumer when to poll faster. The `aggregate*` folds roll a
  * {@link QuoteGroup}'s children into one figure — `aggregateGroupFunding`
- * reports settled-to-date funding with `net = paid − received`, so a **positive**
- * `net` means the group net-**paid**, while `aggregateGroupUpnl` uses the
- * opposite, plain-trader polarity where a **positive** `upnl` means in profit.
+ * reports settled-to-date funding with `netReceived = received − paid`, so a
+ * **positive** value means the group **earned** funding, sharing the plain-trader
+ * polarity of `aggregateGroupUpnl`, where a **positive** `upnl` means in profit.
  */
 export {
   QuoteLifecycle,
@@ -1335,8 +1335,8 @@ export {
  * of on-chain quote ids from the analytics subgraph, chunked at
  * {@link QUOTES_FUNDING_MAX_IDS_PER_REQUEST} ids per request. Filters by the
  * protocol `quoteId` scalar so callers never need the diamond address. The rows
- * are funding **settled to date**; `net = paid − received`, so a **positive**
- * `net` means the user net-**paid**.
+ * are funding **settled to date**; `netReceived = received − paid`, so a
+ * **positive** value means the position **earned** funding.
  */
 export {
   QUOTES_FUNDING_MAX_IDS_PER_REQUEST,

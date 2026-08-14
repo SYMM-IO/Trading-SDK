@@ -347,7 +347,7 @@ export function QuoteProvenancePanel({ quote }: Props) {
           />
           <DetailRow
             label="Net"
-            value={renderFundingSigned(funding.data?.net, funding.isLoading, quote.quoteId !== undefined)}
+            value={renderFundingSigned(funding.data?.netReceived, funding.isLoading, quote.quoteId !== undefined)}
           />
         </DetailSection>
       </div>
@@ -463,6 +463,7 @@ function renderFunding(value: bigint | undefined, isLoading: boolean, hasQuoteId
   return formatFee(value);
 }
 
+/** Net funding, income-positive like the SDK returns it: `+` earned, `-` paid. */
 function renderFundingSigned(value: bigint | undefined, isLoading: boolean, hasQuoteId: boolean): ReactNode {
   if (!hasQuoteId) return EMPTY;
   if (value === undefined) {

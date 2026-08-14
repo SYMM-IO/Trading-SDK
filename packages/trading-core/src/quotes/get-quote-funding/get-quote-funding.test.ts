@@ -77,7 +77,12 @@ describe("getQuoteFunding", () => {
     expect(body.variables).toEqual({ ids: ["7334"], first: QUOTES_FUNDING_MAX_IDS_PER_REQUEST });
 
     expect(result.rows).toEqual([
-      { quoteId: 7334n, paid: 3000000000000000000n, received: 1000000000000000000n, net: 2000000000000000000n },
+      {
+        quoteId: 7334n,
+        paid: 3000000000000000000n,
+        received: 1000000000000000000n,
+        netReceived: -2000000000000000000n,
+      },
     ]);
     expect(result.missingQuoteIds).toEqual([]);
   });
@@ -97,7 +102,7 @@ describe("getQuoteFunding", () => {
     const result = await getQuoteFunding(config, { quoteIds: [7334n, 7335n] });
 
     expect(result.missingQuoteIds).toEqual([]);
-    expect(result.rows[1]!.net).toBe(-5000000000000000000n);
+    expect(result.rows[1]!.netReceived).toBe(5000000000000000000n);
   });
 
   it("keeps a batch at exactly the per-request ceiling in a single request", async () => {

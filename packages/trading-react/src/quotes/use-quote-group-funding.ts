@@ -44,17 +44,18 @@ export interface UseQuoteGroupFundingReturnType {
  * memoizes the result, so the returned object is referentially stable while the
  * group and its rows are unchanged.
  *
- * **Sign convention** — `funding.net = paid − received`, so a **positive** `net`
- * means the group has net-**paid** funding; negative means it net-**received**
- * it. This matches {@link QuoteFundingData} and the on-chain `int256`. A UI that
- * wants the "green = income" coloring (as the reference app renders it) must
- * negate `net` at the render layer — never here.
+ * **Sign convention** — `funding.netReceived = received − paid`, so a **positive**
+ * value means the group has **earned** funding and a negative one means it has
+ * **paid** for it. This matches {@link QuoteFundingData} and the uPnL folds, so
+ * "green = income" coloring renders it as-is; it is the inverse of the
+ * cost-positive on-chain `int256`.
  *
- * **Check `funding.isComplete` before presenting the total as final.** `net` is
- * always the sum over the children that resolved, i.e. a lower bound while the
- * subgraph is still indexing (`funding.missingQuoteIds` non-empty). An
- * all-optimistic or empty group reports `isComplete: false` with `net: 0n`, so
- * treat `isComplete: false` as "funding unknown", not as "no funding".
+ * **Check `funding.isComplete` before presenting the total as final.**
+ * `netReceived` is always the sum over the children that resolved, i.e. a lower
+ * bound while the subgraph is still indexing (`funding.missingQuoteIds`
+ * non-empty). An all-optimistic or empty group reports `isComplete: false` with
+ * `netReceived: 0n`, so treat `isComplete: false` as "funding unknown", not as
+ * "no funding".
  *
  * **Settled to date only** — these totals cover funding the protocol has already
  * charged and the analytics subgraph has indexed. Funding accrued since a
@@ -71,8 +72,8 @@ export interface UseQuoteGroupFundingReturnType {
  *
  *   if (isLoading || !funding.isComplete) return <FundingSkeleton />;
  *
- *   // `net > 0n` means the group net-PAID funding. Negate for "green = income".
- *   return <Money amount={-funding.net} label="Funding" />;
+ *   // Already income-positive: `netReceived > 0n` means the group EARNED funding.
+ *   return <Money amount={funding.netReceived} label="Funding" />;
  * }
  * ```
  */
