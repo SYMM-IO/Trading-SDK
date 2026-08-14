@@ -276,7 +276,9 @@ It executes **both** halves of the plan: a side you cleared becomes a cancel, a 
 
 A step's lifecycle is `queued → submitting → confirming → done`. **`set()` waits for the handler's report** — it resolves only once every step is `done`, so awaiting it means the exits are real, not merely accepted. The report each step waits for is the transition it asked for: _live_ for a write, _gone_ for a cancel, so a shared socket cannot cross-confirm.
 
-Reports arrive on the **Virtual Account** channel, and the run subscribes to every VA its plan touches — a grouped position can span several, and the sub-account's stream carries none of them. Pass `notificationsAccounts` only to override that.
+Reports arrive on the **sub-account's** channel: a frame's `address` is the account the subscription was opened for, not the Virtual Account that owns the order — two quotes under different VAs carry the same `address`. So the run watches `subAccount` first and every VA its plan touches after, which costs one pooled subscription each and covers a deployment that reports there instead. Pass `notificationsAccounts` to override the pair entirely.
+
+The same applies to `useQuoteGroupTpSl`: **pass it `subAccount`**. Without it the hook hears only the VA channels, and a live TP/SL update lands whenever the next REST read happens to run rather than when the handler says so.
 
 ### When the report never arrives
 

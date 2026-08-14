@@ -65,7 +65,7 @@ export function GroupTpSlModal({ group, subAccount, from, open, onOpenChange }: 
   const markPriceLabel = useMemo(() => roundToPrecision(markPrice, pricePrecision), [markPrice, pricePrecision]);
   const tpslConfig = useTpSlConfig();
 
-  const groupTpSl = useQuoteGroupTpSl({ quotes: group.quotes, enabled: open });
+  const groupTpSl = useQuoteGroupTpSl({ quotes: group.quotes, subAccount, enabled: open });
   const editor = useQuoteGroupTpSlEditor({
     children: groupTpSl.children,
     pricePrecision,
@@ -168,7 +168,7 @@ export function GroupTpSlModal({ group, subAccount, from, open, onOpenChange }: 
     // Clear the stale "Set exits" receipt — after a cancel it no longer
     // reflects reality (those orders are being removed, not "live").
     setRun.reset();
-    await deleteRun.deleteOrders({ children: groupTpSl.children, notificationsAccount: subAccount, from });
+    await deleteRun.deleteOrders({ children: groupTpSl.children, subAccount, from });
     editor.reset();
   }
 

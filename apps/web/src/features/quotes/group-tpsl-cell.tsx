@@ -26,7 +26,7 @@ interface Props {
  */
 export function GroupTpSlCell({ group, subAccount, from }: Props) {
   const [open, setOpen] = useState(false);
-  const { summary, children } = useQuoteGroupTpSl({ quotes: group.quotes });
+  const { summary, children } = useQuoteGroupTpSl({ quotes: group.quotes, subAccount });
   const editable = Boolean(subAccount);
 
   return (

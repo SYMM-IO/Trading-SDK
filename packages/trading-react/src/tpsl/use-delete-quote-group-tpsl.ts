@@ -75,9 +75,14 @@ export interface DeleteQuoteGroupTpSlParameters {
   /** Which side(s) to cancel. Default `"all"`. */
   scope?: GroupTpSlDeleteScope;
   /**
-   * Accounts whose live streams confirm the cancels. Defaults to the deduped
-   * Virtual Account of every order the plan targets — the channel the handler
-   * reports them gone on.
+   * SubAccount that owns the orders' Virtual Accounts. Pass it: the handler
+   * publishes its reports on this account's stream, so without it a cancel is
+   * only confirmed by the fallback sweep.
+   */
+  subAccount?: Address;
+  /**
+   * Accounts whose live streams confirm the cancels. Overrides the default,
+   * which is `subAccount` plus every targeted order's Virtual Account.
    */
   notificationsAccounts?: readonly Address[];
   /**
@@ -507,16 +512,22 @@ function waitingSidesOf(
 }
 
 /**
- * The accounts whose streams report on this run — every Virtual Account the
- * targeted orders live under, deduped.
+ * The accounts whose streams report on this run.
+ *
+ * The SubAccount first — that is the channel the handler publishes reports on,
+ * regardless of which Virtual Account owns the order — then the targeted
+ * orders' VAs, which cost one pooled subscription each and cover a deployment
+ * that reports there instead.
  */
 function watchAccountsOf(
   parameters: DeleteQuoteGroupTpSlParameters,
   targets: PlanGroupTpSlDeleteResult["targets"],
 ): Address[] {
   if (parameters.notificationsAccounts) return dedupeAddresses(parameters.notificationsAccounts);
-  if (parameters.notificationsAccount) return [parameters.notificationsAccount];
-  return dedupeAddresses(targets.map((target) => target.virtualAccount));
+  return dedupeAddresses([
+    parameters.notificationsAccount ?? parameters.subAccount,
+    ...targets.map((target) => target.virtualAccount),
+  ]);
 }
 
 /**

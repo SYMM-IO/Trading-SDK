@@ -29,11 +29,19 @@ export interface UseQuoteGroupTpSlParameters extends ConfigParameter {
   /** The grouped position's child quotes — pass `group.quotes`. */
   quotes: readonly UnifiedQuote[];
   /**
-   * Accounts whose TP/SL streams report on these children. Defaults to the
-   * deduped `vaAddress ?? partyA` across `quotes`, which is what the per-quote
-   * hook subscribes to — a grouped position can span Virtual Accounts, since
-   * the VA is not part of the group key. Pass an explicit list (e.g. only the
-   * sub-account) to override.
+   * SubAccount that owns the children's Virtual Accounts.
+   *
+   * Pass it. The handler publishes TP/SL reports on the **subscribing account's**
+   * stream, not on the VA that owns the order — a report's `address` is the same
+   * for two quotes under different VAs. Without it this hook only hears the VA
+   * channels, and a live update arrives whenever the next REST read happens to run.
+   */
+  subAccount?: Address;
+  /**
+   * Accounts whose TP/SL streams report on these children. Overrides the
+   * default, which is `subAccount` plus the deduped `vaAddress ?? partyA`
+   * across `quotes` — a grouped position can span Virtual Accounts, since the
+   * VA is not part of the group key.
    */
   accounts?: readonly Address[];
   /** Pending per-child edits that win over the confirmed snapshot. */
@@ -116,11 +124,15 @@ export function useQuoteGroupTpSl(parameters: UseQuoteGroupTpSlParameters): UseQ
     }),
   });
 
-  /** Distinct accounts to watch — a grouped position can span Virtual Accounts. */
+  /**
+   * Accounts to watch: the SubAccount, where the handler publishes its reports,
+   * plus every Virtual Account the children live under — a grouped position can
+   * span several, and one of them may be where a given deployment reports.
+   */
   const accounts = useMemo(() => {
-    const source = parameters.accounts ?? quotes.map((quote) => quote.vaAddress ?? quote.partyA);
-    return dedupeAddresses(source);
-  }, [parameters.accounts, quotes]);
+    if (parameters.accounts) return dedupeAddresses(parameters.accounts);
+    return dedupeAddresses([parameters.subAccount, ...quotes.map((quote) => quote.vaAddress ?? quote.partyA)]);
+  }, [parameters.accounts, parameters.subAccount, quotes]);
 
   useWatchTpSlAccounts({
     accounts,

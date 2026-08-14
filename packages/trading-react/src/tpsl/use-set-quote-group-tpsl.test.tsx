@@ -227,7 +227,7 @@ describe("useSetQuoteGroupTpSl", () => {
     });
   });
 
-  it("watches the legs' virtual accounts, not the sub-account", async () => {
+  it("watches the sub-account first, then the legs' virtual accounts", async () => {
     setQuoteTpSlMutationOptions.mockReturnValue({
       mutationKey: ["setQuoteTpSl"],
       mutationFn: async () => ({ success: true as const }),
@@ -248,9 +248,15 @@ describe("useSetQuoteGroupTpSl", () => {
     });
 
     await waitFor(() => expect(result.current.status).toBe("confirming"));
-    // A group can span Virtual Accounts, and the handler reports on the VA —
-    // subscribing to the sub-account would hear nothing at all.
-    expect(watchSpy.accounts).toEqual([VA, otherVa]);
+    /**
+     * The handler publishes a report on the subscribing account's stream, not
+     * on the Virtual Account that owns the order — verified against the live
+     * feed, where two quotes under different VAs carried the same `address`.
+     * Watching only the VAs is what left a run confirming until the fallback
+     * sweep ran. The VAs are still watched, one pooled subscription each.
+     */
+    expect(watchSpy.accounts?.[0]).toBe(SUB_ACCOUNT);
+    expect(watchSpy.accounts).toEqual([SUB_ACCOUNT, VA, otherVa]);
     expect(watchSpy.enabled).toBe(true);
 
     confirmLive(1, "take_profit");

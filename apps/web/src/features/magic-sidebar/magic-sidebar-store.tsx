@@ -1,8 +1,9 @@
 "use client";
 
+import { useAccountChangeEffect } from "@/features/wallet/use-account-change";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { findMagicMethod } from "./magic-catalog";
-import { clearAllPinValues, clearPinValue } from "./magic-value-store";
+import { clearAllPinValues, clearPinValue, magicInputPersistKey, removePinValue } from "./magic-value-store";
 
 /**
  * Selectable poll cadences (ms). `0` is the "Off" option — a `refetchInterval` of
@@ -209,6 +210,32 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
       /** Storage can be unavailable; the width still applies in-memory. */
     }
   }, [width, hasHydrated]);
+
+  /**
+   * Drop every pinned card's seeded input when the wallet switches. A pin's seed
+   * is an address (partyA, sub-account, quote owner) belonging to the account it
+   * was pinned from, so it means nothing under a different wallet — and because
+   * a pinned panel keeps polling whether or not the sidebar is open, a stale one
+   * would go on fetching the previous account until noticed. Clearing the seed
+   * and bumping `seedVersion` walks each live panel down the same re-seed path
+   * {@link pinMany} uses to retarget a card, landing it on an empty input. The
+   * pins themselves stay on the board.
+   *
+   * The stored input is dropped as well as re-seeded: a panel that is collapsed
+   * or behind a closed sidebar right now is unmounted, so no `seedToken` reaches
+   * it, and it would otherwise hydrate the previous wallet's address back on its
+   * next mount.
+   */
+  useAccountChangeEffect(() => {
+    if (pins.length === 0) return;
+    seedVersionRef.current += 1;
+    const version = seedVersionRef.current;
+    for (const entry of pins) {
+      const inputKey = magicInputPersistKey(entry.methodId);
+      if (inputKey) removePinValue(inputKey);
+    }
+    setPins((prev) => prev.map((entry) => ({ ...entry, seed: undefined, seedVersion: version })));
+  });
 
   const setWidth = useCallback((next: number) => setWidthState(clampWidth(next)), []);
 

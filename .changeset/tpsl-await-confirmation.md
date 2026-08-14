@@ -12,12 +12,14 @@ exits are real rather than merely submitted.
 
 Three things had to change for that to be true rather than accidental:
 
-- **The runs subscribe to the right channel.** Reports arrive on the Virtual
-  Account, and a grouped position can span several; the set run watched the
-  sub-account and the cancel run watched only the first VA, so both relied on a
-  co-mounted read hook's subscription to confirm anything. Both now watch every
-  VA their plan touches. `notificationsAccounts` replaces the deprecated
-  single-address `notificationsAccount`.
+- **The runs subscribe to every channel their orders can report on.** The cancel
+  run watched only the first Virtual Account, so a group spanning several was
+  half-covered. Both runs now watch the sub-account — where the handler actually
+  publishes, since a report's `address` is the subscribing account rather than
+  the VA that owns the order — plus every VA the plan touches.
+  `notificationsAccounts` replaces the deprecated single-address
+  `notificationsAccount`, and `useQuoteGroupTpSl` gains a `subAccount` parameter
+  for the same reason.
 - **A racing refetch can no longer erase a pending write.** The post-request
   refetch routinely beat the handler's own bookkeeping and came back empty,
   folding the side to `canceled` and blanking the price the trader had just set.

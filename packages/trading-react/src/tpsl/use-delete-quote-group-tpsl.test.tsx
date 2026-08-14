@@ -165,6 +165,31 @@ describe("useDeleteQuoteGroupTpSl", () => {
     });
   });
 
+  it("watches the sub-account the handler reports on, then the orders' virtual accounts", async () => {
+    deleteQuoteTpSlMutationOptions.mockReturnValue({
+      mutationKey: ["deleteQuoteTpSl"],
+      mutationFn: async () => ({ success: true as const }),
+    });
+    const subAccount = "0x00000000000000000000000000000000000000a1" as const;
+
+    const { result } = renderHookWithProviders(() =>
+      useDeleteQuoteGroupTpSl({ config: createMockSymmioConfig().config }),
+    );
+
+    let run!: Promise<unknown>;
+    act(() => {
+      run = result.current.deleteOrders({ children: [makeLiveChild("a", 1n)], subAccount });
+    });
+
+    await waitFor(() => expect(result.current.status).toBe("confirming"));
+    expect(watchSpy.accounts).toEqual([subAccount, VA]);
+
+    confirmAllGone([1]);
+    await act(async () => {
+      await run;
+    });
+  });
+
   it("watches the orders' virtual accounts", async () => {
     deleteQuoteTpSlMutationOptions.mockReturnValue({
       mutationKey: ["deleteQuoteTpSl"],

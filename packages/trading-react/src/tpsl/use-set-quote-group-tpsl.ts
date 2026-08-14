@@ -712,14 +712,21 @@ function waitingSidesOf(
 }
 
 /**
- * The accounts whose streams report on this run — every Virtual Account the
- * plan touches, deduped. The SubAccount is not one of them: the handler
- * publishes a leg's conditional orders on the VA that owns it.
+ * The accounts whose streams report on this run.
+ *
+ * The SubAccount comes first because that is where the handler actually
+ * publishes: a report's `address` is the subscribing account, not the Virtual
+ * Account that owns the order — two quotes under different VAs arrive on the
+ * same channel. The VAs are watched as well, since they are what the orders are
+ * filed under and a deployment that reports there costs us one pooled
+ * subscription to cover.
  */
 function watchAccountsOf(parameters: SetQuoteGroupTpSlParameters, plan: PlanGroupTpSlResult): Address[] {
   if (parameters.notificationsAccounts) return dedupeAddresses(parameters.notificationsAccounts);
-  if (parameters.notificationsAccount) return [parameters.notificationsAccount];
-  return dedupeAddresses(plan.actions.map((action) => (action.action === "skip" ? undefined : action.virtualAccount)));
+  return dedupeAddresses([
+    parameters.notificationsAccount ?? parameters.subAccount,
+    ...plan.actions.map((action) => (action.action === "skip" ? undefined : action.virtualAccount)),
+  ]);
 }
 
 /** Stable, unique step identity. A cancel is per-side; a write covers both sides of one leg. */
