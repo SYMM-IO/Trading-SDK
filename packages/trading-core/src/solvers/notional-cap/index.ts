@@ -5,5 +5,4 @@ export * from "./get-open-interest-by-symbol-id";
 export * from "./query";
 export * from "./query-all";
 export * from "./query-open-interest";
-export * from "./to-market-notional-cap";
 export * from "./types";

@@ -2,7 +2,7 @@ import type { Address } from "viem";
 import { describe, expect, it } from "vitest";
 import { OrderType, PositionType, type Quote } from "../symmio-contracts/symmio/types";
 import { NotificationType, type Notification } from "../websocket/notifications/types";
-import { applyNotificationToQuotes, classifyQuoteNotificationAction } from "./apply-notification";
+import { applyNotificationToQuotes, classifyQuoteNotificationAction, isCloseFillAction } from "./apply-notification";
 import { QuoteLifecycle, type UnifiedQuote } from "./unified-quote";
 
 const PARTY_A = "0x000000000000000000000000000000000000a11a" as Address;
@@ -235,5 +235,24 @@ describe("classifyQuoteNotificationAction", () => {
   it("classifies unknown or missing actions as other", () => {
     expect(classifyQuoteNotificationAction("SomethingElse")).toBe("other");
     expect(classifyQuoteNotificationAction(undefined)).toBe("other");
+  });
+});
+
+describe("isCloseFillAction", () => {
+  it("is true only for close-fill actions", () => {
+    expect(isCloseFillAction("FillMarketOrderInstantClose")).toBe(true);
+    expect(isCloseFillAction("FillLimitOrderClose")).toBe(true);
+  });
+
+  it("is false for a close request (not yet filled)", () => {
+    expect(isCloseFillAction("RequestToClosePosition")).toBe(false);
+    expect(isCloseFillAction("InstantRequestToClosePosition")).toBe(false);
+  });
+
+  it("is false for open actions and unknown / missing actions", () => {
+    expect(isCloseFillAction("FillLimitOrderOpen")).toBe(false);
+    expect(isCloseFillAction("SomethingElse")).toBe(false);
+    expect(isCloseFillAction(null)).toBe(false);
+    expect(isCloseFillAction(undefined)).toBe(false);
   });
 });

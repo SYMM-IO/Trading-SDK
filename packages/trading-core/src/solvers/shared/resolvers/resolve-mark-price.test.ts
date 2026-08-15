@@ -1,88 +1,128 @@
+import type { PublicClient } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SymmioSupportedChainId } from "../../../core/chains";
+import { createConfig } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
-import { mockConfig } from "../../../shared/test/mock-config";
+import { TEST_AFFILIATE_ADDRESS } from "../../../shared/test/mock-config";
 
-const getEnigmaPriceServicePricesByNames = vi.hoisted(() => vi.fn());
+const fetchEnigmaMarkPrices = vi.hoisted(() => vi.fn());
+const fetchBinanceMarkPrices = vi.hoisted(() => vi.fn());
 
-vi.mock(
-  "../../../price-service/enigma/prices-by-names/get-enigma-price-service-prices-by-names",
-  async (importOriginal) => {
-    const actual =
-      await importOriginal<
-        typeof import("../../../price-service/enigma/prices-by-names/get-enigma-price-service-prices-by-names")
-      >();
-    return { ...actual, getEnigmaPriceServicePricesByNames };
-  },
-);
+vi.mock("../../../price-service/adapters/enigma-mark-prices", () => ({ fetchEnigmaMarkPrices }));
+vi.mock("../../../price-service/adapters/binance-mark-prices", () => ({ fetchBinanceMarkPrices }));
 
 import { resolveMarkPrice } from "./resolve-mark-price";
 
-const { config } = mockConfig();
+const CHAIN = SymmioSupportedChainId.BASE;
+const ENIGMA = { type: "enigma" as const, url: "https://enigma-price.test", wsUrl: "wss://enigma-price.test/ws" };
+const BINANCE = {
+  type: "binance" as const,
+  url: "https://fapi.binance.com",
+  wsUrl: "wss://fstream.binance.com/market/ws/!markPrice@arr@1s",
+};
+
+const config = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: {
+    [CHAIN]: {
+      addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
+      priceService: ENIGMA,
+      defaultSolverId: "enigma",
+      solvers: {
+        enigma: {
+          name: "Enigma",
+          address: TEST_AFFILIATE_ADDRESS,
+          url: "https://enigma.test",
+          notifications: { url: "wss://enigma.test/ws", protocol: "enigma", channel: "test" },
+        },
+        rasa: {
+          name: "Rasa",
+          address: TEST_AFFILIATE_ADDRESS,
+          url: "https://rasa.test",
+          priceService: BINANCE,
+          notifications: { url: "wss://rasa.test/ws", protocol: "rasa" },
+        },
+      },
+    },
+  },
+});
 
 describe("resolveMarkPrice", () => {
   beforeEach(() => {
-    getEnigmaPriceServicePricesByNames.mockReset();
+    fetchEnigmaMarkPrices.mockReset().mockResolvedValue([]);
+    fetchBinanceMarkPrices.mockReset().mockResolvedValue([]);
   });
 
-  it("returns the caller-supplied markPrice without calling the price service", async () => {
-    await expect(resolveMarkPrice(config, { marketName: "BTCUSDT", markPrice: "64000.5" })).resolves.toBe("64000.5");
-    expect(getEnigmaPriceServicePricesByNames).not.toHaveBeenCalled();
+  it("returns the caller-supplied price without any network call", async () => {
+    const price = await resolveMarkPrice(config, { chainId: CHAIN, marketName: "BTCUSDT", markPrice: "123" });
+
+    expect(price).toBe("123");
+    expect(fetchEnigmaMarkPrices).not.toHaveBeenCalled();
+    expect(fetchBinanceMarkPrices).not.toHaveBeenCalled();
   });
 
-  it("returns an empty caller-supplied markPrice verbatim (only undefined triggers a fetch)", async () => {
-    await expect(resolveMarkPrice(config, { marketName: "BTCUSDT", markPrice: "" })).resolves.toBe("");
-    expect(getEnigmaPriceServicePricesByNames).not.toHaveBeenCalled();
+  it("prices a lowcap solver off its Enigma service", async () => {
+    fetchEnigmaMarkPrices.mockResolvedValue([{ provider: "enigma", name: "BTCUSDT", markPrice: "64790.2" }]);
+
+    const price = await resolveMarkPrice(config, { chainId: CHAIN, solverId: "enigma", marketName: "BTCUSDT" });
+
+    expect(price).toBe("64790.2");
+    expect(fetchEnigmaMarkPrices).toHaveBeenCalledWith(ENIGMA.url, ["BTCUSDT"]);
   });
 
-  it("fetches from the Enigma price service when markPrice is omitted", async () => {
-    getEnigmaPriceServicePricesByNames.mockResolvedValue({
-      BTCUSDT: { name: "BTCUSDT", markPrice: 64000.5, time: 1 },
+  /** The point of the slice: a majors trade signs against a Binance mark. */
+  it("prices a majors solver off Binance", async () => {
+    fetchBinanceMarkPrices.mockResolvedValue([
+      { provider: "binance", name: "BTCUSDT", markPrice: "64799.90000000", indexPrice: "1" },
+    ]);
+
+    const price = await resolveMarkPrice(config, { chainId: CHAIN, solverId: "rasa", marketName: "BTCUSDT" });
+
+    expect(price).toBe("64799.90000000");
+    expect(fetchBinanceMarkPrices).toHaveBeenCalledWith(BINANCE.url, ["BTCUSDT"]);
+    expect(fetchEnigmaMarkPrices).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Preserves the exact decimal string the provider sent. This value is
+   * `toWeiBigInt`'d into a signed EIP-712 payload, so any reformatting here is a
+   * trade-path defect.
+   */
+  it("returns the provider's decimal string byte-for-byte", async () => {
+    fetchEnigmaMarkPrices.mockResolvedValue([
+      { provider: "enigma", name: "TIBBIR::A4..00_SFLOW", markPrice: "0.10691489650882736" },
+    ]);
+
+    const price = await resolveMarkPrice(config, {
+      chainId: CHAIN,
+      solverId: "enigma",
+      marketName: "TIBBIR::A4..00_SFLOW",
     });
 
-    await expect(resolveMarkPrice(config, { marketName: "BTCUSDT" })).resolves.toBe("64000.5");
-    expect(getEnigmaPriceServicePricesByNames).toHaveBeenCalledWith(config, {
-      chainId: undefined,
-      names: ["BTCUSDT"],
-    });
+    expect(price).toBe("0.10691489650882736");
   });
 
-  it("forwards the chainId override to the price service", async () => {
-    getEnigmaPriceServicePricesByNames.mockResolvedValue({
-      ETHUSDT: { name: "ETHUSDT", markPrice: 3200, time: 1 },
-    });
-
-    await resolveMarkPrice(config, { chainId: 999, marketName: "ETHUSDT" });
-    expect(getEnigmaPriceServicePricesByNames).toHaveBeenCalledWith(config, {
-      chainId: 999,
-      names: ["ETHUSDT"],
-    });
+  it("throws RESOLVE_MARK_PRICE_NOT_FOUND naming the provider when the name is absent", async () => {
+    try {
+      await resolveMarkPrice(config, { chainId: CHAIN, solverId: "rasa", marketName: "NOPEUSDT" });
+      expect.unreachable("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(SymmError);
+      expect((err as SymmError).code).toBe("RESOLVE_MARK_PRICE_NOT_FOUND");
+      expect((err as SymmError).message).toMatch(/"binance"/);
+    }
   });
 
-  it('returns "0" for a zero mark price rather than treating the entry as missing', async () => {
-    getEnigmaPriceServicePricesByNames.mockResolvedValue({
-      BTCUSDT: { name: "BTCUSDT", markPrice: 0, time: 1 },
-    });
-
-    await expect(resolveMarkPrice(config, { marketName: "BTCUSDT" })).resolves.toBe("0");
+  /** The most likely failure during the majors migration. */
+  it("hints at the lowcap-name mismatch when a `::` name is sent to Binance", async () => {
+    await expect(
+      resolveMarkPrice(config, { chainId: CHAIN, solverId: "rasa", marketName: "TIBBIR::A4..00_SFLOW" }),
+    ).rejects.toThrow(/looks like a lowcap market name/);
   });
 
-  it("throws RESOLVE_MARK_PRICE_NOT_FOUND when the response omits the requested market", async () => {
-    getEnigmaPriceServicePricesByNames.mockResolvedValue({});
+  it("matches case-insensitively when the provider canonicalizes differently", async () => {
+    fetchBinanceMarkPrices.mockResolvedValue([{ provider: "binance", name: "BTCUSDT", markPrice: "1" }]);
 
-    const error = await resolveMarkPrice(config, { marketName: "BTCUSDT" }).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(SymmError);
-    expect((error as SymmError).kind).toBe("api");
-    expect((error as SymmError).code).toBe("RESOLVE_MARK_PRICE_NOT_FOUND");
-    expect((error as SymmError).message).toContain("BTCUSDT");
-  });
-
-  it("throws RESOLVE_MARK_PRICE_NOT_FOUND when the response carries only other markets", async () => {
-    getEnigmaPriceServicePricesByNames.mockResolvedValue({
-      ETHUSDT: { name: "ETHUSDT", markPrice: 3200, time: 1 },
-    });
-
-    const error = await resolveMarkPrice(config, { marketName: "BTCUSDT" }).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(SymmError);
-    expect((error as SymmError).code).toBe("RESOLVE_MARK_PRICE_NOT_FOUND");
+    expect(await resolveMarkPrice(config, { chainId: CHAIN, solverId: "rasa", marketName: "btcusdt" })).toBe("1");
   });
 });

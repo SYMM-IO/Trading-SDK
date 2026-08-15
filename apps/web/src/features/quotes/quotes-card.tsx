@@ -4,7 +4,7 @@ import { TableSkeleton } from "@/components/skeletons";
 import { StatusDot } from "@/components/status-dot";
 import { MethodCard } from "@/features/inspector/method-card";
 import { PartyAField } from "@/features/inspector/party-a-field";
-import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
+import { socketStatusLabel, socketStatusTone } from "@/features/notifications/socket-status-display";
 import { useManagedQuotes } from "@symmio/trading-react";
 import { SearchInput } from "@symmio/ui/components/search-input";
 import { useMemo, useState } from "react";

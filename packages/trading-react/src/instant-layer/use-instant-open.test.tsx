@@ -30,7 +30,7 @@ const VARS: InstantOpenParameters = {
   lockedParam: { cva: 2n, lf: 1n, partyAmm: 1n, partyBmm: 1n },
   margin: { amount: 100n * 10n ** 18n },
 };
-const RESULT: InstantOpenReturnType = { success: true, tempQuoteId: "-1001" };
+const RESULT: InstantOpenReturnType = { kind: "enigma", success: true, tempQuoteId: "-1001" };
 
 /** `predicateMatch` only reads `query.queryKey`, so a minimal stub cast to `Query` is enough. */
 function queryWith(key: QueryKey): Query<unknown, Error, unknown, QueryKey> {

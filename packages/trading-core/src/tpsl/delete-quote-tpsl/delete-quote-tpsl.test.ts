@@ -11,7 +11,7 @@ import type { StatusResponse } from "../types/generated/tpsl-handler";
 import { deleteQuoteTpSl, type DeleteQuoteTpSlParameters } from "./delete-quote-tpsl";
 
 const CHAIN_CONFIG = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
-const TPSL = CHAIN_CONFIG.solver.tpsl!;
+const TPSL = CHAIN_CONFIG.solvers.enigma!.tpsl!;
 
 /** Local fixtures — handler-issued / test-only values, never real on-chain constants. */
 const VIRTUAL_ACCOUNT: Address = "0x2222222222222222222222222222222222222222";
@@ -91,7 +91,7 @@ function mockSigningConfig(options?: {
     symmioConfig: {
       [SymmioSupportedChainId.HYPER_EVM]: {
         addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
-        ...(options?.tpslUrl ? { solver: { tpsl: { url: options.tpslUrl } } } : {}),
+        ...(options?.tpslUrl ? { solvers: { enigma: { tpsl: { url: options.tpslUrl } } } } : {}),
       },
     },
     getClient: () => ({}) as PublicClient,

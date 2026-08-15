@@ -13,6 +13,8 @@ export default {
   "party-a-overview": "getMuonPartyAOverview",
   "-- signatures": { type: "separator", title: "Contract signatures" },
   "deallocate-upnl-sig": "getDeallocateUpnlSig",
+  "send-quote-upnl-sig": "getSendQuoteUpnlSig",
+  "force-close-price-sig": "getForceClosePriceSig",
   "-- types": { type: "separator", title: "Types" },
   "muon-attestation-base": "MuonAttestationBase",
 };

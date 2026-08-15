@@ -2,12 +2,12 @@
 
 Parse an inbound socket frame into a [`RawPositionNotification`](/core/notifications/raw-position-notification), or `null` when the frame is not a notification (control/ack frames, malformed JSON, or a missing payload — all skipped silently by the caller).
 
-For `defilytics`, the notification is unwrapped from its `{ data, address }` envelope and the top-level `address` is hoisted onto the frame.
+For `enigma`, the notification is unwrapped from its `{ data, address }` envelope and the top-level `address` is hoisted onto the frame. For `rasa`, the frame arrives bare and is kept wire-faithful (numeric zero-sentinels included — [`normalizeNotification`](/core/notifications/normalize-notification) reconciles them); frames without a `quote_id` / `temp_quote_id` (acks, keepalives) return `null`. A literal `protocol` argument narrows the return to that protocol's variant.
 
 ```ts
 import { parseNotificationFrame } from "@symmio/trading-core";
 
-const raw = parseNotificationFrame(event.data, "defilytics");
+const raw = parseNotificationFrame(event.data, "enigma");
 if (raw) {
   // a real notification frame
 }

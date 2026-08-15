@@ -8,7 +8,7 @@ import type { TpSlSigningSpec } from "../types";
 import { getTpSlDeleteSigningSpec } from "./get-tpsl-delete-signing-spec";
 import { getTpSlSigningSpec } from "./get-tpsl-signing-spec";
 
-const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solver.tpsl!;
+const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solvers.enigma!.tpsl!;
 /** Path the orval-generated `v5SigningSpecApiV5SigningSpecGet` client requests. */
 const SPEC_PATH = "/api/v5/signing-spec";
 /** Path the sibling DELETE-spec action requests — must never be the same one. */

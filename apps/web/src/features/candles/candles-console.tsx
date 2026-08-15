@@ -2,7 +2,7 @@
 
 import { ResultError, ResultNote } from "@/components/result";
 import { StatusDot } from "@/components/status-dot";
-import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
+import { socketStatusLabel, socketStatusTone } from "@/features/notifications/socket-status-display";
 import { useBinanceCandleSource, useCandleStream, useCandles, useMarkets } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { MarketSelect, type MarketSelectItem } from "@symmio/ui/components/market-select";

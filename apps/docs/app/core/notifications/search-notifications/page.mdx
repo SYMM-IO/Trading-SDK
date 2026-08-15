@@ -1,67 +1,113 @@
+import { Callout } from "nextra/components";
+
 # searchNotifications
 
-Search stored notifications via the notification service's `POST /api/v1/search` endpoint.
+Search a solver's stored notification history — one interface over both solver kinds, dispatched by the resolved `solverId`:
 
-The filter is a free-form equality match over the stored document: every key is compared exactly, whether it is a top-level field (`app_name`, `address`, `type`, …) or a dotted path into the nested payload (`data.temp_quote_id`, `data.quote_id`, …). Known fields are offered as autocomplete; any other string key is still accepted.
+- **enigma** → the standalone notification service (`POST /api/v1/search`), returning the matched stored documents.
+- **rasa** → the solver's own position-state endpoint (`POST /position-state/{start}/{size}`), returning position-state rows (the rasa protocol's notification history).
 
-The base URL resolves from the chain config's `notifications.searchUrl`, or the per-call `baseUrl` override. The action appends `/api/v1/search`.
+Pass the common filters (`account`, `quoteId`, `tempQuoteId`, `timestampGte`) plus `start` / `size`; the SDK maps them to the resolved solver's native query. The REST counterpart to the live [`watchNotifications`](/core/notifications/watch-notifications) stream.
+
+The result is a **per-kind union** ([`NotificationSearchResult`](/core/notifications/notification-search-result)) — pass a **literal** `solverId` to narrow it to that kind's variant, or branch on the returned `kind` discriminant.
 
 ```ts
 import { searchNotifications } from "@symmio/trading-core";
 
-const { documents, total } = await searchNotifications(config, {
-  filter: { app_name: "Base_Superflow_Stage", "data.temp_quote_id": -172 },
-  size: 50,
-});
-
-for (const doc of documents) {
-  console.log(doc.id, doc.data?.quote_id);
+// Chain default solver → the union; narrow on `kind`.
+const page = await searchNotifications(config, { account: "0xsub…", quoteId: 1024 });
+if (page.kind === "enigma") {
+  for (const doc of page.rows) console.log(doc.id, doc.data?.quote_id);
+} else {
+  for (const row of page.rows) console.log(row.quote_id, row.last_seen_action);
 }
+
+// Literal solverId → the exact variant, no narrowing needed.
+const rasa = await searchNotifications(config, { solverId: "rasa", account: "0xsub…" });
+rasa.rows.forEach((row) => console.log(row.quote_id, row.action_status));
 ```
+
+<Callout type="info">
+  The **filters map per kind.** `tempQuoteId` and the free-form `filter` are **enigma-only**; `timestampGte` is applied
+  by **rasa** (the enigma service does not filter on it). `account` / `quoteId` / `start` / `size` map on both. Passing
+  a filter a kind ignores is harmless — it just does not narrow that kind's query.
+</Callout>
 
 ## Parameters
 
 <Properties>
+  <Property name="solverId" type="SolverId" typeHref="/core/concepts/solvers-and-chains" optional>
+    Target solver — selects the search endpoint and the result variant. Defaults to the chain's default solver. Pass a
+    literal (`"enigma"` / `"rasa"`) to narrow the return type.
+  </Property>
+  <Property name="account" type="Address" optional>
+    Filter: counterparty (SubAccount) address.
+  </Property>
+  <Property name="quoteId" type="number" optional>
+    Filter: on-chain quote id.
+  </Property>
+  <Property name="tempQuoteId" type="number" optional>
+    Filter: pre-chain temporary quote id (negative). **Enigma only.**
+  </Property>
+  <Property name="timestampGte" type="number" optional>
+    Filter: created/emitted at or after this unix timestamp (seconds). **Rasa only.**
+  </Property>
+  <Property name="start" type="number" optional>
+    Zero-based offset of the first row. Defaults to `0`.
+  </Property>
+  <Property name="size" type="number" optional>
+    Maximum rows to return. Defaults to the endpoint default.
+  </Property>
   <Property
     name="filter"
     type="NotificationSearchFilter"
     typeHref="/core/notifications/notification-search-filter"
-    required
+    optional
   >
-    Equality filter sent as the request `query`. Named `filter` (not `query`) so it never collides with the TanStack
-    `query` overrides on the matching query-options factory.
-  </Property>
-  <Property name="size" type="number" optional>
-    Maximum number of results to return (1–100). Defaults to 100 (the backend default).
-  </Property>
-  <Property name="start" type="number" optional>
-    Zero-based offset of the first result. Defaults to 0.
+    Enigma-only advanced equality filter, merged over the mapped common filters. Ignored for rasa. Named `filter` (not
+    `query`) so it never collides with the TanStack `query` overrides on the matching query-options factory.
   </Property>
   <Property name="chainId" type="number" optional>
     Optional chain override; defaults to the config's `defaultChainId`.
   </Property>
   <Property name="baseUrl" type="string" optional>
-    Override the notification-search base URL. Defaults to the chain config's `notifications.searchUrl`.
+    Override the enigma notification-service base URL. Defaults to the resolved solver's `notifications.searchUrl`
+    (enigma only). Ignored for rasa, which reads history from the solver itself.
   </Property>
 </Properties>
 
 ## Returns
 
-<Returns type="NotificationSearchResult" typeHref="/core/notifications/notification-search-result">
+Returns [`NotificationSearchResult`](/core/notifications/notification-search-result) — a per-kind union discriminated on `kind`:
+
+<Returns
+  type="EnigmaNotificationSearchResult | RasaNotificationSearchResult"
+  typeHref="/core/notifications/notification-search-result"
+>
+  <Property name="kind" type='"enigma" | "rasa"'>
+    Discriminant — which solver kind served the page. Narrow on it to reach kind-specific fields.
+  </Property>
   <Property name="total" type="number">
-    Total matches.
+    **Enigma only.** Total documents matching the filter, ignoring pagination.
   </Property>
   <Property name="count" type="number">
-    Number returned in this page.
+    Number of rows returned in this page.
   </Property>
-  <Property name="documents" type="NotificationDocument[]" typeHref="/core/notifications/notification-search-result">
-    The stored notification documents.
+  <Property
+    name="rows"
+    type="NotificationDocument[] | PositionStateResponseSchema[]"
+    typeHref="/core/notifications/notification-search-result"
+  >
+    The matched rows for the requested `start` / `size` window — enigma stored documents or rasa position-state records.
   </Property>
 </Returns>
 
+Passing a literal `solverId` narrows the return to that kind's variant (`searchNotifications(config, { solverId: "rasa" })` → `RasaNotificationSearchResult`); omitting it yields the union.
+
 ## Throws
 
-Throws a `SymmApiError` when the search request fails, and a `SymmError` when no search URL is configured for the chain and no `baseUrl` is passed.
+- `SymmError` `NOTIFICATION_SEARCH_URL_NOT_CONFIGURED` (enigma) when no search URL is configured for the solver and no `baseUrl` is passed.
+- `SymmApiError` when the search request fails.
 
 ## Query options
 
@@ -71,15 +117,17 @@ import { useQuery } from "@tanstack/react-query";
 
 useQuery(
   searchNotificationsQueryOptions(config, {
-    filter: { "data.temp_quote_id": -172 },
+    account: "0xsub…",
+    tempQuoteId: -172,
     query: { refetchInterval: 5_000 },
   }),
 );
 ```
 
-The query is disabled until `filter` has at least one key, so an empty filter never fires a match-all request. `searchNotificationsQueryKey` builds the matching cache key — the `filter` object is folded in, so two searches with different filters cache independently.
+`searchNotificationsQueryKey` builds the matching cache key — the filters (including the `filter` object) are folded in, so two searches with different filters cache independently.
 
 ## Related
 
-- [NotificationSearchFilter](/core/notifications/notification-search-filter) — the filter shape and its known keys.
-- [watchNotifications](/core/notifications/watch-notifications) — live stream over the same channel.
+- [NotificationSearchResult](/core/notifications/notification-search-result) — the per-kind union this returns.
+- [NotificationSearchFilter](/core/notifications/notification-search-filter) — the enigma-only advanced filter shape and its known keys.
+- [watchNotifications](/core/notifications/watch-notifications) — the live stream over the same solver channel.

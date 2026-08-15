@@ -1,0 +1,64 @@
+# getSendQuoteUpnlSig
+
+Fetch a fresh Muon `uPnl_A_withSymbolPrice` attestation, assembled into the contract-ready `SingleUpnlAndPriceSig` that `sendQuoteWithAffiliateAndData` takes as its `upnlSig` argument. Solvers that enforce Muon verification (majors) require a live attestation here; the lowcap InstantLayer flow instead signs a placeholder and delegates the byte range to the solver, so it does not call this. For the raw, un-assembled attestation (all returned fields), use [`getMuonUpnlAWithSymbolPrice`](/core/muon/upnl-a-with-symbol-price) instead. The oracle URLs and the SYMMIO diamond address are resolved from `config`; gateways are tried in order until one succeeds.
+
+The attestation is timestamped, short-lived, **and signed inside the quote calldata** — fetch it immediately before signing, never ahead of time and never from cache.
+
+```ts
+import { getSendQuoteUpnlSig } from "@symmio/trading-core";
+
+const upnlSig = await getSendQuoteUpnlSig(config, {
+  partyA: subAccountAddress,
+  symbolId: 1n,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="partyA" type="Address" required>
+    The Muon `partyA` to attest. For cross-margin solvers this is the sub-account; for lowcap it is the virtual account.
+  </Property>
+  <Property name="symbolId" type="bigint" required>
+    Market symbol id whose price is attested alongside the uPnL.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+Like [`getDeallocateUpnlSig`](/core/muon/deallocate-upnl-sig), this returns a contract-ready struct — **not** a `MuonAttestationBase` subtype. It mirrors the on-chain `SingleUpnlAndPriceSig` tuple field-for-field so it encodes directly as the contract argument. Compare `SingleUpnlSig`, which is the uPnL-only variant with no `price`.
+
+<Returns type="SingleUpnlAndPriceSig">
+  <Property name="reqId" type="Hex">
+    Muon request id (opaque bytes).
+  </Property>
+  <Property name="timestamp" type="bigint">
+    Attestation timestamp (seconds).
+  </Property>
+  <Property name="upnl" type="bigint">
+    Signed unrealized PnL of the party, `int256` (may be negative).
+  </Property>
+  <Property name="price" type="bigint">
+    Attested symbol price as 18-decimal fixed point. Falls back to `0n` when the gateway omits it.
+  </Property>
+  <Property name="gatewaySignature" type="Hex">
+    Muon gateway signature over the request (opaque bytes).
+  </Property>
+  <Property name="sigs" type="SchnorrSign">
+    The Schnorr TSS signature pieces (`signature`, `owner`, `nonce`).
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getSendQuoteUpnlSigQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getSendQuoteUpnlSigQueryOptions(config, { partyA, symbolId }));
+```
+
+`GetSendQuoteUpnlSigOptions` requires both `partyA` and `symbolId`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getSendQuoteUpnlSigQueryKey` builder still accepts partial inputs for cache matching and invalidation. Caching is only appropriate for display — a cached signature is never valid to sign a quote with.

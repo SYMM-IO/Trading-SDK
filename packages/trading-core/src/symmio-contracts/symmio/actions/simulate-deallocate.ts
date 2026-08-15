@@ -1,5 +1,6 @@
 import { encodeFunctionData } from "viem";
 import type { Config } from "../../../core/config";
+import { getDeallocateUpnlSig } from "../../../muon/deallocate-upnl-sig/get-deallocate-upnl-sig";
 import type { Compute, FromParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.5/symmio";
 import {
@@ -27,7 +28,8 @@ export type SimulateDeallocateReturnType = SimulateCallAsSubAccountReturnType;
  * an insolvent result, or a stale `upnlSig`) throws viem's call error.
  *
  * @param config - The SDK config.
- * @param parameters - Subaccount, amount, Muon `upnlSig`, optional `from`, optional chain id.
+ * @param parameters - Subaccount, amount, optional Muon `upnlSig` (fetched
+ *   automatically via {@link getDeallocateUpnlSig} when omitted), optional `from`, optional chain id.
  * @returns viem's `{ request, result }` for the routed `_call`.
  * @throws {SymmError} when the chain is unsupported.
  * @throws Viem's call errors when the routed call would revert.
@@ -36,7 +38,10 @@ export async function simulateDeallocate(
   config: Config,
   parameters: SimulateDeallocateParameters,
 ): Promise<SimulateDeallocateReturnType> {
-  const { chainId, account, amount, upnlSig, from } = parameters;
+  const { chainId, account, amount, from } = parameters;
+
+  const upnlSig =
+    parameters.upnlSig ?? (await getDeallocateUpnlSig(config, { virtualAccount: parameters.account, chainId }));
 
   const data = encodeFunctionData({
     abi: symmioAbi,

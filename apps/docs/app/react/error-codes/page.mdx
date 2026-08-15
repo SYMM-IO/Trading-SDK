@@ -23,19 +23,19 @@ const codes = useSolverErrorCodes();
 Look up a message by code. Composed on top of `useSolverErrorCodes`.
 
 ```ts
-const message = useSolverErrorMessage({ code: 42 });
+const message = useSolverErrorMessage(42);
 ```
+
+The code is **positional** (`useSolverErrorMessage(code?: number | null)`) and the hook returns the resolved message as a `string | undefined` — not a query result.
 
 Common usage — render a solver rejection reason:
 
 ```tsx
 const mutation = useInstantOpenAuto();
-const message = useSolverErrorMessage({
-  code: mutation.error?.responseData?.code,
-});
+const message = useSolverErrorMessage(mutation.error?.responseData?.code);
 
 {
-  mutation.error ? <ErrorNote>{message.data ?? mutation.error.message}</ErrorNote> : null;
+  mutation.error ? <ErrorNote>{message ?? mutation.error.message}</ErrorNote> : null;
 }
 ```
 

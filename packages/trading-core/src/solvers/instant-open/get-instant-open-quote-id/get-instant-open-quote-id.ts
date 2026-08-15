@@ -1,14 +1,14 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../../core/config";
 import { SymmApiError, SymmError } from "../../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../../shared/types/properties";
 import { getInstantQuoteIdTempQuoteId } from "../../types/generated/enigma-solver";
 
 /**
  * Parameters for {@link getInstantOpenQuoteId}.
  */
 export type GetInstantOpenQuoteIdParameters = Compute<
-  ChainIdParameter & {
+  ReadSolverParameter & {
     /** Hedger-local temp id (from a {@link GetInstantOpensReturnType} record). */
     tempQuoteId: number;
     /**
@@ -48,7 +48,7 @@ export async function getInstantOpenQuoteId(
   config: Config,
   parameters: GetInstantOpenQuoteIdParameters,
 ): Promise<GetInstantOpenQuoteIdReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   const baseURL = parameters.baseUrl ?? solver.url;
   try {
     const response = await getInstantQuoteIdTempQuoteId(parameters.tempQuoteId, { baseURL });

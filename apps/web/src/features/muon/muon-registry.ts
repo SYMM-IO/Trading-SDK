@@ -35,6 +35,12 @@ export const MUON_METHODS: readonly MuonMethodMeta[] = [
     action: "getMuonUpnlAWithSymbolPrice",
     group: "partyA",
   },
+  {
+    id: "muon-send-quote-upnl-sig",
+    method: "uPnl_A_withSymbolPrice → SingleUpnlAndPriceSig",
+    action: "getSendQuoteUpnlSig",
+    group: "partyA",
+  },
   { id: "muon-uPnl_B", method: "uPnl_B", action: "getMuonUpnlB", group: "partyAB" },
   { id: "muon-uPnl", method: "uPnl", action: "getMuonUpnl", group: "partyAB" },
   {
@@ -46,4 +52,10 @@ export const MUON_METHODS: readonly MuonMethodMeta[] = [
   { id: "muon-price", method: "price", action: "getMuonPrice", group: "prices" },
   { id: "muon-settle_upnl", method: "settle_upnl", action: "getMuonSettleUpnl", group: "prices" },
   { id: "muon-priceRange", method: "priceRange", action: "getMuonPriceRange", group: "prices" },
+  {
+    id: "muon-force-close-price-sig",
+    method: "priceRange → HighLowPriceSig",
+    action: "getForceClosePriceSig",
+    group: "prices",
+  },
 ];

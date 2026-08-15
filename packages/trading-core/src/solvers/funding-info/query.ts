@@ -51,6 +51,7 @@ export function getFundingInfoQueryOptions(
       configKey: config.getChainConfigKey(options.chainId),
     }),
     enabled: options.query?.enabled ?? true,
-    queryFn: () => getFundingInfo(config, { chainId: options.chainId, symbols: options.symbols }),
+    queryFn: () =>
+      getFundingInfo(config, { chainId: options.chainId, solverId: options.solverId, symbols: options.symbols }),
   };
 }

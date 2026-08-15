@@ -6,6 +6,7 @@ import {
   type ConfigParameter,
   type InstantOpenParameters,
   type InstantOpenReturnType,
+  type SymmioSolverKind,
 } from "@symmio/trading-core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
@@ -19,42 +20,49 @@ import { predicateMatch } from "../utils";
  */
 export type UseInstantOpenParameters = ConfigParameter;
 
-/** Return type of {@link useInstantOpen}. */
-export type UseInstantOpenReturnType = UseMutationResult<
-  InstantOpenReturnType,
+/** Return type of {@link useInstantOpen}, narrowed by the target solver kind `K`. */
+export type UseInstantOpenReturnType<K extends SymmioSolverKind = SymmioSolverKind> = UseMutationResult<
+  InstantOpenReturnType<K>,
   SymmioRequestError,
-  InstantOpenParameters
+  InstantOpenParameters<K>
 >;
 
 /**
- * Open a lowcap instant position via the pure `instantOpen` primitive.
+ * Open an instant position via the pure `instantOpen` primitive.
  *
- * Every input is required — the SDK does no fetching. Use this hook when the
- * caller already has market metadata, locked params, mark price, and fee
- * rates in hand (e.g. pre-fetched via `useMarkets`, `useLockedParams`,
- * `useEnigmaPriceServicePricesByNames`, `useFeeForUser`). For the friendlier
- * "just give me the trade intent" path, use {@link useInstantOpenAuto}.
+ * Every value is already final wei — the SDK does no fetching or math here. Use
+ * this hook when the caller already has market metadata, locked params, mark
+ * price, and fee rates in hand. For the friendlier "just give me the trade
+ * intent" path, use {@link useInstantOpenAuto}.
+ *
+ * The submitted shape depends on the solver: **Enigma (lowcap)** funds a fresh
+ * virtual account, so `margin` is required; **Rasa (majors)** is cross-margin,
+ * ignores `margin`, and fetches a live Muon signature before signing. The result
+ * is discriminated on `kind`. Bind the generic to keep it narrowed for a hook
+ * that always targets one solver.
  *
  * @example
  * ```tsx
- * const { mutateAsync } = useInstantOpen();
- * const { tempQuoteId } = await mutateAsync({
- *   walletAddress, sessionKeyAddress, signTypedData,
- *   marketId: 1, marketName: "BTCUSDT", pricePrecision: 2, quantityPrecision: 3,
- *   positionType: "LONG", userInput: "100", leverage: 5, slippage: 1,
- *   cvaPercent: "2", lfPercent: "1", partyAmmPercent: "3", partyBmmPercent: "3",
- *   markPrice: "50000",
- *   feeRates: { openFee: feeQuery.data.openFee, closeFee: feeQuery.data.closeFee },
+ * const { mutateAsync } = useInstantOpen<"rasa">();
+ * const { tempQuoteId, rfq } = await mutateAsync({
+ *   solverId: "rasa",
+ *   subAccountAddress,
+ *   marketId: 1,
+ *   positionType: PositionType.LONG,
+ *   order: { price, quantity },
+ *   lockedParam: { cva, lf, partyAmm, partyBmm },
  * });
  * ```
  */
-export function useInstantOpen(parameters: UseInstantOpenParameters = {}): UseInstantOpenReturnType {
+export function useInstantOpen<K extends SymmioSolverKind = SymmioSolverKind>(
+  parameters: UseInstantOpenParameters = {},
+): UseInstantOpenReturnType<K> {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const queryClient = useQueryClient();
-  const base = instantOpenMutationOptions(config);
+  const base = instantOpenMutationOptions<K>(config);
 
-  return useMutation<InstantOpenReturnType, SymmioRequestError, InstantOpenParameters>({
+  return useMutation<InstantOpenReturnType<K>, SymmioRequestError, InstantOpenParameters<K>>({
     mutationKey: base.mutationKey,
     mutationFn: async (variables) => {
       try {

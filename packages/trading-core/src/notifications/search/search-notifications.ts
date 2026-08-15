@@ -1,105 +1,57 @@
-import axios, { isAxiosError } from "axios";
+import type { SolverId } from "../../core/chains";
 import type { Config } from "../../core/config";
-import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
-import type { NotificationDocument, NotificationSearchFilter, NotificationSearchResult } from "../types";
+import { searchEnigmaNotifications } from "./adapters/enigma-search";
+import { searchRasaNotifications } from "./adapters/rasa-search";
+import type { SearchNotificationsParameters, SearchNotificationsReturnType } from "./types";
+
+export type {
+  EnigmaNotificationSearchResult,
+  NotificationSearchResult,
+  NotificationSearchResultByKind,
+  RasaNotificationSearchResult,
+  SearchNotificationsParameters,
+  SearchNotificationsReturnType,
+} from "./types";
 
 /**
- * Parameters for {@link searchNotifications}.
- */
-export type SearchNotificationsParameters = Compute<
-  ChainIdParameter & {
-    /**
-     * Equality filter sent as the request `query`; see {@link NotificationSearchFilter}.
-     * Named `filter` (not `query`) so it never collides with the TanStack
-     * `query` overrides on the matching query-options factory.
-     */
-    filter: NotificationSearchFilter;
-    /** Maximum number of results to return (1–100). Defaults to 100 (the backend default). */
-    size?: number;
-    /** Zero-based offset of the first result. Defaults to 0. */
-    start?: number;
-    /**
-     * Override the notification-search base URL. Defaults to the chain config's
-     * `notifications.searchUrl`. The action appends `/api/v1/search`.
-     */
-    baseUrl?: string;
-  }
->;
-
-/** Return type of {@link searchNotifications}. */
-export type SearchNotificationsReturnType = NotificationSearchResult;
-
-/** Raw shape of the notification service's `POST /api/v1/search` response. */
-interface NotificationsSearchResponse {
-  total: number;
-  count: number;
-  data: NotificationDocument[];
-}
-
-/**
- * Search stored notifications via the notification service's
- * `POST /api/v1/search` endpoint.
+ * Search stored notifications for a solver, dispatched by kind:
  *
- * The filter is a free-form equality match over the stored document: every key
- * is compared exactly, whether it is a top-level field (`app_name`, `address`,
- * `type`, …) or a dotted path into the nested payload (`data.temp_quote_id`,
- * `data.quote_id`, …). Known fields are offered as autocomplete; any other
- * string key is still accepted.
+ * - **enigma** → the standalone notification service (`POST /api/v1/search`),
+ *   returning the matched documents.
+ * - **rasa** → the solver's own position-state endpoint
+ *   (`POST /position-state/{start}/{size}`), returning position-state rows.
  *
- * The base URL resolves from the chain config's `notifications.searchUrl`, or
- * the per-call `baseUrl` override.
+ * One interface for both: pass the common filters (`account`, `quoteId`,
+ * `tempQuoteId`, `timestampGte`) plus `start`/`size`; the SDK maps them to the
+ * resolved solver's native query. The result is a per-kind union — pass a
+ * **literal** `solverId` to narrow it to that kind's variant, or narrow on the
+ * returned `kind` discriminant.
  *
  * @param config - The SDK config.
- * @param parameters - `filter`, optional `size` / `start` pagination, optional
- *   `chainId`, optional `baseUrl`.
- * @returns The matched documents plus `total` and `count`.
+ * @param parameters - Solver target, common filters, and pagination.
+ * @returns `{ kind, count, rows, … }` — the enigma or rasa result variant.
+ * @throws {SymmError} `NOTIFICATION_SEARCH_URL_NOT_CONFIGURED` (enigma) when no
+ *   search URL is configured and no `baseUrl` is passed.
  * @throws {SymmApiError} when the search request fails.
- * @throws {SymmError} when no search URL is configured for the chain and no
- *   `baseUrl` is passed.
  *
  * @example
  * ```ts
- * const { documents, total } = await searchNotifications(config, {
- *   filter: { app_name: "Base_Superflow_Stage", "data.temp_quote_id": -172 },
- *   size: 50,
- * });
+ * // chain default solver → the union; narrow on `kind`
+ * const page = await searchNotifications(config, { account, quoteId: 1024 });
+ *
+ * // literal solverId → the exact variant
+ * const rasa = await searchNotifications(config, { solverId: "rasa", account }); // RasaNotificationSearchResult
  * ```
  */
-export async function searchNotifications(
+export async function searchNotifications<K extends SolverId = SolverId>(
   config: Config,
-  parameters: SearchNotificationsParameters,
-): Promise<SearchNotificationsReturnType> {
-  const { notifications } = config.getChainConfig(parameters.chainId);
-  const baseURL = parameters.baseUrl ?? notifications.searchUrl;
-  if (!baseURL) {
-    throw new SymmError(
-      "config",
-      "NOTIFICATION_SEARCH_URL_NOT_CONFIGURED",
-      "No notification search URL is configured for this chain. Set `notifications.searchUrl` in the chain config or pass `baseUrl`.",
-    );
-  }
-
-  try {
-    const response = await axios.post<NotificationsSearchResponse>(
-      "/api/v1/search",
-      { query: parameters.filter, size: parameters.size, start: parameters.start },
-      { baseURL },
-    );
-    const { total, count, data } = response.data;
-    return { total, count, documents: data ?? [] };
-  } catch (err) {
-    if (err instanceof SymmError) throw err;
-
-    if (isAxiosError(err)) {
-      throw SymmApiError.fromAxios(err, { code: "SEARCH_NOTIFICATIONS_FAILED", baseURL });
-    }
-
-    throw new SymmError(
-      "api",
-      "SEARCH_NOTIFICATIONS_FAILED",
-      `Failed to search notifications: ${err instanceof Error ? err.message : String(err)}`,
-      { cause: err instanceof Error ? err : undefined },
-    );
+  parameters: SearchNotificationsParameters<K>,
+): Promise<SearchNotificationsReturnType<K>> {
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
+  switch (solver.id) {
+    case "enigma":
+      return searchEnigmaNotifications(solver, parameters) as Promise<SearchNotificationsReturnType<K>>;
+    case "rasa":
+      return searchRasaNotifications(solver, parameters) as Promise<SearchNotificationsReturnType<K>>;
   }
 }

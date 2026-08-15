@@ -1,11 +1,27 @@
 import type { Address } from "viem";
 import type { Config } from "../../core/config";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import { SubAccountIsolationType } from "../../symmio-contracts/account-layer/types";
 import { querySubgraph } from "../../symmio-subgraph/query-subgraph";
+import type { QuoteEventsForHistoryQuery } from "../../symmio-subgraph/types/generated/analytics/graphql";
 import { closeTypeToEventTypes } from "./close-type";
 import { QuoteEventsForHistoryDocument } from "./query-document";
 import { toQuoteHistoryRow } from "./to-history-row";
 import { QuoteCloseType, type QuoteHistoryRow } from "./types";
+
+/**
+ * The history query to run for a subaccount's isolation type. Cross-margin
+ * (`CUSTOM`) quotes carry **no** `subAccount` on the subgraph, so they must be
+ * filtered by `partyA` (which equals the subaccount address); VA isolation
+ * (`MARKET` / `MARKET_DIRECTION`) filters by the quote's `subAccount`. The `partyA`
+ * variant is derived from the canonical document by swapping its single filter
+ * field, so both share one selection and one result type (the `$subAccounts`
+ * variable simply feeds whichever field is active).
+ */
+function historyDocumentFor(isolationType: SubAccountIsolationType | undefined): string {
+  const document = QuoteEventsForHistoryDocument.toString();
+  return isolationType === SubAccountIsolationType.CUSTOM ? document.replace("subAccount_in", "partyA_in") : document;
+}
 
 /** Default page size when `first` is omitted. */
 const DEFAULT_PAGE_SIZE = 50;
@@ -19,11 +35,18 @@ export type GetQuoteHistoryParameters = Compute<
   ChainIdParameter & {
     /**
      * The accounts whose history to read — a SubAccount and/or its Virtual
-     * Accounts. The query filters on the quote's `subAccount`, so pass every
-     * account that may own the relevant quotes. Required; an empty array reads
-     * nothing.
+     * Accounts. Pass every account that may own the relevant quotes. Required; an
+     * empty array reads nothing. All accounts in one call must share the
+     * `isolationType` below (they select the same filter field).
      */
     subAccounts: readonly Address[];
+    /**
+     * The subaccount's isolation type, which picks the subgraph filter field:
+     * `CUSTOM` (cross-margin) filters by `partyA` because those quotes carry no
+     * `subAccount`; `MARKET` / `MARKET_DIRECTION` (and the default) filter by the
+     * quote's `subAccount`. Omit for VA-isolation reads.
+     */
+    isolationType?: SubAccountIsolationType;
     /** Close-type filter. @default QuoteCloseType.All */
     closeType?: QuoteCloseType;
     /** Page size. @default 50 */
@@ -76,6 +99,7 @@ export async function getQuoteHistory(
   const {
     chainId,
     subAccounts,
+    isolationType,
     closeType = QuoteCloseType.All,
     first = DEFAULT_PAGE_SIZE,
     skip = 0,
@@ -86,9 +110,9 @@ export async function getQuoteHistory(
 
   if (subAccounts.length === 0) return { rows: [] };
 
-  const data = await querySubgraph(config, {
+  const data = await querySubgraph<QuoteEventsForHistoryQuery>(config, {
     chainId,
-    document: QuoteEventsForHistoryDocument,
+    document: historyDocumentFor(isolationType),
     variables: {
       typeIn: closeTypeToEventTypes[closeType] as string[],
       subAccounts: subAccounts.map((account) => account.toLowerCase()),

@@ -6,6 +6,7 @@ export * from "./use-allocate";
 export * from "./use-cancel-registration";
 export * from "./use-create-sub-accounts";
 export * from "./use-deallocate";
+export * from "./use-deallocate-and-initiate-withdraw";
 export * from "./use-delete-sub-account";
 export * from "./use-deposit";
 export * from "./use-deposit-and-allocate";

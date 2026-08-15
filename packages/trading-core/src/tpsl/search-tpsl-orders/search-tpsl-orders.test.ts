@@ -14,7 +14,7 @@ import {
 } from "../types/generated/tpsl-handler";
 import { searchTpSlOrders, TPSL_LIVE_ORDER_STATES } from "./search-tpsl-orders";
 
-const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solver.tpsl!;
+const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solvers.enigma!.tpsl!;
 
 /** A row in the live wire shape — verified against the running handler. */
 function row(overrides: Partial<ConditionalOrderResponseSchema> = {}): ConditionalOrderResponseSchema {

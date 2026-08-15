@@ -10,7 +10,7 @@ import type { TpSlSigningSpec } from "../types";
 import { getTpSlDeleteSigningSpecQueryKey, getTpSlDeleteSigningSpecQueryOptions } from "./delete-query";
 import { getTpSlSigningSpecQueryKey } from "./query";
 
-const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solver.tpsl!;
+const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solvers.enigma!.tpsl!;
 const DELETE_SPEC_PATH = "/api/v5/signing-spec-del";
 /** The exact axios request config the action builds from the chain's tpsl block. */
 const EXPECTED_REQUEST = {
@@ -53,7 +53,7 @@ function overriddenConfig() {
     symmioConfig: {
       [SymmioSupportedChainId.HYPER_EVM]: {
         addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
-        solver: { tpsl: { url: OVERRIDE_URL } },
+        solvers: { enigma: { tpsl: { url: OVERRIDE_URL } } },
       },
     },
   });

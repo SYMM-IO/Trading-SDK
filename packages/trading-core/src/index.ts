@@ -56,6 +56,7 @@ export {
   SubAccountIsolationType,
   addMargin,
   addMarginMutationOptions,
+  calculateAvailableForOrder,
   cancelRegistration,
   cancelRegistrationMutationOptions,
   createSubAccounts,
@@ -130,6 +131,7 @@ export {
   type AddMarginParameters,
   type AddMarginReturnType,
   type AffiliateRegistration,
+  type CalculateAvailableForOrderParameters,
   type CancelRegistrationParameters,
   type CancelRegistrationReturnType,
   type CreateSubAccountsParameters,
@@ -415,6 +417,8 @@ export {
 export {
   WithdrawStatus,
   createClassicWithdrawPart,
+  deallocateAndInitiateWithdraw,
+  deallocateAndInitiateWithdrawMutationOptions,
   finalizeWithdrawRequest,
   finalizeWithdrawRequestMutationOptions,
   getFeeForUser,
@@ -436,12 +440,20 @@ export {
   initiateWithdrawMutationOptions,
   requestCancelWithdraw,
   requestCancelWithdrawMutationOptions,
+  simulateDeallocateAndInitiateWithdraw,
+  simulateDeallocateAndInitiateWithdrawMutationOptions,
   simulateFinalizeWithdrawRequest,
   simulateFinalizeWithdrawRequestMutationOptions,
   simulateInitiateWithdraw,
   simulateInitiateWithdrawMutationOptions,
   simulateRequestCancelWithdraw,
   simulateRequestCancelWithdrawMutationOptions,
+  withdraw,
+  withdrawAuto,
+  withdrawAutoMutationOptions,
+  withdrawMutationOptions,
+  type DeallocateAndInitiateWithdrawParameters,
+  type DeallocateAndInitiateWithdrawReturnType,
   type FeeForUser,
   type FinalizeWithdrawRequestParameters,
   type FinalizeWithdrawRequestReturnType,
@@ -479,14 +491,20 @@ export {
   type InitiateWithdrawReturnType,
   type RequestCancelWithdrawParameters,
   type RequestCancelWithdrawReturnType,
+  type SimulateDeallocateAndInitiateWithdrawParameters,
+  type SimulateDeallocateAndInitiateWithdrawReturnType,
   type SimulateFinalizeWithdrawRequestParameters,
   type SimulateFinalizeWithdrawRequestReturnType,
   type SimulateInitiateWithdrawParameters,
   type SimulateInitiateWithdrawReturnType,
   type SimulateRequestCancelWithdrawParameters,
   type SimulateRequestCancelWithdrawReturnType,
+  type WithdrawAutoParameters,
+  type WithdrawAutoReturnType,
+  type WithdrawParameters,
   type WithdrawReceiverPart,
   type WithdrawRequest,
+  type WithdrawReturnType,
 } from "./symmio-contracts/symmio";
 
 /**
@@ -498,16 +516,21 @@ export {
 export {
   SymmioSupportedChainId,
   getChainConfig,
+  getDefaultSolver,
   isChainSupported,
   listSupportedChains,
+  type SolverId,
   type SymmioChainConfig,
   type SymmioContractAddresses,
+  type SymmioEnigmaNotificationsConfig,
   type SymmioMuonConfig,
   type SymmioNotificationsConfig,
   type SymmioNotificationsProtocol,
   type SymmioPriceServiceConfig,
   type SymmioPriceServiceType,
+  type SymmioRasaNotificationsConfig,
   type SymmioSolverConfig,
+  type SymmioSolverKind,
   type SymmioSubgraphName,
   type SymmioSubgraphUrls,
   type SymmioTpSlConfig,
@@ -585,15 +608,18 @@ export {
 export {
   ActionStatus,
   NotificationType,
+  buildRasaSubscribeMessage,
   buildSubscribeMessage,
   classifyNotification,
   normalizeNotification,
   parseNotificationFrame,
   watchNotifications,
   type BuildSubscribeMessageParameters,
-  type DefilyticsNotificationEnvelope,
+  type EnigmaNotificationEnvelope,
   type Notification,
+  type RawEnigmaPositionNotification,
   type RawPositionNotification,
+  type RawRasaPositionNotification,
   type Unwatch,
   type WatchNotificationsParameters,
 } from "./websocket/notifications";
@@ -602,36 +628,119 @@ export type { SocketStatus } from "./websocket/socket";
 /**
  * Price-service stream
  * --------------------
- * `watchEnigmaPrices` subscribes to the chain's Enigma lowcap price WebSocket
- * and delivers parsed `EnigmaPriceTick` batches. Broadcast-only — no subscribe
- * message; watchers sharing the same `wsUrl` share one socket.
+ * `watchPrices` is the provider-agnostic entry point: it subscribes to whichever
+ * live feed serves the resolved solver and delivers `MarkPriceTick` batches, so
+ * a positions table or trade ticket never branches on provider.
+ *
+ * `watchEnigmaPrices` / `watchBinancePrices` are the provider-specific twins for
+ * callers that already know their source. All are broadcast-only — no subscribe
+ * message; watchers sharing the same `wsUrl` share one socket, and a per-watcher
+ * `names` filter is applied after parsing so filters never starve siblings.
  */
 export {
+  parseBinancePriceFrame,
   parsePriceFrame,
+  watchBinancePrices,
   watchEnigmaPrices,
+  watchPrices,
   type EnigmaPriceTick,
   type RawEnigmaPriceFrame,
+  type WatchBinancePricesParameters,
   type WatchEnigmaPricesParameters,
+  type WatchPricesParameters,
 } from "./websocket/prices";
+/**
+ * Mark prices
+ * -----------
+ * `getMarkPrices` reads a one-shot snapshot from whichever price provider serves
+ * the resolved solver — Enigma's lowcap service, or Binance USD-M Futures for
+ * major markets. The provider is derived from `{ chainId, solverId }` via
+ * `solver.priceService ?? chain.priceService`; it is never selected per call.
+ *
+ * `MarkPriceTick` is a discriminated union on `provider`: read `name` /
+ * `markPrice` without narrowing, and narrow to reach provider-specific fields
+ * such as Binance's `indexPrice`.
+ */
+/**
+ * Binance-only price reads
+ * ------------------------
+ * The provider-specific twins of the Enigma price-service family, for callers
+ * that already know their source. Each throws `UNSUPPORTED_BY_PRICE_SERVICE`
+ * when the resolved provider is not Binance.
+ */
+export {
+  getBinanceHealth,
+  getBinanceHealthQueryKey,
+  getBinanceHealthQueryOptions,
+  getBinancePremiumIndex,
+  getBinancePremiumIndexQueryKey,
+  getBinancePremiumIndexQueryOptions,
+  getBinanceSymbolsInfo,
+  getBinanceSymbolsInfoQueryKey,
+  getBinanceSymbolsInfoQueryOptions,
+} from "./price-service/binance";
+export type {
+  BinanceExchangeSymbol,
+  GetBinanceHealthData,
+  GetBinanceHealthOptions,
+  GetBinanceHealthParameters,
+  GetBinanceHealthQueryKey,
+  GetBinanceHealthQueryOptions,
+  GetBinanceHealthReturnType,
+  GetBinancePremiumIndexData,
+  GetBinancePremiumIndexOptions,
+  GetBinancePremiumIndexParameters,
+  GetBinancePremiumIndexQueryKey,
+  GetBinancePremiumIndexQueryOptions,
+  GetBinancePremiumIndexReturnType,
+  GetBinanceSymbolsInfoData,
+  GetBinanceSymbolsInfoOptions,
+  GetBinanceSymbolsInfoParameters,
+  GetBinanceSymbolsInfoQueryKey,
+  GetBinanceSymbolsInfoQueryOptions,
+  GetBinanceSymbolsInfoReturnType,
+  RawBinanceExchangeInfo,
+  RawBinanceMarkPriceFrame,
+  RawBinancePremiumIndexRow,
+} from "./price-service/binance";
+export { getMarkPrices, getMarkPricesQueryKey, getMarkPricesQueryOptions } from "./price-service/get-mark-prices";
+export type {
+  GetMarkPricesData,
+  GetMarkPricesOptions,
+  GetMarkPricesParameters,
+  GetMarkPricesQueryKey,
+  GetMarkPricesQueryOptions,
+  GetMarkPricesReturnType,
+} from "./price-service/get-mark-prices";
+export type {
+  BinanceMarkPriceTick,
+  EnigmaMarkPriceTick,
+  MarkPriceTick,
+  NormalizedMarkPriceByProvider,
+} from "./price-service/types";
 /**
  * Notifications search
  * --------------------
- * `searchNotifications` queries the notification service's `POST /api/v1/search`
- * endpoint — a free-form equality filter over stored notifications. Keys are
- * matched exactly, whether top-level (`app_name`, …) or a dotted payload path
- * (`data.temp_quote_id`, …); {@link NotificationSearchFilter} types the known
- * keys while still accepting any string key. The REST counterpart to the live
- * `watchNotifications` stream.
+ * `searchNotifications` is one interface over both solver kinds, dispatched by
+ * the resolved `solverId`: an **enigma** solver hits the notification service
+ * (`POST /api/v1/search`, a free-form equality filter over stored documents),
+ * while a **rasa** solver hits its own position-state endpoint. The result is a
+ * per-kind union ({@link NotificationSearchResult}) — pass a literal `solverId`
+ * to narrow it, or branch on the returned `kind`. The REST counterpart to the
+ * live `watchNotifications` stream.
  */
 export {
   searchNotifications,
   searchNotificationsQueryKey,
   searchNotificationsQueryOptions,
+  type EnigmaNotificationSearchResult,
   type NotificationDocument,
   type NotificationQueryValue,
   type NotificationSearchField,
   type NotificationSearchFilter,
   type NotificationSearchResult,
+  type NotificationSearchResultByKind,
+  type RasaNotificationSearchResult,
   type SearchNotificationsData,
   type SearchNotificationsOptions,
   type SearchNotificationsParameters,
@@ -649,13 +758,16 @@ export {
   getMarkets,
   getMarketsQueryKey,
   getMarketsQueryOptions,
+  type EnigmaMarket,
   type GetMarketsData,
   type GetMarketsOptions,
   type GetMarketsParameters,
   type GetMarketsQueryKey,
   type GetMarketsQueryOptions,
   type GetMarketsReturnType,
-  type SymbolContractSymbol,
+  type Market,
+  type NormalizedMarketByKind,
+  type RasaMarket,
 } from "./solvers/markets";
 
 /**
@@ -672,6 +784,7 @@ export {
   getEstimatedPrice,
   getEstimatedPriceQueryKey,
   getEstimatedPriceQueryOptions,
+  supportsEstimatedPrice,
   toEstimatedPrice,
   type CalculatePriceImpactParameters,
   type EstimatedPriceEntry,
@@ -681,6 +794,7 @@ export {
   type GetEstimatedPriceQueryKey,
   type GetEstimatedPriceQueryOptions,
   type GetEstimatedPriceReturnType,
+  type SupportsEstimatedPriceParameters,
 } from "./solvers/estimated-price";
 export {
   getFundingInfo,
@@ -699,6 +813,111 @@ export {
 } from "./solvers/funding-info";
 
 /**
+ * Rasa-only solver reads
+ * ----------------------
+ * Endpoints only the `rasa` solver kind exposes: solver-side balance info,
+ * partyA uPnL, global open interest, symbol price range, position-state and
+ * notification searches, single error-code lookup, whitelist check/add, and
+ * readiness. Each action throws a typed `UNSUPPORTED_BY_SOLVER` `SymmError`
+ * when the resolved solver is not a `rasa` solver.
+ */
+export {
+  addSolverWhitelist,
+  addSolverWhitelistMutationOptions,
+  type AddSolverWhitelistParameters,
+  type AddSolverWhitelistReturnType,
+} from "./solvers/add-solver-whitelist";
+export {
+  checkSolverWhitelist,
+  checkSolverWhitelistQueryKey,
+  checkSolverWhitelistQueryOptions,
+  type CheckSolverWhitelistData,
+  type CheckSolverWhitelistOptions,
+  type CheckSolverWhitelistParameters,
+  type CheckSolverWhitelistQueryKey,
+  type CheckSolverWhitelistQueryOptions,
+  type CheckSolverWhitelistReturnType,
+} from "./solvers/check-solver-whitelist";
+export {
+  getErrorMessage,
+  getErrorMessageQueryKey,
+  getErrorMessageQueryOptions,
+  type GetErrorMessageData,
+  type GetErrorMessageOptions,
+  type GetErrorMessageParameters,
+  type GetErrorMessageQueryKey,
+  type GetErrorMessageQueryOptions,
+  type GetErrorMessageReturnType,
+} from "./solvers/get-error-message";
+export {
+  getPartyAUpnl,
+  getPartyAUpnlQueryKey,
+  getPartyAUpnlQueryOptions,
+  type GetPartyAUpnlData,
+  type GetPartyAUpnlOptions,
+  type GetPartyAUpnlParameters,
+  type GetPartyAUpnlQueryKey,
+  type GetPartyAUpnlQueryOptions,
+  type GetPartyAUpnlReturnType,
+} from "./solvers/get-party-a-upnl";
+export {
+  getSolverBalanceInfo,
+  getSolverBalanceInfoQueryKey,
+  getSolverBalanceInfoQueryOptions,
+  type GetSolverBalanceInfoData,
+  type GetSolverBalanceInfoOptions,
+  type GetSolverBalanceInfoParameters,
+  type GetSolverBalanceInfoQueryKey,
+  type GetSolverBalanceInfoQueryOptions,
+  type GetSolverBalanceInfoReturnType,
+} from "./solvers/get-solver-balance-info";
+export {
+  getSolverOpenInterest,
+  getSolverOpenInterestQueryKey,
+  getSolverOpenInterestQueryOptions,
+  type GetSolverOpenInterestData,
+  type GetSolverOpenInterestOptions,
+  type GetSolverOpenInterestParameters,
+  type GetSolverOpenInterestQueryKey,
+  type GetSolverOpenInterestQueryOptions,
+  type GetSolverOpenInterestReturnType,
+} from "./solvers/get-solver-open-interest";
+export {
+  getSolverPriceRange,
+  getSolverPriceRangeQueryKey,
+  getSolverPriceRangeQueryOptions,
+  type GetSolverPriceRangeData,
+  type GetSolverPriceRangeOptions,
+  type GetSolverPriceRangeParameters,
+  type GetSolverPriceRangeQueryKey,
+  type GetSolverPriceRangeQueryOptions,
+  type GetSolverPriceRangeReturnType,
+} from "./solvers/get-solver-price-range";
+export {
+  getSolverReadiness,
+  getSolverReadinessQueryKey,
+  getSolverReadinessQueryOptions,
+  type GetSolverReadinessData,
+  type GetSolverReadinessOptions,
+  type GetSolverReadinessParameters,
+  type GetSolverReadinessQueryKey,
+  type GetSolverReadinessQueryOptions,
+  type GetSolverReadinessReturnType,
+} from "./solvers/get-solver-readiness";
+export type {
+  BalanceInfoResponseSchema,
+  BothUpnlData,
+  NotificationsSearchResponseSchema,
+  OpenInterestResponseSchema,
+  PositionStateResponseSchema,
+  PositionsStateOutputSchema,
+  ReadinessResponseSchema,
+  StatusResponse,
+  SymbolPriceRangeInputSchema,
+  UpnlData,
+} from "./solvers/types/generated/rasa-solver";
+
+/**
  * Market info (solver)
  * --------------------
  * Per-market 24h trading volume and lifetime value from the chain's solver,
@@ -709,14 +928,18 @@ export {
   getMarketInfo,
   getMarketInfoQueryKey,
   getMarketInfoQueryOptions,
-  toMarketInfo,
+  type EnigmaMarketInfo,
   type GetMarketInfoData,
   type GetMarketInfoOptions,
   type GetMarketInfoParameters,
   type GetMarketInfoQueryKey,
   type GetMarketInfoQueryOptions,
   type GetMarketInfoReturnType,
+  type MarketInfo,
   type MarketVolume,
+  type NormalizedMarketInfoByKind,
+  type RasaMarketInfo,
+  type RasaMarketInfoRow,
 } from "./solvers/market-info";
 
 /**
@@ -756,9 +979,9 @@ export {
   getOpenInterestBySymbolId,
   getOpenInterestBySymbolIdQueryKey,
   getOpenInterestBySymbolIdQueryOptions,
-  toMarketNotionalCap,
   type CheckNotionalCapInputs,
   type CheckNotionalCapResult,
+  type EnigmaNotionalCap,
   type GetNotionalCapAllData,
   type GetNotionalCapAllOptions,
   type GetNotionalCapAllParameters,
@@ -778,6 +1001,8 @@ export {
   type GetOpenInterestBySymbolIdQueryOptions,
   type GetOpenInterestBySymbolIdReturnType,
   type MarketNotionalCap,
+  type NormalizedNotionalCapByKind,
+  type RasaNotionalCap,
 } from "./solvers/notional-cap";
 
 /**
@@ -799,11 +1024,21 @@ export {
 } from "./solvers/error-codes";
 
 /**
+ * Muon attestation structs mirrored from the SYMMIO diamond
+ * ---------------------------------------------------------
+ * The contract-ready tuples the Muon assemblers below produce.
+ * {@link SingleUpnlSig} (uPnL only) is exported with the AccountLayer slice.
+ */
+export type { HighLowPriceSig, SingleUpnlAndPriceSig } from "./symmio-contracts/symmio";
+
+/**
  * Muon oracle service
  * -------------------
- * Fetch the Muon `uPnl_A` attestation `removeMargin` requires, assembled into a
- * contract-ready `SingleUpnlSig`. The gateway is a query-param REST endpoint
- * with no OpenAPI spec, so its request/response types are hand-written.
+ * Fetch the Muon attestations the contracts require, assembled into
+ * contract-ready structs (`SingleUpnlSig` for `removeMargin`,
+ * `SingleUpnlAndPriceSig` for `sendQuote`, `HighLowPriceSig` for force-close).
+ * The gateway is a query-param REST endpoint with no OpenAPI spec, so its
+ * request/response types are hand-written.
  */
 export {
   MUON_APP,
@@ -820,6 +1055,10 @@ export {
   getDeallocateUpnlSig,
   getDeallocateUpnlSigQueryKey,
   getDeallocateUpnlSigQueryOptions,
+  // priceRange assembled into the contract-ready HighLowPriceSig (for force-close)
+  getForceClosePriceSig,
+  getForceClosePriceSigQueryKey,
+  getForceClosePriceSigQueryOptions,
   getMuonPartyAOverview,
   getMuonPartyAOverviewQueryKey,
   getMuonPartyAOverviewQueryOptions,
@@ -848,12 +1087,22 @@ export {
   getMuonUpnlWithSymbolPrice,
   getMuonUpnlWithSymbolPriceQueryKey,
   getMuonUpnlWithSymbolPriceQueryOptions,
+  // uPnl_A_withSymbolPrice assembled into the contract-ready SingleUpnlAndPriceSig (for sendQuote)
+  getSendQuoteUpnlSig,
+  getSendQuoteUpnlSigQueryKey,
+  getSendQuoteUpnlSigQueryOptions,
   type GetDeallocateUpnlSigData,
   type GetDeallocateUpnlSigOptions,
   type GetDeallocateUpnlSigParameters,
   type GetDeallocateUpnlSigQueryKey,
   type GetDeallocateUpnlSigQueryOptions,
   type GetDeallocateUpnlSigReturnType,
+  type GetForceClosePriceSigData,
+  type GetForceClosePriceSigOptions,
+  type GetForceClosePriceSigParameters,
+  type GetForceClosePriceSigQueryKey,
+  type GetForceClosePriceSigQueryOptions,
+  type GetForceClosePriceSigReturnType,
   type GetMuonPartyAOverviewData,
   type GetMuonPartyAOverviewOptions,
   type GetMuonPartyAOverviewParameters,
@@ -908,6 +1157,12 @@ export {
   type GetMuonUpnlWithSymbolPriceQueryKey,
   type GetMuonUpnlWithSymbolPriceQueryOptions,
   type GetMuonUpnlWithSymbolPriceReturnType,
+  type GetSendQuoteUpnlSigData,
+  type GetSendQuoteUpnlSigOptions,
+  type GetSendQuoteUpnlSigParameters,
+  type GetSendQuoteUpnlSigQueryKey,
+  type GetSendQuoteUpnlSigQueryOptions,
+  type GetSendQuoteUpnlSigReturnType,
   type MuonAttestationBase,
   type MuonRawResult,
   type MuonResponse,
@@ -926,7 +1181,9 @@ export type {
   DeepPartial,
   ExactPartial,
   FromParameter,
+  ReadSolverParameter,
   SimulateBeforeWriteParameter,
+  SolverIdParameter,
   WriteContractParameter,
   WriteSolverParameter,
 } from "./shared/types/properties";
@@ -1007,6 +1264,8 @@ export {
   resolveMarket,
   // hedger api
   sendInstantOpen,
+  sendQuoteUpnlSigFlexRange,
+  sendRasaInstantOpen,
   signAndFormatInstantOperation,
   signSignedOperation,
   toWeiBigInt,
@@ -1020,6 +1279,8 @@ export {
   type ComputePlatformFeeRates,
   type EncodeAddMarginToNextVAParameters,
   type EncodeSendQuoteWithAffiliateAndDataParameters,
+  type EnigmaInstantOpen,
+  type EnigmaInstantOpenResult,
   type FlexField,
   // instant-open read types
   type GetInstantOpenQuoteIdData,
@@ -1034,16 +1295,21 @@ export {
   type GetInstantOpensQueryKey,
   type GetInstantOpensQueryOptions,
   type GetInstantOpensReturnType,
+  type InstantOpenConstraintFields,
   type InstantOpenLockedParams,
   type InstantOpenMargin,
   type InstantOpenMarketData,
   type InstantOpenOrder,
   type InstantOpenParameters,
+  type InstantOpenResultByKind,
   type InstantOpenReturnType,
   type InstantOperationPayload,
+  type NormalizedInstantOpenByKind,
   type PendingInstantOpen,
   type PrepareInstantOpenParameters,
   type QuoteConstraintViolation,
+  type RasaInstantOpen,
+  type RasaInstantOpenResult,
   type ReplayAttackHeader,
   type ResolveFeeRatesParameters,
   type ResolveLockedParamsParameters,
@@ -1053,6 +1319,9 @@ export {
   type ResolvedMarket,
   type SendInstantOpenParameters,
   type SendInstantOpenReturnType,
+  type SendQuoteUpnlSigFlexRange,
+  type SendRasaInstantOpenParameters,
+  type SendRasaInstantOpenReturnType,
   type SignAndFormatInstantOperationParameters,
   type SignedOperation,
   type SignedOperationPayload,
@@ -1114,6 +1383,7 @@ export {
   type InstantCloseBulkOrder,
   type InstantCloseBulkParameters,
   type InstantCloseBulkReturnType,
+  type InstantCloseConstraintFields,
   type InstantCloseMarketData,
   type InstantCloseOrder,
   type InstantCloseParameters,
@@ -1152,6 +1422,7 @@ export {
   calculateQuoteLeverage,
   calculateQuotePnl,
   calculateQuoteUpnl,
+  calculateQuoteUpnlWei,
   classifyQuoteNotificationAction,
   fingerprintQuote,
   getSubAccountQuotes,
@@ -1159,6 +1430,7 @@ export {
   getSubAccountQuotesQueryOptions,
   groupQuotes,
   isActivePosition,
+  isCloseFillAction,
   isPendingOrder,
   lifecycleFromQuoteStatus,
   minRemainingQuantityOf,
@@ -1182,6 +1454,7 @@ export {
   type CalculateQuotePnlReturnType,
   type CalculateQuoteUpnlInputs,
   type CalculateQuoteUpnlReturnType,
+  type CalculateQuoteUpnlWeiParameters,
   type GetSubAccountQuotesData,
   type GetSubAccountQuotesOptions,
   type GetSubAccountQuotesParameters,
@@ -1390,6 +1663,7 @@ export {
   setQuoteTpSl,
   setQuoteTpSlMutationOptions,
   signTpSlRequest,
+  supportsTpSl,
   toSignableTpSlMessage,
   validateTpSl,
   type DeleteQuoteTpSlParameters,

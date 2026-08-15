@@ -1,12 +1,12 @@
 import type { Config } from "../../core/config";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { getNotionalCapBySymbolId } from "./get-notional-cap-by-symbol-id";
 
 /**
  * Parameters for {@link getOpenInterestBySymbolId}.
  */
 export type GetOpenInterestBySymbolIdParameters = Compute<
-  ChainIdParameter & {
+  ReadSolverParameter & {
     /** Solver market id (`symbol_id`). */
     symbolId: number;
   }
@@ -53,6 +53,20 @@ export async function getOpenInterestBySymbolId(
   parameters: GetOpenInterestBySymbolIdParameters,
 ): Promise<GetOpenInterestBySymbolIdReturnType> {
   const cap = await getNotionalCapBySymbolId(config, parameters);
+
+  // Rasa exposes only `total_cap` / `used` (no per-side, open-interest, symbol,
+  // or error). Treat `used` as the market's open interest and `total_cap` as its
+  // capacity — the fields Rasa actually publishes.
+  if (cap.kind === "rasa") {
+    return {
+      symbolId: parameters.symbolId,
+      symbol: "",
+      openInterest: cap.used,
+      totalCap: cap.totalCap,
+      error: null,
+    };
+  }
+
   return {
     symbolId: cap.symbolId,
     symbol: cap.symbol,

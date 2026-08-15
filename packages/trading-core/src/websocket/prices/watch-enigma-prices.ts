@@ -1,6 +1,9 @@
+import type { SolverId } from "../../core/chains/types";
 import type { Config } from "../../core/config";
+import { assertPriceServiceProvider } from "../../price-service/assert-price-service-provider";
+import { resolvePriceService } from "../../price-service/resolve-price-service";
 import { SymmError } from "../../shared/errors/symm-error";
-import type { Unwatch } from "../notifications/watch-notifications";
+import type { Unwatch } from "../notifications/types";
 import { createReconnectingSocket } from "../socket/create-reconnecting-socket";
 import { getSocketPool } from "../socket/get-socket-pool";
 import type { SocketStatus } from "../socket/socket-status";
@@ -13,6 +16,10 @@ import type { EnigmaPriceTick } from "./types";
 export interface WatchEnigmaPricesParameters {
   /** Target chain id. Defaults to the config's `defaultChainId`. */
   chainId?: number;
+  /** Solver whose price provider to resolve. Defaults to the chain's default solver. */
+  solverId?: SolverId;
+  /** Deliver ticks only for these market names (case-insensitive). */
+  names?: readonly string[];
   /** Called for every parsed batch of price ticks. */
   onPrices: (prices: EnigmaPriceTick[]) => void;
   /** Called whenever the underlying connection status changes. */
@@ -52,14 +59,25 @@ function toPricesError(event: unknown): SymmError {
  * ```
  */
 export function watchEnigmaPrices(config: Config, parameters: WatchEnigmaPricesParameters): Unwatch {
-  const { chainId, onPrices, onStatusChange, onError } = parameters;
+  const { chainId, solverId, names, onPrices, onStatusChange, onError } = parameters;
 
-  const { priceService } = config.getChainConfig(chainId);
+  const priceService = resolvePriceService(config, { chainId, solverId });
+  /**
+   * Without this guard, pointing an Enigma watcher at a non-Enigma feed is the
+   * only *silent* failure in the price layer: the socket connects, the other
+   * vendor's frames parse to nothing, `parsePriceFrame` returns an empty array,
+   * and the watcher reports `status: "open"` while delivering zero ticks
+   * forever. Fail as a typed config error instead.
+   */
+  assertPriceServiceProvider(priceService, "enigma", "watchEnigmaPrices");
+
   const wsUrl = priceService.wsUrl;
   if (!wsUrl) {
     throw new SymmError("config", "PRICES_WS_NOT_CONFIGURED", "Chain has no `priceService.wsUrl` configured.");
   }
   const webSocketConstructor = config.getWebSocketConstructor();
+
+  const wanted = names?.length ? new Set(names.map((name) => name.trim().toUpperCase())) : undefined;
 
   const key = `${wsUrl}|prices`;
 
@@ -84,8 +102,12 @@ export function watchEnigmaPrices(config: Config, parameters: WatchEnigmaPricesP
           return;
         }
         if (!ticks || ticks.length === 0) return;
+
+        const delivered = wanted ? ticks.filter((tick) => wanted.has(tick.name.toUpperCase())) : ticks;
+        if (delivered.length === 0) return;
+
         try {
-          onPrices(ticks);
+          onPrices(delivered);
         } catch (err) {
           onError?.(toPricesError(err));
         }

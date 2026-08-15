@@ -63,8 +63,11 @@ export function getSolverErrorCodesQueryOptions(
   return {
     staleTime: Infinity,
     ...options.query,
-    queryKey: getSolverErrorCodesQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
+    queryKey: getSolverErrorCodesQueryKey({
+      ...options,
+      configKey: config.getChainConfigKey(options.chainId),
+    }),
     enabled: options.query?.enabled ?? true,
-    queryFn: () => getSolverErrorCodes(config, { chainId: options.chainId }),
+    queryFn: () => getSolverErrorCodes(config, { chainId: options.chainId, solverId: options.solverId }),
   };
 }

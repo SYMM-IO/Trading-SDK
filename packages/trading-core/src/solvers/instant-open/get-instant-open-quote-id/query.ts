@@ -73,6 +73,7 @@ export function getInstantOpenQuoteIdQueryOptions(
     queryFn: () =>
       getInstantOpenQuoteId(config, {
         chainId: options.chainId,
+        solverId: options.solverId,
         tempQuoteId: options.tempQuoteId,
         baseUrl: options.baseUrl,
       }),

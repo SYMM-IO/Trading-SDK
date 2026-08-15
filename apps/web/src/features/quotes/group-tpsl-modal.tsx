@@ -53,10 +53,10 @@ export function GroupTpSlModal({ group, subAccount, from, open, onOpenChange }: 
   const marketNameById = useMarketNameById();
   const marketsQuery = useMarkets();
   const market = useMemo(
-    () => marketsQuery.data?.find((entry) => BigInt(entry.symbol_id ?? -1) === group.by.symbolId),
+    () => marketsQuery.data?.find((entry) => BigInt(entry.symbolId ?? -1) === group.by.symbolId),
     [marketsQuery.data, group.by.symbolId],
   );
-  const pricePrecision = Number(market?.price_precision ?? DEFAULT_PRICE_PRECISION);
+  const pricePrecision = Number(market?.pricePrecision ?? DEFAULT_PRICE_PRECISION);
 
   const price = useEnigmaPriceByMarketId({ marketId: group.by.symbolId ?? 0n });
   /** The feed reports `null` before its first tick; the SDK wants "absent", not "null". */

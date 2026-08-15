@@ -21,12 +21,13 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: "http://127.0.0.1:3001",
     trace: "retain-on-failure",
   },
   webServer: {
     command: "pnpm dev",
-    url: "http://127.0.0.1:3000",
+    /** Must match the port in the `dev` script (`next dev -p 3001`). */
+    url: "http://127.0.0.1:3001",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {

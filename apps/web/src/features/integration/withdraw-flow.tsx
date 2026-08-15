@@ -4,12 +4,15 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { formatUsd } from "@/lib/format";
-import { createClassicWithdrawPart, WithdrawStatus, type WithdrawRequest } from "@symmio/trading-core";
+import { SubAccountIsolationType, WithdrawStatus, type WithdrawRequest } from "@symmio/trading-core";
 import {
+  useAccountBalanceInfo,
+  useAccountBalanceOf,
   useFinalizeWithdrawRequest,
-  useInitiateWithdraw,
   usePendingWithdrawRequests,
   useRequestCancelWithdraw,
+  useSubAccount,
+  useWithdraw,
   useWithdrawableTime,
 } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
@@ -55,7 +58,22 @@ export function WithdrawFlow({
   const [receiver, setReceiver] = useState<string>("");
 
   const withdrawableTime = useWithdrawableTime({ user: subAccount });
-  const initiate = useInitiateWithdraw();
+  const withdraw = useWithdraw({ account: subAccount, chainId });
+
+  // The subaccount's isolation strategy selects the withdraw path: CUSTOM
+  // (cross-margin) funds sit in the ALLOCATED balance and must be deallocated
+  // first; MARKET / MARKET_DIRECTION (VA) funds are already AVAILABLE.
+  const subAccountQuery = useSubAccount({ account: subAccount, query: { staleTime: Infinity } });
+  const isolationType = subAccountQuery.data?.isolationType;
+  const isCustom = isolationType === SubAccountIsolationType.CUSTOM;
+
+  // Balance shown on the withdraw step, per isolation: CUSTOM reads the allocated
+  // balance (funds live in margin); the VA modes read the available balance.
+  const marginBalance = useAccountBalanceInfo({ account: subAccount, query: { enabled: isCustom } });
+  const availableBalance = useAccountBalanceOf({
+    account: subAccount,
+    query: { enabled: isolationType !== undefined && !isCustom },
+  });
 
   const parsed = parseAmount(amount, decimals);
   const validReceiver = isAddress(receiver) ? (receiver as Address) : undefined;
@@ -70,13 +88,10 @@ export function WithdrawFlow({
 
   function onInitiate() {
     if (!subAccount || parsed === undefined || !validReceiver || chainId === undefined) return;
-    const part = createClassicWithdrawPart({
-      id: 0n,
-      amount: parsed,
-      receiver: validReceiver,
-      chainId: BigInt(chainId),
-    });
-    initiate.mutate({ account: subAccount, parts: [part] });
+    // `account`/`chainId` are bound on the hook (which resolves the subaccount's
+    // isolation via useSubAccount); `parsed` is in the collateral token's decimals
+    // and the hook builds the part + scales the deallocate amount.
+    withdraw.mutate({ amount: parsed, receiver: validReceiver });
   }
 
   const steps: FlowStep[] = [
@@ -89,7 +104,7 @@ export function WithdrawFlow({
     {
       label: "Withdraw",
       hint: canInitiate ? "Ready to initiate" : "Amount & receiver",
-      done: initiate.isSuccess,
+      done: withdraw.isSuccess,
     },
   ];
 
@@ -104,7 +119,7 @@ export function WithdrawFlow({
             selected={subAccount}
             onSelect={(account) => {
               onSelectSubAccount(account);
-              initiate.reset();
+              withdraw.reset();
               setStep(2);
             }}
           />
@@ -119,7 +134,7 @@ export function WithdrawFlow({
               value={amount}
               onChange={(next) => {
                 setAmount(next);
-                initiate.reset();
+                withdraw.reset();
               }}
               decimals={decimals}
               invalid={amount.length > 0 && parsed === undefined}
@@ -142,7 +157,7 @@ export function WithdrawFlow({
                 value={receiver}
                 onChange={(e) => {
                   setReceiver(e.target.value);
-                  initiate.reset();
+                  withdraw.reset();
                 }}
                 placeholder="0x…"
                 className="font-mono"
@@ -153,16 +168,20 @@ export function WithdrawFlow({
             <Button
               type="button"
               size="lg"
-              disabled={!canInitiate || initiate.isPending}
+              disabled={!canInitiate || withdraw.isPending}
               onClick={onInitiate}
               data-testid="button-initiate-withdraw"
               className="w-full"
             >
-              {initiate.isPending ? <Spinner className="size-4" /> : null}
+              {withdraw.isPending ? <Spinner className="size-4" /> : null}
               {parsed === undefined ? "Enter an amount" : "Initiate withdrawal"}
             </Button>
 
-            <InitiateStatus initiate={initiate} />
+            <InitiateStatus withdraw={withdraw} />
+
+            {subAccount ? (
+              <SubaccountBalance isCustom={isCustom} margin={marginBalance} available={availableBalance} />
+            ) : null}
 
             {subAccount ? <PendingRequests subAccount={subAccount} decimals={decimals} /> : null}
           </>
@@ -191,28 +210,28 @@ function WithdrawableReadout({ query }: { query: ReturnType<typeof useWithdrawab
   );
 }
 
-function InitiateStatus({ initiate }: { initiate: ReturnType<typeof useInitiateWithdraw> }) {
-  if (initiate.isPending) {
+function InitiateStatus({ withdraw }: { withdraw: ReturnType<typeof useWithdraw> }) {
+  if (withdraw.isPending) {
     return (
       <ResultNote testId="integration-withdraw-status" loading>
         Submitting withdrawal request… confirm in your wallet.
       </ResultNote>
     );
   }
-  if (initiate.error) {
+  if (withdraw.error) {
     return (
-      <ResultError testId="integration-withdraw-status" kind={initiate.error.kind} message={initiate.error.message} />
+      <ResultError testId="integration-withdraw-status" kind={withdraw.error.kind} message={withdraw.error.message} />
     );
   }
-  if (initiate.isSuccess) {
+  if (withdraw.isSuccess) {
     return (
       <ResultSuccess testId="integration-withdraw-status">
         <span className="text-foreground">Withdrawal initiated. Finalize it below after the cooldown.</span>
         <TxReceipt
-          hash={initiate.data.hash}
+          hash={withdraw.data.hash}
           receipt={
-            initiate.data.receipt
-              ? { blockNumber: initiate.data.receipt.blockNumber, status: String(initiate.data.receipt.status) }
+            withdraw.data.receipt
+              ? { blockNumber: withdraw.data.receipt.blockNumber, status: String(withdraw.data.receipt.status) }
               : undefined
           }
         />
@@ -220,6 +239,39 @@ function InitiateStatus({ initiate }: { initiate: ReturnType<typeof useInitiateW
     );
   }
   return null;
+}
+
+/**
+ * The subaccount's current withdrawable balance, per isolation. CUSTOM
+ * (cross-margin) shows the allocated (margin) balance since that is what the
+ * deallocate leg draws from; the VA modes show the available balance. Both values
+ * are 18-decimal and refetch after a withdraw settles.
+ */
+function SubaccountBalance({
+  isCustom,
+  margin,
+  available,
+}: {
+  isCustom: boolean;
+  margin: ReturnType<typeof useAccountBalanceInfo>;
+  available: ReturnType<typeof useAccountBalanceOf>;
+}) {
+  return (
+    <div className="border-border/60 bg-muted/20 flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm">
+      <span className="text-muted-foreground">
+        {isCustom ? "Subaccount margin (allocated) balance" : "Subaccount available balance"}
+      </span>
+      <span className="text-foreground font-mono" data-testid="integration-withdraw-subaccount-balance">
+        {isCustom
+          ? margin.data
+            ? formatUsd(margin.data.allocatedBalance)
+            : "—"
+          : available.data !== undefined
+            ? formatUsd(available.data)
+            : "—"}
+      </span>
+    </div>
+  );
 }
 
 function PendingRequests({ subAccount, decimals }: { subAccount: Address; decimals: number }) {

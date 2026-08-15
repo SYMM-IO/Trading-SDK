@@ -1,7 +1,7 @@
 "use client";
 
-import { calculatePriceImpact, PositionType, type EstimatedPriceEntry } from "@symmio/trading-core";
-import { useEstimatedPrice } from "@symmio/trading-react";
+import { calculatePriceImpact, PositionType, type EstimatedPriceEntry, type SolverId } from "@symmio/trading-core";
+import { supportsEstimatedPrice, useEstimatedPrice, useSymmioConfig } from "@symmio/trading-react";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
 import { formatPercentage, formatWithCommas } from "@symmio/utils";
@@ -9,6 +9,8 @@ import { formatPercentage, formatWithCommas } from "@symmio/utils";
 interface Props {
   /** Solver market id. */
   symbolId: number | undefined;
+  /** Target solver. Defaults to the chain's default solver. */
+  solverId?: SolverId;
   /** Order quantity (decimal string) — the leveraged quantity to open, or the amount to close. */
   quantity: string | undefined;
   positionType: PositionType;
@@ -31,6 +33,7 @@ interface Props {
  */
 export function EstimatedPricePreview({
   symbolId,
+  solverId,
   quantity,
   positionType,
   entry,
@@ -39,9 +42,14 @@ export function EstimatedPricePreview({
   pricePrecision,
   idPrefix,
 }: Props) {
-  const enabled = symbolId !== undefined && Boolean(quantity) && Boolean(requestPrice);
+  const config = useSymmioConfig();
+  // Some solvers (e.g. Base's) have no /estimated-price endpoint — never call it
+  // and render nothing rather than an eternal spinner.
+  const supported = supportsEstimatedPrice(config, { solverId });
+  const enabled = supported && symbolId !== undefined && Boolean(quantity) && Boolean(requestPrice);
   const query = useEstimatedPrice({
     symbolId: symbolId ?? 0,
+    solverId,
     quantity: quantity ?? "",
     positionType,
     entry,
@@ -49,7 +57,8 @@ export function EstimatedPricePreview({
     query: { enabled },
   });
 
-  // Nothing to estimate until the caller has a quantity and a request price.
+  // Hidden while the solver lacks the endpoint, or until the caller has a
+  // quantity and a request price.
   if (!enabled) return null;
 
   const estimated = query.data?.estimatedPrice;

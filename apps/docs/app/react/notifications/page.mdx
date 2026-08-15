@@ -1,10 +1,19 @@
+import { Callout } from "nextra/components";
+
 # Notifications hooks
 
-React hooks over the solver [Notifications](../../core/notifications) channel — live WS stream + REST search over history. Both return normalized `Notification` frames, so UI code consumes them with one shape.
+React hooks over the solver [Notifications](../../core/notifications) channel — a live WS stream plus a REST search over history.
 
 **Read-only page.** `useNotifications` is a WebSocket subscription (still a "read" — no state mutation on-chain); `useSearchNotifications` is a REST-backed read.
 
-TP/SL has its own separate WebSocket over the same underlying Defilytics service (different `appName`). See [TP/SL](../tpsl).
+<Callout type="info">
+  The live stream (`useNotifications`) is protocol-agnostic: the underlying `watchNotifications` picks the resolved
+  solver's notifications protocol (`enigma` on HyperEVM, `rasa` on Base) and the hook API is identical either way. Pass
+  `solverId` to target a non-default solver. See [Solvers & Chains](../../core/concepts/solvers-and-chains) and the
+  [Notifications protocol axis](../../core/notifications).
+</Callout>
+
+TP/SL has its own separate WebSocket over the same underlying `enigma` service (different `appName`). See [TP/SL](../tpsl).
 
 ## Import
 
@@ -33,14 +42,15 @@ const { status } = useNotifications({
 
 ### Parameters
 
-| Name             | Type                         | Default        | Notes                                                     |
-| ---------------- | ---------------------------- | -------------- | --------------------------------------------------------- |
-| `account`        | `Address?`                   | `undefined`    | SubAccount. When unset, the subscription is idle.         |
-| `enabled`        | `boolean?`                   | `true`         | Gate the subscription behind a flag (e.g. `live` toggle). |
-| `chainId`        | `number?`                    | config default | Optional chain override.                                  |
-| `onNotification` | `(n: Notification) => void?` | `undefined`    | Fires per parsed frame.                                   |
-| `onStatusChange` | `(s: SocketStatus) => void?` | `undefined`    | Connection status transitions.                            |
-| `onError`        | `(e: SymmError) => void?`    | `undefined`    | Transport / parse errors; does not stop the subscription. |
+| Name             | Type                         | Default        | Notes                                                          |
+| ---------------- | ---------------------------- | -------------- | -------------------------------------------------------------- |
+| `account`        | `Address?`                   | `undefined`    | SubAccount. When unset, the subscription is idle.              |
+| `enabled`        | `boolean?`                   | `true`         | Gate the subscription behind a flag (e.g. `live` toggle).      |
+| `chainId`        | `number?`                    | config default | Optional chain override.                                       |
+| `solverId`       | `SolverId?`                  | default solver | Target solver — selects the notifications endpoint + protocol. |
+| `onNotification` | `(n: Notification) => void?` | `undefined`    | Fires per parsed frame.                                        |
+| `onStatusChange` | `(s: SocketStatus) => void?` | `undefined`    | Connection status transitions.                                 |
+| `onError`        | `(e: SymmError) => void?`    | `undefined`    | Transport / parse errors; does not stop the subscription.      |
 
 ### Return type
 
@@ -55,40 +65,61 @@ Consumers reading the raw frames typically pass them into `applyNotificationToQu
 
 ### Connection pooling
 
-Every subscriber on the same `(wsUrl, appName, account)` triple shares one connection. See [Core WebSocket](../../core/concepts/websocket).
+Socket sharing follows the chain's protocol. On `enigma`, every subscriber on the same `(wsUrl, channel, account)` triple shares one pooled connection; on `rasa`, every account on the same endpoint multiplexes onto a single hub socket. See [Core `watchNotifications`](../../core/notifications/watch-notifications) and [Core WebSocket](../../core/concepts/websocket).
 
 ## `useSearchNotifications`
 
-REST-backed paginated search for historical frames.
+REST-backed paginated search over a solver's notification history — **one hook over both solver kinds**, dispatched by the resolved `solverId`:
+
+- **enigma** → the standalone notification service (`POST /api/v1/search`), returning stored documents.
+- **rasa** → the solver's own position-state endpoint (`POST /position-state/{start}/{size}`), returning position-state rows.
+
+The result is a **per-kind union** — narrow on `data.kind` to read the variant's rows.
 
 ```ts
 const page = useSearchNotifications({
   account: subAccount,
-  filter: { quoteId: "42" },
-  page: 0,
+  quoteId: 1024,
+  start: 0,
   size: 20,
 });
 
-page.data?.data.map((notification) => ...);
+if (page.data?.kind === "enigma") page.data.rows.map((document) => document.id);
+if (page.data?.kind === "rasa") page.data.rows.map((row) => row.quote_id);
 ```
+
+<Callout type="info">
+  The **filters map per kind.** `tempQuoteId` and the free-form `filter` are enigma-only; `timestampGte` is rasa-only;
+  `account` / `quoteId` / `start` / `size` map on both. Pass a literal `solverId` (or narrow on `data.kind`) to reach a
+  variant's rows without casting.
+</Callout>
 
 ### Parameters
 
-| Name      | Type                        | Notes                                                |
-| --------- | --------------------------- | ---------------------------------------------------- |
-| `account` | `Address`                   | SubAccount to scope the search to.                   |
-| `filter`  | `NotificationSearchFilter?` | `quoteId` / `tempQuoteId` / `lastSeenAction` / date. |
-| `page`    | `number`                    | 0-indexed.                                           |
-| `size`    | `number`                    | Rows per page.                                       |
-| `chainId` | `number?`                   | Optional chain override.                             |
-| `query`   | `object?`                   | TanStack overrides.                                  |
+| Name           | Type                        | Notes                                                                                                               |
+| -------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `solverId`     | `SolverId?`                 | Target solver — selects the search endpoint + result variant. Defaults to chain's.                                  |
+| `account`      | `Address?`                  | Filter: counterparty (SubAccount) address.                                                                          |
+| `quoteId`      | `number?`                   | Filter: on-chain quote id.                                                                                          |
+| `tempQuoteId`  | `number?`                   | Filter: pre-chain temporary quote id (negative). **Enigma only.**                                                   |
+| `timestampGte` | `number?`                   | Filter: at/after this unix timestamp. **Rasa only.**                                                                |
+| `start`        | `number?`                   | Zero-based offset of the first row. Defaults to `0`.                                                                |
+| `size`         | `number?`                   | Max rows. Defaults to the endpoint default.                                                                         |
+| `filter`       | `NotificationSearchFilter?` | Enigma-only advanced equality filter — top-level fields (`app_name`, …) or dotted `data.*` paths. Ignored for rasa. |
+| `baseUrl`      | `string?`                   | Override the enigma notification-service base URL. Ignored for rasa.                                                |
+| `chainId`      | `number?`                   | Optional chain override.                                                                                            |
+| `query`        | `object?`                   | TanStack overrides.                                                                                                 |
 
 ### Return type
 
-`UseQueryResult<{ data: Notification[]; total: number }, SymmioRequestError>`.
+`UseQueryResult<NotificationSearchResult, SymmioRequestError>` — the per-kind union. Narrow on `data.kind`:
+
+- `kind: "enigma"` → `{ total, count, rows }` where `rows` are raw `NotificationDocument`s (their `data` payload is the wire frame), not normalized `Notification`s.
+- `kind: "rasa"` → `{ count, rows }` where `rows` are `PositionStateResponseSchema` records.
 
 ## Related
 
-- [Core Notifications](../../core/notifications) — shape + wire protocol.
+- [Core Notifications](../../core/notifications) — shape + `enigma`/`rasa` wire protocol.
+- [Solvers & Chains](../../core/concepts/solvers-and-chains) — per-solver notifications protocol and the solver registry.
 - [Unified Quotes](../quotes) — `useManagedQuotes` composes `useNotifications` under the hood.
 - [TP/SL](../tpsl) — separate WS + REST for conditional-order reports.

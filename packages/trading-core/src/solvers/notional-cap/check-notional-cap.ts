@@ -38,8 +38,10 @@ export type CheckNotionalCapResult =
 
 /**
  * Reject a candidate open trade when its requested notional exceeds the
- * solver's available liquidity for the chosen side. Pure / framework-agnostic;
- * pair with `validateInstantOpenAgainstMarket` to gate sends.
+ * solver's available liquidity — the chosen side's availability on an Enigma
+ * cap, or the market-wide remaining capacity (`totalCap − used`) on a Rasa cap,
+ * which publishes no per-side split. Pure / framework-agnostic; pair with
+ * `validateInstantOpenAgainstMarket` to gate sends.
  *
  * Returns `ok: true` (no-op) when the solver reported an `error` for the
  * market or when the available value is non-finite — that's a "no cap data" case,
@@ -59,9 +61,16 @@ export type CheckNotionalCapResult =
  */
 export function checkNotionalCap(inputs: CheckNotionalCapInputs): CheckNotionalCapResult {
   const { positionType, notional, cap } = inputs;
-  if (cap.error) return { ok: true };
+  if (cap.kind === "enigma" && cap.error) return { ok: true };
 
-  const available = positionType === PositionType.LONG ? cap.availableToLong : cap.availableToShort;
+  // Rasa reports no per-side availability — only `total_cap` / `used` — so its
+  // check runs against the market-wide remaining capacity instead.
+  const available =
+    cap.kind === "rasa"
+      ? cap.totalCap - cap.used
+      : positionType === PositionType.LONG
+        ? cap.availableToLong
+        : cap.availableToShort;
   if (!Number.isFinite(available)) return { ok: true };
 
   const requested = toDecimal(notional);

@@ -96,6 +96,9 @@ export async function instantCloseBulkAuto(
   return instantCloseBulk(config, {
     chainId: parameters.chainId,
     from: parameters.from,
+    // Forward the resolved solver so a bulk close on a rasa chain hits its own
+    // endpoint instead of falling back to the chain default.
+    solverId: parameters.solverId,
     orders: resolved,
   });
 }

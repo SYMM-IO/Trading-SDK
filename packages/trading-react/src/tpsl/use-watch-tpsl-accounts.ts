@@ -1,6 +1,11 @@
 "use client";
 
-import { watchTpSlNotifications, type ConfigParameter, type TpSlNotification } from "@symmio/trading-core";
+import {
+  supportsTpSl,
+  watchTpSlNotifications,
+  type ConfigParameter,
+  type TpSlNotification,
+} from "@symmio/trading-core";
 import { useEffect, useRef } from "react";
 import type { Address } from "viem";
 import { useSymmioConfig } from "../provider/use-symmio-config";
@@ -38,6 +43,9 @@ export interface UseWatchTpSlAccountsParameters extends ConfigParameter {
 export function useWatchTpSlAccounts(parameters: UseWatchTpSlAccountsParameters): void {
   const { accounts, ids, chainId, enabled = true } = parameters;
   const config = useSymmioConfig(parameters);
+  // The resolved solver may have no TP/SL handler (e.g. a rasa solver on Base);
+  // subscribing would throw `TPSL_NOT_CONFIGURED`. Skip when unsupported.
+  const supported = supportsTpSl(config, { chainId });
 
   /** Read the live id list from inside the long-lived socket handler. */
   const idsRef = useRef(ids);
@@ -47,7 +55,7 @@ export function useWatchTpSlAccounts(parameters: UseWatchTpSlAccountsParameters)
   const accountsKey = accounts.map((account) => account.toLowerCase()).join(",");
 
   useEffect(() => {
-    if (!enabled || accounts.length === 0) return;
+    if (!enabled || !supported || accounts.length === 0) return;
 
     const onNotification = (notification: TpSlNotification) => {
       linkTpSlNotificationIds(notification);
@@ -63,7 +71,7 @@ export function useWatchTpSlAccounts(parameters: UseWatchTpSlAccountsParameters)
     // `accountsKey` stands in for `accounts` — a fresh array with the same
     // members must not tear down and rebuild the subscriptions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountsKey, chainId, config, enabled]);
+  }, [accountsKey, chainId, config, enabled, supported]);
 }
 
 /** Case-insensitive address dedupe that preserves first-seen order. */

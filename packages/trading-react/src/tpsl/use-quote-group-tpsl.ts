@@ -3,6 +3,7 @@
 import {
   getQuoteTpSlQueryOptions,
   summarizeQuoteGroupTpSl,
+  supportsTpSl,
   toGroupTpSlChildren,
   toGroupTpSlOrders,
   type ConfigParameter,
@@ -100,6 +101,10 @@ export function useQuoteGroupTpSl(parameters: UseQuoteGroupTpSlParameters): UseQ
   const config = useSymmioConfig(parameters);
   const defaultChainId = useSymmioChainId();
   const chainId = parameters.chainId ?? defaultChainId;
+  // The resolved solver may have no TP/SL handler (e.g. rasa on Base). When it
+  // doesn't, keep every child query idle and skip the subscription so the hook
+  // returns an empty summary instead of throwing `TPSL_NOT_CONFIGURED`.
+  const supported = supportsTpSl(config, { chainId });
 
   /** One addressable TP/SL id per child: the on-chain id, else the hedger temp id. */
   const ids = useMemo(() => quotes.map(tpslIdOf), [quotes]);
@@ -110,7 +115,7 @@ export function useQuoteGroupTpSl(parameters: UseQuoteGroupTpSlParameters): UseQ
       const options = getQuoteTpSlQueryOptions(config, { chainId, quoteId: id, query: parameters.query });
       return {
         ...options,
-        enabled: (options.enabled ?? true) && enabled,
+        enabled: (options.enabled ?? true) && enabled && supported,
         queryFn: async () => {
           try {
             const rows = await options.queryFn();
@@ -139,7 +144,7 @@ export function useQuoteGroupTpSl(parameters: UseQuoteGroupTpSlParameters): UseQ
     ids,
     chainId,
     config: parameters.config,
-    enabled: live && enabled,
+    enabled: live && enabled && supported,
   });
 
   const records = useTpSlRecords(ids);

@@ -3,15 +3,18 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { formatUsd, WEI_DECIMALS } from "@/lib/format";
+import type { MarketNotionalCap, SolverId } from "@symmio/trading-core";
 import {
   calculateTradeParams,
   isolationTypeForSide,
   PositionType,
+  SubAccountIsolationType,
   SymmioRequestError,
   TpSlPriceType,
+  useAccountBalanceInfo,
   useAccountBalanceOf,
+  useAccountUpnl,
   useAvailableInstantOpenMargin,
-  useEnigmaPriceServicePricesByNames,
   useFeeForUser,
   useInstantOpenWithTpSl,
   UseInstantOpenWithTpSlReturnType,
@@ -19,6 +22,9 @@ import {
   useMarkets,
   useNotionalCapBySymbolId,
   usePredictedNextVirtualAccount,
+  usePriceByName,
+  useSubAccount,
+  useSymmioConfig,
   validateInstantOpenAgainstMarket,
   type QuoteConstraintViolation,
 } from "@symmio/trading-react";
@@ -45,6 +51,8 @@ const TRADE_SIDES = [
 interface Props {
   subAccount: Address;
   sessionKey: Address;
+  /** Target solver. Defaults to the chain's default solver. */
+  solverId?: SolverId;
   /** Test-id namespace; lets two mounts on the same page have distinct selectors. */
   idPrefix?: string;
 }
@@ -56,9 +64,20 @@ interface Props {
  * both the Integration wizard and the Solvers page card; both pass an already-
  * gated `subAccount` and `sessionKey`.
  */
-export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-open" }: Props) {
-  const marketsQuery = useMarkets();
+export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = "instant-open" }: Props) {
+  const config = useSymmioConfig();
+  const resolvedSolverId = solverId ?? config.getDefaultSolverId();
+  // The margin/execution model follows the SUB-ACCOUNT's isolation type, not the
+  // solver: CUSTOM isolation trades cross-margin on the sub-account directly
+  // (no VA, no TP/SL leg, allocated-balance funding); the VA isolations spend
+  // the available balance into per-market Virtual Accounts.
+  const subAccountQuery = useSubAccount({ account: subAccount, query: { staleTime: Infinity } });
+  const isCrossMargin = subAccountQuery.data?.isolationType === SubAccountIsolationType.CUSTOM;
+
+  const marketsQuery = useMarkets({ solverId: resolvedSolverId });
+
   const markets = useMemo(() => getOpenMarkets(marketsQuery.data ?? []), [marketsQuery.data]);
+
   const marketItems = useMemo(() => toMarketSelectItems(markets), [markets]);
 
   const [marketId, setMarketId] = useState("");
@@ -70,7 +89,7 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
   const [slippage, setSlippage] = useState("5");
 
   const selectedMarket = useMemo(
-    () => markets.find((market) => String(market.symbol_id) === marketId),
+    () => markets.find((market) => String(market.symbolId) === marketId),
     [marketId, markets],
   );
   const maxLeverage = getMaxLeverage(selectedMarket);
@@ -89,10 +108,22 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
 
   // Cache-hot pre-fetches; the SDK refetches inside the mutation if these are
   // not yet populated.
-  const balanceQuery = useAccountBalanceOf({ account: subAccount });
-  const priceQuery = useEnigmaPriceServicePricesByNames({
-    names: marketName ? [marketName] : [],
-    query: { enabled: Boolean(marketName), staleTime: 5_000 },
+  // VA isolations spend the sub-account's AVAILABLE balance; CUSTOM isolation
+  // is cross-margin and spends the ALLOCATED balance — each reads its own source.
+  const balanceQuery = useAccountBalanceOf({ account: subAccount, query: { enabled: !isCrossMargin } });
+  const balanceInfoQuery = useAccountBalanceInfo({
+    account: subAccount,
+    live: true,
+    query: { enabled: isCrossMargin },
+  });
+  // Same instance the margin hook composes internally — the query cache and
+  // price socket dedupe it; here it feeds the hover breakdown's uPnL row.
+  const accountUpnl = useAccountUpnl({ account: subAccount, solverId: resolvedSolverId, enabled: isCrossMargin });
+  // Provider-agnostic mark price: Enigma's service on lowcap chains, Binance on majors.
+  const priceQuery = usePriceByName({
+    name: marketName,
+    solverId: resolvedSolverId,
+    enabled: Boolean(marketName),
   });
   const lockedParamsQuery = useLockedParams({
     symbol: marketName ?? "",
@@ -101,11 +132,11 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
   });
   const feeQuery = useFeeForUser({
     user: subAccount,
-    symbolId: selectedMarket?.symbol_id !== undefined ? BigInt(selectedMarket.symbol_id) : 0n,
-    query: { enabled: Boolean(selectedMarket?.symbol_id), staleTime: 30_000 },
+    symbolId: selectedMarket?.symbolId !== undefined ? BigInt(selectedMarket.symbolId) : 0n,
+    query: { enabled: Boolean(selectedMarket?.symbolId), staleTime: 30_000 },
   });
   const notionalCapQuery = useNotionalCapBySymbolId({
-    symbolId: Number(selectedMarket?.symbol_id ?? 0),
+    symbolId: Number(selectedMarket?.symbolId ?? 0),
   });
 
   /**
@@ -143,13 +174,19 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
     return BigInt(Math.round(validSlippage * 1e16));
   }, [validSlippage]);
 
+  // One hook for both margin models: the fee/slippage-shaved available balance
+  // (VA isolations), or the cross-margin availableForOrder (allocated − locked −
+  // pending ± live SDK-computed uPnL) — the hook dispatches on the sub-account's
+  // isolation type.
   const marginInfo = useAvailableInstantOpenMargin({
     account: subAccount,
-    symbolId: selectedMarket?.symbol_id,
+    symbolId: selectedMarket?.symbolId,
     leverage,
     positionType: side === "short" ? PositionType.SHORT : PositionType.LONG,
     slippage: validSlippage ?? 0,
+    solverId: resolvedSolverId,
   });
+
   // Keep the form's "unavailable until slippage is valid" behavior.
   const availableMarginWei = validSlippage === undefined ? undefined : marginInfo.availableMarginWei;
 
@@ -163,7 +200,7 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
   // Compute candidate trade parameters locally so we can both validate against
   // the market and preview the locked-margin breakdown to the user. Returns
   // `null` when any required input is missing or invalid.
-  const cachedMarkPrice = marketName ? priceQuery.data?.[marketName]?.markPrice : undefined;
+  const cachedMarkPrice = priceQuery.markPrice ?? undefined;
   const tradeParams = useMemo(() => {
     if (
       selectedMarket === undefined ||
@@ -181,8 +218,8 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
       userInput: initialMargin,
       inputField: "PRICE",
       leverage,
-      pricePrecision: Number(selectedMarket.price_precision ?? 0),
-      quantityPrecision: Number(selectedMarket.quantity_precision ?? 0),
+      pricePrecision: Number(selectedMarket.pricePrecision ?? 0),
+      quantityPrecision: Number(selectedMarket.quantityPrecision ?? 0),
       cvaPercent: lockedParamsQuery.data.cva,
       lfPercent: lockedParamsQuery.data.lf,
       partyAmmPercent: lockedParamsQuery.data.partyAmm,
@@ -227,12 +264,13 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
   const [slPriceType, setSlPriceType] = useState<TpSlPriceType>("markPrice");
 
   const positionTypeForSide = side === "long" ? PositionType.LONG : PositionType.SHORT;
-  const marketSymbolId = selectedMarket ? BigInt(selectedMarket.symbol_id ?? 0) : undefined;
+  const marketSymbolId = selectedMarket ? BigInt(selectedMarket.symbolId ?? 0) : undefined;
+  // Virtual accounts are an Enigma concept — Rasa opens directly on the sub-account.
   const predictedVaQuery = usePredictedNextVirtualAccount({
     subAccount,
     isolationType: isolationTypeForSide(positionTypeForSide),
     symbolId: marketSymbolId ?? 0n,
-    query: { enabled: marketSymbolId !== undefined && marketSymbolId > 0n },
+    query: { enabled: !isCrossMargin && marketSymbolId !== undefined && marketSymbolId > 0n },
   });
 
   const canSubmit = Boolean(
@@ -257,10 +295,10 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
             from: sessionKey,
             virtualAccount,
             subAccount,
-            symbolId: BigInt(selectedMarket.symbol_id ?? 0),
+            symbolId: BigInt(selectedMarket.symbolId ?? 0),
             positionType: positionTypeForSide,
             quantity: tradeParams.quantity,
-            pricePrecision: Number(selectedMarket.price_precision ?? 4),
+            pricePrecision: Number(selectedMarket.pricePrecision ?? 4),
             tp: hasTp ? { triggerPrice: tpPrice, priceType: tpPriceType } : undefined,
             sl: hasSl ? { triggerPrice: slPrice, priceType: slPriceType } : undefined,
           }
@@ -268,11 +306,12 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
     await mutation.mutateAsync({
       subAccountAddress: subAccount,
       from: sessionKey,
+      solverId: resolvedSolverId,
       market: {
-        id: Number(selectedMarket.symbol_id ?? 0),
+        id: Number(selectedMarket.symbolId ?? 0),
         name: marketName,
-        pricePrecision: Number(selectedMarket.price_precision ?? 0),
-        quantityPrecision: Number(selectedMarket.quantity_precision ?? 0),
+        pricePrecision: Number(selectedMarket.pricePrecision ?? 0),
+        quantityPrecision: Number(selectedMarket.quantityPrecision ?? 0),
       },
       positionType: positionTypeForSide,
       initialMargin,
@@ -296,7 +335,7 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
           placeholder={marketsQuery.isLoading ? "Loading markets…" : "Select a market…"}
           disabled={marketsQuery.isLoading}
           searchPlaceholder="Search symbol, name, or ID…"
-          emptyLabel="No open Enigma markets."
+          emptyLabel="No open markets for this solver."
           emptyResultsLabel="No markets match this search."
           clearLabel="Clear market"
         />
@@ -311,9 +350,27 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
         htmlFor={`${idPrefix}-margin`}
         action={
           <AvailableMarginLabel
-            balanceLoading={balanceQuery.isLoading}
-            balanceError={balanceQuery.error}
-            balanceWei={balanceQuery.data}
+            balanceLoading={isCrossMargin ? balanceInfoQuery.isLoading : balanceQuery.isLoading}
+            balanceError={isCrossMargin ? balanceInfoQuery.error : balanceQuery.error}
+            balanceWei={isCrossMargin ? balanceInfoQuery.data?.allocatedBalance : balanceQuery.data}
+            isCrossMargin={isCrossMargin}
+            showSpendBuffer={isCrossMargin && config.getSolver({ solverId: resolvedSolverId }).id === "rasa"}
+            lockedWei={
+              balanceInfoQuery.data
+                ? balanceInfoQuery.data.lockedCVA +
+                  balanceInfoQuery.data.lockedLF +
+                  balanceInfoQuery.data.lockedPartyAMM
+                : undefined
+            }
+            pendingLockedWei={
+              balanceInfoQuery.data
+                ? balanceInfoQuery.data.pendingLockedCVA +
+                  balanceInfoQuery.data.pendingLockedLF +
+                  balanceInfoQuery.data.pendingLockedPartyAMM +
+                  balanceInfoQuery.data.pendingLockedPartyBMM
+                : undefined
+            }
+            upnlWei={accountUpnl.upnl}
             openFeeRate={feeQuery.data?.openFee}
             closeFeeRate={feeQuery.data?.closeFee}
             leverage={leverage}
@@ -418,17 +475,20 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
         </Field>
       </div>
 
-      <TpSlPresetCard
-        idPrefix={idPrefix}
-        tpPrice={tpPrice}
-        onTpPriceChange={setTpPrice}
-        tpPriceType={tpPriceType}
-        onTpPriceTypeChange={setTpPriceType}
-        slPrice={slPrice}
-        onSlPriceChange={setSlPrice}
-        slPriceType={slPriceType}
-        onSlPriceTypeChange={setSlPriceType}
-      />
+      {/* TP/SL rides the Enigma VA + COH handler — not available on Rasa. */}
+      {!isCrossMargin ? (
+        <TpSlPresetCard
+          idPrefix={idPrefix}
+          tpPrice={tpPrice}
+          onTpPriceChange={setTpPrice}
+          tpPriceType={tpPriceType}
+          onTpPriceTypeChange={setTpPriceType}
+          slPrice={slPrice}
+          onSlPriceChange={setSlPrice}
+          slPriceType={slPriceType}
+          onSlPriceTypeChange={setSlPriceType}
+        />
+      ) : null}
 
       {tradeParams !== null ? (
         <TradePreview
@@ -438,8 +498,8 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
           notionalCap={notionalCapQuery.data}
           notionalCapLoading={notionalCapQuery.isLoading}
           side={side}
-          pricePrecision={Number(selectedMarket?.price_precision ?? 2)}
-          quantityPrecision={Number(selectedMarket?.quantity_precision ?? 4)}
+          pricePrecision={Number(selectedMarket?.pricePrecision ?? 2)}
+          quantityPrecision={Number(selectedMarket?.quantityPrecision ?? 4)}
           idPrefix={idPrefix}
         />
       ) : (
@@ -447,20 +507,21 @@ export function OpenPositionStep({ subAccount, sessionKey, idPrefix = "instant-o
           idPrefix={idPrefix}
           hasMarket={Boolean(selectedMarket)}
           marketsLoading={marketsQuery.isLoading}
-          markPriceLoading={priceQuery.isLoading}
+          markPriceLoading={Boolean(marketName) && cachedMarkPrice === undefined}
           lockedParamsLoading={lockedParamsQuery.isLoading}
           feeLoading={feeQuery.isLoading}
         />
       )}
 
       <EstimatedPricePreview
-        symbolId={selectedMarket ? Number(selectedMarket.symbol_id ?? 0) : undefined}
+        symbolId={selectedMarket ? Number(selectedMarket.symbolId ?? 0) : undefined}
+        solverId={resolvedSolverId}
         quantity={tradeParams?.quantity}
         positionType={positionTypeForSide}
         entry="open"
         requestPrice={tradeParams?.requestedOpenPrice}
         markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
-        pricePrecision={Number(selectedMarket?.price_precision ?? 2)}
+        pricePrecision={Number(selectedMarket?.pricePrecision ?? 2)}
         idPrefix={idPrefix}
       />
 
@@ -549,15 +610,7 @@ function TradePreview({
   markPrice: string | undefined;
   pricePrecision: number;
   quantityPrecision: number;
-  notionalCap:
-    | {
-        availableToLong: number;
-        availableToShort: number;
-        totalCap: number;
-        used: number;
-        error: string | null;
-      }
-    | undefined;
+  notionalCap: MarketNotionalCap | undefined;
   notionalCapLoading: boolean;
   side: TradeSide;
   idPrefix: string;
@@ -650,11 +703,11 @@ function TradePreview({
           <div className="text-muted-foreground flex items-center gap-2 text-xs">
             <Spinner className="size-3" /> <span>Loading…</span>
           </div>
-        ) : notionalCap?.error ? (
+        ) : notionalCap?.kind === "enigma" && notionalCap.error ? (
           <p className="text-destructive text-xs" data-testid={`${idPrefix}-preview-cap-error`}>
             Solver error: {notionalCap.error}
           </p>
-        ) : notionalCap ? (
+        ) : notionalCap?.kind === "enigma" ? (
           <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
             <PreviewRow
               label="Available to long"
@@ -667,6 +720,26 @@ function TradePreview({
               value={formatCompactUsd(notionalCap.availableToShort)}
               bold={side === "short"}
               testId={`${idPrefix}-preview-cap-short`}
+            />
+          </dl>
+        ) : notionalCap ? (
+          // Rasa publishes no per-side split — only the market-wide cap and its usage.
+          <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
+            <PreviewRow
+              label="Used"
+              value={formatCompactUsd(notionalCap.used)}
+              testId={`${idPrefix}-preview-cap-used`}
+            />
+            <PreviewRow
+              label="Total cap"
+              value={formatCompactUsd(notionalCap.totalCap)}
+              testId={`${idPrefix}-preview-cap-total`}
+            />
+            <PreviewRow
+              label="Remaining"
+              value={formatCompactUsd(Math.max(0, notionalCap.totalCap - notionalCap.used))}
+              bold
+              testId={`${idPrefix}-preview-cap-remaining`}
             />
           </dl>
         ) : (
@@ -878,6 +951,11 @@ function AvailableMarginLabel({
   slippageFractionWei,
   availableMarginWei,
   availableDecimal,
+  isCrossMargin,
+  showSpendBuffer,
+  lockedWei,
+  pendingLockedWei,
+  upnlWei,
   idPrefix,
   onMax,
 }: {
@@ -892,6 +970,16 @@ function AvailableMarginLabel({
   slippageFractionWei: bigint | undefined;
   availableMarginWei: bigint | undefined;
   availableDecimal: number | undefined;
+  /** Cross-margin shows the availableForOrder breakdown instead of the fee/slippage shave. */
+  isCrossMargin: boolean;
+  /** Rasa-only: the 10% spend buffer applies, so the breakdown shows it. */
+  showSpendBuffer: boolean;
+  /** Cross-margin: Σ locked legs (`cva + lf + partyAmm`) from the balance snapshot, wei. */
+  lockedWei: bigint | undefined;
+  /** Cross-margin: Σ pending locked legs (all four) from the balance snapshot, wei. */
+  pendingLockedWei: bigint | undefined;
+  /** Cross-margin: the account's live SDK-computed uPnL, signed wei. */
+  upnlWei: bigint | undefined;
   idPrefix: string;
   onMax: () => void;
 }) {
@@ -953,29 +1041,64 @@ function AvailableMarginLabel({
         </span>
       </TooltipTrigger>
       <TooltipContent className="w-64 p-3" sideOffset={6}>
-        <div className="grid gap-1.5 text-xs" data-testid={`${idPrefix}-available-tooltip`}>
-          <BreakdownRow label="Balance" value={balanceWei !== undefined ? formatUsd(balanceWei) : "—"} />
-          {showSlippageRow ? (
+        {isCrossMargin ? (
+          // Cross-margin: availableForOrder over the allocated balance. The 10%
+          // spend buffer is Rasa-specific — other cross-margin solvers spend 100%.
+          <div className="grid gap-1.5 text-xs" data-testid={`${idPrefix}-available-tooltip`}>
+            <BreakdownRow label="Allocated balance" value={balanceWei !== undefined ? formatUsd(balanceWei) : "—"} />
+            <BreakdownRow label="Locked" value={lockedWei !== undefined ? `−${formatUsd(lockedWei)}` : "—"} />
             <BreakdownRow
-              label="Slippage (short)"
-              value={slippageImpactWei !== undefined ? `−${formatUsd(slippageImpactWei)}` : "—"}
-              sub={slippagePct !== undefined ? `${formatSlippagePct(slippagePct)}` : undefined}
+              label="Pending locked"
+              value={pendingLockedWei !== undefined ? `−${formatUsd(pendingLockedWei)}` : "—"}
             />
-          ) : null}
-          <BreakdownRow
-            label={`Open fee (×${leverage})`}
-            value={openFeeImpactWei !== undefined ? `−${formatUsd(openFeeImpactWei)}` : "—"}
-            sub={openFeeRate !== undefined ? formatRatePercent(openFeeRate) : undefined}
-          />
-          <BreakdownRow
-            label={`Close fee (×${leverage})`}
-            value={closeFeeImpactWei !== undefined ? `−${formatUsd(closeFeeImpactWei)}` : "—"}
-            sub={closeFeeRate !== undefined ? formatRatePercent(closeFeeRate) : undefined}
-          />
-          <div className="border-border/60 mt-1 border-t pt-1.5">
-            <BreakdownRow label="Available" value={formatUsd(availableMarginWei)} bold />
+            <BreakdownRow
+              label="uPnL"
+              value={
+                upnlWei !== undefined
+                  ? `${upnlWei >= 0n ? "+" : "−"}${formatUsd(upnlWei >= 0n ? upnlWei : -upnlWei)}`
+                  : "—"
+              }
+              sub="live"
+            />
+            {showSpendBuffer ? (
+              <BreakdownRow
+                label="Rasa buffer (10%)"
+                value={`−${formatUsd(availableMarginWei / 9n)}`}
+                sub="kept unspendable"
+              />
+            ) : null}
+            <div className="border-border/60 mt-1 border-t pt-1.5">
+              <BreakdownRow label="Available" value={formatUsd(availableMarginWei)} bold />
+            </div>
+            <p className="text-muted-foreground text-[0.7rem] leading-snug">
+              available = {showSpendBuffer ? "90% × " : ""}(allocated − locked − pending ± live uPnL)
+            </p>
           </div>
-        </div>
+        ) : (
+          <div className="grid gap-1.5 text-xs" data-testid={`${idPrefix}-available-tooltip`}>
+            <BreakdownRow label="Balance" value={balanceWei !== undefined ? formatUsd(balanceWei) : "—"} />
+            {showSlippageRow ? (
+              <BreakdownRow
+                label="Slippage (short)"
+                value={slippageImpactWei !== undefined ? `−${formatUsd(slippageImpactWei)}` : "—"}
+                sub={slippagePct !== undefined ? `${formatSlippagePct(slippagePct)}` : undefined}
+              />
+            ) : null}
+            <BreakdownRow
+              label={`Open fee (×${leverage})`}
+              value={openFeeImpactWei !== undefined ? `−${formatUsd(openFeeImpactWei)}` : "—"}
+              sub={openFeeRate !== undefined ? formatRatePercent(openFeeRate) : undefined}
+            />
+            <BreakdownRow
+              label={`Close fee (×${leverage})`}
+              value={closeFeeImpactWei !== undefined ? `−${formatUsd(closeFeeImpactWei)}` : "—"}
+              sub={closeFeeRate !== undefined ? formatRatePercent(closeFeeRate) : undefined}
+            />
+            <div className="border-border/60 mt-1 border-t pt-1.5">
+              <BreakdownRow label="Available" value={formatUsd(availableMarginWei)} bold />
+            </div>
+          </div>
+        )}
       </TooltipContent>
     </Tooltip>
   );
@@ -1061,28 +1184,45 @@ function TradeSideControl({
 
 function getOpenMarkets(markets: Market[]): Market[] {
   return markets
-    .filter((market) => market.symbol_id !== undefined && (market.state === 2 || market.state === 3))
+    .filter(
+      // Solvers that omit `state` (e.g. Rasa) are treated as tradable; only an
+      // explicit non-open state filters a market out.
+      (market) => market.kind !== "enigma" || market.state === 2 || market.state === 3,
+    )
     .sort((a, b) => (a.symbol ?? a.name ?? "").localeCompare(b.symbol ?? b.name ?? ""));
 }
 
 function toMarketSelectItems(markets: Market[]): MarketSelectItem[] {
   return markets.map((market) => {
-    const id = String(market.symbol_id);
-    const label = market.symbol ?? market.name ?? `Market ${market.symbol_id}`;
+    const id = String(market.symbolId);
+    const label = market.symbol ?? market.name ?? `Market ${market.symbolId}`;
     const name = market.name && market.name !== label ? market.name : undefined;
+    // Rasa is cross-margin with per-market fees, so its dropdown surfaces the
+    // trading fee; Enigma surfaces max leverage.
+    const detail =
+      market.kind === "rasa"
+        ? `fee ${formatTradingFeePercent(market.tradingFee)}`
+        : `max ${market.maxLeverage ?? "1"}x`;
     return {
       id,
       label,
-      description: name ? `${name} · max ${market.max_leverage ?? "1"}x` : `Max ${market.max_leverage ?? "1"}x`,
+      description: name ? `${name} · ${detail}` : `${detail.charAt(0).toUpperCase()}${detail.slice(1)}`,
       meta: `ID ${id}`,
       searchText: [id, market.symbol, market.name].filter(Boolean).join(" "),
     };
   });
 }
 
+/** Format a decimal-fraction trading fee (e.g. `"0.0006"`) as a percent (`"0.06%"`). */
+function formatTradingFeePercent(fee: string): string {
+  const pct = Number(fee) * 100;
+  if (!Number.isFinite(pct)) return fee;
+  return `${parseFloat(pct.toFixed(4))}%`;
+}
+
 function getMaxLeverage(market?: Market): number {
   if (!market) return 1;
-  const parsed = Math.floor(Number(market.max_leverage ?? 1));
+  const parsed = Math.floor(Number(market.maxLeverage ?? 1));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 

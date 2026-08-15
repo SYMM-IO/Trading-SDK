@@ -11,7 +11,7 @@ import type { DeleteQuoteTpSlParameters } from "./delete-quote-tpsl";
 import { deleteQuoteTpSlMutationOptions } from "./query";
 
 const CHAIN_CONFIG = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
-const TPSL = CHAIN_CONFIG.solver.tpsl!;
+const TPSL = CHAIN_CONFIG.solvers.enigma!.tpsl!;
 
 /** Local fixtures — handler-issued / test-only values, never real on-chain constants. */
 const VIRTUAL_ACCOUNT: Address = "0x2222222222222222222222222222222222222222";

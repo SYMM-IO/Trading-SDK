@@ -2,8 +2,8 @@
 
 import { StatusDot } from "@/components/status-dot";
 import { PartyAField } from "@/features/inspector/party-a-field";
-import { NotificationLogRow } from "@/features/websocket/notification-log-row";
-import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
+import { NotificationLogRow } from "@/features/notifications/notification-log-row";
+import { socketStatusLabel, socketStatusTone } from "@/features/notifications/socket-status-display";
 import type { Notification } from "@symmio/trading-core";
 import { useNotifications } from "@symmio/trading-react";
 import { useRef } from "react";

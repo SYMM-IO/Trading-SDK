@@ -1,3 +1,4 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import * as React from "react";
 
@@ -171,6 +172,17 @@ function MarketSelectList({
   selectedLabel: string;
   onSelect: (item: MarketSelectItem) => void;
 }) {
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollRef.current,
+    // Rows without a description measure ~40px, with one ~56px; the virtualizer
+    // corrects each estimate from the real height via measureElement below.
+    estimateSize: () => 52,
+    overscan: 8,
+    getItemKey: (index) => items[index]?.id ?? index,
+  });
+
   if (items.length === 0) {
     return (
       <div data-testid={`${idPrefix}-list-empty`} className="text-muted-foreground px-3 py-6 text-center text-sm">
@@ -180,41 +192,48 @@ function MarketSelectList({
   }
 
   return (
-    <div className="max-h-64 overflow-y-auto p-1" data-testid={`${idPrefix}-list`}>
-      {items.map((item) => {
-        const selected = item.id === selectedItemId;
-        return (
-          <button
-            key={item.id}
-            type="button"
-            data-testid={`${idPrefix}-select`}
-            aria-pressed={selected}
-            disabled={item.disabled}
-            onClick={() => onSelect(item)}
-            className="hover:bg-muted/60 focus-visible:bg-muted/60 disabled:text-muted-foreground flex w-full items-start justify-between gap-3 rounded-md px-2.5 py-2 text-left transition-colors outline-none disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <span className="min-w-0 flex-1">
-              <span className="text-foreground block truncate text-sm font-medium">{item.label}</span>
-              {item.description ? (
-                <span className="text-muted-foreground mt-0.5 block text-xs leading-5">{item.description}</span>
-              ) : null}
-            </span>
-            <span className="flex shrink-0 items-start gap-2">
-              {item.meta ? (
-                <span className={cn("mt-0.5 font-mono text-xs", selected ? "text-primary" : "text-muted-foreground")}>
-                  {item.meta}
-                </span>
-              ) : null}
-              {selected ? (
-                <span className="text-primary mt-0.5 inline-flex shrink-0 items-center">
-                  <Check className="size-4" aria-hidden />
-                  <span className="sr-only">{selectedLabel}</span>
-                </span>
-              ) : null}
-            </span>
-          </button>
-        );
-      })}
+    <div ref={scrollRef} className="max-h-64 overflow-y-auto p-1" data-testid={`${idPrefix}-list`}>
+      <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const item = items[virtualRow.index];
+          if (!item) return null;
+          const selected = item.id === selectedItemId;
+          return (
+            <button
+              key={virtualRow.key}
+              ref={virtualizer.measureElement}
+              data-index={virtualRow.index}
+              type="button"
+              data-testid={`${idPrefix}-select`}
+              aria-pressed={selected}
+              disabled={item.disabled}
+              onClick={() => onSelect(item)}
+              style={{ transform: `translateY(${virtualRow.start}px)` }}
+              className="hover:bg-muted/60 focus-visible:bg-muted/60 disabled:text-muted-foreground absolute top-0 left-0 flex w-full items-start justify-between gap-3 rounded-md px-2.5 py-2 text-left transition-colors outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="text-foreground block truncate text-sm font-medium">{item.label}</span>
+                {item.description ? (
+                  <span className="text-muted-foreground mt-0.5 block text-xs leading-5">{item.description}</span>
+                ) : null}
+              </span>
+              <span className="flex shrink-0 items-start gap-2">
+                {item.meta ? (
+                  <span className={cn("mt-0.5 font-mono text-xs", selected ? "text-primary" : "text-muted-foreground")}>
+                    {item.meta}
+                  </span>
+                ) : null}
+                {selected ? (
+                  <span className="text-primary mt-0.5 inline-flex shrink-0 items-center">
+                    <Check className="size-4" aria-hidden />
+                    <span className="sr-only">{selectedLabel}</span>
+                  </span>
+                ) : null}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -1,11 +1,11 @@
 import axios, { AxiosError, type AxiosResponse } from "axios";
 import type { PublicClient } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
+import { getDefaultSolver, SymmioSupportedChainId } from "../../core/chains";
 import { createConfig } from "../../core/config";
 import { getTpSlConfig } from "./get-tpsl-config";
 
-const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solver.tpsl!;
+const TPSL = getDefaultSolver(SymmioSupportedChainId.HYPER_EVM).tpsl!;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
   symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },

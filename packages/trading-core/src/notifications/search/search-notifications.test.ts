@@ -7,7 +7,7 @@ import { SymmError } from "../../shared/errors/symm-error";
 import type { NotificationSearchFilter } from "../types";
 import { searchNotifications } from "./search-notifications";
 
-const SEARCH_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).notifications.searchUrl;
+const SEARCH_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solvers.enigma!.notifications.searchUrl;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
   symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
@@ -41,12 +41,17 @@ describe("searchNotifications", () => {
       { query: FILTER, size: 50, start: 10 },
       expect.objectContaining({ baseURL: SEARCH_URL }),
     );
-    expect(result).toEqual({ total: 1, count: 1, documents: RESPONSE.data.data });
+    expect(result).toEqual({ kind: "enigma", total: 1, count: 1, rows: RESPONSE.data.data });
   });
 
   it("returns an empty document list when the service omits `data`", async () => {
     vi.spyOn(axios, "post").mockResolvedValue({ data: { total: 0, count: 0 } });
-    expect(await searchNotifications(config, { filter: FILTER })).toEqual({ total: 0, count: 0, documents: [] });
+    expect(await searchNotifications(config, { filter: FILTER })).toEqual({
+      kind: "enigma",
+      total: 0,
+      count: 0,
+      rows: [],
+    });
   });
 
   it("prefers a per-call `baseUrl` over the chain config", async () => {
@@ -65,7 +70,7 @@ describe("searchNotifications", () => {
       symmioConfig: {
         [SymmioSupportedChainId.HYPER_EVM]: {
           addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
-          notifications: { searchUrl: "" },
+          solvers: { enigma: { notifications: { searchUrl: "" } } },
         },
       },
     });

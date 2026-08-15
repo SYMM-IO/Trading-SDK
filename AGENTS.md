@@ -244,6 +244,8 @@ Report the output. If any fail, fix before declaring complete.
 
 One line each, added from real mistakes. Keep the lesson visible.
 
+> See [`decision.md`](./decision.md) at the repo root for longer-form lessons from past mistakes — read it before adding a flow (invalidate the data it changes) or reading SDK data in React (use the hook, not the cache by hand).
+
 - **Remove unused imports and variables.** After any edit, check that all imports and variables are still used; delete dead code immediately.
 - **Do not make required action inputs optional in SDK query options.** If an action requires inputs, the matching `GetXOptions` / hook parameters must require them too; do not use `ExactPartial` or add `queryFn` missing-input guards unless the API is intentionally optional/disabled-by-missing-input.
 - **Never use the words "Vibe", "VibeCaps", or "vibe" in SDK code or docs.** They are app-product branding and must not leak into framework-neutral packages. Use the project-vocabulary term **lowcap** (or describe the behavior neutrally, e.g. "lowcap trading flow", "lowcap isolation"). This applies to identifiers (function names, constants, types), JSDoc, comments, error codes, and user-facing strings in `packages/*` and `apps/*`. The only place "VibeCaps" may appear is the project vocabulary entry in `AGENTS.md`.

@@ -5,6 +5,7 @@ import {
   type ConfigParameter,
   type GetNotionalCapBySymbolIdOptions,
   type GetNotionalCapBySymbolIdReturnType,
+  type SymmioSolverKind,
 } from "@symmio/trading-core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
@@ -20,18 +21,22 @@ export const DEFAULT_NOTIONAL_CAP_POLLING_MS = 15_000;
  * (symbol id, chain id, TanStack `query` overrides) plus an optional `config`
  * and a `pollingInterval` knob layered on top of `query.refetchInterval`.
  */
-export type UseNotionalCapBySymbolIdParameters = GetNotionalCapBySymbolIdOptions &
-  ConfigParameter & {
-    /**
-     * Polling cadence in milliseconds. Defaults to
-     * {@link DEFAULT_NOTIONAL_CAP_POLLING_MS}. Pass `false` to disable polling
-     * (the query still refetches on focus / reconnect per TanStack defaults).
-     */
-    pollingInterval?: number | false;
-  };
+export type UseNotionalCapBySymbolIdParameters<K extends SymmioSolverKind = SymmioSolverKind> =
+  GetNotionalCapBySymbolIdOptions<K> &
+    ConfigParameter & {
+      /**
+       * Polling cadence in milliseconds. Defaults to
+       * {@link DEFAULT_NOTIONAL_CAP_POLLING_MS}. Pass `false` to disable polling
+       * (the query still refetches on focus / reconnect per TanStack defaults).
+       */
+      pollingInterval?: number | false;
+    };
 
-/** Return type of {@link useNotionalCapBySymbolId}. */
-export type UseNotionalCapBySymbolIdReturnType = UseQueryResult<GetNotionalCapBySymbolIdReturnType, SymmioRequestError>;
+/** Return type of {@link useNotionalCapBySymbolId}, generic over the solver kind `K`. */
+export type UseNotionalCapBySymbolIdReturnType<K extends SymmioSolverKind = SymmioSolverKind> = UseQueryResult<
+  GetNotionalCapBySymbolIdReturnType<K>,
+  SymmioRequestError
+>;
 
 /**
  * Read the solver's available-liquidity figures for a market. Polls every
@@ -43,17 +48,17 @@ export type UseNotionalCapBySymbolIdReturnType = UseQueryResult<GetNotionalCapBy
  *
  * @example
  * ```tsx
- * const { data, isLoading } = useNotionalCapBySymbolId({ symbolId: 132 });
- * console.log(data?.availableToLong);
+ * const { data } = useNotionalCapBySymbolId({ symbolId: 132 });
+ * if (data?.kind === "enigma") console.log(data.availableToLong); // Enigma-only
  * ```
  */
-export function useNotionalCapBySymbolId(
-  parameters: UseNotionalCapBySymbolIdParameters,
-): UseNotionalCapBySymbolIdReturnType {
+export function useNotionalCapBySymbolId<K extends SymmioSolverKind = SymmioSolverKind>(
+  parameters: UseNotionalCapBySymbolIdParameters<K>,
+): UseNotionalCapBySymbolIdReturnType<K> {
   const { pollingInterval = DEFAULT_NOTIONAL_CAP_POLLING_MS, query, ...rest } = parameters;
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
-  const options = getNotionalCapBySymbolIdQueryOptions(config, {
+  const options = getNotionalCapBySymbolIdQueryOptions<K>(config, {
     ...rest,
     chainId: rest.chainId ?? chainId,
     query: {
@@ -71,5 +76,5 @@ export function useNotionalCapBySymbolId(
         throw normalizeSymmError(err);
       }
     },
-  }) as UseNotionalCapBySymbolIdReturnType;
+  }) as UseNotionalCapBySymbolIdReturnType<K>;
 }

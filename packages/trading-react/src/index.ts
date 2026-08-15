@@ -32,6 +32,7 @@ export {
   SymmApiError,
   SymmError,
   VIRTUAL_ACCOUNT_ISOLATION_TYPE,
+  calculateAvailableForOrder,
   calculateAvailableInstantOpenMargin,
   calculateClosePrice,
   calculatePriceImpact,
@@ -42,6 +43,7 @@ export {
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
   isolationTypeForSide,
+  supportsEstimatedPrice,
   validateInstantCloseAgainstMarket,
   validateInstantOpenAgainstMarket,
   type CalculateAvailableInstantOpenMarginParameters,
@@ -61,10 +63,12 @@ export {
   type InstantCloseBulkOrder,
   type InstantCloseBulkParameters,
   type InstantCloseBulkReturnType,
+  type InstantCloseConstraintFields,
   type InstantCloseMarketData,
   type InstantCloseOrder,
   type InstantCloseParameters,
   type InstantCloseReturnType,
+  type InstantOpenConstraintFields,
   type Notification,
   type PrepareInstantCloseParameters,
   type QuoteConstraintViolation,
@@ -117,6 +121,7 @@ export {
   useCancelRegistration,
   useCreateSubAccounts,
   useDeallocate,
+  useDeallocateAndInitiateWithdraw,
   useDeleteSubAccount,
   useDeposit,
   useDepositAndAllocate,
@@ -145,6 +150,8 @@ export {
   type AllocateResult,
   type CancelRegistrationResult,
   type CreateSubAccountsResult,
+  type DeallocateAndInitiateWithdrawResult,
+  type DeallocateAndInitiateWithdrawVariables,
   type DeallocateResult,
   type DeallocateVariables,
   type DeleteSubAccountResult,
@@ -168,6 +175,8 @@ export {
   type UseCancelRegistrationReturnType,
   type UseCreateSubAccountsParameters,
   type UseCreateSubAccountsReturnType,
+  type UseDeallocateAndInitiateWithdrawParameters,
+  type UseDeallocateAndInitiateWithdrawReturnType,
   type UseDeallocateParameters,
   type UseDeallocateReturnType,
   type UseDeleteSubAccountParameters,
@@ -313,6 +322,7 @@ export {
   useSimulateFinalizeWithdrawRequest,
   useSimulateInitiateWithdraw,
   useSimulateRequestCancelWithdraw,
+  useWithdraw,
   useWithdrawRequest,
   useWithdrawableTime,
   type FinalizeWithdrawRequestResult,
@@ -334,10 +344,14 @@ export {
   type UseSimulateInitiateWithdrawReturnType,
   type UseSimulateRequestCancelWithdrawParameters,
   type UseSimulateRequestCancelWithdrawReturnType,
+  type UseWithdrawParameters,
   type UseWithdrawRequestParameters,
   type UseWithdrawRequestReturnType,
+  type UseWithdrawReturnType,
+  type UseWithdrawVariables,
   type UseWithdrawableTimeParameters,
   type UseWithdrawableTimeReturnType,
+  type WithdrawResult,
 } from "./withdraw";
 
 /**
@@ -387,6 +401,7 @@ export {
  */
 export {
   useAccountLiquidationPrice,
+  useAccountUpnl,
   useCloseQuoteGroup,
   useGroupedQuotes,
   useManagedQuotes,
@@ -415,6 +430,8 @@ export {
   type QuotesFundingInputQuote,
   type UseAccountLiquidationPriceParameters,
   type UseAccountLiquidationPriceReturnType,
+  type UseAccountUpnlParameters,
+  type UseAccountUpnlReturnType,
   type UseCloseQuoteGroupParameters,
   type UseCloseQuoteGroupReturnType,
   type UseGroupedQuotesParameters,
@@ -552,9 +569,65 @@ export { useMarketInfo, type UseMarketInfoParameters, type UseMarketInfoReturnTy
 export { useFeeForUser, type UseFeeForUserParameters, type UseFeeForUserReturnType } from "./fees";
 
 /**
- * Price-service hooks
- * -------------------
- * Read Enigma price-service prices, metadata, symbols info, and health.
+ * Mark-price hooks
+ * ----------------
+ * Provider-agnostic prices: each of these resolves whichever price provider
+ * serves the target solver — Enigma's lowcap service, or Binance USD-M Futures
+ * for major markets — so a component never branches on provider.
+ *
+ * `usePrices` subscribes to the live feed and returns both the ergonomic
+ * `prices` map and the full `ticks` map (narrow on `provider` for Binance's
+ * `indexPrice`). `usePriceByName` tracks one market with re-render gating;
+ * `usePriceByMarketId` does the same from a solver `symbol_id`.
+ * `useMarkPrices` is the one-shot REST read.
+ *
+ * Pass `names` on Binance: its stream pushes every listed symbol once per
+ * second, and the filter is what keeps that from churning your component tree.
+ */
+export {
+  useMarkPrices,
+  usePriceByMarketId,
+  usePriceByName,
+  usePrices,
+  type UseMarkPricesParameters,
+  type UseMarkPricesReturnType,
+  type UsePriceByMarketIdParameters,
+  type UsePriceByMarketIdReturnType,
+  type UsePriceByNameParameters,
+  type UsePriceByNameReturnType,
+  type UsePricesParameters,
+  type UsePricesRestFallback,
+  type UsePricesReturnType,
+} from "./price-service";
+
+/**
+ * Binance-only price hooks
+ * ------------------------
+ * Provider-specific twins of the mark-price hooks, for callers that already know
+ * their source. Every tick is a `BinanceMarkPriceTick`, so `indexPrice` and the
+ * Binance funding fields are reachable without narrowing. Each surfaces
+ * `UNSUPPORTED_BY_PRICE_SERVICE` when the target solver is not priced by Binance.
+ */
+export {
+  useBinanceHealth,
+  useBinancePremiumIndex,
+  useBinancePrices,
+  useBinanceSymbolsInfo,
+  type UseBinanceHealthParameters,
+  type UseBinanceHealthReturnType,
+  type UseBinancePremiumIndexParameters,
+  type UseBinancePremiumIndexReturnType,
+  type UseBinancePricesParameters,
+  type UseBinancePricesReturnType,
+  type UseBinanceSymbolsInfoParameters,
+  type UseBinanceSymbolsInfoReturnType,
+} from "./price-service";
+
+/**
+ * Price-service hooks (Enigma-specific)
+ * -------------------------------------
+ * Read Enigma price-service prices, metadata, symbols info, and health. These
+ * throw `UNSUPPORTED_BY_PRICE_SERVICE` on a chain whose provider is not Enigma.
  */
 export {
   useEnigmaPriceByMarketId,
@@ -595,11 +668,13 @@ export { useNotifications, type UseNotificationsParameters, type UseNotification
 /**
  * Notification search hooks
  * -------------------------
- * `useSearchNotifications` queries the notification service's free-form
- * `POST /api/v1/search` endpoint (the REST counterpart to the live
- * `useNotifications` stream). Import the filter/result value types
- * (`NotificationSearchFilter`, `NotificationDocument`, `NotificationSearchResult`)
- * from `@symmio/trading-core`.
+ * `useSearchNotifications` is one hook over both solver kinds, dispatched by
+ * `solverId`: an enigma solver hits the notification service (`POST /api/v1/search`),
+ * a rasa solver hits its own position-state endpoint. It returns a per-kind union
+ * (narrow on `data.kind`) and is the REST counterpart to the live
+ * `useNotifications` stream. Import the filter/result value types
+ * (`NotificationSearchFilter`, `NotificationDocument`, `NotificationSearchResult`,
+ * `EnigmaNotificationSearchResult`, `RasaNotificationSearchResult`) from `@symmio/trading-core`.
  */
 export {
   useSearchNotifications,
@@ -610,11 +685,19 @@ export {
 /**
  * Muon hooks
  * ----------
- * Fetch the Muon uPnL signature `removeMargin` requires, on demand. `useRemoveMargin`
- * already does this internally; use this hook only for the raw signature.
+ * Fetch Muon attestations on demand. The three `…Sig` hooks return
+ * contract-ready structs (`SingleUpnlSig` for `removeMargin`,
+ * `SingleUpnlAndPriceSig` for `sendQuote`, `HighLowPriceSig` for force-close);
+ * the `useMuon…` hooks return the raw normalized attestations. `useRemoveMargin`
+ * and `useInstantOpen` already fetch their signatures internally — reach for
+ * these only when you drive the calldata yourself.
+ *
+ * All of them are **mutations**, not queries: attestations are timestamped and
+ * short-lived, so they must be fetched on an explicit action, not on mount.
  */
 export {
   useDeallocateUpnlSig,
+  useForceClosePriceSig,
   useMuonPartyAOverview,
   useMuonPrice,
   useMuonPriceRange,
@@ -624,8 +707,11 @@ export {
   useMuonUpnlAWithSymbolPrice,
   useMuonUpnlB,
   useMuonUpnlWithSymbolPrice,
+  useSendQuoteUpnlSig,
   type UseDeallocateUpnlSigParameters,
   type UseDeallocateUpnlSigReturnType,
+  type UseForceClosePriceSigParameters,
+  type UseForceClosePriceSigReturnType,
   type UseMuonPartyAOverviewParameters,
   type UseMuonPartyAOverviewReturnType,
   type UseMuonPriceParameters,
@@ -644,6 +730,8 @@ export {
   type UseMuonUpnlReturnType,
   type UseMuonUpnlWithSymbolPriceParameters,
   type UseMuonUpnlWithSymbolPriceReturnType,
+  type UseSendQuoteUpnlSigParameters,
+  type UseSendQuoteUpnlSigReturnType,
 } from "./muon";
 
 /**
@@ -770,6 +858,7 @@ export {
   useTpSlRecords,
   useTpSlSigningSpec,
   useTpSlStore,
+  useTpSlSupported,
   useWatchTpSlNotifications,
   type DeleteQuoteGroupTpSlParameters,
   type DeleteQuoteGroupTpSlStatus,
@@ -802,6 +891,7 @@ export {
   type UseTpSlConfigReturnType,
   type UseTpSlSigningSpecParameters,
   type UseTpSlSigningSpecReturnType,
+  type UseTpSlSupportedParameters,
   type UseWatchTpSlNotificationsParameters,
   type UseWatchTpSlNotificationsReturnType,
 } from "./tpsl";
@@ -828,3 +918,38 @@ export {
   type UseCandlesReturnType,
   type UseTradingViewDatafeedParameters,
 } from "./candles";
+
+/* Rasa-only solver hooks
+ * ----------------------
+ * Hooks over the endpoints only the `rasa` solver kind exposes: solver-side
+ * balance info, partyA uPnL, global open interest, symbol price range,
+ * single error-code lookup, whitelist check/add, and readiness. Each surfaces a
+ * typed `UNSUPPORTED_BY_SOLVER` error when the resolved solver is not a `rasa`
+ * solver. (Notification history search is the unified `useSearchNotifications`.)
+ */
+export {
+  useAddSolverWhitelist,
+  useCheckSolverWhitelist,
+  useErrorMessage,
+  usePartyAUpnl,
+  useSolverBalanceInfo,
+  useSolverOpenInterest,
+  useSolverPriceRange,
+  useSolverReadiness,
+  type UseAddSolverWhitelistParameters,
+  type UseAddSolverWhitelistReturnType,
+  type UseCheckSolverWhitelistParameters,
+  type UseCheckSolverWhitelistReturnType,
+  type UseErrorMessageParameters,
+  type UseErrorMessageReturnType,
+  type UsePartyAUpnlParameters,
+  type UsePartyAUpnlReturnType,
+  type UseSolverBalanceInfoParameters,
+  type UseSolverBalanceInfoReturnType,
+  type UseSolverOpenInterestParameters,
+  type UseSolverOpenInterestReturnType,
+  type UseSolverPriceRangeParameters,
+  type UseSolverPriceRangeReturnType,
+  type UseSolverReadinessParameters,
+  type UseSolverReadinessReturnType,
+} from "./rasa-solver";

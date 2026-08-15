@@ -99,11 +99,11 @@ export const STATIC_ENTRIES: readonly SearchEntry[] = [
 /** Solver markets, fetched lazily when the palette opens. Routes to the Solvers page. */
 export function marketEntries(markets: readonly Market[]): SearchEntry[] {
   return markets.map((market) => ({
-    id: `market:${market.symbol_id}`,
+    id: `market:${market.symbolId}`,
     type: "market",
-    title: market.symbol ?? String(market.symbol_id),
-    subtitle: market.name ?? undefined,
-    keywords: [String(market.symbol_id)],
+    title: market.symbol || String(market.symbolId),
+    subtitle: market.name || undefined,
+    keywords: [String(market.symbolId)],
     href: "/solvers",
   }));
 }

@@ -22,8 +22,9 @@ const cards: Omit<LinkCardProps, "index">[] = [
   {
     href: "/price-service",
     eyebrow: "Price Service",
-    title: "Enigma prices",
-    description: "Read mark prices, token metadata, symbol listings, and service health from the Enigma price service.",
+    title: "Mark prices",
+    description:
+      "Stream and read mark prices from the Enigma or Binance provider, plus Enigma metadata, symbols and health.",
     icon: <PriceIcon />,
   },
   {

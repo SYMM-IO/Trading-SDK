@@ -1,6 +1,6 @@
 import type { PublicClient } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
+import { getDefaultSolver, SymmioSupportedChainId } from "../../core/chains";
 import { createConfig } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import { PositionType } from "../../symmio-contracts/symmio/types";
@@ -14,7 +14,7 @@ vi.mock("../types/generated/enigma-solver", async (importOriginal) => {
 
 import { getEstimatedPrice } from "./get-estimated-price";
 
-const SOLVER_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solver.url;
+const SOLVER_URL = getDefaultSolver(SymmioSupportedChainId.HYPER_EVM).url;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
   symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },

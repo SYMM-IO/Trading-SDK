@@ -37,11 +37,46 @@ export interface SymmioSubgraphUrls {
 export type SymmioSubgraphName = keyof SymmioSubgraphUrls;
 
 /**
+ * A solver's id within a chain config — its registry key. Equal to its
+ * {@link SymmioSolverKind}: each chain registers at most one solver per kind, so
+ * the id *is* the kind (`"enigma" | "rasa"`). Closed for that reason.
+ */
+export type SolverId = SymmioSolverKind;
+
+/**
+ * The solver kinds the SDK can actually serve — one generated client and
+ * behavior set per entry. Single source of truth: {@link SymmioSolverKind} is
+ * derived from this list, and `createConfig` validates every configured solver
+ * against it (`assertSupportedSolver` in `solver-support.ts`). To add a kind,
+ * append it here and ship its generated client + dispatch in the same change.
+ *
+ * @internal
+ */
+export const SUPPORTED_SOLVER_KINDS = ["enigma", "rasa"] as const;
+
+/**
+ * Schema family a solver's REST API speaks — the discriminant used to select a
+ * generated client. Closed (derived from {@link SUPPORTED_SOLVER_KINDS}): the
+ * SDK ships one client per kind, so dispatch must be exhaustive.
+ *
+ * There is deliberately no version axis: each SDK release supports exactly one
+ * API generation per kind. When a solver ships a new API generation, the SDK
+ * regenerates that kind's client in a new release — consumers pick the
+ * generation by pinning the SDK version, not through config.
+ */
+export type SymmioSolverKind = (typeof SUPPORTED_SOLVER_KINDS)[number];
+
+/**
  * Solver / hedger configuration for a SYMMIO chain deployment.
  *
  * In this SDK a "solver" is the same actor that fronts the lowcap hedger REST
  * API (`/instant_trade/instant_open`, `/contract-symbols`, …) and acts as
  * `partyB` on-chain. Its `url` is the API base URL, its `address` is partyB.
+ *
+ * Solvers live under {@link SymmioChainConfig.solvers}, keyed by
+ * {@link SolverId} — the key is the solver's id, which is also its kind, so the
+ * kind is not repeated here. `config.getSolver({ chainId, solverId })` returns a
+ * {@link SymmioResolvedSolver} (this config plus its resolved `id`).
  */
 export interface SymmioSolverConfig {
   /** Human-readable solver name */
@@ -52,6 +87,33 @@ export interface SymmioSolverConfig {
   url: string;
   /** Optional TP/SL handler — solver supports conditional orders only when set. */
   tpsl?: SymmioTpSlConfig;
+  /**
+   * Price source for **this solver's** markets. Falls back to the chain's
+   * {@link SymmioChainConfig.priceService} when omitted, so set it only where a
+   * solver diverges from the chain default — do not duplicate the default.
+   *
+   * Needed because a chain may register several solvers that price differently:
+   * a lowcap solver reads its own price service while a majors solver reads
+   * Binance. A single chain-level value cannot be right for both.
+   */
+  priceService?: SymmioPriceServiceConfig;
+  /**
+   * Notifications endpoint for **this solver's** position/quote state stream and
+   * history search. Required per solver: notifications are inherently
+   * solver-specific — the enigma `channel` and the rasa position-state URL are
+   * the solver's own — so there is no chain-level default to inherit.
+   */
+  notifications: SymmioNotificationsConfig;
+}
+
+/**
+ * A {@link SymmioSolverConfig} resolved from the registry, with its `id`
+ * attached. The `id` is the solver's kind (`"enigma" | "rasa"`) and drives
+ * per-kind dispatch inside solver actions. Returned by `config.getSolver`.
+ */
+export interface SymmioResolvedSolver extends SymmioSolverConfig {
+  /** The resolved solver id — equal to its kind. */
+  id: SolverId;
 }
 
 /**
@@ -65,7 +127,7 @@ export interface SymmioSolverConfig {
 export interface SymmioTpSlConfig {
   /** Handler REST root URL (no `/api/v5/` suffix — orval-generated paths add it). */
   url: string;
-  /** Handler WebSocket URL — defilytics-protocol notifications scoped by `appName`. */
+  /** Handler WebSocket URL — enigma-protocol notifications scoped by `appName`. */
   wsUrl: string;
   /** `App-Name` header value, e.g. `Hyper-EVM_COH-Low-Cap_Production`. */
   appName: string;
@@ -74,44 +136,72 @@ export interface SymmioTpSlConfig {
 }
 
 /**
- * Supported price-service providers.
+ * The price providers the SDK ships a client for. Closed: it drives exhaustive
+ * dispatch in `getMarkPrices` / `watchPrices`, and `createConfig` validates every
+ * configured price service against it (`assertSupportedPriceServiceType` in
+ * `price-service-support.ts`). To add a provider, append it here and ship its
+ * adapter + dispatch in the same change.
+ *
+ * @internal
  */
-export type SymmioPriceServiceType = "enigma";
+export const SUPPORTED_PRICE_SERVICE_TYPES = ["enigma", "binance"] as const;
+
+/**
+ * Supported price-service providers.
+ *
+ * A **second, independent axis** from {@link SymmioSolverKind}: a Rasa solver is
+ * priced off Binance today, and nothing in the type system ties the two
+ * together. The provider is *derived* from `{ chainId, solverId }` via
+ * `solver.priceService ?? chain.priceService` — never selected per call.
+ */
+export type SymmioPriceServiceType = (typeof SUPPORTED_PRICE_SERVICE_TYPES)[number];
 
 /**
  * Price-service configuration for a SYMMIO chain deployment.
+ *
+ * Both URLs stay **required, including for Binance**. Binance's endpoints are
+ * public constants, but keeping them in config is the geo-restriction escape
+ * hatch: an integrator whose users are in a blocked region repoints both at
+ * their own proxy with no SDK change.
  */
 export interface SymmioPriceServiceConfig {
-  /** Price-service provider type */
+  /** Price-service provider type. Selects which client the SDK uses. */
   type: SymmioPriceServiceType;
-  /** Price-service API base URL */
+  /**
+   * REST host root, no trailing slash — the client appends the provider's path.
+   * `enigma`: `https://lowcap-price.enigma.bz` (+ `/api/v1/prices/names`).
+   * `binance`: `https://fapi.binance.com` (+ `/fapi/v1/premiumIndex`).
+   */
   url: string;
-  /** WebSocket URL for live mark-price broadcasts. */
+  /**
+   * **Full** WebSocket endpoint — the exact URL the SDK dials, identically for
+   * every provider, so nothing downstream needs to know which provider it holds.
+   * `enigma`: `wss://lowcap-price.enigma.bz/ws`.
+   * `binance`: `wss://fstream.binance.com/market/ws/!markPrice@arr@1s`.
+   */
   wsUrl: string;
 }
 
 /**
- * Wire protocol a notifications endpoint speaks.
+ * Wire protocol a notifications endpoint speaks. Closed: it drives exhaustive
+ * dispatch in `watchNotifications` / `parseNotificationFrame`; to add a
+ * protocol, append it here and ship its subscribe + parse path in the same
+ * change.
  *
- * - `defilytics` — the lowcap solver endpoint (`…/ws/v1/subscribe`). Subscribes
+ * - `enigma` — the lowcap solver endpoint (`…/ws/v1/subscribe`). Subscribes
  *   with a `channel_patterns` frame and wraps each push as `{ data, address }`.
+ * - `rasa` — the Rasa position-state endpoint (`…/ws/position-state-ws3`).
+ *   Subscribes with an `{ address: [...] }` frame (one socket can carry many
+ *   SubAccounts) and pushes bare notification frames, no envelope.
  */
-export type SymmioNotificationsProtocol = "defilytics";
+export type SymmioNotificationsProtocol = "enigma" | "rasa";
 
 /**
- * Notifications WebSocket configuration for a SYMMIO chain deployment.
- *
- * The notifications endpoint streams position/quote state transitions (instant
- * open/close confirmations, fills, cancels, liquidations) for a SubAccount. It
- * is a push channel, not a REST endpoint — `url` is a `ws://`/`wss://` URL.
+ * Fields every notifications endpoint shares, regardless of wire protocol.
  */
-export interface SymmioNotificationsConfig {
+interface SymmioNotificationsConfigBase {
   /** Notifications WebSocket URL (`wss://…`). */
   url: string;
-  /** Channel / `app_name` the subscribe frame targets on this endpoint. */
-  channel: string;
-  /** Wire protocol the endpoint speaks. */
-  protocol: SymmioNotificationsProtocol;
   /**
    * Base URL of the notification REST service that backs `searchNotifications`
    * (`POST /api/v1/search`), e.g. `https://notification.rasa.capital/notification`.
@@ -119,6 +209,37 @@ export interface SymmioNotificationsConfig {
    */
   searchUrl?: string;
 }
+
+/**
+ * Notifications endpoint speaking the `enigma` protocol (the lowcap
+ * solver's channel-scoped stream).
+ */
+export interface SymmioEnigmaNotificationsConfig extends SymmioNotificationsConfigBase {
+  /** Wire protocol the endpoint speaks. */
+  protocol: "enigma";
+  /** Channel / `app_name` the subscribe frame targets on this endpoint. */
+  channel: string;
+}
+
+/**
+ * Notifications endpoint speaking the `rasa` position-state protocol. No
+ * channel — the subscribe frame is just the watched SubAccount addresses.
+ */
+export interface SymmioRasaNotificationsConfig extends SymmioNotificationsConfigBase {
+  /** Wire protocol the endpoint speaks. */
+  protocol: "rasa";
+}
+
+/**
+ * Notifications WebSocket configuration for a SYMMIO chain deployment.
+ *
+ * The notifications endpoint streams position/quote state transitions (instant
+ * open/close confirmations, fills, cancels, liquidations) for a SubAccount. It
+ * is a push channel, not a REST endpoint — `url` is a `ws://`/`wss://` URL.
+ * Discriminated on `protocol`; narrow to reach protocol-specific fields
+ * (e.g. the enigma `channel`).
+ */
+export type SymmioNotificationsConfig = SymmioEnigmaNotificationsConfig | SymmioRasaNotificationsConfig;
 
 /**
  * Muon oracle configuration for a SYMMIO chain deployment.
@@ -145,12 +266,17 @@ export interface SymmioChainConfig {
   addresses: SymmioContractAddresses;
   /** Subgraph endpoints */
   subgraphs: SymmioSubgraphUrls;
-  /** Solver / hedger configuration */
-  solver: SymmioSolverConfig;
+  /**
+   * Solvers available on this chain, keyed by {@link SolverId} (which is the
+   * solver's kind). A chain registers a subset of the kinds, so this is partial.
+   * Resolve one with `config.getSolver({ chainId, solverId })`, which defaults to
+   * {@link defaultSolverId} when `solverId` is omitted.
+   */
+  solvers: Partial<Record<SolverId, SymmioSolverConfig>>;
+  /** Id of the solver an action targets on this chain when `solverId` is omitted. */
+  defaultSolverId: SolverId;
   /** Price-service configuration */
   priceService: SymmioPriceServiceConfig;
-  /** Notifications WebSocket configuration */
-  notifications: SymmioNotificationsConfig;
   /** Muon oracle configuration */
   muon: SymmioMuonConfig;
 }

@@ -59,13 +59,13 @@ export function GroupCloseStep({ group, sessionKey, subAccount, idPrefix, onRefr
   const groupClose = useCloseQuoteGroup();
 
   const market = useMemo(
-    () => marketsQuery.data?.find((entry) => BigInt(entry.symbol_id ?? -1) === group.by.symbolId),
+    () => marketsQuery.data?.find((entry) => BigInt(entry.symbolId ?? -1) === group.by.symbolId),
     [marketsQuery.data, group.by.symbolId],
   );
   const minAcceptableQuoteValue = useMemo(
     () =>
-      market?.min_acceptable_quote_value !== undefined
-        ? parseUnits(market.min_acceptable_quote_value, WEI_DECIMALS)
+      market?.minAcceptableQuoteValue !== undefined
+        ? parseUnits(market.minAcceptableQuoteValue, WEI_DECIMALS)
         : undefined,
     [market],
   );
@@ -183,7 +183,7 @@ export function GroupCloseStep({ group, sessionKey, subAccount, idPrefix, onRefr
       </div>
 
       {minAcceptableQuoteValue === undefined && !marketsQuery.isLoading ? (
-        <ResultNote>Market info for this symbol has no min_acceptable_quote_value — cannot plan.</ResultNote>
+        <ResultNote>Market info for this symbol has no minAcceptableQuoteValue — cannot plan.</ResultNote>
       ) : null}
 
       {groupClose.planFailure ? (

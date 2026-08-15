@@ -1,5 +1,6 @@
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import type { Config } from "../../../core/config";
+import { getDeallocateUpnlSig } from "../../../muon/deallocate-upnl-sig/get-deallocate-upnl-sig";
 import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.5/symmio";
 import type { SingleUpnlSig } from "../../account-layer/types";
@@ -23,10 +24,11 @@ export type DeallocateParameters = Compute<
     /**
      * A fresh Muon uPnL (`uPnl_A`) attestation for `account`. The contract
      * verifies it to prove the subaccount stays solvent after the deallocation.
-     * Fetch one right before submitting (it is timestamped and short-lived) — see
-     * {@link getDeallocateUpnlSig}.
+     * It is timestamped and short-lived, so **omit it** to have the action fetch a
+     * fresh one (via {@link getDeallocateUpnlSig}) immediately before submitting;
+     * pass one only to reuse a signature you already fetched.
      */
-    upnlSig: SingleUpnlSig;
+    upnlSig?: SingleUpnlSig;
   }
 >;
 
@@ -55,19 +57,26 @@ export type DeallocateReturnType = Hash;
  * is `false` (per-call, falling back to the config default).
  *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
- * @param parameters - Subaccount, amount (18 decimals), Muon `upnlSig`, optional chain id.
+ * @param parameters - Subaccount, amount (18 decimals), optional Muon `upnlSig`
+ *   (fetched automatically via {@link getDeallocateUpnlSig} when omitted), optional chain id.
  * @returns The submitted transaction hash. The caller waits on the receipt.
  * @throws {SymmError} when the chain is unsupported or no wallet is available.
  * @throws Viem's write errors (`ContractFunctionExecutionError`, ...).
  *
  * @example
  * ```ts
+ * // upnlSig fetched automatically:
+ * const hash = await deallocate(config, { account: "0xsub…", amount: 1_000000000000000000n });
+ * // or reuse a pre-fetched signature:
  * const upnlSig = await getDeallocateUpnlSig(config, { virtualAccount: "0xsub…" });
- * const hash = await deallocate(config, { account: "0xsub…", amount: 1_000000000000000000n, upnlSig });
+ * await deallocate(config, { account: "0xsub…", amount: 1_000000000000000000n, upnlSig });
  * ```
  */
 export async function deallocate(config: Config, parameters: DeallocateParameters): Promise<DeallocateReturnType> {
-  const { chainId, account, amount, upnlSig } = parameters;
+  const { chainId, account, amount } = parameters;
+
+  const upnlSig =
+    parameters.upnlSig ?? (await getDeallocateUpnlSig(config, { virtualAccount: parameters.account, chainId }));
 
   const data = encodeFunctionData({
     abi: symmioAbi,

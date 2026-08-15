@@ -135,6 +135,9 @@ export async function instantCloseBulk(
 
   await sendInstantClose(config, {
     chainId: parameters.chainId,
+    // Forward the resolved solver so a bulk close on a rasa chain hits its own
+    // endpoint instead of falling back to the chain default.
+    solverId: parameters.solverId,
     operations: signedOperations,
   });
 

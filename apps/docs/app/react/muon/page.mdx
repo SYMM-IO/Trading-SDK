@@ -1,8 +1,12 @@
 # Muon Oracle hooks
 
-React hooks over the [Core Muon](../../core/muon) slice. Fetch Muon-attested signature payloads (UPNL, price, price range, partyA overview) reactively — most consumers reach for these when preparing on-chain writes that require a Muon signature (`deallocate`, settlement).
+React hooks over the [Core Muon](../../core/muon) slice. Fetch Muon-attested signature payloads (UPNL, price, price range, partyA overview) reactively — consumers reach for these when preparing an on-chain write that requires a Muon signature: `removeMargin` / `deallocate`, `sendQuote`, force-close, and settlement.
 
-**Every hook on this page is a [read](../concepts/hook-pattern#reads).** Muon has no writes — the on-chain writes that consume these signatures live on their own slices (see [SYMMIO Contract](../symmio-contract)).
+The three `…Sig` hooks — [`useDeallocateUpnlSig`](#usedeallocateupnlsig), [`useSendQuoteUpnlSig`](#usesendquoteupnlsig), [`useForceClosePriceSig`](#useforceclosepricesig) — return **contract-ready structs**, so their results pass straight into the matching write. The remaining `useMuon…` hooks return the raw normalized attestations.
+
+**Every hook on this page is a mutation, not a query.** Muon attestations are timestamped and short-lived, so they must be fetched on an explicit action rather than eagerly on mount — call `mutateAsync(...)` with the action's inputs as the mutation variables. The on-chain writes that consume these signatures live on their own slices (see [SYMMIO Contract](../symmio-contract)).
+
+Which solver enforces Muon verification is a property of its kind: the majors `rasa` solver requires live attestations for `sendQuote` and force-close, whereas the lowcap `enigma` InstantLayer flow signs placeholders and delegates the byte range to the solver. See [Solvers & chains](/core/concepts/solvers-and-chains) and [Rasa solver](/react/rasa-solver).
 
 ## Import
 
@@ -17,8 +21,48 @@ import {
   useMuonUpnlAWithSymbolPrice,
   useMuonSettleUpnl,
   useMuonPartyAOverview,
+  useDeallocateUpnlSig,
+  useSendQuoteUpnlSig,
+  useForceClosePriceSig,
 } from "@symmio/trading-react";
 ```
+
+## Contract signatures
+
+The three `…Sig` hooks return **contract-ready structs** rather than raw attestations, so their results pass straight into the matching write. The corresponding write hooks (`useRemoveMargin`, `useInstantOpen`) already fetch these internally — reach for them only when you drive the calldata yourself.
+
+### `useDeallocateUpnlSig`
+
+A `uPnl_A` attestation assembled into the `SingleUpnlSig` that `removeMargin` / `deallocate` require.
+
+```ts
+const { mutateAsync } = useDeallocateUpnlSig();
+const upnlSig = await mutateAsync({ virtualAccount });
+```
+
+### `useSendQuoteUpnlSig`
+
+A `uPnl_A_withSymbolPrice` attestation assembled into the `SingleUpnlAndPriceSig` that `sendQuote` requires. Solvers enforcing Muon verification need a live one; the lowcap flow signs a placeholder instead.
+
+```ts
+const { mutateAsync } = useSendQuoteUpnlSig();
+const upnlSig = await mutateAsync({ partyA: subAccount, symbolId: 1n });
+```
+
+**Mutation variables** (`GetSendQuoteUpnlSigParameters`): `partyA: Address` (the sub-account on cross-margin `rasa` solvers; the virtual account on lowcap), `symbolId: bigint`, optional `chainId`. The hook parameter is only an optional `config` override. **Returns** a `SingleUpnlAndPriceSig`.
+
+The signature is signed **inside** the quote calldata, so it must be fetched immediately before signing — never from cache.
+
+### `useForceClosePriceSig`
+
+A `priceRange` attestation assembled into the `HighLowPriceSig` that `forceClosePosition` verifies.
+
+```ts
+const { mutateAsync } = useForceClosePriceSig();
+const sig = await mutateAsync({ partyA, partyB: solverAddress, symbolId: 1n, t0, t1 });
+```
+
+**Mutation variables** (`GetForceClosePriceSigParameters`): `partyA` / `partyB: Address` (partyB is the solver), `symbolId: bigint`, `t0` / `t1: bigint` (window bounds in unix **seconds**), optional `chainId`. The hook parameter is only an optional `config` override. **Returns** a `HighLowPriceSig`. Force-close is a majors-only (`rasa`) flow. For the raw, un-assembled attestation use [`useMuonPriceRange`](#usemuonpricerange) instead.
 
 ## Price attestations
 
@@ -87,3 +131,5 @@ Muon-side quorum failures come back as `kind: "api"` with the Muon `error.messag
 
 - [Core Muon](../../core/muon) — signature payload shape.
 - [SYMMIO Contract](../symmio-contract) — writes that consume these signatures.
+- [Solvers & chains](/core/concepts/solvers-and-chains) — which solver kind enforces Muon verification.
+- [Rasa solver](/react/rasa-solver) — the majors flow that requires live `sendQuote` and force-close attestations.

@@ -1,5 +1,23 @@
 import { toDecimal } from "@symmio/utils/decimal";
-import type { SymbolContractSymbol } from "../../types/generated/enigma-solver";
+
+/**
+ * The constraint fields {@link validateInstantCloseAgainstMarket} reads — the
+ * SDK's **normalized** market spelling (a `useMarkets` / `getMarkets` row).
+ * Raw wire rows (snake_case `/contract-symbols` payloads) are not accepted:
+ * run them through the markets adapter first. One canonical shape keeps a
+ * spelling mismatch from ever silently skipping the checks — the trap the
+ * open-side validator hit before it moved to this same camelCase contract.
+ *
+ * Fields are optional structurally; the adapters always populate them, using
+ * `"0"` for constraints the vendor does not publish, which the validator
+ * treats as "unpublished" and skips.
+ */
+export interface InstantCloseConstraintFields {
+  /** Minimum tradable increment (decimal string). */
+  lotSize?: string;
+  /** Minimum locked-margin sum after the close (decimal string). */
+  minAcceptableQuoteValue?: string;
+}
 
 /**
  * One reason a candidate instant-close quote violates the market's published
@@ -49,8 +67,8 @@ export type CloseQuoteConstraintViolation =
  * check.
  */
 export interface ValidateInstantCloseAgainstMarketParameters {
-  /** Market metadata carrying the constraint fields. */
-  market: SymbolContractSymbol;
+  /** Market metadata carrying the constraint fields — the normalized spelling. */
+  market: InstantCloseConstraintFields;
   /** Original (un-closed) position quantity (decimal string). */
   originalQuantity: string;
   /** Quantity being closed in this request (decimal string). */
@@ -98,8 +116,8 @@ export function validateInstantCloseAgainstMarket(
   const isPartialClose = remainingQty.gt(0);
 
   // 1. lot_size — close + (when partial) remaining.
-  if (market.lot_size) {
-    const lotSize = toDecimal(market.lot_size);
+  if (market.lotSize) {
+    const lotSize = toDecimal(market.lotSize);
     if (lotSize.gt(0) && !lotSize.isNaN()) {
       if (closeQty.lt(lotSize)) {
         violations.push({
@@ -139,8 +157,8 @@ export function validateInstantCloseAgainstMarket(
 
   // 2. min_acceptable_quote_value — only on partial close (full close zeroes
   // the locked sum, which is fine).
-  if (isPartialClose && market.min_acceptable_quote_value && !originalQty.isZero()) {
-    const minQuoteValue = toDecimal(market.min_acceptable_quote_value);
+  if (isPartialClose && market.minAcceptableQuoteValue && !originalQty.isZero()) {
+    const minQuoteValue = toDecimal(market.minAcceptableQuoteValue);
     const originalLocked = toDecimal(cva).plus(lf).plus(partyAmm);
     const remainingLocked = originalLocked.times(remainingQty).div(originalQty);
     if (remainingLocked.lt(minQuoteValue)) {

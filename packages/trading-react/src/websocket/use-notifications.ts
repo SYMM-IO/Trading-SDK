@@ -1,6 +1,12 @@
 "use client";
 
-import { watchNotifications, type ConfigParameter, type Notification, type SocketStatus } from "@symmio/trading-core";
+import {
+  watchNotifications,
+  type ConfigParameter,
+  type Notification,
+  type SocketStatus,
+  type SolverId,
+} from "@symmio/trading-core";
 import { useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
@@ -19,6 +25,8 @@ export interface UseNotificationsParameters extends ConfigParameter {
   account?: Address;
   /** Target chain id. Defaults to the SDK's active chain. */
   chainId?: number;
+  /** Target solver. Defaults to the chain's default solver; selects the notifications endpoint + protocol. */
+  solverId?: SolverId;
   /** Optional per-message callback, invoked in addition to buffering. */
   onNotification?: (notification: Notification) => void;
   /** Max notifications retained in `notifications` (newest-first). Default 50. */
@@ -57,7 +65,7 @@ export interface UseNotificationsReturnType {
  * ```
  */
 export function useNotifications(parameters: UseNotificationsParameters = {}): UseNotificationsReturnType {
-  const { account, chainId, onNotification, limit = DEFAULT_LIMIT, enabled = true } = parameters;
+  const { account, chainId, solverId, onNotification, limit = DEFAULT_LIMIT, enabled = true } = parameters;
   const config = useSymmioConfig(parameters);
   const defaultChainId = useSymmioChainId();
   const resolvedChainId = chainId ?? defaultChainId;
@@ -88,6 +96,7 @@ export function useNotifications(parameters: UseNotificationsParameters = {}): U
       unwatch = watchNotifications(config, {
         account,
         chainId: resolvedChainId,
+        solverId,
         onNotification: (notification) => {
           setNotifications((prev) => [notification, ...prev].slice(0, limitRef.current));
           onNotificationRef.current?.(notification);
@@ -101,7 +110,7 @@ export function useNotifications(parameters: UseNotificationsParameters = {}): U
     }
 
     return () => unwatch?.();
-  }, [active, account, config, resolvedChainId]);
+  }, [active, account, config, resolvedChainId, solverId]);
 
   return {
     notifications,

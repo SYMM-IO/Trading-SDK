@@ -1,5 +1,7 @@
 import axios, { isAxiosError } from "axios";
+import type { Hex } from "viem";
 import { SymmApiError, SymmError } from "../shared/errors/symm-error";
+import type { SchnorrSign } from "../symmio-contracts/account-layer/types";
 import { MUON_APP, type MuonAttestationBase, type MuonRawResult, type MuonResponse } from "./types";
 
 /**
@@ -95,6 +97,50 @@ export function toMuonAttestationBase(raw: MuonRawResult): MuonAttestationBase {
     owner: share.owner,
     signature: BigInt(share.signature),
     gatewaySignature: raw.nodeSignature,
+  };
+}
+
+/**
+ * The replay-protection + signature fields every **contract-ready** Muon sig
+ * struct shares (`SingleUpnlSig`, `SingleUpnlAndPriceSig`, `HighLowPriceSig`).
+ * @internal
+ */
+export interface MuonContractSigEnvelope {
+  /** Muon request id (opaque bytes). */
+  reqId: Hex;
+  /** Attestation timestamp (seconds). */
+  timestamp: bigint;
+  /** Muon gateway signature over the request (opaque bytes). */
+  gatewaySignature: Hex;
+  /** The Schnorr TSS signature pieces. */
+  sigs: SchnorrSign;
+}
+
+/**
+ * Pull the envelope every contract-ready Muon sig struct shares out of a raw
+ * attestation. Assemblers spread this and add their method-specific fields.
+ *
+ * Differs from {@link toMuonAttestationBase}, which produces the *raw-read*
+ * shape (flat `owner` / `signature` / `nonce`); this one nests them into the
+ * on-chain `SchnorrSign` tuple.
+ *
+ * @throws {SymmError} when the Schnorr signature share is missing.
+ * @internal
+ */
+export function toContractSigEnvelope(raw: MuonRawResult): MuonContractSigEnvelope {
+  const share = raw.signatures[0];
+  if (!share) {
+    throw new SymmError("api", "MUON_SIG_MALFORMED", "Muon attestation is missing its Schnorr signature share.");
+  }
+  return {
+    reqId: raw.reqId,
+    gatewaySignature: raw.nodeSignature,
+    timestamp: BigInt(raw.data.timestamp),
+    sigs: {
+      owner: share.owner,
+      nonce: raw.data.init.nonceAddress,
+      signature: BigInt(share.signature),
+    },
   };
 }
 

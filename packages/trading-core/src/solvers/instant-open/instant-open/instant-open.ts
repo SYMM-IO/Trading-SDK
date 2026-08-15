@@ -1,182 +1,90 @@
-import type { Address, Hex } from "viem";
+import type { SymmioSolverKind } from "../../../core/chains/types";
 import type { Config } from "../../../core/config";
-import type { Compute, WriteSolverParameter } from "../../../shared/types/properties";
-import {
-  buildQuoteMetadata,
-  encodeAddMarginToNextVA,
-  encodeSendQuoteWithAffiliateAndData,
-  getFakeSendQuoteMuonSignature,
-} from "../shared/calldata";
-import { sendInstantOpen } from "../shared/hedger-api";
-import { buildSignedOperation, signAndFormatInstantOperation } from "../shared/operations";
+import { SymmError } from "../../../shared/errors/symm-error";
+import { buildQuoteMetadata } from "../shared/calldata";
 import { getMarketOrderDeadline } from "../shared/trade-math";
-import {
-  ORDER_TYPE_MARKET,
-  PositionType,
-  isolationTypeForSide,
-  type InstantOpenLockedParams,
-  type InstantOpenMargin,
-  type InstantOpenOrder,
-} from "../shared/types";
+import { submitEnigmaInstantOpen, submitRasaInstantOpen, type InstantOpenAdapterContext } from "./adapters";
+import type { InstantOpenParameters, InstantOpenReturnType } from "./types";
 
 /**
- * Parameters for the pure {@link instantOpen} primitive.
+ * Open an instant position through the solver's InstantLayer v2 flow.
  *
- * Every domain value is the **final** 18-decimal-wei `bigint` ready to feed
- * `sendQuoteWithAffiliateAndData` and `addMarginToNextVA`. The caller (or the
- * `prepareInstantOpenParams` wizard) is responsible for trade math,
- * platform-fee calc, and margin calc.
- */
-export type InstantOpenParameters = Compute<
-  WriteSolverParameter & {
-    /** Sub-account / partyA address (`signerAccount.addr` + `addMargin` subAccount). */
-    subAccountAddress: Address;
-    /** Market `symbol_id`. */
-    marketId: number;
-    /** Trade side. */
-    positionType: PositionType;
-    /** Order-side values (`price`, `quantity`) — both 18-decimal-wei `bigint`. */
-    order: InstantOpenOrder;
-    /** Locked-margin breakdown (`cva`, `lf`, `partyAmm`, `partyBmm`) — all 18-decimal-wei `bigint`. */
-    lockedParam: InstantOpenLockedParams;
-    /** Margin context (`amount`) — 18-decimal-wei `bigint`. */
-    margin: InstantOpenMargin;
-    /** Override the metadata UUID. Defaults to `globalThis.crypto.randomUUID()`. */
-    uuid?: string;
-    /** Override the addMargin salt. Defaults to a random 32-byte salt. */
-    addMarginSalt?: Hex;
-    /** Override the sendQuote salt. Defaults to a random 32-byte salt. */
-    sendQuoteSalt?: Hex;
-    /** Override the unix-seconds deadline (defaults to `now + 300s`). */
-    deadline?: bigint;
-  }
->;
-
-/**
- * Return type of {@link instantOpen} and `instantOpenAuto`.
- */
-export interface InstantOpenReturnType {
-  /** `true` if the hedger accepted the request. */
-  success: boolean;
-  /** Hedger-issued temporary quote id (numeric string). */
-  tempQuoteId?: string;
-  /** Hedger response `partyBmm` field, if any. */
-  partyBmm?: string;
-}
-
-/**
- * Open a lowcap instant position via the InstantLayer v2 flow.
- *
- * Pure primitive — every domain value is already final wei. Builds calldata,
- * signs two operations (`addMarginToNextVA`, `sendQuoteWithAffiliateAndData`),
- * submits them to the chain's solver/hedger `/instant_trade/instant_open`
- * endpoint. Does no math, no fetching.
- *
- * Use `prepareInstantOpenParams` to derive this shape from UI-shape inputs,
+ * Pure primitive — every domain value is already final wei. It builds calldata,
+ * signs the operations, and submits them. It does no math and no market
+ * fetching; use `prepareInstantOpenParams` to derive this shape from UI inputs,
  * or `instantOpenAuto` for the combined convenience.
  *
+ * **The two solver kinds open positions differently, and this dispatches on that:**
+ *
+ * - **Enigma (lowcap)** signs *two* operations — `addMarginToNextVA` on the
+ *   AccountLayer plus `sendQuote` on the diamond — funding a fresh virtual
+ *   account in the same batch. `margin.amount` is required. The quote carries a
+ *   placeholder Muon signature whose byte range is delegated to the solver.
+ * - **Rasa (majors)** signs *one* operation — `sendQuote` on the diamond, under
+ *   the sub-account. It is cross-margin, so there is no virtual account, no
+ *   `addMargin`, and no `margin` parameter. The quote carries a **live** Muon
+ *   attestation fetched immediately before signing.
+ *
+ * Pass a literal `solverId` to narrow both the parameters and the return type to
+ * one kind. Omit it and the chain's `defaultSolverId` decides at runtime — in
+ * which case a missing `margin` on an Enigma chain throws
+ * `INSTANT_OPEN_MARGIN_REQUIRED` rather than silently under-funding the trade.
+ *
+ * @param config - The SDK config.
+ * @param parameters - Final-wei order, locked params, and the target sub-account.
+ * @returns The hedger's acknowledgement, discriminated on `kind`.
+ * @throws {SymmError} when the chain or solver is unsupported, or a kind's
+ *   required inputs are missing.
  * @throws {SymmApiError} when the hedger request fails.
  *
  * @example
  * ```ts
- * const { tempQuoteId } = await instantOpen(config, {
+ * // Rasa (majors) — one operation, live Muon sig, no margin.
+ * const { tempQuoteId, rfq } = await instantOpen(config, {
+ *   solverId: "rasa",
  *   subAccountAddress,
- *   // from: signerAddress — omit to use config.defaultWalletAddress
- *   marketId: 1, positionType: "LONG",
- *   order: {
- *     price: 50_000_000_000_000_000_000n,
- *     quantity: 1_000_000_000_000_000_000n,
- *   },
- *   lockedParam: {
- *     cva: 1_000_000_000_000_000_000n,
- *     lf: 500_000_000_000_000_000n,
- *     partyAmm: 1_500_000_000_000_000_000n,
- *     partyBmm: 1_500_000_000_000_000_000n,
- *   },
- *   margin: { amount: 3_000_000_000_000_000_000n },
+ *   marketId: 1,
+ *   positionType: PositionType.LONG,
+ *   order: { price: 50_000000000000000000n, quantity: 1_000000000000000000n },
+ *   lockedParam: { cva: 1_000000000000000000n, lf: 500000000000000000n, partyAmm: 1_500000000000000000n, partyBmm: 1_500000000000000000n },
  * });
  * ```
  */
-export async function instantOpen(config: Config, parameters: InstantOpenParameters): Promise<InstantOpenReturnType> {
+export async function instantOpen<K extends SymmioSolverKind = SymmioSolverKind>(
+  config: Config,
+  parameters: InstantOpenParameters<K>,
+): Promise<InstantOpenReturnType<K>> {
   const chainConfig = config.getChainConfig(parameters.chainId);
-  const { accountLayerAddress, symmioAddress, affiliatesAddress } = chainConfig.addresses;
-  const { solver } = chainConfig;
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
 
+  /** Resolved once: this can prompt the user, so it must not run per adapter. */
   const walletClient = await config.getWalletClient({ chainId: parameters.chainId, from: parameters.from });
-  const signerAddress = walletClient.account.address;
 
-  const deadline = parameters.deadline ?? getMarketOrderDeadline();
-  const symbolId = BigInt(parameters.marketId);
-
-  const isolationType = isolationTypeForSide(parameters.positionType);
-
-  const addMarginCallData = encodeAddMarginToNextVA({
-    subAccount: parameters.subAccountAddress,
-    isolationType,
-    symbolId,
-    amount: parameters.margin.amount,
-  });
-
-  const uuid = parameters.uuid ?? globalThis.crypto.randomUUID();
-  const sendQuoteCallData = encodeSendQuoteWithAffiliateAndData({
-    partyBsWhiteList: [solver.address],
-    symbolId,
-    positionType: parameters.positionType,
-    orderType: ORDER_TYPE_MARKET,
-    price: parameters.order.price,
-    quantity: parameters.order.quantity,
-    cva: parameters.lockedParam.cva,
-    lf: parameters.lockedParam.lf,
-    partyAmm: parameters.lockedParam.partyAmm,
-    partyBmm: parameters.lockedParam.partyBmm,
-    deadline,
-    affiliate: affiliatesAddress,
-    data: buildQuoteMetadata(uuid),
-    upnlSig: getFakeSendQuoteMuonSignature(parameters.order.price),
-  });
-
-  const addMarginOp = buildSignedOperation({
-    signer: signerAddress,
-    target: accountLayerAddress,
-    callData: addMarginCallData,
-    signerAccount: parameters.subAccountAddress,
-    deadline,
-    salt: parameters.addMarginSalt,
-  });
-
-  const sendQuoteOp = buildSignedOperation({
-    signer: signerAddress,
-    target: symmioAddress,
-    callData: sendQuoteCallData,
-    signerAccount: parameters.subAccountAddress,
-    deadline,
-    salt: parameters.sendQuoteSalt,
-  });
-
-  const [addMargin, sendQuote] = await Promise.all([
-    signAndFormatInstantOperation(config, {
-      operation: addMarginOp,
-      chainId: parameters.chainId,
-      walletClient,
-    }),
-    signAndFormatInstantOperation(config, {
-      operation: sendQuoteOp,
-      chainId: parameters.chainId,
-      walletClient,
-    }),
-  ]);
-
-  const response = await sendInstantOpen(config, {
+  const context: InstantOpenAdapterContext = {
+    config,
+    solver,
+    chainConfig,
+    walletClient,
+    signerAddress: walletClient.account.address,
     chainId: parameters.chainId,
-    request: { addMargin, sendQuote },
-  });
-
-  return {
-    success: true,
-    tempQuoteId:
-      response.temp_quote_id !== undefined && response.temp_quote_id !== null
-        ? String(response.temp_quote_id)
-        : undefined,
-    partyBmm: response.partyBmm,
+    deadline: parameters.deadline ?? getMarketOrderDeadline(),
+    symbolId: BigInt(parameters.marketId),
+    metadata: buildQuoteMetadata(parameters.uuid ?? globalThis.crypto.randomUUID()),
   };
+
+  switch (solver.id) {
+    case "enigma":
+      return (await submitEnigmaInstantOpen(context, parameters)) as InstantOpenReturnType<K>;
+    case "rasa":
+      return (await submitRasaInstantOpen(context, parameters)) as InstantOpenReturnType<K>;
+    default: {
+      /** A new solver kind fails to compile here until its adapter is wired in. */
+      const unreachable: never = solver.id;
+      throw new SymmError(
+        "api",
+        "UNSUPPORTED_BY_SOLVER",
+        `instantOpen: solver kind "${String(unreachable)}" has no instant-open adapter.`,
+      );
+    }
+  }
 }

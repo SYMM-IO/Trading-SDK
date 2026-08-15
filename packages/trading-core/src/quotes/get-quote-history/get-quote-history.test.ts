@@ -3,6 +3,7 @@ import type { PublicClient } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
 import { createConfig } from "../../core/config";
+import { SubAccountIsolationType } from "../../symmio-contracts/account-layer/types";
 import { getQuoteHistory } from "./get-quote-history";
 import { QuoteCloseType } from "./types";
 
@@ -100,5 +101,31 @@ describe("getQuoteHistory", () => {
     expect(variables.first).toBe(50);
     expect(variables.startDate).toBe("0");
     expect(variables.endDate).toBe("2000000000");
+  });
+
+  it("filters by the quote's subAccount for VA isolation (default and MARKET / MARKET_DIRECTION)", async () => {
+    const post = vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { quoteEvents: [] } } });
+
+    await getQuoteHistory(config, { subAccounts: [SUB] });
+    await getQuoteHistory(config, { subAccounts: [SUB], isolationType: SubAccountIsolationType.MARKET_DIRECTION });
+
+    for (const call of post.mock.calls) {
+      const { query } = call[1] as { query: string };
+      expect(query).toContain("subAccount_in");
+      expect(query).not.toContain("partyA_in");
+    }
+  });
+
+  it("filters by partyA for cross-margin (CUSTOM) subaccounts, whose quotes carry no subAccount", async () => {
+    const post = vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { quoteEvents: [EVENT] } } });
+
+    const result = await getQuoteHistory(config, { subAccounts: [SUB], isolationType: SubAccountIsolationType.CUSTOM });
+
+    const { query, variables } = post.mock.calls[0]![1] as { query: string; variables: Record<string, unknown> };
+    expect(query).toContain("partyA_in");
+    expect(query).not.toContain("subAccount_in");
+    // Still feeds the same `$subAccounts` variable and decodes with the same result shape.
+    expect(variables.subAccounts).toEqual([SUB.toLowerCase()]);
+    expect(result.rows).toHaveLength(1);
   });
 });

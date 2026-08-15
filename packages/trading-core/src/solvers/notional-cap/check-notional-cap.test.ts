@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { PositionType } from "../../symmio-contracts/symmio/types";
 import { checkNotionalCap } from "./check-notional-cap";
-import type { MarketNotionalCap } from "./types";
+import type { EnigmaNotionalCap, RasaNotionalCap } from "./types";
 
-function makeCap(overrides: Partial<MarketNotionalCap> = {}): MarketNotionalCap {
+function makeCap(overrides: Partial<EnigmaNotionalCap> = {}): EnigmaNotionalCap {
   return {
+    kind: "enigma",
     symbolId: 132,
     symbol: "DOGEUSDT",
     totalCap: 0,
@@ -25,6 +26,22 @@ describe("checkNotionalCap", () => {
     expect(checkNotionalCap({ positionType: PositionType.LONG, notional: "900", cap: makeCap() })).toEqual({
       ok: true,
     });
+  });
+
+  it("accepts a trade that fits within a Rasa cap's market-wide remaining capacity", () => {
+    const rasaCap: RasaNotionalCap = { kind: "rasa", totalCap: 1000, used: 200 };
+    expect(checkNotionalCap({ positionType: PositionType.LONG, notional: "800", cap: rasaCap })).toEqual({ ok: true });
+  });
+
+  it("rejects a trade exceeding a Rasa cap's remaining capacity (totalCap − used), either side", () => {
+    const rasaCap: RasaNotionalCap = { kind: "rasa", totalCap: 1000, used: 200 };
+    for (const positionType of [PositionType.LONG, PositionType.SHORT]) {
+      expect(checkNotionalCap({ positionType, notional: "801", cap: rasaCap })).toMatchObject({
+        ok: false,
+        kind: "CAP_REACHED",
+        available: 800,
+      });
+    }
   });
 
   it("rejects a long trade whose notional exceeds availableToLong", () => {

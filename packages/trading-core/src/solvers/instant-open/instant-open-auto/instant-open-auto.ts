@@ -1,5 +1,6 @@
 import type { Config } from "../../../core/config";
-import { instantOpen, type InstantOpenReturnType } from "../instant-open/instant-open";
+import { instantOpen } from "../instant-open/instant-open";
+import type { InstantOpenReturnType } from "../instant-open/types";
 import {
   prepareInstantOpenParams,
   type PrepareInstantOpenParameters,

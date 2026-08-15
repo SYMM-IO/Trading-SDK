@@ -17,7 +17,7 @@ import {
 } from "../types/generated/tpsl-handler";
 import { getQuoteTpSlQueryKey, getQuoteTpSlQueryOptions } from "./query";
 
-const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solver.tpsl!;
+const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solvers.enigma!.tpsl!;
 
 const ROW: ConditionalOrderResponseSchema = {
   quote_id: 128,
@@ -205,7 +205,7 @@ describe("getQuoteTpSlQueryOptions", () => {
       symmioConfig: {
         [SymmioSupportedChainId.HYPER_EVM]: {
           addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
-          solver: { tpsl: { url: "https://tpsl.override.test" } },
+          solvers: { enigma: { tpsl: { url: "https://tpsl.override.test" } } },
         },
       },
     });

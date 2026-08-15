@@ -11,6 +11,7 @@ import {
   getPredictedNextVirtualAccountQueryOptions,
   getQuoteQueryKey,
   getQuoteQueryOptions,
+  isCloseFillAction,
   isolationTypeForSide,
   QuoteLifecycle,
   reconcileQuotes,
@@ -34,6 +35,7 @@ import { useSymmioConfig } from "../provider/use-symmio-config";
 import { useTpSlStore } from "../tpsl/tpsl-store";
 import { predicateMatch } from "../utils";
 import { useNotifications } from "../websocket/use-notifications";
+import { nextCloseConfirmDelay, pruneCloseConfirmHold } from "./close-confirm-hold";
 import { useOptimisticQuotesStore } from "./optimistic-quotes-store";
 
 /**
@@ -46,6 +48,20 @@ const FALLBACK_POLLING_INTERVAL = 5_000;
 
 /** Accelerated quote-polling interval (ms) while a row is mid-transition. */
 const ACCELERATED_POLLING_INTERVAL = 1_500;
+
+/**
+ * Close-confirm backoff (see `closeConfirmRef` / `pumpCloseConfirm`). After a close
+ * notification the on-chain reads are refetched immediately, then again on a backoff
+ * that starts at {@link CLOSE_CONFIRM_FIRST_DELAY}, doubles each round, and caps at
+ * {@link CLOSE_CONFIRM_MAX_INTERVAL} — until the chain reflects the close or the
+ * total {@link CLOSE_CONFIRM_MAX_MS} budget passes. Covers the rasa case where the
+ * quote lingers OPENED after `FillMarketOrderInstantClose` and the settle lags.
+ */
+const CLOSE_CONFIRM_FIRST_DELAY = 500;
+/** Ceiling for the doubling close-confirm backoff interval (ms). */
+const CLOSE_CONFIRM_MAX_INTERVAL = 60_000;
+/** Total budget (ms) to chase a reported close before giving up (a stuck / failed close). */
+const CLOSE_CONFIRM_MAX_MS = 120_000;
 
 /**
  * Cap on the live-notification buffer fed back into the merge. Reconciliation is
@@ -254,6 +270,24 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
   const previousRef = useRef<ReconcileQuotesResult | undefined>(undefined);
 
   /**
+   * Close-confirm hold: on-chain quoteId → deadline (ms). A close notification
+   * (`onNotification`) records the quote here and kicks off `pumpCloseConfirm`, which
+   * refetches the on-chain reads on a doubling backoff until the chain reflects the
+   * close — the rasa case, where the quote lingers OPENED after
+   * `FillMarketOrderInstantClose` and the stateless reconcile reverts the row to
+   * `ONCHAIN`. Entries are pruned once the chain confirms the close (row dropped /
+   * closed) or the {@link CLOSE_CONFIRM_MAX_MS} budget passes; when the map empties
+   * the backoff stops.
+   */
+  const closeConfirmRef = useRef<Map<string, number>>(new Map());
+  /** Pending close-confirm backoff timer (the next scheduled refetch), if any. */
+  const closeConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** Current close-confirm backoff interval (ms); doubles each round up to the cap. */
+  const closeConfirmDelayRef = useRef(CLOSE_CONFIRM_FIRST_DELAY);
+  /** Latest `pumpCloseConfirm`, called from the backoff timer (assigned below each render). */
+  const pumpCloseConfirmRef = useRef<() => void>(() => {});
+
+  /**
    * Rows anchored on a prior tick (a notification set their `quoteId`) but not yet
    * returned by the on-chain read — the previous merge's `pendingAnchors`. Fed back
    * into {@link reconcileQuotes} so an anchored row keeps showing while the RPC
@@ -282,11 +316,13 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
   /**
    * On-chain reads accelerate to {@link ACCELERATED_POLLING_INTERVAL} **only** while a
    * row awaits on-chain confirmation (`WRITE_ONCHAIN` / `WRITE_ONCHAIN_CLOSE` /
-   * `CLOSING`) — the RPC-lag retry. Otherwise: no idle poll when the event channel is
-   * live (events drive updates) unless the consumer opted into `idleInterval`; a
-   * baseline fallback when the channel is down so state still progresses. Read from the
-   * previous result because the queries set their interval before this render's result
-   * exists (an on-chain poll / notification re-render advances it a tick later).
+   * `CLOSING`) — the RPC-lag retry. (A reported-but-unsettled close is chased
+   * separately by `pumpCloseConfirm`'s backoff, not this steady interval.) Otherwise:
+   * no idle poll when the event channel is live (events drive updates) unless the
+   * consumer opted into `idleInterval`; a baseline fallback when the channel is down so
+   * state still progresses. Read from the previous result because the queries set their
+   * interval before this render's result exists (an on-chain poll / notification
+   * re-render advances it a tick later).
    */
   const accelerateOnchain = previousRef.current ? shouldAccelerateOnchainReads(previousRef.current) : false;
   const onchainIdleInterval = eventChannelLive ? idleInterval : idleInterval || FALLBACK_POLLING_INTERVAL;
@@ -402,6 +438,21 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
       else {
         pending.opens = true;
         pending.closes = true;
+      }
+      // Close *filled* (not merely requested): refetch the on-chain reads immediately,
+      // then chase the settle on a doubling backoff (`pumpCloseConfirm`) until the chain
+      // drops the quote or the budget passes. Covers rasa, where the quote lingers OPENED
+      // after `FillMarketOrderInstantClose` and the row would otherwise revert to ONCHAIN
+      // and stop polling before the settle lands.
+      if (isCloseFillAction(notification.lastSeenAction) && onchainStr && onchainStr !== "0") {
+        closeConfirmRef.current.set(onchainStr, Date.now() + CLOSE_CONFIRM_MAX_MS);
+        const client = queryClientRef.current;
+        const scope = { configKey: configKeyRef.current };
+        void client.invalidateQueries({ predicate: predicateMatch(getPartyAOpenPositionsQueryKey, scope) });
+        void client.invalidateQueries({ predicate: predicateMatch(getPartyAPendingQuotesQueryKey, scope) });
+        closeConfirmDelayRef.current = CLOSE_CONFIRM_FIRST_DELAY;
+        if (closeConfirmTimerRef.current) clearTimeout(closeConfirmTimerRef.current);
+        closeConfirmTimerRef.current = setTimeout(() => pumpCloseConfirmRef.current(), CLOSE_CONFIRM_FIRST_DELAY);
       }
       if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
       invalidateTimerRef.current = setTimeout(() => {
@@ -642,6 +693,41 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
     wantInstantOpens,
     wantInstantCloses,
   ]);
+
+  /**
+   * One backoff round for the close-confirm hold. Prunes entries the chain has
+   * confirmed (row dropped from the active set / closed — via {@link pruneCloseConfirmHold}
+   * against the latest reconcile) or whose budget passed; if any remain, refetches the
+   * on-chain reads and reschedules itself with a doubled interval (capped). When the
+   * map empties it stops — the poll self-terminates the moment the close lands. Reads
+   * only refs, so it always sees the latest quotes / config; reassigned each render and
+   * invoked through {@link pumpCloseConfirmRef} from the timer.
+   */
+  pumpCloseConfirmRef.current = () => {
+    const pending = closeConfirmRef.current;
+    const expired = pruneCloseConfirmHold(pending, previousRef.current?.quotes ?? [], Date.now());
+    if (expired.length > 0 && process.env.NODE_ENV !== "production") {
+      console.debug("[useManagedQuotes] close-confirm hold expired without on-chain confirmation", expired);
+    }
+    if (pending.size === 0) {
+      closeConfirmTimerRef.current = undefined;
+      return;
+    }
+    const client = queryClientRef.current;
+    const scope = { configKey: configKeyRef.current };
+    void client.invalidateQueries({ predicate: predicateMatch(getPartyAOpenPositionsQueryKey, scope) });
+    void client.invalidateQueries({ predicate: predicateMatch(getPartyAPendingQuotesQueryKey, scope) });
+    closeConfirmDelayRef.current = nextCloseConfirmDelay(closeConfirmDelayRef.current, CLOSE_CONFIRM_MAX_INTERVAL);
+    closeConfirmTimerRef.current = setTimeout(() => pumpCloseConfirmRef.current(), closeConfirmDelayRef.current);
+  };
+
+  /** Stop the close-confirm backoff on unmount so a pending timer cannot fire after teardown. */
+  useEffect(
+    () => () => {
+      if (closeConfirmTimerRef.current) clearTimeout(closeConfirmTimerRef.current);
+    },
+    [],
+  );
 
   const byKey = useMemo<Record<string, UnifiedQuote>>(() => {
     const map: Record<string, UnifiedQuote> = {};

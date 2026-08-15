@@ -30,4 +30,18 @@ describe("usePartyAOpenPositions", () => {
       }),
     );
   });
+
+  it("still reads positions with `live` on (the settle subscription + VA lookup never block the query)", async () => {
+    const { config, readContract } = createMockSymmioConfig();
+    // `live` also fires a `getVirtualAccount` lookup to resolve the notification
+    // stream, so answer every read (positions + VA detail) with an empty struct.
+    readContract.mockResolvedValue([]);
+
+    const { result } = renderHookWithProviders(() => usePartyAOpenPositions({ partyA: TEST_EOA, live: true, config }));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(readContract).toHaveBeenCalledWith(
+      expect.objectContaining({ functionName: "getPartyAOpenPositions", args: [TEST_EOA, 0n, 200n] }),
+    );
+  });
 });

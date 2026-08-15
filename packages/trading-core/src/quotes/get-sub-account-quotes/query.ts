@@ -74,6 +74,7 @@ export function getSubAccountQuotesQueryOptions(
     queryFn: () =>
       getSubAccountQuotes(config, {
         chainId: options.chainId,
+        solverId: options.solverId,
         subAccount: options.subAccount,
         includeVirtualAccounts: options.includeVirtualAccounts,
         extraAccounts: options.extraAccounts,

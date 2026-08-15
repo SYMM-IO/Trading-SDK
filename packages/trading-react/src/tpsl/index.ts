@@ -13,5 +13,6 @@ export * from "./use-set-quote-group-tpsl";
 export * from "./use-set-quote-tpsl";
 export * from "./use-tpsl-config";
 export * from "./use-tpsl-signing-spec";
+export * from "./use-tpsl-supported";
 export * from "./use-watch-tpsl-accounts";
 export * from "./use-watch-tpsl-notifications";

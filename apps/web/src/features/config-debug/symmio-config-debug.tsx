@@ -37,6 +37,16 @@ export function SymmioConfigDebug() {
     chainConfig = null;
   }
 
+  // Every supported chain currently ships a solver (Base runs a placeholder until
+  // Rasa lands), but a future chain could have an empty `solvers` map where
+  // `getSolver` throws — resolve it defensively.
+  let solver: ReturnType<typeof config.getSolver> | null;
+  try {
+    solver = chainConfig ? config.getSolver({ chainId: chainConfig.chainId }) : null;
+  } catch {
+    solver = null;
+  }
+
   return (
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
       <PageHeader
@@ -71,8 +81,11 @@ export function SymmioConfigDebug() {
           <div className="grid gap-4 lg:grid-cols-2">
             <ConfigGroup title="Runtime">
               <DataRow label="Chain ID" value={<Badge variant="info">{chainConfig.chainId}</Badge>} />
-              <DataRow label="Solver" value={chainConfig.solver.name} />
-              <DataRow label="Solver address" value={<AddressTag address={chainConfig.solver.address} chars={6} />} />
+              <DataRow label="Solver" value={solver ? solver.name : "Not configured"} />
+              <DataRow
+                label="Solver address"
+                value={solver ? <AddressTag address={solver.address} chars={6} /> : "—"}
+              />
             </ConfigGroup>
 
             <ConfigGroup title="Addresses">
@@ -106,14 +119,27 @@ export function SymmioConfigDebug() {
             />
           </ConfigGroup>
 
-          <ConfigGroup title="Notifications">
-            <DataRow
-              label="WebSocket"
-              mono
-              value={<span className="truncate">{chainConfig.notifications.url}</span>}
-              copyValue={chainConfig.notifications.url}
-            />
-            <DataRow label="Channel" mono value={chainConfig.notifications.channel} />
+          <ConfigGroup title="Notifications (default solver)">
+            {(() => {
+              // Notifications are per-solver; show the chain's default solver's block.
+              const notifications = chainConfig.solvers[chainConfig.defaultSolverId]?.notifications;
+              if (!notifications) return <DataRow label="WebSocket" mono value="—" />;
+              return (
+                <>
+                  <DataRow
+                    label="WebSocket"
+                    mono
+                    value={<span className="truncate">{notifications.url}</span>}
+                    copyValue={notifications.url}
+                  />
+                  <DataRow label="Protocol" mono value={notifications.protocol} />
+                  {/* Channel only exists on the enigma protocol; rasa subscribes by address list. */}
+                  {notifications.protocol === "enigma" ? (
+                    <DataRow label="Channel" mono value={notifications.channel} />
+                  ) : null}
+                </>
+              );
+            })()}
           </ConfigGroup>
         </>
       )}

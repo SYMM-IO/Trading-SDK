@@ -58,6 +58,7 @@ export async function prepareInstantCloseParams(
 ): Promise<InstantCloseParameters> {
   const market = await resolveMarket(config, {
     chainId: parameters.chainId,
+    solverId: parameters.solverId,
     marketId: parameters.market.id,
     marketName: parameters.market.name,
     pricePrecision: parameters.market.pricePrecision,
@@ -65,6 +66,7 @@ export async function prepareInstantCloseParams(
   });
   const markPrice = await resolveMarkPrice(config, {
     chainId: parameters.chainId,
+    solverId: parameters.solverId,
     marketName: market.name,
     markPrice: parameters.markPrice,
   });
@@ -89,6 +91,12 @@ export async function prepareInstantCloseParams(
 
   return {
     chainId: parameters.chainId,
+    /**
+     * Carried through deliberately: `instantClose` resolves the solver from it to
+     * pick the submit URL, so dropping it would send a quote priced for one
+     * solver to another.
+     */
+    solverId: parameters.solverId,
     from: parameters.from,
     partyA: parameters.partyA,
     order: {

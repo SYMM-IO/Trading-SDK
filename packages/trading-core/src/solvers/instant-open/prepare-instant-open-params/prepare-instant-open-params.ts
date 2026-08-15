@@ -4,7 +4,7 @@ import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, WriteSolverParameter } from "../../../shared/types/properties";
 import type { FeeForUser } from "../../../symmio-contracts/symmio/actions/get-fee-for-user";
 import type { ApiLockedParamsBySymbolIdResponse } from "../../types/generated/enigma-solver";
-import type { InstantOpenParameters } from "../instant-open/instant-open";
+import type { InstantOpenParameters } from "../instant-open/types";
 import { calculateMargin, calculateTradeParams, computePlatformFee, toWeiBigInt } from "../shared/trade-math";
 import { type InstantOpenMarketData, type PositionType } from "../shared/types";
 import { resolveFeeRates, resolveLockedParams, resolveMarket, resolveMarkPrice } from "./resolvers";
@@ -78,6 +78,7 @@ export async function prepareInstantOpenParams(
 ): Promise<InstantOpenParameters> {
   const market = await resolveMarket(config, {
     chainId: parameters.chainId,
+    solverId: parameters.solverId,
     marketId: parameters.market.id,
     marketName: parameters.market.name,
     pricePrecision: parameters.market.pricePrecision,
@@ -86,11 +87,13 @@ export async function prepareInstantOpenParams(
   const [markPrice, lockedParams, feeRates] = await Promise.all([
     resolveMarkPrice(config, {
       chainId: parameters.chainId,
+      solverId: parameters.solverId,
       marketName: market.name,
       markPrice: parameters.markPrice,
     }),
     resolveLockedParams(config, {
       chainId: parameters.chainId,
+      solverId: parameters.solverId,
       marketName: market.name,
       leverage: parameters.leverage,
       lockedParamPercent: parameters.lockedParamPercent,
@@ -141,6 +144,13 @@ export async function prepareInstantOpenParams(
 
   return {
     chainId: parameters.chainId,
+    /**
+     * Carried through deliberately: `instantOpen` resolves the solver from it to
+     * fill `partyBsWhiteList` — which is signed into the EIP-712 payload — and to
+     * pick the submit URL. Dropping it here would sign against the default
+     * solver's address while the quote was priced and sized for another.
+     */
+    solverId: parameters.solverId,
     from: parameters.from,
     subAccountAddress: parameters.subAccountAddress,
     marketId: parameters.market.id,

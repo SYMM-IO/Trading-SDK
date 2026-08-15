@@ -1,7 +1,7 @@
 import type { Address, Hex } from "viem";
 import type { Config, SymmioWalletClient } from "../../../core/config";
 import { getInstantLayerEip712Domain, signSignedOperation } from "./eip712";
-import type { InstantOperationPayload, SignedOperation, SignedOperationPayload } from "./types";
+import type { FlexField, InstantOperationPayload, SignedOperation, SignedOperationPayload } from "./types";
 
 /**
  * Generate a random 32-byte hex salt.
@@ -36,14 +36,27 @@ export interface BuildSignedOperationParameters {
   nonce?: bigint;
   /** Override the random salt. Defaults to a fresh `generateSalt()` result. */
   salt?: Hex;
+  /**
+   * Calldata regions an authorized filler may overwrite at execution time.
+   * Defaults to `[]` — a fully fixed payload that only the signer's bytes can
+   * satisfy.
+   *
+   * Offsets are **args-relative**: byte offsets into `callData` measured *after*
+   * the 4-byte function selector. Build one for the `sendQuote` uPnL signature
+   * with {@link sendQuoteUpnlSigFlexRange}.
+   */
+  flexFields?: readonly FlexField[];
+  /** Max executions of this signature. Defaults to `1n` (single use); `0n` is unlimited. */
+  maxUses?: bigint;
 }
 
 /**
  * Build an unsigned {@link SignedOperation} struct.
  *
- * `flexFields` is always empty and `maxUses` is always `1n` for lowcap flows.
  * Pass `salt` to make the result deterministic in tests; otherwise a random
- * 32-byte salt is generated.
+ * 32-byte salt is generated. `flexFields` defaults to `[]` and `maxUses` to
+ * `1n`; pass them to delegate a calldata region to a solver (see
+ * {@link sendQuoteUpnlSigFlexRange}).
  */
 export function buildSignedOperation(parameters: BuildSignedOperationParameters): SignedOperation {
   return {
@@ -54,8 +67,8 @@ export function buildSignedOperation(parameters: BuildSignedOperationParameters)
       addr: parameters.signerAccount,
       isPartyB: false,
     },
-    flexFields: [],
-    maxUses: 1n,
+    flexFields: parameters.flexFields ? [...parameters.flexFields] : [],
+    maxUses: parameters.maxUses ?? 1n,
     replayAttackHeader: {
       nonce: parameters.nonce ?? 0n,
       deadline: parameters.deadline,

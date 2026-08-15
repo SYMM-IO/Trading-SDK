@@ -2,6 +2,7 @@
 
 import {
   editAccountNameMutationOptions,
+  getSubAccountQueryKey,
   getUserSubAccountsQueryKey,
   type EditAccountNameParameters,
 } from "@symmio/trading-core";
@@ -70,9 +71,16 @@ export function useEditAccountName(parameters: UseEditAccountNameParameters = {}
         throw normalizeSymmError(err);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
+      // The name lives in BOTH the list read and the single-subaccount read, so
+      // invalidate both: `getUserSubAccounts` (every list for the connected user)
+      // and `getSubAccount` for the renamed account. Without the latter, a mounted
+      // single-subaccount view keeps showing the old name.
       void queryClient.invalidateQueries({
         predicate: predicateMatch(getUserSubAccountsQueryKey, address ? { user: address } : undefined),
+      });
+      void queryClient.invalidateQueries({
+        predicate: predicateMatch(getSubAccountQueryKey, { account: variables.account }),
       });
     },
   });

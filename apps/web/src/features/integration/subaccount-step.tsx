@@ -6,7 +6,9 @@ import { TxReceipt } from "@/components/tx-result";
 import { formatUsd } from "@/lib/format";
 import {
   SubAccountIsolationType,
+  useAccountBalanceInfo,
   useAccountBalanceOf,
+  useAccountUpnl,
   useCreateSubAccounts,
   useSymmioConfig,
   useUserSubAccounts,
@@ -47,6 +49,7 @@ export function SubaccountStep({ owner, selected, onSelect }: Props) {
   function refreshAll() {
     void subAccounts.refetch();
     void queryClient.invalidateQueries({ queryKey: ["getAccountBalanceOf"] });
+    void queryClient.invalidateQueries({ queryKey: ["getAccountBalanceInfo"] });
   }
 
   if (!owner) {
@@ -81,6 +84,7 @@ export function SubaccountStep({ owner, selected, onSelect }: Props) {
             key={sub.accountAddress}
             address={sub.accountAddress}
             name={sub.name}
+            isolationType={sub.isolationType}
             active={sub.accountAddress === selected}
             onSelect={onSelect}
           />
@@ -120,16 +124,29 @@ function RefetchButton({
 interface SubAccountOptionProps {
   address: Address;
   name?: string;
+  /** The sub-account's isolation type — decides which balance the row shows. */
+  isolationType: SubAccountIsolationType;
   active: boolean;
   onSelect: (account: Address) => void;
 }
 
 /**
  * One row in {@link SubaccountStep}. Wraps the per-row balance query so the
- * hook can be called once per item.
+ * hook can be called once per item. The figure follows the sub-account's own
+ * isolation type: a `CUSTOM` (cross-margin) sub-account shows its **allocated**
+ * balance — the pool its trades spend — the VA isolations their **available**
+ * balance.
  */
-function SubAccountOption({ address, name, active, onSelect }: SubAccountOptionProps) {
-  const balance = useAccountBalanceOf({ account: address });
+function SubAccountOption({ address, name, isolationType, active, onSelect }: SubAccountOptionProps) {
+  const isCrossMargin = isolationType === SubAccountIsolationType.CUSTOM;
+  const availableBalance = useAccountBalanceOf({ account: address, query: { enabled: !isCrossMargin } });
+  const balanceInfo = useAccountBalanceInfo({ account: address, query: { enabled: isCrossMargin } });
+  const balance = isCrossMargin
+    ? { isLoading: balanceInfo.isLoading, error: balanceInfo.error, data: balanceInfo.data?.allocatedBalance }
+    : { isLoading: availableBalance.isLoading, error: availableBalance.error, data: availableBalance.data };
+  // Live uPnL across the sub-account's open positions (VAs included via the
+  // managed pipeline); the row only renders it when open quotes exist.
+  const accountUpnl = useAccountUpnl({ account: address });
 
   return (
     <button
@@ -147,11 +164,49 @@ function SubAccountOption({ address, name, active, onSelect }: SubAccountOptionP
         <span className="text-foreground truncate text-sm leading-tight font-medium">{name || "Unnamed"}</span>
         <span className="text-muted-foreground font-mono text-[0.7rem] leading-tight">{shortenAddress(address)}</span>
       </span>
-      <span className="flex flex-col items-end gap-1">
-        <BalanceLabel balance={balance} testId={`subaccount-${address}-balance`} />
-        {active ? <Badge variant="positive">Selected</Badge> : null}
+      <span className="flex flex-col items-end justify-between gap-1 self-stretch">
+        <span className="flex flex-col items-end gap-1">
+          <BalanceLabel balance={balance} testId={`subaccount-${address}-balance`} />
+          {active ? <Badge variant="positive">Selected</Badge> : null}
+        </span>
+        {/* Pinned to the card's bottom-right corner. */}
+        <UpnlLabel
+          upnl={accountUpnl.upnl}
+          openPositionCount={accountUpnl.openPositionCount}
+          testId={`subaccount-${address}-upnl`}
+        />
       </span>
     </button>
+  );
+}
+
+/**
+ * Signed live uPnL for a subaccount card. Rendered only when the account has
+ * open positions and every one of them is priced (the hook holds `upnl` at
+ * `undefined` until then).
+ */
+function UpnlLabel({
+  upnl,
+  openPositionCount,
+  testId,
+}: {
+  upnl: bigint | undefined;
+  openPositionCount: number;
+  testId: string;
+}) {
+  if (openPositionCount === 0 || upnl === undefined) return null;
+  const positive = upnl >= 0n;
+  return (
+    <span
+      className={cn(
+        "text-right font-mono text-[0.7rem] leading-tight",
+        positive ? "text-positive" : "text-destructive",
+      )}
+      data-testid={testId}
+    >
+      uPnL {positive ? "+" : ""}
+      {formatUsd(upnl)}
+    </span>
   );
 }
 
@@ -242,7 +297,14 @@ function CreateSubaccountInline({ owner, onCreated }: { owner: Address; onCreate
   );
 }
 
-function BalanceLabel({ balance, testId }: { balance: ReturnType<typeof useAccountBalanceOf>; testId: string }) {
+function BalanceLabel({
+  balance,
+  testId,
+}: {
+  /** Kind-appropriate balance slice: allocated (rasa) or available (enigma). */
+  balance: { isLoading: boolean; error: unknown; data: bigint | undefined };
+  testId: string;
+}) {
   if (balance.isLoading) {
     return (
       <span className="text-muted-foreground inline-flex items-center gap-1 text-xs" data-testid={`${testId}-loading`}>

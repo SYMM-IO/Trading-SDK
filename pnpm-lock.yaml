@@ -185,6 +185,67 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  apps/rasa-dex:
+    dependencies:
+      '@symmio/session-key':
+        specifier: workspace:*
+        version: link:../../packages/session-key
+      '@symmio/trading-core':
+        specifier: workspace:*
+        version: link:../../packages/trading-core
+      '@symmio/trading-react':
+        specifier: workspace:*
+        version: link:../../packages/trading-react
+      '@symmio/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
+      '@tanstack/react-query':
+        specifier: ^5.100.0
+        version: 5.100.9(react@19.2.7)
+      '@tanstack/react-virtual':
+        specifier: ^3.11.0
+        version: 3.14.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      fuse.js:
+        specifier: ^7.4.2
+        version: 7.4.2
+      next:
+        specifier: 16.2.9
+        version: 16.2.9(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react:
+        specifier: ^19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.2.7
+        version: 19.2.7(react@19.2.7)
+      viem:
+        specifier: ^2.49.0
+        version: 2.49.3(typescript@6.0.3)(zod@4.4.3)
+      wagmi:
+        specifier: ^3.4.2
+        version: 3.6.11(@safe-global/safe-apps-provider@0.18.6(typescript@6.0.3)(zod@4.4.3))(@safe-global/safe-apps-sdk@9.1.0(typescript@6.0.3)(zod@4.4.3))(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.7))(@types/react@19.2.17)(@walletconnect/ethereum-provider@2.23.10(@types/react@19.2.17)(react@19.2.7)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.7))(zod@4.4.3))(react@19.2.7)(typescript@6.0.3)(viem@2.49.3(typescript@6.0.3)(zod@4.4.3))
+    devDependencies:
+      '@symmio/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@tailwindcss/postcss':
+        specifier: ^4.2.4
+        version: 4.2.4
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      tailwindcss:
+        specifier: ^4.2.4
+        version: 4.3.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   apps/storybook:
     dependencies:
       '@symmio/ui':
@@ -530,6 +591,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@tanstack/react-virtual':
+        specifier: ^3.14.9
+        version: 3.14.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -4015,14 +4079,14 @@ packages:
     peerDependencies:
       react: ^19.2.7
 
-  '@tanstack/react-virtual@3.13.24':
-    resolution: {integrity: sha512-aIJvz5OSkhNIhZIpYivrxrPTKYsjW9Uzy+sP/mx0S3sev2HyvPb7xmjbYvokzEpfgYHy/HjzJ2zFAETuUfgCpg==}
+  '@tanstack/react-virtual@3.14.9':
+    resolution: {integrity: sha512-qZyr0FZDP8rDC4WBhsryIZmAd9bveJvFGUJJtskWaew6/0dTRS6wZxnR6VQ5bY2KwL3LjerrHqQLk3a0GKcPXQ==}
     peerDependencies:
       react: ^19.2.7
       react-dom: ^19.2.7
 
-  '@tanstack/virtual-core@3.14.0':
-    resolution: {integrity: sha512-JLANqGy/D6k4Ujmh8Tr25lGimuOXNiaVyXaCAZS0W+1390sADdGnyUdSWNIfd49gebtIxGMij4IktRVzrdr12Q==}
+  '@tanstack/virtual-core@3.17.7':
+    resolution: {integrity: sha512-bp+v10y65sp2H7WpWfIMyxTNfl8ZVfxFTLRjPIFRryi6FV/J33z4IS53WO4pTk36KlvJ4iLiQz+oaydDC1xbcA==}
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -10267,7 +10331,7 @@ snapshots:
       '@floating-ui/react': 0.26.28(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@react-aria/focus': 3.22.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@react-aria/interactions': 3.28.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@tanstack/react-virtual': 3.13.24(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tanstack/react-virtual': 3.14.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
       use-sync-external-store: 1.6.0(react@19.2.7)
@@ -13076,13 +13140,13 @@ snapshots:
       '@tanstack/query-core': 5.100.9
       react: 19.2.7
 
-  '@tanstack/react-virtual@3.13.24(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@tanstack/react-virtual@3.14.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@tanstack/virtual-core': 3.14.0
+      '@tanstack/virtual-core': 3.17.7
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
-  '@tanstack/virtual-core@3.14.0': {}
+  '@tanstack/virtual-core@3.17.7': {}
 
   '@testing-library/dom@10.4.1':
     dependencies:

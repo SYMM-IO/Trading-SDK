@@ -46,7 +46,8 @@ export interface UseTpSlDelegationResult {
 export function useTpSlDelegation(parameters: { subAccount?: Address; sessionKey?: Address }): UseTpSlDelegationResult {
   const { subAccount, sessionKey } = parameters;
   const config = useSymmioConfig();
-  const cohWallet = config.getChainConfig().solver.tpsl?.cohWalletAddress;
+  const chainConfig = config.getChainConfig();
+  const cohWallet = chainConfig.solvers[chainConfig.defaultSolverId]?.tpsl?.cohWalletAddress;
 
   const sessionEnabled = Boolean(subAccount && sessionKey);
   const cohEnabled = Boolean(subAccount && cohWallet);

@@ -32,9 +32,9 @@ export function GroupFundingHistoryButton({ group }: Props) {
   const [open, setOpen] = useState(false);
 
   const marketsQuery = useMarkets();
-  const market = marketsQuery.data?.find((m) => BigInt(m.symbol_id ?? 0) === group.by.symbolId);
-  const pricePrecision = market?.price_precision ?? DEFAULT_PRICE_PRECISION;
-  const quantityPrecision = market?.quantity_precision ?? DEFAULT_QUANTITY_PRECISION;
+  const market = marketsQuery.data?.find((m) => BigInt(m.symbolId ?? 0) === group.by.symbolId);
+  const pricePrecision = market?.pricePrecision ?? DEFAULT_PRICE_PRECISION;
+  const quantityPrecision = market?.quantityPrecision ?? DEFAULT_QUANTITY_PRECISION;
 
   const history = useQuoteGroupFundingHistory({ group, query: { enabled: open } });
 

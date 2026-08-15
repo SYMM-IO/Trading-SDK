@@ -2,7 +2,7 @@
 
 import { ResultError, ResultNote } from "@/components/result";
 import { StatusDot } from "@/components/status-dot";
-import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
+import { socketStatusLabel, socketStatusTone } from "@/features/notifications/socket-status-display";
 import { useEnigmaPrices } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";

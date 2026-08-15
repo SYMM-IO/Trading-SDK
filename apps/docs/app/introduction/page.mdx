@@ -28,6 +28,15 @@ Framework-agnostic helpers that don't fit in `core` because they pull in non-`vi
 
 `@symmio/trading-react` re-exports the most-used utils helpers (`formatTokenAmount`, `shortenAddress`, etc.) so React apps don't need to add a second dependency just to format a number.
 
+## Multiple solvers, multiple chains
+
+SYMMIO runs more than one product. The SDK ships two today, behind one API:
+
+- **lowcap perps** — the **enigma** solver on **HyperEVM**, with Virtual Accounts (per market/side) and the Enigma price feed.
+- **majors perps** — the **rasa** solver on **Base**, cross-margin (no Virtual Account) with Binance USD-M Futures prices.
+
+Actions and hooks take an optional `solverId`; omit it to follow the chain's default. Where a solver's response shape differs, the SDK normalizes it to a per-kind union you narrow on `kind`, so your components rarely branch on the solver. See **[Solvers & Chains](/core/concepts/solvers-and-chains)** for the model.
+
 ## Design rules
 
 - **viem is the only crypto-stack dependency.** No ethers, no web3.js, no wagmi inside `core`.

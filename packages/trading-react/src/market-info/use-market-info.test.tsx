@@ -13,6 +13,7 @@ vi.mock("@symmio/trading-core", async (importOriginal) => {
 import { useMarketInfo } from "./use-market-info";
 
 const RESULT: GetMarketInfoReturnType = {
+  kind: "enigma",
   markets: [{ symbol: "BTCUSDT", tradingVolume: 12345.6, lifetimeValue: 98765.4 }],
   totalValue24h: 12345.6,
   totalLifetimeValue: 98765.4,

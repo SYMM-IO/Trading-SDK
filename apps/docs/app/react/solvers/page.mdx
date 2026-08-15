@@ -4,6 +4,8 @@ React hooks over `@symmio/trading-core`'s Solvers slice — market catalog, lock
 
 Every hook on this landing page is a **read**. The writes (instant-open / instant-close) live on their own pages linked at the bottom.
 
+Each hook takes an optional `solverId` and defaults to the connected chain's solver (`enigma` on HyperEVM, `rasa` on Base). `useMarkets` returns the `Market` union — narrow on `kind` for solver-specific fields. Endpoints only the rasa solver serves (readiness, whitelist, uPnL, open interest, price range) are on the [Rasa Solver hooks](/react/rasa-solver) page; see [Solvers & Chains](/core/concepts/solvers-and-chains) for the model.
+
 ## Import
 
 ```ts
@@ -28,10 +30,11 @@ import {
 Solver-side market catalog. Prefer this over `useOnchainContractMarkets` for UI catalogs — the solver adds precision / tick metadata.
 
 ```ts
-const markets = useMarkets();
+const markets = useMarkets(); // Market[] — the union; narrow on `kind`
+const rasa = useMarkets({ solverId: "rasa" }); // RasaMarket[]
 ```
 
-Returns `SymbolContractSymbol[]`.
+Returns `UseQueryResult<Market[]>` — the normalized SDK market shape (camelCase fields, `maxLeverage` as a `number`). `Market` is a discriminated union `EnigmaMarket | RasaMarket` on `kind`; pass a literal `solverId` (`"enigma"` / `"rasa"`) to narrow the returned market type to that solver.
 
 ### `useLockedParams`
 
@@ -102,10 +105,10 @@ const codes = useSolverErrorCodes();
 
 ### `useSolverErrorMessage`
 
-Composed — takes an error code, returns the human-readable message.
+Composed — takes an error code (positional), returns the human-readable message.
 
 ```ts
-const msg = useSolverErrorMessage({ code: 42 });
+const msg = useSolverErrorMessage(42);
 ```
 
 ## Trading flows

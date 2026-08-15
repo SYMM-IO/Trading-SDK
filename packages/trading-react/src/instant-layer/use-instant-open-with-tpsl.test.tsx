@@ -48,8 +48,8 @@ const TPSL_BLOCK: Omit<SetQuoteTpSlParameters, "quoteId" | "chainId"> = {
   sl: { triggerPrice: "80", priceType: "markPrice" },
 };
 
-const OPEN_OK: InstantOpenReturnType = { success: true, tempQuoteId: "-1001" };
-const OPEN_NO_ID: InstantOpenReturnType = { success: true };
+const OPEN_OK: InstantOpenReturnType = { kind: "enigma", success: true, tempQuoteId: "-1001" };
+const OPEN_NO_ID: InstantOpenReturnType = { kind: "enigma", success: true };
 const TPSL_OK: SetQuoteTpSlReturnType = { success: true, cohQuoteId: "coh42" };
 
 function mockOpen(fn: ReturnType<typeof vi.fn>) {

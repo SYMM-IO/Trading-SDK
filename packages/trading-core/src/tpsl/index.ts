@@ -6,5 +6,6 @@ export * from "./search-tpsl-orders";
 export * from "./set-quote-tpsl";
 export * from "./signing-spec";
 export * from "./slippage";
+export * from "./supports-tpsl";
 export * from "./types";
 export * from "./validate-tpsl";
