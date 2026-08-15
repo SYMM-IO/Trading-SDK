@@ -78,6 +78,20 @@ export type SymmioSolverKind = (typeof SUPPORTED_SOLVER_KINDS)[number];
  * kind is not repeated here. `config.getSolver({ chainId, solverId })` returns a
  * {@link SymmioResolvedSolver} (this config plus its resolved `id`).
  */
+/**
+ * Per-solver capability flags. Gate SDK flows and UI on these so a solver that
+ * lacks a feature degrades gracefully instead of erroring. Unset flags default
+ * to `false` — a solver must **declare** a capability to enable it.
+ */
+export interface SolverCapabilitiesConfig {
+  /**
+   * Whether the solver supports closing a whole market + side group of quotes in
+   * one flow. Enigma (Virtual-Account isolation, one VA per market + side)
+   * supports it; rasa (cross-margin) does not. Default `false`.
+   */
+  groupClose?: boolean;
+}
+
 export interface SymmioSolverConfig {
   /** Human-readable solver name */
   name: string;
@@ -104,6 +118,11 @@ export interface SymmioSolverConfig {
    * the solver's own — so there is no chain-level default to inherit.
    */
   notifications: SymmioNotificationsConfig;
+  /**
+   * Optional per-solver capability flags. Gate SDK flows and UI on these
+   * ({@link SolverCapabilitiesConfig}); unset flags default to `false`.
+   */
+  capabilities?: SolverCapabilitiesConfig;
 }
 
 /**

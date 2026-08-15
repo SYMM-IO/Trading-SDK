@@ -42,6 +42,8 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
           // the `/notification` prefix (OpenAPI `servers[0].url`).
           searchUrl: "https://notification.rasa.capital/notification",
         },
+        // VA-per-market/side isolation supports folding a group into one close.
+        capabilities: { groupClose: true },
       },
     },
     defaultSolverId: "enigma",

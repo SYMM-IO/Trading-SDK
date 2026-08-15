@@ -16,6 +16,7 @@ import {
   useOnchainContractMarkets,
   usePartyAOpenPositions,
   useSubAccount,
+  useSupportsGroupClose,
   useSymmioChainId,
   useSymmioConfig,
   useVirtualAccount,
@@ -89,6 +90,12 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
   const [selectedQuoteId, setSelectedQuoteId] = useState<bigint>();
   /** When on, the picked position's whole market + side cohort closes as one. */
   const [groupMode, setGroupMode] = useState(false);
+  // Group close is a solver capability (VA isolation); rasa (cross-margin) lacks
+  // it. Hide the toggle and force single-position close when unsupported.
+  const supportsGroupClose = useSupportsGroupClose();
+  useEffect(() => {
+    if (!supportsGroupClose && groupMode) setGroupMode(false);
+  }, [supportsGroupClose, groupMode]);
 
   // The account that owns the positions and signs the close: the sub-account
   // itself (cross-margin) or the picked VA (VA isolations).
@@ -269,6 +276,7 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
           onSelect={setSelectedQuoteId}
           groupMode={groupMode}
           onToggleGroupMode={setGroupMode}
+          canGroupClose={supportsGroupClose}
         />
       ),
     },
@@ -688,6 +696,7 @@ function PositionPickerStep({
   onSelect,
   groupMode,
   onToggleGroupMode,
+  canGroupClose,
 }: {
   /** Owner of the positions — the picked VA, or the sub-account for cross-margin. */
   partyA?: Address;
@@ -700,6 +709,8 @@ function PositionPickerStep({
   onSelect: (id: bigint) => void;
   groupMode: boolean;
   onToggleGroupMode: (on: boolean) => void;
+  /** Whether the solver supports group close; hides the toggle when `false`. */
+  canGroupClose: boolean;
 }) {
   if (!partyA) {
     return <ResultNote testId="instant-close-positions-empty">Pick an account first.</ResultNote>;
@@ -725,18 +736,20 @@ function PositionPickerStep({
         {positions.length} position{positions.length === 1 ? "" : "s"}
       </span>
       <span className="flex items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant={groupMode ? "default" : "outline"}
-          onClick={() => onToggleGroupMode(!groupMode)}
-          disabled={positions.length === 0}
-          data-testid="instant-close-group-toggle"
-          className="gap-1.5"
-        >
-          <LayersIcon />
-          Group close
-        </Button>
+        {canGroupClose ? (
+          <Button
+            type="button"
+            size="sm"
+            variant={groupMode ? "default" : "outline"}
+            onClick={() => onToggleGroupMode(!groupMode)}
+            disabled={positions.length === 0}
+            data-testid="instant-close-group-toggle"
+            className="gap-1.5"
+          >
+            <LayersIcon />
+            Group close
+          </Button>
+        ) : null}
         <RefetchButton isRefetching={isRefetching} onClick={onRefetch} testId="instant-close-positions-retry" />
       </span>
     </div>

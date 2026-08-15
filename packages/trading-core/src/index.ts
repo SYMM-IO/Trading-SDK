@@ -770,6 +770,8 @@ export {
   type RasaMarket,
 } from "./solvers/markets";
 
+export { getSolverCapabilities, supportsGroupClose, type SolverCapabilities } from "./solvers/capabilities";
+
 /**
  * Funding info
  * ------------

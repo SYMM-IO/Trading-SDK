@@ -562,6 +562,13 @@ export { useFundingInfo, type UseFundingInfoParameters, type UseFundingInfoRetur
 export { useMarketInfo, type UseMarketInfoParameters, type UseMarketInfoReturnType } from "./market-info";
 
 /**
+ * Solver capabilities
+ * -------------------
+ * Gate flows/UI on what the resolved solver supports (e.g. group close).
+ */
+export { useSolverCapabilities, useSupportsGroupClose, type UseSolverCapabilitiesParameters } from "./solvers";
+
+/**
  * Fee hooks
  * ---------
  * Read SYMMIO fee settings for a user/account, affiliate, and symbol id.
