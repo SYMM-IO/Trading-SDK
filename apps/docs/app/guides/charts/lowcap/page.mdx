@@ -2,7 +2,13 @@ import { Callout } from "nextra/components";
 
 # Lowcap Chart
 
-Lowcap markets do not have a native SYMMIO chart. The SDK does not ship one either — you pick the rendering approach that fits your UI budget and DX preferences.
+Lowcap markets are not listed on a reference exchange, so there are no venue candles to fetch — the SDK's [Binance `CandleSource`](../majors) has nothing to serve for them. The price has to come from the liquidity pool the token actually trades in, and you pick the rendering approach that fits your UI budget and DX preferences.
+
+<Callout type="info">
+  Charting a **major**? Use the [Majors Chart](../majors) guide instead — the SDK fetches and streams real OHLCV for
+  those. `source.getSymbol(marketName)` returning `undefined` is how a source tells you a market belongs on this page
+  rather than that one.
+</Callout>
 
 Two common options:
 
@@ -14,7 +20,7 @@ Two common options:
   display-only — do not read prices from the iframe or the OHLC feed for trade math.
 </Callout>
 
-Both options key off the market's **pair address** and **chain slug**, which come from a single call to [`useEnigmaPriceServiceMetadata`](../../react/price-service#useenigmapriceservicemetadata) using the market's **base-token address**.
+Both options key off the market's **pair address** and **chain slug**, which come from a single call to [`useEnigmaPriceServiceMetadata`](../../../react/price-service#useenigmapriceservicemetadata) using the market's **base-token address**.
 
 | Field                | Source            | Used for                                                    |
 | -------------------- | ----------------- | ----------------------------------------------------------- |
@@ -137,7 +143,7 @@ For lowcap, **GeckoTerminal's `pools/{pool_address}/ohlcv` route is usually the 
 ```tsx
 import { useQuery } from "@tanstack/react-query";
 import { useEnigmaPriceServiceMetadata } from "@symmio/trading-react";
-import { createChart, type UTCTimestamp } from "lightweight-charts";
+import { CandlestickSeries, createChart, type UTCTimestamp } from "lightweight-charts";
 import { useEffect, useRef } from "react";
 
 interface Props {
@@ -165,7 +171,8 @@ export function LowcapOhlcChart(props: Props) {
   useEffect(() => {
     if (!containerRef.current || !candles.data) return;
     const chart = createChart(containerRef.current, { autoSize: true });
-    const series = chart.addCandlestickSeries();
+    // Lightweight Charts v5. On v4 this is `chart.addCandlestickSeries()`.
+    const series = chart.addSeries(CandlestickSeries);
     series.setData(candles.data);
     return () => chart.remove();
   }, [candles.data]);
@@ -217,6 +224,7 @@ Start with A. Move to B once the product needs on-chart overlays or a bespoke lo
 
 ## Related
 
-- [`useEnigmaPriceServiceMetadata`](../../react/price-service#useenigmapriceservicemetadata) — the metadata hook both options depend on.
-- [Price Service](../../core/price-service) — core-level reference for the metadata endpoint, including the full `MetadataResponse` shape.
-- [Instant Open](../../react/solvers/instant-open) — the lowcap open flow this chart typically sits next to.
+- [Majors Chart](../majors) — the other half: markets that _are_ listed on a reference exchange, where the SDK fetches and streams the bars for you.
+- [`useEnigmaPriceServiceMetadata`](../../../react/price-service#useenigmapriceservicemetadata) — the metadata hook both options depend on.
+- [Price Service](../../../core/price-service) — core-level reference for the metadata endpoint, including the full `MetadataResponse` shape.
+- [Instant Open](../../../react/solvers/instant-open) — the lowcap open flow this chart typically sits next to.

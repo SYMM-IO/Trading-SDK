@@ -8,11 +8,11 @@ Guides are **consumer-facing**. Reference docs under [Core](../core), [React](..
 
 - [Build a Perps DEX](./build-a-dex) — end-to-end recipe for shipping a full trading UI. Start on the [overview](./build-a-dex) to pick your path: [with React](./build-a-dex/react) (recommended, on `@symmio/trading-react`) or [with Core](./build-a-dex/core) (framework-agnostic, on `@symmio/trading-core`, for Node.js and non-React stacks). Both walk wallet, subaccounts, collateral, delegation, open / close, and TP/SL.
 - [Register an Affiliate](./affiliate-registration) — register your frontend as a SYMMIO affiliate so trading fees route to you. Predict your deterministic address, submit the on-chain request, get approved, then wire the address into your config. Use the hosted page or drive it from your own UI with the SDK.
-- [Lowcap Chart](./lowcap-chart) — render a price chart for a lowcap market. Two options: DexScreener iframe (fast path) or your own OHLC feed (Moralis / GeckoTerminal) rendered with TradingView Lightweight Charts.
+- [Charts](./charts) — render a price chart for any market. [Majors](./charts/majors) stream real OHLCV from a reference exchange through the SDK's `CandleSource`; [lowcaps](./charts/lowcap) have no such listing and chart from their liquidity pool instead, via a DexScreener embed or your own OHLC feed.
 
 ## When to reach for a guide vs a reference
 
 - **Reference** — "what does `useEnigmaPriceServiceMetadata` return?" → [Core / Price Service](../core/price-service) or [React / Price Service hooks](../react/price-service).
-- **Guide** — "how do I show a chart for a lowcap market?" → this section.
+- **Guide** — "how do I show a price chart for a market?" → this section.
 
-New guides are added as new UI patterns crystallize. If a recipe lives in the vibe-ui reference repo and belongs in the SDK's documented surface, propose it as a guide.
+New guides are added as new UI patterns crystallize. If a recipe exists in a reference frontend and belongs in the SDK's documented surface, propose it as a guide.

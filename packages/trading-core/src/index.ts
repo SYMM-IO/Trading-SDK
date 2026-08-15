@@ -1560,3 +1560,61 @@ export {
   type TransferRow,
   type TransferRowDirection,
 } from "./transfers";
+
+/**
+ * Candles slice
+ * -------------
+ * Chart data, decoupled from any chart library. A `CandleSource` supplies the
+ * three things every charting library needs — symbol metadata, bars for a range,
+ * and a live subscription — so adapters and hooks are written against that
+ * interface rather than against a venue.
+ *
+ * `createBinanceCandleSource` is the reference source for major markets;
+ * `toTradingViewDatafeed` adapts any source to TradingView's Charting Library
+ * without the SDK depending on that licensed package. `priceBasis` on every
+ * source states what its prices actually represent — a reference exchange is
+ * not the solver mark a SYMMIO trade settles at.
+ */
+export {
+  BINANCE_EXCHANGE_INFO_PATH,
+  BINANCE_KLINES_PATH,
+  BINANCE_MAX_LIMIT,
+  BINANCE_REST_URL,
+  BINANCE_WS_URL,
+  CANDLE_RESOLUTION_MS,
+  createBinanceCandleSource,
+  fromTradingViewResolution,
+  getBinanceSupportedResolutions,
+  getCandlesQueryKey,
+  getCandlesQueryOptions,
+  parseBinanceKline,
+  parseBinanceKlineEvent,
+  resolutionToMs,
+  toBinanceInterval,
+  toTradingViewDatafeed,
+  toTradingViewResolution,
+  watchBinanceKlines,
+  type BinanceCandleSourceParameters,
+  type BinanceMarket,
+  type Candle,
+  type CandlePriceBasis,
+  type CandleResolution,
+  type CandleSource,
+  type CandleSymbol,
+  type CandleUpdateMeta,
+  type GetCandlesData,
+  type GetCandlesOptions,
+  type GetCandlesParameters,
+  type GetCandlesQueryKey,
+  type GetCandlesQueryOptions,
+  type GetCandlesReturnType,
+  type ToTradingViewDatafeedOptions,
+  type TradingViewBar,
+  type TradingViewDatafeed,
+  type TradingViewDatafeedConfiguration,
+  type TradingViewHistoryMetadata,
+  type TradingViewPeriodParams,
+  type TradingViewSymbolInfo,
+  type WatchBinanceKlinesParameters,
+  type WatchCandlesParameters,
+} from "./candles";

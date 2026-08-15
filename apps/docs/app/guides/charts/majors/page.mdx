@@ -1,0 +1,188 @@
+import { Callout } from "nextra/components";
+
+# Majors Chart
+
+Majors are listed on reference exchanges, so real OHLCV candles exist for them. The SDK ships a Binance USD-M futures source that fetches history, streams live bars, and resolves price precision — you supply the charting library.
+
+```bash npm2yarn
+npm i @symmio/trading-react
+```
+
+## Quick start
+
+Three hooks. The chart library here is [Lightweight Charts](https://tradingview.github.io/lightweight-charts/), but nothing below depends on it.
+
+```tsx
+import { useBinanceCandleSource, useCandles, useCandleStream } from "@symmio/trading-react";
+
+export function MajorsChart({ marketName }: { marketName: string }) {
+  const source = useBinanceCandleSource();
+
+  const history = useCandles({
+    source,
+    marketName,
+    resolution: "1m",
+    from: Date.now() - 500 * 60_000,
+    to: Date.now(),
+    limit: 500,
+  });
+
+  useCandleStream({
+    source,
+    marketName,
+    resolution: "1m",
+    onCandle: (candle) => series.update({ ...candle, time: candle.time / 1000 }),
+    onReset: () => history.refetch(),
+  });
+
+  return <div>{history.data?.candles.length} bars</div>;
+}
+```
+
+<Callout type="warning">
+  `from` and `to` are part of the query key. Passing a live `Date.now()` mints a new cache entry on **every render** —
+  derive the range from state that only changes when the user pans or switches resolution.
+</Callout>
+
+## The source
+
+`useBinanceCandleSource()` returns a memoized `CandleSource`. It caches the venue's `exchangeInfo` for its lifetime, so keep the instance stable rather than rebuilding it per render.
+
+```ts
+const source = useBinanceCandleSource({
+  /** `"usd-m-futures"` (default) or `"spot"`. */
+  market: "usd-m-futures",
+  /** Route through your own proxy or a regional mirror. */
+  restUrl: "https://fapi.binance.com",
+  wsUrl: "wss://fstream.binance.com/market/stream",
+  /** Map a SYMMIO market name onto a Binance symbol. */
+  resolveSymbol: (marketName) => marketName.toUpperCase(),
+});
+```
+
+Outside React, build it directly with `createBinanceCandleSource()` from `@symmio/trading-core` — same options, no hook.
+
+### Symbol mapping
+
+`resolveSymbol` defaults to an upper-case identity mapping, which holds while SYMMIO market names are already Binance USD-M symbols. Override it the moment your deployment's names can diverge — an unmapped name resolves to a symbol that does not exist, and the chart simply stays empty.
+
+The common case is Binance's multiplier prefixes: a market named `PEPE` needs mapping to `1000PEPEUSDT`.
+
+```ts
+const ALIASES: Record<string, string> = { PEPE: "1000PEPEUSDT", BONK: "1000BONKUSDT" };
+
+const source = useBinanceCandleSource({
+  resolveSymbol: (name) => ALIASES[name] ?? `${name.toUpperCase()}USDT`,
+});
+```
+
+Returning `undefined` marks a market as one this source does not carry.
+
+### Checking coverage before you chart
+
+`getSymbol` is the source's own answer to "do you carry this market". Ask it first: a SYMMIO lowcap name sent to Binance is an HTTP 400, not an empty series, so without this gate the UI shows a raw transport error where the honest answer is "wrong source for this market".
+
+```tsx
+const symbol = await source.getSymbol(marketName);
+if (!symbol) {
+  // Not listed here — fall back to the lowcap chart.
+}
+```
+
+Every call shares one cached `exchangeInfo` fetch, so filtering an entire market list costs a single request.
+
+## Resolutions
+
+The SDK speaks its own resolution vocabulary; each source declares the subset it serves via `source.supportedResolutions`.
+
+| Market          | Supported                                                                     |
+| --------------- | ----------------------------------------------------------------------------- |
+| `usd-m-futures` | `1m` `3m` `5m` `15m` `30m` `1h` `2h` `4h` `6h` `8h` `12h` `1d` `3d` `1w` `1M` |
+| `spot`          | the same, plus `1s`                                                           |
+
+Sub-minute bars do not exist on USD-M futures. A perp chart that needs them has to fold a tick stream into candles, which is a different source entirely.
+
+## Live bars
+
+`useCandleStream` merges realtime updates onto your series.
+
+```tsx
+const { candle, closed, status, error } = useCandleStream({
+  source,
+  marketName,
+  resolution,
+  enabled: streaming,
+  onCandle: (candle, { closed }) => series.update(toChartBar(candle)),
+  onReset: () => history.refetch(),
+});
+```
+
+- `onCandle` fires on every update to the in-progress bar, then once more with `closed: true` when it finalizes. Handlers are read through refs, so an inline arrow does **not** re-dial the socket.
+- `onReset` fires after a reconnect. Bars were missed while the socket was down — refetch history rather than splicing a live bar onto a series with a hole in it.
+- Returning state (`candle`) is convenient for a price header; for a full chart prefer the callback and let the library own its series instead of re-rendering React on every tick.
+
+## With TradingView's Charting Library
+
+If you use TradingView's licensed Charting Library, the SDK adapts any source into a datafeed. `toTradingViewDatafeed` models the contract **structurally**, so the returned object satisfies `IBasicDataFeed` without the SDK depending on a package that is not on npm.
+
+```tsx
+import { useBinanceCandleSource, useTradingViewDatafeed } from "@symmio/trading-react";
+
+const source = useBinanceCandleSource();
+const datafeed = useTradingViewDatafeed({ source, exchange: "Binance" });
+
+useEffect(() => {
+  const chart = new TradingView.widget({ datafeed, symbol: "BTCUSDT", interval: "60" });
+  return () => chart.remove();
+}, [datafeed]);
+```
+
+The adapter handles resolution translation (`"60"` ↔ `1h`), unix-seconds period params, `countBack` precedence, `pricescale` from the venue's tick size, and wiring reconnects to `onResetCacheNeeded`.
+
+Symbol search is reported as unsupported — your app already has its market list, and driving selection from that is more accurate than a second search surface.
+
+## Without React
+
+`@symmio/trading-core` exposes the same surface framework-agnostically:
+
+```ts
+import { createBinanceCandleSource, getCandlesQueryOptions } from "@symmio/trading-core";
+
+const source = createBinanceCandleSource();
+const { candles, noMoreData } = await source.getCandles({
+  marketName: "BTCUSDT",
+  resolution: "1h",
+  from: Date.now() - 24 * 60 * 60 * 1000,
+  to: Date.now(),
+});
+```
+
+`getCandlesQueryOptions(source, options)` returns a TanStack options bag keyed by the source's `id`, so two venues never share a cache entry.
+
+## What the SDK handles for you
+
+These are the parts that are easy to get wrong and silent when you do.
+
+- **Backfill direction.** Binance caps a bounded range from its _start_: sending `startTime`, `endTime` and `limit` together returns the **oldest** bars in the window. For a chart scrolling back that is the wrong end entirely. The source pages backwards from `to`, sending `endTime` only, and applies the `from` bound client-side.
+- **Request size.** USD-M futures allows 1500 bars per request, spot 1000. Exceeding it is a hard `-1130` error, not a silent clamp. `getCandles` caps and pages transparently, so ask for as many bars as you need.
+- **Stream routing.** Live frames are matched on symbol **and** interval. Matching on symbol alone lets two charts on different resolutions feed each other's series.
+- **Reconnects.** Binance drops connections after 24 hours. The socket re-dials, re-sends its SUBSCRIBE frame, and raises `onReset` so you can close the gap.
+
+<Callout type="info">
+  **The futures WebSocket path is not the documented one.** On `fstream.binance.com`, `/stream` and `/ws/<stream>`
+  accept the SUBSCRIBE frame, reply `{"result":null}`, and then never push a single kline — the socket reports `open`
+  and silently never ticks. Only the `/market/` paths deliver frames, which is why the default `wsUrl` is
+  `wss://fstream.binance.com/market/stream`. Spot needs no such prefix. If you override `wsUrl`, keep the prefix.
+</Callout>
+
+## Operational notes
+
+- **No API key, no proxy.** Binance serves permissive CORS headers on market data, so both REST and WebSocket are reachable straight from the browser.
+- **Geo-restrictions.** `fapi.binance.com` is blocked in some jurisdictions. `restUrl` and `wsUrl` are the escape hatch — repoint them at your own proxy with no other change.
+- **Price basis.** This source is `reference-exchange`. It is Binance's perp mark, not the SYMMIO solver mark your trade settles against. See [Charts overview](../).
+
+## Related
+
+- [Lowcap Chart](../lowcap) — the other half: markets with no reference-exchange listing.
+- [Markets hooks](../../../react/markets) — `useMarkets` for the market list the picker offers.
+- [Price Service](../../../core/price-service) — the solver's mark price, which is what trade math must read.

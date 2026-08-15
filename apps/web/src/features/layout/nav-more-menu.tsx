@@ -10,6 +10,7 @@ import { useState, type ReactElement, type SVGProps } from "react";
 /** Per-route glyphs for the secondary destinations, keyed by href. */
 const ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElement> = {
   "/price-service": PriceIcon,
+  "/candles": CandlesIcon,
   "/muon": MuonIcon,
   "/websocket": WebSocketIcon,
   "/session-keys": KeyIcon,
@@ -136,6 +137,26 @@ function PriceIcon(props: SVGProps<SVGSVGElement>) {
       {...props}
     >
       <path d="M3 12h4l3 7 4-14 3 7h4" />
+    </svg>
+  );
+}
+
+function CandlesIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      <path d="M8 3v4M8 16v5" />
+      <rect x="5.5" y="7" width="5" height="9" rx="1" />
+      <path d="M16 5v4M16 15v4" />
+      <rect x="13.5" y="9" width="5" height="6" rx="1" />
     </svg>
   );
 }

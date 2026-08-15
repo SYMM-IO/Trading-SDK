@@ -56,6 +56,10 @@
       "types": "./dist/price-service/index.d.ts",
       "import": "./dist/price-service/index.js"
     },
+    "./candles": {
+      "types": "./dist/candles/index.d.ts",
+      "import": "./dist/candles/index.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"

@@ -16,6 +16,7 @@ export const primaryNavLinks: NavLink[] = [
 /** Secondary destinations, collapsed behind the header "More" menu. */
 export const secondaryNavLinks: NavLink[] = [
   { href: "/price-service", label: "Price Service", description: "Oracle prices, symbols & health" },
+  { href: "/candles", label: "Candles", description: "Historical & live OHLCV chart data" },
   { href: "/muon", label: "Muon API", description: "Oracle uPnL, price & settlement signatures" },
   { href: "/websocket", label: "WebSockets", description: "Live notification, price & order streams" },
   { href: "/session-keys", label: "Session Keys", description: "Browser-local delegated signing key" },

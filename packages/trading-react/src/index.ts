@@ -805,3 +805,26 @@ export {
   type UseWatchTpSlNotificationsParameters,
   type UseWatchTpSlNotificationsReturnType,
 } from "./tpsl";
+
+/**
+ * Candles / charting hooks
+ * ------------------------
+ * Chart data decoupled from any chart library. `useBinanceCandleSource` builds
+ * a stable source, `useCandles` reads its history through TanStack Query, and
+ * `useCandleStream` subscribes to live bars. `useTradingViewDatafeed` adapts a
+ * source to TradingView's Charting Library; any other library consumes the same
+ * two data hooks directly. Import the value types (`Candle`, `CandleResolution`,
+ * `CandleSource`) from `@symmio/trading-core`.
+ */
+export {
+  useBinanceCandleSource,
+  useCandleStream,
+  useCandles,
+  useTradingViewDatafeed,
+  type UseBinanceCandleSourceParameters,
+  type UseCandleStreamParameters,
+  type UseCandleStreamReturnType,
+  type UseCandlesParameters,
+  type UseCandlesReturnType,
+  type UseTradingViewDatafeedParameters,
+} from "./candles";
