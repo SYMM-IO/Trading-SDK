@@ -403,7 +403,7 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
         />
       </Field>
 
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(140px,180px)]">
+      <div className="grid gap-4 @lg/console:grid-cols-[minmax(0,1fr)_minmax(140px,180px)]">
         <Field
           label="leverage"
           htmlFor={`${idPrefix}-leverage`}
@@ -1292,7 +1292,7 @@ function TpSlPresetCard({
   return (
     <div className="border-border/60 grid gap-2 rounded-xl border p-3 text-sm">
       <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">TP/SL (optional)</div>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2 @lg/console:grid-cols-2">
         <TpSlPresetSide
           label="Take Profit"
           idPrefix={`${idPrefix}-tp`}

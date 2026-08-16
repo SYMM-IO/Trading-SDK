@@ -29,6 +29,18 @@ import { distancePercentOf, GroupTpSlRail, type GroupTpSlRung } from "./group-tp
 import { useMarketNameById } from "./use-market-name-by-id";
 import { useTpSlDelegation } from "./use-tpsl-delegation";
 
+/**
+ * How many leg writes this modal keeps in flight at once.
+ *
+ * The SDK defaults to `1` because a leg is signed by the connected wallet in
+ * the general case, and N parallel legs would mean N simultaneous popups. This
+ * modal is never in that case: submit only renders once `delegation.ready`,
+ * which requires a session key, so every signature is local and instant. `4`
+ * matches `useDeleteQuoteGroupTpSl`'s own default, so both halves of the modal
+ * hit the handler at the same rate.
+ */
+const GROUP_TPSL_WRITE_CONCURRENCY = 4;
+
 interface Props {
   group: QuoteGroup;
   /** Sub-account that owns the group's Virtual Accounts — required to sign. */
@@ -161,6 +173,7 @@ export function GroupTpSlModal({ group, subAccount, from, open, onOpenChange }: 
       config: tpslConfig.data,
       referencePrice: markPrice,
       from,
+      concurrency: GROUP_TPSL_WRITE_CONCURRENCY,
     });
   }
 

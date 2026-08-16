@@ -24,7 +24,8 @@ import { useEffect, useState } from "react";
 import { isAddress, type Address } from "viem";
 import { WalletPanel } from "../inspector/wallet-panel";
 import { AmountField } from "./amount-field";
-import { FlowRail, type FlowStep } from "./flow-rail";
+import { FlowLayout } from "./flow-layout";
+import type { FlowStep } from "./flow-rail";
 import { parseAmount } from "./parse-amount";
 import { SubaccountStep } from "./subaccount-step";
 
@@ -109,89 +110,83 @@ export function WithdrawFlow({
   ];
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_220px]">
-      <div className="flex min-h-60 flex-col gap-5">
-        {current === 0 ? (
-          <WalletPanel />
-        ) : current === 1 ? (
-          <SubaccountStep
-            owner={owner}
-            selected={subAccount}
-            onSelect={(account) => {
-              onSelectSubAccount(account);
-              withdraw.reset();
-              setStep(2);
-            }}
-          />
-        ) : (
-          <>
-            <WithdrawableReadout query={withdrawableTime} />
+    <FlowLayout steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep}>
+      {current === 0 ? (
+        <WalletPanel />
+      ) : current === 1 ? (
+        <SubaccountStep
+          owner={owner}
+          selected={subAccount}
+          onSelect={(account) => {
+            onSelectSubAccount(account);
+            withdraw.reset();
+            setStep(2);
+          }}
+        />
+      ) : (
+        <>
+          <WithdrawableReadout query={withdrawableTime} />
 
-            <AmountField
-              id="integration-withdraw-amount"
-              testId="integration-withdraw-amount"
-              label="Amount to withdraw"
-              value={amount}
-              onChange={(next) => {
-                setAmount(next);
+          <AmountField
+            id="integration-withdraw-amount"
+            testId="integration-withdraw-amount"
+            label="Amount to withdraw"
+            value={amount}
+            onChange={(next) => {
+              setAmount(next);
+              withdraw.reset();
+            }}
+            decimals={decimals}
+            invalid={amount.length > 0 && parsed === undefined}
+          />
+
+          <Field
+            label="Receiver"
+            htmlFor="integration-withdraw-receiver"
+            action={
+              owner ? (
+                <Button type="button" size="xs" variant="ghost" onClick={() => setReceiver(owner)}>
+                  Use wallet
+                </Button>
+              ) : undefined
+            }
+          >
+            <Input
+              id="integration-withdraw-receiver"
+              data-testid="integration-withdraw-receiver"
+              value={receiver}
+              onChange={(e) => {
+                setReceiver(e.target.value);
                 withdraw.reset();
               }}
-              decimals={decimals}
-              invalid={amount.length > 0 && parsed === undefined}
+              placeholder="0x…"
+              className="font-mono"
+              aria-invalid={receiver.length > 0 && !validReceiver}
             />
+          </Field>
 
-            <Field
-              label="Receiver"
-              htmlFor="integration-withdraw-receiver"
-              action={
-                owner ? (
-                  <Button type="button" size="xs" variant="ghost" onClick={() => setReceiver(owner)}>
-                    Use wallet
-                  </Button>
-                ) : undefined
-              }
-            >
-              <Input
-                id="integration-withdraw-receiver"
-                data-testid="integration-withdraw-receiver"
-                value={receiver}
-                onChange={(e) => {
-                  setReceiver(e.target.value);
-                  withdraw.reset();
-                }}
-                placeholder="0x…"
-                className="font-mono"
-                aria-invalid={receiver.length > 0 && !validReceiver}
-              />
-            </Field>
+          <Button
+            type="button"
+            size="lg"
+            disabled={!canInitiate || withdraw.isPending}
+            onClick={onInitiate}
+            data-testid="button-initiate-withdraw"
+            className="w-full"
+          >
+            {withdraw.isPending ? <Spinner className="size-4" /> : null}
+            {parsed === undefined ? "Enter an amount" : "Initiate withdrawal"}
+          </Button>
 
-            <Button
-              type="button"
-              size="lg"
-              disabled={!canInitiate || withdraw.isPending}
-              onClick={onInitiate}
-              data-testid="button-initiate-withdraw"
-              className="w-full"
-            >
-              {withdraw.isPending ? <Spinner className="size-4" /> : null}
-              {parsed === undefined ? "Enter an amount" : "Initiate withdrawal"}
-            </Button>
+          <InitiateStatus withdraw={withdraw} />
 
-            <InitiateStatus withdraw={withdraw} />
+          {subAccount ? (
+            <SubaccountBalance isCustom={isCustom} margin={marginBalance} available={availableBalance} />
+          ) : null}
 
-            {subAccount ? (
-              <SubaccountBalance isCustom={isCustom} margin={marginBalance} available={availableBalance} />
-            ) : null}
-
-            {subAccount ? <PendingRequests subAccount={subAccount} decimals={decimals} /> : null}
-          </>
-        )}
-      </div>
-
-      <div className="lg:border-border/50 lg:border-l lg:pl-8">
-        <FlowRail steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep} />
-      </div>
-    </div>
+          {subAccount ? <PendingRequests subAccount={subAccount} decimals={decimals} /> : null}
+        </>
+      )}
+    </FlowLayout>
   );
 }
 

@@ -17,10 +17,16 @@ function sideOf(record: TpSlRecord, side: TpSlConditionalOrderType): { state: st
  * `applyNotification`, and the success refetch's `setRows`), so a run step that
  * reads it resolves no matter which signal delivered the update — even when the
  * run hook's own subscription never received the frame.
+ *
+ * `"pending"` counts: the handler holds the order, which is what the write was
+ * waiting to learn, and it is one of the states the fallback sweep explicitly
+ * asks for. `"killed"` does not appear here because no signal can produce it —
+ * `toQuoteTpSl` maps a killed row to "no active order" and the frame parser has
+ * no such state.
  */
 export function isWriteSideSettled(record: TpSlRecord, side: TpSlConditionalOrderType): boolean {
   const { state } = sideOf(record, side);
-  return state === "new" || state === "triggered" || state === "killed";
+  return state === "new" || state === "pending" || state === "triggered";
 }
 
 /**

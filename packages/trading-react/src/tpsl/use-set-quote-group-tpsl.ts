@@ -498,6 +498,7 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
           if (action.tp) {
             markConfirming(action.quoteId, "tp", {
               price: action.tp.triggerPrice,
+              pricePrecision: runParameters.pricePrecision,
               priceType: action.tp.priceType,
               cohQuoteId: result.cohQuoteId,
             });
@@ -505,6 +506,7 @@ export function useSetQuoteGroupTpSl(parameters: UseSetQuoteGroupTpSlParameters 
           if (action.sl) {
             markConfirming(action.quoteId, "sl", {
               price: action.sl.triggerPrice,
+              pricePrecision: runParameters.pricePrecision,
               priceType: action.sl.priceType,
               cohQuoteId: result.cohQuoteId,
             });

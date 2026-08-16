@@ -136,6 +136,7 @@ export function useInstantOpenWithTpSl(
         if (tp) {
           markConfirming(quoteId, "tp", {
             price: tp.triggerPrice,
+            pricePrecision: variables.tpsl!.pricePrecision,
             priceType: tp.priceType,
             cohQuoteId: tpslResult.cohQuoteId,
           });
@@ -143,6 +144,7 @@ export function useInstantOpenWithTpSl(
         if (sl) {
           markConfirming(quoteId, "sl", {
             price: sl.triggerPrice,
+            pricePrecision: variables.tpsl!.pricePrecision,
             priceType: sl.priceType,
             cohQuoteId: tpslResult.cohQuoteId,
           });

@@ -34,7 +34,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatUnits, zeroAddress, type Address } from "viem";
 import { WalletPanel } from "../inspector/wallet-panel";
-import { FlowRail, type FlowStep } from "./flow-rail";
+import { FlowLayout } from "./flow-layout";
+import type { FlowStep } from "./flow-rail";
 import { SubaccountStep } from "./subaccount-step";
 
 const WEI_DECIMALS = 18;
@@ -159,81 +160,76 @@ export function TpSlFlow({ owner, subAccount, subAccountName, onSelectSubAccount
   ];
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_220px]">
-      <div className="flex min-h-60 flex-col gap-5">
-        {current === 0 ? (
-          <WalletPanel />
-        ) : current === 1 ? (
-          <SubaccountStep
-            owner={owner}
-            selected={subAccount}
-            onSelect={(account) => {
-              onSelectSubAccount(account);
-              setStep(2);
-            }}
-          />
-        ) : current === 2 ? (
-          <VirtualAccountStep
-            subAccount={subAccount}
-            selected={virtualAccount}
-            onSelect={(va) => {
-              setVirtualAccount(va);
-              setStep(3);
-            }}
-          />
-        ) : current === 3 ? (
-          <SessionKeyPrompt address={sessionKey} owner={owner} />
-        ) : current === 4 ? (
-          <DelegationPrompt
-            subAccount={subAccount}
-            cohWallet={cohWalletAddress}
-            active={delegationActive}
-            loading={delegationLoading}
-            isRefetching={delegationCheck.isRefetching}
-            onRefetch={() => void delegationCheck.refetch()}
-            grant={grant}
-            onGrant={onGrant}
-          />
-        ) : current === 5 ? (
-          <PositionPickerStep
-            virtualAccount={virtualAccount}
-            positions={positions.map((q) => ({
-              id: q.id,
-              symbolId: q.symbolId,
-              positionType: q.positionType,
-              quantity: q.quantity,
-              closedAmount: q.closedAmount,
-            }))}
-            isLoading={positionsQuery.isLoading}
-            isRefetching={positionsQuery.isRefetching}
-            error={positionsQuery.error}
-            onRefetch={() => void positionsQuery.refetch()}
-            selected={selectedQuoteId}
-            onSelect={(id) => {
-              setSelectedQuoteId(id);
-              setStep(6);
-            }}
-          />
-        ) : (
-          <SetTpSlStep
-            subAccount={subAccount!}
-            virtualAccount={virtualAccount!}
-            sessionKey={sessionKey!}
-            position={{
-              id: selectedPosition!.id,
-              symbolId: selectedPosition!.symbolId,
-              positionType: selectedPosition!.positionType,
-              quantity: selectedPosition!.quantity,
-              closedAmount: selectedPosition!.closedAmount,
-              openedPrice: selectedPosition!.openedPrice,
-            }}
-          />
-        )}
-      </div>
-      <div className="lg:border-border/50 lg:border-l lg:pl-8">
-        <FlowRail steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep} />
-      </div>
-    </div>
+    <FlowLayout steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep}>
+      {current === 0 ? (
+        <WalletPanel />
+      ) : current === 1 ? (
+        <SubaccountStep
+          owner={owner}
+          selected={subAccount}
+          onSelect={(account) => {
+            onSelectSubAccount(account);
+            setStep(2);
+          }}
+        />
+      ) : current === 2 ? (
+        <VirtualAccountStep
+          subAccount={subAccount}
+          selected={virtualAccount}
+          onSelect={(va) => {
+            setVirtualAccount(va);
+            setStep(3);
+          }}
+        />
+      ) : current === 3 ? (
+        <SessionKeyPrompt address={sessionKey} owner={owner} />
+      ) : current === 4 ? (
+        <DelegationPrompt
+          subAccount={subAccount}
+          cohWallet={cohWalletAddress}
+          active={delegationActive}
+          loading={delegationLoading}
+          isRefetching={delegationCheck.isRefetching}
+          onRefetch={() => void delegationCheck.refetch()}
+          grant={grant}
+          onGrant={onGrant}
+        />
+      ) : current === 5 ? (
+        <PositionPickerStep
+          virtualAccount={virtualAccount}
+          positions={positions.map((q) => ({
+            id: q.id,
+            symbolId: q.symbolId,
+            positionType: q.positionType,
+            quantity: q.quantity,
+            closedAmount: q.closedAmount,
+          }))}
+          isLoading={positionsQuery.isLoading}
+          isRefetching={positionsQuery.isRefetching}
+          error={positionsQuery.error}
+          onRefetch={() => void positionsQuery.refetch()}
+          selected={selectedQuoteId}
+          onSelect={(id) => {
+            setSelectedQuoteId(id);
+            setStep(6);
+          }}
+        />
+      ) : (
+        <SetTpSlStep
+          subAccount={subAccount!}
+          virtualAccount={virtualAccount!}
+          sessionKey={sessionKey!}
+          position={{
+            id: selectedPosition!.id,
+            symbolId: selectedPosition!.symbolId,
+            positionType: selectedPosition!.positionType,
+            quantity: selectedPosition!.quantity,
+            closedAmount: selectedPosition!.closedAmount,
+            openedPrice: selectedPosition!.openedPrice,
+          }}
+        />
+      )}
+    </FlowLayout>
   );
 }
 
@@ -270,7 +266,7 @@ function VirtualAccountStep({
     return <ResultNote testId="tpsl-va-empty">No virtual accounts yet for this subaccount.</ResultNote>;
   }
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="tpsl-va-list">
+    <div className="grid grid-cols-1 gap-2 @xl/console:grid-cols-2" data-testid="tpsl-va-list">
       {items.map((va) => (
         <VirtualAccountOption key={va} address={va} active={va === selected} onSelect={onSelect} />
       ))}
@@ -748,7 +744,7 @@ function SetTpSlStep({
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 @xl/console:grid-cols-2">
         <TpSlInputCard
           label="Take Profit"
           price={tpPrice}

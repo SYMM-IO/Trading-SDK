@@ -34,7 +34,8 @@ import { maxUint256, zeroAddress, type Address } from "viem";
 import { WalletPanel } from "../inspector/wallet-panel";
 import { MagicWatchButton } from "../magic-sidebar/magic-watch-button";
 import { AmountField } from "./amount-field";
-import { FlowRail, type FlowStep } from "./flow-rail";
+import { FlowLayout } from "./flow-layout";
+import type { FlowStep } from "./flow-rail";
 import { OpenPositionStep } from "./open-position-step";
 import { parseAmount } from "./parse-amount";
 import { SubaccountStep } from "./subaccount-step";
@@ -194,8 +195,8 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-muted-foreground text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <span className="text-muted-foreground min-w-0 text-xs leading-5">
           Watch this subaccount&apos;s quotes, positions, and notifications live while you trade.
         </span>
         <MagicWatchButton partyA={subAccount} />
@@ -203,17 +204,18 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
 
       {/* Solver target: which of the chain's solvers receives the open. */}
       <div
-        className="border-border/70 bg-muted/20 flex items-center justify-between gap-3 rounded-xl border px-4 py-3"
+        className="border-border/70 bg-muted/20 flex flex-col gap-3 rounded-xl border px-4 py-3 @lg/console:flex-row @lg/console:items-center @lg/console:justify-between"
         data-testid="instant-open-solver-picker"
       >
-        <div className="flex flex-col gap-0.5">
+        <div className="flex min-w-0 flex-col gap-0.5">
           <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Solver</span>
-          <span className="text-muted-foreground text-xs">
+          <span className="text-muted-foreground text-xs leading-5">
             Orders, markets, and prices route to the selected solver; the margin model follows the sub-account&apos;s
             isolation type.
+            {solverIds.length === 1 ? " Switch network to reach the other solver." : null}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {solverIds.map((id) => (
             <Button
               key={id}
@@ -226,58 +228,47 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
               {id}
             </Button>
           ))}
-          {solverIds.length === 1 ? (
-            <span className="text-muted-foreground text-[0.7rem]">
-              Only solver on this chain — switch network for the other kind.
-            </span>
-          ) : null}
         </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_220px]">
-        <div className="flex min-h-60 flex-col gap-5">
-          {current === 0 ? (
-            <WalletPanel />
-          ) : current === 1 ? (
-            <SubaccountStep
-              owner={owner}
-              selected={subAccount}
-              onSelect={(account) => {
-                onSelectSubAccount(account);
-                setStep(2);
-              }}
-            />
-          ) : current === 2 ? (
-            <FundSubaccountStep
-              owner={owner}
-              subAccount={subAccount}
-              decimals={collateralDecimals}
-              balanceWei={fundingBalance}
-              isCrossMargin={isCrossMargin}
-            />
-          ) : current === 3 ? (
-            <SessionKeyStep address={sessionKey} owner={owner} />
-          ) : current === 4 ? (
-            <DelegationStep
-              subAccount={subAccount}
-              sessionKey={sessionKey}
-              addMarginActive={addMarginDelegation.data}
-              sendQuoteActive={sendQuoteDelegation.data}
-              closePositionActive={closePositionDelegation.data}
-              showAddMargin={!isCrossMargin}
-              loading={delegationsLoading}
-              grant={grantDelegation}
-              onGrant={onGrantDelegation}
-            />
-          ) : (
-            <OpenPositionStep subAccount={subAccount!} sessionKey={sessionKey!} solverId={solverId} />
-          )}
-        </div>
-
-        <div className="lg:border-border/50 lg:border-l lg:pl-8">
-          <FlowRail steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep} />
-        </div>
-      </div>
+      <FlowLayout steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep}>
+        {current === 0 ? (
+          <WalletPanel />
+        ) : current === 1 ? (
+          <SubaccountStep
+            owner={owner}
+            selected={subAccount}
+            onSelect={(account) => {
+              onSelectSubAccount(account);
+              setStep(2);
+            }}
+          />
+        ) : current === 2 ? (
+          <FundSubaccountStep
+            owner={owner}
+            subAccount={subAccount}
+            decimals={collateralDecimals}
+            balanceWei={fundingBalance}
+            isCrossMargin={isCrossMargin}
+          />
+        ) : current === 3 ? (
+          <SessionKeyStep address={sessionKey} owner={owner} />
+        ) : current === 4 ? (
+          <DelegationStep
+            subAccount={subAccount}
+            sessionKey={sessionKey}
+            addMarginActive={addMarginDelegation.data}
+            sendQuoteActive={sendQuoteDelegation.data}
+            closePositionActive={closePositionDelegation.data}
+            showAddMargin={!isCrossMargin}
+            loading={delegationsLoading}
+            grant={grantDelegation}
+            onGrant={onGrantDelegation}
+          />
+        ) : (
+          <OpenPositionStep subAccount={subAccount!} sessionKey={sessionKey!} solverId={solverId} />
+        )}
+      </FlowLayout>
     </div>
   );
 }

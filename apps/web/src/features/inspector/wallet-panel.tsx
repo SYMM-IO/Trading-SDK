@@ -10,8 +10,14 @@ import { Card } from "@symmio/ui/components/card";
 import { Spinner } from "@symmio/ui/components/spinner";
 
 /**
- * Connection panel shared by the Inspector shells: shows the connected address
- * and network state, and the connect / switch-chain / disconnect actions.
+ * Connection panel shared by the Inspector shells and every Integration flow:
+ * shows the connected address and network state, and the connect /
+ * switch-chain / disconnect actions.
+ *
+ * It measures itself — the panel is its own `@container` — because it renders
+ * inside columns whose width has nothing to do with the viewport (an Integration
+ * flow beside the docked magic sidebar can be a few hundred pixels wide while
+ * the window is not).
  */
 export function WalletPanel() {
   const { address, isConnected, isOnExpectedChain } = useWalletAccount();
@@ -21,13 +27,13 @@ export function WalletPanel() {
   const tone = !isConnected ? "neutral" : isOnExpectedChain ? "positive" : "warning";
 
   return (
-    <Card data-testid="wallet-panel" size="sm" className="animate-enter-up overflow-hidden">
-      <div className="flex flex-col gap-4 px-4 py-1 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="bg-muted text-muted-foreground ring-border flex size-10 items-center justify-center rounded-xl ring-1">
+    <Card data-testid="wallet-panel" size="sm" className="animate-enter-up @container overflow-hidden">
+      <div className="flex flex-col gap-4 px-4 py-1 @sm:flex-row @sm:items-center @sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="bg-muted text-muted-foreground ring-border flex size-10 shrink-0 items-center justify-center rounded-xl ring-1">
             <WalletIcon />
           </span>
-          <div className="flex flex-col gap-1">
+          <div className="flex min-w-0 flex-col gap-1">
             <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
               <StatusDot tone={tone} pulse={isConnected && isOnExpectedChain} />
               Wallet
@@ -42,7 +48,7 @@ export function WalletPanel() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex min-w-0 flex-wrap gap-2">
           {!isConnected && <ConnectWalletButton />}
 
           {isConnected && !isOnExpectedChain && (

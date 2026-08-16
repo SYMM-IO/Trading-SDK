@@ -64,17 +64,22 @@ export function applyTpSlSearchSnapshot(
  * Whether this tick may speak for a side.
  *
  * A write is applied whenever its row is present — that is the evidence the
- * store's own guard then checks. A cancel is applied only from a complete page
- * whose rows no longer carry its handler id: the disappearance of that specific
- * order is the signal, which also means a row the store has not yet linked to
- * this quote id cannot masquerade as one.
+ * store's own guard then checks.
+ *
+ * A cancel is applied only from a complete page on which **this side's** order
+ * is gone. The handler id alone cannot decide it: this deployment issues one
+ * `coh_quote_id` per quote, so cancelling a take-profit while the stop-loss
+ * stays live leaves that id on the surviving row — matching on the id alone
+ * would keep the cancel unconfirmed until it timed out, having actually
+ * succeeded. Pairing the id with the side keeps the check honest whichever way
+ * the handler assigns ids.
  */
 function isSideApplicable(entry: TpSlWaitingSide, rows: readonly QuoteTpSlRow[], isComplete: boolean): boolean {
   const present = rows.some((row) => row.conditional_order_type === entry.side);
   if (entry.intent === "write") return present;
   if (!isComplete) return false;
   if (entry.cohQuoteId !== undefined) {
-    return !rows.some((row) => row.coh_quote_id === entry.cohQuoteId);
+    return !rows.some((row) => row.conditional_order_type === entry.side && row.coh_quote_id === entry.cohQuoteId);
   }
   return !present;
 }

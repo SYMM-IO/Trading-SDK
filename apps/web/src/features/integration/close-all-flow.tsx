@@ -31,7 +31,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits, zeroAddress, type Address } from "viem";
 import { WalletPanel } from "../inspector/wallet-panel";
-import { FlowRail, type FlowStep } from "./flow-rail";
+import { FlowLayout } from "./flow-layout";
+import type { FlowStep } from "./flow-rail";
 import { SubaccountStep } from "./subaccount-step";
 
 const WEI_DECIMALS = 18;
@@ -322,68 +323,62 @@ export function CloseAllFlow({ owner, subAccount, subAccountName, onSelectSubAcc
   ];
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_220px]">
-      <div className="flex min-h-60 flex-col gap-5">
-        {current === 0 ? (
-          <WalletPanel />
-        ) : current === 1 ? (
-          <SubaccountStep
-            owner={owner}
-            selected={subAccount}
-            onSelect={(account) => {
-              onSelectSubAccount(account);
-              setStep(2);
-            }}
-          />
-        ) : current === 2 ? (
-          <SessionKeyPrompt address={sessionKey} owner={owner} />
-        ) : current === 3 ? (
-          <DelegationPrompt
-            subAccount={subAccount}
-            sessionKey={sessionKey}
-            active={delegationActive}
-            loading={delegationLoading}
-            isRefetching={closeDelegation.isRefetching}
-            onRefetch={() => void closeDelegation.refetch()}
-            grant={grant}
-            onGrant={onGrant}
-          />
-        ) : (
-          <PickerStep
-            rows={rows}
-            isLoading={vasQuery.isLoading || rowsLoading}
-            errors={rowsErrors}
-            virtualAccountsCount={virtualAccounts.length}
-            selected={selected}
-            lockedKeys={lockedKeys}
-            onToggle={toggleRow}
-            onSelectAll={selectAll}
-            onClearAll={clearAll}
-            onRefetch={() => {
-              void vasQuery.refetch();
-              refetchAll();
-            }}
-            slippage={slippage}
-            onSlippageChange={setSlippage}
-            slippageValid={validSlippage}
-            partialMode={partialMode}
-            onPartialModeChange={setPartialMode}
-            percents={percents}
-            onPercentChange={(key, value) => setPercents((current) => ({ ...current, [key]: value }))}
-            canSubmit={canSubmit}
-            submitting={mutation.isPending}
-            onSubmit={() => void handleSubmit()}
-            error={mutation.error}
-            submissions={submissions}
-            onClearSubmissions={() => setSubmissions([])}
-          />
-        )}
-      </div>
-
-      <div className="lg:border-border/50 lg:border-l lg:pl-8">
-        <FlowRail steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep} />
-      </div>
-    </div>
+    <FlowLayout steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep}>
+      {current === 0 ? (
+        <WalletPanel />
+      ) : current === 1 ? (
+        <SubaccountStep
+          owner={owner}
+          selected={subAccount}
+          onSelect={(account) => {
+            onSelectSubAccount(account);
+            setStep(2);
+          }}
+        />
+      ) : current === 2 ? (
+        <SessionKeyPrompt address={sessionKey} owner={owner} />
+      ) : current === 3 ? (
+        <DelegationPrompt
+          subAccount={subAccount}
+          sessionKey={sessionKey}
+          active={delegationActive}
+          loading={delegationLoading}
+          isRefetching={closeDelegation.isRefetching}
+          onRefetch={() => void closeDelegation.refetch()}
+          grant={grant}
+          onGrant={onGrant}
+        />
+      ) : (
+        <PickerStep
+          rows={rows}
+          isLoading={vasQuery.isLoading || rowsLoading}
+          errors={rowsErrors}
+          virtualAccountsCount={virtualAccounts.length}
+          selected={selected}
+          lockedKeys={lockedKeys}
+          onToggle={toggleRow}
+          onSelectAll={selectAll}
+          onClearAll={clearAll}
+          onRefetch={() => {
+            void vasQuery.refetch();
+            refetchAll();
+          }}
+          slippage={slippage}
+          onSlippageChange={setSlippage}
+          slippageValid={validSlippage}
+          partialMode={partialMode}
+          onPartialModeChange={setPartialMode}
+          percents={percents}
+          onPercentChange={(key, value) => setPercents((current) => ({ ...current, [key]: value }))}
+          canSubmit={canSubmit}
+          submitting={mutation.isPending}
+          onSubmit={() => void handleSubmit()}
+          error={mutation.error}
+          submissions={submissions}
+          onClearSubmissions={() => setSubmissions([])}
+        />
+      )}
+    </FlowLayout>
   );
 }
 

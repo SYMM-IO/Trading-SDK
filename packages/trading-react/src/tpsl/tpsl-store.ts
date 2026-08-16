@@ -37,6 +37,16 @@ export interface TpSlConfirmation {
   at: number;
   /** Trigger price the write submitted — the evidence a snapshot must show. */
   price?: string;
+  /**
+   * Market price precision the write was signed at.
+   *
+   * The handler is sent — and stores — the trigger price rounded to this many
+   * decimals, so a seed carrying more of them describes the same order. Without
+   * it, a trader who types `0.00693` into a 4-decimal market would never see
+   * their write confirmed: the rows come back `0.0069` and no comparison of the
+   * two raw strings can tell "rounded" from "different".
+   */
+  pricePrecision?: number;
   /** Price type the write submitted. */
   priceType?: TpSlPriceType;
   /** Handler-issued id the write was told to expect, when the POST returned one. */
@@ -148,6 +158,7 @@ export interface TpSlStoreState {
     side: TpSlSideKey,
     patch?: {
       price?: string;
+      pricePrecision?: number;
       priceType?: TpSlPriceType;
       cohQuoteId?: string;
       intent?: TpSlConfirmation["intent"];
@@ -205,7 +216,7 @@ function blank(): TpSlRecord {
 function foldSnapshot(prev: TpSlRecord, folded: QuoteTpSl, sides: readonly TpSlSideKey[]): TpSlRecord {
   const next: TpSlRecord = { ...prev };
   if (sides.includes("tp")) {
-    if (holdsConfirming(prev.tpConfirm, folded.tpState, folded.tp, folded.tpPriceType, folded.tpCohQuoteId)) {
+    if (holdsConfirming(prev.tpConfirm, folded.tpState, folded.tp, folded.tpCohQuoteId)) {
       next.tpState = "confirming";
     } else {
       next.tp = folded.tp;
@@ -217,7 +228,7 @@ function foldSnapshot(prev: TpSlRecord, folded: QuoteTpSl, sides: readonly TpSlS
     }
   }
   if (sides.includes("sl")) {
-    if (holdsConfirming(prev.slConfirm, folded.slState, folded.sl, folded.slPriceType, folded.slCohQuoteId)) {
+    if (holdsConfirming(prev.slConfirm, folded.slState, folded.sl, folded.slCohQuoteId)) {
       next.slState = "confirming";
     } else {
       next.sl = folded.sl;
@@ -234,14 +245,23 @@ function foldSnapshot(prev: TpSlRecord, folded: QuoteTpSl, sides: readonly TpSlS
 /**
  * Whether a snapshot must leave a `"confirming"` side alone.
  *
- * A write is only settled by **evidence of the order it submitted** — the row's
- * handler id matching the one the POST returned, or its trigger price and price
- * type matching what was signed. Absence is not evidence, and neither is a
- * *stale* row: a snapshot that still shows the pre-edit price would otherwise
+ * A write is settled only by **evidence of the order it submitted**, and the
+ * trigger price is that evidence. Absence is not evidence, and neither is a
+ * *stale* row: a snapshot still showing the pre-edit price would otherwise
  * report an edit as confirmed and render the old price as though it were live.
  *
- * A confirmation that seeded no price and no handler id has nothing to match
- * against, so it settles on any live row — the behaviour before this rule.
+ * Two things are deliberately **not** part of the test:
+ *
+ * - **The handler id, whenever a price is known.** It is not reliably per-order:
+ *   this deployment issues one `coh_quote_id` per *quote*, shared by both sides
+ *   and by every superseded order in that quote's history — so a matching id
+ *   would happily settle a write against the row it was replacing. It is kept
+ *   only as a fallback for a confirmation that seeded no price at all.
+ * - **The price type.** The handler stores its own (`market` / `last_close`
+ *   values both appear on a single quote), so requiring it to echo what was
+ *   submitted would strand a perfectly good write in `"confirming"` until the
+ *   deadline. A type-only edit therefore settles on the first live row; the
+ *   report corrects the rendered type a moment later.
  *
  * A cancel is never held: absence is exactly what it is waiting for.
  */
@@ -249,20 +269,16 @@ function holdsConfirming(
   confirmation: TpSlConfirmation | undefined,
   foldedState: TpSlInfoState,
   foldedPrice: string,
-  foldedPriceType: TpSlPriceType,
   foldedCohQuoteId: string | undefined,
 ): boolean {
   if (confirmation?.intent !== "write") return false;
   if (Date.now() - confirmation.at >= TPSL_CONFIRMING_GUARD_MS) return false;
   if (foldedState === "canceled") return true;
+  if (confirmation.price !== undefined) {
+    return !pricesMatch(confirmation.price, foldedPrice, confirmation.pricePrecision);
+  }
   if (confirmation.cohQuoteId !== undefined && foldedCohQuoteId !== undefined) {
     return foldedCohQuoteId !== confirmation.cohQuoteId;
-  }
-  if (confirmation.price !== undefined) {
-    const matches =
-      pricesMatch(confirmation.price, foldedPrice) &&
-      (confirmation.priceType === undefined || confirmation.priceType === foldedPriceType);
-    return !matches;
   }
   return false;
 }
@@ -291,12 +307,25 @@ function isSameRecord(a: TpSlRecord, b: TpSlRecord): boolean {
   );
 }
 
-/** Numeric trigger-price equality within {@link PRICE_MATCH_TOLERANCE}. */
-function pricesMatch(expected: string, actual: string): boolean {
+/**
+ * Numeric trigger-price equality within {@link PRICE_MATCH_TOLERANCE}.
+ *
+ * When the write recorded the precision it was signed at, both sides are
+ * rounded to it first — the handler stores the rounded value, so `0.00693` and
+ * a returned `0.0069` are the same order in a 4-decimal market. Rounding both
+ * (rather than trusting the returned value's decimal count, which JSON strips
+ * trailing zeros from) keeps a genuine edit distinguishable: at precision 2,
+ * `2.14` against a stale `2.1` still rounds to `2.14` vs `2.10`.
+ */
+function pricesMatch(expected: string, actual: string, pricePrecision?: number): boolean {
   if (expected === actual) return true;
-  const left = Number(expected);
-  const right = Number(actual);
+  let left = Number(expected);
+  let right = Number(actual);
   if (!Number.isFinite(left) || !Number.isFinite(right)) return false;
+  if (pricePrecision !== undefined && Number.isInteger(pricePrecision) && pricePrecision >= 0) {
+    left = Number(left.toFixed(pricePrecision));
+    right = Number(right.toFixed(pricePrecision));
+  }
   const scale = Math.max(Math.abs(left), Math.abs(right), 1);
   return Math.abs(left - right) <= PRICE_MATCH_TOLERANCE * scale;
 }
@@ -396,6 +425,7 @@ export const useTpSlStore = create<TpSlStoreState>((set, get) => {
         intent: patch?.intent ?? "write",
         at: Date.now(),
         price: patch?.price,
+        pricePrecision: patch?.pricePrecision,
         priceType: patch?.priceType,
         cohQuoteId: patch?.cohQuoteId,
       };

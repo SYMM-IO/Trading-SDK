@@ -58,6 +58,7 @@ export function useSetQuoteTpSl(parameters: UseSetQuoteTpSlParameters = {}): Use
       if (variables.tp) {
         markConfirming(variables.quoteId, "tp", {
           price: variables.tp.triggerPrice,
+          pricePrecision: variables.pricePrecision,
           priceType: variables.tp.priceType,
           cohQuoteId: result.cohQuoteId,
         });
@@ -65,6 +66,7 @@ export function useSetQuoteTpSl(parameters: UseSetQuoteTpSlParameters = {}): Use
       if (variables.sl) {
         markConfirming(variables.quoteId, "sl", {
           price: variables.sl.triggerPrice,
+          pricePrecision: variables.pricePrecision,
           priceType: variables.sl.priceType,
           cohQuoteId: result.cohQuoteId,
         });

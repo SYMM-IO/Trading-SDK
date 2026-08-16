@@ -3,13 +3,19 @@ import {
   listSupportedChains,
   SymmioSupportedChainId,
   type CreateConfigParameters,
-  type SymmioChainConfig,
   type SymmioChainConfigInput,
+  type SymmioNotificationsProtocol,
+  type SymmioSolverConfig,
 } from "@symmio/trading-core";
 import { getAddress, isAddress, type Address } from "viem";
 import { symmioChains } from "./symmio";
 
-/** Top-level group a config field belongs to, matching {@link SymmioChainConfig}. */
+/**
+ * Group a config field belongs to. `addresses` and `subgraphs` are chain-level
+ * blocks of the SDK's `SymmioChainConfig`; `solver` and `notifications` are
+ * **per-solver** and resolve against the chain's default solver
+ * (`solvers[defaultSolverId]` and its nested `notifications` block).
+ */
 export type ConfigFieldGroup = "addresses" | "solver" | "subgraphs" | "notifications";
 
 /** How a field is rendered and validated in the editor. */
@@ -23,6 +29,13 @@ export interface ConfigFieldDef {
   kind: ConfigFieldKind;
   /** Optional helper note shown under the control. */
   hint?: string;
+  /**
+   * Notifications protocols the field exists on. Omit for fields every protocol
+   * carries. A field whose protocols exclude the chain's own notifications
+   * protocol is unavailable there — `channel` only exists on `enigma`, so it is
+   * hidden (and never written) on a `rasa` chain. See {@link isFieldAvailable}.
+   */
+  protocols?: readonly SymmioNotificationsProtocol[];
 }
 
 /** A labelled section of related fields in the editor. */
@@ -80,7 +93,14 @@ export const CONFIG_GROUPS: ConfigGroupDef[] = [
         kind: "wsUrl",
         hint: "Live notifications stream",
       },
-      { group: "notifications", key: "channel", label: "Channel", kind: "text", hint: "app_name" },
+      {
+        group: "notifications",
+        key: "channel",
+        label: "Channel",
+        kind: "text",
+        hint: "app_name",
+        protocols: ["enigma"],
+      },
     ],
   },
 ];
@@ -109,15 +129,32 @@ export function fieldPath(field: ConfigFieldDef): string {
   return `${field.group}.${field.key}`;
 }
 
-function readField(config: SymmioChainConfig, field: ConfigFieldDef): unknown {
-  return (config as unknown as Record<string, Record<string, unknown>>)[field.group]?.[field.key];
+/**
+ * The chain's default solver config, or `undefined` when the chain has no solver
+ * wired for its `defaultSolverId` yet.
+ */
+function defaultSolver(chainId: number): SymmioSolverConfig | undefined {
+  const chainConfig = getChainConfig(chainId);
+  return chainConfig.solvers[chainConfig.defaultSolverId];
+}
+
+/** The field's built-in value on a chain, before any override (`undefined` when absent). */
+function readField(chainId: number, field: ConfigFieldDef): unknown {
+  const solver = defaultSolver(chainId) as unknown as Record<string, unknown> | undefined;
+  if (field.group === "solver") return solver?.[field.key];
+  if (field.group === "notifications") {
+    return (solver?.notifications as Record<string, unknown> | undefined)?.[field.key];
+  }
+  const chainConfig = getChainConfig(chainId) as unknown as Record<string, Record<string, unknown>>;
+  return chainConfig[field.group]?.[field.key];
 }
 
 /**
  * Read a field's override value from an app override entry (or `undefined`).
  *
- * The editor groups solver fields under a `"solver"` UI group, but they live at
- * `solvers.<defaultSolverId>.<key>` on the chain config — this bridges the two.
+ * The editor shows solver and notifications fields as their own UI groups, but
+ * both live under the solver on the chain config — `solvers.<defaultSolverId>`
+ * and `solvers.<defaultSolverId>.notifications` — so this bridges the two.
  */
 function overrideFieldValue(
   chainId: number,
@@ -126,23 +163,36 @@ function overrideFieldValue(
 ): unknown {
   if (!chainOverride) return undefined;
   const record = chainOverride as unknown as Record<string, Record<string, unknown>>;
-  if (field.group === "solver") {
+  if (field.group === "solver" || field.group === "notifications") {
     const solvers = record.solvers as Record<string, Record<string, unknown>> | undefined;
-    return solvers?.[getChainConfig(chainId).defaultSolverId]?.[field.key];
+    const solver = solvers?.[getChainConfig(chainId).defaultSolverId];
+    if (field.group === "solver") return solver?.[field.key];
+    return (solver?.notifications as Record<string, unknown> | undefined)?.[field.key];
   }
   return record[field.group]?.[field.key];
 }
 
-/** The built-in default value for a field, as the string the input shows. */
+/**
+ * Whether a field exists on a given chain. Protocol-exclusive notifications
+ * fields (today the enigma `channel`) do not exist on a chain whose solver
+ * speaks another protocol, so the editor neither shows nor writes them there.
+ */
+export function isFieldAvailable(chainId: number, field: ConfigFieldDef): boolean {
+  if (!field.protocols) return true;
+  const protocol = defaultSolver(chainId)?.notifications.protocol;
+  return protocol !== undefined && field.protocols.includes(protocol);
+}
+
+/**
+ * The built-in default value for a field, as the string the input shows.
+ *
+ * A field the chain does not carry — an unwired solver, an optional block like
+ * `notifications.searchUrl`, or a protocol-exclusive key — reads as `""` rather
+ * than the string `"undefined"`.
+ */
 export function defaultFieldValue(chainId: number, field: ConfigFieldDef): string {
-  const chainConfig = getChainConfig(chainId);
-  if (field.group === "solver") {
-    // A chain whose solver is not wired yet has an empty `solvers` map, so the
-    // default solver id resolves to nothing — show an empty value, don't crash.
-    const solver = chainConfig.solvers[chainConfig.defaultSolverId] as unknown as Record<string, unknown> | undefined;
-    return String(solver?.[field.key] ?? "");
-  }
-  return String(readField(chainConfig, field));
+  const value = readField(chainId, field);
+  return value === undefined || value === null ? "" : String(value);
 }
 
 /**
@@ -206,6 +256,7 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
 
     for (const field of CONFIG_FIELDS) {
       const raw = chainDraft[fieldPath(field)] ?? "";
+      if (!isFieldAvailable(chainId, field)) continue;
       if (validateFieldValue(field, raw) !== null) continue;
       if (!isFieldOverridden(field, raw, chainId)) continue;
       groups[field.group][field.key] = coerceField(field, raw.trim());
@@ -220,11 +271,16 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
     if (affiliate) groups.addresses.affiliatesAddress = affiliate;
 
     const chainOverride: Record<string, unknown> = { addresses: groups.addresses };
-    if (Object.keys(groups.solver).length) {
-      chainOverride.solvers = { [getChainConfig(chainId).defaultSolverId]: groups.solver };
+    /**
+     * Notifications are per-solver, so they nest inside the solver override
+     * rather than sitting beside it on the chain (see `SymmioSolverConfig`).
+     */
+    const solverOverride: Record<string, unknown> = { ...groups.solver };
+    if (Object.keys(groups.notifications).length) solverOverride.notifications = groups.notifications;
+    if (Object.keys(solverOverride).length) {
+      chainOverride.solvers = { [getChainConfig(chainId).defaultSolverId]: solverOverride };
     }
     if (Object.keys(groups.subgraphs).length) chainOverride.subgraphs = groups.subgraphs;
-    if (Object.keys(groups.notifications).length) chainOverride.notifications = groups.notifications;
     result[chainId] = chainOverride as SymmioChainConfigInput;
   }
 
@@ -243,6 +299,10 @@ export function draftFromOverrides(overrides: CreateConfigParameters["symmioConf
     const entries: Record<string, string> = {};
 
     for (const field of CONFIG_FIELDS) {
+      if (!isFieldAvailable(chainId, field)) {
+        entries[fieldPath(field)] = "";
+        continue;
+      }
       const overrideValue = overrideFieldValue(chainId, chainOverride, field);
       entries[fieldPath(field)] =
         overrideValue !== undefined ? String(overrideValue) : defaultFieldValue(chainId, field);
