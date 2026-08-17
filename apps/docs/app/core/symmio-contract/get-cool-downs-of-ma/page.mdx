@@ -1,0 +1,46 @@
+# getCoolDownsOfMA
+
+Read the protocol cooldown periods (`coolDownsOfMA`) as a 4-tuple of seconds:
+
+```ts
+[withdrawCooldownPeriod, forceCancelCooldown, forceCancelCloseCooldown, forceCloseFirstCooldown];
+```
+
+**Index 1 is the force-cancel cooldown** — the delay after a quote enters `CANCEL_PENDING` before [`forceCancelQuote`](/core/symmio-contract/force-cancel-quote) becomes eligible. These values rarely change, so a long `staleTime` is appropriate at the call site.
+
+```ts
+import { getCoolDownsOfMA } from "@symmio/trading-core";
+
+const coolDowns = await getCoolDownsOfMA(config);
+const forceCancelCooldown = coolDowns[1]; // seconds
+```
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly [bigint, bigint, bigint, bigint]">
+  The four cooldown periods in seconds: `(withdrawCooldownPeriod, forceCancelCooldown, forceCancelCloseCooldown,
+  forceCloseFirstCooldown)`. Index 1 (`forceCancelCooldown`) gates
+  [`forceCancelQuote`](/core/symmio-contract/force-cancel-quote).
+</Returns>
+
+## Query options
+
+```ts
+import { getCoolDownsOfMAQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getCoolDownsOfMAQueryOptions(config));
+```
+
+## Related
+
+- [forceCancelQuote](/core/symmio-contract/force-cancel-quote) — gated by index 1 of this read.
+- [React `useCoolDownsOfMA`](/react/quotes#usecooldownsofma) — the hook wrapper.

@@ -17,6 +17,22 @@ export function getMarketOrderDeadline(now?: bigint): bigint {
 }
 
 /**
+ * Unix-seconds remaining for a LIMIT-order deadline (15 minutes). A resting
+ * limit order lives longer than a market fill, so it gets a wider window.
+ */
+export const LIMIT_ORDER_DEADLINE_SECONDS = 900n;
+
+/**
+ * Compute a unix-seconds `deadline` for a LIMIT order (default 15 minutes).
+ *
+ * @param now - Optional override for `Math.floor(Date.now() / 1000)`. Useful for tests.
+ */
+export function getLimitOrderDeadline(now?: bigint): bigint {
+  const base = now ?? BigInt(Math.floor(Date.now() / 1000));
+  return base + LIMIT_ORDER_DEADLINE_SECONDS;
+}
+
+/**
  * Parameters for {@link calculateTradeParams}.
  */
 export interface CalculateTradeParamsParameters {

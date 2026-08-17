@@ -24,8 +24,19 @@ if (classifyQuoteNotificationAction(n.lastSeenAction) === "close") invalidateClo
   The quote flow the action belongs to — `"open"`, `"close"`, or `"other"`.
 </Returns>
 
+## `isOpenAnchorAction`
+
+Boolean helper that narrows the same `lastSeenAction` to just the on-chain **anchor** actions (`SendQuoteTransaction` / `SendQuote` / `FillLimitOrderOpen`) — the _second_ notification of a send flow, where the temp id gains a real on-chain quote id. Excludes the earlier off-chain `InstantRFQ` price fill (which `classifyQuoteNotificationAction` still calls `"open"`). Use it to refetch reads that only change once the quote exists on-chain — e.g. the pending / limit-order list.
+
+```ts
+import { isOpenAnchorAction, NotificationType } from "@symmio/trading-core";
+
+if (n.type === NotificationType.SUCCESS && isOpenAnchorAction(n.lastSeenAction)) refetchPending();
+```
+
 ## Related
 
 - [QuoteNotificationActionKind](/core/quotes/quote-notification-action-kind) — the union this returns.
 - [applyNotificationToQuotes](/core/quotes/apply-notification-to-quotes) — advances a row's lifecycle from the same notifications.
 - [Notifications stream](/core/notifications) — the frames whose `lastSeenAction` is classified.
+- [React `useLimitOrders`](/react/quotes#uselimitorders) — refetches its on-chain read on exactly the `isOpenAnchorAction` frame.

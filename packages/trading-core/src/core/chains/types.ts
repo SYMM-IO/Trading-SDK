@@ -90,6 +90,12 @@ export interface SolverCapabilitiesConfig {
    * supports it; rasa (cross-margin) does not. Default `false`.
    */
   groupClose?: boolean;
+  /**
+   * Whether the solver supports LIMIT orders — placing a pending open at a
+   * user-set price. Majors (rasa) support it; enigma (lowcap) does not. Default
+   * `false`.
+   */
+  limitOrder?: boolean;
 }
 
 export interface SymmioSolverConfig {

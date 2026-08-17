@@ -1,25 +1,21 @@
-import type { SolverId } from "../core/chains/types";
+import type { SolverCapabilitiesConfig, SolverId } from "../core/chains/types";
 import type { Config } from "../core/config";
 
 /**
- * Resolved capabilities of a solver — what SDK flows it supports. Derived from
- * the solver's registry config (its `tpsl` block and `capabilities` flags).
+ * A solver's capability flags **resolved** to definite booleans — the total
+ * version of the declared {@link SolverCapabilitiesConfig} (unset flags default
+ * to `false`). Derived from the config type so the two never drift.
+ *
+ * TP/SL is **not** here: it is inferred from the presence of the solver's `tpsl`
+ * block rather than a `capabilities` flag — use `supportsTpSl` for it.
  */
-export interface SolverCapabilities {
-  /** Conditional orders (TP/SL) — the solver declares a `tpsl` handler block. */
-  tpsl: boolean;
-  /**
-   * Group close — closing a whole market + side cohort of quotes in one flow.
-   * From the solver's `capabilities.groupClose` flag (enigma only; rasa is
-   * cross-margin and has no per-market/side grouping).
-   */
-  groupClose: boolean;
-}
+export type SolverCapabilities = Required<SolverCapabilitiesConfig>;
 
 /**
- * Resolve a solver's capabilities. Non-throwing: an unknown chain/solver yields
- * all-`false`. Use it (or the {@link supportsGroupClose} shorthand) to gate SDK
- * flows and UI so an unsupported solver degrades gracefully.
+ * Resolve a solver's capability flags. Non-throwing: an unknown chain/solver
+ * yields all-`false`. Use it (or the {@link supportsGroupClose} /
+ * {@link supportsLimitOrder} shorthands) to gate SDK flows and UI so an
+ * unsupported solver degrades gracefully.
  *
  * @param config - The SDK config.
  * @param parameters - Optional `chainId` / `solverId`; both default to the chain's default solver.
@@ -36,10 +32,13 @@ export function getSolverCapabilities(
   parameters: { chainId?: number; solverId?: SolverId } = {},
 ): SolverCapabilities {
   try {
-    const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
-    return { tpsl: solver.tpsl !== undefined, groupClose: solver.capabilities?.groupClose ?? false };
+    const { capabilities } = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
+    return {
+      groupClose: capabilities?.groupClose ?? false,
+      limitOrder: capabilities?.limitOrder ?? false,
+    };
   } catch {
-    return { tpsl: false, groupClose: false };
+    return { groupClose: false, limitOrder: false };
   }
 }
 
@@ -56,4 +55,19 @@ export function supportsGroupClose(
   parameters: { chainId?: number; solverId?: SolverId } = {},
 ): boolean {
   return getSolverCapabilities(config, parameters).groupClose;
+}
+
+/**
+ * Whether the resolved solver supports {@link SolverCapabilities.limitOrder}.
+ * Shorthand for `getSolverCapabilities(config, p).limitOrder`.
+ *
+ * @param config - The SDK config.
+ * @param parameters - Optional `chainId` / `solverId`; both default to the chain's default solver.
+ * @returns `true` when the solver supports limit orders.
+ */
+export function supportsLimitOrder(
+  config: Config,
+  parameters: { chainId?: number; solverId?: SolverId } = {},
+): boolean {
+  return getSolverCapabilities(config, parameters).limitOrder;
 }

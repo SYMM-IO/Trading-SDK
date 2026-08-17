@@ -2,7 +2,12 @@ import type { Address } from "viem";
 import { describe, expect, it } from "vitest";
 import { OrderType, PositionType, type Quote } from "../symmio-contracts/symmio/types";
 import { NotificationType, type Notification } from "../websocket/notifications/types";
-import { applyNotificationToQuotes, classifyQuoteNotificationAction, isCloseFillAction } from "./apply-notification";
+import {
+  applyNotificationToQuotes,
+  classifyQuoteNotificationAction,
+  isCloseFillAction,
+  isOpenAnchorAction,
+} from "./apply-notification";
 import { QuoteLifecycle, type UnifiedQuote } from "./unified-quote";
 
 const PARTY_A = "0x000000000000000000000000000000000000a11a" as Address;
@@ -235,6 +240,25 @@ describe("classifyQuoteNotificationAction", () => {
   it("classifies unknown or missing actions as other", () => {
     expect(classifyQuoteNotificationAction("SomethingElse")).toBe("other");
     expect(classifyQuoteNotificationAction(undefined)).toBe("other");
+  });
+});
+
+describe("isOpenAnchorAction", () => {
+  it("is true only for open-anchor (on-chain) actions", () => {
+    expect(isOpenAnchorAction("SendQuoteTransaction")).toBe(true);
+    expect(isOpenAnchorAction("SendQuote")).toBe(true);
+    expect(isOpenAnchorAction("FillLimitOrderOpen")).toBe(true);
+  });
+
+  it("is false for the off-chain InstantRFQ price-fill (the first notification)", () => {
+    expect(isOpenAnchorAction("InstantRFQ")).toBe(false);
+  });
+
+  it("is false for close actions and unknown / missing actions", () => {
+    expect(isOpenAnchorAction("FillMarketOrderInstantClose")).toBe(false);
+    expect(isOpenAnchorAction("SomethingElse")).toBe(false);
+    expect(isOpenAnchorAction(null)).toBe(false);
+    expect(isOpenAnchorAction(undefined)).toBe(false);
   });
 });
 

@@ -1,12 +1,8 @@
 "use client";
 
-import {
-  useAccountBalanceInfo,
-  useInstantOpens,
-  usePartyAOpenPositions,
-  usePartyAPendingQuotes,
-} from "@symmio/trading-react";
+import { useAccountBalanceInfo, useInstantOpens, usePartyAOpenPositions } from "@symmio/trading-react";
 import { GroupedQuotesMagicPanel } from "../quotes/grouped-quotes-magic-panel";
+import { PendingLimitOrdersMagicPanel } from "../quotes/pending-limit-orders-magic-panel";
 import { QuoteHistoryMagicPanel } from "../quotes/quote-history-magic-panel";
 import { QuotesMagicPanel } from "../quotes/quotes-magic-panel";
 import type { LiveQueryLike } from "./live-result";
@@ -33,11 +29,6 @@ function useOpenPositionsLive({ partyA, active, intervalMs }: PartyALiveArgs): L
   return { data: q.data, dataUpdatedAt: q.dataUpdatedAt, isFetching: q.isFetching, error: q.error };
 }
 
-function usePendingQuotesLive({ partyA, active, intervalMs }: PartyALiveArgs): LiveQueryLike {
-  const q = usePartyAPendingQuotes({ partyA, query: pollOptions(active, intervalMs) });
-  return { data: q.data, dataUpdatedAt: q.dataUpdatedAt, isFetching: q.isFetching, error: q.error };
-}
-
 function useBalanceInfoLive({ partyA, active, intervalMs }: PartyALiveArgs): LiveQueryLike {
   const q = useAccountBalanceInfo({ account: partyA, query: pollOptions(active, intervalMs) });
   return { data: q.data, dataUpdatedAt: q.dataUpdatedAt, isFetching: q.isFetching, error: q.error };
@@ -53,12 +44,6 @@ const OpenPositionsPanel = makePartyALivePanel({
   idPrefix: "magic-open-positions",
   label: "partyA (subaccount or VA address)",
   useLiveQuery: useOpenPositionsLive,
-});
-
-const PendingQuotesPanel = makePartyALivePanel({
-  idPrefix: "magic-pending-quotes",
-  label: "partyA (subaccount or VA address)",
-  useLiveQuery: usePendingQuotesLive,
 });
 
 const BalanceInfoPanel = makePartyALivePanel({
@@ -102,13 +87,15 @@ export const MAGIC_CATALOG: MagicMethod[] = [
     Panel: OpenPositionsPanel,
   },
   {
-    id: "party-a-pending-quotes",
-    label: "Pending quotes",
-    description: "A partyA's pending quote ids (PENDING / LOCKED / CANCEL_PENDING).",
+    id: "pending-limit-orders",
+    label: "Limit orders",
+    description:
+      "A partyA's pending LIMIT orders as a table — full quotes hydrated from the diamond (getPartyAPendingQuotes + multicall getQuote), filtered to resting limit orders.",
     group: "onchain",
     source: "poll",
-    keywords: ["pending", "quotes", "ids", "partyA", "onchain"],
-    Panel: PendingQuotesPanel,
+    keywords: ["limit", "orders", "pending", "quotes", "resting", "partyA", "onchain", "majors"],
+    bodyMaxHeight: 460,
+    Panel: PendingLimitOrdersMagicPanel,
   },
   {
     id: "quote",

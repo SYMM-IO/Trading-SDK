@@ -3,7 +3,7 @@ import type { SymmioSolverKind } from "../../../core/chains/types";
 import type { ChainIdParameter, Compute, FromParameter } from "../../../shared/types/properties";
 import type { PositionType } from "../../../symmio-contracts/symmio/types";
 import type { RasaInstantOpen } from "../get-instant-opens/types";
-import type { InstantOpenLockedParams, InstantOpenMargin, InstantOpenOrder } from "../shared/types";
+import type { InstantOpenLockedParams, InstantOpenMargin, InstantOpenOrder, SolverOrderType } from "../shared/types";
 
 /**
  * Parameters for {@link instantOpen}, generic over the target solver kind `K`.
@@ -26,6 +26,12 @@ export type InstantOpenParameters<K extends SymmioSolverKind = SymmioSolverKind>
       marketId: number;
       /** Trade side. */
       positionType: PositionType;
+      /**
+       * Order type: `ORDER_TYPE_MARKET` (default, instant fill) or
+       * `ORDER_TYPE_LIMIT` (majors / rasa only — writes a pending on-chain quote
+       * at `order.price`). Defaults to MARKET when omitted.
+       */
+      orderType?: SolverOrderType;
       /** Order-side values (`price`, `quantity`) — both 18-decimal-wei `bigint`. */
       order: InstantOpenOrder;
       /** Locked-margin breakdown (`cva`, `lf`, `partyAmm`, `partyBmm`) — all 18-decimal-wei `bigint`. */

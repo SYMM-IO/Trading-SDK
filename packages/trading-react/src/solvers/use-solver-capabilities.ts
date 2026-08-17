@@ -3,6 +3,7 @@
 import {
   getSolverCapabilities,
   supportsGroupClose,
+  supportsLimitOrder,
   type ConfigParameter,
   type SolverCapabilities,
   type SolverId,
@@ -43,4 +44,14 @@ export function useSupportsGroupClose(parameters: UseSolverCapabilitiesParameter
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   return supportsGroupClose(config, { chainId: parameters.chainId ?? chainId, solverId: parameters.solverId });
+}
+
+/**
+ * Whether the target solver supports limit orders (majors / rasa). Shorthand for
+ * `useSolverCapabilities().limitOrder`; gate the limit-order form on it.
+ */
+export function useSupportsLimitOrder(parameters: UseSolverCapabilitiesParameters = {}): boolean {
+  const config = useSymmioConfig(parameters);
+  const chainId = useSymmioChainId();
+  return supportsLimitOrder(config, { chainId: parameters.chainId ?? chainId, solverId: parameters.solverId });
 }

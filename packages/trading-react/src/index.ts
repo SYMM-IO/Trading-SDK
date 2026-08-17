@@ -271,6 +271,7 @@ export {
   useInstantOpenWithTpSl,
   useInstantOpens,
   useIsDelegationActive,
+  useLimitOpenAuto,
   useSimulateGrantDelegation,
   type GrantDelegationResult,
   type UseDelegationExpiryParameters,
@@ -302,6 +303,8 @@ export {
   type UseInstantOpensReturnType,
   type UseIsDelegationActiveParameters,
   type UseIsDelegationActiveReturnType,
+  type UseLimitOpenAutoParameters,
+  type UseLimitOpenAutoReturnType,
   type UseSimulateGrantDelegationParameters,
   type UseSimulateGrantDelegationReturnType,
 } from "./instant-layer";
@@ -403,7 +406,10 @@ export {
   useAccountLiquidationPrice,
   useAccountUpnl,
   useCloseQuoteGroup,
+  useCoolDownsOfMA,
+  useForceCancelQuote,
   useGroupedQuotes,
+  useLimitOrders,
   useManagedQuotes,
   useOptimisticQuotesStore,
   usePartyAOpenPositions,
@@ -419,23 +425,32 @@ export {
   useQuotePriceHistory,
   useQuoteUpnlAndPnl,
   useQuotesFunding,
+  useRequestToCancelQuote,
   useSubgraphQuery,
   type CloseQuoteGroupParameters,
   type CloseQuoteGroupStatus,
   type CloseQuoteGroupStep,
   type CloseQuoteGroupStepStatus,
   type CloseQuoteGroupSummary,
+  type ForceCancelQuoteResult,
   type ManagedQuotesSources,
   type OptimisticQuotesStoreState,
   type QuotesFundingInputQuote,
+  type RequestToCancelQuoteResult,
   type UseAccountLiquidationPriceParameters,
   type UseAccountLiquidationPriceReturnType,
   type UseAccountUpnlParameters,
   type UseAccountUpnlReturnType,
   type UseCloseQuoteGroupParameters,
   type UseCloseQuoteGroupReturnType,
+  type UseCoolDownsOfMAParameters,
+  type UseCoolDownsOfMAReturnType,
+  type UseForceCancelQuoteParameters,
+  type UseForceCancelQuoteReturnType,
   type UseGroupedQuotesParameters,
   type UseGroupedQuotesResult,
+  type UseLimitOrdersParameters,
+  type UseLimitOrdersReturnType,
   type UseManagedQuotesParameters,
   type UseManagedQuotesResult,
   type UsePartyAOpenPositionsParameters,
@@ -463,6 +478,8 @@ export {
   type UseQuoteUpnlAndPnlReturnType,
   type UseQuotesFundingParameters,
   type UseQuotesFundingReturnType,
+  type UseRequestToCancelQuoteParameters,
+  type UseRequestToCancelQuoteReturnType,
   type UseSubgraphQueryParameters,
   type UseSubgraphQueryReturnType,
 } from "./quotes";
@@ -566,7 +583,12 @@ export { useMarketInfo, type UseMarketInfoParameters, type UseMarketInfoReturnTy
  * -------------------
  * Gate flows/UI on what the resolved solver supports (e.g. group close).
  */
-export { useSolverCapabilities, useSupportsGroupClose, type UseSolverCapabilitiesParameters } from "./solvers";
+export {
+  useSolverCapabilities,
+  useSupportsGroupClose,
+  useSupportsLimitOrder,
+  type UseSolverCapabilitiesParameters,
+} from "./solvers";
 
 /**
  * Fee hooks

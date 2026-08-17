@@ -81,6 +81,26 @@ export function classifyQuoteNotificationAction(action: string | null | undefine
 }
 
 /**
+ * Whether a notification's `lastSeenAction` is an open **anchor** — the quote
+ * landed on-chain (`SendQuoteTransaction` / `SendQuote` / `FillLimitOrderOpen`),
+ * as opposed to the earlier off-chain `InstantRFQ` price fill. This is the
+ * "second" notification of a send flow: the temp id now has a real on-chain quote
+ * id. Use it to refetch reads that only change once the quote exists on-chain —
+ * e.g. the pending-quotes (resting limit orders) list.
+ *
+ * @param action - The notification's `lastSeenAction` (may be `null`/absent).
+ * @returns `true` for an open-anchor action, otherwise `false`.
+ *
+ * @example
+ * ```ts
+ * if (n.type === NotificationType.SUCCESS && isOpenAnchorAction(n.lastSeenAction)) refetchPending();
+ * ```
+ */
+export function isOpenAnchorAction(action: string | null | undefined): boolean {
+  return action != null && OPEN_ANCHOR_ACTIONS.has(action);
+}
+
+/**
  * Whether a notification's `lastSeenAction` is a close **fill** — the close actually
  * executed (`FillMarketOrderInstantClose` / `FillLimitOrderClose`), as opposed to a
  * close *request*. Narrower than {@link classifyQuoteNotificationAction} `=== "close"`,

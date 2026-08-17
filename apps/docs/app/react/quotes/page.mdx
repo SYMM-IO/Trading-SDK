@@ -4,15 +4,19 @@ import { Callout } from "nextra/components";
 
 Live, reconciled quote list — the primary abstraction UI code binds to. Composes on-chain reads, pending instant-opens, pending instant-closes, and solver notifications into one reactive stream of `UnifiedQuote[]`.
 
-**Read-only page.** Every hook here is a read. The writes that produce the pending rows (`useInstantOpen*`, `useInstantClose*`) live under [Solvers](../solvers).
+Mostly reads. The writes that produce the pending rows (`useInstantOpen*`, `useInstantClose*`) live under [Solvers](../solvers); the exception on this page is [Cancelling limit orders](#cancelling-limit-orders) — the cancel / force-cancel writes are documented here next to the [`useLimitOrders`](#uselimitorders) list they act on.
 
 ## Import
 
 ```ts
 import {
   useManagedQuotes,
+  useLimitOrders,
   useGroupedQuotes,
   useOptimisticQuotesStore,
+  useRequestToCancelQuote,
+  useForceCancelQuote,
+  useCoolDownsOfMA,
   useQuoteUpnlAndPnl,
   useQuotePlatformFee,
   useAccountLiquidationPrice,
@@ -64,6 +68,80 @@ for (const quote of managed.quotes) {
 ```
 
 The React hook is the recommended entry point — it wires stores, polling, and WS reconciliation you would otherwise have to compose by hand.
+
+## `useLimitOrders`
+
+The single-account, order-type-scoped view of [`useManagedQuotes`](#usemanagedquotes) — one reconciled list of a partyA's resting **LIMIT** orders across **off-chain and on-chain** sources. A just-sent order shows instantly as an `offchain` row (from the hedger's pending instant-open feed), then flips to `onchain` when it anchors. Both feed the same pure [`reconcileQuotes`](/core/quotes/reconcile-quotes) primitive `useManagedQuotes` uses, so a row transitions `OPTIMISTIC → WRITE_ONCHAIN → ONCHAIN` (its `origin` flipping `offchain → onchain`) without flicker.
+
+Reach for it when you render a limit-order book / open-orders panel for one subaccount; reach for `useManagedQuotes` when you need the full multi-account position + pending picture.
+
+```tsx
+const { quotes, isLoading, socketStatus } = useLimitOrders({ partyA: subAccount });
+
+for (const order of quotes) {
+  // order.origin: "offchain" | "onchain"; order.lifecycle drives the badge.
+  render(order);
+}
+```
+
+Limit orders are a majors / [Rasa](/react/rasa-solver) feature (cross-margin), so `partyA` is the subaccount itself — its notification frames arrive on it directly, with no virtual account.
+
+### Parameters
+
+| Name        | Type         | Default           | Notes                                                          |
+| ----------- | ------------ | ----------------- | -------------------------------------------------------------- |
+| `partyA`    | `Address?`   | —                 | SubAccount whose orders to read. No reads until it is set.     |
+| `live`      | `boolean?`   | `true`            | Subscribe to notifications; burst-refetch on the anchor frame. |
+| `orderType` | `OrderType?` | `OrderType.LIMIT` | Which order type to return.                                    |
+| `chainId`   | `number?`    | config default    | Optional chain override.                                       |
+| `query`     | object       | —                 | TanStack overrides (`enabled`, `refetchInterval`).             |
+
+### Return type
+
+```ts
+{
+  quotes: UnifiedQuote[]; // offchain then onchain, tagged via `origin` / `lifecycle`
+  isLoading: boolean;
+  isError: boolean;
+  error: SymmioRequestError | null;
+  refetch: () => void;
+  socketStatus: SocketStatus;
+}
+```
+
+Only a row with `origin === "onchain"` carries a real `quoteId` — gate cancel / force-cancel actions on that.
+
+## Cancelling limit orders
+
+Three write / read hooks that act on the [`useLimitOrders`](#uselimitorders) list. All three route the diamond call through the AccountLayer `_call` proxy (the subaccount's `owner` wallet signs; no session key), and on success invalidate the pending reads so the row leaves the list.
+
+### `useRequestToCancelQuote`
+
+Cancel a resting limit order (`requestToCancelQuote`). A `PENDING` (unlocked) quote cancels instantly; a `LOCKED` one (a partyB is committed) enters `CANCEL_PENDING` and waits out the force-cancel cooldown.
+
+```tsx
+const cancel = useRequestToCancelQuote();
+cancel.mutate({ account: subAccount, quoteId }); // quoteId from an onchain row
+```
+
+### `useForceCancelQuote`
+
+Force-cancel a stalled quote (`forceCancelQuote`). Only valid once the quote is `CANCEL_PENDING` (you called `requestToCancelQuote` on a `LOCKED` order and partyB never acted) **and** the force-cancel cooldown has elapsed.
+
+```tsx
+const force = useForceCancelQuote();
+force.mutate({ account: subAccount, quoteId });
+```
+
+### `useCoolDownsOfMA`
+
+Read the protocol cooldown periods (`coolDownsOfMA`) as a 4-tuple of seconds. **Index 1 is the force-cancel cooldown** — the delay after a quote enters `CANCEL_PENDING` before [`useForceCancelQuote`](#useforcecancelquote) becomes eligible. Combine with the quote's `statusModifyTimestamp`:
+
+```tsx
+const { data: coolDowns } = useCoolDownsOfMA();
+const forceReadyAt = Number(quote.statusModifyTimestamp) + Number(coolDowns?.[1] ?? 0n);
+const canForce = Date.now() / 1000 >= forceReadyAt;
+```
 
 ## `useGroupedQuotes`
 
