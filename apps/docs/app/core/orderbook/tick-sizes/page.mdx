@@ -1,0 +1,56 @@
+# suggestOrderbookTickSizes
+
+Build a grouping ladder from a venue's own tick size.
+
+```ts
+import { suggestOrderbookTickSizes } from "@symmio/trading-core";
+
+suggestOrderbookTickSizes(0.1, 63_000);
+/** [0.1, 0.2, 0.5, 1, 2, 5, 10, 20] */
+
+suggestOrderbookTickSizes(0.0001, 1.25);
+/** [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005] */
+```
+
+## Parameters
+
+<Properties>
+  <Property name="tickSize" type="number" required>
+    The venue's smallest price increment. `OrderbookSymbol.tickSize` carries it.
+  </Property>
+  <Property name="referencePrice" type="number" required>
+    A price to scale against, typically the mid.
+  </Property>
+  <Property name="options" type="SuggestOrderbookTickSizesOptions" optional>
+    Ladder bounds.
+  </Property>
+</Properties>
+
+<Properties>
+  <Property name="options.maxFractionOfPrice" type="number" optional>
+    Coarsest grouping to offer, as a fraction of `referencePrice`. Default `0.005` — half a percent, beyond which a
+    ladder collapses into a handful of rows.
+  </Property>
+  <Property name="options.maxSteps" type="number" optional>
+    Most entries to return. Default `8`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="number[]">
+  Tick sizes ascending, always starting with `tickSize` itself. Empty when `tickSize` is not a positive finite number.
+</Returns>
+
+## Why derive rather than hardcode
+
+A global list of candidate ticks — the approach a UI reaches for first — offers groupings finer than the venue can quote, so those rows can never be occupied, and on a low-priced asset it offers ones so coarse the whole book lands in a single row. Anchoring on the real tick and stepping 1/2/5/10 keeps every entry both quotable and useful, at any price scale.
+
+## Keeping a selector stable
+
+The ladder depends on `referencePrice`, so recomputing it from a live mid hands a selector a new array several times a second. Scale the reference to its order of magnitude first — `Number(mid.toPrecision(2))` — so the options change only when the price genuinely moves. `useLiveOrderbook` does this for you.
+
+## Related
+
+- [`groupOrderbook`](/core/orderbook/group-orderbook) — apply a chosen tick.
+- [`OrderbookSource`](/core/orderbook/orderbook-source-type) — `getSymbol` supplies the venue tick.

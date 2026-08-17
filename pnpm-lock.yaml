@@ -564,6 +564,12 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.2.4
         version: 4.2.4
+      '@testing-library/dom':
+        specifier: ^10.4.0
+        version: 10.4.1
+      '@testing-library/react':
+        specifier: ^16.1.0
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@types/react':
         specifier: ^19.2.17
         version: 19.2.17
@@ -573,6 +579,9 @@ importers:
       eslint:
         specifier: ^9.39.4
         version: 9.39.4(jiti@2.6.1)
+      happy-dom:
+        specifier: ^16.0.0
+        version: 16.8.1
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -585,6 +594,9 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@25.6.0)(@vitest/coverage-v8@4.1.10)(happy-dom@16.8.1)(vite@8.0.13(@types/node@25.6.0)(esbuild@0.28.0)(jiti@2.6.1)(yaml@2.8.4))
 
   packages/utils:
     dependencies:

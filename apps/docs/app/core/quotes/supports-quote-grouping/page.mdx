@@ -1,0 +1,69 @@
+# supportsQuoteGrouping
+
+Whether grouped positions are defined for a sub-account's isolation type. Only `MARKET_DIRECTION` groups.
+
+```ts
+import { groupQuotes, supportsQuoteGrouping } from "@symmio/trading-core";
+
+const sub = await getSubAccount(config, { account: subAccount });
+
+if (supportsQuoteGrouping(sub.isolationType)) {
+  const groups = groupQuotes(positions, sub.isolationType);
+} else {
+  // render flat rows — this account has no market + side cohorts
+}
+```
+
+## Why only `MARKET_DIRECTION`
+
+`MARKET_DIRECTION` is the one isolation where a market + side cohort is a real on-chain unit: the AccountLayer allocates **one Virtual Account per market + direction**, so every quote in the cohort shares a VA, a margin pool, and a liquidation fate. Folding them into a single row aggregates values that genuinely belong together, and a group-level action — [group close](/core/quotes/plan-group-close), grouped TP/SL — acts on quotes the protocol already treats as one position.
+
+Under the other isolations the same fold is a fiction:
+
+| Isolation  | What the account actually holds                    | Why grouping misleads                                                           |
+| ---------- | -------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `POSITION` | one VA per trade                                   | A market + side row would merge separately-liquidated VAs into one buffer.      |
+| `MARKET`   | one VA per market, both sides in it                | Splitting by side cuts a VA in half; the row's margin and equity understate it. |
+| `CUSTOM`   | no automatic VAs — cross-margin on the sub-account | There are no cohorts at all; every position shares one margin pool.             |
+
+So [`groupQuotes`](/core/quotes/group-quotes) rejects them outright rather than returning numbers that do not correspond to anything on-chain. When you want a different fold anyway, ask for it explicitly with a `{ keyOf }` — `keyQuoteByMarket` and `keyQuotePerQuote` cover the common shapes.
+
+## Parameters
+
+<Properties>
+  <Property name="isolationType" type="SubAccountIsolationType" required>
+    The subaccount's on-chain isolation type, from `getSubAccount(...).isolationType`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="boolean">`true` only for `SubAccountIsolationType.MARKET_DIRECTION`.</Returns>
+
+## assertQuoteGroupingSupported
+
+The throwing counterpart, for call sites that would rather fail loudly than branch.
+
+```ts
+import { assertQuoteGroupingSupported } from "@symmio/trading-core";
+
+assertQuoteGroupingSupported(sub.isolationType);
+// throws SymmError { kind: "validation", code: "UNSUPPORTED_GROUPING_ISOLATION" }
+```
+
+<Properties>
+  <Property name="isolationType" type="SubAccountIsolationType" required>
+    The subaccount's on-chain isolation type.
+  </Property>
+</Properties>
+
+<Returns type="void">
+  Returns nothing on success; throws `SymmError` with code `UNSUPPORTED_GROUPING_ISOLATION` for any isolation type other
+  than `MARKET_DIRECTION`.
+</Returns>
+
+## Related
+
+- [`groupQuotes`](/core/quotes/group-quotes) — the fold this gates, and the `{ keyOf }` escape hatch.
+- [`useGroupedQuotes`](/react/quotes#usegroupedquotes) — the React hook, which runs this check against the sub-account for you.
+- [`SubAccountIsolationType`](/core/account-layer/sub-account-isolation-type) — the enum this takes, and what each mode allocates.

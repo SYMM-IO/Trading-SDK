@@ -60,6 +60,10 @@
       "types": "./dist/candles/index.d.ts",
       "import": "./dist/candles/index.js"
     },
+    "./orderbook": {
+      "types": "./dist/orderbook/index.d.ts",
+      "import": "./dist/orderbook/index.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"

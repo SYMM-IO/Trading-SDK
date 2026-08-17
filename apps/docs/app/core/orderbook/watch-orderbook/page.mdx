@@ -1,0 +1,99 @@
+import { Callout } from "nextra/components";
+
+# watchOrderbook
+
+Subscribe to a continuously synchronized order book. Every call to `onOrderbook` receives a **complete** book — never a delta — and every one is a fresh object, so a consumer can hold onto one without it mutating underneath them.
+
+```ts
+import { createBinanceOrderbookSource } from "@symmio/trading-core";
+
+const source = createBinanceOrderbookSource();
+
+const unwatch = source.watchOrderbook?.({
+  marketName: "BTCUSDT",
+  levels: 15,
+  onOrderbook: (book) => render(book),
+  onResync: (reason) => markStale(reason),
+  onError: (error) => console.warn(error.code, error.message),
+});
+
+/** Later: releases the subscription and cancels any in-flight snapshot. */
+unwatch?.();
+```
+
+`watchOrderbook` is optional on the interface — a source with no realtime feed omits it, and a consumer falls back to polling [`getOrderbook`](/core/orderbook/get-orderbook).
+
+## Parameters
+
+<Properties>
+  <Property name="marketName" type="string" required>
+    Market name as SYMMIO names it.
+  </Property>
+  <Property name="limit" type="number" optional>
+    Levels per side in the snapshot the live book is built on. Deeper snapshots cost more rate-limit weight but survive
+    a large sweep without the far side going blank. Defaults to the source's `defaultLimit`.
+  </Property>
+  <Property name="levels" type="number" optional>
+    Levels per side to emit on each update. Defaults to `50`. Independent of `limit` — the source tracks the full book
+    internally and trims only at the callback, so a 15-row ladder does not pay for 1000 objects per tick.
+  </Property>
+  <Property name="onOrderbook" type="(orderbook: Orderbook) => void" required>
+    Called with a complete book on every applied update.
+  </Property>
+  <Property name="onResync" type="(reason: OrderbookResyncReason) => void" optional>
+    Called when the book is about to be rebuilt, *before* the rebuild completes. The next `onOrderbook` is the rebuilt
+    book.
+  </Property>
+  <Property name="onStatusChange" type="(status: SocketStatus) => void" optional>
+    Called whenever the underlying connection status changes.
+  </Property>
+  <Property name="onError" type="(error: SymmError) => void" optional>
+    Called on a transport, parse, or snapshot error. Does **not** stop the subscription.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Unwatch">
+  A function that closes the connection, cancels any in-flight snapshot, and stops all callbacks.
+</Returns>
+
+## Resync reasons
+
+`onResync` is the honest signal that the ladder on screen has stopped tracking the venue. Handle it.
+
+<Properties>
+  <Property name="initial" type="OrderbookResyncReason">
+    The first build. There was no prior book.
+  </Property>
+  <Property name="sequence-gap" type="OrderbookResyncReason">
+    An update did not chain onto the previous one, so at least one update was missed and the local book can no longer be
+    trusted.
+  </Property>
+  <Property name="reconnect" type="OrderbookResyncReason">
+    The socket dropped and re-dialled. Updates during the gap are lost.
+  </Property>
+  <Property name="stale-snapshot" type="OrderbookResyncReason">
+    The snapshot came back older than the buffered updates could bridge, so it was refetched.
+  </Property>
+</Properties>
+
+<Callout type="info">
+  During a rebuild the last good book is still the most useful thing on screen. Dim the ladder rather than blanking it —
+  the React layer surfaces this as `isResyncing`, with the previous rows still returned.
+</Callout>
+
+## What it handles for you
+
+- **Ordering.** Subscribe and buffer first, then snapshot. Fetching first leaves the window between the snapshot and the first buffered update uncovered, and nothing downstream can detect the hole.
+- **Per-market continuity.** USD-M futures chains on `pu`; spot chains on `U`. The rules are not interchangeable.
+- **Removal semantics.** Quantities are absolute; a zero removes the level. An update removing a level the book never held is normal and ignored.
+- **Reconnects.** Binance drops idle connections after 24 hours. The socket re-dials with jittered backoff, re-sends SUBSCRIBE, and the book resyncs.
+- **Snapshot failures.** Retried while the socket keeps buffering, so a retry resumes from live updates rather than a cold start.
+
+## Related
+
+- [`createBinanceOrderbookSource`](/core/orderbook/create-source) — the reference source.
+- [`getOrderbook`](/core/orderbook/get-orderbook) — the one-shot equivalent.
+- [`useOrderbookStream` / `useLiveOrderbook`](/react/orderbook) — the React hooks.
+- [Orderbook guide](/guides/orderbook) — the synchronization procedure in full.

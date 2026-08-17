@@ -1,0 +1,48 @@
+# groupOrderbook
+
+Collapse a book onto a coarser price grid. Bids round **down** and asks round **up**, so a grouped level never claims liquidity at a better price than actually rests there — a bid group labelled `63018.0` holds orders from `63018.0` up to just under the next tick, all of which a seller can hit at `63018.0` or better.
+
+Level ordering is preserved: bids stay descending, asks ascending.
+
+```ts
+import { groupOrderbook } from "@symmio/trading-core";
+
+const grouped = groupOrderbook(book, 1);
+/** Asks at 63018.1 / 63018.4 / 63018.9 collapse into one level at 63019. */
+```
+
+## Parameters
+
+<Properties>
+  <Property name="orderbook" type="Orderbook" required>
+    The book to group.
+  </Property>
+  <Property name="tickSize" type="number" required>
+    Grid spacing. Must be positive.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Orderbook">
+  A new book on the coarser grid. `marketName`, `lastUpdateId`, and `timestamp` are carried through unchanged, and the
+  input is not mutated.
+</Returns>
+
+## Read the spread before grouping, not after
+
+Grouping moves the touch prices apart by up to two ticks. A spread read off grouped rows overstates it, sometimes wildly on a coarse grid. Call [`getOrderbookSpread`](/core/orderbook/orderbook-spread) on the **ungrouped** book — which is what `useLiveOrderbook` does.
+
+## Floating point
+
+Dividing a price by a decimal tick is not exact in binary floating point: `8.2 / 0.1` is `81.99999999999999`, and flooring that raw quotient moves an on-grid price a whole tick down. `roundToTick` snaps the quotient to a nearby integer first and writes the product back at the tick's own precision, so an already-on-grid price never moves and no result carries float dust.
+
+## Throws
+
+- `INVALID_TICK_SIZE` when `tickSize` is not a positive finite number.
+
+## Related
+
+- [`suggestOrderbookTickSizes`](/core/orderbook/tick-sizes) — build the ladder of groupings to offer.
+- [`accumulateOrderbook`](/core/orderbook/accumulate-orderbook) — the usual next step.
+- [`getOrderbookSpread`](/core/orderbook/orderbook-spread) — call this before grouping.

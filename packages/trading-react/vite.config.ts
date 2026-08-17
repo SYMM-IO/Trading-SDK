@@ -42,6 +42,7 @@ export default defineConfig({
         "fees/index": path.resolve(srcRoot, "fees/index.ts"),
         "price-service/index": path.resolve(srcRoot, "price-service/index.ts"),
         "candles/index": path.resolve(srcRoot, "candles/index.ts"),
+        "orderbook/index": path.resolve(srcRoot, "orderbook/index.ts"),
       },
       formats: ["es"],
     },

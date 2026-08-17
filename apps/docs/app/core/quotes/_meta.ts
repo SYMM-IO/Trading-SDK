@@ -15,6 +15,7 @@ export default {
   "should-accelerate-quote-polling": "shouldAccelerateQuotePolling",
   "-- grouping": { type: "separator", title: "Grouped positions" },
   "group-quotes": "groupQuotes",
+  "supports-quote-grouping": "supportsQuoteGrouping",
   "partition-quotes": "partitionQuotes",
   "aggregate-group-metrics": "aggregateGroupMetrics",
   "aggregate-group-funding": "aggregateGroupFunding",

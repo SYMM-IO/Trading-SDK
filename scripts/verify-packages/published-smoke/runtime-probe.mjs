@@ -23,6 +23,7 @@ const specs = [
   "@symmio/trading-react/fees",
   "@symmio/trading-react/price-service",
   "@symmio/trading-react/candles",
+  "@symmio/trading-react/orderbook",
 ];
 
 let failures = 0;

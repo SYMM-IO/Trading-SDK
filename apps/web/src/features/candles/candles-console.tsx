@@ -3,32 +3,17 @@
 import { ResultError, ResultNote } from "@/components/result";
 import { StatusDot } from "@/components/status-dot";
 import { socketStatusLabel, socketStatusTone } from "@/features/notifications/socket-status-display";
-import { useBinanceCandleSource, useCandleStream, useCandles, useMarkets } from "@symmio/trading-react";
+import { useBinanceCandleSource, useCandleStream, useCandles } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
-import { MarketSelect, type MarketSelectItem } from "@symmio/ui/components/market-select";
+import { MarketSelect } from "@symmio/ui/components/market-select";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { cn } from "@symmio/ui/lib/utils";
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { MethodCard } from "../inspector/method-card";
+import { useListedMarkets } from "../markets/use-listed-markets";
+import { useMajorMarkets } from "../markets/use-major-markets";
 import { CandleChart } from "./candle-chart";
 import { DEFAULT_BAR_COUNT, RESOLUTION_OPTIONS, toCandleRange, type PickerResolution } from "./resolution-options";
-
-/**
- * Majors that are always offered. `useMarkets()` reads the chain's configured
- * solver, and the only registered deployment today is HyperEVM → Enigma, the
- * **lowcap** solver — so the solver half of this list is markets Binance does
- * not carry. Without these hardcoded majors the picker would open on a market
- * the source cannot chart.
- *
- * TODO(majors-markets): drop this constant once `support-instantopen-rasa`
- * lands. That branch registers Base → Rasa, the majors solver, so the real list
- * becomes `useMarkets({ chainId: SymmioSupportedChainId.BASE })` — the same
- * `contract-symbols` feed the reference UI's majors page reads (685 markets
- * today, every one of them chartable on Binance). Until then this stays a
- * five-symbol stand-in rather than a snapshot that would silently go stale.
- */
-const MAJOR_MARKETS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"];
 
 /**
  * The candles slice end to end: `useBinanceCandleSource` builds the source,
@@ -52,49 +37,20 @@ export function CandlesConsole() {
   const [anchor, setAnchor] = useState(() => Date.now());
   const range = useMemo(() => toCandleRange(resolution, anchor), [resolution, anchor]);
 
-  const markets = useMarkets();
-  /** Majors first, then this deployment's own markets — before filtering. */
-  const candidateNames = useMemo(() => {
-    const fromSolver = (markets.data ?? [])
-      .map((market) => market.name)
-      .filter((name): name is string => Boolean(name));
-
-    return [...new Set([...MAJOR_MARKETS, ...fromSolver])];
-  }, [markets.data]);
-
-  /**
-   * Only markets this source actually carries make it into the picker. The
-   * deployment's list is mostly lowcaps with no Binance listing, and offering
-   * them means most of the picker charts nothing. `getSymbol` is the source's
-   * own answer to "do you carry this market"; every call shares one cached
-   * `exchangeInfo` fetch, so filtering the whole list costs a single request.
-   */
-  const listedNames = useQuery({
-    queryKey: ["candles-listed-markets", source.id, candidateNames],
-    queryFn: async () => {
-      const symbols = await Promise.all(candidateNames.map((name) => source.getSymbol(name)));
-      return candidateNames.filter((_, index) => symbols[index] !== undefined);
-    },
-    enabled: candidateNames.length > 0,
-    staleTime: Infinity,
+  /** Rasa's markets — the majors this source is here to chart. */
+  const majors = useMajorMarkets();
+  const { items: marketItems, isLoading: isFilteringMarkets } = useListedMarkets({
+    source,
+    names: majors.names,
+    selected: marketName,
   });
-
-  const marketItems = useMemo<MarketSelectItem[]>(
-    () =>
-      /** Majors carry the picker while the filter is in flight, and if it fails. */
-      (listedNames.data ?? MAJOR_MARKETS).map((name) => ({
-        id: name,
-        label: name,
-      })),
-    [listedNames.data],
-  );
 
   /**
    * `getSymbol` resolving to `undefined` is the SDK's "this source does not
    * carry that market" signal, and it is the check that has to come first:
-   * asking Binance for a SYMMIO lowcap name is a 400, not an empty series, so
-   * without this the page would show a raw HTTP error where the honest answer
-   * is "wrong source for this market".
+   * asking Binance for a market it never listed is a 400, not an empty series,
+   * so without this the page would show a raw HTTP error where the honest
+   * answer is "wrong source for this market".
    */
   const [symbolState, setSymbolState] = useState<"loading" | "supported" | "unsupported">("loading");
   const [pricePrecision, setPricePrecision] = useState(2);
@@ -160,7 +116,7 @@ export function CandlesConsole() {
             /** `MarketSelect` clears to `""`; keep the chart on its current market instead. */
             if (next) setMarketName(next);
           }}
-          placeholder={markets.isLoading || listedNames.isLoading ? "Loading markets…" : "Select a market…"}
+          placeholder={majors.isLoading || isFilteringMarkets ? "Loading markets…" : "Select a market…"}
           searchPlaceholder="Search market…"
           emptyLabel="No markets available."
           emptyResultsLabel="No markets match this search."
@@ -222,6 +178,14 @@ export function CandlesConsole() {
         </span>
       </div>
 
+      {majors.error ? (
+        <ResultError
+          testId="method-useCandles-markets-error"
+          kind={majors.error.kind}
+          message={`Rasa's market list is unavailable, so the picker only offers the current market: ${majors.error.message}`}
+        />
+      ) : null}
+
       {history.error ? (
         <ResultError testId="method-useCandles-error" kind={history.error.kind} message={history.error.message} />
       ) : null}
@@ -229,8 +193,9 @@ export function CandlesConsole() {
       {isUnlisted ? (
         <ResultNote testId="method-useCandles-unlisted">
           This source has no bars for <code>{marketName}</code>. <code>getSymbol</code> did not resolve it, which is how
-          a <code>CandleSource</code> reports a market it does not carry — the same check that keeps this deployment’s
-          lowcaps out of the picker above. Those chart from their liquidity pool instead; see the card below.
+          a <code>CandleSource</code> reports a market it does not carry — the same check that filters the picker above
+          down to what Binance lists. Lowcaps have no listing at all; those chart from their liquidity pool instead, in
+          the card below.
         </ResultNote>
       ) : null}
 

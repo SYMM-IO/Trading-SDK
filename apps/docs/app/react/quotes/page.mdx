@@ -78,12 +78,31 @@ const { groups, pending, quotes } = useGroupedQuotes({
 
 It takes the same parameters as `useManagedQuotes` — it reads the quotes itself, you do not pass them in — plus:
 
-- `strategy` — a `SubAccountIsolationType` or a custom `{ keyOf }`. Defaults to `MARKET_DIRECTION` (one group per market + side). Memoize a custom strategy; a fresh object every render regroups every render.
+- `strategy` — `SubAccountIsolationType.MARKET_DIRECTION` (the default, one group per market + side) or a custom `{ keyOf }`. Any other isolation type **throws** `UNSUPPORTED_GROUPING_ISOLATION`; see [`groupQuotes`](/core/quotes/group-quotes). Memoize a custom strategy; a fresh object every render regroups every render.
 - `groupSort` — group ordering override. Defaults to newest-first.
 
 Each group carries pure [`QuoteGroupMetrics`](/core/quotes/quote-group-metrics): open size, weighted average open price, frozen at-open notional, summed locked margin, and blended leverage. Price-dependent figures are not included — inject a mark price yourself.
 
 Note that a group can span Virtual Accounts, since the VA is not part of the group key. Any write that fans out over `group.quotes` must use each child's own `vaAddress`.
+
+### The isolation check
+
+Grouped positions only exist under `MARKET_DIRECTION` isolation (see [`supportsQuoteGrouping`](/core/quotes/supports-quote-grouping) for why). The hook enforces that against the chain, not just against your argument: it resolves the isolation of the sub-account that owns `partyA` — walking up from a Virtual Account to its `parentAccount` when `partyA` is a VA — and refuses to fold when the answer is anything else.
+
+```tsx
+const { groups, quotes, pending, isolationType, isGroupingSupported, groupingError } = useGroupedQuotes({ partyA });
+
+if (!isGroupingSupported) {
+  // groups is [] — render the flat rows instead
+  return <FlatPositions rows={quotes} note={groupingError?.message} />;
+}
+```
+
+- `isolationType` — the resolved isolation, or `undefined` while the read is in flight, when `partyA` is neither a sub-account nor a VA, and when a custom `{ keyOf }` skipped the lookup.
+- `isGroupingSupported` — `false` **only** when the isolation is known and unsupported. It stays `true` while unresolved, so a consumer gating on it never flashes an error during the read.
+- `groupingError` — the `SymmioRequestError` behind a `false`, carrying code `UNSUPPORTED_GROUPING_ISOLATION`; `null` otherwise.
+
+`quotes` and `pending` are never blanked, so the flat views stay usable for accounts that cannot group. Both isolation reads are fixed-at-creation data and cached for the session, so the check costs nothing after the first resolve. A custom `{ keyOf }` opts out of it entirely — that caller has already chosen a dimension of their own.
 
 ## `useCloseQuoteGroup`
 
@@ -165,13 +184,13 @@ The same `upnl` carries the group's return as well as its amount: `upnl.upnlPerc
 
 **Mark price: injected wins.** Pass `markPrice` (18-decimal wei) and no price subscription is opened; omit it and the hook subscribes to the group's market itself. Inject it when the surrounding screen already holds the price, so the two cannot disagree by a tick.
 
-**`metrics` is withheld when the group spans several accounts.** A group normally maps 1:1 to a Virtual Account, because the built-in grouping strategies mirror the sub-account's on-chain isolation type. When it does not — a custom `keyOf`, or grouping by `MARKET` an account isolated by `MARKET_DIRECTION` — `isMultiAccount` is `true` and `metrics` is `undefined` rather than blended: each account is liquidated independently, so one averaged buffer would read as safe while one of them is about to go. Fan out with [`useAccountMarginRisk`](../margin#useaccountmarginrisk) over the returned `accounts`.
+**`metrics` is withheld when the group spans several accounts.** A group normally maps 1:1 to a Virtual Account, because the built-in strategy mirrors the sub-account's on-chain isolation type — and [`useGroupedQuotes`](#usegroupedquotes) refuses to group at all when it does not. When a group still spans accounts — a custom `keyOf`, e.g. folding a `MARKET_DIRECTION` account by market with `keyQuoteByMarket` — `isMultiAccount` is `true` and `metrics` is `undefined` rather than blended: each account is liquidated independently, so one averaged buffer would read as safe while one of them is about to go. Fan out with [`useAccountMarginRisk`](../margin#useaccountmarginrisk) over the returned `accounts`.
 
 <Callout type="warning">
-  `equity = allocatedBalance + upnl` mixes an account-wide balance with the group's uPnL. That is exact whenever the
-  grouping strategy matches the sub-account's isolation type. Group a `MARKET`-isolated account by `MARKET_DIRECTION`
-  and each group is a *subset* of its account, which understates equity — the hook cannot detect that without a second
-  read.
+  `equity = allocatedBalance + upnl` mixes an account-wide balance with the group's uPnL. That is exact for the
+  `MARKET_DIRECTION` fold, where a group *is* its Virtual Account. Build a custom `keyOf` that slices an account into
+  several groups and each group is a *subset* of its account, which understates equity — the hook cannot detect that
+  without a second read.
 </Callout>
 
 #### Parameters

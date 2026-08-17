@@ -12,6 +12,7 @@ export default {
   solvers: "Solvers",
   tpsl: "TP/SL",
   "price-service": "Price Service",
+  orderbook: "Orderbook",
   notifications: "Notifications",
   subgraph: "Subgraph",
   muon: "Muon Oracle",

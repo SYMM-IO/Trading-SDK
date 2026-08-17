@@ -1,0 +1,100 @@
+import { Callout } from "nextra/components";
+
+# createBinanceOrderbookSource
+
+Create an [`OrderbookSource`](/core/orderbook/orderbook-source-type) backed by Binance depth. Snapshots come from the REST `/depth` endpoint and live updates from the diff-depth WebSocket stream, combined into a continuously synchronized book.
+
+Both are reachable directly from a browser — Binance serves permissive CORS headers on market data, so no proxy and no API key is involved.
+
+```ts
+import { createBinanceOrderbookSource } from "@symmio/trading-core";
+
+const source = createBinanceOrderbookSource();
+
+const book = await source.getOrderbook({ marketName: "BTCUSDT", limit: 20 });
+const unwatch = source.watchOrderbook?.({
+  marketName: "BTCUSDT",
+  levels: 15,
+  onOrderbook: (next) => render(next),
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="market" type='"usd-m-futures" | "spot"' optional>
+    Which Binance market to read. Defaults to `"usd-m-futures"` — its symbols are perpetual contracts, matching what a
+    SYMMIO market actually is. Use `"spot"` for markets with no futures listing.
+  </Property>
+  <Property name="restUrl" type="string" optional>
+    Override the REST host — a regional mirror, or your own caching proxy.
+  </Property>
+  <Property name="wsUrl" type="string" optional>
+    Override the WebSocket endpoint. Only do this if you know the route serves depth; see the routing note below.
+  </Property>
+  <Property name="updateSpeed" type="number" optional>
+    Diff-stream update speed in milliseconds. Futures serves `100 | 250 | 500`; spot serves `100 | 1000`. Defaults to
+    the market's own default (500ms futures, 1000ms spot).
+  </Property>
+  <Property name="resolveSymbol" type="(marketName: string) => string | undefined" optional>
+    Map a SYMMIO market name onto a Binance symbol, or return `undefined` when the market has no Binance listing.
+    Defaults to an upper-case identity mapping.
+  </Property>
+  <Property name="webSocketConstructor" type="WebSocketConstructor" optional>
+    WebSocket implementation for `watchOrderbook`. Defaults to `globalThis.WebSocket`; pass the `ws` package in Node
+    environments without one.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="OrderbookSource">
+  A source with `id` of `` `binance:${market}` ``, `priceBasis` of `"reference-exchange"`, the market's
+  `supportedLimits` and `defaultLimit`, and all three methods implemented.
+</Returns>
+
+## The WebSocket route is not interchangeable
+
+<Callout type="warning">
+  Binance routes futures streams **by class**. `/public` carries `@depth`, partial depth, and `@bookTicker`; `/market` carries `@kline_*`, `@aggTrade`, `@markPrice`, and `@ticker`. Subscribing on the wrong route is **not an error** — the server acknowledges with `{"result":null}` and then never pushes a single frame, so the book reports `open` and stays empty forever.
+</Callout>
+
+The default is therefore `wss://fstream.binance.com/public/stream` for futures — deliberately **not** the `/market/stream` the candles slice uses. Spot has no such routing; one combined-stream endpoint serves everything.
+
+If you override `wsUrl`, keep the route class. The legacy unrouted `/stream` still carries depth because depth is a public stream, but it was decommissioned for everything else and is not what new code should dial.
+
+## Symbol mapping
+
+The default mapping upper-cases the market name, which holds for current SYMMIO deployments where market names are already Binance USD-M symbols. Override `resolveSymbol` rather than relying on that coincidence if your deployment's names can diverge — an unmapped name otherwise resolves to a symbol that does not exist and the ladder simply stays empty.
+
+```ts
+const source = createBinanceOrderbookSource({
+  resolveSymbol: (marketName) => SYMBOL_BY_MARKET[marketName],
+});
+```
+
+`getSymbol` returns `undefined` for a market the venue does not list, which is the check to run before rendering — asking Binance for a SYMMIO lowcap name is an HTTP error, not an empty book.
+
+## Depths and speeds
+
+| Market          | Snapshot depths                                                                    | Stream speeds             |
+| --------------- | ---------------------------------------------------------------------------------- | ------------------------- |
+| `usd-m-futures` | `5, 10, 20, 50, 100, 500, 1000` (an **enum** — anything else is rejected outright) | `100ms`, `250ms`, `500ms` |
+| `spot`          | any value up to `5000`                                                             | `100ms`, `1000ms`         |
+
+## Throws
+
+- `UNSUPPORTED_DEPTH_UPDATE_SPEED` at construction, when the market does not serve the requested speed.
+- `NO_WEBSOCKET_IMPLEMENTATION` when `watchOrderbook` is called with no `WebSocket` available and none injected.
+
+## Operational notes
+
+- `exchangeInfo` is fetched once per source and shared by every `getSymbol` call; a rejection clears the cache so a transient failure does not poison the source for its lifetime. **Memoize the source** — recreating it per render refetches that and re-dials any live subscription.
+- Rate-limit weight grows with snapshot depth. `limit: 1000` is the deepest and heaviest.
+- `api.binance.com` and `fapi.binance.com` are blocked in some jurisdictions; `restUrl` / `wsUrl` exist for that.
+
+## Related
+
+- [`watchOrderbook`](/core/orderbook/watch-orderbook) — what the live subscription guarantees.
+- [`getOrderbook`](/core/orderbook/get-orderbook) — the snapshot read.
+- [`useBinanceOrderbookSource`](/react/orderbook) — the memoized React wrapper.

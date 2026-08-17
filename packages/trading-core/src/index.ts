@@ -1411,6 +1411,15 @@ export {
  * reports settled-to-date funding with `netReceived = received − paid`, so a
  * **positive** value means the group **earned** funding, sharing the plain-trader
  * polarity of `aggregateGroupUpnl`, where a **positive** `upnl` means in profit.
+ *
+ * Grouping itself is a **`MARKET_DIRECTION`-only** feature: it is the one
+ * isolation where a market + side cohort is a real on-chain unit (one Virtual
+ * Account per market + direction), so `groupQuotes` accepts no other
+ * {@link SubAccountIsolationType} and throws `UNSUPPORTED_GROUPING_ISOLATION`
+ * otherwise. Check first with `supportsQuoteGrouping` (or fail loudly with
+ * `assertQuoteGroupingSupported`), and fold on another dimension by passing an
+ * explicit `{ keyOf }` — `keyQuoteByMarket` and `keyQuotePerQuote` cover the
+ * market-wide and one-row-per-quote cases.
  */
 export {
   QuoteLifecycle,
@@ -1418,6 +1427,7 @@ export {
   aggregateGroupMetrics,
   aggregateGroupUpnl,
   applyNotificationToQuotes,
+  assertQuoteGroupingSupported,
   calculateClosePlatformFee,
   calculateLiquidationPrice,
   calculateOpenPlatformFee,
@@ -1434,6 +1444,8 @@ export {
   isActivePosition,
   isCloseFillAction,
   isPendingOrder,
+  keyQuoteByMarket,
+  keyQuotePerQuote,
   lifecycleFromQuoteStatus,
   minRemainingQuantityOf,
   partitionQuotes,
@@ -1443,6 +1455,7 @@ export {
   resolveQuoteGroupingStrategy,
   shouldAccelerateOnchainReads,
   shouldAccelerateQuotePolling,
+  supportsQuoteGrouping,
   toGroupCloseCandidates,
   toUnifiedQuoteFromInstantClose,
   toUnifiedQuoteFromInstantOpen,
@@ -1894,3 +1907,79 @@ export {
   type WatchBinanceKlinesParameters,
   type WatchCandlesParameters,
 } from "./candles";
+
+/**
+ * Orderbook slice
+ * ---------------
+ * Market depth, decoupled from any venue. An `OrderbookSource` supplies the
+ * three things every depth consumer needs — symbol metadata, a snapshot, and a
+ * live subscription — so ladders, depth charts and impact estimates are all
+ * written against that interface rather than against an exchange.
+ *
+ * `createBinanceOrderbookSource` is the reference source for major markets. Its
+ * live book is not a stream of deltas applied on faith: it implements Binance's
+ * documented local-order-book procedure, verifies that every update chains onto
+ * the last, and rebuilds from a fresh snapshot the moment one does not — with
+ * `onResync` telling the consumer it happened.
+ *
+ * The pure helpers on top (`groupOrderbook`, `accumulateOrderbook`,
+ * `getOrderbookSpread`, `walkOrderbook`, `getOrderbookDepthWithin`) work on any
+ * source's book. As with candles, `priceBasis` states what the depth actually
+ * represents — a reference exchange's resting liquidity is not what a SYMMIO
+ * trade executes against.
+ */
+export {
+  BINANCE_DEPTH_DEFAULT_LEVELS,
+  BINANCE_DEPTH_DEFAULT_LIMIT,
+  BINANCE_DEPTH_DEFAULT_UPDATE_SPEED,
+  BINANCE_DEPTH_LIMITS,
+  BINANCE_DEPTH_MAX_BUFFERED_EVENTS,
+  BINANCE_DEPTH_PATH,
+  BINANCE_DEPTH_REST_URL,
+  BINANCE_DEPTH_UPDATE_SPEEDS,
+  BINANCE_DEPTH_WS_URL,
+  BINANCE_ORDERBOOK_EXCHANGE_INFO_PATH,
+  accumulateOrderbook,
+  countTickDecimals,
+  createBinanceOrderbookSource,
+  fetchBinanceDepth,
+  fetchBinanceSymbolFilters,
+  getOrderbookDepthWithin,
+  getOrderbookQueryKey,
+  getOrderbookQueryOptions,
+  getOrderbookSpread,
+  groupOrderbook,
+  parseBinanceDepthLevel,
+  parseBinanceDepthLevels,
+  roundToTick,
+  suggestOrderbookTickSizes,
+  walkOrderbook,
+  watchBinanceDepth,
+  type BinanceOrderbookMarket,
+  type BinanceOrderbookSourceParameters,
+  type BinanceSymbolFilters,
+  type FetchBinanceDepthParameters,
+  type GetOrderbookData,
+  type GetOrderbookOptions,
+  type GetOrderbookParameters,
+  type GetOrderbookQueryKey,
+  type GetOrderbookQueryOptions,
+  type Orderbook,
+  type OrderbookDepthLevel,
+  type OrderbookDepthSummary,
+  type OrderbookLevel,
+  type OrderbookPriceBasis,
+  type OrderbookResyncReason,
+  type OrderbookSource,
+  type OrderbookSpread,
+  type OrderbookSymbol,
+  type OrderbookWalk,
+  type OrderbookWalkSide,
+  type RawBinanceDepthEvent,
+  type RawBinanceDepthLevel,
+  type RawBinanceDepthSnapshot,
+  type SuggestOrderbookTickSizesOptions,
+  type TickRoundingMode,
+  type WatchBinanceDepthParameters,
+  type WatchOrderbookParameters,
+} from "./orderbook";

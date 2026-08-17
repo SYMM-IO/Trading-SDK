@@ -1,0 +1,56 @@
+# getOrderbookSpread
+
+Best prices and the gap between them.
+
+```ts
+import { getOrderbookSpread } from "@symmio/trading-core";
+
+const spread = getOrderbookSpread(book);
+if (spread) {
+  console.log(`${spread.spread} (${spread.spreadBps.toFixed(2)} bps)`);
+}
+```
+
+## Parameters
+
+<Properties>
+  <Property name="orderbook" type="Orderbook" required>
+    The book to measure.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="OrderbookSpread | undefined">
+  The spread, or `undefined` when either side is empty — a one-sided book has no spread, and reporting `0` would read as
+  a locked market.
+</Returns>
+
+<Properties>
+  <Property name="bestBid" type="number">
+    Highest resting bid.
+  </Property>
+  <Property name="bestAsk" type="number">
+    Lowest resting ask.
+  </Property>
+  <Property name="spread" type="number">
+    `bestAsk - bestBid`, in quote-asset units. Negative when the book is crossed.
+  </Property>
+  <Property name="spreadBps" type="number">
+    The spread as basis points of the mid.
+  </Property>
+  <Property name="midPrice" type="number">
+    Arithmetic mid, `(bestBid + bestAsk) / 2`.
+  </Property>
+</Properties>
+
+## Notes
+
+- Reads only the touch. Depth behind it does not move the result.
+- Call it on the **ungrouped** book: [`groupOrderbook`](/core/orderbook/group-orderbook) moves the touch prices apart and would overstate the spread.
+- A tight major sits well under one basis point — BTC often quotes around `0.016` bps — so a single decimal reports every spread as `0.0`. Scale your precision to the magnitude.
+
+## Related
+
+- [`getOrderbookDepthWithin`](/core/orderbook/depth-within) — liquidity around the mid.
+- [`walkOrderbook`](/core/orderbook/walk-orderbook) — the cost of crossing that gap.
