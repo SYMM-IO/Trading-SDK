@@ -17,6 +17,11 @@ import {
   useRequestToCancelQuote,
   useForceCancelQuote,
   useCoolDownsOfMA,
+  useRequestToCancelCloseRequest,
+  useForceCancelCloseRequest,
+  useForceClose,
+  useForceCloseEligibility,
+  useForceCloseParams,
   useQuoteUpnlAndPnl,
   useQuotePlatformFee,
   useAccountLiquidationPrice,
@@ -113,7 +118,14 @@ Only a row with `origin === "onchain"` carries a real `quoteId` — gate cancel 
 
 ## Cancelling limit orders
 
-Three write / read hooks that act on the [`useLimitOrders`](#uselimitorders) list. All three route the diamond call through the AccountLayer `_call` proxy (the subaccount's `owner` wallet signs; no session key), and on success invalidate the pending reads so the row leaves the list.
+**The scenario.** You placed a resting limit order. While it's `PENDING` (no partyB yet) you can cancel it instantly. Once a partyB **locks** it (`LOCKED`), cancelling isn't immediate — `requestToCancelQuote` puts it in `CANCEL_PENDING` and waits for partyB to acknowledge. If partyB **stalls** past the force-cancel cooldown, you **force-cancel** it yourself (`forceCancelQuote`) — the escape hatch, exactly like [force close](#force-closing-a-limit-position) is for a stuck close.
+
+```
+PENDING ──requestToCancelQuote──▶ CANCELED (instant)
+LOCKED  ──requestToCancelQuote──▶ CANCEL_PENDING ──(cooldown + partyB stalls)──▶ forceCancelQuote ──▶ CANCELED
+```
+
+Three write / read hooks act on the [`useLimitOrders`](#uselimitorders) list. All route the diamond call through the AccountLayer `_call` proxy (the subaccount's `owner` wallet signs; no session key), and on success invalidate the pending reads so the row leaves the list.
 
 ### `useRequestToCancelQuote`
 
@@ -141,6 +153,63 @@ Read the protocol cooldown periods (`coolDownsOfMA`) as a 4-tuple of seconds. **
 const { data: coolDowns } = useCoolDownsOfMA();
 const forceReadyAt = Number(quote.statusModifyTimestamp) + Number(coolDowns?.[1] ?? 0n);
 const canForce = Date.now() / 1000 >= forceReadyAt;
+```
+
+## Cancelling a close
+
+The close-side analog of the cancel hooks: back out of a resting close (e.g. a limit close) while the quote is `CLOSE_PENDING`. Same `_call` routing; on success both invalidate the subaccount's open-positions read so the row's status refreshes.
+
+### `useRequestToCancelCloseRequest`
+
+Cancel a pending close (`requestToCancelCloseRequest`). If partyB accepts, the quote returns to `OPENED`; if it stalls, it enters `CANCEL_CLOSE_PENDING`.
+
+```tsx
+const cancelClose = useRequestToCancelCloseRequest();
+cancelClose.mutate({ account: subAccount, quoteId });
+```
+
+### `useForceCancelCloseRequest`
+
+Force-cancel a stalled close (`forceCancelCloseRequest`). Only valid once the quote is `CANCEL_CLOSE_PENDING` **and** the force-cancel-close cooldown — [`useCoolDownsOfMA`](#usecooldownsofma) **index 2** — has elapsed. The quote returns to `OPENED`.
+
+```tsx
+const { data: coolDowns } = useCoolDownsOfMA();
+const forceReadyAt = Number(quote.statusModifyTimestamp) + Number(coolDowns?.[2] ?? 0n);
+
+const forceClose = useForceCancelCloseRequest();
+if (Date.now() / 1000 >= forceReadyAt) forceClose.mutate({ account: subAccount, quoteId });
+```
+
+## Force closing a limit position
+
+When a partyA requested to close a **LIMIT** position but the hedger never filled it, after cooldowns it can be **force-closed** at a Muon-attested price — distinct from cancelling the close. See [core Force Close](/core/solvers/force-close) for the flow.
+
+### `useForceClose`
+
+The one-call, end-to-end force close from a `quoteId` (wraps `forceCloseAuto`): reads the quote + params, gates on eligibility, finds a price window from reference candles, fetches the Muon sig, preflights the gap, and sends. `onSuccess` invalidates the subaccount's open positions.
+
+```tsx
+const forceClose = useForceClose();
+forceClose.mutate({ account: subAccount, quoteId });
+```
+
+Throws (normalized) on ineligibility (`FORCE_CLOSE_NOT_ELIGIBLE`) or the market not hitting the price (`FORCE_CLOSE_PRICE_NOT_REACHED`). Gate the button first with `useForceCloseEligibility`.
+
+### `useForceCloseEligibility`
+
+The button gate + cooldown countdown for a quote. Reads the market's force-close params (`useForceCloseParams`) and runs the pure `checkForceCloseEligibility` against a 1-second clock, so `cooldownRemaining` ticks and `eligible` flips on when the cooldown elapses.
+
+```tsx
+const { eligible, reason, cooldownRemaining } = useForceCloseEligibility({ quote });
+// reason: "not-close-pending" | "not-limit" | "cooldown" | "expired"
+```
+
+### `useForceCloseParams`
+
+Read the raw force-close params (cooldowns, price penalty, min sig period, symbol gap ratio) for a market — the inputs the eligibility gate composes.
+
+```tsx
+const { data } = useForceCloseParams({ symbolId });
 ```
 
 ## `useGroupedQuotes`

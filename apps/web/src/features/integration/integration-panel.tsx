@@ -11,6 +11,7 @@ import {
 import { Card } from "@symmio/ui/components/card";
 import { useMemo, useState, type CSSProperties } from "react";
 import type { Address } from "viem";
+import { CancelCloseFlow } from "./cancel-close-flow";
 import { CancelLimitFlow } from "./cancel-limit-flow";
 import { CloseAllFlow } from "./close-all-flow";
 import { DepositFlow } from "./deposit-flow";
@@ -20,7 +21,15 @@ import { Segmented } from "./segmented";
 import { TpSlFlow } from "./tpsl-flow";
 import { WithdrawFlow } from "./withdraw-flow";
 
-type Tab = "deposit" | "withdraw" | "instant-open" | "instant-close" | "close-all" | "tpsl" | "cancel-limit";
+type Tab =
+  | "deposit"
+  | "withdraw"
+  | "instant-open"
+  | "instant-close"
+  | "close-all"
+  | "tpsl"
+  | "cancel-limit"
+  | "cancel-close";
 
 /**
  * End-to-end Integration console for the SYMMIO React SDK: a product-grade
@@ -53,11 +62,16 @@ export function IntegrationPanel() {
     { value: "instant-close", label: "Instant Close" },
     { value: "close-all", label: "Close All" },
     { value: "tpsl", label: "TP/SL" },
-    ...(supportsLimit ? [{ value: "cancel-limit" as Tab, label: "Cancel Limit" }] : []),
+    ...(supportsLimit
+      ? [
+          { value: "cancel-limit" as Tab, label: "Cancel Limit" },
+          { value: "cancel-close" as Tab, label: "Cancel Close" },
+        ]
+      : []),
   ];
 
   return (
-    <section className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+    <section className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
       <PageHeader
         eyebrow="React SDK · Integration"
         title="Move collateral, end to end"
@@ -72,67 +86,77 @@ export function IntegrationPanel() {
           onChange={setTab}
         />
 
-        {tab === "deposit" ? (
-          <DepositFlow
-            owner={address}
-            subAccount={subAccount}
-            subAccountName={subAccountName}
-            onSelectSubAccount={setSubAccount}
-            decimals={addresses.collateralDecimals}
-            balance={balance}
-            ready={ready}
-          />
-        ) : tab === "withdraw" ? (
-          <WithdrawFlow
-            owner={address}
-            subAccount={subAccount}
-            subAccountName={subAccountName}
-            onSelectSubAccount={setSubAccount}
-            decimals={addresses.collateralDecimals}
-            chainId={chainId}
-            ready={ready}
-          />
-        ) : tab === "instant-open" ? (
-          <InstantOpenFlow
-            owner={address}
-            subAccount={subAccount}
-            subAccountName={subAccountName}
-            onSelectSubAccount={setSubAccount}
-            ready={ready}
-          />
-        ) : tab === "instant-close" ? (
-          <InstantCloseFlow
-            owner={address}
-            subAccount={subAccount}
-            subAccountName={subAccountName}
-            onSelectSubAccount={setSubAccount}
-            ready={ready}
-          />
-        ) : tab === "close-all" ? (
-          <CloseAllFlow
-            owner={address}
-            subAccount={subAccount}
-            subAccountName={subAccountName}
-            onSelectSubAccount={setSubAccount}
-            ready={ready}
-          />
-        ) : tab === "tpsl" ? (
-          <TpSlFlow
-            owner={address}
-            subAccount={subAccount}
-            subAccountName={subAccountName}
-            onSelectSubAccount={setSubAccount}
-            ready={ready}
-          />
-        ) : (
-          <CancelLimitFlow
-            owner={address}
-            subAccount={subAccount}
-            subAccountName={subAccountName}
-            onSelectSubAccount={setSubAccount}
-            ready={ready}
-          />
-        )}
+        <div className="min-h-96">
+          {tab === "deposit" ? (
+            <DepositFlow
+              owner={address}
+              subAccount={subAccount}
+              subAccountName={subAccountName}
+              onSelectSubAccount={setSubAccount}
+              decimals={addresses.collateralDecimals}
+              balance={balance}
+              ready={ready}
+            />
+          ) : tab === "withdraw" ? (
+            <WithdrawFlow
+              owner={address}
+              subAccount={subAccount}
+              subAccountName={subAccountName}
+              onSelectSubAccount={setSubAccount}
+              decimals={addresses.collateralDecimals}
+              chainId={chainId}
+              ready={ready}
+            />
+          ) : tab === "instant-open" ? (
+            <InstantOpenFlow
+              owner={address}
+              subAccount={subAccount}
+              subAccountName={subAccountName}
+              onSelectSubAccount={setSubAccount}
+              ready={ready}
+            />
+          ) : tab === "instant-close" ? (
+            <InstantCloseFlow
+              owner={address}
+              subAccount={subAccount}
+              subAccountName={subAccountName}
+              onSelectSubAccount={setSubAccount}
+              ready={ready}
+            />
+          ) : tab === "close-all" ? (
+            <CloseAllFlow
+              owner={address}
+              subAccount={subAccount}
+              subAccountName={subAccountName}
+              onSelectSubAccount={setSubAccount}
+              ready={ready}
+            />
+          ) : tab === "tpsl" ? (
+            <TpSlFlow
+              owner={address}
+              subAccount={subAccount}
+              subAccountName={subAccountName}
+              onSelectSubAccount={setSubAccount}
+              ready={ready}
+            />
+          ) : tab === "cancel-limit" ? (
+            <CancelLimitFlow
+              owner={address}
+              subAccount={subAccount}
+              subAccountName={subAccountName}
+              onSelectSubAccount={setSubAccount}
+              ready={ready}
+            />
+          ) : (
+            <CancelCloseFlow
+              owner={address}
+              subAccount={subAccount}
+              subAccountName={subAccountName}
+              onSelectSubAccount={setSubAccount}
+              ready={ready}
+            />
+          )}
+        </div>
       </Card>
     </section>
   );

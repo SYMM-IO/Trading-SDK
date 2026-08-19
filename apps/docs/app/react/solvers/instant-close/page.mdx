@@ -5,7 +5,7 @@ React hooks over the core [Instant Close](../../../core/solvers/instant-close) f
 The page is split into two groups:
 
 - **[Reads](#reads)** — pending queue reads (`useInstantCloses`).
-- **[Writes](#writes)** — single-quote close (`useInstantCloseAuto`, `useInstantClose`) + bulk variants (`useInstantCloseBulk`, `useInstantCloseBulkAuto`).
+- **[Writes](#writes)** — single-quote close (`useInstantCloseAuto`, `useLimitCloseAuto`, `useInstantClose`) + bulk variants (`useInstantCloseBulk`, `useInstantCloseBulkAuto`).
 
 ## Import
 
@@ -13,6 +13,7 @@ The page is split into two groups:
 import {
   useInstantClose,
   useInstantCloseAuto,
+  useLimitCloseAuto,
   useInstantCloseBulk,
   useInstantCloseBulkAuto,
   useInstantCloses,
@@ -46,6 +47,24 @@ close.mutate({
   quoteId: 42n,
   quantityToClose: "0.5",
   slippage: 1,
+});
+```
+
+### `useLimitCloseAuto`
+
+The LIMIT-close variant — same one-line shape, but the caller passes a resting `price` (no `slippage`) and the close is written as a **pending close** resting at that price instead of filling at mark. Majors / [Rasa](../../rasa-solver) only; throws `UNSUPPORTED_BY_SOLVER` when the resolved solver has no limit support (gate with [`useSupportsLimitOrder`](../#usesupportslimitorder)). On success it invalidates the instant-closes feed so the resting close surfaces without a poll.
+
+```tsx
+const close = useLimitCloseAuto();
+
+close.mutate({
+  from: sessionKey,
+  partyA,
+  market: { id: 1 },
+  positionType: PositionType.LONG,
+  quoteId: 42n,
+  quantityToClose: "0.5",
+  price: "64000", // resting close price
 });
 ```
 

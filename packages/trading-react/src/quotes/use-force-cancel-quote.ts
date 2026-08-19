@@ -2,6 +2,7 @@
 
 import {
   forceCancelQuoteMutationOptions,
+  getPartyAOpenPositionsQueryKey,
   getPartyAPendingQuotesQueryKey,
   getPendingQuotesQueryKey,
   type ForceCancelQuoteParameters,
@@ -70,11 +71,13 @@ export function useForceCancelQuote(parameters: UseForceCancelQuoteParameters = 
       }
     },
     onSuccess: (_result, variables) => {
-      // The force-cancelled quote leaves the pending set — refetch both pending
-      // reads (full quotes + ids) for this partyA after the receipt.
+      // The force-cancelled quote leaves the pending set — refetch the pending
+      // reads (full quotes + ids) and the open positions for this partyA after the
+      // receipt, so managed-quotes drops the now-terminal quote.
       const partial = { partyA: variables.account };
       void queryClient.invalidateQueries({ predicate: predicateMatch(getPendingQuotesQueryKey, partial) });
       void queryClient.invalidateQueries({ predicate: predicateMatch(getPartyAPendingQuotesQueryKey, partial) });
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getPartyAOpenPositionsQueryKey, partial) });
     },
   });
 }

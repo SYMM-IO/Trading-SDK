@@ -88,11 +88,6 @@ describe("applyNotificationToQuotes — close lifecycle", () => {
     expect(result.lifecycle).toBe(QuoteLifecycle.ONCHAIN);
   });
 
-  it("keeps an anchored CLOSE_PENDING row CLOSING (authoritative on-chain status drives it)", () => {
-    const result = apply1(makeRow({ lifecycle: QuoteLifecycle.CLOSING }), makeCloseNotification());
-    expect(result.lifecycle).toBe(QuoteLifecycle.CLOSING);
-  });
-
   it("never overrides a terminal CLOSED row", () => {
     const result = apply1(makeRow({ lifecycle: QuoteLifecycle.CLOSED }), makeCloseNotification());
     expect(result.lifecycle).toBe(QuoteLifecycle.CLOSED);
@@ -143,12 +138,20 @@ describe("applyNotificationToQuotes — close staging", () => {
     expect(result.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
   });
 
-  it("does not regress the poll-confirmed CLOSING when the earlier request notification replays", () => {
+  it("advances CLOSE_PRICE_FILLED → WRITE_ONCHAIN_CLOSE on the limit-close anchor notification", () => {
     const result = apply1(
-      makeRow({ lifecycle: QuoteLifecycle.CLOSING }),
+      makeRow({ lifecycle: QuoteLifecycle.CLOSE_PRICE_FILLED }),
+      makeCloseNotification({ lastSeenAction: "InstantRequestToLimitClose" }),
+    );
+    expect(result.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
+  });
+
+  it("does not regress the furthest close stage (WRITE_ONCHAIN_CLOSE) when the earlier request notification replays", () => {
+    const result = apply1(
+      makeRow({ lifecycle: QuoteLifecycle.WRITE_ONCHAIN_CLOSE }),
       makeCloseNotification({ lastSeenAction: "InstantRequestToClosePosition" }),
     );
-    expect(result.lifecycle).toBe(QuoteLifecycle.CLOSING);
+    expect(result.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
   });
 
   it("ignores replayed close notifications on a settled ONCHAIN row (no re-stick)", () => {
@@ -235,6 +238,7 @@ describe("classifyQuoteNotificationAction", () => {
   it("classifies close-request/fill actions as close", () => {
     expect(classifyQuoteNotificationAction("FillMarketOrderInstantClose")).toBe("close");
     expect(classifyQuoteNotificationAction("RequestToClosePosition")).toBe("close");
+    expect(classifyQuoteNotificationAction("InstantRequestToLimitClose")).toBe("close");
   });
 
   it("classifies unknown or missing actions as other", () => {

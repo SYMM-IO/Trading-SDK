@@ -11,5 +11,6 @@ export * from "./use-instant-open-quote-id";
 export * from "./use-instant-open-with-tpsl";
 export * from "./use-instant-opens";
 export * from "./use-is-delegation-active";
+export * from "./use-limit-close-auto";
 export * from "./use-limit-open-auto";
 export * from "./use-simulate-grant-delegation";

@@ -547,7 +547,9 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
               data-testid={`${idPrefix}-limit-price`}
             />
           </Field>
-        ) : (
+        ) : null}
+
+        {!isLimit ? (
           <Field
             label="slippage (%)"
             htmlFor={`${idPrefix}-slippage`}
@@ -568,7 +570,7 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
               data-testid={`${idPrefix}-slippage`}
             />
           </Field>
-        )}
+        ) : null}
       </div>
 
       {/* TP/SL rides the Enigma VA + COH handler — not available on Rasa. */}

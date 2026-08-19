@@ -1,0 +1,48 @@
+# forceCancelCloseRequest
+
+Force-cancel a stalled pending close. Only valid once the quote is `CANCEL_CLOSE_PENDING` — you called [`requestToCancelCloseRequest`](/core/symmio-contract/request-to-cancel-close-request) and partyB never acted — **and** the force-cancel-close cooldown has elapsed. The quote returns to `OPENED`. Routed through `AccountLayer._call(account, …)`, so the connected wallet must be the subaccount's `owner`.
+
+Eligibility: `now ≥ quote.statusModifyTimestamp + getCoolDownsOfMA()[2]` (`forceCancelCloseCooldown`).
+
+```ts
+import { forceCancelCloseRequest } from "@symmio/trading-core";
+
+const hash = await forceCancelCloseRequest(config, { account: "0xsub…", quoteId: 42n });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The subaccount (partyA) that owns the quote. Routed through the AccountLayer `_call` proxy so the diamond sees this
+    subaccount as the caller.
+  </Property>
+  <Property name="quoteId" type="bigint" required>
+    The on-chain id of the `CANCEL_CLOSE_PENDING` quote to force-cancel the close on.
+  </Property>
+  <Property name="from" type="Address" optional>
+    Override the wallet address that signs. Defaults to the account's owner.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hash">The transaction hash.</Returns>
+
+## Mutation options
+
+```ts
+import { forceCancelCloseRequestMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+useMutation(forceCancelCloseRequestMutationOptions(config));
+```
+
+## Related
+
+- [getCoolDownsOfMA](/core/symmio-contract/get-cool-downs-of-ma) — index 2 is the force-cancel-close cooldown gating this call.
+- [React `useForceCancelCloseRequest`](/react/quotes#useforcecancelcloserequest) — the hook wrapper.
+- [Cancel a close](/core/symmio-contract#cancel-a-close) — the full lifecycle.

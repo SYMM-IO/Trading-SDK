@@ -49,11 +49,26 @@ A resting limit order (or any pending quote) is cancelled through the AccountLay
 
 <MethodIndex kind="read">
   <MethodEntry name="getCoolDownsOfMA" href="/core/symmio-contract/get-cool-downs-of-ma">
-    Protocol cooldown periods; index 1 is the force-cancel cooldown.
+    Protocol cooldown periods; index 1 is the force-cancel cooldown, index 2 the force-cancel-close cooldown.
   </MethodEntry>
 </MethodIndex>
 
 The lifecycle: `requestToCancelQuote` on a `LOCKED` quote sets it `CANCEL_PENDING` and stamps `statusModifyTimestamp`. Once `now ≥ statusModifyTimestamp + getCoolDownsOfMA()[1]` and partyB still has not acted, `forceCancelQuote` completes it. A `PENDING` (unlocked) quote cancels instantly and never needs the force path. The React [`useLimitOrders`](/react/quotes#uselimitorders) + cancel hooks wrap all three.
+
+## Cancel a close
+
+The close-side analog: back out of a resting close (e.g. a limit close) while the quote is `CLOSE_PENDING`. Same `_call` proxy routing.
+
+<MethodIndex kind="write">
+  <MethodEntry name="requestToCancelCloseRequest" href="/core/symmio-contract/request-to-cancel-close-request">
+    Cancel a pending close. If partyB accepts, the quote returns to `OPENED`; if it stalls, `CANCEL_CLOSE_PENDING`.
+  </MethodEntry>
+  <MethodEntry name="forceCancelCloseRequest" href="/core/symmio-contract/force-cancel-close-request">
+    Force-cancel a `CANCEL_CLOSE_PENDING` close once the cooldown has elapsed — the quote returns to `OPENED`.
+  </MethodEntry>
+</MethodIndex>
+
+Mirrors the quote-cancel lifecycle, but keyed on the close: `requestToCancelCloseRequest` on a `CLOSE_PENDING` quote returns it to `OPENED` if partyB accepts, else sets `CANCEL_CLOSE_PENDING`. Once `now ≥ statusModifyTimestamp + getCoolDownsOfMA()[2]` (`forceCancelCloseCooldown`), `forceCancelCloseRequest` completes it. The React [`useRequestToCancelCloseRequest`](/react/quotes#userequesttocancelcloserequest) / [`useForceCancelCloseRequest`](/react/quotes#useforcecancelcloserequest) hooks wrap both.
 
 ## Collateral
 

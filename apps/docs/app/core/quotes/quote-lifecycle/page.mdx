@@ -2,7 +2,7 @@
 
 The stage of a quote's lifecycle as tracked across the on-chain and off-chain merge. Drives row styling and polling acceleration in the consumer. Enumerated so consumers can `switch` on it.
 
-The off-chain stages (`OPTIMISTIC`, `PRICE_FILLED`), the `WRITE_ONCHAIN*` "awaiting the RPC" stages, and the transient close stages are **SDK-side overlays** — they do not exist on the on-chain [`QuoteStatus`](/core/symmio-contract/get-quote); reconciliation assigns them from notifications and hedger records.
+Lifecycle tracks the **write progression** (off-chain → on-chain), **not** the on-chain status: once a quote is on-chain it is `ONCHAIN` whether it is `OPENED` or `CLOSE_PENDING` — read [`quoteStatus`](/core/symmio-contract/get-quote) for that distinction (e.g. a resting limit close is `ONCHAIN` + `quoteStatus: CLOSE_PENDING`). The off-chain stages (`OPTIMISTIC*`, `*PRICE_FILLED`) and the `WRITE_ONCHAIN*` "awaiting the RPC" stages are **SDK-side overlays** — they do not exist on the on-chain `QuoteStatus`; reconciliation assigns them from notifications and hedger records.
 
 ```ts
 enum QuoteLifecycle {
@@ -13,7 +13,6 @@ enum QuoteLifecycle {
   OPTIMISTIC_CLOSE = "optimistic-close",
   CLOSE_PRICE_FILLED = "close-price-filled",
   WRITE_ONCHAIN_CLOSE = "write-onchain-close",
-  CLOSING = "closing",
   CLOSED = "closed",
   FAILED = "failed",
 }
@@ -45,12 +44,10 @@ enum QuoteLifecycle {
     of `PRICE_FILLED`.
   </Property>
   <Property name="WRITE_ONCHAIN_CLOSE" type='"write-onchain-close"'>
-    The close fill (`FillMarketOrderInstantClose`) was reported, or a pending instant-close overlays the row while the
-    on-chain status still shows the position open — the close is being written on-chain, awaiting the RPC. Resolves to
-    `CLOSING` once the on-chain status reflects the pending close.
-  </Property>
-  <Property name="CLOSING" type='"closing"'>
-    The close is confirmed pending on-chain — on-chain `CLOSE_PENDING` / `CANCEL_CLOSE_PENDING`.
+    The close fill (`FillMarketOrderInstantClose`) or the limit-close anchor (`InstantRequestToLimitClose`) was
+    reported, or a pending instant-close overlays the row while the on-chain status still shows the position open — the
+    close is being written on-chain, awaiting the RPC. Resolves to `ONCHAIN` (with `quoteStatus: CLOSE_PENDING`) once
+    the on-chain read returns the quote.
   </Property>
   <Property name="CLOSED" type='"closed"'>
     The position is fully closed.
@@ -60,7 +57,7 @@ enum QuoteLifecycle {
   </Property>
 </Properties>
 
-The `WRITE_ONCHAIN*` and `CLOSING` stages are exactly the ones [`shouldAccelerateOnchainReads`](/core/quotes/should-accelerate-onchain-reads) treats as awaiting on-chain confirmation; every mid-transition stage above drives [`shouldAccelerateQuotePolling`](/core/quotes/should-accelerate-quote-polling).
+The `WRITE_ONCHAIN*` stages are exactly the ones [`shouldAccelerateOnchainReads`](/core/quotes/should-accelerate-onchain-reads) treats as awaiting on-chain confirmation; every mid-transition stage above drives [`shouldAccelerateQuotePolling`](/core/quotes/should-accelerate-quote-polling).
 
 ## Related
 

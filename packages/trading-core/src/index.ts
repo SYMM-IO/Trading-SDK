@@ -439,6 +439,8 @@ export {
   deallocateAndInitiateWithdrawMutationOptions,
   finalizeWithdrawRequest,
   finalizeWithdrawRequestMutationOptions,
+  forceCancelCloseRequest,
+  forceCancelCloseRequestMutationOptions,
   forceCancelQuote,
   forceCancelQuoteMutationOptions,
   getFeeForUser,
@@ -460,6 +462,8 @@ export {
   initiateWithdrawMutationOptions,
   requestCancelWithdraw,
   requestCancelWithdrawMutationOptions,
+  requestToCancelCloseRequest,
+  requestToCancelCloseRequestMutationOptions,
   requestToCancelQuote,
   requestToCancelQuoteMutationOptions,
   simulateDeallocateAndInitiateWithdraw,
@@ -479,6 +483,8 @@ export {
   type FeeForUser,
   type FinalizeWithdrawRequestParameters,
   type FinalizeWithdrawRequestReturnType,
+  type ForceCancelCloseRequestParameters,
+  type ForceCancelCloseRequestReturnType,
   type ForceCancelQuoteParameters,
   type ForceCancelQuoteReturnType,
   type GetFeeForUserData,
@@ -515,6 +521,8 @@ export {
   type InitiateWithdrawReturnType,
   type RequestCancelWithdrawParameters,
   type RequestCancelWithdrawReturnType,
+  type RequestToCancelCloseRequestParameters,
+  type RequestToCancelCloseRequestReturnType,
   type RequestToCancelQuoteParameters,
   type RequestToCancelQuoteReturnType,
   type SimulateDeallocateAndInitiateWithdrawParameters,
@@ -809,6 +817,41 @@ export {
   prepareLimitOpenParams,
   type PrepareLimitOpenParameters,
 } from "./solvers/limit-open";
+
+export {
+  limitCloseAuto,
+  limitCloseAutoMutationOptions,
+  prepareLimitCloseParams,
+  type PrepareLimitCloseParameters,
+} from "./solvers/limit-close";
+
+export {
+  checkForceCloseEligibility,
+  checkForceClosePriceReached,
+  findForceCloseWindow,
+  forceCloseAuto,
+  forceCloseAutoMutationOptions,
+  forceClosePosition,
+  forceClosePositionMutationOptions,
+  getForceCloseParams,
+  getForceCloseParamsQueryKey,
+  getForceCloseParamsQueryOptions,
+  previewForceClosePrice,
+  type ForceCloseAutoParameters,
+  type ForceCloseAutoReturnType,
+  type ForceCloseEligibility,
+  type ForceCloseIneligibleReason,
+  type ForceCloseParams,
+  type ForceClosePositionParameters,
+  type ForceClosePositionReturnType,
+  type ForceCloseWindow,
+  type GetForceCloseParametersParameters,
+  type GetForceCloseParametersReturnType,
+  type GetForceCloseParamsData,
+  type GetForceCloseParamsOptions,
+  type GetForceCloseParamsQueryKey,
+  type GetForceCloseParamsQueryOptions,
+} from "./solvers/force-close";
 
 /**
  * Funding info
