@@ -14,6 +14,17 @@ describe("calculateQuoteLeverage", () => {
     expect(leverage).toBe("10");
   });
 
+  it("falls back to openedPrice when the requested open price is zero", () => {
+    const leverage = calculateQuoteLeverage({
+      quantity: 10n * ONE,
+      requestedOpenPrice: 0n,
+      openedPrice: 100n * ONE,
+      lockedValues: { cva: 25n * ONE, lf: 25n * ONE, partyAmm: 25n * ONE, partyBmm: 25n * ONE },
+    });
+    // 10 * 100 / 100 = 10
+    expect(leverage).toBe("10");
+  });
+
   it("returns 0 when the locked-margin sum is zero", () => {
     const leverage = calculateQuoteLeverage({
       quantity: 1n * ONE,

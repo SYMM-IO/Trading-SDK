@@ -63,7 +63,20 @@ jobs:
   publish:
     name: Publish to npm
     needs: version
-    if: needs.version.outputs.hasChangesets == 'false'
+    # `hasChangesets == 'false'` alone is not "there is something to release": it
+    # is also true after any ordinary feature merge that never had a changeset, so
+    # gating on it fires the environment-approval prompt on every such merge. Only
+    # publish when this push is the Version Packages PR actually landing. Matching
+    # the head commit message covers all three merge styles:
+    #   - merge commit → "Merge pull request #NN from <owner>/changeset-release/main"
+    #   - squash       → "chore(release): version packages (#NN)"
+    #   - rebase       → "chore(release): version packages"
+    if: >
+      needs.version.outputs.hasChangesets == 'false' &&
+      (
+        contains(github.event.head_commit.message, 'changeset-release/') ||
+        startsWith(github.event.head_commit.message, 'chore(release): version packages')
+      )
     runs-on: ubuntu-latest
     # Manual-approval gate. The `release` Environment must exist with a required
     # reviewer, and NPM_TOKEN must be an Environment secret scoped to it — that

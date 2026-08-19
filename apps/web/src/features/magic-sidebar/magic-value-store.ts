@@ -60,6 +60,21 @@ export function magicInputPersistKey(persistKey: string | undefined): string | u
 }
 
 /**
+ * Drop exactly one persisted key, leaving the card's other state intact. Takes
+ * the same key {@link readPinValue} / {@link writePinValue} take, so it accepts a
+ * namespaced sub-key (e.g. {@link magicInputPersistKey}'s `:input`) as readily as
+ * a bare `methodId` — use it to reset one facet of a pin rather than all of it.
+ */
+export function removePinValue(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(storageKey(key));
+  } catch {
+    /** Storage can be unavailable; nothing to remove. */
+  }
+}
+
+/**
  * Drop a single pinned card's persisted state (call when the pin is removed) —
  * both its main value key and any namespaced sub-keys (e.g. its `:input` form
  * value), so re-pinning the same method starts clean.

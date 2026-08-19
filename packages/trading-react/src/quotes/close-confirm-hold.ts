@@ -1,4 +1,4 @@
-import { QuoteLifecycle, type UnifiedQuote } from "@symmio/trading-core";
+import { QuoteLifecycle, QuoteStatus, type UnifiedQuote } from "@symmio/trading-core";
 
 /**
  * Next interval (ms) for the close-confirm backoff: double the current delay, capped
@@ -14,13 +14,17 @@ export function nextCloseConfirmDelay(current: number, max: number): number {
 
 /**
  * Whether the chain has acknowledged a close for a quote that is **still present**
- * in the active set. Releases the close-confirm hold when the status moved to a
- * close-pending / terminal lifecycle (`CLOSING` / `CLOSED`) or `closedAmount`
- * caught up to the full `quantity`. A quote that dropped out of the active set
- * entirely (a full close) is handled by the caller, not here.
+ * in the active set. Releases the close-confirm hold when the on-chain status
+ * reflects the pending close (`quoteStatus` `CLOSE_PENDING` / `CANCEL_CLOSE_PENDING`),
+ * the quote is terminally `CLOSED`, or `closedAmount` caught up to the full
+ * `quantity`. A quote that dropped out of the active set entirely (a full close)
+ * is handled by the caller, not here.
  */
 export function isCloseConfirmedOnchain(quote: UnifiedQuote): boolean {
-  if (quote.lifecycle === QuoteLifecycle.CLOSING || quote.lifecycle === QuoteLifecycle.CLOSED) return true;
+  if (quote.lifecycle === QuoteLifecycle.CLOSED) return true;
+  if (quote.quoteStatus === QuoteStatus.CLOSE_PENDING || quote.quoteStatus === QuoteStatus.CANCEL_CLOSE_PENDING) {
+    return true;
+  }
   const closed = quote.closedAmount ?? 0n;
   return quote.quantity > 0n && closed >= quote.quantity;
 }

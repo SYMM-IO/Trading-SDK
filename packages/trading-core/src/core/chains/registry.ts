@@ -42,6 +42,8 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
           // the `/notification` prefix (OpenAPI `servers[0].url`).
           searchUrl: "https://notification.rasa.capital/notification",
         },
+        // VA-per-market/side isolation supports folding a group into one close.
+        capabilities: { groupClose: true },
       },
     },
     defaultSolverId: "enigma",
@@ -93,6 +95,8 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
           url: "wss://stage-archon.rasa.capital/ws/position-state-ws3",
           protocol: "rasa",
         },
+        // Majors support LIMIT orders (pending open at a user-set price).
+        capabilities: { limitOrder: true },
       },
     },
     defaultSolverId: "rasa",

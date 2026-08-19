@@ -4,14 +4,16 @@ import {
   getQuoteTpSlQueryOptions,
   type ConfigParameter,
   type GetQuoteTpSlOptions,
-  type TpSlNotification,
+  type QuoteTpSlRow,
 } from "@symmio/trading-core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useCallback } from "react";
 import type { Address } from "viem";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
+import { linkTpSlNotificationIds, matchTpSlNotification } from "./match-tpsl-notification";
 import { useTpSlRecord, useTpSlStore, type TpSlRecord } from "./tpsl-store";
 import { useWatchTpSlNotifications } from "./use-watch-tpsl-notifications";
 
@@ -32,7 +34,20 @@ export type UseQuoteTpSlParameters = Omit<GetQuoteTpSlOptions, "quoteId"> &
   };
 
 /** Return type of {@link useQuoteTpSl}. */
-export type UseQuoteTpSlReturnType = UseQueryResult<TpSlRecord, SymmioRequestError>;
+export interface UseQuoteTpSlReturnType {
+  /** The folded TP/SL snapshot from the shared store, or `undefined` before the first load. */
+  data?: TpSlRecord;
+  /** `true` while the first fetch for this quote is in flight. */
+  isLoading: boolean;
+  /** `true` while any fetch is in flight, including background refetches. */
+  isFetching: boolean;
+  /** Normalized fetch error, or `null`. */
+  error: SymmioRequestError | null;
+  /** Re-read the handler rows for this quote. */
+  refetch: () => Promise<void>;
+  /** The underlying handler-row query, for advanced use. */
+  query: UseQueryResult<QuoteTpSlRow[], SymmioRequestError>;
+}
 
 /**
  * Read the folded TP/SL snapshot for one quote. Pass either the on-chain
@@ -43,6 +58,9 @@ export type UseQuoteTpSlReturnType = UseQueryResult<TpSlRecord, SymmioRequestErr
  * The `confirming` overlay ("POST accepted, awaiting handler") is merged into
  * `tpState` / `slState` at read time — a side flagged as confirming reports
  * state `"confirming"` regardless of what the row set says.
+ *
+ * @param parameters - Quote id, optional sub-account for the live stream, query overrides.
+ * @returns The snapshot plus the usual load/error/refetch surface.
  */
 export function useQuoteTpSl(parameters: UseQuoteTpSlParameters): UseQuoteTpSlReturnType {
   const config = useSymmioConfig(parameters);
@@ -61,7 +79,7 @@ export function useQuoteTpSl(parameters: UseQuoteTpSlParameters): UseQuoteTpSlRe
   // to avoid a duplicate fetch when the on-chain quoteId first appeared, but
   // that also swallowed post-mutation invalidations — leaving the box stuck on
   // the old values.)
-  const queryResult = useQuery({
+  const query = useQuery({
     ...options,
     queryFn: async () => {
       try {
@@ -72,45 +90,29 @@ export function useQuoteTpSl(parameters: UseQuoteTpSlParameters): UseQuoteTpSlRe
         throw normalizeSymmError(err);
       }
     },
-  });
+  }) as UseQueryResult<QuoteTpSlRow[], SymmioRequestError>;
 
   useWatchTpSlNotifications({
     account: parameters.account,
     enabled: Boolean(parameters.account) && parameters.quoteId !== 0n,
     onNotification: (notification) => {
-      if (notification.primaryIdentifier !== 0 && notification.secondaryIdentifier !== 0) {
-        useTpSlStore.getState().link(BigInt(notification.primaryIdentifier), BigInt(notification.secondaryIdentifier));
-      }
-      if (!matchesQuote(notification, parameters.quoteId)) return;
-      useTpSlStore.getState().applyNotification(parameters.quoteId, notification);
+      linkTpSlNotificationIds(notification);
+      const target = matchTpSlNotification(notification, [parameters.quoteId]);
+      if (target === undefined) return;
+      useTpSlStore.getState().applyNotification(target, notification);
     },
   });
 
-  return {
-    query: queryResult,
-    data: record,
-  } as unknown as UseQuoteTpSlReturnType;
-}
+  const refetch = useCallback(async () => {
+    await query.refetch();
+  }, [query]);
 
-/**
- * True when the notification and the caller address the same store record.
- * Uses the store's id index — every id linked to the same record maps to
- * the same object, so reference equality decides the match.
- */
-function matchesQuote(notification: TpSlNotification, quoteId: bigint): boolean {
-  const store = useTpSlStore.getState();
-  const target = store.get(quoteId);
-  if (!target) {
-    // No record yet for the target — fall back to raw-id compare so the
-    // first "seed" frame still matches.
-    return (
-      notification.primaryIdentifier === Number(quoteId) ||
-      notification.secondaryIdentifier === Number(quoteId) ||
-      notification.quoteId === Number(quoteId)
-    );
-  }
-  if (notification.primaryIdentifier !== 0 && store.get(BigInt(notification.primaryIdentifier)) === target) return true;
-  if (notification.secondaryIdentifier !== 0 && store.get(BigInt(notification.secondaryIdentifier)) === target)
-    return true;
-  return false;
+  return {
+    data: record,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    error: query.error ?? null,
+    refetch,
+    query,
+  };
 }

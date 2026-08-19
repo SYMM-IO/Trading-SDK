@@ -39,6 +39,7 @@ export {
   calculateQuotePnl,
   calculateTradeParams,
   clampClosePrecision,
+  decimalPriceToWei,
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
   isolationTypeForSide,
@@ -270,6 +271,8 @@ export {
   useInstantOpenWithTpSl,
   useInstantOpens,
   useIsDelegationActive,
+  useLimitCloseAuto,
+  useLimitOpenAuto,
   useSimulateGrantDelegation,
   type GrantDelegationResult,
   type UseDelegationExpiryParameters,
@@ -301,6 +304,10 @@ export {
   type UseInstantOpensReturnType,
   type UseIsDelegationActiveParameters,
   type UseIsDelegationActiveReturnType,
+  type UseLimitCloseAutoParameters,
+  type UseLimitCloseAutoReturnType,
+  type UseLimitOpenAutoParameters,
+  type UseLimitOpenAutoReturnType,
   type UseSimulateGrantDelegationParameters,
   type UseSimulateGrantDelegationReturnType,
 } from "./instant-layer";
@@ -390,12 +397,26 @@ export {
  * (on-chain reads fanned out across the sub-account's Virtual Accounts + hedger
  * instant-ops + live notifications) into one reconciled, lifecycle-tagged table,
  * seeded by the optimistic `useOptimisticQuotesStore`. Import the `UnifiedQuote`
- * / `QuoteLifecycle` value types from `@symmio/trading-core`.
+ * / `QuoteLifecycle` value types from `@symmio/trading-core`. The
+ * `useQuoteGroupFunding*` hooks read a whole group's settled-to-date funding —
+ * one aggregate total, one merged timeline — where `netReceived = received −
+ * paid`, so a **positive** value means the group **earned** funding.
+ * `useQuoteGroupMarginRisk` describes a group's margin, equity and distance to
+ * liquidation; it withholds `metrics` when the group spans several accounts,
+ * since each is liquidated independently.
  */
 export {
   useAccountLiquidationPrice,
   useAccountUpnl,
+  useCloseQuoteGroup,
+  useCoolDownsOfMA,
+  useForceCancelCloseRequest,
+  useForceCancelQuote,
+  useForceClose,
+  useForceCloseEligibility,
+  useForceCloseParams,
   useGroupedQuotes,
+  useLimitOrders,
   useManagedQuotes,
   useOptimisticQuotesStore,
   usePartyAOpenPositions,
@@ -403,21 +424,53 @@ export {
   useQuote,
   useQuoteEventsByType,
   useQuoteFunding,
+  useQuoteGroupFunding,
+  useQuoteGroupFundingHistory,
+  useQuoteGroupMarginRisk,
   useQuoteHistory,
   useQuotePlatformFee,
   useQuotePriceHistory,
   useQuoteUpnlAndPnl,
   useQuotesFunding,
+  useRequestToCancelCloseRequest,
+  useRequestToCancelQuote,
   useSubgraphQuery,
+  type CloseQuoteGroupParameters,
+  type CloseQuoteGroupStatus,
+  type CloseQuoteGroupStep,
+  type CloseQuoteGroupStepStatus,
+  type CloseQuoteGroupSummary,
+  type ForceCancelCloseRequestResult,
+  type ForceCancelQuoteResult,
+  type ForceCloseEligibilityQuote,
+  type ForceCloseResult,
   type ManagedQuotesSources,
   type OptimisticQuotesStoreState,
   type QuotesFundingInputQuote,
+  type RequestToCancelCloseRequestResult,
+  type RequestToCancelQuoteResult,
   type UseAccountLiquidationPriceParameters,
   type UseAccountLiquidationPriceReturnType,
   type UseAccountUpnlParameters,
   type UseAccountUpnlReturnType,
+  type UseCloseQuoteGroupParameters,
+  type UseCloseQuoteGroupReturnType,
+  type UseCoolDownsOfMAParameters,
+  type UseCoolDownsOfMAReturnType,
+  type UseForceCancelCloseRequestParameters,
+  type UseForceCancelCloseRequestReturnType,
+  type UseForceCancelQuoteParameters,
+  type UseForceCancelQuoteReturnType,
+  type UseForceCloseEligibilityParameters,
+  type UseForceCloseEligibilityReturnType,
+  type UseForceCloseParameters,
+  type UseForceCloseParamsParameters,
+  type UseForceCloseParamsReturnType,
+  type UseForceCloseReturnType,
   type UseGroupedQuotesParameters,
   type UseGroupedQuotesResult,
+  type UseLimitOrdersParameters,
+  type UseLimitOrdersReturnType,
   type UseManagedQuotesParameters,
   type UseManagedQuotesResult,
   type UsePartyAOpenPositionsParameters,
@@ -428,6 +481,12 @@ export {
   type UseQuoteEventsByTypeReturnType,
   type UseQuoteFundingParameters,
   type UseQuoteFundingReturnType,
+  type UseQuoteGroupFundingHistoryParameters,
+  type UseQuoteGroupFundingHistoryReturnType,
+  type UseQuoteGroupFundingParameters,
+  type UseQuoteGroupFundingReturnType,
+  type UseQuoteGroupMarginRiskParameters,
+  type UseQuoteGroupMarginRiskReturnType,
   type UseQuoteHistoryParameters,
   type UseQuoteHistoryReturnType,
   type UseQuoteParameters,
@@ -439,15 +498,26 @@ export {
   type UseQuoteUpnlAndPnlReturnType,
   type UseQuotesFundingParameters,
   type UseQuotesFundingReturnType,
+  type UseRequestToCancelCloseRequestParameters,
+  type UseRequestToCancelCloseRequestReturnType,
+  type UseRequestToCancelQuoteParameters,
+  type UseRequestToCancelQuoteReturnType,
   type UseSubgraphQueryParameters,
   type UseSubgraphQueryReturnType,
 } from "./quotes";
 
 /**
- * Margin — derived spendable-margin helpers for the trade form.
+ * Margin — derived spendable-margin helpers for the trade form, plus
+ * `useAccountMarginRisk`: one account's margin, equity and distance to
+ * liquidation, folded by core's `calculateMarginRisk`. Every figure it returns
+ * describes a single liquidation domain, so call it once per account rather than
+ * summing across them.
  */
 export {
+  useAccountMarginRisk,
   useAvailableInstantOpenMargin,
+  type UseAccountMarginRiskParameters,
+  type UseAccountMarginRiskReturnType,
   type UseAvailableInstantOpenMarginParameters,
   type UseAvailableInstantOpenMarginReturnType,
 } from "./margin";
@@ -529,6 +599,18 @@ export { useFundingInfo, type UseFundingInfoParameters, type UseFundingInfoRetur
  * polling via `query.refetchInterval`.
  */
 export { useMarketInfo, type UseMarketInfoParameters, type UseMarketInfoReturnType } from "./market-info";
+
+/**
+ * Solver capabilities
+ * -------------------
+ * Gate flows/UI on what the resolved solver supports (e.g. group close).
+ */
+export {
+  useSolverCapabilities,
+  useSupportsGroupClose,
+  useSupportsLimitOrder,
+  type UseSolverCapabilitiesParameters,
+} from "./solvers";
 
 /**
  * Fee hooks
@@ -747,21 +829,50 @@ export {
  */
 export {
   DEFAULT_TPSL_SLIPPAGE_LOWCAPS,
+  GROUP_TPSL_SIDES,
   ZERO_LEG,
   buildConditionalOrderLeg,
   buildConditionalOrderMessage,
   buildTpSlDeleteMessage,
+  childNotional,
   deleteQuoteTpSl,
   deleteQuoteTpSlMutationOptions,
+  estimateGroupTpSlReturn,
   generateTpSlSalt,
   parseTpSlFrame,
+  planGroupTpSl,
+  planGroupTpSlDelete,
   priceSlippageCalculation,
+  sharePercent,
   signTpSlRequest,
+  summarizeQuoteGroupTpSl,
+  toGroupTpSlChildren,
+  toGroupTpSlOrders,
   toSignableTpSlMessage,
   validateTpSl,
   watchTpSlNotifications,
   type DeleteQuoteTpSlParameters,
   type DeleteQuoteTpSlReturnType,
+  type EstimateGroupTpSlReturnParameters,
+  type GroupTpSlAction,
+  type GroupTpSlChild,
+  type GroupTpSlDeleteScope,
+  type GroupTpSlDeleteSkip,
+  type GroupTpSlDeleteTarget,
+  type GroupTpSlDesiredMap,
+  type GroupTpSlDesiredSide,
+  type GroupTpSlDesiredSides,
+  type GroupTpSlOrder,
+  type GroupTpSlReturnEstimate,
+  type GroupTpSlReturnLeg,
+  type GroupTpSlSideDisplay,
+  type GroupTpSlSideKey,
+  type GroupTpSlSideSummary,
+  type GroupTpSlSkipReason,
+  type PlanGroupTpSlDeleteResult,
+  type PlanGroupTpSlParameters,
+  type PlanGroupTpSlResult,
+  type QuoteGroupTpSlSummary,
   type QuoteTpSl,
   type QuoteTpSlActionPriceType,
   type QuoteTpSlConditionalOrderType,
@@ -784,33 +895,82 @@ export {
   type WatchTpSlNotificationsParameters,
 } from "@symmio/trading-core";
 export {
+  invalidateTpSlReads,
   toQuoteTpSl,
+  useDeleteQuoteGroupTpSl,
   useDeleteQuoteTpSl,
+  useQuoteGroupTpSl,
+  useQuoteGroupTpSlEditor,
   useQuoteTpSl,
+  useSetQuoteGroupTpSl,
   useSetQuoteTpSl,
   useTpSlConfig,
   useTpSlRecord,
+  useTpSlRecords,
   useTpSlSigningSpec,
   useTpSlStore,
+  useTpSlSupported,
   useWatchTpSlNotifications,
+  type DeleteQuoteGroupTpSlParameters,
+  type DeleteQuoteGroupTpSlStatus,
+  type DeleteQuoteGroupTpSlStep,
+  type DeleteQuoteGroupTpSlStepStatus,
+  type DeleteQuoteGroupTpSlSummary,
+  type SetQuoteGroupTpSlParameters,
+  type SetQuoteGroupTpSlStatus,
+  type SetQuoteGroupTpSlStep,
+  type SetQuoteGroupTpSlStepKind,
+  type SetQuoteGroupTpSlStepStatus,
+  type SetQuoteGroupTpSlSummary,
   type TpSlRecord,
   type TpSlStoreState,
+  type UseDeleteQuoteGroupTpSlParameters,
+  type UseDeleteQuoteGroupTpSlReturnType,
   type UseDeleteQuoteTpSlParameters,
   type UseDeleteQuoteTpSlReturnType,
+  type UseQuoteGroupTpSlEditorParameters,
+  type UseQuoteGroupTpSlEditorReturnType,
+  type UseQuoteGroupTpSlParameters,
+  type UseQuoteGroupTpSlReturnType,
   type UseQuoteTpSlParameters,
   type UseQuoteTpSlReturnType,
+  type UseSetQuoteGroupTpSlParameters,
+  type UseSetQuoteGroupTpSlReturnType,
   type UseSetQuoteTpSlParameters,
   type UseSetQuoteTpSlReturnType,
   type UseTpSlConfigParameters,
   type UseTpSlConfigReturnType,
   type UseTpSlSigningSpecParameters,
   type UseTpSlSigningSpecReturnType,
+  type UseTpSlSupportedParameters,
   type UseWatchTpSlNotificationsParameters,
   type UseWatchTpSlNotificationsReturnType,
 } from "./tpsl";
 
 /**
- * Rasa-only solver hooks
+ * Candles / charting hooks
+ * ------------------------
+ * Chart data decoupled from any chart library. `useBinanceCandleSource` builds
+ * a stable source, `useCandles` reads its history through TanStack Query, and
+ * `useCandleStream` subscribes to live bars. `useTradingViewDatafeed` adapts a
+ * source to TradingView's Charting Library; any other library consumes the same
+ * two data hooks directly. Import the value types (`Candle`, `CandleResolution`,
+ * `CandleSource`) from `@symmio/trading-core`.
+ */
+export {
+  useBinanceCandleSource,
+  useCandleStream,
+  useCandles,
+  useTradingViewDatafeed,
+  type UseBinanceCandleSourceParameters,
+  type UseCandleStreamParameters,
+  type UseCandleStreamReturnType,
+  type UseCandlesParameters,
+  type UseCandlesReturnType,
+  type UseTradingViewDatafeedParameters,
+} from "./candles";
+
+/* Rasa-only solver hooks
  * ----------------------
  * Hooks over the endpoints only the `rasa` solver kind exposes: solver-side
  * balance info, partyA uPnL, global open interest, symbol price range,

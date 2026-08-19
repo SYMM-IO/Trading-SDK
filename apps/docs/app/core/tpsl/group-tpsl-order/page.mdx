@@ -1,0 +1,42 @@
+# GroupTpSlOrder
+
+One take-profit or stop-loss order row in a grouped position's overview list. Produced by [`toGroupTpSlOrders`](/core/tpsl/to-group-tpsl-orders).
+
+## Properties
+
+<Properties>
+  <Property name="key" type="string" required>
+    Stable child identity.
+  </Property>
+  <Property name="quoteId" type="bigint" optional>
+    On-chain quote id, when the child is anchored.
+  </Property>
+  <Property name="conditionalOrderType" type="TpSlConditionalOrderType" required>
+    Which side this row is.
+  </Property>
+  <Property name="triggerPrice" type="string" required>
+    The desired value when overridden, else the confirmed one.
+  </Property>
+  <Property name="priceType" type="TpSlPriceType" typeHref="/core/tpsl/tpsl-price-type" required>
+    Price type in force for this row.
+  </Property>
+  <Property name="sizePercent" type="bigint" required>
+    The child's share of the group's open notional, as an 18-decimal fixed-point percent.
+  </Property>
+  <Property name="sizeNotional" type="bigint" required>
+    The child's open notional (`openQuantity × openPrice`), wei.
+  </Property>
+  <Property name="state" type="TpSlInfoState" typeHref="/core/tpsl/tpsl-info-state" required>
+    Lifecycle of the side as the handler last reported it. A row that exists only as a local edit reports `"canceled"` —
+    branch on `hasLiveOrder` instead.
+  </Property>
+  <Property name="isPending" type="boolean" required>
+    `true` while the side is mid-flight.
+  </Property>
+  <Property name="hasLiveOrder" type="boolean" required>
+    `true` when the handler already holds this order.
+  </Property>
+  <Property name="cohQuoteId" type="string" optional>
+    The handler-issued conditional-order id, when live — the delete target.
+  </Property>
+</Properties>

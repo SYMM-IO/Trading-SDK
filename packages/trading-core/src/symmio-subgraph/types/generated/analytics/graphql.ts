@@ -53,6 +53,7 @@ export type QuoteEventsForQuoteByTypeQuery = {
 
 export type QuotesFundingQueryVariables = Exact<{
   ids: Array<string> | string;
+  first: number;
 }>;
 
 export type QuotesFundingQuery = {
@@ -98,6 +99,26 @@ export type QuoteEventsForHistoryQuery = {
       liquidatePrice: string | null;
       subAccount: { id: string } | null;
     };
+  }>;
+};
+
+export type QuoteEventsForQuotesByTypeQueryVariables = Exact<{
+  quoteIds: Array<string> | string;
+  typeIn: Array<string> | string;
+  first: number;
+  skip: number;
+  orderDirection: OrderDirection;
+}>;
+
+export type QuoteEventsForQuotesByTypeQuery = {
+  quoteEvents: Array<{
+    id: string;
+    type: string;
+    metadata: string | null;
+    timestamp: string;
+    blockNumber: string;
+    transaction: string;
+    quoteId: string;
   }>;
 };
 
@@ -160,8 +181,8 @@ export const QuoteEventsForQuoteByTypeDocument = new TypedDocumentString(`
 }
     `) as unknown as TypedDocumentString<QuoteEventsForQuoteByTypeQuery, QuoteEventsForQuoteByTypeQueryVariables>;
 export const QuotesFundingDocument = new TypedDocumentString(`
-    query QuotesFunding($ids: [BigInt!]!) {
-  quotes(where: {quoteId_in: $ids}) {
+    query QuotesFunding($ids: [BigInt!]!, $first: Int!) {
+  quotes(first: $first, where: {quoteId_in: $ids}) {
     quoteId
     userPaidFunding
     userReceivedFunding
@@ -209,3 +230,22 @@ export const QuoteEventsForHistoryDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<QuoteEventsForHistoryQuery, QuoteEventsForHistoryQueryVariables>;
+export const QuoteEventsForQuotesByTypeDocument = new TypedDocumentString(`
+    query QuoteEventsForQuotesByType($quoteIds: [BigInt!]!, $typeIn: [String!]!, $first: Int!, $skip: Int!, $orderDirection: OrderDirection!) {
+  quoteEvents(
+    first: $first
+    skip: $skip
+    orderBy: timestamp
+    orderDirection: $orderDirection
+    where: {quoteId_in: $quoteIds, type_in: $typeIn}
+  ) {
+    id
+    type
+    metadata
+    timestamp
+    blockNumber
+    transaction
+    quoteId
+  }
+}
+    `) as unknown as TypedDocumentString<QuoteEventsForQuotesByTypeQuery, QuoteEventsForQuotesByTypeQueryVariables>;

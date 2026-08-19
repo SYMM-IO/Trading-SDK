@@ -1,6 +1,6 @@
 # toUnifiedQuoteFromInstantClose
 
-Build a `CLOSING` [`UnifiedQuote`](/core/quotes/unified-quote) from a pending instant-close record, without merging.
+Build a `WRITE_ONCHAIN_CLOSE` [`UnifiedQuote`](/core/quotes/unified-quote) from a pending instant-close record, without merging.
 
 A close record carries only the quote id and close amounts (already wei), so the market/side metadata is supplied via `context` — typically copied from the matching on-chain row. Reconciliation overlays closes onto the existing on-chain row directly; this helper is exposed for consumers that want to render a standalone close-only row when the on-chain row is not available.
 
@@ -46,7 +46,7 @@ The `context` object (`ToUnifiedQuoteFromInstantCloseContext`) identifies the po
 ## Returns
 
 <Returns type="UnifiedQuote" typeHref="/core/quotes/unified-quote">
-  The unified row, `origin: "onchain"`, `lifecycle: CLOSING`, keyed `onchain:<quoteId>`. Open-side fields (`requestedOpenPrice`, `quantity`, `openQuantity`) are `0n` — they come from the on-chain row when available.
+  The unified row, `origin: "onchain"`, `lifecycle: WRITE_ONCHAIN_CLOSE`, keyed `onchain:<quoteId>`. Open-side fields (`requestedOpenPrice`, `quantity`, `openQuantity`) are `0n` — they come from the on-chain row when available.
 </Returns>
 
 ## Related

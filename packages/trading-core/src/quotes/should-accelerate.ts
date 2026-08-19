@@ -14,7 +14,6 @@ const ACCELERATING_LIFECYCLES = new Set<QuoteLifecycle>([
   QuoteLifecycle.OPTIMISTIC_CLOSE,
   QuoteLifecycle.CLOSE_PRICE_FILLED,
   QuoteLifecycle.WRITE_ONCHAIN_CLOSE,
-  QuoteLifecycle.CLOSING,
 ]);
 
 /**
@@ -22,10 +21,13 @@ const ACCELERATING_LIFECYCLES = new Set<QuoteLifecycle>([
  *
  * Returns `true` while any row is mid-transition (the open stages `OPTIMISTIC` /
  * `PRICE_FILLED` / `WRITE_ONCHAIN`, or the close stages `OPTIMISTIC_CLOSE` /
- * `CLOSE_PRICE_FILLED` / `WRITE_ONCHAIN_CLOSE` / `CLOSING`) — those rows are waiting
- * on an on-chain change the SDK can only observe by re-reading, so the consumer
- * should shorten its `refetchInterval` until everything settles, then fall back to
- * the idle interval.
+ * `CLOSE_PRICE_FILLED` / `WRITE_ONCHAIN_CLOSE`) — those rows are waiting on an
+ * on-chain change the SDK can only observe by re-reading, so the consumer should
+ * shorten its `refetchInterval` until everything settles, then fall back to the
+ * idle interval. Once a close is confirmed on-chain (`ONCHAIN` with
+ * `quoteStatus: CLOSE_PENDING`) it no longer accelerates here — a market close's
+ * settle chase is driven by the close-confirm hold, and a resting limit close
+ * simply sits.
  *
  * @param result - The latest reconciliation result.
  * @returns `true` when at least one transitioning row exists.
@@ -42,13 +44,12 @@ export function shouldAccelerateQuotePolling(result: ReconcileQuotesResult): boo
 /**
  * Lifecycle stages where the SDK is waiting on the **on-chain read** to confirm a
  * change it already knows is coming — an anchored open (`WRITE_ONCHAIN`) or a
- * requested close (`WRITE_ONCHAIN_CLOSE` / `CLOSING`): the notification/overlay has
- * advanced the row but `raw.onchain` has not caught up yet.
+ * requested close (`WRITE_ONCHAIN_CLOSE`): the notification/overlay has advanced
+ * the row but `raw.onchain` has not caught up yet.
  */
 const ONCHAIN_PENDING_LIFECYCLES = new Set<QuoteLifecycle>([
   QuoteLifecycle.WRITE_ONCHAIN,
   QuoteLifecycle.WRITE_ONCHAIN_CLOSE,
-  QuoteLifecycle.CLOSING,
 ]);
 
 /**
@@ -56,9 +57,9 @@ const ONCHAIN_PENDING_LIFECYCLES = new Set<QuoteLifecycle>([
  * interval — the RPC-lag retry. Unlike {@link shouldAccelerateQuotePolling} (which is
  * `true` for every mid-transition stage, including the purely off-chain ones), this is
  * `true` only while a row awaits on-chain confirmation (`WRITE_ONCHAIN` /
- * `WRITE_ONCHAIN_CLOSE` / `CLOSING`). The off-chain stages (`OPTIMISTIC` /
- * `PRICE_FILLED` / `OPTIMISTIC_CLOSE` / `CLOSE_PRICE_FILLED`) have nothing on-chain to
- * read before the anchor, so they must not drive on-chain polling.
+ * `WRITE_ONCHAIN_CLOSE`). The off-chain stages (`OPTIMISTIC` / `PRICE_FILLED` /
+ * `OPTIMISTIC_CLOSE` / `CLOSE_PRICE_FILLED`) have nothing on-chain to read before
+ * the anchor, so they must not drive on-chain polling.
  *
  * @param result - The latest reconciliation result.
  * @returns `true` when at least one row is awaiting on-chain confirmation.

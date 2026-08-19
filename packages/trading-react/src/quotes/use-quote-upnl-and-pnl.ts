@@ -71,6 +71,7 @@ export function useQuoteUpnlAndPnl(parameters: UseQuoteUpnlAndPnlParameters): Us
     const leverage = calculateQuoteLeverage({
       quantity: quote.quantity,
       requestedOpenPrice: quote.requestedOpenPrice,
+      openedPrice: quote.openedPrice,
       lockedValues: lockedValuesForLeverage,
     });
 

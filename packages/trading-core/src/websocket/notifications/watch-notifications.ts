@@ -3,6 +3,10 @@ import { watchEnigmaNotifications } from "./adapters/enigma-notifications";
 import { watchRasaNotifications } from "./adapters/rasa-notifications";
 import type { Unwatch, WatchNotificationsParameters } from "./types";
 
+// `Unwatch` (the return type of `watchNotifications`) is declared in `./types`;
+// re-export it here so importers keep resolving it from this module.
+export type { Unwatch } from "./types";
+
 /**
  * Subscribe to live position/quote state notifications for an account.
  *

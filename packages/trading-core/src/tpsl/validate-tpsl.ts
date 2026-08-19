@@ -26,7 +26,7 @@ export interface ValidateTpSlInputs {
 
 /**
  * Validate a candidate TP/SL pair against the handler's published rules.
- * Mirrors vibe-ui's `validateTpSlValues`:
+ * Mirrors the reference frontend's `validateTpSlValues`:
  *
  * 1. Sign rule (TP above/below open per side; SL the opposite).
  * 2. `minPriceDistancePercent` — |target − open| / open × 100 must clear the floor.

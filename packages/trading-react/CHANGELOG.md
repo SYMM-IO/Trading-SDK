@@ -1,5 +1,42 @@
 # @symmio/trading-react
 
+## 1.1.0
+
+### Minor Changes
+
+- 15588f6: Add the affiliate registration API.
+
+  `@symmio/trading-core` gains account-layer actions `requestToRegisterAffiliate`, `cancelRegistration`, `getAffiliateState`, and `generateAccountManagerAddress`, together with their `simulate*` variants, query option factories, and types. `@symmio/trading-react` wraps them as `useRequestToRegisterAffiliate`, `useCancelRegistration`, `useAffiliateState`, and `useGeneratedAccountManagerAddress`.
+
+  Also clarifies the affiliate config contract: `createConfig` still throws `AFFILIATE_ADDRESS_REQUIRED` only when `affiliatesAddress` is missing, and the error message and JSDoc now spell out that the zero address is a valid no-affiliate placeholder (trades open, no fee share). Deposit docs now state that the instant flow funds via `deposit` alone (available balance), while `depositAndAllocate` targets the classic pool.
+
+- 15588f6: @symmio/trading-core
+
+  New account - layer API for registering an affiliate on - chain:
+  - requestToRegisterAffiliate — submit registration request(creates PENDING affiliate)
+    - cancelRegistration — cancel a pending registration
+      - getAffiliateState — read affiliate status(PENDING / ACTIVE / …)
+        - generateAccountManagerAddress — derive account - manager address
+          - simulate \* variants for each write, query - option factories, and types — all exported from the package barrel
+
+  Doc / error improvements(no behavior change):
+  - AFFILIATE_ADDRESS_REQUIRED message rewritten — states zero address is valid no - affiliate placeholder(trades open, no
+    fee share) and links registration page - depositForAccount JSDoc — instant flow funds via deposit alone(available balance); depositAndAllocateForAccount is
+    classic - pool only
+
+  @symmio/trading-react
+
+      - New hooks wrapping the above: useRequestToRegisterAffiliate, useCancelRegistration, useAffiliateState,
+          useGeneratedAccountManagerAddress
+          - useDepositAndAllocate JSDoc clarified: allocates to classic pool; instant flow uses useDeposit alone
+              - New hook tests: error - codes, locked - params, notional - cap(internal, no API change)
+
+### Patch Changes
+
+- Updated dependencies [15588f6]
+- Updated dependencies [15588f6]
+  - @symmio/trading-core@1.1.0
+
 ## 1.0.0
 
 ### Major Changes

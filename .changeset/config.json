@@ -7,5 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@symmio/web", "@symmio/docs", "@symmio/storybook", "@symmio/ui"]
+  "ignore": ["@symmio/web", "@symmio/landing", "@symmio/docs", "@symmio/storybook", "@symmio/ui"]
 }

@@ -1,0 +1,28 @@
+# PlanGroupTpSlResult
+
+Result of [`planGroupTpSl`](/core/tpsl/plan-group-tpsl).
+
+Deliberately **not** a `{ feasible }` discriminated union like [`PlanGroupCloseResult`](/core/quotes/plan-group-close): a group close has one global constraint — the allocation must sum to the target exactly, or nothing may be closed — whereas TP/SL writes are independent per child, so a plan is always producible and validity is per-child. Gate the submit on `hasInvalid`.
+
+## Properties
+
+<Properties>
+  <Property name="actions" type="GroupTpSlAction[]" typeHref="/core/tpsl/group-tpsl-action" required>
+    Every decision, in child order. A child may yield a `delete` **and** a `set`, so this is not one entry per child.
+  </Property>
+  <Property name="sets" type="Extract<GroupTpSlAction, { action: 'set' }>[]" required>
+    The `set` decisions, in submission order.
+  </Property>
+  <Property name="deletes" type="Extract<GroupTpSlAction, { action: 'delete' }>[]" required>
+    The `delete` decisions, in submission order.
+  </Property>
+  <Property name="skips" type="Extract<GroupTpSlAction, { action: 'skip' }>[]" required>
+    The `skip` decisions, in child order.
+  </Property>
+  <Property name="hasInvalid" type="boolean" required>
+    `true` when at least one child failed validation — block the submit.
+  </Property>
+  <Property name="isNoop" type="boolean" required>
+    `true` when nothing needs writing.
+  </Property>
+</Properties>

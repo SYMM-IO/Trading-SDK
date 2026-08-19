@@ -8,11 +8,11 @@ import type { Hex } from "viem";
 export { PositionType } from "../../../symmio-contracts/symmio/types";
 
 /**
- * Re-export the canonical MARKET order-type constant from the open slice.
+ * Re-export the canonical order-type constants + union from the open slice.
  * Single source of truth — both instant-open and instant-close encode the
- * same on-chain enum value.
+ * same on-chain enum values (`MARKET = 1`, `LIMIT = 0`).
  */
-export { ORDER_TYPE_MARKET } from "../../instant-open/shared/types";
+export { ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET, type SolverOrderType } from "../../instant-open/shared/types";
 
 /**
  * Order-side trade values passed to `InstantCloseParameters`.

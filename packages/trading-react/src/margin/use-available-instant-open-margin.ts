@@ -95,7 +95,7 @@ export interface UseAvailableInstantOpenMarginReturnType {
  * ```tsx
  * const { availableMargin, availableMarginWei } = useAvailableInstantOpenMargin({
  *   account: subAccount,
- *   symbolId: market.symbol_id,
+ *   symbolId: market.symbolId,
  *   leverage,
  *   positionType,
  *   slippage,

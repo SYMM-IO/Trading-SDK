@@ -1,0 +1,39 @@
+# QuoteGroup
+
+One grouped position: several [`UnifiedQuote`](/core/quotes/unified-quote)s in the same market (and, depending on strategy, the same side) folded into a single row with aggregated [`QuoteGroupMetrics`](/core/quotes/quote-group-metrics).
+
+Produced by [`groupQuotes`](/core/quotes/group-quotes).
+
+## Properties
+
+<Properties>
+  <Property name="key" type="string" required>
+    Stable string identity — a React key and a selection handle. Unique within one `groupQuotes` call.
+  </Property>
+  <Property name="by" type="QuoteGroupBy" required>
+    The dimensions that identify this group: `symbolId`, `positionType` and/or `vaAddress`, depending on the strategy.
+  </Property>
+  <Property name="vaAddress" type="Address" optional>
+    The Virtual Account this group resolves to, taken from its first on-chain child. `undefined` while the group is
+    all-optimistic.
+  </Property>
+  <Property name="quotes" type="UnifiedQuote[]" typeHref="/core/quotes/unified-quote" required>
+    Child quotes, newest first.
+  </Property>
+  <Property name="isAggregate" type="boolean" required>
+    `true` when more than one quote folds into this group — the single-vs-merged render switch.
+  </Property>
+  <Property name="metrics" type="QuoteGroupMetrics" typeHref="/core/quotes/quote-group-metrics" required>
+    Pure aggregated metrics over `quotes`.
+  </Property>
+</Properties>
+
+## A group can span Virtual Accounts
+
+The built-in keys are `m:<symbolId>` and `md:<symbolId>:<positionType>` — the VA is **not** part of the key. In lowcap trading each isolated position lives under its own VA, so one merged row routinely covers several. Any write that fans out over `quotes` must therefore take each child's own `vaAddress`, never the group's.
+
+## Related
+
+- [`groupQuotes`](/core/quotes/group-quotes) — produces these.
+- [`planGroupClose`](/core/quotes/plan-group-close) — closes an exact quantity across one.
+- [`toGroupTpSlChildren`](/core/tpsl/to-group-tpsl-children) — the grouped TP/SL entry point.

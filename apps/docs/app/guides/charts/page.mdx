@@ -1,0 +1,53 @@
+import { Callout } from "nextra/components";
+
+# Charts
+
+A SYMMIO market gets its price chart from one of two places, and which one depends on the market — not on your UI.
+
+- **Majors** are listed on a reference exchange, so real OHLCV candles exist. The SDK fetches and streams them for you. → [Majors Chart](./majors)
+- **Lowcaps** have no such listing. There is nothing to fetch, so the chart comes from the liquidity pool the token actually trades in. → [Lowcap Chart](./lowcap)
+
+## The SDK does not pick your chart library
+
+The SDK stops at the data. It returns plain OHLCV bars and symbol metadata; what draws them is entirely yours — TradingView's Charting Library, Lightweight Charts, ECharts, Recharts, or a hand-rolled SVG.
+
+That boundary is the `CandleSource` interface. Every charting library needs the same three things, so that is exactly what a source provides:
+
+```ts
+interface CandleSource {
+  /** Symbol metadata: display name, price precision. */
+  getSymbol(marketName: string): Promise<CandleSymbol | undefined>;
+  /** Historical bars for a time range, paged internally. */
+  getCandles(parameters: GetCandlesParameters): Promise<GetCandlesReturnType>;
+  /** Live bar updates. Absent when a source has no realtime feed. */
+  watchCandles?(parameters: WatchCandlesParameters): Unwatch;
+}
+```
+
+Hooks (`useCandles`, `useCandleStream`) and adapters (`toTradingViewDatafeed`) are written against that interface, never against a venue. Swapping the source swaps the data and nothing else.
+
+## Know which price you are drawing
+
+Every source declares a `priceBasis`, and it is worth surfacing in your UI:
+
+| `priceBasis`         | What the bars are                                    | Matches execution? |
+| -------------------- | ---------------------------------------------------- | ------------------ |
+| `reference-exchange` | A third-party perp venue's mark (e.g. Binance USD-M) | No                 |
+| `dex-pool`           | On-chain pool spot price, USD-denominated            | No                 |
+| `solver-mark`        | The SYMMIO solver's own mark price                   | Yes                |
+
+<Callout type="warning">
+  A chart is not a quote. Only `solver-mark` is the price a SYMMIO trade settles against — the others can and do
+  diverge. If your users place orders by reading levels off the chart, say which price they are looking at.
+</Callout>
+
+Trade math — margin, PnL, liquidation, TP/SL triggers — must always read the solver's mark price, never the chart's series.
+
+## Which guide you need
+
+| Market kind | Bars come from                    | Guide                    |
+| ----------- | --------------------------------- | ------------------------ |
+| Majors      | Binance USD-M klines, via the SDK | [Majors Chart](./majors) |
+| Lowcap      | DexScreener embed, or pool OHLCV  | [Lowcap Chart](./lowcap) |
+
+If you are building both surfaces, read both — they share the `priceBasis` caveat above and little else.

@@ -54,10 +54,7 @@ export function decodeSessionKeyTransferPayload(
       return null;
     }
 
-    if (
-      data.sessionAddress !== undefined &&
-      (!isAddress(data.sessionAddress) || typeof data.sessionAddress !== "string")
-    ) {
+    if (data.sessionAddress !== undefined && !isAddress(data.sessionAddress)) {
       return null;
     }
 

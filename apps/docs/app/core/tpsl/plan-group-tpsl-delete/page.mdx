@@ -1,0 +1,43 @@
+# planGroupTpSlDelete
+
+Enumerate every cancellable TP/SL order across a grouped position — the "cancel all" plan.
+
+Each target's `cohQuoteId` is read straight off the child's **confirmed** snapshot, which the handler rows and the TP/SL WebSocket keep current. That is deliberate: cancelling must never depend on a UI edit buffer being pre-seeded.
+
+Two kinds of side are excluded rather than cancelled:
+
+- `"in-flight"` — the side is `"pending"` / `"confirming"`, so cancelling now would race the handler;
+- `"no-coh-id"` — the side carries a value but no handler id, so there is nothing server-side to cancel (a local edit only).
+
+A live side on a child that never anchored is reported as `"not-anchored"`.
+
+```ts
+import { planGroupTpSlDelete, deleteQuoteTpSl } from "@symmio/trading-core";
+
+const plan = planGroupTpSlDelete(children, "stop_loss");
+for (const target of plan.targets) {
+  await deleteQuoteTpSl(config, { ...target });
+}
+```
+
+## Parameters
+
+<Properties>
+  <Property name="children" type="readonly GroupTpSlChild[]" typeHref="/core/tpsl/group-tpsl-child" required>
+    The grouped position's children.
+  </Property>
+  <Property name="scope" type="GroupTpSlDeleteScope" optional>
+    `"all"` (default), `"take_profit"`, or `"stop_loss"`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="PlanGroupTpSlDeleteResult" typeHref="/core/tpsl/plan-group-tpsl-delete-result">
+  Cancellable targets — take profit before stop loss within a child — plus typed skips and an `isNoop` flag.
+</Returns>
+
+## Related
+
+- [`GroupTpSlDeleteTarget`](/core/tpsl/plan-group-tpsl-delete-result) — the target shape.
+- [`useDeleteQuoteGroupTpSl`](/react/tpsl#usedeletequotegrouptpsl) — executes this plan with bounded concurrency.

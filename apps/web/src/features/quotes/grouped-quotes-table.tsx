@@ -1,12 +1,18 @@
 "use client";
+import { InfoIcon } from "@/components/info-icon";
 import { WEI_DECIMALS } from "@/lib/format";
 import type { QuoteGroup } from "@symmio/trading-core";
 import { PositionType, QuoteLifecycle } from "@symmio/trading-core";
+import { useAccountBalanceInfo } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
-import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
+import { DataTable, type DataTableColumn, type DataTableExpansion } from "@symmio/ui/components/data-table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
 import { formatTokenAmount } from "@symmio/utils";
 import { useMemo, type ReactNode } from "react";
+import type { Address } from "viem";
+import { GroupFundingPanel } from "./group-funding-panel";
+import { GroupMarginRiskSection } from "./group-margin-risk-section";
+import { GroupTpSlCell } from "./group-tpsl-cell";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
 import { truncateAddress } from "./quote-provenance-panel";
 import { QuotesTable } from "./quotes-table";
@@ -33,9 +39,15 @@ function formatLeverage(raw?: bigint): string {
   return raw === undefined ? EMPTY : `${formatTokenAmount(raw, WEI_DECIMALS, { maxFractionDigits: 2 })}×`;
 }
 
-/** Sum of the partyA-locked margin legs a group displays (CVA + LF), wei. */
-function groupMargin(group: QuoteGroup): bigint {
-  return group.metrics.lockedValues.cva + group.metrics.lockedValues.lf;
+/**
+ * Margin cell: a group's margin is the `allocatedBalance` of its Virtual
+ * Account (`balanceInfoOfPartyA`), not a sum over its quotes' locked legs.
+ * Shows {@link EMPTY} while the group has no anchored VA yet or the balance is
+ * still loading; `live` keeps it fresh across settles.
+ */
+function GroupMarginCell({ group }: { group: QuoteGroup }) {
+  const balanceInfo = useAccountBalanceInfo({ account: group.vaAddress, live: true });
+  return <>{formatOptionalFixedPoint(balanceInfo.data?.allocatedBalance)}</>;
 }
 
 /**
@@ -45,7 +57,6 @@ function groupMargin(group: QuoteGroup): bigint {
  */
 const LIFECYCLE_PRIORITY: readonly QuoteLifecycle[] = [
   QuoteLifecycle.FAILED,
-  QuoteLifecycle.CLOSING,
   QuoteLifecycle.WRITE_ONCHAIN_CLOSE,
   QuoteLifecycle.CLOSE_PRICE_FILLED,
   QuoteLifecycle.OPTIMISTIC_CLOSE,
@@ -67,8 +78,8 @@ function groupLifecycle(group: QuoteGroup): QuoteLifecycle {
   return LIFECYCLE_PRIORITY.find((stage) => stages.has(stage)) ?? QuoteLifecycle.ONCHAIN;
 }
 
-/** Inline "info" glyph (apps/web uses inline SVG, never lucide). */
-function InfoIcon() {
+/** Stacked rows — the quotes a group folds together. */
+function QuotesIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -80,9 +91,8 @@ function InfoIcon() {
       className="size-3.5"
       aria-hidden
     >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 16v-4" />
-      <path d="M12 8h.01" />
+      <rect x="3" y="4" width="18" height="6" rx="1.5" />
+      <rect x="3" y="14" width="18" height="6" rx="1.5" />
     </svg>
   );
 }
@@ -113,7 +123,11 @@ function CalculatedHeader({ label, formula }: { label: string; formula: ReactNod
   );
 }
 
-function buildColumns(marketNameById: Map<string, string>): DataTableColumn<QuoteGroup>[] {
+function buildColumns(
+  marketNameById: Map<string, string>,
+  subAccount?: Address,
+  sessionKey?: Address,
+): DataTableColumn<QuoteGroup>[] {
   return [
     {
       id: "market",
@@ -205,31 +219,32 @@ function buildColumns(marketNameById: Map<string, string>): DataTableColumn<Quot
       cellClassName: "text-foreground font-mono",
     },
     {
-      id: "notional",
+      id: "initialNotional",
       header: (
         <CalculatedHeader
-          label="Notional"
-          formula="Notional = Σ (openQty × price) across the group — the position's notional value at its open price."
+          label="Initial notional"
+          formula="Initial notional = Σ (quantity × initialOpenedPrice, else requestedOpenPrice) across the group — the frozen at-open notional; partial closes do not shrink it."
         />
       ),
       align: "end",
       widthClassName: NUMERIC_COLUMN_WIDTH,
-      cell: (group) => formatFixedPoint(group.metrics.notional),
-      sortAccessor: (group) => Number(group.metrics.notional),
+      // Optional formatter on purpose: a stale SDK build without the field must render "—", not crash the sidebar.
+      cell: (group) => formatOptionalFixedPoint(group.metrics.initialNotional),
+      sortAccessor: (group) => Number(group.metrics.initialNotional),
       cellClassName: "text-muted-foreground font-mono",
     },
     {
       id: "margin",
       header: (
         <CalculatedHeader
-          label="Margin (cva+lf)"
-          formula="Margin = Σ CVA + Σ LF locked across the group's quotes (the partyA collateral at risk, excluding maintenance margin)."
+          label="Margin"
+          formula="Margin = allocatedBalance of the group's Virtual Account (balanceInfoOfPartyA) — the collateral allocated to the VA backing these positions."
         />
       ),
       align: "end",
       widthClassName: NUMERIC_COLUMN_WIDTH,
-      cell: (group) => formatFixedPoint(groupMargin(group)),
-      sortAccessor: (group) => Number(groupMargin(group)),
+      // Per-row on-chain read — no sync sortAccessor, so the column is not sortable.
+      cell: (group) => <GroupMarginCell group={group} />,
       cellClassName: "text-muted-foreground font-mono",
     },
     {
@@ -237,7 +252,7 @@ function buildColumns(marketNameById: Map<string, string>): DataTableColumn<Quot
       header: (
         <CalculatedHeader
           label="Leverage"
-          formula="Leverage = notional ÷ Σ (CVA + LF + partyAMM) — the group's blended leverage against its partyA-locked margin."
+          formula="Leverage = Σ (quantity × requestedOpenPrice) ÷ Σ (CVA + LF + partyAMM + partyBMM) — the group's blended opening leverage against its initial locked margin."
         />
       ),
       align: "end",
@@ -246,11 +261,30 @@ function buildColumns(marketNameById: Map<string, string>): DataTableColumn<Quot
       sortAccessor: (group) => (group.metrics.leverage === undefined ? undefined : Number(group.metrics.leverage)),
       cellClassName: "text-foreground font-mono",
     },
+    {
+      id: "tpsl",
+      header: (
+        <CalculatedHeader
+          label="TP/SL"
+          formula="Every quote in the group carries its own conditional order. One price shows when every leg matches; otherwise the figure is the share of open notional protected — not the share of legs."
+        />
+      ),
+      widthClassName: "min-w-32",
+      // Per-row TP/SL fan-out read — no sync sortAccessor, so the column is not sortable.
+      cell: (group) => <GroupTpSlCell group={group} subAccount={subAccount} from={sessionKey} />,
+    },
   ];
 }
 
 interface Props {
   groups: QuoteGroup[];
+  /**
+   * Sub-account that owns these groups. Required to sign TP/SL writes — without
+   * it the TP/SL column renders read-only.
+   */
+  subAccount?: Address;
+  /** Delegated session key to sign TP/SL writes from, when one is active. */
+  sessionKey?: Address;
   /** Pre-filter total for the pagination "filtered from N" hint. */
   totalCount?: number;
   /** Rows shown per page before pagination kicks in. */
@@ -274,6 +308,8 @@ interface Props {
  */
 export function GroupedQuotesTable({
   groups,
+  subAccount,
+  sessionKey,
   totalCount,
   defaultPageSize = 10,
   hidePagination = false,
@@ -282,7 +318,53 @@ export function GroupedQuotesTable({
   emptyMessage = "No grouped positions for this partyA.",
 }: Props) {
   const marketNameById = useMarketNameById();
-  const columns = useMemo(() => buildColumns(marketNameById), [marketNameById]);
+  const columns = useMemo(
+    () => buildColumns(marketNameById, subAccount, sessionKey),
+    [marketNameById, subAccount, sessionKey],
+  );
+
+  /**
+   * Two panels per row: the position's own summary, and the quotes it folds
+   * together. They are separate toggles because they answer different questions —
+   * "how is this position doing" versus "what is it made of".
+   */
+  const expansions = useMemo<DataTableExpansion<QuoteGroup>[]>(
+    () => [
+      {
+        id: "details",
+        label: "Position details",
+        icon: <InfoIcon />,
+        /**
+         * Margin & risk sits above funding: "can this position survive" is the
+         * question a trader asks before "what has it cost to hold". Both carry
+         * the same left rail so the panel reads as one, and the hairline between
+         * stacked sections keeps the boundary unambiguous where the two meet.
+         * That hairline is scoped to the top edge (`border-t-*`, not `border-*`)
+         * so it cannot repaint the section's own left rail.
+         */
+        render: (group) => (
+          <div className="[&>section+section]:border-t-border/60 flex flex-col [&>section+section]:border-t">
+            <GroupMarginRiskSection group={group} />
+            <GroupFundingPanel group={group} />
+          </div>
+        ),
+      },
+      {
+        id: "quotes",
+        label: "Underlying quotes",
+        icon: <QuotesIcon />,
+        render: (group) => (
+          <QuotesTable
+            testId={testId ? `${testId}-${group.key}-children` : undefined}
+            quotes={group.quotes}
+            hidePagination
+            emptyMessage="No quotes in this group."
+          />
+        ),
+      },
+    ],
+    [testId],
+  );
   return (
     <DataTable
       testId={testId}
@@ -291,14 +373,7 @@ export function GroupedQuotesTable({
       totalCount={totalCount ?? groups.length}
       getRowId={(group) => group.key}
       rowAttributes={(group) => ({ "data-group-key": group.key })}
-      renderExpanded={(group) => (
-        <QuotesTable
-          testId={testId ? `${testId}-${group.key}-children` : undefined}
-          quotes={group.quotes}
-          hidePagination
-          emptyMessage="No quotes in this group."
-        />
-      )}
+      expansions={expansions}
       defaultPageSize={defaultPageSize}
       hidePagination={hidePagination}
       toolbar={toolbar}

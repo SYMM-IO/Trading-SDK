@@ -1,0 +1,33 @@
+# GroupTpSlDesiredSides
+
+The desired take profit and/or stop loss for one child. An omitted side is left entirely untouched.
+
+```ts
+interface GroupTpSlDesiredSide {
+  /** Trigger price (decimal string), or `""` to clear the side. */
+  triggerPrice: string;
+  /** Mark vs last-close. Defaults to the child's current price type when omitted. */
+  priceType?: TpSlPriceType;
+}
+
+interface GroupTpSlDesiredSides {
+  tp?: GroupTpSlDesiredSide;
+  sl?: GroupTpSlDesiredSide;
+}
+
+/** Keyed by `GroupTpSlChild.key`. */
+type GroupTpSlDesiredMap = Readonly<Record<string, GroupTpSlDesiredSides>>;
+```
+
+An **empty** `triggerPrice` means _clear this side_ — [`planGroupTpSl`](/core/tpsl/plan-group-tpsl) turns that into a `delete` when the handler holds a live order, and drops it otherwise.
+
+Applying one price across a whole position is a one-liner:
+
+```ts
+const desired = Object.fromEntries(children.map((child) => [child.key, { tp: { triggerPrice: "150" } }]));
+```
+
+## Related
+
+- [`planGroupTpSl`](/core/tpsl/plan-group-tpsl) — consumes the map.
+- [`useQuoteGroupTpSlEditor`](/react/tpsl#usequotegrouptpsleditor) — owns the map in React.

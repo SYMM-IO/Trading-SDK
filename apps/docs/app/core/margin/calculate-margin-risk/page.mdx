@@ -1,0 +1,99 @@
+# calculateMarginRisk
+
+Fold one account's `balanceInfoOfPartyA` fields and its unrealized PnL into the figures a margin panel shows. Pure, exact `bigint`, no IO.
+
+```ts
+import { calculateMarginRisk, getAccountBalanceInfo } from "@symmio/trading-core";
+
+const balance = await getAccountBalanceInfo(config, { account: virtualAccount });
+const metrics = calculateMarginRisk({ ...balance, upnl });
+
+if (metrics.isLiquidatable) warn();
+```
+
+An [`AccountBalanceInfo`](/core/account-layer/get-account-balance-info) spreads straight in — the extra fields it carries (`lockedPartyBMM`, the `pendingLocked*` legs) are ignored.
+
+## The formulas
+
+```
+totalMargin              = allocatedBalance
+maintenanceMargin        = lockedCVA + lockedLF
+initialMargin            = lockedPartyAMM + maintenanceMargin
+equity                   = totalMargin + upnl
+remainingToLiquidation   = equity − maintenanceMargin
+zeroUpnlBuffer           = totalMargin − maintenanceMargin
+liquidationBufferPercent = remainingToLiquidation / zeroUpnlBuffer × 100
+isLiquidatable           = remainingToLiquidation < 0
+```
+
+`initialMargin` matches the contract's `LockedValuesOps.totalForPartyA()` (`cva + lf + partyAmm`). Despite the name it tracks **live** locked values, so it shrinks as the position is closed.
+
+## `isLiquidatable` is the protocol's own test
+
+perps-core v0.8.5 liquidates partyA when `LibAccount.partyAAvailableBalanceForLiquidation` goes negative:
+
+```solidity
+freeBalance = allocatedBalance − (lockedCVA + lockedLF)
+require(freeBalance + upnl < 0, "...")   // insolvent
+```
+
+Expand `remainingToLiquidation`:
+
+```
+remainingToLiquidation = equity − maintenanceMargin
+                       = (allocatedBalance + upnl) − (lockedCVA + lockedLF)
+                       = freeBalance + upnl
+```
+
+So `isLiquidatable` is bit-for-bit that comparison, including its strictness: an account whose equity **exactly equals** its maintenance margin is still solvent.
+
+Prefer it over any threshold on `liquidationBufferPercent`. That percent is a display signal — it can be `undefined`, and at the margin it truncates (one wei of deficit against a large cushion rounds to `0%`). `isLiquidatable` never does either.
+
+## Single account only
+
+Every figure describes one liquidation domain. Do not pass sums across accounts: the totals would be additive, but the buffer is not, and a blend hides an account that is about to be liquidated behind a comfortable-looking average. See [the overview](/core/margin) for why.
+
+The same rule constrains `upnl`: `equity = allocatedBalance + upnl` is only exact when the uPnL covers the **whole** account. Feeding the uPnL of a subset — one grouped position out of several sharing an account — understates equity and everything derived from it.
+
+## Interpreting `liquidationBufferPercent`
+
+It is the share of the account's **zero-uPnL** cushion that is still intact, as an 18-decimal fixed-point percent (`50% → 50_000000000000000000n`). Read it as: the position starts at `100%` when flat, and reaches `0%` at the moment of liquidation.
+
+- **Above 100%** on a profitable book. Unrealized profit adds cushion that was not there at entry.
+- **Negative** once liquidatable. The deficit is real information, so it is not floored at zero.
+- **Never clamped.** Clamp only the width if you draw a bar: `Math.min(Math.max(pct, 0), 100)`.
+- **`undefined`** when the zero-uPnL cushion is not positive (`allocatedBalance ≤ maintenanceMargin`). The denominator is degenerate, so the ratio genuinely does not exist — this is _not_ the same as `0%`. An account in that state can still be perfectly solvent on a large unrealized profit; reporting `0%` would paint it as maximum risk. Fall back to `remainingToLiquidation` and `isLiquidatable`.
+
+## Parameters
+
+<Properties>
+  <Property name="allocatedBalance" type="bigint" required>
+    Account's allocated collateral, from `balanceInfoOfPartyA`. Wei.
+  </Property>
+  <Property name="lockedCVA" type="bigint" required>
+    Account's locked CVA, from `balanceInfoOfPartyA`. Wei.
+  </Property>
+  <Property name="lockedLF" type="bigint" required>
+    Account's locked liquidation fee, from `balanceInfoOfPartyA`. Wei.
+  </Property>
+  <Property name="lockedPartyAMM" type="bigint" required>
+    Account's locked partyA maintenance margin, from `balanceInfoOfPartyA`. Wei.
+  </Property>
+  <Property name="upnl" type="bigint" required>
+    **Signed** unrealized PnL of this **whole** account at the current mark price — positive means in profit. Pass `0n`
+    for a flat book.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="MarginRiskMetrics" typeHref="/core/margin/margin-risk-metrics">
+  The account's margin figures, its liquidation cushion, and the solvency flag.
+</Returns>
+
+## Related
+
+- [`MarginRiskMetrics`](/core/margin/margin-risk-metrics) — the returned shape, field by field.
+- [`getAccountBalanceInfo`](/core/account-layer/get-account-balance-info) — the read that produces the four balance fields.
+- [`aggregateGroupUpnl`](/core/quotes/aggregate-group-upnl) — folds a grouped position's children into the `upnl` input.
+- [React `useAccountMarginRisk`](/react/margin) / [`useQuoteGroupMarginRisk`](/react/quotes) — the hooks that wire the reads to this fold.

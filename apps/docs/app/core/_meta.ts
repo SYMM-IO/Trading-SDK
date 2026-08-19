@@ -8,6 +8,7 @@ export default {
   "instant-layer": "InstantLayer",
   "symmio-contract": "SYMMIO Contract",
   quotes: "Unified Quotes",
+  margin: "Margin & Risk",
   solvers: "Solvers",
   tpsl: "TP/SL",
   "price-service": "Price Service",

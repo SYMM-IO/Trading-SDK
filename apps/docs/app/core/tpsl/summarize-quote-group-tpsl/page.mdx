@@ -1,0 +1,48 @@
+# summarizeQuoteGroupTpSl
+
+Fold a grouped position's children into one [`QuoteGroupTpSlSummary`](/core/tpsl/quote-group-tpsl-summary) — per-side counts, the uniform-vs-mixed display state, and notional-weighted coverage — in a single pass.
+
+This is the data model behind a `TP/SL (N quotes)` table cell. Three display states per side:
+
+| `display`   | Condition                                                       | Render                    |
+| ----------- | --------------------------------------------------------------- | ------------------------- |
+| `"none"`    | No child carries a trigger                                      | "Not set"                 |
+| `"uniform"` | **Every** child carries the same trigger price _and_ price type | The price itself          |
+| `"mixed"`   | Some children carry one, or the values differ                   | The count / covered share |
+
+**Coverage is notional-weighted, not count-weighted.** A group of one 9-unit leg and one 1-unit leg with only the small leg protected reports `10%`, not `50%` — because the number a trader needs is how much value is exposed, not how many rows are ticked.
+
+```ts
+import { summarizeQuoteGroupTpSl } from "@symmio/trading-core";
+
+const summary = summarizeQuoteGroupTpSl(children);
+if (summary.isEmpty) return "Not set";
+if (summary.takeProfit.display === "uniform") return summary.takeProfit.price;
+return `${summary.takeProfit.count} TP`;
+```
+
+Pass an editor's buffer as `overrides` for a live readout while the trader types — an explicit `""` trigger price clears that side.
+
+## Parameters
+
+<Properties>
+  <Property name="children" type="readonly GroupTpSlChild[]" typeHref="/core/tpsl/group-tpsl-child" required>
+    The grouped position's children, from [`toGroupTpSlChildren`](/core/tpsl/to-group-tpsl-children).
+  </Property>
+  <Property name="options.overrides" type="GroupTpSlDesiredMap" optional>
+    Pending per-child edits that win over the confirmed snapshot, keyed by `GroupTpSlChild.key`. Omit for the
+    confirmed-only view.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="QuoteGroupTpSlSummary" typeHref="/core/tpsl/quote-group-tpsl-summary">
+  Per-side summaries plus the group's total open notional and an `isEmpty` flag.
+</Returns>
+
+## Related
+
+- [`GroupTpSlSideSummary`](/core/tpsl/group-tpsl-side-summary) — one side's folded state.
+- [`toGroupTpSlOrders`](/core/tpsl/to-group-tpsl-orders) — the per-order breakdown behind the same data.
+- [`useQuoteGroupTpSl`](/react/tpsl#usequotegrouptpsl) — the React hook that calls this for you.

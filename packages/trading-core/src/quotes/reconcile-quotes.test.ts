@@ -223,22 +223,22 @@ describe("reconcileQuotes — instant-close overlay", () => {
     expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
   });
 
-  it("overlays a close on a CLOSE_PENDING row as CLOSING (on-chain already reflects the close)", () => {
+  it("keeps a close overlay on a CLOSE_PENDING row at ONCHAIN (on-chain already reflects the close, don't regress)", () => {
     const { quotes } = reconcileQuotes({
       ...emptyInput(),
       onchainPositions: [makeQuote({ id: 5n, quoteStatus: QuoteStatus.CLOSE_PENDING })],
       instantCloses: [makePendingClose({ quoteId: 5n })],
     });
-    expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.CLOSING);
+    expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.ONCHAIN);
   });
 
-  it("keeps a CLOSED row CLOSED when a close overlays it (never regresses a terminal row)", () => {
+  it("drops a terminal (CLOSED) quote — a done quote a lagging read still lists is not active", () => {
     const { quotes } = reconcileQuotes({
       ...emptyInput(),
       onchainPositions: [makeQuote({ id: 5n, quoteStatus: QuoteStatus.CLOSED })],
       instantCloses: [makePendingClose({ quoteId: 5n })],
     });
-    expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.CLOSED);
+    expect(quotes).toHaveLength(0);
   });
 
   it("skips a close with no matching on-chain row (no synthetic placeholder appears)", () => {

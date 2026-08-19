@@ -22,6 +22,7 @@ const specs = [
   "@symmio/trading-react/markets",
   "@symmio/trading-react/fees",
   "@symmio/trading-react/price-service",
+  "@symmio/trading-react/candles",
 ];
 
 let failures = 0;

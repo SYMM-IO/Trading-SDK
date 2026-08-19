@@ -210,6 +210,37 @@ Composes [`ChainIdParameter`](#chainidparameter) and [`FromParameter`](#frompara
 
 Concrete action-parameter types (e.g. `DepositForAccountParameters`, `InstantCloseParameters`) are documented on their own action pages, not here.
 
+## Value helpers
+
+Two pure functions shared across slices. They are values, not types, so they import without `type`:
+
+```ts
+import { decimalPriceToWei, sharePercent } from "@symmio/trading-core";
+```
+
+### decimalPriceToWei
+
+Convert a decimal price string — what every price feed in the SDK emits — to 18-decimal wei. Tolerates more than 18 decimals by rounding, where viem's `parseUnits` throws.
+
+```ts
+decimalPriceToWei("150.5"); // 150_500000000000000000n
+decimalPriceToWei("0"); //     0n        — a real zero price
+decimalPriceToWei(""); //      undefined — no price yet
+```
+
+It returns `undefined`, **never `0n`**, for an empty, malformed or non-finite input, so a caller can tell "no price yet" apart from "the price is zero". That distinction is load-bearing: a fabricated `0n` mark price makes [`aggregateGroupUpnl`](../quotes/aggregate-group-upnl) report a −100% loss instead of "unknown".
+
+### sharePercent
+
+`part / total × 100` as an 18-decimal fixed-point percent (`50% → 50_000000000000000000n`). Handles a signed `part`, so a negative share yields a negative percent. Returns `undefined` when `total` is not positive — the ratio does not exist there, and `0` would be a different claim.
+
+```ts
+sharePercent(25_000000000000000000n, 100_000000000000000000n); // 25_000000000000000000n
+sharePercent(1n, 0n); // undefined
+```
+
+It is the percent convention behind [`QuoteGroupTpSlSummary`](../tpsl/quote-group-tpsl-summary) coverage and [`MarginRiskMetrics.liquidationBufferPercent`](../margin/margin-risk-metrics).
+
 ## Related
 
 - [Config](../concepts/config) — the runtime object every action uses.

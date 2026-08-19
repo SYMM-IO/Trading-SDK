@@ -28,7 +28,7 @@ export type UseVirtualAccountsAddressesOfSubAccountReturnType = UseQueryResult<
 
 /**
  * List a subaccount's Virtual Account (VA) addresses from the AccountLayer. In
- * VibeCaps/Lowcap the VA is the on-chain `partyA` for quote reads, so feed these
+ * lowcap trading the VA is the on-chain `partyA` for quote reads, so feed these
  * into {@link usePartyAOpenPositions} / {@link usePartyAPendingQuotes}. The query
  * is disabled until `subAccount` is set. `chainId` defaults to the connected
  * chain. Errors are normalized to {@link SymmioRequestError}.

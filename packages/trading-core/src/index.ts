@@ -348,15 +348,27 @@ export {
   OrderType,
   PositionType,
   QuoteStatus,
+  getCoolDownsOfMA,
+  getCoolDownsOfMAQueryKey,
+  getCoolDownsOfMAQueryOptions,
   getPartyAOpenPositions,
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
   getPartyAPendingQuotes,
   getPartyAPendingQuotesQueryKey,
   getPartyAPendingQuotesQueryOptions,
+  getPendingQuotes,
+  getPendingQuotesQueryKey,
+  getPendingQuotesQueryOptions,
   getQuote,
   getQuoteQueryKey,
   getQuoteQueryOptions,
+  type GetCoolDownsOfMAData,
+  type GetCoolDownsOfMAOptions,
+  type GetCoolDownsOfMAParameters,
+  type GetCoolDownsOfMAQueryKey,
+  type GetCoolDownsOfMAQueryOptions,
+  type GetCoolDownsOfMAReturnType,
   type GetPartyAOpenPositionsData,
   type GetPartyAOpenPositionsOptions,
   type GetPartyAOpenPositionsParameters,
@@ -369,6 +381,12 @@ export {
   type GetPartyAPendingQuotesQueryKey,
   type GetPartyAPendingQuotesQueryOptions,
   type GetPartyAPendingQuotesReturnType,
+  type GetPendingQuotesData,
+  type GetPendingQuotesOptions,
+  type GetPendingQuotesParameters,
+  type GetPendingQuotesQueryKey,
+  type GetPendingQuotesQueryOptions,
+  type GetPendingQuotesReturnType,
   type GetQuoteData,
   type GetQuoteOptions,
   type GetQuoteParameters,
@@ -421,6 +439,10 @@ export {
   deallocateAndInitiateWithdrawMutationOptions,
   finalizeWithdrawRequest,
   finalizeWithdrawRequestMutationOptions,
+  forceCancelCloseRequest,
+  forceCancelCloseRequestMutationOptions,
+  forceCancelQuote,
+  forceCancelQuoteMutationOptions,
   getFeeForUser,
   getFeeForUserQueryKey,
   getFeeForUserQueryOptions,
@@ -440,6 +462,10 @@ export {
   initiateWithdrawMutationOptions,
   requestCancelWithdraw,
   requestCancelWithdrawMutationOptions,
+  requestToCancelCloseRequest,
+  requestToCancelCloseRequestMutationOptions,
+  requestToCancelQuote,
+  requestToCancelQuoteMutationOptions,
   simulateDeallocateAndInitiateWithdraw,
   simulateDeallocateAndInitiateWithdrawMutationOptions,
   simulateFinalizeWithdrawRequest,
@@ -457,6 +483,10 @@ export {
   type FeeForUser,
   type FinalizeWithdrawRequestParameters,
   type FinalizeWithdrawRequestReturnType,
+  type ForceCancelCloseRequestParameters,
+  type ForceCancelCloseRequestReturnType,
+  type ForceCancelQuoteParameters,
+  type ForceCancelQuoteReturnType,
   type GetFeeForUserData,
   type GetFeeForUserOptions,
   type GetFeeForUserParameters,
@@ -491,6 +521,10 @@ export {
   type InitiateWithdrawReturnType,
   type RequestCancelWithdrawParameters,
   type RequestCancelWithdrawReturnType,
+  type RequestToCancelCloseRequestParameters,
+  type RequestToCancelCloseRequestReturnType,
+  type RequestToCancelQuoteParameters,
+  type RequestToCancelQuoteReturnType,
   type SimulateDeallocateAndInitiateWithdrawParameters,
   type SimulateDeallocateAndInitiateWithdrawReturnType,
   type SimulateFinalizeWithdrawRequestParameters,
@@ -769,6 +803,55 @@ export {
   type NormalizedMarketByKind,
   type RasaMarket,
 } from "./solvers/markets";
+
+export {
+  getSolverCapabilities,
+  supportsGroupClose,
+  supportsLimitOrder,
+  type SolverCapabilities,
+} from "./solvers/capabilities";
+
+export {
+  limitOpenAuto,
+  limitOpenAutoMutationOptions,
+  prepareLimitOpenParams,
+  type PrepareLimitOpenParameters,
+} from "./solvers/limit-open";
+
+export {
+  limitCloseAuto,
+  limitCloseAutoMutationOptions,
+  prepareLimitCloseParams,
+  type PrepareLimitCloseParameters,
+} from "./solvers/limit-close";
+
+export {
+  checkForceCloseEligibility,
+  checkForceClosePriceReached,
+  findForceCloseWindow,
+  forceCloseAuto,
+  forceCloseAutoMutationOptions,
+  forceClosePosition,
+  forceClosePositionMutationOptions,
+  getForceCloseParams,
+  getForceCloseParamsQueryKey,
+  getForceCloseParamsQueryOptions,
+  previewForceClosePrice,
+  type ForceCloseAutoParameters,
+  type ForceCloseAutoReturnType,
+  type ForceCloseEligibility,
+  type ForceCloseIneligibleReason,
+  type ForceCloseParams,
+  type ForceClosePositionParameters,
+  type ForceClosePositionReturnType,
+  type ForceCloseWindow,
+  type GetForceCloseParametersParameters,
+  type GetForceCloseParametersReturnType,
+  type GetForceCloseParamsData,
+  type GetForceCloseParamsOptions,
+  type GetForceCloseParamsQueryKey,
+  type GetForceCloseParamsQueryOptions,
+} from "./solvers/force-close";
 
 /**
  * Funding info
@@ -1188,6 +1271,8 @@ export type {
   WriteSolverParameter,
 } from "./shared/types/properties";
 export type { QueryParameter, SymmioQueryOptions } from "./shared/types/query";
+export { sharePercent } from "./shared/utils/percent";
+export { decimalPriceToWei } from "./shared/utils/price";
 export { filterQueryOptions } from "./shared/utils/query";
 export { shouldSimulateBeforeWrite } from "./shared/utils/simulate-before-write";
 
@@ -1402,11 +1487,17 @@ export {
  * stable, de-duplicated, lifecycle-tagged {@link UnifiedQuote} list. The merge is
  * deterministic given an injected `now` and the previous result (the framework
  * layer drives the clock and polling cadence). `shouldAccelerateQuotePolling`
- * tells the consumer when to poll faster.
+ * tells the consumer when to poll faster. The `aggregate*` folds roll a
+ * {@link QuoteGroup}'s children into one figure — `aggregateGroupFunding`
+ * reports settled-to-date funding with `netReceived = received − paid`, so a
+ * **positive** value means the group **earned** funding, sharing the plain-trader
+ * polarity of `aggregateGroupUpnl`, where a **positive** `upnl` means in profit.
  */
 export {
   QuoteLifecycle,
+  aggregateGroupFunding,
   aggregateGroupMetrics,
+  aggregateGroupUpnl,
   applyNotificationToQuotes,
   calculateClosePlatformFee,
   calculateLiquidationPrice,
@@ -1423,14 +1514,18 @@ export {
   groupQuotes,
   isActivePosition,
   isCloseFillAction,
+  isOpenAnchorAction,
   isPendingOrder,
   lifecycleFromQuoteStatus,
+  minRemainingQuantityOf,
   partitionQuotes,
+  planGroupClose,
   reconcileQuotes,
   resolveQuoteAccounts,
   resolveQuoteGroupingStrategy,
   shouldAccelerateOnchainReads,
   shouldAccelerateQuotePolling,
+  toGroupCloseCandidates,
   toUnifiedQuoteFromInstantClose,
   toUnifiedQuoteFromInstantOpen,
   toUnifiedQuoteFromOnchain,
@@ -1450,13 +1545,21 @@ export {
   type GetSubAccountQuotesQueryKey,
   type GetSubAccountQuotesQueryOptions,
   type GetSubAccountQuotesReturnType,
+  type GroupCloseAllocation,
+  type GroupCloseCandidate,
   type GroupQuotesOptions,
   type PartitionedQuotes,
+  type PlanGroupCloseFailure,
+  type PlanGroupCloseFailureReason,
+  type PlanGroupCloseResult,
+  type PlanGroupCloseSuccess,
   type QuoteGroup,
   type QuoteGroupBy,
+  type QuoteGroupFunding,
   type QuoteGroupKey,
   type QuoteGroupKeyFn,
   type QuoteGroupMetrics,
+  type QuoteGroupUpnl,
   type QuoteGroupingStrategy,
   type QuoteNotificationActionKind,
   type QuoteOrigin,
@@ -1467,6 +1570,22 @@ export {
   type ToUnifiedQuoteFromInstantCloseContext,
   type UnifiedQuote,
 } from "./quotes";
+
+/**
+ * Margin & risk
+ * -------------
+ * `calculateMarginRisk` folds an account's `balanceInfoOfPartyA` fields and its
+ * unrealized PnL into the figures a margin panel shows: total / maintenance /
+ * initial margin, equity, the cushion left before liquidation, and how much of
+ * that cushion is intact. `isLiquidatable` is bit-for-bit the protocol's own
+ * solvency predicate, so a UI never has to approximate it.
+ *
+ * Every figure describes **one liquidation domain** — each Virtual Account is
+ * liquidated independently, so never pass sums across accounts. The **price** at
+ * which liquidation happens is `calculateLiquidationPrice` (exported with the
+ * quotes above).
+ */
+export { calculateMarginRisk, type CalculateMarginRiskInputs, type MarginRiskMetrics } from "./margin";
 
 /**
  * Subgraph layer (GraphQL)
@@ -1524,6 +1643,7 @@ export {
  */
 export {
   DEFAULT_QUOTE_EVENTS_BY_TYPE_PAGE_SIZE,
+  FUNDING_HISTORY_EVENT_TYPES,
   PRICE_HISTORY_EVENT_TYPES,
   QuoteEventType,
   getQuoteEventsByType,
@@ -1541,13 +1661,42 @@ export {
 } from "./quotes";
 
 /**
+ * Quote events by type, batched (subgraph)
+ * ----------------------------------------
+ * `getQuotesEventsByType` is the many-quote sibling of `getQuoteEventsByType`:
+ * one round-trip covers every quote in a position group, and the subgraph
+ * returns the rows already interleaved and sorted by `timestamp`, with `first` /
+ * `skip` paging the merged stream rather than each id. Pair it with
+ * {@link FUNDING_HISTORY_EVENT_TYPES} for a group-wide funding timeline — those
+ * are the charges **settled to date** (what the analytics subgraph indexed);
+ * funding accrued since the last on-chain charge is not indexed and is absent.
+ * Netting a row is `net = fundingPaid - fundingReceived`, so a **positive** net
+ * means the user net-**paid**.
+ */
+export {
+  getQuotesEventsByType,
+  getQuotesEventsByTypeQueryKey,
+  getQuotesEventsByTypeQueryOptions,
+  type GetQuotesEventsByTypeData,
+  type GetQuotesEventsByTypeOptions,
+  type GetQuotesEventsByTypeParameters,
+  type GetQuotesEventsByTypeQueryKey,
+  type GetQuotesEventsByTypeQueryOptions,
+  type GetQuotesEventsByTypeReturnType,
+} from "./quotes";
+
+/**
  * Quote funding (subgraph)
  * ------------------------
  * `getQuoteFunding` reads `userPaidFunding` / `userReceivedFunding` for a batch
- * of on-chain quote ids from the analytics subgraph. Filters by the protocol
- * `quoteId` scalar so callers never need the diamond address.
+ * of on-chain quote ids from the analytics subgraph, chunked at
+ * {@link QUOTES_FUNDING_MAX_IDS_PER_REQUEST} ids per request. Filters by the
+ * protocol `quoteId` scalar so callers never need the diamond address. The rows
+ * are funding **settled to date**; `netReceived = received − paid`, so a
+ * **positive** value means the position **earned** funding.
  */
 export {
+  QUOTES_FUNDING_MAX_IDS_PER_REQUEST,
   getQuoteFunding,
   getQuoteFundingQueryKey,
   getQuoteFundingQueryOptions,
@@ -1571,6 +1720,7 @@ export {
  */
 export {
   DEFAULT_TPSL_SLIPPAGE_LOWCAPS,
+  TPSL_LIVE_ORDER_STATES,
   ZERO_LEG,
   buildConditionalOrderLeg,
   buildConditionalOrderMessage,
@@ -1591,9 +1741,13 @@ export {
   getTpSlSigningSpecQueryKey,
   getTpSlSigningSpecQueryOptions,
   priceSlippageCalculation,
+  searchTpSlOrders,
+  searchTpSlOrdersQueryKey,
+  searchTpSlOrdersQueryOptions,
   setQuoteTpSl,
   setQuoteTpSlMutationOptions,
   signTpSlRequest,
+  supportsTpSl,
   toSignableTpSlMessage,
   validateTpSl,
   type DeleteQuoteTpSlParameters,
@@ -1627,6 +1781,12 @@ export {
   type QuoteTpSlConditionalOrderType,
   type QuoteTpSlRow,
   type QuoteTpSlRowState,
+  type SearchTpSlOrdersData,
+  type SearchTpSlOrdersOptions,
+  type SearchTpSlOrdersParameters,
+  type SearchTpSlOrdersQueryKey,
+  type SearchTpSlOrdersQueryOptions,
+  type SearchTpSlOrdersReturnType,
   type SetQuoteTpSlParameters,
   type SetQuoteTpSlReturnType,
   type SetTpSlSide,
@@ -1641,6 +1801,52 @@ export {
   type TpSlSigningSpec,
   type TpSlValidation,
   type ValidateTpSlInputs,
+} from "./tpsl";
+
+/**
+ * Grouped TP/SL
+ * -------------
+ * Pure helpers that fold the per-quote conditional orders of a grouped position
+ * (`QuoteGroup`) into one state, and plan the writes needed to change it. The
+ * handler has no bulk endpoint — one signed request per quote — so
+ * `planGroupTpSl` diffs the desired state against what the handler already
+ * holds and emits only the children that genuinely need a `set` or a `delete`.
+ */
+export {
+  GROUP_TPSL_SIDES,
+  childNotional,
+  estimateGroupTpSlReturn,
+  planGroupTpSl,
+  planGroupTpSlDelete,
+  resolveChildSide,
+  summarizeQuoteGroupTpSl,
+  toGroupTpSlChildren,
+  toGroupTpSlOrders,
+  triggerPriceToWei,
+  type EstimateGroupTpSlReturnParameters,
+  type GroupTpSlAction,
+  type GroupTpSlChild,
+  type GroupTpSlDeleteScope,
+  type GroupTpSlDeleteSkip,
+  type GroupTpSlDeleteTarget,
+  type GroupTpSlDesiredMap,
+  type GroupTpSlDesiredSide,
+  type GroupTpSlDesiredSides,
+  type GroupTpSlOrder,
+  type GroupTpSlReturnEstimate,
+  type GroupTpSlReturnLeg,
+  type GroupTpSlSideDisplay,
+  type GroupTpSlSideKey,
+  type GroupTpSlSideSummary,
+  type GroupTpSlSkipReason,
+  type GroupTpSlSnapshotLookup,
+  type PlanGroupTpSlDeleteResult,
+  type PlanGroupTpSlParameters,
+  type PlanGroupTpSlResult,
+  type QuoteGroupTpSlSummary,
+  type ResolvedChildSide,
+  type SummarizeQuoteGroupTpSlOptions,
+  type ToGroupTpSlOrdersOptions,
 } from "./tpsl";
 
 /**
@@ -1712,3 +1918,61 @@ export {
   type TransferRow,
   type TransferRowDirection,
 } from "./transfers";
+
+/**
+ * Candles slice
+ * -------------
+ * Chart data, decoupled from any chart library. A `CandleSource` supplies the
+ * three things every charting library needs — symbol metadata, bars for a range,
+ * and a live subscription — so adapters and hooks are written against that
+ * interface rather than against a venue.
+ *
+ * `createBinanceCandleSource` is the reference source for major markets;
+ * `toTradingViewDatafeed` adapts any source to TradingView's Charting Library
+ * without the SDK depending on that licensed package. `priceBasis` on every
+ * source states what its prices actually represent — a reference exchange is
+ * not the solver mark a SYMMIO trade settles at.
+ */
+export {
+  BINANCE_EXCHANGE_INFO_PATH,
+  BINANCE_KLINES_PATH,
+  BINANCE_MAX_LIMIT,
+  BINANCE_REST_URL,
+  BINANCE_WS_URL,
+  CANDLE_RESOLUTION_MS,
+  createBinanceCandleSource,
+  fromTradingViewResolution,
+  getBinanceSupportedResolutions,
+  getCandlesQueryKey,
+  getCandlesQueryOptions,
+  parseBinanceKline,
+  parseBinanceKlineEvent,
+  resolutionToMs,
+  toBinanceInterval,
+  toTradingViewDatafeed,
+  toTradingViewResolution,
+  watchBinanceKlines,
+  type BinanceCandleSourceParameters,
+  type BinanceMarket,
+  type Candle,
+  type CandlePriceBasis,
+  type CandleResolution,
+  type CandleSource,
+  type CandleSymbol,
+  type CandleUpdateMeta,
+  type GetCandlesData,
+  type GetCandlesOptions,
+  type GetCandlesParameters,
+  type GetCandlesQueryKey,
+  type GetCandlesQueryOptions,
+  type GetCandlesReturnType,
+  type ToTradingViewDatafeedOptions,
+  type TradingViewBar,
+  type TradingViewDatafeed,
+  type TradingViewDatafeedConfiguration,
+  type TradingViewHistoryMetadata,
+  type TradingViewPeriodParams,
+  type TradingViewSymbolInfo,
+  type WatchBinanceKlinesParameters,
+  type WatchCandlesParameters,
+} from "./candles";

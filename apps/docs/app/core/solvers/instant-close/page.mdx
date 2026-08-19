@@ -20,11 +20,14 @@ Bulk close (`instantCloseBulk` / `instantCloseBulkAuto`) mirrors the pair: one a
 import {
   instantClose,
   instantCloseAuto,
+  limitCloseAuto,
+  prepareLimitCloseParams,
   instantCloseBulk,
   instantCloseBulkAuto,
   prepareInstantCloseParams,
   getInstantCloses,
   type PrepareInstantCloseParameters,
+  type PrepareLimitCloseParameters,
   type InstantCloseParameters,
   type PendingInstantClose,
 } from "@symmio/trading-core";
@@ -158,6 +161,37 @@ await instantCloseAuto(config, {
 
 **Latency**: prepare fetches run inline, so total wall-clock is `prepare fetches + sign + POST`. Use the split (`prepareInstantCloseParams` + `instantClose`) when close time is critical.
 
+## `limitCloseAuto`
+
+The **LIMIT** close variant. Same shape and split as the market close, but the caller passes a resting `price` instead of `slippage`, and the close is signed with `orderType = LIMIT`, so the solver writes a **pending close** that rests at that price rather than filling at mark. Majors / Rasa only — throws `UNSUPPORTED_BY_SOLVER` on a solver without the [`limitOrder` capability](/core/concepts/solvers-and-chains#solver-capabilities) (the same flag that gates a limit open). Deadline defaults to 15 minutes.
+
+```ts
+const { success } = await limitCloseAuto(config, {
+  from: sessionKey,
+  partyA,
+  market: { id: 1 },
+  positionType: PositionType.LONG,
+  quoteId: 42n,
+  quantityToClose: "0.5",
+  price: "64000", // resting close price
+});
+```
+
+Under the hood it mirrors `instantCloseAuto` — [`prepareLimitCloseParams`](#preparelimitcloseparams) then the shared `instantClose` primitive (which honors `orderType = LIMIT`):
+
+```ts
+export async function limitCloseAuto(config, parameters) {
+  const resolved = await prepareLimitCloseParams(config, parameters);
+  return instantClose(config, resolved);
+}
+```
+
+Read the resting close back with the React [`useLimitCloseAuto`](../../../react/solvers/instant-close#uselimitcloseauto) hook; it invalidates the instant-closes feed on success so the pending close surfaces immediately.
+
+### `prepareLimitCloseParams`
+
+The LIMIT-close resolver — same steps and inputs as [`prepareInstantCloseParams`](#prepareinstantcloseparams) but takes the resting `price` (instead of `slippage`) and stamps `orderType = LIMIT` plus the 15-minute default deadline into the resolved `InstantCloseParameters` bag. Guards `supportsLimitOrder` and throws `UNSUPPORTED_BY_SOLVER` off rasa.
+
 ## `instantCloseBulk` / `instantCloseBulkAuto`
 
 Atomic close of multiple quotes in one solver call. Same three-function split — the `Auto` wrapper is `prepare (each) + submit`.
@@ -204,4 +238,4 @@ Consumed by the reconciler ([`reconcileQuotes`](../../quotes#reconcilequotes)), 
 
 - [Instant Open](../instant-open) — the open-side analog with the same split.
 - [Unified Quotes](../../quotes) — `PendingInstantClose` feeds the reconciler; close-side lifecycle transitions live in `applyNotificationToQuotes`.
-- [Notifications](../../notifications) — close notifications drive `CLOSE_PRICE_FILLED` / `WRITE_ONCHAIN_CLOSE` / `CLOSING` transitions.
+- [Notifications](../../notifications) — close notifications drive `CLOSE_PRICE_FILLED` / `WRITE_ONCHAIN_CLOSE` transitions.

@@ -1,0 +1,41 @@
+# getPendingQuotes
+
+Read a PartyA's **resting LIMIT orders** as full [`Quote`](/core/symmio-contract/get-quote) structs. A pending quote is one that has not opened yet — in practice a limit order waiting to fill, since a market order never rests here. It reads the pending ids with [`getPartyAPendingQuotes`](/core/symmio-contract/get-party-a-pending-quotes), then hydrates each with `getQuote` bundled into **multicalls of `batchSize`** (default 10) — one round-trip per batch instead of one per id.
+
+```ts
+import { getPendingQuotes } from "@symmio/trading-core";
+
+const limitOrders = await getPendingQuotes(config, { partyA: "0xsub…" });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="partyA" type="Address" required>
+    The partyA (subaccount, majors / cross-margin) whose limit orders to read.
+  </Property>
+  <Property name="batchSize" type="number" optional>
+    `getQuote` reads per multicall batch. Defaults to `10`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Quote[]">The hydrated resting limit orders, empty when the partyA has none.</Returns>
+
+## Query options
+
+```ts
+import { getPendingQuotesQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getPendingQuotesQueryOptions(config, { partyA }));
+```
+
+## Related
+
+- [React `useLimitOrders`](/react/quotes#uselimitorders) — reconciles this on-chain read with the off-chain hedger feed + notifications into one live limit-order list.
+- [getPartyAPendingQuotes](/core/symmio-contract/get-party-a-pending-quotes) — the ids-only read this hydrates.

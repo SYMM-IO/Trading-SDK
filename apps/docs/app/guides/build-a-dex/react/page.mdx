@@ -51,7 +51,7 @@ Three rules that hold regardless of layout:
 - **Trade-form field order is fixed:** Side → Margin → Leverage → TP/SL → Slippage → Submit.
 
 <Callout type="info">
-  **The chart is its own guide.** See [Lowcap Chart](/guides/lowcap-chart). **Option A** — a DexScreener `<iframe>`
+  **The chart is its own guide.** See [Lowcap Chart](/guides/charts/lowcap). **Option A** — a DexScreener `<iframe>`
   keyed off the market's `token_address` via `useEnigmaPriceServiceMetadata` — is a real candlestick chart with
   **no extra dependency**. Reach for Option B (a charting library + OHLC feed) only when you want a native,
   themeable chart.
@@ -188,7 +188,7 @@ Every trading page starts with the same guard — connected, on the right chain,
 - **[`useDisconnectWallet`](/react/wallet#usedisconnectwallet)** → `{ disconnect }`.
 - **[`useSwitchToSymmioChain`](/react/wallet#useswitchtosymmiochain)** → `{ switchChain, status, error }`. Switches to the config's **default** chain — enough for a single-chain app.
 
-A single `WalletButton` renders three states off `useWalletAccount()`: **not-connected**, **wrong-chain**, **connected**. When the wallet is on the wrong chain, render a **"Switch to _<chain>_"** button that calls the switch action; it flips back to **connected** the moment the wallet reports the new chain.
+A single `WalletButton` renders three states off `useWalletAccount()`: **not-connected**, **wrong-chain**, **connected**. When the wallet is on the wrong chain, render a **"Switch to _\<chain>_"** button that calls the switch action; it flips back to **connected** the moment the wallet reports the new chain.
 
 <Callout type="warning">
   **Serving both products? Gate on the _target_ chain, not just "any supported chain."** `isOnExpectedChain` and

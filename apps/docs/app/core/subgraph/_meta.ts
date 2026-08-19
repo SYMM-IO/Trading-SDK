@@ -6,6 +6,7 @@ export default {
   "-- quotes": { type: "separator", title: "Quote history" },
   "get-quote-history": "getQuoteHistory",
   "get-quote-events-by-type": "getQuoteEventsByType",
+  "get-quotes-events-by-type": "getQuotesEventsByType",
   "get-quote-funding": "getQuoteFunding",
   "-- raw": { type: "separator", title: "Raw query" },
   "query-subgraph": "querySubgraph",

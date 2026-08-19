@@ -1,5 +1,12 @@
 import { DEFAULT_PRICE_PRECISION, DEFAULT_QUANTITY_PRECISION, WEI_DECIMALS } from "@/lib/format";
-import { OrderType, PositionType, QuoteLifecycle, TpSlInfoState, type UnifiedQuote } from "@symmio/trading-core";
+import {
+  OrderType,
+  PositionType,
+  QuoteLifecycle,
+  QuoteStatus,
+  TpSlInfoState,
+  type UnifiedQuote,
+} from "@symmio/trading-core";
 import {
   useAccountLiquidationPrice,
   useMarkets,
@@ -79,11 +86,15 @@ function buildJourney(quote: UnifiedQuote, pricePrecision: number, quantityPreci
       tone: "done",
     });
   }
+  // On-chain close-pending shows as ONCHAIN + quoteStatus (lifecycle no longer
+  // carries a CLOSING stage), so detect it from the status too.
+  const closePendingOnchain =
+    quote.quoteStatus === QuoteStatus.CLOSE_PENDING || quote.quoteStatus === QuoteStatus.CANCEL_CLOSE_PENDING;
   const closingNow =
     quote.lifecycle === QuoteLifecycle.OPTIMISTIC_CLOSE ||
     quote.lifecycle === QuoteLifecycle.CLOSE_PRICE_FILLED ||
     quote.lifecycle === QuoteLifecycle.WRITE_ONCHAIN_CLOSE ||
-    quote.lifecycle === QuoteLifecycle.CLOSING;
+    closePendingOnchain;
   if (closingNow) {
     stages.push({
       key: "close-requested",
@@ -101,10 +112,10 @@ function buildJourney(quote: UnifiedQuote, pricePrecision: number, quantityPreci
       });
     }
     if (quote.lifecycle === QuoteLifecycle.WRITE_ONCHAIN_CLOSE) {
-      stages.push({ key: "write-onchain-close", label: "Closing on-chain", tone: "done" });
+      stages.push({ key: "write-onchain-close", label: "Writing close on-chain", tone: "done" });
     }
-    if (quote.lifecycle === QuoteLifecycle.CLOSING) {
-      stages.push({ key: "closing", label: "Closing", tone: "done" });
+    if (closePendingOnchain) {
+      stages.push({ key: "close-pending", label: "Close pending on-chain", tone: "done" });
     }
   }
   if (quote.lifecycle === QuoteLifecycle.CLOSED) {
@@ -347,7 +358,7 @@ export function QuoteProvenancePanel({ quote }: Props) {
           />
           <DetailRow
             label="Net"
-            value={renderFundingSigned(funding.data?.net, funding.isLoading, quote.quoteId !== undefined)}
+            value={renderFundingSigned(funding.data?.netReceived, funding.isLoading, quote.quoteId !== undefined)}
           />
         </DetailSection>
       </div>
@@ -463,6 +474,7 @@ function renderFunding(value: bigint | undefined, isLoading: boolean, hasQuoteId
   return formatFee(value);
 }
 
+/** Net funding, income-positive like the SDK returns it: `+` earned, `-` paid. */
 function renderFundingSigned(value: bigint | undefined, isLoading: boolean, hasQuoteId: boolean): ReactNode {
   if (!hasQuoteId) return EMPTY;
   if (value === undefined) {

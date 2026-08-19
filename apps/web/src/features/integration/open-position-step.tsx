@@ -18,12 +18,14 @@ import {
   useFeeForUser,
   useInstantOpenWithTpSl,
   UseInstantOpenWithTpSlReturnType,
+  useLimitOpenAuto,
   useLockedParams,
   useMarkets,
   useNotionalCapBySymbolId,
   usePredictedNextVirtualAccount,
   usePriceByName,
   useSubAccount,
+  useSupportsLimitOrder,
   useSymmioConfig,
   validateInstantOpenAgainstMarket,
   type QuoteConstraintViolation,
@@ -87,6 +89,12 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
   /** Draft text for the inline leverage field; `leverage` stays the source of truth for math. */
   const [leverageInput, setLeverageInput] = useState("1");
   const [slippage, setSlippage] = useState("5");
+  // Limit orders are a solver capability (majors / rasa). When supported, the
+  // user can switch to LIMIT and set an explicit resting price (no slippage).
+  const supportsLimit = useSupportsLimitOrder({ solverId: resolvedSolverId });
+  const [orderType, setOrderType] = useState<"market" | "limit">("market");
+  const [limitPrice, setLimitPrice] = useState("");
+  const isLimit = supportsLimit && orderType === "limit";
 
   const selectedMarket = useMemo(
     () => markets.find((market) => String(market.symbolId) === marketId),
@@ -95,6 +103,9 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
   const maxLeverage = getMaxLeverage(selectedMarket);
   const validInitialMargin = parsePositiveNumber(initialMargin);
   const validSlippage = parsePositiveNumber(slippage);
+  const validLimitPrice = parsePositiveNumber(limitPrice);
+  // Market needs a valid slippage; limit needs a valid resting price instead.
+  const inputsReady = isLimit ? validLimitPrice !== undefined : validSlippage !== undefined;
   const marketName = selectedMarket?.name;
 
   /** Keep `leverage` (and its inline draft) within the selected market's max. */
@@ -183,12 +194,14 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     symbolId: selectedMarket?.symbolId,
     leverage,
     positionType: side === "short" ? PositionType.SHORT : PositionType.LONG,
-    slippage: validSlippage ?? 0,
+    slippage: isLimit ? 0 : (validSlippage ?? 0),
     solverId: resolvedSolverId,
   });
 
-  // Keep the form's "unavailable until slippage is valid" behavior.
-  const availableMarginWei = validSlippage === undefined ? undefined : marginInfo.availableMarginWei;
+  // Market's available balance depends on slippage, so gate it on a valid one.
+  // A limit's resting price does NOT change available margin, so limit only needs
+  // a selected market (marginInfo is undefined until then → "select a market").
+  const availableMarginWei = isLimit || validSlippage !== undefined ? marginInfo.availableMarginWei : undefined;
 
   const availableMarginDecimal =
     availableMarginWei !== undefined ? Number(formatUnits(availableMarginWei, WEI_DECIMALS)) : undefined;
@@ -201,19 +214,22 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
   // the market and preview the locked-margin breakdown to the user. Returns
   // `null` when any required input is missing or invalid.
   const cachedMarkPrice = priceQuery.markPrice ?? undefined;
+  // A limit order sizes off its resting price with no slippage; a market order
+  // sizes off the mark price with the slippage band.
+  const sizingPrice = isLimit ? limitPrice : cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined;
   const tradeParams = useMemo(() => {
     if (
       selectedMarket === undefined ||
-      cachedMarkPrice === undefined ||
+      sizingPrice === undefined ||
       lockedParamsQuery.data === undefined ||
       validInitialMargin === undefined ||
-      validSlippage === undefined
+      !inputsReady
     ) {
       return null;
     }
     return calculateTradeParams({
-      markPrice: String(cachedMarkPrice),
-      slippage: validSlippage,
+      markPrice: sizingPrice,
+      slippage: isLimit ? 0 : validSlippage!,
       positionType: side === "long" ? PositionType.LONG : PositionType.SHORT,
       userInput: initialMargin,
       inputField: "PRICE",
@@ -227,9 +243,11 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     });
   }, [
     selectedMarket,
-    cachedMarkPrice,
+    sizingPrice,
     lockedParamsQuery.data,
     validInitialMargin,
+    inputsReady,
+    isLimit,
     validSlippage,
     side,
     initialMargin,
@@ -257,6 +275,8 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
   // predicted VA using the hedger's `tempQuoteId`. All request/response logic
   // lives in `@symmio/trading-react`; this component just gathers the inputs.
   const mutation = useInstantOpenWithTpSl();
+  const limitMutation = useLimitOpenAuto();
+  const submitting = isLimit ? limitMutation.isPending : mutation.isPending;
 
   const [tpPrice, setTpPrice] = useState("");
   const [slPrice, setSlPrice] = useState("");
@@ -277,14 +297,35 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     selectedMarket &&
     marketName &&
     validInitialMargin !== undefined &&
-    validSlippage !== undefined &&
+    inputsReady &&
     !exceedsAvailable &&
     quoteViolations.length === 0 &&
-    !mutation.isPending,
+    !submitting,
   );
 
   async function handleSubmit() {
     if (!canSubmit || !selectedMarket || !marketName) return;
+    if (isLimit) {
+      // LIMIT (majors): user-set resting price, no slippage, no TP/SL combo.
+      await limitMutation.mutateAsync({
+        subAccountAddress: subAccount,
+        from: sessionKey,
+        solverId: resolvedSolverId,
+        market: {
+          id: Number(selectedMarket.symbolId ?? 0),
+          name: marketName,
+          pricePrecision: Number(selectedMarket.pricePrecision ?? 0),
+          quantityPrecision: Number(selectedMarket.quantityPrecision ?? 0),
+        },
+        positionType: positionTypeForSide,
+        initialMargin,
+        leverage,
+        price: limitPrice,
+        lockedParamPercent: lockedParamsQuery.data,
+        feeRates: feeQuery.data,
+      });
+      return;
+    }
     const hasTp = tpPrice.length > 0;
     const hasSl = slPrice.length > 0;
     const wantsTpSl = hasTp || hasSl;
@@ -344,6 +385,26 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
       <Field label="side">
         <TradeSideControl idPrefix={idPrefix} value={side} onChange={setSide} />
       </Field>
+
+      {supportsLimit ? (
+        <Field label="order type" hint="Market fills at mark; limit rests at a price you set.">
+          <div className="flex gap-2" data-testid={`${idPrefix}-order-type`}>
+            {(["market", "limit"] as const).map((type) => (
+              <Button
+                key={type}
+                type="button"
+                size="sm"
+                variant={orderType === type ? "default" : "outline"}
+                onClick={() => setOrderType(type)}
+                data-testid={`${idPrefix}-order-type-${type}`}
+                className="flex-1 capitalize"
+              >
+                {type}
+              </Button>
+            ))}
+          </div>
+        </Field>
+      ) : null}
 
       <Field
         label="initial margin (USD)"
@@ -457,22 +518,59 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
           </div>
         </Field>
 
-        <Field label="slippage (%)" htmlFor={`${idPrefix}-slippage`} hint="Percent tolerance — must be greater than 0.">
-          <Input
-            id={`${idPrefix}-slippage`}
-            value={slippage}
-            onChange={(event) => {
-              // Strip leading minus and any other sign chars; slippage is always positive.
-              const sanitized = event.target.value.replace(/[^\d.]/g, "");
-              setSlippage(sanitized);
-            }}
-            placeholder="5"
-            inputMode="decimal"
-            min={0}
-            aria-invalid={slippage.length > 0 && validSlippage === undefined}
-            data-testid={`${idPrefix}-slippage`}
-          />
-        </Field>
+        {isLimit ? (
+          <Field
+            label="limit price"
+            htmlFor={`${idPrefix}-limit-price`}
+            action={
+              <button
+                type="button"
+                disabled={cachedMarkPrice === undefined}
+                onClick={() => {
+                  if (cachedMarkPrice !== undefined) setLimitPrice(String(cachedMarkPrice));
+                }}
+                data-testid={`${idPrefix}-limit-price-mark`}
+                className="text-muted-foreground hover:text-foreground text-xs font-medium tracking-wide uppercase transition-colors disabled:opacity-50"
+              >
+                Mark
+              </button>
+            }
+            hint="Resting price — the order fills at this price or better."
+          >
+            <Input
+              id={`${idPrefix}-limit-price`}
+              value={limitPrice}
+              onChange={(event) => setLimitPrice(event.target.value.replace(/[^\d.]/g, ""))}
+              placeholder="0.00"
+              inputMode="decimal"
+              aria-invalid={limitPrice.length > 0 && validLimitPrice === undefined}
+              data-testid={`${idPrefix}-limit-price`}
+            />
+          </Field>
+        ) : null}
+
+        {!isLimit ? (
+          <Field
+            label="slippage (%)"
+            htmlFor={`${idPrefix}-slippage`}
+            hint="Percent tolerance — must be greater than 0."
+          >
+            <Input
+              id={`${idPrefix}-slippage`}
+              value={slippage}
+              onChange={(event) => {
+                // Strip leading minus and any other sign chars; slippage is always positive.
+                const sanitized = event.target.value.replace(/[^\d.]/g, "");
+                setSlippage(sanitized);
+              }}
+              placeholder="5"
+              inputMode="decimal"
+              min={0}
+              aria-invalid={slippage.length > 0 && validSlippage === undefined}
+              data-testid={`${idPrefix}-slippage`}
+            />
+          </Field>
+        ) : null}
       </div>
 
       {/* TP/SL rides the Enigma VA + COH handler — not available on Rasa. */}
@@ -535,15 +633,32 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
         data-testid={`${idPrefix}-submit`}
         className="w-full"
       >
-        {mutation.isPending ? <Spinner className="size-4" /> : null}
-        {mutation.isPending ? "Submitting…" : "Open position"}
+        {submitting ? <Spinner className="size-4" /> : null}
+        {submitting ? "Submitting…" : isLimit ? "Place limit order" : "Open position"}
       </Button>
 
-      <SubmitStatus mutation={mutation} sessionKey={sessionKey} idPrefix={idPrefix} />
+      {isLimit ? (
+        <>
+          {limitMutation.isError ? (
+            <p className="text-destructive text-sm" data-testid={`${idPrefix}-limit-error`}>
+              {(limitMutation.error as SymmioRequestError | null)?.message ?? "Failed to place limit order."}
+            </p>
+          ) : null}
+          {limitMutation.isSuccess ? (
+            <p className="text-sm text-emerald-500" data-testid={`${idPrefix}-limit-success`}>
+              Limit order placed — it will rest on-chain until the price is reached.
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <SubmitStatus mutation={mutation} sessionKey={sessionKey} idPrefix={idPrefix} />
 
-      {mutation.data?.tpsl || mutation.data?.tpslError || mutation.phase === "attaching-tpsl" ? (
-        <TpSlAttachmentStatus idPrefix={idPrefix} mutation={mutation} />
-      ) : null}
+          {mutation.data?.tpsl || mutation.data?.tpslError || mutation.phase === "attaching-tpsl" ? (
+            <TpSlAttachmentStatus idPrefix={idPrefix} mutation={mutation} />
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

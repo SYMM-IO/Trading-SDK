@@ -9,7 +9,51 @@ Derived helpers for how much margin a trade can spend.
 ## Import
 
 ```ts
-import { useAvailableInstantOpenMargin } from "@symmio/trading-react";
+import { useAccountMarginRisk, useAvailableInstantOpenMargin } from "@symmio/trading-react";
+```
+
+## `useAccountMarginRisk`
+
+One account's margin, equity and distance to liquidation. Composes [`useAccountBalanceInfo`](../account-layer#useaccountbalanceinfo) (with `live: true` by default) and feeds it to the pure core function [`calculateMarginRisk`](../../core/margin/calculate-margin-risk), so the figures refresh automatically when an open or close settles on-chain.
+
+```tsx
+const { metrics } = useAccountMarginRisk({ account: virtualAccount, upnl });
+
+if (metrics?.isLiquidatable) return <LiquidationWarning />;
+return <Equity value={metrics?.equity} buffer={metrics?.liquidationBufferPercent} />;
+```
+
+**Pass the uPnL of this account's whole book.** `equity = allocatedBalance + upnl`, so the uPnL of a subset understates equity and everything derived from it. Fold it with [`aggregateGroupUpnl`](../../core/quotes/aggregate-group-upnl) when the account's positions are one group. Omitting it reports the account as if it were flat.
+
+For a merged position, reach for [`useQuoteGroupMarginRisk`](../quotes#usequotegroupmarginrisk) instead — it resolves the group's Virtual Account and folds the group's uPnL for you. Use this hook directly for an account-level panel, or to fan out over a group that spans several accounts.
+
+<Callout type="warning">
+  Every figure describes **one liquidation domain**. Each Virtual Account is liquidated on its own balance, so never sum
+  these across accounts: the totals would add up, but the buffer would not, and a blend hides an account that is about
+  to be liquidated behind a comfortable-looking average.
+</Callout>
+
+#### Parameters
+
+| Name      | Type       | Default        | Notes                                                    |
+| --------- | ---------- | -------------- | -------------------------------------------------------- |
+| `account` | `Address?` | `undefined`    | Sub-account or Virtual Account. Idle until set.          |
+| `upnl`    | `bigint?`  | `0n`           | **Signed** unrealized PnL of this whole account, wei.    |
+| `live`    | `boolean?` | `true`         | Refetch the balance when an open/close settles on-chain. |
+| `chainId` | `number?`  | config default | Optional chain override.                                 |
+| `config`  | `Config?`  | provider value | Optional config override.                                |
+
+#### Return type
+
+```ts
+interface UseAccountMarginRiskReturnType {
+  /** `undefined` until the balance read resolves. */
+  metrics?: MarginRiskMetrics;
+  /** The raw `balanceInfoOfPartyA` fields the metrics were computed from. */
+  balanceInfo?: AccountBalanceInfo;
+  isLoading: boolean;
+  error: SymmioRequestError | null;
+}
 ```
 
 ## `useAvailableInstantOpenMargin`
@@ -72,6 +116,8 @@ interface UseAvailableInstantOpenMarginReturnType {
 
 ## Related
 
+- [Margin & risk (core)](../../core/margin) — `calculateMarginRisk`, the pure fold behind `useAccountMarginRisk`.
+- [`useQuoteGroupMarginRisk`](../quotes#usequotegroupmarginrisk) — the same figures for a merged position.
 - [AccountLayer hooks](../account-layer) — `useAccountBalanceOf` (the balance this shaves) and its `live` option.
 - [Fees hooks](../fees) — `useFeeForUser`, the fee rates this consumes.
 - [InstantLayer / Solvers](../solvers) — `useInstantOpenAuto`, which spends the margin.

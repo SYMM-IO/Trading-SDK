@@ -2,7 +2,12 @@ import type { Address } from "viem";
 import { describe, expect, it } from "vitest";
 import { OrderType, PositionType, type Quote } from "../symmio-contracts/symmio/types";
 import { NotificationType, type Notification } from "../websocket/notifications/types";
-import { applyNotificationToQuotes, classifyQuoteNotificationAction, isCloseFillAction } from "./apply-notification";
+import {
+  applyNotificationToQuotes,
+  classifyQuoteNotificationAction,
+  isCloseFillAction,
+  isOpenAnchorAction,
+} from "./apply-notification";
 import { QuoteLifecycle, type UnifiedQuote } from "./unified-quote";
 
 const PARTY_A = "0x000000000000000000000000000000000000a11a" as Address;
@@ -83,11 +88,6 @@ describe("applyNotificationToQuotes — close lifecycle", () => {
     expect(result.lifecycle).toBe(QuoteLifecycle.ONCHAIN);
   });
 
-  it("keeps an anchored CLOSE_PENDING row CLOSING (authoritative on-chain status drives it)", () => {
-    const result = apply1(makeRow({ lifecycle: QuoteLifecycle.CLOSING }), makeCloseNotification());
-    expect(result.lifecycle).toBe(QuoteLifecycle.CLOSING);
-  });
-
   it("never overrides a terminal CLOSED row", () => {
     const result = apply1(makeRow({ lifecycle: QuoteLifecycle.CLOSED }), makeCloseNotification());
     expect(result.lifecycle).toBe(QuoteLifecycle.CLOSED);
@@ -138,12 +138,20 @@ describe("applyNotificationToQuotes — close staging", () => {
     expect(result.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
   });
 
-  it("does not regress the poll-confirmed CLOSING when the earlier request notification replays", () => {
+  it("advances CLOSE_PRICE_FILLED → WRITE_ONCHAIN_CLOSE on the limit-close anchor notification", () => {
     const result = apply1(
-      makeRow({ lifecycle: QuoteLifecycle.CLOSING }),
+      makeRow({ lifecycle: QuoteLifecycle.CLOSE_PRICE_FILLED }),
+      makeCloseNotification({ lastSeenAction: "InstantRequestToLimitClose" }),
+    );
+    expect(result.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
+  });
+
+  it("does not regress the furthest close stage (WRITE_ONCHAIN_CLOSE) when the earlier request notification replays", () => {
+    const result = apply1(
+      makeRow({ lifecycle: QuoteLifecycle.WRITE_ONCHAIN_CLOSE }),
       makeCloseNotification({ lastSeenAction: "InstantRequestToClosePosition" }),
     );
-    expect(result.lifecycle).toBe(QuoteLifecycle.CLOSING);
+    expect(result.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
   });
 
   it("ignores replayed close notifications on a settled ONCHAIN row (no re-stick)", () => {
@@ -230,11 +238,31 @@ describe("classifyQuoteNotificationAction", () => {
   it("classifies close-request/fill actions as close", () => {
     expect(classifyQuoteNotificationAction("FillMarketOrderInstantClose")).toBe("close");
     expect(classifyQuoteNotificationAction("RequestToClosePosition")).toBe("close");
+    expect(classifyQuoteNotificationAction("InstantRequestToLimitClose")).toBe("close");
   });
 
   it("classifies unknown or missing actions as other", () => {
     expect(classifyQuoteNotificationAction("SomethingElse")).toBe("other");
     expect(classifyQuoteNotificationAction(undefined)).toBe("other");
+  });
+});
+
+describe("isOpenAnchorAction", () => {
+  it("is true only for open-anchor (on-chain) actions", () => {
+    expect(isOpenAnchorAction("SendQuoteTransaction")).toBe(true);
+    expect(isOpenAnchorAction("SendQuote")).toBe(true);
+    expect(isOpenAnchorAction("FillLimitOrderOpen")).toBe(true);
+  });
+
+  it("is false for the off-chain InstantRFQ price-fill (the first notification)", () => {
+    expect(isOpenAnchorAction("InstantRFQ")).toBe(false);
+  });
+
+  it("is false for close actions and unknown / missing actions", () => {
+    expect(isOpenAnchorAction("FillMarketOrderInstantClose")).toBe(false);
+    expect(isOpenAnchorAction("SomethingElse")).toBe(false);
+    expect(isOpenAnchorAction(null)).toBe(false);
+    expect(isOpenAnchorAction(undefined)).toBe(false);
   });
 });
 

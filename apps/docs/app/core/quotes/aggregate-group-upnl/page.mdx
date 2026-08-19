@@ -1,0 +1,112 @@
+# aggregateGroupUpnl
+
+Fold a grouped position's child quotes into a single unrealized-PnL total at the current mark price, as a [`QuoteGroupUpnl`](/core/quotes/quote-group-upnl). Pure, order-independent, exact `bigint`, no IO.
+
+```ts
+import { aggregateGroupUpnl, decimalPriceToWei } from "@symmio/trading-core";
+
+const upnl = aggregateGroupUpnl(group.quotes, decimalPriceToWei(markPrice));
+
+if (!upnl.isComplete) showSkeleton();
+// positive = in profit; the percent is 18-decimal fixed point, so format it as wei
+else render(upnl.upnl, upnl.upnlPercent);
+```
+
+## The formula
+
+Per child that is an active position with open size, using its **settled** `openedPrice`:
+
+```
+delta  = markPrice − openedPrice
+signed = positionType === SHORT ? −delta : delta
+upnl  += openQuantity × signed / 1e18
+```
+
+Over the same valued children the fold also accumulates the two denominators a percentage needs, and divides once at the end:
+
+```
+openNotional += openQuantity × openedPrice / 1e18
+openMargin   += lockedLegs × openQuantity / quantity
+returnPercent = upnl / openNotional × 100     // unleveraged
+upnlPercent   = upnl / openMargin   × 100     // return on capital
+```
+
+`lockedLegs` is every leg of the child's frozen `initialLockedValues` (else its current `lockedValues`) — the same preference [`aggregateGroupMetrics`](/core/quotes/aggregate-group-metrics) applies, prorated here to the still-open share so a half-closed child counts half its capital.
+
+## The percentages are folds, not averages
+
+`upnlPercent` divides the group's **total** uPnL by its **total** open margin. It is deliberately not a notional-weighted mean of the children's individual returns, which is what a naive port of a per-quote calculation produces:
+
+```ts
+/** 1 unit @ 100 at 10× and 1 unit @ 100 at 2×, mark 110. */
+upnl.upnl; // 20 — each child made 10
+upnl.openMargin; // 60 — 10 + 50 of capital behind them
+upnl.upnlPercent; // +33.33% — the return the pair actually earned
+/** Averaging the children's own returns (100% and 20%) by notional would say 60%. */
+```
+
+The two definitions agree whenever the children share a leverage, and diverge exactly when they do not. Folding also keeps this consistent with [`QuoteGroupMetrics.leverage`](/core/quotes/quote-group-metrics), which is likewise `Σ notional / Σ margin` — so `upnlPercent ≈ returnPercent × leverage` holds by construction rather than by coincidence.
+
+Both percentages are `undefined` rather than `0n` when their basis is missing: `0n` is a real flat return. `upnlPercent` alone drops out when the valued children carry no locked collateral.
+
+## Sign convention
+
+Plain trader convention: a **positive** `upnl` means the group is in profit.
+
+This is the **same** polarity as [`QuoteGroupFunding.netReceived`](/core/quotes/quote-group-funding), where positive means the group earned funding. The two folds sit beside each other in the same slice and share one sign, so a card can colour and total them together.
+
+## The mark price is `bigint | undefined`, never a string
+
+`undefined` means "no price yet". `0n` means "the price is zero", which for a long position is a **total loss**. Collapsing the first into the second is the failure mode this signature exists to prevent — a feed that has not ticked would report −100%.
+
+Use [`decimalPriceToWei`](/core/shared-types) to convert a feed's decimal string: it returns `undefined`, not `0n`, for an empty or malformed input.
+
+## `isComplete` is not optional reading
+
+`upnl` is always the sum over the children that _could_ be valued — a **lower bound in magnitude** while some could not, never suppressed to `0n`. `isComplete` tells you whether to trust it:
+
+- `isComplete: true` — a mark price was given, at least one child was valued, and none was left unvalued. The total is the group's complete unrealized PnL.
+- `isComplete: false` — either no mark price yet, or some position's open price has not settled. Treat it as **"PnL unknown"** and render a loading state; rendering it as "no PnL" is a different claim.
+
+Both percentages inherit the caveat — they describe the valued subset, so an incomplete fold reports the return of the children that could be priced rather than of the group.
+
+A group with nothing to value — all resting orders, all closed, or empty — also reports `false` with `upnl: 0n`, which is exactly why the flag exists.
+
+## What each child contributes
+
+- **Resting orders contribute nothing and are not counted as unvalued.** A pending order has no unrealized PnL by definition; counting it would pin `isComplete` to `false` on any group that also holds a live position. Classification uses the same [`isActivePosition`](/core/quotes/partition-quotes) predicate as `partitionQuotes`, so terminal rows are skipped too.
+- **Fully-closed children** (`openQuantity ≤ 0`) are skipped and not counted — their PnL is realized, not unrealized.
+- **A position with no settled `openedPrice`** — an optimistic open, or one anchored but not yet read back — lands in `unvaluedCount` and contributes nothing. The fold never substitutes `requestedOpenPrice`: that would value the position at a fill which never happened.
+
+## One market, one mark price
+
+Every built-in [`QuoteGroupingStrategy`](/core/quotes/group-quotes) keys on `symbolId`, so a group is single-market by construction and one mark price is the right input. A custom `keyOf` that mixes markets makes this fold meaningless — that is the caller's to avoid.
+
+## Precision
+
+Each child's term is floored independently, so the maximum error is 1 wei per child. That matches [`estimateGroupTpSlReturn`](/core/tpsl/estimate-group-tpsl-return) and `calculateLiquidationPrice`. It deliberately differs from the per-quote `calculateQuoteUpnl`, which returns decimal strings via float math.
+
+## Parameters
+
+<Properties>
+  <Property name="quotes" type="readonly UnifiedQuote[]" typeHref="/core/quotes/unified-quote" required>
+    The group's child quotes (pass `group.quotes`). Resting, closed and terminal rows are filtered out here.
+  </Property>
+  <Property name="markPrice" type="bigint | undefined" required>
+    Current mark price in 18-decimal wei, or `undefined` before the feed's first tick. `0n` is treated as a real price.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="QuoteGroupUpnl" typeHref="/core/quotes/quote-group-upnl">
+  The aggregated unrealized PnL, its two bases and the return percentages over them, the valuation counters, and
+  `isComplete`.
+</Returns>
+
+## Related
+
+- [`QuoteGroupUpnl`](/core/quotes/quote-group-upnl) — the returned shape, field by field.
+- [`calculateMarginRisk`](/core/margin/calculate-margin-risk) — consumes this total as its `upnl` input.
+- [`aggregateGroupMetrics`](/core/quotes/aggregate-group-metrics) — the price-independent half of a group's figures.
+- [React `useQuoteGroupMarginRisk`](/react/quotes) — the hook that subscribes to the price and runs this fold.

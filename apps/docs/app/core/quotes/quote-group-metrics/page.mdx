@@ -1,0 +1,41 @@
+# QuoteGroupMetrics
+
+Pure, price-independent aggregations over a grouped position's child quotes. Every amount is 18-decimal wei `bigint`.
+
+Metrics that need a live mark price or VA balance — unrealized PnL, market value, liquidation price — are intentionally **not** here: they need injected inputs and belong to the caller.
+
+## Properties
+
+<Properties>
+  <Property name="quoteCount" type="number" required>
+    Number of child quotes in the group.
+  </Property>
+  <Property name="openCount" type="number" required>
+    Children classified as active positions.
+  </Property>
+  <Property name="pendingCount" type="number" required>
+    Children classified as resting/pending orders.
+  </Property>
+  <Property name="quantity" type="bigint" required>
+    Σ of each child's original `quantity` (pre-close), wei.
+  </Property>
+  <Property name="openQuantity" type="bigint" required>
+    Σ of each child's open quantity (`quantity − closedAmount`) — the live aggregated size, wei.
+  </Property>
+  <Property name="weightedOpenPrice" type="bigint" optional>
+    Quantity-weighted average open price: `Σ(openQuantity × price) / Σ openQuantity`. `undefined` while the group has no
+    open size, or while any child still lacks a settled open price — render a loading state in that case.
+  </Property>
+  <Property name="initialNotional" type="bigint" required>
+    Σ frozen at-open notional (`quantity × (initialOpenedPrice ?? requestedOpenPrice)`), wei. Partial closes do not
+    shrink it.
+  </Property>
+  <Property name="lockedValues" type="LockedValues" required>
+    Σ of each margin leg (`cva`, `lf`, `partyAmm`, `partyBmm`) across children, wei.
+  </Property>
+  <Property name="leverage" type="bigint" optional>
+    Blended opening leverage as an 18-decimal fixed-point `bigint` (`2.5x → 2_500000000000000000n`): `Σ(quantity ×
+    (requestedOpenPrice ?? openedPrice)) / Σ(cva + lf + partyAmm + partyBmm)`, each child using its frozen
+    `initialLockedValues`. `undefined` when that margin is `0`.
+  </Property>
+</Properties>

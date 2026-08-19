@@ -60,10 +60,14 @@ export type QuoteGroupingStrategy = SubAccountIsolationType | { readonly keyOf: 
 
 /**
  * Pure, price-independent aggregations over a group's child quotes. Every amount
- * is 18-decimal wei `bigint`, matching {@link UnifiedQuote}. Metrics that need a
- * live mark price or VA balance (unrealized PnL, market value, liquidation price)
- * are intentionally **not** here — they belong to a follow-up slice that injects
- * those inputs.
+ * is 18-decimal wei `bigint`, matching {@link UnifiedQuote}.
+ *
+ * Metrics that need a live mark price or Virtual Account balance are
+ * intentionally **not** here — they take those inputs explicitly instead:
+ * `aggregateGroupUpnl` (unrealized PnL — and its return percentages — at a mark
+ * price), `calculateMarginRisk`
+ * (margin, equity and liquidation buffer from an account's balance), and
+ * `calculateLiquidationPrice` (the price liquidation happens at).
  */
 export interface QuoteGroupMetrics {
   /** Number of child quotes in the group. */
@@ -84,14 +88,19 @@ export interface QuoteGroupMetrics {
    * optimistic open) — render a loading state in that case.
    */
   weightedOpenPrice?: bigint;
-  /** Σ initial notional (`openQuantity × price`) across children, wei. */
-  notional: bigint;
+  /**
+   * Σ frozen at-open notional (`quantity × (initialOpenedPrice ?? requestedOpenPrice)`)
+   * across children, wei. Partial closes do not shrink it.
+   */
+  initialNotional: bigint;
   /** Σ of each {@link LockedValues} leg (`cva`, `lf`, `partyAmm`, `partyBmm`) across children, wei. */
   lockedValues: LockedValues;
   /**
-   * Blended leverage as an 18-decimal fixed-point `bigint` (e.g. `2.5x →
-   * 2_500000000000000000n`): `notional / (Σ cva + lf + partyAmm)`. `undefined`
-   * when the locked partyA margin is `0` (nothing to leverage against).
+   * Blended opening leverage as an 18-decimal fixed-point `bigint` (e.g. `2.5x →
+   * 2_500000000000000000n`): `Σ(quantity × (requestedOpenPrice ?? openedPrice)) /
+   * Σ(cva + lf + partyAmm + partyBmm)`, each child using its frozen
+   * `initialLockedValues` (else `lockedValues`). `undefined` when that locked
+   * margin is `0` (nothing to leverage against).
    */
   leverage?: bigint;
 }

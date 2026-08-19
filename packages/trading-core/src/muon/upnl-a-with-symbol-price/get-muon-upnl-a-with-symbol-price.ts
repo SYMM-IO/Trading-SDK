@@ -19,7 +19,7 @@ export type GetMuonUpnlAWithSymbolPriceParameters = Compute<
  * plus partyA's computed uPnL fields and the requested symbol's price.
  *
  * @remarks
- * TODO(muon-verify): beyond `uPnl` (verified via Vibe-ui), the field set/nesting
+ * TODO(muon-verify): beyond `uPnl` (verified against the reference frontend), the field set/nesting
  * is best-effort from the Muon docs; optional fields are absent when the gateway
  * omits them.
  */

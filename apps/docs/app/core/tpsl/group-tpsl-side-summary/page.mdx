@@ -1,0 +1,34 @@
+# GroupTpSlSideSummary
+
+Folded state of one side (take profit or stop loss) across a grouped position's children.
+
+## Properties
+
+<Properties>
+  <Property name="display" type='"none" | "uniform" | "mixed"' required>
+    How the cell should render this side. `"uniform"` only when **every** child carries the same trigger price *and*
+    price type.
+  </Property>
+  <Property name="count" type="number" required>
+    Children carrying a trigger on this side.
+  </Property>
+  <Property name="total" type="number" required>
+    Children folded over — the `count` denominator.
+  </Property>
+  <Property name="price" type="string" optional>
+    The shared trigger price. Set only when `display` is `"uniform"`.
+  </Property>
+  <Property name="priceType" type="TpSlPriceType" typeHref="/core/tpsl/tpsl-price-type" optional>
+    The shared price type. Set only when `display` is `"uniform"`.
+  </Property>
+  <Property name="isPending" type="boolean" required>
+    `true` while any child's side is mid-flight (`"pending"` or `"confirming"`).
+  </Property>
+  <Property name="coveredNotional" type="bigint" required>
+    Σ open notional of the covered children, wei.
+  </Property>
+  <Property name="coveragePercent" type="bigint" optional>
+    Notional-weighted coverage as an 18-decimal fixed-point percent (`50% → 50_000000000000000000n`) — **not** a count
+    ratio, so one large uncovered child correctly drags coverage down. `undefined` when the group has no open notional.
+  </Property>
+</Properties>

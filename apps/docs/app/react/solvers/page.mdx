@@ -20,6 +20,9 @@ import {
   calculatePriceImpact,
   useSolverErrorCodes,
   useSolverErrorMessage,
+  useSolverCapabilities,
+  useSupportsLimitOrder,
+  useSupportsGroupClose,
 } from "@symmio/trading-react";
 ```
 
@@ -109,6 +112,37 @@ Composed — takes an error code (positional), returns the human-readable messag
 
 ```ts
 const msg = useSolverErrorMessage(42);
+```
+
+## Capabilities
+
+Gate a flow or UI on what the resolved solver declares it supports, so an unsupported solver degrades gracefully instead of erroring. Config-driven (see [Solver capabilities](/core/concepts/solvers-and-chains#solver-capabilities)); unset flags default to `false`. All three take an optional `solverId` / `chainId` and follow the connected chain's default solver when omitted.
+
+### `useSolverCapabilities`
+
+The resolved `SolverCapabilities` object (`{ groupClose, limitOrder }`, both definite booleans).
+
+```tsx
+const { limitOrder, groupClose } = useSolverCapabilities();
+```
+
+### `useSupportsLimitOrder`
+
+Boolean shorthand — whether the solver supports LIMIT orders. Gate the limit-order UI (and [`useLimitOpenAuto`](/react/solvers/instant-open#uselimitopenauto), which throws `UNSUPPORTED_BY_SOLVER` otherwise) on it.
+
+```tsx
+const canLimit = useSupportsLimitOrder();
+{
+  canLimit ? <LimitOrderTab /> : null;
+}
+```
+
+### `useSupportsGroupClose`
+
+Boolean shorthand — whether the solver supports closing a whole market + side group in one flow.
+
+```tsx
+const canGroupClose = useSupportsGroupClose();
 ```
 
 ## Trading flows

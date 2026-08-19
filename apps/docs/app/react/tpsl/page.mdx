@@ -33,12 +33,14 @@ interface TpSlRecord {
 
 ### Store actions
 
-| Action                                | When it fires                                                                | Effect                                                                                                                        |
-| ------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `setRows(id, rows)`                   | REST `GET /api/v5/?quote_id=…` returns.                                      | Folds rows via `toQuoteTpSl`; auto-indexes each row's `quote_id` alias.                                                       |
-| `markConfirming(id, side, patch?)`    | `useSetQuoteTpSl` / `useDeleteQuoteTpSl` / `useInstantOpenWithTpSl` succeed. | Sets that side's state to `"confirming"`; optional `patch` seeds `{ price, priceType, cohQuoteId }`.                          |
-| `applyNotification(id, notification)` | WS `report` frame arrives (`successful: true`).                              | Maps `notification.state` → `TpSlInfoState`; stamps `trigger_price` from `details` when present; clears fields on `canceled`. |
-| `link(a, b)`                          | Solver notification anchors a pre-chain quote (temp ↔ on-chain).             | Both ids resolve to the same record; merges if two records existed.                                                           |
+| Action                                | When it fires                                                                | Effect                                                                                                                                                                         |
+| ------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `setRows(id, rows)`                   | REST `GET /api/v5/?quote_id=…` returns.                                      | Folds **one quote's** rows via `toQuoteTpSl`; auto-indexes each row's `quote_id` alias. A snapshot that does not evidence a pending write **holds** it instead of clearing it. |
+| `setRowsForSides(id, rows, sides)`    | The fallback sweep folds an account-scoped page.                             | `setRows` restricted to `sides`, without the `quote_id` aliasing — so a partial page cannot blank a side nobody asked about, or fuse two legs into one record.                 |
+| `markConfirming(id, side, patch?)`    | `useSetQuoteTpSl` / `useDeleteQuoteTpSl` / `useInstantOpenWithTpSl` succeed. | Sets that side's state to `"confirming"`; optional `patch` seeds `{ price, priceType, cohQuoteId }` and `intent` (`"write"` default, `"cancel"` for a delete).                 |
+| `applyNotification(id, notification)` | WS `report` frame arrives (`successful: true`).                              | Maps `notification.state` → `TpSlInfoState`; stamps `trigger_price` from `details` when present; clears fields on `canceled`.                                                  |
+| `clearConfirming(id, side)`           | A run stops waiting for the report.                                          | Drops the guard so the next `setRows` writes the handler's rows through unheld.                                                                                                |
+| `link(a, b)`                          | Solver notification anchors a pre-chain quote (temp ↔ on-chain).             | Both ids resolve to the same record; merges if two records existed.                                                                                                            |
 
 ### Selector
 
@@ -210,3 +212,105 @@ Anatomy of a "set TP/SL after instant open" round trip:
 4. **TP/SL WS `report`** (`successful: true`, `state: "new"`) — `applyNotification` sets `tpState: "new"`, confirms `trigger_price` from `details`. Panel renders `Active`.
 
 No REST call fires after the initial mount — the store + WS keep the record fresh.
+
+## Grouped TP/SL
+
+A merged positions row is several on-chain quotes, and the conditional-order handler takes **one signed request per quote** — there is no bulk endpoint. These four hooks make that fan-out safe: they read every leg through one shared cache, diff the desired state so only genuinely changed legs are written, and report per-leg progress.
+
+The pure math lives in [`@symmio/trading-core`](/core/tpsl/plan-group-tpsl) — these hooks only hold state and drive the network.
+
+### `useQuoteGroupTpSl`
+
+Read the folded TP/SL state of a grouped position.
+
+```tsx
+const { children, summary, orders, isLoading } = useQuoteGroupTpSl({ quotes: group.quotes });
+
+if (summary.isEmpty) return <span>Not set</span>;
+if (summary.takeProfit.display === "uniform") return <span>{summary.takeProfit.price}</span>;
+return <span>{summary.takeProfit.count} TP</span>;
+```
+
+`summary.takeProfit.coveragePercent` is **notional-weighted**, not a count ratio — see [`summarizeQuoteGroupTpSl`](/core/tpsl/summarize-quote-group-tpsl).
+
+Pass `overrides` to layer an edit buffer over the confirmed snapshots for a live readout while the trader types.
+
+### One socket, N queries
+
+- **One TanStack query per child**, keyed with the shared `getQuoteTpSlQueryKey`. A row that also renders the per-quote `useQuoteTpSl` therefore issues **one** request per quote, not two.
+- **One WebSocket subscription per distinct account**, not per child. The accounts default to the deduped `vaAddress ?? partyA` across the group's quotes — a grouped position can span Virtual Accounts, because the VA is not part of the group key. Pass `accounts` to override.
+- Every child writes into the same module-level TP/SL store, so a frame that arrives under a temp id still lands on a leg now addressed by its on-chain id.
+
+### `useQuoteGroupTpSlEditor`
+
+Owns the edit buffer behind a grouped editor: per-leg values, apply-to-all, live validation, and the live plan.
+
+```tsx
+const editor = useQuoteGroupTpSlEditor({ children, pricePrecision, referencePrice: markPrice, config });
+
+editor.applyToAll("tp", "150"); // one price across every leg
+editor.setChildSide(key, "sl", { triggerPrice: "80" }); // one leg only
+editor.clearSide("tp"); // queues deletes for the live orders
+
+editor.plan.sets.length; // legs that will actually be written
+editor.hasInvalid; // gate the submit
+editor.estimate.takeProfit; // signed return if every staged trigger fires
+```
+
+The plan is the authority on what gets submitted, not the buffer — `applyToAll` writes to every leg including ones the planner will later skip as unanchored or closed.
+
+### `useSetQuoteGroupTpSl`
+
+Write across the group, leg by leg.
+
+```tsx
+const { set, steps, progressPercent, status } = useSetQuoteGroupTpSl();
+
+const summary = await set({ children, desired: editor.desired, subAccount, pricePrecision });
+if (!summary.ok) showError(summary.error);
+```
+
+**Sequential by default** (`concurrency: 1`): every leg needs its own EIP-712 signature from the same wallet client, so firing them in parallel races the signer and, on a popup wallet, raises N prompts at once. Raise `concurrency` when signing with a session key.
+
+It executes **both** halves of the plan: a side you cleared becomes a cancel, a side with a new value becomes a write, and one leg can do both in the same run. Steps therefore carry a stable `id` and a `kind` (`"write" | "cancel" | "skip"`) — use `id` as your list key, not `key`.
+
+A step's lifecycle is `queued → submitting → confirming → done`. **`set()` waits for the handler's report** — it resolves only once every step is `done`, so awaiting it means the exits are real, not merely accepted. The report each step waits for is the transition it asked for: _live_ for a write, _gone_ for a cancel, so a shared socket cannot cross-confirm.
+
+Reports arrive on the **sub-account's** channel: a frame's `address` is the account the subscription was opened for, not the Virtual Account that owns the order — two quotes under different VAs carry the same `address`. So the run watches `subAccount` first and every VA its plan touches after, which costs one pooled subscription each and covers a deployment that reports there instead. Pass `notificationsAccounts` to override the pair entirely.
+
+The same applies to `useQuoteGroupTpSl`: **pass it `subAccount`**. Without it the hook hears only the VA channels, and a live TP/SL update lands whenever the next REST read happens to run rather than when the handler says so.
+
+### When the report never arrives
+
+The report gets the first **30 seconds** to itself (`fallbackPollDelayMs`). A socket that looks healthy is no guarantee a frame was delivered, so once that window closes without one, the run stops waiting and reads the handler directly via [`searchTpSlOrders`](/core/tpsl/search-tpsl-orders), every 2s (`fallbackPollIntervalMs`, `0` to disable), confirming from whichever signal arrives first.
+
+The delay is what keeps this a fallback rather than a second opinion: in the normal case the report lands in well under a second, the wait resolves, and **not a single sweep request is ever sent**.
+
+Once it does start, the sweep costs **one request per Virtual Account per tick**, never one per leg, and leases on the same account share a single loop and a single in-flight request; a set-run and a cancel-run confirming on the same VA cost one request between them. It is single-flight (a slow tick reschedules rather than stacking), backs off exponentially when the handler errors, and stops the moment nothing is waiting. It is owned by the wait itself rather than by a component, so closing the modal mid-run does not silence it.
+
+Two rules keep an account-wide page from doing damage. A **write** is only confirmed by evidence of the order that was submitted — a matching `coh_quote_id`, or a matching trigger price and price type — so a stale row for the order being replaced cannot report an edit as landed. A **cancel** is only confirmed when its specific `coh_quote_id` is absent from a page that is provably complete; a truncated response contributes positive rows only.
+
+`confirmationTimeoutMs` (default 60s) bounds the whole wait — 30s belonging to the report, then roughly fifteen sweeps. Only then does the step fail with `error.code === "TPSL_CONFIRMATION_TIMEOUT"` — distinct from a rejected request, and still counted in `submittedCount`. Until then the shared store keeps the side `"confirming"`, so a racing refetch cannot blank the price the trader just set.
+
+`confirming` outranks `partial`: a failure on one leg does not make the run terminal while another still awaits its report. `acceptedCount` counts steps the handler accepted, `confirmedCount` only those it reported back, and `progressPercent` moves on confirmations — not on acceptances. `retryFailed()` re-runs only the failed legs, merged onto the existing steps so successful ones keep their state, and re-diffed against fresh children so a leg that confirmed via a race is dropped.
+
+A rejected wallet signature stops the run by default rather than prompting for every remaining leg; pass `stopOnUserRejection: false` to opt out. `set()` never rejects — inspect the returned summary, including `stoppedByUser`.
+
+### `useDeleteQuoteGroupTpSl`
+
+Cancel across the group.
+
+```tsx
+const { deleteOrders, steps } = useDeleteQuoteGroupTpSl();
+await deleteOrders({ children, scope: "all" });
+```
+
+Bounded-parallel (4 at a time by default) with **no short-circuit** — one rejection fails only its own step. Each `cohQuoteId` comes from the leg's confirmed snapshot, never from an edit buffer, and sides that are still `"pending"` / `"confirming"` are excluded rather than raced.
+
+Like `set()`, `deleteOrders()` waits for the handler to report each order **gone** before resolving, subscribes to the targeted orders' Virtual Accounts, and honours the same `fallbackPollIntervalMs` sweep and `confirmationTimeoutMs` ceiling.
+
+## Related
+
+- [`planGroupTpSl`](/core/tpsl/plan-group-tpsl) — the diff planner these hooks run.
+- [`QuoteGroup`](/core/quotes/quote-group) — the grouped position being edited.
+- [`useGroupedQuotes`](/react/quotes#usegroupedquotes) — produces the groups.

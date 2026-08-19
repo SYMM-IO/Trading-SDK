@@ -31,9 +31,25 @@ function Tooltip(props: React.ComponentProps<typeof TooltipPrimitive.Root>) {
   );
 }
 
-/** The element that opens the {@link Tooltip} on hover/focus. Use `asChild` to wrap your own control. */
-function TooltipTrigger(props: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
+/** The element that opens the {@link Tooltip} on hover or keyboard focus. Use `asChild` to wrap your own control. */
+function TooltipTrigger({ onFocus, ...props }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
+  return (
+    <TooltipPrimitive.Trigger
+      data-slot="tooltip-trigger"
+      {...props}
+      onFocus={(event) => {
+        onFocus?.(event);
+        /**
+         * Radix opens on *any* focus, including programmatic focus. Popovers and
+         * dialogs auto-focus their first tabbable child on open, so a trigger
+         * sitting there would show its tooltip unprompted. Keep tooltips for real
+         * keyboard focus only — Radix skips its own handler once default is
+         * prevented.
+         */
+        if (!event.defaultPrevented && !event.currentTarget.matches(":focus-visible")) event.preventDefault();
+      }}
+    />
+  );
 }
 
 /** The floating tooltip bubble. Portaled to the body. */

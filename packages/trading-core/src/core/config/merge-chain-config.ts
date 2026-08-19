@@ -3,6 +3,7 @@ import type { DeepPartial } from "../../shared/types/properties";
 import {
   getChainConfig,
   listSupportedChains,
+  type SolverCapabilitiesConfig,
   type SolverId,
   type SymmioChainConfig,
   type SymmioNotificationsConfig,
@@ -216,6 +217,18 @@ function mergeSolver(
       "SOLVER_NOTIFICATIONS_REQUIRED",
       `createConfig: a new solver on chain ${chainId} added via symmioConfig must declare a \`notifications\` block — it is required per solver and there is no base to inherit it from.`,
     );
+  }
+
+  const overrideCapabilities = override.capabilities;
+  if (overrideCapabilities) {
+    merged.capabilities = {
+      ...(base?.capabilities ?? {}),
+      ...(overrideCapabilities as SolverCapabilitiesConfig),
+    };
+  } else if (base?.capabilities) {
+    merged.capabilities = base.capabilities;
+  } else {
+    delete merged.capabilities;
   }
 
   return merged;
