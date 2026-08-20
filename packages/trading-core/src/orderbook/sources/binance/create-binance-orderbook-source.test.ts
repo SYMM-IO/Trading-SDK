@@ -63,7 +63,16 @@ describe("createBinanceOrderbookSource — identity", () => {
     expect(BINANCE_DEPTH_WS_URL["usd-m-futures"]).toBe("wss://fstream.binance.com/public/stream");
     expect(BINANCE_DEPTH_WS_URL["usd-m-futures"]).not.toContain("/market/");
 
-    createBinanceOrderbookSource().watchOrderbook!({ marketName: "BTCUSDT", onOrderbook: () => {} });
+    /**
+     * The socket is injected because the route, not the runtime, is what this
+     * asserts — and `globalThis.WebSocket` only exists from Node 22 on, so
+     * leaning on it would fail on the Node 20 floor this package supports.
+     */
+    const fake = createFakeWebSocket();
+    createBinanceOrderbookSource({ webSocketConstructor: fake.WebSocket }).watchOrderbook!({
+      marketName: "BTCUSDT",
+      onOrderbook: () => {},
+    });
 
     expect(watchDepth).toHaveBeenCalledWith(
       expect.objectContaining({ wsUrl: "wss://fstream.binance.com/public/stream" }),

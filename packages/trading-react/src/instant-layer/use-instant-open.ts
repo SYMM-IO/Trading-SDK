@@ -13,7 +13,7 @@ import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
-import { predicateMatch } from "../utils";
+import { invalidateAccountBalances, predicateMatch } from "../utils";
 
 /**
  * Parameters for {@link useInstantOpen}.
@@ -79,6 +79,8 @@ export function useInstantOpen<K extends SymmioSolverKind = SymmioSolverKind>(
        */
       const configKey = config.getChainConfigKey(variables.chainId ?? chainId);
       void queryClient.invalidateQueries({ predicate: predicateMatch(getInstantOpensQueryKey, { configKey }) });
+      /** The open locks margin and charges a fee — every balance read on this chain is now suspect. */
+      invalidateAccountBalances(queryClient, { configKey });
     },
   });
 }

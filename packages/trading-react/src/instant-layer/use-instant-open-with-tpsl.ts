@@ -17,7 +17,7 @@ import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 import { useTpSlStore } from "../tpsl/tpsl-store";
-import { predicateMatch } from "../utils";
+import { invalidateAccountBalances, predicateMatch } from "../utils";
 
 /**
  * Parameters for {@link useInstantOpenWithTpSl}: the standard instant-open
@@ -106,6 +106,8 @@ export function useInstantOpenWithTpSl(
       // Refresh the instant-opens feed the moment the hedger accepts.
       const configKey = config.getChainConfigKey(resolvedChainId);
       void queryClient.invalidateQueries({ predicate: predicateMatch(getInstantOpensQueryKey, { configKey }) });
+      /** The open locks margin and charges a fee — every balance read on this chain is now suspect. */
+      invalidateAccountBalances(queryClient, { configKey });
 
       const wantsTpSl = Boolean(variables.tpsl && (variables.tpsl.tp || variables.tpsl.sl));
       if (!wantsTpSl || !openResult.tempQuoteId) {
