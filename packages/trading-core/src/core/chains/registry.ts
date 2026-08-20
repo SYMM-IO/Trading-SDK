@@ -95,6 +95,8 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
           url: "wss://stage-archon.rasa.capital/ws/position-state-ws3",
           protocol: "rasa",
         },
+        // Majors support LIMIT orders (pending open at a user-set price).
+        capabilities: { limitOrder: true },
       },
     },
     defaultSolverId: "rasa",

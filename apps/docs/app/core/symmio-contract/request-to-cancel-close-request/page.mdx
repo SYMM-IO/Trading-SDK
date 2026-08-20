@@ -1,0 +1,48 @@
+# requestToCancelCloseRequest
+
+Cancel a pending **close** — back out of a resting close (e.g. a limit close) while the quote is `CLOSE_PENDING`. The core `requestToCancelCloseRequest(quoteId)` is attributed to the subaccount, so it is encoded and routed through `AccountLayer._call(account, …)`; the connected wallet must be the subaccount's `owner` (no session key).
+
+If partyB accepts, the quote returns to `OPENED`. If partyB stalls, it enters `CANCEL_CLOSE_PENDING` and waits out the force-cancel-close cooldown before it can be finished with [`forceCancelCloseRequest`](/core/symmio-contract/force-cancel-close-request).
+
+```ts
+import { requestToCancelCloseRequest } from "@symmio/trading-core";
+
+const hash = await requestToCancelCloseRequest(config, { account: "0xsub…", quoteId: 42n });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The subaccount (partyA) that owns the quote. Routed through the AccountLayer `_call` proxy so the diamond sees this
+    subaccount as the caller.
+  </Property>
+  <Property name="quoteId" type="bigint" required>
+    The on-chain id of the `CLOSE_PENDING` quote whose close to cancel.
+  </Property>
+  <Property name="from" type="Address" optional>
+    Override the wallet address that signs. Defaults to the account's owner.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hash">The transaction hash.</Returns>
+
+## Mutation options
+
+```ts
+import { requestToCancelCloseRequestMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+useMutation(requestToCancelCloseRequestMutationOptions(config));
+```
+
+## Related
+
+- [React `useRequestToCancelCloseRequest`](/react/quotes#userequesttocancelcloserequest) — the hook wrapper.
+- [forceCancelCloseRequest](/core/symmio-contract/force-cancel-close-request) — finishes a stalled `CANCEL_CLOSE_PENDING` close.
+- [Cancel a close](/core/symmio-contract#cancel-a-close) — the full lifecycle.

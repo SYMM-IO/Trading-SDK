@@ -23,6 +23,8 @@ export const TEST_TYPED_SIGNATURE: Hex = `0x${"ab".repeat(65)}`;
 export interface MockConfigResult {
   config: Config;
   readContract: Mock;
+  /** Stub viem `multicall` — batched-read paths (e.g. `getPendingQuotes`) call this. */
+  multicall: Mock;
   writeContract: Mock;
   simulateContract: Mock;
   /** Stub EIP-712 signer — instant-layer write paths sign operations through this. */
@@ -47,11 +49,12 @@ export function mockConfig(options?: {
   webSocketConstructor?: WebSocketConstructor;
 }): MockConfigResult {
   const readContract = vi.fn().mockResolvedValue([]);
+  const multicall = vi.fn().mockResolvedValue([]);
   const writeContract = vi.fn().mockResolvedValue(TEST_TX_HASH);
   const simulateContract = vi.fn().mockResolvedValue({ result: undefined, request: {} });
   const signTypedData = vi.fn().mockResolvedValue(TEST_TYPED_SIGNATURE);
 
-  const publicClient = { readContract, simulateContract } as unknown as PublicClient;
+  const publicClient = { readContract, multicall, simulateContract } as unknown as PublicClient;
   const account = { address: TEST_USER, type: "json-rpc" } as Account;
   const walletClient = {
     account,
@@ -68,5 +71,5 @@ export function mockConfig(options?: {
     webSocketConstructor: options?.webSocketConstructor,
   });
 
-  return { config, readContract, writeContract, simulateContract, signTypedData };
+  return { config, readContract, multicall, writeContract, simulateContract, signTypedData };
 }

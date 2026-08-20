@@ -1,0 +1,48 @@
+# requestToCancelQuote
+
+Cancel a pending quote — how a partyA cancels a resting **LIMIT order**. The core `requestToCancelQuote(quoteId)` must be attributed to the subaccount, so it is encoded and routed through `AccountLayer._call(account, …)`; the connected wallet must be the subaccount's `owner` (no session key).
+
+A `PENDING` (unlocked) quote cancels instantly. A `LOCKED` quote (a partyB is committed) enters `CANCEL_PENDING` and waits out the force-cancel cooldown before it can be finished with [`forceCancelQuote`](/core/symmio-contract/force-cancel-quote).
+
+```ts
+import { requestToCancelQuote } from "@symmio/trading-core";
+
+const hash = await requestToCancelQuote(config, { account: "0xsub…", quoteId: 42n });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The subaccount (partyA) that owns the quote. The call is routed through the AccountLayer `_call` proxy so the
+    diamond sees this subaccount as the caller.
+  </Property>
+  <Property name="quoteId" type="bigint" required>
+    The on-chain id of the quote to cancel.
+  </Property>
+  <Property name="from" type="Address" optional>
+    Override the wallet address that signs. Defaults to the account's owner.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hash">The transaction hash.</Returns>
+
+## Mutation options
+
+```ts
+import { requestToCancelQuoteMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+useMutation(requestToCancelQuoteMutationOptions(config));
+```
+
+## Related
+
+- [React `useRequestToCancelQuote`](/react/quotes#userequesttocancelquote) — the hook wrapper.
+- [forceCancelQuote](/core/symmio-contract/force-cancel-quote) — finishes a stalled `CANCEL_PENDING` cancel.
+- [Cancel a quote](/core/symmio-contract#cancel-a-quote) — the full lifecycle.

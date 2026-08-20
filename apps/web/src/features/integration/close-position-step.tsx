@@ -9,8 +9,10 @@ import {
   SymmioRequestError,
   useFeeForUser,
   useInstantCloseAuto,
+  useLimitCloseAuto,
   useMarkets,
   usePriceByName,
+  useSupportsLimitOrder,
   useSymmioConfig,
   validateInstantCloseAgainstMarket,
   type CloseQuoteConstraintViolation,
@@ -108,8 +110,16 @@ export function ClosePositionStep({
   const [quantity, setQuantity] = useState("");
   const [slippage, setSlippage] = useState("5");
 
+  // A rasa (majors) solver can close as a resting LIMIT order at a user-set
+  // price; otherwise the close is always a market fill at mark ± slippage.
+  const supportsLimit = useSupportsLimitOrder({ solverId: resolvedSolverId });
+  const [orderType, setOrderType] = useState<"market" | "limit">("market");
+  const [limitPrice, setLimitPrice] = useState("");
+  const isLimit = supportsLimit && orderType === "limit";
+
   const validQuantity = parsePositiveNumber(quantity);
   const validSlippage = parsePositiveNumber(slippage);
+  const validLimitPrice = parsePositiveNumber(limitPrice);
 
   const cachedMarkPrice = priceQuery.markPrice ?? undefined;
   const remainingQuantityDecimal = useMemo(() => {
@@ -127,6 +137,10 @@ export function ClosePositionStep({
       pricePrecision: Number(market.pricePrecision ?? 0),
     });
   }, [market, cachedMarkPrice, validSlippage, position.positionType]);
+
+  // Price the previews use: the user's resting price for a limit close, else the
+  // slippage-adjusted market close price.
+  const previewClosePrice = isLimit ? (validLimitPrice !== undefined ? limitPrice : null) : closePrice;
 
   const exceedsRemaining = validQuantity !== undefined && validQuantity > Number(remainingQuantityDecimal);
 
@@ -154,14 +168,17 @@ export function ClosePositionStep({
   ]);
 
   const mutation = useInstantCloseAuto();
+  const limitMutation = useLimitCloseAuto();
+  const activeMutation = isLimit ? limitMutation : mutation;
+  const priceReady = isLimit ? validLimitPrice !== undefined : validSlippage !== undefined;
   const canSubmit = Boolean(
     market &&
     marketName &&
     validQuantity !== undefined &&
-    validSlippage !== undefined &&
+    priceReady &&
     !exceedsRemaining &&
     violations.length === 0 &&
-    !mutation.isPending,
+    !activeMutation.isPending,
   );
 
   // The mark price streams off a live socket (no manual refetch); refresh the
@@ -176,16 +193,31 @@ export function ClosePositionStep({
 
   async function handleSubmit() {
     if (!canSubmit || !market || !marketName) return;
+    const marketData = {
+      id: Number(market.symbolId ?? 0),
+      name: marketName,
+      pricePrecision: Number(market.pricePrecision ?? 0),
+      quantityPrecision: Number(market.quantityPrecision ?? 0),
+    };
+    if (isLimit) {
+      // LIMIT (majors): user-set resting close price, no slippage.
+      await limitMutation.mutateAsync({
+        partyA,
+        from: sessionKey,
+        solverId: resolvedSolverId,
+        market: marketData,
+        positionType: position.positionType,
+        quoteId: position.id,
+        quantityToClose: quantity,
+        price: limitPrice,
+      });
+      return;
+    }
     await mutation.mutateAsync({
       partyA,
       from: sessionKey,
       solverId: resolvedSolverId,
-      market: {
-        id: Number(market.symbolId ?? 0),
-        name: marketName,
-        pricePrecision: Number(market.pricePrecision ?? 0),
-        quantityPrecision: Number(market.quantityPrecision ?? 0),
-      },
+      market: marketData,
       positionType: position.positionType,
       quoteId: position.id,
       quantityToClose: quantity,
@@ -243,22 +275,73 @@ export function ClosePositionStep({
         />
       </Field>
 
-      <Field label="slippage (%)" htmlFor={`${idPrefix}-slippage`} hint="Percent tolerance — must be greater than 0.">
-        <Input
-          id={`${idPrefix}-slippage`}
-          value={slippage}
-          onChange={(event) => setSlippage(event.target.value.replace(/[^\d.]/g, ""))}
-          placeholder="5"
-          inputMode="decimal"
-          min={0}
-          aria-invalid={slippage.length > 0 && validSlippage === undefined}
-          data-testid={`${idPrefix}-slippage`}
-        />
-      </Field>
+      {supportsLimit ? (
+        <Field label="order type" hint="Market fills at mark; limit rests at a price you set.">
+          <div className="flex gap-2" data-testid={`${idPrefix}-order-type`}>
+            {(["market", "limit"] as const).map((type) => (
+              <Button
+                key={type}
+                type="button"
+                size="sm"
+                variant={orderType === type ? "default" : "outline"}
+                onClick={() => setOrderType(type)}
+                data-testid={`${idPrefix}-order-type-${type}`}
+                className="flex-1 capitalize"
+              >
+                {type}
+              </Button>
+            ))}
+          </div>
+        </Field>
+      ) : null}
 
-      {closePrice !== null ? (
+      {isLimit ? (
+        <Field
+          label="close price"
+          htmlFor={`${idPrefix}-limit-price`}
+          action={
+            <button
+              type="button"
+              disabled={cachedMarkPrice === undefined}
+              onClick={() => {
+                if (cachedMarkPrice !== undefined) setLimitPrice(String(cachedMarkPrice));
+              }}
+              data-testid={`${idPrefix}-limit-price-mark`}
+              className="text-muted-foreground hover:text-foreground text-xs font-medium tracking-wide uppercase transition-colors disabled:opacity-50"
+            >
+              Mark
+            </button>
+          }
+          hint="The resting price the close order fills at — no slippage."
+        >
+          <Input
+            id={`${idPrefix}-limit-price`}
+            value={limitPrice}
+            onChange={(event) => setLimitPrice(event.target.value.replace(/[^\d.]/g, ""))}
+            placeholder="0.00"
+            inputMode="decimal"
+            aria-invalid={limitPrice.length > 0 && validLimitPrice === undefined}
+            data-testid={`${idPrefix}-limit-price`}
+          />
+        </Field>
+      ) : (
+        <Field label="slippage (%)" htmlFor={`${idPrefix}-slippage`} hint="Percent tolerance — must be greater than 0.">
+          <Input
+            id={`${idPrefix}-slippage`}
+            value={slippage}
+            onChange={(event) => setSlippage(event.target.value.replace(/[^\d.]/g, ""))}
+            placeholder="5"
+            inputMode="decimal"
+            min={0}
+            aria-invalid={slippage.length > 0 && validSlippage === undefined}
+            data-testid={`${idPrefix}-slippage`}
+          />
+        </Field>
+      )}
+
+      {previewClosePrice !== null ? (
         <ClosePreview
-          closePrice={closePrice}
+          closePrice={previewClosePrice}
           markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
           quantity={validQuantity !== undefined ? String(validQuantity) : undefined}
           feeRates={feeQuery.data}
@@ -271,7 +354,7 @@ export function ClosePositionStep({
         quantity={validQuantity !== undefined ? String(validQuantity) : undefined}
         positionType={position.positionType}
         entry="close"
-        requestPrice={closePrice ?? undefined}
+        requestPrice={previewClosePrice ?? undefined}
         markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
         pricePrecision={Number(market?.pricePrecision ?? 2)}
         idPrefix={idPrefix}
@@ -287,11 +370,11 @@ export function ClosePositionStep({
         data-testid={`${idPrefix}-submit`}
         className="w-full"
       >
-        {mutation.isPending ? <Spinner className="size-4" /> : null}
-        {mutation.isPending ? "Submitting…" : "Close position"}
+        {activeMutation.isPending ? <Spinner className="size-4" /> : null}
+        {activeMutation.isPending ? "Submitting…" : isLimit ? "Place limit close" : "Close position"}
       </Button>
 
-      <SubmitStatus mutation={mutation} idPrefix={idPrefix} />
+      <SubmitStatus mutation={activeMutation} idPrefix={idPrefix} />
     </div>
   );
 }
@@ -416,7 +499,14 @@ function describeViolation(violation: CloseQuoteConstraintViolation): string {
   }
 }
 
-function SubmitStatus({ mutation, idPrefix }: { mutation: ReturnType<typeof useInstantCloseAuto>; idPrefix: string }) {
+function SubmitStatus({
+  mutation,
+  idPrefix,
+}: {
+  // Reads only `isPending` / `error` / `data` — accepts either the market or limit close mutation.
+  mutation: Pick<ReturnType<typeof useInstantCloseAuto>, "isPending" | "error" | "data">;
+  idPrefix: string;
+}) {
   if (mutation.isPending) {
     return (
       <ResultNote testId={`${idPrefix}-loading`} loading>

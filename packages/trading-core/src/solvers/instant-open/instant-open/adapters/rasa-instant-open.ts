@@ -43,7 +43,7 @@ export async function submitRasaInstantOpen(
     partyBsWhiteList: [solver.address],
     symbolId,
     positionType: parameters.positionType,
-    orderType: ORDER_TYPE_MARKET,
+    orderType: parameters.orderType ?? ORDER_TYPE_MARKET,
     price: parameters.order.price,
     quantity: parameters.order.quantity,
     cva: parameters.lockedParam.cva,

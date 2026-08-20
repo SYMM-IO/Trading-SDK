@@ -2,59 +2,28 @@ import type { PublicClient } from "viem";
 import { describe, expect, it } from "vitest";
 import { SymmioSupportedChainId } from "../core/chains/supported-chains";
 import { createConfig } from "../core/config";
-import { getSolverCapabilities, supportsGroupClose } from "./capabilities";
+import { getSolverCapabilities, supportsGroupClose, supportsLimitOrder } from "./capabilities";
 
-const AFFILIATE = "0x000000000000000000000000000000000000aFF1";
+/** The shipped registry (no overrides). */
+const config = createConfig({ getClient: () => ({}) as PublicClient, symmioConfig: {} });
+const HYPER = SymmioSupportedChainId.HYPER_EVM;
 const BASE = SymmioSupportedChainId.BASE;
 
-/** A chain with a capability-less rasa default and an explicit group-close-capable enigma. */
-const config = createConfig({
-  getClient: () => ({}) as PublicClient,
-  symmioConfig: {
-    [BASE]: {
-      addresses: { affiliatesAddress: AFFILIATE },
-      defaultSolverId: "rasa",
-      solvers: {
-        rasa: {
-          name: "Rasa",
-          address: AFFILIATE,
-          url: "https://rasa.test",
-          notifications: { url: "wss://rasa.test/ws", protocol: "rasa" },
-        },
-        enigma: {
-          name: "Enigma",
-          address: AFFILIATE,
-          url: "https://enigma.test",
-          tpsl: { url: "https://t", wsUrl: "wss://t", appName: "A", cohWalletAddress: AFFILIATE },
-          notifications: { url: "wss://enigma.test/ws", protocol: "enigma", channel: "c" },
-          capabilities: { groupClose: true },
-        },
-      },
-    },
-  },
-});
-
-describe("getSolverCapabilities / supportsGroupClose", () => {
-  it("defaults an unflagged solver (rasa) to no group close and no tpsl", () => {
-    expect(getSolverCapabilities(config, { chainId: BASE })).toEqual({ tpsl: false, groupClose: false });
-    expect(supportsGroupClose(config, { chainId: BASE })).toBe(false);
+describe("getSolverCapabilities / supportsGroupClose / supportsLimitOrder", () => {
+  it("HyperEVM enigma: group close, no limit orders", () => {
+    expect(getSolverCapabilities(config, { chainId: HYPER })).toEqual({ groupClose: true, limitOrder: false });
+    expect(supportsGroupClose(config, { chainId: HYPER })).toBe(true);
+    expect(supportsLimitOrder(config, { chainId: HYPER })).toBe(false);
   });
 
-  it("reads groupClose + tpsl from the solver config (enigma)", () => {
-    expect(getSolverCapabilities(config, { chainId: BASE, solverId: "enigma" })).toEqual({
-      tpsl: true,
-      groupClose: true,
-    });
-    expect(supportsGroupClose(config, { chainId: BASE, solverId: "enigma" })).toBe(true);
+  it("Base rasa: limit orders, no group close", () => {
+    expect(getSolverCapabilities(config, { chainId: BASE })).toEqual({ groupClose: false, limitOrder: true });
+    expect(supportsGroupClose(config, { chainId: BASE })).toBe(false);
+    expect(supportsLimitOrder(config, { chainId: BASE })).toBe(true);
   });
 
   it("returns all-false (never throws) for an unknown chain", () => {
-    expect(getSolverCapabilities(config, { chainId: 1 })).toEqual({ tpsl: false, groupClose: false });
-    expect(supportsGroupClose(config, { chainId: 1 })).toBe(false);
-  });
-
-  it("has group close enabled on the built-in enigma (HyperEVM) registry entry", () => {
-    const registryConfig = createConfig({ getClient: () => ({}) as PublicClient, symmioConfig: {} });
-    expect(supportsGroupClose(registryConfig, { chainId: SymmioSupportedChainId.HYPER_EVM })).toBe(true);
+    expect(getSolverCapabilities(config, { chainId: 1 })).toEqual({ groupClose: false, limitOrder: false });
+    expect(supportsLimitOrder(config, { chainId: 1 })).toBe(false);
   });
 });

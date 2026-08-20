@@ -48,8 +48,12 @@ describe("isPendingOrder / isActivePosition (off-chain, no status yet)", () => {
     expect(isActivePosition(quote)).toBe(false);
   });
 
-  it("treats an off-chain CLOSING row as an active position", () => {
-    const quote = makeUnifiedQuote({ origin: "offchain", lifecycle: QuoteLifecycle.CLOSING, quoteStatus: undefined });
+  it("treats an in-flight close row (WRITE_ONCHAIN_CLOSE) as an active position", () => {
+    const quote = makeUnifiedQuote({
+      origin: "offchain",
+      lifecycle: QuoteLifecycle.WRITE_ONCHAIN_CLOSE,
+      quoteStatus: undefined,
+    });
     expect(isActivePosition(quote)).toBe(true);
     expect(isPendingOrder(quote)).toBe(false);
   });

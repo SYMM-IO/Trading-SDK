@@ -58,9 +58,9 @@ export function isPendingOrder(quote: UnifiedQuote): boolean {
  * after a `SendQuoteTransaction` notification anchors the row but before the
  * on-chain poll has returned its full struct — without it the row would drop out of
  * the grouped view for a tick. Any closing-stage row (`OPTIMISTIC_CLOSE` /
- * `CLOSE_PRICE_FILLED` / `WRITE_ONCHAIN_CLOSE` / `CLOSING`) is always active;
- * terminal rows (`CLOSED` / `CANCELED` / `EXPIRED` / `LIQUIDATED`, or an off-chain
- * `FAILED`) are neither.
+ * `CLOSE_PRICE_FILLED` / `WRITE_ONCHAIN_CLOSE`) is always active; terminal rows
+ * (`CLOSED` / `CANCELED` / `EXPIRED` / `LIQUIDATED`, or an off-chain `FAILED`) are
+ * neither.
  *
  * Mutually exclusive with {@link isPendingOrder}.
  *
@@ -78,7 +78,6 @@ export function isActivePosition(quote: UnifiedQuote): boolean {
     case QuoteLifecycle.OPTIMISTIC_CLOSE:
     case QuoteLifecycle.CLOSE_PRICE_FILLED:
     case QuoteLifecycle.WRITE_ONCHAIN_CLOSE:
-    case QuoteLifecycle.CLOSING:
       return true;
     default:
       return false;

@@ -15,24 +15,25 @@ const EMPTY_LOCKED_VALUES: LockedValues = {
 };
 
 /**
- * Map an on-chain {@link QuoteStatus} to a {@link QuoteLifecycle}. Open and
- * pending statuses stay `ONCHAIN`; a pending close becomes `CLOSING`; a fully
- * closed/cancelled/expired quote becomes `CLOSED`.
+ * Map an on-chain {@link QuoteStatus} to a {@link QuoteLifecycle}. Every
+ * non-terminal on-chain status (including `CLOSE_PENDING` /
+ * `CANCEL_CLOSE_PENDING`) is `ONCHAIN` — lifecycle tracks the write progression,
+ * not the close status; a fully closed/cancelled/expired quote is `CLOSED`, a
+ * liquidated one `FAILED`.
  *
  * @param status - The on-chain quote status.
  * @returns The lifecycle stage to surface for an anchored row.
  */
 export function lifecycleFromQuoteStatus(status: QuoteStatus): QuoteLifecycle {
   switch (status) {
-    case QuoteStatus.CLOSE_PENDING:
-    case QuoteStatus.CANCEL_CLOSE_PENDING:
-      return QuoteLifecycle.CLOSING;
     case QuoteStatus.CLOSED:
     case QuoteStatus.CANCELED:
     case QuoteStatus.EXPIRED:
       return QuoteLifecycle.CLOSED;
     case QuoteStatus.LIQUIDATED:
       return QuoteLifecycle.FAILED;
+    // Anything on-chain and non-terminal (OPENED, CLOSE_PENDING,
+    // CANCEL_CLOSE_PENDING, …) is ONCHAIN — read `quoteStatus` for the detail.
     default:
       return QuoteLifecycle.ONCHAIN;
   }
@@ -169,7 +170,7 @@ export function toUnifiedQuoteFromInstantClose(
   return {
     key: `onchain:${pending.quoteId}`,
     origin: "onchain",
-    lifecycle: QuoteLifecycle.CLOSING,
+    lifecycle: QuoteLifecycle.WRITE_ONCHAIN_CLOSE,
     quoteId: pending.quoteId,
     partyA: context.partyA,
     symbolId: context.symbolId,

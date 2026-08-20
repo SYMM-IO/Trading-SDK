@@ -17,8 +17,11 @@ export type QuoteOrigin = "onchain" | "offchain";
  * The stage of a quote's lifecycle as tracked across the on-chain + off-chain
  * merge. Drives row styling and polling acceleration in the consumer.
  *
- * The off-chain stages (`OPTIMISTIC`, `PRICE_FILLED`) and the transient `CLOSING`
- * stage are SDK-side overlays — they do not exist on the on-chain
+ * Lifecycle tracks the **write progression** (off-chain → on-chain), not the
+ * on-chain status: once a quote is on-chain it is `ONCHAIN` whether it is
+ * `OPENED` or `CLOSE_PENDING` — read {@link UnifiedQuote.quoteStatus} for that
+ * distinction. The off-chain stages (`OPTIMISTIC*`, `*PRICE_FILLED`,
+ * `WRITE_ONCHAIN*`) are SDK-side overlays that do not exist on the on-chain
  * {@link QuoteStatus}; reconciliation assigns them from notifications and hedger
  * records.
  */
@@ -50,15 +53,15 @@ export enum QuoteLifecycle {
    */
   CLOSE_PRICE_FILLED = "close-price-filled",
   /**
-   * The close fill (`FillMarketOrderInstantClose`) was reported, or a pending
-   * instant-close overlays the row while the on-chain status still shows the
-   * position open — the close is being "written on-chain", awaiting the RPC. The
-   * close-side analog of {@link QuoteLifecycle.WRITE_ONCHAIN}. Resolves to
-   * {@link QuoteLifecycle.CLOSING} when the on-chain status reflects the pending close.
+   * The close fill (`FillMarketOrderInstantClose`) or the limit-close anchor
+   * (`InstantRequestToLimitClose`) was reported, or a pending instant-close
+   * overlays the row while the on-chain status still shows the position open — the
+   * close is being "written on-chain", awaiting the RPC. The close-side analog of
+   * {@link QuoteLifecycle.WRITE_ONCHAIN}. Resolves to {@link QuoteLifecycle.ONCHAIN}
+   * once the on-chain read returns the quote (now `CLOSE_PENDING`); read
+   * {@link UnifiedQuote.quoteStatus} to see the close is pending.
    */
   WRITE_ONCHAIN_CLOSE = "write-onchain-close",
-  /** The close is confirmed pending on-chain — on-chain `CLOSE_PENDING` / `CANCEL_CLOSE_PENDING`. */
-  CLOSING = "closing",
   /** The position is fully closed. */
   CLOSED = "closed",
   /** A hedger or notification reported the open/close failed. */

@@ -91,10 +91,11 @@ const OPEN_INTENT_LIFECYCLES = new Set<QuoteLifecycle>([
 
 /**
  * Lifecycle stages that mean a close is in flight, so the hedger instant-closes
- * feed is worth polling. Outside these stages there is no pending close, so
- * polling the feed (merely holding open positions) is wasted.
+ * feed is worth polling. Outside these stages there is no in-flight close (the
+ * close has either not started or already landed on-chain, where the feed drops
+ * it and the close-confirm hold takes over), so polling the feed is wasted.
  */
-const CLOSE_INTENT_LIFECYCLES = new Set<QuoteLifecycle>([QuoteLifecycle.WRITE_ONCHAIN_CLOSE, QuoteLifecycle.CLOSING]);
+const CLOSE_INTENT_LIFECYCLES = new Set<QuoteLifecycle>([QuoteLifecycle.WRITE_ONCHAIN_CLOSE]);
 
 /**
  * Which underlying quote sources {@link useManagedQuotes} should read. Every

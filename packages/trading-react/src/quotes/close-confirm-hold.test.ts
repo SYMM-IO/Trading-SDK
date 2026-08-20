@@ -1,4 +1,4 @@
-import { QuoteLifecycle, type UnifiedQuote } from "@symmio/trading-core";
+import { QuoteLifecycle, QuoteStatus, type UnifiedQuote } from "@symmio/trading-core";
 import { describe, expect, it } from "vitest";
 import { isCloseConfirmedOnchain, nextCloseConfirmDelay, pruneCloseConfirmHold } from "./close-confirm-hold";
 
@@ -22,8 +22,9 @@ describe("isCloseConfirmedOnchain", () => {
     expect(isCloseConfirmedOnchain(makeUnified({ quantity: 10n, closedAmount: 5n }))).toBe(false);
   });
 
-  it("is true once the status reflects the close (CLOSING / CLOSED)", () => {
-    expect(isCloseConfirmedOnchain(makeUnified({ lifecycle: QuoteLifecycle.CLOSING }))).toBe(true);
+  it("is true once the status reflects the close (CLOSE_PENDING status / CLOSED lifecycle)", () => {
+    expect(isCloseConfirmedOnchain(makeUnified({ quoteStatus: QuoteStatus.CLOSE_PENDING }))).toBe(true);
+    expect(isCloseConfirmedOnchain(makeUnified({ quoteStatus: QuoteStatus.CANCEL_CLOSE_PENDING }))).toBe(true);
     expect(isCloseConfirmedOnchain(makeUnified({ lifecycle: QuoteLifecycle.CLOSED }))).toBe(true);
   });
 

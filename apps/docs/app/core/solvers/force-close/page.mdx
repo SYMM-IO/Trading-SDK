@@ -1,0 +1,109 @@
+import { Callout } from "nextra/components";
+
+# Force Close
+
+When a partyA has requested to close a **LIMIT** position but the hedger (partyB) never filled it, after cooldowns the partyA can **force** it closed at a Muon-oracle-attested price. The SDK wraps the whole flow behind one function that takes just a `quoteId`.
+
+Force close applies only to a `CLOSE_PENDING` `LIMIT` position and is a majors / [Rasa](../../concepts/solvers-and-chains) feature. It routes `forceClosePosition` through the AccountLayer `_call` proxy (the sub-account's `owner` signs).
+
+## When to use it — the scenario
+
+Force close is the **escape hatch for an unresponsive hedger**. A partyB may be offline, degraded, or simply not filling your close — the position is stuck `CLOSE_PENDING` with no counterparty. Force close lets you exit at an oracle price **without** the hedger, once the protocol cooldowns have passed.
+
+The recommended flow is a two-step "request, then force":
+
+1. **Send a limit close at a price _worse_ than the current market** — a **lower** requested close price for a LONG (you're selling), a **higher** one for a SHORT — via [`limitCloseAuto`](/core/solvers/instant-close#limitcloseauto) / [`useLimitCloseAuto`](/react/solvers/instant-close#uselimitcloseauto). Setting a worse-than-market price makes the [force-close price condition](#pure-helpers) trivially satisfiable: the market has already traded through your price, so step 3 is never blocked by `FORCE_CLOSE_PRICE_NOT_REACHED`.
+2. **Wait for a valid price window.** The quote sits `CLOSE_PENDING` until a signable Muon window exists — `now ≥ statusModifyTimestamp + firstCooldown + secondCooldown + minSigPeriod` (the window `[statusModifyTimestamp + firstCooldown, now - secondCooldown]` must be at least `minSigPeriod` long) — and still before `deadline - secondCooldown`, else the request expires (cancel and retry). [`useForceCloseEligibility`](/react/quotes#useforcecloseeligibility) counts this down and only enables the button then, so the price fetch never fires against an empty window.
+3. **Force close** with `forceCloseAuto` / [`useForceClose`](/react/quotes#useforceclose). The Muon oracle attests the price window; because you set a worse price, the gap check clears.
+
+<Callout type="info">
+  **You don't actually eat the worse price.** The execution price is bounded by the oracle **average**, not your
+  intentionally-conservative limit: `max(R × (1 + penalty), averagePrice)` for a LONG, `min(R × (1 - penalty),
+  averagePrice)` for a SHORT (see [`previewForceClosePrice`](#pure-helpers)). So the requested price only gates
+  _eligibility_ — the close still executes near the market average.
+</Callout>
+
+## Import
+
+```ts
+import {
+  forceCloseAuto,
+  forceClosePosition,
+  getForceCloseParams,
+  checkForceCloseEligibility,
+  findForceCloseWindow,
+  checkForceClosePriceReached,
+  previewForceClosePrice,
+  type ForceCloseParams,
+  type ForceCloseEligibility,
+} from "@symmio/trading-core";
+```
+
+## `forceCloseAuto`
+
+The one-call, end-to-end flow — pass a `quoteId`, get a tx hash:
+
+```ts
+const hash = await forceCloseAuto(config, { account: "0xsub…", quoteId: 42n });
+```
+
+Under the hood it:
+
+1. reads the quote (`getQuote`) + the protocol force-close params (`getForceCloseParams`, one multicall);
+2. gates on eligibility (`checkForceCloseEligibility`) — throws `FORCE_CLOSE_NOT_ELIGIBLE` (`not-close-pending` / `not-limit` / `cooldown` / `expired`);
+3. fetches reference-exchange (Binance) candles over the valid window and finds a bar where the price reached the force-close level (`findForceCloseWindow`) → the Muon time window; throws `FORCE_CLOSE_PRICE_NOT_REACHED` when none qualifies;
+4. fetches the Muon [`HighLowPriceSig`](/core/muon/force-close-price-sig) for that window (`getForceClosePriceSig`);
+5. preflights the on-chain gap check (`checkForceClosePriceReached`) — throws `FORCE_CLOSE_PRICE_NOT_REACHED` if the sig doesn't clear the gap;
+6. sends `forceClosePosition(quoteId, sig)`.
+
+<Callout type="info">
+  **Cross-mode partyB** is out of scope for now. A partyB running cross-margin settlement reverts `ForceActionsFacet:
+  Cross partyB mode enabled` on the single call; the 3-step `initializeForceClose` / `finalizeForceClose` flow is a
+  follow-up. Rasa's hedger is non-cross.
+</Callout>
+
+## `getForceCloseParams`
+
+Reads the protocol force-close params for a market in one multicall — the inputs to the gate and the price checks:
+
+```ts
+const { firstCooldown, secondCooldown, pricePenalty, minSigPeriod, gapRatio } = await getForceCloseParams(config, {
+  symbolId: 1n,
+});
+```
+
+| Field            | Meaning                                                                     |
+| ---------------- | --------------------------------------------------------------------------- |
+| `firstCooldown`  | Seconds after `statusModifyTimestamp` before a force close is allowed.      |
+| `secondCooldown` | The sig window must end this far before `now`, and `now` before `deadline`. |
+| `pricePenalty`   | Penalty applied to the requested close price (1e18).                        |
+| `minSigPeriod`   | Minimum Muon signature window length (seconds).                             |
+| `gapRatio`       | Per-symbol gap the market must exceed the requested price by (1e18).        |
+
+## Pure helpers
+
+Framework-free, no network — reuse them to build a custom flow or a UI gate:
+
+- **`checkForceCloseEligibility({ quote, firstCooldown, secondCooldown, minSigPeriod, now })`** → `{ eligible, reason?, cooldownRemaining }`. The button gate + countdown. The cooldown clears only once a valid window exists (`firstCooldown + secondCooldown + minSigPeriod`), so it never enables the flow during the empty-window gap.
+- **`findForceCloseWindow({ quote, candles, gapRatio, firstCooldown, secondCooldown, now, intervalMs })`** → `{ t0, t1 } | null`. Scans candles for the first in-window bar that reached the price (ported from Vibe-ui).
+- **`checkForceClosePriceReached({ sig, positionType, requestedClosePrice, gapRatio })`** → `boolean`. Exact on-chain preflight: LONG needs `highest ≥ R×(1+gap)`, SHORT `lowest ≤ R×(1-gap)`.
+- **`previewForceClosePrice({ sig, positionType, requestedClosePrice, pricePenalty })`** → `bigint`. LONG `max(R×(1+pen), avg)`, SHORT `min(R×(1-pen), avg)`.
+
+## `forceClosePosition`
+
+The low-level single write, for callers that already have the Muon sig (`forceCloseAuto` calls it last):
+
+```ts
+const hash = await forceClosePosition(config, { account: "0xsub…", quoteId: 42n, sig });
+```
+
+## Query / Mutation options
+
+- `getForceCloseParamsQueryOptions(config, { symbolId })` — TanStack query bag.
+- `forceCloseAutoMutationOptions(config)` / `forceClosePositionMutationOptions(config)` — TanStack mutation bags.
+
+## Related
+
+- [React `useForceClose`](/react/quotes#useforceclose) — the hook wrapper (+ `useForceCloseEligibility` for the gate).
+- [Muon `getForceClosePriceSig`](/core/muon/force-close-price-sig) — the `HighLowPriceSig` attestation.
+- [Cancel a close](/core/symmio-contract#cancel-a-close) — the other way out of a `CLOSE_PENDING`.

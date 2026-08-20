@@ -12,6 +12,10 @@ export { PositionType };
 
 /** Contract enum value for MARKET orders. */
 export const ORDER_TYPE_MARKET = 1 as const;
+/** Contract enum value for LIMIT orders (majors / rasa only). */
+export const ORDER_TYPE_LIMIT = 0 as const;
+/** Order type sent to the hedger: `ORDER_TYPE_MARKET` (instant) or `ORDER_TYPE_LIMIT`. */
+export type SolverOrderType = typeof ORDER_TYPE_MARKET | typeof ORDER_TYPE_LIMIT;
 
 /**
  * Virtual-account isolation type values used by `addMarginToNextVA`.

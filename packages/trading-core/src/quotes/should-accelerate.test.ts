@@ -17,7 +17,6 @@ const ACCELERATING = [
   QuoteLifecycle.OPTIMISTIC_CLOSE,
   QuoteLifecycle.CLOSE_PRICE_FILLED,
   QuoteLifecycle.WRITE_ONCHAIN_CLOSE,
-  QuoteLifecycle.CLOSING,
 ];
 
 /**
@@ -56,14 +55,14 @@ describe("shouldAccelerateQuotePolling", () => {
   });
 
   /**
-   * `.some()` short-circuits on the first transitioning row: a single CLOSING
-   * row buried among otherwise-settled rows must still flip polling to fast.
+   * `.some()` short-circuits on the first transitioning row: a single in-flight
+   * close row buried among otherwise-settled rows must still flip polling to fast.
    */
   it("returns true when one transitioning row sits among several settled rows", () => {
     const result = makeResult([
       QuoteLifecycle.ONCHAIN,
       QuoteLifecycle.CLOSED,
-      QuoteLifecycle.CLOSING,
+      QuoteLifecycle.WRITE_ONCHAIN_CLOSE,
       QuoteLifecycle.FAILED,
     ]);
     expect(shouldAccelerateQuotePolling(result)).toBe(true);
@@ -76,7 +75,7 @@ describe("shouldAccelerateQuotePolling", () => {
 });
 
 /** Stages that await an on-chain confirmation — the only ones that accelerate on-chain reads. */
-const ONCHAIN_ACCELERATING = [QuoteLifecycle.WRITE_ONCHAIN, QuoteLifecycle.WRITE_ONCHAIN_CLOSE, QuoteLifecycle.CLOSING];
+const ONCHAIN_ACCELERATING = [QuoteLifecycle.WRITE_ONCHAIN, QuoteLifecycle.WRITE_ONCHAIN_CLOSE];
 
 /** Stages that must NOT accelerate on-chain reads (off-chain in-flight, or settled). */
 const ONCHAIN_NON_ACCELERATING = [
