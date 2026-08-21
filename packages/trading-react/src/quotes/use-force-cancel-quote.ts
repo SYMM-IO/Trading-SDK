@@ -5,6 +5,7 @@ import {
   getPartyAOpenPositionsQueryKey,
   getPartyAPendingQuotesQueryKey,
   getPendingQuotesQueryKey,
+  getQuoteQueryKey,
   type ForceCancelQuoteParameters,
 } from "@symmio/trading-core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
@@ -13,7 +14,7 @@ import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 import { resolveWriteResult, type WriteParameters, type WriteResult } from "../transactions";
-import { predicateMatch } from "../utils";
+import { invalidateAccountBalances, predicateMatch } from "../utils";
 
 /** Parameters for {@link useForceCancelQuote}. */
 export type UseForceCancelQuoteParameters = WriteParameters;
@@ -72,12 +73,24 @@ export function useForceCancelQuote(parameters: UseForceCancelQuoteParameters = 
     },
     onSuccess: (_result, variables) => {
       // The force-cancelled quote leaves the pending set — refetch the pending
-      // reads (full quotes + ids) and the open positions for this partyA after the
+      // reads (full quotes + ids), the open positions for this partyA, and the
+      // quote's own `getQuote` hydration (the read carrying `quoteStatus`) after the
       // receipt, so managed-quotes drops the now-terminal quote.
       const partial = { partyA: variables.account };
       void queryClient.invalidateQueries({ predicate: predicateMatch(getPendingQuotesQueryKey, partial) });
       void queryClient.invalidateQueries({ predicate: predicateMatch(getPartyAPendingQuotesQueryKey, partial) });
       void queryClient.invalidateQueries({ predicate: predicateMatch(getPartyAOpenPositionsQueryKey, partial) });
+      void queryClient.invalidateQueries({
+        predicate: predicateMatch(getQuoteQueryKey, { quoteId: variables.quoteId }),
+      });
+      /**
+       * A force-cancel refunds the open trading fee and releases both parties'
+       * pending locked balances in the same transaction, so every balance read is now
+       * stale.
+       */
+      invalidateAccountBalances(queryClient, {
+        configKey: config.getChainConfigKey(variables.chainId ?? chainId),
+      });
     },
   });
 }

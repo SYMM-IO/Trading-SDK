@@ -5,6 +5,7 @@ import { NotificationType, type Notification } from "../websocket/notifications/
 import {
   applyNotificationToQuotes,
   classifyQuoteNotificationAction,
+  isCancelAction,
   isCloseFillAction,
   isOpenAnchorAction,
 } from "./apply-notification";
@@ -244,6 +245,43 @@ describe("classifyQuoteNotificationAction", () => {
   it("classifies unknown or missing actions as other", () => {
     expect(classifyQuoteNotificationAction("SomethingElse")).toBe("other");
     expect(classifyQuoteNotificationAction(undefined)).toBe("other");
+  });
+
+  it("classifies cancel actions as other (the chain, not the frame, decides a cancel)", () => {
+    expect(classifyQuoteNotificationAction("RequestToCancelQuote")).toBe("other");
+    expect(classifyQuoteNotificationAction("AcceptCancelRequest")).toBe("other");
+  });
+});
+
+describe("a cancel notification", () => {
+  it("leaves the matched row untouched — only the on-chain read may end a cancelled quote", () => {
+    const row = makeRow({ lifecycle: QuoteLifecycle.ONCHAIN });
+    const next = applyNotificationToQuotes(
+      [row],
+      makeCloseNotification({ lastSeenAction: "RequestToCancelQuote", quoteId: "7293" }),
+    );
+    expect(next[0]).toEqual(row);
+  });
+});
+
+describe("isCancelAction", () => {
+  it("is true for the observed cancel-request action", () => {
+    expect(isCancelAction("RequestToCancelQuote")).toBe(true);
+  });
+
+  it("is true for the other cancel paths the contract exposes", () => {
+    expect(isCancelAction("AcceptCancelRequest")).toBe(true);
+    expect(isCancelAction("ForceCancelQuote")).toBe(true);
+    expect(isCancelAction("ExpireQuote")).toBe(true);
+  });
+
+  it("is false for open, close, and unknown actions", () => {
+    expect(isCancelAction("SendQuoteTransaction")).toBe(false);
+    expect(isCancelAction("InstantRequestToClosePosition")).toBe(false);
+    expect(isCancelAction("RequestToCancelCloseRequest")).toBe(false);
+    expect(isCancelAction("SomethingElse")).toBe(false);
+    expect(isCancelAction(null)).toBe(false);
+    expect(isCancelAction(undefined)).toBe(false);
   });
 });
 

@@ -1,8 +1,20 @@
-import { getChainConfig, SymmioSupportedChainId } from "@symmio/trading-core";
+import {
+  getAccountBalanceInfoQueryKey,
+  getAccountBalanceOfQueryKey,
+  getChainConfig,
+  getQuoteQueryKey,
+  SymmioSupportedChainId,
+} from "@symmio/trading-core";
+import type { Query, QueryKey } from "@tanstack/react-query";
 import { act, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
-import { describe, expect, it } from "vitest";
-import { createMockSymmioConfig, renderHookWithProviders, TEST_TX_HASH } from "../test/test-utils";
+import { describe, expect, it, vi } from "vitest";
+import {
+  createMockSymmioConfig,
+  createTestQueryClient,
+  renderHookWithProviders,
+  TEST_TX_HASH,
+} from "../test/test-utils";
 import { useRequestToCancelQuote } from "./use-request-to-cancel-quote";
 
 const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
@@ -62,5 +74,36 @@ describe("useRequestToCancelQuote", () => {
 
     expect(res).toEqual({ hash: TEST_TX_HASH, receipt: { status: "success" } });
     expect(waitForTransactionReceipt).toHaveBeenCalledWith({ hash: TEST_TX_HASH, confirmations: 1 });
+  });
+
+  it("invalidates the subaccount balance reads for the active config on success", async () => {
+    const { config, writeContract, waitForTransactionReceipt } = createMockSymmioConfig();
+    writeContract.mockResolvedValueOnce(TEST_TX_HASH);
+    waitForTransactionReceipt.mockResolvedValueOnce({ status: "success" });
+    const queryClient = createTestQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHookWithProviders(() => useRequestToCancelQuote({ config }), { queryClient });
+
+    await act(async () => {
+      await result.current.mutateAsync({ account: SUB_ACCOUNT, quoteId: QUOTE_ID });
+    });
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalled());
+    const configKey = config.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM);
+    /** Run every predicate the mutation handed to `invalidateQueries` against one key. */
+    const matches = (key: QueryKey) =>
+      invalidate.mock.calls.some(([filters]) => {
+        const { predicate } = filters as { predicate: (q: Query) => boolean };
+        return predicate({ queryKey: key } as Query<unknown, Error, unknown, QueryKey>);
+      });
+
+    /** A cancel refunds the open trading fee and releases the reserved margin. */
+    expect(matches(getAccountBalanceOfQueryKey({ configKey, account: SUB_ACCOUNT }))).toBe(true);
+    expect(matches(getAccountBalanceInfoQueryKey({ configKey, account: SUB_ACCOUNT }))).toBe(true);
+    /** The read carrying `quoteStatus` — without it the row keeps its pre-cancel status. */
+    expect(matches(getQuoteQueryKey({ configKey, quoteId: QUOTE_ID }))).toBe(true);
+    /** Another chain config's balances must survive. */
+    expect(matches(getAccountBalanceOfQueryKey({ configKey: "other", account: SUB_ACCOUNT }))).toBe(false);
   });
 });

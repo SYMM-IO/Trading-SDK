@@ -39,6 +39,7 @@ The orchestrator. Handles:
 3. **Reconciliation** — merges every source via `reconcileQuotes` with the `useOptimisticQuotesStore` ledger.
 4. **Polling acceleration** — switches to a tighter interval (~1.5 s) while any row is mid-transition (`shouldAccelerate(quotes) === true`); otherwise idles at ~5 s.
 5. **Invalidation on notification** — debounces + invalidates the on-chain reads so the next poll returns fresh data.
+6. **Confirm holds** — after a frame that reports a change the chain has not shown yet, re-reads on a doubling backoff until it has. Covers an open **anchor** (the solver emits it when it _broadcasts_ the transaction, so the one invalidation it triggers loses the race), a close **fill** (the quote lingers `OPENED` while the settle lags), and a **cancel** request — the case with no second frame at all, since the solver's `acceptCancelRequest` is never announced. Each hold releases itself the moment the chain catches up. While a cancel hold is live the balance reads are re-read too, since the accept is what returns the fee and the reserved margin.
 
 ```tsx
 const managed = useManagedQuotes({
@@ -93,13 +94,13 @@ Limit orders are a majors / [Rasa](/react/rasa-solver) feature (cross-margin), s
 
 ### Parameters
 
-| Name        | Type         | Default           | Notes                                                          |
-| ----------- | ------------ | ----------------- | -------------------------------------------------------------- |
-| `partyA`    | `Address?`   | —                 | SubAccount whose orders to read. No reads until it is set.     |
-| `live`      | `boolean?`   | `true`            | Subscribe to notifications; burst-refetch on the anchor frame. |
-| `orderType` | `OrderType?` | `OrderType.LIMIT` | Which order type to return.                                    |
-| `chainId`   | `number?`    | config default    | Optional chain override.                                       |
-| `query`     | object       | —                 | TanStack overrides (`enabled`, `refetchInterval`).             |
+| Name        | Type         | Default           | Notes                                                                   |
+| ----------- | ------------ | ----------------- | ----------------------------------------------------------------------- |
+| `partyA`    | `Address?`   | —                 | SubAccount whose orders to read. No reads until it is set.              |
+| `live`      | `boolean?`   | `true`            | Subscribe to notifications; burst-refetch on an anchor or cancel frame. |
+| `orderType` | `OrderType?` | `OrderType.LIMIT` | Which order type to return.                                             |
+| `chainId`   | `number?`    | config default    | Optional chain override.                                                |
+| `query`     | object       | —                 | TanStack overrides (`enabled`, `refetchInterval`).                      |
 
 ### Return type
 
@@ -125,11 +126,20 @@ PENDING ──requestToCancelQuote──▶ CANCELED (instant)
 LOCKED  ──requestToCancelQuote──▶ CANCEL_PENDING ──(cooldown + partyB stalls)──▶ forceCancelQuote ──▶ CANCELED
 ```
 
-Three write / read hooks act on the [`useLimitOrders`](#uselimitorders) list. All route the diamond call through the AccountLayer `_call` proxy (the subaccount's `owner` wallet signs; no session key), and on success invalidate the pending reads so the row leaves the list.
+Three write / read hooks act on the [`useLimitOrders`](#uselimitorders) list. All route the diamond call through the AccountLayer `_call` proxy (the subaccount's `owner` wallet signs; no session key), and on success invalidate the pending reads, the quote's own `getQuote` hydration (the read that carries `quoteStatus`), and the subaccount balance reads — a cancel refunds the open trading fee and releases the margin the order had reserved.
+
+<Callout type="warning">
+  Cancelling a **`LOCKED`** order is a two-transaction flow of which only the first is announced. Your
+  `requestToCancelQuote` moves the quote to `CANCEL_PENDING` and it **stays** in `partyAPendingQuotes`; the solver's
+  later `acceptCancelRequest` is what sets `CANCELED` and removes it — and that transaction publishes no notification
+  frame. `useLimitOrders` and `useManagedQuotes` re-read the chain until the quote is gone, so a list fed by either
+  drops the row on its own. A consumer reading `getPartyAPendingQuotes` directly has to poll, or it will render the
+  cancelled order indefinitely.
+</Callout>
 
 ### `useRequestToCancelQuote`
 
-Cancel a resting limit order (`requestToCancelQuote`). A `PENDING` (unlocked) quote cancels instantly; a `LOCKED` one (a partyB is committed) enters `CANCEL_PENDING` and waits out the force-cancel cooldown.
+Cancel a resting limit order (`requestToCancelQuote`). A `PENDING` (unlocked) quote cancels instantly and leaves the list on the receipt. A `LOCKED` one (a partyB is committed) only enters `CANCEL_PENDING` — the solver still has to accept, or the force-cancel cooldown has to run out. The mutation resolves on the receipt of the _request_, so its `onSuccess` is not the moment the order is gone.
 
 ```tsx
 const cancel = useRequestToCancelQuote();

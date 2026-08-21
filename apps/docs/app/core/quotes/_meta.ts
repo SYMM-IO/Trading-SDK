@@ -4,6 +4,7 @@ export default {
   "unified-quote": "UnifiedQuote",
   "quote-origin": "QuoteOrigin",
   "quote-lifecycle": "QuoteLifecycle",
+  "quote-status": "QuoteStatus",
   "quote-notification-action-kind": "QuoteNotificationActionKind",
   "-- reconciliation": { type: "separator", title: "Reconciliation" },
   "reconcile-quotes": "reconcileQuotes",

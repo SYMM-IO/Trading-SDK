@@ -13,6 +13,12 @@ import type { UnifiedQuote } from "./unified-quote";
  * once fully closed `closedAmount === quantity`, so the open size is `0` — the
  * exact semantics of the on-chain `LibQuote.quoteOpenAmount`.
  *
+ * This is a **size, not a state**. A quote that has not opened at all — `PENDING`,
+ * `LOCKED`, `CANCEL_PENDING` — has closed nothing, so it still reports its full
+ * `quantity` here. Do not use `> 0` as a test for "this is an open position":
+ * classify with `isPendingOrder` / `isActivePosition`, which read the on-chain
+ * `QuoteStatus`.
+ *
  * @param quote - The amount fields needed to derive the open size.
  * @returns The remaining open quantity, in 18-decimal wei.
  *

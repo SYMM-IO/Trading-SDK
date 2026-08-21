@@ -2,6 +2,7 @@
 
 import {
   getPendingQuotesQueryOptions,
+  isCancelAction,
   isOpenAnchorAction,
   NotificationType,
   OrderType,
@@ -122,7 +123,8 @@ export function useLimitOrders(parameters: UseLimitOrdersParameters = {}): UseLi
   // and its notification frames arrive on it directly (no virtual account).
   //
   // Accumulate notifications and burst-refetch the on-chain read when a quote
-  // anchors (the off-chain InstantRFQ price-fill has no on-chain id yet).
+  // anchors (the off-chain InstantRFQ price-fill has no on-chain id yet) or when a
+  // cancel is requested.
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const { refetch: onchainRefetch } = onchain;
   const { status: socketStatus } = useNotifications({
@@ -133,7 +135,19 @@ export function useLimitOrders(parameters: UseLimitOrdersParameters = {}): UseLi
     onNotification: useCallback(
       (notification: Notification) => {
         setNotifications((prev) => [...prev, notification].slice(-NOTIFICATION_BUFFER_LIMIT));
-        if (notification.type !== NotificationType.SUCCESS || !isOpenAnchorAction(notification.lastSeenAction)) return;
+        /**
+         * Cancels burst regardless of `type`: a cancel frame reports only the
+         * *request*, and the transaction that actually ends the order — the solver's
+         * `acceptCancelRequest` — is never announced, so the burst is the only way
+         * this hook ever learns the order is gone. It is not gated on `SUCCESS`
+         * because the chain may have moved either way and the read is cheap. An
+         * anchoring open still requires `SUCCESS`, since a failed anchor has nothing
+         * to read.
+         */
+        const isCancel = isCancelAction(notification.lastSeenAction);
+        const isAnchor =
+          notification.type === NotificationType.SUCCESS && isOpenAnchorAction(notification.lastSeenAction);
+        if (!isCancel && !isAnchor) return;
         for (const ms of SETTLE_REFETCH_DELAYS_MS) setTimeout(() => void onchainRefetch(), ms);
       },
       [onchainRefetch],

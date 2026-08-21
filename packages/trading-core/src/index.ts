@@ -1523,6 +1523,7 @@ export {
   getSubAccountQuotesQueryOptions,
   groupQuotes,
   isActivePosition,
+  isCancelAction,
   isCloseFillAction,
   isOpenAnchorAction,
   isPendingOrder,
