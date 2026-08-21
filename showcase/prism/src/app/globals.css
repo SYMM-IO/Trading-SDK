@@ -1,0 +1,1065 @@
+/**
+ * Scope Tailwind's automatic source detection to `src/`.
+ *
+ * Without this it also scans `vendor/*.tgz` — gzip binaries — and extracts
+ * byte sequences that look like utility classes, which then fail to parse as
+ * CSS. Prism's markup only ever lives under `src/`.
+ */
+@import "tailwindcss" source("../");
+
+/* ============================================================================
+   PRISM DESIGN SYSTEM v1.0
+   Three-tier token architecture. Components reference tier 3 only — that is what
+   makes a global mode switch a one-line change instead of a redesign.
+   ========================================================================= */
+
+:root {
+  /* ---- TIER 1 · PRIMITIVES ------------------------------------------------
+     Raw ramps, named by hue and step, never by purpose.
+     No component may reference these directly. */
+  --app-300: #d6bbff;
+  --app-500: #bd93f9;
+  --app-700: #8b5fd6;
+  --app-bg: rgba(189, 147, 249, 0.12);
+  --app-bd: rgba(189, 147, 249, 0.35);
+
+  --mj-300: #bff3ff;
+  --mj-500: #8be9fd;
+  --mj-700: #4fb8d0;
+  --mj-bg: rgba(139, 233, 253, 0.12);
+  --mj-bd: rgba(139, 233, 253, 0.38);
+
+  --lc-300: #ffb3e1;
+  --lc-500: #ff79c6;
+  --lc-700: #d9469f;
+  --lc-bg: rgba(255, 121, 198, 0.12);
+  --lc-bd: rgba(255, 121, 198, 0.4);
+
+  --yellow-500: #f1fa8c;
+  --long-300: #8cffa8;
+  --long-500: #50fa7b;
+  --long-700: #2fcf5a;
+  --short-300: #ff8f8f;
+  --short-500: #ff5555;
+  --short-700: #d63a3a;
+
+  /* ---- TIER 2 · SEMANTIC --------------------------------------------------
+     Purpose-named aliases that survive a palette change.
+     Direction, risk and lifecycle are IMMUNE to mode: a trader reading green
+     must know it means long, not "majors". */
+  --fg-0: #f8f8f2;
+  --fg-1: #d5d6de;
+  --fg-2: #9095ae;
+  --fg-3: #6272a4;
+  --fg-inverse: #191a21;
+
+  --long-bg: rgba(80, 250, 123, 0.1);
+  --short-bg: rgba(255, 85, 85, 0.1);
+  --warn-500: #ffb86c;
+  --warn-bg: rgba(255, 184, 108, 0.12);
+
+  --state-pending: #f1fa8c;
+  --state-locked: #bd93f9;
+  --state-opened: #50fa7b;
+  --state-close-pending: #ffb86c;
+  --state-cancel-pending: #ffb86c;
+  --state-canceled: #6272a4;
+  --state-closed: #6272a4;
+  --state-expired: #6272a4;
+  --state-liquidated: #ff5555;
+
+  /* Margin isolation is a property of the sub-account, and — like direction and
+     lifecycle — it is IMMUNE to the mode: violet always means one pooled
+     balance, yellow always means one balance per Virtual Account. Neither hue
+     belongs to a market family (cyan majors, pink lowcaps), so the tag cannot
+     be misread as the group it happens to sit in. */
+  --margin-cross-500: #bd93f9;
+  --margin-cross-bg: rgba(189, 147, 249, 0.13);
+  --margin-cross-bd: rgba(189, 147, 249, 0.32);
+  --margin-iso-500: #d8e08a;
+  --margin-iso-bg: rgba(216, 224, 138, 0.1);
+  --margin-iso-bd: rgba(216, 224, 138, 0.28);
+
+  /* Chain pills use the chain's own brand hex and nothing else. */
+  --chain-base: #0052ff;
+  --chain-hyperevm: #97fce4;
+  --chain-solana: #14f195;
+  --chain-bsc: #f0b90b;
+  --chain-arbitrum: #28a0f0;
+  --chain-polygon: #8247e5;
+
+  /* ---- TIER 3 · CONTEXTUAL ------------------------------------------------
+     Remapped at runtime by the global mode. The whole app re-themes because
+     these values change — nothing else does. */
+  --bg-0: #191a21;
+  --bg-1: #21222c;
+  --bg-2: #282a36;
+  --bg-3: #323544;
+  --bg-4: #44475a;
+  --border-subtle: #2c2e3b;
+  --border-default: #3a3d4d;
+  --border-strong: #4e5266;
+  --border-emphasis: #6272a4;
+  --accent: #bd93f9;
+  --accent-2: #8be9fd;
+  --accent-bg: rgba(189, 147, 249, 0.12);
+  --accent-bd: rgba(189, 147, 249, 0.35);
+  --mode-strip: linear-gradient(90deg, #8be9fd, #bd93f9 50%, #ff79c6);
+
+  /* ---- TYPOGRAPHY --------------------------------------------------------- */
+  --fs-2xs: 10px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 18px;
+  --fs-2xl: 22px;
+  --fs-3xl: 28px;
+  --fs-4xl: 36px;
+  --fs-5xl: 48px;
+  --tracking-tight: -0.02em;
+  --tracking-mega: 0.12em;
+
+  /* ---- RADIUS · ELEVATION · MOTION ---------------------------------------- */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-2xl: 20px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset, 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-pop:
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset, 0 8px 24px -8px rgba(0, 0, 0, 0.6), 0 2px 6px -2px rgba(0, 0, 0, 0.4);
+  --shadow-modal:
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset, 0 24px 64px -16px rgba(0, 0, 0, 0.7), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+  --shadow-long-glow: 0 0 0 1px rgba(80, 250, 123, 0.3), 0 0 24px -4px rgba(80, 250, 123, 0.35);
+  --shadow-short-glow: 0 0 0 1px rgba(255, 85, 85, 0.3), 0 0 24px -4px rgba(255, 85, 85, 0.35);
+
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* ---- MODE: MAJORS · blue-steel surfaces, cyan accent ---------------------- */
+:root[data-mode="majors"] {
+  --bg-0: #0f1720;
+  --bg-1: #15202b;
+  --bg-2: #1b2835;
+  --bg-3: #243543;
+  --bg-4: #31485a;
+  --border-subtle: #1f3040;
+  --border-default: #2a3e4f;
+  --border-strong: #3b5468;
+  --border-emphasis: #4c6c85;
+  --accent: #8be9fd;
+  --accent-2: #f1fa8c;
+  --accent-bg: rgba(139, 233, 253, 0.13);
+  --accent-bd: rgba(139, 233, 253, 0.38);
+  --fg-3: #4c6c85;
+  --mode-strip: linear-gradient(90deg, #8be9fd, #6fd5ec 60%, #f1fa8c);
+}
+
+/* ---- MODE: LOWCAPS · plum surfaces, magenta accent ----------------------- */
+:root[data-mode="lowcaps"] {
+  --bg-0: #1a1220;
+  --bg-1: #23192c;
+  --bg-2: #2d2138;
+  --bg-3: #3b2b49;
+  --bg-4: #4e385f;
+  --border-subtle: #32243e;
+  --border-default: #412f51;
+  --border-strong: #583c6b;
+  --border-emphasis: #714e88;
+  --accent: #ff79c6;
+  --accent-2: #ffb86c;
+  --accent-bg: rgba(255, 121, 198, 0.15);
+  --accent-bd: rgba(255, 121, 198, 0.4);
+  --fg-3: #714e88;
+  --mode-strip: linear-gradient(90deg, #ff79c6, #ff8fb0 55%, #ffb86c);
+}
+
+/* ---- BRAND MARK ----------------------------------------------------------
+   The three rays entering the prism are the three identities. A family mode
+   dims the other two, so the mark in the header doubles as the mode indicator;
+   unified keeps all three at full strength. */
+:root {
+  --ray-mj: 1;
+  --ray-app: 1;
+  --ray-lc: 1;
+}
+
+:root[data-mode="majors"] {
+  --ray-app: 0.28;
+  --ray-lc: 0.28;
+}
+
+:root[data-mode="lowcaps"] {
+  --ray-mj: 0.28;
+  --ray-app: 0.28;
+}
+
+.prism-mark__ray {
+  transition: opacity var(--dur-slow) var(--ease-out);
+}
+
+/* ---- Tailwind bridge: expose tier-2/3 tokens as utility classes ---------- */
+@theme inline {
+  --color-bg-0: var(--bg-0);
+  --color-bg-1: var(--bg-1);
+  --color-bg-2: var(--bg-2);
+  --color-bg-3: var(--bg-3);
+  --color-bg-4: var(--bg-4);
+  --color-line: var(--border-default);
+  --color-line-subtle: var(--border-subtle);
+  --color-line-strong: var(--border-strong);
+  --color-line-emphasis: var(--border-emphasis);
+  --color-fg-0: var(--fg-0);
+  --color-fg-1: var(--fg-1);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-fg-inverse: var(--fg-inverse);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-bg: var(--accent-bg);
+  --color-accent-bd: var(--accent-bd);
+  --color-long: var(--long-500);
+  --color-long-bg: var(--long-bg);
+  --color-short: var(--short-500);
+  --color-short-bg: var(--short-bg);
+  --color-warn: var(--warn-500);
+  --color-warn-bg: var(--warn-bg);
+  --color-mj: var(--mj-500);
+  --color-lc: var(--lc-500);
+  --color-platform: var(--app-500);
+
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, Menlo, monospace;
+
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-2xl: 20px;
+
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+  --text-4xl: 36px;
+  --text-5xl: 48px;
+}
+
+/* ---- TRADING WORKSPACE ---------------------------------------------------
+   The trade screen is a workspace, not a document: one viewport-bounded grid
+   whose regions scroll inside themselves.
+
+   The row template does its own clamping. A JS clamp only runs while the
+   pointer moves, so shrinking the window would leave a stale chart height and
+   squeeze the blotter to nothing; `min()` against the container re-solves on
+   every layout pass, and the `minmax(floor, …)` on both rows means neither
+   region can be squeezed out of existence whatever the stored height says.
+
+   The strip above the grid shares the same column template, so the market stats
+   end where the order book ends and the account selector sits over the ticket
+   rather than floating in the middle of a flex row. */
+.prism-trade-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.prism-trade-header {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+@media (width >= 80rem) {
+  .prism-trade-grid {
+    gap: 0;
+    grid-template-columns: minmax(0, 1fr) var(--gutter) var(--book-w) var(--gutter) var(--ticket-w);
+    grid-template-rows:
+      minmax(var(--chart-min), min(var(--chart-h), calc(100% - var(--gutter) - var(--blotter-min))))
+      var(--gutter)
+      minmax(var(--blotter-min), 1fr);
+  }
+
+  .prism-trade-header {
+    display: grid;
+    flex-wrap: nowrap;
+    grid-template-columns: minmax(0, 1fr) var(--gutter) var(--book-w) var(--gutter) var(--ticket-w);
+    align-items: center;
+  }
+}
+
+/* ---- PORTFOLIO LEDGER ----------------------------------------------------
+   One row per funding account, head and body sharing a single set of tracks.
+
+   The ledger is the grid; every row is a `subgrid` spanning all of it. That is
+   what keeps the column heads over their figures: the two content-sized
+   columns at the right (the access chip and the action buttons) are measured
+   across every row at once, so the head cannot drift from the body the way two
+   separate grids with `auto` tracks would.
+
+   The template changes with the viewport rather than living in an inline
+   style: the secondary figures (free margin and locked margin, then uPnL and
+   the liquidation gauge) drop out as the row narrows, and a cell that is
+   `display: none` simply leaves the grid — so each breakpoint's template counts
+   only the cells that remain. */
+.prism-ledger {
+  display: grid;
+  column-gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(64px, auto) auto auto;
+}
+
+.prism-ledger-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+
+.prism-ledger-span {
+  grid-column: 1 / -1;
+}
+
+@media (width >= 48rem) {
+  .prism-ledger {
+    grid-template-columns: minmax(0, 2fr) minmax(90px, 0.8fr) minmax(90px, 0.8fr) minmax(130px, 1.1fr) auto auto;
+  }
+}
+
+@media (width >= 64rem) {
+  .prism-ledger {
+    grid-template-columns: minmax(0, 1.8fr) repeat(4, minmax(94px, 0.8fr)) minmax(118px, 1fr) auto auto;
+  }
+}
+
+/* ---- BASE --------------------------------------------------------------- */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-0);
+  color: var(--fg-1);
+  /* `@theme inline` substitutes font tokens straight into the generated
+     utilities and never emits `--font-sans` as a custom property, so the base
+     rule has to name the next/font variable itself. Without this, every element
+     without an explicit `font-*` class falls back to the browser serif. */
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--fs-base);
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--dur-slow) var(--ease-out);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--fg-inverse);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 999px;
+  border: 2px solid var(--bg-0);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* Numerals are monospace and tabular, always — non-negotiable. */
+.tnum {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-tight);
+}
+
+@keyframes prism-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes prism-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes prism-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes prism-flash-long {
+  from {
+    background-color: var(--long-bg);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+@keyframes prism-flash-short {
+  from {
+    background-color: var(--short-bg);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.prism-rise {
+  animation: prism-rise var(--dur-base) var(--ease-out) both;
+}
+.prism-pulse {
+  animation: prism-pulse 1.6s var(--ease-out) infinite;
+}
+.prism-flash-long {
+  animation: prism-flash-long 700ms var(--ease-out);
+}
+.prism-flash-short {
+  animation: prism-flash-short 700ms var(--ease-out);
+}
+
+/* Range input — the leverage slider. Thumb is the only accent-colored part. */
+.prism-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 22px;
+  margin: 0;
+  width: 100%;
+  cursor: grab;
+}
+.prism-range:active {
+  cursor: grabbing;
+}
+.prism-range::-webkit-slider-runnable-track {
+  height: 22px;
+  background: transparent;
+}
+.prism-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: var(--bg-0);
+  border: 2px solid var(--accent);
+  box-shadow:
+    0 0 0 4px var(--accent-bg),
+    0 2px 6px -1px rgba(0, 0, 0, 0.6);
+  transition: box-shadow var(--dur-fast) var(--ease-out);
+}
+.prism-range:hover::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 6px var(--accent-bg),
+    0 2px 8px -1px rgba(0, 0, 0, 0.7);
+}
+.prism-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--bg-0);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-bg);
+}
+
+/* Field — label lives inside; focus turns border AND caption accent, no ring. */
+.prism-field {
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.prism-field:focus-within {
+  border-color: var(--accent);
+  background: var(--bg-3);
+}
+.prism-field:focus-within .prism-cap {
+  color: var(--accent);
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ---- MODE CAST -----------------------------------------------------------
+   The reveal that plays when the market scope changes. A broadcast sting:
+   a light beam sweeps the viewport, two gradient rules open from the centre,
+   and the mode's name stands up out of the floor as extruded 3D type before a
+   specular pass travels across it.
+
+   Three rules keep it from turning into a toy. It never takes pointer events,
+   so the app stays live underneath. It never blocks — nothing waits on it. And
+   every colour comes from the switched-to family's own identity ramp, so the
+   sting reads as *that* market's, not as generic chrome.
+
+   Nothing here declares a pre-animation state. Every entrance animation is
+   `both`-filled, so its 0% frame supplies the "before" and its 100% frame the
+   "after"; kill the animations (the reduced-motion phase does exactly that)
+   and every layer falls back to its natural, fully-visible value. */
+.prism-cast {
+  position: fixed;
+  inset: 0;
+  z-index: 80; /* over the toast + tooltip layer, which tops out at 50 */
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+
+  /* The extrusion ramp: a lit rim nearest the face, falling away to a near
+     black that still carries the family's hue. Derived rather than listed, so
+     one `--cast-key` re-skins the whole slab. */
+  --cast-rim: color-mix(in oklab, var(--cast-key) 78%, #191a24);
+  --cast-mid: color-mix(in oklab, var(--cast-key) 46%, #101119);
+  --cast-deep: color-mix(in oklab, var(--cast-key) 14%, #07080c);
+}
+
+/* ---- Full-bleed layers --------------------------------------------------- */
+
+.prism-cast__scrim {
+  position: absolute;
+  inset: -10%;
+  background:
+    radial-gradient(
+      ellipse 62% 46% at 50% 50%,
+      color-mix(in oklab, var(--cast-key) 24%, transparent) 0%,
+      transparent 74%
+    ),
+    radial-gradient(ellipse 118% 92% at 50% 50%, rgba(6, 6, 11, 0.84) 0%, rgba(4, 4, 8, 0.95) 76%);
+  /* Prefixed first, standard last: Lightning CSS keeps only one of the pair,
+     and it keeps whichever it sees last. */
+  -webkit-backdrop-filter: blur(7px) saturate(1.2);
+  backdrop-filter: blur(7px) saturate(1.2);
+  animation: prism-cast-scrim 240ms var(--ease-out) both;
+}
+
+/* The sweep. Wide, heavily blurred and gone in under a second — a lens flare
+   crossing the lens, not a wipe transition. */
+.prism-cast__beam {
+  position: absolute;
+  top: -30%;
+  left: 0;
+  height: 160%;
+  width: 34vw;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--cast-key) 55%, transparent) 34%,
+    rgba(255, 255, 255, 0.7) 50%,
+    color-mix(in oklab, var(--cast-key-2) 55%, transparent) 66%,
+    transparent 100%
+  );
+  filter: blur(26px);
+  animation: prism-cast-beam 700ms cubic-bezier(0.22, 0.64, 0.16, 1) 30ms both;
+}
+
+/* One pulse of the viewport's own edge at the instant the word lands. */
+.prism-cast__edge {
+  position: absolute;
+  inset: 0;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--cast-key) 52%, transparent),
+    inset 0 0 90px -26px var(--cast-key);
+  animation: prism-cast-edge 660ms var(--ease-out) 470ms both;
+}
+
+/* ---- Stage --------------------------------------------------------------- */
+
+.prism-cast__stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 4vw;
+  animation: prism-cast-stage 1200ms var(--ease-out) both;
+}
+
+.prism-cast__halo {
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 52%;
+  width: 130%;
+  height: 200%;
+  translate: -50% -50%;
+  background: radial-gradient(
+    ellipse 42% 34% at 50% 50%,
+    color-mix(in oklab, var(--cast-key) 34%, transparent) 0%,
+    transparent 66%
+  );
+  filter: blur(32px);
+  animation: prism-cast-halo 1100ms var(--ease-out) 160ms both;
+}
+
+.prism-cast__shards {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+}
+
+.prism-cast__shard {
+  position: absolute;
+  left: 0;
+  top: -1px;
+  width: var(--w);
+  height: 2px;
+  border-radius: 999px;
+  transform-origin: 0 50%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--cast-key) 82%, #ffffff) 46%,
+    var(--cast-key-2) 78%,
+    transparent
+  );
+  filter: blur(0.5px);
+  animation: prism-cast-shard 560ms var(--ease-out) calc(470ms + var(--sd)) both;
+}
+
+/* ---- Kicker, rules, scope ------------------------------------------------ */
+
+.prism-cast__kicker {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 clamp(10px, 1.4vw, 20px);
+  font-family: var(--font-jetbrains-mono), ui-monospace, Menlo, monospace;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-mega);
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--cast-key) 58%, #ffffff);
+  animation: prism-cast-lift 440ms var(--ease-out) 220ms both;
+}
+
+.prism-cast__tick {
+  width: clamp(20px, 3vw, 54px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--cast-key) 70%, transparent));
+}
+
+.prism-cast__kicker .prism-cast__tick:last-child {
+  background: linear-gradient(270deg, transparent, color-mix(in oklab, var(--cast-key) 70%, transparent));
+}
+
+/* The same gradient the header wears as `--mode-strip`: the app's mode
+   signature, blown up to title width. */
+.prism-cast__rule {
+  position: relative;
+  z-index: 2;
+  background: var(--cast-strip);
+  animation: prism-cast-rule 600ms var(--ease-out) 150ms both;
+}
+
+.prism-cast__rule--top {
+  width: min(52vw, 430px);
+  height: 1px;
+  margin-bottom: clamp(12px, 1.6vw, 24px);
+  opacity: 0.9;
+}
+
+.prism-cast__rule--bottom {
+  width: min(78vw, 760px);
+  height: 2px;
+  margin-top: clamp(14px, 1.8vw, 26px);
+  animation-delay: 300ms;
+}
+
+.prism-cast__scope {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px 22px;
+  margin: clamp(13px, 1.7vw, 22px) 0 0;
+  font-size: clamp(12px, 1.1vw, 15px);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--fg-1);
+  animation: prism-cast-lift 440ms var(--ease-out) 520ms both;
+}
+
+.prism-cast__venue {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prism-cast__chain {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--chain);
+  box-shadow: 0 0 12px -1px var(--chain);
+}
+
+.prism-cast__sep {
+  color: var(--fg-3);
+}
+
+/* ---- The word ------------------------------------------------------------
+   Two identical glyph rows stacked: the extruded face, and a sheen clipped to
+   the same glyphs. Both rows run the same per-letter entrance with the same
+   delays, which is what keeps them registered while the letters are still
+   moving. Kerning and ligatures are off so the rows cannot lay out
+   differently. */
+.prism-cast__word {
+  position: relative;
+  z-index: 2;
+  font-family: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(3rem, 15vw, 11rem);
+  line-height: 0.92;
+  letter-spacing: 0.035em;
+  font-kerning: none;
+  font-variant-ligatures: none;
+  white-space: nowrap;
+}
+
+.prism-cast__layer {
+  display: flex;
+  align-items: flex-start;
+}
+
+.prism-cast__layer--sheen {
+  position: absolute;
+  inset: 0;
+}
+
+.prism-cast__letter {
+  position: relative;
+  display: block;
+  isolation: isolate;
+  transform-origin: 50% 86%;
+  animation: prism-cast-letter 620ms cubic-bezier(0.18, 0.86, 0.24, 1) calc(170ms + var(--i) * 36ms) both;
+}
+
+/* The depth. The letter itself paints nothing but its shadow chain — a
+   `text-shadow` on transparent text *is* the slab. Offsets are in `em`, so it
+   scales with the clamped type. */
+.prism-cast__layer--face .prism-cast__letter {
+  color: transparent;
+  text-shadow:
+    0.009em 0.013em 0 var(--cast-rim),
+    0.018em 0.026em 0 var(--cast-rim),
+    0.027em 0.039em 0 var(--cast-rim),
+    0.036em 0.052em 0 var(--cast-mid),
+    0.045em 0.065em 0 var(--cast-mid),
+    0.054em 0.078em 0 var(--cast-mid),
+    0.063em 0.091em 0 var(--cast-deep),
+    0.072em 0.104em 0 var(--cast-deep),
+    0.081em 0.117em 0 var(--cast-deep),
+    0.09em 0.13em 0 var(--cast-deep),
+    0.105em 0.152em 0.03em rgba(0, 0, 0, 0.62);
+}
+
+/* Chrome face: white at the crown, melting into the family's colour at the
+   baseline, so the mode reads even at a glance.
+
+   It has to be the pseudo-element and the slab the element, never the other
+   way round: an element's `background-clip: text` fill paints *before* any
+   child box, so a slab on a child would cover the face it is meant to sit
+   behind. A positioned `::after` paints after the parent's own text and its
+   shadow, which is exactly the order this needs. */
+.prism-cast__layer--face .prism-cast__letter::after {
+  content: attr(data-char);
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  color: transparent;
+  /* `text-shadow` inherits. Without this the face copies the parent's slab and
+     paints it right back over its own gradient. */
+  text-shadow: none;
+  background-image: linear-gradient(
+    178deg,
+    #ffffff 0%,
+    #ffffff 52%,
+    #eaeef9 70%,
+    color-mix(in oklab, var(--cast-key) 30%, #ffffff) 86%,
+    color-mix(in oklab, var(--cast-key) 72%, #ffffff) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* The specular pass. Each glyph gets its own sweep, staggered by index — the
+   highlight reads as one band travelling across the word without needing the
+   word's pixel width, which CSS cannot know. */
+.prism-cast__layer--sheen .prism-cast__letter {
+  color: transparent;
+  background-image: linear-gradient(
+    100deg,
+    transparent 34%,
+    rgba(255, 255, 255, 0.95) 47%,
+    rgba(255, 255, 255, 0.5) 53%,
+    transparent 66%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation:
+    prism-cast-letter 620ms cubic-bezier(0.18, 0.86, 0.24, 1) calc(170ms + var(--i) * 36ms) both,
+    prism-cast-sheen 400ms var(--ease-out) calc(700ms + var(--i) * 36ms) both;
+}
+
+/* ---- Exit ----------------------------------------------------------------
+   Declared after the entrances so the shorthand replaces them outright. The
+   beam, edge pulse and shards have already run themselves to zero by now, so
+   only the scrim and the stage need clearing. */
+.prism-cast[data-phase="out"] .prism-cast__scrim {
+  animation: prism-cast-scrim-out 440ms var(--ease-out) both;
+}
+
+.prism-cast[data-phase="out"] .prism-cast__stage {
+  animation: prism-cast-stage-out 440ms var(--ease-out) both;
+}
+
+.prism-cast[data-phase="out"] .prism-cast__rule {
+  animation: prism-cast-rule-out 340ms var(--ease-out) both;
+}
+
+/* ---- Reduced motion ------------------------------------------------------
+   `prefers-reduced-motion` collapses every duration to ~0ms further down this
+   file, which would turn the reveal into a strobe. So the component detects
+   the setting itself and renders this phase instead: one still frame, held,
+   with the moving parts dropped entirely. Cutting the animation names is
+   enough to settle every remaining layer, because none of them declare a
+   pre-animation state. */
+.prism-cast[data-phase="still"] * {
+  animation-name: none;
+}
+
+.prism-cast[data-phase="still"] .prism-cast__beam,
+.prism-cast[data-phase="still"] .prism-cast__edge,
+.prism-cast[data-phase="still"] .prism-cast__shards,
+.prism-cast[data-phase="still"] .prism-cast__layer--sheen {
+  display: none;
+}
+
+/* ---- Mode cast keyframes ------------------------------------------------- */
+
+@keyframes prism-cast-scrim {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes prism-cast-scrim-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes prism-cast-beam {
+  0% {
+    opacity: 0;
+    transform: translate3d(-46vw, 0, 0) skewX(-13deg);
+  }
+  16% {
+    opacity: 0.95;
+  }
+  72% {
+    opacity: 0.68;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(118vw, 0, 0) skewX(-13deg);
+  }
+}
+
+@keyframes prism-cast-edge {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes prism-cast-stage {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes prism-cast-stage-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.05);
+    filter: blur(7px);
+  }
+}
+
+@keyframes prism-cast-halo {
+  0% {
+    opacity: 0;
+  }
+  46% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.72;
+  }
+}
+
+@keyframes prism-cast-lift {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+@keyframes prism-cast-rule {
+  0% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes prism-cast-rule-out {
+  from {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  to {
+    opacity: 0;
+    transform: scaleX(0.12);
+  }
+}
+
+@keyframes prism-cast-shard {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--r)) translateX(var(--from)) scaleX(0.12);
+  }
+  20% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--r)) translateX(var(--to)) scaleX(1);
+  }
+}
+
+/* Overshoot, then settle. The letter starts lying on its back below the
+   baseline and stands up past vertical before easing home. */
+@keyframes prism-cast-letter {
+  0% {
+    opacity: 0;
+    transform: perspective(760px) translate3d(0, 0.34em, -260px) rotateX(-68deg);
+    filter: blur(5px);
+  }
+  38% {
+    opacity: 1;
+  }
+  62% {
+    transform: perspective(760px) translate3d(0, -0.028em, 26px) rotateX(7deg);
+    filter: blur(0);
+  }
+  82% {
+    transform: perspective(760px) translate3d(0, 0.008em, 0) rotateX(-2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(760px) translate3d(0, 0, 0) rotateX(0deg);
+    filter: blur(0);
+  }
+}
+
+@keyframes prism-cast-sheen {
+  0% {
+    opacity: 0;
+    background-position: -130% 0;
+  }
+  22% {
+    opacity: 1;
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    background-position: 240% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

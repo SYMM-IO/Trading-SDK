@@ -1,0 +1,7 @@
+{
+  "tabWidth": 2,
+  "printWidth": 120,
+  "tailwindFunctions": ["cn"],
+  "tailwindStylesheet": "./src/app/globals.css",
+  "plugins": ["prettier-plugin-organize-imports", "prettier-plugin-tailwindcss"]
+}

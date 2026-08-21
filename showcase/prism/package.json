@@ -1,0 +1,44 @@
+{
+  "name": "@symmio/prism",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prism — a multi-solver perps DEX demo built entirely on the published SYMMIO SDK.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "check-types": "next typegen && tsc --noEmit",
+    "sdk:refresh": "pnpm --dir ../.. --filter @symmio/utils --filter @symmio/trading-core --filter @symmio/trading-react --filter @symmio/session-key build && for p in trading-core trading-react utils session-key; do (cd ../../packages/$p && pnpm pack --out ../../showcase/prism/vendor/%s.tgz); done && pnpm install"
+  },
+  "dependencies": {
+    "@symmio/session-key": "file:./vendor/symmio-session-key.tgz",
+    "@symmio/trading-core": "file:./vendor/symmio-trading-core.tgz",
+    "@symmio/trading-react": "file:./vendor/symmio-trading-react.tgz",
+    "@symmio/utils": "file:./vendor/symmio-utils.tgz",
+    "@tanstack/react-query": "^5.100.0",
+    "lightweight-charts": "^5.2.1",
+    "next": "16.2.9",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "viem": "^2.49.0",
+    "wagmi": "^3.4.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.4",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "tailwindcss": "^4.2.4",
+    "typescript": "^6.0.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "use-sync-external-store": "^1.6.0",
+      "@symmio/session-key": "file:./vendor/symmio-session-key.tgz",
+      "@symmio/trading-core": "file:./vendor/symmio-trading-core.tgz",
+      "@symmio/trading-react": "file:./vendor/symmio-trading-react.tgz",
+      "@symmio/utils": "file:./vendor/symmio-utils.tgz"
+    }
+  }
+}

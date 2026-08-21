@@ -1,0 +1,4 @@
+# Intentionally empty: this makes `prism` its own pnpm workspace root so that
+# `pnpm install` here resolves the published @symmio/* packages from npm instead
+# of joining the SYMM-Frontier monorepo workspace above it.
+packages: []
