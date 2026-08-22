@@ -34,3 +34,18 @@ export function useMarketNameLookup(): MarketNameLookup {
     [byKey],
   );
 }
+
+/** Resolves a `(family, symbolId)` pair to its market's price precision. */
+export type MarketPricePrecisionLookup = (family: MarketFamily, marketId: number) => number | undefined;
+
+/**
+ * Turn a market id into its `pricePrecision`, indexed off the merged market list
+ * exactly like {@link useMarketNameLookup}. An Activity row then prints prices to
+ * the same number of decimals the trade screen uses for that market, and falls
+ * back to `formatPrice`'s magnitude heuristic (`undefined`) until the list loads.
+ */
+export function useMarketPricePrecision(): MarketPricePrecisionLookup {
+  const { byKey } = useMergedMarkets({ scope: "all" });
+
+  return useCallback((family, marketId) => byKey.get(marketKey(family, marketId))?.market.pricePrecision, [byKey]);
+}

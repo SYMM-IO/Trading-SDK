@@ -138,7 +138,9 @@ export function PositionGroupRow({ row }: PositionGroupRowProps) {
 
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="flex items-baseline gap-1">
-            <Numeric size="sm">{metrics.entryPrice === undefined ? "—" : formatPrice(metrics.entryPrice)}</Numeric>
+            <Numeric size="sm">
+              {metrics.entryPrice === undefined ? "—" : formatPrice(metrics.entryPrice, market?.market.pricePrecision)}
+            </Numeric>
             <span
               className="text-2xs text-fg-3"
               title="Quantity-weighted average across the group's quotes, so a larger leg counts for more."
@@ -147,7 +149,7 @@ export function PositionGroupRow({ row }: PositionGroupRowProps) {
             </span>
           </span>
           <span className="tnum truncate text-2xs text-fg-3">
-            {metrics.mark === undefined ? "mark —" : `mark ${formatPrice(metrics.mark)}`}
+            {metrics.mark === undefined ? "mark —" : `mark ${formatPrice(metrics.mark, market?.market.pricePrecision)}`}
           </span>
         </div>
 

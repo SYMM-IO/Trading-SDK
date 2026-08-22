@@ -4,7 +4,7 @@
   "private": true,
   "description": "Prism — a multi-solver perps DEX demo built entirely on the published SYMMIO SDK.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 1122",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

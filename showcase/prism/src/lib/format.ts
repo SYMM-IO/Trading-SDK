@@ -36,14 +36,22 @@ export function formatPrice(value: number | string | undefined | null, precision
     return `${numeric < 0 ? MINUS : ""}0.0${toSubscript(leadingZeros)}${digits}`;
   }
 
-  const decimals = precision ?? (magnitude >= 100 ? 2 : magnitude >= 1 ? 3 : 5);
+  const requested = precision !== undefined && Number.isFinite(precision) ? precision : undefined;
+  const heuristic = magnitude >= 100 ? 2 : magnitude >= 1 ? 3 : 5;
+  /* `toLocaleString` requires `0 <= minimumFractionDigits <= maximumFractionDigits <= 100`.
+     A market's `pricePrecision` is untrusted here — clamp it into range so a low
+     (0/1) or out-of-bounds value can never throw `RangeError`. */
+  const maxDecimals = Math.min(100, Math.max(0, Math.trunc(requested ?? heuristic)));
 
-  /* Sub-$1 prices keep significant digits but drop trailing zeros, so a
-     0.4231 mark reads as `0.4231` rather than `0.42310`. */
+  /* Sub-$1 prices keep two decimals of significance where the precision allows,
+     but never more than the max — so a `pricePrecision` below 2 cannot make the
+     minimum exceed the maximum. */
+  const minDecimals = Math.min(magnitude >= 1 ? maxDecimals : 2, maxDecimals);
+
   return withTrueMinus(
     numeric.toLocaleString("en-US", {
-      minimumFractionDigits: magnitude >= 1 ? decimals : 2,
-      maximumFractionDigits: decimals,
+      minimumFractionDigits: minDecimals,
+      maximumFractionDigits: maxDecimals,
     }),
   );
 }

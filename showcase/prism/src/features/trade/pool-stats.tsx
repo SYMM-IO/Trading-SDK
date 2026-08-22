@@ -70,8 +70,8 @@ export function PoolStats({ market: entry }: PoolStatsProps) {
           value={change === undefined ? "—" : formatPercent(change, { signed: true })}
           signed={change}
         />
-        <Row label="Price (USD)" value={formatPrice(Number(pool.price_usd))} />
-        <Row label="Price (native)" value={formatPrice(Number(pool.price_native))} />
+        <Row label="Price (USD)" value={formatPrice(Number(pool.price_usd), entry.market.pricePrecision)} />
+        <Row label="Price (native)" value={formatPrice(Number(pool.price_native), entry.market.pricePrecision)} />
 
         <div className="mt-1 flex flex-col gap-2 border-t border-line-subtle pt-3">
           <Row label="Base token" value={pool.base_token.symbol} />

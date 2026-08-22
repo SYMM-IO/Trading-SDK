@@ -64,7 +64,7 @@ export function MarketRow({ row, columns, price, openInterest, isNew, onOpen }: 
         {price === undefined ? (
           <Numeric tone="muted">—</Numeric>
         ) : (
-          <Numeric tone="strong">{formatPrice(price)}</Numeric>
+          <Numeric tone="strong">{formatPrice(price, entry.market.pricePrecision)}</Numeric>
         )}
       </div>
 

@@ -13,7 +13,7 @@ import { AccountCell } from "./account-cell";
 import { ActivityGate } from "./activity-gate";
 import { DeploymentNotices } from "./subgraph-notice";
 import type { ActivityAccountsResult } from "./use-activity-accounts";
-import { useMarketNameLookup } from "./use-market-name";
+import { useMarketNameLookup, useMarketPricePrecision } from "./use-market-name";
 import { useQuoteHistoryRows } from "./use-quote-history-rows";
 
 const COLUMNS =
@@ -56,6 +56,7 @@ export function QuotesTab({ accounts, closeType }: QuotesTabProps) {
     closeType,
   });
   const marketName = useMarketNameLookup();
+  const pricePrecision = useMarketPricePrecision();
 
   return (
     <ActivityGate accounts={accounts} columns={COLUMNS} cells={10}>
@@ -110,9 +111,11 @@ export function QuotesTab({ accounts, closeType }: QuotesTabProps) {
                 {formatSize(size)}
               </Numeric>
 
-              <Numeric size="sm">{formatPrice(fromWei(row.openedPrice))}</Numeric>
+              <Numeric size="sm">
+                {formatPrice(fromWei(row.openedPrice), pricePrecision(entry.family, row.marketId))}
+              </Numeric>
 
-              <Numeric size="sm">{formatPrice(fromWei(exit))}</Numeric>
+              <Numeric size="sm">{formatPrice(fromWei(exit), pricePrecision(entry.family, row.marketId))}</Numeric>
 
               <Numeric size="sm" signed={pnl}>
                 {formatPnl(pnl)}

@@ -19,7 +19,6 @@ import {
 } from "@symmio/trading-core";
 import {
   useAvailableInstantOpenMargin,
-  useCheckSolverWhitelist,
   useEstimatedPrice,
   useFeeForUser,
   useLockedParams,
@@ -67,9 +66,7 @@ export interface AvailableMargin {
 export interface SolverGate {
   /** The solver is not accepting orders right now. */
   offline: boolean;
-  /** This account is not whitelisted with the solver, and the solver requires it. */
-  needsWhitelist: boolean;
-  /** True while either probe is still resolving. */
+  /** True while the probe is still resolving. */
   isLoading: boolean;
 }
 
@@ -107,6 +104,8 @@ export interface TicketModel {
   priceBand: { min: number; max: number } | undefined;
   /** Projected liquidation price of the position this order would open. */
   liquidationPrice: number | undefined;
+  /** Decimal places for this market's prices, from the market's `pricePrecision`. */
+  pricePrecision: number;
   solver: SolverGate;
   /** True once the solver's locked-param percentages have loaded. */
   isReady: boolean;
@@ -314,13 +313,6 @@ export function useTicketModel(intent: TicketIntent): TicketModel {
     query: { enabled: isRasa, refetchInterval: 30_000 },
   });
 
-  const whitelist = useCheckSolverWhitelist({
-    address: account?.address ?? zeroAddress,
-    chainId,
-    solverId,
-    query: { enabled: isRasa && Boolean(account) },
-  });
-
   const estimatedPrice = useMemo(() => {
     const value = Number(estimate.data?.estimatedPrice);
     return Number.isFinite(value) && value > 0 ? value : undefined;
@@ -394,10 +386,10 @@ export function useTicketModel(intent: TicketIntent): TicketModel {
     priceImpact,
     priceBand,
     liquidationPrice,
+    pricePrecision: market.pricePrecision,
     solver: {
       offline: isRasa && readiness.data?.isReady === false,
-      needsWhitelist: isRasa && whitelist.data === false,
-      isLoading: isRasa && (readiness.isLoading || whitelist.isLoading),
+      isLoading: isRasa && readiness.isLoading,
     },
     isReady: locked.isSuccess,
     marketClosed,

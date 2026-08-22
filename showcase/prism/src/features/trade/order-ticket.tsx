@@ -19,7 +19,6 @@ import { useTradingDelegation } from "@/features/wallet/use-trading-delegation";
 import { formatLeverage, formatPercent, formatPrice, formatUsd, marketDisplayName } from "@/lib/format";
 import { PositionType, SubAccountIsolationType, isolationTypeForSide } from "@symmio/trading-core";
 import {
-  useAddSolverWhitelist,
   useInstantOpenWithTpSl,
   useLimitOpenAuto,
   usePredictedNextVirtualAccount,
@@ -158,7 +157,6 @@ export function OrderTicket({ market: entry, seedPrice }: OrderTicketProps) {
 
   const open = useInstantOpenWithTpSl();
   const limitOpen = useLimitOpenAuto();
-  const whitelist = useAddSolverWhitelist();
 
   const isPending = open.isPending || limitOpen.isPending;
 
@@ -173,7 +171,6 @@ export function OrderTicket({ market: entry, seedPrice }: OrderTicketProps) {
   const blocker = useMemo<Blocker | undefined>(() => {
     if (!isConnected) return { kind: "connect" };
     if (accountsOnDeployment.length === 0 || !account) return { kind: "no-account" };
-    if (model.solver.needsWhitelist) return { kind: "whitelist" };
     if (!delegation.sessionKey) return { kind: "session-key" };
     if (delegation.isLoading) return { kind: "checking" };
     /* The grant is the only wallet transaction on this ladder — the order itself
@@ -199,7 +196,6 @@ export function OrderTicket({ market: entry, seedPrice }: OrderTicketProps) {
     gate.ready,
     accountsOnDeployment.length,
     account,
-    model.solver.needsWhitelist,
     model.solver.offline,
     model.marketClosed,
     model.available.error,
@@ -266,7 +262,7 @@ export function OrderTicket({ market: entry, seedPrice }: OrderTicketProps) {
           onSuccess: () => {
             toast.update(pending, {
               title: `Order resting · ${label}`,
-              body: `${formatUsd(Number(trade.notional))} at ${formatPrice(Number(limitPrice))}. It fills when the solver reaches your price.`,
+              body: `${formatUsd(Number(trade.notional))} at ${formatPrice(Number(limitPrice), entry.market.pricePrecision)}. It fills when the solver reaches your price.`,
               tone: "warn",
             });
             setMargin("");
@@ -351,10 +347,10 @@ export function OrderTicket({ market: entry, seedPrice }: OrderTicketProps) {
             value={limitPrice}
             onChange={(event) => setLimitPrice(event.target.value)}
             inputMode="decimal"
-            placeholder={model.markPrice ? formatPrice(model.markPrice) : "0.00"}
+            placeholder={model.markPrice ? formatPrice(model.markPrice, entry.market.pricePrecision) : "0.00"}
             footnote={
               model.priceBand
-                ? `${entry.deployment.solverName} accepts ${formatPrice(model.priceBand.min)} – ${formatPrice(model.priceBand.max)}.`
+                ? `${entry.deployment.solverName} accepts ${formatPrice(model.priceBand.min, entry.market.pricePrecision)} – ${formatPrice(model.priceBand.max, entry.market.pricePrecision)}.`
                 : "Rests until the solver reaches your price."
             }
           />
@@ -485,8 +481,6 @@ export function OrderTicket({ market: entry, seedPrice }: OrderTicketProps) {
           delegation={delegation}
           isPending={isPending}
           onSubmit={submit}
-          onWhitelist={() => account && whitelist.mutate({ address: account.address, chainId, solverId })}
-          isWhitelisting={whitelist.isPending}
         />
 
         <p className="text-2xs leading-relaxed text-fg-3">
@@ -504,7 +498,6 @@ type Blocker =
   | { kind: "connect" }
   | { kind: "chain" }
   | { kind: "no-account" }
-  | { kind: "whitelist" }
   | { kind: "session-key" }
   | { kind: "checking" }
   | { kind: "delegation" }
@@ -675,7 +668,7 @@ function LiquidationMeter({
       <div className="flex items-center justify-between">
         <MicroLabel>Liquidation price</MicroLabel>
         <Numeric size="md" tone="warn">
-          {model.liquidationPrice === undefined ? "—" : formatPrice(model.liquidationPrice)}
+          {model.liquidationPrice === undefined ? "—" : formatPrice(model.liquidationPrice, model.pricePrecision)}
         </Numeric>
       </div>
       {distance !== undefined ? (
@@ -707,8 +700,6 @@ interface TicketActionProps {
   delegation: ReturnType<typeof useTradingDelegation>;
   isPending: boolean;
   onSubmit: () => void;
-  onWhitelist: () => void;
-  isWhitelisting: boolean;
 }
 
 /**
@@ -718,17 +709,7 @@ interface TicketActionProps {
  * "unavailable": the point of a ladder is that the user always knows the next
  * step, and never sees two competing buttons.
  */
-function TicketAction({
-  blocker,
-  entry,
-  side,
-  gate,
-  delegation,
-  isPending,
-  onSubmit,
-  onWhitelist,
-  isWhitelisting,
-}: TicketActionProps) {
+function TicketAction({ blocker, entry, side, gate, delegation, isPending, onSubmit }: TicketActionProps) {
   if (!blocker) {
     return (
       <Button variant={side === PositionType.LONG ? "long" : "short"} size="lg" loading={isPending} onClick={onSubmit}>
@@ -754,18 +735,6 @@ function TicketAction({
 
     case "no-account":
       return <CtaLink href="/portfolio">Create a {entry.deployment.label.toLowerCase()} account</CtaLink>;
-
-    case "whitelist":
-      return (
-        <div className="flex flex-col gap-1.5">
-          <Button variant="primary" size="lg" loading={isWhitelisting} onClick={onWhitelist}>
-            Register with {entry.deployment.solverName}
-          </Button>
-          <span className="text-2xs leading-relaxed text-fg-3">
-            {entry.deployment.solverName} only quotes for accounts on its whitelist.
-          </span>
-        </div>
-      );
 
     case "session-key":
       return (

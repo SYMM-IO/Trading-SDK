@@ -174,7 +174,9 @@ export function BlotterRow({ row, variant = "position", depth = "root" }: Blotte
 
         {isOrder ? (
           <>
-            <Numeric size="sm">{formatPrice(Number(formatUnits(row.quote.requestedOpenPrice, 18)))}</Numeric>
+            <Numeric size="sm">
+              {formatPrice(Number(formatUnits(row.quote.requestedOpenPrice, 18)), market?.market.pricePrecision)}
+            </Numeric>
             <span className="truncate text-sm text-fg-2">
               {formatRelativeTime(Number(row.quote.createTimestamp ?? row.quote.statusModifyTimestamp ?? 0n))}
             </span>
@@ -182,12 +184,12 @@ export function BlotterRow({ row, variant = "position", depth = "root" }: Blotte
         ) : (
           <>
             <div className="flex min-w-0 flex-col gap-0.5">
-              <Numeric size="sm">{formatPrice(entryPrice)}</Numeric>
+              <Numeric size="sm">{formatPrice(entryPrice, market?.market.pricePrecision)}</Numeric>
               {/* The group row above already carries the mark, and it is the
                   same tick for every child — one market, one price. */}
               {isChild ? null : (
                 <span className="tnum truncate text-2xs text-fg-3">
-                  {mark === undefined ? "mark —" : `mark ${formatPrice(mark)}`}
+                  {mark === undefined ? "mark —" : `mark ${formatPrice(mark, market?.market.pricePrecision)}`}
                 </span>
               )}
             </div>

@@ -36,10 +36,9 @@ UseXReturnType`; every write ships a `Simulate*` twin. Inference covers all of
 - **A core slice showing 0 is often fully exercised through a react hook.**
   Prism follows the house rule (hooks from `react`, types and chain config from
   `core`), so `core:solvers/funding-info`, `core:solvers/get-solver-readiness`,
-  `core:solvers/check-solver-whitelist`, `core:solvers/error-codes`,
   `core:solvers/limit-open`, `core:symmio-contracts/instant-layer` and
   `core:websocket/prices` all read as untouched while `useFundingInfo`,
-  `useSolverReadiness`, `useCheckSolverWhitelist`, `useSolverErrorCodes`,
+  `useSolverReadiness`, `useSolverErrorCodes`,
   `useLimitOpenAuto`, `useGrantDelegation` and `usePrices` are in daily use.
 
 So the honest question is not "why is the number low" but "which of the
@@ -322,7 +321,7 @@ section does today.
 | `instant-layer`   |          6 / 52 | `useDelegationExpiry`, `useGrantDelegation`, `useInstantCloseAuto`, `useInstantOpenWithTpSl`, `useIsDelegationActive`, `useLimitOpenAuto`                                                                                                                                            |
 | `tpsl`            |          5 / 50 | `useQuoteGroupTpSl`, `useQuoteGroupTpSlEditor`, `useSetQuoteGroupTpSl`, `useTpSlConfig`, `useTpSlSupported`                                                                                                                                                                          |
 | `withdraw`        |          5 / 38 | `useFinalizeWithdrawRequest`, `usePendingWithdrawRequests`, `useRequestCancelWithdraw`, `useWithdraw`, `useWithdrawableTime`                                                                                                                                                         |
-| `rasa-solver`     |          4 / 24 | `useAddSolverWhitelist`, `useCheckSolverWhitelist`, `useSolverPriceRange`, `useSolverReadiness`                                                                                                                                                                                      |
+| `rasa-solver`     |          3 / 24 | `useAddSolverWhitelist`, `useSolverPriceRange`, `useSolverReadiness`                                                                                                                                                                                                                 |
 | `candles`         |          3 / 10 | `useBinanceCandleSource`, `useCandleStream`, `useCandles`                                                                                                                                                                                                                            |
 | `collateral`      |          3 / 13 | `useApproveCollateral`, `useCollateralAllowance`, `useCollateralBalance`                                                                                                                                                                                                             |
 | `wallet`          |           3 / 8 | `useConnectWallet`, `useDisconnectWallet`, `useWalletAccount`                                                                                                                                                                                                                        |
@@ -349,7 +348,6 @@ section does today.
 | `core:solvers/funding-info`                                                                                      |       13 | exercised via `useFundingInfo` (§1)                                                |
 | `core:solvers/get-solver-readiness`                                                                              |        9 | exercised via `useSolverReadiness`                                                 |
 | `core:solvers/get-solver-price-range`                                                                            |        9 | exercised via `useSolverPriceRange`                                                |
-| `core:solvers/check-solver-whitelist`                                                                            |        9 | exercised via `useCheckSolverWhitelist`                                            |
 | `core:solvers/add-solver-whitelist`                                                                              |        4 | exercised via `useAddSolverWhitelist`                                              |
 | `core:solvers/error-codes`                                                                                       |        9 | exercised via `useSolverErrorCodes`                                                |
 | `core:solvers/limit-open`                                                                                        |        4 | exercised via `useLimitOpenAuto`                                                   |

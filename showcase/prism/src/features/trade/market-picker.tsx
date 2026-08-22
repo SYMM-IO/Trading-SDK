@@ -158,7 +158,7 @@ export function MarketPicker({ markets, selected, onSelect }: MarketPickerProps)
                             {marketDisplayName(entry.market.name)}
                           </span>
                           <span className="tnum w-24 text-right text-sm text-fg-1">
-                            {price === undefined ? "—" : formatPrice(price)}
+                            {price === undefined ? "—" : formatPrice(price, entry.market.pricePrecision)}
                           </span>
                         </button>
                       );

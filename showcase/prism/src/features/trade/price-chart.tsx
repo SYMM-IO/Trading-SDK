@@ -82,7 +82,11 @@ export function PriceChart({ market: entry }: PriceChartProps) {
       {poolPriced ? (
         <PoolChart market={entry} />
       ) : (
-        <BinanceChart marketName={entry.market.name} resolution={timeframe.candle} />
+        <BinanceChart
+          marketName={entry.market.name}
+          resolution={timeframe.candle}
+          pricePrecision={entry.market.pricePrecision}
+        />
       )}
     </div>
   );
@@ -91,10 +95,12 @@ export function PriceChart({ market: entry }: PriceChartProps) {
 interface ChartProps {
   marketName: string;
   resolution: CandleResolution;
+  /** Decimal places for the price axis + crosshair, from the market's `pricePrecision`. */
+  pricePrecision?: number;
 }
 
 /** The Binance-backed chart. Split out so its hooks only run when supported. */
-function BinanceChart({ marketName, resolution }: ChartProps) {
+function BinanceChart({ marketName, resolution, pricePrecision }: ChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -198,6 +204,18 @@ function BinanceChart({ marketName, resolution }: ChartProps) {
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-mode"] });
     return () => observer.disconnect();
   }, []);
+
+  /* The market's own decimals for the price axis and crosshair label, so a $0.42
+     market does not read as `0.42000` and a $64k market keeps its cents. Applied
+     after creation (and on change) so it tracks a market switch without tearing
+     the chart down. `minMove` is the tick the precision implies. */
+  useEffect(() => {
+    if (seriesRef.current === null || pricePrecision === undefined) return;
+    const precision = Math.min(8, Math.max(0, Math.trunc(pricePrecision)));
+    seriesRef.current.applyOptions({
+      priceFormat: { type: "price", precision, minMove: 1 / 10 ** precision },
+    });
+  }, [pricePrecision]);
 
   useEffect(() => {
     if (!seriesRef.current || !history.data) return;

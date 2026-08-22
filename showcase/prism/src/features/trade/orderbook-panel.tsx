@@ -112,21 +112,36 @@ function BinanceOrderbook({ market: entry, onPickPrice }: OrderbookPanelProps) {
             isStale ? "opacity-50" : null,
           )}
         >
-          <Ladder levels={book.asks} side="ask" max={book.maxTotal} onPick={onPickPrice} />
+          <Ladder
+            levels={book.asks}
+            side="ask"
+            max={book.maxTotal}
+            onPick={onPickPrice}
+            pricePrecision={entry.market.pricePrecision}
+          />
 
           {/* The mid, not the best bid. `OrderbookSpread` computes it from the
               ungrouped book, along with the relative spread the raw number
               cannot convey on its own. */}
           <div data-ladder-spread className="my-1 flex items-baseline gap-2 border-y border-line-subtle px-4 py-2">
             <span className="tnum text-lg font-semibold text-fg-0">
-              {book.spread ? formatPrice(book.spread.midPrice) : "—"}
+              {book.spread ? formatPrice(book.spread.midPrice, entry.market.pricePrecision) : "—"}
             </span>
             <span className="tnum ml-auto text-2xs text-fg-3">
-              spread {book.spread ? `${formatPrice(book.spread.spread)} · ${book.spread.spreadBps.toFixed(1)}bp` : "—"}
+              spread{" "}
+              {book.spread
+                ? `${formatPrice(book.spread.spread, entry.market.pricePrecision)} · ${book.spread.spreadBps.toFixed(1)}bp`
+                : "—"}
             </span>
           </div>
 
-          <Ladder levels={book.bids} side="bid" max={book.maxTotal} onPick={onPickPrice} />
+          <Ladder
+            levels={book.bids}
+            side="bid"
+            max={book.maxTotal}
+            onPick={onPickPrice}
+            pricePrecision={entry.market.pricePrecision}
+          />
         </div>
       )}
 
@@ -146,6 +161,8 @@ interface LadderProps {
   side: "bid" | "ask";
   max: number;
   onPick?: (price: number) => void;
+  /** Decimal places for the ladder prices, from the market's `pricePrecision`. */
+  pricePrecision?: number;
 }
 
 /**
@@ -192,7 +209,7 @@ function useLadderRows() {
 }
 
 /** One side of the ladder. The depth bar is the only gradient-free fill here. */
-function Ladder({ levels, side, max, onPick }: LadderProps) {
+function Ladder({ levels, side, max, onPick, pricePrecision }: LadderProps) {
   const rows = side === "ask" ? [...levels].reverse() : levels;
 
   return (
@@ -217,7 +234,7 @@ function Ladder({ levels, side, max, onPick }: LadderProps) {
             className="tnum relative text-sm"
             style={{ color: side === "bid" ? "var(--long-500)" : "var(--short-500)" }}
           >
-            {formatPrice(level.price)}
+            {formatPrice(level.price, pricePrecision)}
           </span>
           <span className="tnum relative text-right text-sm text-fg-2">{formatDepth(level.size)}</span>
         </button>

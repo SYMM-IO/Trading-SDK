@@ -129,8 +129,8 @@ function ExitsCell({ quotes, deployment, account, family, market }: ExitsCellPro
           </span>
         ) : (
           <>
-            <SideValue side="tp" summary={summary.takeProfit} />
-            <SideValue side="sl" summary={summary.stopLoss} />
+            <SideValue side="tp" summary={summary.takeProfit} pricePrecision={market?.market.pricePrecision} />
+            <SideValue side="sl" summary={summary.stopLoss} pricePrecision={market?.market.pricePrecision} />
           </>
         )}
       </button>
@@ -151,7 +151,15 @@ function ExitsCell({ quotes, deployment, account, family, market }: ExitsCellPro
 }
 
 /** One side's readout: its trigger, its absence, its split, or the fact it is still landing. */
-function SideValue({ side, summary }: { side: "tp" | "sl"; summary: GroupTpSlSideSummary }) {
+function SideValue({
+  side,
+  summary,
+  pricePrecision,
+}: {
+  side: "tp" | "sl";
+  summary: GroupTpSlSideSummary;
+  pricePrecision?: number;
+}) {
   const tone = side === "tp" ? "var(--long-500)" : "var(--short-500)";
   const label = side === "tp" ? "TP" : "SL";
 
@@ -165,7 +173,7 @@ function SideValue({ side, summary }: { side: "tp" | "sl"; summary: GroupTpSlSid
       ) : summary.count === 0 ? (
         <span className="text-fg-3">—</span>
       ) : summary.display === "uniform" ? (
-        <span className="tnum text-fg-1">{formatPrice(Number(summary.price))}</span>
+        <span className="tnum text-fg-1">{formatPrice(Number(summary.price), pricePrecision)}</span>
       ) : (
         /* Split legs have no single price to print. The share shown is of open
            notional, not of legs — one large unprotected quote should drag it

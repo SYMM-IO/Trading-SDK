@@ -111,7 +111,7 @@ function MarketStats({ market: entry }: { market: PrismMarket }) {
           {price === undefined ? "—" : formatPrice(price, entry.market.pricePrecision)}
         </Numeric>
         <span className="text-2xs text-fg-3">
-          Mark{indexPrice !== undefined ? ` · index ${formatPrice(indexPrice)}` : ""}
+          Mark{indexPrice !== undefined ? ` · index ${formatPrice(indexPrice, entry.market.pricePrecision)}` : ""}
         </span>
       </div>
 
