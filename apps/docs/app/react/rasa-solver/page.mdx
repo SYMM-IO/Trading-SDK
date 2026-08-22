@@ -18,7 +18,6 @@ All params objects also accept the standard hook mixins: an optional `chainId` (
 ```ts
 import {
   useSolverReadiness,
-  useCheckSolverWhitelist,
   useAddSolverWhitelist,
   useSolverBalanceInfo,
   usePartyAUpnl,
@@ -31,7 +30,7 @@ import type { SolverId } from "@symmio/trading-core";
 
 ## Readiness & whitelist gate
 
-Reach for these before you drive a rasa flow: confirm the solver is up, then confirm the acting address is allowed to trade through it.
+Reach for these before you drive a rasa flow: confirm the solver is up, and register an address on its whitelist when the solver requires it.
 
 ### `useSolverReadiness`
 
@@ -55,31 +54,6 @@ function SolverStatus() {
 | `query`    | object     | no       | TanStack Query overrides (`enabled`, `refetchInterval`…). |
 
 Returns `UseQueryResult<{ isReady: boolean }, SymmioRequestError>`.
-
-### `useCheckSolverWhitelist`
-
-Is `address` on the solver's whitelist? A read over the rasa-only `/check_in-whitelist` endpoint. Use it to decide whether a subaccount may trade before you surface the trade form. `multiAccountAddress` defaults to the chain's `accountLayerAddress`.
-
-```tsx
-import { useCheckSolverWhitelist } from "@symmio/trading-react";
-import type { Address } from "viem";
-
-function WhitelistBadge({ subAccount }: { subAccount: Address }) {
-  const { data: isWhitelisted } = useCheckSolverWhitelist({ address: subAccount });
-  return <span>{isWhitelisted ? "allowed" : "not whitelisted"}</span>;
-}
-```
-
-| Param                 | Type       | Required | Notes                                          |
-| --------------------- | ---------- | -------- | ---------------------------------------------- |
-| `address`             | `Address`  | **yes**  | Address to check against the whitelist.        |
-| `multiAccountAddress` | `Address`  | no       | Defaults to the chain's `accountLayerAddress`. |
-| `chainId`             | `number`   | no       | Defaults to the connected chain.               |
-| `solverId`            | `SolverId` | no       | Defaults to the chain's default solver.        |
-| `config`              | `Config`   | no       | Override the config from context.              |
-| `query`               | object     | no       | TanStack Query overrides.                      |
-
-Returns `UseQueryResult<boolean, SymmioRequestError>` — `true` when the address is whitelisted.
 
 ### `useAddSolverWhitelist`
 

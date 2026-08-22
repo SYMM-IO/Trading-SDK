@@ -911,17 +911,6 @@ export {
   type AddSolverWhitelistReturnType,
 } from "./solvers/add-solver-whitelist";
 export {
-  checkSolverWhitelist,
-  checkSolverWhitelistQueryKey,
-  checkSolverWhitelistQueryOptions,
-  type CheckSolverWhitelistData,
-  type CheckSolverWhitelistOptions,
-  type CheckSolverWhitelistParameters,
-  type CheckSolverWhitelistQueryKey,
-  type CheckSolverWhitelistQueryOptions,
-  type CheckSolverWhitelistReturnType,
-} from "./solvers/check-solver-whitelist";
-export {
   getErrorMessage,
   getErrorMessageQueryKey,
   getErrorMessageQueryOptions,

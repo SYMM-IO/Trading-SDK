@@ -68,6 +68,16 @@ export function useGroupingIsolation(parameters: UseGroupingIsolationParameters)
     query: { ...fixed, enabled: active && Boolean(parentAccount) },
   });
 
+  /**
+   * A disabled lookup must resolve to "unknown", never read through to cache.
+   * `enabled: false` stops React Query from *fetching*, but it still hands back
+   * whatever another hook has already cached under the same key — so a caller
+   * that opted out (e.g. a custom `{ keyOf }` grouping strategy passes
+   * `enabled: false`) would otherwise leak an isolation the moment anything else
+   * (an order ticket's `useSubAccount`, say) populated that account's cache. Gate
+   * the reads on `active` so the opt-out actually opts out.
+   */
+  if (!active) return undefined;
   if (subAccount.data?.isExists) return subAccount.data.isolationType;
   if (parentSubAccount.data?.isExists) return parentSubAccount.data.isolationType;
   return undefined;

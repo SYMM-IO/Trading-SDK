@@ -128,8 +128,13 @@ export function useGroupedQuotes(parameters: UseGroupedQuotesParameters): UseGro
     enabled: isIsolationStrategy && (parameters.enabled ?? true),
   });
 
-  /** Unresolved isolation reads as supported — never flash a failure while loading. */
-  const isGroupingSupported = isolationType === undefined || supportsQuoteGrouping(isolationType);
+  /**
+   * Unresolved isolation reads as supported — never flash a failure while loading.
+   * A custom `{ keyOf }` strategy opted out of the isolation gate entirely, so it
+   * is always supported regardless of any isolation the lookup might surface.
+   */
+  const isGroupingSupported =
+    !isIsolationStrategy || isolationType === undefined || supportsQuoteGrouping(isolationType);
 
   const groupingError = useMemo<SymmioRequestError | null>(() => {
     if (isolationType === undefined || isGroupingSupported) return null;
