@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   getOpenInterestOpenInterestGet: vi.fn(),
   getSymbolPriceRangePriceRangeSymbolGet: vi.fn(),
   getErrorMessageErrorCodesErrorCodeGet: vi.fn(),
-  checkInWhiteListCheckInWhitelistAddressMultiAccountAddressGet: vi.fn(),
   whitelistCheckSubAddressAddSubAddressInWhitelistAddressMultiAccountAddressGet: vi.fn(),
   readyCheckReadyzGet: vi.fn(),
 }));
@@ -21,7 +20,6 @@ vi.mock("./types/generated/rasa-solver", async (importOriginal) => {
 });
 
 import { addSolverWhitelist } from "./add-solver-whitelist";
-import { checkSolverWhitelist } from "./check-solver-whitelist";
 import { getErrorMessage } from "./get-error-message";
 import { getPartyAUpnl } from "./get-party-a-upnl";
 import { getSolverBalanceInfo } from "./get-solver-balance-info";
@@ -79,13 +77,6 @@ const CASES = [
     expectedArgs: [2000, { baseURL: RASA_URL }],
   },
   {
-    name: "checkSolverWhitelist",
-    run: () => checkSolverWhitelist(config, { chainId: BASE, address: USER }),
-    mock: mocks.checkInWhiteListCheckInWhitelistAddressMultiAccountAddressGet,
-    response: true,
-    expectedArgs: [USER, BASE_ACCOUNT_LAYER, { baseURL: RASA_URL }],
-  },
-  {
     name: "addSolverWhitelist",
     run: () => addSolverWhitelist(config, { chainId: BASE, address: USER }),
     mock: mocks.whitelistCheckSubAddressAddSubAddressInWhitelistAddressMultiAccountAddressGet,
@@ -108,7 +99,6 @@ const ENIGMA_RUNS = [
   () => getSolverOpenInterest(config, { chainId: HYPER }),
   () => getSolverPriceRange(config, { chainId: HYPER, symbol: "BTCUSDT" }),
   () => getErrorMessage(config, { chainId: HYPER, errorCode: 1 }),
-  () => checkSolverWhitelist(config, { chainId: HYPER, address: USER }),
   () => addSolverWhitelist(config, { chainId: HYPER, address: USER }),
   () => getSolverReadiness(config, { chainId: HYPER }),
 ] as const;

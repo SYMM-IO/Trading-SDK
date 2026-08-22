@@ -52,7 +52,7 @@ export const SOLVER_METHODS: readonly SolverMethodMeta[] = [
   { id: "method-enigma-instant-close", method: "instantClose", action: "useInstantClose", kind: "write" },
   {
     id: "method-rasa-whitelist",
-    method: "checkSolverWhitelist / addSolverWhitelist",
+    method: "addSolverWhitelist",
     action: "useAddSolverWhitelist",
     kind: "write",
   },

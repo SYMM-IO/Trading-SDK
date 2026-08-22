@@ -1010,7 +1010,6 @@ export {
  */
 export {
   useAddSolverWhitelist,
-  useCheckSolverWhitelist,
   useErrorMessage,
   usePartyAUpnl,
   useSolverBalanceInfo,
@@ -1019,8 +1018,6 @@ export {
   useSolverReadiness,
   type UseAddSolverWhitelistParameters,
   type UseAddSolverWhitelistReturnType,
-  type UseCheckSolverWhitelistParameters,
-  type UseCheckSolverWhitelistReturnType,
   type UseErrorMessageParameters,
   type UseErrorMessageReturnType,
   type UsePartyAUpnlParameters,

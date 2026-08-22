@@ -221,14 +221,14 @@ const impact = calculatePriceImpact({ estimatedPrice, referencePrice: markPrice 
 
 The **rasa** solver (majors, on Base) exposes reads the enigma solver does not. Each is a normal `getX` action with a `…QueryOptions` / `…QueryKey` factory; calling one against a non-rasa solver throws `UNSUPPORTED_BY_SOLVER`. In React these are the [Rasa Solver hooks](/react/rasa-solver). See [Solvers & Chains](/core/concepts/solvers-and-chains) for the kind model.
 
-| Action                                        | Purpose                                                                                                        |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `getSolverReadiness`                          | Whether the solver is up and accepting trades.                                                                 |
-| `checkSolverWhitelist` / `addSolverWhitelist` | Read / add a partyA on the solver whitelist (the latter is a write, with `addSolverWhitelistMutationOptions`). |
-| `getSolverBalanceInfo`                        | Solver-side balance for an account.                                                                            |
-| `getPartyAUpnl`                               | PartyA uPnL as computed by the solver.                                                                         |
-| `getSolverOpenInterest`                       | Global open interest.                                                                                          |
-| `getSolverPriceRange`                         | Accepted price range for a symbol.                                                                             |
+| Action                  | Purpose                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| `getSolverReadiness`    | Whether the solver is up and accepting trades.                                            |
+| `addSolverWhitelist`    | Add a partyA to the solver whitelist (a write, with `addSolverWhitelistMutationOptions`). |
+| `getSolverBalanceInfo`  | Solver-side balance for an account.                                                       |
+| `getPartyAUpnl`         | PartyA uPnL as computed by the solver.                                                    |
+| `getSolverOpenInterest` | Global open interest.                                                                     |
+| `getSolverPriceRange`   | Accepted price range for a symbol.                                                        |
 
 Notification history search is **not** listed here: it is the unified [`searchNotifications`](/core/notifications), which dispatches to the rasa solver's position-state endpoint (`POST /position-state/{start}/{size}`) for a rasa solver and returns the rasa result variant. See [Notifications](/core/notifications/search-notifications).
 
