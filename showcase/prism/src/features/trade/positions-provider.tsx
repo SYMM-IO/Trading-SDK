@@ -215,7 +215,6 @@ export function PositionsProvider({ children }: { children: ReactNode }) {
     };
   }, [slices, deployments, scopedAccounts]);
 
-  console.log("value", value);
   return (
     <PositionsContext.Provider value={value}>
       {scopedAccounts.map((account) => (

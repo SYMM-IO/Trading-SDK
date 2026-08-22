@@ -26,15 +26,19 @@ import { calculateQuotePnl, isActivePosition, OrderType, PositionType } from "@s
 import { useQuotePlatformFee } from "@symmio/trading-react";
 import { useEffect, useState } from "react";
 import { PositionFundingHistoryRow } from "./position-funding-history";
+import { PositionLimitCloseModal } from "./position-limit-close-modal";
 import { PositionMarginModal } from "./position-margin-modal";
 import { PositionPriceRail } from "./position-price-rail";
 import { PositionMarginSection, PositionRiskSection } from "./position-risk-section";
 import { PositionTpSlCell } from "./position-tpsl-cell";
 import type { PrismQuote } from "./positions-provider";
 import {
+  AWAITING_CANCEL_CLOSE_REASON,
   AWAITING_CANCEL_REASON,
   CLOSE_BLOCKED_REASON,
+  LIMIT_CLOSE_HINT,
   resolvePositionIntent,
+  restingCloseOf,
   switchReasonHint,
   usePositionActions,
 } from "./use-position-actions";
@@ -81,6 +85,7 @@ export interface PositionDetailsModalProps {
 export function PositionDetailsModal({ row, market, open, onClose }: PositionDetailsModalProps) {
   const { quote } = row;
   const [marginOpen, setMarginOpen] = useState(false);
+  const [limitCloseOpen, setLimitCloseOpen] = useState(false);
 
   const name = market ? marketLabel(market.market.symbol, market.market.name) : `#${quote.symbolId}`;
   const isLong = quote.positionType === PositionType.LONG;
@@ -95,6 +100,7 @@ export function PositionDetailsModal({ row, market, open, onClose }: PositionDet
   const funding = usePositionFunding(row, market);
   const risk = usePositionRisk(row);
   const actions = usePositionActions(row, market);
+  const resting = restingCloseOf(quote);
 
   /* `0n` and `undefined` both mean "no fill yet" — the first is an on-chain row
      before partyB settles it, the second an off-chain one. Collapsing them is
@@ -148,7 +154,13 @@ export function PositionDetailsModal({ row, market, open, onClose }: PositionDet
                   Margin
                 </Button>
               ) : null}
-              <SheetAction actions={actions} row={row} onDone={onClose} />
+              <SheetAction
+                actions={actions}
+                row={row}
+                onDone={onClose}
+                canLimitClose={Boolean(market)}
+                onLimitClose={() => setLimitCloseOpen(true)}
+              />
             </div>
           </div>
         }
@@ -211,6 +223,33 @@ export function PositionDetailsModal({ row, market, open, onClose }: PositionDet
             }
             sub={mark === undefined ? "feed reconnecting" : undefined}
           />
+
+          {/* Where the close is waiting, and for how much. The pill in the
+              footer says a close is pending; this is the level it rests at,
+              which is the figure that decides whether to leave it or cancel. */}
+          {resting ? (
+            <DetailRow
+              label="Resting close"
+              tip={{
+                title: "Resting close",
+                body: resting.isLimit
+                  ? "A limit close waits on-chain at this price until the solver fills it, you cancel it, or its deadline passes. The position stays open — priced, and paying or earning funding — until then."
+                  : "A market close the solver has accepted but not yet filled on-chain. If it stalls, it can be cancelled like any resting close.",
+              }}
+              value={
+                <Numeric size="sm" tone="strong">
+                  {formatPrice(fromWei(resting.price), precision)}
+                </Numeric>
+              }
+              sub={`${formatSize(fromWei(resting.quantity), market?.market.symbol)} of ${formatSize(size, market?.market.symbol)} · ${resting.isLimit ? "limit" : "market"}${
+                actions.closeExpiresIn === undefined
+                  ? ""
+                  : actions.closeExpiresIn === 0
+                    ? " · expired"
+                    : ` · expires in ${formatCountdown(actions.closeExpiresIn)}`
+              }`}
+            />
+          ) : null}
 
           {/* The header compacts a large size to `1.2M`, which loses the
               decimals a close is actually submitted with. */}
@@ -351,6 +390,10 @@ export function PositionDetailsModal({ row, market, open, onClose }: PositionDet
           open={marginOpen}
           onClose={() => setMarginOpen(false)}
         />
+      ) : null}
+
+      {limitCloseOpen && market ? (
+        <PositionLimitCloseModal row={row} market={market} open onClose={() => setLimitCloseOpen(false)} />
       ) : null}
     </>
   );
@@ -583,6 +626,10 @@ interface SheetActionProps {
   row: PrismQuote;
   /** Closes the sheet once the write is away — the row behind it takes over. */
   onDone: () => void;
+  /** False until the market has resolved — a limit close is priced in its precision. */
+  canLimitClose: boolean;
+  /** Opens the limit-close sheet on top of this one. */
+  onLimitClose: () => void;
 }
 
 /**
@@ -594,7 +641,7 @@ interface SheetActionProps {
  * would be the worst kind of disagreement: the sheet is where a trader goes when
  * they are already unsure.
  */
-function SheetAction({ actions, row, onDone }: SheetActionProps) {
+function SheetAction({ actions, row, onDone, canLimitClose, onLimitClose }: SheetActionProps) {
   const intent = resolvePositionIntent(row, actions);
 
   if (intent.kind === "opening") {
@@ -672,20 +719,86 @@ function SheetAction({ actions, row, onDone }: SheetActionProps) {
     );
   }
 
+  if (intent.kind === "settling-cancel-close") {
+    return <span className="prism-pulse text-sm text-warn">confirming the cancellation…</span>;
+  }
+
+  if (intent.kind === "awaiting-cancel-close") {
+    return (
+      <span className="text-sm text-fg-3" title={AWAITING_CANCEL_CLOSE_REASON}>
+        {intent.remaining === undefined
+          ? "Close cancel requested — waiting on the solver"
+          : "Close cancel requested — force available in "}
+        {intent.remaining === undefined ? null : (
+          <span className="tnum text-fg-1">{formatCountdown(intent.remaining)}</span>
+        )}
+      </span>
+    );
+  }
+
+  if (intent.kind === "cancel-close") {
+    if (intent.force) {
+      return (
+        <Button
+          size="md"
+          variant="danger"
+          loading={actions.isCancelClosePending}
+          onClick={() => {
+            actions.forceCancelClose();
+            onDone();
+          }}
+        >
+          Force cancel close
+        </Button>
+      );
+    }
+    return (
+      <Button
+        size="md"
+        variant="secondary"
+        title={
+          intent.expired
+            ? "This close request has passed its deadline. Releasing it puts the position back to open at once."
+            : "Ask the solver to release the resting close. The position stays open throughout."
+        }
+        loading={actions.isCancelClosePending}
+        onClick={() => {
+          actions.cancelClose();
+          onDone();
+        }}
+      >
+        {intent.expired ? "Release close" : "Cancel close"}
+      </Button>
+    );
+  }
+
   return (
-    <Button
-      size="md"
-      variant="primary"
-      disabled={actions.closeBlocked}
-      title={actions.closeBlocked ? CLOSE_BLOCKED_REASON : undefined}
-      loading={actions.isClosePending}
-      onClick={() => {
-        actions.close();
-        onDone();
-      }}
-    >
-      Close position
-    </Button>
+    <>
+      {actions.supportsLimitClose ? (
+        <Button
+          size="md"
+          variant="secondary"
+          disabled={!canLimitClose}
+          title={canLimitClose ? LIMIT_CLOSE_HINT : "This position's market has not loaded yet."}
+          onClick={onLimitClose}
+        >
+          Limit close
+        </Button>
+      ) : null}
+      <Button
+        size="md"
+        variant="primary"
+        disabled={actions.closeBlocked}
+        title={actions.closeBlocked ? CLOSE_BLOCKED_REASON : undefined}
+        loading={actions.isClosePending}
+        onClick={() => {
+          actions.close();
+          onDone();
+        }}
+      >
+        Close position
+      </Button>
+    </>
   );
 }
 

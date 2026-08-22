@@ -17,19 +17,24 @@ import {
   formatRelativeTime,
   formatSize,
   formatUsd,
+  fromWei,
   marketLabel,
 } from "@/lib/format";
 import { isActivePosition, PositionType } from "@symmio/trading-core";
 import { useState, type ReactNode } from "react";
 import { formatUnits } from "viem";
 import { PositionDetailsModal } from "./position-details-modal";
+import { PositionLimitCloseModal } from "./position-limit-close-modal";
 import { PositionMarginModal } from "./position-margin-modal";
 import { PositionTpSlCell } from "./position-tpsl-cell";
 import type { PrismQuote } from "./positions-provider";
 import {
+  AWAITING_CANCEL_CLOSE_REASON,
   AWAITING_CANCEL_REASON,
   CLOSE_BLOCKED_REASON,
+  LIMIT_CLOSE_HINT,
   resolvePositionIntent,
+  restingCloseOf,
   switchReasonHint,
   usePositionActions,
 } from "./use-position-actions";
@@ -97,6 +102,7 @@ export function BlotterRow({ row, variant = "position", depth = "root" }: Blotte
   const { byKey } = useMergedMarkets({ scope: "all" });
   const [marginOpen, setMarginOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [limitCloseOpen, setLimitCloseOpen] = useState(false);
 
   const market = byKey.get(marketKey(row.family, Number(row.quote.symbolId)));
   const actions = usePositionActions(row, market);
@@ -123,6 +129,9 @@ export function BlotterRow({ row, variant = "position", depth = "root" }: Blotte
 
   const isOrder = variant === "order";
   const size = Number(isOrder ? orderQuantity : quantity);
+  /* A close resting on the position is the one fact about its state the pill
+     cannot carry: *where* it is waiting. */
+  const resting = restingCloseOf(row.quote);
   /* Value the position at the live mark where there is one, and fall back to
      the price it was opened at — a notional that silently reads `—` while the
      feed reconnects is worse than one priced a minute ago. */
@@ -216,9 +225,24 @@ export function BlotterRow({ row, variant = "position", depth = "root" }: Blotte
             state. */}
         <div className="flex min-w-0 flex-col items-start gap-1">
           <StatePill lifecycle={row.quote.lifecycle} status={row.quote.quoteStatus} />
-          <span className="truncate text-2xs text-fg-3">
-            {formatRelativeTime(Number(row.quote.statusModifyTimestamp ?? row.quote.createTimestamp ?? 0n))}
-          </span>
+          {/* The resting price displaces the age: on a row whose state is "a
+              close is waiting", the level it waits at is the figure a trader
+              scans for, and the countdown says how long it will keep waiting. */}
+          {resting ? (
+            <span
+              className="tnum truncate text-2xs text-fg-3"
+              title={`${resting.isLimit ? "Limit" : "Market"} close for ${formatSize(fromWei(resting.quantity), market?.market.symbol)} resting at ${formatPrice(fromWei(resting.price), market?.market.pricePrecision)}.`}
+            >
+              {`${resting.isLimit ? "limit" : "market"} ${formatPrice(fromWei(resting.price), market?.market.pricePrecision)}`}
+              {actions.closeExpiresIn === undefined
+                ? null
+                : ` · ${actions.closeExpiresIn === 0 ? "expired" : formatCountdown(actions.closeExpiresIn)}`}
+            </span>
+          ) : (
+            <span className="truncate text-2xs text-fg-3">
+              {formatRelativeTime(Number(row.quote.statusModifyTimestamp ?? row.quote.createTimestamp ?? 0n))}
+            </span>
+          )}
         </div>
 
         <StopClick className="flex items-center justify-end gap-1.5">
@@ -242,7 +266,12 @@ export function BlotterRow({ row, variant = "position", depth = "root" }: Blotte
               Margin
             </Button>
           ) : null}
-          <RowAction row={row} actions={actions} />
+          <RowAction
+            row={row}
+            actions={actions}
+            canLimitClose={Boolean(market)}
+            onLimitClose={() => setLimitCloseOpen(true)}
+          />
         </StopClick>
       </DataRow>
 
@@ -261,6 +290,10 @@ export function BlotterRow({ row, variant = "position", depth = "root" }: Blotte
           for twenty sheets nobody is reading. */}
       {detailsOpen ? (
         <PositionDetailsModal row={row} market={market} open onClose={() => setDetailsOpen(false)} />
+      ) : null}
+
+      {limitCloseOpen && market ? (
+        <PositionLimitCloseModal row={row} market={market} open onClose={() => setLimitCloseOpen(false)} />
       ) : null}
     </>
   );
@@ -370,6 +403,10 @@ export function SidePill({ isLong }: { isLong: boolean }) {
 interface RowActionProps {
   row: PrismQuote;
   actions: ReturnType<typeof usePositionActions>;
+  /** False until the row's market has resolved — a limit close is priced in its precision. */
+  canLimitClose: boolean;
+  /** Opens the limit-close sheet. Offered only where the solver declares resting orders. */
+  onLimitClose: () => void;
 }
 
 /**
@@ -386,7 +423,7 @@ interface RowActionProps {
  * reads too, so the two surfaces cannot drift apart. This function only renders
  * the rung it lands on, at blotter size.
  */
-function RowAction({ row, actions }: RowActionProps) {
+function RowAction({ row, actions, canLimitClose, onLimitClose }: RowActionProps) {
   const intent = resolvePositionIntent(row, actions);
 
   if (intent.kind === "opening") {
@@ -450,16 +487,82 @@ function RowAction({ row, actions }: RowActionProps) {
     );
   }
 
+  /* The transaction is through and the chain has not shown it yet. Not a
+     button: the same write again reverts with "Invalid state". */
+  if (intent.kind === "settling-cancel-close") {
+    return <span className="prism-pulse text-2xs text-warn">confirming…</span>;
+  }
+
+  /* The close side's twin of the rung above, with one more state: a request
+     past its own deadline is released outright, so the button says so rather
+     than promising a cooldown that will not happen. */
+  if (intent.kind === "awaiting-cancel-close") {
+    return (
+      <span className="flex flex-col items-end gap-0.5 text-right" title={AWAITING_CANCEL_CLOSE_REASON}>
+        <span className="prism-pulse text-2xs text-fg-3">cancelling close…</span>
+        {intent.remaining === undefined ? null : (
+          <span className="tnum text-2xs text-fg-3">{`force in ${formatCountdown(intent.remaining)}`}</span>
+        )}
+      </span>
+    );
+  }
+
+  if (intent.kind === "cancel-close") {
+    if (intent.force) {
+      return (
+        <Button
+          size="sm"
+          variant="danger"
+          title="The solver ignored the cancel past its cooldown. This takes the close off the position yourself."
+          loading={actions.isCancelClosePending}
+          onClick={actions.forceCancelClose}
+        >
+          Force cancel
+        </Button>
+      );
+    }
+    return (
+      <Button
+        size="sm"
+        variant="secondary"
+        title={
+          intent.expired
+            ? "This close request has passed its deadline. Releasing it puts the position back to open at once."
+            : "Ask the solver to release the resting close. The position stays open throughout."
+        }
+        loading={actions.isCancelClosePending}
+        onClick={actions.cancelClose}
+      >
+        {intent.expired ? "Release" : "Cancel close"}
+      </Button>
+    );
+  }
+
   return (
-    <Button
-      size="sm"
-      variant="secondary"
-      disabled={actions.closeBlocked}
-      title={actions.closeBlocked ? CLOSE_BLOCKED_REASON : undefined}
-      loading={actions.isClosePending}
-      onClick={actions.close}
-    >
-      Close
-    </Button>
+    <>
+      {/* Only where the solver declares resting orders — a lowcap row never
+          grows this button, rather than growing one that fails at submit. */}
+      {actions.supportsLimitClose ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={!canLimitClose}
+          title={canLimitClose ? LIMIT_CLOSE_HINT : "This position's market has not loaded yet."}
+          onClick={onLimitClose}
+        >
+          Limit
+        </Button>
+      ) : null}
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={actions.closeBlocked}
+        title={actions.closeBlocked ? CLOSE_BLOCKED_REASON : undefined}
+        loading={actions.isClosePending}
+        onClick={actions.close}
+      >
+        Close
+      </Button>
+    </>
   );
 }

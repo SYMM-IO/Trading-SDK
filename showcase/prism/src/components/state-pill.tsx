@@ -34,7 +34,7 @@ const STATUS_STYLES: Record<QuoteStatus, StateStyle> = {
   [QuoteStatus.CANCELED]: { label: "Canceled", color: "var(--state-canceled)" },
   [QuoteStatus.OPENED]: { label: "Opened", color: "var(--state-opened)" },
   [QuoteStatus.CLOSE_PENDING]: { label: "Close pending", color: "var(--state-close-pending)" },
-  [QuoteStatus.CANCEL_CLOSE_PENDING]: { label: "Cancel close", color: "var(--state-cancel-pending)" },
+  [QuoteStatus.CANCEL_CLOSE_PENDING]: { label: "Cancelling close", color: "var(--state-cancel-pending)" },
   [QuoteStatus.CLOSED]: { label: "Closed", color: "var(--state-closed)" },
   [QuoteStatus.LIQUIDATED_PENDING]: { label: "Liquidating", color: "var(--state-liquidated)" },
   [QuoteStatus.LIQUIDATED]: { label: "Liquidated", color: "var(--state-liquidated)" },

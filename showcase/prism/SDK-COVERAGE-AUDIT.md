@@ -183,6 +183,12 @@ Ordered by how much each one changes what a trader can do, then by effort.
 
 ### 1. Cancel a stuck close — `useRequestToCancelCloseRequest` + `useForceCancelCloseRequest`
 
+> **Shipped 2026-08-23.** `resolvePositionIntent` now has the close-side rungs
+> (`cancel-close` / `awaiting-cancel-close`, with the force-cancel-close
+> cooldown from `useCoolDownsOfMA()[2]` and the request's own deadline), and
+> both the blotter row and the details sheet render them. The text below is the
+> gap as it was found.
+
 **The largest gap.** The open-side cancel ladder in
 [`src/features/trade/use-position-actions.ts`](src/features/trade/use-position-actions.ts)
 is complete: `requestToCancelQuote`, a live countdown on the solver's cooldown,
@@ -194,6 +200,13 @@ cooldown too. Same ladder, same gates, second branch in
 `resolvePositionIntent`.
 
 ### 2. Limit close — `useLimitCloseAuto`
+
+> **Shipped 2026-08-23.** `PositionLimitCloseModal` in
+> [`src/features/trade/position-limit-close-modal.tsx`](src/features/trade/position-limit-close-modal.tsx),
+> reached from a `Limit` button on majors rows and a `Limit close` button in
+> the details sheet; gated on `useSupportsLimitOrder` per deployment, priced
+> against `useSolverPriceRange`, sized through `validateInstantCloseAgainstMarket`.
+> Item 3 (partial close) came with it for the limit path only.
 
 The order ticket offers limit _opens_ (`useLimitOpenAuto`), but every close is
 a market close through `useInstantCloseAuto`. A limit close is the natural
