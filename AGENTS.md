@@ -232,6 +232,8 @@ Before declaring a task done, run the relevant subset of:
 
 Report the output. If any fail, fix before declaring complete.
 
+**Every change must be `pnpm format`-clean.** The user runs `pnpm format` manually before committing, so any code you touch must already match Prettier's output (`.prettierrc` with `prettier-plugin-organize-imports` + `prettier-plugin-tailwindcss`) — correct indentation, quotes, trailing commas, import ordering, wrapped call sites. Do not hand-format in a way Prettier would rewrite. When unsure, run `pnpm format` (or `prettier --check` on the touched files) yourself and fix before declaring complete, so the user's manual `pnpm format` is a no-op.
+
 ## Vendors & Data Sources
 
 > **TODO** — fill in vendor list and reference URLs.
