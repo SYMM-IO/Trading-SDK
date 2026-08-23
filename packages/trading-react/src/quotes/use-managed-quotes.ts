@@ -38,7 +38,13 @@ import { useSymmioConfig } from "../provider/use-symmio-config";
 import { useTpSlStore } from "../tpsl/tpsl-store";
 import { invalidateAccountBalances, predicateMatch } from "../utils";
 import { useNotifications } from "../websocket/use-notifications";
-import { nextConfirmDelay, pruneCancelConfirmHold, pruneCloseConfirmHold, pruneOpenConfirmHold } from "./confirm-hold";
+import {
+  nextConfirmDelay,
+  pruneCancelConfirmHold,
+  pruneCloseConfirmHold,
+  pruneOpenConfirmHold,
+  type CloseConfirmEntry,
+} from "./confirm-hold";
 import { useOptimisticQuotesStore } from "./optimistic-quotes-store";
 
 /**
@@ -328,7 +334,7 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
    * closed) or the {@link CONFIRM_MAX_MS} budget passes; when every map empties the
    * backoff stops.
    */
-  const closeConfirmRef = useRef<Map<string, number>>(new Map());
+  const closeConfirmRef = useRef<Map<string, CloseConfirmEntry>>(new Map());
   /**
    * Cancel-confirm hold: on-chain quoteId → deadline (ms). A cancel notification
    * (`onNotification`) records the quote here and kicks off `pumpConfirm`, which
@@ -536,15 +542,35 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
           invalidateOnchainQuoteReads(queryClientRef.current, { configKey: configKeyRef.current });
           restartConfirmChase();
         }
-        // Close *filled* (not merely requested): refetch the on-chain reads immediately,
-        // then chase the settle on a doubling backoff (`pumpConfirm`) until the chain
-        // drops the quote or the budget passes. Covers rasa, where the quote lingers OPENED
-        // after `FillMarketOrderInstantClose` and the row would otherwise revert to ONCHAIN
-        // and stop polling before the settle lands.
-        if (isCloseFillAction(notification.lastSeenAction) && onchainStr && onchainStr !== "0") {
-          closeConfirmRef.current.set(onchainStr, Date.now() + CONFIRM_MAX_MS);
+        // Close *filled* successfully (not merely requested, and not a failed fill):
+        // refetch the on-chain reads immediately, then chase the settle on a doubling
+        // backoff (`pumpConfirm`) until the chain reflects it or the budget passes.
+        // Covers rasa, where the quote lingers OPENED after `FillMarketOrderInstantClose`
+        // and the row would otherwise revert to ONCHAIN before the settle lands. The
+        // `closedAmount` at fill-time is captured so a **partial** settle (closedAmount
+        // advances, quote stays OPENED) releases the hold instead of hanging at "closing".
+        if (
+          notification.type === NotificationType.SUCCESS &&
+          isCloseFillAction(notification.lastSeenAction) &&
+          onchainStr &&
+          onchainStr !== "0"
+        ) {
+          const baseClosed = previousRef.current?.quotes.find((q) => `${q.quoteId}` === onchainStr)?.closedAmount ?? 0n;
+          closeConfirmRef.current.set(onchainStr, { deadline: Date.now() + CONFIRM_MAX_MS, baseClosed });
           invalidateOnchainQuoteReads(queryClientRef.current, { configKey: configKeyRef.current });
           restartConfirmChase();
+        }
+        // A close that **failed** (reverted / rejected): release the hold so the row
+        // drops back to its on-chain state (still OPENED) instead of hanging at
+        // `WRITE_ONCHAIN_CLOSE`, and re-read in case the revert moved anything.
+        if (
+          notification.type === NotificationType.FAILED &&
+          classifyQuoteNotificationAction(notification.lastSeenAction) === "close" &&
+          onchainStr &&
+          onchainStr !== "0"
+        ) {
+          closeConfirmRef.current.delete(onchainStr);
+          invalidateOnchainQuoteReads(queryClientRef.current, { configKey: configKeyRef.current });
         }
         /**
          * A cancel was **requested**. The frame arrives around the time the request
@@ -773,15 +799,31 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
       return { quotes: [], links: {}, pendingAnchors: [] };
     }
     const seededInstantOpens = [...(instantOpens.data ?? []), ...Object.values(optimisticEntries)];
+    const onchainPositions = wantOpenPositions ? openPositions.quotes : [];
+    /**
+     * On-chain ids whose close is filled-but-unsettled — held at
+     * WRITE_ONCHAIN_CLOSE across ticks so the row does not flash back to "Opened"
+     * while the settle mines. Dropped the moment the on-chain `closedAmount` moves
+     * past the fill-time baseline (a partial settle back to a live position); the
+     * full-settle and CLOSE_PENDING cases fall out of the reconcile on their own,
+     * and a failed close already released its hold on the FAILED frame.
+     */
+    const closingQuoteIds: string[] = [];
+    for (const [id, { baseClosed }] of closeConfirmRef.current) {
+      const onchainClosed = onchainPositions.find((q) => `${q.id}` === id)?.closedAmount;
+      if (onchainClosed !== undefined && onchainClosed > baseClosed) continue;
+      closingQuoteIds.push(id);
+    }
     const next = reconcileQuotes({
       partyA,
-      onchainPositions: wantOpenPositions ? openPositions.quotes : [],
+      onchainPositions,
       onchainPendingQuotes: wantPendingQuotes ? hydratedPending.quotes : [],
       instantOpens: wantInstantOpens ? seededInstantOpens : [],
       instantCloses: wantInstantCloses ? (instantCloses.data ?? []) : [],
       instantOpenVaByTempId: predictedVas.byTempId,
       notifications,
       retainedAnchors: retainedAnchorsRef.current,
+      closingQuoteIds,
     });
     previousRef.current = next;
     retainedAnchorsRef.current = next.pendingAnchors;

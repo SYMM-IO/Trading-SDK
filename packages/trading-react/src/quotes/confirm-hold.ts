@@ -13,6 +13,18 @@ export function nextConfirmDelay(current: number, max: number): number {
 }
 
 /**
+ * One close-confirm hold entry: its deadline (ms epoch) plus the `closedAmount`
+ * the position had **when the fill was seen**. The chase (and the row's
+ * `WRITE_ONCHAIN_CLOSE` retention) releases the moment the on-chain `closedAmount`
+ * advances past this baseline — a **partial** settle back to a live position —
+ * the same as a full settle (row removed) or a `CLOSE_PENDING` status.
+ */
+export interface CloseConfirmEntry {
+  deadline: number;
+  baseClosed: bigint;
+}
+
+/**
  * Whether the chain has acknowledged a close for a quote that is **still present**
  * in the active set. Releases the close-confirm hold when the on-chain status
  * reflects the pending close (`quoteStatus` `CLOSE_PENDING` / `CANCEL_CLOSE_PENDING`),
@@ -50,15 +62,18 @@ export function isCloseConfirmedOnchain(quote: UnifiedQuote): boolean {
  * @returns the quoteIds dropped due to an expired deadline.
  */
 export function pruneCloseConfirmHold(
-  pending: Map<string, number>,
+  pending: Map<string, CloseConfirmEntry>,
   quotes: readonly UnifiedQuote[],
   now: number,
 ): string[] {
   if (pending.size === 0) return [];
   const expired: string[] = [];
-  for (const [quoteId, deadline] of pending) {
+  for (const [quoteId, { deadline, baseClosed }] of pending) {
     const row = quotes.find((quote) => `${quote.quoteId}` === quoteId);
-    if (!row || isCloseConfirmedOnchain(row)) {
+    /* Released once the chain reflects the close: the row dropped (full settle),
+       the status/closed-amount confirms it, or `closedAmount` advanced past the
+       baseline captured at the fill — a partial settle back to a live position. */
+    if (!row || isCloseConfirmedOnchain(row) || (row.closedAmount ?? 0n) > baseClosed) {
       pending.delete(quoteId);
       continue;
     }

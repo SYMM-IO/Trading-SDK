@@ -8,6 +8,7 @@ import {
   pruneCancelConfirmHold,
   pruneCloseConfirmHold,
   pruneOpenConfirmHold,
+  type CloseConfirmEntry,
 } from "./confirm-hold";
 
 /** Minimal {@link UnifiedQuote} carrying only the fields the hold logic reads. */
@@ -66,43 +67,57 @@ describe("nextConfirmDelay", () => {
 
 describe("pruneCloseConfirmHold", () => {
   it("returns [] and does nothing for an empty hold", () => {
-    const pending = new Map<string, number>();
+    const pending = new Map<string, CloseConfirmEntry>();
     expect(pruneCloseConfirmHold(pending, [], 1_000)).toEqual([]);
     expect(pending.size).toBe(0);
   });
 
   it("keeps an entry whose quote is still open and before its deadline (the rasa lag window)", () => {
-    const pending = new Map<string, number>([["1", 5_000]]);
+    const pending = new Map<string, CloseConfirmEntry>([["1", { deadline: 5_000, baseClosed: 0n }]]);
     const quotes = [makeUnified({ quoteId: 1n, lifecycle: QuoteLifecycle.ONCHAIN, closedAmount: 0n })];
     expect(pruneCloseConfirmHold(pending, quotes, 1_000)).toEqual([]);
     expect(pending.has("1")).toBe(true);
   });
 
   it("releases an entry once its quote drops out of the active set (full close)", () => {
-    const pending = new Map<string, number>([["2", 5_000]]);
+    const pending = new Map<string, CloseConfirmEntry>([["2", { deadline: 5_000, baseClosed: 0n }]]);
     expect(pruneCloseConfirmHold(pending, [], 1_000)).toEqual([]);
     expect(pending.has("2")).toBe(false);
   });
 
   it("releases an entry once the chain confirms the close on a still-present row", () => {
-    const pending = new Map<string, number>([["1", 5_000]]);
+    const pending = new Map<string, CloseConfirmEntry>([["1", { deadline: 5_000, baseClosed: 0n }]]);
     const quotes = [makeUnified({ quoteId: 1n, quantity: 10n, closedAmount: 10n })];
     expect(pruneCloseConfirmHold(pending, quotes, 1_000)).toEqual([]);
     expect(pending.has("1")).toBe(false);
   });
 
+  it("releases an entry once closedAmount advances past the fill-time baseline (partial settle)", () => {
+    const pending = new Map<string, CloseConfirmEntry>([["1", { deadline: 5_000, baseClosed: 2n }]]);
+    const quotes = [makeUnified({ quoteId: 1n, lifecycle: QuoteLifecycle.ONCHAIN, quantity: 10n, closedAmount: 5n })];
+    expect(pruneCloseConfirmHold(pending, quotes, 1_000)).toEqual([]);
+    expect(pending.has("1")).toBe(false);
+  });
+
+  it("keeps an entry whose closedAmount has not moved past the baseline yet", () => {
+    const pending = new Map<string, CloseConfirmEntry>([["1", { deadline: 5_000, baseClosed: 2n }]]);
+    const quotes = [makeUnified({ quoteId: 1n, lifecycle: QuoteLifecycle.ONCHAIN, quantity: 10n, closedAmount: 2n })];
+    expect(pruneCloseConfirmHold(pending, quotes, 1_000)).toEqual([]);
+    expect(pending.has("1")).toBe(true);
+  });
+
   it("reports an entry that hit its deadline without confirmation", () => {
-    const pending = new Map<string, number>([["1", 500]]);
+    const pending = new Map<string, CloseConfirmEntry>([["1", { deadline: 500, baseClosed: 0n }]]);
     const quotes = [makeUnified({ quoteId: 1n, lifecycle: QuoteLifecycle.ONCHAIN, closedAmount: 0n })];
     expect(pruneCloseConfirmHold(pending, quotes, 1_000)).toEqual(["1"]);
     expect(pending.has("1")).toBe(false);
   });
 
   it("handles a mixed hold: keep the live one, drop the confirmed, report the expired", () => {
-    const pending = new Map<string, number>([
-      ["1", 5_000], // still open, before deadline → kept
-      ["2", 5_000], // absent from quotes → released
-      ["3", 200], // still open, past deadline → reported
+    const pending = new Map<string, CloseConfirmEntry>([
+      ["1", { deadline: 5_000, baseClosed: 0n }], // still open, before deadline → kept
+      ["2", { deadline: 5_000, baseClosed: 0n }], // absent from quotes → released
+      ["3", { deadline: 200, baseClosed: 0n }], // still open, past deadline → reported
     ]);
     const quotes = [
       makeUnified({ quoteId: 1n, lifecycle: QuoteLifecycle.ONCHAIN, closedAmount: 0n }),
