@@ -115,7 +115,7 @@ export function GroupCloseStep({ group, sessionKey, subAccount, idPrefix, onRefr
             ) : null}
           </span>
         </div>
-        <div className="border-border/60 grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-3">
+        <div className="border-border/60 grid grid-cols-2 gap-3 border-t pt-3 @lg/console:grid-cols-3">
           <div className="flex flex-col gap-1">
             <span className="text-muted-foreground text-xs">total open quantity</span>
             <span className="text-foreground font-mono" data-testid={`${idPrefix}-group-open`}>

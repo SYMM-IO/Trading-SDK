@@ -11,7 +11,8 @@ Produced by [`groupQuotes`](/core/quotes/group-quotes).
     Stable string identity — a React key and a selection handle. Unique within one `groupQuotes` call.
   </Property>
   <Property name="by" type="QuoteGroupBy" required>
-    The dimensions that identify this group: `symbolId`, `positionType` and/or `vaAddress`, depending on the strategy.
+    The dimensions that identify this group: `symbolId` and `positionType` under `MARKET_DIRECTION`, or whichever subset
+    a custom `keyOf` groups on (`vaAddress` included).
   </Property>
   <Property name="vaAddress" type="Address" optional>
     The Virtual Account this group resolves to, taken from its first on-chain child. `undefined` while the group is

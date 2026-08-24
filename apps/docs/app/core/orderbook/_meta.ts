@@ -1,0 +1,18 @@
+export default {
+  index: "Overview",
+  "-- reads": { type: "separator", title: "Reads" },
+  "get-orderbook": "getOrderbook",
+  "-- live": { type: "separator", title: "Live depth" },
+  "watch-orderbook": "watchOrderbook",
+  "create-source": "createBinanceOrderbookSource",
+  "-- helpers": { type: "separator", title: "Helpers" },
+  "group-orderbook": "groupOrderbook",
+  "accumulate-orderbook": "accumulateOrderbook",
+  "orderbook-spread": "getOrderbookSpread",
+  "walk-orderbook": "walkOrderbook",
+  "depth-within": "getOrderbookDepthWithin",
+  "tick-sizes": "suggestOrderbookTickSizes",
+  "-- types": { type: "separator", title: "Types" },
+  "orderbook-type": "Orderbook",
+  "orderbook-source-type": "OrderbookSource",
+};

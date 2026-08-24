@@ -13,7 +13,7 @@ This guide builds the same perps DEX as [Build a Perps DEX (React)](/guides/buil
   **Serves both products.** Every action takes an optional `solverId` and defaults to the chain's solver — `enigma`
   (lowcap / HyperEVM) or `rasa` (majors / Base). For majors, price off Binance with `watchPrices` / `watchBinancePrices`
   instead of `watchEnigmaPrices`, skip the Virtual-Account leg (cross-margin, `SubAccountIsolationType.CUSTOM`), and use
-  the rasa-only reads (`checkSolverWhitelist`, …). See [Solvers & Chains](/core/concepts/solvers-and-chains).
+  the rasa-only reads (`getPartyAUpnl`, …). See [Solvers & Chains](/core/concepts/solvers-and-chains).
 </Callout>
 
 ## Architecture

@@ -68,6 +68,18 @@ function axiosFailure(): AxiosError {
   }) as AxiosError;
 }
 
+/**
+ * A `404` rejection carrying `data` verbatim — the seam between the handler's
+ * "no conditional orders" answer and an infrastructure 404 on the same status.
+ */
+function notFoundFailure(data: unknown): AxiosError {
+  return Object.assign(new AxiosError("Request failed with status code 404"), {
+    isAxiosError: true,
+    config: { url: "/api/v5/", method: "get" },
+    response: { status: 404, statusText: "Not Found", data },
+  }) as AxiosError;
+}
+
 /** The request config recorded by the axios spy for call `index`. */
 function recordedRequest(get: ReturnType<typeof vi.spyOn>, index = 0): AxiosRequestConfig {
   return get.mock.calls[index]![1] as AxiosRequestConfig;
@@ -141,6 +153,32 @@ describe("getQuoteTpSl", () => {
     vi.spyOn(axios, "get").mockResolvedValue(okResponse(null));
 
     await expect(getQuoteTpSl(config, { quoteId: 128n })).resolves.toEqual([]);
+  });
+
+  it("resolves to an empty array for the handler's `404` — a quote that has never had a TP/SL", async () => {
+    const { config } = mockConfig();
+    vi.spyOn(axios, "get").mockRejectedValue(
+      notFoundFailure({ successful: false, message: "Not found", error_code: 4, error_detail: [] }),
+    );
+
+    await expect(getQuoteTpSl(config, { quoteId: 128n })).resolves.toEqual([]);
+  });
+
+  it("still throws on a `404` without the handler's envelope — a decommissioned route is not an empty result", async () => {
+    const { config } = mockConfig();
+    vi.spyOn(axios, "get").mockRejectedValue(notFoundFailure({ detail: "Not Found" }));
+
+    const error = await getQuoteTpSl(config, { quoteId: 128n }).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(SymmApiError);
+    expect(error).toMatchObject({ code: "FETCH_QUOTE_TPSL_FAILED", status: 404 });
+  });
+
+  it("still throws on a `404` whose body is not an object at all", async () => {
+    const { config } = mockConfig();
+    vi.spyOn(axios, "get").mockRejectedValue(notFoundFailure("<html>404 not found</html>"));
+
+    await expect(getQuoteTpSl(config, { quoteId: 128n })).rejects.toBeInstanceOf(SymmApiError);
   });
 
   it("wraps an axios rejection as SymmApiError tagged FETCH_QUOTE_TPSL_FAILED", async () => {

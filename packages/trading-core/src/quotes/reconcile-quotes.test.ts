@@ -436,6 +436,37 @@ describe("reconcileQuotes — write-onchain retention", () => {
   });
 });
 
+describe("reconcileQuotes — close-in-flight retention (closingQuoteIds)", () => {
+  it("holds an ONCHAIN/OPENED row at WRITE_ONCHAIN_CLOSE while its id is in closingQuoteIds", () => {
+    const { quotes } = reconcileQuotes({
+      ...emptyInput(),
+      onchainPositions: [makeQuote({ id: 5n, quoteStatus: QuoteStatus.OPENED })],
+      closingQuoteIds: ["5"],
+    });
+    expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
+    expect(quotes[0]?.quoteStatus).toBe(QuoteStatus.OPENED);
+  });
+
+  it("does not touch a row whose on-chain status already reflects the close (CLOSE_PENDING)", () => {
+    const { quotes } = reconcileQuotes({
+      ...emptyInput(),
+      onchainPositions: [makeQuote({ id: 5n, quoteStatus: QuoteStatus.CLOSE_PENDING })],
+      closingQuoteIds: ["5"],
+    });
+    expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.ONCHAIN);
+    expect(quotes[0]?.quoteStatus).toBe(QuoteStatus.CLOSE_PENDING);
+  });
+
+  it("leaves rows whose id is not in the set alone", () => {
+    const { quotes } = reconcileQuotes({
+      ...emptyInput(),
+      onchainPositions: [makeQuote({ id: 6n, quoteStatus: QuoteStatus.OPENED })],
+      closingQuoteIds: ["5"],
+    });
+    expect(quotes[0]?.lifecycle).toBe(QuoteLifecycle.ONCHAIN);
+  });
+});
+
 describe("reconcileQuotes — sort", () => {
   it("orders rows by statusModifyTimestamp descending (newest first)", () => {
     const { quotes } = reconcileQuotes({

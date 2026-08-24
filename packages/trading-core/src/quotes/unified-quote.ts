@@ -123,6 +123,10 @@ export interface UnifiedQuote {
    * Remaining **open** size (wei): `quantity − closedAmount`, the live quantity
    * still on the position (the figure a UI shows as "position size"); `0` once
    * fully closed. Derived from the other amount fields by {@link quoteOpenQuantity}.
+   *
+   * A size, never a state: a quote that has not opened yet still reports its full
+   * `quantity`. To ask whether a row is a position, use `isPendingOrder` /
+   * `isActivePosition`, which read {@link UnifiedQuote.quoteStatus}.
    */
   openQuantity: bigint;
   /** Quantity targeted by a pending close (wei), when closing. */

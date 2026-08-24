@@ -25,7 +25,9 @@
   "style": "./src/styles/globals.css",
   "scripts": {
     "lint": "eslint . --max-warnings 0",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.9",
@@ -45,12 +47,16 @@
     "@symmio/eslint-config": "workspace:*",
     "@symmio/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4.2.4",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.1.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
+    "happy-dom": "^16.0.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tailwindcss": "^4.2.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }

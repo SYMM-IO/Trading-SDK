@@ -68,10 +68,20 @@ export function useQuoteTpSl(parameters: UseQuoteTpSlParameters): UseQuoteTpSlRe
   const chainId = parameters.chainId ?? defaultChainId;
 
   const record = useTpSlRecord(parameters.quoteId);
+  /**
+   * Only the fields the read itself takes are forwarded — never the whole
+   * `parameters`. `account` selects which WebSocket to subscribe to and has no
+   * bearing on `GET /api/v5/?quote_id=…`, but the key factory hashes every
+   * field it is handed, so spreading it fragmented the cache: the same quote
+   * read from a flow (`account: subAccount`), from a row cell
+   * (`account: vaAddress`) and from `useQuoteGroupTpSl` (no account) landed in
+   * three separate entries, and one invalidation fired three identical
+   * requests.
+   */
   const options = getQuoteTpSlQueryOptions(config, {
-    ...parameters,
     chainId,
     quoteId: parameters.quoteId,
+    query: parameters.query,
   });
   // Re-fetch is driven by TanStack Query cache: mutations invalidate `rowsKey`,
   // which triggers a refetch here so the store record picks up the newly

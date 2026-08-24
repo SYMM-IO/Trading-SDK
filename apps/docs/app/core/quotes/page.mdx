@@ -57,11 +57,16 @@ Each type and function has its own page with the full signature, fields or param
 
 ## Grouped positions
 
-Several quotes in the same market — and, depending on the strategy, the same side — fold into one row: a [`QuoteGroup`](/core/quotes/quote-group). The `aggregate*` functions roll a group's children into one figure each. `aggregateGroupMetrics` is price-independent and runs inside `groupQuotes`; the other two take the inputs they need explicitly, because a mark price and a subgraph read are not the reconciler's to fetch.
+Several quotes in the same market and on the same side fold into one row: a [`QuoteGroup`](/core/quotes/quote-group). The `aggregate*` functions roll a group's children into one figure each. `aggregateGroupMetrics` is price-independent and runs inside `groupQuotes`; the other two take the inputs they need explicitly, because a mark price and a subgraph read are not the reconciler's to fetch.
+
+Grouping is a **`MARKET_DIRECTION`-only** feature — the one isolation where a market + side cohort is a real on-chain unit. `groupQuotes` throws for any other isolation type; check first with `supportsQuoteGrouping`, or pass an explicit `{ keyOf }` to fold on a dimension of your own.
 
 <MethodIndex kind="read">
   <MethodEntry name="groupQuotes" href="/core/quotes/group-quotes">
-    Fold reconciled quotes into one row per market (and side), under a built-in or custom strategy.
+    Fold reconciled quotes into one row per market + side, or under a custom key function.
+  </MethodEntry>
+  <MethodEntry name="supportsQuoteGrouping" href="/core/quotes/supports-quote-grouping">
+    Whether an isolation type has grouped positions at all — the guard to run before folding.
   </MethodEntry>
   <MethodEntry name="partitionQuotes" href="/core/quotes/partition-quotes">
     Split rows into active positions and resting orders — the grouped-view-vs-orders-tab split.

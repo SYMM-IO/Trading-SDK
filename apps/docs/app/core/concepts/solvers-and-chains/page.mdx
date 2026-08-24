@@ -117,15 +117,15 @@ Both the live [`watchNotifications`](/core/notifications) stream and the REST [`
 
 The rasa solver exposes reads the enigma solver does not. Each has a core action (and a React hook); calling one against a non-rasa solver throws a typed `UNSUPPORTED_BY_SOLVER` error rather than dispatching:
 
-| Endpoint              | Core action                                   | React hook                                          |
-| --------------------- | --------------------------------------------- | --------------------------------------------------- |
-| Solver readiness      | `getSolverReadiness`                          | `useSolverReadiness`                                |
-| Whitelist check / add | `checkSolverWhitelist` / `addSolverWhitelist` | `useCheckSolverWhitelist` / `useAddSolverWhitelist` |
-| Solver-side balance   | `getSolverBalanceInfo`                        | `useSolverBalanceInfo`                              |
-| PartyA uPnL           | `getPartyAUpnl`                               | `usePartyAUpnl`                                     |
-| Global open interest  | `getSolverOpenInterest`                       | `useSolverOpenInterest`                             |
-| Symbol price range    | `getSolverPriceRange`                         | `useSolverPriceRange`                               |
-| Error-code message    | `getErrorMessage`                             | `useErrorMessage`                                   |
+| Endpoint             | Core action             | React hook              |
+| -------------------- | ----------------------- | ----------------------- |
+| Solver readiness     | `getSolverReadiness`    | `useSolverReadiness`    |
+| Whitelist add        | `addSolverWhitelist`    | `useAddSolverWhitelist` |
+| Solver-side balance  | `getSolverBalanceInfo`  | `useSolverBalanceInfo`  |
+| PartyA uPnL          | `getPartyAUpnl`         | `usePartyAUpnl`         |
+| Global open interest | `getSolverOpenInterest` | `useSolverOpenInterest` |
+| Symbol price range   | `getSolverPriceRange`   | `useSolverPriceRange`   |
+| Error-code message   | `getErrorMessage`       | `useErrorMessage`       |
 
 Notification history search is **not** rasa-only — it is the unified [`searchNotifications`](/core/notifications), which dispatches to the rasa solver's position-state endpoint for a rasa solver. See the [Rasa Solver hooks](/react/rasa-solver) page for signatures and examples.
 

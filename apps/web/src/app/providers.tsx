@@ -46,7 +46,7 @@ export function Providers({ children }: { children: ReactNode }) {
           queries: {
             /** SDK reads are cheap; default retry behavior is fine but we cap latency. */
             retry: 2,
-            staleTime: 30_000,
+            // staleTime: 30_000,
           },
         },
       }),

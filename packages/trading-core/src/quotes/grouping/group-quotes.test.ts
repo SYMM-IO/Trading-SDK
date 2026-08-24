@@ -3,6 +3,7 @@ import { SubAccountIsolationType } from "../../symmio-contracts/account-layer/ty
 import { PositionType } from "../../symmio-contracts/symmio/types";
 import { makeOptimisticQuote, makeUnifiedQuote, TEST_VA } from "../unified-quote.test";
 import { groupQuotes } from "./group-quotes";
+import { keyQuoteByMarket, keyQuotePerQuote } from "./group-strategy";
 
 const ethLong = makeUnifiedQuote({ key: "onchain:1", symbolId: 1n, positionType: PositionType.LONG });
 const ethShort = makeUnifiedQuote({ key: "onchain:2", symbolId: 1n, positionType: PositionType.SHORT });
@@ -31,15 +32,24 @@ describe("groupQuotes — MARKET_DIRECTION", () => {
 });
 
 describe("groupQuotes — other strategies", () => {
-  it("MARKET collapses both sides of a market into one group", () => {
-    const groups = groupQuotes([ethLong, ethShort], SubAccountIsolationType.MARKET);
+  it.each([SubAccountIsolationType.MARKET, SubAccountIsolationType.POSITION, SubAccountIsolationType.CUSTOM])(
+    "rejects %s isolation — grouped positions are MARKET_DIRECTION-only",
+    (isolation) => {
+      expect(() => groupQuotes([ethLong, ethShort], isolation)).toThrow(
+        expect.objectContaining({ kind: "validation", code: "UNSUPPORTED_GROUPING_ISOLATION" }),
+      );
+    },
+  );
+
+  it("collapses both sides of a market via the keyQuoteByMarket recipe", () => {
+    const groups = groupQuotes([ethLong, ethShort], { keyOf: keyQuoteByMarket });
     expect(groups).toHaveLength(1);
     expect(groups[0]!.key).toBe("m:1");
     expect(groups[0]!.quotes).toHaveLength(2);
   });
 
-  it("POSITION yields one (non-aggregate) group per quote", () => {
-    const groups = groupQuotes([ethLong, ethLong2], SubAccountIsolationType.POSITION);
+  it("yields one (non-aggregate) group per quote via the keyQuotePerQuote recipe", () => {
+    const groups = groupQuotes([ethLong, ethLong2], { keyOf: keyQuotePerQuote });
     expect(groups).toHaveLength(2);
     expect(groups.every((group) => !group.isAggregate)).toBe(true);
     expect(new Set(groups.map((group) => group.key))).toEqual(new Set(["onchain:1", "onchain:3"]));

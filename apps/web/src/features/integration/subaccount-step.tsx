@@ -78,7 +78,7 @@ export function SubaccountStep({ owner, selected, onSelect }: Props) {
         </span>
         <RefetchButton isRefetching={subAccounts.isRefetching} onClick={refreshAll} testId="subaccount-step-retry" />
       </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="subaccount-step-list">
+      <div className="grid grid-cols-1 gap-2 @xl/console:grid-cols-2" data-testid="subaccount-step-list">
         {items.map((sub) => (
           <SubAccountOption
             key={sub.accountAddress}
@@ -257,7 +257,7 @@ function CreateSubaccountInline({ owner, onCreated }: { owner: Address; onCreate
         </span>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-col gap-2 @lg/console:flex-row">
         <Input
           id="subaccount-step-create-name"
           data-testid="subaccount-step-create-name"
@@ -265,7 +265,7 @@ function CreateSubaccountInline({ owner, onCreated }: { owner: Address; onCreate
           onChange={(event) => setName(event.target.value)}
           placeholder="My Trading Account"
           maxLength={100}
-          className="sm:flex-1"
+          className="@lg/console:flex-1"
         />
         <Button type="button" onClick={handleCreate} disabled={!canSubmit} data-testid="subaccount-step-create-submit">
           {mutation.isPending ? <Spinner className="size-4" /> : null}

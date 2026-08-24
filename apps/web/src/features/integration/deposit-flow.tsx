@@ -20,7 +20,8 @@ import { useEffect, useState } from "react";
 import { maxUint256, type Address } from "viem";
 import { WalletPanel } from "../inspector/wallet-panel";
 import { AmountField } from "./amount-field";
-import { FlowRail, type FlowStep } from "./flow-rail";
+import { FlowLayout } from "./flow-layout";
+import type { FlowStep } from "./flow-rail";
 import { parseAmount } from "./parse-amount";
 import { SubaccountStep } from "./subaccount-step";
 
@@ -110,98 +111,92 @@ export function DepositFlow({
   ];
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_220px]">
-      <div className="flex min-h-60 flex-col gap-5">
-        {current === 0 ? (
-          <WalletPanel />
-        ) : current === 1 ? (
-          <SubaccountStep
-            owner={owner}
-            selected={subAccount}
-            onSelect={(account) => {
-              onSelectSubAccount(account);
+    <FlowLayout steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep}>
+      {current === 0 ? (
+        <WalletPanel />
+      ) : current === 1 ? (
+        <SubaccountStep
+          owner={owner}
+          selected={subAccount}
+          onSelect={(account) => {
+            onSelectSubAccount(account);
+            resetActions();
+            setStep(2);
+          }}
+        />
+      ) : (
+        <>
+          <AmountField
+            id="integration-deposit-amount"
+            testId="integration-deposit-amount"
+            label="Amount to deposit"
+            value={amount}
+            onChange={(next) => {
+              setAmount(next);
               resetActions();
-              setStep(2);
             }}
+            decimals={decimals}
+            max={balance.data}
+            maxLabel="in wallet"
+            invalid={amount.length > 0 && parsed === undefined}
           />
-        ) : (
-          <>
-            <AmountField
-              id="integration-deposit-amount"
-              testId="integration-deposit-amount"
-              label="Amount to deposit"
-              value={amount}
-              onChange={(next) => {
-                setAmount(next);
+
+          <label className="border-border/60 bg-muted/30 flex items-center justify-between gap-4 rounded-xl border px-4 py-3">
+            <span className="flex flex-col">
+              <span className="text-foreground text-sm font-medium">Allocate to margin</span>
+              <span className="text-muted-foreground text-xs leading-5">
+                Deposit straight into trading margin instead of the available balance.
+              </span>
+            </span>
+            <Switch
+              checked={allocate}
+              onCheckedChange={(next) => {
+                setAllocate(next);
                 resetActions();
               }}
-              decimals={decimals}
-              max={balance.data}
-              maxLabel="in wallet"
-              invalid={amount.length > 0 && parsed === undefined}
+              data-testid="toggle-allocate"
             />
+          </label>
 
-            <label className="border-border/60 bg-muted/30 flex items-center justify-between gap-4 rounded-xl border px-4 py-3">
-              <span className="flex flex-col">
-                <span className="text-foreground text-sm font-medium">Allocate to margin</span>
-                <span className="text-muted-foreground text-xs leading-5">
-                  Deposit straight into trading margin instead of the available balance.
-                </span>
+          <Button
+            type="button"
+            size="lg"
+            disabled={parsed === undefined || busy}
+            onClick={onPrimary}
+            data-testid="button-deposit-primary"
+            className="w-full"
+          >
+            {busy ? <Spinner className="size-4" /> : null}
+            {parsed === undefined
+              ? "Enter an amount"
+              : needsApproval
+                ? "Approve USDC"
+                : allocate
+                  ? "Deposit & allocate"
+                  : "Deposit"}
+          </Button>
+
+          <StatusArea approve={approve} deposit={activeDeposit} approved={!needsApproval && parsed !== undefined} />
+
+          {subAccount ? (
+            <div className="border-border/60 bg-muted/20 flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm">
+              <span className="text-muted-foreground">
+                {allocate ? "Subaccount margin (allocated) balance" : "Subaccount available balance"}
               </span>
-              <Switch
-                checked={allocate}
-                onCheckedChange={(next) => {
-                  setAllocate(next);
-                  resetActions();
-                }}
-                data-testid="toggle-allocate"
-              />
-            </label>
-
-            <Button
-              type="button"
-              size="lg"
-              disabled={parsed === undefined || busy}
-              onClick={onPrimary}
-              data-testid="button-deposit-primary"
-              className="w-full"
-            >
-              {busy ? <Spinner className="size-4" /> : null}
-              {parsed === undefined
-                ? "Enter an amount"
-                : needsApproval
-                  ? "Approve USDC"
-                  : allocate
-                    ? "Deposit & allocate"
-                    : "Deposit"}
-            </Button>
-
-            <StatusArea approve={approve} deposit={activeDeposit} approved={!needsApproval && parsed !== undefined} />
-
-            {subAccount ? (
-              <div className="border-border/60 bg-muted/20 flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm">
-                <span className="text-muted-foreground">
-                  {allocate ? "Subaccount margin (allocated) balance" : "Subaccount available balance"}
-                </span>
-                <span className="text-foreground font-mono" data-testid="integration-deposit-subaccount-balance">
-                  {allocate
-                    ? marginBalance.data
-                      ? formatUsd(marginBalance.data.allocatedBalance)
-                      : "—"
-                    : availableBalance.data !== undefined
-                      ? formatUsd(availableBalance.data)
-                      : "—"}
-                </span>
-              </div>
-            ) : null}
-          </>
-        )}
-      </div>
-
-      <div className="lg:border-border/50 lg:border-l lg:pl-8">
-        <FlowRail steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep} />
-      </div>
-    </div>
+              <span className="text-foreground font-mono" data-testid="integration-deposit-subaccount-balance">
+                {allocate
+                  ? marginBalance.data
+                    ? formatUsd(marginBalance.data.allocatedBalance)
+                    : "—"
+                  : availableBalance.data !== undefined
+                    ? formatUsd(availableBalance.data)
+                    : "—"}
+              </span>
+            </div>
+          ) : null}
+        </>
+      )}
+    </FlowLayout>
   );
 }
 

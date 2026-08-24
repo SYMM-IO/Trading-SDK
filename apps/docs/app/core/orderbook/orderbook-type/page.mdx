@@ -1,0 +1,59 @@
+# Orderbook
+
+A point-in-time order book.
+
+```ts
+import type { Orderbook } from "@symmio/trading-core";
+```
+
+## Fields
+
+<Properties>
+  <Property name="marketName" type="string">
+    Market name as SYMMIO names it.
+  </Property>
+  <Property name="bids" type="OrderbookLevel[]">
+    Resting buy orders, best (highest) price first.
+  </Property>
+  <Property name="asks" type="OrderbookLevel[]">
+    Resting sell orders, best (lowest) price first.
+  </Property>
+  <Property name="lastUpdateId" type="number">
+    Venue sequence number this book is synchronized to. Monotonic per market — two books for the same market can be
+    compared to tell which is newer. Meaningless across markets or across sources.
+  </Property>
+  <Property name="timestamp" type="number">
+    When the venue produced this book, unix ms. `0` when the venue omits it, which spot depth does.
+  </Property>
+</Properties>
+
+Both sides are de-duplicated by price and carry no zero-size levels.
+
+## OrderbookLevel
+
+<Properties>
+  <Property name="price" type="number">
+    Limit price, quote-asset denominated.
+  </Property>
+  <Property name="size" type="number">
+    Resting quantity at this price, base-asset denominated. The notional at this level is `price * size`.
+  </Property>
+</Properties>
+
+## OrderbookDepthLevel
+
+Produced by [`accumulateOrderbook`](/core/orderbook/accumulate-orderbook). Extends `OrderbookLevel` with:
+
+<Properties>
+  <Property name="total" type="number">
+    Cumulative base-asset size from the best price through this level, **inclusive**.
+  </Property>
+  <Property name="totalQuote" type="number">
+    Cumulative notional through this level, inclusive.
+  </Property>
+</Properties>
+
+## Related
+
+- [`OrderbookSource`](/core/orderbook/orderbook-source-type) — where a book comes from.
+- [`getOrderbook`](/core/orderbook/get-orderbook) — fetch one.

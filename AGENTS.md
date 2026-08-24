@@ -107,10 +107,14 @@ Read-only exploration (viewing files, searching the repo, reading Vibe-ui or Exp
 
 **Package placement**: which files go in `core` / `react` / `ui` / `web` and why. Justify the core-vs-react split: explain why each piece is framework-agnostic or framework-bound.
 
+**Docs impact** (`apps/docs`): always account for the documentation. Name the exact pages/sections that must change and the ones to add — new public exports need a reference entry, changed signatures/behavior need their existing page updated, and superseded APIs need a "prefer X" pointer. If a slice genuinely needs no docs change, say so explicitly and why. Never leave this blank.
+
 **Out of scope**: what this slice deliberately does not cover.
 
 **Open questions**: anything that needs the user's input.
 ````
+
+Docs are part of every slice, not a follow-up. A proposal that ships new or changed public API without a matching `apps/docs` update plan is incomplete, and the implementation is not done until those doc pages exist and are updated (see the [`apps/docs` rules](./apps/docs/AGENTS.md) — "Every public API added to `core` or `react` must be reflected here").
 
 #### Exceptions (no proposal required)
 
@@ -231,6 +235,8 @@ Before declaring a task done, run the relevant subset of:
 - Any package-specific `build` / `test` commands for the touched packages.
 
 Report the output. If any fail, fix before declaring complete.
+
+**Every change must be `pnpm format`-clean.** The user runs `pnpm format` manually before committing, so any code you touch must already match Prettier's output (`.prettierrc` with `prettier-plugin-organize-imports` + `prettier-plugin-tailwindcss`) — correct indentation, quotes, trailing commas, import ordering, wrapped call sites. Do not hand-format in a way Prettier would rewrite. When unsure, run `pnpm format` (or `prettier --check` on the touched files) yourself and fix before declaring complete, so the user's manual `pnpm format` is a no-op.
 
 ## Vendors & Data Sources
 

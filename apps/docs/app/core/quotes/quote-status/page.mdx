@@ -1,0 +1,116 @@
+import { Callout } from "nextra/components";
+
+# QuoteStatus
+
+The **on-chain** status of a quote. Names and ordering mirror `enum QuoteStatus` in [`QuoteStorage.sol`](https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/QuoteStorage.sol) (perps-core v0.8.5) exactly — all 11 members — so the `uint8` carried on a [`Quote`](/core/symmio-contract/get-quote) casts straight to this enum without translation.
+
+This is the field that says what a quote **is** and what can be done to it. A [`UnifiedQuote`](/core/quotes/unified-quote) carries it as `quoteStatus` whenever the row is anchored on-chain.
+
+<Callout type="info">
+  **`QuoteStatus` is not [`QuoteLifecycle`](/core/quotes/quote-lifecycle).** Lifecycle is an SDK-side overlay tracking
+  the *write progression* (submitted → hedger filled → anchored on-chain); once a row is anchored it is simply
+  `ONCHAIN`, whether the quote is `LOCKED`, `OPENED`, or `CLOSE_PENDING`. Read `quoteStatus` for the protocol's own
+  answer, and lifecycle for how far the write has travelled.
+</Callout>
+
+```ts
+enum QuoteStatus {
+  PENDING = 0,
+  LOCKED = 1,
+  CANCEL_PENDING = 2,
+  CANCELED = 3,
+  OPENED = 4,
+  CLOSE_PENDING = 5,
+  CANCEL_CLOSE_PENDING = 6,
+  CLOSED = 7,
+  LIQUIDATED = 8,
+  EXPIRED = 9,
+  LIQUIDATED_PENDING = 10,
+}
+```
+
+## Members
+
+<Properties>
+  <Property name="PENDING" type="0">
+    Created, awaiting a partyB to lock it. No counterparty is committed yet.
+  </Property>
+  <Property name="LOCKED" type="1">
+    A partyB locked the quote and is preparing to open it. Still **not a position** — nothing has been opened.
+  </Property>
+  <Property name="CANCEL_PENDING" type="2">
+    PartyA requested cancellation of a `LOCKED` quote and is waiting for partyB to acknowledge.
+  </Property>
+  <Property name="CANCELED" type="3">
+    The pending quote was cancelled before opening. Terminal.
+  </Property>
+  <Property name="OPENED" type="4">
+    Opened into a live position.
+  </Property>
+  <Property name="CLOSE_PENDING" type="5">
+    PartyA requested a full or partial close of the open position; `quantityToClose` holds the size.
+  </Property>
+  <Property name="CANCEL_CLOSE_PENDING" type="6">
+    PartyA requested cancellation of a pending close and is waiting for partyB.
+  </Property>
+  <Property name="CLOSED" type="7">
+    The position was fully closed. Terminal.
+  </Property>
+  <Property name="LIQUIDATED" type="8">
+    The position was liquidated. Terminal.
+  </Property>
+  <Property name="EXPIRED" type="9">
+    The quote passed its `deadline` before being settled. Terminal.
+  </Property>
+  <Property name="LIQUIDATED_PENDING" type="10">
+    Liquidation is in progress for the position.
+  </Property>
+</Properties>
+
+## What each state allows
+
+Every write below reverts with `PartyAFacet: Invalid state` when the quote is in any other status, so this table is the gate a UI should render against — not a guess derived from amounts.
+
+| Status                 | Bucket   | What partyA can do                                                                                                                                                                                                                                        |
+| ---------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PENDING`              | order    | [`requestToCancelQuote`](/core/symmio-contract/request-to-cancel-quote) — no partyB is committed, so it cancels outright to `CANCELED`.                                                                                                                   |
+| `LOCKED`               | order    | [`requestToCancelQuote`](/core/symmio-contract/request-to-cancel-quote) — a partyB **is** committed, so this only _requests_ the cancel: the quote moves to `CANCEL_PENDING`. There is nothing to close; the position does not exist yet.                 |
+| `CANCEL_PENDING`       | order    | Wait for partyB. Once `now > statusModifyTimestamp + getCoolDownsOfMA()[1]` and it still has not answered, [`forceCancelQuote`](/core/symmio-contract/force-cancel-quote) finishes the cancel unilaterally.                                               |
+| `CANCELED`             | terminal | Nothing.                                                                                                                                                                                                                                                  |
+| `OPENED`               | position | Close it — [instant close](/core/solvers/instant-close) or `requestToClosePosition`, which moves it to `CLOSE_PENDING`. Also add/remove margin and set TP/SL.                                                                                             |
+| `CLOSE_PENDING`        | position | [`requestToCancelCloseRequest`](/core/symmio-contract/request-to-cancel-close-request) → `CANCEL_CLOSE_PENDING`. A **LIMIT** close can instead be pushed through with [force close](/core/solvers/force-close) once its cooldowns and price window allow. |
+| `CANCEL_CLOSE_PENDING` | position | Once `now > statusModifyTimestamp + getCoolDownsOfMA()[2]`, [`forceCancelCloseRequest`](/core/symmio-contract/force-cancel-close-request) returns the quote to `OPENED`.                                                                                  |
+| `CLOSED`               | terminal | Nothing.                                                                                                                                                                                                                                                  |
+| `LIQUIDATED`           | terminal | Nothing.                                                                                                                                                                                                                                                  |
+| `EXPIRED`              | terminal | Nothing.                                                                                                                                                                                                                                                  |
+| `LIQUIDATED_PENDING`   | position | Nothing — liquidation is in progress.                                                                                                                                                                                                                     |
+
+Both cancel requests double as the expiry path: called on a quote already past its `deadline`, `requestToCancelQuote` and `requestToCancelCloseRequest` expire it instead. `PENDING`, `LOCKED`, `CANCEL_PENDING`, `CLOSE_PENDING`, and `CANCEL_CLOSE_PENDING` are the statuses a quote can expire out of.
+
+The two `getCoolDownsOfMA` indexes above are the cancel cooldowns — index **1** gates `forceCancelQuote`, index **2** gates `forceCancelCloseRequest`. See [`getCoolDownsOfMA`](/core/symmio-contract/get-cool-downs-of-ma).
+
+## Order or position? Ask the status
+
+The reads are already split along this line: [`getPartyAPendingQuotes`](/core/symmio-contract/get-party-a-pending-quotes) returns only `PENDING` / `LOCKED` / `CANCEL_PENDING`, and [`getPartyAOpenPositions`](/core/symmio-contract/get-party-a-open-positions) only `OPENED` / `CLOSE_PENDING` / `CANCEL_CLOSE_PENDING` / `LIQUIDATED_PENDING`. After reconciliation both sets arrive in one flat list, so classify with the predicates rather than re-deriving the split:
+
+```ts
+import { isActivePosition, isPendingOrder, partitionQuotes } from "@symmio/trading-core";
+
+const { positions, pending } = partitionQuotes(quotes);
+```
+
+<Callout type="warning">
+  **Never infer "is this a position?" from `openQuantity`.** `UnifiedQuote.openQuantity` is `quantity − closedAmount` —
+  *how much is left to close* — so a quote that never opened still reports its **full** size. Split a positions tab
+  from an orders tab on `openQuantity > 0` and every resting `LOCKED` limit order lands among the positions behind a
+  Close button that cannot work: the quote has no `openedPrice`, so it also prices its whole notional as profit against
+  an entry of zero. Use [`isPendingOrder`](/core/quotes/partition-quotes) /
+  [`isActivePosition`](/core/quotes/partition-quotes), which read this enum.
+</Callout>
+
+## Related
+
+- [UnifiedQuote](/core/quotes/unified-quote) — carries `quoteStatus` on every anchored row.
+- [QuoteLifecycle](/core/quotes/quote-lifecycle) — the SDK's write-progression overlay, which this is _not_.
+- [partitionQuotes](/core/quotes/partition-quotes) — the positions/orders split, built on these statuses.
+- [Cancel a quote](/core/symmio-contract#cancel-a-quote) · [Cancel a close](/core/symmio-contract#cancel-a-close) — the full write flows.

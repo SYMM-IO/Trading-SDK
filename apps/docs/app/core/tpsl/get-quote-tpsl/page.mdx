@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # getQuoteTpSl
 
 Read the raw TP/SL rows for one quote from the handler.
@@ -28,13 +30,20 @@ const rows = await getQuoteTpSl(config, {
 
 <Returns type="QuoteTpSlRow[]" typeHref="/core/tpsl/quote-tpsl-row">
   Every conditional-order row for the quote, in every state. See [`QuoteTpSlRow`](/core/tpsl/quote-tpsl-row) for the
-  field list.
+  field list. A quote with no conditional orders resolves to an empty array.
 </Returns>
+
+<Callout type="info">
+  The handler reports "this quote has never had a TP/SL" as a `404` rather than as an empty `200`. `getQuoteTpSl`
+  absorbs that case and resolves to `[]`, so the most ordinary state a position can be in is not an error: it does not
+  trip a query client's retry ladder, and the result caches like any other. A `404` that does not carry the handler's
+  response envelope — a decommissioned route, a mistyped `tpsl.url` — still throws.
+</Callout>
 
 ## Throws
 
 - `SymmError` when the chain has no `tpsl` config.
-- `SymmApiError` when the HTTP request fails.
+- `SymmApiError` when the HTTP request fails for any reason other than the handler's "no conditional orders" `404`.
 
 ## Query options
 

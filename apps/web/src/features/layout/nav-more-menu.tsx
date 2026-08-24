@@ -9,8 +9,11 @@ import { useState, type ReactElement, type SVGProps } from "react";
 
 /** Per-route glyphs for the secondary destinations, keyed by href. */
 const ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElement> = {
+  "/contracts": LayersIcon,
+  "/solvers": SolverIcon,
   "/price-service": PriceIcon,
   "/candles": CandlesIcon,
+  "/orderbook": OrderbookIcon,
   "/muon": MuonIcon,
   "/session-keys": KeyIcon,
   "/config": GearIcon,
@@ -123,6 +126,42 @@ function ArrowIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function LayersIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      <path d="M12 3 3 8l9 5 9-5-9-5Z" />
+      <path d="m3 12 9 5 9-5M3 16l9 5 9-5" />
+    </svg>
+  );
+}
+
+function SolverIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      <path d="M4 20V4M4 20h16" />
+      <path d="M8 16v-3M12 16V9M16 16v-6M20 16V6" />
+    </svg>
+  );
+}
+
 function PriceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -156,6 +195,26 @@ function CandlesIcon(props: SVGProps<SVGSVGElement>) {
       <rect x="5.5" y="7" width="5" height="9" rx="1" />
       <path d="M16 5v4M16 15v4" />
       <rect x="13.5" y="9" width="5" height="6" rx="1" />
+    </svg>
+  );
+}
+
+function OrderbookIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      {/* A ladder thinning away from the spread, with the seam drawn across the middle. */}
+      <path d="M18 4H9M18 7.5h-5M18 11H14" />
+      <path d="M3.5 14.5H21" />
+      <path d="M18 18h-4M18 21.5H9" />
     </svg>
   );
 }

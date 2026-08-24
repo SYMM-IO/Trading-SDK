@@ -86,6 +86,26 @@ describe("applyTpSlSearchSnapshot", () => {
     expect(store.get(1n)?.tpState).toBe("canceled");
   });
 
+  it("confirms a cancel even while the other side stays live under the same handler id", () => {
+    const store = useTpSlStore.getState();
+    // One coh id covers the whole quote here, so the surviving stop-loss row
+    // still carries the id the cancelled take-profit was targeting. Matching on
+    // the id alone would leave this cancel unconfirmed until it timed out.
+    store.setRows(42n, [
+      row({ quote_id: 42, coh_quote_id: "coh1227" }),
+      row({ quote_id: 42, conditional_order_type: "stop_loss", coh_quote_id: "coh1227" }),
+    ]);
+    store.markConfirming(42n, "tp", { intent: "cancel" });
+
+    applyTpSlSearchSnapshot(
+      [{ quoteId: 42n, side: "take_profit", intent: "cancel", cohQuoteId: "coh1227" }],
+      snapshot([row({ quote_id: 42, conditional_order_type: "stop_loss", coh_quote_id: "coh1227" })]),
+    );
+
+    expect(store.get(42n)?.tpState).toBe("canceled");
+    expect(store.get(42n)?.slState).toBe("new");
+  });
+
   it("does not confirm a cancel from an incomplete page", () => {
     const store = useTpSlStore.getState();
     store.setRows(1n, [row({ quote_id: 1, coh_quote_id: "coh-doomed" })]);

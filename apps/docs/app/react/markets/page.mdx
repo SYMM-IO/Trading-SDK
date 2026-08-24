@@ -7,7 +7,7 @@ Thin wrappers over the solver and on-chain market catalogs.
 ## Import
 
 ```ts
-import { useMarkets, useOnchainContractMarkets } from "@symmio/trading-react";
+import { useMarkets, useSymbols, useOnchainContractMarkets } from "@symmio/trading-react";
 ```
 
 ## `useMarkets`
@@ -17,6 +17,25 @@ Solver-side market catalog (default for UIs). Adds precision / tick metadata the
 ```ts
 const markets = useMarkets();
 ```
+
+On **Enigma**, prefer [`useSymbols`](#usesymbols) — it reads the same catalogue but adds server-side filtering and pagination. Keep `useMarkets` when you need one hook that also covers **Rasa**.
+
+## `useSymbols`
+
+Enigma symbol catalogue with **server-side filtering and pagination** — reach for it over `useMarkets` on Enigma when you want to search, filter by validity or per-side trading state, or page through symbols instead of pulling the whole list. **Enigma-only**: the query stays idle on non-Enigma chains (the underlying action throws `UNSUPPORTED_BY_SOLVER`).
+
+```ts
+// Search + filter + paginate, all solver-side.
+const { data } = useSymbols({
+  search: "BTC",
+  isValid: "true",
+  stateLong: "enabled",
+  limit: 20,
+  offset: 0,
+});
+```
+
+See [`getSymbols`](/core/solvers#getsymbols) in core for the full parameter and `SolverSymbol` field reference. Two sibling Enigma-only reads ship alongside it — [`useTradeVolume`](/core/solvers#gettradevolume) (daily volume per market) and [`useRevenueRecords`](/core/solvers#getrevenuerecords) (cursor-paginated revenue).
 
 ## `useOnchainContractMarkets`
 

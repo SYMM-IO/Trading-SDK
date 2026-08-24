@@ -44,6 +44,17 @@ export interface ReconcileQuotesInput {
    * struct, so the retained copy is ignored).
    */
   retainedAnchors?: readonly UnifiedQuote[];
+  /**
+   * On-chain quote ids (decimal strings) whose close is **in flight** — filled
+   * off-chain but not yet reflected by the on-chain read. The close-side mirror
+   * of {@link retainedAnchors}: the poll rebuilds a filled-but-unsettled close as
+   * `ONCHAIN` (`OPENED`) every tick, and a replayed close notification cannot
+   * restore the stage on a poll-confirmed row (apply-notification's `inClosingFlow`
+   * guard), so a row still read `OPENED` whose id is here is held at
+   * {@link QuoteLifecycle.WRITE_ONCHAIN_CLOSE}. The caller bounds the set with its
+   * close-confirm hold, so it clears at `CLOSE_PENDING` / removal / budget.
+   */
+  closingQuoteIds?: readonly string[];
 }
 
 /** Output of {@link reconcileQuotes}: the merged rows plus the temp ↔ on-chain links. */
@@ -158,6 +169,26 @@ export function reconcileQuotes(input: ReconcileQuotesInput): ReconcileQuotesRes
     merged = applyNotificationToQuotes(merged, notification);
   }
   merged = collapseByKey(merged);
+  /**
+   * Close-side retention (mirror of `retainedAnchors`). A close that filled
+   * off-chain sits at `WRITE_ONCHAIN_CLOSE`, but the poll keeps reading the quote
+   * `OPENED` until the settle mines and rebuilds the row as `ONCHAIN` — and the
+   * replayed close notification cannot restore the stage on that poll-confirmed
+   * row (`applyNotificationToQuotes`' `inClosingFlow` guard). So a still-`OPENED`
+   * row whose close the caller is chasing is held at `WRITE_ONCHAIN_CLOSE` until
+   * the chain reflects the close (`CLOSE_PENDING` / removed) or the caller drops it.
+   */
+  if (input.closingQuoteIds?.length) {
+    const closing = new Set(input.closingQuoteIds);
+    merged = merged.map((row) =>
+      row.quoteId !== undefined &&
+      closing.has(`${row.quoteId}`) &&
+      row.lifecycle === QuoteLifecycle.ONCHAIN &&
+      row.quoteStatus === QuoteStatus.OPENED
+        ? { ...row, lifecycle: QuoteLifecycle.WRITE_ONCHAIN_CLOSE }
+        : row,
+    );
+  }
   // Drop terminal quotes: a `CLOSED` lifecycle only comes from an on-chain
   // terminal status (`CANCELED` / `CLOSED` / `EXPIRED`) — a done quote a lagging
   // read still lists (e.g. a just force-cancelled limit order). It is not active,

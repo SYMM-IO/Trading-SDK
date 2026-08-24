@@ -1,0 +1,76 @@
+import { Callout } from "nextra/components";
+
+# walkOrderbook
+
+Fill a hypothetical market order against resting depth. A buy consumes asks from the best price outward; a sell consumes bids.
+
+```ts
+import { walkOrderbook } from "@symmio/trading-core";
+
+const walk = walkOrderbook(book, "buy", 5);
+
+if (walk.partial) console.warn("not enough resting depth");
+console.log(walk.averagePrice, `${walk.slippageBps.toFixed(2)} bps`);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="orderbook" type="Orderbook" required>
+    The book to walk.
+  </Property>
+  <Property name="side" type='"buy" | "sell"' required>
+    `buy` consumes asks, `sell` consumes bids.
+  </Property>
+  <Property name="size" type="number" required>
+    Base-asset quantity to fill.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="OrderbookWalk">
+  The fill, or a zero-filled result when `size` is not positive or the side is empty.
+</Returns>
+
+<Properties>
+  <Property name="filledSize" type="number">
+    Base-asset size actually fillable — less than requested when depth ran out.
+  </Property>
+  <Property name="filledQuote" type="number">
+    Quote-asset cost (buy) or proceeds (sell).
+  </Property>
+  <Property name="averagePrice" type="number" optional>
+    Size-weighted average fill price. Absent when nothing filled.
+  </Property>
+  <Property name="bestPrice" type="number" optional>
+    Best price on the side walked. Absent when that side is empty.
+  </Property>
+  <Property name="worstPrice" type="number" optional>
+    Price of the deepest level touched.
+  </Property>
+  <Property name="slippageBps" type="number">
+    Cost of crossing the book, in basis points of `bestPrice`. Always `>= 0` — a buy averages above the touch and a sell below it, and both are reported as a positive cost.
+  </Property>
+  <Property name="partial" type="boolean">
+    `true` when the book held less depth than requested.
+  </Property>
+  <Property name="levelsConsumed" type="number">
+    Number of price levels consumed.
+  </Property>
+</Properties>
+
+<Callout type="warning">
+  Nothing but the book is considered — no fees, no funding, no solver spread. Treat the result as the cost of liquidity,
+  not a quote. When the source's `priceBasis` is `reference-exchange` this is a third-party venue's depth, not what a
+  SYMMIO trade executes against.
+</Callout>
+
+## Interpreting `partial`
+
+A `partial: true` result may mean the venue is genuinely thin, or merely that the subscription is tracking fewer levels than the order needs. If you price large orders, raise `levels` on the subscription (or `limit` on the snapshot) before treating it as a liquidity signal.
+
+## Related
+
+- [`getOrderbookDepthWithin`](/core/orderbook/depth-within) — resting liquidity without naming a size.
+- [`getOrderbookSpread`](/core/orderbook/orderbook-spread) — the touch the slippage is measured from.

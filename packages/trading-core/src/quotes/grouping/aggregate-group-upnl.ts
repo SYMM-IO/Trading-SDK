@@ -8,15 +8,17 @@ import { isActivePosition } from "./partition-quotes";
 /**
  * The locked margin backing a child's **still-open** size (wei).
  *
- * Every leg of the frozen `lockedValues` (else the current
- * `initialLockedValues`) prorated by `openQuantity / quantity` — mirroring
+ * Every leg of the frozen `initialLockedValues` when known (else the current
+ * `lockedValues`) prorated by `openQuantity / quantity` — mirroring
  * `leverageMarginOf` in `aggregate-metrics.ts`, which pairs the same frozen legs
- * with the full `quantity`. Prorating is what keeps this basis aligned with
- * `openNotional`: a half-closed child has half its capital still at risk.
+ * with the full `quantity`. The contract releases margin as a position closes,
+ * so the current legs alone would overstate leverage on a partially closed
+ * child. Prorating is what keeps this basis aligned with `openNotional`: a
+ * half-closed child has half its capital still at risk.
  */
 function openMarginOf(quote: UnifiedQuote): bigint {
   if (quote.quantity <= 0n) return 0n;
-  const margin = quote.lockedValues ?? quote.initialLockedValues;
+  const margin = quote.initialLockedValues ?? quote.lockedValues;
   const legs = margin.cva + margin.lf + margin.partyAmm + margin.partyBmm;
   return (legs * quote.openQuantity) / quote.quantity;
 }

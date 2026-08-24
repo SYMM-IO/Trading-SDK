@@ -1,0 +1,85 @@
+import { Callout } from "nextra/components";
+
+# OrderbookSource
+
+The SDK's depth boundary, and the counterpart of `CandleSource`. Every consumer of a book needs the same three things — symbol metadata, a snapshot, and a live subscription — so that is what a source provides.
+
+```ts
+import type { OrderbookSource } from "@symmio/trading-core";
+```
+
+Hooks and the aggregation helpers are written against this interface, never against a specific venue. Implement it and everything downstream works unchanged.
+
+<Callout type="info">
+  Unlike most SDK actions, a source is **not** derived from `Config`. A reference exchange is not a SYMMIO chain
+  deployment, and which venue's depth to show is your choice. Construct one and pass it in explicitly.
+</Callout>
+
+## Fields
+
+<Properties>
+  <Property name="id" type="string">
+    Stable identifier, used to scope query keys (e.g. `"binance:usd-m-futures"`). Two sources must never share one.
+  </Property>
+  <Property name="priceBasis" type="OrderbookPriceBasis">
+    What the prices represent: `"reference-exchange"`, `"dex-pool"`, or `"solver-mark"`. Surfaced deliberately — a
+    third-party venue's depth is not what a SYMMIO trade executes against.
+  </Property>
+  <Property name="supportedLimits" type="readonly number[]">
+    Depths the venue accepts for a snapshot, ascending. A venue taking a free-form limit reports its maximum as the
+    single largest entry; one taking an enum reports every allowed value.
+  </Property>
+  <Property name="defaultLimit" type="number">
+    Depth used when a caller does not pass `limit`.
+  </Property>
+</Properties>
+
+## Methods
+
+<Properties>
+  <Property name="getSymbol" type="(marketName: string) => Promise<OrderbookSymbol | undefined>">
+    Resolve symbol metadata, or `undefined` when the source does not carry this market. This is the source's own answer
+    to "do you have this market", and the check to run before rendering.
+  </Property>
+  <Property name="getOrderbook" type="(parameters: GetOrderbookParameters) => Promise<Orderbook>">
+    Fetch a point-in-time snapshot. See [`getOrderbook`](/core/orderbook/get-orderbook).
+  </Property>
+  <Property name="watchOrderbook" type="(parameters: WatchOrderbookParameters) => Unwatch" optional>
+    Subscribe to a continuously synchronized book. Absent when the source has no realtime feed, in which case a consumer
+    polls `getOrderbook`. See [`watchOrderbook`](/core/orderbook/watch-orderbook).
+  </Property>
+</Properties>
+
+## OrderbookSymbol
+
+What `getSymbol` resolves — everything a ladder needs before it can render.
+
+<Properties>
+  <Property name="marketName" type="string">
+    Market name as SYMMIO names it.
+  </Property>
+  <Property name="sourceSymbol" type="string">
+    The same instrument in the source's own namespace.
+  </Property>
+  <Property name="baseAsset" type="string">
+    Base asset (e.g. `"BTC"`), for a size column header.
+  </Property>
+  <Property name="quoteAsset" type="string">
+    Quote asset (e.g. `"USDT"`), for a price column header.
+  </Property>
+  <Property name="pricePrecision" type="number">
+    Decimal places prices should be rendered at.
+  </Property>
+  <Property name="sizePrecision" type="number">
+    Decimal places sizes should be rendered at.
+  </Property>
+  <Property name="tickSize" type="number">
+    Smallest price increment the venue allows — the finest grouping a ladder can offer, and the base of the ladder
+    [`suggestOrderbookTickSizes`](/core/orderbook/tick-sizes) builds.
+  </Property>
+</Properties>
+
+## Related
+
+- [`createBinanceOrderbookSource`](/core/orderbook/create-source) — the reference implementation.
+- [Orderbook guide](/guides/orderbook) — writing against this interface.

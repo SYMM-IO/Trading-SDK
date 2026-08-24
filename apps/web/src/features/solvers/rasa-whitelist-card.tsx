@@ -1,9 +1,8 @@
 "use client";
 
-import { BoolBadge } from "@/components/bool-badge";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
-import { useAddSolverWhitelist, useCheckSolverWhitelist } from "@symmio/trading-react";
+import { useAddSolverWhitelist } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
@@ -13,26 +12,20 @@ import { isAddress } from "viem";
 import { MethodCard } from "../inspector/method-card";
 import { SolverTargetSelect, useSolverTargetState } from "./solver-target";
 
-/** Rasa-only card: whitelist check + add (`/check_in-whitelist`, `/add-sub-address-in-whitelist`). */
+/** Rasa-only card: add a subaccount to the solver whitelist (`/add-sub-address-in-whitelist`). */
 export function RasaWhitelistCard() {
   const { target, setTarget } = useSolverTargetState({ requireKind: "rasa" });
   const [address, setAddress] = useState("");
   const validAddress = isAddress(address) ? (address as Address) : undefined;
 
-  const checkQuery = useCheckSolverWhitelist({
-    chainId: target.chainId,
-    solverId: target.solverId,
-    address: validAddress ?? "0x0000000000000000000000000000000000000000",
-    query: { enabled: false },
-  });
   const addMutation = useAddSolverWhitelist();
 
   return (
     <MethodCard
       testId="method-rasa-whitelist"
-      name="checkSolverWhitelist / addSolverWhitelist"
+      name="addSolverWhitelist"
       mutability="nonpayable"
-      description="Check whether an address is on the solver's whitelist, or add it. The add call mutates solver-side state. Rasa-only endpoints."
+      description="Add an address to the solver's whitelist. The call mutates solver-side state. Rasa-only endpoint."
       wide
     >
       <SolverTargetSelect value={target} onChange={setTarget} requireKind="rasa" testId="select-rasa-wl-solver" />
@@ -47,22 +40,6 @@ export function RasaWhitelistCard() {
         />
       </Field>
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={!validAddress || checkQuery.isFetching}
-          onClick={() => void checkQuery.refetch()}
-          data-testid="button-check-rasa-whitelist"
-        >
-          {checkQuery.isFetching ? (
-            <>
-              <Spinner className="size-4" /> Checking...
-            </>
-          ) : (
-            "Check"
-          )}
-        </Button>
         <Button
           type="button"
           size="sm"
@@ -82,17 +59,6 @@ export function RasaWhitelistCard() {
           )}
         </Button>
       </div>
-      {checkQuery.error ? (
-        <ResultError
-          testId="result-rasa-whitelist-check-error"
-          kind={checkQuery.error.kind}
-          message={checkQuery.error.message}
-        />
-      ) : checkQuery.data !== undefined ? (
-        <div className="flex items-center gap-2 text-sm" data-testid="result-rasa-whitelist-check">
-          <span className="text-muted-foreground">whitelisted:</span> <BoolBadge value={checkQuery.data} />
-        </div>
-      ) : null}
       {addMutation.error ? (
         <ResultError
           testId="result-rasa-whitelist-add-error"
@@ -105,10 +71,9 @@ export function RasaWhitelistCard() {
             {addMutation.data.successful ? "Added." : `Not added: ${addMutation.data.message ?? "unknown reason"}`}
           </span>
         </ResultSuccess>
-      ) : null}
-      {checkQuery.data === undefined && !checkQuery.error && !addMutation.isSuccess && !addMutation.error ? (
-        <ResultNote testId="result-rasa-whitelist-idle">Enter an address, then check or add.</ResultNote>
-      ) : null}
+      ) : (
+        <ResultNote testId="result-rasa-whitelist-idle">Enter an address, then add.</ResultNote>
+      )}
     </MethodCard>
   );
 }

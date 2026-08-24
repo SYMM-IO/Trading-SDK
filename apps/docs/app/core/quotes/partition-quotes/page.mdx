@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # partitionQuotes
 
 Split a flat quote list into active positions and resting/pending orders. Run this before [`groupQuotes`](/core/quotes/group-quotes) — a limit order that has not filled is not part of a position and must not be folded into one.
@@ -10,6 +12,15 @@ const groups = groupQuotes(positions, SubAccountIsolationType.MARKET_DIRECTION);
 ```
 
 `isPendingOrder` and `isActivePosition` are exported separately for callers that need the predicate rather than the split.
+
+Both classify an anchored row by its on-chain [`QuoteStatus`](/core/quotes/quote-status) — `PENDING` / `LOCKED` / `CANCEL_PENDING` is a resting order, `OPENED` / `CLOSE_PENDING` / `CANCEL_CLOSE_PENDING` / `LIQUIDATED_PENDING` is a position — falling back to lifecycle + order type only for a row that has no status yet. Terminal rows match neither and are dropped.
+
+<Callout type="warning">
+  **Do not substitute `openQuantity > 0`.** That field is `quantity − closedAmount`, so a quote that never opened still
+  reports its full size: splitting on it files every resting `LOCKED` limit order under positions, where the only
+  action offered is a Close the protocol will reject. The state table on
+  [`QuoteStatus`](/core/quotes/quote-status#what-each-state-allows) has what each row can actually do.
+</Callout>
 
 ## Parameters
 

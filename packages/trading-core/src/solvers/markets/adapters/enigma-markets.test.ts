@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SymbolContractSymbol } from "../../types/generated/enigma-solver";
+import type { ApiContractSymbol } from "../../types/generated/enigma-solver";
 
 const getContractSymbols = vi.hoisted(() => vi.fn());
 
@@ -12,7 +12,7 @@ import { fetchEnigmaMarkets, toEnigmaMarkets } from "./enigma-markets";
 
 describe("toEnigmaMarkets", () => {
   it("maps a full record to an EnigmaMarket (camelCase, maxLeverage coerced to number)", () => {
-    const raw: SymbolContractSymbol = {
+    const raw: ApiContractSymbol = {
       symbol_id: 1,
       name: "BTCUSDT",
       symbol: "BTC",
@@ -112,12 +112,12 @@ describe("toEnigmaMarkets", () => {
     ["missing name", { symbol_id: 1, symbol: "X" }],
     ["missing symbol", { symbol_id: 1, name: "X" }],
   ])("skips a row %s", (_label, raw) => {
-    expect(toEnigmaMarkets([raw as SymbolContractSymbol])).toEqual([]);
+    expect(toEnigmaMarkets([raw as ApiContractSymbol])).toEqual([]);
   });
 
   it("keeps identified rows and drops unidentified ones in the same batch", () => {
-    const good: SymbolContractSymbol = { symbol_id: 9, name: "OK", symbol: "OK" };
-    const bad: SymbolContractSymbol = { name: "no id" };
+    const good: ApiContractSymbol = { symbol_id: 9, name: "OK", symbol: "OK" };
+    const bad: ApiContractSymbol = { name: "no id" };
     const markets = toEnigmaMarkets([bad, good]);
     expect(markets).toHaveLength(1);
     expect(markets[0]?.symbolId).toBe(9);

@@ -1,0 +1,60 @@
+# getOrderbookDepthWithin
+
+Measure the depth resting within a price band around the mid, per side.
+
+```ts
+import { getOrderbookDepthWithin } from "@symmio/trading-core";
+
+const { bidQuote, askQuote, imbalance } = getOrderbookDepthWithin(book, 0.01);
+/** imbalance > 0 → more bid notional than ask within ±1% of mid */
+```
+
+## Parameters
+
+<Properties>
+  <Property name="orderbook" type="Orderbook" required>
+    The book to measure.
+  </Property>
+  <Property name="percent" type="number" required>
+    Half-width of the band as a fraction of mid. `0.01` is ±1%.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="OrderbookDepthSummary">
+  Per-side size, notional, and the imbalance between them. All zero when the book has no mid because one side is empty.
+</Returns>
+
+<Properties>
+  <Property name="percent" type="number">
+    The band that was measured, echoed back.
+  </Property>
+  <Property name="bidSize" type="number">
+    Base-asset size resting on the bid side inside the band.
+  </Property>
+  <Property name="askSize" type="number">
+    Base-asset size resting on the ask side inside the band.
+  </Property>
+  <Property name="bidQuote" type="number">
+    Notional resting on the bid side inside the band.
+  </Property>
+  <Property name="askQuote" type="number">
+    Notional resting on the ask side inside the band.
+  </Property>
+  <Property name="imbalance" type="number">
+    `(bidQuote - askQuote) / (bidQuote + askQuote)`, in `[-1, 1]`. Positive means buy-side pressure. `0` when the band
+    is empty on both sides.
+  </Property>
+</Properties>
+
+## Why a band rather than top-of-book
+
+Top-of-book size is one order deep and moves on every cancel. A single large order five percent away moves it not at all, while a wall of small orders next to the mid moves it not at all either. Measuring a band captures both and is far harder to spoof with one resting order.
+
+`imbalance` is the usual read on which way the book is leaning, and it is the natural input for a lean indicator beside a ladder.
+
+## Related
+
+- [`walkOrderbook`](/core/orderbook/walk-orderbook) — depth priced against a specific order size.
+- [`accumulateOrderbook`](/core/orderbook/accumulate-orderbook) — cumulative depth per level.

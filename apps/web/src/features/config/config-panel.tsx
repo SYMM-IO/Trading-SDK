@@ -10,6 +10,7 @@ import {
   countChainOverrides,
   draftFromOverrides,
   fieldPath,
+  isFieldAvailable,
   sameOverrides,
   SUPPORTED_CHAIN_IDS,
   validateFieldValue,
@@ -198,31 +199,40 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
           <div className="flex flex-col gap-7">
-            {CONFIG_GROUPS.map((group) => (
-              <section key={group.group} className="flex flex-col gap-4">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-muted-foreground text-[11px] font-semibold tracking-[0.16em] uppercase">
-                    {group.title}
-                  </h3>
-                  <span className="bg-border/60 h-px flex-1" aria-hidden />
-                </div>
-                <div className="flex flex-col gap-5">
-                  {group.fields.map((field) => {
-                    const path = fieldPath(field);
-                    return (
-                      <ConfigFieldRow
-                        key={field.key}
-                        field={field}
-                        chainId={activeChain}
-                        value={draft[activeChain]?.[path] ?? ""}
-                        onChange={(value) => updateField(activeChain, path, value)}
-                        index={rowIndex++}
-                      />
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
+            {CONFIG_GROUPS.map((group) => {
+              /**
+               * A field the active chain does not carry (e.g. the enigma-only
+               * notifications `channel` on a rasa chain) is hidden, and a group
+               * left with no fields disappears with it.
+               */
+              const fields = group.fields.filter((field) => isFieldAvailable(activeChain, field));
+              if (fields.length === 0) return null;
+              return (
+                <section key={group.group} className="flex flex-col gap-4">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-muted-foreground text-[11px] font-semibold tracking-[0.16em] uppercase">
+                      {group.title}
+                    </h3>
+                    <span className="bg-border/60 h-px flex-1" aria-hidden />
+                  </div>
+                  <div className="flex flex-col gap-5">
+                    {fields.map((field) => {
+                      const path = fieldPath(field);
+                      return (
+                        <ConfigFieldRow
+                          key={field.key}
+                          field={field}
+                          chainId={activeChain}
+                          value={draft[activeChain]?.[path] ?? ""}
+                          onChange={(value) => updateField(activeChain, path, value)}
+                          index={rowIndex++}
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         </div>
 

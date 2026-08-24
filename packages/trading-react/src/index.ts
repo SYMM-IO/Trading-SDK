@@ -590,6 +590,13 @@ export {
   type UseEstimatedPriceReturnType,
 } from "./estimated-price";
 export { useFundingInfo, type UseFundingInfoParameters, type UseFundingInfoReturnType } from "./funding-info";
+export {
+  useRevenueRecords,
+  type UseRevenueRecordsParameters,
+  type UseRevenueRecordsReturnType,
+} from "./revenue-records";
+export { useSymbols, type UseSymbolsParameters, type UseSymbolsReturnType } from "./symbols";
+export { useTradeVolume, type UseTradeVolumeParameters, type UseTradeVolumeReturnType } from "./trade-volume";
 
 /**
  * Market-info hooks
@@ -970,6 +977,36 @@ export {
   type UseTradingViewDatafeedParameters,
 } from "./candles";
 
+/**
+ * Orderbook hooks
+ * ---------------
+ * Market depth decoupled from any venue. `useBinanceOrderbookSource` builds a
+ * stable source; `useLiveOrderbook` is the one most ladders want — a
+ * synchronized book, grouped onto a tick, with cumulative depth and the spread
+ * already derived. `useOrderbookStream` exposes the raw synchronized book for
+ * custom aggregation, and `useOrderbook` reads a one-off snapshot through
+ * TanStack Query.
+ *
+ * The book behind these is not a stream of deltas applied on faith: the source
+ * verifies that every update chains onto the last and rebuilds from a fresh
+ * snapshot when one does not, surfaced as `isResyncing` / `resyncReason` so a
+ * stale ladder can say so. Import the value types (`Orderbook`,
+ * `OrderbookLevel`, `OrderbookSource`) from `@symmio/trading-core`.
+ */
+export {
+  useBinanceOrderbookSource,
+  useLiveOrderbook,
+  useOrderbook,
+  useOrderbookStream,
+  type UseBinanceOrderbookSourceParameters,
+  type UseLiveOrderbookParameters,
+  type UseLiveOrderbookReturnType,
+  type UseOrderbookParameters,
+  type UseOrderbookReturnType,
+  type UseOrderbookStreamParameters,
+  type UseOrderbookStreamReturnType,
+} from "./orderbook";
+
 /* Rasa-only solver hooks
  * ----------------------
  * Hooks over the endpoints only the `rasa` solver kind exposes: solver-side
@@ -980,7 +1017,6 @@ export {
  */
 export {
   useAddSolverWhitelist,
-  useCheckSolverWhitelist,
   useErrorMessage,
   usePartyAUpnl,
   useSolverBalanceInfo,
@@ -989,8 +1025,6 @@ export {
   useSolverReadiness,
   type UseAddSolverWhitelistParameters,
   type UseAddSolverWhitelistReturnType,
-  type UseCheckSolverWhitelistParameters,
-  type UseCheckSolverWhitelistReturnType,
   type UseErrorMessageParameters,
   type UseErrorMessageReturnType,
   type UsePartyAUpnlParameters,

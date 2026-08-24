@@ -7,10 +7,11 @@ import type { UnifiedQuote } from "../unified-quote";
  * The dimensions a {@link QuoteGroup} is keyed on. Only the fields the active
  * strategy groups by are set:
  *
- * - `MARKET_DIRECTION` → `{ symbolId, positionType }`
- * - `MARKET` → `{ symbolId }`
- * - `POSITION` / `CUSTOM` (per-quote) → `{ symbolId, positionType, vaAddress }`
- *   (the single quote's full identity)
+ * - `MARKET_DIRECTION` (the only isolation-backed strategy) →
+ *   `{ symbolId, positionType }`
+ * - `keyQuoteByMarket` → `{ symbolId }`
+ * - `keyQuotePerQuote` → `{ symbolId, positionType, vaAddress }` (the single
+ *   quote's full identity)
  *
  * A custom `keyOf` may set whichever subset it groups on.
  */
@@ -36,9 +37,10 @@ export interface QuoteGroupKey {
 }
 
 /**
- * Derives the group a quote belongs to. Built-in strategies provide one per
- * {@link SubAccountIsolationType}; a consumer supplies their own to group on any
- * dimension (e.g. by `vaAddress`, or market + direction + VA).
+ * Derives the group a quote belongs to. The built-in strategy keys by market +
+ * side (`MARKET_DIRECTION`); a consumer supplies their own to group on any other
+ * dimension (e.g. by `vaAddress`, or market + direction + VA) — `keyQuoteByMarket`
+ * and `keyQuotePerQuote` ship as ready-made key functions.
  *
  * @param quote - The quote to place into a group.
  * @returns The group's stable key and structured dimensions.
@@ -48,13 +50,16 @@ export type QuoteGroupKeyFn = (quote: UnifiedQuote) => QuoteGroupKey;
 /**
  * How {@link groupQuotes} folds quotes into groups:
  *
- * - a {@link SubAccountIsolationType} selects the matching built-in strategy
- *   (`POSITION` and `CUSTOM` produce one group per quote; `MARKET` groups by
- *   market; `MARKET_DIRECTION` groups by market + side);
+ * - `SubAccountIsolationType.MARKET_DIRECTION` — the only accepted isolation
+ *   type — groups by market + side;
  * - `{ keyOf }` lets the consumer group on any dimension.
  *
- * Reusing the on-chain isolation enum keeps the UI grouping faithful to how the
- * AccountLayer actually allocates Virtual Accounts for the subaccount.
+ * Passing any other {@link SubAccountIsolationType} throws
+ * `UNSUPPORTED_GROUPING_ISOLATION`: grouped positions are defined only where a
+ * market + side cohort is a real on-chain unit, which is exactly the isolation
+ * where the AccountLayer allocates one Virtual Account per market + direction.
+ * See `supportsQuoteGrouping` for the reasoning and `keyQuoteByMarket` /
+ * `keyQuotePerQuote` for the explicit opt-outs.
  */
 export type QuoteGroupingStrategy = SubAccountIsolationType | { readonly keyOf: QuoteGroupKeyFn };
 

@@ -42,6 +42,27 @@ const CLOSE_ANCHOR_ACTIONS = new Set(["InstantRequestToLimitClose"]);
 const CLOSE_ACTIONS = new Set([...CLOSE_REQUEST_ACTIONS, ...CLOSE_ANCHOR_ACTIONS, ...CLOSE_FILL_ACTIONS]);
 
 /**
+ * `lastSeenAction` values that belong to the **cancel** flow — cancelling a resting
+ * order rather than closing a position.
+ *
+ * Only `RequestToCancelQuote` is confirmed against a live solver frame. The other
+ * three are the contract's remaining cancel paths (`forceCancelQuote`,
+ * `expireQuote`, the solver's own `acceptCancelRequest`); it is **not** confirmed
+ * that the hedger publishes a frame for any of them — observed history for a
+ * cancelled quote contained the request frame only. They are listed so that a
+ * vendor that does emit them is handled, and cost nothing when it does not.
+ */
+const CANCEL_ACTIONS = new Set([
+  "RequestToCancelQuote",
+  /** TODO(vendor-verify): unconfirmed — never observed on the Rasa notifications stream. */
+  "AcceptCancelRequest",
+  /** TODO(vendor-verify): unconfirmed — never observed on the Rasa notifications stream. */
+  "ForceCancelQuote",
+  /** TODO(vendor-verify): unconfirmed — never observed on the Rasa notifications stream. */
+  "ExpireQuote",
+]);
+
+/**
  * Rank of each closing-stage lifecycle, used to advance a close monotonically and
  * to detect that a row is currently "in a close" (rank &gt; 0). Higher = further
  * along; `WRITE_ONCHAIN_CLOSE` is the furthest in-flight stage. Once the on-chain
@@ -127,6 +148,33 @@ export function isOpenAnchorAction(action: string | null | undefined): boolean {
  */
 export function isCloseFillAction(action: string | null | undefined): boolean {
   return action != null && CLOSE_FILL_ACTIONS.has(action);
+}
+
+/**
+ * Whether a notification's `lastSeenAction` belongs to the **cancel** flow —
+ * cancelling a resting order (`RequestToCancelQuote` and the other cancel paths).
+ *
+ * Broader than {@link classifyQuoteNotificationAction}, which reports every cancel
+ * action as `"other"` — deliberately, since a cancel frame must not mutate a row
+ * (the chain is the authority on whether the cancel landed).
+ *
+ * Cancel is the one flow whose **confirming** transaction is sent by someone else:
+ * `requestToCancelQuote` on a `LOCKED` quote only moves it to `CANCEL_PENDING` and
+ * leaves it in `partyAPendingQuotes`; the solver's later `acceptCancelRequest` is
+ * what sets `CANCELED` and removes it — and that transaction is not announced on
+ * the notifications stream. A consumer that reacts to frames alone therefore shows
+ * a cancelled order forever. Use this to start chasing the on-chain read.
+ *
+ * @param action - The notification's `lastSeenAction` (may be `null`/absent).
+ * @returns `true` for a cancel-flow action, otherwise `false`.
+ *
+ * @example
+ * ```ts
+ * if (isCancelAction(n.lastSeenAction)) startCancelConfirmChase(n.quoteId);
+ * ```
+ */
+export function isCancelAction(action: string | null | undefined): boolean {
+  return action != null && CANCEL_ACTIONS.has(action);
 }
 
 /**

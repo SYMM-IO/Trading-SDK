@@ -1,0 +1,65 @@
+import { Callout } from "nextra/components";
+
+# getOrderbook
+
+Fetch a point-in-time depth snapshot from an [`OrderbookSource`](/core/orderbook/orderbook-source-type). Bids come back descending from the best price, asks ascending, both de-duplicated and free of zero-size levels.
+
+```ts
+import { createBinanceOrderbookSource, getOrderbookSpread } from "@symmio/trading-core";
+
+const source = createBinanceOrderbookSource();
+const book = await source.getOrderbook({ marketName: "BTCUSDT", limit: 20 });
+
+const spread = getOrderbookSpread(book);
+```
+
+<Callout type="info">
+  A snapshot is stale the moment it lands. Use this for a one-off read — sizing a single order, an impact estimate, a
+  server-rendered summary. For anything a user watches, [`watchOrderbook`](/core/orderbook/watch-orderbook) is both
+  fresher than any poll interval and far cheaper in rate-limit weight.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="marketName" type="string" required>
+    Market name as SYMMIO names it. The source maps it onto its own symbol namespace.
+  </Property>
+  <Property name="limit" type="number" optional>
+    Levels per side. Must be one of the source's `supportedLimits`; defaults to its `defaultLimit`.
+  </Property>
+  <Property name="signal" type="AbortSignal" optional>
+    Aborts the in-flight request.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<Orderbook>">
+  A point-in-time [`Orderbook`](/core/orderbook/orderbook-type): `bids`, `asks`, the `lastUpdateId` it is synchronized
+  to, and the venue `timestamp` (`0` when the venue omits one).
+</Returns>
+
+## Query options
+
+```ts
+import { getOrderbookQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getOrderbookQueryOptions(source, { marketName: "BTCUSDT", limit: 20 }));
+```
+
+Unlike the chain-scoped factories elsewhere in the SDK, this takes a **source** rather than a `Config` — which venue's depth to read is your choice, not a property of the SYMMIO deployment. The source's `id` is folded into the query key, so switching venues never reads another venue's cached book. `getOrderbookQueryKey` builds the same key for cache matching and invalidation.
+
+## Throws
+
+- `UNSUPPORTED_DEPTH_LIMIT` when `limit` is not one the venue accepts. Binance USD-M takes an **enum** — `5, 10, 20, 50, 100, 500, 1000` — and rejects anything else outright rather than clamping.
+- `UNMAPPED_ORDERBOOK_MARKET` when the source's symbol mapping declines the market name.
+- `FETCH_BINANCE_DEPTH_FAILED` when the request fails or the response is not a snapshot.
+
+## Related
+
+- [`watchOrderbook`](/core/orderbook/watch-orderbook) — the live equivalent.
+- [`getOrderbookSpread`](/core/orderbook/orderbook-spread) — read the touch off a snapshot.
+- [`walkOrderbook`](/core/orderbook/walk-orderbook) — price a hypothetical order against it.
+- [`useOrderbook`](/react/orderbook) — the React hook.

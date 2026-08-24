@@ -1,5 +1,7 @@
 import {
   PositionType,
+  getAccountBalanceInfoQueryKey,
+  getAccountBalanceOfQueryKey,
   getInstantClosesQueryKey,
   getInstantOpensQueryKey,
   type InstantOpenReturnType,
@@ -112,5 +114,32 @@ describe("useInstantOpenAuto", () => {
     const configKey = config.getChainConfigKey(hyperEvm.id);
     expect(predicate(queryWith(getInstantOpensQueryKey({ configKey })))).toBe(true);
     expect(predicate(queryWith(getInstantClosesQueryKey({ configKey })))).toBe(false);
+  });
+
+  it("invalidates the subaccount balance reads for the active config on success", async () => {
+    const { config } = createMockSymmioConfig();
+    mockMutationFn(vi.fn().mockResolvedValue(RESULT));
+    const queryClient = createTestQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHookWithProviders(() => useInstantOpenAuto({ config }), { queryClient });
+
+    await act(async () => {
+      await result.current.mutateAsync(VARS);
+    });
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(3));
+    const configKey = config.getChainConfigKey(hyperEvm.id);
+    /** Run every predicate the mutation handed to `invalidateQueries` against one key. */
+    const matches = (key: QueryKey) =>
+      invalidate.mock.calls.some(([filters]) => {
+        const { predicate } = filters as { predicate: (q: Query) => boolean };
+        return predicate(queryWith(key));
+      });
+
+    expect(matches(getAccountBalanceOfQueryKey({ configKey, account: PARTY_A }))).toBe(true);
+    expect(matches(getAccountBalanceInfoQueryKey({ configKey, account: PARTY_A }))).toBe(true);
+    /** Another chain config's balances must survive. */
+    expect(matches(getAccountBalanceOfQueryKey({ configKey: "other", account: PARTY_A }))).toBe(false);
   });
 });

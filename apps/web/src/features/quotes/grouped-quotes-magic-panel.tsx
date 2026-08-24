@@ -36,7 +36,7 @@ export function GroupedQuotesMagicPanel({
   const active = enabled && Boolean(partyA);
   const { sessionKeyAddress } = useSessionKey();
 
-  const { groups, accounts, isLoading, socketStatus } = useGroupedQuotes({
+  const { groups, accounts, isLoading, socketStatus, isGroupingSupported, groupingError } = useGroupedQuotes({
     partyA,
     live: true,
     enabled: active,
@@ -79,7 +79,7 @@ export function GroupedQuotesMagicPanel({
       <div className="flex items-center gap-2 text-xs">
         <StatusDot tone={socketStatusTone(socketStatus)} pulse={socketStatus === "open"} />
         <span className="text-muted-foreground">{socketStatusLabel(socketStatus)}</span>
-        {active ? (
+        {active && isGroupingSupported ? (
           <span
             className="text-muted-foreground ml-auto"
             title="Grouped positions · sub-account + Virtual Accounts scanned"
@@ -92,6 +92,11 @@ export function GroupedQuotesMagicPanel({
 
       {!active ? (
         <p className="text-muted-foreground text-xs">Enter a partyA address to start the grouped feed.</p>
+      ) : !isGroupingSupported ? (
+        <p className="text-warning text-xs">
+          {groupingError?.message ?? "This sub-account's isolation does not support grouped positions."} Use the Quotes
+          panel for a flat view of this partyA.
+        </p>
       ) : isLoading && snapshot.groups.length === 0 ? (
         <p className="text-muted-foreground text-xs">Loading positions…</p>
       ) : (
