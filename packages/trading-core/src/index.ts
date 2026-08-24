@@ -557,6 +557,7 @@ export {
   type SymmioChainConfig,
   type SymmioContractAddresses,
   type SymmioEnigmaNotificationsConfig,
+  type SymmioListingConfig,
   type SymmioMuonConfig,
   type SymmioNotificationsConfig,
   type SymmioNotificationsProtocol,
@@ -810,6 +811,17 @@ export {
   supportsLimitOrder,
   type SolverCapabilities,
 } from "./solvers/capabilities";
+
+/**
+ * Pools (lowcap liquidity markets)
+ * --------------------------------
+ * Config foundation for the Pools flow served by the Enigma **listing backend**
+ * ({@link SymmioListingConfig}). `resolveListingService` returns the backend for
+ * a `{ chainId, solverId }` target (throws where Pools is unavailable);
+ * `supportsListingService` is its non-throwing boolean twin for `enabled`/UI
+ * gates. Pool reads/writes build on this and land in later slices.
+ */
+export { resolveListingService, supportsListingService, type ResolveListingServiceParameters } from "./pools";
 
 export {
   limitOpenAuto,

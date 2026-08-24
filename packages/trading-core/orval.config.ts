@@ -178,6 +178,31 @@ export default defineConfig({
       },
     },
   },
+  listingBackend: {
+    input: {
+      target: "https://listing85.enigma.bz/openapi.json",
+      override: {
+        // The published spec's `info.title` is the vendor's app-product brand,
+        // which must not leak into `packages/*` identifiers or the generated
+        // file header (repo rule: no "Vibe" in the SDK). Rewrite it to a neutral
+        // name before orval derives anything from it.
+        transformer: (spec) => {
+          if (spec.info) spec.info.title = "Lowcap Permissionless Listing";
+          return spec;
+        },
+      },
+    },
+    output: {
+      clean: true,
+      mode: "single",
+      httpClient: "axios",
+      formatter: "prettier",
+      target: "./src/pools/types/generated/listing-backend.ts",
+      override: {
+        enumGenerationType: "enum",
+      },
+    },
+  },
   // TODO(muon-openapi): the Muon oracle gateway is a query-param REST endpoint
   // with no OpenAPI/Swagger spec (https://docs.symm.io/api-endpoints-and-deployments/muon-api),
   // so there is nothing for orval to generate — the Muon request/response types

@@ -43,7 +43,9 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
           searchUrl: "https://notification.rasa.capital/notification",
         },
         // VA-per-market/side isolation supports folding a group into one close.
-        capabilities: { groupClose: true },
+        // `listingService`: this solver's markets are the lowcap Pools; the
+        // chain-level `listing` backend below serves their catalogue/stats/LP flows.
+        capabilities: { groupClose: true, listingService: true },
       },
     },
     defaultSolverId: "enigma",
@@ -51,6 +53,10 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
       type: "enigma",
       url: "https://lowcap-price.enigma.bz",
       wsUrl: "wss://lowcap-price.enigma.bz/ws",
+    },
+    listing: {
+      // Pools listing backend (auth'd REST). Staging: https://listing-staging.enigma.bz/v2
+      url: "https://listing85.enigma.bz/v2",
     },
     muon: {
       // Muon oracle gateways (https://docs.symm.io/api-endpoints-and-deployments/muon-api),

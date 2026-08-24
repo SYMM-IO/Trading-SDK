@@ -96,6 +96,15 @@ export interface SolverCapabilitiesConfig {
    * `false`.
    */
   limitOrder?: boolean;
+  /**
+   * Whether this solver's markets participate in the **Pools / listing service**
+   * — the auth'd listing backend ({@link SymmioChainConfig.listing}) that serves
+   * the pool catalogue, stats, and LP flows. Enigma (lowcap, on HyperEVM) uses
+   * it; no other solver does. Default `false`. The solver declares that it uses
+   * the service here; the service URL itself lives at chain level so several
+   * solvers on one chain could share it.
+   */
+  listingService?: boolean;
 }
 
 export interface SymmioSolverConfig {
@@ -282,6 +291,26 @@ export interface SymmioMuonConfig {
 }
 
 /**
+ * Pools **listing backend** configuration for a SYMMIO chain deployment.
+ *
+ * The listing backend is an auth'd REST service that owns the lowcap Pools flow
+ * — the pool catalogue, per-pool stats, a user's stake/rewards, and the
+ * create/deposit/withdraw/claim actions. It is chain-level (a chain has at most
+ * one), and a solver opts into it via
+ * {@link SolverCapabilitiesConfig.listingService}. Present only where Pools is
+ * available (Enigma on HyperEVM); omitted elsewhere.
+ */
+export interface SymmioListingConfig {
+  /**
+   * Listing backend REST base URL, including the `/v2` version segment and no
+   * trailing slash (e.g. `https://listing85.enigma.bz/v2`). The generated client
+   * appends each endpoint path. Point this at the staging deployment via a
+   * `createConfig` override when needed.
+   */
+  url: string;
+}
+
+/**
  * Complete resolved configuration for a SYMMIO chain deployment.
  */
 export interface SymmioChainConfig {
@@ -304,4 +333,11 @@ export interface SymmioChainConfig {
   priceService: SymmioPriceServiceConfig;
   /** Muon oracle configuration */
   muon: SymmioMuonConfig;
+  /**
+   * Optional Pools listing backend. Set on chains where the lowcap Pools flow is
+   * available (Enigma on HyperEVM); omitted elsewhere. A solver opts in via
+   * {@link SolverCapabilitiesConfig.listingService}; resolve it with
+   * `resolveListingService` / gate on `supportsListingService`.
+   */
+  listing?: SymmioListingConfig;
 }

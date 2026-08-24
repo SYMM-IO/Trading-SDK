@@ -139,10 +139,12 @@ export interface SolverCapabilitiesConfig {
   groupClose?: boolean;
   /** Place a LIMIT order — a pending open at a user-set price. Rasa (majors) yes; enigma no. */
   limitOrder?: boolean;
+  /** This solver's markets are the lowcap Pools — it uses the chain-level `listing` backend. Enigma yes; rasa no. */
+  listingService?: boolean;
 }
 ```
 
-Today's registry: **enigma** declares `groupClose`, **rasa** declares `limitOrder`.
+Today's registry: **enigma** declares `groupClose` and `listingService`, **rasa** declares `limitOrder`.
 
 <Callout type="info">
   **TP/SL is not a capability flag.** A solver supports conditional orders exactly when its config carries a `tpsl`
@@ -161,6 +163,22 @@ if (supportsLimitOrder(config, { solverId })) showLimitOrderTab();
 ```
 
 Both take an optional `chainId` / `solverId`, defaulting to the chain's default solver. The write actions self-guard too: `limitOpenAuto` on a solver without `limitOrder` throws `UNSUPPORTED_BY_SOLVER`. In React, gate with the [`useSolverCapabilities`](/react/solvers#usesolvercapabilities) / `useSupportsLimitOrder` / `useSupportsGroupClose` hooks.
+
+## Pools listing service
+
+The lowcap **Pools** flow (per-token liquidity markets — catalogue, stats, LP stake/rewards, create/withdraw/claim) is served by an auth'd **listing backend**. Unlike the per-solver services above, its URL is **chain-level** (`SymmioChainConfig.listing`, a `SymmioListingConfig`), because several solvers on one chain could share one listing deployment. A solver opts into it with the `listingService` capability — so "does this target have Pools?" is _solver declares it_ **and** _chain configures it_.
+
+```ts
+import { resolveListingService, supportsListingService } from "@symmio/trading-core";
+
+// Non-throwing gate for `enabled` flags / UI:
+if (supportsListingService(config, { chainId })) showPoolsTab();
+
+// Resolve the backend (throws LISTING_UNSUPPORTED / LISTING_NOT_CONFIGURED where Pools is unavailable):
+const { url } = resolveListingService(config, { chainId });
+```
+
+Today only **enigma on HyperEVM** has it (`listing: { url: "https://listing85.enigma.bz/v2" }` + the solver's `listingService` flag). Point it at staging with a `createConfig` override — there is no separate environment axis.
 
 ## Configuring chains and solvers
 
