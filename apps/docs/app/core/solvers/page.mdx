@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Solvers
 
 The solver APIs are off-chain REST endpoints configured per chain in `createConfig`. `@symmio/trading-core` exposes them as framework-agnostic actions plus TanStack Query option factories.
@@ -24,6 +26,13 @@ Implications when building on the SDK:
 ### `getMarkets`
 
 Fetch tradable markets from the chain solver's `/contract-symbols` endpoint.
+
+<Callout type="info">
+  On **Enigma**, prefer [`getSymbols`](#symbols-enigma). It reads the same catalogue from the `/symbols` service but
+  adds **server-side filtering** (name, asset, token, validity, per-side state) and **pagination** (`limit` / `offset`),
+  so you fetch only the rows you need. Keep `getMarkets` when you want one call that also covers **Rasa** — `/symbols`
+  is Enigma-only.
+</Callout>
 
 ```ts
 import { getMarkets } from "@symmio/trading-core";
@@ -65,6 +74,95 @@ import { getMarketsQueryOptions } from "@symmio/trading-core";
 import { useQuery } from "@tanstack/react-query";
 
 const query = useQuery(getMarketsQueryOptions(config, { query: { staleTime: 30_000 } }));
+```
+
+## Symbols (Enigma)
+
+The `/symbols` service is the **richer, preferred** symbol catalogue on Enigma. Where [`getMarkets`](#getmarkets) returns the whole `/contract-symbols` list in one shot, `/symbols` lets the solver do the work: filter by name, asset, token, validity, or per-side trading state, and page through the results — so a large catalogue costs one small request instead of a full download you filter yourself.
+
+### `getSymbols`
+
+Fetch the tradable symbol catalogue from the Enigma solver's `/symbols` endpoint. **Enigma-only** — calling it against a non-enigma solver throws `UNSUPPORTED_BY_SOLVER`.
+
+```ts
+import { getSymbols } from "@symmio/trading-core";
+
+// First page, the solver's default of 100 rows.
+const symbols = await getSymbols(config, {});
+
+// Server-side filtering + pagination: enabled "BTC" symbols, 20 per page.
+const page = await getSymbols(config, {
+  search: "BTC",
+  isValid: "true",
+  stateLong: "enabled",
+  limit: 20,
+  offset: 0,
+});
+```
+
+**Parameters**
+
+| Name           | Type                                                      | Default           | Notes                                                |
+| -------------- | --------------------------------------------------------- | ----------------- | ---------------------------------------------------- |
+| `chainId`      | `number?`                                                 | config default    | Optional chain override.                             |
+| `solverId`     | `"enigma"?`                                               | default solver    | Must resolve to an `enigma` solver.                  |
+| `limit`        | `number?`                                                 | `100` (max `500`) | Page size.                                           |
+| `offset`       | `number?`                                                 | `0`               | Page offset for pagination.                          |
+| `symbolId`     | `number?`                                                 | —                 | Restrict to a single symbol id.                      |
+| `search`       | `string?`                                                 | —                 | Case-insensitive substring match on the symbol name. |
+| `asset`        | `string?`                                                 | —                 | Exact-match filter on the base asset.                |
+| `tokenAddress` | `string?`                                                 | —                 | Exact-match filter on the collateral token address.  |
+| `isValid`      | `"true" \| "false" \| "any"?`                             | `"true"`          | Validity filter; the solver defaults to valid-only.  |
+| `stateLong`    | `"disabled" \| "close_only" \| "open_only" \| "enabled"?` | —                 | Long-side trading-state filter.                      |
+| `stateShort`   | `"disabled" \| "close_only" \| "open_only" \| "enabled"?` | —                 | Short-side trading-state filter.                     |
+
+**Returns** — `SolverSymbol[]`. Same camelCase, gap-filled shape as an `EnigmaMarket`, except `/symbols` reports trading state **per side** (`stateLong` / `stateShort`) instead of the single `state` on `getMarkets`.
+
+| Field         | Type      | Notes                                                                      |
+| ------------- | --------- | -------------------------------------------------------------------------- |
+| `symbolId`    | `number`  | Contract symbol id.                                                        |
+| `name`        | `string`  | Solver market name (e.g. `"BTCUSDT"`).                                     |
+| `symbol`      | `string`  | Display ticker.                                                            |
+| `maxLeverage` | `number`  | Maximum leverage (coerced to a number).                                    |
+| `stateLong`   | `number`  | Long-side state: `0` disabled, `1` close only, `2` open only, `3` enabled. |
+| `stateShort`  | `number`  | Short-side state (same encoding).                                          |
+| `isValid`     | `boolean` | Whether the symbol is currently valid.                                     |
+
+### `getSymbolsQueryOptions`
+
+Build TanStack Query options for `getSymbols`.
+
+```ts
+import { getSymbolsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+const query = useQuery(getSymbolsQueryOptions(config, { search: "ETH", limit: 50 }));
+```
+
+## Trade volume & revenue (Enigma)
+
+Two more **Enigma-only** reads (both throw `UNSUPPORTED_BY_SOLVER` off Enigma, and each ships a matching `…QueryOptions` / `…QueryKey` factory).
+
+### `getTradeVolume`
+
+Daily trade-volume rows for one market from `/trade-volume/{symbolId}` — one `{ timestamp, volume }` per day, ascending. `timestamp` is the solver's ISO 8601 day bucket (e.g. `"2026-07-09T00:00:00Z"`); `volume` is a decimal string. `symbolId` is required.
+
+```ts
+import { getTradeVolume } from "@symmio/trading-core";
+
+const volume = await getTradeVolume(config, { symbolId: 1 });
+const latest = volume.at(-1); // { timestamp: "2026-07-09T00:00:00Z", volume: "448.69…" }
+```
+
+### `getRevenueRecords`
+
+Incremental revenue records from `/revenue/records`, cursor-paginated on the record `id`. Returns `{ records, count }`.
+
+```ts
+import { getRevenueRecords } from "@symmio/trading-core";
+
+const { records, count } = await getRevenueRecords(config, { limit: 100 });
+const nextCursor = records.at(-1)?.id; // pass back as `id` for the next page
 ```
 
 ## Locked Params

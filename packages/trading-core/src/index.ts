@@ -894,6 +894,47 @@ export {
   type MarketFundingInfo,
   type ProjectFundingRateParameters,
 } from "./solvers/funding-info";
+export {
+  getRevenueRecords,
+  getRevenueRecordsQueryKey,
+  getRevenueRecordsQueryOptions,
+  toRevenueRecord,
+  type GetRevenueRecordsData,
+  type GetRevenueRecordsOptions,
+  type GetRevenueRecordsParameters,
+  type GetRevenueRecordsQueryKey,
+  type GetRevenueRecordsQueryOptions,
+  type GetRevenueRecordsReturnType,
+  type SolverRevenueRecord,
+} from "./solvers/revenue-records";
+export {
+  getSymbols,
+  getSymbolsQueryKey,
+  getSymbolsQueryOptions,
+  toSolverSymbols,
+  type GetSymbolsData,
+  type GetSymbolsOptions,
+  type GetSymbolsParameters,
+  type GetSymbolsQueryKey,
+  type GetSymbolsQueryOptions,
+  type GetSymbolsReturnType,
+  type SolverSymbol,
+  type SymbolStateFilter,
+  type SymbolValidityFilter,
+} from "./solvers/symbols";
+export {
+  getTradeVolume,
+  getTradeVolumeQueryKey,
+  getTradeVolumeQueryOptions,
+  toSolverDailyVolume,
+  type GetTradeVolumeData,
+  type GetTradeVolumeOptions,
+  type GetTradeVolumeParameters,
+  type GetTradeVolumeQueryKey,
+  type GetTradeVolumeQueryOptions,
+  type GetTradeVolumeReturnType,
+  type SolverDailyVolume,
+} from "./solvers/trade-volume";
 
 /**
  * Rasa-only solver reads

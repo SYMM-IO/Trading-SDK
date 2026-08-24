@@ -590,6 +590,13 @@ export {
   type UseEstimatedPriceReturnType,
 } from "./estimated-price";
 export { useFundingInfo, type UseFundingInfoParameters, type UseFundingInfoReturnType } from "./funding-info";
+export {
+  useRevenueRecords,
+  type UseRevenueRecordsParameters,
+  type UseRevenueRecordsReturnType,
+} from "./revenue-records";
+export { useSymbols, type UseSymbolsParameters, type UseSymbolsReturnType } from "./symbols";
+export { useTradeVolume, type UseTradeVolumeParameters, type UseTradeVolumeReturnType } from "./trade-volume";
 
 /**
  * Market-info hooks
