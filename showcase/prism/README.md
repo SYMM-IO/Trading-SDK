@@ -101,6 +101,52 @@ fails to compile against an API you know exists. Breaking changes surface as
 type errors — fix Prism to the new API rather than pinning back to the old
 tarball.
 
+## Deploying
+
+```bash
+./deploy.sh              # production
+./deploy.sh --preview    # preview URL
+./deploy.sh --refresh-sdk
+```
+
+Prism deploys to Vercel from a laptop, not from a git push. There is no CI
+pipeline and no git integration on the Vercel project, by design: the SDK
+dependencies are the vendored tarballs described above, and those are ignored by
+the repo's root `.gitignore` (`*.tgz`). A Vercel build started from a clone would
+find `file:./vendor/*.tgz` missing and fail at install.
+
+`deploy.sh` inverts the order instead. It builds the app **locally** with
+`vercel build` — where `vendor/` exists — and then ships only the resulting
+`.vercel/output` with `vercel deploy --prebuilt`. Vercel runs no install of its
+own, so the tarballs never need to leave this machine. What is deployed is
+whatever `vendor/` held at build time, which makes `--refresh-sdk` the way to
+publish a demo that picks up new `packages/*` work.
+
+Authenticate and link the project once, from this directory:
+
+```bash
+pnpm dlx vercel login
+pnpm dlx vercel link      # writes ./.vercel/project.json, gitignored
+```
+
+The Vercel CLI is invoked through `pnpm dlx`, so it is a tool rather than a
+dependency of the app. Set `VERCEL_TOKEN` to skip the interactive login,
+`VERCEL_SCOPE` when the account belongs to more than one team, and
+`VERCEL_CLI_VERSION` to pin the CLI.
+
+Two things the script guards for you. It refuses to run while port 1122 is
+listening, because a live `pnpm dev` shares `.next` with the build and the two
+corrupt each other. And it warns when the local Node major is newer than
+Vercel's newest runtime (22.x) — `vercel pull` takes the runtime from the
+project settings, so set **Node.js Version → 22.x** in the Vercel project if a
+deploy ever rejects the build output.
+
+Prism reads no environment variables. Both chains use public RPCs pinned in
+[`src/config/wagmi.ts`](src/config/wagmi.ts), and the only wallet connector is
+`injected()`, so a deployed instance needs no configuration at all — though
+public RPC rate limits are worth keeping in mind for a demo that several people
+open at once.
+
 ## How the multi-solver part works
 
 Everything hangs off one table, [`src/config/deployments.ts`](src/config/deployments.ts):
