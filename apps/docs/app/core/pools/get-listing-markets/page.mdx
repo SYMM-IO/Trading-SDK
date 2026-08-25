@@ -1,0 +1,309 @@
+import { Callout } from "nextra/components";
+
+# getListingMarkets
+
+Fetch a page of the permissionless-listing market catalog — the data behind a pools list. Every parameter is optional: with none set the backend returns its default first page of 20 rows.
+
+```ts
+import { getListingMarkets, ListingMarketStatus } from "@symmio/trading-core";
+
+const page = await getListingMarkets(config, {
+  marketStatus: ListingMarketStatus.LISTED,
+  sortBy: "tvl",
+  orderBy: "desc",
+  limit: 50,
+});
+```
+
+The catalog spans every listing the backend knows about, at every lifecycle stage — including markets that are still awaiting a deposit, under review, rejected, or delisted. Pass `marketStatus: ListingMarketStatus.LISTED` to see only tradable ones. Rows come back newest-listed first unless `sortBy` is set.
+
+The two halves of the signature are exported as `GetListingMarketsParameters` (the parameters object, every field optional) and `GetListingMarketsReturnType` (an alias of [`ListingMarketPage`](/core/pools/listing-market-type#listingmarketpage)), so you can name them in your own wrappers:
+
+```ts
+import type { GetListingMarketsParameters, GetListingMarketsReturnType } from "@symmio/trading-core";
+
+function listedOnly(parameters: GetListingMarketsParameters): Promise<GetListingMarketsReturnType> {
+  return getListingMarkets(config, { ...parameters, marketStatus: ListingMarketStatus.LISTED });
+}
+```
+
+<Callout type="info">
+  This is a REST read against the listing backend, not a contract call. The backend is resolved from the config before
+  the request, so a target without Pools fails immediately and without any network traffic — see
+  [`resolveListingService`](/core/pools/resolve-listing-service).
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
+    folded into the query key.
+  </Property>
+  <Property name="solverId" type="SolverId" typeHref="/core/concepts/solvers-and-chains" optional>
+    Solver kind to target. Defaults to the chain's default solver. Only a solver declaring the `listingService`
+    capability can be used here.
+  </Property>
+  <Property name="search" type="string" optional>
+    Free-text search, matched by the backend against contract address, ticker, and token name. Named `search` rather
+    than `query` because the TanStack options bag on the matching query factory already owns `query`; it is sent as
+    `query` on the wire.
+  </Property>
+  <Property name="chainIds" type="readonly ListingDepositChainId[]" optional>
+    Restrict to tokens **deposited** on these chains. An empty array is sent as no filter, matching the backend's
+    behavior for an absent parameter. The SDK serializes this as repeated keys (`chain_ids=56&chain_ids=8453`), which is
+    the only form the backend honors.
+  </Property>
+  <Property name="marketStatus" type="ListingMarketStatus" optional>
+    Restrict to one lifecycle status. Exactly one — the backend takes a single status, not a set.
+  </Property>
+  <Property name="limit" type="number" optional default="service 20">
+    Page size, `1`–`100`. Omitted entirely when unset, so the backend applies its own default of `20`.
+  </Property>
+  <Property name="offset" type="number" optional default="service 0">
+    Row offset. Combine with `total` from the response to page.
+  </Property>
+  <Property name="sortBy" type="ListingMarketSortField" optional>
+    Server-side sort key, as a wire literal in snake_case rather than the SDK's camelCase field names. See [Sort
+    keys](#sort-keys).
+  </Property>
+  <Property name="orderBy" type='"asc" | "desc"' optional default='"desc"'>
+    Sort direction, applied to `sortBy`. Service default `"desc"`. Its effect without a `sortBy` is not specified by the
+    backend — pair it with an explicit sort key.
+  </Property>
+  <Property name="filters" type="ListingMarketFilters" optional>
+    Inclusive numeric range filters, applied server-side. Bounds are at 18 decimals, not human units — see
+    [Filters](#filters).
+  </Property>
+</Properties>
+
+Unset parameters are omitted from the request rather than sent empty, which is what lets the backend apply its own defaults.
+
+## Sort keys
+
+`sortBy` mirrors the backend's `sort_by` enum verbatim. Translating it into the SDK's camelCase would break silently the moment the backend adds a key, so the wire literal is the public type:
+
+| `sortBy`                 | Sorts by                  |
+| ------------------------ | ------------------------- |
+| `"liquidity"`            | `liquidity`               |
+| `"tvl"`                  | `tvl`                     |
+| `"market_cap"`           | `marketCap`               |
+| `"vol24h"`               | `vol24h`                  |
+| `"open_interest"`        | `openInterest`            |
+| `"reward_24h"`           | `reward24h`               |
+| `"apr"`                  | `apr`                     |
+| `"apr_1h"`               | `aprByWindow.h1`          |
+| `"apr_6h"`               | `aprByWindow.h6`          |
+| `"apr_24h"`              | `aprByWindow.h24`         |
+| `"apr_30d"`              | `aprByWindow.d30`         |
+| `"tvl_driven_apy_1h"`    | `tvlDrivenApy.h1`         |
+| `"tvl_driven_apy_6h"`    | `tvlDrivenApy.h6`         |
+| `"tvl_driven_apy_24h"`   | `tvlDrivenApy.h24`        |
+| `"tvl_driven_apy_30d"`   | `tvlDrivenApy.d30`        |
+| `"tvl_driven_apy"`       | `tvlDrivenApy.lifetime`   |
+| `"price_driven_apy_1h"`  | `priceDrivenApy.h1`       |
+| `"price_driven_apy_6h"`  | `priceDrivenApy.h6`       |
+| `"price_driven_apy_24h"` | `priceDrivenApy.h24`      |
+| `"price_driven_apy_30d"` | `priceDrivenApy.d30`      |
+| `"price_driven_apy"`     | `priceDrivenApy.lifetime` |
+| `"listing_time"`         | `listingTime`             |
+
+<Callout type="warning">
+  `"tvl_driven_apy"` and `"price_driven_apy"` are the two odd keys: they are bare, but there is no bare response field
+  to match them — the backend only reports those series per window plus a lifetime column. They are documented here as
+  sorting by the **lifetime** column (`tvl_driven_apy_lifetime` / `price_driven_apy_lifetime`). That mapping is an
+  **unconfirmed vendor assumption**, not something the backend's schema states. If the ordering matters to your UI, sort
+  by an explicit window key instead.
+</Callout>
+
+## Filters
+
+`filters` is a bag of inclusive `[min, max]` bounds; every key is optional and either end may be omitted for a one-sided bound. Each becomes a `{field}__ge` / `{field}__le` query parameter.
+
+<Callout type="warning">
+  Bounds use the **same 18-decimal scale as the response**, not the human-readable figure. A one-million-USD market-cap
+  floor is `1_000_000n * 10n ** 18n`. Passing `1_000_000` is a bound of `0.000000000001` USD, which matches essentially
+  everything and looks like a filter that does nothing. `listingTime` is the one exception — it takes Unix seconds.
+</Callout>
+
+Money and rate keys (`ListingValueRange`, `min` / `max` as `bigint` at 18 decimals):
+
+<Properties>
+  <Property name="marketCap" type="ListingValueRange" optional>
+    Token market capitalization, USD.
+  </Property>
+  <Property name="vol24h" type="ListingValueRange" optional>
+    Trailing 24-hour volume, USD.
+  </Property>
+  <Property name="tvl" type="ListingValueRange" optional>
+    Total value locked, USD.
+  </Property>
+  <Property name="liquidity" type="ListingValueRange" optional>
+    Available notional, USD.
+  </Property>
+  <Property name="openInterest" type="ListingValueRange" optional>
+    Open notional, USD.
+  </Property>
+  <Property name="reward24h" type="ListingValueRange" optional>
+    Trailing 24-hour LP rewards, USD.
+  </Property>
+  <Property name="apr" type="ListingValueRange" optional>
+    Headline APR bounds, at the field's own scale (`1e18` = `1%`).
+  </Property>
+  <Property name="apr1h" type="ListingValueRange" optional>
+    APR over the trailing hour.
+  </Property>
+  <Property name="apr6h" type="ListingValueRange" optional>
+    APR over the trailing 6 hours.
+  </Property>
+  <Property name="apr24h" type="ListingValueRange" optional>
+    APR over the trailing 24 hours.
+  </Property>
+  <Property name="apr30d" type="ListingValueRange" optional>
+    APR over the trailing 30 days.
+  </Property>
+  <Property name="tvlDrivenApy1h" type="ListingValueRange" optional>
+    TVL-driven APY over the trailing hour.
+  </Property>
+  <Property name="tvlDrivenApy6h" type="ListingValueRange" optional>
+    TVL-driven APY over the trailing 6 hours.
+  </Property>
+  <Property name="tvlDrivenApy24h" type="ListingValueRange" optional>
+    TVL-driven APY over the trailing 24 hours.
+  </Property>
+  <Property name="tvlDrivenApy30d" type="ListingValueRange" optional>
+    TVL-driven APY over the trailing 30 days.
+  </Property>
+  <Property name="tvlDrivenApy" type="ListingValueRange" optional>
+    TVL-driven APY over the market's lifetime.
+  </Property>
+  <Property name="priceDrivenApy1h" type="ListingValueRange" optional>
+    Price-driven APY over the trailing hour.
+  </Property>
+  <Property name="priceDrivenApy6h" type="ListingValueRange" optional>
+    Price-driven APY over the trailing 6 hours.
+  </Property>
+  <Property name="priceDrivenApy24h" type="ListingValueRange" optional>
+    Price-driven APY over the trailing 24 hours.
+  </Property>
+  <Property name="priceDrivenApy30d" type="ListingValueRange" optional>
+    Price-driven APY over the trailing 30 days.
+  </Property>
+  <Property name="priceDrivenApy" type="ListingValueRange" optional>
+    Price-driven APY over the market's lifetime.
+  </Property>
+</Properties>
+
+The timestamp key (`ListingTimeRange`, `min` / `max` as `number` in Unix **seconds**):
+
+<Properties>
+  <Property name="listingTime" type="ListingTimeRange" optional>
+    Listing timestamp bounds, Unix seconds. Not 18-decimal scaled and not milliseconds.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<ListingMarketPage>" typeHref="/core/pools/listing-market-type#listingmarketpage">
+  <Property name="total" type="number">
+    Total rows matching the query across all pages — what you page against.
+  </Property>
+  <Property name="limit" type="number">
+    Page size the backend actually applied.
+  </Property>
+  <Property name="offset" type="number">
+    Row offset of this page.
+  </Property>
+  <Property name="items" type="ListingMarket[]">
+    The rows themselves. See [`ListingMarket`](/core/pools/listing-market-type).
+  </Property>
+</Returns>
+
+Every envelope field is defaulted on the way through — counts to `0`, `items` to an empty array — because the backend declares them as defaulted rather than required.
+
+## Examples
+
+### The default first page
+
+```ts
+const page = await getListingMarkets(config);
+
+page.total; // every listing the backend knows about
+page.items.length; // at most 20 — the backend's default page size
+```
+
+### Tradable markets, deepest pools first
+
+```ts
+import { getListingMarkets, ListingMarketStatus } from "@symmio/trading-core";
+
+const page = await getListingMarkets(config, {
+  marketStatus: ListingMarketStatus.LISTED,
+  sortBy: "tvl",
+  orderBy: "desc",
+  limit: 25,
+  offset: pageIndex * 25,
+});
+```
+
+### A filter with an 18-decimal bound
+
+Market cap of at least $1M, and a headline APR of at least 10% (`10 * 1e18`, because a rate is already a percentage):
+
+```ts
+import { getListingMarkets, LISTING_VALUE_DECIMALS, ListingMarketStatus } from "@symmio/trading-core";
+
+const ONE = 10n ** BigInt(LISTING_VALUE_DECIMALS);
+
+const page = await getListingMarkets(config, {
+  marketStatus: ListingMarketStatus.LISTED,
+  filters: {
+    marketCap: { min: 1_000_000n * ONE },
+    apr: { min: 10n * ONE },
+  },
+  sortBy: "apr",
+});
+```
+
+### Solana-deposited tokens only
+
+`chainIds` filters on the chain the **token** was deposited from, not the chain the market trades on:
+
+```ts
+import { getListingMarkets, ListingDepositChainId } from "@symmio/trading-core";
+
+const page = await getListingMarkets(config, {
+  chainIds: [ListingDepositChainId.SOLANA],
+  search: "bonk",
+});
+
+// Rows on this chain carry a base58 `contractAddress`, not a 0x address.
+```
+
+## Query options
+
+```ts
+import { getListingMarketsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getListingMarketsQueryOptions(config, { sortBy: "tvl", limit: 50 }));
+```
+
+`GetListingMarketsOptions` is the action's parameters plus a `query` bag of TanStack overrides — which is exactly why the free-text parameter is called `search`. The factory folds `config.getChainConfigKey(chainId)` into the key, so a runtime config override pointed at a different listing deployment refetches instead of serving the previous one's cache. `getListingMarketsQueryKey` builds the same key for cache matching and invalidation.
+
+The rest of the factory's types are exported too: `GetListingMarketsData` is what the query resolves to (the same `ListingMarketPage`), `GetListingMarketsQueryKey` is the key `getListingMarketsQueryKey` returns, and `GetListingMarketsQueryOptions` is the options bag the factory produces.
+
+Because search, filtering, sorting and paging are all server-side, each distinct combination is its own cache entry — change one and the hook refetches rather than re-slicing a page you already hold.
+
+## Throws
+
+- `LISTING_UNSUPPORTED` — a `SymmError` (`kind: "config"`) when the resolved solver does not declare the `listingService` capability. Gate with `supportsListingService` to hide Pools instead of erroring.
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the resolved chain has no `listing` backend.
+- `FETCH_LISTING_MARKETS_FAILED` — the request itself failed. Any axios failure — including a transport error with no response, which arrives with `status: 0` and `statusText: "Unknown"` — becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`. A non-axios throw becomes a plain `SymmError` (`kind: "api"`), with the original error as its `cause` when it was an `Error`.
+
+## Related
+
+- [`resolveListingService`](/core/pools/resolve-listing-service) — the availability check this read runs first.
+- [`ListingMarket`](/core/pools/listing-market-type) — the row shape and its value contract.
+- [`useListingMarkets`](/react/pools) — the React hook.
+- [Pools](/core/pools) — the slice overview.

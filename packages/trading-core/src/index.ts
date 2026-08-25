@@ -557,6 +557,8 @@ export {
   type SymmioChainConfig,
   type SymmioContractAddresses,
   type SymmioEnigmaNotificationsConfig,
+  type SymmioInventoryConfig,
+  type SymmioListingConfig,
   type SymmioMuonConfig,
   type SymmioNotificationsConfig,
   type SymmioNotificationsProtocol,
@@ -2096,3 +2098,94 @@ export {
   type WatchBinanceDepthParameters,
   type WatchOrderbookParameters,
 } from "./orderbook";
+/**
+ * Pools (lowcap liquidity markets)
+ * --------------------------------
+ * The lowcap Pools flow, served by the Enigma **listing backend**
+ * ({@link SymmioListingConfig}). `resolveListingService` returns the backend for
+ * a `{ chainId, solverId }` target (throws where Pools is unavailable);
+ * `supportsListingService` is its non-throwing boolean twin for `enabled` / UI
+ * gates.
+ *
+ * `getListingMarkets` reads the pool catalogue — search, filter, sort and
+ * pagination are all server-side. Every money and rate field on a row is a
+ * `bigint` at `LISTING_VALUE_DECIMALS` (18), independent of the token's own
+ * decimals; `null` means the backend reported no value, never zero. Pool writes
+ * (create / deposit / withdraw / claim) land in later slices.
+ */
+export {
+  LISTING_VALUE_DECIMALS,
+  ListingDepositChainId,
+  ListingMarketStatus,
+  getListingMarkets,
+  getListingMarketsQueryKey,
+  getListingMarketsQueryOptions,
+  resolveListingService,
+  supportsListingService,
+  toListingMarket,
+  toListingMarketPage,
+  toListingValue,
+  type GetListingMarketsData,
+  type GetListingMarketsOptions,
+  type GetListingMarketsParameters,
+  type GetListingMarketsQueryKey,
+  type GetListingMarketsQueryOptions,
+  type GetListingMarketsReturnType,
+  type ListingApyWindows,
+  type ListingMarket,
+  type ListingMarketFilters,
+  type ListingMarketPage,
+  type ListingMarketSortField,
+  type ListingSortDirection,
+  type ListingTimeRange,
+  type ListingTrailingWindows,
+  type ListingValueRange,
+  type ResolveListingServiceParameters,
+} from "./pools";
+/**
+ * Solver revenue
+ * --------------
+ * Aggregate revenue totals from the chain's solver — protocol-wide by default,
+ * or for one market via `symbolId`. Split into a hedger-fee share and a funding
+ * share whose sum is `totalRevenue`. Enigma-only.
+ */
+export {
+  getSolverRevenue,
+  getSolverRevenueQueryKey,
+  getSolverRevenueQueryOptions,
+  toSolverRevenue,
+  type GetSolverRevenueData,
+  type GetSolverRevenueOptions,
+  type GetSolverRevenueParameters,
+  type GetSolverRevenueQueryKey,
+  type GetSolverRevenueQueryOptions,
+  type GetSolverRevenueReturnType,
+  type SolverRevenue,
+  type SolverRevenueTimeRange,
+} from "./solvers/revenue";
+
+/**
+ * Inventory service
+ * -----------------
+ * The custody backend behind the lowcap Pools — a separate vendor from both the
+ * solver and the listing backend. `getInventoryTvl` reads the system-wide
+ * custodial TVL as a `bigint` at `INVENTORY_VALUE_DECIMALS` (18).
+ *
+ * This is **not** the sum of the pool catalogue's per-pool `tvl`: the catalogue
+ * covers listed markets, this covers the whole custodial system.
+ */
+export {
+  INVENTORY_VALUE_DECIMALS,
+  getInventoryTvl,
+  getInventoryTvlQueryKey,
+  getInventoryTvlQueryOptions,
+  resolveInventoryService,
+  supportsInventoryService,
+  toInventoryTvl,
+  type GetInventoryTvlData,
+  type GetInventoryTvlOptions,
+  type GetInventoryTvlParameters,
+  type GetInventoryTvlQueryKey,
+  type GetInventoryTvlQueryOptions,
+  type GetInventoryTvlReturnType,
+} from "./inventory";

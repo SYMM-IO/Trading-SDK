@@ -6,6 +6,8 @@ import {
   type SolverCapabilitiesConfig,
   type SolverId,
   type SymmioChainConfig,
+  type SymmioInventoryConfig,
+  type SymmioListingConfig,
   type SymmioNotificationsConfig,
   type SymmioPriceServiceConfig,
   type SymmioSolverConfig,
@@ -38,7 +40,7 @@ export function buildChainConfigs(
 /**
  * Deep-merge a single chain's overrides onto its built-in defaults. Only the
  * known nested groups (`addresses`, `subgraphs`, `solvers`, `priceService`,
- * `notifications`, `muon`) are merged; unknown keys are ignored.
+ * `notifications`, `muon`, `listing`, `inventory`) are merged; unknown keys are ignored.
  *
  * @internal
  */
@@ -55,7 +57,37 @@ function mergeChainConfig(base: SymmioChainConfig, override: DeepPartial<SymmioC
       /** `urls` is replaced wholesale when overridden, otherwise inherited from base. */
       urls: override.muon?.urls ?? base.muon.urls,
     },
+    ...mergeListing(base.listing, override.listing),
+    ...mergeInventory(base.inventory, override.inventory),
   };
+}
+
+/**
+ * Merge an inventory-service override onto its base. Mirrors
+ * {@link mergeListing}: returns a partial so the key stays **absent** when
+ * neither side configures the service.
+ */
+function mergeInventory(
+  base: SymmioInventoryConfig | undefined,
+  override: DeepPartial<SymmioInventoryConfig> | undefined,
+): Pick<SymmioChainConfig, "inventory"> | Record<string, never> {
+  const url = override?.url ?? base?.url;
+  return url === undefined ? {} : { inventory: { url } };
+}
+
+/**
+ * Merge a listing-service override onto its base.
+ *
+ * Returns a partial so the key stays **absent** when neither side configures the
+ * service — an explicit `listing: undefined` would still be an own property and
+ * would read as "configured but empty" to anything doing a key check.
+ */
+function mergeListing(
+  base: SymmioListingConfig | undefined,
+  override: DeepPartial<SymmioListingConfig> | undefined,
+): Pick<SymmioChainConfig, "listing"> | Record<string, never> {
+  const url = override?.url ?? base?.url;
+  return url === undefined ? {} : { listing: { url } };
 }
 
 /**

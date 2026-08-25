@@ -1,0 +1,129 @@
+import { Callout } from "nextra/components";
+
+# getInventoryTvl
+
+Read the system-wide custodial TVL from the chain's inventory service — the total value the inventory holds across every trading market. This is the figure a pools page shows as its headline TVL.
+
+```ts
+import { getInventoryTvl, INVENTORY_VALUE_DECIMALS } from "@symmio/trading-core";
+import { formatUnits } from "@symmio/utils/decimal";
+
+const tvl = await getInventoryTvl(config);
+
+formatUnits(tvl, INVENTORY_VALUE_DECIMALS).toFixed(2); // "630232.53"
+```
+
+One `GET /api/v1/markets/tvl-aggregate` against the chain's inventory deployment. The service computes custodial TVL for each `TRADING` market — including assets collected by open withdrawals — and sums them. Its spec documents that endpoint as public and rate-limited to 50 requests per second, so it is a page-level figure, not something to poll per row.
+
+Both halves of the signature are exported — `GetInventoryTvlParameters` (an optional `chainId`, nothing else) and `GetInventoryTvlReturnType` (an alias of `bigint`) — so you can name them in your own wrappers:
+
+```ts
+import type { GetInventoryTvlParameters, GetInventoryTvlReturnType } from "@symmio/trading-core";
+
+function headlineTvl(parameters: GetInventoryTvlParameters): Promise<GetInventoryTvlReturnType> {
+  return getInventoryTvl(config, parameters);
+}
+```
+
+<Callout type="info">
+  This is a REST read against the inventory service, not a contract call. The service is resolved from the config before
+  the request, so a chain without one fails immediately and without any network traffic — see
+  [`resolveInventoryService`](/core/inventory/resolve-inventory-service).
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's inventory service is used, and is
+    folded into the query key.
+  </Property>
+</Properties>
+
+There is no `solverId`. The inventory service is configured per chain and no solver capability gates it, unlike the Pools listing backend where availability has two halves.
+
+## Returns
+
+<Returns type="Promise<bigint>">
+  Aggregate custodial TVL as an 18-decimal fixed-point **USD** amount — `1e18` is `$1`. `0n` when the service's value is
+  absent or unparseable.
+</Returns>
+
+The SDK descales nothing on the way out: the service's own `"630232531461381896637475"` becomes `630232531461381896637475n`, and formatting is yours to do at the display edge.
+
+```ts
+import { INVENTORY_VALUE_DECIMALS } from "@symmio/trading-core";
+import { formatUnits } from "@symmio/utils/decimal";
+
+// `formatUnits` from @symmio/utils returns a chainable Decimal, not a string.
+const headline = `$${formatUnits(tvl, INVENTORY_VALUE_DECIMALS).toFixed(2)}`; // "$630232.53"
+```
+
+<Callout type="warning">
+  18 decimals is the same scale the listing backend uses, but not the same unit. A descaled listing rate _is_ a
+  percentage (`1e18` = `1%`); every inventory value is a USD amount (`1e18` = `$1`). Reusing a rate formatter here
+  prints a TVL of six hundred thousand dollars as `630232.53%`.
+</Callout>
+
+## Not the sum of the catalog
+
+This is **not** the total of the catalog's per-pool `tvl` values, and it should not be reconciled against one. The catalog covers listed markets; this covers the whole custodial system, which includes what the catalog does not list.
+
+The arithmetic makes the gap worse in practice: [`getListingMarkets`](/core/pools/get-listing-markets) returns one page — 20 rows by default — so summing a page's `tvl` sums whatever slice of the catalog you happen to be showing, and re-sorting the table changes the "total". Read the headline figure from this endpoint and leave the per-row `tvl` doing what it is for, which is describing one pool.
+
+## toInventoryTvl
+
+The parser this read runs on the way out, exported for when you hold a raw response yourself — a proxy route, a fixture, a rehydrated payload.
+
+```ts
+import { toInventoryTvl } from "@symmio/trading-core";
+
+toInventoryTvl("630232531461381896637475"); // 630232531461381896637475n
+toInventoryTvl(null); // 0n
+```
+
+<Properties>
+  <Property name="raw" type="string | null | undefined" required>
+    The service's `tvl` string.
+  </Property>
+</Properties>
+
+It returns `0n` for an absent or unparseable value rather than throwing: TVL is a headline figure, and a malformed response should not take down a page. A fractional tail is truncated toward zero, since `BigInt()` would throw on it, and a leading `-` is preserved.
+
+## Query options
+
+```ts
+import { getInventoryTvlQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getInventoryTvlQueryOptions(config));
+```
+
+`GetInventoryTvlOptions` is the action's `chainId` plus a `query` bag of TanStack overrides. The factory folds `config.getChainConfigKey(chainId)` into the key, so a runtime config override pointed at a different inventory deployment refetches instead of serving the previous one's cache. `getInventoryTvlQueryKey` builds the same `["getInventoryTvl", …]` key for cache matching and invalidation.
+
+The rest of the factory's types are exported too: `GetInventoryTvlData` is what the query resolves to (the same `bigint`), `GetInventoryTvlQueryKey` is the key `getInventoryTvlQueryKey` returns, and `GetInventoryTvlQueryOptions` is the options bag the factory produces.
+
+Gate it on a target where the service may be absent, so a chain without one stays idle instead of parking a typed error in the cache:
+
+```ts
+import { getInventoryTvlQueryOptions, supportsInventoryService } from "@symmio/trading-core";
+
+useQuery({
+  ...getInventoryTvlQueryOptions(config, { chainId }),
+  enabled: supportsInventoryService(config, chainId),
+});
+```
+
+## Throws
+
+- `INVENTORY_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the resolved chain has no `inventory` service. Raised by [`resolveInventoryService`](/core/inventory/resolve-inventory-service) before any request goes out.
+- `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) when the `chainId` is not one the config knows about at all.
+- `FETCH_INVENTORY_TVL_FAILED` — the request itself failed. Any axios failure — including a transport error with no response, which arrives with `status: 0` and `statusText: "Unknown"` — becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`. A non-axios throw becomes a plain `SymmError` (`kind: "api"`), with the original error as its `cause` when it was an `Error`.
+
+## Related
+
+- [`resolveInventoryService`](/core/inventory/resolve-inventory-service) — the availability check this read runs first.
+- [Inventory](/core/inventory) — the slice overview and the vendor split behind a pools page.
+- [`getListingMarkets`](/core/pools/get-listing-markets) — the catalog whose per-pool `tvl` this figure does not sum.
+- [`@symmio/trading-react`](/react) — `useInventoryTvl` is the React binding over this read.
+- [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.

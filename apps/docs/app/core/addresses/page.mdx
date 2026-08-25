@@ -64,6 +64,21 @@ Every entry is a `SymmioChainConfig` — the fully-resolved settings for one cha
   <Property name="muon" type="SymmioMuonConfig">
     Muon oracle gateway URLs.
   </Property>
+  <Property name="listing" type="SymmioListingConfig" optional>
+    The [Pools](/core/pools) listing backend — a single `url`, and that `url` is the **host root**: no version segment
+    and no trailing slash, because the generated client's own paths already begin with `/v2`. Chain-level rather than
+    per-solver, since several solvers on one chain could share one deployment; a solver opts in with the
+    `listingService` capability. Present only on HyperEVM today. See [Pools listing
+    service](/core/concepts/solvers-and-chains#pools-listing-service).
+  </Property>
+  <Property name="inventory" type="SymmioInventoryConfig" optional>
+    The [inventory service](/core/inventory) — the custody backend behind the Pools, and a **different vendor** from
+    both the solver and the listing backend. A single `url`, again the **host root**: the generated client's own paths
+    already begin with `/api/v1`, so appending `/api` here would request `/api/api/v1/…` and 404. Chain-level, and
+    unlike `listing` there is no solver capability to declare — a chain either carries the block or it does not, which
+    is why [`resolveInventoryService`](/core/inventory/resolve-inventory-service) takes a bare `chainId`. Missing, it
+    throws `INVENTORY_NOT_CONFIGURED`. Present only on HyperEVM today.
+  </Property>
 </Properties>
 
 The `addresses` field — the section people usually want:
@@ -136,6 +151,8 @@ Two chains ship in the registry — each runs a different solver kind and produc
 - `solvers.enigma.tpsl.cohWalletAddress` — `0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31`
 - `solvers.enigma.notifications.protocol` — `"enigma"` (carries a `searchUrl` — the notification service)
 - `priceService.type` — `"enigma"`
+- `listing.url` — `https://listing85.enigma.bz` (the Pools listing backend; host root, no `/v2`)
+- `inventory.url` — `https://inventory85.enigma.bz` (the custody backend behind the Pools; host root, no `/api`)
 
 ### Base (8453) — rasa / majors
 

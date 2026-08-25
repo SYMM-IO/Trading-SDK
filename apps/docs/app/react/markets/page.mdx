@@ -7,7 +7,7 @@ Thin wrappers over the solver and on-chain market catalogs.
 ## Import
 
 ```ts
-import { useMarkets, useSymbols, useOnchainContractMarkets } from "@symmio/trading-react";
+import { useMarkets, useSymbols, useMarketInfo, useOnchainContractMarkets } from "@symmio/trading-react";
 ```
 
 ## `useMarkets`
@@ -36,6 +36,20 @@ const { data } = useSymbols({
 ```
 
 See [`getSymbols`](/core/solvers#getsymbols) in core for the full parameter and `SolverSymbol` field reference. Two sibling Enigma-only reads ship alongside it — [`useTradeVolume`](/core/solvers#gettradevolume) (daily volume per market) and [`useRevenueRecords`](/core/solvers#getrevenuerecords) (cursor-paginated revenue).
+
+## `useMarketInfo`
+
+Per-market figures from the solver's `/get_market_info` — the whole catalogue in one call. The response **diverges by solver**, so the result is a union discriminated on `data.kind`:
+
+- **Enigma** — `markets: MarketVolume[]` (`symbol`, `tradingVolume`, `lifetimeValue`) plus the aggregates `totalValue24h` and `totalLifetimeValue`.
+- **Rasa** — `markets: RasaMarketInfoRow[]` (`symbol`, `price`, `priceChangePercent`, `tradeVolume`, `notionalCap`) and **no** aggregate totals at all.
+
+```ts
+const { data } = useMarketInfo();
+if (data?.kind === "enigma") console.log(data.totalValue24h, data.totalLifetimeValue);
+```
+
+Pass a literal `solverId` (`"enigma"` / `"rasa"`) to narrow the return type instead of narrowing at runtime. Every figure is a plain dollar `number` exactly as the solver reports it — no decimal scaling. Nothing polls by default; pass `query.refetchInterval`. The Enigma aggregates are the 24h and lifetime volume on a [pools overview](../pools#overview-aggregates).
 
 ## `useOnchainContractMarkets`
 

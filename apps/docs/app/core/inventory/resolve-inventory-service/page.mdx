@@ -1,0 +1,94 @@
+import { Callout } from "nextra/components";
+
+# resolveInventoryService
+
+Resolve a chain's **inventory-service** configuration. [`getInventoryTvl`](/core/inventory/tvl) runs it first, so a chain without an inventory deployment fails with a typed error instead of issuing a request to a service that is not there.
+
+```ts
+import { resolveInventoryService } from "@symmio/trading-core";
+
+const { url } = resolveInventoryService(config, chainId);
+```
+
+Availability has **one** half here, not two: the chain either carries an `inventory` block or it does not. There is no solver capability to declare — which is why the second argument is a bare chain id rather than the `{ chainId, solverId }` target [`resolveListingService`](/core/pools/resolve-listing-service) takes. Today only **HyperEVM** carries an inventory service.
+
+The service is optional per chain, so a miss throws rather than falling back to another chain's deployment. Falling back would report a different system's TVL, and a wrong number is worse than an error: it looks like data.
+
+## Parameters
+
+<Properties>
+  <Property name="config" type="Config" typeHref="/core/concepts/config" required>
+    The SDK config.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Chain to resolve. Defaults to the config's default chain when omitted.
+  </Property>
+</Properties>
+
+Both functions take the same two positional arguments — `(config, chainId?)`, not an options object.
+
+## Returns
+
+<Returns type="SymmioInventoryConfig">
+  <Property name="url" type="string">
+    Inventory service **host root** — no path segment and no trailing slash, e.g. `https://inventory85.enigma.bz`.
+  </Property>
+</Returns>
+
+<Callout type="warning">
+  The `url` is a host root on purpose. The generated client's own paths already begin with `/api/v1`, so appending
+  `/api` would request `/api/api/v1/markets/tvl-aggregate` and 404. Point it at staging
+  (`https://inventory-staging.enigma.bz`) with a `createConfig` override — there is no separate environment axis.
+</Callout>
+
+## Throws
+
+Both are a `SymmError` with `kind: "config"`, raised before any network call:
+
+- `INVENTORY_NOT_CONFIGURED` — the resolved chain has no `inventory` block.
+- `UNSUPPORTED_CHAIN` — the `chainId` is not a chain the config knows about at all. This one comes from `config.getChainConfig`, before the `inventory` block is ever looked at.
+
+The first message names the chain and the fix, so it reads as a configuration task rather than a failure:
+
+```txt
+Pools: chain <chainId> has no inventory service configured. Set `inventory.url` for this chain in `createConfig({ symmioConfig })`.
+```
+
+## supportsInventoryService
+
+The non-throwing twin. Same two arguments, returns a boolean.
+
+```ts
+import { supportsInventoryService } from "@symmio/trading-core";
+
+if (supportsInventoryService(config, chainId)) showTvlCard();
+```
+
+It swallows every failure `resolveInventoryService` can raise — a chain with no inventory block **and** a chain id the config does not know — and returns `false`. That second case is what makes it safe to call with a chain id straight off a wallet, before you know whether the SDK supports that chain at all.
+
+## Which to use
+
+| Situation                                                                  | Reach for                  |
+| -------------------------------------------------------------------------- | -------------------------- |
+| Inside an action or server handler that cannot proceed without the service | `resolveInventoryService`  |
+| Deciding whether to render a TVL card, tab, or route                       | `supportsInventoryService` |
+| An `enabled` flag on a query or hook                                       | `supportsInventoryService` |
+| You need the `url` itself                                                  | `resolveInventoryService`  |
+
+The rule of thumb: throw where absence is a bug, and return `false` where absence is just a chain that does not have this product. Writing `resolveInventoryService` inside a `try` to produce a boolean is `supportsInventoryService` spelled out longhand.
+
+```ts
+const enabled = supportsInventoryService(config, chainId);
+
+const { data } = useQuery({
+  ...getInventoryTvlQueryOptions(config, { chainId }),
+  enabled,
+});
+```
+
+## Related
+
+- [`getInventoryTvl`](/core/inventory/tvl) — the read that resolves the service for you.
+- [Inventory](/core/inventory) — the slice overview, including the host-root rule and the 18-decimal contract.
+- [`resolveListingService`](/core/pools/resolve-listing-service) — the two-half equivalent for the Pools listing backend.
+- [Errors](/core/concepts/errors) — the `SymmError` hierarchy these codes belong to.

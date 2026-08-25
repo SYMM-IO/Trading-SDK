@@ -608,15 +608,21 @@ export { useTradeVolume, type UseTradeVolumeParameters, type UseTradeVolumeRetur
 export { useMarketInfo, type UseMarketInfoParameters, type UseMarketInfoReturnType } from "./market-info";
 
 /**
- * Solver capabilities
- * -------------------
- * Gate flows/UI on what the resolved solver supports (e.g. group close).
+ * Solver capabilities & revenue
+ * -----------------------------
+ * Gate flows/UI on what the resolved solver supports (e.g. group close), and
+ * read its revenue totals — protocol-wide by default, or one market via
+ * `symbolId`.
  */
 export {
   useSolverCapabilities,
+  useSolverRevenue,
   useSupportsGroupClose,
   useSupportsLimitOrder,
+  useSupportsListingService,
   type UseSolverCapabilitiesParameters,
+  type UseSolverRevenueParameters,
+  type UseSolverRevenueReturnType,
 } from "./solvers";
 
 /**
@@ -1038,3 +1044,19 @@ export {
   type UseSolverReadinessParameters,
   type UseSolverReadinessReturnType,
 } from "./rasa-solver";
+/**
+ * Pools (lowcap liquidity markets)
+ * --------------------------------
+ * The pool catalogue served by the listing backend. Search, filter, sort and
+ * pagination are all server-side, so every parameter change is a new request
+ * rather than a re-view of an already-fetched page.
+ */
+export { useListingMarkets, type UseListingMarketsParameters, type UseListingMarketsReturnType } from "./pools";
+/**
+ * Inventory service
+ * -----------------
+ * The custody backend behind the Pools. `useInventoryTvl` reads the system-wide
+ * custodial TVL as an 18-decimal `bigint` — the headline TVL on a pools page,
+ * and not the same thing as summing the catalogue's per-pool values.
+ */
+export { useInventoryTvl, type UseInventoryTvlParameters, type UseInventoryTvlReturnType } from "./inventory";

@@ -1,0 +1,348 @@
+import { Callout } from "nextra/components";
+
+# Pools hooks
+
+React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
+
+Two hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingMarkets` reads a page of the catalog.
+
+**All reads.**
+
+## Import
+
+```ts
+import {
+  useListingMarkets,
+  useSupportsListingService,
+  type UseListingMarketsParameters,
+  type UseListingMarketsReturnType,
+} from "@symmio/trading-react";
+```
+
+Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `ListingMarketStatus`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, and `LISTING_VALUE_DECIMALS` — the fixed-point scale every money and rate field on a row uses.
+
+## Gate the feature first
+
+Pools is not part of every deployment. A target has it when **both** hold: the resolved solver declares the `listingService` capability, **and** the chain carries a `listing` block pointing at a listing backend. Today that is enigma on HyperEVM and nowhere else.
+
+So the outermost thing a Pools UI does is ask whether to render at all:
+
+```tsx
+export function PoolsTab() {
+  const supported = useSupportsListingService();
+  if (!supported) return null;
+  return <PoolsTable />;
+}
+```
+
+### Parameters
+
+| Name        | Type       | Default                 | Notes                                                    |
+| ----------- | ---------- | ----------------------- | -------------------------------------------------------- |
+| `chainId?`  | `number`   | connected chain         | Chain to check.                                          |
+| `solverId?` | `SolverId` | chain's default solver  | `"enigma" \| "rasa"`.                                    |
+| `config?`   | `Config`   | the config from context | Override the `SymmioProvider` config (tests, multi-app). |
+
+Returns a plain `boolean` — no query, no suspense, no loading state. It reads the resolved solver's capability flags out of the config synchronously.
+
+<Callout type="info">
+  `useSupportsListingService` checks only the **solver's** declaration — it is shorthand for
+  `useSolverCapabilities().listingService`. Core's `supportsListingService` additionally requires the chain to carry a
+  `listing` block, and every request `useListingMarkets` issues runs that stricter check through `resolveListingService`
+  — the throwing form — which is why the miss arrives as a thrown `LISTING_UNSUPPORTED` / `LISTING_NOT_CONFIGURED`
+  rather than as a `false`. In today's registry the two travel together; prefer the core twin when you are about to
+  issue a request from outside React.
+</Callout>
+
+Skipping the gate is not fatal, only noisy. A read against a target without Pools fails before it reaches the network: `LISTING_UNSUPPORTED` when the resolved solver does not use the listing service, `LISTING_NOT_CONFIGURED` when the chain has no listing backend. Both arrive as a `SymmioRequestError` with `kind: "sdk"` and that `code`. Passing the gate through `query.enabled` keeps the query idle instead of parking a typed error in the cache.
+
+## `useListingMarkets`
+
+One page of the listing catalog — the data behind a pools list.
+
+```tsx
+const { data, isPending, error } = useListingMarkets({
+  marketStatus: ListingMarketStatus.LISTED,
+  sortBy: "tvl",
+  orderBy: "desc",
+  limit: 25,
+  offset: 0,
+});
+```
+
+The catalog spans every listing the service knows about, at every lifecycle stage — pass `marketStatus: ListingMarketStatus.LISTED` to see only the tradable ones. With no parameters at all the service returns its default first page of 20 rows. Rows come back newest-listed first unless `sortBy` is set.
+
+### Parameters
+
+Every field is optional. The hook takes the core query options plus `config`.
+
+| Name            | Type                               | Default                 | Notes                                                                                                                                                                          |
+| --------------- | ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `search?`       | `string`                           | —                       | Free text, matched against contract address, ticker, and token name. Named `search` because the TanStack options bag already owns `query`; it goes out as `query` on the wire. |
+| `chainIds?`     | `readonly ListingDepositChainId[]` | —                       | Restrict to tokens **deposited** on these chains. An empty array is sent as no filter.                                                                                         |
+| `marketStatus?` | `ListingMarketStatus`              | —                       | One lifecycle status. `LISTED` is the tradable one.                                                                                                                            |
+| `limit?`        | `number`                           | service `20`            | Page size, `1`–`100`.                                                                                                                                                          |
+| `offset?`       | `number`                           | service `0`             | Row offset.                                                                                                                                                                    |
+| `sortBy?`       | `ListingMarketSortField`           | service order           | Server-side sort key — the service's own snake_case literals.                                                                                                                  |
+| `orderBy?`      | `"asc" \| "desc"`                  | service `"desc"`        | Sort direction.                                                                                                                                                                |
+| `filters?`      | `ListingMarketFilters`             | —                       | Inclusive `[min, max]` range filters. Bounds are 18-decimal `bigint`s; `listingTime` is Unix seconds.                                                                          |
+| `chainId?`      | `number`                           | connected chain         | Which deployment's listing backend to read.                                                                                                                                    |
+| `solverId?`     | `SolverId`                         | chain's default solver  | `"enigma" \| "rasa"`.                                                                                                                                                          |
+| `query?`        | `QueryParameter`                   | —                       | TanStack overrides — `enabled`, `placeholderData`, `staleTime`, `select`, …                                                                                                    |
+| `config?`       | `Config`                           | the config from context | Override the `SymmioProvider` config.                                                                                                                                          |
+
+### Return type
+
+`UseQueryResult<ListingMarketPage, SymmioRequestError>`. `data` is one page plus the totals needed to paginate it:
+
+| Field    | Type              | Notes                                                                                             |
+| -------- | ----------------- | ------------------------------------------------------------------------------------------------- |
+| `total`  | `number`          | Rows matching the query across **all** pages. The page count comes from here, not `items.length`. |
+| `limit`  | `number`          | Page size the service applied.                                                                    |
+| `offset` | `number`          | Row offset of this page.                                                                          |
+| `items`  | `ListingMarket[]` | The rows themselves.                                                                              |
+
+Because filtering happens server-side, `total` is the true match count for the current filters — it is what a "N pools" footer should render, and what the page count must be derived from.
+
+### Reading a row
+
+Every money and rate field on a `ListingMarket` is a `bigint` at `LISTING_VALUE_DECIMALS` (18) — **regardless of the token's own decimals or the collateral's**. What the descaled number means differs by field: money is USD (`1e18` = `$1`), while a rate is **already a percentage** (`1e18` = `1%`) and must not be multiplied by 100. Format at the display edge:
+
+```tsx
+import { LISTING_VALUE_DECIMALS } from "@symmio/trading-core";
+import { formatCompactCurrency, formatPercentage } from "@symmio/utils";
+import { formatUnits } from "@symmio/utils/decimal";
+
+/** An unreported figure must not read as a real zero. */
+const ABSENT = "—";
+
+function usd(raw: bigint | null) {
+  if (raw === null) return ABSENT;
+  return formatCompactCurrency(formatUnits(raw, LISTING_VALUE_DECIMALS), { maxDecimals: 2 });
+}
+
+function rate(raw: bigint | null) {
+  if (raw === null) return ABSENT;
+  /** `withSign` is required for negatives: without it `formatPercentage` prints the absolute value. */
+  return formatPercentage(formatUnits(raw, LISTING_VALUE_DECIMALS), {
+    maxDecimals: 2,
+    withSign: raw < 0n,
+  });
+}
+```
+
+Four row-level facts worth wiring into the UI rather than discovering later:
+
+- **`null` is not `0`.** It means the service reported no value for that column — a market younger than 30 days has no `d30` window. Render it as a dash, never as `$0` or `0%`.
+- **`chainId` is the token's deposit chain**, a `ListingDepositChainId` — not the chain the market trades on. `ListingDepositChainId.SOLANA` is `0`, a non-EVM sentinel, and those rows carry a **base58** `contractAddress`. Check `chainId` before handing an address to any EVM helper.
+- **`symbolId` is `null` until the market is `LISTED`.** Everything downstream — prices, notional caps, quotes, subgraph rows — keys off it, so a `null` here means the row is not tradable yet.
+- **`listingTime` is Unix seconds** (`null` before listing), while the trailing-window metrics (`aprByWindow`, `tvlDrivenApy`, `priceDrivenApy`) are objects keyed `h1` / `h6` / `h24` / `d30`, with the two APY series adding `lifetime`.
+
+### Every control is server-side
+
+Search, filters, sort, and pagination are all applied by the listing backend. The hook never filters an array it already holds — each parameter goes into the query key, so changing one is a **different cache entry** and a fresh request.
+
+That has a direct consequence for a table: on the new key `data` is `undefined` and `isPending` flips back to `true`, so a naive table blanks out on every page turn, sort click, and keystroke. `placeholderData` is what prevents it:
+
+```tsx
+const { data, isFetching } = useListingMarkets({
+  limit: PAGE_SIZE,
+  offset: page * PAGE_SIZE,
+  query: { placeholderData: (previous) => previous },
+});
+```
+
+The previous page's rows stay on screen while the next one loads. `isPending` then stays `false`, so `isFetching` — or `isPlaceholderData`, if you want to dim only the renders that are showing last page's data — becomes the signal to fade the table or spin the pager, rather than to replace it with a skeleton.
+
+Two more habits the server-side model asks for:
+
+- **Debounce the search input.** Every keystroke is otherwise a new key and a new request.
+- **Reset `offset` to `0` whenever anything else changes.** A filter that shrinks the result set can leave you paged past its end, staring at an empty page that is not an error.
+
+### Sort keys
+
+`sortBy` takes the service's wire literals verbatim — snake_case, not the SDK's camelCase field names — because the value is passed straight through:
+
+```ts
+type ListingMarketSortField =
+  | "liquidity"
+  | "tvl"
+  | "market_cap"
+  | "vol24h"
+  | "open_interest"
+  | "apr_1h"
+  | "apr_6h"
+  | "apr_24h"
+  | "apr_30d"
+  | "reward_24h"
+  | "apr"
+  | "tvl_driven_apy_1h"
+  | "tvl_driven_apy_6h"
+  | "tvl_driven_apy_24h"
+  | "tvl_driven_apy_30d"
+  | "tvl_driven_apy"
+  | "price_driven_apy_1h"
+  | "price_driven_apy_6h"
+  | "price_driven_apy_24h"
+  | "price_driven_apy_30d"
+  | "price_driven_apy"
+  | "listing_time";
+```
+
+<Callout type="warning">
+  Two of those keys have no matching bare response field: `tvl_driven_apy` and `price_driven_apy`. They are understood
+  to sort by the **lifetime** column (`tvl_driven_apy_lifetime` / `price_driven_apy_lifetime`) — an assumption about the
+  vendor's intent that has not been confirmed by the service's own documentation. If a column header must be exact,
+  prefer the explicit windowed keys.
+</Callout>
+
+### Range filters are 18-decimal bounds
+
+`filters` bounds use the **same scale as the response**, not the human-readable figure. A one-million-dollar market-cap floor is `1_000_000n * 10n ** 18n`, not `1_000_000` — the latter is a bound of `0.000000000001` USD and quietly matches nothing useful:
+
+```ts
+import { LISTING_VALUE_DECIMALS } from "@symmio/trading-core";
+import { parseUnits } from "viem";
+
+const { data } = useListingMarkets({
+  filters: {
+    marketCap: { min: parseUnits("1000000", LISTING_VALUE_DECIMALS) },
+    apr: { min: parseUnits("5", LISTING_VALUE_DECIMALS) }, // 5% — a rate is already a percentage
+    listingTime: { min: Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60 }, // the exception: Unix seconds
+  },
+});
+```
+
+Every key is optional and either end of a range may be omitted for a one-sided bound. The full key list — `marketCap`, `vol24h`, `tvl`, `liquidity`, `openInterest`, `reward24h`, `apr`, the four APR windows (`apr1h`, `apr6h`, `apr24h`, `apr30d`), the five `tvlDrivenApy*`, the five `priceDrivenApy*`, and `listingTime` — is on [`getListingMarkets`](../../core/pools/get-listing-markets#filters).
+
+## A paged, filtered table
+
+Everything above, wired together:
+
+```tsx
+"use client";
+
+import { LISTING_VALUE_DECIMALS, ListingMarketStatus, type ListingMarketSortField } from "@symmio/trading-core";
+import { useListingMarkets, useSupportsListingService } from "@symmio/trading-react";
+import { formatCompactCurrency } from "@symmio/utils";
+import { formatUnits } from "@symmio/utils/decimal";
+import { useState } from "react";
+
+const PAGE_SIZE = 25;
+
+export function PoolsTable() {
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<ListingMarketSortField>("tvl");
+  const [orderBy, setOrderBy] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(0);
+
+  /** Your own debounce hook: one request per settled input, not one per keystroke. */
+  const debouncedSearch = useDebouncedValue(search, 300);
+
+  const supported = useSupportsListingService();
+
+  const { data, isPending, isFetching, error } = useListingMarkets({
+    search: debouncedSearch === "" ? undefined : debouncedSearch,
+    marketStatus: ListingMarketStatus.LISTED,
+    sortBy,
+    orderBy,
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+    query: { enabled: supported, placeholderData: (previous) => previous },
+  });
+
+  if (!supported) return null;
+  if (error) return <ErrorNote message={error.message} />;
+
+  const rows = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  /** Re-clicking the active column flips direction; a new column starts descending. */
+  function sortOn(field: ListingMarketSortField) {
+    setOrderBy(field === sortBy && orderBy === "desc" ? "asc" : "desc");
+    setSortBy(field);
+    setPage(0);
+  }
+
+  return (
+    <section aria-busy={isFetching}>
+      <input
+        value={search}
+        onChange={(event) => {
+          setSearch(event.target.value);
+          setPage(0);
+        }}
+        placeholder="Ticker, name or contract address"
+      />
+
+      <table data-stale={isFetching && !isPending}>
+        <thead>
+          <tr>
+            <th>Pool</th>
+            <th onClick={() => sortOn("tvl")}>TVL</th>
+            <th onClick={() => sortOn("apr")}>APR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((market) => (
+            <tr key={`${market.chainId}:${market.contractAddress}`}>
+              <td>
+                {market.tokenTicker} <small>{market.tokenName}</small>
+              </td>
+              <td>
+                {market.tvl === null ? "—" : formatCompactCurrency(formatUnits(market.tvl, LISTING_VALUE_DECIMALS))}
+              </td>
+              <td>{market.apr === null ? "—" : `${formatUnits(market.apr, LISTING_VALUE_DECIMALS).toFixed(2)}%`}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <footer>
+        {total} pools · page {page + 1} of {pageCount}
+        <button onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0}>
+          Previous
+        </button>
+        <button onClick={() => setPage((current) => current + 1)} disabled={page + 1 >= pageCount}>
+          Next
+        </button>
+      </footer>
+    </section>
+  );
+}
+```
+
+The row key is `chainId` + `contractAddress` rather than `symbolId`: a listing that has not reached `LISTED` has no `symbolId` yet, and the deposit chain is what makes an address unique across the catalog.
+
+## Overview aggregates
+
+The catalogue is only the table. The figures a pools page puts **above** it — TVL, volume, open interest, revenue, the pool count — are not in a `ListingMarket` and are not served by the listing backend at all. Five figures, five requests, and three different vendors behind them:
+
+| Figure                    | Hook                                                     | Served by                                           |
+| ------------------------- | -------------------------------------------------------- | --------------------------------------------------- |
+| Custodial TVL             | [`useInventoryTvl`](../inventory)                        | Inventory service — `/api/v1/markets/tvl-aggregate` |
+| Volume, 24h + lifetime    | [`useMarketInfo`](../markets#usemarketinfo)              | The solver — `/get_market_info`                     |
+| Open + available notional | [`useNotionalCapAll`](../notional-cap#usenotionalcapall) | The solver — `/notional_cap`                        |
+| Revenue                   | [`useSolverRevenue`](../solvers#usesolverrevenue)        | The solver — `/revenue`                             |
+| Pool count                | [`useListingMarkets`](#uselistingmarkets) → `data.total` | Listing backend — `/v2/market/search`               |
+
+Three deployments — the listing backend, the inventory service, and the solver — each with its own host in the chain config, its own latency, and its own way of failing. Render them as separate cards with their own loading and error states: one slow vendor should not blank the figures the other two already returned, and one 500 should not take the page down.
+
+Four things about these numbers that are easy to get wrong:
+
+- **The scales are not the same.** `useInventoryTvl` returns an 18-decimal `bigint`, exactly like a catalogue row's `tvl`. The solver's figures — volume, notional, revenue — are plain dollar `number`s with **no** scaling. Running a solver figure through `formatUnits` divides it by `1e18`; running a TVL through a currency formatter without descaling prints an astronomical number.
+- **Headline TVL is not the sum of the column.** `useInventoryTvl` covers the whole custodial system; the catalogue's per-pool `tvl` covers listed markets. The two will not agree, and the mismatch is not an arithmetic bug.
+- **The volume totals are Enigma-only.** `useMarketInfo` returns a union — narrow on `data.kind === "enigma"` before reading `totalValue24h` / `totalLifetimeValue`. A rasa-kind solver reports per-market rows and no aggregates at all, so render "unsupported", not `$0`.
+- **Revenue is protocol-wide only if you leave `symbolId` off.** Passing one narrows the totals to a single market — the trap the reference UI falls into on its own overview, where a hardcoded market id makes lifetime revenue read as a fraction of the protocol's.
+
+The pool count comes from `data.total`, never `data.items.length`: `total` is the match count across every page for the current filters, while `items` is just the page in hand.
+
+## Related
+
+- [Pools](../../core/pools) — the framework-agnostic slice: the availability rules, the 18-decimal contract, and the `ListingMarket` row shape.
+- [`getListingMarkets`](../../core/pools/get-listing-markets) — the action underneath, with the full sort-key and filter reference.
+- [Solvers & chains](/core/concepts/solvers-and-chains#pools-listing-service) — where the listing backend is configured and how the capability resolves.
+- [Solvers hooks](../solvers#usesupportslistingservice) — the rest of the capability gates.
+- [Inventory hooks](../inventory) — `useInventoryTvl`, the headline TVL above the catalogue.
+- [Errors](../errors) — `SymmioRequestError`, its `kind`, and the `code` a failed listing read carries.

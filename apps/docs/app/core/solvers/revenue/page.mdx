@@ -1,0 +1,205 @@
+import { Callout } from "nextra/components";
+
+# getSolverRevenue
+
+Read what the solver has earned — total, split into the hedger-fee share and the funding share — over a trailing window. Every parameter is optional: with none set you get the **protocol-wide lifetime** total.
+
+```ts
+import { getSolverRevenue } from "@symmio/trading-core";
+
+const revenue = await getSolverRevenue(config);
+
+revenue.totalRevenue; // 19139.5 — dollars, protocol-wide, since listing
+revenue.hedgerFeeRevenue; // the share earned from hedger fees
+revenue.fundingRevenue; // the share earned from funding payments
+revenue.recordCount; // how many underlying rows produced those totals
+```
+
+This is the solver's own bookkeeping, not the inventory service's and not the listing backend's. A pools dashboard that shows revenue next to TVL next to a catalog row is reading three different vendors — see [Pools](/core/pools) for how they divide up.
+
+The two halves of the signature are exported as `GetSolverRevenueParameters` (the parameters object, every field optional) and `GetSolverRevenueReturnType` (an alias of [`SolverRevenue`](#returns)), so you can name them in your own wrappers:
+
+```ts
+import type { GetSolverRevenueParameters, GetSolverRevenueReturnType } from "@symmio/trading-core";
+
+function lastDay(parameters: GetSolverRevenueParameters): Promise<GetSolverRevenueReturnType> {
+  return getSolverRevenue(config, { ...parameters, timeRange: "24h" });
+}
+```
+
+## Omitting `symbolId` is the protocol-wide total
+
+<Callout type="warning">
+  **`symbolId` is a narrowing filter, not an identifier you are expected to supply.** Omit it and the solver returns the
+  aggregate across **every market** — that is the headline number. Pass one and you get that single market's share of
+  it, which is always smaller and is _not_ the protocol's revenue.
+</Callout>
+
+The two calls hit different endpoints and answer different questions:
+
+| Call                                        | Endpoint              | Answers                           |
+| ------------------------------------------- | --------------------- | --------------------------------- |
+| `getSolverRevenue(config)`                  | `/revenue`            | What has the **protocol** earned? |
+| `getSolverRevenue(config, { symbolId: 1 })` | `/revenue/{symbolId}` | What has **market 1** earned?     |
+
+The size of the gap is the reason this matters. Against the enigma solver today, the lifetime protocol-wide total is **$19,139.50**, while market `1` alone is **$15,936.30** — market 1 dominates, so a one-market figure looks plausible enough to ship and still under-reports by roughly $3,200. The reference UI hardcodes `symbolId: 1` on its overview and does exactly that; the SDK's default is the true aggregate.
+
+If you want a per-market breakdown, call once per market and keep the protocol-wide call as its own row — do not sum a handful of markets and label the result "total".
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's solver is read, and is folded into
+    the query key.
+  </Property>
+  <Property name="solverId" type="SolverId" typeHref="/core/concepts/solvers-and-chains" optional>
+    Solver kind to target. Defaults to the chain's default solver. Must resolve to an `enigma` solver — see
+    [Enigma-only](#enigma-only).
+  </Property>
+  <Property name="symbolId" type="number" optional>
+    Restrict the totals to one market. **Omit it for the protocol-wide total.** Present, it switches the read to
+    `/revenue/{symbolId}`.
+  </Property>
+  <Property name="timeRange" type="SolverRevenueTimeRange" optional default='"lifetime"'>
+    Trailing window: `"1h"`, `"24h"`, `"7d"`, `"30d"` or `"lifetime"`. Omitted entirely from the request when unset, so
+    the solver applies its own default of `lifetime`.
+  </Property>
+</Properties>
+
+`parameters` itself is optional — `getSolverRevenue(config)` is the same call as `getSolverRevenue(config, {})`.
+
+## `timeRange` is a closed set
+
+```ts
+type SolverRevenueTimeRange = "1h" | "24h" | "7d" | "30d" | "lifetime";
+```
+
+Those five literals are the whole vocabulary. The solver validates the value server-side and rejects anything else with `TimeRange must be one of [1h 24h 7d 30d lifetime]`, so an arbitrary duration string, a number of seconds, or a date range is a failed request rather than a best-effort answer.
+
+Windows are trailing from now, not calendar buckets: `"24h"` is the last twenty-four hours, not "today". Each window is an independent request — there is no series endpoint here, so a sparkline means one call per point (or [`getRevenueRecords`](/core/solvers#getrevenuerecords) for the underlying rows).
+
+## Returns
+
+<Returns type="Promise<SolverRevenue>">
+  <Property name="totalRevenue" type="number">
+    Total revenue over the window, in **dollars** — `19139.5` means $19,139.50. Equal to `hedgerFeeRevenue` +
+    `fundingRevenue`.
+  </Property>
+  <Property name="hedgerFeeRevenue" type="number">
+    The share earned from hedger fees, in dollars.
+  </Property>
+  <Property name="fundingRevenue" type="number">
+    The share earned from funding payments, in dollars.
+  </Property>
+  <Property name="recordCount" type="number">
+    How many underlying revenue rows the totals were computed from. Surface it: it is what separates "this window
+    genuinely earned nothing" (`recordCount > 0`, totals `0`) from "there is no data for this window"
+    (`recordCount === 0`).
+  </Property>
+</Returns>
+
+<Callout type="info">
+  **No decimal scaling.** Unlike the on-chain reads and the listing catalog's 18-decimal `bigint`s, these are plain
+  JavaScript `number`s already in dollar units. Do not run them through `formatUnits`; format them as currency directly.
+</Callout>
+
+Every field is optional in the solver's own schema — it omits a dimension rather than sending a zero for it — so each one is defaulted to `0` on the way through. A response with nothing in it is `{ totalRevenue: 0, hedgerFeeRevenue: 0, fundingRevenue: 0, recordCount: 0 }`, never `undefined` fields.
+
+Because `totalRevenue` is the sum of the other two, the split is a share breakdown you can chart without a second call:
+
+```ts
+const { totalRevenue, hedgerFeeRevenue, fundingRevenue } = await getSolverRevenue(config);
+
+const feeShare = totalRevenue === 0 ? 0 : (hedgerFeeRevenue / totalRevenue) * 100;
+const fundingShare = totalRevenue === 0 ? 0 : (fundingRevenue / totalRevenue) * 100;
+```
+
+## Enigma-only
+
+The `/revenue` endpoints exist on the **enigma** solver only. `getSolverRevenue` resolves the target solver and checks its kind _before_ the network hop, so a rasa target fails immediately with `UNSUPPORTED_BY_SOLVER` instead of surfacing a vendor 404 that reads like an outage.
+
+```ts
+import { getSolverRevenue } from "@symmio/trading-core";
+import { base } from "viem/chains";
+
+// Throws UNSUPPORTED_BY_SOLVER — Base's default solver is rasa-kind. No request is made.
+await getSolverRevenue(config, { chainId: base.id });
+```
+
+Reaching that check means resolving a rasa solver, which is why the example switches chains rather than forcing `solverId: "rasa"`. Asking for a solver kind a chain does not register — `"rasa"` on HyperEVM, which carries the enigma solver alone — fails one step earlier with `UNKNOWN_SOLVER`.
+
+In a UI that can point at either solver, gate the panel on the resolved kind rather than catching the error.
+
+## Examples
+
+### Protocol-wide, since listing
+
+The headline figure — no `symbolId`, no `timeRange`:
+
+```ts
+const lifetime = await getSolverRevenue(config);
+
+lifetime.totalRevenue; // 19139.5
+lifetime.recordCount; // > 0, so those totals are real and not a data gap
+```
+
+### The trailing 24 hours
+
+```ts
+const day = await getSolverRevenue(config, { timeRange: "24h" });
+
+if (day.recordCount === 0) {
+  // No rows in the window at all — render "no data", not "$0.00".
+}
+```
+
+### One market's share
+
+```ts
+const market = await getSolverRevenue(config, { symbolId: 1, timeRange: "7d" });
+```
+
+### Protocol-wide next to one market
+
+Both figures on one screen, fetched together so the pair is consistent:
+
+```ts
+const [protocol, market] = await Promise.all([
+  getSolverRevenue(config, { timeRange: "30d" }),
+  getSolverRevenue(config, { symbolId: 1, timeRange: "30d" }),
+]);
+
+const share = protocol.totalRevenue === 0 ? 0 : (market.totalRevenue / protocol.totalRevenue) * 100;
+```
+
+## Query options
+
+```ts
+import { getSolverRevenueQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getSolverRevenueQueryOptions(config, { timeRange: "24h" }));
+```
+
+`GetSolverRevenueOptions` is the action's parameters plus a `query` bag of TanStack overrides. The factory folds `config.getChainConfigKey(chainId)` into the key, so a runtime config override pointed at a different solver deployment refetches instead of serving the previous one's cache. `getSolverRevenueQueryKey` builds the same key for cache matching and invalidation.
+
+Both `symbolId` and `timeRange` are part of the key, so the protocol-wide total and each market/window pair cache independently — the protocol-wide row on a dashboard never gets overwritten by a per-market fetch.
+
+The rest of the factory's types are exported too: `GetSolverRevenueData` is what the query resolves to (the same `SolverRevenue`), `GetSolverRevenueQueryKey` is the key `getSolverRevenueQueryKey` returns, and `GetSolverRevenueQueryOptions` is the options bag the factory produces.
+
+## Throws
+
+- `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) when the `chainId` is not one the config knows about at all.
+- `UNKNOWN_SOLVER` — a `SymmError` (`kind: "config"`) when the resolved chain registers no solver of the requested kind. Raised before the kind check, so it precedes `UNSUPPORTED_BY_SOLVER`.
+- `UNSUPPORTED_BY_SOLVER` — a `SymmError` (`kind: "config"`) when the resolved solver is not enigma-kind. Raised before any request.
+- `FETCH_SOLVER_REVENUE_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`), with the original error as its `cause` when it was an `Error`.
+
+A malformed `timeRange` surfaces through the second code: the solver answers with its `TimeRange must be one of [1h 24h 7d 30d lifetime]` message, which arrives as the `SymmApiError`'s `responseData`.
+
+## Related
+
+- [Solvers](/core/solvers) — the slice overview, including `getRevenueRecords` for the individual rows behind these totals.
+- [Solvers hooks](/react/solvers) — `useSolverRevenue` is the React wrapper over this action.
+- [Solvers & Chains](/core/concepts/solvers-and-chains) — the solver-kind model this read's enigma-only constraint belongs to.
+- [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.

@@ -18,11 +18,13 @@ import {
   useFundingInfo,
   useEstimatedPrice,
   calculatePriceImpact,
+  useSolverRevenue,
   useSolverErrorCodes,
   useSolverErrorMessage,
   useSolverCapabilities,
   useSupportsLimitOrder,
   useSupportsGroupClose,
+  useSupportsListingService,
 } from "@symmio/trading-react";
 ```
 
@@ -98,6 +100,33 @@ const impact = data
   : 0;
 ```
 
+### `useSolverRevenue`
+
+What the solver **earned** — protocol-wide by default. `symbolId` narrows the totals to a single market, and leaving it off is what makes the figure a true aggregate: the reference UI hardcodes market `1` on its overview and therefore under-reports the protocol.
+
+```ts
+const lifetime = useSolverRevenue(); // every market, lifetime
+const day = useSolverRevenue({ timeRange: "24h" }); // every market, trailing 24h
+const market = useSolverRevenue({ symbolId: 1, timeRange: "7d" }); // one market only
+```
+
+`timeRange` is a closed set — `"1h" | "24h" | "7d" | "30d" | "lifetime"`. The solver validates it and rejects anything else with `TimeRange must be one of [1h 24h 7d 30d lifetime]`. Omit it and the SDK sends no window at all, letting the solver apply its own default, which is `lifetime`.
+
+Returns `UseQueryResult<SolverRevenue, SymmioRequestError>`:
+
+| Field              | Type     | Notes                                                                                                                                                             |
+| ------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `totalRevenue`     | `number` | Revenue over the window. Always `hedgerFeeRevenue + fundingRevenue`.                                                                                              |
+| `hedgerFeeRevenue` | `number` | The share earned from hedger fees.                                                                                                                                |
+| `fundingRevenue`   | `number` | The share earned from funding payments.                                                                                                                           |
+| `recordCount`      | `number` | Rows behind the totals — it separates "this window earned nothing" (`recordCount > 0`, totals `0`) from "there is no data for this window" (`recordCount === 0`). |
+
+Every figure is a plain `number` in the dollar units the solver already reports — **no decimal scaling**, so `165.49` means $165.49. That is the opposite of the listing and inventory backends, whose money fields are 18-decimal fixed point; do not run these through `formatUnits`.
+
+**Enigma-only.** A rasa-kind solver has no revenue endpoint, so the read fails before the wire with `UNSUPPORTED_BY_SOLVER` rather than a vendor 404 — a `SymmioRequestError` with `kind: "sdk"` and that `code`. A request that does go out and fails carries `FETCH_SOLVER_REVENUE_FAILED`, with `kind: "api"` when the failure came from axios — the normal case, carrying `status` and `responseData` — and `kind: "sdk"` for a non-axios throw. Nothing polls by default; pass `query.refetchInterval` for a live figure.
+
+Revenue is one of five figures a pools overview shows, and it is not the only vendor involved — see [Overview aggregates](../pools#overview-aggregates) for which service serves each of them.
+
 ### `useSolverErrorCodes`
 
 Fetch the solver's error-code registry. Cache once, look up by code.
@@ -116,14 +145,14 @@ const msg = useSolverErrorMessage(42);
 
 ## Capabilities
 
-Gate a flow or UI on what the resolved solver declares it supports, so an unsupported solver degrades gracefully instead of erroring. Config-driven (see [Solver capabilities](/core/concepts/solvers-and-chains#solver-capabilities)); unset flags default to `false`. All three take an optional `solverId` / `chainId` and follow the connected chain's default solver when omitted.
+Gate a flow or UI on what the resolved solver declares it supports, so an unsupported solver degrades gracefully instead of erroring. Config-driven (see [Solver capabilities](/core/concepts/solvers-and-chains#solver-capabilities)); unset flags default to `false`. All four take an optional `solverId` / `chainId` and follow the connected chain's default solver when omitted.
 
 ### `useSolverCapabilities`
 
-The resolved `SolverCapabilities` object (`{ groupClose, limitOrder }`, both definite booleans).
+The resolved `SolverCapabilities` object (`{ groupClose, limitOrder, listingService }`, all definite booleans).
 
 ```tsx
-const { limitOrder, groupClose } = useSolverCapabilities();
+const { limitOrder, groupClose, listingService } = useSolverCapabilities();
 ```
 
 ### `useSupportsLimitOrder`
@@ -145,6 +174,16 @@ Boolean shorthand — whether the solver supports closing a whole market + side 
 const canGroupClose = useSupportsGroupClose();
 ```
 
+### `useSupportsListingService`
+
+Boolean shorthand — whether this solver's markets are the lowcap **Pools**, i.e. whether it uses the chain's listing backend. Gate the Pools tab on it so the feature hides where it is unavailable instead of erroring at request time.
+
+```tsx
+const hasPools = useSupportsListingService();
+```
+
+It checks only the solver's declaration. Core's `supportsListingService` additionally requires the chain to carry a `listing` block. Every request [`useListingMarkets`](/react/pools) issues runs that stricter check through `resolveListingService` — the throwing form — which is why a read against a target without Pools surfaces as `LISTING_UNSUPPORTED` / `LISTING_NOT_CONFIGURED` rather than as a `false`. Today only enigma on HyperEVM has both halves. See [Pools listing service](/core/concepts/solvers-and-chains#pools-listing-service).
+
 ## Trading flows
 
 Instant Open and Instant Close live on their own pages:
@@ -156,4 +195,6 @@ Instant Open and Instant Close live on their own pages:
 
 - [Core Solvers](../../core/solvers) — the underlying actions.
 - [SYMMIO Contract](../symmio-contract) — on-chain analogs where applicable.
+- [Pools hooks](../pools) — the lowcap listing catalog `useSupportsListingService` gates.
+- [`getSolverRevenue`](/core/solvers/revenue) — the core action `useSolverRevenue` wraps.
 - [Errors](../errors) — solver failures surface as `SymmioRequestError` `kind: "api"`.
