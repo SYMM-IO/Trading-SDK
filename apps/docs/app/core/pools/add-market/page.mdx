@@ -20,6 +20,15 @@ const pool = await addMarket(config, {
 The application starts at [`ListingMarketStatus.WAITING_FOR_DEPOSIT`](/core/pools/listing-market-type) and stays there until the listing deposit lands at `walletPublicKey`. This is the authenticated write twin of the Pools reads — it takes the same Bearer `accessToken` as [`getUserListingMarkets`](/core/pools/get-user-listing-markets).
 
 <Callout type="info">
+  Two other Pools reads feed this write. The recommended initial deposit and the set of deposit chains a create-pool
+  form should offer come from [`getListingConfig`](/core/pools/listing-config) — derive the `depositChain` picker from
+  its `supportedDepositChains` rather than hardcoding a list. And creation is capped protocol-wide per week: read
+  [`getWeeklyListingLimit`](/core/pools/weekly-limit) (a public read) first and **block** `addMarket` when `remaining`
+  is `0` (the service's own weekly-limit rejection otherwise surfaces here as an `ADD_MARKET_FAILED` after a
+  round-trip).
+</Callout>
+
+<Callout type="info">
   This is a REST write against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
   [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>` header. The backend is
   resolved from the config before the request, so a target without Pools fails immediately and without any network
@@ -167,6 +176,8 @@ const pool = await mutateAsync({
 ## Related
 
 - [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this write requires.
+- [`getListingConfig`](/core/pools/listing-config) — the recommended initial deposit and the deposit chains this form should offer.
+- [`getWeeklyListingLimit`](/core/pools/weekly-limit) — the protocol-wide weekly cap (public); block this write when `remaining` is `0`.
 - [`getUserListingMarkets`](/core/pools/get-user-listing-markets) — the authed read that lists the pools you have created.
 - [`ListingMarket`](/core/pools/listing-market-type) — the catalog row shape and its 18-decimal value contract.
 - [`useAddMarket`](/react/pools#useaddmarket) — the React hook.

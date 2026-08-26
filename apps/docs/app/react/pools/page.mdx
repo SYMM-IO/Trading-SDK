@@ -4,9 +4,9 @@ import { Callout } from "nextra/components";
 
 React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
 
-Five hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useAddMarket` creates a pool by listing a new token, also with that token.
+Seven hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token.
 
-Three of them are reads. `useAuthenticateListing` and `useAddMarket` are **mutations** — the first prompts a wallet signature, the second submits an authed create-pool write.
+Five of them are reads. `useAuthenticateListing` and `useAddMarket` are **mutations** — the first prompts a wallet signature, the second submits an authed create-pool write.
 
 ## Import
 
@@ -14,20 +14,26 @@ Three of them are reads. `useAuthenticateListing` and `useAddMarket` are **mutat
 import {
   useAddMarket,
   useAuthenticateListing,
+  useListingConfig,
   useListingMarkets,
   useSupportsListingService,
   useUserListingMarkets,
+  useWeeklyListingLimit,
   type AddMarketVariables,
   type UseAddMarketReturnType,
   type UseAuthenticateListingReturnType,
+  type UseListingConfigParameters,
+  type UseListingConfigReturnType,
   type UseListingMarketsParameters,
   type UseListingMarketsReturnType,
   type UseUserListingMarketsParameters,
   type UseUserListingMarketsReturnType,
+  type UseWeeklyListingLimitParameters,
+  type UseWeeklyListingLimitReturnType,
 } from "@symmio/trading-react";
 ```
 
-Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `UserListingMarket`, `UserListingMarketPage`, `CreatedPool`, `ListingMarketStatus`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, and `LISTING_VALUE_DECIMALS` — the fixed-point scale every money and rate field on a row uses.
+Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `UserListingMarket`, `UserListingMarketPage`, `CreatedPool`, `ListingConfig`, `ListingDepositChain`, `ListingRateLimits`, `WeeklyListingLimit`, `ListingMarketStatus`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, and `LISTING_VALUE_DECIMALS` — the fixed-point scale every money and rate field on a row uses.
 
 ## Gate the feature first
 
@@ -63,6 +69,55 @@ Returns a plain `boolean` — no query, no suspense, no loading state. It reads 
 </Callout>
 
 Skipping the gate is not fatal, only noisy. A read against a target without Pools fails before it reaches the network: `LISTING_UNSUPPORTED` when the resolved solver does not use the listing service, `LISTING_NOT_CONFIGURED` when the chain has no listing backend. Both arrive as a `SymmioRequestError` with `kind: "sdk"` and that `code`. Passing the gate through `query.enabled` keeps the query idle instead of parking a typed error in the cache.
+
+## `useListingConfig`
+
+The listing service's **public client configuration** — the data a create-pool UI must show a user before they list a token: the recommended and minimum initial deposits, the listing fee, the supported deposit chains, the per-day rate limits, and the protocol reward share. Public, so it needs no token and can be mounted unconditionally.
+
+```tsx
+const { data, isPending, error } = useListingConfig();
+
+const recommended = data?.recommendedInitialDepositUsdc; // 18-decimal bigint (USD)
+const chains = data?.supportedDepositChains ?? []; // the source of truth for a chain picker
+```
+
+It drives the create-pool form two ways: the recommended initial deposit is the figure the user seeds the pool with, and `supportedDepositChains` is the list a deposit-chain picker should render — **derive the `<select>` options from it rather than hardcoding a list**. `apps/web`'s create-pool card does exactly this: it maps `supportedDepositChains` into its chain picker and resets the selected chain to the first supported one whenever the default is not among them.
+
+### Parameters
+
+Every field is optional. The hook takes the core query options plus `config`.
+
+| Name        | Type             | Default                 | Notes                                                    |
+| ----------- | ---------------- | ----------------------- | -------------------------------------------------------- |
+| `chainId?`  | `number`         | connected chain         | Which deployment's listing backend to read.              |
+| `solverId?` | `SolverId`       | chain's default solver  | `"enigma" \| "rasa"`.                                    |
+| `query?`    | `QueryParameter` | —                       | TanStack overrides — `enabled`, `staleTime`, `select`, … |
+| `config?`   | `Config`         | the config from context | Override the `SymmioProvider` config.                    |
+
+### Return type
+
+`UseQueryResult<ListingConfig, SymmioRequestError>`. `data` is the [`ListingConfig`](../../core/pools/listing-config#returns):
+
+| Field                           | Type                    | Notes                                                                                                                    |
+| ------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `recommendedInitialDepositUsdc` | `bigint`                | Recommended deposit to seed a pool, USD at `LISTING_VALUE_DECIMALS` (18). The headline figure of a create-pool form.     |
+| `minimumInitialDepositUsdc`     | `bigint`                | Minimum accepted deposit (after slippage), USD at `LISTING_VALUE_DECIMALS` (18).                                         |
+| `listingFeeUsdc`                | `bigint`                | The listing fee, USD at `LISTING_VALUE_DECIMALS` (18).                                                                   |
+| `supportedDepositChains`        | `ListingDepositChain[]` | Deposit chains new listings may use — each `{ chainId, chainName }`. **The source of truth for a deposit-chain picker.** |
+| `rateLimits`                    | `ListingRateLimits`     | `{ marketConfigUpdatesPerDay, profitClaimsPerDay }` — rolling-24h client mutation limits.                                |
+| `protocolRewardSharePercent`    | `number`                | Whole-percent of market revenue to the protocol before buyback/LP (`10` = `10%`). A plain number — do not descale.       |
+
+<Callout type="warning">
+  The three `*Usdc` figures are 18-decimal `bigint`s (USD) — descale with `formatUnits(value, LISTING_VALUE_DECIMALS)`
+  before formatting. `protocolRewardSharePercent` and the `rateLimits` counters are plain `number`s: render them
+  directly.
+</Callout>
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. A read off a Pools target fails before the network with `LISTING_UNSUPPORTED`
+  / `LISTING_NOT_CONFIGURED`. Gate the create-pool entry point with
+  [`useSupportsListingService`](#gate-the-feature-first).
+</Callout>
 
 ## `useListingMarkets`
 
@@ -555,6 +610,47 @@ export function CreatePool() {
   with [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
 </Callout>
 
+## `useWeeklyListingLimit`
+
+The protocol's remaining new-market listings for the current rolling weekly window — the cap a create-pool flow must check before `useAddMarket`. The service caps how many pools may be created protocol-wide each week; read this so you can **block** the Create button (and explain why) instead of letting the write fail after a round-trip. **Public**, so it needs no token and can be mounted unconditionally.
+
+```tsx
+const weekly = useWeeklyListingLimit();
+const limitReached = weekly.data ? weekly.data.remaining <= 0 : false;
+
+// disable the Create button while `limitReached`; when it is true, show `weekly.data.resetAt`
+// (a Unix timestamp) so the user knows when a pool can be listed again.
+```
+
+The cap is **global**, not per user — no `accessToken`. `apps/web`'s create-pool card reads it unconditionally and folds `remaining <= 0` into the submit button's `disabled` condition.
+
+### Parameters
+
+Every field is optional. The hook takes the core query options plus `config`.
+
+| Name        | Type             | Default                 | Notes                                                    |
+| ----------- | ---------------- | ----------------------- | -------------------------------------------------------- |
+| `chainId?`  | `number`         | connected chain         | Which deployment's listing backend to read.              |
+| `solverId?` | `SolverId`       | chain's default solver  | `"enigma" \| "rasa"`.                                    |
+| `query?`    | `QueryParameter` | —                       | TanStack overrides — `enabled`, `staleTime`, `select`, … |
+| `config?`   | `Config`         | the config from context | Override the `SymmioProvider` config.                    |
+
+### Return type
+
+`UseQueryResult<WeeklyListingLimit, SymmioRequestError>`. `data` is the [`WeeklyListingLimit`](../../core/pools/weekly-limit#returns):
+
+| Field       | Type     | Notes                                                                                                   |
+| ----------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| `limit`     | `number` | Total listings allowed per rolling weekly window.                                                       |
+| `remaining` | `number` | Listings still available this window. **`0` means no more pools can be listed** — gate on it.           |
+| `resetAt`   | `number` | When the window resets, as the Unix timestamp the service returns. Show it in the "limit reached" copy. |
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. A read off a Pools target fails before the network with `LISTING_UNSUPPORTED`
+  / `LISTING_NOT_CONFIGURED`. Gate the create-pool entry point with
+  [`useSupportsListingService`](#gate-the-feature-first).
+</Callout>
+
 ## Overview aggregates
 
 The catalogue is only the table. The figures a pools page puts **above** it — TVL, volume, open interest, revenue, the pool count — are not in a `ListingMarket` and are not served by the listing backend at all. Five figures, five requests, and three different vendors behind them:
@@ -582,6 +678,8 @@ The pool count comes from `data.total`, never `data.items.length`: `total` is th
 
 - [Pools](../../core/pools) — the framework-agnostic slice: the availability rules, the 18-decimal contract, and the `ListingMarket` row shape.
 - [`getListingMarkets`](../../core/pools/get-listing-markets) — the action underneath, with the full sort-key and filter reference.
+- [`getListingConfig`](../../core/pools/listing-config) — the framework-agnostic public config behind `useListingConfig`.
+- [`getWeeklyListingLimit`](../../core/pools/weekly-limit) — the framework-agnostic weekly-cap read behind `useWeeklyListingLimit`.
 - [`addMarket`](../../core/pools/add-market) — the framework-agnostic create-pool action behind `useAddMarket`.
 - [Solvers & chains](/core/concepts/solvers-and-chains#pools-listing-service) — where the listing backend is configured and how the capability resolves.
 - [Solvers hooks](../solvers#usesupportslistingservice) — the rest of the capability gates.

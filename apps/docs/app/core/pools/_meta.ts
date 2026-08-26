@@ -3,6 +3,8 @@ export default {
   "-- reads": { type: "separator", title: "Reads" },
   "get-listing-markets": "getListingMarkets",
   "get-user-listing-markets": "getUserListingMarkets",
+  "listing-config": "getListingConfig",
+  "weekly-limit": "getWeeklyListingLimit",
   "-- auth": { type: "separator", title: "Auth" },
   "listing-auth": "authenticateListing",
   "-- writes": { type: "separator", title: "Writes" },

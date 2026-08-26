@@ -3,11 +3,13 @@ import { MethodGroup } from "../inspector/method-group";
 import { CreatePoolCard } from "./create-pool-card";
 import { ListingAuthCard } from "./listing-auth-card";
 import { ListingAuthProvider } from "./listing-auth-context";
+import { ListingConfigCard } from "./listing-config-card";
 import { PoolsConsole } from "./pools-console";
 import { PoolsOpenInterestCard } from "./pools-open-interest-card";
 import { PoolsRevenueCard } from "./pools-revenue-card";
 import { PoolsTvlCard } from "./pools-tvl-card";
 import { PoolsVolumeCard } from "./pools-volume-card";
+import { WeeklyLimitCard } from "./weekly-limit-card";
 import { YourPoolsCard } from "./your-pools-card";
 
 /**
@@ -36,7 +38,9 @@ export function PoolsShell() {
       {/* One shared bearer token for both cards: sign in once, reuse it across
           refreshes and cards instead of re-signing on every read. */}
       <ListingAuthProvider>
-        <MethodGroup label="Listing session" count={3}>
+        <MethodGroup label="Listing session" count={5}>
+          <ListingConfigCard />
+          <WeeklyLimitCard />
           <ListingAuthCard />
           <YourPoolsCard />
           <CreatePoolCard />

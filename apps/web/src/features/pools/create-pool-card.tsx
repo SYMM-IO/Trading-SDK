@@ -3,25 +3,16 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { ListingDepositChainId } from "@symmio/trading-core";
-import { useAddMarket } from "@symmio/trading-react";
+import { useAddMarket, useListingConfig, useWeeklyListingLimit } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { CopyButton } from "@symmio/ui/components/copy-button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 import { useSolverKindActive } from "../solvers/solver-target";
+import { formatResetAt } from "./format-listing-value";
 import { useListingAuth } from "./listing-auth-context";
-
-/** Deposit chains the listing backend accepts, in the order the picker shows them. */
-const DEPOSIT_CHAIN_OPTIONS: { id: ListingDepositChainId; label: string }[] = [
-  { id: ListingDepositChainId.HYPER_EVM, label: "HyperEVM" },
-  { id: ListingDepositChainId.BASE, label: "Base" },
-  { id: ListingDepositChainId.BSC, label: "BSC" },
-  { id: ListingDepositChainId.ARBITRUM_ONE, label: "Arbitrum One" },
-  { id: ListingDepositChainId.SONIC, label: "Sonic" },
-  { id: ListingDepositChainId.SOLANA, label: "Solana" },
-];
 
 /**
  * Create pool — list a new token with the listing backend.
@@ -43,10 +34,28 @@ export function CreatePoolCard() {
   const { accessToken, signIn, isSigningIn } = useListingAuth();
   const create = useAddMarket();
 
+  // Deposit chains come from the listing config, not a hardcoded list — the
+  // create-pool picker only offers chains the service actually accepts.
+  const config = useListingConfig();
+  const chains = useMemo(() => config.data?.supportedDepositChains ?? [], [config.data]);
+
+  // Weekly-listing gate. Public read of the protocol-global weekly cap — no token,
+  // so it loads regardless of sign-in and blocks the create flow at `remaining <= 0`.
+  const weekly = useWeeklyListingLimit();
+  const limitReached = weekly.data ? weekly.data.remaining <= 0 : false;
+
   const [tokenContractAddress, setTokenContractAddress] = useState("");
   const [buyBackRatio, setBuyBackRatio] = useState("5");
   const [maxLeverage, setMaxLeverage] = useState("20");
   const [depositChain, setDepositChain] = useState<ListingDepositChainId>(ListingDepositChainId.HYPER_EVM);
+
+  // Once the config's chains land, keep the selection valid: if the default (or a
+  // stale) chain is not among the supported ones, fall back to the first.
+  useEffect(() => {
+    if (chains.length > 0 && !chains.some((chain) => chain.chainId === depositChain)) {
+      setDepositChain(chains[0]!.chainId);
+    }
+  }, [chains, depositChain]);
 
   const buyBack = Number(buyBackRatio);
   const leverage = Number(maxLeverage);
@@ -58,13 +67,14 @@ export function CreatePoolCard() {
     Number.isFinite(leverage);
 
   const signedIn = accessToken !== null;
-  const disabled = !enigmaActive || isSigningIn || create.isPending || (signedIn && !validInputs);
+  const disabled = !enigmaActive || isSigningIn || create.isPending || limitReached || (signedIn && !validInputs);
 
   function onSubmit() {
     if (!signedIn) {
       signIn();
       return;
     }
+    if (limitReached) return;
     create.mutate({
       accessToken,
       tokenContractAddress: tokenContractAddress.trim(),
@@ -106,12 +116,12 @@ export function CreatePoolCard() {
           data-testid="create-pool-deposit-chain"
           value={depositChain}
           onChange={(e) => setDepositChain(Number(e.target.value) as ListingDepositChainId)}
-          disabled={create.isPending}
+          disabled={create.isPending || config.isPending}
           className="border-border bg-input/40 h-9 w-full rounded-md border px-3 text-sm"
         >
-          {DEPOSIT_CHAIN_OPTIONS.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label} ({option.id})
+          {chains.map((chain) => (
+            <option key={chain.chainId} value={chain.chainId}>
+              {chain.chainName} ({chain.chainId})
             </option>
           ))}
         </select>
@@ -167,6 +177,19 @@ export function CreatePoolCard() {
           "Sign in first"
         )}
       </Button>
+
+      {signedIn && weekly.data ? (
+        <span className="text-muted-foreground text-xs" data-testid="create-pool-weekly-status">
+          {weekly.data.remaining} of {weekly.data.limit} listings left this week
+        </span>
+      ) : null}
+
+      {signedIn && limitReached && weekly.data ? (
+        <ResultNote testId="create-pool-weekly-limit">
+          Weekly listing limit reached — no more pools can be listed until it resets (
+          {formatResetAt(weekly.data.resetAt)}).
+        </ResultNote>
+      ) : null}
 
       <ResultNote testId="create-pool-note">
         Max leverage is fixed at 20 for now. The tax, whitelist, extra-chain and CEX options are sent as defaults (

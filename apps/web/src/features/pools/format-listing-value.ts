@@ -60,6 +60,20 @@ export function rateTone(raw: bigint | null): "positive" | "negative" | "neutral
   return raw > 0n ? "positive" : "negative";
 }
 
+/**
+ * Format a rolling-limit reset timestamp as a readable UTC date-time. The
+ * service returns a Unix timestamp; a value below `1e12` is seconds, so scale it
+ * to milliseconds before constructing the `Date`.
+ */
+export function formatResetAt(resetAt: number): string {
+  const ms = resetAt < 1e12 ? resetAt * 1000 : resetAt;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(new Date(ms));
+}
+
 /** Display names for the chains the listing service accepts deposits on. */
 export const DEPOSIT_CHAIN_LABELS: Record<ListingDepositChainId, string> = {
   [ListingDepositChainId.SOLANA]: "Solana",

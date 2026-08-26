@@ -1054,18 +1054,24 @@ export {
 export {
   useAddMarket,
   useAuthenticateListing,
+  useListingConfig,
   useListingMarkets,
   useUserListingMarkets,
+  useWeeklyListingLimit,
   type AddMarketVariables,
   type AuthenticateListingVariables,
   type UseAddMarketParameters,
   type UseAddMarketReturnType,
   type UseAuthenticateListingParameters,
   type UseAuthenticateListingReturnType,
+  type UseListingConfigParameters,
+  type UseListingConfigReturnType,
   type UseListingMarketsParameters,
   type UseListingMarketsReturnType,
   type UseUserListingMarketsParameters,
   type UseUserListingMarketsReturnType,
+  type UseWeeklyListingLimitParameters,
+  type UseWeeklyListingLimitReturnType,
 } from "./pools";
 /**
  * Inventory service

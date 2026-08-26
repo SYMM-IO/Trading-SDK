@@ -191,6 +191,20 @@ export interface UserListingMarketPage {
 }
 
 /**
+ * The protocol's global new-market listing cap for the current rolling weekly
+ * window — how many pools may still be listed across the protocol before the
+ * window resets.
+ */
+export interface WeeklyListingLimit {
+  /** Total new-market listings allowed per rolling weekly window. */
+  limit: number;
+  /** Listings still available in the current window — `0` means no more pools can be listed until reset. */
+  remaining: number;
+  /** When the window resets, as the Unix timestamp the service returns (`reset_at`). */
+  resetAt: number;
+}
+
+/**
  * Server-side sort keys accepted by `getListingMarkets`.
  *
  * Mirrors the service's `sort_by` enum verbatim — snake_case, not the SDK's
@@ -319,3 +333,49 @@ export interface ListingMarketFilters {
  * @internal
  */
 export type GeneratedMarketStatus = MarketStatus;
+
+/**
+ * One deposit chain a new listing may use, from the listing service's public
+ * config ({@link ListingConfig.supportedDepositChains}).
+ */
+export interface ListingDepositChain {
+  /** Numeric chain id to send with market/deposit requests. */
+  chainId: ListingDepositChainId;
+  /** Human-readable chain name, e.g. "HyperEVM". */
+  chainName: string;
+}
+
+/**
+ * The client mutation limits the listing service enforces, from its public
+ * config ({@link ListingConfig.rateLimits}).
+ */
+export interface ListingRateLimits {
+  /** Max successful market-config updates per user+market in a rolling 24h window. */
+  marketConfigUpdatesPerDay: number;
+  /** Max successful profit claims per user+market in a rolling 24h window. */
+  profitClaimsPerDay: number;
+}
+
+/**
+ * The listing service's public client configuration — the deposit guidance,
+ * listing fee, supported deposit chains, rate limits, and protocol reward share
+ * a create-listing flow needs.
+ *
+ * The three USDC figures are `bigint` at {@link LISTING_VALUE_DECIMALS} (18),
+ * independent of the collateral token's own decimals; format them with
+ * `formatUnits(value, LISTING_VALUE_DECIMALS)` at the display edge.
+ */
+export interface ListingConfig {
+  /** Recommended initial USDC deposit to start a listing, USD at LISTING_VALUE_DECIMALS (18) as a bigint. */
+  recommendedInitialDepositUsdc: bigint;
+  /** Minimum accepted initial USDC deposit after slippage, USD 18-dec bigint. */
+  minimumInitialDepositUsdc: bigint;
+  /** Listing fee in USDC, USD 18-dec bigint. */
+  listingFeeUsdc: bigint;
+  /** Deposit chains new markets may use — the source of truth for a chain picker. */
+  supportedDepositChains: ListingDepositChain[];
+  /** Rolling-24h client mutation limits. */
+  rateLimits: ListingRateLimits;
+  /** Whole-percent of market revenue to the protocol before buyback/LP. */
+  protocolRewardSharePercent: number;
+}
