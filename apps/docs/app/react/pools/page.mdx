@@ -4,22 +4,27 @@ import { Callout } from "nextra/components";
 
 React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
 
-Two hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingMarkets` reads a page of the catalog.
+Four hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token.
 
-**All reads.**
+Three of them are reads. `useAuthenticateListing` is a **mutation** — it prompts a wallet signature.
 
 ## Import
 
 ```ts
 import {
+  useAuthenticateListing,
   useListingMarkets,
   useSupportsListingService,
+  useUserListingMarkets,
+  type UseAuthenticateListingReturnType,
   type UseListingMarketsParameters,
   type UseListingMarketsReturnType,
+  type UseUserListingMarketsParameters,
+  type UseUserListingMarketsReturnType,
 } from "@symmio/trading-react";
 ```
 
-Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `ListingMarketStatus`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, and `LISTING_VALUE_DECIMALS` — the fixed-point scale every money and rate field on a row uses.
+Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `UserListingMarket`, `UserListingMarketPage`, `ListingMarketStatus`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, and `LISTING_VALUE_DECIMALS` — the fixed-point scale every money and rate field on a row uses.
 
 ## Gate the feature first
 
@@ -314,6 +319,133 @@ export function PoolsTable() {
 ```
 
 The row key is `chainId` + `contractAddress` rather than `symbolId`: a listing that has not reached `LISTED` has no `symbolId` yet, and the deposit chain is what makes an address unique across the catalog.
+
+## `useUserListingMarkets`
+
+**Your Pools** — the authed twin of `useListingMarkets`. It returns the listing markets that generated a deposit address for the signed-in wallet, deposited or not, each row enriched with the user's own position: `userDeposit`, `userSharePercentage`, and `userRevenue`.
+
+```tsx
+const { data, isPending, error } = useUserListingMarkets({
+  accessToken, // from useAuthenticateListing
+  marketStatus: ListingMarketStatus.LISTED,
+  limit: 25,
+});
+```
+
+Everything about search, filtering, sorting, and pagination is identical to [`useListingMarkets`](#uselistingmarkets) — same parameters, same server-side model, same `placeholderData` advice for a table. Two things differ: the required token, and the extra per-row fields.
+
+### It needs a token, and stays idle without one
+
+`accessToken` is required — the Bearer token from [`useAuthenticateListing`](#useauthenticatelisting). The hook gates itself on it: while the token is an empty string it stays **idle** (`enabled: false`) rather than firing an unauthenticated request, so you can mount it before sign-in and let it come alive the moment the token lands.
+
+```tsx
+import { useAuthenticateListing, useUserListingMarkets } from "@symmio/trading-react";
+import { ListingMarketStatus } from "@symmio/trading-core";
+import { useState } from "react";
+
+export function YourPools() {
+  const login = useAuthenticateListing();
+  const [accessToken, setAccessToken] = useState("");
+
+  const { data, isFetching, error } = useUserListingMarkets({
+    accessToken,
+    marketStatus: ListingMarketStatus.LISTED,
+    limit: 25,
+    query: { placeholderData: (previous) => previous },
+  });
+
+  if (!accessToken) {
+    return (
+      <button
+        onClick={() => login.mutate({}, { onSuccess: (token) => setAccessToken(token.accessToken) })}
+        disabled={login.isPending}
+      >
+        {login.isPending ? "Sign in your wallet…" : "Sign in & load your pools"}
+      </button>
+    );
+  }
+
+  if (error) return <p role="alert">{error.message}</p>;
+
+  return (
+    <ul aria-busy={isFetching}>
+      {(data?.items ?? []).map((pool) => (
+        <li key={`${pool.chainId}:${pool.contractAddress}`}>
+          {pool.tokenTicker} ·{" "}
+          {pool.userDeposit === null ? "—" : `$${formatUnits(pool.userDeposit, LISTING_VALUE_DECIMALS)}`} ·{" "}
+          {pool.userSharePercentage}%
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+The `accessToken` is deliberately **not** part of the query key, so refreshing an expired token reuses the cache rather than refetching (and the secret never lands in a devtools-visible key).
+
+### Return type
+
+`UseQueryResult<UserListingMarketPage, SymmioRequestError>`. The envelope (`total` / `limit` / `offset` / `items`) is the same as `useListingMarkets`; each row is a `UserListingMarket` — a `ListingMarket` plus three user-scoped fields:
+
+| Field                 | Type             | Notes                                                                                                                                                                                |
+| --------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `userDeposit`         | `bigint \| null` | The wallet's current deposit into the pool, USD at `LISTING_VALUE_DECIMALS` (18). `null` when a deposit address exists but nothing has been deposited yet — render a dash, not `$0`. |
+| `userSharePercentage` | `number`         | The wallet's share of the pool, a plain percentage `number` (`12.5` = `12.5%`) — **not** 18-decimal scaled. Format it directly, without `formatUnits`.                               |
+| `userRevenue`         | `bigint \| null` | The wallet's accrued revenue from the pool, USD at `LISTING_VALUE_DECIMALS` (18), or `null` when the service reported none.                                                          |
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. A read off a Pools target fails before the network with `LISTING_UNSUPPORTED`
+  / `LISTING_NOT_CONFIGURED`; a bad or expired token comes back as a `401` on `getUserListingMarkets`. Gate the sign-in
+  entry point with [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a
+  `401`.
+</Callout>
+
+## `useAuthenticateListing`
+
+Sign the user in to the listing backend and get their access token — the [SIWE](../../core/pools/listing-auth) exchange (fetch challenge → wallet signature → login) in one mutation. Everything a user _owns_ on Pools is gated by this token, so this is the hook a "Connect / Sign in" button drives.
+
+```tsx
+import { useAuthenticateListing } from "@symmio/trading-react";
+
+function SignInToPools() {
+  const login = useAuthenticateListing();
+
+  return (
+    <>
+      <button onClick={() => login.mutate({})} disabled={login.isPending}>
+        {login.isPending ? "Sign in your wallet…" : "Sign in to Pools"}
+      </button>
+      {login.data ? <code>{login.data.accessToken}</code> : null}
+      {login.error ? <p role="alert">{login.error.message}</p> : null}
+    </>
+  );
+}
+```
+
+`mutate({})` needs nothing: the hook fills `domain` from `window.location.host` and `uri` from `window.location.origin`, and the signing address comes from the connected wallet. Override any of `domain` / `uri` / `statement` / `from` / `chainId` / `solverId` per call.
+
+### Variables
+
+| Name         | Type       | Default                  | Notes                                                       |
+| ------------ | ---------- | ------------------------ | ----------------------------------------------------------- |
+| `domain?`    | `string`   | `window.location.host`   | SIWE DNS authority — no scheme.                             |
+| `uri?`       | `string`   | `window.location.origin` | Requesting dApp URI.                                        |
+| `statement?` | `string`   | —                        | Human-readable line inside the signed message.              |
+| `from?`      | `Address`  | connected wallet         | Signer hint when the config resolves more than one signer.  |
+| `chainId?`   | `number`   | connected chain          | Which deployment's listing backend to authenticate against. |
+| `solverId?`  | `SolverId` | chain's default solver   | `"enigma" \| "rasa"`.                                       |
+
+### Return type
+
+`UseMutationResult<ListingAuthToken, SymmioRequestError, AuthenticateListingVariables>`. On success, `data` is `{ accessToken, tokenType }` — `accessToken` is the Bearer token (the "access code") to attach as `Authorization: Bearer <accessToken>`.
+
+<Callout type="info">
+  **Enigma-only.** `mutate` rejects with `LISTING_UNSUPPORTED` / `LISTING_NOT_CONFIGURED` off a Pools target, and passes
+  the wallet's own rejection through when the user declines the signature. Gate the button with
+  [`useSupportsListingService`](#gate-the-feature-first) so it only shows where Pools exists.
+</Callout>
+
+This slice **returns** the token; it does not persist it or attach it to later requests. Hold it (context, store) yourself until the authed pool reads/writes land.
 
 ## Overview aggregates
 

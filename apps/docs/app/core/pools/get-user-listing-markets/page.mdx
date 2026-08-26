@@ -1,0 +1,154 @@
+import { Callout } from "nextra/components";
+
+# getUserListingMarkets
+
+Fetch a page of **Your Pools** — the listing markets that generated a deposit address for the signed-in user, whether or not they have deposited into them yet. It is the authenticated twin of [`getListingMarkets`](/core/pools/get-listing-markets): the same catalog rows, enriched with the caller's own position in each pool.
+
+```ts
+import { getUserListingMarkets, ListingMarketStatus } from "@symmio/trading-core";
+
+const page = await getUserListingMarkets(config, {
+  accessToken: token.accessToken,
+  marketStatus: ListingMarketStatus.LISTED,
+  sortBy: "tvl",
+  orderBy: "desc",
+  limit: 50,
+});
+```
+
+Each row is a [`UserListingMarket`](#returns) — a `ListingMarket` plus `userDeposit`, `userSharePercentage`, and `userRevenue`. A pool appears here once it has minted a deposit address for the user, so the list includes pools the user has been allocated but not yet funded; `userDeposit` is then `null`.
+
+<Callout type="info">
+  This is a REST read against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
+  [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>` header. The backend is
+  resolved from the config before the request, so a target without Pools fails immediately and without any network
+  traffic — see [`resolveListingService`](/core/pools/resolve-listing-service).
+</Callout>
+
+## The access token
+
+`accessToken` is the one required parameter — the endpoint returns nothing without it. Mint it once with [`authenticateListing`](/core/pools/listing-auth) (the SIWE exchange), hold it, and pass it on every call.
+
+<Callout type="warning">
+  The token is a **credential, not a cache dimension**. `getUserListingMarketsQueryKey` deliberately drops `accessToken`
+  before hashing, so refreshing an expired token still hits the same cache entry and the secret never leaks into a
+  devtools-visible key. A bad or expired token comes back as a `401` (see [Throws](#throws)) — refresh it and retry, do
+  not vary the query key on it.
+</Callout>
+
+## Parameters
+
+`accessToken` is required; every other field is optional and shares the exact search, filter, sort, and pagination semantics of [`getListingMarkets`](/core/pools/get-listing-markets#parameters) — see that page for the full `sortBy` key list and the 18-decimal `filters` contract. In brief:
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401`. **Not** part of the query key.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
+    folded into the query key.
+  </Property>
+  <Property name="solverId" type="SolverId" typeHref="/core/concepts/solvers-and-chains" optional>
+    Solver kind to target. Defaults to the chain's default solver. Only a solver declaring the `listingService`
+    capability can be used here.
+  </Property>
+  <Property name="search" type="string" optional>
+    Free-text search, matched by the backend against contract address, ticker, and token name. Sent as `query` on the
+    wire; named `search` because the TanStack options bag already owns `query`.
+  </Property>
+  <Property name="chainIds" type="readonly ListingDepositChainId[]" optional>
+    Restrict to tokens **deposited** on these chains. An empty array is sent as no filter. Serialized as repeated keys
+    (`chain_ids=56&chain_ids=8453`), the only form the backend honors.
+  </Property>
+  <Property name="marketStatus" type="ListingMarketStatus" optional>
+    Restrict to one lifecycle status — a single status, not a set.
+  </Property>
+  <Property name="limit" type="number" optional default="service 20">
+    Page size, `1`–`100`. Omitted when unset, so the backend applies its default of `20`.
+  </Property>
+  <Property name="offset" type="number" optional default="service 0">
+    Row offset. Combine with `total` from the response to page.
+  </Property>
+  <Property name="sortBy" type="ListingMarketSortField" optional>
+    Server-side sort key, in the backend's snake_case wire form. See [`getListingMarkets` § Sort
+    keys](/core/pools/get-listing-markets#sort-keys).
+  </Property>
+  <Property name="orderBy" type='"asc" | "desc"' optional default='"desc"'>
+    Sort direction applied to `sortBy`.
+  </Property>
+  <Property name="filters" type="ListingMarketFilters" optional>
+    Inclusive numeric range filters, applied server-side. Bounds are at 18 decimals, not human units — see
+    [`getListingMarkets` § Filters](/core/pools/get-listing-markets#filters).
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<UserListingMarketPage>">
+  <Property name="total" type="number">
+    Total rows matching the query across all pages — what you page against, not `items.length`.
+  </Property>
+  <Property name="limit" type="number">
+    Page size the backend actually applied.
+  </Property>
+  <Property name="offset" type="number">
+    Row offset of this page.
+  </Property>
+  <Property name="items" type="UserListingMarket[]">
+    The rows themselves — each a [`ListingMarket`](/core/pools/listing-market-type) plus the user-scoped fields below.
+  </Property>
+</Returns>
+
+A `UserListingMarket` extends [`ListingMarket`](/core/pools/listing-market-type) with three fields describing the user's position:
+
+<Properties>
+  <Property name="userDeposit" type="bigint | null">
+    The user's current deposit into this pool, in USD as a `bigint` at `LISTING_VALUE_DECIMALS` (18). `null` when the
+    deposit address exists but nothing has been deposited yet — **`null` is not `0`**; render it as a dash.
+  </Property>
+  <Property name="userSharePercentage" type="number">
+    The user's share of the pool, as a plain percentage `number` (`12.5` means `12.5%`) — **not** 18-decimal scaled and
+    not a ratio. Format it directly, without `formatUnits`.
+  </Property>
+  <Property name="userRevenue" type="bigint | null">
+    The user's accrued revenue from this pool, in USD as a `bigint` at `LISTING_VALUE_DECIMALS` (18), or `null` when the
+    backend reported none.
+  </Property>
+</Properties>
+
+<Callout type="warning">
+  The two money fields (`userDeposit`, `userRevenue`) are 18-decimal `bigint`s like every other money field on the row —
+  descale with `formatUnits(value, LISTING_VALUE_DECIMALS)` before formatting as USD. `userSharePercentage` is the
+  exception: a bare `number` that already **is** the percentage. And `null` on either money field means "not reported",
+  which is a different fact from a real `$0`.
+</Callout>
+
+## Query options
+
+```ts
+import { getUserListingMarketsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getUserListingMarketsQueryOptions(config, { accessToken, sortBy: "tvl", limit: 50 }));
+```
+
+`GetUserListingMarketsOptions` is the action's parameters (including the required `accessToken`) plus a `query` bag of TanStack overrides. The factory folds `config.getChainConfigKey(chainId)` into the key but leaves `accessToken` out of it, so a refreshed token reuses the cache rather than refetching. `getUserListingMarketsQueryKey` builds the same key for cache matching and invalidation.
+
+The rest of the factory's types are exported too: `GetUserListingMarketsData` is what the query resolves to (the same `UserListingMarketPage`), `GetUserListingMarketsReturnType` is the action's return alias, `GetUserListingMarketsQueryKey` is the key the factory builds, and `GetUserListingMarketsQueryOptions` is the options bag it produces.
+
+Because search, filtering, sorting and paging are all server-side, each distinct combination is its own cache entry — change one and the query refetches rather than re-slicing a page you already hold.
+
+## Throws
+
+- `LISTING_UNSUPPORTED` — a `SymmError` (`kind: "config"`) when the resolved solver does not declare the `listingService` capability. Gate with `supportsListingService` to hide Pools instead of erroring. Pools is Enigma-only today.
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the resolved chain has no `listing` backend.
+- `FETCH_USER_LISTING_MARKETS_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`) with the original error as its `cause`. A **`401`** here means the `accessToken` was missing, malformed, or expired — re-run `authenticateListing` and retry.
+
+## Related
+
+- [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this read requires.
+- [`getListingMarkets`](/core/pools/get-listing-markets) — the public catalog, with the full sort-key and filter reference.
+- [`ListingMarket`](/core/pools/listing-market-type) — the base row shape and its 18-decimal value contract.
+- [`useUserListingMarkets`](/react/pools#useuserlistingmarkets) — the React hook.
+- [Pools](/core/pools) — the slice overview.

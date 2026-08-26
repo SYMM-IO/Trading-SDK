@@ -166,6 +166,31 @@ export interface ListingMarketPage {
 }
 
 /**
+ * A {@link ListingMarket} enriched with the signed-in user's position in it — one
+ * row of "Your Pools", the markets that generated a deposit address for the user.
+ */
+export interface UserListingMarket extends ListingMarket {
+  /** The user's current deposit into this pool, in USD (18-dec bigint). `null` when the deposit address exists but nothing has been deposited yet. */
+  userDeposit: bigint | null;
+  /** The user's share of the pool, as a percentage number (not 18-dec scaled). */
+  userSharePercentage: number;
+  /** The user's accrued revenue from this pool, in USD (18-dec bigint), or `null` when absent. */
+  userRevenue: bigint | null;
+}
+
+/** One page of {@link UserListingMarket} rows, with the totals needed to paginate. */
+export interface UserListingMarketPage {
+  /** Total rows matching the query across all pages. */
+  total: number;
+  /** Page size the service applied. */
+  limit: number;
+  /** Row offset of this page. */
+  offset: number;
+  /** The rows themselves. */
+  items: UserListingMarket[];
+}
+
+/**
  * Server-side sort keys accepted by `getListingMarkets`.
  *
  * Mirrors the service's `sort_by` enum verbatim — snake_case, not the SDK's

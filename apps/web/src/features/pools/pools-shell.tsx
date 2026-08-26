@@ -1,10 +1,13 @@
 import { PageHeader } from "@/components/page-header";
 import { MethodGroup } from "../inspector/method-group";
+import { ListingAuthCard } from "./listing-auth-card";
+import { ListingAuthProvider } from "./listing-auth-context";
 import { PoolsConsole } from "./pools-console";
 import { PoolsOpenInterestCard } from "./pools-open-interest-card";
 import { PoolsRevenueCard } from "./pools-revenue-card";
 import { PoolsTvlCard } from "./pools-tvl-card";
 import { PoolsVolumeCard } from "./pools-volume-card";
+import { YourPoolsCard } from "./your-pools-card";
 
 /**
  * Pools page: the lowcap pool surface, read through the React SDK.
@@ -29,6 +32,14 @@ export function PoolsShell() {
         <PoolsOpenInterestCard />
         <PoolsRevenueCard />
       </MethodGroup>
+      {/* One shared bearer token for both cards: sign in once, reuse it across
+          refreshes and cards instead of re-signing on every read. */}
+      <ListingAuthProvider>
+        <MethodGroup label="Listing session" count={2}>
+          <ListingAuthCard />
+          <YourPoolsCard />
+        </MethodGroup>
+      </ListingAuthProvider>
       <MethodGroup label="Listing catalog" count={1} fullWidth>
         <PoolsConsole />
       </MethodGroup>

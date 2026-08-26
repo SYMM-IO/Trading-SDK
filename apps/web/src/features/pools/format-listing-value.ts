@@ -32,6 +32,18 @@ export function formatListingRate(raw: bigint | null): string {
   });
 }
 
+/**
+ * Format the user's pool-share percentage — a plain `number` that already **is**
+ * the percentage (`12.5` → "12.5%"), not an 18-decimal figure and not a ratio.
+ *
+ * Returns {@link ABSENT} for `null` so an unreported share reads differently from
+ * a real `0%`.
+ */
+export function formatSharePercentage(value: number | null): string {
+  if (value === null) return ABSENT;
+  return formatPercentage(value, { maxDecimals: 2 });
+}
+
 /** Format a Unix-seconds listing timestamp as a short absolute date. */
 export function formatListingDate(seconds: number | null): string {
   if (seconds === null) return ABSENT;

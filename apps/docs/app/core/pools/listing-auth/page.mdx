@@ -1,0 +1,150 @@
+import { Callout } from "nextra/components";
+
+# Listing auth (SIWE)
+
+Everything a user _owns_ on the listing backend — their pools, their stake, their revenue, and the create/withdraw/claim actions — is gated by a **Bearer token**, not by a wallet filter. This page mints that token. It is a **Sign-In With Ethereum** (EIP-4361) exchange: fetch a challenge, sign it with the wallet, hand the signature back, and receive the token.
+
+<Callout type="info">
+  This slice only **mints** the token and hands it to you — it does not store it or attach it to later requests. Where
+  the token lives (memory, context, storage) and how authed pool reads/writes pick it up lands in a later slice.
+</Callout>
+
+The flow is three steps, and `authenticateListing` runs all three for you:
+
+1. `GET /v2/auth/sign-in-message` → an EIP-4361 message string plus its structured params.
+2. sign the message string with the wallet (`personal_sign`).
+3. `POST /v2/auth/login` with the params + signature → `{ accessToken, tokenType }`.
+
+There is no separate nonce round-trip — the sign-in message already embeds a single-use nonce.
+
+**Enigma-only.** Every function here resolves the listing backend through [`resolveListingService`](/core/pools/resolve-listing-service), so a target without Pools throws `LISTING_UNSUPPORTED` / `LISTING_NOT_CONFIGURED` before any network call.
+
+## `authenticateListing`
+
+The whole flow in one call. Resolves the wallet client from the config, signs with its account, and returns the token.
+
+```ts
+import { authenticateListing } from "@symmio/trading-core";
+
+const { accessToken, tokenType } = await authenticateListing(config, {
+  domain: "app.example.com", // the SIWE DNS authority — no scheme
+  uri: "https://app.example.com", // the requesting dApp URI
+});
+// accessToken is the "access code": send it as `Authorization: Bearer <accessToken>`.
+```
+
+The signing address is **the wallet account's own address** — it is read from `config.getWalletClient()`, not passed in. Point `from` at a specific signer when the config resolves more than one (e.g. a session key vs. the connected wallet).
+
+### Parameters
+
+<Properties>
+  <Property name="domain" type="string">
+    RFC 4501 DNS authority requesting the sign-in, e.g. `app.example.com`. No scheme, no path.
+  </Property>
+  <Property name="uri" type="string">
+    RFC 3986 URI of the requesting dApp, e.g. `https://app.example.com`.
+  </Property>
+  <Property name="statement" type="string" optional>
+    Human-readable ASCII line shown inside the signed message.
+  </Property>
+  <Property name="from" type="Address" optional>
+    Signer hint passed to `getWalletClient` when the config can resolve more than one signer.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="solverId" type="SolverId" optional>
+    Solver to target. Defaults to the chain's `defaultSolverId`.
+  </Property>
+</Properties>
+
+Exported as `AuthenticateListingParameters`.
+
+### Returns
+
+<Returns type="ListingAuthToken">
+  <Property name="accessToken" type="string">
+    The Bearer access token — the value to send as `Authorization: Bearer <accessToken>` on authed listing calls.
+  </Property>
+  <Property name="tokenType" type="string">
+    The token scheme, e.g. `"bearer"`.
+  </Property>
+</Returns>
+
+### Throws
+
+- `LISTING_UNSUPPORTED` / `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) from [`resolveListingService`](/core/pools/resolve-listing-service), before any request, when the target has no Pools.
+- `LISTING_LOGIN_FAILED` — a `SymmApiError` when `/v2/auth/login` rejects the signature or errors.
+- The wallet's own rejection (viem `UserRejectedRequestError`) passes through unwrapped when the user declines the signature.
+
+### As a mutation
+
+For TanStack, `authenticateListingMutationOptions` wraps it:
+
+```ts
+import { authenticateListingMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+const login = useMutation(authenticateListingMutationOptions(config));
+login.mutate({ domain: "app.example.com", uri: "https://app.example.com" });
+```
+
+In React, reach for [`useAuthenticateListing`](/react/pools#useauthenticatelisting) instead — it fills `domain` / `uri` from the current origin.
+
+## `getListingSignInMessage`
+
+Step 1 on its own, for callers that sign the message themselves (a custom signer, a hardware flow, a server relay). Returns the challenge; you sign `message` and post it to login yourself.
+
+```ts
+import { getListingSignInMessage } from "@symmio/trading-core";
+
+const { message, params } = await getListingSignInMessage(config, {
+  address: "0xUser…",
+  domain: "app.example.com",
+  uri: "https://app.example.com",
+});
+```
+
+### Parameters
+
+<Properties>
+  <Property name="address" type="Address">
+    The address that will sign (EIP-55 checksum).
+  </Property>
+  <Property name="domain" type="string">
+    RFC 4501 DNS authority requesting the sign-in.
+  </Property>
+  <Property name="uri" type="string">
+    RFC 3986 URI of the requesting dApp.
+  </Property>
+  <Property name="statement" type="string" optional>
+    Optional human-readable statement shown in the message.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="solverId" type="SolverId" optional>
+    Solver to target. Defaults to the chain's `defaultSolverId`.
+  </Property>
+</Properties>
+
+Exported as `GetListingSignInMessageParameters`.
+
+### Returns
+
+<Returns type="ListingSignInMessage">
+  <Property name="message" type="string">
+    The full EIP-4361 message string to sign.
+  </Property>
+  <Property name="params" type="ListingSiweParams">
+    The structured SIWE fields behind `message` (`domain`, `address`, `uri`, `version`, `chainId`, `issuedAt`, `nonce`,
+    `statement`) — passed back verbatim on login.
+  </Property>
+</Returns>
+
+## Related
+
+- [`useAuthenticateListing`](/react/pools#useauthenticatelisting) — the React hook, with `domain` / `uri` defaulted to the current origin.
+- [`resolveListingService`](/core/pools/resolve-listing-service) — the availability gate every auth call runs first.
+- [Pools](/core/pools) — the slice overview.
+- [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.

@@ -1051,7 +1051,18 @@ export {
  * pagination are all server-side, so every parameter change is a new request
  * rather than a re-view of an already-fetched page.
  */
-export { useListingMarkets, type UseListingMarketsParameters, type UseListingMarketsReturnType } from "./pools";
+export {
+  useAuthenticateListing,
+  useListingMarkets,
+  useUserListingMarkets,
+  type AuthenticateListingVariables,
+  type UseAuthenticateListingParameters,
+  type UseAuthenticateListingReturnType,
+  type UseListingMarketsParameters,
+  type UseListingMarketsReturnType,
+  type UseUserListingMarketsParameters,
+  type UseUserListingMarketsReturnType,
+} from "./pools";
 /**
  * Inventory service
  * -----------------
