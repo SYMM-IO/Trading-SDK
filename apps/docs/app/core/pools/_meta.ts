@@ -5,6 +5,8 @@ export default {
   "get-user-listing-markets": "getUserListingMarkets",
   "-- auth": { type: "separator", title: "Auth" },
   "listing-auth": "authenticateListing",
+  "-- writes": { type: "separator", title: "Writes" },
+  "add-market": "addMarket",
   "-- config": { type: "separator", title: "Config" },
   "resolve-listing-service": "resolveListingService",
   "-- helpers": { type: "separator", title: "Helpers" },

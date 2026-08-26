@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import { MethodGroup } from "../inspector/method-group";
+import { CreatePoolCard } from "./create-pool-card";
 import { ListingAuthCard } from "./listing-auth-card";
 import { ListingAuthProvider } from "./listing-auth-context";
 import { PoolsConsole } from "./pools-console";
@@ -35,9 +36,10 @@ export function PoolsShell() {
       {/* One shared bearer token for both cards: sign in once, reuse it across
           refreshes and cards instead of re-signing on every read. */}
       <ListingAuthProvider>
-        <MethodGroup label="Listing session" count={2}>
+        <MethodGroup label="Listing session" count={3}>
           <ListingAuthCard />
           <YourPoolsCard />
+          <CreatePoolCard />
         </MethodGroup>
       </ListingAuthProvider>
       <MethodGroup label="Listing catalog" count={1} fullWidth>

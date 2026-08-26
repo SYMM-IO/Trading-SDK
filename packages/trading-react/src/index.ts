@@ -1052,10 +1052,14 @@ export {
  * rather than a re-view of an already-fetched page.
  */
 export {
+  useAddMarket,
   useAuthenticateListing,
   useListingMarkets,
   useUserListingMarkets,
+  type AddMarketVariables,
   type AuthenticateListingVariables,
+  type UseAddMarketParameters,
+  type UseAddMarketReturnType,
   type UseAuthenticateListingParameters,
   type UseAuthenticateListingReturnType,
   type UseListingMarketsParameters,

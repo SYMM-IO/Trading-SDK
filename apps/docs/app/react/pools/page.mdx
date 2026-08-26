@@ -4,18 +4,21 @@ import { Callout } from "nextra/components";
 
 React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
 
-Four hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token.
+Five hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useAddMarket` creates a pool by listing a new token, also with that token.
 
-Three of them are reads. `useAuthenticateListing` is a **mutation** — it prompts a wallet signature.
+Three of them are reads. `useAuthenticateListing` and `useAddMarket` are **mutations** — the first prompts a wallet signature, the second submits an authed create-pool write.
 
 ## Import
 
 ```ts
 import {
+  useAddMarket,
   useAuthenticateListing,
   useListingMarkets,
   useSupportsListingService,
   useUserListingMarkets,
+  type AddMarketVariables,
+  type UseAddMarketReturnType,
   type UseAuthenticateListingReturnType,
   type UseListingMarketsParameters,
   type UseListingMarketsReturnType,
@@ -24,7 +27,7 @@ import {
 } from "@symmio/trading-react";
 ```
 
-Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `UserListingMarket`, `UserListingMarketPage`, `ListingMarketStatus`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, and `LISTING_VALUE_DECIMALS` — the fixed-point scale every money and rate field on a row uses.
+Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `UserListingMarket`, `UserListingMarketPage`, `CreatedPool`, `ListingMarketStatus`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, and `LISTING_VALUE_DECIMALS` — the fixed-point scale every money and rate field on a row uses.
 
 ## Gate the feature first
 
@@ -447,6 +450,111 @@ function SignInToPools() {
 
 This slice **returns** the token; it does not persist it or attach it to later requests. Hold it (context, store) yourself until the authed pool reads/writes land.
 
+## `useAddMarket`
+
+Create a pool — list a new token with the listing backend. It is the authed **write** to Pools: the mutation submits the token and its pool economics, and resolves to the created pool, including the custodial **deposit wallet** to seed it.
+
+```tsx
+const create = useAddMarket();
+
+create.mutate({
+  accessToken, // from useAuthenticateListing
+  tokenContractAddress: "0xToken…",
+  buyBackRatio: 5,
+  maxLeverage: 20,
+  depositChain: ListingDepositChainId.HYPER_EVM,
+});
+
+// on success, seed the pool by sending the listing deposit to:
+create.data?.walletPublicKey;
+```
+
+Like [`useUserListingMarkets`](#useuserlistingmarkets), it takes the Bearer `accessToken` from [`useAuthenticateListing`](#useauthenticatelisting). It is a mutation, not a query, so it stays inert until you call `mutate` / `mutateAsync`.
+
+### Variables
+
+Three headline inputs plus the deposit chain are required; every other field is an optional listing extra the **caller** defaults — the SDK sends it only when set, it does not invent a default.
+
+| Name                   | Type                    | Notes                                                                                            |
+| ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `accessToken`          | `string`                | **Required.** Bearer token from `useAuthenticateListing`. A bad or expired token yields a `401`. |
+| `tokenContractAddress` | `string`                | **Required.** The token to list — EVM (`0x…`) or Solana (base58).                                |
+| `buyBackRatio`         | `number`                | **Required.** Share of trading fees routed to buy-backs, `0`–`100`.                              |
+| `maxLeverage`          | `number`                | **Required.** Max leverage as a whole multiplier (`20` = 20x), `1`–`100`.                        |
+| `depositChain`         | `ListingDepositChainId` | **Required.** Chain the token lives on and where its deposit is made.                            |
+| `isTax?`               | `boolean`               | Whether the token charges a transfer tax. Sent only when set.                                    |
+| `userWhitelistTax?`    | `boolean`               | Whether the deposit wallet is whitelisted from the token's tax. Sent only when set.              |
+| `additionalChains?`    | `readonly number[]`     | Extra deposit chain ids. Sent only when set; an empty array is sent as an empty list.            |
+| `poolAddress?`         | `string`                | An existing pool to attach. Sent only when set.                                                  |
+| `cexList?`             | `readonly string[]`     | CEX names the token trades on. Sent only when set.                                               |
+| `chainId?`             | `number`                | Which deployment's listing backend to write to. Defaults to the connected chain.                 |
+| `solverId?`            | `SolverId`              | `"enigma" \| "rasa"`. Defaults to the chain's default solver.                                    |
+
+<Callout type="info">
+  The optional extras (`isTax`, `userWhitelistTax`, `additionalChains`, `poolAddress`, `cexList`) are **the caller's to
+  default** — the SDK omits any you leave unset. Decide their defaults in your app and pass them explicitly (this is
+  what `apps/web`'s create-pool card does, sending `false` / `[]`).
+</Callout>
+
+### Return type
+
+`UseMutationResult<CreatedPool, SymmioRequestError, AddMarketVariables>`. On success, `data` is the [`CreatedPool`](../../core/pools/add-market#returns): the service-resolved `tokenName` / `tokenTicker` / `tokenDecimal`, the submitted economics, the `marketStatus` (a fresh application is `WAITING_FOR_DEPOSIT`), and the custodial `walletPublicKey` — the deposit wallet to seed the pool. Its money/config fields are plain `number`s, not the 18-decimal `bigint`s of a catalog row.
+
+```tsx
+import { useAddMarket, useAuthenticateListing } from "@symmio/trading-react";
+import { ListingDepositChainId } from "@symmio/trading-core";
+import { useState } from "react";
+
+export function CreatePool() {
+  const login = useAuthenticateListing();
+  const create = useAddMarket();
+  const [accessToken, setAccessToken] = useState("");
+
+  if (!accessToken) {
+    return (
+      <button
+        onClick={() => login.mutate({}, { onSuccess: (token) => setAccessToken(token.accessToken) })}
+        disabled={login.isPending}
+      >
+        {login.isPending ? "Sign in your wallet…" : "Sign in first"}
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <button
+        onClick={() =>
+          create.mutate({
+            accessToken,
+            tokenContractAddress: "0xToken…",
+            buyBackRatio: 5,
+            maxLeverage: 20,
+            depositChain: ListingDepositChainId.HYPER_EVM,
+          })
+        }
+        disabled={create.isPending}
+      >
+        {create.isPending ? "Creating pool…" : "Create pool"}
+      </button>
+      {create.error ? <p role="alert">{create.error.message}</p> : null}
+      {create.data ? (
+        <p>
+          {create.data.tokenTicker} · {create.data.marketStatus} · send the deposit to{" "}
+          <code>{create.data.walletPublicKey}</code>
+        </p>
+      ) : null}
+    </>
+  );
+}
+```
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. `mutate` rejects with `LISTING_UNSUPPORTED` / `LISTING_NOT_CONFIGURED` off a
+  Pools target, and a bad or expired token comes back as an `ADD_MARKET_FAILED` `401`. Gate the create-pool entry point
+  with [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
+</Callout>
+
 ## Overview aggregates
 
 The catalogue is only the table. The figures a pools page puts **above** it — TVL, volume, open interest, revenue, the pool count — are not in a `ListingMarket` and are not served by the listing backend at all. Five figures, five requests, and three different vendors behind them:
@@ -474,6 +582,7 @@ The pool count comes from `data.total`, never `data.items.length`: `total` is th
 
 - [Pools](../../core/pools) — the framework-agnostic slice: the availability rules, the 18-decimal contract, and the `ListingMarket` row shape.
 - [`getListingMarkets`](../../core/pools/get-listing-markets) — the action underneath, with the full sort-key and filter reference.
+- [`addMarket`](../../core/pools/add-market) — the framework-agnostic create-pool action behind `useAddMarket`.
 - [Solvers & chains](/core/concepts/solvers-and-chains#pools-listing-service) — where the listing backend is configured and how the capability resolves.
 - [Solvers hooks](../solvers#usesupportslistingservice) — the rest of the capability gates.
 - [Inventory hooks](../inventory) — `useInventoryTvl`, the headline TVL above the catalogue.
