@@ -5,6 +5,7 @@ export default {
   "get-user-listing-markets": "getUserListingMarkets",
   "user-profit": "getUserProfit",
   "deposit-address": "getDepositAddress",
+  "listing-status": "getListingStatus",
   "listing-config": "getListingConfig",
   "weekly-limit": "getWeeklyListingLimit",
   "-- auth": { type: "separator", title: "Auth" },

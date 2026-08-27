@@ -245,6 +245,32 @@ export interface MarketDepositAddress {
 }
 
 /**
+ * The listing-pipeline status of a single market — the normalized result of
+ * `getListingStatus`, keyed by the market's token address and deposit chain.
+ *
+ * `marketStatus` is the overall lifecycle status (the same machine as
+ * {@link ListingMarketStatus}); the remaining fields describe where the listing
+ * is in the backend's step pipeline and whether the current step is retrying or
+ * has errored.
+ */
+export interface ListingStatus {
+  /** Overall lifecycle status of the market, mapped from the service's `market_status`. */
+  marketStatus: ListingMarketStatus;
+  /** The step the listing pipeline is currently on, or `null` when it is not in a step. */
+  currentStep: string | null;
+  /** The ordered pipeline steps the listing moves through. */
+  steps: string[];
+  /** Error code reported for the current step, or `null` when there is no error. */
+  errorCode: number | null;
+  /** Human-readable detail for the current step's error, or `null`. */
+  errorDetail: string | null;
+  /** How many times the current step has been retried. */
+  retryCount: number;
+  /** The maximum retries allowed for the current step. */
+  retryLimit: number;
+}
+
+/**
  * The protocol's global new-market listing cap for the current rolling weekly
  * window — how many pools may still be listed across the protocol before the
  * window resets.

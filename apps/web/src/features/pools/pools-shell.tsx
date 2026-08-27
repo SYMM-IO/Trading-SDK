@@ -5,6 +5,7 @@ import { DepositAddressCard } from "./deposit-address-card";
 import { ListingAuthCard } from "./listing-auth-card";
 import { ListingAuthProvider } from "./listing-auth-context";
 import { ListingConfigCard } from "./listing-config-card";
+import { ListingStatusCard } from "./listing-status-card";
 import { PoolsConsole } from "./pools-console";
 import { PoolsOpenInterestCard } from "./pools-open-interest-card";
 import { PoolsRevenueCard } from "./pools-revenue-card";
@@ -41,9 +42,10 @@ export function PoolsShell() {
       {/* One shared bearer token for both cards: sign in once, reuse it across
           refreshes and cards instead of re-signing on every read. */}
       <ListingAuthProvider>
-        <MethodGroup label="Listing session" count={8}>
+        <MethodGroup label="Listing session" count={9}>
           <ListingConfigCard />
           <WeeklyLimitCard />
+          <ListingStatusCard />
           <ListingAuthCard />
           <YourPoolsCard />
           <UserProfitCard />

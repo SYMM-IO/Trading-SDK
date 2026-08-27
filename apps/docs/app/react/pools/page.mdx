@@ -4,9 +4,9 @@ import { Callout } from "nextra/components";
 
 React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
 
-Ten hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; and `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool.
+Eleven hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; and `useListingStatus` reads where a market sits in the listing pipeline (public).
 
-Seven of them are reads. `useAuthenticateListing`, `useAddMarket` and `useWithdrawLp` are **mutations** — the first prompts a wallet signature, the other two submit authed writes (a create-pool and an LP withdrawal).
+Eight of them are reads. `useAuthenticateListing`, `useAddMarket` and `useWithdrawLp` are **mutations** — the first prompts a wallet signature, the other two submit authed writes (a create-pool and an LP withdrawal).
 
 ## Import
 
@@ -17,6 +17,7 @@ import {
   useDepositAddress,
   useListingConfig,
   useListingMarkets,
+  useListingStatus,
   useSupportsListingService,
   useUserListingMarkets,
   useUserProfit,
@@ -928,6 +929,29 @@ Every field is optional. The hook takes the core query options plus `config`.
   **Enigma-only**, like the rest of Pools. A read off a Pools target fails before the network with
   `LISTING_NOT_CONFIGURED`. Gate the create-pool entry point with
   [`useSupportsListingService`](#gate-the-feature-first).
+</Callout>
+
+## `useListingStatus`
+
+Read a market's **listing status** — its lifecycle status and where it sits in the listing backend's pipeline (current step, all steps, retry count/limit, any step error), keyed by the market's token address and deposit chain.
+
+```tsx
+const { data, isPending } = useListingStatus({
+  tokenContractAddress: "0x1234…",
+  depositChain: ListingDepositChainId.HYPER_EVM,
+  query: { refetchInterval: 5000 }, // poll while it is still progressing
+});
+```
+
+It is a **public** read — no token, no sign-in. It gates on `tokenContractAddress`: while it is an empty string the hook stays **idle** (`enabled: false`), so you can mount it before an address is entered. There is **no `solverId`** — pass `chainId` only to target a specific deployment.
+
+### Return type
+
+`UseQueryResult<ListingStatus, SymmioRequestError>`. `data` carries `marketStatus` (the lifecycle status), `currentStep` / `steps` (the pipeline), `retryCount` / `retryLimit`, and `errorCode` / `errorDetail`. Set `query.refetchInterval` — a number, or a function that returns `false` once the status settles — to poll a listing still moving toward `LISTED`.
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. The query rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend. Gate the entry point with [`useSupportsListingService`](#gate-the-feature-first).
 </Callout>
 
 ## Overview aggregates

@@ -2,6 +2,7 @@ export * from "./add-market";
 export * from "./auth";
 export * from "./deposit-address";
 export * from "./listing-config";
+export * from "./listing-status";
 export * from "./markets";
 export * from "./profit";
 export * from "./resolve-listing";
