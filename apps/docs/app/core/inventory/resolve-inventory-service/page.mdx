@@ -10,7 +10,7 @@ import { resolveInventoryService } from "@symmio/trading-core";
 const { url } = resolveInventoryService(config, chainId);
 ```
 
-Availability has **one** half here, not two: the chain either carries an `inventory` block or it does not. There is no solver capability to declare — which is why the second argument is a bare chain id rather than the `{ chainId, solverId }` target [`resolveListingService`](/core/pools/resolve-listing-service) takes. Today only **HyperEVM** carries an inventory service.
+Availability is chain-level: the chain either carries an `inventory` block or it does not — there is no solver capability to declare, so the second argument is a bare chain id, exactly like the `{ chainId }` target [`resolveListingService`](/core/pools/resolve-listing-service) takes. Today only **HyperEVM** carries an inventory service.
 
 The service is optional per chain, so a miss throws rather than falling back to another chain's deployment. Falling back would report a different system's TVL, and a wrong number is worse than an error: it looks like data.
 

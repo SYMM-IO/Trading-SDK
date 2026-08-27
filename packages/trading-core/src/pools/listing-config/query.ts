@@ -67,7 +67,6 @@ export function getListingConfigQueryOptions(
     queryFn: () =>
       getListingConfig(config, {
         chainId: options.chainId,
-        solverId: options.solverId,
       }),
   };
 }

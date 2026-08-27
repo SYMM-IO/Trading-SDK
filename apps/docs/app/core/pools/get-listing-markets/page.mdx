@@ -40,10 +40,6 @@ function listedOnly(parameters: GetListingMarketsParameters): Promise<GetListing
     Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
     folded into the query key.
   </Property>
-  <Property name="solverId" type="SolverId" typeHref="/core/concepts/solvers-and-chains" optional>
-    Solver kind to target. Defaults to the chain's default solver. Only a solver declaring the `listingService`
-    capability can be used here.
-  </Property>
   <Property name="search" type="string" optional>
     Free-text search, matched by the backend against contract address, ticker, and token name. Named `search` rather
     than `query` because the TanStack options bag on the matching query factory already owns `query`; it is sent as
@@ -297,8 +293,7 @@ Because search, filtering, sorting and paging are all server-side, each distinct
 
 ## Throws
 
-- `LISTING_UNSUPPORTED` — a `SymmError` (`kind: "config"`) when the resolved solver does not declare the `listingService` capability. Gate with `supportsListingService` to hide Pools instead of erroring.
-- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the resolved chain has no `listing` backend.
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide Pools instead of erroring.
 - `FETCH_LISTING_MARKETS_FAILED` — the request itself failed. Any axios failure — including a transport error with no response, which arrives with `status: 0` and `statusText: "Unknown"` — becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`. A non-axios throw becomes a plain `SymmError` (`kind: "api"`), with the original error as its `cause` when it was an `Error`.
 
 ## Related

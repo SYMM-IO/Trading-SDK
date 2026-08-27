@@ -191,6 +191,52 @@ export interface UserListingMarketPage {
 }
 
 /**
+ * The signed-in user's LP position and profit in a single pool — the authed
+ * per-token read behind a pool's "your position" panel.
+ *
+ * Every field is a `bigint` at {@link LISTING_VALUE_DECIMALS} (18), independent
+ * of the token's or collateral's own decimals; format with
+ * `formatUnits(value, LISTING_VALUE_DECIMALS)` at the display edge. An absent
+ * figure is normalized to `0n`, not `null`.
+ */
+export interface UserPoolProfit {
+  /** LP balance valued in the pool's token units, 18-dec bigint. */
+  userBalanceInTokens: bigint;
+  /** LP balance valued in USDC, 18-dec bigint USD. */
+  userBalanceInUsdc: bigint;
+  /** Rewards the user can claim now, 18-dec bigint USD. */
+  claimableReward: bigint;
+  /** Rewards already claimed, 18-dec bigint USD. */
+  claimedReward: bigint;
+  /** Token amount the user deposited, 18-dec bigint. */
+  userDepositedTokenAmount: bigint;
+  /** The user's LP shares, 18-dec bigint. */
+  userLpAmount: bigint;
+  /** LP shares queued for withdrawal (the pending-withdrawal amount), 18-dec bigint. */
+  pendingWithdrawLpAmount: bigint;
+}
+
+/**
+ * The signed-in user's deposit wallet for one market — the get-or-create result
+ * of the authed `/v2/market/deposit-address` endpoint. This is the address the
+ * user sends funds to in order to deposit into the market's pool.
+ */
+export interface MarketDepositAddress {
+  /** The market's token contract address (EVM 0x… or Solana base58). */
+  tokenContractAddress: string;
+  /** The signed-in user this deposit wallet belongs to. */
+  userAddress: string;
+  /** The market's deposit chain. */
+  depositChain: ListingDepositChainId;
+  /** The deposit address — where the user sends funds to deposit into this market. `null` when the service returned none. */
+  depositAddress: string | null;
+  /** The token's on-chain decimals. */
+  tokenDecimal: number;
+  /** The market's listing lifecycle status. */
+  marketStatus: ListingMarketStatus;
+}
+
+/**
  * The protocol's global new-market listing cap for the current rolling weekly
  * window — how many pools may still be listed across the protocol before the
  * window resets.

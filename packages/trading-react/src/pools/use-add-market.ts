@@ -44,10 +44,10 @@ export type UseAddMarketReturnType = UseMutationResult<CreatedPool, SymmioReques
  *
  * Required variables: `accessToken`, `tokenContractAddress`, `buyBackRatio`
  * (`0`–`100`), `maxLeverage` (`1`–`100`), and `depositChain`. The optional extras
- * are the caller's to default. This flow is **Enigma-only** — `mutate` /
+ * are the caller's to default. Pools is **chain-level** — `mutate` /
  * `mutateAsync` reject with a normalized {@link SymmioRequestError}
- * (`LISTING_UNSUPPORTED` / `LISTING_NOT_CONFIGURED`) on any other target, and a
- * bad or expired token comes back as an `ADD_MARKET_FAILED` `401`. Failures are
+ * (`LISTING_NOT_CONFIGURED`) on a chain with no listing backend, and a bad or
+ * expired token comes back as an `ADD_MARKET_FAILED` `401`. Failures are
  * normalized to {@link SymmioRequestError}.
  *
  * @example

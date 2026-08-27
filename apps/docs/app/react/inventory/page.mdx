@@ -34,7 +34,7 @@ Every field is optional. The hook takes the core query options plus `config`.
 | `query?`   | `QueryParameter` | —                       | TanStack overrides — `enabled`, `refetchInterval`, `staleTime`, `select`, … |
 | `config?`  | `Config`         | the config from context | Override the `SymmioProvider` config (tests, multi-app).                    |
 
-There is no `solverId`. The inventory service is configured at **chain** level and no solver capability gates it — unlike [`useListingMarkets`](../pools), whose target is a `{ chainId, solverId }` pair.
+There is no `solverId`. The inventory service is configured at **chain** level and no solver capability gates it — exactly like [`useListingMarkets`](../pools), which also resolves its listing backend from the chain alone.
 
 Nothing polls by default. A dashboard that wants a live figure passes `query: { refetchInterval: 30_000 }`.
 

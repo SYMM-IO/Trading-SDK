@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
+import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { resolveListingService } from "../resolve-listing";
 import type { ListingDepositChainId } from "../types";
 import { addMarketV2MarketAddMarketPost } from "../types/generated/listing-backend";
@@ -19,7 +19,7 @@ import type { CreatedPool } from "./types";
  * absent from the request rather than defaulted.
  */
 export type AddMarketParameters = Compute<
-  ReadSolverParameter & {
+  ChainIdParameter & {
     /**
      * Bearer token from `authenticateListing`; required — the endpoint is authed.
      * Sent as the `Authorization: Bearer <token>` header; a bad or expired token
@@ -65,10 +65,9 @@ export type AddMarketReturnType = CreatedPool;
  * @param parameters - The bearer token, token address, pool economics, deposit chain, and any listing extras.
  * @returns The created pool application, normalized to a {@link CreatedPool}.
  * @throws {SymmApiError} `ADD_MARKET_FAILED` when the endpoint request fails — including a `401` on a bad or expired token, and the service's weekly-listing-limit rejections, which surface with the service's message and status as-is.
- * @throws {SymmError} `LISTING_UNSUPPORTED` when the resolved solver does not use
- *   the listing service, or `LISTING_NOT_CONFIGURED` when the chain has no
- *   listing backend. Gate with `supportsListingService` to hide the create-pool
- *   flow instead.
+ * @throws {SymmError} `LISTING_NOT_CONFIGURED` when the chain has no listing
+ *   backend. Gate with `supportsListingService` to hide the create-pool flow
+ *   instead.
  *
  * @example
  * ```ts
@@ -83,10 +82,7 @@ export type AddMarketReturnType = CreatedPool;
  * ```
  */
 export async function addMarket(config: Config, parameters: AddMarketParameters): Promise<CreatedPool> {
-  const { url: baseURL } = resolveListingService(config, {
-    chainId: parameters.chainId,
-    solverId: parameters.solverId,
-  });
+  const { url: baseURL } = resolveListingService(config, { chainId: parameters.chainId });
 
   try {
     const response = await addMarketV2MarketAddMarketPost(toAddMarketRequest(parameters), {

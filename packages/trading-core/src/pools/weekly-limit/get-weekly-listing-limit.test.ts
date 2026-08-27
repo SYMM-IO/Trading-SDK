@@ -36,14 +36,14 @@ describe("getWeeklyListingLimit", () => {
     expect(result).toEqual({ limit: 5, remaining: 2, resetAt: 1735689600 });
   });
 
-  it("throws LISTING_UNSUPPORTED before any request when the solver does not use the listing service", async () => {
+  it("throws LISTING_NOT_CONFIGURED before any request when the chain has no listing backend", async () => {
     const { config } = mockConfig();
 
     await expect(getWeeklyListingLimit(config, { chainId: SymmioSupportedChainId.BASE })).rejects.toBeInstanceOf(
       SymmError,
     );
     await expect(getWeeklyListingLimit(config, { chainId: SymmioSupportedChainId.BASE })).rejects.toMatchObject({
-      code: "LISTING_UNSUPPORTED",
+      code: "LISTING_NOT_CONFIGURED",
     });
     expect(getWeeklyListingLimitV2MarketWeeklyListingLimitGet).not.toHaveBeenCalled();
   });

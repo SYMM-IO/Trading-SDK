@@ -72,7 +72,6 @@ export function getUserListingMarketsQueryOptions(
     queryFn: () =>
       getUserListingMarkets(config, {
         chainId: options.chainId,
-        solverId: options.solverId,
         accessToken: options.accessToken,
         search: options.search,
         chainIds: options.chainIds,

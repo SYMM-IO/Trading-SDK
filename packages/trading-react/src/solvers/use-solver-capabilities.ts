@@ -55,17 +55,3 @@ export function useSupportsLimitOrder(parameters: UseSolverCapabilitiesParameter
   const chainId = useSymmioChainId();
   return supportsLimitOrder(config, { chainId: parameters.chainId ?? chainId, solverId: parameters.solverId });
 }
-
-/**
- * Whether the target solver's markets are the lowcap **Pools** — i.e. it uses
- * the chain's listing backend. Shorthand for
- * `useSolverCapabilities().listingService`; gate the Pools tab on it so the
- * feature hides where it is unavailable rather than erroring at request time.
- *
- * This checks only the solver's declaration. `supportsListingService` in core
- * additionally requires the chain to carry a `listing` block — prefer that when
- * you are about to issue a request.
- */
-export function useSupportsListingService(parameters: UseSolverCapabilitiesParameters = {}): boolean {
-  return useSolverCapabilities(parameters).listingService;
-}

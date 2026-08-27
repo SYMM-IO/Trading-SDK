@@ -67,9 +67,8 @@ Every entry is a `SymmioChainConfig` — the fully-resolved settings for one cha
   <Property name="listing" type="SymmioListingConfig" optional>
     The [Pools](/core/pools) listing backend — a single `url`, and that `url` is the **host root**: no version segment
     and no trailing slash, because the generated client's own paths already begin with `/v2`. Chain-level rather than
-    per-solver, since several solvers on one chain could share one deployment; a solver opts in with the
-    `listingService` capability. Present only on HyperEVM today. See [Pools listing
-    service](/core/concepts/solvers-and-chains#pools-listing-service).
+    per-solver, since several solvers on one chain could share one deployment. Present only on HyperEVM today. See [Pools
+    listing service](/core/concepts/solvers-and-chains#pools-listing-service).
   </Property>
   <Property name="inventory" type="SymmioInventoryConfig" optional>
     The [inventory service](/core/inventory) — the custody backend behind the Pools, and a **different vendor** from

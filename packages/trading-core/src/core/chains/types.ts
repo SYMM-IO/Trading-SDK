@@ -97,12 +97,12 @@ export interface SolverCapabilitiesConfig {
    */
   limitOrder?: boolean;
   /**
-   * Whether this solver's markets participate in the **Pools / listing service**
-   * — the listing backend ({@link SymmioChainConfig.listing}) that serves the
-   * pool catalogue, stats, and LP flows. Enigma (lowcap, on HyperEVM) uses it;
-   * no other solver does. Default `false`. The solver declares that it uses the
-   * service here; the service URL itself lives at chain level so several solvers
-   * on one chain could share it.
+   * Whether this solver's markets are the lowcap **Pools** (listing service).
+   * Purely declarative: the SDK's listing functions resolve the listing backend
+   * **at chain level** ({@link SymmioChainConfig.listing}) and do **not** gate on
+   * this flag. It exists so config can express which solvers do listing, readable
+   * via `getSolverCapabilities`. Enigma (lowcap) declares it; rasa does not.
+   * Default `false`.
    */
   listingService?: boolean;
 }
@@ -295,10 +295,10 @@ export interface SymmioMuonConfig {
  *
  * The listing backend is an auth'd REST service that owns the lowcap Pools flow
  * — the pool catalogue, per-pool stats, a user's stake/rewards, and the
- * create/deposit/withdraw/claim actions. It is chain-level (a chain has at most
- * one), and a solver opts into it via
- * {@link SolverCapabilitiesConfig.listingService}. Present only where Pools is
- * available (Enigma on HyperEVM); omitted elsewhere.
+ * create/deposit/withdraw/claim actions. It is chain-level: one listing backend
+ * is served per chain (a chain has at most one), with no solver or capability
+ * involved. Present only where Pools is available (Enigma on HyperEVM); omitted
+ * elsewhere.
  *
  * One deployment serves listings whose collateral was deposited on **several**
  * chains — a catalogue row's `chainId` is the token's deposit chain, which is
@@ -366,10 +366,9 @@ export interface SymmioChainConfig {
   /** Muon oracle configuration */
   muon: SymmioMuonConfig;
   /**
-   * Optional Pools listing backend. Set on chains where the lowcap Pools flow is
-   * available (Enigma on HyperEVM); omitted elsewhere. A solver opts in via
-   * {@link SolverCapabilitiesConfig.listingService}; resolve it with
-   * `resolveListingService` / gate on `supportsListingService`.
+   * Optional Pools listing backend, served per chain. Set on chains where the
+   * lowcap Pools flow is available (Enigma on HyperEVM); omitted elsewhere.
+   * Resolve it with `resolveListingService` / gate on `supportsListingService`.
    */
   listing?: SymmioListingConfig;
   /**

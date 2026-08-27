@@ -2,7 +2,7 @@ import { isAxiosError } from "axios";
 import type { Address } from "viem";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
+import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { resolveListingService } from "../resolve-listing";
 import { getSignInMessageV2AuthSignInMessageGet } from "../types/generated/listing-backend";
 import { toListingSignInMessage } from "./to-siwe";
@@ -10,7 +10,7 @@ import type { ListingSignInMessage } from "./types";
 
 /** Parameters for {@link getListingSignInMessage}. */
 export type GetListingSignInMessageParameters = Compute<
-  ReadSolverParameter & {
+  ChainIdParameter & {
     /** Address that will sign the message (EIP-55 checksum). */
     address: Address;
     /** RFC 4501 DNS authority requesting the sign-in. */
@@ -39,9 +39,8 @@ export type GetListingSignInMessageReturnType = ListingSignInMessage;
  * @param parameters - Address, domain, uri, and optional statement.
  * @returns The SIWE challenge to sign.
  * @throws {SymmApiError} when the backend request fails.
- * @throws {SymmError} `LISTING_UNSUPPORTED` when the resolved solver does not use
- *   the listing service, or `LISTING_NOT_CONFIGURED` when the chain has no
- *   listing backend.
+ * @throws {SymmError} `LISTING_NOT_CONFIGURED` when the chain has no listing
+ *   backend.
  *
  * @example
  * ```ts
@@ -56,10 +55,7 @@ export async function getListingSignInMessage(
   config: Config,
   parameters: GetListingSignInMessageParameters,
 ): Promise<GetListingSignInMessageReturnType> {
-  const { url } = resolveListingService(config, {
-    chainId: parameters.chainId,
-    solverId: parameters.solverId,
-  });
+  const { url } = resolveListingService(config, { chainId: parameters.chainId });
 
   try {
     const response = await getSignInMessageV2AuthSignInMessageGet(

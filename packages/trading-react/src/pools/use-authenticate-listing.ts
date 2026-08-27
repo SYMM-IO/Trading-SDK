@@ -45,10 +45,10 @@ export type UseAuthenticateListingReturnType = UseMutationResult<
  * <accessToken>` header on subsequent authenticated Pools requests.
  *
  * `domain` and `uri` default to the current origin (`window.location.host` /
- * `window.location.origin`); pass them to override. This flow is **Enigma-only**
+ * `window.location.origin`); pass them to override. Pools is **chain-level**
  * — `mutate` / `mutateAsync` reject with a normalized {@link SymmioRequestError}
- * (`LISTING_UNSUPPORTED`) on any other solver. Failures are normalized to
- * {@link SymmioRequestError}.
+ * (`LISTING_NOT_CONFIGURED`) on a chain with no listing backend. Failures are
+ * normalized to {@link SymmioRequestError}.
  *
  * @example
  * ```tsx

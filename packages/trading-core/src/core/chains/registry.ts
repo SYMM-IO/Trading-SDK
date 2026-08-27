@@ -43,8 +43,8 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
           searchUrl: "https://notification.rasa.capital/notification",
         },
         // VA-per-market/side isolation supports folding a group into one close.
-        // `listingService`: this solver's markets are the lowcap Pools; the
-        // chain-level `listing` backend below serves their catalogue/stats/LP flows.
+        // `listingService`: declares this solver does the lowcap Pools/listing —
+        // declarative only; the listing functions resolve the backend at chain level.
         capabilities: { groupClose: true, listingService: true },
       },
     },

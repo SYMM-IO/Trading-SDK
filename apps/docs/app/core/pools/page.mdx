@@ -34,14 +34,9 @@ This slice covers the catalog, and the catalog is only one of the backends behin
 
 ## Availability
 
-Pools is not universally available, and the check has two halves:
+Pools is not universally available. It exists on a chain when the chain carries a `listing` block ([`SymmioListingConfig`](/core/concepts/solvers-and-chains#pools-listing-service)) pointing at a listing backend. A solver may _declare_ it does listing via the `listingService` capability, but that flag is **metadata only** — the listing functions do not check it; resolution is purely chain-level. The URL lives at chain level because several solvers on one chain could share one listing deployment. Today only **HyperEVM** has it.
 
-1. The resolved **solver declares** the `listingService` capability, and
-2. the **chain carries** a `listing` block ([`SymmioListingConfig`](/core/concepts/solvers-and-chains#pools-listing-service)).
-
-The URL lives at chain level rather than on the solver because several solvers on one chain could share one listing deployment; the capability flag is how a solver opts into it. Today only **enigma on HyperEVM** satisfies both.
-
-[`resolveListingService`](/core/pools/resolve-listing-service) returns the chain's listing config when both hold and throws otherwise — `LISTING_UNSUPPORTED` for a solver that does not use the service, `LISTING_NOT_CONFIGURED` for a chain with no backend. `supportsListingService` is the non-throwing twin: use it for `enabled` gates and UI so Pools hides instead of erroring where it does not exist.
+[`resolveListingService`](/core/pools/resolve-listing-service) returns the chain's listing config or throws `LISTING_NOT_CONFIGURED` when the chain has no backend. `supportsListingService` is the non-throwing twin: use it for `enabled` gates and UI so Pools hides instead of erroring where it does not exist.
 
 ```ts
 import { getListingMarkets, supportsListingService } from "@symmio/trading-core";
@@ -102,7 +97,7 @@ Range filter bounds use the **same 18-decimal scale as the response**. A one-mil
 
 <MethodIndex kind="read">
   <MethodEntry name="resolveListingService" href="/core/pools/resolve-listing-service">
-    Resolve the listing backend for a `{ chainId, solverId }` target, or check availability without throwing.
+    Resolve the listing backend for a `{chainId}` target, or check availability without throwing.
   </MethodEntry>
 </MethodIndex>
 
@@ -136,8 +131,7 @@ The catalog read ships a matching `getListingMarketsQueryOptions` factory and a 
 
 ## Errors
 
-- `LISTING_UNSUPPORTED` — the resolved solver does not declare the `listingService` capability.
-- `LISTING_NOT_CONFIGURED` — the resolved chain has no `listing` backend configured.
+- `LISTING_NOT_CONFIGURED` — the chain has no `listing` backend configured.
 - `FETCH_LISTING_MARKETS_FAILED` — the catalog request failed. An axios failure arrives as a `SymmApiError` with `status`, `statusText`, `responseData`, `url` and `method` (a failure with no response carries `status: 0` / `statusText: "Unknown"`); anything else is a plain `SymmError` with `kind: "api"`.
 
 ## Related

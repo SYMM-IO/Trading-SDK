@@ -71,7 +71,7 @@ describe("getListingSignInMessage", () => {
     });
   });
 
-  it("throws LISTING_UNSUPPORTED for a solver that does not use the listing service", async () => {
+  it("throws LISTING_NOT_CONFIGURED when the chain has no listing backend", async () => {
     const { config } = mockConfig();
 
     await expect(
@@ -89,7 +89,7 @@ describe("getListingSignInMessage", () => {
         domain: "app.example.com",
         uri: "https://app.example.com",
       }),
-    ).rejects.toMatchObject({ code: "LISTING_UNSUPPORTED" });
+    ).rejects.toMatchObject({ code: "LISTING_NOT_CONFIGURED" });
     expect(getSignInMessageV2AuthSignInMessageGet).not.toHaveBeenCalled();
   });
 });

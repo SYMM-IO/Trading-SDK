@@ -67,7 +67,6 @@ export function getListingMarketsQueryOptions(
     queryFn: () =>
       getListingMarkets(config, {
         chainId: options.chainId,
-        solverId: options.solverId,
         search: options.search,
         chainIds: options.chainIds,
         marketStatus: options.marketStatus,

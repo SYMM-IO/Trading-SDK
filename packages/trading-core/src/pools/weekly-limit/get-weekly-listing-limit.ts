@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
+import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { resolveListingService } from "../resolve-listing";
 import type { WeeklyListingLimit } from "../types";
 import { getWeeklyListingLimitV2MarketWeeklyListingLimitGet } from "../types/generated/listing-backend";
@@ -11,10 +11,9 @@ import { toWeeklyListingLimit } from "./to-weekly-limit";
  * Parameters for {@link getWeeklyListingLimit}.
  *
  * The endpoint is public — no auth. Both fields are optional: when omitted the
- * config's default chain and the chain's default solver resolve the listing
- * backend.
+ * config's default chain resolves the listing backend.
  */
-export type GetWeeklyListingLimitParameters = Compute<ReadSolverParameter>;
+export type GetWeeklyListingLimitParameters = Compute<ChainIdParameter>;
 
 /** Return type of {@link getWeeklyListingLimit}: the protocol's global weekly listing cap. */
 export type GetWeeklyListingLimitReturnType = WeeklyListingLimit;
@@ -32,9 +31,8 @@ export type GetWeeklyListingLimitReturnType = WeeklyListingLimit;
  * @param parameters - Optional chain and solver overrides.
  * @returns The protocol's {@link WeeklyListingLimit} for the current window.
  * @throws {SymmApiError} when the endpoint request fails.
- * @throws {SymmError} `LISTING_UNSUPPORTED` when the resolved solver does not use
- *   the listing service, or `LISTING_NOT_CONFIGURED` when the chain has no
- *   listing backend. Gate with `supportsListingService` to hide Pools instead.
+ * @throws {SymmError} `LISTING_NOT_CONFIGURED` when the chain has no listing
+ *   backend. Gate with `supportsListingService` to hide Pools instead.
  *
  * @example
  * ```ts
@@ -46,10 +44,7 @@ export async function getWeeklyListingLimit(
   config: Config,
   parameters: GetWeeklyListingLimitParameters = {},
 ): Promise<WeeklyListingLimit> {
-  const { url: baseURL } = resolveListingService(config, {
-    chainId: parameters.chainId,
-    solverId: parameters.solverId,
-  });
+  const { url: baseURL } = resolveListingService(config, { chainId: parameters.chainId });
 
   try {
     const response = await getWeeklyListingLimitV2MarketWeeklyListingLimitGet({ baseURL });

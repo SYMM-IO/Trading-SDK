@@ -130,7 +130,7 @@ describe("getListingMarketsQueryOptions", () => {
     });
   });
 
-  it("throws rather than reading another chain's catalog when the solver does not use the listing service", async () => {
+  it("throws rather than reading another chain's catalog when the chain has no listing backend", async () => {
     const config = createConfig({
       symmioConfig: {
         [SymmioSupportedChainId.BASE]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } },
@@ -141,25 +141,6 @@ describe("getListingMarketsQueryOptions", () => {
     });
 
     await expect(getListingMarketsQueryOptions(config).queryFn()).rejects.toThrow(SymmError);
-    await expect(getListingMarketsQueryOptions(config).queryFn()).rejects.toMatchObject({
-      code: "LISTING_UNSUPPORTED",
-    });
-    expect(marketSearchV2MarketSearchGet).not.toHaveBeenCalled();
-  });
-
-  it("throws when the solver opts in but the chain has no listing backend", async () => {
-    const config = createConfig({
-      symmioConfig: {
-        [SymmioSupportedChainId.BASE]: {
-          addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
-          solvers: { rasa: { capabilities: { listingService: true } } },
-        },
-        [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } },
-      },
-      getClient: () => ({}) as PublicClient,
-      defaultChainId: SymmioSupportedChainId.BASE,
-    });
-
     await expect(getListingMarketsQueryOptions(config).queryFn()).rejects.toMatchObject({
       code: "LISTING_NOT_CONFIGURED",
     });

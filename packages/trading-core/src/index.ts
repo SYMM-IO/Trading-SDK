@@ -2101,11 +2101,11 @@ export {
 /**
  * Pools (lowcap liquidity markets)
  * --------------------------------
- * The lowcap Pools flow, served by the Enigma **listing backend**
- * ({@link SymmioListingConfig}). `resolveListingService` returns the backend for
- * a `{ chainId, solverId }` target (throws where Pools is unavailable);
- * `supportsListingService` is its non-throwing boolean twin for `enabled` / UI
- * gates.
+ * The lowcap Pools flow, served by a per-chain **listing backend**
+ * ({@link SymmioListingConfig}). Listing is chain-level: `resolveListingService`
+ * returns the chain's backend (throws `LISTING_NOT_CONFIGURED` where the chain
+ * has none); `supportsListingService` is its non-throwing boolean twin for
+ * `enabled` / UI gates.
  *
  * `getListingMarkets` reads the pool catalogue — search, filter, sort and
  * pagination are all server-side. Every money and rate field on a row is a
@@ -2121,6 +2121,9 @@ export {
   addMarketMutationOptions,
   authenticateListing,
   authenticateListingMutationOptions,
+  getDepositAddress,
+  getDepositAddressQueryKey,
+  getDepositAddressQueryOptions,
   getListingConfig,
   getListingConfigQueryKey,
   getListingConfigQueryOptions,
@@ -2131,6 +2134,9 @@ export {
   getUserListingMarkets,
   getUserListingMarketsQueryKey,
   getUserListingMarketsQueryOptions,
+  getUserProfit,
+  getUserProfitQueryKey,
+  getUserProfitQueryOptions,
   getWeeklyListingLimit,
   getWeeklyListingLimitQueryKey,
   getWeeklyListingLimitQueryOptions,
@@ -2144,14 +2150,22 @@ export {
   toListingMarketPage,
   toListingSignInMessage,
   toListingValue,
+  toMarketDepositAddress,
   toUserListingMarket,
   toUserListingMarketPage,
+  toUserPoolProfit,
   toWeeklyListingLimit,
   type AddMarketParameters,
   type AddMarketReturnType,
   type AuthenticateListingParameters,
   type AuthenticateListingReturnType,
   type CreatedPool,
+  type GetDepositAddressData,
+  type GetDepositAddressOptions,
+  type GetDepositAddressParameters,
+  type GetDepositAddressQueryKey,
+  type GetDepositAddressQueryOptions,
+  type GetDepositAddressReturnType,
   type GetListingConfigData,
   type GetListingConfigOptions,
   type GetListingConfigParameters,
@@ -2172,6 +2186,12 @@ export {
   type GetUserListingMarketsQueryKey,
   type GetUserListingMarketsQueryOptions,
   type GetUserListingMarketsReturnType,
+  type GetUserProfitData,
+  type GetUserProfitOptions,
+  type GetUserProfitParameters,
+  type GetUserProfitQueryKey,
+  type GetUserProfitQueryOptions,
+  type GetUserProfitReturnType,
   type GetWeeklyListingLimitData,
   type GetWeeklyListingLimitOptions,
   type GetWeeklyListingLimitParameters,
@@ -2193,9 +2213,11 @@ export {
   type ListingTimeRange,
   type ListingTrailingWindows,
   type ListingValueRange,
+  type MarketDepositAddress,
   type ResolveListingServiceParameters,
   type UserListingMarket,
   type UserListingMarketPage,
+  type UserPoolProfit,
   type WeeklyListingLimit,
 } from "./pools";
 /**

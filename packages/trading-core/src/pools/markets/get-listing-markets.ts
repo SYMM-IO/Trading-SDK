@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
+import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { resolveListingService } from "../resolve-listing";
 import type {
   ListingDepositChainId,
@@ -22,7 +22,7 @@ import { toSearchParams } from "./to-search-params";
  * page (20 rows, newest-listed first).
  */
 export type GetListingMarketsParameters = Compute<
-  ReadSolverParameter & {
+  ChainIdParameter & {
     /**
      * Free-text search, matched against contract address, ticker, and token
      * name.
@@ -66,9 +66,8 @@ export type GetListingMarketsReturnType = ListingMarketPage;
  * @param parameters - Search, filter, sort, and pagination inputs.
  * @returns One page of {@link ListingMarketPage} rows plus the total row count.
  * @throws {SymmApiError} when the service request fails.
- * @throws {SymmError} `LISTING_UNSUPPORTED` when the resolved solver does not use
- *   the listing service, or `LISTING_NOT_CONFIGURED` when the chain has no
- *   listing backend. Gate with `supportsListingService` to hide Pools instead.
+ * @throws {SymmError} `LISTING_NOT_CONFIGURED` when the chain has no listing
+ *   backend. Gate with `supportsListingService` to hide Pools instead.
  *
  * @example
  * ```ts
@@ -84,10 +83,7 @@ export async function getListingMarkets(
   config: Config,
   parameters: GetListingMarketsParameters = {},
 ): Promise<GetListingMarketsReturnType> {
-  const { url: baseURL } = resolveListingService(config, {
-    chainId: parameters.chainId,
-    solverId: parameters.solverId,
-  });
+  const { url: baseURL } = resolveListingService(config, { chainId: parameters.chainId });
 
   const params = toSearchParams({
     query: parameters.search,

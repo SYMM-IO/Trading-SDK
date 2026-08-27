@@ -149,10 +149,10 @@ Gate a flow or UI on what the resolved solver declares it supports, so an unsupp
 
 ### `useSolverCapabilities`
 
-The resolved `SolverCapabilities` object (`{ groupClose, limitOrder, listingService }`, all definite booleans).
+The resolved `SolverCapabilities` object (`{ groupClose, limitOrder, listingService }`, all definite booleans). `listingService` is declarative metadata — the listing functions do not gate on it (see [Pools listing service](/core/concepts/solvers-and-chains#pools-listing-service)).
 
 ```tsx
-const { limitOrder, groupClose, listingService } = useSolverCapabilities();
+const { limitOrder, groupClose } = useSolverCapabilities();
 ```
 
 ### `useSupportsLimitOrder`
@@ -176,13 +176,13 @@ const canGroupClose = useSupportsGroupClose();
 
 ### `useSupportsListingService`
 
-Boolean shorthand — whether this solver's markets are the lowcap **Pools**, i.e. whether it uses the chain's listing backend. Gate the Pools tab on it so the feature hides where it is unavailable instead of erroring at request time.
+Boolean shorthand — whether the chain has the lowcap **Pools**, i.e. whether it carries a `listing` backend. Gate the Pools tab on it so the feature hides where it is unavailable instead of erroring at request time.
 
 ```tsx
 const hasPools = useSupportsListingService();
 ```
 
-It checks only the solver's declaration. Core's `supportsListingService` additionally requires the chain to carry a `listing` block. Every request [`useListingMarkets`](/react/pools) issues runs that stricter check through `resolveListingService` — the throwing form — which is why a read against a target without Pools surfaces as `LISTING_UNSUPPORTED` / `LISTING_NOT_CONFIGURED` rather than as a `false`. Today only enigma on HyperEVM has both halves. See [Pools listing service](/core/concepts/solvers-and-chains#pools-listing-service).
+It is `true` when the chain carries a `listing` block, delegating to core's `supportsListingService`. Every request [`useListingMarkets`](/react/pools) issues resolves the backend through `resolveListingService` — the throwing form — which is why a read against a chain without a listing backend surfaces as `LISTING_NOT_CONFIGURED` rather than as a `false`. Today only HyperEVM has it. See [Pools listing service](/core/concepts/solvers-and-chains#pools-listing-service).
 
 ## Trading flows
 

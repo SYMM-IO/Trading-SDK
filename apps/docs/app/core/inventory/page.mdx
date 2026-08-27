@@ -26,7 +26,7 @@ Separate deployments mean separate refresh cadences and separate failure modes. 
 
 ## Availability
 
-The inventory service is configured at **chain level** and optional: `SymmioChainConfig.inventory`, a `SymmioInventoryConfig`. Unlike the Pools listing backend the check has only **one** half — there is no solver capability to declare, so a chain either carries an `inventory` block or it does not. That is why [`resolveInventoryService`](/core/inventory/resolve-inventory-service) takes a bare `chainId` rather than a `{ chainId, solverId }` target.
+The inventory service is configured at **chain level** and optional: `SymmioChainConfig.inventory`, a `SymmioInventoryConfig`. Like the Pools listing backend, no solver capability **gates** it — a chain either carries an `inventory` block or it does not. That is why [`resolveInventoryService`](/core/inventory/resolve-inventory-service) takes a bare `chainId`.
 
 Today only **HyperEVM** carries one (`inventory: { url: "https://inventory85.enigma.bz" }`).
 

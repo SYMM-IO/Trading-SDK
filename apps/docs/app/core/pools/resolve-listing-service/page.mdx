@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 # resolveListingService
 
-Resolve the Pools **listing backend** for a `{ chainId, solverId }` target. Every Pools read runs this first, so a target without Pools fails with a typed error instead of a request to a backend that is not there.
+Resolve the Pools **listing backend** for a `{ chainId }` target. Every Pools read runs this first, so a chain without Pools fails with a typed error instead of a request to a backend that is not there.
 
 ```ts
 import { resolveListingService } from "@symmio/trading-core";
@@ -10,21 +10,13 @@ import { resolveListingService } from "@symmio/trading-core";
 const { url } = resolveListingService(config, { chainId });
 ```
 
-Availability has two halves, and this function requires **both**:
-
-1. the resolved solver declares the `listingService` capability, and
-2. the resolved chain carries a `listing` block.
-
-The capability lives on the solver because it is the solver's markets that are listed; the URL lives on the chain because several solvers on one chain could share one listing deployment. Today only **enigma on HyperEVM** satisfies both.
+Listing is served **per chain**: a chain either carries a `listing` block or it does not. `resolveListingService` does **not** check any solver capability — a solver may _declare_ the `listingService` capability, but that is metadata the resolver ignores. The URL lives on the chain because several solvers on one chain could share one listing deployment. Today only **HyperEVM** has it.
 
 ## Parameters
 
 <Properties>
   <Property name="chainId" type="number" optional>
     Target chain id. Defaults to the config's `defaultChainId`.
-  </Property>
-  <Property name="solverId" type="SolverId" optional>
-    Solver to check. Defaults to the chain's `defaultSolverId`.
   </Property>
 </Properties>
 
@@ -46,16 +38,13 @@ Both functions take the same object, exported as `ResolveListingServiceParameter
 
 ## Throws
 
-Both are a `SymmError` with `kind: "config"`, raised before any network call:
+A `SymmError` with `kind: "config"`, raised before any network call:
 
-- `LISTING_UNSUPPORTED` — the resolved solver does not use the listing service. The message names the solver, e.g. `Pools: solver "Rasa" (kind "rasa") does not use the listing service.`
-- `LISTING_NOT_CONFIGURED` — the solver uses the service, but the chain has no `listing` backend configured.
-
-The capability is checked first, so a solver that does not do Pools reports `LISTING_UNSUPPORTED` even on a chain that has a backend configured for some other solver.
+- `LISTING_NOT_CONFIGURED` — the chain has no `listing` backend configured.
 
 ## supportsListingService
 
-The non-throwing twin. Same parameters, returns a boolean.
+The non-throwing twin, and the chain-level boolean: `true` when the chain carries a `listing` backend. Same parameters, returns a boolean.
 
 ```ts
 import { supportsListingService } from "@symmio/trading-core";
@@ -63,7 +52,7 @@ import { supportsListingService } from "@symmio/trading-core";
 if (supportsListingService(config, { chainId })) showPoolsTab();
 ```
 
-It swallows every failure `resolveListingService` can raise — a solver without the capability, a chain without a backend, **and** an unknown chain or solver id — and returns `false`. That last case matters: it means you can call it with a chain id straight off a wallet, before knowing whether the SDK supports that chain at all.
+It swallows every failure `resolveListingService` can raise — a chain without a backend, **and** an unknown chain id — and returns `false`. That last case matters: it means you can call it with a chain id straight off a wallet, before knowing whether the SDK supports that chain at all.
 
 ## Which to use
 
@@ -88,6 +77,6 @@ const { data } = useQuery({
 ## Related
 
 - [`getListingMarkets`](/core/pools/get-listing-markets) — the read that resolves the backend for you.
-- [Solvers & Chains](/core/concepts/solvers-and-chains#pools-listing-service) — the capability model this sits in.
+- [Solvers & Chains](/core/concepts/solvers-and-chains#pools-listing-service) — the chain-level config model this sits in.
 - [`useSupportsListingService`](/react/solvers#usesupportslistingservice) — the React gate.
 - [Errors](/core/concepts/errors) — the `SymmError` hierarchy these codes belong to.

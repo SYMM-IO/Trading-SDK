@@ -17,7 +17,7 @@ The flow is three steps, and `authenticateListing` runs all three for you:
 
 There is no separate nonce round-trip — the sign-in message already embeds a single-use nonce.
 
-**Enigma-only.** Every function here resolves the listing backend through [`resolveListingService`](/core/pools/resolve-listing-service), so a target without Pools throws `LISTING_UNSUPPORTED` / `LISTING_NOT_CONFIGURED` before any network call.
+Every function here resolves the listing backend through [`resolveListingService`](/core/pools/resolve-listing-service), so listing is **chain-level**: a chain without a `listing` backend throws `LISTING_NOT_CONFIGURED` before any network call.
 
 ## `authenticateListing`
 
@@ -53,9 +53,6 @@ The signing address is **the wallet account's own address** — it is read from 
   <Property name="chainId" type="number" optional>
     Target chain id. Defaults to the config's `defaultChainId`.
   </Property>
-  <Property name="solverId" type="SolverId" optional>
-    Solver to target. Defaults to the chain's `defaultSolverId`.
-  </Property>
 </Properties>
 
 Exported as `AuthenticateListingParameters`.
@@ -73,7 +70,7 @@ Exported as `AuthenticateListingParameters`.
 
 ### Throws
 
-- `LISTING_UNSUPPORTED` / `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) from [`resolveListingService`](/core/pools/resolve-listing-service), before any request, when the target has no Pools.
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) from [`resolveListingService`](/core/pools/resolve-listing-service), before any request, when the chain has no `listing` backend configured.
 - `LISTING_LOGIN_FAILED` — a `SymmApiError` when `/v2/auth/login` rejects the signature or errors.
 - The wallet's own rejection (viem `UserRejectedRequestError`) passes through unwrapped when the user declines the signature.
 
@@ -122,9 +119,6 @@ const { message, params } = await getListingSignInMessage(config, {
   </Property>
   <Property name="chainId" type="number" optional>
     Target chain id. Defaults to the config's `defaultChainId`.
-  </Property>
-  <Property name="solverId" type="SolverId" optional>
-    Solver to target. Defaults to the chain's `defaultSolverId`.
   </Property>
 </Properties>
 

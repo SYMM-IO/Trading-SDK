@@ -67,7 +67,6 @@ export function getWeeklyListingLimitQueryOptions(
     queryFn: () =>
       getWeeklyListingLimit(config, {
         chainId: options.chainId,
-        solverId: options.solverId,
       }),
   };
 }

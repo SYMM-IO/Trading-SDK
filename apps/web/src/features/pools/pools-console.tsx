@@ -51,9 +51,9 @@ export function PoolsConsole() {
   const debouncedSearch = useDebouncedValue(search);
 
   /**
-   * The listing backend is chain-level and opt-in per solver, so a chain whose
-   * solver does not use it has no catalogue at all. Gate the query rather than
-   * letting it resolve and throw `LISTING_UNSUPPORTED` on every render.
+   * The listing backend is chain-level, so a chain without one has no catalogue
+   * at all. Gate the query rather than letting it resolve and throw
+   * `LISTING_NOT_CONFIGURED` on every render.
    */
   const supported = useSupportsListingService();
 

@@ -139,12 +139,12 @@ export interface SolverCapabilitiesConfig {
   groupClose?: boolean;
   /** Place a LIMIT order — a pending open at a user-set price. Rasa (majors) yes; enigma no. */
   limitOrder?: boolean;
-  /** This solver's markets are the lowcap Pools — it uses the chain-level `listing` backend. Enigma yes; rasa no. */
+  /** This solver's markets are the lowcap Pools. **Declarative only** — the listing functions do not check it (see below). Enigma yes; rasa no. */
   listingService?: boolean;
 }
 ```
 
-Today's registry: **enigma** declares `groupClose` and `listingService`, **rasa** declares `limitOrder`.
+Today's registry: **enigma** declares `groupClose` and `listingService`, **rasa** declares `limitOrder`. Unlike the other two, `listingService` is **not** gated on by any SDK function — it is metadata (readable via `getSolverCapabilities`); listing resolves at chain level (see [Pools listing service](#pools-listing-service)).
 
 <Callout type="info">
   **TP/SL is not a capability flag.** A solver supports conditional orders exactly when its config carries a `tpsl`
@@ -166,7 +166,7 @@ Both take an optional `chainId` / `solverId`, defaulting to the chain's default 
 
 ## Pools listing service
 
-The lowcap **Pools** flow (per-token liquidity markets — catalog, stats, LP stake/rewards, create/withdraw/claim) is served by a **listing backend**. Unlike the per-solver services above, its URL is **chain-level** (`SymmioChainConfig.listing`, a `SymmioListingConfig`), because several solvers on one chain could share one listing deployment. A solver opts into it with the `listingService` capability — so "does this target have Pools?" is _solver declares it_ **and** _chain configures it_.
+The lowcap **Pools** flow (per-token liquidity markets — catalog, stats, LP stake/rewards, create/withdraw/claim) is served by a **listing backend**. Unlike the per-solver services above, listing is **chain-level**: its URL lives on the chain (`SymmioChainConfig.listing`, a `SymmioListingConfig`), because several solvers on one chain could share one listing deployment. A solver may still _declare_ it does listing via the [`listingService` capability](#solver-capabilities), but that flag is **metadata only** — `resolveListingService` does **not** check it. Resolution is purely chain-level: a chain either has a `listing` backend or it does not.
 
 ```ts
 import { resolveListingService, supportsListingService } from "@symmio/trading-core";
@@ -174,11 +174,11 @@ import { resolveListingService, supportsListingService } from "@symmio/trading-c
 // Non-throwing gate for `enabled` flags / UI:
 if (supportsListingService(config, { chainId })) showPoolsTab();
 
-// Resolve the backend (throws LISTING_UNSUPPORTED / LISTING_NOT_CONFIGURED where Pools is unavailable):
+// Resolve the backend (throws LISTING_NOT_CONFIGURED where the chain has no listing backend):
 const { url } = resolveListingService(config, { chainId });
 ```
 
-Today only **enigma on HyperEVM** has it (`listing: { url: "https://listing85.enigma.bz" }` plus the solver's `listingService` flag). Point it at staging with a `createConfig` override — there is no separate environment axis.
+Today only **HyperEVM** has it (`listing: { url: "https://listing85.enigma.bz" }`). Point it at staging with a `createConfig` override — there is no separate environment axis.
 
 <Callout type="warning">
   The `url` is the **host root**, with no version segment and no trailing slash. The generated client's own paths

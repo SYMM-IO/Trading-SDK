@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { Compute, WriteSolverParameter } from "../../shared/types/properties";
+import type { ChainIdParameter, Compute, FromParameter } from "../../shared/types/properties";
 import { resolveListingService } from "../resolve-listing";
 import { loginV2AuthLoginPost } from "../types/generated/listing-backend";
 import { getListingSignInMessage } from "./get-sign-in-message";
@@ -15,14 +15,15 @@ import type { ListingAuthToken } from "./types";
  * parameter.
  */
 export type AuthenticateListingParameters = Compute<
-  WriteSolverParameter & {
-    /** RFC 4501 DNS authority requesting the sign-in. */
-    domain: string;
-    /** RFC 3986 URI of the dApp. */
-    uri: string;
-    /** Optional human-readable statement to embed in the message. */
-    statement?: string;
-  }
+  ChainIdParameter &
+    FromParameter & {
+      /** RFC 4501 DNS authority requesting the sign-in. */
+      domain: string;
+      /** RFC 3986 URI of the dApp. */
+      uri: string;
+      /** Optional human-readable statement to embed in the message. */
+      statement?: string;
+    }
 >;
 
 /** Return type of {@link authenticateListing}: the issued bearer token. */
@@ -42,9 +43,8 @@ export type AuthenticateListingReturnType = ListingAuthToken;
  * @param parameters - Domain, uri, and optional statement.
  * @returns The issued bearer token.
  * @throws {SymmApiError} when the sign-in or login request fails.
- * @throws {SymmError} `LISTING_UNSUPPORTED` when the resolved solver does not use
- *   the listing service, or `LISTING_NOT_CONFIGURED` when the chain has no
- *   listing backend.
+ * @throws {SymmError} `LISTING_NOT_CONFIGURED` when the chain has no listing
+ *   backend.
  *
  * @example
  * ```ts
@@ -59,17 +59,13 @@ export async function authenticateListing(
   config: Config,
   parameters: AuthenticateListingParameters,
 ): Promise<AuthenticateListingReturnType> {
-  const { url } = resolveListingService(config, {
-    chainId: parameters.chainId,
-    solverId: parameters.solverId,
-  });
+  const { url } = resolveListingService(config, { chainId: parameters.chainId });
 
   const walletClient = await config.getWalletClient({ chainId: parameters.chainId, from: parameters.from });
   const address = walletClient.account.address;
 
   const signIn = await getListingSignInMessage(config, {
     chainId: parameters.chainId,
-    solverId: parameters.solverId,
     address,
     domain: parameters.domain,
     uri: parameters.uri,

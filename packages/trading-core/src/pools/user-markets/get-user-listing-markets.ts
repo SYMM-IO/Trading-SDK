@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
+import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { toSearchParams } from "../markets/to-search-params";
 import { resolveListingService } from "../resolve-listing";
 import type {
@@ -26,7 +26,7 @@ import { toUserListingMarketPage } from "./to-user-listing-market";
  * search: with none set the service returns its default first page.
  */
 export type GetUserListingMarketsParameters = Compute<
-  ReadSolverParameter & {
+  ChainIdParameter & {
     /**
      * Bearer token from `authenticateListing`; required — the endpoint is authed.
      * Sent as the `Authorization: Bearer <token>` header; a bad or expired token
@@ -78,9 +78,8 @@ export type GetUserListingMarketsReturnType = UserListingMarketPage;
  * @param parameters - The bearer token plus search, filter, sort, and pagination inputs.
  * @returns One page of {@link UserListingMarketPage} rows plus the total row count.
  * @throws {SymmApiError} when the endpoint request fails, including a `401` on a bad or expired token.
- * @throws {SymmError} `LISTING_UNSUPPORTED` when the resolved solver does not use
- *   the listing service, or `LISTING_NOT_CONFIGURED` when the chain has no
- *   listing backend. Gate with `supportsListingService` to hide Pools instead.
+ * @throws {SymmError} `LISTING_NOT_CONFIGURED` when the chain has no listing
+ *   backend. Gate with `supportsListingService` to hide Pools instead.
  *
  * @example
  * ```ts
@@ -96,10 +95,7 @@ export async function getUserListingMarkets(
   config: Config,
   parameters: GetUserListingMarketsParameters,
 ): Promise<GetUserListingMarketsReturnType> {
-  const { url: baseURL } = resolveListingService(config, {
-    chainId: parameters.chainId,
-    solverId: parameters.solverId,
-  });
+  const { url: baseURL } = resolveListingService(config, { chainId: parameters.chainId });
 
   // `toSearchParams` types its output as the *public* endpoint's params. The
   // authed endpoint's params are structurally the same except its `sort_by` enum

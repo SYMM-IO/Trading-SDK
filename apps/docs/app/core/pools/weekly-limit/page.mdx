@@ -36,10 +36,6 @@ Both fields are optional — with neither, the config's default chain and that c
     Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
     folded into the query key.
   </Property>
-  <Property name="solverId" type="SolverId" typeHref="/core/concepts/solvers-and-chains" optional>
-    Solver kind to target. Defaults to the chain's default solver. Only a solver declaring the `listingService`
-    capability can be used here.
-  </Property>
 </Properties>
 
 ## Returns
@@ -71,8 +67,7 @@ useQuery(getWeeklyListingLimitQueryOptions(config));
 
 ## Throws
 
-- `LISTING_UNSUPPORTED` — a `SymmError` (`kind: "config"`) when the resolved solver does not declare the `listingService` capability. Gate with `supportsListingService` to hide Pools instead of erroring. Pools is Enigma-only today.
-- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the resolved chain has no `listing` backend.
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide Pools instead of erroring. Only chains with a listing backend have Pools.
 - `FETCH_WEEKLY_LISTING_LIMIT_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`) with the original error as its `cause`.
 
 ## Related
