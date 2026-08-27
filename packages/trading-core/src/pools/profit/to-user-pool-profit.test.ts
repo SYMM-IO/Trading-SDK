@@ -22,6 +22,7 @@ describe("toUserPoolProfit", () => {
       userDepositedTokenAmount: 5000000000000000000n,
       userLpAmount: 6000000000000000000n,
       pendingWithdrawLpAmount: 700000000000000000n,
+      availableLpAmount: 5300000000000000000n,
     });
   });
 
@@ -44,6 +45,21 @@ describe("toUserPoolProfit", () => {
       userDepositedTokenAmount: 0n,
       userLpAmount: 6000000000000000000n,
       pendingWithdrawLpAmount: 0n,
+      availableLpAmount: 6000000000000000000n,
     });
+  });
+
+  it("floors availableLpAmount at 0n when the pending amount meets or exceeds the balance", () => {
+    const raw = {
+      user_balance_in_tokens: "1000000000000000000",
+      user_balance_in_usdc: "1000000000000000000",
+      claimable_reward: "0",
+      claimed_reward: "0",
+      user_deposited_token_amount: "1000000000000000000",
+      user_lp_amount: "1000000000000000000",
+      pending_withdraw_lp_amount: "1000000000000000000",
+    } satisfies LPTokenProfitSchema;
+
+    expect(toUserPoolProfit(raw).availableLpAmount).toBe(0n);
   });
 });

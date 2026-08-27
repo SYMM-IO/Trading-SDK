@@ -2,25 +2,25 @@
 
 import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
-import { ListingDepositChainId, ListingMarketStatus, type ListingMarket } from "@symmio/trading-core";
-import { useDepositAddress, useListingMarkets } from "@symmio/trading-react";
+import { ListingDepositChainId, type ListingMarket } from "@symmio/trading-core";
+import { useDepositAddress } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { Button } from "@symmio/ui/components/button";
 import { CopyButton } from "@symmio/ui/components/copy-button";
-import { MarketSelect, type MarketSelectItem } from "@symmio/ui/components/market-select";
 import { Spinner } from "@symmio/ui/components/spinner";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 import { useSolverKindActive } from "../solvers/solver-target";
-import { LISTING_STATUS_DISPLAY, depositChainLabel, truncateContractAddress } from "./format-listing-value";
+import { LISTING_STATUS_DISPLAY, truncateContractAddress } from "./format-listing-value";
 import { useListingAuth } from "./listing-auth-context";
+import { PoolSelect } from "./pool-select";
 
 /**
  * "Deposit address" — get (or create) the signed-in user's deposit wallet for
  * one market: **pick** a market from the catalog, then **show** the deposit
  * address to seed it.
  *
- * A market picker — populated from {@link useListingMarkets} — names the market;
+ * A market picker — the paged, server-searched {@link PoolSelect} — names the market;
  * picking a row sets the `{ contractAddress, chainId }` pair `useDepositAddress`
  * reads the wallet for. Both the bearer token (from the shared
  * {@link useListingAuth} session) and a selected market gate the read, so it
@@ -35,16 +35,8 @@ export function DepositAddressCard() {
   const enigmaActive = useSolverKindActive("enigma");
   const { accessToken, signIn, isSigningIn } = useListingAuth();
 
-  const markets = useListingMarkets({
-    marketStatus: ListingMarketStatus.LISTED,
-    limit: 50,
-    query: { enabled: enigmaActive },
-  });
-  const marketItems = useMemo(() => toMarketSelectItems(markets.data?.items), [markets.data]);
-
   const [selectedContractAddress, setSelectedContractAddress] = useState("");
-  const selectedMarket =
-    markets.data?.items.find((market) => market.contractAddress === selectedContractAddress) ?? null;
+  const [selectedMarket, setSelectedMarket] = useState<ListingMarket | null>(null);
 
   // Idle until signed in AND a market is selected — the empty defaults keep the
   // hook mounted but inert (`enabled: false`) before either lands.
@@ -75,17 +67,12 @@ export function DepositAddressCard() {
               in. It only needs the Enigma listing catalog, so it gates on
               `!enigmaActive` alone — never on sign-in. */}
           <Field label="pool" htmlFor="deposit-address-market">
-            <MarketSelect
+            <PoolSelect
               idPrefix="deposit-address-market"
               value={selectedContractAddress}
-              items={marketItems}
               onValueChange={setSelectedContractAddress}
-              placeholder={markets.isPending ? "Loading pools..." : "Select a pool..."}
-              disabled={!enigmaActive}
-              searchPlaceholder="Search ticker or name..."
-              emptyLabel="No listed pools."
-              emptyResultsLabel="No pools match this search."
-              clearLabel="Clear pool"
+              onSelectedMarketChange={setSelectedMarket}
+              enabled={enigmaActive}
             />
           </Field>
 
@@ -147,13 +134,4 @@ export function DepositAddressCard() {
       )}
     </MethodCard>
   );
-}
-
-/** Map listing rows to combobox items keyed by `contractAddress`. */
-function toMarketSelectItems(markets: ListingMarket[] | undefined): MarketSelectItem[] {
-  return (markets ?? []).map((market) => ({
-    id: market.contractAddress,
-    label: `${market.tokenTicker} · ${market.tokenName} (${depositChainLabel(market.chainId)})`,
-    searchText: [market.tokenTicker, market.tokenName, market.contractAddress].join(" "),
-  }));
 }

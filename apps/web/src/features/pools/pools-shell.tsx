@@ -12,6 +12,7 @@ import { PoolsTvlCard } from "./pools-tvl-card";
 import { PoolsVolumeCard } from "./pools-volume-card";
 import { UserProfitCard } from "./user-profit-card";
 import { WeeklyLimitCard } from "./weekly-limit-card";
+import { WithdrawCard } from "./withdraw-card";
 import { YourPoolsCard } from "./your-pools-card";
 
 /**
@@ -40,13 +41,14 @@ export function PoolsShell() {
       {/* One shared bearer token for both cards: sign in once, reuse it across
           refreshes and cards instead of re-signing on every read. */}
       <ListingAuthProvider>
-        <MethodGroup label="Listing session" count={7}>
+        <MethodGroup label="Listing session" count={8}>
           <ListingConfigCard />
           <WeeklyLimitCard />
           <ListingAuthCard />
           <YourPoolsCard />
           <UserProfitCard />
           <DepositAddressCard />
+          <WithdrawCard />
           <CreatePoolCard />
         </MethodGroup>
       </ListingAuthProvider>

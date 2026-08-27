@@ -20,6 +20,7 @@ const PROFIT: GetUserProfitReturnType = {
   userDepositedTokenAmount: 900000000000000000n,
   userLpAmount: 750000000000000000n,
   pendingWithdrawLpAmount: 50000000000000000n,
+  availableLpAmount: 700000000000000000n,
 };
 
 const TOKEN_ADDRESS = "0x800822d361335b4d5F352Dac293cA4128b5B605f";

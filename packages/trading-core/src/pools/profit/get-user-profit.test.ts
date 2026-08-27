@@ -55,6 +55,7 @@ describe("getUserProfit", () => {
       userDepositedTokenAmount: 5000000000000000000n,
       userLpAmount: 6000000000000000000n,
       pendingWithdrawLpAmount: 700000000000000000n,
+      availableLpAmount: 5300000000000000000n,
     });
   });
 

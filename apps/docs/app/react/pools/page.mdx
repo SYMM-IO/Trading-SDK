@@ -4,9 +4,9 @@ import { Callout } from "nextra/components";
 
 React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
 
-Nine hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token.
+Ten hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; and `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool.
 
-Seven of them are reads. `useAuthenticateListing` and `useAddMarket` are **mutations** — the first prompts a wallet signature, the second submits an authed create-pool write.
+Seven of them are reads. `useAuthenticateListing`, `useAddMarket` and `useWithdrawLp` are **mutations** — the first prompts a wallet signature, the other two submit authed writes (a create-pool and an LP withdrawal).
 
 ## Import
 
@@ -21,6 +21,7 @@ import {
   useUserListingMarkets,
   useUserProfit,
   useWeeklyListingLimit,
+  useWithdrawLp,
   type AddMarketVariables,
   type UseAddMarketReturnType,
   type UseAuthenticateListingReturnType,
@@ -801,6 +802,91 @@ export function CreatePool() {
 <Callout type="info">
   **Enigma-only**, like the rest of Pools. `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
   backend, and a bad or expired token comes back as an `ADD_MARKET_FAILED` `401`. Gate the create-pool entry point with
+  [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
+</Callout>
+
+## `useWithdrawLp`
+
+Withdraw LP shares from a pool — queue a withdrawal with the listing backend. It is an authed **write**: the mutation submits the LP `amount`, the pool's `marketAddress`, and the `withdrawAddress` the liquidity is sent to, and resolves to `void` (the backend acknowledges with an empty body).
+
+```tsx
+const withdraw = useWithdrawLp();
+
+withdraw.mutate({
+  accessToken, // from useAuthenticateListing
+  marketAddress: "0xToken…",
+  withdrawAddress: "0xRecipient…",
+  amount: profit?.availableLpAmount ?? 0n, // the cap
+});
+```
+
+Pair it with [`useUserProfit`](#useuserprofit): its derived `availableLpAmount` is the ceiling `amount` may take, and after a successful withdrawal you refetch it to see `pendingWithdrawLpAmount` rise and `availableLpAmount` fall. Like [`useAddMarket`](#useaddmarket) it takes the Bearer `accessToken` from [`useAuthenticateListing`](#useauthenticatelisting), and it is a mutation, so it stays inert until you call `mutate` / `mutateAsync`.
+
+### Variables
+
+| Name              | Type     | Notes                                                                                               |
+| ----------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `accessToken`     | `string` | **Required.** Bearer token from `useAuthenticateListing`. A bad or expired token yields a `401`.    |
+| `marketAddress`   | `string` | **Required.** The pool's token contract address — EVM (`0x…`) or Solana (base58).                   |
+| `withdrawAddress` | `string` | **Required.** Where the withdrawn liquidity is sent — EVM (`0x…`) or Solana (base58).               |
+| `amount`          | `bigint` | **Required.** LP shares to withdraw, raw 18-decimal integer. Cap at the pool's `availableLpAmount`. |
+| `description?`    | `string` | A free-text note on the request. Sent only when set.                                                |
+| `chainId?`        | `number` | Which deployment's listing backend to write to. Defaults to the connected chain.                    |
+
+### Return type
+
+`UseMutationResult<void, SymmioRequestError, WithdrawLpVariables>`. There is no payload on success — the backend returns an empty body, so `data` is `undefined` and a resolved `mutateAsync` (or `isSuccess`) is the whole signal. Refetch [`useUserProfit`](#useuserprofit) to reflect the new pending balance.
+
+```tsx
+import { useAuthenticateListing, useUserProfit, useWithdrawLp } from "@symmio/trading-react";
+import { useState } from "react";
+
+export function Withdraw({ tokenContractAddress }: { tokenContractAddress: string }) {
+  const login = useAuthenticateListing();
+  const withdraw = useWithdrawLp();
+  const [accessToken, setAccessToken] = useState("");
+  const { data: profit, refetch } = useUserProfit({ accessToken, tokenContractAddress });
+
+  if (!accessToken) {
+    return (
+      <button
+        onClick={() => login.mutate({}, { onSuccess: (token) => setAccessToken(token.accessToken) })}
+        disabled={login.isPending}
+      >
+        {login.isPending ? "Sign in your wallet…" : "Sign in first"}
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <button
+        onClick={() =>
+          withdraw.mutate(
+            {
+              accessToken,
+              marketAddress: tokenContractAddress,
+              withdrawAddress: "0xRecipient…",
+              amount: profit?.availableLpAmount ?? 0n,
+            },
+            { onSuccess: () => refetch() },
+          )
+        }
+        disabled={withdraw.isPending}
+      >
+        {withdraw.isPending ? "Withdrawing…" : "Withdraw"}
+      </button>
+      {withdraw.error ? <p role="alert">{withdraw.error.message}</p> : null}
+      {withdraw.isSuccess ? <p>Withdrawal queued.</p> : null}
+    </>
+  );
+}
+```
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend, and a bad or expired token comes back as a `WITHDRAW_LP_FAILED` `401`. An amount above the pool's
+  `availableLpAmount` is rejected by the service, so cap it client-side. Gate the entry point with
   [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
 </Callout>
 

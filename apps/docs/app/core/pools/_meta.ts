@@ -11,6 +11,7 @@ export default {
   "listing-auth": "authenticateListing",
   "-- writes": { type: "separator", title: "Writes" },
   "add-market": "addMarket",
+  withdraw: "withdrawLp",
   "-- config": { type: "separator", title: "Config" },
   "resolve-listing-service": "resolveListingService",
   "-- helpers": { type: "separator", title: "Helpers" },

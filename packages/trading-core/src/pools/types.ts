@@ -214,6 +214,14 @@ export interface UserPoolProfit {
   userLpAmount: bigint;
   /** LP shares queued for withdrawal (the pending-withdrawal amount), 18-dec bigint. */
   pendingWithdrawLpAmount: bigint;
+  /**
+   * LP shares free to withdraw right now — `userLpAmount − pendingWithdrawLpAmount`,
+   * floored at `0n`. This is the ceiling a withdrawal (`withdrawLp`) may request;
+   * the shares already counted in {@link UserPoolProfit.pendingWithdrawLpAmount}
+   * are spoken for. Derived by the SDK, not a field the service returns. 18-dec
+   * bigint.
+   */
+  availableLpAmount: bigint;
 }
 
 /**

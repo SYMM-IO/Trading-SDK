@@ -7,7 +7,7 @@ import {
   type ConfigParameter,
   type CreatedPool,
 } from "@symmio/trading-core";
-import { useMutation, type UseMutationResult } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
@@ -42,6 +42,11 @@ export type UseAddMarketReturnType = UseMutationResult<CreatedPool, SymmioReques
  * custodial `walletPublicKey` the service provisioned — send the listing deposit
  * there to seed the pool, which stays at `WAITING_FOR_DEPOSIT` until it lands.
  *
+ * On success it invalidates the catalog ({@link useListingMarkets}) and Your Pools
+ * ({@link useUserListingMarkets}) queries, so every mounted list — the search
+ * pickers, the catalogue console, and Your Pools — refetches and surfaces the new
+ * pool without a manual refresh.
+ *
  * Required variables: `accessToken`, `tokenContractAddress`, `buyBackRatio`
  * (`0`–`100`), `maxLeverage` (`1`–`100`), and `depositChain`. The optional extras
  * are the caller's to default. Pools is **chain-level** — `mutate` /
@@ -66,6 +71,7 @@ export type UseAddMarketReturnType = UseMutationResult<CreatedPool, SymmioReques
 export function useAddMarket(parameters: UseAddMarketParameters = {}): UseAddMarketReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
+  const queryClient = useQueryClient();
   const options = addMarketMutationOptions(config);
 
   return useMutation({
@@ -76,6 +82,13 @@ export function useAddMarket(parameters: UseAddMarketParameters = {}): UseAddMar
       } catch (err) {
         throw normalizeSymmError(err);
       }
+    },
+    onSuccess: () => {
+      // A new listing joins the catalog and the caller's "Your Pools", so refetch
+      // both — every mounted `useListingMarkets` (the search pickers and the
+      // console) and `useUserListingMarkets`, whatever their search, filters or page.
+      void queryClient.invalidateQueries({ queryKey: ["getListingMarkets"] });
+      void queryClient.invalidateQueries({ queryKey: ["getUserListingMarkets"] });
     },
   }) as UseAddMarketReturnType;
 }

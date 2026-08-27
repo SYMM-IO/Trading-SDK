@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 # getUserProfit
 
-Fetch the signed-in user's **LP position in a single pool** — the authed, per-token read behind a pool's "your position" panel. It returns the caller's LP shares, their LP balance valued in both the pool's token and USDC, their claimable and claimed rewards, the token amount they deposited, and the LP shares they have queued for withdrawal.
+Fetch the signed-in user's **LP position in a single pool** — the authed, per-token read behind a pool's "your position" panel. It returns the caller's LP shares, their LP balance valued in both the pool's token and USDC, their claimable and claimed rewards, the token amount they deposited, the LP shares they have queued for withdrawal, and the SDK-derived `availableLpAmount` — the shares still free to withdraw.
 
 ```ts
 import { getUserProfit } from "@symmio/trading-core";
@@ -68,6 +68,11 @@ Two inputs are required — the endpoint returns nothing without either.
   </Property>
   <Property name="pendingWithdrawLpAmount" type="bigint">
     The LP shares queued for withdrawal — the pending-withdrawal amount, not yet settled. 18-decimal `bigint`.
+  </Property>
+  <Property name="availableLpAmount" type="bigint">
+    The LP shares free to withdraw right now — `userLpAmount − pendingWithdrawLpAmount`, floored at `0n`. **Derived by
+    the SDK**, not a field the service returns; it is the ceiling a [`withdrawLp`](/core/pools/withdraw) request may
+    take. 18-decimal `bigint`.
   </Property>
 </Returns>
 

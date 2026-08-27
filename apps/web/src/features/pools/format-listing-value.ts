@@ -1,5 +1,5 @@
 import { LISTING_VALUE_DECIMALS, ListingDepositChainId, ListingMarketStatus } from "@symmio/trading-core";
-import { formatCompactCurrency, formatPercentage } from "@symmio/utils";
+import { formatCompact, formatCompactCurrency, formatPercentage } from "@symmio/utils";
 import { formatUnits } from "@symmio/utils/decimal";
 
 /** Placeholder for a figure the listing service did not report. */
@@ -14,6 +14,17 @@ export const ABSENT = "—";
 export function formatListingUsd(raw: bigint | null): string {
   if (raw === null) return ABSENT;
   return formatCompactCurrency(formatUnits(raw, LISTING_VALUE_DECIMALS), { maxDecimals: 2 });
+}
+
+/**
+ * Format an 18-decimal listing figure as a compact **plain amount** — no currency
+ * symbol. Use for counts that are not USD: LP shares, token balances, deposited
+ * token amounts, and the pending-withdrawal LP amount. Returns {@link ABSENT} for
+ * `null`.
+ */
+export function formatListingAmount(raw: bigint | null): string {
+  if (raw === null) return ABSENT;
+  return formatCompact(formatUnits(raw, LISTING_VALUE_DECIMALS), { maxDecimals: 2 });
 }
 
 /**
