@@ -28,6 +28,7 @@ export function PoolsVolumeCard() {
       name="useMarketInfo"
       mutability="view"
       description="Traded value across every market, over 24 hours and since launch. Aggregate totals are Enigma-only."
+      size="sm"
     >
       {error ? (
         <ResultError kind={error.kind} message={error.message} testId="pools-volume-error" />
@@ -36,7 +37,7 @@ export function PoolsVolumeCard() {
           This chain&rsquo;s solver reports per-market figures only — it exposes no aggregate volume totals.
         </ResultNote>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="flex flex-col gap-5">
           <div data-testid="pools-volume-24h">
             <Stat
               label="Volume · 24h"

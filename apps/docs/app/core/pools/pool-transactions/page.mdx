@@ -1,0 +1,111 @@
+import { Callout } from "nextra/components";
+
+# getPoolTransactions
+
+Fetch a pool's deposit and withdrawal history, newest first — refunded deposits included.
+
+```ts
+import { getPoolTransactions } from "@symmio/trading-core";
+
+const page = await getPoolTransactions(config, {
+  marketAddress: "0x800822d361335b4d5F352Dac293cA4128b5B605f",
+  size: 50,
+});
+```
+
+Public and pool-wide by default: every LP's rows, not just the caller's. Pass `walletAddress` to narrow it to one wallet.
+
+<Callout type="info">
+  Unlike the other pool tables, this one has rows **before** the pool is tradable — deposits exist from the moment a
+  listing is applied for, while the quote and history tables need a `symbolId`.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="marketAddress" type="string" required>
+    The pool's token contract address.
+  </Property>
+  <Property name="walletAddress" type="string" optional>
+    Narrow the page to one wallet's rows. Omit for the pool's whole history across every LP.
+  </Property>
+  <Property name="start" type="number" optional>
+    Row offset. Defaults to `0`.
+  </Property>
+  <Property name="size" type="number" optional>
+    Page size. Defaults to `150`.
+  </Property>
+</Properties>
+
+Pagination is path-based (`/{start}/{size}`), not query-based.
+
+## Returns
+
+`PoolTransactionPage`:
+
+<Properties>
+  <Property name="marketAddress" type="string">
+    The pool's token contract address, echoed by the backend.
+  </Property>
+  <Property name="count" type="number">
+    Total rows matching the query **across all pages** — so this is what a pager divides, not `items.length`.
+  </Property>
+  <Property name="items" type="PoolTransaction[]">
+    The rows themselves.
+  </Property>
+</Properties>
+
+Each `PoolTransaction`:
+
+<Properties>
+  <Property name="transactionId" type="string">
+    Backend id for the transaction.
+  </Property>
+  <Property name="walletAddress" type="string">
+    The wallet that made it. **Varies row to row.**
+  </Property>
+  <Property name="amount" type="bigint">
+    Amount moved, in the transaction's own denomination.
+  </Property>
+  <Property name="usdcAmount" type="bigint">
+    Collateral value moved, USD.
+  </Property>
+  <Property name="tokenAmount" type="bigint">
+    Token amount moved, in the pool token's units.
+  </Property>
+  <Property name="transactionHash" type="string | null">
+    On-chain hash or Solana signature, when known.
+  </Property>
+  <Property name="refundAddress" type="string | null">
+    Address a refund was sent to; `null` when not a refund.
+  </Property>
+  <Property name="refundTransactionHash" type="string | null">
+    Hash of the refund transaction; `null` when not a refund.
+  </Property>
+  <Property name="refundTime" type="number | null">
+    When the refund completed, Unix **seconds**; `null` when not a refund.
+  </Property>
+  <Property name="type" type="PoolTransactionType">
+    `DEPOSIT` or `WITHDRAW`.
+  </Property>
+  <Property name="status" type="PoolTransactionStatus">
+    `PENDING`, `SUCCESS`, `REJECTED`, `REFUND` or `CANCELED`.
+  </Property>
+  <Property name="time" type="number">
+    When the transaction happened, Unix **seconds**.
+  </Property>
+</Properties>
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no listing backend.
+- `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) for an unknown chain id.
+- `FETCH_POOL_TRANSACTIONS_FAILED` — an axios failure becomes a `SymmApiError`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`).
+
+## Related
+
+- [Pool detail tables](/core/pools/pool-detail-tables) — the other four reads.
+- [React: `usePoolTransactions`](/react/pools#usepooltransactions).

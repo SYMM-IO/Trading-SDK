@@ -4,13 +4,14 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import { Stat } from "@/components/stat";
 import { ListingDepositChainId, ListingMarketStatus } from "@symmio/trading-core";
-import { useListingConfig, useListingStatus } from "@symmio/trading-react";
+import { useListingStatus } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { Input } from "@symmio/ui/components/input";
 import { cn } from "@symmio/ui/lib/utils";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 import { useSolverKindActive } from "../solvers/solver-target";
+import { DepositChainSelect } from "./deposit-chain-select";
 import { LISTING_STATUS_DISPLAY } from "./format-listing-value";
 
 /** Lifecycle statuses at which the listing has settled and no longer needs polling. */
@@ -28,8 +29,8 @@ const SETTLED_STATUSES = new Set<ListingMarketStatus>([
  * A **public** read (no sign-in): enter a market's token address and pick its
  * deposit chain and the card reads `getListingStatus`. While the listing is still
  * progressing it polls every few seconds, stopping once the status settles
- * (listed / rejected / delisted). Deposit chains come from
- * {@link useListingConfig}, mirroring the create-pool card.
+ * (listed / rejected / delisted). Deposit chains come from the listing config
+ * through {@link DepositChainSelect}, mirroring the create-pool card.
  *
  * Enigma-only: the listing backend lives on HyperEVM, so the card is gated on
  * Enigma being the active solver, mirroring the other Listing cards.
@@ -37,18 +38,8 @@ const SETTLED_STATUSES = new Set<ListingMarketStatus>([
 export function ListingStatusCard() {
   const enigmaActive = useSolverKindActive("enigma");
 
-  const config = useListingConfig();
-  const chains = useMemo(() => config.data?.supportedDepositChains ?? [], [config.data]);
-
   const [tokenContractAddress, setTokenContractAddress] = useState("");
   const [depositChain, setDepositChain] = useState<ListingDepositChainId>(ListingDepositChainId.HYPER_EVM);
-
-  // Keep the selection valid once the config's chains land.
-  useEffect(() => {
-    if (chains.length > 0 && !chains.some((chain) => chain.chainId === depositChain)) {
-      setDepositChain(chains[0]!.chainId);
-    }
-  }, [chains, depositChain]);
 
   const address = tokenContractAddress.trim();
   const status = useListingStatus({
@@ -72,7 +63,6 @@ export function ListingStatusCard() {
       name="getListingStatus"
       mutability="view"
       description="Listing status — a market's lifecycle status and where it sits in the listing pipeline (current step, steps, retries, errors), by token address and deposit chain. Public; polls while the listing is still progressing. Enigma-only."
-      wide
     >
       {!enigmaActive ? (
         <ResultNote testId="listing-status-gate">
@@ -92,20 +82,7 @@ export function ListingStatusCard() {
           </Field>
 
           <Field label="depositChain" htmlFor="listing-status-chain">
-            <select
-              id="listing-status-chain"
-              data-testid="listing-status-chain"
-              value={depositChain}
-              onChange={(e) => setDepositChain(Number(e.target.value) as ListingDepositChainId)}
-              disabled={config.isPending}
-              className="border-border bg-input/40 h-9 w-full rounded-md border px-3 text-sm"
-            >
-              {chains.map((chain) => (
-                <option key={chain.chainId} value={chain.chainId}>
-                  {chain.chainName} ({chain.chainId})
-                </option>
-              ))}
-            </select>
+            <DepositChainSelect idPrefix="listing-status-chain" value={depositChain} onValueChange={setDepositChain} />
           </Field>
 
           {address.length === 0 ? (

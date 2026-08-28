@@ -1,0 +1,114 @@
+import { Callout } from "nextra/components";
+
+# getUserRewardChart
+
+Fetch the signed-in user's **daily LP-reward series, grouped by market** — the "your performance" side of a pool page's rewards chart.
+
+```ts
+import { getUserRewardChart } from "@symmio/trading-core";
+
+const charts = await getUserRewardChart(config, { accessToken: token.accessToken });
+
+const pool = charts.find((entry) => entry.marketAddress.toLowerCase() === address.toLowerCase());
+```
+
+One `GET /v2/profit/chart/rewards` against the chain's listing backend, **authed** with the bearer token from [`authenticateListing`](/core/pools/listing-auth). The public, whole-pool twin is [`getPoolRewardChart`](/core/pools/pool-reward-chart).
+
+## Not scoped to one pool
+
+The endpoint takes **no market**: the bearer token alone identifies the caller, and the response covers every market they have rewards in — one `UserPoolRewardChart` each. A single-pool view filters that response itself:
+
+```ts
+const mine = charts.find(
+  (entry) =>
+    entry.marketAddress.toLowerCase() === pool.contractAddress.toLowerCase() && entry.marketChainId === pool.chainId,
+);
+const points = mine?.rewards ?? [];
+```
+
+Match on **both** halves of the pair. Two listings on different deposit chains can carry the same address string, so matching on the address alone can pick the wrong series.
+
+<Callout type="info">
+  One request covers every pool, so a page showing several pools' "your rewards" should read this **once** and slice it,
+  not call it per row.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401` (see [Throws](#throws)).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
+    folded into the query key. There is **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<UserPoolRewardChart[]>">
+  One entry per market the user has rewards in. An empty array means the wallet has earned nothing anywhere yet.
+</Returns>
+
+<Properties>
+  <Property name="marketAddress" type="string">
+    The pool's token contract address — matches `ListingMarket.contractAddress`.
+  </Property>
+  <Property name="marketChainId" type="ListingDepositChainId">
+    Chain the pool's token lives on — matches `ListingMarket.chainId`, **not** the SDK's `chainId`.
+  </Property>
+  <Property name="rewards" type="PoolRewardPoint[]">
+    The user's daily rewards in this pool: `{ timestamp, reward }`, with `reward` an 18-decimal **USD** `bigint` and an
+    absent day collapsed to `0n`. Same shape [`getPoolRewardChart`](/core/pools/pool-reward-chart#returns) returns.
+  </Property>
+</Properties>
+
+## toUserPoolRewardChart
+
+The mapper this read runs on each group, exported for when you hold a raw response yourself.
+
+```ts
+import { toUserPoolRewardChart } from "@symmio/trading-core";
+
+toUserPoolRewardChart({
+  market_address: "0x1234…",
+  chain_id: 8453,
+  rewards: [{ timestamp: 1752364800, reward: "1000000000000000000" }],
+});
+// { marketAddress: "0x1234…", marketChainId: 8453, rewards: [{ timestamp: 1752364800, reward: 1000000000000000000n }] }
+```
+
+The wire's `chain_id` is surfaced as `marketChainId` and never as the SDK's own `chainId`, so the two cannot be confused downstream.
+
+## Query options
+
+```ts
+import { getUserRewardChartQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getUserRewardChartQueryOptions(config, { accessToken }));
+```
+
+`GetUserRewardChartOptions` is the action's parameters plus a `query` bag of TanStack overrides. The bearer token is **dropped from the key** by `filterQueryOptions` — it is a credential, not a cache dimension, so a refreshed token still hits the same cache entry and the token never lands in a devtools-visible key. `getUserRewardChartQueryKey` builds the same `["getUserRewardChart", …]` key, and `GetUserRewardChartData` / `GetUserRewardChartQueryKey` / `GetUserRewardChartQueryOptions` name the factory's other halves.
+
+<Callout type="warning">
+  Because the token is not in the key, invalidate this query on sign-out. Otherwise the previous wallet's series stays
+  cached under an identical key and can be served to the next one.
+</Callout>
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the resolved chain has no listing backend. Raised by [`resolveListingService`](/core/pools/resolve-listing-service) before any request goes out.
+- `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) when the `chainId` is not one the config knows about at all.
+- `FETCH_USER_REWARD_CHART_FAILED` — the request itself failed, including the `401` on a bad or expired token. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`).
+
+## Related
+
+- [`getPoolRewardChart`](/core/pools/pool-reward-chart) — the public, whole-pool series.
+- [`getUserTotalReward`](/core/pools/user-total-reward) — the trailing-window headline for the same wallet.
+- [`getUserProfit`](/core/pools/user-profit) — the wallet's LP position and claimable balance in one pool.
+- [`authenticateListing`](/core/pools/listing-auth) — where the bearer token comes from.
+- [`@symmio/trading-react`](/react/pools) — `useUserRewardChart` is the React binding over this read.
+- [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.

@@ -15,10 +15,17 @@ import type { MarketSearchItem, PaginationResponseMarketSearchItem } from "../ty
  * figure is not zero, and collapsing the two would make a market with no 30-day
  * history indistinguishable from one that earned nothing.
  *
- * The service's own schema types these as unsigned decimal strings, but live
- * responses carry negative APY values, and a fractional string would make
- * `BigInt()` throw. Both are handled: a leading `-` is preserved and any
- * fractional tail is truncated toward zero.
+ * The service's own schema types these as plain unsigned decimal strings, but
+ * live responses are looser than that in three ways, all handled here:
+ *
+ * - **Signs.** APY and uPnL fields go negative; a leading `-` is preserved.
+ * - **Fractional tails.** `long_position_upnl` arrives as
+ *   `"22411664984426494286154.904298"`, which `BigInt()` would reject. The
+ *   fraction is truncated toward zero.
+ * - **Scientific notation.** uPnL fields also arrive as `"0E-36"` (a Python
+ *   `Decimal` serialization). Every live instance is zero today, so a parser
+ *   that rejected the form would still *look* correct — but a tiny non-zero
+ *   uPnL would then silently read as `0`. The exponent is applied instead.
  */
 export function toListingValue(raw: string | null | undefined): bigint | null {
   if (raw === null || raw === undefined) return null;
@@ -26,14 +33,27 @@ export function toListingValue(raw: string | null | undefined): bigint | null {
   const trimmed = raw.trim();
   if (trimmed === "") return null;
 
-  const match = /^([+-]?)(\d*)(?:\.\d*)?$/.exec(trimmed);
+  const match = /^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(trimmed);
   if (match === null) return null;
 
-  const digits = match[2];
-  if (digits === undefined || digits === "") return null;
+  const [, sign = "", intPart = "", fracPart = "", exponentPart] = match;
+  if (intPart === "" && fracPart === "") return null;
 
-  const magnitude = BigInt(digits);
-  return match[1] === "-" ? -magnitude : magnitude;
+  /**
+   * Shift the decimal point by the exponent, then truncate. Working on the digit
+   * string rather than via `10n ** exponent` keeps a large negative exponent
+   * (`E-36`) from being an expensive division, and truncates toward zero for
+   * free.
+   */
+  const digits = `${intPart}${fracPart}`;
+  const pointIndex = intPart.length + (exponentPart === undefined ? 0 : Number(exponentPart));
+
+  if (pointIndex <= 0) return 0n;
+
+  const integerDigits = pointIndex >= digits.length ? digits.padEnd(pointIndex, "0") : digits.slice(0, pointIndex);
+
+  const magnitude = BigInt(integerDigits);
+  return sign === "-" ? -magnitude : magnitude;
 }
 
 /**

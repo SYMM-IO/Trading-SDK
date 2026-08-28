@@ -61,9 +61,26 @@ describe("toListingValue", () => {
     expect(toListingValue("-123.9")).toBe(-123n);
   });
 
+  it("applies scientific notation instead of reading it as zero", () => {
+    /**
+     * The backend serializes uPnL as a Python `Decimal`, so zero arrives as
+     * `0E-36`. Every live instance is zero today — which is exactly why a
+     * parser that rejected the form would look correct while silently zeroing
+     * the first non-zero value that ever appears.
+     */
+    expect(toListingValue("0E-36")).toBe(0n);
+    expect(toListingValue("1.5E+21")).toBe(1500000000000000000000n);
+    expect(toListingValue("-2.5E+3")).toBe(-2500n);
+    /** Below one after the shift, so it truncates toward zero rather than rounding. */
+    expect(toListingValue("1.5E-18")).toBe(0n);
+    expect(toListingValue("9E0")).toBe(9n);
+  });
+
   it("returns null for a value it cannot parse", () => {
     expect(toListingValue("not-a-number")).toBeNull();
-    expect(toListingValue("1e18")).toBeNull();
+    expect(toListingValue("")).toBeNull();
+    /** An exponent with no digits is malformed, unlike the well-formed `1e18`. */
+    expect(toListingValue("1e")).toBeNull();
   });
 });
 

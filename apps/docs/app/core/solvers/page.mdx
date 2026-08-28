@@ -161,7 +161,7 @@ const day = await getSolverRevenue(config, { symbolId: 1, timeRange: "24h" });
 
 ### `getTradeVolume`
 
-Daily trade-volume rows for one market from `/trade-volume/{symbolId}` — one `{ timestamp, volume }` per day, ascending. `timestamp` is the solver's ISO 8601 day bucket (e.g. `"2026-07-09T00:00:00Z"`); `volume` is a decimal string. `symbolId` is required.
+Daily trade-volume rows for one market from `/trade-volume/{symbolId}` — one `{ timestamp, volume }` per day, ascending. `timestamp` is the solver's ISO 8601 day bucket (e.g. `"2026-07-09T00:00:00Z"`); `volume` is a decimal string. `symbolId` is required. Full reference: **[Trade volume](/core/solvers/trade-volume)**.
 
 ```ts
 import { getTradeVolume } from "@symmio/trading-core";

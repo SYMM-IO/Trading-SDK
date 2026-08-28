@@ -9,6 +9,21 @@ export type TpSlPriceType = "markPrice" | "lastPrice";
 /** Conditional-order kind. */
 export type TpSlConditionalOrderType = "take_profit" | "stop_loss";
 
+/**
+ * Order kinds the handler's **search** can filter on.
+ *
+ * A superset of {@link TpSlConditionalOrderType}: besides the two TP/SL legs
+ * that close a position, the handler also stores `send_quote` orders, which
+ * *open* one when a trigger price is hit. Those are what a pool's order book is
+ * made of, and they are a different mechanism from a protocol LIMIT order — a
+ * solver that declares `limitOrder: false` can still have them.
+ */
+export enum TpSlSearchOrderType {
+  TAKE_PROFIT = "take_profit",
+  STOP_LOSS = "stop_loss",
+  SEND_QUOTE = "send_quote",
+}
+
 /** Lifecycle stage of a TP or SL order, mirroring the handler's `state`. */
 export type TpSlInfoState =
   | "loading"

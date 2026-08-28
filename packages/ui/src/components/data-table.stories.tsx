@@ -21,6 +21,11 @@ const SYMBOLS: SymbolRow[] = [
   { name: "ABOND_SFLOW", status: "SETTLING", address: "0x34294AfABCbaFfc616ac66" },
 ];
 
+/** Three numbered copies of the catalog — enough rows to scroll behind a five-row cap. */
+const MANY_SYMBOLS: SymbolRow[] = [1, 2, 3].flatMap((batch) =>
+  SYMBOLS.map((symbol) => ({ ...symbol, name: `${symbol.name}_${batch}` })),
+);
+
 const COLUMNS: DataTableColumn<SymbolRow>[] = [
   { id: "name", header: "Name", cell: (s) => s.name, sortAccessor: (s) => s.name, cellClassName: "font-mono" },
   {
@@ -78,6 +83,15 @@ export const Expandable: Story = {
       </div>
     ),
     defaultExpandedRowIds: [`${SYMBOLS[0]!.address}-${SYMBOLS[0]!.name}`],
+  },
+};
+
+export const Scrollable: Story = {
+  name: "Capped to five rows",
+  args: {
+    data: MANY_SYMBOLS,
+    hidePagination: true,
+    maxVisibleRows: 5,
   },
 };
 

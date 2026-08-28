@@ -3,14 +3,15 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { ListingDepositChainId } from "@symmio/trading-core";
-import { useAddMarket, useListingConfig, useWeeklyListingLimit } from "@symmio/trading-react";
+import { useAddMarket, useWeeklyListingLimit } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { CopyButton } from "@symmio/ui/components/copy-button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 import { useSolverKindActive } from "../solvers/solver-target";
+import { DepositChainSelect } from "./deposit-chain-select";
 import { formatResetAt } from "./format-listing-value";
 import { useListingAuth } from "./listing-auth-context";
 
@@ -34,11 +35,6 @@ export function CreatePoolCard() {
   const { accessToken, signIn, isSigningIn } = useListingAuth();
   const create = useAddMarket();
 
-  // Deposit chains come from the listing config, not a hardcoded list — the
-  // create-pool picker only offers chains the service actually accepts.
-  const config = useListingConfig();
-  const chains = useMemo(() => config.data?.supportedDepositChains ?? [], [config.data]);
-
   // Weekly-listing gate. Public read of the protocol-global weekly cap — no token,
   // so it loads regardless of sign-in and blocks the create flow at `remaining <= 0`.
   const weekly = useWeeklyListingLimit();
@@ -48,14 +44,6 @@ export function CreatePoolCard() {
   const [buyBackRatio, setBuyBackRatio] = useState("5");
   const [maxLeverage, setMaxLeverage] = useState("20");
   const [depositChain, setDepositChain] = useState<ListingDepositChainId>(ListingDepositChainId.HYPER_EVM);
-
-  // Once the config's chains land, keep the selection valid: if the default (or a
-  // stale) chain is not among the supported ones, fall back to the first.
-  useEffect(() => {
-    if (chains.length > 0 && !chains.some((chain) => chain.chainId === depositChain)) {
-      setDepositChain(chains[0]!.chainId);
-    }
-  }, [chains, depositChain]);
 
   const buyBack = Number(buyBackRatio);
   const leverage = Number(maxLeverage);
@@ -96,7 +84,6 @@ export function CreatePoolCard() {
       name="addMarket"
       mutability="nonpayable"
       description="Create pool — list a new token with the listing backend. Sign in once, submit the token and its pool economics, then seed the returned deposit wallet. Enigma-only."
-      wide
     >
       <Field label="tokenContractAddress" htmlFor="create-pool-token-address">
         <Input
@@ -111,20 +98,12 @@ export function CreatePoolCard() {
       </Field>
 
       <Field label="depositChain" htmlFor="create-pool-deposit-chain">
-        <select
-          id="create-pool-deposit-chain"
-          data-testid="create-pool-deposit-chain"
+        <DepositChainSelect
+          idPrefix="create-pool-deposit-chain"
           value={depositChain}
-          onChange={(e) => setDepositChain(Number(e.target.value) as ListingDepositChainId)}
-          disabled={create.isPending || config.isPending}
-          className="border-border bg-input/40 h-9 w-full rounded-md border px-3 text-sm"
-        >
-          {chains.map((chain) => (
-            <option key={chain.chainId} value={chain.chainId}>
-              {chain.chainName} ({chain.chainId})
-            </option>
-          ))}
-        </select>
+          onValueChange={setDepositChain}
+          disabled={create.isPending}
+        />
       </Field>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

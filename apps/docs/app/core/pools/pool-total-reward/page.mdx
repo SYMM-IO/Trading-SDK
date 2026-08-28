@@ -1,0 +1,95 @@
+import { Callout } from "nextra/components";
+
+# getPoolTotalReward
+
+Fetch a pool's **aggregate LP reward over the last `days`** — the headline figure that sits above a pool's rewards chart.
+
+```ts
+import { getPoolTotalReward, LISTING_VALUE_DECIMALS, ListingDepositChainId } from "@symmio/trading-core";
+import { formatUnits } from "@symmio/utils/decimal";
+
+const reward30d = await getPoolTotalReward(config, {
+  marketAddress: "0x1234…",
+  marketChainId: ListingDepositChainId.BASE,
+  days: 30,
+});
+
+formatUnits(reward30d, LISTING_VALUE_DECIMALS).toFixed(2); // "12.40"
+```
+
+One `GET /v2/market/total-reward` against the chain's listing backend. **Public** — no bearer token, no wallet. It is the single-number companion to [`getPoolRewardChart`](/core/pools/pool-reward-chart), which returns the same rewards day by day.
+
+<Callout type="warning">
+  `days` is capped at **30** by the service (minimum `1`). A wider window is rejected with a `422`, not silently clamped
+  — pick the window from a fixed set rather than letting a user type one.
+</Callout>
+
+## Addressing a pool: two chain ids
+
+Like every per-pool listing read, this one takes the pool's token contract address **and the chain that token lives on**, which is not the SDK's `chainId`. See [the note on `getPoolRewardChart`](/core/pools/pool-reward-chart#addressing-a-pool-two-chain-ids).
+
+## Parameters
+
+<Properties>
+  <Property name="marketAddress" type="string" required>
+    The pool's token contract address — `ListingMarket.contractAddress`.
+  </Property>
+  <Property name="marketChainId" type="ListingDepositChainId" required>
+    Chain the pool's token lives on — `ListingMarket.chainId`. Not the SDK's `chainId`.
+  </Property>
+  <Property name="days" type="number" required>
+    Size of the trailing window in days. The service accepts **1–30**.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
+    folded into the query key. There is **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<bigint>">
+  Aggregate reward over the window, 18-decimal fixed point (`LISTING_VALUE_DECIMALS`). A **USD** amount — `1e18` is
+  `$1`. An absent or unparseable figure comes back as `0n`, since a pool with no reward snapshots has earned nothing
+  rather than an unknown amount.
+</Returns>
+
+<Callout type="warning">
+  Money, not a rate. The catalog's `apr` / `apy` fields carry the same 18-decimal scale but descale to a **percentage**
+  (`1e18` = `1%`), so the two do not share a formatter.
+</Callout>
+
+## Earned, not claimable
+
+The figure is built from **earned** daily snapshots, so claiming does not reduce it: it is what the pool distributed over the window, not what remains unclaimed. For a wallet's claimable balance in one pool, read `claimableReward` from [`getUserProfit`](/core/pools/user-profit).
+
+## Query options
+
+```ts
+import { getPoolTotalRewardQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(
+  getPoolTotalRewardQueryOptions(config, {
+    marketAddress: pool.contractAddress,
+    marketChainId: pool.chainId,
+    days: 30,
+  }),
+);
+```
+
+`GetPoolTotalRewardOptions` is the action's parameters plus a `query` bag of TanStack overrides; `days` is part of the key, so switching the window is a new request rather than a re-view of the cached one. `getPoolTotalRewardQueryKey` builds the same `["getPoolTotalReward", …]` key for cache matching and invalidation, and `GetPoolTotalRewardData` / `GetPoolTotalRewardQueryKey` / `GetPoolTotalRewardQueryOptions` name the factory's other halves.
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the resolved chain has no listing backend. Raised by [`resolveListingService`](/core/pools/resolve-listing-service) before any request goes out.
+- `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) when the `chainId` is not one the config knows about at all.
+- `FETCH_POOL_TOTAL_REWARD_FAILED` — the request itself failed, including the `422` on a `days` outside 1–30. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`).
+
+## Related
+
+- [`getPoolRewardChart`](/core/pools/pool-reward-chart) — the same rewards, day by day.
+- [`getUserTotalReward`](/core/pools/user-total-reward) — the same window scoped to the signed-in user.
+- [`getUserProfit`](/core/pools/user-profit) — a wallet's claimable balance in one pool.
+- [`@symmio/trading-react`](/react/pools) — `usePoolTotalReward` is the React binding over this read.
+- [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.

@@ -24,6 +24,7 @@ export function PoolsTvlCard() {
       name="useInventoryTvl"
       mutability="view"
       description="System-wide custodial TVL from the inventory service — the whole custodial system, not just listed markets."
+      size="sm"
     >
       {error ? (
         <ResultError kind={error.kind} message={error.message} testId="pools-tvl-error" />

@@ -1,0 +1,114 @@
+import { Callout } from "nextra/components";
+
+# getTradeVolume
+
+Read one market's **daily traded notional** from the solver — the series behind a pool page's volume chart.
+
+```ts
+import { getTradeVolume } from "@symmio/trading-core";
+
+const volume = await getTradeVolume(config, { symbolId: 1 });
+
+const latest = volume.at(-1); // { timestamp: "2026-07-09T00:00:00Z", volume: "448.69…" }
+```
+
+One `GET /trade-volume/{symbol_id}` against the chain's solver. This is the solver's own bookkeeping — not the inventory service's TVL and not the listing backend's rewards. A pool page that charts volume next to TVL next to rewards is plotting three different vendors; see [Pools](/core/pools) for how they divide up.
+
+`GetTradeVolumeParameters` and `GetTradeVolumeReturnType` are both exported, so you can name them in your own wrappers.
+
+## Keyed by the solver market id
+
+`symbolId` is the **solver's** market id — `ListingMarket.symbolId` on a listed pool, `SolverSymbol.symbolId` on the solver's own catalog. It is not the pool's token contract address, and a pool that has not reached `LISTED` has no `symbolId` at all: gate the read rather than guessing one.
+
+<Callout type="warning">
+  An id the solver does not know answers **`400`**, not an empty series. Treat the failure as "no chart" and render the
+  chart's empty state — a market that has simply never traded is a different, successful response.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="symbolId" type="number" required>
+    Solver market id to read daily volume for.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's solver is used, and is folded into
+    the query key.
+  </Property>
+  <Property name="solverId" type="string" optional>
+    Target a specific solver on that chain. Defaults to the chain's default solver.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<SolverDailyVolume[]>">
+  One entry per day, ascending. An empty array means the market has not traded.
+</Returns>
+
+<Properties>
+  <Property name="timestamp" type="string" required>
+    The day bucket, as the ISO 8601 datetime string the solver reports (e.g. `"2026-07-09T00:00:00Z"`, midnight UTC).
+    Empty string when the solver omits it. ISO 8601 also sorts correctly as a plain string.
+  </Property>
+  <Property name="volume" type="string" required>
+    Notional traded that day, as the decimal string the solver reports (`"0"` when absent).
+  </Property>
+</Properties>
+
+<Callout type="info">
+  Both fields are surfaced **as strings**, deliberately: the solver reports a plain decimal rather than a fixed-point
+  integer, and parsing it into a `number` in the SDK would round it before you ever saw it. Convert at the display edge.
+</Callout>
+
+That is the opposite convention from the listing backend and the inventory service, whose values arrive as 18-decimal `bigint`s. Do not carry a `formatUnits` helper across to this read.
+
+## Enigma-only
+
+`/trade-volume/{symbol_id}` exists only on **Enigma** solvers. The action asserts the resolved solver's kind and throws `UNSUPPORTED_BY_SOLVER` before hitting the wire on any other, so a rasa-kind target fails immediately rather than 404-ing.
+
+```ts
+import { getTradeVolume } from "@symmio/trading-core";
+
+// Explicit target: this deployment's enigma solver.
+const volume = await getTradeVolume(config, { symbolId: 1, chainId, solverId: "enigma" });
+```
+
+## Query options
+
+```ts
+import { getTradeVolumeQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getTradeVolumeQueryOptions(config, { symbolId }));
+```
+
+`GetTradeVolumeOptions` is the action's parameters plus a `query` bag of TanStack overrides. The factory folds `config.getChainConfigKey(chainId)` into the key, so a runtime config override pointed at another solver deployment refetches instead of serving the previous one's cache. `getTradeVolumeQueryKey` builds the same `["getTradeVolume", …]` key, and `GetTradeVolumeData` / `GetTradeVolumeQueryKey` / `GetTradeVolumeQueryOptions` name the factory's other halves.
+
+Gate it on an unlisted pool, so a market with no `symbolId` stays idle:
+
+```ts
+useQuery({
+  ...getTradeVolumeQueryOptions(config, { symbolId: pool.symbolId ?? 0 }),
+  enabled: pool.symbolId !== null,
+});
+```
+
+## toSolverDailyVolume
+
+The mapper this read runs on each row, exported for when you hold a raw response yourself — a proxy route, a fixture, a rehydrated payload. It fills an omitted `timestamp` with `""` and an omitted `volume` with `"0"`.
+
+## Throws
+
+- `UNSUPPORTED_BY_SOLVER` — a `SymmError` (`kind: "config"`) when the resolved solver is not an `enigma` solver. Raised before any request goes out.
+- `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) when the `chainId` is not one the config knows about at all.
+- `FETCH_TRADE_VOLUME_FAILED` — the request itself failed, including the `400` on a market id the solver does not know. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`).
+
+## Related
+
+- [Solvers](/core/solvers) — the slice overview and the rest of the Enigma-only reads.
+- [`getSolverRevenue`](/core/solvers/revenue) — the solver's earnings over a trailing window.
+- [`getInventoryTvlHistory`](/core/inventory/tvl-history) — a pool page's TVL series, from the inventory service.
+- [`getPoolRewardChart`](/core/pools/pool-reward-chart) — a pool page's rewards series, from the listing backend.
+- [`@symmio/trading-react`](/react/markets) — `useTradeVolume` is the React binding over this read.
+- [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.

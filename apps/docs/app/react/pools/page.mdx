@@ -4,9 +4,9 @@ import { Callout } from "nextra/components";
 
 React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
 
-Eleven hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; and `useListingStatus` reads where a market sits in the listing pipeline (public).
+Nineteen hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; and `useListingStatus` reads where a market sits in the listing pipeline (public). Four more fill a pool's detail tables — `useListingMarketDetail`, `usePoolQuotes`, `usePoolTradeHistory` and `usePoolTransactions`, covered under [the detail tables](#the-detail-tables) — and four read its rewards over time, covered under [rewards](#rewards-over-time).
 
-Eight of them are reads. `useAuthenticateListing`, `useAddMarket` and `useWithdrawLp` are **mutations** — the first prompts a wallet signature, the other two submit authed writes (a create-pool and an LP withdrawal).
+Sixteen of them are reads. `useAuthenticateListing`, `useAddMarket` and `useWithdrawLp` are **mutations** — the first prompts a wallet signature, the other two submit authed writes (a create-pool and an LP withdrawal).
 
 ## Import
 
@@ -16,11 +16,19 @@ import {
   useAuthenticateListing,
   useDepositAddress,
   useListingConfig,
+  useListingMarketDetail,
   useListingMarkets,
   useListingStatus,
+  usePoolQuotes,
+  usePoolRewardChart,
+  usePoolTotalReward,
+  usePoolTradeHistory,
+  usePoolTransactions,
   useSupportsListingService,
   useUserListingMarkets,
   useUserProfit,
+  useUserRewardChart,
+  useUserTotalReward,
   useWeeklyListingLimit,
   useWithdrawLp,
   type AddMarketVariables,
@@ -34,14 +42,22 @@ import {
   type UseListingMarketsReturnType,
   type UseUserListingMarketsParameters,
   type UseUserListingMarketsReturnType,
+  type UsePoolRewardChartParameters,
+  type UsePoolRewardChartReturnType,
+  type UsePoolTotalRewardParameters,
+  type UsePoolTotalRewardReturnType,
   type UseUserProfitParameters,
   type UseUserProfitReturnType,
+  type UseUserRewardChartParameters,
+  type UseUserRewardChartReturnType,
+  type UseUserTotalRewardParameters,
+  type UseUserTotalRewardReturnType,
   type UseWeeklyListingLimitParameters,
   type UseWeeklyListingLimitReturnType,
 } from "@symmio/trading-react";
 ```
 
-Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `UserListingMarket`, `UserListingMarketPage`, `UserPoolProfit`, `CreatedPool`, `ListingConfig`, `ListingDepositChain`, `ListingRateLimits`, `WeeklyListingLimit`, `ListingMarketStatus`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, and `LISTING_VALUE_DECIMALS` — the fixed-point scale every money and rate field on a row uses.
+Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `UserListingMarket`, `UserListingMarketPage`, `UserPoolProfit`, `CreatedPool`, `ListingConfig`, `ListingDepositChain`, `ListingRateLimits`, `WeeklyListingLimit`, `ListingMarketStatus`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, `PoolRewardPoint`, `UserPoolRewardChart`, and `LISTING_VALUE_DECIMALS` — the fixed-point scale every money and rate field on a row uses.
 
 ## Gate the feature first
 
@@ -977,6 +993,140 @@ Four things about these numbers that are easy to get wrong:
 
 The pool count comes from `data.total`, never `data.items.length`: `total` is the match count across every page for the current filters, while `items` is just the page in hand.
 
+## Rewards over time
+
+A pool page's chart tabs come from three vendors: TVL over time from the inventory service ([`useInventoryTvlHistory`](../inventory#useinventorytvlhistory)), volume from the solver (`useTradeVolume({ symbolId: pool.symbolId })` — see [Markets hooks](../markets); a pool that is not yet `LISTED` has no `symbolId` and so no volume), and rewards from the listing backend, below.
+
+Four hooks fill a pool page's rewards tab: two public reads for the pool itself, and two authed reads for the signed-in wallet.
+
+| Figure                       | Hook                 | Auth   | Scope          |
+| ---------------------------- | -------------------- | ------ | -------------- |
+| Pool's daily rewards         | `usePoolRewardChart` | Public | One pool       |
+| Pool's trailing-window total | `usePoolTotalReward` | Public | One pool       |
+| Your daily rewards           | `useUserRewardChart` | Bearer | **Every** pool |
+| Your trailing-window total   | `useUserTotalReward` | Bearer | **Every** pool |
+
+```tsx
+const chart = usePoolRewardChart({ marketAddress: pool.contractAddress, marketChainId: pool.chainId });
+const headline = usePoolTotalReward({
+  marketAddress: pool.contractAddress,
+  marketChainId: pool.chainId,
+  days: 30,
+});
+```
+
+### `marketChainId` is not `chainId`
+
+The two public hooks address a pool by the pair `(marketAddress, marketChainId)`, where `marketChainId` is
+`ListingMarket.chainId` — the chain the pool's **token** lives on. The hook's own `chainId` still means what it means
+everywhere else: which deployment's listing backend to ask. A pool whose token is on Solana still trades on the HyperEVM
+deployment, so the two genuinely differ.
+
+<Callout type="warning">
+  Passing the SDK's `chainId` as `marketChainId` returns an **empty series**, not an error — the backend simply finds no
+  market at that pair. Take both values off the `ListingMarket` row rather than assembling them by hand.
+</Callout>
+
+`marketAddress` also **gates** both public hooks, so they can be mounted above a pool picker and stay idle until one is chosen.
+
+### The user hooks cover every pool, not one
+
+`useUserRewardChart` takes **no market**: the bearer token identifies the caller and the response carries one entry per
+market they earn in. A single-pool view slices that response itself — match on **both** halves of the pair, since two
+listings on different deposit chains can share an address string:
+
+```tsx
+const { data: charts } = useUserRewardChart({ accessToken });
+
+const mine = charts?.find(
+  (entry) =>
+    entry.marketAddress.toLowerCase() === pool.contractAddress.toLowerCase() && entry.marketChainId === pool.chainId,
+);
+const points = mine?.rewards ?? [];
+```
+
+One request covers every pool, so a page listing several pools' "your rewards" should read this **once** and slice it
+rather than calling it per row. `useUserTotalReward` additionally wants the wallet address alongside the token, and both
+gate on their inputs — mount them before sign-in and they stay idle.
+
+### Money, and earned rather than claimable
+
+Every reward on these hooks is a `bigint` at `LISTING_VALUE_DECIMALS` (18) that descales to a **USD amount** — unlike a
+catalog row's `apr`, which descales to a percentage on the same scale. And both totals are built from **earned** daily
+snapshots, so claiming does not reduce them; `useUserProfit`'s `claimableReward` is the balance a claim actually moves.
+
+<Callout type="warning">
+  `days` is capped at **30** by the service on both total reads. A wider window is rejected with a `422`, not clamped —
+  offer a fixed set of windows rather than a free-text field.
+</Callout>
+
+## The detail tables
+
+A pool's detail view is five tables filled by **three** different backends. The hook you reach for depends on which:
+
+| Table                    | Hook                                         | Backend            |
+| ------------------------ | -------------------------------------------- | ------------------ |
+| Positions                | `useListingMarketDetail` + `toPoolPositions` | Listing backend    |
+| Open quotes              | `usePoolQuotes`                              | Analytics subgraph |
+| Limit orders             | [`useSearchTpSlOrders`](../tpsl)             | TP/SL handler      |
+| Trade history            | `usePoolTradeHistory`                        | Analytics subgraph |
+| Deposits and withdrawals | `usePoolTransactions`                        | Listing backend    |
+
+### They are pool-wide, not account-scoped
+
+This is the thing to internalise before wiring any of them up. None of these reads filters by account: they return **every trader's** rows on the market.
+
+- **No wallet is required**, so the tables render for an anonymous visitor.
+- **Show the account column.** `partyA` / `walletAddress` differs row to row; without it the rows are ambiguous.
+- **They are not the account hooks.** `useQuoteHistory` answers "what does _this_ account hold"; `usePoolTradeHistory` answers "what happened on _this_ market". Picking the wrong one yields an empty table or someone else's trades.
+
+### An unlisted pool has no book
+
+`usePoolQuotes` and `usePoolTradeHistory` need the pool's `symbolId`. A pool that has not reached `LISTED` has none, so both stay idle (`enabled: false`) rather than firing a request that cannot match anything.
+
+`usePoolTransactions` is the exception — deposits exist from the moment a listing is applied for, so that tab has rows well before the pool is tradable. Render the other four as "not tradable yet" rather than "no data".
+
+### One request feeds two tables
+
+`useListingMarketDetail` returns the pool's stats **and** its inventory. `toPoolPositions` folds that same response into positions rows — a pure reshape, not a second request:
+
+```tsx
+import { toPoolPositions } from "@symmio/trading-core";
+import { useListingMarketDetail } from "@symmio/trading-react";
+
+function PoolPositions({ tokenContractAddress, depositChain }) {
+  const { data, isPending } = useListingMarketDetail({ tokenContractAddress, depositChain });
+  const rows = data ? toPoolPositions(data) : [];
+
+  if (isPending) return <p>Loading…</p>;
+  if (rows.length === 0) return <p>This pool holds no inventory.</p>;
+
+  return rows.map((row) => <PositionRow key={row.side} {...row} />);
+}
+```
+
+Sides the backend reported nothing for are omitted, so an empty array means no inventory at all. A side reporting a genuine zero size is kept — a different state, and worth rendering as one.
+
+### Fetch only the visible tab
+
+Each table is a separate backend with its own latency and its own way of failing. Gate the hooks on the open tab so a tab nobody is looking at is not holding a request open:
+
+```tsx
+const quotes = usePoolQuotes({ symbolId, query: { enabled: tab === "openQuotes" } });
+const history = usePoolTradeHistory({ symbolId, query: { enabled: tab === "tradeHistory" } });
+```
+
+<Callout type="warning">
+  A disabled TanStack query sits in `status: "pending"` forever. If a table renders "Loading…" off `isPending` alone, a
+  gated tab will look like it is loading rather than idle — branch on the gate first.
+</Callout>
+
+### Limit orders are not protocol LIMIT orders
+
+The limit-orders tab is `useSearchTpSlOrders` with `conditionalOrderType: TpSlSearchOrderType.SEND_QUOTE` and **no** `account` — that omission is what makes it pool-wide.
+
+A `send_quote` order opens a quote when a trigger fires, which is a different mechanism from a protocol LIMIT order. The lowcap solver declares `limitOrder: false` and can still have them, so do not gate this tab on that capability.
+
 ## Related
 
 - [Pools](../../core/pools) — the framework-agnostic slice: the availability rules, the 18-decimal contract, and the `ListingMarket` row shape.
@@ -987,5 +1137,9 @@ The pool count comes from `data.total`, never `data.items.length`: `total` is th
 - [`getDepositAddress`](../../core/pools/deposit-address) — the framework-agnostic deposit-wallet read behind `useDepositAddress`.
 - [Solvers & chains](/core/concepts/solvers-and-chains#pools-listing-service) — where the listing backend is configured and how the capability resolves.
 - [Solvers hooks](../solvers#usesupportslistingservice) — the rest of the capability gates.
-- [Inventory hooks](../inventory) — `useInventoryTvl`, the headline TVL above the catalogue.
+- [Inventory hooks](../inventory) — `useInventoryTvl`, the headline TVL above the catalogue, and `useInventoryTvlHistory`, the TVL series on a pool page.
+- [`getPoolRewardChart`](../../core/pools/pool-reward-chart) — the framework-agnostic rewards series behind `usePoolRewardChart`.
+- [`getUserRewardChart`](../../core/pools/user-reward-chart) — the authed, per-market rewards series behind `useUserRewardChart`.
+- [Pool detail tables](../../core/pools/pool-detail-tables) — the framework-agnostic reads behind the five tables, and which backend fills each.
+- [`searchTpSlOrders`](../../core/tpsl/search-tpsl-orders) — the limit-orders read, and why omitting `account` is what scopes it to a pool.
 - [Errors](../errors) — `SymmioRequestError`, its `kind`, and the `code` a failed listing read carries.

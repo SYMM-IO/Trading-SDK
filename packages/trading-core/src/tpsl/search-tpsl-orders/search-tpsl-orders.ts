@@ -4,6 +4,7 @@ import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import type { QuoteTpSlRow } from "../get-quote-tpsl";
 import { rethrowTpSlError } from "../internal/axios";
 import { resolveTpSlConfig } from "../internal/resolve-tpsl-config";
+import { TpSlSearchOrderType } from "../types";
 import {
   ConditionalOrdersState,
   searchConditionalOrdersV5ApiV5SearchPost,
@@ -36,14 +37,19 @@ export type SearchTpSlOrdersParameters = Compute<
     /**
      * Account whose conditional orders to search — the Virtual Account that
      * owns them, which is what the handler stores as `party_a_address`.
+     *
+     * **Omit to search across every account.** The handler treats the field as
+     * an optional filter, so leaving it out returns all matching orders — which
+     * is how a pool's own order book is read (`symbolId` + `conditionalOrderType`,
+     * no account). Verified against the live handler.
      */
-    account: Address;
+    account?: Address;
     /** Row states to include. Defaults to {@link TPSL_LIVE_ORDER_STATES}. */
     state?: readonly QuoteTpSlRowStateFilter[];
     /** Restrict to one market. */
     symbolId?: number;
     /** Restrict to one side. */
-    conditionalOrderType?: ConditionalOrderType;
+    conditionalOrderType?: TpSlSearchOrderType;
     /** Restrict to one trigger-price source. */
     conditionalPriceType?: PriceActionType;
     /** Page offset. Defaults to `0`. */
@@ -86,16 +92,22 @@ export interface SearchTpSlOrdersReturnType {
 }
 
 /**
- * Search one account's conditional orders at the TP/SL handler.
+ * Search conditional orders at the TP/SL handler.
  *
  * Hits `POST /api/v5/search/`. Unlike {@link getQuoteTpSl}, which reads one
- * quote, this returns every matching order for an account in a single request —
- * so a merged position's legs cost one call rather than one call per leg.
+ * quote, this returns every matching order in a single request — so a merged
+ * position's legs cost one call rather than one call per leg.
+ *
+ * Every filter is optional, including `account`. Pass one to read a single
+ * account's orders; omit it to read **across accounts**, which is how a pool's
+ * order book is read — filter by `symbolId` and
+ * `conditionalOrderType: "send_quote"` and the rows come back for every trader
+ * on that market.
  *
  * Returns the raw rows; framework layers fold them into UI-facing snapshots.
  *
  * @param config - The SDK config.
- * @param parameters - The account to search, plus optional filters and paging.
+ * @param parameters - Optional account, filters and paging.
  * @returns The page's rows, the handler's count, and whether the page is complete.
  *
  * @throws {SymmError} when the chain has no `tpsl` config.
@@ -103,8 +115,14 @@ export interface SearchTpSlOrdersReturnType {
  *
  * @example
  * ```ts
- * const { orders, isComplete } = await searchTpSlOrders(config, { account: virtualAccount });
- * const live = orders.filter((order) => order.quote_id === Number(quoteId));
+ * // One account's live legs.
+ * const { orders } = await searchTpSlOrders(config, { account: virtualAccount });
+ *
+ * // A pool's pending trigger-to-open orders, across every trader.
+ * const book = await searchTpSlOrders(config, {
+ *   symbolId,
+ *   conditionalOrderType: TpSlSearchOrderType.SEND_QUOTE,
+ * });
  * ```
  */
 export async function searchTpSlOrders(
@@ -114,13 +132,20 @@ export async function searchTpSlOrders(
   const tpsl = resolveTpSlConfig(config, parameters.chainId);
   const size = parameters.size ?? DEFAULT_SEARCH_SIZE;
   const body: ConditionalOrderSearchRequestSchemaV3 = {
-    party_a_address: parameters.account,
+    /**
+     * Omitted entirely when absent rather than sent as `undefined`: the handler
+     * treats a present-but-empty filter differently from a missing one.
+     */
+    ...(parameters.account === undefined ? {} : { party_a_address: parameters.account }),
     state: [...(parameters.state ?? TPSL_LIVE_ORDER_STATES)],
     start: parameters.start ?? 0,
     size,
   };
   if (parameters.symbolId !== undefined) body.symbol_id = parameters.symbolId;
-  if (parameters.conditionalOrderType !== undefined) body.conditional_order_type = parameters.conditionalOrderType;
+  if (parameters.conditionalOrderType !== undefined) {
+    /** Same string values as the generated enum; cast at the wire boundary so the generated type stays internal. */
+    body.conditional_order_type = parameters.conditionalOrderType as unknown as ConditionalOrderType;
+  }
   if (parameters.conditionalPriceType !== undefined) body.conditional_price_type = parameters.conditionalPriceType;
 
   try {

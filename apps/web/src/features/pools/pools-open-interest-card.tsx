@@ -27,11 +27,12 @@ export function PoolsOpenInterestCard() {
       name="useNotionalCapAll"
       mutability="view"
       description="Open and still-available notional across every market the solver quotes."
+      size="sm"
     >
       {error ? (
         <ResultError kind={error.kind} message={error.message} testId="pools-open-interest-error" />
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="flex flex-col gap-5">
           <div data-testid="pools-open-interest-used">
             <Stat
               label="Open interest"

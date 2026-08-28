@@ -27,6 +27,11 @@ export interface MarketSelectProps {
   emptyLabel?: React.ReactNode;
   emptyResultsLabel?: React.ReactNode;
   clearLabel?: string;
+  /**
+   * Render the clear controls (the trigger's × and the picker's clear row).
+   * Set `false` for a required field that must always hold a value.
+   */
+  clearable?: boolean;
   selectedLabel?: string;
   className?: string;
   /**
@@ -66,6 +71,7 @@ function MarketSelect({
   emptyLabel = "No markets.",
   emptyResultsLabel = "No markets match this search.",
   clearLabel = "Clear market",
+  clearable = true,
   selectedLabel = "Selected",
   className,
   searchValue,
@@ -123,7 +129,7 @@ function MarketSelect({
               className={cn(
                 "bg-input/35 border-border hover:bg-input/55 focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border py-1 pr-10 pl-3 text-left text-base transition-[color,box-shadow,background-color,border-color] outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
                 selectedItem ? "text-foreground" : "text-muted-foreground",
-                selectedItem && "pr-16",
+                selectedItem && clearable && "pr-16",
               )}
             >
               <span className="block truncate">{selectedItem ? selectedItem.label : placeholder}</span>
@@ -131,7 +137,7 @@ function MarketSelect({
             </button>
           </PopoverTrigger>
 
-          {selectedItem ? (
+          {selectedItem && clearable ? (
             <button
               type="button"
               data-testid={`${idPrefix}-clear`}
@@ -167,7 +173,7 @@ function MarketSelect({
           </div>
         </div>
 
-        {selectedItem ? (
+        {selectedItem && clearable ? (
           <button
             type="button"
             data-testid={`${idPrefix}-clear-option`}

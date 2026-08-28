@@ -7,20 +7,21 @@ The **inventory service** is the custody backend behind the lowcap [Pools](/core
 It is a **separate vendor** from both the solver and the listing backend — its own deployment, its own base URL, its own OpenAPI spec (`https://inventory85.enigma.bz/openapi.json`, which the package's generated client is built from). Nothing in this slice is on-chain: like Pools, it is REST bookkeeping.
 
 <Callout type="warning">
-  **There are no contract calls in this slice.** `getInventoryTvl` is a REST read against the inventory service —
-  nothing here signs, sends, simulates, or reads a contract.
+  **There are no contract calls in this slice.** Both reads here are REST calls against the inventory service — nothing
+  here signs, sends, simulates, or reads a contract.
 </Callout>
 
 ## A pools page is several vendors, not one
 
 A pools screen looks like a single product and is assembled from three independent backends. Knowing which figure belongs to which vendor is what keeps a discrepancy from reading as a bug:
 
-| Figure                                            | Owner                                                              |
-| ------------------------------------------------- | ------------------------------------------------------------------ |
-| Catalog rows — per-pool `tvl`, `apr`, `liquidity` | Listing backend ([`getListingMarkets`](/core/pools))               |
-| Headline system TVL                               | **Inventory service** ([`getInventoryTvl`](/core/inventory/tvl))   |
-| Revenue totals                                    | The solver ([`getSolverRevenue`](/core/solvers/revenue))           |
-| Per-market volume and open-interest caps          | The solver again, on separate endpoints ([Solvers](/core/solvers)) |
+| Figure                                            | Owner                                                                                  |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Catalog rows — per-pool `tvl`, `apr`, `liquidity` | Listing backend ([`getListingMarkets`](/core/pools))                                   |
+| Headline system TVL                               | **Inventory service** ([`getInventoryTvl`](/core/inventory/tvl))                       |
+| One pool's TVL over time                          | The same service, per market ([`getInventoryTvlHistory`](/core/inventory/tvl-history)) |
+| Revenue totals                                    | The solver ([`getSolverRevenue`](/core/solvers/revenue))                               |
+| Per-market volume and open-interest caps          | The solver again, on separate endpoints ([Solvers](/core/solvers))                     |
 
 Separate deployments mean separate refresh cadences and separate failure modes. A UI that treats them as one surface blocks the whole page on its slowest service, and reads a mismatch between the headline TVL and the catalog's `tvl` column as an arithmetic error rather than as what it is — see [Not the sum of the catalog](/core/inventory/tvl#not-the-sum-of-the-catalog).
 
@@ -62,7 +63,7 @@ The scale is the same 18 decimals the listing backend uses, but the **unit is no
 
 ## What this slice wraps
 
-Deliberately one read. The generated client covers the service's whole spec — orders, swaps, deposits, withdrawals, transfers, market positions and their PnL, per-market TVL and its history, funding-rate reads and simulation, health checks, error codes — but that client is internal to the package and is not exported. The public surface is exactly `getInventoryTvl`, its query factories, `toInventoryTvl`, the two resolver functions, and `INVENTORY_VALUE_DECIMALS`.
+Deliberately two reads. The generated client covers the service's whole spec — orders, swaps, deposits, withdrawals, transfers, market positions and their PnL, per-market TVL and its history, funding-rate reads and simulation, health checks, error codes — but that client is internal to the package and is not exported. The public surface is exactly `getInventoryTvl` and `getInventoryTvlHistory`, their query factories, `toInventoryTvl` and `toInventoryTvlPoint`, the two resolver functions, and `INVENTORY_VALUE_DECIMALS`.
 
 Every wrapper is a normalized type, an error code, and a compatibility promise, so they get added when a flow needs one rather than in bulk. Nothing else on the spec — the custodial deposit and withdrawal endpoints included — is reachable from `@symmio/trading-core` today.
 
@@ -71,6 +72,9 @@ Every wrapper is a normalized type, an error code, and a compatibility promise, 
 <MethodIndex kind="read">
   <MethodEntry name="getInventoryTvl" href="/core/inventory/tvl">
     Read the system-wide custodial TVL as a `bigint` at 18 decimals.
+  </MethodEntry>
+  <MethodEntry name="getInventoryTvlHistory" href="/core/inventory/tvl-history">
+    Read one market's custodial TVL over time — the series behind a pool page's TVL chart.
   </MethodEntry>
 </MethodIndex>
 
@@ -90,24 +94,29 @@ The mapper `getInventoryTvl` runs on the way out. Reach for it only when you hol
   <MethodEntry name="toInventoryTvl" href="/core/inventory/tvl#toinventorytvl">
     Parse the service's 18-decimal TVL string into a `bigint`, defaulting an absent or unparseable value to `0n`.
   </MethodEntry>
+  <MethodEntry name="toInventoryTvlPoint" href="/core/inventory/tvl-history#toinventorytvlpoint">
+    Map one raw `tvl-history` row into an `InventoryTvlPoint`.
+  </MethodEntry>
 </MethodIndex>
 
 `INVENTORY_VALUE_DECIMALS` — the fixed-point scale every value in this slice carries — has no page of its own; it is documented on [`getInventoryTvl`](/core/inventory/tvl#returns) alongside the value it scales.
 
 ## Query options
 
-The TVL read ships a matching `getInventoryTvlQueryOptions` factory and a `getInventoryTvlQueryKey` builder for TanStack Query. The resolved chain config's fingerprint is folded into the key, so a `createConfig` override pointed at the staging deployment never serves production's cached figure. See [`getInventoryTvl`](/core/inventory/tvl#query-options) for the exact call.
+Both reads ship a matching options factory and key builder for TanStack Query — `getInventoryTvlQueryOptions` / `getInventoryTvlQueryKey` and `getInventoryTvlHistoryQueryOptions` / `getInventoryTvlHistoryQueryKey`. The resolved chain config's fingerprint is folded into each key, so a `createConfig` override pointed at the staging deployment never serves production's cached figure. See [`getInventoryTvl`](/core/inventory/tvl#query-options) and [`getInventoryTvlHistory`](/core/inventory/tvl-history#query-options) for the exact calls.
 
 ## Errors
 
 - `INVENTORY_NOT_CONFIGURED` — a `SymmError` with `kind: "config"`: the resolved chain has no `inventory` service. Raised before any network call.
 - `FETCH_INVENTORY_TVL_FAILED` — the TVL request failed. An axios failure arrives as a `SymmApiError` with `status`, `statusText`, `responseData`, `url` and `method` (a failure with no response carries `status: 0` / `statusText: "Unknown"`); anything else is a plain `SymmError` with `kind: "api"`.
+- `FETCH_INVENTORY_TVL_HISTORY_FAILED` — the per-market history request failed, with the same shape. This includes the `404` on environments where that route is not deployed yet, so treat it as "no chart" rather than a page-level failure.
 
 ## Related
 
 - [`getInventoryTvl`](/core/inventory/tvl) — the read, its scale contract, and `toInventoryTvl`.
+- [`getInventoryTvlHistory`](/core/inventory/tvl-history) — the same figure per market, over time.
 - [`resolveInventoryService`](/core/inventory/resolve-inventory-service) — the availability check the read runs first.
 - [Pools](/core/pools) — the listing backend that owns the catalog this service backs.
 - [Solvers](/core/solvers) — the third vendor on a pools page.
-- [`@symmio/trading-react`](/react) — `useInventoryTvl` is the React binding over this read.
+- [`@symmio/trading-react`](/react) — `useInventoryTvl` and `useInventoryTvlHistory` are the React bindings over these reads.
 - [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.

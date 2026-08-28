@@ -406,6 +406,160 @@ export interface ListingMarketFilters {
 }
 
 /**
+ * Which side of the pool's book a {@link PoolPosition} row describes.
+ *
+ * The pool's inventory is reported as two aggregates, not a list of individual
+ * trades — the detail read gives one long total and one short total.
+ */
+export enum PoolPositionSide {
+  LONG = "long",
+  SHORT = "short",
+}
+
+/**
+ * One side of a pool's aggregate position book.
+ *
+ * Every figure is a `bigint` at {@link LISTING_VALUE_DECIMALS}. `upnl` is signed
+ * — a losing side reports a negative value — and is the only field here that
+ * routinely is.
+ */
+export interface PoolPosition {
+  /** Which side this row aggregates. */
+  side: PoolPositionSide;
+  /** Total size held on this side, in the pool token's units. */
+  size: bigint;
+  /** Notional value of the side, in USD. */
+  value: bigint;
+  /** Size-weighted average open price of the side, in USD. */
+  avgOpenPrice: bigint;
+  /** Unrealized PnL of the side, in USD. Signed. */
+  upnl: bigint;
+}
+
+/**
+ * A pool's public detail — the aggregate stats and inventory position behind a
+ * pool page.
+ *
+ * Money and rate fields are `bigint` at {@link LISTING_VALUE_DECIMALS}; recall
+ * that a descaled *rate* is already a percentage (`1e18` = `1%`) while a
+ * descaled *money* field is USD (`1e18` = `$1`). `null` means the backend
+ * reported no value, which is not zero.
+ *
+ * A **delisted** pool is a documented special case: the backend returns cached
+ * remaining token and USDC balances with `tvl` fixed at zero.
+ */
+export interface ListingMarketDetail {
+  /** The pool's token contract address — its id in the listing API. */
+  tokenContractAddress: string;
+  /** Chain the token lives on and its listing deposit was made on. */
+  depositChain: ListingDepositChainId;
+  /** Token display name. */
+  tokenName: string;
+  /** Token ticker, or `null` when the backend has none. */
+  tokenTicker: string | null;
+  /** Token decimals. */
+  tokenDecimal: number;
+  /** Solver market id, or `null` when the pool is not tradable yet. */
+  symbolId: number | null;
+  /** Where the pool sits in the listing lifecycle. */
+  marketStatus: ListingMarketStatus;
+  /** Maximum leverage the market allows, as a whole multiplier. */
+  maxLeverage: number;
+  /** Share of revenue routed to token buybacks, as a percentage (`50` = 50%). */
+  buybackRatio: number;
+  /** When the market went live, as a Unix timestamp in **seconds**. */
+  listingTime: number | null;
+  /** Pool age in **seconds**, or `null` before listing. */
+  age: number | null;
+  /** Number of distinct LPs in the pool. */
+  activeLps: number;
+  /** Total value locked in the pool, USD. `0` for a delisted pool by design. */
+  tvl: bigint | null;
+  /** Collateral held by the pool, USD. */
+  totalUsdcInPool: bigint;
+  /** Pool token held by the pool, in the token's own units. */
+  totalTokenInPool: bigint;
+  /** Accrued maintenance fees, USD. */
+  maintenanceFees: bigint;
+  /** LP rewards per window, USD. */
+  rewards: ListingApyWindows;
+  /** Solver revenue per window, USD. */
+  solverRevenue: ListingApyWindows;
+  /** Headline APY per window, as a percentage. */
+  apy: ListingApyWindows;
+  /** APY attributed to TVL growth, per window, as a percentage. */
+  tvlDrivenApy: ListingApyWindows;
+  /** APY attributed to token price movement, per window, as a percentage. */
+  priceDrivenApy: ListingApyWindows;
+  /** The pool's aggregate long side, or `null` when the backend reported none. */
+  longPosition: PoolPosition | null;
+  /** The pool's aggregate short side, or `null` when the backend reported none. */
+  shortPosition: PoolPosition | null;
+}
+
+/** Whether a pool transaction is money going in or coming out. */
+export enum PoolTransactionType {
+  DEPOSIT = "deposit",
+  WITHDRAW = "withdraw",
+}
+
+/**
+ * Where a pool transaction sits in its lifecycle, as the backend reports it to
+ * users.
+ */
+export enum PoolTransactionStatus {
+  PENDING = "pending",
+  SUCCESS = "success",
+  REJECTED = "rejected",
+  REFUND = "refund",
+  CANCELED = "canceled",
+}
+
+/**
+ * One deposit or withdrawal against a pool.
+ *
+ * `amount`, `usdcAmount` and `tokenAmount` are `bigint` at
+ * {@link LISTING_VALUE_DECIMALS}. The refund fields are populated only for a
+ * refunded row.
+ */
+export interface PoolTransaction {
+  /** Backend id for the transaction. */
+  transactionId: string;
+  /** The wallet that made it. */
+  walletAddress: string;
+  /** Amount moved, in the transaction's own denomination. */
+  amount: bigint;
+  /** Collateral value moved, USD. */
+  usdcAmount: bigint;
+  /** Token amount moved, in the pool token's units. */
+  tokenAmount: bigint;
+  /** On-chain transaction hash or Solana signature, when known. */
+  transactionHash: string | null;
+  /** Address a refund was sent to, or `null` when this is not a refund. */
+  refundAddress: string | null;
+  /** Hash of the refund transaction, or `null` when this is not a refund. */
+  refundTransactionHash: string | null;
+  /** When the refund completed, Unix **seconds**; `null` when not a refund. */
+  refundTime: number | null;
+  /** Deposit or withdrawal. */
+  type: PoolTransactionType;
+  /** Lifecycle status. */
+  status: PoolTransactionStatus;
+  /** When the transaction happened, Unix **seconds**. */
+  time: number;
+}
+
+/** One page of {@link PoolTransaction} rows for a pool. */
+export interface PoolTransactionPage {
+  /** The pool's token contract address, echoed by the backend. */
+  marketAddress: string;
+  /** Total rows matching the query across all pages. */
+  count: number;
+  /** The rows themselves. */
+  items: PoolTransaction[];
+}
+
+/**
  * The generated `MarketStatus` enum and {@link ListingMarketStatus} carry the
  * same string values; this alias documents that the cast in the mapper is
  * value-preserving rather than a widening.
@@ -458,4 +612,97 @@ export interface ListingConfig {
   rateLimits: ListingRateLimits;
   /** Whole-percent of market revenue to the protocol before buyback/LP. */
   protocolRewardSharePercent: number;
+}
+
+/**
+ * One quote in a pool's book, decoded from the analytics subgraph.
+ *
+ * A pool's book is **every trader's** quotes on that market, not one account's —
+ * `partyA` differs from row to row. Amounts and prices are `bigint` at 18
+ * decimals (the protocol's own scale, not the listing backend's), and `null`
+ * means the subgraph had no value for that field.
+ */
+export interface PoolQuote {
+  /** Subgraph row id (`{quoteId}-{source}`); stable, use as a table key. */
+  id: string;
+  /** Protocol quote id. */
+  quoteId: bigint;
+  /** Raw `QuoteStatus` ordinal as the subgraph reports it. */
+  quoteStatus: number | null;
+  /** Raw `PositionType` ordinal — `0` long, `1` short. */
+  positionType: number | null;
+  /** Raw `OrderType` ordinal of the open — `0` limit, `1` market. */
+  orderTypeOpen: number | null;
+  /** Market ticker, when the subgraph carries one. */
+  symbol: string | null;
+  /** Solver market id. */
+  symbolId: number | null;
+  /** The account that opened the quote. */
+  partyA: string;
+  /** The solver that took the other side. */
+  partyB: string | null;
+  /** Quote size. */
+  quantity: bigint | null;
+  /** How much of {@link PoolQuote.quantity} has been closed. */
+  closedAmount: bigint | null;
+  /** Size of an in-flight close request. */
+  quantityToClose: bigint | null;
+  /** Price the quote actually opened at. */
+  openedPrice: bigint | null;
+  /** Price the opener asked for. */
+  requestedOpenPrice: bigint | null;
+  /** Size-weighted average of the closes so far. */
+  averageClosedPrice: bigint | null;
+  /** Price of an in-flight close request. */
+  closePrice: bigint | null;
+  /** Open price before any modification. */
+  initialOpenedPrice: bigint | null;
+  /** Size liquidated, when the quote was liquidated. */
+  liquidateAmount: bigint | null;
+  /** Price the liquidation executed at. */
+  liquidatePrice: bigint | null;
+  /** Block timestamp of the quote's last update, Unix **seconds**. */
+  timestamp: number;
+  /** Block the quote was last updated in. */
+  blockNumber: bigint;
+}
+
+/**
+ * One day of LP reward for a pool.
+ *
+ * A series of these is what a pool page's rewards chart plots — the public
+ * per-pool series from `getPoolRewardChart`, or one market's slice of the
+ * signed-in user's {@link UserPoolRewardChart}.
+ */
+export interface PoolRewardPoint {
+  /** Start of the reward day, unix **seconds**. */
+  timestamp: number;
+  /**
+   * Reward earned that day, `bigint` at {@link LISTING_VALUE_DECIMALS} (18).
+   *
+   * A **money** field, so the descaled number is a USD amount (`1e18` = `$1`) —
+   * unlike the catalog's rate fields, which are already percentages. A day the
+   * service reports as absent collapses to `0n` rather than `null`: a missing
+   * snapshot and a zero-reward day are the same point on a chart.
+   */
+  reward: bigint;
+}
+
+/**
+ * The signed-in user's daily reward series for **one** market, as returned by
+ * `getUserRewardChart` — which reports every market the user has rewards in,
+ * one entry each.
+ *
+ * A market is addressed by the pair `(marketAddress, marketChainId)`, matching
+ * {@link ListingMarket.contractAddress} and {@link ListingMarket.chainId}. Note
+ * `marketChainId` is the chain the **token** lives on, not the SYMMIO chain the
+ * market trades on.
+ */
+export interface UserPoolRewardChart {
+  /** The pool's token contract address — matches {@link ListingMarket.contractAddress}. */
+  marketAddress: string;
+  /** Chain the token lives on — matches {@link ListingMarket.chainId}. */
+  marketChainId: ListingDepositChainId;
+  /** The user's daily rewards in this pool, in the order the service returns them. */
+  rewards: PoolRewardPoint[];
 }

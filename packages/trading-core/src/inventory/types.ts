@@ -11,3 +11,19 @@
  * amount — `1e18` is `$1`.
  */
 export const INVENTORY_VALUE_DECIMALS = 18;
+
+/**
+ * One point of a market's custodial TVL history.
+ *
+ * The inventory service snapshots each market's held value on a schedule; a
+ * series of these is what a pool page's TVL chart plots.
+ */
+export interface InventoryTvlPoint {
+  /** Snapshot time, unix **seconds**. */
+  timestamp: number;
+  /**
+   * Value held at that moment, `bigint` at {@link INVENTORY_VALUE_DECIMALS} (18).
+   * A USD amount — `1e18` is `$1`.
+   */
+  tvl: bigint;
+}

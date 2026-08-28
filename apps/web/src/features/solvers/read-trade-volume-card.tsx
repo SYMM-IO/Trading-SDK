@@ -1,10 +1,14 @@
 "use client";
 
+import { ChartWithTable } from "@/components/chart-with-table";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import { TableSkeleton } from "@/components/skeletons";
 import { MethodCard } from "@/features/inspector/method-card";
+import { formatChartDate, formatChartDay, formatChartUsd } from "@/lib/chart-format";
+import { toVolumeBuckets } from "@/lib/volume-buckets";
 import { useTradeVolume } from "@symmio/trading-react";
+import { BarChart, type BarChartSeries } from "@symmio/ui/components/bar-chart";
 import { Button } from "@symmio/ui/components/button";
 import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
 import { Input } from "@symmio/ui/components/input";
@@ -25,6 +29,9 @@ const DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
 
 /** One daily-volume row, derived structurally from the hook's return type. */
 type VolumeRow = NonNullable<ReturnType<typeof useTradeVolume>["data"]>[number];
+
+/** One series — the market — so the chart draws plain bars and needs no legend. */
+const VOLUME_SERIES: readonly BarChartSeries[] = [{ id: "volume", label: "Daily volume", tone: 1 }];
 
 /**
  * Solvers-page card for `/trade-volume/{symbolId}` — the enigma solver's last N
@@ -107,6 +114,7 @@ export function ReadTradeVolumeCard() {
 
 function ResultPanel({ testId, query }: { testId: string; query: ReturnType<typeof useTradeVolume> }) {
   const columns = useMemo<DataTableColumn<VolumeRow>[]>(() => buildColumns(), []);
+  const buckets = useMemo(() => toVolumeBuckets(query.data), [query.data]);
 
   if (query.isLoading && query.isFetching) {
     return <TableSkeleton rows={4} columns={2} alignEndFrom={1} testId={`${testId}-loading`} />;
@@ -122,15 +130,30 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
   }
 
   return (
-    <DataTable
-      testId={`${testId}-data`}
-      columns={columns}
-      data={query.data}
-      totalCount={query.data.length}
-      getRowId={(row) => String(row.timestamp)}
-      initialSort={{ columnId: "timestamp", direction: "asc" }}
-      defaultPageSize={7}
-    />
+    <ChartWithTable
+      chart={
+        <BarChart
+          series={VOLUME_SERIES}
+          buckets={buckets}
+          label="Daily trade volume"
+          formatValue={formatChartUsd}
+          formatX={formatChartDay}
+          formatXDetail={formatChartDate}
+          height={320}
+          testId={`${testId}-chart`}
+        />
+      }
+    >
+      <DataTable
+        testId={`${testId}-data`}
+        columns={columns}
+        data={query.data}
+        totalCount={query.data.length}
+        getRowId={(row) => String(row.timestamp)}
+        initialSort={{ columnId: "timestamp", direction: "asc" }}
+        defaultPageSize={7}
+      />
+    </ChartWithTable>
   );
 }
 

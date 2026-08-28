@@ -4,4 +4,5 @@ export default {
   "instant-close": "Instant Close",
   "force-close": "Force Close",
   revenue: "Revenue",
+  "trade-volume": "Trade volume",
 };

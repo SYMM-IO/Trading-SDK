@@ -91,6 +91,50 @@ Range filter bounds use the **same 18-decimal scale as the response**. A one-mil
   <MethodEntry name="getListingMarkets" href="/core/pools/get-listing-markets">
     Fetch a page of the listing catalog — searched, filtered, sorted and paged by the backend.
   </MethodEntry>
+  <MethodEntry name="getListingMarketDetail" href="/core/pools/market-detail">
+    One pool's aggregate stats and inventory — the read a whole pool page is built on.
+  </MethodEntry>
+</MethodIndex>
+
+## Pool detail
+
+A pool page's five tables come from **three** backends, and none of these reads is account-scoped — they return every
+trader's rows on the market. See [Detail tables](/core/pools/pool-detail-tables) for which backend fills which.
+
+<MethodIndex kind="read">
+  <MethodEntry name="getPoolQuotes" href="/core/pools/pool-quotes">
+    The pool's quote book from the analytics subgraph, filtered by quote status.
+  </MethodEntry>
+  <MethodEntry name="getPoolTradeHistory" href="/core/pools/pool-trade-history">
+    The pool's realized closes and liquidations, one row per event.
+  </MethodEntry>
+  <MethodEntry name="getPoolTransactions" href="/core/pools/pool-transactions">
+    The pool's deposits and withdrawals, refunds included.
+  </MethodEntry>
+</MethodIndex>
+
+## Rewards
+
+A pool's LP rewards over time, and the trailing-window totals above them. (A pool page's other two series live with their vendors: TVL over time is [`getInventoryTvlHistory`](/core/inventory/tvl-history) on the inventory service, and daily volume is [`getTradeVolume`](/core/solvers/trade-volume) on the solver, keyed by the pool's `symbolId`.) The two `Pool` reads are **public**; the two
+`User` reads are **authed** and cover every market the signed-in wallet earns in rather than one pool, so a single-pool
+view filters their result itself.
+
+Every reward here is **money** — a `bigint` at `LISTING_VALUE_DECIMALS` where `1e18` is `$1` — not a rate, and the
+totals are built from **earned** snapshots, so claiming does not reduce them.
+
+<MethodIndex kind="read">
+  <MethodEntry name="getPoolRewardChart" href="/core/pools/pool-reward-chart">
+    A pool's daily LP rewards — the public series behind a pool page's rewards chart.
+  </MethodEntry>
+  <MethodEntry name="getPoolTotalReward" href="/core/pools/pool-total-reward">
+    A pool's aggregate reward over the last 1–30 days, the headline above that chart.
+  </MethodEntry>
+  <MethodEntry name="getUserRewardChart" href="/core/pools/user-reward-chart">
+    The signed-in user's daily rewards, grouped by market. Authed.
+  </MethodEntry>
+  <MethodEntry name="getUserTotalReward" href="/core/pools/user-total-reward">
+    The signed-in user's aggregate reward over the last 1–30 days, across every pool. Authed.
+  </MethodEntry>
 </MethodIndex>
 
 ## Config
@@ -133,11 +177,12 @@ The catalog read ships a matching `getListingMarketsQueryOptions` factory and a 
 
 - `LISTING_NOT_CONFIGURED` — the chain has no `listing` backend configured.
 - `FETCH_LISTING_MARKETS_FAILED` — the catalog request failed. An axios failure arrives as a `SymmApiError` with `status`, `statusText`, `responseData`, `url` and `method` (a failure with no response carries `status: 0` / `statusText: "Unknown"`); anything else is a plain `SymmError` with `kind: "api"`.
+- `FETCH_POOL_REWARD_CHART_FAILED` / `FETCH_POOL_TOTAL_REWARD_FAILED` / `FETCH_USER_REWARD_CHART_FAILED` / `FETCH_USER_TOTAL_REWARD_FAILED` — a rewards request failed, with the same shape. The user-scoped pair also carries the `401` on a bad or expired bearer token, and both `total-reward` reads carry the `422` on a `days` outside 1–30.
 
 ## Related
 
 - [Listing mappers](/core/pools/listing-mappers) — `toListingValue`, `toListingMarket`, `toListingMarketPage`.
-- [Inventory](/core/inventory) — the custody backend behind these pools, and the source of the headline TVL this catalog does not sum.
+- [Inventory](/core/inventory) — the custody backend behind these pools, the source of the headline TVL this catalog does not sum, and of [one pool's TVL over time](/core/inventory/tvl-history).
 - [`getSolverRevenue`](/core/solvers/revenue) — the solver's revenue totals, the third vendor on a pools page.
 - [`useListingMarkets`](/react/pools) — the React layer over this slice.
 - [Solvers & Chains](/core/concepts/solvers-and-chains#pools-listing-service) — where the listing backend sits in the config model.

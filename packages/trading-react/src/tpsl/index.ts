@@ -9,6 +9,7 @@ export * from "./use-delete-quote-tpsl";
 export * from "./use-quote-group-tpsl";
 export * from "./use-quote-group-tpsl-editor";
 export * from "./use-quote-tpsl";
+export * from "./use-search-tpsl-orders";
 export * from "./use-set-quote-group-tpsl";
 export * from "./use-set-quote-tpsl";
 export * from "./use-tpsl-config";

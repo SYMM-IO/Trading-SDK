@@ -1,0 +1,123 @@
+import { Callout } from "nextra/components";
+
+# getPoolRewardChart
+
+Fetch a pool's **daily LP-reward series** — the public data behind the rewards tab of a pool page's chart.
+
+```ts
+import { getPoolRewardChart, ListingDepositChainId } from "@symmio/trading-core";
+
+const rewards = await getPoolRewardChart(config, {
+  marketAddress: "0x1234…",
+  marketChainId: ListingDepositChainId.BASE,
+});
+
+const total = rewards.reduce((sum, point) => sum + point.reward, 0n);
+```
+
+One `GET /v2/market/chart/rewards` against the chain's listing backend. **Public** — no bearer token, no wallet. For the same series scoped to the signed-in user instead of the whole pool, use [`getUserRewardChart`](/core/pools/user-reward-chart); for the single headline figure above the chart, [`getPoolTotalReward`](/core/pools/pool-total-reward).
+
+## Addressing a pool: two chain ids
+
+The endpoint takes the pool's token contract address **and the chain that token lives on**. That is not the same thing as the SDK's `chainId`, which selects which deployment's listing backend to ask — a pool whose token is on Solana still trades on the HyperEVM deployment.
+
+<Callout type="warning">
+  `marketChainId` is `ListingMarket.chainId` — the **deposit** chain, a `ListingDepositChainId`, where `SOLANA = 0` is a
+  sentinel and not a real chain id. Passing the SDK's own `chainId` here silently returns an empty series rather than an
+  error, because the backend simply finds no market at that pair.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="marketAddress" type="string" required>
+    The pool's token contract address — `ListingMarket.contractAddress`. An EVM `0x…` address, or a Solana base58
+    address for a Solana-deposited listing.
+  </Property>
+  <Property name="marketChainId" type="ListingDepositChainId" required>
+    Chain the pool's token lives on — `ListingMarket.chainId`. Not the SDK's `chainId`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
+    folded into the query key. There is **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<PoolRewardPoint[]>">
+  One point per reward day, in the order the service returns them. A pool with no snapshots resolves to an empty array
+  rather than erroring, so `[]` means "nothing to plot yet", not "something went wrong".
+</Returns>
+
+<Properties>
+  <Property name="timestamp" type="number" required>
+    Start of the reward day, unix **seconds**.
+  </Property>
+  <Property name="reward" type="bigint" required>
+    Reward earned that day, 18-decimal fixed point (`LISTING_VALUE_DECIMALS`).
+  </Property>
+</Properties>
+
+<Callout type="warning">
+  `reward` is a **money** field: descaled it is a USD amount (`1e18` = `$1`). The catalog's `apr` / `apy` fields share
+  the same 18-decimal scale but descale to a **percentage** (`1e18` = `1%`). Reusing a rate formatter here prints
+  `$5.50` as `5.5%`.
+</Callout>
+
+A day the service reports as `null` collapses to `0n` rather than staying nullable — on a chart a missing snapshot and a zero-reward day are the same point, and a nullable field would push that collapse onto every consumer.
+
+## toPoolRewardPoint
+
+The mapper this read runs on each row, exported for when you hold a raw response yourself — a proxy route, a fixture, a rehydrated payload.
+
+```ts
+import { toPoolRewardPoint } from "@symmio/trading-core";
+
+toPoolRewardPoint({ timestamp: 1752364800, reward: "5500000000000000" });
+// { timestamp: 1752364800, reward: 5500000000000000n }
+toPoolRewardPoint({ timestamp: 1752451200, reward: null });
+// { timestamp: 1752451200, reward: 0n }
+```
+
+## Query options
+
+```ts
+import { getPoolRewardChartQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(
+  getPoolRewardChartQueryOptions(config, {
+    marketAddress: pool.contractAddress,
+    marketChainId: pool.chainId,
+  }),
+);
+```
+
+`GetPoolRewardChartOptions` is the action's parameters plus a `query` bag of TanStack overrides. The factory folds `config.getChainConfigKey(chainId)` into the key, so a runtime config override pointed at another listing deployment refetches instead of serving the previous one's cache. `getPoolRewardChartQueryKey` builds the same `["getPoolRewardChart", …]` key for cache matching and invalidation, and `GetPoolRewardChartData` / `GetPoolRewardChartQueryKey` / `GetPoolRewardChartQueryOptions` name the factory's other halves.
+
+Gate it where Pools may be absent, or before a pool has been picked:
+
+```ts
+import { getPoolRewardChartQueryOptions, supportsListingService } from "@symmio/trading-core";
+
+useQuery({
+  ...getPoolRewardChartQueryOptions(config, { chainId, marketAddress, marketChainId }),
+  enabled: supportsListingService(config, chainId) && marketAddress.length > 0,
+});
+```
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the resolved chain has no listing backend. Raised by [`resolveListingService`](/core/pools/resolve-listing-service) before any request goes out. Gate with `supportsListingService` to hide Pools instead.
+- `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) when the `chainId` is not one the config knows about at all.
+- `FETCH_POOL_REWARD_CHART_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`).
+
+## Related
+
+- [`getPoolTotalReward`](/core/pools/pool-total-reward) — the trailing-window headline above this chart.
+- [`getUserRewardChart`](/core/pools/user-reward-chart) — the same series scoped to the signed-in user.
+- [`getInventoryTvlHistory`](/core/inventory/tvl-history) — the pool page's other time series, from the inventory service.
+- [`getListingMarketDetail`](/core/pools/market-detail) — the pool's aggregate stats and inventory.
+- [`@symmio/trading-react`](/react/pools) — `usePoolRewardChart` is the React binding over this read.
+- [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.

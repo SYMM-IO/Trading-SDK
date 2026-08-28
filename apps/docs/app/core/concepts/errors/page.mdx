@@ -109,7 +109,7 @@ Codes are stable strings. Group per kind. New codes may appear at any minor vers
 Selected — many more surface as `SymmApiError` with a `_FAILED` code per action:
 
 | Code                                                    | Thrown by                                    |
-| ------------------------------------------------------- | -------------------------------------------- |
+| ------------------------------------------------------- | -------------------------------------------- | -------------------------------------------- |
 | `FETCH_MARKETS_FAILED`                                  | `getMarkets`                                 |
 | `FETCH_LOCKED_PARAMS_FAILED`                            | `getLockedParams`                            |
 | `FETCH_NOTIONAL_CAP_FAILED`                             | `getNotionalCap`                             |
@@ -133,6 +133,8 @@ Selected — many more surface as `SymmApiError` with a `_FAILED` code per actio
 | `NOTIFICATIONS_SOCKET_ERROR`                            | `watchNotifications`                         |
 | `FETCH_LISTING_MARKETS_FAILED`                          | `getListingMarkets`                          |
 | `FETCH_INVENTORY_TVL_FAILED`                            | `getInventoryTvl`                            |
+| `FETCH_LISTING_MARKET_DETAIL_FAILED`                    | `getListingMarketDetail`                     | The pool-detail request failed.              |
+| `FETCH_POOL_TRANSACTIONS_FAILED`                        | `getPoolTransactions`                        | The pool transaction-history request failed. |
 | `PRICES_SOCKET_ERROR`                                   | `watchEnigmaPrices`                          |
 
 ## viem errors (on-chain / transport)

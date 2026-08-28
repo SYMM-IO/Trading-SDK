@@ -13,7 +13,7 @@ import { useAccount } from "wagmi";
 import { MethodCard } from "../inspector/method-card";
 import { useSolverKindActive } from "../solvers/solver-target";
 import { useListingAuth } from "./listing-auth-context";
-import { PoolSelect } from "./pool-select";
+import { usePoolScope } from "./pool-scope";
 
 /**
  * Parse a human LP amount ("1.5") into a raw 18-decimal `bigint`, or `null` when
@@ -33,9 +33,8 @@ function parseLpAmount(value: string): bigint | null {
 /**
  * Withdraw — queue a withdrawal of the signed-in user's LP shares from one pool.
  *
- * Mirrors the other Listing-session cards: a {@link PoolSelect} picker names the
- * pool, and {@link useUserProfit} reads the
- * user's position in it — the SDK's derived `availableLpAmount`
+ * The pool comes from the section's shared picker ({@link usePoolScope}), and
+ * {@link useUserProfit} reads the user's position in it — the SDK's derived `availableLpAmount`
  * (`userLpAmount − pendingWithdrawLpAmount`) is the ceiling the amount input is
  * capped at. The destination defaults to the connected wallet and is editable.
  * `useWithdrawLp` POSTs the request; on success the amount clears and the position
@@ -50,8 +49,8 @@ export function WithdrawCard() {
   const enigmaActive = useSolverKindActive("enigma");
   const { accessToken, signIn, isSigningIn } = useListingAuth();
   const { address: connectedAddress } = useAccount();
+  const { contractAddress: selectedContractAddress } = usePoolScope();
 
-  const [selectedContractAddress, setSelectedContractAddress] = useState("");
   const [amountInput, setAmountInput] = useState("");
   const [withdrawAddress, setWithdrawAddress] = useState("");
 
@@ -98,7 +97,7 @@ export function WithdrawCard() {
   const amountHint = !signedIn
     ? "Sign in and pick a pool to see your available LP."
     : selectedContractAddress.length === 0
-      ? "Pick a pool to see your available LP."
+      ? "Pick a pool above to see your available LP."
       : profit.isPending
         ? "Loading your available LP…"
         : amountInput.trim() !== "" && !amountValid
@@ -111,17 +110,7 @@ export function WithdrawCard() {
       name="withdrawLp"
       mutability="nonpayable"
       description="Withdraw — queue a withdrawal of your LP shares from one pool. Sign in once, pick a pool, enter an amount up to your available LP, and choose where to send it. Enigma-only."
-      wide
     >
-      <Field label="pool" htmlFor="withdraw-market">
-        <PoolSelect
-          idPrefix="withdraw-market"
-          value={selectedContractAddress}
-          onValueChange={setSelectedContractAddress}
-          enabled={enigmaActive}
-        />
-      </Field>
-
       <Field label="amount (LP)" htmlFor="withdraw-amount" hint={amountHint}>
         <div className="flex items-center gap-2">
           <Input
@@ -195,7 +184,7 @@ export function WithdrawCard() {
       ) : (
         <ResultNote testId="withdraw-idle">
           {signedIn
-            ? "Pick a pool, enter an amount up to your available LP, and choose where to send it."
+            ? "Pick a pool above, enter an amount up to your available LP, and choose where to send it."
             : "Sign in to withdraw LP from a pool."}
         </ResultNote>
       )}

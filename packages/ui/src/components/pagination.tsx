@@ -37,6 +37,9 @@ export interface PaginationProps {
  * (`Showing 1–10 of 42`), and first/previous/next/last navigation. Purely
  * presentational — the parent owns `page`/`pageSize` state and slices the data.
  *
+ * The three groups wrap onto more rows as the footer narrows (a table beside a
+ * chart can be a few hundred pixels wide) instead of squeezing their labels.
+ *
  * @example
  * <Pagination
  *   page={page}
@@ -59,6 +62,9 @@ export function Pagination({
   testId,
   className,
 }: PaginationProps) {
+  const sizeOptions = pageSizeOptions.includes(pageSize)
+    ? pageSizeOptions
+    : [...pageSizeOptions, pageSize].sort((a, b) => a - b);
   const isFirst = page <= 1;
   const isLast = page >= pageCount;
   const start = (page - 1) * pageSize;
@@ -68,18 +74,15 @@ export function Pagination({
   const testFor = (suffix: string) => (testId ? `${testId}-${suffix}` : undefined);
 
   return (
-    <div
-      className={cn("flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between", className)}
-      data-testid={testId}
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground text-xs">Rows per page</span>
+    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2", className)} data-testid={testId}>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="text-muted-foreground text-xs whitespace-nowrap">Rows per page</span>
         <Select value={String(pageSize)} onValueChange={(value) => onPageSizeChange(Number(value))}>
           <SelectTrigger className="w-[72px]" data-testid={testFor("page-size")} aria-label="Rows per page">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {pageSizeOptions.map((size) => (
+            {sizeOptions.map((size) => (
               <SelectItem key={size} value={String(size)}>
                 {size}
               </SelectItem>
@@ -88,7 +91,7 @@ export function Pagination({
         </Select>
       </div>
 
-      <span className="text-muted-foreground text-xs" data-testid={testFor("range")}>
+      <span className="text-muted-foreground text-xs whitespace-nowrap" data-testid={testFor("range")}>
         Showing{" "}
         <span className="text-foreground font-medium">
           {from}–{to}
@@ -97,8 +100,8 @@ export function Pagination({
         {isFiltered ? ` (filtered from ${totalCount})` : null}
       </span>
 
-      <div className="flex items-center gap-1">
-        <span className="text-muted-foreground mr-2 text-xs" data-testid={testFor("page-indicator")}>
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        <span className="text-muted-foreground mr-2 text-xs whitespace-nowrap" data-testid={testFor("page-indicator")}>
           Page <span className="text-foreground font-medium">{page}</span> of {pageCount}
         </span>
         <Button

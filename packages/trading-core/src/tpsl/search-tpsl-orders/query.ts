@@ -29,9 +29,12 @@ export type SearchTpSlOrdersQueryOptions = SymmioQueryOptions<
 >;
 
 /**
- * Build TanStack Query options for {@link searchTpSlOrders}. Disabled until
- * `account` is set — the handler filters by account, so a search without one
- * would sweep every order it holds.
+ * Build TanStack Query options for {@link searchTpSlOrders}.
+ *
+ * Disabled until the search is scoped by **something** — an `account` or a
+ * `symbolId`. Both are legitimate scopes: an account reads one trader's legs, a
+ * `symbolId` reads one market's book across every trader. What stays disabled is
+ * the unscoped case, which would sweep every order the handler holds.
  */
 export function searchTpSlOrdersQueryOptions(
   config: Config,
@@ -40,7 +43,7 @@ export function searchTpSlOrdersQueryOptions(
   return {
     ...options.query,
     queryKey: searchTpSlOrdersQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
-    enabled: (options.query?.enabled ?? true) && Boolean(options.account),
+    enabled: (options.query?.enabled ?? true) && (Boolean(options.account) || options.symbolId !== undefined),
     queryFn: () => searchTpSlOrders(config, options),
   };
 }

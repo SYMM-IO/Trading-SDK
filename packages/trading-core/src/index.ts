@@ -1767,6 +1767,7 @@ export {
 export {
   DEFAULT_TPSL_SLIPPAGE_LOWCAPS,
   TPSL_LIVE_ORDER_STATES,
+  TpSlSearchOrderType,
   ZERO_LEG,
   buildConditionalOrderLeg,
   buildConditionalOrderMessage,
@@ -2271,15 +2272,155 @@ export {
 export {
   INVENTORY_VALUE_DECIMALS,
   getInventoryTvl,
+  getInventoryTvlHistory,
+  getInventoryTvlHistoryQueryKey,
+  getInventoryTvlHistoryQueryOptions,
   getInventoryTvlQueryKey,
   getInventoryTvlQueryOptions,
   resolveInventoryService,
   supportsInventoryService,
   toInventoryTvl,
+  toInventoryTvlPoint,
   type GetInventoryTvlData,
+  type GetInventoryTvlHistoryData,
+  type GetInventoryTvlHistoryOptions,
+  type GetInventoryTvlHistoryParameters,
+  type GetInventoryTvlHistoryQueryKey,
+  type GetInventoryTvlHistoryQueryOptions,
+  type GetInventoryTvlHistoryReturnType,
   type GetInventoryTvlOptions,
   type GetInventoryTvlParameters,
   type GetInventoryTvlQueryKey,
   type GetInventoryTvlQueryOptions,
   type GetInventoryTvlReturnType,
+  type InventoryTvlPoint,
 } from "./inventory";
+/**
+ * Pool detail — the tables on a pool page
+ * ---------------------------------------
+ * The reads behind a pool's detail view, which span three backends:
+ *
+ * - `getListingMarketDetail` (listing backend) — the pool's aggregate stats and
+ *   inventory. `toPoolPositions` folds it into positions-table rows with no
+ *   extra request.
+ * - `getPoolQuotes` / `getPoolTradeHistory` (analytics subgraph) — the pool's
+ *   **whole** book and realized history. Unlike the account-scoped quote reads,
+ *   these carry no `partyA` filter: every trader's rows on that market.
+ * - `getPoolTransactions` (listing backend) — deposits and withdrawals.
+ *
+ * A pool's limit orders are not here: they come from the TP/SL handler via
+ * `searchTpSlOrders({ symbolId, conditionalOrderType: "send_quote" })`.
+ */
+export {
+  POOL_OPEN_QUOTE_STATUSES,
+  POOL_PENDING_QUOTE_STATUSES,
+  PoolPositionSide,
+  PoolTransactionStatus,
+  PoolTransactionType,
+  getListingMarketDetail,
+  getListingMarketDetailQueryKey,
+  getListingMarketDetailQueryOptions,
+  getPoolQuotes,
+  getPoolQuotesQueryKey,
+  getPoolQuotesQueryOptions,
+  getPoolTradeHistory,
+  getPoolTradeHistoryQueryKey,
+  getPoolTradeHistoryQueryOptions,
+  getPoolTransactions,
+  getPoolTransactionsQueryKey,
+  getPoolTransactionsQueryOptions,
+  toListingMarketDetail,
+  toPoolPositions,
+  toPoolQuote,
+  toPoolTransaction,
+  toPoolTransactionPage,
+  type GetListingMarketDetailData,
+  type GetListingMarketDetailOptions,
+  type GetListingMarketDetailParameters,
+  type GetListingMarketDetailQueryKey,
+  type GetListingMarketDetailQueryOptions,
+  type GetListingMarketDetailReturnType,
+  type GetPoolQuotesData,
+  type GetPoolQuotesOptions,
+  type GetPoolQuotesParameters,
+  type GetPoolQuotesQueryKey,
+  type GetPoolQuotesQueryOptions,
+  type GetPoolQuotesReturnType,
+  type GetPoolTradeHistoryData,
+  type GetPoolTradeHistoryOptions,
+  type GetPoolTradeHistoryParameters,
+  type GetPoolTradeHistoryQueryKey,
+  type GetPoolTradeHistoryQueryOptions,
+  type GetPoolTradeHistoryReturnType,
+  type GetPoolTransactionsData,
+  type GetPoolTransactionsOptions,
+  type GetPoolTransactionsParameters,
+  type GetPoolTransactionsQueryKey,
+  type GetPoolTransactionsQueryOptions,
+  type GetPoolTransactionsReturnType,
+  type ListingMarketDetail,
+  type PoolPosition,
+  type PoolQuote,
+  type PoolTransaction,
+  type PoolTransactionPage,
+} from "./pools";
+/**
+ * Pool rewards over time
+ * ----------------------
+ * The LP-reward series a pool page charts, plus the headline figures above them.
+ *
+ * - `getPoolRewardChart` / `getPoolTotalReward` — **public**, one pool, addressed
+ *   by `(marketAddress, marketChainId)`. `marketChainId` is the chain the pool's
+ *   token lives on (`ListingMarket.chainId`), not the SDK's own `chainId`.
+ * - `getUserRewardChart` / `getUserTotalReward` — **authed** with a bearer token
+ *   from `authenticateListing`, and *not* scoped to one pool: both cover every
+ *   market the signed-in user has rewards in, so a single-pool view filters the
+ *   series by market itself.
+ *
+ * Every reward here is **money**, a `bigint` at `LISTING_VALUE_DECIMALS` (18)
+ * where `1e18` is `$1` — unlike the catalogue's APR/APY fields, which descale to
+ * a percentage. Both totals are built from **earned** daily snapshots, so
+ * claiming does not reduce them; `getUserProfit` has the claimable balance.
+ */
+export {
+  getPoolRewardChart,
+  getPoolRewardChartQueryKey,
+  getPoolRewardChartQueryOptions,
+  getPoolTotalReward,
+  getPoolTotalRewardQueryKey,
+  getPoolTotalRewardQueryOptions,
+  getUserRewardChart,
+  getUserRewardChartQueryKey,
+  getUserRewardChartQueryOptions,
+  getUserTotalReward,
+  getUserTotalRewardQueryKey,
+  getUserTotalRewardQueryOptions,
+  toPoolRewardPoint,
+  toUserPoolRewardChart,
+  type GetPoolRewardChartData,
+  type GetPoolRewardChartOptions,
+  type GetPoolRewardChartParameters,
+  type GetPoolRewardChartQueryKey,
+  type GetPoolRewardChartQueryOptions,
+  type GetPoolRewardChartReturnType,
+  type GetPoolTotalRewardData,
+  type GetPoolTotalRewardOptions,
+  type GetPoolTotalRewardParameters,
+  type GetPoolTotalRewardQueryKey,
+  type GetPoolTotalRewardQueryOptions,
+  type GetPoolTotalRewardReturnType,
+  type GetUserRewardChartData,
+  type GetUserRewardChartOptions,
+  type GetUserRewardChartParameters,
+  type GetUserRewardChartQueryKey,
+  type GetUserRewardChartQueryOptions,
+  type GetUserRewardChartReturnType,
+  type GetUserTotalRewardData,
+  type GetUserTotalRewardOptions,
+  type GetUserTotalRewardParameters,
+  type GetUserTotalRewardQueryKey,
+  type GetUserTotalRewardQueryOptions,
+  type GetUserTotalRewardReturnType,
+  type PoolRewardPoint,
+  type UserPoolRewardChart,
+} from "./pools";

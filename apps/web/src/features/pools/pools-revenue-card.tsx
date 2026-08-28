@@ -33,11 +33,12 @@ export function PoolsRevenueCard() {
       name="useSolverRevenue"
       mutability="view"
       description="Protocol-wide solver revenue, split into hedger-fee and funding shares. Pass a symbolId to narrow it to one market."
+      size="sm"
     >
       {error ? (
         <ResultError kind={error.kind} message={error.message} testId="pools-revenue-error" />
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="flex flex-col gap-5">
           <div data-testid="pools-revenue-24h">
             <Stat
               label="Revenue · 24h"

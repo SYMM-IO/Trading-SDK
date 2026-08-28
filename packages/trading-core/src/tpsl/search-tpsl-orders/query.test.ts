@@ -60,4 +60,16 @@ describe("searchTpSlOrdersQueryOptions", () => {
 
     expect(options.enabled).toBe(false);
   });
+
+  it("enables an unaccounted search once a market scopes it", () => {
+    const { config } = mockConfig();
+
+    /** A pool's order book: scoped by market, deliberately across every trader. */
+    const scoped = searchTpSlOrdersQueryOptions(config, { symbolId: 1 });
+    expect(scoped.enabled).toBe(true);
+
+    /** Still disabled with no scope at all, which would sweep the whole handler. */
+    const unscoped = searchTpSlOrdersQueryOptions(config, {});
+    expect(unscoped.enabled).toBe(false);
+  });
 });

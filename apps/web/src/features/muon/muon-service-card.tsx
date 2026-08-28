@@ -25,7 +25,7 @@ export function MuonServiceCard({ testId, method, description, children, wide = 
       data-testid={testId}
       className={cn(
         "hover:ring-border scroll-mt-24 transition-all duration-200 hover:shadow-md",
-        wide && "lg:col-span-2",
+        wide && "col-span-full",
       )}
     >
       <CardHeader>

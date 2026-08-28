@@ -32,8 +32,7 @@ export function ListingConfigCard() {
       testId="method-getListingConfig"
       name="getListingConfig"
       mutability="view"
-      description="Listing config — the public deposit guidance, listing fee, rate limits, reward share, and supported deposit chains a user must see before creating a pool. Public read, Enigma-only."
-      wide
+      description="Listing config — the deposit guidance, listing fee, rate limits, reward share, and supported deposit chains to read before creating a pool. Public, Enigma-only."
     >
       {!enigmaActive ? (
         <ResultNote testId="listing-config-gate">Switch to Enigma (HyperEVM) to load the listing config.</ResultNote>
@@ -44,7 +43,7 @@ export function ListingConfigCard() {
           Loading listing config…
         </ResultNote>
       ) : (
-        <div className="flex flex-col gap-6" data-testid="listing-config">
+        <div className="flex flex-col gap-5" data-testid="listing-config">
           {/* The recommended initial deposit gets the most weight: it is the figure the
               user seeds a new pool with. Minimum + fee sit beside it, one scale down. */}
           <div className="border-info/30 bg-info/5 flex flex-col gap-4 rounded-xl border p-4">
@@ -53,21 +52,19 @@ export function ListingConfigCard() {
               value={formatListingUsd(data.recommendedInitialDepositUsdc)}
               hint="Seed a new pool with this to start listing."
             />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-1" data-testid="listing-config-minimum">
-                <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                  Minimum initial deposit
-                </span>
-                <span className="text-foreground text-2xl font-semibold tabular-nums">
-                  {formatListingUsd(data.minimumInitialDepositUsdc)}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1" data-testid="listing-config-fee">
-                <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Listing fee</span>
-                <span className="text-foreground text-2xl font-semibold tabular-nums">
-                  {formatListingUsd(data.listingFeeUsdc)}
-                </span>
-              </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Stat
+                size="sm"
+                label="Minimum deposit"
+                value={formatListingUsd(data.minimumInitialDepositUsdc)}
+                testId="listing-config-minimum"
+              />
+              <Stat
+                size="sm"
+                label="Listing fee"
+                value={formatListingUsd(data.listingFeeUsdc)}
+                testId="listing-config-fee"
+              />
             </div>
           </div>
 
@@ -90,27 +87,28 @@ export function ListingConfigCard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="flex flex-col gap-1" data-testid="listing-config-reward-share">
-              <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Protocol reward share
-              </span>
-              <span className="text-foreground font-mono text-lg tabular-nums">{data.protocolRewardSharePercent}%</span>
-            </div>
-            <div className="flex flex-col gap-1" data-testid="listing-config-market-config-updates">
-              <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Market-config updates
-              </span>
-              <span className="text-foreground font-mono text-lg tabular-nums">
-                {data.rateLimits.marketConfigUpdatesPerDay}/day
-              </span>
-            </div>
-            <div className="flex flex-col gap-1" data-testid="listing-config-profit-claims">
-              <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Profit claims</span>
-              <span className="text-foreground font-mono text-lg tabular-nums">
-                {data.rateLimits.profitClaimsPerDay}/day
-              </span>
-            </div>
+          <div className="grid grid-cols-3 gap-4">
+            <Stat
+              size="sm"
+              label="Reward share"
+              value={`${data.protocolRewardSharePercent}%`}
+              hint="Protocol's cut of rewards"
+              testId="listing-config-reward-share"
+            />
+            <Stat
+              size="sm"
+              label="Config updates"
+              value={`${data.rateLimits.marketConfigUpdatesPerDay}/day`}
+              hint="Market-config rate limit"
+              testId="listing-config-market-config-updates"
+            />
+            <Stat
+              size="sm"
+              label="Profit claims"
+              value={`${data.rateLimits.profitClaimsPerDay}/day`}
+              hint="Claim rate limit"
+              testId="listing-config-profit-claims"
+            />
           </div>
         </div>
       )}
