@@ -20,6 +20,7 @@ systems — and presents them as a single trading surface.
 | Limit orders    | supported                             | not supported                          |
 | TP/SL           | not supported                         | supported                              |
 | Group close     | not supported                         | supported                              |
+| Pools           | no listing backend on Base            | catalog, LP position, listing form     |
 | Pre-trade quote | accepted price band                   | estimated fill for a size              |
 | Extra gates     | solver readiness, account whitelist   | per-market `state` and allowed side    |
 | Palette         | Cyan                                  | Magenta                                |
@@ -244,6 +245,72 @@ calls `addMarginToNextVA` and requiring that selector would deadlock it.
 
 Portfolio shows the key in its session-key strip and each account's grant on its
 ledger row, where the chip that reads `Authorise` is also the button that fixes it.
+
+## Pools
+
+Every lowcap market on the Markets screen exists because somebody funded a pool
+for it. `/pools` is that side of the book, and it is the one surface in Prism
+that can _create_ a market rather than trade one.
+
+It is also the only screen that does **not** fan out. The listing backend is
+resolved from the **chain** config and takes no `solverId`, and in the shipped
+registry only HyperEVM carries a `listing` block — so `usePoolsSupported()`
+(the SDK's own `useSupportsListingService`) gates the whole surface, every read
+names `POOLS_CHAIN_ID` explicitly rather than following the wallet, and a
+majors palette gets a notice saying so instead of an empty table.
+
+Four backends answer here and the screens keep their seams visible, because
+where two of them disagree that is a fact about the deployment:
+
+| Figure                                                       | Service            |
+| ------------------------------------------------------------ | ------------------ |
+| Custodial TVL, and one pool's TVL series                     | inventory service  |
+| Volume, open interest, revenue, per-pool daily volume        | Enigma solver      |
+| Catalog, pool detail, rewards, LP position, listing pipeline | listing backend    |
+| Open quotes and realized trade history                       | analytics subgraph |
+| Trigger-to-open orders                                       | TP/SL handler      |
+
+Headline TVL is deliberately not the sum of the catalog's TVL column: the
+catalog covers listed markets, custody covers the whole system.
+
+**Two routes.** `/pools` is the catalog — four protocol aggregates, a table
+whose search, chain filter, status filter, sort and paging are **all
+server-side** (a control changes the request, not a fetched array), your own
+pools, your reward history, and the listing form. `/pools/[chain]/[address]` is
+one pool: identity and inventory, three time series, the five books, and — in
+the right rail — your balance, your deposit address and the withdrawal form.
+A pool is addressed by the **pair** `(depositChain, contractAddress)`, because
+the same token can be listed from more than one chain.
+
+**One signature, not five.** The listing backend is custodial REST: it cannot
+read a signature off a transaction the way a contract can, so it asks for SIWE
+directly. `ListingSessionProvider` mints that token once, persists it per
+`(chainId, address)` — the exact pair SIWE binds — and drops it the moment any
+authed read comes back 401. Signing is the only thing on these screens that
+needs the wallet on HyperEVM (wagmi refuses a client for a chain the wallet is
+not on); the withdrawal and the listing form are REST calls carrying that
+token, so they are never gated behind a network switch.
+
+### Four traps this surface walks into
+
+- **A descaled listing rate is already a percentage.** `1e18` is `1%`, not
+  `100%` — while money on the same 18-decimal scale is USD. Multiplying a rate
+  by 100 renders a −0.76% APY as −75.78%. `listing-values.ts` keeps the two
+  formatters apart, and `null` renders as a dash because "the service reported
+  nothing" is not `$0`.
+- **`age` is not an age.** The service answers it with the listing timestamp
+  itself — byte-identical to `listing_time` — so reading it as elapsed seconds
+  ages a four-month-old pool to 56 years. The header derives the duration from
+  `listingTime` instead.
+- **The solver's two notional totals are not complements.** `totalUsed` is
+  notional open across both sides; `totalOpenInterest` is a different figure
+  again, and `totalCap` reads `0` on every market today — so remaining capacity
+  is summed from the per-side `availableToLong` / `availableToShort` rows and
+  labelled as what it is.
+- **A canvas cannot read a CSS variable.** `SeriesChart` resolves
+  `var(--accent)` through `readToken` and fades it to `rgba()` itself; passing
+  a `var()` or a `color-mix()` string straight to lightweight-charts throws at
+  `addColorStop`.
 
 ## Design
 

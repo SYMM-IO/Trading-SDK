@@ -41,13 +41,37 @@ export function PanelHeader({ title, actions, eyebrow, className }: PanelHeaderP
 
 export interface MicroLabelProps {
   children: ReactNode;
+  /**
+   * Text color, when the label needs to stand out from the default quiet grey.
+   *
+   * A prop rather than a `className` override, because `cn` is a plain join
+   * with no tailwind-merge: passing `text-fg-0` leaves `text-fg-3` in the class
+   * list too, and Tailwind emits `.text-fg-3` last, so the override silently
+   * loses. Layout classes still go through `className` — those do not collide.
+   */
+  tone?: "muted" | "default" | "strong" | "accent" | "warn" | "short";
   className?: string;
 }
 
+const MICRO_LABEL_TONE: Record<NonNullable<MicroLabelProps["tone"]>, string> = {
+  muted: "text-fg-3",
+  default: "text-fg-2",
+  strong: "text-fg-0",
+  accent: "text-accent",
+  warn: "text-warn",
+  short: "text-short",
+};
+
 /** 10px uppercase micro-label with mega tracking. Column heads, eyebrows. */
-export function MicroLabel({ children, className }: MicroLabelProps) {
+export function MicroLabel({ children, tone = "muted", className }: MicroLabelProps) {
   return (
-    <span className={cn("text-2xs font-semibold tracking-[0.12em] whitespace-nowrap text-fg-3 uppercase", className)}>
+    <span
+      className={cn(
+        "text-2xs font-semibold tracking-[0.12em] whitespace-nowrap uppercase",
+        MICRO_LABEL_TONE[tone],
+        className,
+      )}
+    >
       {children}
     </span>
   );

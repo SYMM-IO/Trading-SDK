@@ -77,7 +77,7 @@ function Hero({ resolved }: HeroProps) {
   return (
     <Panel>
       <div className="flex flex-col gap-4 px-5 py-6">
-        <MicroLabel className="text-accent">SYMMIO SDK · multi-solver integration</MicroLabel>
+        <MicroLabel tone="accent">SYMMIO SDK · multi-solver integration</MicroLabel>
 
         <h1 className="max-w-[22ch] font-display text-4xl leading-[1.05] font-bold tracking-[-0.02em] text-fg-0">
           Two solvers, one order book.

@@ -1,5 +1,6 @@
 import {
   supportsEstimatedPrice,
+  supportsListingService,
   supportsTpSl,
   type Config,
   type SolverCapabilities,
@@ -95,6 +96,13 @@ export const CAPABILITY_ROWS: readonly CapabilityRow[] = [
     source: 'config.getSolver().id === "enigma"',
     note: "GET /notional_cap (the list form) is documented Enigma-only, but no supportsX gate ships for it — this row derives the answer from the resolved solver kind.",
     resolve: ({ solverId }) => (solverId === "enigma" ? { kind: "yes" } : { kind: "no" }),
+  },
+  {
+    id: "listing-service",
+    label: "Pool listing service",
+    source: "supportsListingService(config, { chainId })",
+    note: "The only capability on this screen that is not a property of the solver. A pool catalog comes from a listing backend resolved off the CHAIN config, so the gate takes no solverId — and the solver's own listingService capability flag is metadata that nothing checks. Every pools read throws LISTING_NOT_CONFIGURED on a chain without the block, which is why the Pools screen asks this first.",
+    resolve: ({ config, chainId }) => (supportsListingService(config, { chainId }) ? { kind: "yes" } : { kind: "no" }),
   },
   {
     id: "rasa-only",

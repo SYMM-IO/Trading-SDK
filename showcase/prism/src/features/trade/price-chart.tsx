@@ -3,6 +3,7 @@
 import { Segmented } from "@/components/segmented";
 import { EmptyState, Skeleton } from "@/components/table";
 import type { PrismMarket } from "@/features/markets/types";
+import { readToken } from "@/lib/read-token";
 import type { CandleResolution } from "@symmio/trading-core";
 import { useBinanceCandleSource, useCandles, useCandleStream } from "@symmio/trading-react";
 import { CandlestickSeries, createChart, type IChartApi, type ISeriesApi } from "lightweight-charts";
@@ -249,10 +250,4 @@ function BinanceChart({ marketName, resolution, pricePrecision }: ChartProps) {
       ) : null}
     </div>
   );
-}
-
-/** Resolve a design-system token to its computed value for the chart library. */
-function readToken(token: string): string {
-  if (typeof window === "undefined") return "";
-  return getComputedStyle(document.documentElement).getPropertyValue(token).trim();
 }

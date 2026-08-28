@@ -261,7 +261,7 @@ interface SectionProps {
 function Section({ label }: SectionProps) {
   return (
     <div className="mt-4 mb-1 flex items-center gap-3 border-b border-line pb-1.5 first:mt-2">
-      <MicroLabel className="text-fg-2">{label}</MicroLabel>
+      <MicroLabel tone="default">{label}</MicroLabel>
     </div>
   );
 }

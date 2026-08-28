@@ -12,6 +12,15 @@ export interface WriteToastOptions {
   body?: string;
   /** Outcome tone. Funding moves are neutral-positive, so `long` by default. */
   tone?: ToastTone;
+  /**
+   * Title for the failure toast.
+   *
+   * Defaults to the on-chain wording, which is right for every write that ends
+   * in a receipt. The listing service is not one of those — it is custodial
+   * REST behind a bearer token, so "the wallet or the network rejected the
+   * transaction" would name two things that were never involved.
+   */
+  failure?: string;
 }
 
 /** Runs one write with pending → outcome toast feedback. Resolves `true` on success. */
@@ -35,7 +44,7 @@ export function useWriteToast(): RunWrite {
         update(id, { title: options.success, body: options.body, tone: options.tone ?? "long" });
         return true;
       } catch (error) {
-        update(id, { title: "Transaction failed", body: describeError(error), tone: "error" });
+        update(id, { title: options.failure ?? "Transaction failed", body: describeError(error), tone: "error" });
         return false;
       }
     },

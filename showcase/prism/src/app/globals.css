@@ -87,6 +87,7 @@
   --chain-bsc: #f0b90b;
   --chain-arbitrum: #28a0f0;
   --chain-polygon: #8247e5;
+  --chain-sonic: #fe9a4c;
 
   /* ---- TIER 3 · CONTEXTUAL ------------------------------------------------
      Remapped at runtime by the global mode. The whole app re-themes because

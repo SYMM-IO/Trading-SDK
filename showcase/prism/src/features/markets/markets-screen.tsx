@@ -2,6 +2,7 @@
 
 import { Chips } from "@/components/chips";
 import { MicroLabel, Panel, PanelHeader } from "@/components/panel";
+import { SearchInput } from "@/components/search-input";
 import type { MarketFamily } from "@/config/deployments";
 import { usePrismMode } from "@/features/mode/mode-provider";
 import { usePrismPrices } from "@/features/prices/price-provider";
@@ -151,7 +152,15 @@ export function MarketsScreen() {
         <PanelHeader
           eyebrow="Merged book"
           title="Markets"
-          actions={<SearchInput value={query} onChange={handleQuery} placeholder="Search BTC, WIF, 0x…" />}
+          actions={
+            <SearchInput
+              value={query}
+              onChange={handleQuery}
+              placeholder="Search BTC, WIF, 0x…"
+              ariaLabel="Search markets"
+              className="w-[240px]"
+            />
+          }
         />
 
         {isUnified ? (
@@ -193,47 +202,5 @@ export function MarketsScreen() {
         </p>
       </div>
     </div>
-  );
-}
-
-interface SearchProps {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}
-
-/**
- * Compact search for the panel header.
- *
- * Not `<Field>`: that control is built for trade amounts — a 18px monospace
- * value with its label inside. A header filter needs to be quiet.
- */
-function SearchInput({ value, onChange, placeholder }: SearchProps) {
-  return (
-    <label className="prism-field flex h-8 w-[240px] items-center gap-2 rounded-md border border-line bg-bg-2 px-2.5">
-      <svg aria-hidden viewBox="0 0 16 16" className="size-3.5 shrink-0 text-fg-3">
-        <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-        <path d="M10.5 10.5 14 14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      </svg>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        aria-label="Search markets"
-        className="min-w-0 flex-1 bg-transparent font-sans text-sm text-fg-0 outline-none placeholder:text-fg-3"
-      />
-      {value ? (
-        <button
-          type="button"
-          onClick={() => onChange("")}
-          aria-label="Clear search"
-          className="shrink-0 cursor-pointer text-fg-3 transition-colors duration-[var(--dur-fast)] hover:text-fg-1"
-        >
-          <svg aria-hidden viewBox="0 0 16 16" className="size-3">
-            <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-        </button>
-      ) : null}
-    </label>
   );
 }

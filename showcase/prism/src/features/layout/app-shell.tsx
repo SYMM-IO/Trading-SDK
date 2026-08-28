@@ -16,6 +16,7 @@ import { ModeSwitch } from "./mode-switch";
 const NAV = [
   { href: "/", label: "Trade" },
   { href: "/markets", label: "Markets" },
+  { href: "/pools", label: "Pools" },
   { href: "/portfolio", label: "Portfolio" },
   { href: "/activity", label: "Activity" },
   { href: "/sdk", label: "SDK" },

@@ -14,6 +14,14 @@ export interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
   footnote?: ReactNode;
   /** Renders the field in an error state. */
   invalid?: boolean;
+  /**
+   * Overrides the input's own type scale.
+   *
+   * The default is sized for a trade amount — 18px, semibold — which is right
+   * for a number a trader is about to commit and wrong for a 42-character
+   * address, which clips mid-string in any narrow column.
+   */
+  inputClassName?: string;
   className?: string;
 }
 
@@ -23,7 +31,16 @@ export interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
  * The label lives inside the field. Focus turns the border and the caption to
  * the accent — the system deliberately has no separate focus ring here.
  */
-export function Field({ label, hint, adornment, footnote, invalid = false, className, ...rest }: FieldProps) {
+export function Field({
+  label,
+  hint,
+  adornment,
+  footnote,
+  invalid = false,
+  inputClassName,
+  className,
+  ...rest
+}: FieldProps) {
   return (
     <div className="flex flex-col gap-1.5">
       <div
@@ -40,7 +57,10 @@ export function Field({ label, hint, adornment, footnote, invalid = false, class
         <div className="flex items-center gap-2">
           <input
             {...rest}
-            className="tnum min-w-0 flex-1 bg-transparent text-lg font-semibold text-fg-0 outline-none placeholder:text-fg-3"
+            className={cn(
+              "tnum min-w-0 flex-1 bg-transparent text-lg font-semibold text-fg-0 outline-none placeholder:text-fg-3",
+              inputClassName,
+            )}
           />
           {adornment ? <div className="flex shrink-0 items-center gap-1">{adornment}</div> : null}
         </div>
