@@ -10,8 +10,10 @@ import * as candles from "@symmio/trading-react/candles";
 import * as errors from "@symmio/trading-react/errors";
 import * as fees from "@symmio/trading-react/fees";
 import * as instantLayer from "@symmio/trading-react/instant-layer";
+import * as inventory from "@symmio/trading-react/inventory";
 import * as markets from "@symmio/trading-react/markets";
 import * as orderbook from "@symmio/trading-react/orderbook";
+import * as pools from "@symmio/trading-react/pools";
 import * as priceService from "@symmio/trading-react/price-service";
 import * as provider from "@symmio/trading-react/provider";
 import * as transactions from "@symmio/trading-react/transactions";
@@ -30,4 +32,6 @@ void [
   priceService,
   candles,
   orderbook,
+  inventory,
+  pools,
 ];

@@ -14,6 +14,7 @@ const ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElement> = 
   "/price-service": PriceIcon,
   "/candles": CandlesIcon,
   "/orderbook": OrderbookIcon,
+  "/pools": PoolsIcon,
   "/muon": MuonIcon,
   "/session-keys": KeyIcon,
   "/config": GearIcon,
@@ -215,6 +216,26 @@ function OrderbookIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M18 4H9M18 7.5h-5M18 11H14" />
       <path d="M3.5 14.5H21" />
       <path d="M18 18h-4M18 21.5H9" />
+    </svg>
+  );
+}
+
+function PoolsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      {/* Stacked liquidity: a filled level under two waterlines, the rim drawn open at the top. */}
+      <path d="M4 7c0-1.66 3.58-3 8-3s8 1.34 8 3-3.58 3-8 3-8-1.34-8-3Z" />
+      <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
+      <path d="M4 7v10c0 1.66 3.58 3 8 3s8-1.34 8-3V7" />
     </svg>
   );
 }

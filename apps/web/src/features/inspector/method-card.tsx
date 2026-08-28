@@ -10,8 +10,10 @@ interface Props {
   mutability: "view" | "nonpayable";
   description: string;
   children: ReactNode;
-  /** Span both columns in the methods grid (for wide table results). */
+  /** Span the whole row of the methods grid, whatever its column count (for wide table results). */
   wide?: boolean;
+  /** `sm` tightens the frame's padding — for a headline-figure card in a narrow four-up strip. */
+  size?: "default" | "sm";
   /**
    * Catalog id of the magic-sidebar method this card reads. When set, renders a
    * pin toggle in the header that adds the method to the live board.
@@ -36,6 +38,7 @@ export function MethodCard({
   description,
   children,
   wide = false,
+  size = "default",
   magicMethodId,
   magicMethodInput,
 }: Props) {
@@ -45,9 +48,10 @@ export function MethodCard({
     <Card
       id={testId}
       data-testid={testId}
+      size={size}
       className={cn(
         "hover:ring-border scroll-mt-24 transition-all duration-200 hover:shadow-md",
-        wide && "lg:col-span-2",
+        wide && "col-span-full",
       )}
     >
       <CardHeader>

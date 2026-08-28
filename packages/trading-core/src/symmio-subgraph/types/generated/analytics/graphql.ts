@@ -31,6 +31,82 @@ export type BalanceChangesQuery = {
   }>;
 };
 
+export type PoolQuotesQueryVariables = Exact<{
+  symbolId: string;
+  source: string;
+  quoteStatuses: Array<number> | number;
+  first: number;
+  skip: number;
+  orderDirection: OrderDirection;
+}>;
+
+export type PoolQuotesQuery = {
+  quotes: Array<{
+    id: string;
+    quoteId: string;
+    quoteStatus: number | null;
+    positionType: number | null;
+    orderTypeOpen: number | null;
+    symbol: string | null;
+    symbolId: string | null;
+    partyA: string;
+    partyB: string | null;
+    quantity: string | null;
+    closedAmount: string | null;
+    quantityToClose: string | null;
+    openedPrice: string | null;
+    requestedOpenPrice: string | null;
+    averageClosedPrice: string | null;
+    closePrice: string | null;
+    initialOpenedPrice: string | null;
+    liquidateAmount: string | null;
+    liquidatePrice: string | null;
+    timestamp: string;
+    blockNumber: string;
+  }>;
+};
+
+export type PoolQuoteEventsQueryVariables = Exact<{
+  typeIn: Array<string> | string;
+  symbolId: string;
+  source: string;
+  first: number;
+  skip: number;
+  orderDirection: OrderDirection;
+}>;
+
+export type PoolQuoteEventsQuery = {
+  quoteEvents: Array<{
+    id: string;
+    type: string;
+    metadata: string | null;
+    timestamp: string;
+    quoteId: string;
+    blockNumber: string;
+    transaction: string;
+    quote: {
+      quoteId: string;
+      quoteStatus: number | null;
+      positionType: number | null;
+      orderTypeOpen: number | null;
+      symbol: string | null;
+      symbolId: string | null;
+      partyA: string;
+      partyB: string | null;
+      quantity: string | null;
+      openedPrice: string | null;
+      requestedOpenPrice: string | null;
+      averageClosedPrice: string | null;
+      closePrice: string | null;
+      closedAmount: string | null;
+      quantityToClose: string | null;
+      liquidateAmount: string | null;
+      liquidatePrice: string | null;
+      subAccount: { id: string } | null;
+    };
+  }>;
+};
+
 export type QuoteEventsForQuoteByTypeQueryVariables = Exact<{
   quoteId: string;
   typeIn: Array<string> | string;
@@ -161,6 +237,80 @@ export const BalanceChangesDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<BalanceChangesQuery, BalanceChangesQueryVariables>;
+export const PoolQuotesDocument = new TypedDocumentString(`
+    query PoolQuotes($symbolId: BigInt!, $source: Bytes!, $quoteStatuses: [Int!]!, $first: Int!, $skip: Int!, $orderDirection: OrderDirection!) {
+  quotes(
+    first: $first
+    skip: $skip
+    orderBy: timestamp
+    orderDirection: $orderDirection
+    where: {symbolId: $symbolId, source: $source, quoteStatus_in: $quoteStatuses}
+  ) {
+    id
+    quoteId
+    quoteStatus
+    positionType
+    orderTypeOpen
+    symbol
+    symbolId
+    partyA
+    partyB
+    quantity
+    closedAmount
+    quantityToClose
+    openedPrice
+    requestedOpenPrice
+    averageClosedPrice
+    closePrice
+    initialOpenedPrice
+    liquidateAmount
+    liquidatePrice
+    timestamp
+    blockNumber
+  }
+}
+    `) as unknown as TypedDocumentString<PoolQuotesQuery, PoolQuotesQueryVariables>;
+export const PoolQuoteEventsDocument = new TypedDocumentString(`
+    query PoolQuoteEvents($typeIn: [String!]!, $symbolId: BigInt!, $source: Bytes!, $first: Int!, $skip: Int!, $orderDirection: OrderDirection!) {
+  quoteEvents(
+    first: $first
+    skip: $skip
+    orderBy: timestamp
+    orderDirection: $orderDirection
+    where: {type_in: $typeIn, quote_: {symbolId: $symbolId, source: $source}}
+  ) {
+    id
+    type
+    metadata
+    timestamp
+    quoteId
+    blockNumber
+    transaction
+    quote {
+      quoteId
+      quoteStatus
+      positionType
+      orderTypeOpen
+      symbol
+      symbolId
+      partyA
+      partyB
+      subAccount {
+        id
+      }
+      quantity
+      openedPrice
+      requestedOpenPrice
+      averageClosedPrice
+      closePrice
+      closedAmount
+      quantityToClose
+      liquidateAmount
+      liquidatePrice
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<PoolQuoteEventsQuery, PoolQuoteEventsQueryVariables>;
 export const QuoteEventsForQuoteByTypeDocument = new TypedDocumentString(`
     query QuoteEventsForQuoteByType($quoteId: BigInt!, $typeIn: [String!]!, $first: Int!, $skip: Int!, $orderDirection: OrderDirection!) {
   quoteEvents(

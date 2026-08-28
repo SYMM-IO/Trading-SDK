@@ -557,6 +557,8 @@ export {
   type SymmioChainConfig,
   type SymmioContractAddresses,
   type SymmioEnigmaNotificationsConfig,
+  type SymmioInventoryConfig,
+  type SymmioListingConfig,
   type SymmioMuonConfig,
   type SymmioNotificationsConfig,
   type SymmioNotificationsProtocol,
@@ -894,6 +896,47 @@ export {
   type MarketFundingInfo,
   type ProjectFundingRateParameters,
 } from "./solvers/funding-info";
+export {
+  getRevenueRecords,
+  getRevenueRecordsQueryKey,
+  getRevenueRecordsQueryOptions,
+  toRevenueRecord,
+  type GetRevenueRecordsData,
+  type GetRevenueRecordsOptions,
+  type GetRevenueRecordsParameters,
+  type GetRevenueRecordsQueryKey,
+  type GetRevenueRecordsQueryOptions,
+  type GetRevenueRecordsReturnType,
+  type SolverRevenueRecord,
+} from "./solvers/revenue-records";
+export {
+  getSymbols,
+  getSymbolsQueryKey,
+  getSymbolsQueryOptions,
+  toSolverSymbols,
+  type GetSymbolsData,
+  type GetSymbolsOptions,
+  type GetSymbolsParameters,
+  type GetSymbolsQueryKey,
+  type GetSymbolsQueryOptions,
+  type GetSymbolsReturnType,
+  type SolverSymbol,
+  type SymbolStateFilter,
+  type SymbolValidityFilter,
+} from "./solvers/symbols";
+export {
+  getTradeVolume,
+  getTradeVolumeQueryKey,
+  getTradeVolumeQueryOptions,
+  toSolverDailyVolume,
+  type GetTradeVolumeData,
+  type GetTradeVolumeOptions,
+  type GetTradeVolumeParameters,
+  type GetTradeVolumeQueryKey,
+  type GetTradeVolumeQueryOptions,
+  type GetTradeVolumeReturnType,
+  type SolverDailyVolume,
+} from "./solvers/trade-volume";
 
 /**
  * Rasa-only solver reads
@@ -1724,6 +1767,7 @@ export {
 export {
   DEFAULT_TPSL_SLIPPAGE_LOWCAPS,
   TPSL_LIVE_ORDER_STATES,
+  TpSlSearchOrderType,
   ZERO_LEG,
   buildConditionalOrderLeg,
   buildConditionalOrderMessage,
@@ -2055,3 +2099,328 @@ export {
   type WatchBinanceDepthParameters,
   type WatchOrderbookParameters,
 } from "./orderbook";
+/**
+ * Pools (lowcap liquidity markets)
+ * --------------------------------
+ * The lowcap Pools flow, served by a per-chain **listing backend**
+ * ({@link SymmioListingConfig}). Listing is chain-level: `resolveListingService`
+ * returns the chain's backend (throws `LISTING_NOT_CONFIGURED` where the chain
+ * has none); `supportsListingService` is its non-throwing boolean twin for
+ * `enabled` / UI gates.
+ *
+ * `getListingMarkets` reads the pool catalogue — search, filter, sort and
+ * pagination are all server-side. Every money and rate field on a row is a
+ * `bigint` at `LISTING_VALUE_DECIMALS` (18), independent of the token's own
+ * decimals; `null` means the backend reported no value, never zero. Pool writes
+ * (create / deposit / withdraw / claim) land in later slices.
+ */
+export {
+  LISTING_VALUE_DECIMALS,
+  ListingDepositChainId,
+  ListingMarketStatus,
+  addMarket,
+  addMarketMutationOptions,
+  authenticateListing,
+  authenticateListingMutationOptions,
+  getDepositAddress,
+  getDepositAddressQueryKey,
+  getDepositAddressQueryOptions,
+  getListingConfig,
+  getListingConfigQueryKey,
+  getListingConfigQueryOptions,
+  getListingMarkets,
+  getListingMarketsQueryKey,
+  getListingMarketsQueryOptions,
+  getListingSignInMessage,
+  getListingStatus,
+  getListingStatusQueryKey,
+  getListingStatusQueryOptions,
+  getUserListingMarkets,
+  getUserListingMarketsQueryKey,
+  getUserListingMarketsQueryOptions,
+  getUserProfit,
+  getUserProfitQueryKey,
+  getUserProfitQueryOptions,
+  getWeeklyListingLimit,
+  getWeeklyListingLimitQueryKey,
+  getWeeklyListingLimitQueryOptions,
+  resolveListingService,
+  supportsListingService,
+  toAddMarketRequest,
+  toCreatedPool,
+  toListingAuthToken,
+  toListingConfig,
+  toListingMarket,
+  toListingMarketPage,
+  toListingSignInMessage,
+  toListingStatus,
+  toListingValue,
+  toMarketDepositAddress,
+  toUserListingMarket,
+  toUserListingMarketPage,
+  toUserPoolProfit,
+  toWeeklyListingLimit,
+  toWithdrawRequest,
+  withdrawLp,
+  withdrawLpMutationOptions,
+  type AddMarketParameters,
+  type AddMarketReturnType,
+  type AuthenticateListingParameters,
+  type AuthenticateListingReturnType,
+  type CreatedPool,
+  type GetDepositAddressData,
+  type GetDepositAddressOptions,
+  type GetDepositAddressParameters,
+  type GetDepositAddressQueryKey,
+  type GetDepositAddressQueryOptions,
+  type GetDepositAddressReturnType,
+  type GetListingConfigData,
+  type GetListingConfigOptions,
+  type GetListingConfigParameters,
+  type GetListingConfigQueryKey,
+  type GetListingConfigQueryOptions,
+  type GetListingConfigReturnType,
+  type GetListingMarketsData,
+  type GetListingMarketsOptions,
+  type GetListingMarketsParameters,
+  type GetListingMarketsQueryKey,
+  type GetListingMarketsQueryOptions,
+  type GetListingMarketsReturnType,
+  type GetListingSignInMessageParameters,
+  type GetListingSignInMessageReturnType,
+  type GetListingStatusData,
+  type GetListingStatusOptions,
+  type GetListingStatusParameters,
+  type GetListingStatusQueryKey,
+  type GetListingStatusQueryOptions,
+  type GetListingStatusReturnType,
+  type GetUserListingMarketsData,
+  type GetUserListingMarketsOptions,
+  type GetUserListingMarketsParameters,
+  type GetUserListingMarketsQueryKey,
+  type GetUserListingMarketsQueryOptions,
+  type GetUserListingMarketsReturnType,
+  type GetUserProfitData,
+  type GetUserProfitOptions,
+  type GetUserProfitParameters,
+  type GetUserProfitQueryKey,
+  type GetUserProfitQueryOptions,
+  type GetUserProfitReturnType,
+  type GetWeeklyListingLimitData,
+  type GetWeeklyListingLimitOptions,
+  type GetWeeklyListingLimitParameters,
+  type GetWeeklyListingLimitQueryKey,
+  type GetWeeklyListingLimitQueryOptions,
+  type GetWeeklyListingLimitReturnType,
+  type ListingApyWindows,
+  type ListingAuthToken,
+  type ListingConfig,
+  type ListingDepositChain,
+  type ListingMarket,
+  type ListingMarketFilters,
+  type ListingMarketPage,
+  type ListingMarketSortField,
+  type ListingRateLimits,
+  type ListingSignInMessage,
+  type ListingSiweParams,
+  type ListingSortDirection,
+  type ListingStatus,
+  type ListingTimeRange,
+  type ListingTrailingWindows,
+  type ListingValueRange,
+  type MarketDepositAddress,
+  type ResolveListingServiceParameters,
+  type UserListingMarket,
+  type UserListingMarketPage,
+  type UserPoolProfit,
+  type WeeklyListingLimit,
+  type WithdrawLpParameters,
+  type WithdrawLpReturnType,
+} from "./pools";
+/**
+ * Solver revenue
+ * --------------
+ * Aggregate revenue totals from the chain's solver — protocol-wide by default,
+ * or for one market via `symbolId`. Split into a hedger-fee share and a funding
+ * share whose sum is `totalRevenue`. Enigma-only.
+ */
+export {
+  getSolverRevenue,
+  getSolverRevenueQueryKey,
+  getSolverRevenueQueryOptions,
+  toSolverRevenue,
+  type GetSolverRevenueData,
+  type GetSolverRevenueOptions,
+  type GetSolverRevenueParameters,
+  type GetSolverRevenueQueryKey,
+  type GetSolverRevenueQueryOptions,
+  type GetSolverRevenueReturnType,
+  type SolverRevenue,
+  type SolverRevenueTimeRange,
+} from "./solvers/revenue";
+
+/**
+ * Inventory service
+ * -----------------
+ * The custody backend behind the lowcap Pools — a separate vendor from both the
+ * solver and the listing backend. `getInventoryTvl` reads the system-wide
+ * custodial TVL as a `bigint` at `INVENTORY_VALUE_DECIMALS` (18).
+ *
+ * This is **not** the sum of the pool catalogue's per-pool `tvl`: the catalogue
+ * covers listed markets, this covers the whole custodial system.
+ */
+export {
+  INVENTORY_VALUE_DECIMALS,
+  getInventoryTvl,
+  getInventoryTvlHistory,
+  getInventoryTvlHistoryQueryKey,
+  getInventoryTvlHistoryQueryOptions,
+  getInventoryTvlQueryKey,
+  getInventoryTvlQueryOptions,
+  resolveInventoryService,
+  supportsInventoryService,
+  toInventoryTvl,
+  toInventoryTvlPoint,
+  type GetInventoryTvlData,
+  type GetInventoryTvlHistoryData,
+  type GetInventoryTvlHistoryOptions,
+  type GetInventoryTvlHistoryParameters,
+  type GetInventoryTvlHistoryQueryKey,
+  type GetInventoryTvlHistoryQueryOptions,
+  type GetInventoryTvlHistoryReturnType,
+  type GetInventoryTvlOptions,
+  type GetInventoryTvlParameters,
+  type GetInventoryTvlQueryKey,
+  type GetInventoryTvlQueryOptions,
+  type GetInventoryTvlReturnType,
+  type InventoryTvlPoint,
+} from "./inventory";
+/**
+ * Pool detail — the tables on a pool page
+ * ---------------------------------------
+ * The reads behind a pool's detail view, which span three backends:
+ *
+ * - `getListingMarketDetail` (listing backend) — the pool's aggregate stats and
+ *   inventory. `toPoolPositions` folds it into positions-table rows with no
+ *   extra request.
+ * - `getPoolQuotes` / `getPoolTradeHistory` (analytics subgraph) — the pool's
+ *   **whole** book and realized history. Unlike the account-scoped quote reads,
+ *   these carry no `partyA` filter: every trader's rows on that market.
+ * - `getPoolTransactions` (listing backend) — deposits and withdrawals.
+ *
+ * A pool's limit orders are not here: they come from the TP/SL handler via
+ * `searchTpSlOrders({ symbolId, conditionalOrderType: "send_quote" })`.
+ */
+export {
+  POOL_OPEN_QUOTE_STATUSES,
+  POOL_PENDING_QUOTE_STATUSES,
+  PoolPositionSide,
+  PoolTransactionStatus,
+  PoolTransactionType,
+  getListingMarketDetail,
+  getListingMarketDetailQueryKey,
+  getListingMarketDetailQueryOptions,
+  getPoolQuotes,
+  getPoolQuotesQueryKey,
+  getPoolQuotesQueryOptions,
+  getPoolTradeHistory,
+  getPoolTradeHistoryQueryKey,
+  getPoolTradeHistoryQueryOptions,
+  getPoolTransactions,
+  getPoolTransactionsQueryKey,
+  getPoolTransactionsQueryOptions,
+  toListingMarketDetail,
+  toPoolPositions,
+  toPoolQuote,
+  toPoolTransaction,
+  toPoolTransactionPage,
+  type GetListingMarketDetailData,
+  type GetListingMarketDetailOptions,
+  type GetListingMarketDetailParameters,
+  type GetListingMarketDetailQueryKey,
+  type GetListingMarketDetailQueryOptions,
+  type GetListingMarketDetailReturnType,
+  type GetPoolQuotesData,
+  type GetPoolQuotesOptions,
+  type GetPoolQuotesParameters,
+  type GetPoolQuotesQueryKey,
+  type GetPoolQuotesQueryOptions,
+  type GetPoolQuotesReturnType,
+  type GetPoolTradeHistoryData,
+  type GetPoolTradeHistoryOptions,
+  type GetPoolTradeHistoryParameters,
+  type GetPoolTradeHistoryQueryKey,
+  type GetPoolTradeHistoryQueryOptions,
+  type GetPoolTradeHistoryReturnType,
+  type GetPoolTransactionsData,
+  type GetPoolTransactionsOptions,
+  type GetPoolTransactionsParameters,
+  type GetPoolTransactionsQueryKey,
+  type GetPoolTransactionsQueryOptions,
+  type GetPoolTransactionsReturnType,
+  type ListingMarketDetail,
+  type PoolPosition,
+  type PoolQuote,
+  type PoolTransaction,
+  type PoolTransactionPage,
+} from "./pools";
+/**
+ * Pool rewards over time
+ * ----------------------
+ * The LP-reward series a pool page charts, plus the headline figures above them.
+ *
+ * - `getPoolRewardChart` / `getPoolTotalReward` — **public**, one pool, addressed
+ *   by `(marketAddress, marketChainId)`. `marketChainId` is the chain the pool's
+ *   token lives on (`ListingMarket.chainId`), not the SDK's own `chainId`.
+ * - `getUserRewardChart` / `getUserTotalReward` — **authed** with a bearer token
+ *   from `authenticateListing`, and *not* scoped to one pool: both cover every
+ *   market the signed-in user has rewards in, so a single-pool view filters the
+ *   series by market itself.
+ *
+ * Every reward here is **money**, a `bigint` at `LISTING_VALUE_DECIMALS` (18)
+ * where `1e18` is `$1` — unlike the catalogue's APR/APY fields, which descale to
+ * a percentage. Both totals are built from **earned** daily snapshots, so
+ * claiming does not reduce them; `getUserProfit` has the claimable balance.
+ */
+export {
+  getPoolRewardChart,
+  getPoolRewardChartQueryKey,
+  getPoolRewardChartQueryOptions,
+  getPoolTotalReward,
+  getPoolTotalRewardQueryKey,
+  getPoolTotalRewardQueryOptions,
+  getUserRewardChart,
+  getUserRewardChartQueryKey,
+  getUserRewardChartQueryOptions,
+  getUserTotalReward,
+  getUserTotalRewardQueryKey,
+  getUserTotalRewardQueryOptions,
+  toPoolRewardPoint,
+  toUserPoolRewardChart,
+  type GetPoolRewardChartData,
+  type GetPoolRewardChartOptions,
+  type GetPoolRewardChartParameters,
+  type GetPoolRewardChartQueryKey,
+  type GetPoolRewardChartQueryOptions,
+  type GetPoolRewardChartReturnType,
+  type GetPoolTotalRewardData,
+  type GetPoolTotalRewardOptions,
+  type GetPoolTotalRewardParameters,
+  type GetPoolTotalRewardQueryKey,
+  type GetPoolTotalRewardQueryOptions,
+  type GetPoolTotalRewardReturnType,
+  type GetUserRewardChartData,
+  type GetUserRewardChartOptions,
+  type GetUserRewardChartParameters,
+  type GetUserRewardChartQueryKey,
+  type GetUserRewardChartQueryOptions,
+  type GetUserRewardChartReturnType,
+  type GetUserTotalRewardData,
+  type GetUserTotalRewardOptions,
+  type GetUserTotalRewardParameters,
+  type GetUserTotalRewardQueryKey,
+  type GetUserTotalRewardQueryOptions,
+  type GetUserTotalRewardReturnType,
+  type PoolRewardPoint,
+  type UserPoolRewardChart,
+} from "./pools";

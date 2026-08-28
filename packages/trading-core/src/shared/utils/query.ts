@@ -2,8 +2,12 @@
  * Keys that configure TanStack Query behavior rather than identify the data.
  * They are stripped before an options object is turned into a query key so two
  * calls that differ only in, say, `staleTime` still share a cache entry.
+ *
+ * `accessToken` is stripped too: a bearer credential is never a cache dimension
+ * (two calls that differ only by a refreshed token still hit the same entry) and
+ * must never leak into a devtools-visible key.
  */
-const NON_KEY_FIELDS = new Set(["query", "enabled", "config"]);
+const NON_KEY_FIELDS = new Set(["query", "enabled", "config", "accessToken"]);
 
 /**
  * Turn an options object into the plain, hashable payload that trails a query

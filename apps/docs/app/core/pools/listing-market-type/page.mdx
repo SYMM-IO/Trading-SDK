@@ -1,0 +1,227 @@
+import { Callout } from "nextra/components";
+
+# ListingMarket
+
+One market in the permissionless-listing catalog — a row of the pools list.
+
+```ts
+import type { ListingMarket } from "@symmio/trading-core";
+```
+
+Money and rate fields are `bigint` at `LISTING_VALUE_DECIMALS` (18), independent of the token's own decimals. `null` means the backend reported no value for that field, which is **distinct from zero**.
+
+## Fields
+
+<Properties>
+  <Property name="contractAddress" type="string">
+    The listed token's contract address on `chainId`. Typed `string`, **not** viem's `Address`: Solana listings
+    (`chainId === ListingDepositChainId.SOLANA`) carry a base58 address that is not `0x`-prefixed. This is also the id
+    used to address a single market in the rest of the listing API.
+  </Property>
+  <Property name="chainId" type="ListingDepositChainId">
+    Chain the token lives on and its listing deposit was made on — **not** the chain the market trades on. See
+    [`ListingDepositChainId`](#listingdepositchainid).
+  </Property>
+  <Property name="symbolId" type="number | null">
+    The solver market id this listing trades under, or `null` when it has none yet. Assigned when the market reaches
+    `ListingMarketStatus.LISTED`; everything downstream — prices, notional caps, quotes, subgraph rows — keys off it, so
+    `null` here means the market is not tradable.
+  </Property>
+  <Property name="tokenTicker" type="string">
+    Token ticker, e.g. `"SYMM"`.
+  </Property>
+  <Property name="tokenName" type="string">
+    Token display name, e.g. `"Symmio"`.
+  </Property>
+  <Property name="maxLeverage" type="number">
+    Maximum leverage the market allows, as a whole multiplier (`20` = 20x). A plain number — not 18-decimal scaled.
+  </Property>
+  <Property name="marketCap" type="bigint | null">
+    Token market capitalization, in USD.
+  </Property>
+  <Property name="vol24h" type="bigint | null">
+    Trailing 24-hour trading volume, in USD.
+  </Property>
+  <Property name="tvl" type="bigint | null">
+    Total value locked in the market's pool, in USD.
+  </Property>
+  <Property name="liquidity" type="bigint | null">
+    Notional the solver will still take on this market, in USD.
+  </Property>
+  <Property name="openInterest" type="bigint | null">
+    Notional currently open on this market, in USD.
+  </Property>
+  <Property name="reward24h" type="bigint | null">
+    LP rewards accrued over the trailing 24 hours, in USD.
+  </Property>
+  <Property name="apr" type="bigint | null">
+    Headline APR. A percentage already (`1e18` = `1%`), **not** a fraction — render it without multiplying by 100.
+  </Property>
+  <Property name="aprByWindow" type="ListingTrailingWindows">
+    APR broken out per trailing window, same units as `apr`. There is no lifetime APR — use `apr` for the headline.
+  </Property>
+  <Property name="tvlDrivenApy" type="ListingApyWindows">
+    APY attributed to TVL growth, per window. A percentage already (`1e18` = `1%`), **not** a fraction — render it
+    without multiplying by 100.
+  </Property>
+  <Property name="priceDrivenApy" type="ListingApyWindows">
+    APY attributed to token price movement, per window. A percentage already (`1e18` = `1%`), **not** a fraction —
+    render it without multiplying by 100.
+  </Property>
+  <Property name="listingTime" type="number | null">
+    When the market went live, as a Unix timestamp in **seconds**. `null` before it is listed.
+  </Property>
+  <Property name="marketStatus" type="ListingMarketStatus">
+    Where the market sits in the listing lifecycle. See [`ListingMarketStatus`](#listingmarketstatus).
+  </Property>
+</Properties>
+
+<Callout type="warning">
+  Rate fields are **signed**. The backend's own schema types its values as unsigned decimal strings, but live responses
+  carry negative APY figures, so a formatter that assumes a non-negative number will render them wrong.
+</Callout>
+
+## ListingMarketPage
+
+One page of rows, with the totals needed to paginate.
+
+<Properties>
+  <Property name="total" type="number">
+    Total rows matching the query across all pages.
+  </Property>
+  <Property name="limit" type="number">
+    Page size the backend applied.
+  </Property>
+  <Property name="offset" type="number">
+    Row offset of this page.
+  </Property>
+  <Property name="items" type="ListingMarket[]">
+    The rows themselves.
+  </Property>
+</Properties>
+
+## ListingTrailingWindows
+
+The same metric measured over each trailing window the backend reports. Every entry is a `bigint` at
+`LISTING_VALUE_DECIMALS`, or `null` when there is no value for that window — a young market has no 30-day figure, and
+`null` means _absent_, never zero.
+
+<Properties>
+  <Property name="h1" type="bigint | null">
+    Trailing 1 hour.
+  </Property>
+  <Property name="h6" type="bigint | null">
+    Trailing 6 hours.
+  </Property>
+  <Property name="h24" type="bigint | null">
+    Trailing 24 hours.
+  </Property>
+  <Property name="d30" type="bigint | null">
+    Trailing 30 days.
+  </Property>
+</Properties>
+
+## ListingApyWindows
+
+A metric the backend reports over the trailing windows **and** since listing. Extends
+[`ListingTrailingWindows`](#listingtrailingwindows) with one field. Only the two APY series carry a lifetime column;
+APR does not, which is why `lifetime` lives here rather than on `ListingTrailingWindows`.
+
+<Properties>
+  <Property name="lifetime" type="bigint | null">
+    Since the market was listed.
+  </Property>
+</Properties>
+
+## ListingMarketStatus
+
+Lifecycle status of a market in the permissionless-listing service. The backend — not the chain — owns this state
+machine. A market becomes tradable only at `LISTED`; before that it has no `symbolId` and no solver market behind it.
+
+<Properties>
+  <Property name="WAITING_FOR_DEPOSIT" type='"waiting_for_deposit"'>
+    Application accepted, the listing deposit has not landed at the custodial address yet.
+  </Property>
+  <Property name="UNDER_REVIEW" type='"under_review"'>
+    Deposit received, awaiting the operator's decision.
+  </Property>
+  <Property name="REJECTED" type='"rejected"'>
+    The operator declined the listing; the deposit is refundable.
+  </Property>
+  <Property name="LISTED" type='"listed"'>
+    Live and tradable; `symbolId` is assigned.
+  </Property>
+  <Property name="DELISTED" type='"delisted"'>
+    Was live, has since been withdrawn from trading.
+  </Property>
+</Properties>
+
+It is a string enum, so compare against the member rather than the literal:
+
+```ts
+import { ListingMarketStatus } from "@symmio/trading-core";
+
+const tradable = market.marketStatus === ListingMarketStatus.LISTED;
+```
+
+## ListingDepositChainId
+
+Chains the listing service accepts a listing deposit on. This is the chain the **token** lives on and where its listing
+collateral was deposited — it is **not** the chain the resulting market trades on. A market whose token is on Solana or
+BSC still trades on the SYMMIO deployment the listing service is configured for.
+
+<Properties>
+  <Property name="SOLANA" type="0">
+    Sentinel for Solana — not an EVM chain id. Addresses are base58.
+  </Property>
+  <Property name="BSC" type="56">
+    BNB Smart Chain.
+  </Property>
+  <Property name="BASE" type="8453">
+    Base.
+  </Property>
+  <Property name="SONIC" type="146">
+    Sonic.
+  </Property>
+  <Property name="ARBITRUM_ONE" type="42161">
+    Arbitrum One.
+  </Property>
+  <Property name="HYPER_EVM" type="999">
+    HyperEVM.
+  </Property>
+</Properties>
+
+<Callout type="warning">
+  `SOLANA = 0` is a sentinel, not a real chain id. A row on it carries a base58 `contractAddress`, so never feed one to
+  an EVM address helper without checking `chainId` first.
+</Callout>
+
+## LISTING_VALUE_DECIMALS
+
+The fixed-point scale of every money and rate field the listing service returns, exported as a constant:
+
+```ts
+import { LISTING_VALUE_DECIMALS } from "@symmio/trading-core";
+
+LISTING_VALUE_DECIMALS; // 18
+```
+
+The service reports these as decimal **strings** at 18 decimals, regardless of the token's own decimals or the
+collateral's (`"1000000000000000000"` is `1`). The SDK keeps them as `bigint` at that scale so nothing is lost; format
+at the display edge, and give the `null` case its own rendering:
+
+```ts
+import { LISTING_VALUE_DECIMALS } from "@symmio/trading-core";
+import { formatUnits } from "@symmio/utils/decimal";
+
+function formatListingValue(raw: bigint | null): string {
+  if (raw === null) return "—";
+  return formatUnits(raw, LISTING_VALUE_DECIMALS).toFixed(2);
+}
+```
+
+## Related
+
+- [`getListingMarkets`](/core/pools/get-listing-markets) — the read that produces these rows.
+- [Pools](/core/pools) — the slice overview and the value contract in full.
+- [`useListingMarkets`](/react/pools) — the React hook.

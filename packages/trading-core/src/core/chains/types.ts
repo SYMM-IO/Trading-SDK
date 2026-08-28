@@ -96,6 +96,15 @@ export interface SolverCapabilitiesConfig {
    * `false`.
    */
   limitOrder?: boolean;
+  /**
+   * Whether this solver's markets are the lowcap **Pools** (listing service).
+   * Purely declarative: the SDK's listing functions resolve the listing backend
+   * **at chain level** ({@link SymmioChainConfig.listing}) and do **not** gate on
+   * this flag. It exists so config can express which solvers do listing, readable
+   * via `getSolverCapabilities`. Enigma (lowcap) declares it; rasa does not.
+   * Default `false`.
+   */
+  listingService?: boolean;
 }
 
 export interface SymmioSolverConfig {
@@ -282,6 +291,58 @@ export interface SymmioMuonConfig {
 }
 
 /**
+ * Pools **listing backend** configuration for a SYMMIO chain deployment.
+ *
+ * The listing backend is an auth'd REST service that owns the lowcap Pools flow
+ * — the pool catalogue, per-pool stats, a user's stake/rewards, and the
+ * create/deposit/withdraw/claim actions. It is chain-level: one listing backend
+ * is served per chain (a chain has at most one), with no solver or capability
+ * involved. Present only where Pools is available (Enigma on HyperEVM); omitted
+ * elsewhere.
+ *
+ * One deployment serves listings whose collateral was deposited on **several**
+ * chains — a catalogue row's `chainId` is the token's deposit chain, which is
+ * not the chain the resulting market trades on.
+ */
+export interface SymmioListingConfig {
+  /**
+   * Listing backend **host root** — no version segment and no trailing slash
+   * (e.g. `https://listing85.enigma.bz`, staging
+   * `https://listing-staging.enigma.bz`).
+   *
+   * The generated client's own paths already begin with `/v2`, so a versioned
+   * base URL here would request `/v2/v2/market/search` and 404. Point this at
+   * staging with a `createConfig` override — there is no separate environment
+   * axis.
+   */
+  url: string;
+}
+
+/**
+ * Inventory-service configuration for a SYMMIO chain deployment.
+ *
+ * The inventory service is the custody backend behind the lowcap Pools: it holds
+ * the per-market token and collateral inventory that backs trading, and reports
+ * the system-wide TVL those balances add up to. It is a **separate vendor** from
+ * both the solver and the {@link SymmioListingConfig} listing backend, with its
+ * own deployment and its own OpenAPI spec.
+ *
+ * Chain-level and optional, like `listing`: present where lowcap Pools are
+ * available, omitted elsewhere.
+ */
+export interface SymmioInventoryConfig {
+  /**
+   * Inventory service **host root** — no path segment and no trailing slash
+   * (e.g. `https://inventory85.enigma.bz`, staging
+   * `https://inventory-staging.enigma.bz`).
+   *
+   * The generated client's own paths already begin with `/api/v1`, so appending
+   * `/api` here would request `/api/api/v1/...` and 404.
+   */
+  url: string;
+}
+
+/**
  * Complete resolved configuration for a SYMMIO chain deployment.
  */
 export interface SymmioChainConfig {
@@ -304,4 +365,16 @@ export interface SymmioChainConfig {
   priceService: SymmioPriceServiceConfig;
   /** Muon oracle configuration */
   muon: SymmioMuonConfig;
+  /**
+   * Optional Pools listing backend, served per chain. Set on chains where the
+   * lowcap Pools flow is available (Enigma on HyperEVM); omitted elsewhere.
+   * Resolve it with `resolveListingService` / gate on `supportsListingService`.
+   */
+  listing?: SymmioListingConfig;
+  /**
+   * Optional inventory service — the custody backend behind lowcap Pools, and
+   * the source of system-wide TVL. Set alongside {@link SymmioChainConfig.listing};
+   * resolve it with `resolveInventoryService`.
+   */
+  inventory?: SymmioInventoryConfig;
 }

@@ -116,6 +116,14 @@ export interface DataTableProps<TRow> {
   defaultPageSize?: number;
   /** Render every row without a pagination footer. */
   hidePagination?: boolean;
+  /**
+   * Show at most this many rows at once and scroll the rest beneath a sticky
+   * header. The cap is measured from the rendered rows, so wrapped cells still
+   * fit, and a table with fewer rows is left uncapped. Applies to the rows on
+   * screen, so pair it with `hidePagination` (or a page size above the cap) to
+   * have something to scroll.
+   */
+  maxVisibleRows?: number;
   /** Content rendered above the table — typically a search box and filters. */
   toolbar?: React.ReactNode;
   /** Shown in place of rows when `data` is empty. */
@@ -171,6 +179,7 @@ export function DataTable<TRow>({
   pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
   defaultPageSize,
   hidePagination = false,
+  maxVisibleRows,
   toolbar,
   emptyMessage = "No results.",
   totalCount,
@@ -257,8 +266,8 @@ export function DataTable<TRow>({
     <div data-testid={testId} className={cn("flex flex-col gap-3", className)}>
       {toolbar}
 
-      <Table>
-        <TableHeader>
+      <Table maxVisibleRows={maxVisibleRows}>
+        <TableHeader sticky={maxVisibleRows !== undefined}>
           <TableRow>
             {isExpandable ? (
               <TableHead className="w-9 px-2">

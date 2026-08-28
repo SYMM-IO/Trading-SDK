@@ -1,0 +1,82 @@
+import { Callout } from "nextra/components";
+
+# resolveListingService
+
+Resolve the Pools **listing backend** for a `{ chainId }` target. Every Pools read runs this first, so a chain without Pools fails with a typed error instead of a request to a backend that is not there.
+
+```ts
+import { resolveListingService } from "@symmio/trading-core";
+
+const { url } = resolveListingService(config, { chainId });
+```
+
+Listing is served **per chain**: a chain either carries a `listing` block or it does not. `resolveListingService` does **not** check any solver capability — a solver may _declare_ the `listingService` capability, but that is metadata the resolver ignores. The URL lives on the chain because several solvers on one chain could share one listing deployment. Today only **HyperEVM** has it.
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+Both functions take the same object, exported as `ResolveListingServiceParameters`.
+
+## Returns
+
+<Returns type="SymmioListingConfig">
+  <Property name="url" type="string">
+    Listing backend **host root** — no version segment and no trailing slash, e.g. `https://listing85.enigma.bz`.
+  </Property>
+</Returns>
+
+<Callout type="warning">
+  The `url` is a host root on purpose. The generated client's own paths already begin with `/v2`, so a versioned base
+  URL would request `/v2/v2/market/search` and 404. Point it at staging (`https://listing-staging.enigma.bz`) with a
+  `createConfig` override — there is no separate environment axis.
+</Callout>
+
+## Throws
+
+A `SymmError` with `kind: "config"`, raised before any network call:
+
+- `LISTING_NOT_CONFIGURED` — the chain has no `listing` backend configured.
+
+## supportsListingService
+
+The non-throwing twin, and the chain-level boolean: `true` when the chain carries a `listing` backend. Same parameters, returns a boolean.
+
+```ts
+import { supportsListingService } from "@symmio/trading-core";
+
+if (supportsListingService(config, { chainId })) showPoolsTab();
+```
+
+It swallows every failure `resolveListingService` can raise — a chain without a backend, **and** an unknown chain id — and returns `false`. That last case matters: it means you can call it with a chain id straight off a wallet, before knowing whether the SDK supports that chain at all.
+
+## Which to use
+
+| Situation                                                                  | Reach for                |
+| -------------------------------------------------------------------------- | ------------------------ |
+| Inside an action or server handler that cannot proceed without the backend | `resolveListingService`  |
+| Deciding whether to render a Pools tab, route, or column                   | `supportsListingService` |
+| An `enabled` flag on a query or hook                                       | `supportsListingService` |
+| You need the `url` itself                                                  | `resolveListingService`  |
+
+The rule of thumb: throw where absence is a bug, and return `false` where absence is just a chain that does not have this product. Using `resolveListingService` inside a `try` to produce a boolean is `supportsListingService` written out longhand.
+
+```ts
+const enabled = supportsListingService(config, { chainId });
+
+const { data } = useQuery({
+  ...getListingMarketsQueryOptions(config, { chainId }),
+  enabled,
+});
+```
+
+## Related
+
+- [`getListingMarkets`](/core/pools/get-listing-markets) — the read that resolves the backend for you.
+- [Solvers & Chains](/core/concepts/solvers-and-chains#pools-listing-service) — the chain-level config model this sits in.
+- [`useSupportsListingService`](/react/solvers#usesupportslistingservice) — the React gate.
+- [Errors](/core/concepts/errors) — the `SymmError` hierarchy these codes belong to.

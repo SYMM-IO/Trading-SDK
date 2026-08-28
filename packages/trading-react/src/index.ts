@@ -590,6 +590,13 @@ export {
   type UseEstimatedPriceReturnType,
 } from "./estimated-price";
 export { useFundingInfo, type UseFundingInfoParameters, type UseFundingInfoReturnType } from "./funding-info";
+export {
+  useRevenueRecords,
+  type UseRevenueRecordsParameters,
+  type UseRevenueRecordsReturnType,
+} from "./revenue-records";
+export { useSymbols, type UseSymbolsParameters, type UseSymbolsReturnType } from "./symbols";
+export { useTradeVolume, type UseTradeVolumeParameters, type UseTradeVolumeReturnType } from "./trade-volume";
 
 /**
  * Market-info hooks
@@ -601,15 +608,20 @@ export { useFundingInfo, type UseFundingInfoParameters, type UseFundingInfoRetur
 export { useMarketInfo, type UseMarketInfoParameters, type UseMarketInfoReturnType } from "./market-info";
 
 /**
- * Solver capabilities
- * -------------------
- * Gate flows/UI on what the resolved solver supports (e.g. group close).
+ * Solver capabilities & revenue
+ * -----------------------------
+ * Gate flows/UI on what the resolved solver supports (e.g. group close), and
+ * read its revenue totals — protocol-wide by default, or one market via
+ * `symbolId`.
  */
 export {
   useSolverCapabilities,
+  useSolverRevenue,
   useSupportsGroupClose,
   useSupportsLimitOrder,
   type UseSolverCapabilitiesParameters,
+  type UseSolverRevenueParameters,
+  type UseSolverRevenueReturnType,
 } from "./solvers";
 
 /**
@@ -902,6 +914,7 @@ export {
   useQuoteGroupTpSl,
   useQuoteGroupTpSlEditor,
   useQuoteTpSl,
+  useSearchTpSlOrders,
   useSetQuoteGroupTpSl,
   useSetQuoteTpSl,
   useTpSlConfig,
@@ -934,6 +947,8 @@ export {
   type UseQuoteGroupTpSlReturnType,
   type UseQuoteTpSlParameters,
   type UseQuoteTpSlReturnType,
+  type UseSearchTpSlOrdersParameters,
+  type UseSearchTpSlOrdersReturnType,
   type UseSetQuoteGroupTpSlParameters,
   type UseSetQuoteGroupTpSlReturnType,
   type UseSetQuoteTpSlParameters,
@@ -1031,3 +1046,88 @@ export {
   type UseSolverReadinessParameters,
   type UseSolverReadinessReturnType,
 } from "./rasa-solver";
+/**
+ * Pools (lowcap liquidity markets)
+ * --------------------------------
+ * The pool catalogue served by the listing backend. Search, filter, sort and
+ * pagination are all server-side, so every parameter change is a new request
+ * rather than a re-view of an already-fetched page.
+ */
+export {
+  useAddMarket,
+  useAuthenticateListing,
+  useDepositAddress,
+  useListingConfig,
+  useListingMarketDetail,
+  useListingMarkets,
+  useListingStatus,
+  usePoolQuotes,
+  usePoolRewardChart,
+  usePoolTotalReward,
+  usePoolTradeHistory,
+  usePoolTransactions,
+  useSupportsListingService,
+  useUserListingMarkets,
+  useUserProfit,
+  useUserRewardChart,
+  useUserTotalReward,
+  useWeeklyListingLimit,
+  useWithdrawLp,
+  type AddMarketVariables,
+  type AuthenticateListingVariables,
+  type UseAddMarketParameters,
+  type UseAddMarketReturnType,
+  type UseAuthenticateListingParameters,
+  type UseAuthenticateListingReturnType,
+  type UseDepositAddressParameters,
+  type UseDepositAddressReturnType,
+  type UseListingConfigParameters,
+  type UseListingConfigReturnType,
+  type UseListingMarketDetailParameters,
+  type UseListingMarketDetailReturnType,
+  type UseListingMarketsParameters,
+  type UseListingMarketsReturnType,
+  type UseListingStatusParameters,
+  type UseListingStatusReturnType,
+  type UsePoolQuotesParameters,
+  type UsePoolQuotesReturnType,
+  type UsePoolRewardChartParameters,
+  type UsePoolRewardChartReturnType,
+  type UsePoolTotalRewardParameters,
+  type UsePoolTotalRewardReturnType,
+  type UsePoolTradeHistoryParameters,
+  type UsePoolTradeHistoryReturnType,
+  type UsePoolTransactionsParameters,
+  type UsePoolTransactionsReturnType,
+  type UseSupportsListingServiceParameters,
+  type UseUserListingMarketsParameters,
+  type UseUserListingMarketsReturnType,
+  type UseUserProfitParameters,
+  type UseUserProfitReturnType,
+  type UseUserRewardChartParameters,
+  type UseUserRewardChartReturnType,
+  type UseUserTotalRewardParameters,
+  type UseUserTotalRewardReturnType,
+  type UseWeeklyListingLimitParameters,
+  type UseWeeklyListingLimitReturnType,
+  type UseWithdrawLpParameters,
+  type UseWithdrawLpReturnType,
+  type WithdrawLpVariables,
+} from "./pools";
+/**
+ * Inventory service
+ * -----------------
+ * The custody backend behind the Pools. `useInventoryTvl` reads the system-wide
+ * custodial TVL as an 18-decimal `bigint` — the headline TVL on a pools page,
+ * and not the same thing as summing the catalogue's per-pool values.
+ * `useInventoryTvlHistory` is its per-market twin: the TVL series behind one
+ * pool's chart.
+ */
+export {
+  useInventoryTvl,
+  useInventoryTvlHistory,
+  type UseInventoryTvlHistoryParameters,
+  type UseInventoryTvlHistoryReturnType,
+  type UseInventoryTvlParameters,
+  type UseInventoryTvlReturnType,
+} from "./inventory";

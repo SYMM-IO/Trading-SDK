@@ -1,0 +1,61 @@
+import { Callout } from "nextra/components";
+
+# getPoolTradeHistory
+
+Read a **pool's** realized trade history from the analytics subgraph.
+
+```ts
+import { getPoolTradeHistory } from "@symmio/trading-core";
+
+const { rows } = await getPoolTradeHistory(config, { symbolId: 1, first: 25 });
+```
+
+<Callout type="warning">
+  Pool-wide, not account-scoped: no `partyA` filter, so these are every trader's closes on the market. The
+  account-scoped counterpart is [`getQuoteHistory`](/core/quotes/get-quote-history), which filters by the accounts you
+  pass. Reaching for the wrong one gives an empty table or someone else's trades.
+</Callout>
+
+## One row per close _event_, not per quote
+
+Rows come from the immutable `quoteEvents` collection with each event's frozen `metadata` snapshot overlaid. A quote closed across three partial closes therefore yields **three** rows, each showing the size and price of _that_ close rather than the quote's final state.
+
+That makes summing the rows correct, and makes reading a single row as "the quote" wrong.
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="symbolId" type="number | null | undefined" required>
+    The pool's solver market id. Absent means the pool is not tradable, so the action returns an empty result without
+    issuing a request and the query factory stays `enabled: false`.
+  </Property>
+  <Property name="closeType" type="QuoteCloseType" optional>
+    Close-type filter. Defaults to `QuoteCloseType.All`.
+  </Property>
+  <Property name="first" type="number" optional>
+    Page size. Defaults to `50`.
+  </Property>
+  <Property name="skip" type="number" optional>
+    Page offset. Defaults to `0`.
+  </Property>
+  <Property name="orderDirection" type='"asc" | "desc"' optional>
+    Sort direction on the event timestamp. Defaults to `"desc"`.
+  </Property>
+</Properties>
+
+## Returns
+
+`{ rows: QuoteHistoryRow[] }` — the same row type as [`getQuoteHistory`](/core/quotes/get-quote-history), decoded by the same mapper, so a history table can render either read without branching.
+
+## Throws
+
+- `UNSUPPORTED_CHAIN` / no analytics subgraph — a `SymmError` (`kind: "config"`).
+- A `SymmApiError` when the subgraph request itself fails.
+
+## Related
+
+- [Pool detail tables](/core/pools/pool-detail-tables) — the other four reads.
+- [React: `usePoolTradeHistory`](/react/pools#usepooltradehistory).

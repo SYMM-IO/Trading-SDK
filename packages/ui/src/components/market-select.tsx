@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, ChevronDown, Search, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, Search, X } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../lib/utils";
@@ -27,8 +27,33 @@ export interface MarketSelectProps {
   emptyLabel?: React.ReactNode;
   emptyResultsLabel?: React.ReactNode;
   clearLabel?: string;
+  /**
+   * Render the clear controls (the trigger's × and the picker's clear row).
+   * Set `false` for a required field that must always hold a value.
+   */
+  clearable?: boolean;
   selectedLabel?: string;
   className?: string;
+  /**
+   * Controlled search term. Provide together with {@link MarketSelectProps.onSearchChange}
+   * to drive search from the parent (server-side); when omitted the popover owns
+   * the search box and filters `items` itself.
+   */
+  searchValue?: string;
+  /**
+   * Called on every search-input change. Its presence switches the popover into
+   * **server mode**: it stops filtering `items` locally and renders them as given,
+   * leaving search — and paging — to the parent.
+   */
+  onSearchChange?: (query: string) => void;
+  /** Show a loading indicator in place of the list while the first page (or a new search) is in flight. */
+  loading?: boolean;
+  /** More pages are available — enables the scroll-to-end trigger. */
+  hasMore?: boolean;
+  /** A further page is loading — renders a footer spinner and guards the end-reached trigger from re-firing. */
+  loadingMore?: boolean;
+  /** Fired when the list is scrolled near its end; request the next page here. */
+  onEndReached?: () => void;
 }
 
 /**
@@ -46,13 +71,32 @@ function MarketSelect({
   emptyLabel = "No markets.",
   emptyResultsLabel = "No markets match this search.",
   clearLabel = "Clear market",
+  clearable = true,
   selectedLabel = "Selected",
   className,
+  searchValue,
+  onSearchChange,
+  loading,
+  hasMore,
+  loadingMore,
+  onEndReached,
 }: MarketSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  // Server mode: the parent owns the search term and the item list, so the popover
+  // renders `items` as given instead of filtering them here.
+  const serverMode = onSearchChange !== undefined;
+  const searchTerm = serverMode ? (searchValue ?? "") : query;
   const selectedItem = React.useMemo(() => items.find((item) => item.id === value), [items, value]);
   const filteredItems = React.useMemo(() => filterItems(items, query), [items, query]);
+  const listItems = serverMode ? items : filteredItems;
+  const listEmptyLabel = serverMode
+    ? searchTerm.trim() !== ""
+      ? emptyResultsLabel
+      : emptyLabel
+    : items.length === 0
+      ? emptyLabel
+      : emptyResultsLabel;
 
   function handleSelect(item: MarketSelectItem) {
     onValueChange(item.id);
@@ -85,7 +129,7 @@ function MarketSelect({
               className={cn(
                 "bg-input/35 border-border hover:bg-input/55 focus-visible:border-ring focus-visible:ring-ring/30 h-9 w-full min-w-0 rounded-md border py-1 pr-10 pl-3 text-left text-base transition-[color,box-shadow,background-color,border-color] outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
                 selectedItem ? "text-foreground" : "text-muted-foreground",
-                selectedItem && "pr-16",
+                selectedItem && clearable && "pr-16",
               )}
             >
               <span className="block truncate">{selectedItem ? selectedItem.label : placeholder}</span>
@@ -93,7 +137,7 @@ function MarketSelect({
             </button>
           </PopoverTrigger>
 
-          {selectedItem ? (
+          {selectedItem && clearable ? (
             <button
               type="button"
               data-testid={`${idPrefix}-clear`}
@@ -118,8 +162,8 @@ function MarketSelect({
           <div className="relative">
             <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              value={searchTerm}
+              onChange={(event) => (serverMode ? onSearchChange?.(event.target.value) : setQuery(event.target.value))}
               placeholder={searchPlaceholder}
               aria-label={searchPlaceholder}
               autoFocus
@@ -129,7 +173,7 @@ function MarketSelect({
           </div>
         </div>
 
-        {selectedItem ? (
+        {selectedItem && clearable ? (
           <button
             type="button"
             data-testid={`${idPrefix}-clear-option`}
@@ -146,11 +190,15 @@ function MarketSelect({
 
         <MarketSelectList
           idPrefix={idPrefix}
-          items={filteredItems}
+          items={listItems}
           selectedItemId={selectedItem?.id}
-          emptyLabel={items.length === 0 ? emptyLabel : emptyResultsLabel}
+          emptyLabel={listEmptyLabel}
           selectedLabel={selectedLabel}
           onSelect={handleSelect}
+          loading={loading}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onEndReached={onEndReached}
         />
       </PopoverContent>
     </Popover>
@@ -164,6 +212,10 @@ function MarketSelectList({
   emptyLabel,
   selectedLabel,
   onSelect,
+  loading,
+  hasMore,
+  loadingMore,
+  onEndReached,
 }: {
   idPrefix: string;
   items: readonly MarketSelectItem[];
@@ -171,6 +223,10 @@ function MarketSelectList({
   emptyLabel: React.ReactNode;
   selectedLabel: string;
   onSelect: (item: MarketSelectItem) => void;
+  loading?: boolean;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onEndReached?: () => void;
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
@@ -183,16 +239,29 @@ function MarketSelectList({
     getItemKey: (index) => items[index]?.id ?? index,
   });
 
+  function handleScroll(event: React.UIEvent<HTMLDivElement>) {
+    if (!onEndReached || !hasMore || loadingMore) return;
+    const el = event.currentTarget;
+    // Fire a little before the true bottom so the next page is already loading by
+    // the time the user reaches it.
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) onEndReached();
+  }
+
   if (items.length === 0) {
     return (
       <div data-testid={`${idPrefix}-list-empty`} className="text-muted-foreground px-3 py-6 text-center text-sm">
-        {emptyLabel}
+        {loading ? <Loader2 className="mx-auto size-4 animate-spin" aria-hidden /> : emptyLabel}
       </div>
     );
   }
 
   return (
-    <div ref={scrollRef} className="max-h-64 overflow-y-auto p-1" data-testid={`${idPrefix}-list`}>
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="max-h-64 overflow-y-auto p-1"
+      data-testid={`${idPrefix}-list`}
+    >
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtualRow) => {
           const item = items[virtualRow.index];
@@ -234,6 +303,11 @@ function MarketSelectList({
           );
         })}
       </div>
+      {loadingMore ? (
+        <div className="flex items-center justify-center py-3" data-testid={`${idPrefix}-loading-more`}>
+          <Loader2 className="text-muted-foreground size-4 animate-spin" aria-hidden />
+        </div>
+      ) : null}
     </div>
   );
 }

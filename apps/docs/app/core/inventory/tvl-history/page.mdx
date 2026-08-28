@@ -1,0 +1,114 @@
+import { Callout } from "nextra/components";
+
+# getInventoryTvlHistory
+
+Read **one market's** custodial TVL over time from the chain's inventory service — the series behind a pool page's TVL chart.
+
+```ts
+import { getInventoryTvlHistory, INVENTORY_VALUE_DECIMALS } from "@symmio/trading-core";
+import { formatUnits } from "@symmio/utils/decimal";
+
+const history = await getInventoryTvlHistory(config, { symbolAddress: "0x1234…" });
+
+const latest = history.at(-1);
+formatUnits(latest?.tvl ?? 0n, INVENTORY_VALUE_DECIMALS).toFixed(2); // "177.78"
+```
+
+One `GET /api/v1/markets/{symbolAddress}/tvl-history` against the chain's inventory deployment. This is the per-market twin of [`getInventoryTvl`](/core/inventory/tvl), which reports the whole custodial system as a single figure — same vendor, same 18-decimal USD scale, different granularity.
+
+The `symbolAddress` is the token contract address the service files a market's holdings under, which is the same id a `ListingMarket` carries as `contractAddress`. There is no separate inventory id to look up.
+
+<Callout type="warning">
+  This route is **not deployed on every environment**. Where the inventory service does not serve it the request comes
+  back `404`, which surfaces as a `FETCH_INVENTORY_TVL_HISTORY_FAILED` `SymmApiError`. Treat an error here as "no
+  chart", not as a broken page — the rest of the pool's data is unaffected.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="symbolAddress" type="string" required>
+    The market's symbol address — the token contract address the inventory service files its holdings under, matching
+    `ListingMarket.contractAddress`. Typed as `string`, not viem's `Address`: a Solana-deposited listing carries a
+    base58 address.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's inventory service is used, and is
+    folded into the query key.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<InventoryTvlPoint[]>">
+  One point per snapshot, in the order the service returns them (oldest first). An empty array means the service holds
+  no snapshots for this market yet.
+</Returns>
+
+<Properties>
+  <Property name="timestamp" type="number" required>
+    Snapshot time, unix **seconds**.
+  </Property>
+  <Property name="tvl" type="bigint" required>
+    Value held at that moment, 18-decimal fixed point (`INVENTORY_VALUE_DECIMALS`). A **USD** amount — `1e18` is `$1`.
+  </Property>
+</Properties>
+
+A malformed or absent `tvl` on a single row collapses to `0n` rather than throwing, so one bad snapshot cannot take down a whole chart.
+
+<Callout type="warning">
+  18 decimals is the same scale the listing backend uses, but not the same unit. A descaled listing rate _is_ a
+  percentage (`1e18` = `1%`); every inventory value is a USD amount (`1e18` = `$1`).
+</Callout>
+
+## toInventoryTvlPoint
+
+The mapper this read runs on each row, exported for when you hold a raw response yourself — a proxy route, a fixture, a rehydrated payload.
+
+```ts
+import { toInventoryTvlPoint } from "@symmio/trading-core";
+
+toInventoryTvlPoint({ timestamp: 1752364800, tvl: "177780000000000000000" });
+// { timestamp: 1752364800, tvl: 177780000000000000000n }
+```
+
+It parses `tvl` through the same [`toInventoryTvl`](/core/inventory/tvl#toinventorytvl) the aggregate read uses, so the defaulting behaviour is identical.
+
+## Query options
+
+```ts
+import { getInventoryTvlHistoryQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getInventoryTvlHistoryQueryOptions(config, { symbolAddress: pool.contractAddress }));
+```
+
+`GetInventoryTvlHistoryOptions` is the action's parameters plus a `query` bag of TanStack overrides. The factory folds `config.getChainConfigKey(chainId)` into the key, so a runtime config override pointed at a different inventory deployment refetches instead of serving the previous one's cache. `getInventoryTvlHistoryQueryKey` builds the same `["getInventoryTvlHistory", …]` key for cache matching and invalidation.
+
+`GetInventoryTvlHistoryData` is what the query resolves to, `GetInventoryTvlHistoryQueryKey` is the key type, and `GetInventoryTvlHistoryQueryOptions` is the options bag the factory produces.
+
+Gate it where the service may be absent, so a chain without one stays idle instead of parking a typed error in the cache:
+
+```ts
+import { getInventoryTvlHistoryQueryOptions, supportsInventoryService } from "@symmio/trading-core";
+
+useQuery({
+  ...getInventoryTvlHistoryQueryOptions(config, { chainId, symbolAddress }),
+  enabled: supportsInventoryService(config, chainId) && symbolAddress.length > 0,
+});
+```
+
+## Throws
+
+- `INVENTORY_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the resolved chain has no `inventory` service. Raised by [`resolveInventoryService`](/core/inventory/resolve-inventory-service) before any request goes out.
+- `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) when the `chainId` is not one the config knows about at all.
+- `FETCH_INVENTORY_TVL_HISTORY_FAILED` — the request itself failed, including the `404` on an environment that does not serve this route. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`).
+
+## Related
+
+- [`getInventoryTvl`](/core/inventory/tvl) — the system-wide figure this series is the per-market twin of.
+- [`resolveInventoryService`](/core/inventory/resolve-inventory-service) — the availability check this read runs first.
+- [`getPoolRewardChart`](/core/pools/pool-reward-chart) — the other time series on a pool page, from a different vendor.
+- [Inventory](/core/inventory) — the slice overview and the vendor split behind a pools page.
+- [`@symmio/trading-react`](/react) — `useInventoryTvlHistory` is the React binding over this read.
+- [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.

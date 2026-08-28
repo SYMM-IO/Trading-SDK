@@ -43,7 +43,9 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
           searchUrl: "https://notification.rasa.capital/notification",
         },
         // VA-per-market/side isolation supports folding a group into one close.
-        capabilities: { groupClose: true },
+        // `listingService`: declares this solver does the lowcap Pools/listing —
+        // declarative only; the listing functions resolve the backend at chain level.
+        capabilities: { groupClose: true, listingService: true },
       },
     },
     defaultSolverId: "enigma",
@@ -61,6 +63,18 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
         "https://muon-oracle3.rasa.capital/v1/",
         "https://muon-oracle4.rasa.capital/v1/",
       ],
+    },
+    listing: {
+      // Pools listing backend. Host root only — the generated client's paths
+      // already carry `/v2`, so a versioned base would 404.
+      // Staging: https://listing-staging.enigma.bz
+      url: "https://listing85.enigma.bz",
+    },
+    inventory: {
+      // Custody backend behind the Pools; source of system-wide TVL. Host root
+      // only — the generated client's paths already carry `/api/v1`.
+      // Staging: https://inventory-staging.enigma.bz
+      url: "https://inventory85.enigma.bz",
     },
   },
 

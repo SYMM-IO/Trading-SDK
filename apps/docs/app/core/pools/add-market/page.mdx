@@ -1,0 +1,180 @@
+import { Callout } from "nextra/components";
+
+# addMarket
+
+Create a pool — submit a **create-pool application** to the permissionless listing service. `addMarket` lists a new token: it records the token and its pool economics, resolves the token's name / ticker / decimals from the contract, provisions a custodial deposit wallet to seed the pool, and returns the accepted [`CreatedPool`](#returns).
+
+```ts
+import { addMarket, ListingDepositChainId } from "@symmio/trading-core";
+
+const pool = await addMarket(config, {
+  accessToken: token.accessToken,
+  tokenContractAddress: "0xToken…",
+  buyBackRatio: 5,
+  maxLeverage: 20,
+  depositChain: ListingDepositChainId.HYPER_EVM,
+});
+// send the listing deposit to `pool.walletPublicKey` to seed the pool
+```
+
+The application starts at [`ListingMarketStatus.WAITING_FOR_DEPOSIT`](/core/pools/listing-market-type) and stays there until the listing deposit lands at `walletPublicKey`. This is the authenticated write twin of the Pools reads — it takes the same Bearer `accessToken` as [`getUserListingMarkets`](/core/pools/get-user-listing-markets).
+
+<Callout type="info">
+  Two other Pools reads feed this write. The recommended initial deposit and the set of deposit chains a create-pool
+  form should offer come from [`getListingConfig`](/core/pools/listing-config) — derive the `depositChain` picker from
+  its `supportedDepositChains` rather than hardcoding a list. And creation is capped protocol-wide per week: read
+  [`getWeeklyListingLimit`](/core/pools/weekly-limit) (a public read) first and **block** `addMarket` when `remaining`
+  is `0` (the service's own weekly-limit rejection otherwise surfaces here as an `ADD_MARKET_FAILED` after a
+  round-trip).
+</Callout>
+
+<Callout type="info">
+  This is a REST write against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
+  [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>` header. The backend is
+  resolved from the config before the request, so a target without Pools fails immediately and without any network
+  traffic — see [`resolveListingService`](/core/pools/resolve-listing-service).
+</Callout>
+
+## Token metadata for your UI
+
+`addMarket` needs only the token's **contract address** — the listing backend resolves the name, ticker, and decimals from the chain itself and returns them on [`CreatedPool`](#returns). A create-pool form, though, usually wants to **show** the token _before_ the user submits: its name, symbol, price, market cap, and liquidity.
+
+That preview data is not part of this SDK. When you need it, fetch it from **DexScreener** by token address:
+
+```http
+GET https://api.dexscreener.com/latest/dex/tokens/<token_address>
+```
+
+Use the response to display and sanity-check the token — confirm it exists, show its name / logo, and check its liquidity — in your "new pool" UI before calling `addMarket`.
+
+## The access token
+
+`accessToken` is required — the endpoint is authed and rejects an unauthenticated request. Mint it once with [`authenticateListing`](/core/pools/listing-auth) (the SIWE exchange), hold it, and pass it on the call. A bad or expired token comes back as a `401` (see [Throws](#throws)) — refresh it and retry.
+
+## Parameters
+
+`accessToken`, `tokenContractAddress`, `buyBackRatio`, `maxLeverage`, and `depositChain` are required. Every other field is an optional listing extra — the SDK leaves it **absent from the request unless you set it**, so an integrating app supplies its own defaults rather than the SDK inventing them.
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401`.
+  </Property>
+  <Property name="tokenContractAddress" type="string" required>
+    The token to list, as an EVM (`0x…`) or Solana (base58) contract address. Typed as `string`, not viem's `Address`,
+    because a Solana listing carries a non-`0x` base58 address.
+  </Property>
+  <Property name="buyBackRatio" type="number" required>
+    Share of trading fees routed to buy-backs, `0`–`100`.
+  </Property>
+  <Property name="maxLeverage" type="number" required>
+    Maximum leverage the market allows, as a whole multiplier (`20` = 20x), `1`–`100`.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId" required>
+    Chain the token lives on and where its listing deposit will be made — e.g. `ListingDepositChainId.HYPER_EVM`.
+  </Property>
+  <Property name="isTax" type="boolean" optional>
+    Whether the token charges a transfer tax. Sent only when set.
+  </Property>
+  <Property name="userWhitelistTax" type="boolean" optional>
+    Whether the deposit wallet is whitelisted from the token's transfer tax. Sent only when set.
+  </Property>
+  <Property name="additionalChains" type="readonly number[]" optional>
+    Extra chain ids the token can also be deposited on. Sent only when set — an empty array **is** sent, as an empty
+    list.
+  </Property>
+  <Property name="poolAddress" type="string" optional>
+    An existing pool address to attach, when the token already has one. Sent only when set.
+  </Property>
+  <Property name="cexList" type="readonly string[]" optional>
+    CEX names the token trades on, e.g. `"Binance"`. Sent only when set.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used.
+  </Property>
+</Properties>
+
+<Callout type="warning">
+  The optional extras are **absent unless set** — the SDK does not default them. `isTax` / `userWhitelistTax` are simply
+  omitted when unset; `additionalChains` / `cexList` are omitted when unset and sent as an empty list when set to `[]`.
+  An integrating app (e.g. `apps/web`) decides its own defaults and passes them explicitly.
+</Callout>
+
+## Returns
+
+<Returns type="Promise<CreatedPool>">
+  <Property name="tokenContractAddress" type="string">
+    The submitted token's contract address on `depositChain`. A Solana listing carries a base58 (non-`0x`) address.
+  </Property>
+  <Property name="userAddress" type="string">
+    The signed-in user who submitted the listing — the token's on-chain owner as the service resolved it.
+  </Property>
+  <Property name="tokenName" type="string">
+    Token display name the service resolved from the contract, e.g. `"Symmio"`.
+  </Property>
+  <Property name="tokenTicker" type="string">
+    Token ticker the service resolved from the contract, e.g. `"SYMM"`.
+  </Property>
+  <Property name="tokenDecimal" type="number">
+    The token's on-chain decimals the service read from the contract.
+  </Property>
+  <Property name="buyBackRatio" type="number">
+    Share of trading fees routed to buy-backs, `0`–`100`, as submitted.
+  </Property>
+  <Property name="maxLeverage" type="number">
+    Maximum leverage the market will allow, as a whole multiplier, as submitted.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId">
+    Chain the token lives on and where its listing deposit must be made.
+  </Property>
+  <Property name="marketStatus" type="ListingMarketStatus">
+    Where the new market sits in the listing lifecycle — a fresh application starts at `WAITING_FOR_DEPOSIT`.
+  </Property>
+  <Property name="walletPublicKey" type="string | null">
+    The custodial deposit wallet the service generated to **seed the pool** — send the listing deposit here. `null` when
+    the service did not return one.
+  </Property>
+  <Property name="mainPool" type="string | null">
+    The main pool address, or `null` when the service has not assigned one yet.
+  </Property>
+</Returns>
+
+<Callout type="info">
+  Money and config fields on `CreatedPool` are plain `number`s as the service reports them — **not** the 18-decimal
+  `bigint` scale of the catalog rows ([`ListingMarket`](/core/pools/listing-market-type)). `addMarket` returns the
+  accepted application, not live pool metrics, so there is nothing to descale here.
+</Callout>
+
+## Mutation options
+
+```ts
+import { addMarketMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+const { mutateAsync } = useMutation(addMarketMutationOptions(config));
+const pool = await mutateAsync({
+  accessToken,
+  tokenContractAddress: "0xToken…",
+  buyBackRatio: 5,
+  maxLeverage: 20,
+  depositChain: ListingDepositChainId.HYPER_EVM,
+});
+```
+
+`addMarket` is modeled as a **mutation**, not a query: it submits an application that provisions a deposit wallet, so it is a one-shot write rather than cached data. `addMarketMutationOptions(config)` returns the `{ mutationKey, mutationFn }` bag to hand to `useMutation`. The mapping helpers `toAddMarketRequest` (parameters → wire request) and `toCreatedPool` (response → `CreatedPool`) are exported too for callers driving the request themselves.
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide the create-pool flow instead of erroring. Only chains with a listing backend have Pools.
+- `ADD_MARKET_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`) with the original error as its `cause`. A **`401`** here means the `accessToken` was missing, malformed, or expired — re-run `authenticateListing` and retry. The service's weekly-listing-limit rejections also surface here, with the service's own message and status.
+
+## Related
+
+- [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this write requires.
+- [`getListingConfig`](/core/pools/listing-config) — the recommended initial deposit and the deposit chains this form should offer.
+- [`getWeeklyListingLimit`](/core/pools/weekly-limit) — the protocol-wide weekly cap (public); block this write when `remaining` is `0`.
+- [`getUserListingMarkets`](/core/pools/get-user-listing-markets) — the authed read that lists the pools you have created.
+- [`ListingMarket`](/core/pools/listing-market-type) — the catalog row shape and its 18-decimal value contract.
+- [`useAddMarket`](/react/pools#useaddmarket) — the React hook.
+- [DexScreener token API](https://api.dexscreener.com/latest/dex/tokens/) — token name, price, market cap, and liquidity to preview a token before listing it (`/latest/dex/tokens/<token_address>`).
+- [Pools](/core/pools) — the slice overview.

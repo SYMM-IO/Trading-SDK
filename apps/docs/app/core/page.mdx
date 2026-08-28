@@ -71,6 +71,8 @@ Every domain slice, one page. Each page follows the same anatomy — purpose →
 
 - **[Price Service](/core/price-service)** — Enigma mark prices, metadata, health, live stream.
 - **[Orderbook](/core/orderbook)** — pluggable `OrderbookSource`, synchronized live depth, grouping, spread, impact.
+- **[Pools](/core/pools)** — lowcap listing catalog: `getListingMarkets`, `resolveListingService`, `ListingMarket`, `LISTING_VALUE_DECIMALS`.
+- **[Inventory](/core/inventory)** — the custody backend behind Pools, a separate vendor: `getInventoryTvl` (system-wide TVL as an 18-decimal `bigint`), `resolveInventoryService`, `INVENTORY_VALUE_DECIMALS`.
 - **[Notifications](/core/notifications)** — solver notifications stream (`watchNotifications`) + REST history (`searchNotifications`).
 - **[Subgraph](/core/subgraph)** — balance history, transfers, quote history, quote events, quote funding.
 - **[Muon Oracle](/core/muon)** — UPNL / price / range signature helpers for on-chain writes that need Muon attestations.

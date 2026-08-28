@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
 import { SymmApiError } from "../../shared/errors/symm-error";
 import { mockConfig, TEST_USER } from "../../shared/test/mock-config";
+import { TpSlSearchOrderType } from "../types";
 import {
   ConditionalOrdersState,
   ConditionalOrderType,
@@ -81,6 +82,23 @@ describe("searchTpSlOrders", () => {
     });
   });
 
+  it("omits `party_a_address` entirely when no account is given, so the search spans every account", async () => {
+    const { config } = mockConfig();
+    const post = vi.spyOn(axios, "post").mockResolvedValue(okResponse({ data: [], count: 0 }));
+
+    /** How a pool's own order book is read: filter by market and order kind, not by account. */
+    await searchTpSlOrders(config, { symbolId: 1, conditionalOrderType: TpSlSearchOrderType.SEND_QUOTE });
+
+    const body = recordedBody(post);
+    /**
+     * Absent, not `undefined`: the handler distinguishes a missing filter from
+     * a present-but-empty one, and axios would serialize the key either way.
+     */
+    expect("party_a_address" in body).toBe(false);
+    expect(body.symbol_id).toBe(1);
+    expect(body.conditional_order_type).toBe(TpSlSearchOrderType.SEND_QUOTE);
+  });
+
   it("filters to the live order states by default, so absence means `no live order`", async () => {
     const { config } = mockConfig();
     const post = vi.spyOn(axios, "post").mockResolvedValue(okResponse({ data: [], count: 0 }));
@@ -118,7 +136,7 @@ describe("searchTpSlOrders", () => {
     await searchTpSlOrders(config, {
       account: TEST_USER,
       symbolId: 4,
-      conditionalOrderType: ConditionalOrderType.stop_loss,
+      conditionalOrderType: TpSlSearchOrderType.STOP_LOSS,
       conditionalPriceType: PriceActionType.market,
       start: 200,
       size: 50,
@@ -130,7 +148,7 @@ describe("searchTpSlOrders", () => {
       start: 200,
       size: 50,
       symbol_id: 4,
-      conditional_order_type: ConditionalOrderType.stop_loss,
+      conditional_order_type: TpSlSearchOrderType.STOP_LOSS,
       conditional_price_type: PriceActionType.market,
     });
   });

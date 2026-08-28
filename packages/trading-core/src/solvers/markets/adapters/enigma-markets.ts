@@ -1,4 +1,4 @@
-import { getContractSymbols, type SymbolContractSymbol } from "../../types/generated/enigma-solver";
+import { getContractSymbols, type ApiContractSymbol } from "../../types/generated/enigma-solver";
 import type { EnigmaMarket } from "../types";
 
 /**
@@ -7,7 +7,7 @@ import type { EnigmaMarket } from "../types";
  * usable identity (`symbol_id` / `name` / `symbol`) before mapping — a market
  * without identity cannot be traded or displayed.
  */
-type IdentifiedEnigmaSymbol = SymbolContractSymbol & {
+type IdentifiedEnigmaSymbol = ApiContractSymbol & {
   symbol_id: number;
   name: string;
   symbol: string;
@@ -17,7 +17,7 @@ type IdentifiedEnigmaSymbol = SymbolContractSymbol & {
  * Type guard: does an Enigma contract symbol carry the identity fields the SDK
  * requires? Rows failing this are dropped by {@link toEnigmaMarkets}.
  */
-function hasIdentity(symbol: SymbolContractSymbol): symbol is IdentifiedEnigmaSymbol {
+function hasIdentity(symbol: ApiContractSymbol): symbol is IdentifiedEnigmaSymbol {
   return symbol.symbol_id !== undefined && symbol.name !== undefined && symbol.symbol !== undefined;
 }
 
@@ -26,7 +26,7 @@ function hasIdentity(symbol: SymbolContractSymbol): symbol is IdentifiedEnigmaSy
  * missing an identity field are skipped; every other Enigma-optional field is
  * filled with a neutral default so the normalized shape has no optional noise.
  */
-export function toEnigmaMarkets(symbols: readonly SymbolContractSymbol[]): EnigmaMarket[] {
+export function toEnigmaMarkets(symbols: readonly ApiContractSymbol[]): EnigmaMarket[] {
   return symbols.filter(hasIdentity).map(toEnigmaMarket);
 }
 

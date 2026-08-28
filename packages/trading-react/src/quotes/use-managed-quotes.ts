@@ -501,7 +501,7 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
         // the on-chain id once the anchor lands — no re-fetch needed.
         const tempId = notification.tempQuoteId;
         const onchainStr = notification.quoteId;
-        if (tempId && onchainStr && onchainStr !== `${tempId}`) {
+        if (tempId && onchainStr && onchainStr !== "0" && onchainStr !== `${tempId}`) {
           useTpSlStore.getState().link(BigInt(tempId), BigInt(onchainStr));
         }
         /**

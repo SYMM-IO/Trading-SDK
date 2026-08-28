@@ -60,6 +60,14 @@
   --chart-3: hsl(30 80% 48%);
   --chart-4: hsl(280 55% 52%);
   --chart-5: hsl(340 70% 50%);
+  /* Data-series palette for charts. Distinct from the decorative --chart-* ramp:
+     this slot ORDER is the colorblind-safety mechanism (adjacent pairs validated
+     to CVD ΔE ≥ 9.2 on the light card surface), so keep it and never cycle past 5. */
+  --series-1: hsl(6 80% 52%);
+  --series-2: hsl(280 55% 52%);
+  --series-3: hsl(160 55% 38%);
+  --series-4: hsl(30 80% 48%);
+  --series-5: hsl(340 70% 50%);
   --sidebar: hsl(0 0% 100%);
   --sidebar-foreground: hsl(0 14% 10%);
   --sidebar-primary: hsl(6 80% 42%);
@@ -143,6 +151,13 @@
   --chart-3: hsl(30 80% 55%);
   --chart-4: hsl(280 65% 60%);
   --chart-5: hsl(340 75% 55%);
+  /* Same five hues re-stepped for the dark card surface (OKLCH L 0.48–0.67,
+     adjacent CVD ΔE ≥ 11.6) — selected, not an automatic flip of the light set. */
+  --series-1: hsl(5 70% 62%);
+  --series-2: hsl(280 65% 46%);
+  --series-3: hsl(160 50% 44%);
+  --series-4: hsl(30 80% 46%);
+  --series-5: hsl(340 70% 46%);
   --sidebar: hsl(0 24% 5%);
   --sidebar-foreground: hsl(0 20% 95%);
   --sidebar-primary: hsl(5 100% 72%);
@@ -197,6 +212,11 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);

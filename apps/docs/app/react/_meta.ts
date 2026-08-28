@@ -11,6 +11,8 @@ export default {
   quotes: "Unified Quotes",
   solvers: "Solvers hooks",
   "rasa-solver": "Rasa Solver hooks",
+  pools: "Pools hooks",
+  inventory: "Inventory hooks",
   tpsl: "TP/SL hooks",
   markets: "Markets hooks",
   fees: "Fees hooks",

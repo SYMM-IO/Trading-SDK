@@ -1,0 +1,99 @@
+import { Callout } from "nextra/components";
+
+# getListingStatus
+
+Fetch a market's **listing status** — its overall lifecycle status plus where it sits in the listing backend's pipeline: the current step, all steps, the retry count/limit, and any step error. It answers "where is this pool in the listing process?", keyed by the market's token address and deposit chain.
+
+```ts
+import { getListingStatus } from "@symmio/trading-core";
+
+const status = await getListingStatus(config, {
+  tokenContractAddress: "0x1234…",
+  depositChain: ListingDepositChainId.HYPER_EVM,
+});
+```
+
+The result is a [`ListingStatus`](#returns). It is the lightweight status check behind a "listing progress" view — poll it (via the hook's `refetchInterval`) to watch a freshly created pool move from `WAITING_FOR_DEPOSIT` toward `LISTED`, rather than refetching the whole catalog row.
+
+<Callout type="info">
+  This is a **public** REST read against the listing backend — no bearer token. The backend is resolved from the config
+  before the request, so a target without Pools fails immediately and without any network traffic — see
+  [`resolveListingService`](/core/pools/resolve-listing-service).
+</Callout>
+
+## No solver id
+
+Pool listing is **chain-level** — one listing backend is served per chain — so `getListingStatus` takes only an optional `chainId` and **no `solverId`**. Pass a `chainId` to target a specific deployment's listing backend; omit it to use the config's default chain.
+
+## Parameters
+
+<Properties>
+  <Property name="tokenContractAddress" type="string" required>
+    The market's token contract address — the id that addresses a single market in the listing API. An EVM `0x…`
+    address, or a Solana base58 address for a Solana-deposited listing. Pairs with `depositChain` to identify the
+    market.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId" required>
+    The market's deposit chain — the chain the token lives on. Pairs with `tokenContractAddress` to identify the market.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used. There is
+    **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<ListingStatus>">
+  <Property name="marketStatus" type="ListingMarketStatus">
+    Overall lifecycle status of the market, mapped from the service's `market_status`. Fall back to the raw string for
+    any pipeline-only value.
+  </Property>
+  <Property name="currentStep" type="string | null">
+    The step the listing pipeline is currently on, or `null` when it is not in a step.
+  </Property>
+  <Property name="steps" type="string[]">
+    The ordered pipeline steps the listing moves through.
+  </Property>
+  <Property name="errorCode" type="number | null">
+    Error code reported for the current step, or `null` when there is no error.
+  </Property>
+  <Property name="errorDetail" type="string | null">
+    Human-readable detail for the current step's error, or `null`.
+  </Property>
+  <Property name="retryCount" type="number">
+    How many times the current step has been retried.
+  </Property>
+  <Property name="retryLimit" type="number">
+    The maximum retries allowed for the current step.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getListingStatusQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(
+  getListingStatusQueryOptions(config, {
+    tokenContractAddress: "0x1234…",
+    depositChain: ListingDepositChainId.HYPER_EVM,
+    query: { refetchInterval: 5000 },
+  }),
+);
+```
+
+`GetListingStatusOptions` is the action's parameters plus a `query` bag of TanStack overrides — set `refetchInterval` to poll a non-terminal status. `getListingStatusQueryKey` builds the matching key for cache matching and invalidation; `GetListingStatusData`, `GetListingStatusReturnType`, `GetListingStatusQueryKey`, and `GetListingStatusQueryOptions` are the factory's types.
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide Pools instead.
+- `FETCH_LISTING_STATUS_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`) with the original error as its `cause`.
+
+## Related
+
+- [`addMarket`](/core/pools/add-market) — creates the pool whose status this tracks.
+- [`getDepositAddress`](/core/pools/deposit-address) — the deposit wallet to seed a `WAITING_FOR_DEPOSIT` pool.
+- [`useListingStatus`](/react/pools#uselistingstatus) — the React hook.
+- [Pools](/core/pools) — the slice overview.

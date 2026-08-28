@@ -1,0 +1,71 @@
+import { Callout } from "nextra/components";
+
+# Pool detail tables
+
+A pool's detail view is five tables, and they do **not** come from one place. Three different backends fill them, and knowing which is which is what keeps a discrepancy between two tables from reading as a bug.
+
+| Table                    | Read                                                                      | Backend            |
+| ------------------------ | ------------------------------------------------------------------------- | ------------------ |
+| Positions                | [`getListingMarketDetail`](/core/pools/market-detail) + `toPoolPositions` | Listing backend    |
+| Open quotes              | [`getPoolQuotes`](/core/pools/pool-quotes)                                | Analytics subgraph |
+| Limit orders             | [`searchTpSlOrders`](/core/tpsl/search-tpsl-orders)                       | TP/SL handler      |
+| Trade history            | [`getPoolTradeHistory`](/core/pools/pool-trade-history)                   | Analytics subgraph |
+| Deposits and withdrawals | [`getPoolTransactions`](/core/pools/pool-transactions)                    | Listing backend    |
+
+## These reads are pool-wide, not account-scoped
+
+This is the single most important thing about them. `getPoolQuotes`, `getPoolTradeHistory`, `getPoolTransactions` and the limit-order search all return **every trader's** rows on the market — there is no `partyA` filter anywhere in them.
+
+That is deliberate: a pool page shows the pool's book, not the visitor's. It has three consequences worth designing around.
+
+- **No wallet is required.** None of these reads needs a connected account, so the tables render for an anonymous visitor.
+- **The account column matters.** `partyA` / `walletAddress` differs row to row, so showing it is not decoration — without it the rows are ambiguous.
+- **They are not the account-scoped reads.** [`getQuoteHistory`](/core/quotes/get-quote-history) and `getSubAccountQuotes` answer "what does _this_ account hold"; these answer "what is on _this_ market". Reaching for the wrong one gives an empty table or someone else's data.
+
+<Callout type="info">
+  The subgraph reads scope by the pool's `symbolId` **and** by `source` — the SYMMIO diamond the quotes were opened
+  against, which is simply the chain's `symmioAddress`. There is no separate address to configure.
+</Callout>
+
+## An unlisted pool has no book
+
+A pool that has not reached `LISTED` has no `symbolId`, and without one there is no solver market to query. `getPoolQuotes` and `getPoolTradeHistory` short-circuit to an empty result rather than issuing a request, and their query factories stay `enabled: false`.
+
+`getPoolTransactions` is the exception: deposits and withdrawals exist from the moment a listing is applied for, so that table has rows well before the pool is tradable.
+
+## Limit orders are not protocol LIMIT orders
+
+The limit-orders table is filled by `searchTpSlOrders` with `conditionalOrderType: TpSlSearchOrderType.SEND_QUOTE`. A `send_quote` conditional order _opens_ a quote when a trigger price is hit — a different mechanism from a protocol LIMIT order.
+
+The distinction is load-bearing: the lowcap solver declares `limitOrder: false`, yet this table can still have rows. Do not gate it on the `limitOrder` capability.
+
+## Reads
+
+<MethodIndex kind="read">
+  <MethodEntry name="getListingMarketDetail" href="/core/pools/market-detail">
+    One pool's aggregate stats and inventory — the read a whole pool page is built on.
+  </MethodEntry>
+  <MethodEntry name="getPoolQuotes" href="/core/pools/pool-quotes">
+    The pool's quote book from the analytics subgraph, filtered by quote status.
+  </MethodEntry>
+  <MethodEntry name="getPoolTradeHistory" href="/core/pools/pool-trade-history">
+    The pool's realized closes and liquidations, one row per event.
+  </MethodEntry>
+  <MethodEntry name="getPoolTransactions" href="/core/pools/pool-transactions">
+    The pool's deposits and withdrawals, refunds included.
+  </MethodEntry>
+</MethodIndex>
+
+## Helpers
+
+<MethodIndex kind="read">
+  <MethodEntry name="toPoolPositions" href="/core/pools/market-detail#topoolpositions">
+    Fold a pool detail into positions-table rows. Pure — no second request.
+  </MethodEntry>
+</MethodIndex>
+
+## Related
+
+- [Pools overview](/core/pools) — the catalog these tables hang off.
+- [`searchTpSlOrders`](/core/tpsl/search-tpsl-orders) — the limit-orders read.
+- [React: Pools hooks](/react/pools) — the hook for each of these.

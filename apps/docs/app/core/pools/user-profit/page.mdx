@@ -1,0 +1,110 @@
+import { Callout } from "nextra/components";
+
+# getUserProfit
+
+Fetch the signed-in user's **LP position in a single pool** — the authed, per-token read behind a pool's "your position" panel. It returns the caller's LP shares, their LP balance valued in both the pool's token and USDC, their claimable and claimed rewards, the token amount they deposited, the LP shares they have queued for withdrawal, and the SDK-derived `availableLpAmount` — the shares still free to withdraw.
+
+```ts
+import { getUserProfit } from "@symmio/trading-core";
+
+const profit = await getUserProfit(config, {
+  accessToken: token.accessToken,
+  tokenContractAddress: "0x1234…",
+});
+```
+
+The result is a [`UserPoolProfit`](#returns) — one pool, one wallet. Where [`getUserListingMarkets`](/core/pools/get-user-listing-markets) is the **Your Pools** list (every pool that minted a deposit address for the wallet, with a coarse per-row position), this is the **per-pool detail**: the full LP breakdown for the one pool you name by its token contract address.
+
+<Callout type="info">
+  This is a REST read against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
+  [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>` header. The backend is
+  resolved from the config before the request, so a target without Pools fails immediately and without any network
+  traffic — see [`resolveListingService`](/core/pools/resolve-listing-service).
+</Callout>
+
+## No solver id
+
+Pool listing is **chain-level** — one listing backend is served per chain — so `getUserProfit` takes only an optional `chainId` and **no `solverId`**. Pass a `chainId` to read a specific deployment's listing backend; omit it to use the config's default chain.
+
+## The access token and the token address
+
+Two inputs are required — the endpoint returns nothing without either.
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401` (see [Throws](#throws)). Mint it once, hold it, and pass it on every call.
+  </Property>
+  <Property name="tokenContractAddress" type="string" required>
+    The pool's token contract address — the id that addresses a single market in the listing API. An EVM `0x…` address,
+    or a Solana base58 address for a Solana-deposited listing.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
+    folded into the query key. There is **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<UserPoolProfit>">
+  <Property name="userBalanceInTokens" type="bigint">
+    The LP balance valued in the pool's token units. 18-decimal `bigint`.
+  </Property>
+  <Property name="userBalanceInUsdc" type="bigint">
+    The LP balance valued in USDC. 18-decimal `bigint` (USD).
+  </Property>
+  <Property name="claimableReward" type="bigint">
+    Rewards the user can claim now. 18-decimal `bigint` (USD).
+  </Property>
+  <Property name="claimedReward" type="bigint">
+    Rewards the user has already claimed. 18-decimal `bigint` (USD).
+  </Property>
+  <Property name="userDepositedTokenAmount" type="bigint">
+    The token amount the user deposited into the pool. 18-decimal `bigint`.
+  </Property>
+  <Property name="userLpAmount" type="bigint">
+    The user's LP shares. 18-decimal `bigint`.
+  </Property>
+  <Property name="pendingWithdrawLpAmount" type="bigint">
+    The LP shares queued for withdrawal — the pending-withdrawal amount, not yet settled. 18-decimal `bigint`.
+  </Property>
+  <Property name="availableLpAmount" type="bigint">
+    The LP shares free to withdraw right now — `userLpAmount − pendingWithdrawLpAmount`, floored at `0n`. **Derived by
+    the SDK**, not a field the service returns; it is the ceiling a [`withdrawLp`](/core/pools/withdraw) request may
+    take. 18-decimal `bigint`.
+  </Property>
+</Returns>
+
+<Callout type="warning">
+  **Every field is an 18-decimal `bigint`** at `LISTING_VALUE_DECIMALS` (18), independent of the token's or collateral's
+  own decimals — descale with `formatUnits(value, LISTING_VALUE_DECIMALS)` at the display edge. The `*Usdc` and reward
+  fields are USD (`1e18` = `$1`); the token-amount and LP-share fields are counts in that same fixed-point. Unlike a
+  catalog row, there is **no `null` here**: an absent figure is normalized to `0n`, so a real `$0` and a missing value
+  are indistinguishable.
+</Callout>
+
+## Query options
+
+```ts
+import { getUserProfitQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getUserProfitQueryOptions(config, { accessToken, tokenContractAddress: "0x1234…" }));
+```
+
+`GetUserProfitOptions` is the action's parameters (including the required `accessToken` and `tokenContractAddress`) plus a `query` bag of TanStack overrides. The factory folds `config.getChainConfigKey(chainId)` into the key but leaves `accessToken` out of it, so a refreshed token reuses the cache rather than refetching. `getUserProfitQueryKey` builds the same key for cache matching and invalidation.
+
+The rest of the factory's types are exported too: `GetUserProfitData` is what the query resolves to (the same `UserPoolProfit`), `GetUserProfitReturnType` is the action's return alias, `GetUserProfitQueryKey` is the key the factory builds, and `GetUserProfitQueryOptions` is the options bag it produces.
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide Pools instead of erroring. Only chains with a listing backend have Pools.
+- `FETCH_USER_PROFIT_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`) with the original error as its `cause`. A **`401`** here means the `accessToken` was missing, malformed, or expired — re-run `authenticateListing` and retry.
+
+## Related
+
+- [`getUserListingMarkets`](/core/pools/get-user-listing-markets) — **Your Pools**, the list this drills into: every pool holding a deposit address for the wallet, with a coarse per-row position. This action is the per-pool detail of one of those rows.
+- [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this read requires.
+- [`useUserProfit`](/react/pools#useuserprofit) — the React hook.
+- [Pools](/core/pools) — the slice overview.
