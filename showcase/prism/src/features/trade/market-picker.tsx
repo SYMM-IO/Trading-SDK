@@ -2,10 +2,11 @@
 
 import { FAMILY_PALETTE } from "@/config/deployments";
 import { groupByFamily } from "@/features/markets/balanced-groups";
+import { marketDisplayLabel } from "@/features/markets/market-key";
 import type { PrismMarket } from "@/features/markets/types";
 import { usePrismPrices, useTickSignal } from "@/features/prices/price-provider";
 import { cn } from "@/lib/cn";
-import { formatPrice, marketDisplayName } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
 import { useMemo, useState } from "react";
 
 export interface MarketPickerProps {
@@ -79,9 +80,7 @@ export function MarketPicker({ markets, selected, onSelect }: MarketPickerProps)
               className="size-2 shrink-0 rounded-full"
               style={{ background: FAMILY_PALETTE[selected.family].base }}
             />
-            <span className="font-display text-lg font-semibold text-fg-0">
-              {marketDisplayName(selected.market.name)}
-            </span>
+            <span className="font-display text-lg font-semibold text-fg-0">{marketDisplayLabel(selected.market)}</span>
             <span className="text-sm text-fg-3">{selected.deployment.chainName}</span>
           </>
         ) : (
@@ -155,7 +154,7 @@ export function MarketPicker({ markets, selected, onSelect }: MarketPickerProps)
                             style={{ background: FAMILY_PALETTE[entry.family].base }}
                           />
                           <span className="min-w-0 flex-1 truncate font-display text-md font-semibold text-fg-0">
-                            {marketDisplayName(entry.market.name)}
+                            {marketDisplayLabel(entry.market)}
                           </span>
                           <span className="tnum w-24 text-right text-sm text-fg-1">
                             {price === undefined ? "—" : formatPrice(price, entry.market.pricePrecision)}
