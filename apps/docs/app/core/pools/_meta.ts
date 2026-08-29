@@ -6,6 +6,7 @@ export default {
   "get-user-listing-markets": "getUserListingMarkets",
   "user-profit": "getUserProfit",
   "claim-history": "getClaimHistory",
+  "user-transactions": "getUserTransactions",
   "deposit-address": "getDepositAddress",
   "listing-status": "getListingStatus",
   "listing-config": "getListingConfig",

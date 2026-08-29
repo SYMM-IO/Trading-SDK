@@ -4,9 +4,9 @@ import { Callout } from "nextra/components";
 
 React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
 
-Twenty-two hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; `useCancelWithdraw` cancels a pending withdrawal before it settles; `useClaimProfit` claims a pool's accrued LP rewards as USDC to a sub-account; `useClaimHistory` reads the authed, per-user list of past claims; and `useListingStatus` reads where a market sits in the listing pipeline (public). Four more fill a pool's detail tables — `useListingMarketDetail`, `usePoolQuotes`, `usePoolTradeHistory` and `usePoolTransactions`, covered under [the detail tables](#the-detail-tables) — and four read its rewards over time, covered under [rewards](#rewards-over-time).
+Twenty-three hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; `useCancelWithdraw` cancels a pending withdrawal before it settles; `useClaimProfit` claims a pool's accrued LP rewards as USDC to a sub-account; `useClaimHistory` reads the authed, per-user list of past claims; `useUserTransactions` reads the authed, per-user list of pool deposits and withdrawals across every pool; and `useListingStatus` reads where a market sits in the listing pipeline (public). Four more fill a pool's detail tables — `useListingMarketDetail`, `usePoolQuotes`, `usePoolTradeHistory` and `usePoolTransactions`, covered under [the detail tables](#the-detail-tables) — and four read its rewards over time, covered under [rewards](#rewards-over-time).
 
-Seventeen of them are reads. `useAuthenticateListing`, `useAddMarket`, `useWithdrawLp`, `useCancelWithdraw` and `useClaimProfit` are **mutations** — the first prompts a wallet signature, the other four submit authed writes (a create-pool, an LP withdrawal, a withdrawal cancel, and a rewards claim).
+Eighteen of them are reads. `useAuthenticateListing`, `useAddMarket`, `useWithdrawLp`, `useCancelWithdraw` and `useClaimProfit` are **mutations** — the first prompts a wallet signature, the other four submit authed writes (a create-pool, an LP withdrawal, a withdrawal cancel, and a rewards claim).
 
 ## Import
 
@@ -32,6 +32,7 @@ import {
   useUserProfit,
   useUserRewardChart,
   useUserTotalReward,
+  useUserTransactions,
   useWeeklyListingLimit,
   useWithdrawLp,
   type AddMarketVariables,
@@ -1006,6 +1007,29 @@ const { data } = useClaimHistory({
 <Callout type="info">
   **Enigma-only**, like the rest of Pools. The query rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
   backend, and a bad or expired token comes back as a `FETCH_CLAIM_HISTORY_FAILED` `401`. Gate the entry point with
+  [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
+</Callout>
+
+## `useUserTransactions`
+
+Read the signed-in user's **transaction history** — their pool deposits and withdrawals across **every** pool, newest first. The authed, per-user counterpart to [`usePoolTransactions`](#the-detail-tables) (which is one pool, every LP), and unlike it, **not** tied to any pool picker — each row carries its own token identity.
+
+```tsx
+const { data } = useUserTransactions({
+  accessToken, // from useAuthenticateListing
+  size: 25,
+});
+```
+
+Optionally narrow by `transactionType`, `transactionStatus`, or `tokenAddress`. `count` is the total across all pages, so it is what a pager should divide — not `items.length`. Each row is a `UserTransaction`: `type` (deposit / withdraw), `status`, `amount` (18-decimal `bigint`), the token identity (`tokenAddress`, `tokenName`, `tokenTicker`, `tokenDecimals`, `chainId`), `wallet`, `refundAddress`, `transactionHash`, and `time`.
+
+### Return type
+
+`UseQueryResult<UserTransactionPage, SymmioRequestError>`. It refetches automatically after [`useWithdrawLp`](#usewithdrawlp) and [`useCancelWithdraw`](#usecancelwithdraw), which invalidate `getUserTransactions` — a claim does **not** touch it (a claim is not a deposit/withdraw).
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. The query rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend, and a bad or expired token comes back as a `FETCH_USER_TRANSACTIONS_FAILED` `401`. Gate the entry point with
   [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
 </Callout>
 

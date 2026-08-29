@@ -25,6 +25,7 @@ import { PoolsTvlCard } from "./pools-tvl-card";
 import { PoolsVolumeCard } from "./pools-volume-card";
 import { UserProfitCard } from "./user-profit-card";
 import { UserRewardsCard } from "./user-rewards-card";
+import { UserTransactionsCard } from "./user-transactions-card";
 import { WeeklyLimitCard } from "./weekly-limit-card";
 import { WithdrawCard } from "./withdraw-card";
 import { YourPoolsCard } from "./your-pools-card";
@@ -95,9 +96,10 @@ export function PoolsShell() {
           <CreatePoolCard />
         </MethodGroup>
 
-        <MethodGroup label="Your pools" count={2}>
+        <MethodGroup label="Your pools" count={3}>
           <YourPoolsCard />
           <UserRewardsCard />
+          <UserTransactionsCard />
         </MethodGroup>
 
         {/* The wallet's position in one pool: the bar picks it, the three authed cards read it. */}

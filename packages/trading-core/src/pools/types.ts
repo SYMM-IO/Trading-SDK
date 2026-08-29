@@ -622,6 +622,51 @@ export interface PoolTransactionPage {
 }
 
 /**
+ * One row of the signed-in user's transaction history (`getUserTransactions`) —
+ * a deposit or withdrawal they made, on any pool.
+ *
+ * Unlike {@link PoolTransaction} (one pool, every LP), this is one user, every
+ * pool — so each row carries its own token identity (`tokenAddress`,
+ * `tokenName`, `tokenTicker`, `tokenDecimals`, `chainId`).
+ */
+export interface UserTransaction {
+  /** Backend id for the transaction. */
+  transactionId: string;
+  /** Deposit or withdrawal. */
+  type: PoolTransactionType;
+  /** Lifecycle status. */
+  status: PoolTransactionStatus;
+  /** Amount moved, 18-dec bigint (a 1e18-scaled figure, like every listing value). */
+  amount: bigint;
+  /** The token's own decimals, as reported by the service — metadata, not the `amount` scale. */
+  tokenDecimals: number;
+  /** The pool's token contract address (EVM `0x…` or Solana base58). */
+  tokenAddress: string;
+  /** The token's name. */
+  tokenName: string;
+  /** The token's ticker. */
+  tokenTicker: string;
+  /** The chain the transaction's token lives on. */
+  chainId: ListingDepositChainId;
+  /** The temporary deposit wallet involved, or `null` when the service omits it. */
+  wallet: string | null;
+  /** Address a refund was sent to, or `null` when this is not a refund. */
+  refundAddress: string | null;
+  /** On-chain transaction hash or Solana signature, when known. */
+  transactionHash: string | null;
+  /** When the transaction happened, Unix **seconds**; `null` when the service omits it. */
+  time: number | null;
+}
+
+/** One page of {@link UserTransaction} rows — the signed-in user's transaction history. */
+export interface UserTransactionPage {
+  /** Total rows matching the query across all pages — what a pager divides. */
+  count: number;
+  /** The rows themselves, newest first. */
+  items: UserTransaction[];
+}
+
+/**
  * The generated `MarketStatus` enum and {@link ListingMarketStatus} carry the
  * same string values; this alias documents that the cast in the mapper is
  * value-preserving rather than a widening.

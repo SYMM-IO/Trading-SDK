@@ -77,10 +77,13 @@ export function useCancelWithdraw(parameters: UseCancelWithdrawParameters = {}):
       }
     },
     onSuccess: () => {
-      // The canceled row leaves the pool's transaction lists. `cancelWithdraw`'s
-      // variables carry no market/wallet to scope by, so invalidate every mounted
-      // `getPoolTransactions` query by its key tag; each refetches and drops it.
+      // Canceling changes the withdrawal's status in both the pool-wide
+      // (`getPoolTransactions`) and per-user (`getUserTransactions`) lists, and
+      // returns the shares to the user's balance. The variables carry no
+      // market/wallet to scope by, so invalidate each by key tag.
       void queryClient.invalidateQueries({ queryKey: ["getPoolTransactions"] });
+      void queryClient.invalidateQueries({ queryKey: ["getUserTransactions"] });
+      void queryClient.invalidateQueries({ queryKey: ["getUserProfit"] });
     },
   }) as UseCancelWithdrawReturnType;
 }

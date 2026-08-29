@@ -17,5 +17,6 @@ export * from "./trade-history";
 export * from "./transactions";
 export * from "./types";
 export * from "./user-markets";
+export * from "./user-transactions";
 export * from "./weekly-limit";
 export * from "./withdraw";

@@ -6,7 +6,7 @@ import {
   type WithdrawLpParameters,
   type WithdrawLpReturnType,
 } from "@symmio/trading-core";
-import { useMutation, type UseMutationResult } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
@@ -65,6 +65,7 @@ export type UseWithdrawLpReturnType = UseMutationResult<WithdrawLpReturnType, Sy
 export function useWithdrawLp(parameters: UseWithdrawLpParameters = {}): UseWithdrawLpReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
+  const queryClient = useQueryClient();
   const options = withdrawLpMutationOptions(config);
 
   return useMutation({
@@ -75,6 +76,15 @@ export function useWithdrawLp(parameters: UseWithdrawLpParameters = {}): UseWith
       } catch (err) {
         throw normalizeSymmError(err);
       }
+    },
+    onSuccess: () => {
+      // Queuing a withdrawal moves LP into the pending-withdrawal balance and adds
+      // a `withdraw` row to both the pool-wide (`getPoolTransactions`) and per-user
+      // (`getUserTransactions`) lists. Invalidate each by key tag so mounted views
+      // refetch — the caller does not refetch these by hand.
+      void queryClient.invalidateQueries({ queryKey: ["getUserProfit"] });
+      void queryClient.invalidateQueries({ queryKey: ["getPoolTransactions"] });
+      void queryClient.invalidateQueries({ queryKey: ["getUserTransactions"] });
     },
   }) as UseWithdrawLpReturnType;
 }
