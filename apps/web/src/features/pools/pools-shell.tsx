@@ -3,6 +3,7 @@
 import { PageHeader } from "@/components/page-header";
 import { MethodGroup } from "../inspector/method-group";
 import { useSolverKindActive } from "../solvers/solver-target";
+import { ClaimCard } from "./claim-card";
 import { CreatePoolCard } from "./create-pool-card";
 import { DepositAddressCard } from "./deposit-address-card";
 import { ListingAuthCard } from "./listing-auth-card";
@@ -101,11 +102,11 @@ export function PoolsShell() {
         <PoolScopeProvider>
           <MethodGroup
             label="Your position in a pool"
-            count={3}
+            count={4}
             lead={
               <PoolScopeBar
                 idPrefix="position-pool"
-                hint="Pick a pool — your balance, deposit address and withdrawal below are for it."
+                hint="Pick a pool — your balance, deposit address, withdrawal and claim below are for it."
                 enabled={enigmaActive}
               />
             }
@@ -113,6 +114,7 @@ export function PoolsShell() {
             <UserProfitCard />
             <DepositAddressCard />
             <WithdrawCard />
+            <ClaimCard />
           </MethodGroup>
         </PoolScopeProvider>
       </ListingAuthProvider>

@@ -1,4 +1,6 @@
+import { parseUnits } from "viem";
 import {
+  LISTING_VALUE_DECIMALS,
   ListingDepositChainId,
   ListingMarketStatus,
   type ListingApyWindows,
@@ -54,6 +56,38 @@ export function toListingValue(raw: string | null | undefined): bigint | null {
 
   const magnitude = BigInt(integerDigits);
   return sign === "-" ? -magnitude : magnitude;
+}
+
+/**
+ * Parse a **human-decimal** listing figure — a plain dollar/token amount like
+ * `"0.037699391270769714"` — into a `bigint` at {@link LISTING_VALUE_DECIMALS}
+ * (18), scaling it **up** by `1e18`.
+ *
+ * This is the counterpart to {@link toListingValue}, not a variant of it. Most of
+ * the listing API's money fields arrive already 1e18-scaled (`"5300000000000000000"`
+ * = `5.3`), and `toListingValue` reads those by truncating a fractional dust tail.
+ * A few fields — notably `claimable_reward` on `/v2/profit` — instead arrive in
+ * **plain units** (`"0.0377"` = `$0.0377`); feeding those to `toListingValue`
+ * would truncate the whole value to its integer part (here `0n`). Use this to
+ * scale them into the SDK's uniform 18-decimal `bigint` instead.
+ *
+ * Returns `null` for a null / empty / unparseable value; a value with more than
+ * 18 fractional digits is rounded by `parseUnits`.
+ *
+ * @param raw - The wire string, in plain (un-scaled) decimal units.
+ * @returns The value at `LISTING_VALUE_DECIMALS`, or `null`.
+ */
+export function parseListingValue(raw: string | null | undefined): bigint | null {
+  if (raw === null || raw === undefined) return null;
+
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+
+  try {
+    return parseUnits(trimmed, LISTING_VALUE_DECIMALS);
+  } catch {
+    return null;
+  }
 }
 
 /**

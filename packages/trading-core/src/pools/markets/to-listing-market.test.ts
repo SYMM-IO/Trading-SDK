@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ListingDepositChainId, ListingMarketStatus } from "../types";
 import { MarketStatus, type MarketSearchItem } from "../types/generated/listing-backend";
-import { toListingMarket, toListingMarketPage, toListingValue } from "./to-listing-market";
+import { parseListingValue, toListingMarket, toListingMarketPage, toListingValue } from "./to-listing-market";
 
 /** A live `SYMM` row, trimmed to the fields under test. */
 function makeRow(overrides: Partial<MarketSearchItem> = {}): MarketSearchItem {
@@ -81,6 +81,29 @@ describe("toListingValue", () => {
     expect(toListingValue("")).toBeNull();
     /** An exponent with no digits is malformed, unlike the well-formed `1e18`. */
     expect(toListingValue("1e")).toBeNull();
+  });
+});
+
+describe("parseListingValue", () => {
+  it("scales a plain-decimal figure UP to 18 decimals (unlike toListingValue)", () => {
+    // The real claimable_reward value — 0.0377 dollars, not 1e18-scaled.
+    expect(parseListingValue("0.037699391270769714")).toBe(37699391270769714n);
+    // Same input through toListingValue would truncate to its integer part.
+    expect(toListingValue("0.037699391270769714")).toBe(0n);
+  });
+
+  it("scales whole numbers and zero", () => {
+    expect(parseListingValue("5.3")).toBe(5300000000000000000n);
+    expect(parseListingValue("1")).toBe(1000000000000000000n);
+    expect(parseListingValue("0")).toBe(0n);
+  });
+
+  it("returns null for null, undefined, empty, or unparseable input", () => {
+    expect(parseListingValue(null)).toBeNull();
+    expect(parseListingValue(undefined)).toBeNull();
+    expect(parseListingValue("")).toBeNull();
+    expect(parseListingValue("   ")).toBeNull();
+    expect(parseListingValue("not-a-number")).toBeNull();
   });
 });
 

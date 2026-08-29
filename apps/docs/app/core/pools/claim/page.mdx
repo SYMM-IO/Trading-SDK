@@ -1,0 +1,99 @@
+import { Callout } from "nextra/components";
+
+# claimProfit
+
+Claim a pool's **accrued LP rewards as USDC** — the authed write behind a pool's "claim" action. You pass the amount to claim, the pool's token contract address, the pool's deposit chain, and the sub-account that receives the USDC; the listing backend moves the funds and returns a receipt.
+
+```ts
+import { claimProfit } from "@symmio/trading-core";
+
+const receipt = await claimProfit(config, {
+  accessToken: token.accessToken,
+  tokenContractAddress: "0x1234…",
+  depositChain: market.chainId,
+  accountAddress: "0xSubAccount…",
+  amount: profit.claimableReward, // never more than this
+});
+```
+
+Unlike [`withdrawLp`](/core/pools/withdraw), the claim is **synchronous and returns a body**: a resolved call means the USDC has already moved. Read the pool position with [`getUserProfit`](/core/pools/user-profit) first — its [`claimableReward`](/core/pools/user-profit#returns) is the ceiling this request may take. After a successful call, a fresh `getUserProfit` shows a lower `claimableReward` and a correspondingly higher `claimedReward`.
+
+<Callout type="info">
+  This is a REST write against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
+  [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>` header. The backend is
+  resolved from the config before the request, so a target without Pools fails immediately and without any network
+  traffic — see [`resolveListingService`](/core/pools/resolve-listing-service).
+</Callout>
+
+## No solver id
+
+Pool listing is **chain-level** — one listing backend is served per chain — so `claimProfit` takes only an optional `chainId` and **no `solverId`**. Pass a `chainId` to target a specific deployment's listing backend; omit it to use the config's default chain. Note `depositChain` is a **separate** field — it is the chain the pool's liquidity was deposited on (the market's `chainId`), not the chain whose listing backend is used.
+
+## Parameters
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401` (see [Throws](#throws)).
+  </Property>
+  <Property name="tokenContractAddress" type="string" required>
+    The pool's token contract address — the id that addresses a single market in the listing API. An EVM `0x…` address,
+    or a Solana base58 address for a Solana-deposited listing.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId" required>
+    The chain the pool's liquidity was deposited on — the market's `chainId` from the catalog. Sent as `deposit_chain`;
+    the service uses it to route the USDC transfer.
+  </Property>
+  <Property name="accountAddress" type="string" required>
+    The sub-account address to credit the claimed USDC to. Must be a sub-account the caller owns; the service rejects an
+    address it does not.
+  </Property>
+  <Property name="amount" type="bigint" required>
+    USDC to claim, as a raw integer at `LISTING_VALUE_DECIMALS` (18) — the same scale
+    [`claimableReward`](/core/pools/user-profit#returns) is reported in. Must not exceed the pool's `claimableReward`; the
+    service rejects an over-claim. Build it from a human amount with `parseUnits(value, LISTING_VALUE_DECIMALS)`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used. There is
+    **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<PoolClaimResult>">
+  The claim receipt. `status` is the service's status string (e.g. `"ok"`); `amountClaimed` is the USDC moved, a
+  `bigint` at `LISTING_VALUE_DECIMALS` (18); `claimRequestId` references the claim in the service; `transactionHash` is
+  the on-chain transfer hash, or `null` when the service has none yet.
+</Returns>
+
+## Mutation options
+
+```ts
+import { claimProfitMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+const { mutateAsync } = useMutation(claimProfitMutationOptions(config));
+const receipt = await mutateAsync({
+  accessToken,
+  tokenContractAddress: "0x1234…",
+  depositChain: market.chainId,
+  accountAddress: "0xSubAccount…",
+  amount,
+});
+```
+
+`claimProfitMutationOptions(config)` returns a `{ mutationKey, mutationFn }` bag for `useMutation`. It is modeled as a mutation, not a query: it moves USDC and shifts the user's claimable/claimed balances, so it is a one-shot write, not cached data.
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide the claim flow instead of erroring.
+- `CLAIM_PROFIT_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`) with the original error as its `cause`. A **`401`** means the `accessToken` was missing, malformed, or expired — re-run `authenticateListing` and retry. A rejection for an amount above the claimable reward, or for the per-day claim cap, also surfaces here, with the service's message and status as-is.
+
+## Related
+
+- [`getUserProfit`](/core/pools/user-profit) — the read that supplies `claimableReward`, the cap on `amount`.
+- [`withdrawLp`](/core/pools/withdraw) — the sibling pool write, for LP shares rather than rewards.
+- [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this write requires.
+- [`useClaimProfit`](/react/pools#useclaimprofit) — the React hook.
+- [Pools](/core/pools) — the slice overview.

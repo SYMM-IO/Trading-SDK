@@ -5,7 +5,7 @@ import { Stat } from "@/components/stat";
 import { useUserProfit } from "@symmio/trading-react";
 import { MethodCard } from "../inspector/method-card";
 import { useSolverKindActive } from "../solvers/solver-target";
-import { formatListingAmount, formatListingUsd } from "./format-listing-value";
+import { formatListingAmount, formatListingRewardUsd, formatListingUsd } from "./format-listing-value";
 import { useListingAuth } from "./listing-auth-context";
 import { usePoolScope } from "./pool-scope";
 import { SignInNote } from "./sign-in-note";
@@ -33,7 +33,7 @@ export function UserProfitCard() {
     accessToken: accessToken ?? "",
     tokenContractAddress: contractAddress,
   });
-
+  console.log("data-Profit", profit.data);
   const signedIn = accessToken !== null;
 
   return (
@@ -72,7 +72,7 @@ export function UserProfitCard() {
             />
             <Stat
               label="Claimable reward"
-              value={formatListingUsd(profit.data.claimableReward)}
+              value={formatListingRewardUsd(profit.data.claimableReward)}
               hint="Rewards you can claim now."
             />
             <Stat

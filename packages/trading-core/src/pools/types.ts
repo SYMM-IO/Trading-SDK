@@ -225,6 +225,26 @@ export interface UserPoolProfit {
 }
 
 /**
+ * The receipt returned by `claimProfit` — the outcome of a `/v2/claim` request.
+ *
+ * The claim is synchronous: a `200` means the USDC was moved to the target
+ * sub-account. `amountClaimed` is the moved figure normalized to a `bigint` at
+ * `LISTING_VALUE_DECIMALS` (18), `claimRequestId` references the claim in the
+ * service, and `transactionHash` is the on-chain transfer hash when the service
+ * has one (`null` otherwise).
+ */
+export interface PoolClaimResult {
+  /** The service's status string, e.g. `"ok"`. */
+  status: string;
+  /** USDC moved to the sub-account, 18-dec bigint USD. */
+  amountClaimed: bigint;
+  /** Claim id — reference it to restore or look up the claim later. */
+  claimRequestId: string;
+  /** On-chain hash of the claim transfer, or `null` when the service has none yet. */
+  transactionHash: string | null;
+}
+
+/**
  * The signed-in user's deposit wallet for one market — the get-or-create result
  * of the authed `/v2/market/deposit-address` endpoint. This is the address the
  * user sends funds to in order to deposit into the market's pool.
