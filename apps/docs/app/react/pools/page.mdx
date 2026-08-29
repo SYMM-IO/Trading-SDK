@@ -4,9 +4,9 @@ import { Callout } from "nextra/components";
 
 React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
 
-Twenty hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; `useClaimProfit` claims a pool's accrued LP rewards as USDC to a sub-account; and `useListingStatus` reads where a market sits in the listing pipeline (public). Four more fill a pool's detail tables — `useListingMarketDetail`, `usePoolQuotes`, `usePoolTradeHistory` and `usePoolTransactions`, covered under [the detail tables](#the-detail-tables) — and four read its rewards over time, covered under [rewards](#rewards-over-time).
+Twenty-two hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; `useCancelWithdraw` cancels a pending withdrawal before it settles; `useClaimProfit` claims a pool's accrued LP rewards as USDC to a sub-account; `useClaimHistory` reads the authed, per-user list of past claims; and `useListingStatus` reads where a market sits in the listing pipeline (public). Four more fill a pool's detail tables — `useListingMarketDetail`, `usePoolQuotes`, `usePoolTradeHistory` and `usePoolTransactions`, covered under [the detail tables](#the-detail-tables) — and four read its rewards over time, covered under [rewards](#rewards-over-time).
 
-Sixteen of them are reads. `useAuthenticateListing`, `useAddMarket`, `useWithdrawLp` and `useClaimProfit` are **mutations** — the first prompts a wallet signature, the other three submit authed writes (a create-pool, an LP withdrawal, and a rewards claim).
+Seventeen of them are reads. `useAuthenticateListing`, `useAddMarket`, `useWithdrawLp`, `useCancelWithdraw` and `useClaimProfit` are **mutations** — the first prompts a wallet signature, the other four submit authed writes (a create-pool, an LP withdrawal, a withdrawal cancel, and a rewards claim).
 
 ## Import
 
@@ -14,6 +14,8 @@ Sixteen of them are reads. `useAuthenticateListing`, `useAddMarket`, `useWithdra
 import {
   useAddMarket,
   useAuthenticateListing,
+  useCancelWithdraw,
+  useClaimHistory,
   useClaimProfit,
   useDepositAddress,
   useListingConfig,
@@ -908,6 +910,40 @@ export function Withdraw({ tokenContractAddress }: { tokenContractAddress: strin
   [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
 </Callout>
 
+## `useCancelWithdraw`
+
+Cancel a queued LP withdrawal — remove a pending withdrawal from a pool's queue before it settles. The authed **write** that undoes [`useWithdrawLp`](#usewithdrawlp): the mutation `DELETE`s the withdrawal by its `withdrawId`, and resolves to a `PoolCancelWithdrawResult`.
+
+```tsx
+const cancel = useCancelWithdraw();
+
+cancel.mutate({
+  accessToken, // from useAuthenticateListing
+  withdrawId: pending.transactionId, // a still-PENDING withdraw row
+});
+```
+
+The `withdrawId` is the `transactionId` of a still-`PENDING` `withdraw` row from [`usePoolTransactions`](#the-detail-tables) (filter by the connected wallet and `status`). On success the shares return to the user's available balance, so refetch [`useUserProfit`](#useuserprofit) to see `availableLpAmount` rise and `pendingWithdrawLpAmount` fall.
+
+### Variables
+
+| Name          | Type     | Notes                                                                                            |
+| ------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `accessToken` | `string` | **Required.** Bearer token from `useAuthenticateListing`. A bad or expired token yields a `401`. |
+| `withdrawId`  | `string` | **Required.** The `transactionId` of the pending `withdraw` row to cancel.                       |
+| `chainId?`    | `number` | Which deployment's listing backend to write to. Defaults to the connected chain.                 |
+
+### Return type
+
+`UseMutationResult<PoolCancelWithdrawResult, SymmioRequestError, CancelWithdrawVariables>`. On success `data` is the receipt — `transactionId` and its resulting `status` (e.g. `"canceled"`).
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend, and a bad or expired token comes back as a `CANCEL_WITHDRAW_FAILED` `401`. A withdrawal that has already
+  settled is rejected by the service. Gate the entry point with [`useSupportsListingService`](#gate-the-feature-first),
+  and re-run `useAuthenticateListing` on a `401`.
+</Callout>
+
 ## `useClaimProfit`
 
 Claim a pool's accrued LP rewards as USDC — POST the claim to the listing backend. It is an authed **write**, and unlike [`useWithdrawLp`](#usewithdrawlp) it is **synchronous and returns a receipt**: the mutation submits the USDC `amount`, the pool's `tokenContractAddress`, the pool's `depositChain`, and the `accountAddress` sub-account to credit, and resolves to a `PoolClaimResult`.
@@ -947,6 +983,30 @@ Pair it with [`useUserProfit`](#useuserprofit): its `claimableReward` is the cei
   `claimableReward`, or exceeding the per-day claim cap, is rejected by the service, so cap it client-side. Gate the
   entry point with [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a
   `401`.
+</Callout>
+
+## `useClaimHistory`
+
+Read the signed-in user's **claim history** — their past pool-reward claims, newest first. The authed read companion to [`useClaimProfit`](#useclaimprofit): it only ever returns claims the user owns, so pass the Bearer `accessToken` from [`useAuthenticateListing`](#useauthenticatelisting). Optionally narrow to one pool (`tokenContractAddress`) or one receiving sub-account (`accountAddress`).
+
+```tsx
+const { data } = useClaimHistory({
+  accessToken, // from useAuthenticateListing
+  tokenContractAddress, // optional — omit for every pool
+  size: 25,
+});
+```
+
+`count` is the total across all pages, so it is what a pager should divide — not `items.length`. Each row is a `PoolClaim`: `claimRequestId`, the `accountAddress` that received the USDC, the `amount` (18-decimal `bigint` USD), the `transactionHash` (or `null`), and the `time` (Unix seconds).
+
+### Return type
+
+`UseQueryResult<PoolClaimHistoryPage, SymmioRequestError>`. Refetch after [`useClaimProfit`](#useclaimprofit) resolves to show the new claim.
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. The query rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend, and a bad or expired token comes back as a `FETCH_CLAIM_HISTORY_FAILED` `401`. Gate the entry point with
+  [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
 </Callout>
 
 ## `useWeeklyListingLimit`

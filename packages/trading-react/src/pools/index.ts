@@ -1,5 +1,7 @@
 export * from "./use-add-market";
 export * from "./use-authenticate-listing";
+export * from "./use-cancel-withdraw";
+export * from "./use-claim-history";
 export * from "./use-claim-profit";
 export * from "./use-deposit-address";
 export * from "./use-listing-config";

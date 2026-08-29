@@ -6,7 +6,7 @@ import {
   type ClaimProfitReturnType,
   type ConfigParameter,
 } from "@symmio/trading-core";
-import { useMutation, type UseMutationResult } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
@@ -70,6 +70,7 @@ export type UseClaimProfitReturnType = UseMutationResult<
 export function useClaimProfit(parameters: UseClaimProfitParameters = {}): UseClaimProfitReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
+  const queryClient = useQueryClient();
   const options = claimProfitMutationOptions(config);
 
   return useMutation({
@@ -80,6 +81,13 @@ export function useClaimProfit(parameters: UseClaimProfitParameters = {}): UseCl
       } catch (err) {
         throw normalizeSymmError(err);
       }
+    },
+    onSuccess: () => {
+      // A claim moves the balances and adds a history row. Invalidate both by key
+      // tag so mounted `getUserProfit` (claimable/claimed) and `getClaimHistory`
+      // views refetch — the caller does not invalidate these by hand.
+      void queryClient.invalidateQueries({ queryKey: ["getUserProfit"] });
+      void queryClient.invalidateQueries({ queryKey: ["getClaimHistory"] });
     },
   }) as UseClaimProfitReturnType;
 }

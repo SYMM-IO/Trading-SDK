@@ -59,20 +59,15 @@ export function ClaimCard() {
       return;
     }
     if (accessToken === null || depositChain === undefined || !accountValid) return;
-    claim.mutate(
-      {
-        accessToken,
-        tokenContractAddress: selectedContractAddress,
-        depositChain,
-        accountAddress,
-        amount: claimableReward,
-      },
-      {
-        onSuccess: () => {
-          void profit.refetch();
-        },
-      },
-    );
+    // No onSuccess invalidation here — useClaimProfit invalidates getUserProfit
+    // and getClaimHistory at the react level, so mounted views refetch themselves.
+    claim.mutate({
+      accessToken,
+      tokenContractAddress: selectedContractAddress,
+      depositChain,
+      accountAddress,
+      amount: claimableReward,
+    });
   }
 
   const claimableHint = !signedIn

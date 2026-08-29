@@ -245,6 +245,48 @@ export interface PoolClaimResult {
 }
 
 /**
+ * One past pool-reward claim, from the user's claim history (`getClaimHistory`).
+ *
+ * The internal `wallet_id` / `market_id` UUIDs the service carries are dropped —
+ * they address rows in the backend, not anything a consumer renders.
+ */
+export interface PoolClaim {
+  /** Claim id — reference it to look the claim up in the service. */
+  claimRequestId: string;
+  /** Sub-account address that received the claimed USDC. */
+  accountAddress: string;
+  /** USDC claimed, 18-dec bigint USD. */
+  amount: bigint;
+  /** On-chain hash of the claim transfer, or `null` when the service has none. */
+  transactionHash: string | null;
+  /** When the claim was created, Unix **seconds**. */
+  time: number;
+}
+
+/** One page of {@link PoolClaim} rows — the signed-in user's claim history. */
+export interface PoolClaimHistoryPage {
+  /** Total claims matching the query across all pages — what a pager divides. */
+  count: number;
+  /** The claims themselves, newest first. */
+  items: PoolClaim[];
+}
+
+/**
+ * The receipt returned by `cancelWithdraw` — the outcome of cancelling a queued
+ * LP withdrawal.
+ */
+export interface PoolCancelWithdrawResult {
+  /** The affected withdrawal's transaction id, echoed by the service. */
+  transactionId: string;
+  /**
+   * The withdrawal's resulting status, e.g. `"canceled"`. Carried through as the
+   * service's raw string — its enum (`canceled` | `pending` | `transferred` | …)
+   * is a superset of {@link PoolTransactionStatus}, so it is not narrowed to it.
+   */
+  status: string;
+}
+
+/**
  * The signed-in user's deposit wallet for one market — the get-or-create result
  * of the authed `/v2/market/deposit-address` endpoint. This is the address the
  * user sends funds to in order to deposit into the market's pool.
