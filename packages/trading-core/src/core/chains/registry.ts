@@ -114,11 +114,7 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
       },
     },
     defaultSolverId: "rasa",
-    // ── PLACEHOLDER services (HyperEVM values) ──────────────────────────────
-    // Base does not have its own subgraphs yet. These point at HyperEVM's
-    // endpoints so the config is complete and the SDK compiles/runs; they
-    // return HyperEVM data, NOT Base data. Replace each block with Base's
-    // real endpoint as that service is integrated — one at a time.
+    // Base's own analytics and events subgraphs (Goldsky) — real, production endpoints.
     subgraphs: {
       analytics:
         "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/base_analytics/latest/gn",
