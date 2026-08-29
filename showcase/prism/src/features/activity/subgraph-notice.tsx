@@ -11,14 +11,12 @@ import type { DeploymentReadState } from "./activity-types";
  * Deployments whose subgraph endpoints are placeholders in the SDK's chain
  * registry rather than real indexers.
  *
- * `packages/trading-core/src/core/chains/registry.ts` says it outright for Base:
- * "Base does not have its own subgraphs yet… they return HyperEVM data, NOT Base
- * data." Every subgraph-backed read on this screen — quote history, transfers,
- * deposits/withdrawals, funding — is therefore unverifiable for majors, and the
- * screen says so instead of drawing an empty table that looks settled. Delete a
- * family from this set the day its real endpoints land.
+ * Every family now ships its own real analytics + events subgraphs — Base's
+ * `base_analytics` / `base_events` are live production endpoints — so this set is
+ * empty and every subgraph-backed read runs for real. Add a family back only if a
+ * deployment is ever configured with a stand-in endpoint again.
  */
-const PLACEHOLDER_SUBGRAPH_FAMILIES: ReadonlySet<MarketFamily> = new Set<MarketFamily>(["majors"]);
+const PLACEHOLDER_SUBGRAPH_FAMILIES: ReadonlySet<MarketFamily> = new Set<MarketFamily>();
 
 /** Which subgraph a read hits, so the notice can name the exact endpoint. */
 export type SubgraphKind = "analytics" | "events";
