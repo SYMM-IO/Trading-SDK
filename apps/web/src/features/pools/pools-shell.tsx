@@ -3,12 +3,16 @@
 import { PageHeader } from "@/components/page-header";
 import { MethodGroup } from "../inspector/method-group";
 import { useSolverKindActive } from "../solvers/solver-target";
+import { CancelWithdrawCard } from "./cancel-withdraw-card";
+import { ClaimCard } from "./claim-card";
+import { ClaimHistoryCard } from "./claim-history-card";
 import { CreatePoolCard } from "./create-pool-card";
 import { DepositAddressCard } from "./deposit-address-card";
 import { ListingAuthCard } from "./listing-auth-card";
 import { ListingAuthProvider } from "./listing-auth-context";
 import { ListingConfigCard } from "./listing-config-card";
 import { ListingStatusCard } from "./listing-status-card";
+import { MarketConfigCard } from "./market-config-card";
 import { PoolDetailCard } from "./pool-detail-card";
 import { PoolRewardsCard } from "./pool-rewards-card";
 import { PoolScopeBar, PoolScopeProvider } from "./pool-scope";
@@ -22,6 +26,7 @@ import { PoolsTvlCard } from "./pools-tvl-card";
 import { PoolsVolumeCard } from "./pools-volume-card";
 import { UserProfitCard } from "./user-profit-card";
 import { UserRewardsCard } from "./user-rewards-card";
+import { UserTransactionsCard } from "./user-transactions-card";
 import { WeeklyLimitCard } from "./weekly-limit-card";
 import { WithdrawCard } from "./withdraw-card";
 import { YourPoolsCard } from "./your-pools-card";
@@ -92,27 +97,32 @@ export function PoolsShell() {
           <CreatePoolCard />
         </MethodGroup>
 
-        <MethodGroup label="Your pools" count={2}>
+        <MethodGroup label="Your pools" count={3}>
           <YourPoolsCard />
           <UserRewardsCard />
+          <UserTransactionsCard />
         </MethodGroup>
 
         {/* The wallet's position in one pool: the bar picks it, the three authed cards read it. */}
         <PoolScopeProvider>
           <MethodGroup
             label="Your position in a pool"
-            count={3}
+            count={7}
             lead={
               <PoolScopeBar
                 idPrefix="position-pool"
-                hint="Pick a pool — your balance, deposit address and withdrawal below are for it."
+                hint="Pick a pool — your balance, deposit address, config, withdrawal, claim and claim history below are for it."
                 enabled={enigmaActive}
               />
             }
           >
             <UserProfitCard />
             <DepositAddressCard />
+            <MarketConfigCard />
             <WithdrawCard />
+            <CancelWithdrawCard />
+            <ClaimCard />
+            <ClaimHistoryCard />
           </MethodGroup>
         </PoolScopeProvider>
       </ListingAuthProvider>

@@ -1,0 +1,170 @@
+import { Callout } from "nextra/components";
+
+# updateListingMarketConfig
+
+Submit the signed-in user's **configuration opinion** for one pool — their preferred max leverage, buyback percentage, or both. This is the authed write behind a pool's "configure" action.
+
+<Callout type="warning">
+  **This never overwrites the pool's configuration.** The listing service records the value as *this LP's* opinion and
+  folds it into a **deposit-weighted average** across every LP, so one call nudges the pool by the caller's share of the
+  deposits rather than setting it. The resolved [`ListingMarketConfig`](/core/pools/market-config#returns) carries both
+  halves: `userMaxLeverage` / `userBuybackRatio` are what was just recorded, `maxLeverage` / `buybackRatio` are the
+  re-blended pool values. A UI that promises "set the pool's leverage to 20x" is lying to the user — show the projection
+  instead (see [`projectListingMarketConfig`](/core/pools/market-config#projecting-the-new-pool-value)).
+</Callout>
+
+```ts
+import { updateListingMarketConfig } from "@symmio/trading-core";
+
+const updated = await updateListingMarketConfig(config, {
+  accessToken: token.accessToken,
+  tokenContractAddress: "0x1234…",
+  depositChain: market.chainId,
+  buybackRatio: 50, // 50%
+  maxLeverage: 20, // 20x
+});
+
+updated.userBuybackRatio; // 50 — the opinion just recorded
+updated.buybackRatio; // the pool value after this LP's opinion was folded in
+```
+
+Both knobs are optional individually, but **at least one must be present** — a body with neither is rejected before the request is made. An omitted knob leaves the caller's current value for it untouched; it is dropped from the wire body rather than sent as `null`. Both are whole integers: the service rejects a fractional value, so a slider that emits `19.5` must round before it gets here.
+
+<Callout type="info">
+  This is a REST write against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
+  [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>` header, and the token
+  is what decides whose opinion is recorded. Pool listing is **chain-level**, so this takes an optional `chainId` and
+  **no `solverId`** — the backend is resolved from the config before the request, so a target without Pools fails
+  immediately and without any network traffic (see
+  [`resolveListingService`](/core/pools/resolve-listing-service)). Pools is Enigma-only today. Note `depositChain` is a
+  **separate** field — the chain the pool's liquidity was deposited on, not the chain whose listing backend is used.
+</Callout>
+
+## The deposit-address precondition
+
+The service only counts an opinion from an LP that **holds a deposit address on the pool**. An opinion submitted by a wallet without one is not weighted into the average, so the write would appear to succeed and change nothing.
+
+Rather than make every caller remember that, `updateListingMarketConfig` mints the caller's deposit wallet first by default: `ensureDepositAddress` defaults to `true`, and the action calls [`getDepositAddress`](/core/pools/deposit-address) for the same token and deposit chain before the `POST`. That call is an idempotent **get-or-create** — for a caller who already holds an address it returns the existing one — so the default is safe to leave on and costs one extra round trip.
+
+Pass `ensureDepositAddress: false` only when the caller is already known to hold a deposit address for this pool: right after a deposit flow that just fetched it, or in a screen that mounted [`getDepositAddress`](/core/pools/deposit-address) itself. It is a latency optimization, not a behavior change — skipping it on a wallet with no deposit address silently costs the user their vote.
+
+## Bounds
+
+`LISTING_MARKET_CONFIG_BOUNDS` is the client-side range for the two knobs:
+
+```ts
+import { LISTING_MARKET_CONFIG_BOUNDS } from "@symmio/trading-core";
+
+LISTING_MARKET_CONFIG_BOUNDS.maxLeverage; // { min: 1, max: 20 }  — whole multiplier, inclusive
+LISTING_MARKET_CONFIG_BOUNDS.buybackRatio; // { min: 0, max: 100 } — whole percent, inclusive
+```
+
+<Callout type="warning">
+  **These bounds are a client-side constant, not service-published data.** The listing service does not expose a
+  leverage or buyback range anywhere: [`getListingConfig`](/core/pools/listing-config)'s `/v2/configs` payload carries
+  deposit guidance, the listing fee, supported deposit chains, rate limits and the protocol reward share — and no such
+  range. Until it grows one, these are the values the listing team's own UI enforces, and **the service is the final
+  authority**: a value outside its accepted range is rejected with a `422`. Use `LISTING_MARKET_CONFIG_BOUNDS` to bound
+  a slider or a numeric input; do not treat it as a substitute for handling the rejection.
+</Callout>
+
+## Rate limit
+
+The endpoint is capped at **five successful updates per authenticated user, per pool, in a rolling 24-hour window**. The current cap is readable from [`getListingConfig`](/core/pools/listing-config#returns) as `rateLimits.marketConfigUpdatesPerDay` — read it rather than hardcoding `5`, since it is the service that owns the number.
+
+```ts
+const cfg = await getListingConfig(config);
+cfg.rateLimits.marketConfigUpdatesPerDay; // 5
+```
+
+Exceeding the cap surfaces as a `SymmApiError` carrying the service's **`429`**. Only successful updates count against it, and the window is rolling rather than calendar-aligned, so there is no "resets at midnight" to show the user. A configuration form should treat the budget as scarce: submit on an explicit action, never on every slider tick.
+
+## Parameters
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401` (see [Throws](#throws)).
+  </Property>
+  <Property name="tokenContractAddress" type="string" required>
+    The pool's token contract address — the id that addresses a single market in the listing API. An EVM `0x…` address,
+    or a Solana base58 address for a Solana-deposited listing.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId" required>
+    The chain the pool's liquidity was deposited on — the catalog row's `chainId`. Pairs with `tokenContractAddress` to
+    identify the pool.
+  </Property>
+  <Property name="maxLeverage" type="number" optional>
+    The caller's max-leverage opinion, a whole multiplier within `LISTING_MARKET_CONFIG_BOUNDS.maxLeverage`. Omit to
+    leave the caller's current max leverage untouched.
+  </Property>
+  <Property name="buybackRatio" type="number" optional>
+    The caller's buyback opinion, a whole percent within `LISTING_MARKET_CONFIG_BOUNDS.buybackRatio` — `50` means 50%,
+    not `0.5` and not an 18-decimal value. Omit to leave the caller's current buyback untouched. At least one of this
+    and `maxLeverage` must be present.
+  </Property>
+  <Property name="ensureDepositAddress" type="boolean" default="true">
+    Mint the caller's deposit wallet for the pool before submitting, by calling
+    [`getDepositAddress`](/core/pools/deposit-address) first. See
+    [The deposit-address precondition](#the-deposit-address-precondition).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used. There is
+    **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<ListingMarketConfig>">
+  The pool's configuration as it stands after the opinion is recorded — the same shape
+  [`getListingMarketConfig`](/core/pools/market-config#returns) returns, and from the same response schema.
+  `userMaxLeverage` and `userBuybackRatio` are what was just recorded (an omitted knob keeps its previous value);
+  `maxLeverage` and `buybackRatio` are the **re-blended pool values**, and are the exact figures to display in place of
+  any projection you showed before the write. All four are plain whole numbers, not 18-decimal `bigint`s.
+</Returns>
+
+## Mutation options
+
+```ts
+import { updateListingMarketConfigMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+const { mutateAsync } = useMutation(updateListingMarketConfigMutationOptions(config));
+const updated = await mutateAsync({
+  accessToken,
+  tokenContractAddress: "0x1234…",
+  depositChain: market.chainId,
+  buybackRatio: 50,
+  maxLeverage: 20,
+});
+```
+
+`updateListingMarketConfigMutationOptions(config)` returns a `{ mutationKey, mutationFn }` bag for `useMutation`. It is modeled as a mutation, not a query: it records the caller's opinion and re-blends the pool's configuration, so it is a one-shot write, not cached data. `UpdateListingMarketConfigParameters` is the variables shape and `UpdateListingMarketConfigReturnType` the resolved value.
+
+A successful call invalidates two things at once — the caller's own opinion and the pool-level blend — so a consumer driving this factory by hand should refetch both [`getListingMarketConfig`](/core/pools/market-config) and [`getListingMarketDetail`](/core/pools/market-detail). The React hook [`useUpdateListingMarketConfig`](/react/pools#useupdatelistingmarketconfig) does that for you.
+
+## Throws
+
+- `MISSING_MARKET_CONFIG_VALUES` — a `SymmError` (`kind: "validation"`) when **both** `maxLeverage` and `buybackRatio` are omitted. The service rejects a body with neither, so this is caught client-side before any request is made.
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide the configuration flow instead of erroring.
+- `UPDATE_LISTING_MARKET_CONFIG_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`) with the original error as its `cause`. Three statuses are worth branching on:
+  - **`401`** — the `accessToken` was missing, malformed, or expired. Re-run `authenticateListing` and retry.
+  - **`422`** — a value outside the service's accepted range, or a non-integer. See [Bounds](#bounds).
+  - **`429`** — the five-per-day cap is exhausted for this user and pool. See [Rate limit](#rate-limit).
+
+<Callout type="warning">
+  A failure of the **deposit-address step** surfaces under its own code, unchanged:
+  [`getDepositAddress`](/core/pools/deposit-address) throws `FETCH_DEPOSIT_ADDRESS_FAILED`, and that error is rethrown
+  as-is rather than being folded into `UPDATE_LISTING_MARKET_CONFIG_FAILED`. So a caller matching on error codes must
+  handle it too — and when it appears, nothing was submitted: the `POST` never ran.
+</Callout>
+
+## Related
+
+- [`getListingMarketConfig`](/core/pools/market-config) — the read that prefills the form, and `projectListingMarketConfig`, which estimates where the pool lands before this write.
+- [`getListingConfig`](/core/pools/listing-config) — publishes `rateLimits.marketConfigUpdatesPerDay`, the cap on this write.
+- [`getDepositAddress`](/core/pools/deposit-address) — the get-or-create this write runs first by default.
+- [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this write requires.
+- [`useUpdateListingMarketConfig`](/react/pools#useupdatelistingmarketconfig) — the React hook.
+- [Pools](/core/pools) — the slice overview.

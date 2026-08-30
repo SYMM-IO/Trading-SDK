@@ -7,7 +7,9 @@ describe("toUserPoolProfit", () => {
     const raw: LPTokenProfitSchema = {
       user_balance_in_tokens: "1000000000000000000",
       user_balance_in_usdc: "2500000000000000000",
-      claimable_reward: "300000000000000000",
+      // claimable_reward is reported in PLAIN decimal units, not 1e18-scaled,
+      // so "0.3" (dollars) scales up to 300000000000000000n — unlike its siblings.
+      claimable_reward: "0.3",
       claimed_reward: "400000000000000000",
       user_deposited_token_amount: "5000000000000000000",
       user_lp_amount: "6000000000000000000",
@@ -24,6 +26,27 @@ describe("toUserPoolProfit", () => {
       pendingWithdrawLpAmount: 700000000000000000n,
       availableLpAmount: 5300000000000000000n,
     });
+  });
+
+  it("scales the plain-decimal claimable_reward while reading its 1e18 siblings as-is", () => {
+    // Real /v2/profit body: claimable_reward is a plain decimal ("0.0377…"),
+    // its siblings are 1e18-scaled integers. Running claimable_reward through
+    // toListingValue would truncate it to 0n — the bug this guards against.
+    const raw: LPTokenProfitSchema = {
+      user_balance_in_tokens: "487586524151501703384",
+      user_balance_in_usdc: "217083643885732821",
+      claimable_reward: "0.037699391270769714",
+      claimed_reward: "54809860294669296",
+      user_deposited_token_amount: "0",
+      user_lp_amount: "43279622898910400053",
+      pending_withdraw_lp_amount: "0",
+    };
+
+    const profit = toUserPoolProfit(raw);
+
+    expect(profit.claimableReward).toBe(37699391270769714n);
+    expect(profit.claimedReward).toBe(54809860294669296n);
+    expect(profit.userBalanceInUsdc).toBe(217083643885732821n);
   });
 
   it("defaults absent or empty values to 0n", () => {

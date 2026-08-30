@@ -39,9 +39,11 @@ export type GetUserProfitReturnType = UserPoolProfit;
  * deposited token amount, and the LP shares queued for withdrawal.
  *
  * This hits the authed `/v2/profit/{token_contract_address}` endpoint with the
- * caller's bearer token. Values come back as 18-decimal figures and are
- * normalized to `bigint` at `LISTING_VALUE_DECIMALS`, absent ones defaulting to
- * `0n`. Enigma-only.
+ * caller's bearer token. Every value is normalized to a `bigint` at
+ * `LISTING_VALUE_DECIMALS`, absent ones defaulting to `0n` — even though the wire
+ * is not uniform: most fields are 1e18-scaled integers, but `claimable_reward`
+ * arrives in plain decimal units and is scaled up (see `toUserPoolProfit`).
+ * Enigma-only.
  *
  * @param config - The SDK config.
  * @param parameters - The bearer token and the pool's token contract address.

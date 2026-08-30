@@ -225,6 +225,68 @@ export interface UserPoolProfit {
 }
 
 /**
+ * The receipt returned by `claimProfit` — the outcome of a `/v2/claim` request.
+ *
+ * The claim is synchronous: a `200` means the USDC was moved to the target
+ * sub-account. `amountClaimed` is the moved figure normalized to a `bigint` at
+ * `LISTING_VALUE_DECIMALS` (18), `claimRequestId` references the claim in the
+ * service, and `transactionHash` is the on-chain transfer hash when the service
+ * has one (`null` otherwise).
+ */
+export interface PoolClaimResult {
+  /** The service's status string, e.g. `"ok"`. */
+  status: string;
+  /** USDC moved to the sub-account, 18-dec bigint USD. */
+  amountClaimed: bigint;
+  /** Claim id — reference it to restore or look up the claim later. */
+  claimRequestId: string;
+  /** On-chain hash of the claim transfer, or `null` when the service has none yet. */
+  transactionHash: string | null;
+}
+
+/**
+ * One past pool-reward claim, from the user's claim history (`getClaimHistory`).
+ *
+ * The internal `wallet_id` / `market_id` UUIDs the service carries are dropped —
+ * they address rows in the backend, not anything a consumer renders.
+ */
+export interface PoolClaim {
+  /** Claim id — reference it to look the claim up in the service. */
+  claimRequestId: string;
+  /** Sub-account address that received the claimed USDC. */
+  accountAddress: string;
+  /** USDC claimed, 18-dec bigint USD. */
+  amount: bigint;
+  /** On-chain hash of the claim transfer, or `null` when the service has none. */
+  transactionHash: string | null;
+  /** When the claim was created, Unix **seconds**. */
+  time: number;
+}
+
+/** One page of {@link PoolClaim} rows — the signed-in user's claim history. */
+export interface PoolClaimHistoryPage {
+  /** Total claims matching the query across all pages — what a pager divides. */
+  count: number;
+  /** The claims themselves, newest first. */
+  items: PoolClaim[];
+}
+
+/**
+ * The receipt returned by `cancelWithdraw` — the outcome of cancelling a queued
+ * LP withdrawal.
+ */
+export interface PoolCancelWithdrawResult {
+  /** The affected withdrawal's transaction id, echoed by the service. */
+  transactionId: string;
+  /**
+   * The withdrawal's resulting status, e.g. `"canceled"`. Carried through as the
+   * service's raw string — its enum (`canceled` | `pending` | `transferred` | …)
+   * is a superset of {@link PoolTransactionStatus}, so it is not narrowed to it.
+   */
+  status: string;
+}
+
+/**
  * The signed-in user's deposit wallet for one market — the get-or-create result
  * of the authed `/v2/market/deposit-address` endpoint. This is the address the
  * user sends funds to in order to deposit into the market's pool.
@@ -557,6 +619,51 @@ export interface PoolTransactionPage {
   count: number;
   /** The rows themselves. */
   items: PoolTransaction[];
+}
+
+/**
+ * One row of the signed-in user's transaction history (`getUserTransactions`) —
+ * a deposit or withdrawal they made, on any pool.
+ *
+ * Unlike {@link PoolTransaction} (one pool, every LP), this is one user, every
+ * pool — so each row carries its own token identity (`tokenAddress`,
+ * `tokenName`, `tokenTicker`, `tokenDecimals`, `chainId`).
+ */
+export interface UserTransaction {
+  /** Backend id for the transaction. */
+  transactionId: string;
+  /** Deposit or withdrawal. */
+  type: PoolTransactionType;
+  /** Lifecycle status. */
+  status: PoolTransactionStatus;
+  /** Amount moved, 18-dec bigint (a 1e18-scaled figure, like every listing value). */
+  amount: bigint;
+  /** The token's own decimals, as reported by the service — metadata, not the `amount` scale. */
+  tokenDecimals: number;
+  /** The pool's token contract address (EVM `0x…` or Solana base58). */
+  tokenAddress: string;
+  /** The token's name. */
+  tokenName: string;
+  /** The token's ticker. */
+  tokenTicker: string;
+  /** The chain the transaction's token lives on. */
+  chainId: ListingDepositChainId;
+  /** The temporary deposit wallet involved, or `null` when the service omits it. */
+  wallet: string | null;
+  /** Address a refund was sent to, or `null` when this is not a refund. */
+  refundAddress: string | null;
+  /** On-chain transaction hash or Solana signature, when known. */
+  transactionHash: string | null;
+  /** When the transaction happened, Unix **seconds**; `null` when the service omits it. */
+  time: number | null;
+}
+
+/** One page of {@link UserTransaction} rows — the signed-in user's transaction history. */
+export interface UserTransactionPage {
+  /** Total rows matching the query across all pages — what a pager divides. */
+  count: number;
+  /** The rows themselves, newest first. */
+  items: UserTransaction[];
 }
 
 /**

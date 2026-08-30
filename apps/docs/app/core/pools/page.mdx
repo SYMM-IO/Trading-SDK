@@ -8,8 +8,8 @@ The pool catalog is owned by an off-chain **listing backend**, not by the chain.
 
 <Callout type="warning">
   **There are no contract calls in this slice.** `getListingMarkets` is a REST read against the listing backend —
-  nothing here signs, sends, simulates, or reads a contract. Pool writes (create / deposit / withdraw / claim) land in
-  later slices.
+  nothing here signs, sends, simulates, or reads a contract. The pool [writes](#writes) are REST too: they are authed
+  `POST`s the listing backend executes on the user's behalf, not transactions the user signs.
 </Callout>
 
 Each method and type has its own page with the full signature, parameters, return shape, and examples.
@@ -94,6 +94,9 @@ Range filter bounds use the **same 18-decimal scale as the response**. A one-mil
   <MethodEntry name="getListingMarketDetail" href="/core/pools/market-detail">
     One pool's aggregate stats and inventory — the read a whole pool page is built on.
   </MethodEntry>
+  <MethodEntry name="getListingMarketConfig" href="/core/pools/market-config">
+    The signed-in LP's own leverage and buyback opinion for one pool, next to the pool values in force. Authed.
+  </MethodEntry>
 </MethodIndex>
 
 ## Pool detail
@@ -134,6 +137,28 @@ totals are built from **earned** snapshots, so claiming does not reduce them.
   </MethodEntry>
   <MethodEntry name="getUserTotalReward" href="/core/pools/user-total-reward">
     The signed-in user's aggregate reward over the last 1–30 days, across every pool. Authed.
+  </MethodEntry>
+</MethodIndex>
+
+## Writes
+
+Every pool write is a **REST call against the listing backend**, not a contract call, and every one is authed with the `accessToken` from [`authenticateListing`](/core/pools/listing-auth).
+
+<MethodIndex kind="write">
+  <MethodEntry name="addMarket" href="/core/pools/add-market">
+    Create a pool — submit a create-pool application for a new token and provision the wallet that seeds it.
+  </MethodEntry>
+  <MethodEntry name="withdrawLp" href="/core/pools/withdraw">
+    Queue a withdrawal of LP shares from a pool. Asynchronous — it enters the pool's pending-withdrawal queue.
+  </MethodEntry>
+  <MethodEntry name="cancelWithdraw" href="/core/pools/cancel-withdraw">
+    Cancel a queued LP withdrawal before it settles, keyed by the withdrawal's id.
+  </MethodEntry>
+  <MethodEntry name="claimProfit" href="/core/pools/claim">
+    Claim a pool's accrued LP rewards as USDC. Synchronous — a resolved call means the USDC has moved.
+  </MethodEntry>
+  <MethodEntry name="updateListingMarketConfig" href="/core/pools/update-market-config">
+    Submit the LP's leverage and buyback opinion for a pool. Nudges the deposit-weighted blend; never overwrites it.
   </MethodEntry>
 </MethodIndex>
 
@@ -178,6 +203,9 @@ The catalog read ships a matching `getListingMarketsQueryOptions` factory and a 
 - `LISTING_NOT_CONFIGURED` — the chain has no `listing` backend configured.
 - `FETCH_LISTING_MARKETS_FAILED` — the catalog request failed. An axios failure arrives as a `SymmApiError` with `status`, `statusText`, `responseData`, `url` and `method` (a failure with no response carries `status: 0` / `statusText: "Unknown"`); anything else is a plain `SymmError` with `kind: "api"`.
 - `FETCH_POOL_REWARD_CHART_FAILED` / `FETCH_POOL_TOTAL_REWARD_FAILED` / `FETCH_USER_REWARD_CHART_FAILED` / `FETCH_USER_TOTAL_REWARD_FAILED` — a rewards request failed, with the same shape. The user-scoped pair also carries the `401` on a bad or expired bearer token, and both `total-reward` reads carry the `422` on a `days` outside 1–30.
+- `FETCH_LISTING_MARKET_CONFIG_FAILED` — the [market-config read](/core/pools/market-config) failed, with the same shape. It carries the `401` on a bad or expired bearer token, and a **`404`** where the read is not deployed on the pool's listing backend yet — treat that one as "opinion unknown", not as a blocking failure.
+- `UPDATE_LISTING_MARKET_CONFIG_FAILED` — the [market-config write](/core/pools/update-market-config) failed, with the same shape. It carries the `401` on a bad token, the `422` on a value outside the service's accepted leverage/buyback range, and the `429` when the rolling-24h `marketConfigUpdatesPerDay` cap is exhausted.
+- `MISSING_MARKET_CONFIG_VALUES` — a `SymmError` with `kind: "validation"`, thrown client-side before any request when `updateListingMarketConfig` is called with neither `maxLeverage` nor `buybackRatio`.
 
 ## Related
 

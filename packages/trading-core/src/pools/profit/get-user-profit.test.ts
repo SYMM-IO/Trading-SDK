@@ -29,7 +29,8 @@ describe("getUserProfit", () => {
       data: {
         user_balance_in_tokens: "1000000000000000000",
         user_balance_in_usdc: "2500000000000000000",
-        claimable_reward: "300000000000000000",
+        // Plain decimal units, not 1e18-scaled — "0.3" scales up to 300000000000000000n.
+        claimable_reward: "0.3",
         claimed_reward: "400000000000000000",
         user_deposited_token_amount: "5000000000000000000",
         user_lp_amount: "6000000000000000000",

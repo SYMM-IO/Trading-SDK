@@ -2122,6 +2122,13 @@ export {
   addMarketMutationOptions,
   authenticateListing,
   authenticateListingMutationOptions,
+  cancelWithdraw,
+  cancelWithdrawMutationOptions,
+  claimProfit,
+  claimProfitMutationOptions,
+  getClaimHistory,
+  getClaimHistoryQueryKey,
+  getClaimHistoryQueryOptions,
   getDepositAddress,
   getDepositAddressQueryKey,
   getDepositAddressQueryOptions,
@@ -2141,12 +2148,19 @@ export {
   getUserProfit,
   getUserProfitQueryKey,
   getUserProfitQueryOptions,
+  getUserTransactions,
+  getUserTransactionsQueryKey,
+  getUserTransactionsQueryOptions,
   getWeeklyListingLimit,
   getWeeklyListingLimitQueryKey,
   getWeeklyListingLimitQueryOptions,
+  parseListingValue,
   resolveListingService,
   supportsListingService,
   toAddMarketRequest,
+  toCancelWithdrawResult,
+  toClaimRequest,
+  toClaimResult,
   toCreatedPool,
   toListingAuthToken,
   toListingConfig,
@@ -2156,9 +2170,13 @@ export {
   toListingStatus,
   toListingValue,
   toMarketDepositAddress,
+  toPoolClaim,
+  toPoolClaimHistoryPage,
   toUserListingMarket,
   toUserListingMarketPage,
   toUserPoolProfit,
+  toUserTransaction,
+  toUserTransactionPage,
   toWeeklyListingLimit,
   toWithdrawRequest,
   withdrawLp,
@@ -2167,7 +2185,17 @@ export {
   type AddMarketReturnType,
   type AuthenticateListingParameters,
   type AuthenticateListingReturnType,
+  type CancelWithdrawParameters,
+  type CancelWithdrawReturnType,
+  type ClaimProfitParameters,
+  type ClaimProfitReturnType,
   type CreatedPool,
+  type GetClaimHistoryData,
+  type GetClaimHistoryOptions,
+  type GetClaimHistoryParameters,
+  type GetClaimHistoryQueryKey,
+  type GetClaimHistoryQueryOptions,
+  type GetClaimHistoryReturnType,
   type GetDepositAddressData,
   type GetDepositAddressOptions,
   type GetDepositAddressParameters,
@@ -2206,6 +2234,12 @@ export {
   type GetUserProfitQueryKey,
   type GetUserProfitQueryOptions,
   type GetUserProfitReturnType,
+  type GetUserTransactionsData,
+  type GetUserTransactionsOptions,
+  type GetUserTransactionsParameters,
+  type GetUserTransactionsQueryKey,
+  type GetUserTransactionsQueryOptions,
+  type GetUserTransactionsReturnType,
   type GetWeeklyListingLimitData,
   type GetWeeklyListingLimitOptions,
   type GetWeeklyListingLimitParameters,
@@ -2229,10 +2263,16 @@ export {
   type ListingTrailingWindows,
   type ListingValueRange,
   type MarketDepositAddress,
+  type PoolCancelWithdrawResult,
+  type PoolClaim,
+  type PoolClaimHistoryPage,
+  type PoolClaimResult,
   type ResolveListingServiceParameters,
   type UserListingMarket,
   type UserListingMarketPage,
   type UserPoolProfit,
+  type UserTransaction,
+  type UserTransactionPage,
   type WeeklyListingLimit,
   type WithdrawLpParameters,
   type WithdrawLpReturnType,
@@ -2363,6 +2403,47 @@ export {
   type PoolQuote,
   type PoolTransaction,
   type PoolTransactionPage,
+} from "./pools";
+/**
+ * Market configuration (per-LP opinion)
+ * -------------------------------------
+ * A pool's max leverage and buyback percentage are not set by any one LP. Every
+ * depositor submits an *opinion* with `updateListingMarketConfig`, and the
+ * listing service folds them into a deposit-weighted average — so a call nudges
+ * the pool rather than overwriting it. `getListingMarketConfig` reads the
+ * caller's own opinion back (`null` until they have ever set one) alongside the
+ * pool values in force.
+ *
+ * Both knobs are plain whole numbers, **not** 18-decimal values: `50` is 50%,
+ * `20` is 20x. `projectListingMarketConfig` estimates where the pool lands
+ * before the write, from `getListingMarketDetail` plus the caller's stake.
+ *
+ * The write is authed, requires the caller to hold a deposit address on the
+ * market (minted for them by default), and is capped at
+ * `getListingConfig().rateLimits.marketConfigUpdatesPerDay` per market in a
+ * rolling 24-hour window. Enigma-only.
+ */
+export {
+  LISTING_MARKET_CONFIG_BOUNDS,
+  getListingMarketConfig,
+  getListingMarketConfigQueryKey,
+  getListingMarketConfigQueryOptions,
+  projectListingMarketConfig,
+  toListingMarketConfig,
+  toUpdateListingMarketConfigRequest,
+  updateListingMarketConfig,
+  updateListingMarketConfigMutationOptions,
+  type GetListingMarketConfigData,
+  type GetListingMarketConfigOptions,
+  type GetListingMarketConfigParameters,
+  type GetListingMarketConfigQueryKey,
+  type GetListingMarketConfigQueryOptions,
+  type GetListingMarketConfigReturnType,
+  type ListingMarketConfig,
+  type ListingMarketConfigProjection,
+  type ProjectListingMarketConfigParameters,
+  type UpdateListingMarketConfigParameters,
+  type UpdateListingMarketConfigReturnType,
 } from "./pools";
 /**
  * Pool rewards over time

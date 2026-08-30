@@ -28,6 +28,30 @@ export function formatListingAmount(raw: bigint | null): string {
 }
 
 /**
+ * Format an 18-decimal listing **reward** figure as USD with 4-decimal precision
+ * (`$0.1234`).
+ *
+ * Claimable and claimed LP rewards are small USD amounts, so the compact
+ * 2-decimal money format ({@link formatListingUsd}) rounds them into
+ * indistinguishable `$0.00`s. Render them with four decimals instead. Returns
+ * {@link ABSENT} for `null`.
+ */
+export function formatListingRewardUsd(raw: bigint | null): string {
+  if (raw === null) return ABSENT;
+  return formatCompactCurrency(formatUnits(raw, LISTING_VALUE_DECIMALS), { maxDecimals: 4 });
+}
+
+/**
+ * Plain (no currency symbol) 4-decimal form of an 18-decimal listing reward
+ * figure — for a `… USDC` label where the unit is written out. Returns
+ * {@link ABSENT} for `null`.
+ */
+export function formatListingRewardAmount(raw: bigint | null): string {
+  if (raw === null) return ABSENT;
+  return formatCompact(formatUnits(raw, LISTING_VALUE_DECIMALS), { maxDecimals: 4 });
+}
+
+/**
  * Format an 18-decimal listing rate as a percentage.
  *
  * The descaled value **is** the percentage (`1e18` = `1%`), so there is no

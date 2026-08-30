@@ -1,0 +1,88 @@
+import { Callout } from "nextra/components";
+
+# getUserTransactions
+
+Fetch the signed-in user's **transaction history** — their pool deposits and withdrawals across **every** pool, newest first, refunded deposits included. The authed, per-user counterpart to [`getPoolTransactions`](/core/pools/pool-transactions) (which is one pool, every LP).
+
+```ts
+import { getUserTransactions } from "@symmio/trading-core";
+
+const page = await getUserTransactions(config, {
+  accessToken: token.accessToken,
+  size: 25,
+});
+```
+
+The endpoint is **authed and scoped to the caller** — it only ever returns transactions the user owns, so it needs no address parameter. Optionally narrow by type, status, or pool. Pagination is path-based (`/{start}/{size}`); `count` is the total across all pages, so it is what a pager should divide, not `items.length`.
+
+<Callout type="info">
+  This is a REST read against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
+  [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>` header. The backend is
+  resolved from the config before the request, so a target without Pools fails immediately and without any network
+  traffic — see [`resolveListingService`](/core/pools/resolve-listing-service).
+</Callout>
+
+## No solver id
+
+Pool listing is **chain-level** — one listing backend is served per chain — so `getUserTransactions` takes only an optional `chainId` and **no `solverId`**. Pass a `chainId` to target a specific deployment's listing backend; omit it to use the config's default chain.
+
+## Parameters
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401` (see [Throws](#throws)).
+  </Property>
+  <Property name="transactionType" type="PoolTransactionType" optional>
+    Narrow to deposits or withdrawals only. Omit for both.
+  </Property>
+  <Property name="transactionStatus" type="PoolTransactionStatus" optional>
+    Narrow to one status (e.g. only `PENDING`). Omit for all statuses.
+  </Property>
+  <Property name="tokenAddress" type="string" optional>
+    Narrow to one pool by its token contract address. Omit for every pool.
+  </Property>
+  <Property name="start" type="number" optional>
+    Row offset. Defaults to `0`.
+  </Property>
+  <Property name="size" type="number" optional>
+    Page size. Defaults to `150`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used. There is
+    **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<UserTransactionPage>">
+  One page of the user's transactions. `count` is the total across all pages (what a pager divides); `items` is the
+  page's `UserTransaction` rows, newest first. Each row carries `type` (deposit / withdraw), `status`, the `amount`
+  (18-decimal `bigint`, a 1e18-scaled figure), the token identity (`tokenAddress`, `tokenName`, `tokenTicker`,
+  `tokenDecimals`, `chainId`), `wallet`, `refundAddress`, `transactionHash`, and `time` (Unix seconds).
+</Returns>
+
+## Query options
+
+```ts
+import { getUserTransactionsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getUserTransactionsQueryOptions(config, { accessToken }));
+```
+
+`getUserTransactionsQueryOptions(config, options)` returns a TanStack options bag with a stable `queryKey`, the `queryFn`, and `enabled`. The bearer `accessToken` is dropped from the key — it is a credential, not a cache dimension.
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide the history instead of erroring.
+- `FETCH_USER_TRANSACTIONS_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`). A **`401`** means the `accessToken` was missing, malformed, or expired — re-run `authenticateListing` and retry.
+
+## Related
+
+- [`getPoolTransactions`](/core/pools/pool-transactions) — one pool's transactions (every LP, public).
+- [`getUserProfit`](/core/pools/user-profit) — the user's current LP position and balances.
+- [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this read requires.
+- [`useUserTransactions`](/react/pools#useusertransactions) — the React hook.
+- [Pools](/core/pools) — the slice overview.

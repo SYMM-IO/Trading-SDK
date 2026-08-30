@@ -20,6 +20,7 @@ import { ReadGetWithdrawRequest } from "../inspector/read-get-withdraw-request";
 import { ReadLastWithdrawRequestId } from "../inspector/read-last-withdraw-request-id";
 import { ReadOnchainContractMarkets } from "../inspector/read-onchain-contract-markets";
 import { ReadPendingWithdrawRequests } from "../inspector/read-pending-withdraw-requests";
+import { ReadQuotePriceHistory } from "../inspector/read-quote-price-history";
 import { ReadWithdrawableTime } from "../inspector/read-withdrawable-time";
 import { WriteAddMargin } from "../inspector/write-add-margin";
 import { WriteAllocate } from "../inspector/write-allocate";
@@ -155,6 +156,12 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     abi: "symmio-core",
     groups: ["positions"],
     Component: ReadGetQuote,
+  },
+  {
+    id: "quotePriceHistory",
+    kind: "read",
+    groups: ["positions"],
+    Component: ReadQuotePriceHistory,
   },
   {
     id: "createSubAccounts",

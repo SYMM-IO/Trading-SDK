@@ -86,10 +86,9 @@ export function WithdrawCard() {
         amount,
       },
       {
-        onSuccess: () => {
-          setAmountInput("");
-          void profit.refetch();
-        },
+        // No profit.refetch() here — useWithdrawLp invalidates getUserProfit,
+        // getPoolTransactions and getUserTransactions at the react level.
+        onSuccess: () => setAmountInput(""),
       },
     );
   }
