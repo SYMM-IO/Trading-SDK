@@ -9,11 +9,20 @@ import { Numeric } from "@/components/value";
 import { shortenAddress } from "@/lib/format";
 import type { ListingDepositChainId } from "@symmio/trading-core";
 import { useDepositAddress, useUserProfit } from "@symmio/trading-react";
+import Link from "next/link";
 import { useState } from "react";
+import { ClaimRewardsModal } from "./claim-rewards-modal";
 import { ListingStatusPill, WarnGlyph } from "./listing-chips";
 import { useListingSession } from "./listing-session";
 import { ListingSignInPrompt } from "./listing-sign-in";
-import { ABSENT, depositChainColor, depositChainLabel, listingAmount, listingUsd } from "./listing-values";
+import {
+  ABSENT,
+  depositChainColor,
+  depositChainLabel,
+  listingAmount,
+  listingReward,
+  listingUsd,
+} from "./listing-values";
 import { POOLS_CHAIN_ID, POOLS_DEPLOYMENT, usePoolsSupported } from "./pools-deployment";
 import { WithdrawLpForm } from "./withdraw-lp-form";
 
@@ -59,6 +68,8 @@ export function YourPositionPanel({ address, chainId, ticker }: YourPositionPane
      rail moves to a different pool. */
   const [requestedFor, setRequestedFor] = useState<string | null>(null);
   const depositRequested = requestedFor === address;
+
+  const [claimOpen, setClaimOpen] = useState(false);
 
   const deposit = useDepositAddress({
     accessToken: session.accessToken,
@@ -135,12 +146,35 @@ export function YourPositionPanel({ address, chainId, ticker }: YourPositionPane
             label="Queued for withdrawal"
             tip={{
               title: "Pending withdrawal",
-              body: "Shares you have already asked to withdraw. They still belong to you and still show in the LP total, but they are spoken for until the backend settles the request.",
+              body: "Shares you have already asked to withdraw. They still belong to you and still show in the LP total, but they are spoken for until the backend settles the request. Queueing is not final: while a request is still pending it can be cancelled from your transfers ledger, which puts its shares straight back into the available balance. Once the backend has settled it there is nothing left to cancel.",
             }}
             value={
               <Numeric size="sm" tone={position && position.pendingWithdrawLpAmount > 0n ? "warn" : "muted"}>
                 {withUnit(position?.pendingWithdrawLpAmount, "LP")}
               </Numeric>
+            }
+            /* A signpost, not the control itself. Cancelling takes a
+               `withdrawId` — the `transactionId` of a row whose type is
+               `WITHDRAW` and whose status is still `PENDING` — and this panel
+               has no such id to hand it: `useUserProfit` reports one aggregate
+               LP figure, however many separate queued requests summed to it.
+               The transfers ledger is where those rows exist, so
+               `CancelWithdrawAction` lives there and this row points at it.
+
+               Rendered only against a non-zero queue, unlike the Claim button
+               below which stays dead at zero. Claiming is something this panel
+               does, so its control is part of the panel's shape whatever the
+               balance; this is a link out to another surface, and a link to a
+               ledger with nothing of yours in it is noise. */
+            action={
+              position && position.pendingWithdrawLpAmount > 0n ? (
+                <Link
+                  href="/pools/portfolio/transfers"
+                  className="inline-flex h-7 cursor-pointer items-center justify-center rounded-sm border border-line bg-bg-2 px-2.5 text-sm font-semibold whitespace-nowrap text-fg-0 transition-all duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:border-line-strong hover:bg-bg-3"
+                >
+                  Manage
+                </Link>
+              ) : undefined
             }
             isLoading={isLoading}
           />
@@ -153,20 +187,43 @@ export function YourPositionPanel({ address, chainId, ticker }: YourPositionPane
             value={<Numeric size="sm">{withUnit(position?.availableLpAmount, "LP")}</Numeric>}
             isLoading={isLoading}
           />
+          {/* `listingReward`, not `listingUsd`: rewards are routinely sub-cent,
+              and two decimals renders a real claimable as `$0.00` — which reads
+              as "nothing to claim" beside a button whose mutation would then
+              send the full 18-decimal amount. */}
           <DetailRow
             label="Claimable rewards"
             value={
               <Numeric size="sm" tone={position && position.claimableReward > 0n ? "long" : "muted"}>
-                {listingUsd(position?.claimableReward, { exact: true })}
+                {listingReward(position?.claimableReward)}
               </Numeric>
+            }
+            /* Dead at zero rather than hidden: the row is part of the panel's
+               shape whatever the balance is, and a control that appears only
+               once a figure moves is one a reader never learns is there. */
+            action={
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!position || position.claimableReward === 0n}
+                onClick={() => setClaimOpen(true)}
+              >
+                Claim
+              </Button>
             }
             isLoading={isLoading}
           />
+          {/* `listingReward` here too, and for the same reason: `claimedReward`
+              is the running total of the field above it, in the same
+              18-decimal reward denomination — not a general money figure that
+              happens to sit nearby. Two decimals would print a real lifetime
+              claim as `$0.00` directly under a claimable of `$0.0042`, which
+              reads as the Claim button having done nothing. */}
           <DetailRow
             label="Claimed to date"
             value={
               <Numeric size="sm" tone="muted">
-                {listingUsd(position?.claimedReward, { exact: true })}
+                {listingReward(position?.claimedReward)}
               </Numeric>
             }
             isLoading={isLoading}
@@ -259,9 +316,24 @@ export function YourPositionPanel({ address, chainId, ticker }: YourPositionPane
              known" and the one that stops them withdrawing. */
           availableLpAmount={position?.availableLpAmount}
           isPositionLoading={isLoading}
-          onWithdrawn={() => void profit.refetch()}
         />
       </div>
+
+      {/* Portalled out of this panel by `Modal`, so it can live at the end of
+          the rail rather than beside the row that opens it. The claimable
+          balance is handed down rather than re-read: the sheet must submit the
+          same figure the reader just saw here, not a second answer to the same
+          question. */}
+      <ClaimRewardsModal
+        open={claimOpen}
+        onClose={() => setClaimOpen(false)}
+        pool={{
+          tokenContractAddress: address,
+          depositChain: chainId,
+          tokenTicker: ticker,
+          claimableReward: position?.claimableReward,
+        }}
+      />
     </Panel>
   );
 }

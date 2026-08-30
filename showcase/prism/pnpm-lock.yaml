@@ -309,19 +309,19 @@ packages:
     resolution: {integrity: sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g==}
 
   '@symmio/session-key@file:vendor/symmio-session-key.tgz':
-    resolution: {integrity: sha512-aYSv1bblY/AGHBcj1anz+AzvNFQXNxmwZ7+Zst4mDNo5wvsF62e+4PYjl56KUPchiPyUdk1uqrhE3iFX51oSIw==, tarball: file:vendor/symmio-session-key.tgz}
+    resolution: {integrity: sha512-BUr0xGwLrLSbkwbsybH8mjIXSAAekEwOzpNbQ82axJu+xipqV4h4faagcpfELocRlZs5vhAQMcPUCaUcRCPWRg==, tarball: file:vendor/symmio-session-key.tgz}
     version: 1.0.0
     peerDependencies:
       viem: ^2.49.0
 
   '@symmio/trading-core@file:vendor/symmio-trading-core.tgz':
-    resolution: {integrity: sha512-a/f6uBqXXKw9clBR6WctY9AFK7k/ifathDgYfZCdgrli3cCNSUk0e8kEJKcIaC3Klb/RbdL5+0/Ptq5JNRo/TA==, tarball: file:vendor/symmio-trading-core.tgz}
+    resolution: {integrity: sha512-KS3XO5XG/Mhk4MW/Ff3/U4q9qzhc67VfoEbLMQVH1d7aMv6Zzva+QCYSyQ+14BVFuw//xE4aobxiBv88Tw0fUg==, tarball: file:vendor/symmio-trading-core.tgz}
     version: 1.1.0
     peerDependencies:
       viem: ^2.49.0
 
   '@symmio/trading-react@file:vendor/symmio-trading-react.tgz':
-    resolution: {integrity: sha512-G648WODQdqvuAklDK39LxwiLMoPF8+VCKPMjPgjQORo6ATWR4qawlyri/6i1o+da7+Ljm5/+5I4ZIn6HU8qyWA==, tarball: file:vendor/symmio-trading-react.tgz}
+    resolution: {integrity: sha512-FulRbNFcFGU2ZrYR7itsm8sLfc4x7jlGqMcHyOSrPkmU3edHkJw7l6mm69Y+0u/XkiUbviOjzBoO3rdmXi7AQQ==, tarball: file:vendor/symmio-trading-react.tgz}
     version: 1.1.0
     peerDependencies:
       react: ^19.0.0
@@ -330,7 +330,7 @@ packages:
       wagmi: ^3.4.2
 
   '@symmio/utils@file:vendor/symmio-utils.tgz':
-    resolution: {integrity: sha512-TpW3gOYa44Rpopeq0YuYXRQz+wv+r7oNfjFAKr7rBasTa2+G0a/utxmWciyYBQOT9GlRgZ0/KUKI3XFr1JS9fA==, tarball: file:vendor/symmio-utils.tgz}
+    resolution: {integrity: sha512-BjiMimDESYJI6giy/vROCN0ZuZe0Ayi4Jdsk1iQw7VHCZgatYa8gOH6m49htisurOKkD0t1NnLROZqaU2J9BNw==, tarball: file:vendor/symmio-utils.tgz}
     version: 1.0.0
     peerDependencies:
       viem: ^2.49.0

@@ -10,7 +10,7 @@ import { cn } from "@/lib/cn";
 import { ListingMarketStatus, type ListingDepositChainId, type ListingMarket } from "@symmio/trading-core";
 import { useListingMarkets } from "@symmio/trading-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   CATALOG_SORT_LABELS,
   DEFAULT_CATALOG_SORT,
@@ -47,6 +47,15 @@ const PAGE_SIZE_OPTIONS: readonly ComboboxOption<string>[] = [10, 25, 50, 100].m
 export interface PoolsCatalogProps {
   /** Open the listing form — the one place in Prism a market is created. */
   onCreate: () => void;
+  /**
+   * A quiet affordance for the panel header, rendered before the search box.
+   *
+   * It is a slot rather than something this panel decides for itself because
+   * the catalog is the public, wallet-free half of Pools: giving it a listing
+   * session to read would make the one component that needs no auth depend on
+   * it. The screen above knows whether there is a wallet worth linking to.
+   */
+  aside?: ReactNode;
 }
 
 /**
@@ -59,7 +68,7 @@ export interface PoolsCatalogProps {
  * the count in the filter bar is the service's match total across the catalog
  * rather than the length of the page on screen.
  */
-export function PoolsCatalog({ onCreate }: PoolsCatalogProps) {
+export function PoolsCatalog({ onCreate, aside }: PoolsCatalogProps) {
   const router = useRouter();
   const supported = usePoolsSupported();
 
@@ -219,6 +228,7 @@ export function PoolsCatalog({ onCreate }: PoolsCatalogProps) {
         title="Pools"
         actions={
           <>
+            {aside}
             <SearchInput
               value={searchInput}
               onChange={handleSearch}

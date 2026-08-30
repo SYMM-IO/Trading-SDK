@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useListingSession } from "./listing-session";
 import { ListingSignIn, ListingSignInPrompt } from "./listing-sign-in";
-import { ABSENT, depositChainColor, depositChainLabel, listingNumber, listingUsd, poolKey } from "./listing-values";
+import { ABSENT, depositChainColor, depositChainLabel, listingNumber, listingReward, poolKey } from "./listing-values";
 import { POOLS_CHAIN_ID, POOLS_DEPLOYMENT, usePoolsSupported } from "./pools-deployment";
 import {
   DEFAULT_REWARD_WINDOW_DAYS,
@@ -44,8 +44,12 @@ const WINDOW_OPTIONS: readonly SegmentedOption<string>[] = REWARD_WINDOW_LABELS.
  * the figure and nothing else.
  *
  * Both numbers are **earned**, built from daily snapshots. Claiming does not
- * reduce them; the claimable balance is a different read and lives on each
- * pool’s own page.
+ * reduce them; the claimable balance is a different read entirely, and it sits
+ * on the positions page beside the button that spends it.
+ *
+ * Every figure here goes through `listingReward`, not `listingUsd`: LP yield is
+ * routinely sub-cent, and the two-decimal money formatter collapses a real
+ * day’s reward to `$0.00`.
  */
 export function YourRewardsPanel() {
   const supported = usePoolsSupported();
@@ -152,7 +156,7 @@ export function YourRewardsPanel() {
                   </Numeric>
                 ) : (
                   <Numeric size="2xl" tone="strong">
-                    {listingUsd(total.data, { exact: true })}
+                    {listingReward(total.data)}
                   </Numeric>
                 )
               }
@@ -168,9 +172,9 @@ export function YourRewardsPanel() {
             />
             <p className="max-w-[92ch] text-2xs text-fg-3">
               Earned, not claimable: the figure is summed from the daily snapshots the service keeps, so claiming a
-              pool’s rewards never lowers it. The claimable balance is a separate read and lives on each pool’s page. A
-              zero here is the service’s own — this endpoint reports an absent total as <span className="tnum">0</span>,
-              so it cannot be told apart from a genuinely unrewarded window.
+              pool’s rewards never lowers it. The claimable balance is a separate read, and it sits on the positions
+              page next to the button that spends it. A zero here is the service’s own — this endpoint reports an absent
+              total as <span className="tnum">0</span>, so it cannot be told apart from a genuinely unrewarded window.
             </p>
           </div>
 
@@ -187,11 +191,11 @@ export function YourRewardsPanel() {
                 <SeriesChart
                   kind="histogram"
                   points={series}
-                  height={220}
+                  height={260}
                   isLoading={chart.isLoading}
                   emptyTitle="No rewards yet"
                   emptyBody="Rewards land a day after your first deposit."
-                  formatValue={(value) => formatUsd(value)}
+                  formatValue={(value) => formatUsd(value, { exact: true, maxDecimals: 4 })}
                 />
                 <p className="text-2xs text-fg-3">
                   Daily reward, every pool summed. The window above moves only the headline — this series is everything
@@ -246,7 +250,7 @@ function PoolRewardRow({ pool, earned }: RowProps) {
       <span className="truncate font-mono text-sm text-fg-1">{shortenAddress(pool.marketAddress)}</span>
       <span className="shrink-0 text-2xs text-fg-3">{depositChainLabel(pool.marketChainId)}</span>
       <Numeric className="ml-auto" size="sm">
-        {listingUsd(earned, { exact: true })}
+        {listingReward(earned)}
       </Numeric>
     </Link>
   );

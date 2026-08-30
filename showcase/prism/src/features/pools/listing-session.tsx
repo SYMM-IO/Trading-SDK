@@ -23,6 +23,21 @@ import { POOLS_CHAIN_ID } from "./pools-deployment";
  * credential, not a cache dimension — so a 401 cannot be traced back to the
  * token through the key. Matching the key's root instead is what lets a dead
  * session be dropped the moment any authed read rejects.
+ *
+ * ## This set is a correctness invariant, not a convenience list
+ *
+ * Because the token is stripped, **no other dimension of an authed key names
+ * the wallet**: `getUserProfit` is keyed by the pool address, `getClaimHistory`
+ * by the page window, `getListingMarketConfig` by the token contract. Two
+ * wallets therefore share one cache entry. The wallet-change effect below purges
+ * these roots for exactly that reason, and a root that is missing from this set
+ * is not purged — wallet A's claim history, transfers and market-config opinion
+ * keep rendering under wallet B's address until each query happens to refetch.
+ *
+ * So: **every time an authed pools read is added anywhere in the app, its
+ * `queryKey[0]` must be added here.** The root string is the first element of
+ * the SDK's `getXQueryKey` — verify it in the vendored build rather than
+ * guessing it from the hook name.
  */
 const AUTHED_QUERY_ROOTS = new Set([
   "getUserListingMarkets",
@@ -30,6 +45,9 @@ const AUTHED_QUERY_ROOTS = new Set([
   "getDepositAddress",
   "getUserRewardChart",
   "getUserTotalReward",
+  "getClaimHistory",
+  "getUserTransactions",
+  "getListingMarketConfig",
 ]);
 
 export interface ListingSessionValue {

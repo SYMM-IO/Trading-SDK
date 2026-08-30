@@ -1,8 +1,8 @@
-import { PoolScreen } from "@/features/pools/pool-screen";
+import { PoolOverview } from "@/features/pools/pool-overview";
 import type { ListingDepositChainId } from "@symmio/trading-core";
 
 /**
- * One pool's page.
+ * A pool's overview: its value and yield over time, and your position in it.
  *
  * The route carries the pair that identifies a pool — its deposit chain and its
  * token address — because the address alone is ambiguous across chains, and
@@ -12,5 +12,5 @@ import type { ListingDepositChainId } from "@symmio/trading-core";
 export default async function PoolPage({ params }: { params: Promise<{ chain: string; address: string }> }) {
   const { chain, address } = await params;
 
-  return <PoolScreen address={decodeURIComponent(address)} chainId={Number(chain) as ListingDepositChainId} />;
+  return <PoolOverview address={decodeURIComponent(address)} chainId={Number(chain) as ListingDepositChainId} />;
 }

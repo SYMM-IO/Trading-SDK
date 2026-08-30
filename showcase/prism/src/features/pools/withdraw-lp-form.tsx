@@ -28,8 +28,17 @@ export interface WithdrawLpFormProps {
   availableLpAmount: bigint | undefined;
   /** Whether that ceiling is still loading. A quick-pick against `0n` is a lie. */
   isPositionLoading: boolean;
-  /** Refetch the position once the service accepts the request. */
-  onWithdrawn: () => void;
+  /**
+   * Optional: run something once the service has accepted the request.
+   *
+   * **Not for refetching.** `useWithdrawLp` already invalidates `getUserProfit`,
+   * `getPoolTransactions` and `getUserTransactions`, so the position above this
+   * form, the pool's transaction book and the cross-pool transfers ledger all
+   * refresh on their own. A `refetch()` passed here fires a second request for
+   * data that is already in flight. Use it for something the cache cannot do —
+   * closing a sheet, moving focus.
+   */
+  onWithdrawn?: () => void;
 }
 
 const QUICK_PICKS = ["25%", "50%", "75%", "Max"] as const;
@@ -46,7 +55,8 @@ const QUICK_PICKS = ["25%", "50%", "75%", "Max"] as const;
  * What the button does is *queue*. The service acknowledges with an empty body
  * and moves the shares into the pool's pending-withdrawal queue; the transfer
  * itself settles off-chain on the backend's own schedule. So the honest
- * feedback is a warn-toned toast and a refetched position, not a receipt.
+ * feedback is a warn-toned toast and the position reloading itself off the
+ * mutation's own invalidation, not a receipt.
  */
 export function WithdrawLpForm({
   marketAddress,
@@ -113,10 +123,14 @@ export function WithdrawLpForm({
           chainId: POOLS_CHAIN_ID,
         });
         setInput("");
-        /* The mutation invalidates nothing — no query key, no cache touch — so
-           the position the caller renders above stays stale until it refetches
-           and shows the shares moving into the pending column. */
-        onWithdrawn();
+        /* Nothing is refetched here. The mutation invalidates `getUserProfit`,
+           `getPoolTransactions` and `getUserTransactions` itself, so the
+           position above, the pool's book and the transfers ledger reload
+           without being told — and an earlier comment on this line claiming the
+           mutation "invalidates nothing" was wrong, which is how a redundant
+           double-fetch got written against it. Every write form on this surface
+           is copied from this one; do not reintroduce it. */
+        onWithdrawn?.();
       },
     );
   };

@@ -26,6 +26,40 @@ export function listingUsd(value: bigint | null | undefined, options: { exact?: 
   return formatUsd(listingNumber(value), options);
 }
 
+/**
+ * A listing **reward** figure as USD, at four decimals.
+ *
+ * Rewards are the one money field on this backend that is routinely sub-cent: a
+ * few days of LP yield on a small deposit is fractions of a dollar, and
+ * `listingUsd`'s two-decimal floor collapses every one of them to `$0.00` —
+ * which reads as "nothing to claim" next to a Claim button whose mutation then
+ * sends the full 18-decimal amount. Four decimals is what makes the figure and
+ * the button agree.
+ *
+ * `exact` on purpose: a claim total is a receipt, and `$12K` is not a receipt.
+ */
+export function listingReward(value: bigint | null | undefined): string {
+  return formatUsd(listingNumber(value), { exact: true, maxDecimals: 4 });
+}
+
+/**
+ * The same four-decimal reward figure without the currency symbol, for a row
+ * that writes its unit out — `0.4213 USDC`.
+ *
+ * Not `listingAmount`: that compacts and trims to two decimals, which is right
+ * for LP shares and wrong for the same reason `listingUsd` is wrong here.
+ */
+export function listingRewardAmount(value: bigint | null | undefined, symbol?: string): string {
+  const numeric = listingNumber(value);
+  if (numeric === undefined) return ABSENT;
+  /* Sign is split off the magnitude so a negative renders with a true minus
+     (U+2212). `toLocaleString` emits an ASCII hyphen, which the design system
+     forbids on a number. */
+  const body = Math.abs(numeric).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  const signed = numeric < 0 ? `−${body}` : body;
+  return symbol ? `${signed} ${symbol}` : signed;
+}
+
 /** A listing **count** — LP shares, token balances. Same descale, no currency. */
 export function listingAmount(value: bigint | null | undefined): string {
   const numeric = listingNumber(value);
