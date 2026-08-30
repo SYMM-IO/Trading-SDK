@@ -2405,6 +2405,47 @@ export {
   type PoolTransactionPage,
 } from "./pools";
 /**
+ * Market configuration (per-LP opinion)
+ * -------------------------------------
+ * A pool's max leverage and buyback percentage are not set by any one LP. Every
+ * depositor submits an *opinion* with `updateListingMarketConfig`, and the
+ * listing service folds them into a deposit-weighted average — so a call nudges
+ * the pool rather than overwriting it. `getListingMarketConfig` reads the
+ * caller's own opinion back (`null` until they have ever set one) alongside the
+ * pool values in force.
+ *
+ * Both knobs are plain whole numbers, **not** 18-decimal values: `50` is 50%,
+ * `20` is 20x. `projectListingMarketConfig` estimates where the pool lands
+ * before the write, from `getListingMarketDetail` plus the caller's stake.
+ *
+ * The write is authed, requires the caller to hold a deposit address on the
+ * market (minted for them by default), and is capped at
+ * `getListingConfig().rateLimits.marketConfigUpdatesPerDay` per market in a
+ * rolling 24-hour window. Enigma-only.
+ */
+export {
+  LISTING_MARKET_CONFIG_BOUNDS,
+  getListingMarketConfig,
+  getListingMarketConfigQueryKey,
+  getListingMarketConfigQueryOptions,
+  projectListingMarketConfig,
+  toListingMarketConfig,
+  toUpdateListingMarketConfigRequest,
+  updateListingMarketConfig,
+  updateListingMarketConfigMutationOptions,
+  type GetListingMarketConfigData,
+  type GetListingMarketConfigOptions,
+  type GetListingMarketConfigParameters,
+  type GetListingMarketConfigQueryKey,
+  type GetListingMarketConfigQueryOptions,
+  type GetListingMarketConfigReturnType,
+  type ListingMarketConfig,
+  type ListingMarketConfigProjection,
+  type ProjectListingMarketConfigParameters,
+  type UpdateListingMarketConfigParameters,
+  type UpdateListingMarketConfigReturnType,
+} from "./pools";
+/**
  * Pool rewards over time
  * ----------------------
  * The LP-reward series a pool page charts, plus the headline figures above them.

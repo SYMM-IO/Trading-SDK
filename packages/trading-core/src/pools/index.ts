@@ -6,6 +6,7 @@ export * from "./claim-history";
 export * from "./deposit-address";
 export * from "./listing-config";
 export * from "./listing-status";
+export * from "./market-config";
 export * from "./market-detail";
 export * from "./markets";
 export * from "./profit";

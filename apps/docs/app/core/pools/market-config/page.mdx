@@ -1,0 +1,236 @@
+import { Callout } from "nextra/components";
+
+# getListingMarketConfig
+
+Read the signed-in user's **configuration opinion** for one pool — the max leverage and buyback percentage _they_ submitted — alongside the pool-level values those opinions blend into. This is the read that prefills a pool's configuration form: `userMaxLeverage` and `userBuybackRatio` are `null` until the caller has ever submitted an opinion for the pool.
+
+<Callout type="warning">
+  **A pool's configuration is not set by any one LP.** Every depositor submits an *opinion* through
+  [`updateListingMarketConfig`](/core/pools/update-market-config), and the listing service folds them all into a
+  **deposit-weighted average**. `maxLeverage` and `buybackRatio` are that blend — the values actually in force for the
+  pool — while `userMaxLeverage` and `userBuybackRatio` are this caller's contribution to it. A write nudges the pool by
+  the caller's share of the deposits; it never overwrites it. Never present the user's own value as "the pool setting",
+  and never present the pool value as something a single LP just chose.
+</Callout>
+
+```ts
+import { getListingMarketConfig } from "@symmio/trading-core";
+
+const marketConfig = await getListingMarketConfig(config, {
+  accessToken: token.accessToken,
+  tokenContractAddress: "0x1234…",
+  depositChain: market.chainId,
+});
+
+const mine = marketConfig.userBuybackRatio; // null until this user has ever configured the pool
+const inForce = marketConfig.buybackRatio; // the deposit-weighted pool value
+```
+
+<Callout type="info">
+  This is a REST read against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
+  [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>` header, and the token
+  is what decides whose opinion comes back in the `user*` fields. Pool listing is **chain-level**, so this takes an
+  optional `chainId` and **no `solverId`** — the backend is resolved from the config before the request, so a target
+  without Pools fails immediately and without any network traffic (see
+  [`resolveListingService`](/core/pools/resolve-listing-service)). Pools is Enigma-only today.
+</Callout>
+
+The write on the same path is not a read: `updateListingMarketConfig` rejects a call with both values omitted, so this `GET` is the only way to read the caller's own opinion back.
+
+## Parameters
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401` (see [Throws](#throws)).
+  </Property>
+  <Property name="tokenContractAddress" type="string" required>
+    The pool's token contract address — the id that addresses a single market in the listing API. An EVM `0x…` address,
+    or a Solana base58 address for a Solana-deposited listing, which is why this is `string` and not viem's `Address`.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId" required>
+    The chain the pool's liquidity was deposited on — the catalog row's `chainId`. It pairs with
+    `tokenContractAddress` to identify the pool; neither field identifies one alone.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
+    folded into the query key. This is **not** `depositChain`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<ListingMarketConfig>">
+  <Property name="tokenContractAddress" type="string">
+    The pool's token contract address, echoed back by the service.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId">
+    The pool's deposit chain, echoed back by the service.
+  </Property>
+  <Property name="userMaxLeverage" type="number | null">
+    The caller's own max-leverage opinion, a whole multiplier. `null` until they have ever submitted one for this pool —
+    which is a different state from "they chose the pool's current value", so render it as unset rather than seeding a
+    form with a number the user never picked.
+  </Property>
+  <Property name="userBuybackRatio" type="number | null">
+    The caller's own buyback opinion, a whole percent. `null` until they have ever submitted one for this pool.
+  </Property>
+  <Property name="maxLeverage" type="number">
+    The pool-level max leverage in force — the deposit-weighted blend of every LP's opinion. Matches
+    [`ListingMarketDetail.maxLeverage`](/core/pools/market-detail#returns).
+  </Property>
+  <Property name="buybackRatio" type="number">
+    The pool-level buyback percentage in force — the deposit-weighted blend of every LP's opinion. Matches
+    [`ListingMarketDetail.buybackRatio`](/core/pools/market-detail#returns).
+  </Property>
+</Returns>
+
+<Callout type="warning">
+  **All four numbers are plain whole values, not 18-decimal `bigint`s.** `buybackRatio: 50` means 50%, `maxLeverage: 20`
+  means 20x. This is the one part of the listing service that does not follow the `LISTING_VALUE_DECIMALS` contract the
+  money and rate fields use — do not run them through `formatUnits`, and do not multiply a ratio by 100. It is the same
+  convention [`getListingMarketDetail`](/core/pools/market-detail#returns) reports these two fields in.
+</Callout>
+
+## Projecting the new pool value
+
+`projectListingMarketConfig` is a **pure helper** — no request, no config argument — that estimates where the pool's configuration lands once the caller's opinion is saved. It is what a form shows next to a slider as "new pool buyback ~52.5%", before the write.
+
+```ts
+import {
+  getListingMarketDetail,
+  getListingMarketConfig,
+  getUserProfit,
+  projectListingMarketConfig,
+} from "@symmio/trading-core";
+
+const detail = await getListingMarketDetail(config, { tokenContractAddress, depositChain });
+const marketConfig = await getListingMarketConfig(config, { accessToken, tokenContractAddress, depositChain });
+const profit = await getUserProfit(config, { accessToken, tokenContractAddress });
+
+const projection = projectListingMarketConfig({
+  poolBuybackRatio: detail.buybackRatio,
+  poolMaxLeverage: detail.maxLeverage,
+  priorBuybackRatio: marketConfig.userBuybackRatio,
+  priorMaxLeverage: marketConfig.userMaxLeverage,
+  buybackRatio: 75, // the value being entered
+  maxLeverage: 10,
+  userTokenAmount: profit.userBalanceInTokens,
+  totalTokenInPool: detail.totalTokenInPool,
+  tvl: detail.tvl,
+  totalUsdcInPool: detail.totalUsdcInPool,
+});
+
+projection.projectedBuybackRatio; // e.g. 52.5 — render as "~52.5%"
+```
+
+**How the weight is derived.** The caller's raw token share of the pool is `userTokenAmount / totalTokenInPool`. That share is then scaled by the **token portion of TVL**, `(tvl - totalUsdcInPool) / tvl`: part of a pool's value is USDC — notably the one-time swap on a pool's first deposit — and USDC carries no token-opinion weight. The product, clamped into `0..1`, is `share`. On a mature pool the USDC fraction is negligible and the scaling is a no-op; on a tiny pool, where that fixed swap is a large slice of TVL, it removes a real skew. A `tvl` of `null` or zero yields a `share` of `0`, and the projection is then just the pool's current value.
+
+**How the blend is applied.** For each knob, `projected = pool + share * (entered - prior)`. The pool value already folds in the caller's **previous** opinion at that same weight, so replacing it shifts the pool by exactly that much — exact to first order. When `prior` is `null` (the caller has never configured this pool) the pool value itself is substituted as the baseline, which makes the result an approximation rather than an exact shift.
+
+<Callout type="warning">
+  Present the projection as an **estimate**: render it with a `~`. The service rounds the blend it stores, so the exact
+  figure is whatever [`updateListingMarketConfig`](/core/pools/update-market-config) returns.
+</Callout>
+
+### Parameters
+
+<Properties>
+  <Property name="poolBuybackRatio" type="number | null" required>
+    The pool-level buyback percentage in force, from `ListingMarketDetail.buybackRatio`. `null` when unknown — the
+    projection for that knob is then `null` too.
+  </Property>
+  <Property name="poolMaxLeverage" type="number | null" required>
+    The pool-level max leverage in force, from `ListingMarketDetail.maxLeverage`. `null` when unknown.
+  </Property>
+  <Property name="priorBuybackRatio" type="number | null" required>
+    The caller's prior buyback opinion, from `ListingMarketConfig.userBuybackRatio`. `null` when they have never
+    configured this pool.
+  </Property>
+  <Property name="priorMaxLeverage" type="number | null" required>
+    The caller's prior max-leverage opinion, from `ListingMarketConfig.userMaxLeverage`.
+  </Property>
+  <Property name="buybackRatio" type="number" optional>
+    The buyback percentage the caller is about to submit. Omit to skip that knob — `projectedBuybackRatio` is then
+    `null`.
+  </Property>
+  <Property name="maxLeverage" type="number" optional>
+    The max leverage the caller is about to submit. Omit to skip that knob.
+  </Property>
+  <Property name="userTokenAmount" type="bigint" required>
+    The caller's stake in the pool, token-denominated at `LISTING_VALUE_DECIMALS` (18).
+    [`getUserProfit`](/core/pools/user-profit)'s `userBalanceInTokens` is the recommended source: it is the live stake
+    and is denominated in the same tokens as `totalTokenInPool`.
+  </Property>
+  <Property name="totalTokenInPool" type="bigint" required>
+    The pool's total token balance, from `ListingMarketDetail.totalTokenInPool`.
+  </Property>
+  <Property name="tvl" type="bigint | null" required>
+    The pool's total value in USD, from `ListingMarketDetail.tvl`. `null` or zero collapses `share` to `0`.
+  </Property>
+  <Property name="totalUsdcInPool" type="bigint" required>
+    The pool's USDC balance, from `ListingMarketDetail.totalUsdcInPool` — the part of TVL that carries no token-opinion
+    weight.
+  </Property>
+</Properties>
+
+### Returns
+
+<Returns type="ListingMarketConfigProjection">
+  <Property name="share" type="number">
+    The caller's deposit-**value** share of the pool, clamped to `0..1` — the weight the service gives their opinion.
+    Useful on its own: it is the honest answer to "how much does my vote move this pool?".
+  </Property>
+  <Property name="projectedBuybackRatio" type="number | null">
+    Where the pool's buyback percentage lands once the opinion is saved, or `null` when `poolBuybackRatio` or the
+    entered value is unknown.
+  </Property>
+  <Property name="projectedMaxLeverage" type="number | null">
+    Where the pool's max leverage lands once the opinion is saved, or `null` when `poolMaxLeverage` or the entered value
+    is unknown.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getListingMarketConfigQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(
+  getListingMarketConfigQueryOptions(config, {
+    accessToken: token.accessToken,
+    tokenContractAddress: "0x1234…",
+    depositChain: market.chainId,
+  }),
+);
+```
+
+`GetListingMarketConfigOptions` is the action's parameters plus a `query` bag of TanStack overrides. The factory folds `config.getChainConfigKey(chainId)` into the key; `getListingMarketConfigQueryKey` builds the same key for cache matching and invalidation. `GetListingMarketConfigData` is what the query resolves to (the same `ListingMarketConfig`), `GetListingMarketConfigReturnType` is the action's return alias, and `GetListingMarketConfigQueryOptions` is the options bag it produces. `toListingMarketConfig` maps a raw `/v2/market/config` body into the normalized `ListingMarketConfig` for callers driving the request themselves — both the `GET` and the `POST` return that same schema, so both share the mapper.
+
+<Callout type="warning">
+  **`accessToken` is stripped from the query key.** A bearer credential is not a cache dimension — a refreshed token
+  must hit the same entry, and no token should ever reach devtools. The consequence is that the key does **not** vary by
+  user while the data does: if your app can switch accounts without remounting, scope or reset this cache yourself when
+  the signed-in account changes.
+</Callout>
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide the configuration UI instead of erroring.
+- `FETCH_LISTING_MARKET_CONFIG_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`) with the original error as its `cause`. A **`401`** means the `accessToken` was missing, malformed, or expired — re-run `authenticateListing` and retry.
+
+<Callout type="info">
+  **A `404` here is not a broken pool.** This read is newer than the write, so a listing backend can accept
+  [`updateListingMarketConfig`](/core/pools/update-market-config) while it does not yet serve the `GET`. Treat a `404`
+  as "the caller's opinion is unknown" — leave the form's own fields unset and fall back to the pool values from
+  [`getListingMarketDetail`](/core/pools/market-detail) — rather than as a failure worth blocking the screen on.
+</Callout>
+
+## Related
+
+- [`updateListingMarketConfig`](/core/pools/update-market-config) — the write that submits the opinion this read reflects.
+- [`getListingMarketDetail`](/core/pools/market-detail) — the pool values, token balance, TVL and USDC balance the projection needs.
+- [`getUserProfit`](/core/pools/user-profit) — supplies `userBalanceInTokens`, the caller's stake that sets their weight.
+- [`useListingMarketConfig`](/react/pools#uselistingmarketconfig) — the React hook.
+- [Pools](/core/pools) — the slice overview.

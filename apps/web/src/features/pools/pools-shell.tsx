@@ -12,6 +12,7 @@ import { ListingAuthCard } from "./listing-auth-card";
 import { ListingAuthProvider } from "./listing-auth-context";
 import { ListingConfigCard } from "./listing-config-card";
 import { ListingStatusCard } from "./listing-status-card";
+import { MarketConfigCard } from "./market-config-card";
 import { PoolDetailCard } from "./pool-detail-card";
 import { PoolRewardsCard } from "./pool-rewards-card";
 import { PoolScopeBar, PoolScopeProvider } from "./pool-scope";
@@ -106,17 +107,18 @@ export function PoolsShell() {
         <PoolScopeProvider>
           <MethodGroup
             label="Your position in a pool"
-            count={6}
+            count={7}
             lead={
               <PoolScopeBar
                 idPrefix="position-pool"
-                hint="Pick a pool — your balance, deposit address, withdrawal, claim and claim history below are for it."
+                hint="Pick a pool — your balance, deposit address, config, withdrawal, claim and claim history below are for it."
                 enabled={enigmaActive}
               />
             }
           >
             <UserProfitCard />
             <DepositAddressCard />
+            <MarketConfigCard />
             <WithdrawCard />
             <CancelWithdrawCard />
             <ClaimCard />
