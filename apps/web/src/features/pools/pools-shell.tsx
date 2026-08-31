@@ -24,6 +24,8 @@ import { PoolsOpenInterestCard } from "./pools-open-interest-card";
 import { PoolsRevenueCard } from "./pools-revenue-card";
 import { PoolsTvlCard } from "./pools-tvl-card";
 import { PoolsVolumeCard } from "./pools-volume-card";
+import { RefundCard } from "./refund-card";
+import { RetryListingCard } from "./retry-listing-card";
 import { UserProfitCard } from "./user-profit-card";
 import { UserRewardsCard } from "./user-rewards-card";
 import { UserTransactionsCard } from "./user-transactions-card";
@@ -107,11 +109,11 @@ export function PoolsShell() {
         <PoolScopeProvider>
           <MethodGroup
             label="Your position in a pool"
-            count={7}
+            count={8}
             lead={
               <PoolScopeBar
                 idPrefix="position-pool"
-                hint="Pick a pool — your balance, deposit address, config, withdrawal, claim and claim history below are for it."
+                hint="Pick a pool — your balance, deposit address, withdrawal, claim, claim history and (if rejected) refund or retry below are for it."
                 enabled={enigmaActive}
               />
             }
@@ -123,6 +125,8 @@ export function PoolsShell() {
             <CancelWithdrawCard />
             <ClaimCard />
             <ClaimHistoryCard />
+            <RefundCard />
+            <RetryListingCard />
           </MethodGroup>
         </PoolScopeProvider>
       </ListingAuthProvider>

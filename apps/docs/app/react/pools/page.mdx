@@ -29,6 +29,9 @@ import {
   usePoolTotalReward,
   usePoolTradeHistory,
   usePoolTransactions,
+  useRefundMarket,
+  useRetryListing,
+  useRetryListingInfo,
   useSupportsListingService,
   useUpdateListingMarketConfig,
   useUserListingMarkets,
@@ -1041,6 +1044,57 @@ Optionally narrow by `transactionType`, `transactionStatus`, or `tokenAddress`. 
   **Enigma-only**, like the rest of Pools. The query rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
   backend, and a bad or expired token comes back as a `FETCH_USER_TRANSACTIONS_FAILED` `401`. Gate the entry point with
   [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
+</Callout>
+
+## `useRefundMarket`
+
+Reclaim a deposit on a **rejected** market. The authed **write** for the rejected-market flow: the mutation POSTs the rejected `marketAddress`, its `depositChain`, and the `recipientAddress` to send the deposit to, and resolves to a `PoolRefundResult` carrying the transfer's transaction hash.
+
+```tsx
+const refund = useRefundMarket();
+
+refund.mutate({
+  accessToken, // from useAuthenticateListing
+  marketAddress: rejectedMarket.contractAddress,
+  depositChain: rejectedMarket.chainId,
+  recipientAddress: account.address,
+});
+```
+
+Use it only for a market whose `marketStatus` is `REJECTED` (from [`useUserListingMarkets`](#useuserlistingmarkets)). On success the hook invalidates `getUserTransactions`, `getPoolTransactions` and `getUserListingMarkets`, so mounted views refetch.
+
+<Callout type="info">
+  **Enigma-only.** `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing backend, a bad or expired
+  token as a `REFUND_MARKET_FAILED` `401`, and a non-refundable market (not rejected, or already refunded) by the
+  service.
+</Callout>
+
+## `useRetryListingInfo`
+
+Read the retry allowance for a **rejected** market — how many listing retries remain and the cooldown before the next. Authed. Read it to gate [`useRetryListing`](#useretrylisting): only allow a retry when `remainingRetries > 0` and `remainingCooldownSeconds` is `null` or `0`.
+
+```tsx
+const { data } = useRetryListingInfo({ accessToken, tokenContractAddress, depositChain });
+// data: { retryLimit, remainingRetries, remainingCooldownSeconds }
+```
+
+`UseQueryResult<RetryListingInfo, SymmioRequestError>`. Rejects with `LISTING_NOT_CONFIGURED` off-chain and `FETCH_RETRY_LISTING_INFO_FAILED` `401` on a bad token.
+
+## `useRetryListing`
+
+Re-submit a **rejected** market's listing instead of refunding it. The authed **write** paired with [`useRetryListingInfo`](#useretrylistinginfo): the mutation POSTs the rejected `tokenContractAddress` and its `depositChain`, and resolves to a `RetryListingResult` (the retry allowance left).
+
+```tsx
+const retry = useRetryListing();
+
+retry.mutate({ accessToken, tokenContractAddress, depositChain });
+```
+
+Retries are capped and rate-limited — only offer this when `useRetryListingInfo` reports `remainingRetries > 0` and the cooldown has elapsed. On success the market re-enters the listing pipeline (its `marketStatus` moves off `REJECTED`) and the hook invalidates `getRetryListingInfo` and `getUserListingMarkets`.
+
+<Callout type="info">
+  **Enigma-only.** `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing backend, a bad or expired
+  token as a `RETRY_LISTING_FAILED` `401`, and a retry with no allowance left or an un-elapsed cooldown by the service.
 </Callout>
 
 ## `useWeeklyListingLimit`

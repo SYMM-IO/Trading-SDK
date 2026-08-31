@@ -3,17 +3,28 @@
 import { ResultError, ResultNote } from "@/components/result";
 import { ListingMarketStatus, type UserListingMarket } from "@symmio/trading-core";
 import { useUserListingMarkets } from "@symmio/trading-react";
+import { Badge } from "@symmio/ui/components/badge";
 import { Button } from "@symmio/ui/components/button";
 import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symmio/ui/components/select";
 import { Spinner } from "@symmio/ui/components/spinner";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 import { useSolverKindActive } from "../solvers/solver-target";
-import { formatListingUsd, formatSharePercentage } from "./format-listing-value";
+import { formatListingUsd, formatSharePercentage, LISTING_STATUS_DISPLAY } from "./format-listing-value";
 import { useListingAuth } from "./listing-auth-context";
 import { SignInNote } from "./sign-in-note";
 
-/** Columns for the "Your Pools" table: the token plus the user's position in each pool. */
+/** Sentinel for the "all statuses" option — Radix Select cannot hold an empty value. */
+const ANY = "any";
+
+/** Status filter options, from the shared status display map. */
+const STATUS_OPTIONS = Object.entries(LISTING_STATUS_DISPLAY).map(([value, display]) => ({
+  value,
+  label: display.label,
+}));
+
+/** Columns for the "Your Pools" table: the token, its lifecycle status, plus the user's position in each pool. */
 function userPoolColumns(): DataTableColumn<UserListingMarket>[] {
   return [
     {
@@ -28,6 +39,14 @@ function userPoolColumns(): DataTableColumn<UserListingMarket>[] {
           </span>
         </span>
       ),
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: (row) => {
+        const display = LISTING_STATUS_DISPLAY[row.marketStatus];
+        return <Badge variant={display?.variant ?? "outline"}>{display?.label ?? row.marketStatus}</Badge>;
+      },
     },
     {
       id: "tvl",
@@ -65,15 +84,16 @@ function userPoolColumns(): DataTableColumn<UserListingMarket>[] {
 }
 
 /**
- * "Your Pools" — the listing markets that generated a deposit address for the
- * signed-in wallet, deposited or not, each row enriched with the user's deposit,
+ * "Your Pools" — every listing market that generated a deposit address for the
+ * signed-in wallet, **whatever its lifecycle status** (live, awaiting deposit,
+ * under review, rejected, delisted), each row enriched with the user's deposit,
  * pool share, and accrued revenue.
  *
- * The bearer token comes from the shared {@link useListingAuth} session, so the
- * user signs in **once** (on the session card or inline here) and this card
- * reuses it: "Refresh" re-reads with the held token via `refetch()` instead of
- * prompting a new signature. The token gates the read — `useUserListingMarkets`
- * stays idle until it is set — so the card reads nothing before sign-in.
+ * Defaults to all statuses; the status filter at the top narrows the read — pick
+ * **Rejected** to find markets you can refund or retry. The bearer token comes
+ * from the shared {@link useListingAuth} session, so the user signs in **once**
+ * and this card reuses it: "Refresh" re-reads with the held token via `refetch()`
+ * instead of prompting a new signature.
  *
  * Enigma-only: the listing backend lives on HyperEVM, so the card is gated on
  * Enigma being the active solver, mirroring the listing-auth card.
@@ -81,10 +101,11 @@ function userPoolColumns(): DataTableColumn<UserListingMarket>[] {
 export function YourPoolsCard() {
   const enigmaActive = useSolverKindActive("enigma");
   const { accessToken, error: authError } = useListingAuth();
+  const [status, setStatus] = useState<string>(ANY);
 
   const pools = useUserListingMarkets({
     accessToken: accessToken ?? "",
-    marketStatus: ListingMarketStatus.LISTED,
+    marketStatus: status === ANY ? undefined : (status as ListingMarketStatus),
     limit: 25,
   });
 
@@ -96,7 +117,7 @@ export function YourPoolsCard() {
       testId="method-getUserListingMarkets"
       name="useUserListingMarkets"
       mutability="view"
-      description="Your Pools — the listing markets that generated a deposit address for the signed-in wallet, with your deposit, share and revenue. Sign in once, then the table loads. Enigma-only."
+      description="Your Pools — every listing market that generated a deposit address for the signed-in wallet, of any status, with your deposit, share and revenue. Filter by status (e.g. Rejected) at the top. Sign in once, then the table loads. Enigma-only."
       wide
     >
       {!enigmaActive ? (
@@ -107,26 +128,22 @@ export function YourPoolsCard() {
         <SignInNote testId="your-pools-idle" buttonTestId="your-pools-sign-in">
           Sign in to load the pools that hold a deposit address for your wallet.
         </SignInNote>
-      ) : pools.error ? (
-        <ResultError kind={pools.error.kind} message={pools.error.message} testId="your-pools-error" />
-      ) : rows.length === 0 && !pools.isFetching ? (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <ResultNote testId="your-pools-empty">No pools with a deposit address for this wallet yet.</ResultNote>
-          <RefreshButton fetching={pools.isFetching} onRefresh={() => void pools.refetch()} />
-        </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <DataTable
-            testId="your-pools-table"
-            columns={columns}
-            data={rows}
-            getRowId={(row) => `${row.chainId}:${row.contractAddress}`}
-            rowAttributes={(row) => ({ "data-contract-address": row.contractAddress })}
-            hidePagination
-            maxVisibleRows={5}
-            emptyMessage="Loading your pools…"
-          />
           <div className="flex flex-wrap items-center gap-3">
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="sm:w-44" aria-label="Filter by status" data-testid="your-pools-status-filter">
+                <SelectValue placeholder="Any status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ANY}>Any status</SelectItem>
+                {STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <RefreshButton fetching={pools.isFetching} onRefresh={() => void pools.refetch()} />
             {pools.isFetching ? (
               <span
@@ -137,6 +154,27 @@ export function YourPoolsCard() {
               </span>
             ) : null}
           </div>
+
+          {pools.error ? (
+            <ResultError kind={pools.error.kind} message={pools.error.message} testId="your-pools-error" />
+          ) : rows.length === 0 && !pools.isFetching ? (
+            <ResultNote testId="your-pools-empty">
+              {status === ANY
+                ? "No pools with a deposit address for this wallet yet."
+                : `No ${LISTING_STATUS_DISPLAY[status as ListingMarketStatus]?.label ?? status} pools for this wallet.`}
+            </ResultNote>
+          ) : (
+            <DataTable
+              testId="your-pools-table"
+              columns={columns}
+              data={rows}
+              getRowId={(row) => `${row.chainId}:${row.contractAddress}`}
+              rowAttributes={(row) => ({ "data-contract-address": row.contractAddress })}
+              hidePagination
+              maxVisibleRows={5}
+              emptyMessage="Loading your pools…"
+            />
+          )}
         </div>
       )}
     </MethodCard>

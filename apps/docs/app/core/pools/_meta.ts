@@ -30,6 +30,8 @@ export default {
   "cancel-withdraw": "cancelWithdraw",
   claim: "claimProfit",
   "update-market-config": "updateListingMarketConfig",
+  refund: "refundMarket",
+  "retry-listing": "Retry listing",
   "-- config": { type: "separator", title: "Config" },
   "resolve-listing-service": "resolveListingService",
   "-- helpers": { type: "separator", title: "Helpers" },
