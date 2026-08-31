@@ -1,5 +1,6 @@
 ---
 "@symmio/trading-core": minor
+"@symmio/trading-react": minor
 ---
 
 Add Binance USD-M Futures as a second price provider, behind a provider-agnostic mark-price facade.
@@ -13,6 +14,15 @@ Majors trade against the Rasa solver, which has no mark-price feed of its own �
 - `watchBinancePrices` / `parseBinancePriceFrame`, plus `getBinancePremiumIndex`, `getBinanceSymbolsInfo` and `getBinanceHealth` (+ their query factories) — the provider-specific twins, mirroring the existing Enigma price-service family. Each throws `UNSUPPORTED_BY_PRICE_SERVICE` when the resolved provider is not Binance. `getBinanceHealth` resolves `false` rather than throwing when the endpoint is unreachable, so a regional block reads as a health state instead of an error.
 - `MarkPriceTick`, a discriminated union on `provider` (`EnigmaMarkPriceTick | BinanceMarkPriceTick`), plus `NormalizedMarkPriceByProvider`. Read `name` / `markPrice` without narrowing; narrow to reach Binance's `indexPrice` and funding fields.
 - `SymmioSolverConfig.priceService?` — an optional per-solver override falling back to the chain-level price service, so one chain can host solvers that price differently.
+
+**New in `@symmio/trading-react`**
+
+The provider-agnostic mark-price hooks, each resolving whichever provider serves the target solver so a component never branches on provider:
+
+- `usePrices` (the live feed — returns both an ergonomic `prices` map and the full `ticks` map; narrow a tick on `provider` for Binance's `indexPrice`), `usePriceByName` / `usePriceByMarketId` (one market, with re-render gating), and `useMarkPrices` (the one-shot REST read).
+- `useBinancePrices` / `useBinanceHealth` / `useBinancePremiumIndex` / `useBinanceSymbolsInfo` — the Binance-specific twins, where every tick is a `BinanceMarkPriceTick` so `indexPrice` and the funding fields are reachable without narrowing. Each surfaces `UNSUPPORTED_BY_PRICE_SERVICE` when the target solver is not priced by Binance.
+
+Pass `names` on Binance: its stream pushes every listed symbol once per second, and the filter is what keeps that from churning the component tree. The Enigma-specific hooks (`useEnigmaPriceByMarketId`, …) now throw `UNSUPPORTED_BY_PRICE_SERVICE` on a chain whose provider is not Enigma, matching the core reads.
 
 **Behavior changes**
 
