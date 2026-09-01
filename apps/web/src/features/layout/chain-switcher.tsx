@@ -7,11 +7,12 @@ import { useChainId, useSwitchChain } from "wagmi";
 const CHAIN_SHORT_NAMES: Record<number, string> = {
   8453: "Base",
   999: "HyperEVM",
+  42161: "Arbitrum",
 };
 
 /**
  * Compact chain switcher for the site header: one chip per configured wagmi
- * chain (HyperEVM, Base). Clicking a chip asks the connected wallet to switch
+ * chain (HyperEVM, Base, Arbitrum). Clicking a chip asks the connected wallet to switch
  * networks; the active chain is highlighted. Rendered on every page so the
  * target chain — and with it the target solver (Enigma vs Rasa) — is always
  * one click away.

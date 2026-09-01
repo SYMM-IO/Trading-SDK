@@ -1,11 +1,11 @@
 /**
- * ABI fragment for the SYMMIO `InstantLayer` contract at version **0.8.5**.
+ * ABI fragment for the SYMMIO `InstantLayer` contract at version **0.8.6**.
  *
  * @remarks
  * This fragment contains the delegation methods currently wrapped by the SDK.
  *
  * @see Source of truth — the SYMMIO `perps-core` repo, pinned to the matching
- * version tag: {@link https://github.com/SYMM-IO/perps-core/tree/version_0.8.5/docs/v0.8.5}.
+ * version tag: {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/abis/instantLayer.json}.
  */
 export const instantLayerAbi = [
   {
@@ -32,35 +32,6 @@ export const instantLayerAbi = [
         internalType: "uint256",
         name: "",
         type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "delegator",
-        type: "address",
-      },
-      {
-        internalType: "address",
-        name: "delegate",
-        type: "address",
-      },
-      {
-        internalType: "bytes4",
-        name: "selector",
-        type: "bytes4",
-      },
-    ],
-    name: "isDelegationActive",
-    outputs: [
-      {
-        internalType: "bool",
-        name: "",
-        type: "bool",
       },
     ],
     stateMutability: "view",
@@ -111,6 +82,35 @@ export const instantLayerAbi = [
     name: "grantDelegation",
     outputs: [],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "delegator",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "delegate",
+        type: "address",
+      },
+      {
+        internalType: "bytes4",
+        name: "selector",
+        type: "bytes4",
+      },
+    ],
+    name: "isDelegationActive",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
 ] as const;

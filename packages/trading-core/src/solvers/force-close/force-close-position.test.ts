@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
 import { SymmError } from "../../shared/errors/symm-error";
 import { mockConfig, TEST_TX_HASH } from "../../shared/test/mock-config";
-import { symmioAbi } from "../../symmio-contracts/abi/v0.8.5/symmio";
+import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
 import type { HighLowPriceSig } from "../../symmio-contracts/symmio/types";
 import { forceClosePosition } from "./force-close-position";
 

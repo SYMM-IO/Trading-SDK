@@ -2,6 +2,7 @@
 
 import { AddressTag } from "@/components/address-tag";
 import { StatusDot } from "@/components/status-dot";
+import { chainLabel } from "@/config/symmio-config-schema";
 import { WalletConnectDialog, WalletGlyph } from "@/features/wallet/wallet-connect-dialog";
 import { useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
@@ -22,10 +23,10 @@ const ICON_BUTTON =
  * the chain the SDK expects.
  */
 export function WalletLauncher() {
-  const { address, isConnected, isOnExpectedChain } = useWalletAccount();
+  const { address, chainId, isConnected, isOnExpectedChain } = useWalletAccount();
 
   if (isConnected && address) {
-    return <AccountMenu address={address} isOnExpectedChain={isOnExpectedChain} />;
+    return <AccountMenu address={address} chainId={chainId} isOnExpectedChain={isOnExpectedChain} />;
   }
 
   return <ConnectTrigger />;
@@ -55,11 +56,12 @@ function ConnectTrigger() {
 
 interface AccountMenuProps {
   address: Address;
+  chainId?: number;
   isOnExpectedChain: boolean;
 }
 
 /** Connected state: a status-dotted glyph that opens a compact account popover. */
-function AccountMenu({ address, isOnExpectedChain }: AccountMenuProps) {
+function AccountMenu({ address, chainId, isOnExpectedChain }: AccountMenuProps) {
   const [open, setOpen] = useState(false);
   const { disconnect } = useDisconnectWallet();
   const { switchChain, status: switchStatus } = useSwitchToSymmioChain();
@@ -95,7 +97,7 @@ function AccountMenu({ address, isOnExpectedChain }: AccountMenuProps) {
             <AddressTag address={address} />
             <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
               <StatusDot tone={tone} pulse={isOnExpectedChain} />
-              {isOnExpectedChain ? "Connected · HyperEVM" : "Wrong network"}
+              {isOnExpectedChain ? `Connected · ${chainLabel(chainId ?? 0)}` : "Wrong network"}
             </span>
           </div>
         </div>

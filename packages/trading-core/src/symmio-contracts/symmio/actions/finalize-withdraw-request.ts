@@ -2,7 +2,7 @@ import type { Address, Hash } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
-import { symmioAbi } from "../../abi/v0.8.5/symmio";
+import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { simulateFinalizeWithdrawRequest } from "./simulate-finalize-withdraw-request";
 
 /**

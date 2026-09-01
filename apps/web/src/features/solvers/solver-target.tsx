@@ -2,7 +2,7 @@
 
 import { SymmioSupportedChainId, type SymmioSolverKind } from "@symmio/trading-core";
 import { Button } from "@symmio/ui/components/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useChainId } from "wagmi";
 
 /** One selectable solver deployment: the `{chainId, solverId}` pair a hook targets. */
@@ -20,8 +20,8 @@ export interface SolverTarget {
 /**
  * True when the given solver kind's chain is the active wallet chain. Use it to
  * gate a solver-exclusive card's query so the endpoint is only called when its
- * solver is active (Enigma → HyperEVM, Rasa → Base) — the endpoints 404 on the
- * other chain.
+ * solver is active (Enigma → HyperEVM or Arbitrum, Rasa → Base) — the endpoints
+ * 404 on chains that do not register that kind.
  */
 export function useSolverKindActive(kind: SymmioSolverKind): boolean {
   const chainId = useChainId();
@@ -36,6 +36,12 @@ export const SOLVER_TARGETS: readonly SolverTarget[] = [
     solverId: "enigma",
     label: "Enigma · HyperEVM",
   },
+  {
+    id: "enigma-arbitrum",
+    chainId: SymmioSupportedChainId.ARBITRUM,
+    solverId: "enigma",
+    label: "Enigma · Arbitrum",
+  },
   { id: "rasa", chainId: SymmioSupportedChainId.BASE, solverId: "rasa", label: "Rasa · Base" },
 ];
 
@@ -45,11 +51,27 @@ export const SOLVER_TARGETS: readonly SolverTarget[] = [
  * disabled in {@link SolverTargetSelect}.
  */
 export function useSolverTargetState(options?: { requireKind?: SymmioSolverKind }) {
-  const initial = options?.requireKind
-    ? (SOLVER_TARGETS.find((target) => target.solverId === options.requireKind) ?? SOLVER_TARGETS[0]!)
-    : SOLVER_TARGETS[0]!;
-  const [target, setTarget] = useState<SolverTarget>(initial);
+  const activeChainId = useChainId();
+  const requireKind = options?.requireKind;
+  const [target, setTarget] = useState<SolverTarget>(() => resolveTarget(activeChainId, requireKind));
+
+  useEffect(() => {
+    const activeTarget = SOLVER_TARGETS.find(
+      (candidate) => candidate.chainId === activeChainId && (!requireKind || candidate.solverId === requireKind),
+    );
+    if (activeTarget) setTarget(activeTarget);
+  }, [activeChainId, requireKind]);
+
   return { target, setTarget };
+}
+
+/** Resolve the active chain's solver, falling back to the first target of the required kind. */
+function resolveTarget(chainId: number, requireKind?: SymmioSolverKind): SolverTarget {
+  return (
+    SOLVER_TARGETS.find((target) => target.chainId === chainId && (!requireKind || target.solverId === requireKind)) ??
+    (requireKind ? SOLVER_TARGETS.find((target) => target.solverId === requireKind) : undefined) ??
+    SOLVER_TARGETS[0]!
+  );
 }
 
 interface Props {
@@ -60,7 +82,7 @@ interface Props {
   testId?: string;
 }
 
-/** Segmented per-card selector between the configured solvers (Enigma · HyperEVM / Rasa · Base). */
+/** Segmented per-card selector between every configured chain/solver deployment. */
 export function SolverTargetSelect({ value, onChange, requireKind, testId }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
@@ -73,6 +95,7 @@ export function SolverTargetSelect({ value, onChange, requireKind, testId }: Pro
             type="button"
             size="sm"
             variant={value.id === target.id ? "default" : "outline"}
+            aria-pressed={value.id === target.id}
             disabled={unsupported}
             title={unsupported ? `Not supported by ${target.label} (requires a ${requireKind} solver)` : undefined}
             onClick={() => onChange(target)}

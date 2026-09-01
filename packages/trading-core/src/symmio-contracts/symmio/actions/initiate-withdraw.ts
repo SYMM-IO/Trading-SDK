@@ -1,7 +1,7 @@
 import { encodeFunctionData, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
-import { symmioAbi } from "../../abi/v0.8.5/symmio";
+import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 import type { WithdrawReceiverPart } from "../types";
 

@@ -1,5 +1,5 @@
 /**
- * Complete ABI for the SYMMIO `AccountLayer` contract at version **0.8.5**.
+ * Complete ABI for the SYMMIO `AccountLayer` contract at version **0.8.6**.
  *
  * @remarks
  * This is the **full** ABI — every error, event, and function as deployed on
@@ -11,9 +11,9 @@
  * - support new wrapper helpers without having to amend this file each time.
  *
  * @see Source of truth — the SYMMIO `perps-core` repo, pinned to the matching
- * version tag: {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/abis/accountLayer.json}.
- * for a new version, add a sibling folder (e.g. `v0.9.0/`) and copy from the
- * matching `version_0.9.0` tag rather than editing this file in place.
+ * version tag: {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/abis/accountLayer.json}.
+ * Upgrading to a new contracts version means swapping the fragments in this
+ * folder in place as part of a new SDK release — see `ARCHITECTURE.md` §2.
  */
 export const accountLayerAbi = [
   {
@@ -24,6 +24,22 @@ export const accountLayerAbi = [
   {
     inputs: [],
     name: "AccountDoesNotExist",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "scope",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+    ],
+    name: "AccountOutOfScope",
     type: "error",
   },
   {
@@ -39,11 +55,6 @@ export const accountLayerAbi = [
   {
     inputs: [],
     name: "AlreadyRegistered",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "BalanceInvariantViolation",
     type: "error",
   },
   {
@@ -78,6 +89,11 @@ export const accountLayerAbi = [
   },
   {
     inputs: [],
+    name: "ExternalCallSignerWasModified",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "HasActiveVirtualAccounts",
     type: "error",
   },
@@ -106,11 +122,6 @@ export const accountLayerAbi = [
   {
     inputs: [],
     name: "InvalidCallData",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "InvalidExpressRate",
     type: "error",
   },
   {
@@ -156,6 +167,11 @@ export const accountLayerAbi = [
   {
     inputs: [],
     name: "LegacyContractNotRegistered",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "MarginKeyMismatch",
     type: "error",
   },
   {
@@ -286,11 +302,6 @@ export const accountLayerAbi = [
   },
   {
     inputs: [],
-    name: "VirtualProviderRequired",
-    type: "error",
-  },
-  {
-    inputs: [],
     name: "ZeroAddress",
     type: "error",
   },
@@ -298,6 +309,31 @@ export const accountLayerAbi = [
     inputs: [],
     name: "ZeroAmount",
     type: "error",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "virtualAccount",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "AddMargin",
+    type: "event",
   },
   {
     anonymous: false,
@@ -503,6 +539,31 @@ export const accountLayerAbi = [
     anonymous: false,
     inputs: [
       {
+        indexed: true,
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "oldOwner",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "newOwner",
+        type: "address",
+      },
+    ],
+    name: "SubAccountOwnershipTransferred",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: false,
         internalType: "address",
         name: "account",
@@ -583,6 +644,45 @@ export const accountLayerAbi = [
       },
     ],
     name: "_call",
+    outputs: [
+      {
+        internalType: "bytes[]",
+        name: "",
+        type: "bytes[]",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+      {
+        internalType: "enum VirtualAccountIsolationType",
+        name: "isolationType",
+        type: "uint8",
+      },
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "marginAmount",
+        type: "uint256",
+      },
+      {
+        internalType: "bytes[]",
+        name: "callDatas",
+        type: "bytes[]",
+      },
+    ],
+    name: "_callWithMargin",
     outputs: [
       {
         internalType: "bytes[]",
@@ -682,6 +782,62 @@ export const accountLayerAbi = [
     inputs: [
       {
         internalType: "address",
+        name: "owner",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
+      },
+      {
+        components: [
+          {
+            internalType: "string",
+            name: "name",
+            type: "string",
+          },
+          {
+            internalType: "bytes",
+            name: "metadata",
+            type: "bytes",
+          },
+          {
+            internalType: "address",
+            name: "symmioCore",
+            type: "address",
+          },
+          {
+            internalType: "enum SubAccountIsolationType",
+            name: "isolationType",
+            type: "uint8",
+          },
+          {
+            internalType: "bool",
+            name: "singleVAMode",
+            type: "bool",
+          },
+        ],
+        internalType: "struct SubAccountCreationData[]",
+        name: "accountsData",
+        type: "tuple[]",
+      },
+    ],
+    name: "createSubAccountsFor",
+    outputs: [
+      {
+        internalType: "address[]",
+        name: "",
+        type: "address[]",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
         name: "subAccount",
         type: "address",
       },
@@ -722,43 +878,7 @@ export const accountLayerAbi = [
         type: "uint256",
       },
     ],
-    name: "depositAndAllocateForAccountWithExpressRate",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-    ],
     name: "depositForAccount",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-    ],
-    name: "depositForAccountWithExpressRate",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -859,6 +979,24 @@ export const accountLayerAbi = [
       },
     ],
     name: "setSingleVAMode",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "newOwner",
+        type: "address",
+      },
+    ],
+    name: "transferSubAccountOwnership",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -1147,6 +1285,153 @@ export const accountLayerAbi = [
         type: "address",
       },
     ],
+    name: "getAffiliate",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "affiliateAddress",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "name",
+            type: "string",
+          },
+          {
+            internalType: "string",
+            name: "brandColor",
+            type: "string",
+          },
+          {
+            internalType: "address",
+            name: "admin",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "pendingAdmin",
+            type: "address",
+          },
+          {
+            internalType: "enum AffiliateState",
+            name: "state",
+            type: "uint8",
+          },
+          {
+            internalType: "uint256",
+            name: "symmioShare",
+            type: "uint256",
+          },
+          {
+            components: [
+              {
+                internalType: "address",
+                name: "receiver",
+                type: "address",
+              },
+              {
+                internalType: "uint256",
+                name: "share",
+                type: "uint256",
+              },
+            ],
+            internalType: "struct Stakeholder[]",
+            name: "stakeholders",
+            type: "tuple[]",
+          },
+          {
+            internalType: "address",
+            name: "feeDistributor",
+            type: "address",
+          },
+          {
+            internalType: "bytes",
+            name: "metadata",
+            type: "bytes",
+          },
+          {
+            internalType: "address[]",
+            name: "legacyMultiAccounts",
+            type: "address[]",
+          },
+          {
+            internalType: "address[]",
+            name: "symmioCores",
+            type: "address[]",
+          },
+          {
+            internalType: "address",
+            name: "accountManager",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "registrant",
+            type: "address",
+          },
+          {
+            internalType: "uint256",
+            name: "registrationNonce",
+            type: "uint256",
+          },
+          {
+            components: [
+              {
+                internalType: "bool",
+                name: "exists",
+                type: "bool",
+              },
+              {
+                internalType: "uint256",
+                name: "timestamp",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "symmioShare",
+                type: "uint256",
+              },
+              {
+                components: [
+                  {
+                    internalType: "address",
+                    name: "receiver",
+                    type: "address",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "share",
+                    type: "uint256",
+                  },
+                ],
+                internalType: "struct Stakeholder[]",
+                name: "stakeholders",
+                type: "tuple[]",
+              },
+            ],
+            internalType: "struct PendingFeeUpdate",
+            name: "pendingFeeUpdate",
+            type: "tuple",
+          },
+        ],
+        internalType: "struct AffiliateDetail",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
+      },
+    ],
     name: "getAffiliateAdmin",
     outputs: [
       {
@@ -1166,12 +1451,36 @@ export const accountLayerAbi = [
         type: "address",
       },
     ],
-    name: "getAffiliateExpressRate",
+    name: "getAffiliateFeeDistributor",
     outputs: [
       {
-        internalType: "uint256",
+        internalType: "address",
         name: "",
-        type: "uint256",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+    ],
+    name: "getAffiliateForAccount",
+    outputs: [
+      {
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
+      },
+      {
+        internalType: "bool",
+        name: "exists",
+        type: "bool",
       },
     ],
     stateMutability: "view",
@@ -1184,13 +1493,40 @@ export const accountLayerAbi = [
         name: "affiliate",
         type: "address",
       },
+      {
+        internalType: "bytes4[]",
+        name: "selectors",
+        type: "bytes4[]",
+      },
     ],
-    name: "getAffiliateFeeDistributor",
+    name: "getAffiliateSelectorConfigs",
     outputs: [
       {
-        internalType: "address",
+        components: [
+          {
+            internalType: "bytes4",
+            name: "selector",
+            type: "bytes4",
+          },
+          {
+            internalType: "address",
+            name: "hook",
+            type: "address",
+          },
+          {
+            internalType: "bool",
+            name: "hookAllowed",
+            type: "bool",
+          },
+          {
+            internalType: "bool",
+            name: "callAllowed",
+            type: "bool",
+          },
+        ],
+        internalType: "struct AffiliateSelectorConfig[]",
         name: "",
-        type: "address",
+        type: "tuple[]",
       },
     ],
     stateMutability: "view",
@@ -1373,6 +1709,19 @@ export const accountLayerAbi = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "getOwner",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       {
         internalType: "address",
@@ -1394,6 +1743,19 @@ export const accountLayerAbi = [
   {
     inputs: [],
     name: "getSigner",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getSignerScope",
     outputs: [
       {
         internalType: "address",
@@ -1931,19 +2293,6 @@ export const accountLayerAbi = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "owner",
-    outputs: [
-      {
-        internalType: "address",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
     inputs: [
       {
         internalType: "address",
@@ -2029,6 +2378,17 @@ export const accountLayerAbi = [
     ],
     stateMutability: "view",
     type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "token",
+        type: "address",
+      },
+    ],
+    name: "SafeERC20FailedOperation",
+    type: "error",
   },
   {
     anonymous: false,
@@ -2174,25 +2534,6 @@ export const accountLayerAbi = [
       },
     ],
     name: "AffiliateUpdated",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "affiliate",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "expressRate",
-        type: "uint256",
-      },
-    ],
-    name: "ExpressRateSet",
     type: "event",
   },
   {
@@ -2383,25 +2724,6 @@ export const accountLayerAbi = [
       },
     ],
     name: "StakeholdersUpdated",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "affiliate",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "virtualProvider",
-        type: "address",
-      },
-    ],
-    name: "VirtualProviderSet",
     type: "event",
   },
   {
@@ -2730,24 +3052,6 @@ export const accountLayerAbi = [
         type: "address",
       },
       {
-        internalType: "uint256",
-        name: "expressRate",
-        type: "uint256",
-      },
-    ],
-    name: "setExpressRate",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "affiliate",
-        type: "address",
-      },
-      {
         internalType: "bytes4",
         name: "selector",
         type: "bytes4",
@@ -2798,24 +3102,6 @@ export const accountLayerAbi = [
         name: "affiliate",
         type: "address",
       },
-      {
-        internalType: "address",
-        name: "virtualProvider",
-        type: "address",
-      },
-    ],
-    name: "setVirtualProvider",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "affiliate",
-        type: "address",
-      },
     ],
     name: "unpauseAffiliate",
     outputs: [],
@@ -2844,31 +3130,6 @@ export const accountLayerAbi = [
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "virtualAccount",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "subAccount",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-    ],
-    name: "AddMargin",
-    type: "event",
   },
   {
     anonymous: false,
@@ -3052,6 +3313,88 @@ export const accountLayerAbi = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "address",
+        name: "virtualAccount",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+      {
+        components: [
+          {
+            internalType: "bytes",
+            name: "reqId",
+            type: "bytes",
+          },
+          {
+            internalType: "uint256",
+            name: "timestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "int256",
+            name: "upnl",
+            type: "int256",
+          },
+          {
+            internalType: "uint256",
+            name: "fundingDebt",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "pendingBalance",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "scaledLockedBalance",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "gatewaySignature",
+            type: "bytes",
+          },
+          {
+            components: [
+              {
+                internalType: "uint256",
+                name: "signature",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "owner",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "nonce",
+                type: "address",
+              },
+            ],
+            internalType: "struct ISymmio.SchnorrSign",
+            name: "sigs",
+            type: "tuple",
+          },
+        ],
+        internalType: "struct ISymmio.SingleUpnlWithPendingBalanceSig",
+        name: "upnlSig",
+        type: "tuple",
+      },
+    ],
+    name: "safeRemoveMargin",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     anonymous: false,
     inputs: [
       {
@@ -3218,6 +3561,25 @@ export const accountLayerAbi = [
       },
     ],
     name: "RoleRevoked",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "signer",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "scope",
+        type: "address",
+      },
+    ],
+    name: "SignerScopeUpdated",
     type: "event",
   },
   {
@@ -3470,11 +3832,60 @@ export const accountLayerAbi = [
     inputs: [
       {
         internalType: "address",
+        name: "_signer",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "_scope",
+        type: "address",
+      },
+    ],
+    name: "setSignerScoped",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
         name: "receiver",
         type: "address",
       },
     ],
     name: "setSymmioFeeReceiver",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "signerOrZero",
+        type: "address",
+      },
+    ],
+    name: "setTransientSigner",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "signerOrZero",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "scope",
+        type: "address",
+      },
+    ],
+    name: "setTransientSignerScoped",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -3516,6 +3927,57 @@ export const accountLayerAbi = [
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "pendingOwner",
+        type: "address",
+      },
+    ],
+    name: "OwnershipTransferCanceled",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "currentOwner",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "pendingOwner",
+        type: "address",
+      },
+    ],
+    name: "OwnershipTransferStarted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "previousOwner",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "newOwner",
+        type: "address",
+      },
+    ],
+    name: "OwnershipTransferred",
+    type: "event",
   },
   {
     inputs: [
@@ -3635,6 +4097,19 @@ export const accountLayerAbi = [
       },
     ],
     stateMutability: "pure",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "ACCOUNT_CREATOR_ROLE",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
   {

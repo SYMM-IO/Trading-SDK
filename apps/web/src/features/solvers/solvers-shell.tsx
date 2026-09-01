@@ -36,9 +36,10 @@ import { SolverErrorCodesCard } from "./solver-error-codes-card";
 const CHAIN_LABELS: Record<number, string> = {
   [SymmioSupportedChainId.HYPER_EVM]: "HyperEVM (Enigma)",
   [SymmioSupportedChainId.BASE]: "Base (Rasa)",
+  [SymmioSupportedChainId.ARBITRUM]: "Arbitrum (Enigma)",
 };
 
-/** Segmented switch between the supported chains (HyperEVM ↔ Base). */
+/** Segmented switch between the supported chains. */
 function ChainSwitch() {
   const activeChainId = useChainId();
   const { switchChain } = useSwitchChain();
@@ -52,6 +53,7 @@ function ChainSwitch() {
           type="button"
           size="sm"
           variant={activeChainId === chainId ? "default" : "outline"}
+          aria-pressed={activeChainId === chainId}
           onClick={() => switchChain({ chainId })}
           data-testid={`button-solvers-chain-${chainId}`}
         >
@@ -66,9 +68,8 @@ function ChainSwitch() {
  * Solvers page. The solver is an off-chain API (not a contract), so it sits
  * outside the Contracts hub. Renders solver reads and writes in the same
  * collapsible method groups as contract pages. Cards carry their own solver
- * selector (Enigma · HyperEVM / Rasa · Base); the Enigma-only and Rasa-only
- * groups are each served exclusively by that one solver kind (their endpoints
- * 404 on the other).
+ * selector; the Enigma-only and Rasa-only groups are each served exclusively by
+ * that solver kind (their endpoints 404 on chains that do not register it).
  */
 export function SolversShell() {
   const activeChainId = useChainId();
@@ -77,7 +78,7 @@ export function SolversShell() {
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
       <PageHeader
         eyebrow="React SDK · Solvers"
-        title={`Solvers · ${activeChainId === SymmioSupportedChainId.BASE ? "Base" : "HyperEVM"}`}
+        title={`Solvers · ${CHAIN_LABELS[activeChainId]?.replace(/ \(.+\)$/, "") ?? `Chain ${activeChainId}`}`}
         description="The solver is an off-chain service, not a contract. Fetch tradable markets, funding, caps, and Rasa-only account/state reads straight from the chain's solver."
       />
 

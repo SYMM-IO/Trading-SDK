@@ -8,8 +8,8 @@ import {
   type Hex,
 } from "viem";
 import { SymmError } from "../../../shared/errors/symm-error";
-import { accountLayerAbi } from "../../../symmio-contracts/abi/v0.8.5/account-layer";
-import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.5/symmio";
+import { accountLayerAbi } from "../../../symmio-contracts/abi/v0.8.6/account-layer";
+import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.6/symmio";
 import type { UpnlSig, VirtualAccountIsolationType } from "./types";
 
 /**

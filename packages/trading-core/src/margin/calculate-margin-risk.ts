@@ -63,7 +63,7 @@ export interface MarginRiskMetrics {
   /**
    * `remainingToLiquidation < 0n` — bit-for-bit the on-chain predicate
    * `allocatedBalance − (cva + lf) + upnl < 0` from
-   * `LibAccount.partyAAvailableBalanceForLiquidation` (perps-core v0.8.5).
+   * `LibAccount.partyAAvailableBalanceForLiquidation` (perps-core v0.8.6).
    *
    * Prefer this over a threshold on {@link liquidationBufferPercent}: that
    * percent is a styling signal and can be `undefined`, while this is the

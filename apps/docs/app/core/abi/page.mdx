@@ -8,7 +8,7 @@ Raw viem-style `Abi` arrays for the SYMMIO contracts, for consumers who call vie
 import { accountLayerAbi, instantLayerAbi, symmioAbi } from "@symmio/trading-core";
 ```
 
-Each is a `readonly Abi` array exported straight from the versioned `src/symmio-contracts/abi/v0.8.5/` files.
+Each is a `readonly Abi` array exported straight from the versioned `src/symmio-contracts/abi/v0.8.6/` files.
 
 ## Available fragments
 
@@ -24,7 +24,7 @@ Each is a `readonly Abi` array exported straight from the versioned `src/symmio-
   </MethodEntry>
 </MethodIndex>
 
-The current version is `v0.8.5` — sourced from [`@symm-io/perps-core`](https://github.com/SYMM-IO/perps-core/tree/version_0.8.5). When the SDK ships a second version, ABIs will route through a version-aware registry; today they are directly re-exported.
+The current version is `v0.8.6` — sourced from [`@symm-io/perps-core`](https://github.com/SYMM-IO/perps-core/tree/version_0.8.6). Each SDK release supports exactly one contracts version; upgrading contracts means a new SDK release that swaps the ABIs in place, so you pick your contracts version by pinning the SDK version.
 
 ## Usage — viem `readContract`
 

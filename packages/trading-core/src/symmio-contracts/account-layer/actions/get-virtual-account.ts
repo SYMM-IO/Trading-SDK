@@ -2,7 +2,7 @@ import type { Address, Hex } from "viem";
 import type { Config } from "../../../core/config";
 import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
 import type { VirtualAccountIsolationType } from "../../../solvers/instant-open/shared/types";
-import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
+import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 
 /**
  * Parameters for {@link getVirtualAccount}.
@@ -18,7 +18,7 @@ export type GetVirtualAccountParameters = Compute<
  * Decoded result of {@link getVirtualAccount}.
  *
  * Field shapes and ordering mirror the on-chain `VirtualAccountDetail` struct
- * (perps-core v0.8.5) exactly. `isolationType` is surfaced as the
+ * (perps-core v0.8.6) exactly. `isolationType` is surfaced as the
  * {@link VirtualAccountIsolationType} numeric union (matches the
  * `VIRTUAL_ACCOUNT_ISOLATION_TYPE` constant).
  */

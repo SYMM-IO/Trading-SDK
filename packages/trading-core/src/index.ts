@@ -22,9 +22,9 @@
  * Raw viem-style `Abi` arrays for SYMMIO contracts, for consumers who call viem
  * directly (e.g. `readContract({ abi: accountLayerAbi })`).
  */
-export { accountLayerAbi } from "./symmio-contracts/abi/v0.8.5/account-layer";
-export { instantLayerAbi } from "./symmio-contracts/abi/v0.8.5/instant-layer";
-export { symmioAbi } from "./symmio-contracts/abi/v0.8.5/symmio";
+export { accountLayerAbi } from "./symmio-contracts/abi/v0.8.6/account-layer";
+export { instantLayerAbi } from "./symmio-contracts/abi/v0.8.6/instant-layer";
+export { symmioAbi } from "./symmio-contracts/abi/v0.8.6/symmio";
 
 /**
  * Config

@@ -30,7 +30,7 @@ isLiquidatable           = remainingToLiquidation < 0
 
 ## `isLiquidatable` is the protocol's own test
 
-perps-core v0.8.5 liquidates partyA when `LibAccount.partyAAvailableBalanceForLiquidation` goes negative:
+perps-core v0.8.6 liquidates partyA when `LibAccount.partyAAvailableBalanceForLiquidation` goes negative:
 
 ```solidity
 freeBalance = allocatedBalance − (lockedCVA + lockedLF)

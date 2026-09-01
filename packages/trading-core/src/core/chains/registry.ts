@@ -154,4 +154,62 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
       ],
     },
   },
+
+  [SymmioSupportedChainId.ARBITRUM]: {
+    chainId: SymmioSupportedChainId.ARBITRUM,
+    addresses: {
+      symmioAddress: "0x573310dB6d160B26026B8706EBe9831c7dEF1D09",
+      instantLayerAddress: "0xDBc6DAe3De0b10a10b6c4d1b33D4C79567E07F6d",
+      accountLayerAddress: "0x5733107211B2801Acd39933a54d482FE303c4907",
+      affiliatesAddress: "0xe99c18CF3C62B9229f9251fd2562077a33e7600a",
+      collateralAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      collateralDecimals: 6,
+    },
+    subgraphs: {
+      analytics:
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-analytics/latest/gn",
+      events:
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-events/latest/gn",
+    },
+    solvers: {
+      enigma: {
+        name: "Enigma",
+        address: "0x9be79D4977D86D440F9e1Ea0d468A58104B9b932",
+        url: "https://arb-staging.enigma.bz/api",
+        tpsl: {
+          url: "https://conditional-orders-handler-lowcap85.rasa.capital",
+          wsUrl: "wss://notification.rasa.capital/ws/v1/subscribe",
+          appName: "Hyper-EVM_COH-Low-Cap_Production",
+          cohWalletAddress: "0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31",
+        },
+        notifications: {
+          url: "wss://notification.rasa.capital/ws/v1/subscribe",
+          channel: "Arbitrum_Solver-Low-Cap_Stage",
+          protocol: "enigma",
+          searchUrl: "https://notification.rasa.capital/notification",
+        },
+        capabilities: { groupClose: true, listingService: true },
+      },
+    },
+    defaultSolverId: "enigma",
+    priceService: {
+      type: "enigma",
+      url: "https://lowcap-price.enigma.bz",
+      wsUrl: "wss://lowcap-price.enigma.bz/ws",
+    },
+    muon: {
+      urls: [
+        "https://muon-oracle1.rasa.capital/v1/",
+        "https://muon-oracle2.rasa.capital/v1/",
+        "https://muon-oracle3.rasa.capital/v1/",
+        "https://muon-oracle4.rasa.capital/v1/",
+      ],
+    },
+    listing: {
+      url: "https://listing85.enigma.bz",
+    },
+    inventory: {
+      url: "https://inventory85.enigma.bz",
+    },
+  },
 };

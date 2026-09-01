@@ -43,7 +43,7 @@ Solver selection is therefore a property _of the individual call_ and must be a 
 
 ### 2.1 Release-bound, not config-bound
 
-Each release of `@symmio/trading-core` supports **exactly one** contracts version — today `v0.8.5`, whose ABI fragments live under `src/symmio-contracts/abi/v0.8.5/` and are imported directly by actions. The folder name is a **label** of the shipped version, not a selection axis: there is no version enum, no `protocolVersion` field in config, and no version-pack registry — deliberately.
+Each release of `@symmio/trading-core` supports **exactly one** contracts version — today `v0.8.6`, whose ABI fragments live under `src/symmio-contracts/abi/v0.8.6/` and are imported directly by actions. The folder name is a **label** of the shipped version, not a selection axis: there is no version enum, no `protocolVersion` field in config, and no version-pack registry — deliberately.
 
 Upgrading to a new contracts version is a **new SDK release**:
 
@@ -72,7 +72,7 @@ export const INSTANT_LAYER_EIP712_DOMAIN_NAME = "SymmioInstantLayer" as const;
 export const INSTANT_LAYER_EIP712_DOMAIN_VERSION = "1" as const;
 ```
 
-That `"1"` is the **InstantLayer contract's on-chain EIP-712 domain version**. It is orthogonal to `"v0.8.5"` and moves on its own schedule.
+That `"1"` is the **InstantLayer contract's on-chain EIP-712 domain version**. It is orthogonal to `"v0.8.6"` and moves on its own schedule.
 
 If the domain version were assumed to track the contracts version, a contracts upgrade that legitimately keeps domain version `"1"` would sign against the wrong domain — and **every signature would fail to verify**, with no local error to explain it. The domain name and version are therefore **explicit, independently-reviewed constants**: at a contracts upgrade (§2.1), verify them against the deployed contract instead of bumping them alongside the ABI label.
 

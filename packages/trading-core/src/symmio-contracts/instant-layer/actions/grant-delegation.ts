@@ -2,7 +2,7 @@ import type { Address, Hash, Hex } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
-import { instantLayerAbi } from "../../abi/v0.8.5/instant-layer";
+import { instantLayerAbi } from "../../abi/v0.8.6/instant-layer";
 import type { InstantLayerAccount } from "../types";
 import { simulateGrantDelegation } from "./simulate-grant-delegation";
 

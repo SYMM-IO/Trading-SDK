@@ -68,6 +68,9 @@ const pending = await getPendingWithdrawRequests(config, { user });
   <Property name="totalVirtualAmount" type="bigint">
     Total amount delivered via virtual providers.
   </Property>
+  <Property name="advancedAmount" type="bigint">
+    Collateral already advanced to the provider before cooldown expiry (express credit-line flow).
+  </Property>
 </Returns>
 
 ## Query options

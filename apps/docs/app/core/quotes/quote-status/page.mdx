@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 # QuoteStatus
 
-The **on-chain** status of a quote. Names and ordering mirror `enum QuoteStatus` in [`QuoteStorage.sol`](https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/QuoteStorage.sol) (perps-core v0.8.5) exactly — all 11 members — so the `uint8` carried on a [`Quote`](/core/symmio-contract/get-quote) casts straight to this enum without translation.
+The **on-chain** status of a quote. Names and ordering mirror `enum QuoteStatus` in [`QuoteStorage.sol`](https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/storages/QuoteStorage.sol) (perps-core v0.8.6) exactly — all 11 members — so the `uint8` carried on a [`Quote`](/core/symmio-contract/get-quote) casts straight to this enum without translation.
 
 This is the field that says what a quote **is** and what can be done to it. A [`UnifiedQuote`](/core/quotes/unified-quote) carries it as `quoteStatus` whenever the row is anchored on-chain.
 

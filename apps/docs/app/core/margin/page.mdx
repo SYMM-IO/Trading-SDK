@@ -6,7 +6,7 @@ Everything a margin panel shows — total, maintenance and initial margin, equit
 
 ## The liquidation domain
 
-**Every figure describes exactly one account.** On SYMMIO, an account — a sub-account, or one of the Virtual Accounts a sub-account trades through — is liquidated on its own balance. The protocol's own test, from `LibAccount.partyAAvailableBalanceForLiquidation` in perps-core v0.8.5, is:
+**Every figure describes exactly one account.** On SYMMIO, an account — a sub-account, or one of the Virtual Accounts a sub-account trades through — is liquidated on its own balance. The protocol's own test, from `LibAccount.partyAAvailableBalanceForLiquidation` in perps-core v0.8.6, is:
 
 ```
 allocatedBalance − (lockedCVA + lockedLF) + upnl < 0

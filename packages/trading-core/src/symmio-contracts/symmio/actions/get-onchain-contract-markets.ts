@@ -1,6 +1,6 @@
 import type { Config } from "../../../core/config";
 import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
-import { symmioAbi } from "../../abi/v0.8.5/symmio";
+import { symmioAbi } from "../../abi/v0.8.6/symmio";
 
 /** On-chain market metadata returned by SYMMIO core `getSymbols`. */
 export interface OnchainContractMarket {

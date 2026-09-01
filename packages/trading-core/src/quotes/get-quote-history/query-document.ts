@@ -2,7 +2,7 @@ import { graphql } from "../../symmio-subgraph/types/generated/analytics";
 
 /**
  * History query over the immutable `quoteEvents` collection (SYMMIO subgraphs
- * v0.8.5+). Each row is one close/liquidation event with a frozen `metadata`
+ * v0.8.6+). Each row is one close/liquidation event with a frozen `metadata`
  * snapshot plus the (mutable) `quote` it belongs to — the snapshot is what makes
  * multiple partial-close rows of the same quote distinct.
  *

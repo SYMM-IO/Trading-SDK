@@ -1,6 +1,6 @@
 import { toFunctionSelector, type Abi, type AbiFunction, type Hex } from "viem";
-import { accountLayerAbi } from "../../../symmio-contracts/abi/v0.8.5/account-layer";
-import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.5/symmio";
+import { accountLayerAbi } from "../../../symmio-contracts/abi/v0.8.6/account-layer";
+import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.6/symmio";
 
 function selectorFromAbi(abi: Abi, name: string): Hex {
   const fragment = abi.find((item) => item.type === "function" && item.name === name) as AbiFunction | undefined;

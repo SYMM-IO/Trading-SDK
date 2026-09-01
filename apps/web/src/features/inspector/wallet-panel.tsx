@@ -2,6 +2,7 @@
 
 import { AddressTag } from "@/components/address-tag";
 import { StatusDot } from "@/components/status-dot";
+import { chainLabel } from "@/config/symmio-config-schema";
 import { ConnectWalletButton } from "@/features/wallet/connect-wallet-button";
 import { useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
@@ -20,7 +21,7 @@ import { Spinner } from "@symmio/ui/components/spinner";
  * the window is not).
  */
 export function WalletPanel() {
-  const { address, isConnected, isOnExpectedChain } = useWalletAccount();
+  const { address, chainId, isConnected, isOnExpectedChain } = useWalletAccount();
   const { disconnect } = useDisconnectWallet();
   const { switchChain, status: switchStatus } = useSwitchToSymmioChain();
 
@@ -42,7 +43,9 @@ export function WalletPanel() {
               <span data-testid="wallet-address" className="text-foreground text-sm font-medium">
                 {address ? <AddressTag address={address} /> : "Not connected"}
               </span>
-              {isConnected && isOnExpectedChain ? <Badge variant="positive">Connected</Badge> : null}
+              {isConnected && isOnExpectedChain ? (
+                <Badge variant="positive">Connected · {chainLabel(chainId ?? 0)}</Badge>
+              ) : null}
               {isConnected && !isOnExpectedChain ? <Badge variant="warning">Wrong network</Badge> : null}
             </div>
           </div>

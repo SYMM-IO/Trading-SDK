@@ -114,6 +114,7 @@ export const SUPPORTED_CHAIN_IDS: number[] = listSupportedChains();
 const CHAIN_LABELS: Record<number, string> = {
   [SymmioSupportedChainId.HYPER_EVM]: "HyperEVM",
   [SymmioSupportedChainId.BASE]: "Base",
+  [SymmioSupportedChainId.ARBITRUM]: "Arbitrum",
 };
 
 /** Human-readable name for a supported chain id. */
