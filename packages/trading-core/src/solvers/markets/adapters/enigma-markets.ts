@@ -57,6 +57,8 @@ function toEnigmaMarket(symbol: IdentifiedEnigmaSymbol): EnigmaMarket {
     tokenAddress: symbol.token_address ?? "",
     fundingRateEpochDuration: symbol.funding_rate_epoch_duration ?? "0",
     fundingRateWindowTime: symbol.funding_rate_window_time ?? "0",
+    minOpenSolverFeeCap: symbol.min_open_solver_fee_cap ?? "0",
+    minCloseSolverFeeCap: symbol.min_close_solver_fee_cap ?? "0",
   };
 }
 

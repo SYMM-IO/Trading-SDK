@@ -145,15 +145,15 @@ Three **Enigma-only** reads (each throws `UNSUPPORTED_BY_SOLVER` off Enigma, and
 
 ### `getSolverRevenue`
 
-Revenue totals for a trailing window — **protocol-wide by default**, or one market's share when `symbolId` is passed. Splits into a hedger-fee share and a funding share whose sum is `totalRevenue`, all as plain dollar `number`s (no decimal scaling). Full reference: **[Revenue](/core/solvers/revenue)**.
+One market's revenue totals for a trailing window — `symbolId` is required; the current solver generation serves no protocol-wide aggregate. Splits into a hedger-fee share and a funding share whose sum is `totalRevenue`, all as plain dollar `number`s (no decimal scaling). Full reference: **[Revenue](/core/solvers/revenue)**.
 
 ```ts
 import { getSolverRevenue } from "@symmio/trading-core";
 
-// Every market, since listing — the headline figure.
-const lifetime = await getSolverRevenue(config);
+// One market, since listing.
+const lifetime = await getSolverRevenue(config, { symbolId: 1 });
 
-// One market, trailing 24 hours. Always smaller than the protocol-wide total.
+// The same market, trailing 24 hours.
 const day = await getSolverRevenue(config, { symbolId: 1, timeRange: "24h" });
 ```
 

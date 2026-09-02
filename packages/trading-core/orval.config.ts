@@ -3,7 +3,13 @@ import { defineConfig } from "orval";
 export default defineConfig({
   enigmaSolver: {
     input: {
-      target: "https://solver.enigma.bz/api/swagger/doc.json",
+      // Arbitrum staging solver — the spec of record for the enigma generation
+      // this release targets (perps-core v0.8.6: adds the min open/close
+      // solver-fee-cap symbol fields, drops the protocol-wide `/revenue`,
+      // `/revenue/batch` and `/revenue/per-symbol` endpoints). The HyperEVM
+      // production solver (https://solver.enigma.bz/api/swagger/doc.json) still
+      // serves the previous generation; swap only with a matching SDK release.
+      target: "https://arb-staging.enigma.bz/api/swagger/doc.json",
     },
     output: {
       clean: true,

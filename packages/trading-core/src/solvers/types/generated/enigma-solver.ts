@@ -25,7 +25,9 @@ export interface ApiContractSymbol {
   max_quantity?: string;
   min_acceptable_portion_lf?: string;
   min_acceptable_quote_value?: string;
+  min_close_solver_fee_cap?: string;
   min_notional_value?: string;
+  min_open_solver_fee_cap?: string;
   name?: string;
   price_precision?: number;
   quantity_precision?: number;
@@ -311,23 +313,6 @@ export interface ApiPostInstantOpenResponse {
   temp_quote_id?: number;
 }
 
-export interface ApiRevenueBySymbolItem {
-  funding_revenue?: string;
-  hedger_fee_revenue?: string;
-  record_count?: number;
-  symbol?: string;
-  symbol_id?: number;
-  total_revenue?: string;
-}
-
-export interface ApiRevenueBatchPerSymbolResponse {
-  funding_revenue?: string;
-  hedger_fee_revenue?: string;
-  record_count?: number;
-  symbols?: ApiRevenueBySymbolItem[];
-  total_revenue?: string;
-}
-
 export interface ApiRevenueRecordItem {
   amount?: string;
   created_at?: string;
@@ -364,7 +349,9 @@ export interface ApiSymbolResponse {
   max_quantity?: string;
   min_acceptable_portion_lf?: string;
   min_acceptable_quote_value?: string;
+  min_close_solver_fee_cap?: string;
   min_notional_value?: string;
+  min_open_solver_fee_cap?: string;
   name?: string;
   price_precision?: number;
   quantity_precision?: number;
@@ -514,74 +501,9 @@ export type GetQuotesParams = {
   offset?: number;
 };
 
-export type GetRevenueParams = {
-  /**
-   * Preset range (1h, 24h, 7d, 30d, lifetime)
-   */
-  time_range?: string;
-  /**
-   * Revenue type filter (HedgerFee, FundingRate)
-   */
-  type?: string;
-  /**
-   * Unix timestamp start (overrides time_range)
-   */
-  start_time?: number;
-  /**
-   * Unix timestamp end
-   */
-  end_time?: number;
-};
-
-export type GetRevenueBatchParams = {
-  /**
-   * Symbol IDs (max 100)
-   */
-  symbol_ids: number[];
-  /**
-   * Preset range (1h, 24h, 7d, 30d, lifetime)
-   */
-  time_range?: string;
-  /**
-   * Revenue type filter (HedgerFee, FundingRate)
-   */
-  type?: string;
-  /**
-   * Unix timestamp start (overrides time_range)
-   */
-  start_time?: number;
-  /**
-   * Unix timestamp end
-   */
-  end_time?: number;
-};
-
-export type GetRevenuePerSymbolParams = {
-  /**
-   * Symbol IDs (max 100)
-   */
-  symbol_ids: number[];
-  /**
-   * Preset range (1h, 24h, 7d, 30d, lifetime)
-   */
-  time_range?: string;
-  /**
-   * Revenue type filter (HedgerFee, FundingRate)
-   */
-  type?: string;
-  /**
-   * Unix timestamp start (overrides time_range)
-   */
-  start_time?: number;
-  /**
-   * Unix timestamp end
-   */
-  end_time?: number;
-};
-
 export type GetRevenueRecordsParams = {
   /**
-   * Last seen revenue record ID
+   * Last seen income-history record ID
    */
   id?: number;
   /**
@@ -801,7 +723,7 @@ export const getInstantTradeEip712Config = (
  * - `remove_margin` — withdraw allocated margin from an existing VirtualAccount via AccountLayer.removeMargin. Requires `operation`.
  * - `delegate_access_for_session_key` — grant a delegate signer access for one or more allowlisted selectors via InstantLayer.grantBatchDelegationBySig. Requires `delegation`.
  *
- * Exactly one of `operation` or `delegation` must be present per request. Delegation selectors are restricted to: `sendQuoteWithAffiliateAndData`, `requestToClosePosition`, `addMarginToNextVA`, `addMargin`, `removeMargin`, `allocate`, `deallocate`, `safeDeallocate`, `initiateWithdraw`, `finalizeWithdrawRequest`, `requestCancelWithdraw`.
+ * Exactly one of `operation` or `delegation` must be present per request. Delegation selectors are restricted to: `sendQuote`, `requestToClosePosition`, `addMarginToNextVA`, `addMargin`, `removeMargin`, `allocate`, `deallocate`, `safeDeallocate`, `initiateWithdraw`, `finalizeWithdrawRequest`, `requestCancelWithdraw`.
  *
  * Each PartyA is limited to `GASLESS_DAILY_MAX` accepted attempts per UTC day (default 5). The counter is consumed on every attempt past basic validation, regardless of downstream success or failure; the `dailyRemaining` field in the response reports the user's remaining quota.
  * @summary Submit a gasless operation
@@ -894,49 +816,7 @@ export const getQuotes = (
 };
 
 /**
- * Returns total, hedger-fee, and funding-rate revenue. Filterable by time_range or custom start/end timestamps.
- * @summary Get aggregated revenue for all symbols
- */
-export const getRevenue = (
-  params?: GetRevenueParams,
-  options?: AxiosRequestConfig,
-): Promise<AxiosResponse<ApiRevenueResponse>> => {
-  return axios.get(`/revenue`, {
-    ...options,
-    params: { ...params, ...options?.params },
-  });
-};
-
-/**
- * Returns total, hedger-fee, and funding-rate revenue for a set of symbols. Pass symbol_ids as a comma-separated list or repeated query params (max 100).
- * @summary Get aggregated revenue for multiple symbols
- */
-export const getRevenueBatch = (
-  params: GetRevenueBatchParams,
-  options?: AxiosRequestConfig,
-): Promise<AxiosResponse<ApiRevenueResponse>> => {
-  return axios.get(`/revenue/batch`, {
-    ...options,
-    params: { ...params, ...options?.params },
-  });
-};
-
-/**
- * Returns aggregated revenue totals AND a per-symbol breakdown for the requested symbol_ids. Each item in `symbols` carries symbol_id, symbol name, and the same revenue dimensions returned at the top level. Symbols with no rows in the filter window are omitted; entries follow the request's symbol_ids order. Pass symbol_ids as a comma-separated list or repeated query params (max 100).
- * @summary Get aggregated revenue plus per-symbol breakdown
- */
-export const getRevenuePerSymbol = (
-  params: GetRevenuePerSymbolParams,
-  options?: AxiosRequestConfig,
-): Promise<AxiosResponse<ApiRevenueBatchPerSymbolResponse>> => {
-  return axios.get(`/revenue/per-symbol`, {
-    ...options,
-    params: { ...params, ...options?.params },
-  });
-};
-
-/**
- * Returns revenue rows with id greater than the supplied last-seen id. Results are ordered by id ascending before offset/limit pagination. `count` is the total matching record count before pagination. Pass symbolIds as a comma-separated list or repeated query params to filter by symbol; omit it or pass it empty to disable symbol filtering.
+ * Returns revenue-bearing income-history rows with id greater than the supplied last-seen income_history id. Results use block time as created_at and are ordered by id ascending before offset/limit pagination. `count` is the total matching record count before pagination. Pass symbolIds as a comma-separated list or repeated query params to filter by symbol; omit it or pass it empty to disable symbol filtering.
  * @summary Get incremental revenue records
  */
 export const getRevenueRecords = (
@@ -950,7 +830,7 @@ export const getRevenueRecords = (
 };
 
 /**
- * Returns total, hedger-fee, and funding-rate revenue for one symbol. Filterable by time_range or custom timestamps.
+ * Returns income-history open/close solver fees and funding fees for one symbol using block timestamps. Filterable by time_range or custom timestamps.
  * @summary Get aggregated revenue for a specific symbol
  */
 export const getRevenueSymbolId = (
@@ -1033,9 +913,6 @@ export type GetNotionalCapResult = AxiosResponse<ApiNotionalCapAllSymbolsRespons
 export type GetNotionalCapBatchResult = AxiosResponse<ApiNotionalCapAllSymbolsResponse>;
 export type GetNotionalCapSymbolIdResult = AxiosResponse<ApiNotionalCapBySymbolResponse>;
 export type GetQuotesResult = AxiosResponse<ApiGetQuotesResponse>;
-export type GetRevenueResult = AxiosResponse<ApiRevenueResponse>;
-export type GetRevenueBatchResult = AxiosResponse<ApiRevenueResponse>;
-export type GetRevenuePerSymbolResult = AxiosResponse<ApiRevenueBatchPerSymbolResponse>;
 export type GetRevenueRecordsResult = AxiosResponse<ApiRevenueRecordsResponse>;
 export type GetRevenueSymbolIdResult = AxiosResponse<ApiRevenueResponse>;
 export type GetStatsResult = AxiosResponse<ApiGetStatsResponse>;

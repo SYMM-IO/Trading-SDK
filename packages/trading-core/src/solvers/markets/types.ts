@@ -67,6 +67,10 @@ export interface EnigmaMarket extends BaseMarket {
   fundingRateEpochDuration: string;
   /** Funding-rate window time. Enigma-only. */
   fundingRateWindowTime: string;
+  /** Minimum solver-fee cap a quote must allow on open, as a decimal string (perps-core v0.8.6 solver fees). Enigma-only. */
+  minOpenSolverFeeCap: string;
+  /** Minimum solver-fee cap a quote must allow on close, as a decimal string (perps-core v0.8.6 solver fees). Enigma-only. */
+  minCloseSolverFeeCap: string;
 }
 
 /**

@@ -20,7 +20,7 @@ A pools screen looks like a single product and is assembled from three independe
 | Catalog rows — per-pool `tvl`, `apr`, `liquidity` | Listing backend ([`getListingMarkets`](/core/pools))                                   |
 | Headline system TVL                               | **Inventory service** ([`getInventoryTvl`](/core/inventory/tvl))                       |
 | One pool's TVL over time                          | The same service, per market ([`getInventoryTvlHistory`](/core/inventory/tvl-history)) |
-| Revenue totals                                    | The solver ([`getSolverRevenue`](/core/solvers/revenue))                               |
+| Per-market revenue totals                         | The solver ([`getSolverRevenue`](/core/solvers/revenue))                               |
 | Per-market volume and open-interest caps          | The solver again, on separate endpoints ([Solvers](/core/solvers))                     |
 
 Separate deployments mean separate refresh cadences and separate failure modes. A UI that treats them as one surface blocks the whole page on its slowest service, and reads a mismatch between the headline TVL and the catalog's `tvl` column as an arithmetic error rather than as what it is — see [Not the sum of the catalog](/core/inventory/tvl#not-the-sum-of-the-catalog).

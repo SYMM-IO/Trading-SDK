@@ -102,12 +102,12 @@ const impact = data
 
 ### `useSolverRevenue`
 
-What the solver **earned** — protocol-wide by default. `symbolId` narrows the totals to a single market, and leaving it off is what makes the figure a true aggregate: the reference UI hardcodes market `1` on its overview and therefore under-reports the protocol.
+What the solver **earned on one market**. `symbolId` is required: the current solver generation serves revenue per market only — the protocol-wide `/revenue` aggregate no longer exists. For a multi-market figure, mount one read per market and label the sum with the markets it covers.
 
 ```ts
-const lifetime = useSolverRevenue(); // every market, lifetime
-const day = useSolverRevenue({ timeRange: "24h" }); // every market, trailing 24h
-const market = useSolverRevenue({ symbolId: 1, timeRange: "7d" }); // one market only
+const lifetime = useSolverRevenue({ symbolId: 1 }); // market 1, lifetime
+const day = useSolverRevenue({ symbolId: 1, timeRange: "24h" }); // market 1, trailing 24h
+const week = useSolverRevenue({ symbolId: 1, timeRange: "7d" }); // market 1, trailing 7 days
 ```
 
 `timeRange` is a closed set — `"1h" | "24h" | "7d" | "30d" | "lifetime"`. The solver validates it and rejects anything else with `TimeRange must be one of [1h 24h 7d 30d lifetime]`. Omit it and the SDK sends no window at all, letting the solver apply its own default, which is `lifetime`.

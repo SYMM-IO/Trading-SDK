@@ -37,6 +37,8 @@ describe("toEnigmaMarkets", () => {
       token_address: "0xabc",
       funding_rate_epoch_duration: "3600",
       funding_rate_window_time: "60",
+      min_open_solver_fee_cap: "0.5",
+      min_close_solver_fee_cap: "0.25",
     };
 
     expect(toEnigmaMarkets([raw])).toEqual([
@@ -66,6 +68,8 @@ describe("toEnigmaMarkets", () => {
         tokenAddress: "0xabc",
         fundingRateEpochDuration: "3600",
         fundingRateWindowTime: "60",
+        minOpenSolverFeeCap: "0.5",
+        minCloseSolverFeeCap: "0.25",
       },
     ]);
   });
@@ -98,6 +102,8 @@ describe("toEnigmaMarkets", () => {
       tokenAddress: "",
       fundingRateEpochDuration: "0",
       fundingRateWindowTime: "0",
+      minOpenSolverFeeCap: "0",
+      minCloseSolverFeeCap: "0",
     });
   });
 

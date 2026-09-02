@@ -69,4 +69,8 @@ export interface SolverSymbol {
   stateLong: number;
   /** Short-side trading state: `0` Disabled, `1` Close only, `2` Open only, `3` Fully enabled. */
   stateShort: number;
+  /** Minimum solver-fee cap a quote must allow on open, as a decimal string (perps-core v0.8.6 solver fees). */
+  minOpenSolverFeeCap: string;
+  /** Minimum solver-fee cap a quote must allow on close, as a decimal string (perps-core v0.8.6 solver fees). */
+  minCloseSolverFeeCap: string;
 }

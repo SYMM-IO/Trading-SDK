@@ -38,6 +38,8 @@ const RESULT = [
     fundingRateWindowTime: "0",
     stateLong: 3,
     stateShort: 3,
+    minOpenSolverFeeCap: "0",
+    minCloseSolverFeeCap: "0",
   },
 ] satisfies GetSymbolsReturnType;
 

@@ -1385,15 +1385,16 @@ The shift is `share * (entered - prior)` — exact to first order, because the p
 
 ## Overview aggregates
 
-The catalogue is only the table. The figures a pools page puts **above** it — TVL, volume, open interest, revenue, the pool count — are not in a `ListingMarket` and are not served by the listing backend at all. Five figures, five requests, and three different vendors behind them:
+The catalogue is only the table. The figures a pools page puts **above** it — TVL, volume, open interest, the pool count — are not in a `ListingMarket` and are not served by the listing backend at all. Four figures, four requests, and three different vendors behind them:
 
 | Figure                    | Hook                                                     | Served by                                           |
 | ------------------------- | -------------------------------------------------------- | --------------------------------------------------- |
 | Custodial TVL             | [`useInventoryTvl`](../inventory)                        | Inventory service — `/api/v1/markets/tvl-aggregate` |
 | Volume, 24h + lifetime    | [`useMarketInfo`](../markets#usemarketinfo)              | The solver — `/get_market_info`                     |
 | Open + available notional | [`useNotionalCapAll`](../notional-cap#usenotionalcapall) | The solver — `/notional_cap`                        |
-| Revenue                   | [`useSolverRevenue`](../solvers#usesolverrevenue)        | The solver — `/revenue`                             |
 | Pool count                | [`useListingMarkets`](#uselistingmarkets) → `data.total` | Listing backend — `/v2/market/search`               |
+
+Revenue is no longer one of them: the current solver generation serves revenue **per market only** (`/revenue/{symbolId}`), so [`useSolverRevenue`](../solvers#usesolverrevenue) belongs on the pool-detail row next to volume — keyed by the pool's `symbolId` — not in the headline strip.
 
 Three deployments — the listing backend, the inventory service, and the solver — each with its own host in the chain config, its own latency, and its own way of failing. Render them as separate cards with their own loading and error states: one slow vendor should not blank the figures the other two already returned, and one 500 should not take the page down.
 
@@ -1402,7 +1403,7 @@ Four things about these numbers that are easy to get wrong:
 - **The scales are not the same.** `useInventoryTvl` returns an 18-decimal `bigint`, exactly like a catalogue row's `tvl`. The solver's figures — volume, notional, revenue — are plain dollar `number`s with **no** scaling. Running a solver figure through `formatUnits` divides it by `1e18`; running a TVL through a currency formatter without descaling prints an astronomical number.
 - **Headline TVL is not the sum of the column.** `useInventoryTvl` covers the whole custodial system; the catalogue's per-pool `tvl` covers listed markets. The two will not agree, and the mismatch is not an arithmetic bug.
 - **The volume totals are Enigma-only.** `useMarketInfo` returns a union — narrow on `data.kind === "enigma"` before reading `totalValue24h` / `totalLifetimeValue`. A rasa-kind solver reports per-market rows and no aggregates at all, so render "unsupported", not `$0`.
-- **Revenue is protocol-wide only if you leave `symbolId` off.** Passing one narrows the totals to a single market — the trap the reference UI falls into on its own overview, where a hardcoded market id makes lifetime revenue read as a fraction of the protocol's.
+- **A revenue figure is one market's, never the protocol's.** `useSolverRevenue` requires a `symbolId` and answers for that market alone — if you sum several markets, label the result with the markets it covers rather than calling it protocol revenue.
 
 The pool count comes from `data.total`, never `data.items.length`: `total` is the match count across every page for the current filters, while `items` is just the page in hand.
 

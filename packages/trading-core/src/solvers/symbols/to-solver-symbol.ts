@@ -59,5 +59,7 @@ function toSolverSymbol(symbol: IdentifiedSymbol): SolverSymbol {
     fundingRateWindowTime: symbol.funding_rate_window_time ?? "0",
     stateLong: symbol.state_long ?? 0,
     stateShort: symbol.state_short ?? 0,
+    minOpenSolverFeeCap: symbol.min_open_solver_fee_cap ?? "0",
+    minCloseSolverFeeCap: symbol.min_close_solver_fee_cap ?? "0",
   };
 }

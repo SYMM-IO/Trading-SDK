@@ -117,7 +117,6 @@ test("each protocol aggregate card settles against its own service", async ({ pa
     { card: "pools-tvl", value: "pools-tvl-value", error: "pools-tvl-error" },
     { card: "pools-volume", value: "pools-volume-24h", error: "pools-volume-error" },
     { card: "pools-open-interest", value: "pools-open-interest-used", error: "pools-open-interest-error" },
-    { card: "pools-revenue", value: "pools-revenue-lifetime", error: "pools-revenue-error" },
   ];
 
   for (const { card, value, error } of cards) {
@@ -137,16 +136,39 @@ test("each protocol aggregate card settles against its own service", async ({ pa
   }
 });
 
-test("revenue is protocol-wide, and splits into shares that sum to the total", async ({ page }) => {
+test("a pool's revenue settles against the solver, and names its shares", async ({ page }) => {
+  test.setTimeout(60_000);
   await page.goto(POOLS_URL);
 
-  const lifetime = page.getByTestId("pools-revenue-lifetime");
-  await expect(lifetime).toContainText(/\$[\d,.]/, { timeout: 30_000 });
+  /** Idle until a pool is picked — the hook gates on the pool's solver market id. */
+  await expect(page.getByTestId("pool-revenue-idle")).toBeVisible({ timeout: 30_000 });
 
-  /** The hint names both dimensions and the row count behind them. */
-  await expect(lifetime).toContainText("fees");
-  await expect(lifetime).toContainText("funding");
-  await expect(lifetime).toContainText("records");
+  await pickSeriesPool(page);
+
+  /**
+   * Settled means a dollar figure, the unlisted note, or a rendered error —
+   * live third-party service, same policy as the aggregate cards above.
+   */
+  await expect
+    .poll(
+      async () => {
+        if ((await page.getByTestId("pool-revenue-error").count()) > 0) return "error";
+        if ((await page.getByTestId("pool-revenue-unlisted").count()) > 0) return "unlisted";
+        const figure = page.getByTestId("pool-revenue-lifetime");
+        if ((await figure.count()) === 0) return "pending";
+        return /\$[\d,.]/.test(await figure.innerText()) ? "figure" : "pending";
+      },
+      { timeout: 45_000 },
+    )
+    .not.toBe("pending");
+
+  /** When the figure lands, the hint names both shares and the row count behind them. */
+  const lifetime = page.getByTestId("pool-revenue-lifetime");
+  if ((await lifetime.count()) > 0 && /\$[\d,.]/.test(await lifetime.innerText())) {
+    await expect(lifetime).toContainText("fees");
+    await expect(lifetime).toContainText("funding");
+    await expect(lifetime).toContainText("records");
+  }
 });
 
 /**

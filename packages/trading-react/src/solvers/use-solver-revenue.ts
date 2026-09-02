@@ -19,23 +19,25 @@ export type UseSolverRevenueParameters = GetSolverRevenueOptions & ConfigParamet
 export type UseSolverRevenueReturnType = UseQueryResult<GetSolverRevenueReturnType, SymmioRequestError>;
 
 /**
- * Read revenue totals from the connected chain's solver — **protocol-wide by
- * default**, or for a single market when `symbolId` is passed.
+ * Read one market's revenue totals from the connected chain's solver.
  *
  * The result splits into a hedger-fee share and a funding share whose sum is
  * `totalRevenue`, all as plain dollar numbers. `recordCount` separates "this
  * window earned nothing" from "there is no data for this window".
+ *
+ * `symbolId` is required: the current solver generation serves revenue **per
+ * market only** — the protocol-wide `/revenue` aggregate no longer exists.
  *
  * Enigma-only; a rasa-kind solver fails with `UNSUPPORTED_BY_SOLVER`. Errors are
  * normalized to {@link SymmioRequestError}.
  *
  * @example
  * ```tsx
- * const lifetime = useSolverRevenue();
- * const day = useSolverRevenue({ timeRange: "24h" });
+ * const lifetime = useSolverRevenue({ symbolId: 1 });
+ * const day = useSolverRevenue({ symbolId: 1, timeRange: "24h" });
  * ```
  */
-export function useSolverRevenue(parameters: UseSolverRevenueParameters = {}): UseSolverRevenueReturnType {
+export function useSolverRevenue(parameters: UseSolverRevenueParameters): UseSolverRevenueReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const options = getSolverRevenueQueryOptions(config, {
