@@ -10,6 +10,7 @@ export * from "./use-instant-open-auto";
 export * from "./use-instant-open-quote-id";
 export * from "./use-instant-open-with-tpsl";
 export * from "./use-instant-opens";
+export * from "./use-instant-trade-required-selectors";
 export * from "./use-is-delegation-active";
 export * from "./use-limit-close-auto";
 export * from "./use-limit-open-auto";

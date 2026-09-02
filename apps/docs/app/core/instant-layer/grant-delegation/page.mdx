@@ -23,7 +23,11 @@ const hash = await grantDelegation(config, {
     Signer that may call the selected Instant Layer functions.
   </Property>
   <Property name="selectors" type="readonly Hex[]" required>
-    Function selectors (`bytes4[]`) to grant.
+    Function selectors (`bytes4[]`) to grant. For the instant-trade lifecycle, resolve the chain's set with
+    `getInstantTradeRequiredSelectors(config, {chainId})` — the open-leg selector is per-chain (`sendQuote` on a
+    perps-core v0.8.6 chain, the legacy `sendQuoteWithAffiliateAndData` on v0.8.5). The static sets
+    (`INSTANT_TRADE_REQUIRED_SELECTORS` / `LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS`) are exported for single-chain
+    flows.
   </Property>
   <Property name="expiryTimestamp" type="bigint" required>
     Expiry timestamp in seconds.

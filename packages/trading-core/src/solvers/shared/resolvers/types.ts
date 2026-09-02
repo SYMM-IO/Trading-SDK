@@ -10,4 +10,8 @@ export interface ResolvedMarket {
   name: string;
   pricePrecision: number;
   quantityPrecision: number;
+  /** Present when resolved with `includeSolverFeeCaps`. Decimal ratio string; `"0"` for kinds without caps. */
+  minOpenSolverFeeCap?: string;
+  /** Present when resolved with `includeSolverFeeCaps`. Decimal ratio string; `"0"` for kinds without caps. */
+  minCloseSolverFeeCap?: string;
 }

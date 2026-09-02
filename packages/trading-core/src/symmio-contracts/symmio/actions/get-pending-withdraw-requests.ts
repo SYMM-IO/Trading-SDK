@@ -2,6 +2,7 @@ import type { Address } from "viem";
 import type { Config } from "../../../core/config";
 import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
+import { getPendingWithdrawRequestsAbiV085 } from "../internal/withdraw-requests-v0-8-5";
 import type { WithdrawRequest } from "../types";
 
 /**
@@ -53,12 +54,19 @@ export async function getPendingWithdrawRequests(
 ): Promise<GetPendingWithdrawRequestsReturnType> {
   const { chainId, user, start = 1n, size = 200n } = parameters;
 
-  const { addresses } = config.getChainConfig(chainId);
+  const { addresses, contractsVersion } = config.getChainConfig(chainId);
   const client = config.getClient({ chainId });
+
+  /**
+   * The output struct grew in v0.8.6 (`advancedAmount`), so a v0.8.5 chain's
+   * response is decoded with the v0.8.5 fragment and returned as-is —
+   * `advancedAmount` stays `undefined` there, per the version-grown-field rule.
+   */
+  const abi = contractsVersion === "0.8.5" ? getPendingWithdrawRequestsAbiV085 : symmioAbi;
 
   return client.readContract({
     address: addresses.symmioAddress,
-    abi: symmioAbi,
+    abi,
     functionName: "getPendingWithdrawRequests",
     args: [user, start, size],
   });

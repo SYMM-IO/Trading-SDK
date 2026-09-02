@@ -78,6 +78,55 @@ describe("prepareInstantOpenParams", () => {
     expect(result.solverId).toBe("rasa");
   });
 
+  it("asks resolveMarket for the solver-fee caps on a v0.8.6 chain and converts them to 18-decimal wei", async () => {
+    /** Same synthetic chain, restated as a v0.8.6 deployment via the override merge. */
+    const cappedConfig = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: {
+        [SymmioSupportedChainId.BASE]: {
+          contractsVersion: "0.8.6",
+          addresses: { affiliatesAddress: AFFILIATE },
+        },
+      },
+    });
+    resolveMarket.mockResolvedValue({
+      name: "BTCUSDT",
+      pricePrecision: 2,
+      quantityPrecision: 3,
+      minOpenSolverFeeCap: "0.0005",
+      minCloseSolverFeeCap: "0.0003",
+    });
+
+    const result = await prepareInstantOpenParams(cappedConfig, PARAMS);
+
+    expect(resolveMarket).toHaveBeenCalledWith(cappedConfig, expect.objectContaining({ includeSolverFeeCaps: true }));
+    expect(result.solverFeeCaps).toEqual({ openRateCap: 500000000000000n, closeRateCap: 300000000000000n });
+  });
+
+  it("does not ask for the solver-fee caps on a v0.8.5 chain (no fetch to force for them)", async () => {
+    await prepareInstantOpenParams(config, PARAMS);
+
+    expect(resolveMarket).toHaveBeenCalledWith(config, expect.objectContaining({ includeSolverFeeCaps: false }));
+  });
+
+  it("forwards pre-filled solver-fee caps from the market data to resolveMarket", async () => {
+    await prepareInstantOpenParams(config, {
+      ...PARAMS,
+      market: { id: 1, minOpenSolverFeeCap: "0.001", minCloseSolverFeeCap: "0.002" },
+    });
+
+    expect(resolveMarket).toHaveBeenCalledWith(
+      config,
+      expect.objectContaining({ minOpenSolverFeeCap: "0.001", minCloseSolverFeeCap: "0.002" }),
+    );
+  });
+
+  it("defaults the solver-fee caps to zero when the resolver returns none", async () => {
+    const result = await prepareInstantOpenParams(config, PARAMS);
+
+    expect(result.solverFeeCaps).toEqual({ openRateCap: 0n, closeRateCap: 0n });
+  });
+
   it("leaves solverId undefined when the caller omits it, so the chain default applies", async () => {
     const result = await prepareInstantOpenParams(config, PARAMS);
 

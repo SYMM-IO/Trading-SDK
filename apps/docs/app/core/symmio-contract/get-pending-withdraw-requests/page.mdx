@@ -68,8 +68,10 @@ const pending = await getPendingWithdrawRequests(config, { user });
   <Property name="totalVirtualAmount" type="bigint">
     Total amount delivered via virtual providers.
   </Property>
-  <Property name="advancedAmount" type="bigint">
-    Collateral already advanced to the provider before cooldown expiry (express credit-line flow).
+  <Property name="advancedAmount" type="bigint" optional>
+    Collateral already advanced to the provider before cooldown expiry (express credit-line flow). Added in perps-core
+    v0.8.6 — **`undefined` on a `contractsVersion: "0.8.5"` chain**, whose contracts predate withdraw advances; the SDK
+    decodes the legacy struct there and adds nothing to it.
   </Property>
 </Returns>
 

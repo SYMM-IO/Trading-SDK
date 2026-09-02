@@ -10,7 +10,7 @@ import {
 import { SymmError } from "../../../shared/errors/symm-error";
 import { accountLayerAbi } from "../../../symmio-contracts/abi/v0.8.6/account-layer";
 import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.6/symmio";
-import type { UpnlSig, VirtualAccountIsolationType } from "./types";
+import type { SolverFeeCaps, UpnlSig, VirtualAccountIsolationType } from "./types";
 
 /**
  * Zeroed Muon oracle signature used by lowcap flows that bypass Muon verification.
@@ -122,7 +122,12 @@ export interface EncodeSendQuoteWithAffiliateAndDataParameters {
 }
 
 /**
- * Encode calldata for `Symmio.sendQuoteWithAffiliateAndData(...)`.
+ * Encode calldata for the legacy `Symmio.sendQuoteWithAffiliateAndData(...)`.
+ *
+ * Kept for the **Rasa** flow. On perps-core v0.8.6 this method remains
+ * available with its original selector but stores **zero solver-fee caps** —
+ * a solver that requires fee caps will not accept quotes sent through it; use
+ * {@link encodeSendQuote} for those (the Enigma flow does).
  *
  * Pass a real `upnlSig` for solvers requiring Muon verification, or omit to
  * default to {@link ZERO_UPNL_SIG} (lowcap).
@@ -162,8 +167,71 @@ export function encodeSendQuoteWithAffiliateAndData(parameters: EncodeSendQuoteW
   });
 }
 
+/** Zeroed solver-fee caps: the quote authorizes no solver fee on either side. */
+const ZERO_SOLVER_FEE_CAPS: SolverFeeCaps = { openRateCap: 0n, closeRateCap: 0n };
+
 /**
- * Build the metadata blob attached to a `sendQuoteWithAffiliateAndData` call.
+ * Parameters for {@link encodeSendQuote}: the legacy parameter set plus the
+ * v0.8.6 solver-fee caps.
+ */
+export interface EncodeSendQuoteParameters extends EncodeSendQuoteWithAffiliateAndDataParameters {
+  /**
+   * Solver-fee rate caps authorized on the quote (18-decimal ratios). Defaults
+   * to zero caps — semantically identical to the legacy method, which a
+   * fee-charging solver may reject; fill from the market's
+   * `minOpenSolverFeeCap` / `minCloseSolverFeeCap`.
+   */
+  solverFeeCaps?: SolverFeeCaps;
+}
+
+/**
+ * Encode calldata for `Symmio.sendQuote(...)` — the perps-core v0.8.6 overload
+ * that carries `SolverFeeCaps` as its trailing argument. Identical to
+ * {@link encodeSendQuoteWithAffiliateAndData} otherwise.
+ *
+ * Pass a real `upnlSig` for solvers requiring Muon verification, or omit to
+ * default to {@link ZERO_UPNL_SIG} (lowcap).
+ */
+export function encodeSendQuote(parameters: EncodeSendQuoteParameters): Hex {
+  const sig = parameters.upnlSig ?? ZERO_UPNL_SIG;
+  const caps = parameters.solverFeeCaps ?? ZERO_SOLVER_FEE_CAPS;
+  return encodeFunctionData({
+    abi: symmioAbi,
+    functionName: "sendQuote",
+    args: [
+      [...parameters.partyBsWhiteList],
+      parameters.symbolId,
+      parameters.positionType,
+      parameters.orderType,
+      parameters.price,
+      parameters.quantity,
+      parameters.cva,
+      parameters.lf,
+      parameters.partyAmm,
+      parameters.partyBmm,
+      parameters.deadline,
+      parameters.affiliate,
+      {
+        reqId: sig.reqId,
+        timestamp: sig.timestamp,
+        upnl: sig.upnl,
+        price: sig.price,
+        gatewaySignature: sig.gatewaySignature,
+        sigs: {
+          signature: sig.sigs.signature,
+          owner: sig.sigs.owner,
+          nonce: sig.sigs.nonce,
+        },
+      },
+      parameters.data,
+      { openRateCap: caps.openRateCap, closeRateCap: caps.closeRateCap },
+    ],
+  });
+}
+
+/**
+ * Build the metadata blob attached to a quote-send call (`sendQuote`, or the
+ * legacy `sendQuoteWithAffiliateAndData`).
  *
  * Encodes a single-field tuple `{ uuid: string }` to ABI bytes — used by the
  * solver to track quote provenance.
@@ -175,29 +243,27 @@ export function buildQuoteMetadata(uuid: string): Hex {
 }
 
 /**
- * Argument indices of `upnlSig` and `data` in `sendQuoteWithAffiliateAndData`,
- * derived from the shipped ABI rather than hardcoded.
+ * Argument indices of `upnlSig` and `data` in `sendQuote`, derived from the
+ * shipped ABI rather than hardcoded.
  *
  * Both arguments are dynamic (the signature tuple contains two `bytes` members;
  * `data` is `bytes`), so their head words hold tail pointers, and the ABI writes
  * tails in argument order — which is what makes {@link sendQuoteUpnlSigFlexRange}
- * able to derive the region size from the difference. Reading the indices from
- * the ABI means a contract upgrade that reorders the arguments surfaces here at
+ * able to derive the region size from the difference. The trailing
+ * `solverFeeCaps` tuple is static (two `uint256`s inlined after `data`'s head),
+ * so it has no tail and never shifts these words. Reading the indices from the
+ * ABI means a contract upgrade that reorders the arguments surfaces here at
  * module load instead of silently producing a wrong byte range.
  *
  * @internal
  */
 const SEND_QUOTE_ARG_INDICES = (() => {
   const fragment = symmioAbi.find(
-    (entry): entry is Extract<(typeof symmioAbi)[number], { name: "sendQuoteWithAffiliateAndData" }> =>
-      entry.type === "function" && entry.name === "sendQuoteWithAffiliateAndData",
+    (entry): entry is Extract<(typeof symmioAbi)[number], { name: "sendQuote" }> =>
+      entry.type === "function" && entry.name === "sendQuote",
   );
   if (!fragment) {
-    throw new SymmError(
-      "config",
-      "SEND_QUOTE_ABI_MISSING",
-      "The shipped SYMMIO ABI has no `sendQuoteWithAffiliateAndData` function.",
-    );
+    throw new SymmError("config", "SEND_QUOTE_ABI_MISSING", "The shipped SYMMIO ABI has no `sendQuote` function.");
   }
   const inputs = fragment.inputs as readonly { name?: string }[];
   const upnlSig = inputs.findIndex((input) => input.name === "upnlSig");
@@ -206,7 +272,7 @@ const SEND_QUOTE_ARG_INDICES = (() => {
     throw new SymmError(
       "config",
       "SEND_QUOTE_ABI_MISSING",
-      "`sendQuoteWithAffiliateAndData` is missing its `upnlSig` or `data` argument in the shipped ABI.",
+      "`sendQuote` is missing its `upnlSig` or `data` argument in the shipped ABI.",
     );
   }
   return { upnlSig, data };
@@ -230,8 +296,8 @@ export interface SendQuoteUpnlSigFlexRange {
 }
 
 /**
- * Locate the encoded `upnlSig` region inside `sendQuoteWithAffiliateAndData`
- * calldata, so it can be delegated to a solver via a `FlexField`.
+ * Locate the encoded `upnlSig` region inside `sendQuote` calldata, so it can be
+ * delegated to a solver via a `FlexField`.
  *
  * Lowcap solvers sign the quote with a placeholder signature
  * ({@link getFakeSendQuoteMuonSignature}) and authorize the solver to overwrite
@@ -243,14 +309,14 @@ export interface SendQuoteUpnlSigFlexRange {
  * of the signature's tail. The offset therefore varies with earlier dynamic
  * arguments (notably `partyBsWhiteList` length) and must never be hardcoded.
  *
- * @param callData - Encoded `sendQuoteWithAffiliateAndData` calldata.
+ * @param callData - Encoded `sendQuote` calldata.
  * @returns The `upnlSig` region as an args-relative offset and byte length.
  * @throws {SymmError} when `callData` is too short to contain both head words,
  *   or the pointers are not ordered as the encoding guarantees.
  *
  * @example
  * ```ts
- * const callData = encodeSendQuoteWithAffiliateAndData({ …, upnlSig: fakeSig });
+ * const callData = encodeSendQuote({ …, upnlSig: fakeSig });
  * const range = sendQuoteUpnlSigFlexRange(callData);
  * buildSignedOperation({ …, callData, flexFields: [{ ...range, authorizedFlexFiller: solver.address }] });
  * ```

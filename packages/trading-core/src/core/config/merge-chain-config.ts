@@ -48,6 +48,7 @@ function mergeChainConfig(base: SymmioChainConfig, override: DeepPartial<SymmioC
   return {
     ...base,
     ...(override.chainId !== undefined ? { chainId: override.chainId } : {}),
+    contractsVersion: override.contractsVersion ?? base.contractsVersion,
     addresses: { ...base.addresses, ...override.addresses },
     subgraphs: { ...base.subgraphs, ...override.subgraphs },
     solvers: mergeSolvers(base.chainId, base.solvers, override.solvers),

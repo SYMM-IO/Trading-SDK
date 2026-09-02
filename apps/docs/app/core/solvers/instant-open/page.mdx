@@ -83,23 +83,23 @@ Required = inputs only the caller can know (wallet, session key, trade intent). 
 
 **Every optional field you pre-fill skips its network fetch.** If you already have `markPrice` from a live price stream, `lockedParamPercent` from a cached solver read, or `feeRates` from an earlier `getFeeForUser` call, pass them in — `prepareInstantOpenParams` short-circuits each field and only fetches what's still missing. Pass all four optional derivable fields and the function becomes pure math with zero network hops — the fastest possible path from UI inputs to a signed message.
 
-| Name                 | Type                                 | Required | Notes                                                                                         |
-| -------------------- | ------------------------------------ | -------- | --------------------------------------------------------------------------------------------- |
-| `from`               | `Address`                            | ✔        | Session-key signer.                                                                           |
-| `subAccountAddress`  | `Address`                            | ✔        | SubAccount that owns the trade.                                                               |
-| `market`             | `InstantOpenMarketData`              | ✔        | `{ id }`, plus optional pre-fetched precision metadata (`priceDecimals`, `quantityDecimals`). |
-| `positionType`       | `PositionType`                       | ✔        | LONG / SHORT.                                                                                 |
-| `initialMargin`      | `string`                             | ✔        | Decimal collateral amount.                                                                    |
-| `leverage`           | `number`                             | ✔        | Positive integer / decimal.                                                                   |
-| `slippage`           | `number`                             | ✔        | Percent (e.g. `1` for 1%).                                                                    |
-| `markPrice`          | `string?`                            |          | Pre-fetched mark price (decimal). Omit to fetch via Enigma.                                   |
-| `lockedParamPercent` | `ApiLockedParamsBySymbolIdResponse?` |          | Pre-fetched solver locked params. Omit to fetch via `getLockedParams`.                        |
-| `feeRates`           | `FeeForUser?`                        |          | Pre-fetched on-chain fee rates. Omit to fetch via `getFeeForUser`.                            |
-| `uuid`               | `string?`                            |          | Forwarded to `InstantOpenParameters`.                                                         |
-| `addMarginSalt`      | `Hex?`                               |          | Forwarded.                                                                                    |
-| `sendQuoteSalt`      | `Hex?`                               |          | Forwarded.                                                                                    |
-| `deadline`           | `bigint?`                            |          | Forwarded.                                                                                    |
-| `chainId`            | `number?`                            |          | Optional chain override.                                                                      |
+| Name                 | Type                                 | Required | Notes                                                                                                      |
+| -------------------- | ------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `from`               | `Address`                            | ✔        | Session-key signer.                                                                                        |
+| `subAccountAddress`  | `Address`                            | ✔        | SubAccount that owns the trade.                                                                            |
+| `market`             | `InstantOpenMarketData`              | ✔        | `{ id }`, plus optional pre-fetched metadata (precisions, `minOpenSolverFeeCap` / `minCloseSolverFeeCap`). |
+| `positionType`       | `PositionType`                       | ✔        | LONG / SHORT.                                                                                              |
+| `initialMargin`      | `string`                             | ✔        | Decimal collateral amount.                                                                                 |
+| `leverage`           | `number`                             | ✔        | Positive integer / decimal.                                                                                |
+| `slippage`           | `number`                             | ✔        | Percent (e.g. `1` for 1%).                                                                                 |
+| `markPrice`          | `string?`                            |          | Pre-fetched mark price (decimal). Omit to fetch via Enigma.                                                |
+| `lockedParamPercent` | `ApiLockedParamsBySymbolIdResponse?` |          | Pre-fetched solver locked params. Omit to fetch via `getLockedParams`.                                     |
+| `feeRates`           | `FeeForUser?`                        |          | Pre-fetched on-chain fee rates. Omit to fetch via `getFeeForUser`.                                         |
+| `uuid`               | `string?`                            |          | Forwarded to `InstantOpenParameters`.                                                                      |
+| `addMarginSalt`      | `Hex?`                               |          | Forwarded.                                                                                                 |
+| `sendQuoteSalt`      | `Hex?`                               |          | Forwarded.                                                                                                 |
+| `deadline`           | `bigint?`                            |          | Forwarded.                                                                                                 |
+| `chainId`            | `number?`                            |          | Optional chain override.                                                                                   |
 
 ### Returns
 
@@ -148,6 +148,8 @@ Rasa's attestation is encoded _inside_ the signed calldata, so it cannot be cach
 ### Parameters
 
 `InstantOpenParameters` — the resolved bag from `prepareInstantOpenParams`. Every field is a concrete value; no fetching happens here, apart from the Rasa Muon signature noted above.
+
+On a `contractsVersion: "0.8.6"` chain the Enigma flow signs `sendQuote` carrying `solverFeeCaps` (`SolverFeeCaps` — 18-decimal rate caps the quote authorizes for the solver's open/close fees; the wizard fills the market minimums, and omitting it means zero caps, which a fee-charging solver rejects). On a `"0.8.5"` chain the flow signs the legacy `sendQuoteWithAffiliateAndData` and `solverFeeCaps` is ignored.
 
 Passing a literal `solverId` binds the generic and narrows the return type. Omitting it lets the chain's `defaultSolverId` decide at runtime — in which case a missing `margin` on an Enigma chain throws `INSTANT_OPEN_MARGIN_REQUIRED` rather than silently under-funding the trade.
 

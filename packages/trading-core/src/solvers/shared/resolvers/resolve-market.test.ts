@@ -135,4 +135,67 @@ describe("resolveMarket", () => {
     expect(getContractSymbols).toHaveBeenCalledWith({ baseURL: "https://enigma.test" });
     expect(getContractSymbolsContractSymbolsGet).not.toHaveBeenCalled();
   });
+
+  it("short-circuits with includeSolverFeeCaps only when the caps are pre-filled too", async () => {
+    const result = await resolveMarket(config, {
+      marketId: 1,
+      marketName: "FOO",
+      pricePrecision: 4,
+      quantityPrecision: 5,
+      minOpenSolverFeeCap: "0.0005",
+      minCloseSolverFeeCap: "0.0003",
+      includeSolverFeeCaps: true,
+    });
+
+    expect(result).toEqual({
+      name: "FOO",
+      pricePrecision: 4,
+      quantityPrecision: 5,
+      minOpenSolverFeeCap: "0.0005",
+      minCloseSolverFeeCap: "0.0003",
+    });
+    expect(getContractSymbols).not.toHaveBeenCalled();
+  });
+
+  it("fetches for the caps even when the metadata is pre-filled, and reads them from the enigma row", async () => {
+    getContractSymbols.mockResolvedValue({
+      data: { symbols: [{ ...MARKET, min_open_solver_fee_cap: "0.0005", min_close_solver_fee_cap: "0.0003" }] },
+    });
+
+    const result = await resolveMarket(config, {
+      marketId: 1,
+      marketName: "FOO",
+      pricePrecision: 4,
+      quantityPrecision: 5,
+      includeSolverFeeCaps: true,
+    });
+
+    expect(result).toEqual({
+      name: "FOO",
+      pricePrecision: 4,
+      quantityPrecision: 5,
+      minOpenSolverFeeCap: "0.0005",
+      minCloseSolverFeeCap: "0.0003",
+    });
+    expect(getContractSymbols).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves zero caps for a solver kind that publishes none (rasa)", async () => {
+    getContractSymbolsContractSymbolsGet.mockResolvedValue({ data: { symbols: [RASA_MARKET] } });
+
+    const result = await resolveMarket(multiSolverConfig, {
+      chainId: SymmioSupportedChainId.BASE,
+      solverId: "rasa",
+      marketId: 1,
+      includeSolverFeeCaps: true,
+    });
+
+    expect(result).toEqual({
+      name: "ETHUSDT",
+      pricePrecision: 7,
+      quantityPrecision: 8,
+      minOpenSolverFeeCap: "0",
+      minCloseSolverFeeCap: "0",
+    });
+  });
 });

@@ -4,13 +4,13 @@ import { ResultError, ResultNote } from "@/components/result";
 import { useSessionKey } from "@/features/session-keys/use-session-key";
 import {
   getPartyAOpenPositionsQueryOptions,
-  INSTANT_TRADE_REQUIRED_SELECTORS,
   NotificationType,
   PositionType,
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
   SymmioRequestError,
   useGrantDelegation,
   useInstantCloseBulkAuto,
+  useInstantTradeRequiredSelectors,
   useIsDelegationActive,
   useMarkets,
   useNotifications,
@@ -133,6 +133,7 @@ export function CloseAllFlow({ owner, subAccount, subAccountName, onSelectSubAcc
     query: { enabled: delegationEnabled },
   });
   const grant = useGrantDelegation();
+  const requiredSelectors = useInstantTradeRequiredSelectors();
   const delegationActive = closeDelegation.data === true;
   const delegationLoading = delegationEnabled && closeDelegation.isLoading;
 
@@ -211,7 +212,7 @@ export function CloseAllFlow({ owner, subAccount, subAccountName, onSelectSubAcc
     grant.mutate({
       account: { addr: subAccount, isPartyB: false },
       delegatedSigner: sessionKey,
-      selectors: INSTANT_TRADE_REQUIRED_SELECTORS,
+      selectors: requiredSelectors,
       expiryTimestamp: BigInt(Math.floor(Date.now() / 1000) + DELEGATION_TTL_SECONDS),
     });
   }

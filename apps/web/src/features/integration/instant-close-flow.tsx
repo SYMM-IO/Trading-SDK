@@ -5,13 +5,13 @@ import { TxReceipt } from "@/components/tx-result";
 import { useSessionKey } from "@/features/session-keys/use-session-key";
 import type { SolverId } from "@symmio/trading-core";
 import {
-  INSTANT_TRADE_REQUIRED_SELECTORS,
   PositionType,
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
   SubAccountIsolationType,
   VIRTUAL_ACCOUNT_ISOLATION_TYPE,
   useGrantDelegation,
   useGroupedQuotes,
+  useInstantTradeRequiredSelectors,
   useIsDelegationActive,
   useOnchainContractMarkets,
   usePartyAOpenPositions,
@@ -123,6 +123,7 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
     query: { enabled: delegationEnabled },
   });
   const grant = useGrantDelegation();
+  const requiredSelectors = useInstantTradeRequiredSelectors();
   const delegationActive = closeDelegation.data === true;
   const delegationLoading = delegationEnabled && closeDelegation.isLoading;
 
@@ -181,7 +182,7 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
     grant.mutate({
       account: { addr: subAccount, isPartyB: false },
       delegatedSigner: sessionKey,
-      selectors: INSTANT_TRADE_REQUIRED_SELECTORS,
+      selectors: requiredSelectors,
       expiryTimestamp: BigInt(Math.floor(Date.now() / 1000) + DELEGATION_TTL_SECONDS),
     });
   }

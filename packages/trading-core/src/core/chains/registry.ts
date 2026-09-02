@@ -9,6 +9,7 @@ import type { SymmioChainConfig } from "./types";
 export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
   [SymmioSupportedChainId.HYPER_EVM]: {
     chainId: SymmioSupportedChainId.HYPER_EVM,
+    contractsVersion: "0.8.5",
     addresses: {
       symmioAddress: "0x57331038c21982116EE9b0906E4a5c5cB52dcE2e",
       instantLayerAddress: "0x72DBF07457b2712b160F67A85D338F860c1CA620",
@@ -80,6 +81,7 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
 
   [SymmioSupportedChainId.BASE]: {
     chainId: SymmioSupportedChainId.BASE,
+    contractsVersion: "0.8.5",
     addresses: {
       symmioAddress: "0x91Cf2D8Ed503EC52768999aA6D8DBeA6e52dbe43",
       instantLayerAddress: "0x0825435285ac0E5c02c7a7c443F631f3e07fE375",
@@ -157,6 +159,7 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
 
   [SymmioSupportedChainId.ARBITRUM]: {
     chainId: SymmioSupportedChainId.ARBITRUM,
+    contractsVersion: "0.8.6",
     addresses: {
       symmioAddress: "0x573310dB6d160B26026B8706EBe9831c7dEF1D09",
       instantLayerAddress: "0xDBc6DAe3De0b10a10b6c4d1b33D4C79567E07F6d",
@@ -183,7 +186,7 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
           cohWalletAddress: "0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31",
         },
         notifications: {
-          url: "wss://notification.rasa.capital/ws/v1/subscribe",
+          url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
           channel: "Arbitrum_Solver-Low-Cap_Stage",
           protocol: "enigma",
           searchUrl: "https://notification.rasa.capital/notification",

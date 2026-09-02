@@ -354,8 +354,8 @@ import {
   getUserSubAccounts,
   getAccountBalanceOf,
   getIsDelegationActive,
+  getInstantTradeRequiredSelectors,
   SymmioSupportedChainId,
-  INSTANT_TRADE_REQUIRED_SELECTORS,
 } from "@symmio/trading-core";
 
 // Evaluate rungs top-down. The first false rung is the active CTA; everything below stays hidden.
@@ -380,7 +380,7 @@ async function resolveGate(config, ctx) {
 
   // rung 6 — every required selector is delegated to the session key
   const checks = await Promise.all(
-    INSTANT_TRADE_REQUIRED_SELECTORS.map((selector) =>
+    getInstantTradeRequiredSelectors(config).map((selector) =>
       getIsDelegationActive(config, {
         account,
         delegate: ctx.sessionKey.address,
@@ -411,8 +411,8 @@ async function resolveGate(config, ctx) {
 
 <Callout type="warning">
   **The delegation rung must check every selector, not just one.** A partial delegation passes an `open`-only check but
-  fails on `close` or margin top-up later. Gate the trade form on _all_ of
-  [`INSTANT_TRADE_REQUIRED_SELECTORS`](/core/instant-layer/grant-delegation) being active — this is the #1
+  fails on `close` or margin top-up later. Gate the trade form on _all_ of every selector in
+  [`getInstantTradeRequiredSelectors(config)`](/core/instant-layer/grant-delegation) being active — this is the #1
   silent-open-failure (see [§4 Session key + delegation](/core/instant-layer/get-is-delegation-active)).
 </Callout>
 
@@ -710,29 +710,26 @@ The catch: the session key can only act on selectors the SubAccount has **delega
 
 ### Selectors
 
-Grant the three-selector set `INSTANT_TRADE_REQUIRED_SELECTORS` to authorize the full open + close + top-up lifecycle in one transaction. It is exactly `[ADD_MARGIN_TO_NEXT_VA_SELECTOR, SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR, REQUEST_TO_CLOSE_POSITION_SELECTOR]`.
+Grant the three-selector set to authorize the full open + close + top-up lifecycle in one transaction. **The set is per-chain** — the open leg depends on the chain's `contractsVersion`: on a perps-core v0.8.6 chain it is `sendQuote` (which carries solver-fee caps), while a v0.8.5 chain's diamond only has the legacy `sendQuoteWithAffiliateAndData`. Resolve it with `getInstantTradeRequiredSelectors(config, { chainId })` rather than hardcoding a constant.
 
-| Selector                                      | What it grants the session key                                                                     |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `ADD_MARGIN_TO_NEXT_VA_SELECTOR`              | Move margin into the next virtual account (the top-up leg of an instant open).                     |
-| `SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR` | Submit the quote — the open leg.                                                                   |
-| `REQUEST_TO_CLOSE_POSITION_SELECTOR`          | Request to close a position — the close leg _and_ the on-chain leg of a conditional (TP/SL) order. |
+| Selector                                                              | What it grants the session key                                                                     |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `ADD_MARGIN_TO_NEXT_VA_SELECTOR`                                      | Move margin into the next virtual account (the top-up leg of an instant open).                     |
+| `SEND_QUOTE_SELECTOR` / `SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR` | Submit the quote — the open leg (v0.8.6 / v0.8.5 chains respectively).                             |
+| `REQUEST_TO_CLOSE_POSITION_SELECTOR`                                  | Request to close a position — the close leg _and_ the on-chain leg of a conditional (TP/SL) order. |
 
 ```ts
-import {
-  INSTANT_TRADE_REQUIRED_SELECTORS,
-  ADD_MARGIN_TO_NEXT_VA_SELECTOR,
-  SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
-  REQUEST_TO_CLOSE_POSITION_SELECTOR,
-} from "@symmio/trading-core";
+import { getInstantTradeRequiredSelectors } from "@symmio/trading-core";
 
-// The bundle is the union of the three individual selectors:
-// INSTANT_TRADE_REQUIRED_SELECTORS === [
-//   ADD_MARGIN_TO_NEXT_VA_SELECTOR,
-//   SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
-//   REQUEST_TO_CLOSE_POSITION_SELECTOR,
-// ]
+// Resolved by the chain's contractsVersion:
+// v0.8.6 → INSTANT_TRADE_REQUIRED_SELECTORS
+//   [ADD_MARGIN_TO_NEXT_VA_SELECTOR, SEND_QUOTE_SELECTOR, REQUEST_TO_CLOSE_POSITION_SELECTOR]
+// v0.8.5 → LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS
+//   [ADD_MARGIN_TO_NEXT_VA_SELECTOR, SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR, REQUEST_TO_CLOSE_POSITION_SELECTOR]
+const selectors = getInstantTradeRequiredSelectors(config, { chainId });
 ```
+
+Both static sets stay exported for a flow that targets one known chain; a multi-chain flow must resolve.
 
 ### Grant + read
 
@@ -743,7 +740,7 @@ import {
   grantDelegation,
   getIsDelegationActive,
   getDelegationExpiry,
-  INSTANT_TRADE_REQUIRED_SELECTORS,
+  getInstantTradeRequiredSelectors,
   type InstantLayerAccount,
 } from "@symmio/trading-core";
 
@@ -755,7 +752,8 @@ async function grantSessionDelegation(config: Config, subAccount: Address, sessi
   return grantDelegation(config, {
     account,
     delegatedSigner: sessionKey,
-    selectors: INSTANT_TRADE_REQUIRED_SELECTORS,
+    // Per-chain: sendQuote on a v0.8.6 chain, the legacy quote-send on v0.8.5.
+    selectors: getInstantTradeRequiredSelectors(config),
     expiryTimestamp: oneWeek,
   });
 }
@@ -798,11 +796,11 @@ The partial matches on `account.addr` + `delegate`, so every cached per-selector
 Delegation is not an open-only concern — close and TP/SL ride the same session key. Compute one `allActive` flag by awaiting `getIsDelegationActive` for each of the three required selectors, and reuse it to gate the whole trade surface.
 
 ```ts
-import { getIsDelegationActive, INSTANT_TRADE_REQUIRED_SELECTORS } from "@symmio/trading-core";
+import { getInstantTradeRequiredSelectors, getIsDelegationActive } from "@symmio/trading-core";
 
 async function areAllSelectorsActive(config: Config, subAccount: Address, sessionKey: Address): Promise<boolean> {
   const results = await Promise.all(
-    INSTANT_TRADE_REQUIRED_SELECTORS.map((selector) =>
+    getInstantTradeRequiredSelectors(config).map((selector) =>
       getIsDelegationActive(config, {
         account: subAccount,
         delegate: sessionKey,
@@ -818,7 +816,7 @@ Drive these reads through `getIsDelegationActiveQueryOptions` in your query laye
 
 ### TP/SL needs the close selector too
 
-Conditional orders (TP/SL) close a position on-chain, so the session key that signs them relies on the **same** `REQUEST_TO_CLOSE_POSITION_SELECTOR` delegation. Because it is already part of `INSTANT_TRADE_REQUIRED_SELECTORS`, a single grant covers open, close, and TP/SL — there is no separate delegation call for conditional orders. Verify it is active before you show the TP/SL panel, exactly as you gate the open form.
+Conditional orders (TP/SL) close a position on-chain, so the session key that signs them relies on the **same** `REQUEST_TO_CLOSE_POSITION_SELECTOR` delegation. Because it is part of the required set on every chain generation, a single grant covers open, close, and TP/SL — there is no separate delegation call for conditional orders. Verify it is active before you show the TP/SL panel, exactly as you gate the open form.
 
 <Callout type="info">
   Set `expiryTimestamp` to a horizon that outlives the trading session (e.g. a week), and surface the per-selector
@@ -1064,8 +1062,8 @@ Run `calculateTradeParams` then `validateInstantOpenAgainstMarket` before signin
 <Callout type="warning">
   **Missing delegation is the #1 silent-open-failure.** The hedger accepts the session-key payload and returns a
   `tempQuoteId`, but the on-chain anchor reverts if the required selector was never delegated — after your spinner ends.
-  Gate the trade form on `getIsDelegationActive` for every selector in `INSTANT_TRADE_REQUIRED_SELECTORS` (see [Session
-  key + delegation](#4-session-key--delegation)).
+  Gate the trade form on `getIsDelegationActive` for every selector in `getInstantTradeRequiredSelectors(config)` (see
+  [Session key + delegation](#4-session-key--delegation)).
 </Callout>
 
 Invalidate on open success: `getInstantOpensQueryKey` scoped `{ configKey }`. That is the only invalidation — the rest of the open's lifecycle (anchor, fill, settle) arrives over the notifications stream and is reconciled by `reconcileQuotes`, not by refetching.
@@ -1682,7 +1680,8 @@ Everything below is a hand-built equivalent of machinery `@symmio/trading-react`
 <Callout type="warning">
   **Missing delegation is the #1 silent-open-failure.** The hedger accepts the session-key payload and your spinner
   completes, but the on-chain anchor reverts afterward if the selector was never delegated. Gate the trade form on
-  `getIsDelegationActive` returning `true` for every selector in `INSTANT_TRADE_REQUIRED_SELECTORS`.
+  `getIsDelegationActive` returning `true` for every selector in the chain's `getInstantTradeRequiredSelectors(config)`
+  set.
 </Callout>
 
 ## Pitfalls

@@ -49,6 +49,8 @@ describe("useWithdrawRequest", () => {
         args: [SUB_ACCOUNT, REQUEST_ID],
       }),
     );
+    /** HyperEVM is a v0.8.5 chain — the legacy decode has no `advancedAmount`, and none is fabricated. */
     expect(result.current.data).toEqual(request);
+    expect(result.current.data?.advancedAmount).toBeUndefined();
   });
 });

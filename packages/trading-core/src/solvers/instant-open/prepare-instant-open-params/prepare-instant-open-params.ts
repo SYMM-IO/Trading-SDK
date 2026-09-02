@@ -2,6 +2,7 @@ import type { Address, Hex } from "viem";
 import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, WriteSolverParameter } from "../../../shared/types/properties";
+import { decimalPriceToWei } from "../../../shared/utils/price";
 import type { FeeForUser } from "../../../symmio-contracts/symmio/actions/get-fee-for-user";
 import type { ApiLockedParamsBySymbolIdResponse } from "../../types/generated/enigma-solver";
 import type { InstantOpenParameters } from "../instant-open/types";
@@ -76,6 +77,9 @@ export async function prepareInstantOpenParams(
   config: Config,
   parameters: PrepareInstantOpenParameters,
 ): Promise<InstantOpenParameters> {
+  /** Fee caps only exist on the v0.8.6 quote API — don't force a market fetch for them on a legacy chain. */
+  const needsSolverFeeCaps = config.getChainConfig(parameters.chainId).contractsVersion === "0.8.6";
+
   const market = await resolveMarket(config, {
     chainId: parameters.chainId,
     solverId: parameters.solverId,
@@ -83,6 +87,9 @@ export async function prepareInstantOpenParams(
     marketName: parameters.market.name,
     pricePrecision: parameters.market.pricePrecision,
     quantityPrecision: parameters.market.quantityPrecision,
+    minOpenSolverFeeCap: parameters.market.minOpenSolverFeeCap,
+    minCloseSolverFeeCap: parameters.market.minCloseSolverFeeCap,
+    includeSolverFeeCaps: needsSolverFeeCaps,
   });
   const [markPrice, lockedParams, feeRates] = await Promise.all([
     resolveMarkPrice(config, {
@@ -167,6 +174,10 @@ export async function prepareInstantOpenParams(
     },
     margin: {
       amount: toWeiBigInt(marginAmount),
+    },
+    solverFeeCaps: {
+      openRateCap: decimalPriceToWei(market.minOpenSolverFeeCap ?? "0") ?? 0n,
+      closeRateCap: decimalPriceToWei(market.minCloseSolverFeeCap ?? "0") ?? 0n,
     },
     uuid: parameters.uuid,
     addMarginSalt: parameters.addMarginSalt,

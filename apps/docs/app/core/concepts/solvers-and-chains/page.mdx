@@ -8,10 +8,10 @@ SYMMIO is a **multi-solver, multi-chain** protocol, and the SDK models both axes
 
 A deployment is one **chain** running one or more **solvers**. Every solver has an `id`, and in this SDK the **solver `id` _is_ its kind** — there is no separate version axis. Two kinds ship today:
 
-| Kind       | Product      | Chain            | Margin model                       | Price provider        | Notifications protocol          |
-| ---------- | ------------ | ---------------- | ---------------------------------- | --------------------- | ------------------------------- |
-| **enigma** | lowcap perps | HyperEVM (`999`) | Virtual Accounts (per market/side) | Enigma price service  | `enigma` — notification service |
-| **rasa**   | majors perps | Base (`8453`)    | cross-margin on the sub-account    | Binance USD-M Futures | `rasa` — solver position-state  |
+| Kind       | Product      | Chain                                | Margin model                       | Price provider        | Notifications protocol          |
+| ---------- | ------------ | ------------------------------------ | ---------------------------------- | --------------------- | ------------------------------- |
+| **enigma** | lowcap perps | HyperEVM (`999`), Arbitrum (`42161`) | Virtual Accounts (per market/side) | Enigma price service  | `enigma` — notification service |
+| **rasa**   | majors perps | Base (`8453`)                        | cross-margin on the sub-account    | Binance USD-M Futures | `rasa` — solver position-state  |
 
 The two are not tiers of the same thing — they are different counterparties with different endpoints, response shapes, and lifecycles. The SDK's job is to hide that behind one stable surface.
 
@@ -20,6 +20,10 @@ The two are not tiers of the same thing — they are different counterparties wi
   `SUPPORTED_SOLVER_KINDS`. A chain's registry entry keys its solvers by that id, so resolving a solver and dispatching
   by kind are the same operation.
 </Callout>
+
+## Contracts version is a chain axis
+
+Chains do not all run the same perps-core generation: HyperEVM and Base run **v0.8.5**, Arbitrum runs **v0.8.6**. Each registry entry declares it as `contractsVersion` (a `SymmioContractsVersion`, override-able per chain through `createConfig`'s `symmioConfig`), and the SDK branches on it exactly where the generations diverge: which quote-send call the instant-open flow signs (`sendQuote` with solver-fee caps on v0.8.6, the legacy `sendQuoteWithAffiliateAndData` on v0.8.5), which selector set a session key needs (`getInstantTradeRequiredSelectors` / `useInstantTradeRequiredSelectors`), and which output shape the withdraw-request reads decode (`advancedAmount` is `undefined` on a v0.8.5 chain). It is a **declared deployment fact** — the diamond exposes no version view, so nothing is probed at runtime.
 
 ## Targeting a solver
 

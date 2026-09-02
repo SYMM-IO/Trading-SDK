@@ -4,6 +4,7 @@ import { SymmioSupportedChainId } from "../../../core/chains";
 import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig } from "../../../shared/test/mock-config";
 import { PositionType } from "../../../symmio-contracts/symmio/types";
+import { SEND_QUOTE_SELECTOR, SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR } from "../shared/selectors";
 import { instantOpen } from "./instant-open";
 import type { EnigmaInstantOpenResult, InstantOpenReturnType, RasaInstantOpenResult } from "./types";
 
@@ -109,6 +110,24 @@ describe("instantOpen — kind dispatch", () => {
     expect(request.sendQuote.signedOperation.flexFields[0].length).toBeGreaterThan(0);
     /** addMargin carries no delegation — only the quote's signature is fillable. */
     expect(request.addMargin.signedOperation.flexFields).toEqual([]);
+  });
+
+  it("signs the chain-generation quote-send call: legacy on v0.8.5, capped sendQuote on v0.8.6", async () => {
+    const { config } = mockConfig();
+    postInstantTradeInstantOpen.mockResolvedValue({ data: { temp_quote_id: 7 } });
+
+    await instantOpen(config, params({ chainId: SymmioSupportedChainId.HYPER_EVM }));
+    const [legacyRequest] = postInstantTradeInstantOpen.mock.calls[0]!;
+    expect(
+      legacyRequest.sendQuote.signedOperation.callData.startsWith(SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR),
+    ).toBe(true);
+
+    await instantOpen(
+      config,
+      params({ chainId: SymmioSupportedChainId.ARBITRUM, solverFeeCaps: { openRateCap: 1n, closeRateCap: 2n } }),
+    );
+    const [cappedRequest] = postInstantTradeInstantOpen.mock.calls[1]!;
+    expect(cappedRequest.sendQuote.signedOperation.callData.startsWith(SEND_QUOTE_SELECTOR)).toBe(true);
   });
 
   it("throws a typed error when the Enigma flow is missing its margin", async () => {

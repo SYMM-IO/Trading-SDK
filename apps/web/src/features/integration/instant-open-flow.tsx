@@ -6,10 +6,6 @@ import { useSessionKey } from "@/features/session-keys/use-session-key";
 import { formatUsd } from "@/lib/format";
 import type { SolverId } from "@symmio/trading-core";
 import {
-  ADD_MARGIN_TO_NEXT_VA_SELECTOR,
-  INSTANT_TRADE_REQUIRED_SELECTORS,
-  REQUEST_TO_CLOSE_POSITION_SELECTOR,
-  SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
   SubAccountIsolationType,
   useAccountBalanceInfo,
   useAccountBalanceOf,
@@ -19,6 +15,7 @@ import {
   useDeposit,
   useDepositAndAllocate,
   useGrantDelegation,
+  useInstantTradeRequiredSelectors,
   useIsDelegationActive,
   useSubAccount,
   useSymmioChainId,
@@ -104,23 +101,27 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
   const balanceFunded = balanceKnown && (fundingBalance ?? 0n) > 0n;
 
   // ---- Delegation checks (open + close + addMargin). All must be active. ----
+  // The set is chain-resolved: the open leg is `sendQuote` on a v0.8.6 chain
+  // and the legacy `sendQuoteWithAffiliateAndData` on v0.8.5.
+  const requiredSelectors = useInstantTradeRequiredSelectors();
+  const [addMarginSelector, openLegSelector, closeSelector] = requiredSelectors;
   const delegationEnabled = Boolean(subAccount && sessionKey);
   const addMarginDelegation = useIsDelegationActive({
     account: subAccount ?? zeroAddress,
     delegate: sessionKey ?? zeroAddress,
-    selector: ADD_MARGIN_TO_NEXT_VA_SELECTOR,
+    selector: addMarginSelector,
     query: { enabled: delegationEnabled },
   });
   const sendQuoteDelegation = useIsDelegationActive({
     account: subAccount ?? zeroAddress,
     delegate: sessionKey ?? zeroAddress,
-    selector: SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
+    selector: openLegSelector,
     query: { enabled: delegationEnabled },
   });
   const closePositionDelegation = useIsDelegationActive({
     account: subAccount ?? zeroAddress,
     delegate: sessionKey ?? zeroAddress,
-    selector: REQUEST_TO_CLOSE_POSITION_SELECTOR,
+    selector: closeSelector,
     query: { enabled: delegationEnabled },
   });
   const grantDelegation = useGrantDelegation();
@@ -153,7 +154,7 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
     grantDelegation.mutate({
       account: { addr: subAccount, isPartyB: false },
       delegatedSigner: sessionKey,
-      selectors: INSTANT_TRADE_REQUIRED_SELECTORS,
+      selectors: requiredSelectors,
       expiryTimestamp: BigInt(Math.floor(Date.now() / 1000) + DELEGATION_TTL_SECONDS),
     });
   }

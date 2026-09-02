@@ -4,7 +4,7 @@ React-query wrappers over `@symmio/trading-core`'s InstantLayer slice.
 
 The page is split into two groups:
 
-- **[Reads](#reads)** — `useDelegationExpiry`, `useIsDelegationActive`.
+- **[Reads](#reads)** — `useDelegationExpiry`, `useIsDelegationActive`, `useInstantTradeRequiredSelectors`.
 - **[Writes](#writes)** — `useGrantDelegation`.
 
 Delegation reads are intentionally split into two hooks. `useDelegationExpiry` reads the raw `delegations` mapping value, and `useIsDelegationActive` reads the contract's computed active status.
@@ -102,6 +102,19 @@ function DelegationReads({ account, delegate, selector }: Required<Props>) {
   );
 }
 ```
+
+### `useInstantTradeRequiredSelectors`
+
+The session-key delegation selector set for the connected (or given) chain, resolved by its `contractsVersion`: the open leg is `sendQuote` on a perps-core v0.8.6 chain and the legacy `sendQuoteWithAffiliateAndData` on v0.8.5, while the close and add-margin selectors are the same on both. Synchronous — it reads config, not the chain.
+
+```tsx
+const selectors = useInstantTradeRequiredSelectors(); // or { chainId } to target another chain
+const grant = useGrantDelegation();
+
+grant.mutate({ account, delegatedSigner: sessionKey, selectors, expiryTimestamp });
+```
+
+Use it (instead of hardcoding `INSTANT_TRADE_REQUIRED_SELECTORS` / `LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS`) in any flow that can point at more than one chain — a hardcoded set grants and checks the wrong open-leg selector on the other generation's chains. It returns the set in the order `grantDelegation` expects, and destructures cleanly for per-selector `useIsDelegationActive` probes: `const [addMarginSelector, openLegSelector, closeSelector] = useInstantTradeRequiredSelectors()`.
 
 ## Writes
 

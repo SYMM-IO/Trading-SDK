@@ -110,7 +110,7 @@ export interface SolverCapabilitiesConfig {
 export interface SymmioSolverConfig {
   /** Human-readable solver name */
   name: string;
-  /** Solver's on-chain address (used as `partyB` in `sendQuoteWithAffiliateAndData`) */
+  /** Solver's on-chain address (used as `partyB` in `sendQuote`) */
   address: Address;
   /** Solver / hedger API base URL */
   url: string;
@@ -343,11 +343,26 @@ export interface SymmioInventoryConfig {
 }
 
 /**
+ * The perps-core contracts generation a chain's deployment runs.
+ *
+ * A **deployment fact, declared per chain** — it is not probed at runtime (the
+ * diamond exposes no version view). It drives the version-sensitive seams the
+ * SDK carries for serving mixed-generation chains from one release: which
+ * quote-send call the instant-open flow signs (`sendQuote` with solver-fee caps
+ * on `"0.8.6"`, the legacy `sendQuoteWithAffiliateAndData` on `"0.8.5"`), which
+ * selector the session-key delegation set includes, and which output shape the
+ * withdraw-request reads decode.
+ */
+export type SymmioContractsVersion = "0.8.5" | "0.8.6";
+
+/**
  * Complete resolved configuration for a SYMMIO chain deployment.
  */
 export interface SymmioChainConfig {
   /** Chain ID */
   chainId: number;
+  /** Contracts generation deployed on this chain. See {@link SymmioContractsVersion}. */
+  contractsVersion: SymmioContractsVersion;
   /** Contract addresses */
   addresses: SymmioContractAddresses;
   /** Subgraph endpoints */

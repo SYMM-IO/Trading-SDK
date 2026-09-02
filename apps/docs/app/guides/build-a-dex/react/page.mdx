@@ -138,8 +138,8 @@ Nest **`WagmiProvider` → `QueryClientProvider` → `SymmioProvider`**. The SDK
 
 <Callout type="info">
   **What the affiliate address is — and why it's how you get paid.** In SYMMIO perps, trades are opened through frontends —
-  dApps, brokers, bots. The affiliate address is that frontend's **identity onchain**. It rides on every quote (that's the
-  `…WithAffiliate…` in `SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR`), so the protocol knows **who sourced the trade** and
+  dApps, brokers, bots. The affiliate address is that frontend's **identity onchain**. It rides on every quote (the
+  `affiliate` argument of `sendQuote`), so the protocol knows **who sourced the trade** and
   routes that source's share of the trading fee to it. Affiliate addresses are **per chain** — a registration on one chain
   is not valid on another — so `symmioConfig` carries one under each chain's `addresses.affiliatesAddress`.
 
@@ -276,18 +276,20 @@ Every instant open / close / margin-add is signed by a **session key** — a hot
 
 From `@symmio/trading-react`:
 
-| Constant                                      | Grants                                            |
-| --------------------------------------------- | ------------------------------------------------- |
-| `SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR` | open a position                                   |
-| `REQUEST_TO_CLOSE_POSITION_SELECTOR`          | close a position                                  |
-| `ADD_MARGIN_TO_NEXT_VA_SELECTOR`              | top-up margin                                     |
-| `INSTANT_TRADE_REQUIRED_SELECTORS`            | all three, in the order `grantDelegation` expects |
+| Constant / helper                                                     | Grants                                                                    |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `SEND_QUOTE_SELECTOR` / `SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR` | open a position (perps-core v0.8.6 / v0.8.5 chains respectively)          |
+| `REQUEST_TO_CLOSE_POSITION_SELECTOR`                                  | close a position                                                          |
+| `ADD_MARGIN_TO_NEXT_VA_SELECTOR`                                      | top-up margin                                                             |
+| `useInstantTradeRequiredSelectors()`                                  | all three for the connected chain, in the order `grantDelegation` expects |
+
+The open-leg selector is **per-chain** (the chain's `contractsVersion` decides which quote-send call its diamond and solver accept), so resolve the set with the hook instead of hardcoding `INSTANT_TRADE_REQUIRED_SELECTORS` / `LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS` in a multi-chain flow.
 
 ### Read + grant
 
 - **[`useIsDelegationActive({ account, delegate, selector })`](/react/instant-layer#useisdelegationactive)** → `boolean`. Call once per selector (`account` = SubAccount, `delegate` = session-key address). Compose them: `allActive = addMarginActive && sendQuoteActive && closePositionActive`.
 - **[`useDelegationExpiry({ account, delegate })`](/react/instant-layer#usedelegationexpiry)** → `bigint` expiry timestamp, so you can render "expires in 6 days" and re-grant early.
-- **[`useGrantDelegation()`](/react/instant-layer#usegrantdelegation)** — mutation. Variables: `{ account: { addr: subAccount, isPartyB: false }, delegatedSigner: sessionKeyAddress, selectors: INSTANT_TRADE_REQUIRED_SELECTORS, expiryTimestamp }`. `expiryTimestamp` is Unix seconds (a 24h–30d TTL keeps returning users from re-granting). On success the three `useIsDelegationActive` queries auto-invalidate and the gate flips to `true`.
+- **[`useGrantDelegation()`](/react/instant-layer#usegrantdelegation)** — mutation. Variables: `{ account: { addr: subAccount, isPartyB: false }, delegatedSigner: sessionKeyAddress, selectors: useInstantTradeRequiredSelectors(), expiryTimestamp }`. `expiryTimestamp` is Unix seconds (a 24h–30d TTL keeps returning users from re-granting). On success the three `useIsDelegationActive` queries auto-invalidate and the gate flips to `true`.
 
 <Callout type="warning">
   **Missing delegation is the #1 "why did my open silently fail?" bug.** The hedger accepts the session-key payload, but
@@ -306,22 +308,25 @@ Enforce the same gate on every write path. Extract the check + grant once and re
 function useTradingDelegation(subAccount?: Address) {
   const { sessionKeyAddress, isLoading: sessionKeyLoading } = useSessionKey();
   const enabled = Boolean(subAccount && sessionKeyAddress);
+  // Chain-resolved: the open leg is sendQuote on v0.8.6, the legacy call on v0.8.5.
+  const requiredSelectors = useInstantTradeRequiredSelectors();
+  const [addMarginSelector, openLegSelector, closeSelector] = requiredSelectors;
   const addMargin = useIsDelegationActive({
     account: subAccount!,
     delegate: sessionKeyAddress!,
-    selector: ADD_MARGIN_TO_NEXT_VA_SELECTOR,
+    selector: addMarginSelector,
     query: { enabled },
   });
   const sendQuote = useIsDelegationActive({
     account: subAccount!,
     delegate: sessionKeyAddress!,
-    selector: SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
+    selector: openLegSelector,
     query: { enabled },
   });
   const closePos = useIsDelegationActive({
     account: subAccount!,
     delegate: sessionKeyAddress!,
-    selector: REQUEST_TO_CLOSE_POSITION_SELECTOR,
+    selector: closeSelector,
     query: { enabled },
   });
   const grant = useGrantDelegation();
@@ -330,7 +335,7 @@ function useTradingDelegation(subAccount?: Address) {
     grant.mutate({
       account: { addr: subAccount!, isPartyB: false },
       delegatedSigner: sessionKeyAddress!,
-      selectors: INSTANT_TRADE_REQUIRED_SELECTORS,
+      selectors: requiredSelectors,
       expiryTimestamp,
     });
   return { sessionKeyAddress, sessionKeyLoading, isActive, granting: grant.isPending, enable };
@@ -343,7 +348,7 @@ In the close modal and the TP/SL modal, swap the action button for an **"Enable 
 
 TP/SL requests are signed by the session key, but the on-chain execution when a trigger fires is done by the solver's **COH wallet**, not the session key. The SubAccount must delegate to two signers:
 
-- **Session key** → `INSTANT_TRADE_REQUIRED_SELECTORS` (open, close, add margin).
+- **Session key** → `useInstantTradeRequiredSelectors()` (open, close, add margin — chain-resolved).
 - **COH wallet** → `REQUEST_TO_CLOSE_POSITION_SELECTOR` (executes the trigger).
 
 Read the COH address from config — `config.getChainConfig().solver.tpsl?.cohWalletAddress` — then check and grant it exactly like the session-key delegation. TP/SL needs **both** delegations, so gate the panel in order: first the session-key trading delegation (`isActive`, same as open/close — see [Gate every write](#gate-every-write-not-just-the-open-form)), then `cohActive === true`. A user can trade with only the session-key delegation, but cannot set TP/SL until the COH delegation is also granted.
@@ -709,7 +714,7 @@ See the [TP/SL reference](/react/tpsl) for the full state machine, store shape, 
 
 - [ ] Trade form blocks until a SubAccount is picked and all delegations are active.
 - [ ] `from` is a session key in production, not the raw EOA.
-- [ ] Delegation checked for all three selectors; granted at once via `INSTANT_TRADE_REQUIRED_SELECTORS`; expiry surfaced via `useDelegationExpiry`.
+- [ ] Delegation checked for all three selectors; granted at once via `useInstantTradeRequiredSelectors()`; expiry surfaced via `useDelegationExpiry`.
 - [ ] **Every** write path gates on the delegation — the close modal and the TP/SL modal show "Enable trading" when inactive, not just the open form.
 - [ ] TP/SL panel gates on the session-key delegation **and** the second (COH-wallet) delegation, in that order.
 - [ ] TP/SL attached at open signs against the **predicted VA** (`usePredictedNextVirtualAccount` + `isolationTypeForSide`), not the SubAccount.

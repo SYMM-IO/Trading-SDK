@@ -60,7 +60,7 @@ export interface CreateConfigParameters {
    * **Required.** Every supported chain must supply an
    * `addresses.affiliatesAddress` — your frontend's on-chain **affiliate**
    * (your identity in SYMMIO on that chain), attached to every quote
-   * (`sendQuoteWithAffiliateAndData`) so the protocol knows who sourced the trade
+   * (`sendQuote`) so the protocol knows who sourced the trade
    * and routes your share of the trading fee to you. Affiliate addresses are per
    * chain: a registration on one chain is not valid on another. `createConfig`
    * throws `AFFILIATE_ADDRESS_REQUIRED` only when it is **missing**, so a trade
@@ -247,7 +247,7 @@ export function createConfig(parameters: CreateConfigParameters): Config {
   // Affiliate is required only for a chain the consumer EXPLICITLY configured (has a
   // `symmioConfig[chainId]` entry) that can ALSO trade — one with at least one solver.
   // Configuring a chain is the opt-in that obliges you to name your affiliate for it;
-  // the affiliate rides every quote (`sendQuoteWithAffiliateAndData`). A built-in chain
+  // the affiliate rides every quote (`sendQuote`). A built-in chain
   // the consumer never mentions is left alone: it may be an onboarding/placeholder chain
   // not really tradable yet, and it falls back to its registry affiliate — so we do not
   // force every consumer to supply an affiliate for a chain they never touch. The zero

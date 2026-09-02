@@ -135,8 +135,11 @@ export interface WithdrawReceiverPart {
  * read views ({@link "getWithdrawRequests"}, {@link "getPendingWithdrawRequests"}).
  *
  * Field shapes and ordering mirror the on-chain `WithdrawRequest` struct in
- * `WithdrawStorage.sol` (perps-core v0.8.6) exactly. `status` is surfaced as the
- * {@link WithdrawStatus} enum rather than a raw `uint8`.
+ * `WithdrawStorage.sol` (perps-core v0.8.6). `status` is surfaced as the
+ * {@link WithdrawStatus} enum rather than a raw `uint8`. Fields a newer
+ * contracts generation added are **optional** and `undefined` on chains whose
+ * deployment predates them (see `contractsVersion` in the chain config) —
+ * today that is {@link WithdrawRequest.advancedAmount}, added in v0.8.6.
  *
  * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/storages/WithdrawStorage.sol}
  */
@@ -167,8 +170,13 @@ export interface WithdrawRequest {
   totalAmount: bigint;
   /** Total amount delivered via virtual providers. */
   totalVirtualAmount: bigint;
-  /** Collateral already advanced to the provider before cooldown expiry (express credit-line flow). */
-  advancedAmount: bigint;
+  /**
+   * Collateral already advanced to the provider before cooldown expiry
+   * (express credit-line flow). Added in perps-core v0.8.6 — **`undefined` on a
+   * `contractsVersion: "0.8.5"` chain**, whose contracts predate withdraw
+   * advances.
+   */
+  advancedAmount?: bigint;
 }
 
 /**
