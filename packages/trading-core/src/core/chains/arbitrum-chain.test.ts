@@ -48,7 +48,7 @@ describe("Arbitrum chain", () => {
       address: "0x9be79D4977D86D440F9e1Ea0d468A58104B9b932",
       url: "https://arb-staging.enigma.bz/api",
       notifications: {
-        url: "wss://notification.rasa.capital/ws/v1/subscribe",
+        url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
         channel: "Arbitrum_Solver-Low-Cap_Stage",
         protocol: "enigma",
         searchUrl: "https://notification.rasa.capital/notification",

@@ -11,6 +11,34 @@ import { type InstantOpenMarketData, type PositionType } from "../shared/types";
 import { resolveFeeRates, resolveLockedParams, resolveMarket, resolveMarkPrice } from "./resolvers";
 
 /**
+ * Default solver-fee rate cap when the market publishes none: `"0.01"` — 1% of
+ * notional, as a decimal ratio. Applied per side before wei conversion.
+ */
+const DEFAULT_SOLVER_FEE_CAP = "0.01";
+
+/**
+ * Convert a market's solver-fee cap ratio string to its 18-decimal wei value.
+ *
+ * An absent cap falls back to {@link DEFAULT_SOLVER_FEE_CAP}; a present but
+ * malformed string **throws** rather than silently signing zero caps — the caps
+ * are immutable once `sendQuote` lands, so a bad vendor string must surface
+ * before the signature, not after.
+ *
+ * @throws {SymmError} `INVALID_SOLVER_FEE_CAP` when the string does not parse.
+ */
+function solverFeeCapToWei(field: "minOpenSolverFeeCap" | "minCloseSolverFeeCap", value: string | undefined): bigint {
+  const cap = decimalPriceToWei(value ?? DEFAULT_SOLVER_FEE_CAP);
+  if (cap === undefined) {
+    throw new SymmError(
+      "validation",
+      "INVALID_SOLVER_FEE_CAP",
+      `prepareInstantOpenParams: market ${field} "${value}" is not a valid decimal ratio.`,
+    );
+  }
+  return cap;
+}
+
+/**
  * Parameters for {@link prepareInstantOpenParams} and `instantOpenAuto`.
  *
  * Required = inputs only the caller can know (wallet, session key, trade
@@ -70,8 +98,8 @@ export type PrepareInstantOpenParameters = Compute<
  *
  * @throws {SymmError} `RESOLVE_MARKET_NOT_FOUND` /
  *   `RESOLVE_MARKET_METADATA_INCOMPLETE` /
- *   `RESOLVE_MARK_PRICE_NOT_FOUND` / `INVALID_TRADE_PARAMETERS` for
- *   missing / invalid resolved inputs.
+ *   `RESOLVE_MARK_PRICE_NOT_FOUND` / `INVALID_TRADE_PARAMETERS` /
+ *   `INVALID_SOLVER_FEE_CAP` for missing / invalid resolved inputs.
  */
 export async function prepareInstantOpenParams(
   config: Config,
@@ -175,10 +203,15 @@ export async function prepareInstantOpenParams(
     margin: {
       amount: toWeiBigInt(marginAmount),
     },
-    solverFeeCaps: {
-      openRateCap: decimalPriceToWei(market.minOpenSolverFeeCap ?? "0") ?? 0n,
-      closeRateCap: decimalPriceToWei(market.minCloseSolverFeeCap ?? "0") ?? 0n,
-    },
+    /** Only meaningful on a v0.8.6 chain — absent on v0.8.5, whose flow signs the legacy call. */
+    ...(needsSolverFeeCaps
+      ? {
+          solverFeeCaps: {
+            openRateCap: solverFeeCapToWei("minOpenSolverFeeCap", market.minOpenSolverFeeCap),
+            closeRateCap: solverFeeCapToWei("minCloseSolverFeeCap", market.minCloseSolverFeeCap),
+          },
+        }
+      : {}),
     uuid: parameters.uuid,
     addMarginSalt: parameters.addMarginSalt,
     sendQuoteSalt: parameters.sendQuoteSalt,

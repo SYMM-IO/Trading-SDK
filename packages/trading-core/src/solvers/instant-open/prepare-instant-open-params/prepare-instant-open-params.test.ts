@@ -47,6 +47,17 @@ const PARAMS = {
   slippage: 1,
 } as const;
 
+/** Same synthetic chain, restated as a v0.8.6 deployment via the override merge. */
+const cappedConfig = createConfig({
+  getClient: () => ({}) as PublicClient,
+  symmioConfig: {
+    [SymmioSupportedChainId.BASE]: {
+      contractsVersion: "0.8.6",
+      addresses: { affiliatesAddress: AFFILIATE },
+    },
+  },
+});
+
 describe("prepareInstantOpenParams", () => {
   beforeEach(() => {
     resolveMarket.mockReset().mockResolvedValue({ name: "BTCUSDT", pricePrecision: 2, quantityPrecision: 3 });
@@ -79,16 +90,6 @@ describe("prepareInstantOpenParams", () => {
   });
 
   it("asks resolveMarket for the solver-fee caps on a v0.8.6 chain and converts them to 18-decimal wei", async () => {
-    /** Same synthetic chain, restated as a v0.8.6 deployment via the override merge. */
-    const cappedConfig = createConfig({
-      getClient: () => ({}) as PublicClient,
-      symmioConfig: {
-        [SymmioSupportedChainId.BASE]: {
-          contractsVersion: "0.8.6",
-          addresses: { affiliatesAddress: AFFILIATE },
-        },
-      },
-    });
     resolveMarket.mockResolvedValue({
       name: "BTCUSDT",
       pricePrecision: 2,
@@ -121,10 +122,34 @@ describe("prepareInstantOpenParams", () => {
     );
   });
 
-  it("defaults the solver-fee caps to zero when the resolver returns none", async () => {
+  it("omits solverFeeCaps entirely on a v0.8.5 chain", async () => {
     const result = await prepareInstantOpenParams(config, PARAMS);
 
-    expect(result.solverFeeCaps).toEqual({ openRateCap: 0n, closeRateCap: 0n });
+    expect(result.solverFeeCaps).toBeUndefined();
+  });
+
+  it("falls back to the 1% default cap when a v0.8.6 resolver yields no cap strings", async () => {
+    const result = await prepareInstantOpenParams(cappedConfig, PARAMS);
+
+    /** 0.01 as an 18-decimal ratio. */
+    expect(result.solverFeeCaps).toEqual({
+      openRateCap: 10_000_000_000_000_000n,
+      closeRateCap: 10_000_000_000_000_000n,
+    });
+  });
+
+  it("throws INVALID_SOLVER_FEE_CAP on a malformed vendor cap string instead of signing zero caps", async () => {
+    resolveMarket.mockResolvedValue({
+      name: "BTCUSDT",
+      pricePrecision: 2,
+      quantityPrecision: 3,
+      minOpenSolverFeeCap: "not-a-number",
+      minCloseSolverFeeCap: "0.0003",
+    });
+
+    await expect(prepareInstantOpenParams(cappedConfig, PARAMS)).rejects.toThrow(
+      /INVALID_SOLVER_FEE_CAP|not a valid decimal ratio/,
+    );
   });
 
   it("leaves solverId undefined when the caller omits it, so the chain default applies", async () => {

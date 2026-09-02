@@ -149,7 +149,7 @@ Rasa's attestation is encoded _inside_ the signed calldata, so it cannot be cach
 
 `InstantOpenParameters` — the resolved bag from `prepareInstantOpenParams`. Every field is a concrete value; no fetching happens here, apart from the Rasa Muon signature noted above.
 
-On a `contractsVersion: "0.8.6"` chain the Enigma flow signs `sendQuote` carrying `solverFeeCaps` (`SolverFeeCaps` — 18-decimal rate caps the quote authorizes for the solver's open/close fees; the wizard fills the market minimums, and omitting it means zero caps, which a fee-charging solver rejects). On a `"0.8.5"` chain the flow signs the legacy `sendQuoteWithAffiliateAndData` and `solverFeeCaps` is ignored.
+On a `contractsVersion: "0.8.6"` chain the Enigma flow signs `sendQuote` carrying `solverFeeCaps` (`SolverFeeCaps` — 18-decimal rate caps the quote authorizes for the solver's open/close fees; the wizard fills the market minimums, falling back to a 1% default when the market publishes none and throwing `INVALID_SOLVER_FEE_CAP` on a malformed vendor string; omitting it on the primitive means zero caps, which a fee-charging solver rejects). On a `"0.8.5"` chain the flow signs the legacy `sendQuoteWithAffiliateAndData` and `solverFeeCaps` is ignored.
 
 Passing a literal `solverId` binds the generic and narrows the return type. Omitting it lets the chain's `defaultSolverId` decide at runtime — in which case a missing `margin` on an Enigma chain throws `INSTANT_OPEN_MARGIN_REQUIRED` rather than silently under-funding the trade.
 

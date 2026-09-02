@@ -200,3 +200,25 @@ describe("mergeChainConfig — notifications (per-solver)", () => {
     expect(notifications.protocol === "enigma" && notifications.channel).toBe("Base_Solver_Production");
   });
 });
+
+describe("mergeChainConfig — contractsVersion", () => {
+  it("inherits the built-in version when no override is supplied", () => {
+    const config = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: AFFILIATE } } },
+    });
+
+    expect(config.getChainConfig(SymmioSupportedChainId.HYPER_EVM).contractsVersion).toBe("0.8.5");
+  });
+
+  it("lets an override restate the version — every version-branched seam follows it", () => {
+    const config = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: {
+        [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: AFFILIATE }, contractsVersion: "0.8.6" },
+      },
+    });
+
+    expect(config.getChainConfig(SymmioSupportedChainId.HYPER_EVM).contractsVersion).toBe("0.8.6");
+  });
+});
