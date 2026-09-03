@@ -19,6 +19,7 @@ export default {
   margin: "Margin hooks",
   "price-service": "Price Service hooks",
   orderbook: "Orderbook hooks",
+  candles: "Candles hooks",
   notifications: "Notifications hooks",
   subgraph: "Subgraph hooks",
   muon: "Muon Oracle hooks",

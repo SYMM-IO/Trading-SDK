@@ -1,0 +1,94 @@
+import { Callout } from "nextra/components";
+
+# getCandlesQueryOptions
+
+Build TanStack Query options for a [`CandleSource`](/core/candles/candle-source-type)'s historical bars.
+
+Unlike the chain-scoped factories elsewhere in the SDK, this takes a **source** rather than a `Config`: which venue to chart is the consumer's choice, not a property of the SYMMIO deployment. The source's `id` is folded into the query key so switching venues does not read another venue's cached bars.
+
+```ts
+import { createBinanceCandleSource, getCandlesQueryOptions } from "@symmio/trading-core";
+
+const source = createBinanceCandleSource();
+
+const options = getCandlesQueryOptions(source, {
+  marketName: "BTCUSDT",
+  resolution: "1m",
+  from: rangeStart,
+  to: rangeEnd,
+});
+
+// queryClient.fetchQuery(options) / useQuery(options)
+```
+
+## Parameters
+
+<Properties>
+  <Property name="marketName" type="string">
+    Market name as SYMMIO names it (e.g. `"BTCUSDT"`).
+  </Property>
+  <Property name="resolution" type="CandleResolution">
+    Bar size to fetch. Must be listed in the source's `supportedResolutions`. See
+    [Resolutions](/core/candles/resolutions).
+  </Property>
+  <Property name="from" type="number">
+    Range start, unix **milliseconds**, inclusive.
+  </Property>
+  <Property name="to" type="number">
+    Range end, unix **milliseconds**, exclusive.
+  </Property>
+  <Property name="limit" type="number" optional>
+    Maximum bars to return. A source pages internally to satisfy this, so it may exceed the venue's own per-request cap.
+  </Property>
+  <Property name="query" type="QueryParameter" optional>
+    TanStack overrides (`staleTime`, `enabled`, …).
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetCandlesQueryOptions">
+  Options to pass to `useQuery` / `queryClient.fetchQuery`. The resolved data is `GetCandlesData` — `candles` in
+  ascending time order, de-duplicated and clipped to the requested range, plus a `noMoreData` flag.
+</Returns>
+
+`noMoreData` is `true` when the source has nothing at or before `from` — typically because the request predates the instrument's listing. A chart paging backwards should stop when it sees this instead of issuing requests that return empty.
+
+<Callout type="warning">
+  `from`/`to` are part of the query key. Passing a live `Date.now()` mints a new cache entry on every call — derive the
+  range from state that only changes when the user actually pans or changes resolution.
+</Callout>
+
+## Query key
+
+`getCandlesQueryKey` builds the key on its own — its options take a `sourceId` in place of the source object:
+
+```ts
+import { getCandlesQueryKey } from "@symmio/trading-core";
+
+const key = getCandlesQueryKey({
+  sourceId: source.id, // e.g. "binance:usd-m-futures"
+  marketName: "BTCUSDT",
+  resolution: "1m",
+  from,
+  to,
+});
+// → ["getCandles", { sourceId, marketName, resolution, from, to }]
+```
+
+`signal` is excluded from the key — cancellation is TanStack's concern, not part of the request's identity.
+
+## Types
+
+| Type                     | Shape                                                            |
+| ------------------------ | ---------------------------------------------------------------- |
+| `GetCandlesOptions`      | The parameters above.                                            |
+| `GetCandlesData`         | `{ candles: Candle[]; noMoreData: boolean }`                     |
+| `GetCandlesQueryKey`     | `["getCandles", { sourceId, marketName, resolution, from, to }]` |
+| `GetCandlesQueryOptions` | The TanStack options bag this factory returns.                   |
+
+## Related
+
+- [`useCandles`](/react/candles) — the React hook over this factory.
+- [`CandleSource`](/core/candles/candle-source-type) — where `getCandles` itself is defined.
+- [`createBinanceCandleSource`](/core/candles/create-source) — the reference source.

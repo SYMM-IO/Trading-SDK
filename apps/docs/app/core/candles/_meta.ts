@@ -1,0 +1,15 @@
+export default {
+  index: "Overview",
+  "-- reads": { type: "separator", title: "Reads" },
+  "get-candles": "getCandlesQueryOptions",
+  "-- live": { type: "separator", title: "Live bars" },
+  "create-source": "createBinanceCandleSource",
+  "watch-binance-klines": "watchBinanceKlines",
+  "-- adapters": { type: "separator", title: "Adapters" },
+  "tradingview-datafeed": "toTradingViewDatafeed",
+  "-- helpers": { type: "separator", title: "Helpers" },
+  resolutions: "Resolutions",
+  "-- types": { type: "separator", title: "Types" },
+  "candle-type": "Candle",
+  "candle-source-type": "CandleSource",
+};

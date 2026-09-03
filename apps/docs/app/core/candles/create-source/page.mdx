@@ -1,0 +1,120 @@
+import { Callout } from "nextra/components";
+
+# createBinanceCandleSource
+
+Create a [`CandleSource`](/core/candles/candle-source-type) backed by Binance klines. History comes from the REST `/klines` endpoint, paged backwards from the end of the requested range, and live bars from the kline WebSocket stream.
+
+Both are reachable directly from a browser — Binance serves permissive CORS headers on market data, so no proxy and no API key is involved.
+
+```ts
+import { createBinanceCandleSource } from "@symmio/trading-core";
+
+const source = createBinanceCandleSource();
+
+const { candles, noMoreData } = await source.getCandles({
+  marketName: "BTCUSDT",
+  resolution: "1m",
+  from: rangeStart,
+  to: rangeEnd,
+  limit: 60,
+});
+
+const unwatch = source.watchCandles?.({
+  marketName: "BTCUSDT",
+  resolution: "1m",
+  onCandle: (candle, { closed }) => series.update(candle),
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="market" type='"usd-m-futures" | "spot"' optional>
+    Which Binance market to read. Defaults to `"usd-m-futures"` — its symbols are perpetual contracts, matching what a
+    SYMMIO market actually is. Use `"spot"` for markets with no futures listing.
+  </Property>
+  <Property name="restUrl" type="string" optional>
+    Override the REST host — a regional mirror, or your own caching proxy.
+  </Property>
+  <Property name="wsUrl" type="string" optional>
+    Override the WebSocket endpoint. Keep the futures `/market/` route; see the routing note below.
+  </Property>
+  <Property name="resolveSymbol" type="(marketName: string) => string | undefined" optional>
+    Map a SYMMIO market name onto a Binance symbol, or return `undefined` when the market has no Binance listing.
+    Defaults to an upper-case identity mapping.
+  </Property>
+  <Property name="webSocketConstructor" type="WebSocketConstructor" optional>
+    WebSocket implementation for `watchCandles`. Defaults to `globalThis.WebSocket`; pass the `ws` package in Node
+    environments without one.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="CandleSource">
+  A source with `id` of `` `binance:${market}` ``, `priceBasis` of `"reference-exchange"`, the market's supported
+  resolutions, `maxCandlesPerRequest` (`1500` futures, `1000` spot), and all three methods implemented.
+</Returns>
+
+## The WebSocket route is not the documented one
+
+<Callout type="warning">
+  Binance routes futures streams **by class**. On `fstream.binance.com` the documented `/stream` and `/ws` forms accept
+  the SUBSCRIBE frame, acknowledge it with `{"result":null}`, and then never push a single kline — a feed that reports
+  `open` and silently never ticks. Only the `/market/` paths deliver kline frames, which is why the default is
+  `wss://fstream.binance.com/market/stream`. Spot needs no such prefix.
+</Callout>
+
+This is deliberately **not** the `/public/stream` route the [orderbook source](/core/orderbook/create-source) dials — depth and klines live on different route classes. If you override `wsUrl`, keep the route class.
+
+## Symbol mapping
+
+The default mapping upper-cases the market name, which holds for current SYMMIO deployments where market names are already Binance USD-M symbols. Override `resolveSymbol` rather than relying on that coincidence if your deployment's names can diverge — an unmapped name otherwise resolves to a symbol that does not exist and the chart simply stays empty.
+
+```ts
+const source = createBinanceCandleSource({
+  resolveSymbol: (marketName) => SYMBOL_BY_MARKET[marketName],
+});
+```
+
+`getSymbol` returns `undefined` for a market the venue does not list — the check to run before rendering a chart for it.
+
+## How history is paged
+
+Binance caps a bounded range request from its **start**: sending `startTime`, `endTime`, and `limit` together returns the _oldest_ `limit` bars in the window, which for a chart scrolling back is the wrong end entirely. The source therefore pages backwards from `to`, sending `endTime` only, and applies the `from` bound client-side. Requests are capped at the venue's per-request limit and paged transparently, so ask for as many bars as you need.
+
+## Low-level exports
+
+The pieces the source is built from are exported for consumers assembling their own:
+
+| Export                           | What it is                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `BINANCE_REST_URL`               | Default REST host per market.                                                                                |
+| `BINANCE_WS_URL`                 | Default combined-stream WebSocket endpoint per market (futures uses `/market/`).                             |
+| `BINANCE_KLINES_PATH`            | Klines REST path per market.                                                                                 |
+| `BINANCE_EXCHANGE_INFO_PATH`     | Exchange-info REST path per market, used to resolve price precision.                                         |
+| `BINANCE_MAX_LIMIT`              | Bars per request the venue accepts — `1500` futures, `1000` spot; more is a hard `-1130` error.              |
+| `parseBinanceKline`              | REST kline tuple → [`Candle`](/core/candles/candle-type). Throws `INVALID_BINANCE_KLINE` on malformed input. |
+| `parseBinanceKlineEvent`         | WebSocket `k` payload → [`Candle`](/core/candles/candle-type).                                               |
+| `toBinanceInterval`              | SDK resolution → Binance `interval` string, or `undefined` when the market has no equivalent bucket.         |
+| `getBinanceSupportedResolutions` | Resolutions a Binance market can serve, ascending.                                                           |
+| `BinanceMarket`                  | `"usd-m-futures" \| "spot"`.                                                                                 |
+
+Spot additionally serves `1s` klines; futures does not, and neither market has the SDK's `10s` bucket.
+
+## Throws
+
+- `UNSUPPORTED_CANDLE_RESOLUTION` — the market has no klines interval for the requested resolution.
+- `UNMAPPED_CANDLE_MARKET` — `resolveSymbol` returned `undefined` for the market.
+- `NO_WEBSOCKET_IMPLEMENTATION` — `watchCandles` was called with no `WebSocket` available and none injected.
+
+## Operational notes
+
+- `exchangeInfo` is fetched once per source and shared by every `getSymbol` call; a rejection clears the cache so a transient failure does not poison the source for its lifetime. **Memoize the source** — recreating it per render refetches that and re-dials any live subscription.
+- `api.binance.com` and `fapi.binance.com` are blocked in some jurisdictions; `restUrl` / `wsUrl` exist for that.
+
+## Related
+
+- [`watchBinanceKlines`](/core/candles/watch-binance-klines) — the stream underneath `watchCandles`.
+- [`getCandlesQueryOptions`](/core/candles/get-candles) — the history read through TanStack Query.
+- [`useBinanceCandleSource`](/react/candles) — the memoized React wrapper.

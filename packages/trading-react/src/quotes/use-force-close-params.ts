@@ -21,8 +21,9 @@ export type UseForceCloseParamsReturnType = UseQueryResult<GetForceCloseParamsDa
 /**
  * Read the protocol force-close params (cooldowns, price penalty, min signature
  * period, and the symbol's gap ratio) for a market — the inputs to the
- * force-close eligibility gate and price checks. Disabled until `symbolId` is
- * set; these change rarely, so a long `staleTime` fits. Errors are normalized to
+ * force-close eligibility gate and price checks. These change rarely, so a long
+ * `staleTime` fits. `symbolId` is required; while it is still loading, pass a
+ * placeholder and gate with `query.enabled`. Errors are normalized to
  * {@link SymmioRequestError}.
  *
  * @example
@@ -30,7 +31,7 @@ export type UseForceCloseParamsReturnType = UseQueryResult<GetForceCloseParamsDa
  * const { data: params } = useForceCloseParams({ symbolId: 1n });
  * ```
  */
-export function useForceCloseParams(parameters: UseForceCloseParamsParameters = {}): UseForceCloseParamsReturnType {
+export function useForceCloseParams(parameters: UseForceCloseParamsParameters): UseForceCloseParamsReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const options = getForceCloseParamsQueryOptions(config, {

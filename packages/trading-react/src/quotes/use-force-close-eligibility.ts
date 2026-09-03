@@ -50,7 +50,12 @@ export function useForceCloseEligibility(
 ): UseForceCloseEligibilityReturnType {
   const { quote, config } = parameters;
   const supportsLimit = useSupportsLimitOrder({ config });
-  const paramsQuery = useForceCloseParams({ symbolId: quote?.symbolId, config });
+  /** `0n` is a placeholder that is never fetched — the query stays disabled until a quote is present. */
+  const paramsQuery = useForceCloseParams({
+    symbolId: quote?.symbolId ?? 0n,
+    config,
+    query: { enabled: quote !== undefined },
+  });
   const params = paramsQuery.data;
 
   const [nowSec, setNowSec] = useState(() => BigInt(Math.floor(Date.now() / 1000)));

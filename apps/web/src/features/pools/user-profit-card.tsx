@@ -33,7 +33,6 @@ export function UserProfitCard() {
     accessToken: accessToken ?? "",
     tokenContractAddress: contractAddress,
   });
-  console.log("data-Profit", profit.data);
   const signedIn = accessToken !== null;
 
   return (
