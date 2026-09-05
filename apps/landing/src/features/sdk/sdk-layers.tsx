@@ -76,7 +76,11 @@ export function SdkLayers() {
             subtitle="Contract calls · GraphQL · Calculations · Transforms"
           />
           <Connector />
-          <LayerCard variant="ghost" title="SYMMIO protocol" subtitle="Contracts · Solvers · Enigma prices · Muon" />
+          <LayerCard
+            variant="ghost"
+            title="SYMMIO protocol"
+            subtitle="Contracts · Enigma & Rasa solvers · Prices · Muon"
+          />
         </motion.div>
       </div>
     </section>

@@ -57,7 +57,7 @@ export function SiteFooter() {
             </p>
             <span className="border-border/70 bg-muted/40 text-muted-foreground inline-flex w-fit items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium">
               <LiveDot tone="positive" />
-              HyperEVM · Live
+              HyperEVM · Base · Live
             </span>
           </div>
 

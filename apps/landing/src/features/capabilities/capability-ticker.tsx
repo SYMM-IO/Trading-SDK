@@ -8,14 +8,14 @@
 const capabilities = [
   "Contract methods",
   "Solver markets",
-  "Enigma prices",
+  "Enigma & Rasa solvers",
   "Muon attestations",
   "Subgraph history",
   "Deposit / withdraw",
   "Quote reconciliation",
   "Session keys",
   "WebSocket feeds",
-  "Chain config",
+  "Multi-chain config",
 ];
 
 export function CapabilityTicker() {

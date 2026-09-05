@@ -216,7 +216,7 @@ export function SiteHeader() {
             <div className="border-border/60 flex shrink-0 flex-col gap-4 border-t px-4 py-5 sm:px-6">
               <div className="flex items-center gap-2">
                 <LiveDot tone="positive" />
-                <span className="text-muted-foreground text-xs font-medium">HyperEVM · Live</span>
+                <span className="text-muted-foreground text-xs font-medium">HyperEVM · Base · Live</span>
               </div>
               <div className="flex items-center gap-2">
                 <Button asChild className="flex-1">
