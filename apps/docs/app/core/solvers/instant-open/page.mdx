@@ -1,6 +1,6 @@
 # Instant Open
 
-Instant Open is the lowcap flow for opening a position. The user signs an EIP-712 message, the SDK submits it to the solver, and the solver returns a `tempQuoteId` immediately — the position is tradeable before the on-chain anchor lands.
+Instant Open is the delegated flow for opening a position — on **both** solver kinds (Enigma lowcap and Rasa majors); `instantOpen` dispatches on the resolved solver's kind (see [Per-solver behavior](#per-solver-behavior)). The user signs an EIP-712 message, the SDK submits it to the solver, and the solver returns a `tempQuoteId` immediately — the position is tradeable before the on-chain anchor lands.
 
 The SDK splits the flow into **three functions** on purpose:
 
@@ -18,10 +18,13 @@ Plus read helpers for the pending queue: `getInstantOpens` (paginated list), `ge
 import {
   instantOpen,
   instantOpenAuto,
+  limitOpenAuto,
+  prepareLimitOpenParams,
   prepareInstantOpenParams,
   getInstantOpens,
   getInstantOpenQuoteId,
   type PrepareInstantOpenParameters,
+  type PrepareLimitOpenParameters,
   type InstantOpenParameters,
   type InstantOpenReturnType,
   type PendingInstantOpen,
@@ -128,15 +131,34 @@ const prepared = await prepareInstantOpenParams(config, uiInputs);
 const result = await instantOpen(config, prepared);
 ```
 
+### Per-solver behavior
+
+The two solver kinds open positions differently, and `instantOpen` dispatches on the resolved solver's kind:
+
+|                    | **Enigma** (lowcap)                                                                   | **Rasa** (majors)                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Operations signed  | **two** — `addMarginToNextVA` on the AccountLayer, then `sendQuote` on the diamond    | **one** — `sendQuote` on the diamond                                                |
+| Margin model       | funds a fresh **virtual account** in the same batch                                   | **cross-margin** — no VA, no `addMargin`                                            |
+| `margin` parameter | **required**                                                                          | ignored                                                                             |
+| Muon signature     | a **placeholder**, with its calldata region delegated to the solver via a `FlexField` | a **live** `uPnl_A_withSymbolPrice` attestation, fetched immediately before signing |
+| Endpoint           | `/instant_trade/instant_open`                                                         | `/instant_trade/open`                                                               |
+
+Rasa's attestation is encoded _inside_ the signed calldata, so it cannot be cached or fetched afterwards — `instantOpen` fetches it for you on that path.
+
 ### Parameters
 
-`InstantOpenParameters` — the resolved bag from `prepareInstantOpenParams`. Every field is a concrete value; no fetching happens here.
+`InstantOpenParameters` — the resolved bag from `prepareInstantOpenParams`. Every field is a concrete value; no fetching happens here, apart from the Rasa Muon signature noted above.
+
+Passing a literal `solverId` binds the generic and narrows the return type. Omitting it lets the chain's `defaultSolverId` decide at runtime — in which case a missing `margin` on an Enigma chain throws `INSTANT_OPEN_MARGIN_REQUIRED` rather than silently under-funding the trade.
 
 ### Returns
 
-`InstantOpenReturnType` — `{ success: true; tempQuoteId?: string }`.
+`InstantOpenReturnType` — a union discriminated on `kind`, sharing `{ success, tempQuoteId?, partyBmm? }`:
 
-`tempQuoteId` is the solver-issued negative integer that identifies the pending trade until it anchors on-chain. Rarely `undefined` (synchronous accept-without-id paths).
+- `EnigmaInstantOpenResult` — `{ kind: "enigma", … }`.
+- `RasaInstantOpenResult` — `{ kind: "rasa", …, rfq }`, where `rfq` is the accepted request-for-quote echoed by Rasa, normalized to the same shape `getInstantOpens` returns.
+
+`tempQuoteId` identifies the pending trade until it anchors on-chain. Rarely `undefined` on the Enigma path (synchronous accept-without-id paths).
 
 ### Errors
 
@@ -161,6 +183,37 @@ const result = await instantOpenAuto(config, {
 ```
 
 **Latency**: this variant does the prepare fetches inline, so the total wall-clock is `prepare fetches + sign + POST`. Fine for most flows; use `prepareInstantOpenParams` + `instantOpen` split when open time is critical (e.g. reacting to a live price change).
+
+## `limitOpenAuto`
+
+The **LIMIT-order** variant. Same shape and split as instant open, but the caller passes a resting `price` and the order is signed with `orderType = LIMIT`, so the solver writes a **pending on-chain quote** at that price instead of filling immediately. Majors / Rasa only — the Enigma (lowcap) solver has no limit support, and `limitOpenAuto` throws `UNSUPPORTED_BY_SOLVER` on a solver that lacks the [`limitOrder` capability](/core/concepts/solvers-and-chains#solver-capabilities). The send deadline defaults to 15 minutes (vs. 5 minutes for a market instant open).
+
+```ts
+const { tempQuoteId } = await limitOpenAuto(config, {
+  from: sessionKey,
+  subAccountAddress,
+  market: { id: 1 },
+  positionType: PositionType.LONG,
+  initialMargin: "100",
+  leverage: 5,
+  price: "64000", // resting limit price
+});
+```
+
+Under the hood it mirrors `instantOpenAuto` — [`prepareLimitOpenParams`](#preparelimitopenparams) then the shared `instantOpen` primitive (which honors `orderType = LIMIT`):
+
+```ts
+export async function limitOpenAuto(config, parameters) {
+  const resolved = await prepareLimitOpenParams(config, parameters);
+  return instantOpen(config, resolved);
+}
+```
+
+The returned `tempQuoteId` identifies the resting order off-chain. It appears in `getInstantOpens` (off-chain) until it anchors, at which point it is a pending on-chain quote — read the reconciled list with the React [`useLimitOrders`](../../../react/quotes#uselimitorders) hook, and cancel it with `requestToCancelQuote` / `forceCancelQuote` ([SYMMIO Contract](../../symmio-contract#cancel-a-quote)).
+
+### `prepareLimitOpenParams`
+
+The LIMIT-order resolver — same steps and inputs as [`prepareInstantOpenParams`](#prepareinstantopenparams) but takes the resting `price` (instead of `slippage`) and stamps `orderType = LIMIT` plus the 15-minute default deadline into the resolved `InstantOpenParameters` bag. Returns the inspectable bag `instantOpen` consumes.
 
 ## `getInstantOpens`
 

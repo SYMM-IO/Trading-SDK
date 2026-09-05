@@ -1,0 +1,83 @@
+import { Callout } from "nextra/components";
+
+# Candles
+
+OHLCV bars, decoupled from any venue. A **`CandleSource`** supplies the three things every chart needs — symbol metadata, historical bars for a range, and a live subscription — so charts, adapters, and hooks are written against that interface rather than against an exchange.
+
+`createBinanceCandleSource` is the reference source for major markets. Any venue that can answer those three questions plugs in the same way, and `toTradingViewDatafeed` turns any source into a TradingView Charting Library datafeed.
+
+<Callout type="warning">
+  Every source declares a `priceBasis`. Binance's is `reference-exchange`: it is a third-party venue's perp price,
+  **not** the SYMMIO solver's mark price a trade settles against. Surface that to anyone placing orders off the chart.
+</Callout>
+
+Unlike most of the SDK, a source is **not** derived from `Config`: a reference exchange is not a SYMMIO chain deployment, and which venue to chart is the consumer's choice. Construct one and pass it in explicitly.
+
+Each method and type has its own page with the full signature, parameters, return shape, examples, and query options.
+
+## Reads
+
+<MethodIndex kind="read">
+  <MethodEntry name="getCandlesQueryOptions" href="/core/candles/get-candles">
+    TanStack Query options for a source's historical bars, keyed by the source's `id`.
+  </MethodEntry>
+</MethodIndex>
+
+## Live bars
+
+<MethodIndex kind="read">
+  <MethodEntry name="createBinanceCandleSource" href="/core/candles/create-source">
+    Build the reference source backed by Binance klines — REST history plus a live kline stream.
+  </MethodEntry>
+  <MethodEntry name="watchBinanceKlines" href="/core/candles/watch-binance-klines">
+    The low-level kline stream, in Binance's own vocabulary.
+  </MethodEntry>
+</MethodIndex>
+
+## Adapters
+
+<MethodIndex kind="read">
+  <MethodEntry name="toTradingViewDatafeed" href="/core/candles/tradingview-datafeed">
+    Adapt any source into a TradingView Charting Library datafeed.
+  </MethodEntry>
+</MethodIndex>
+
+## Helpers
+
+<MethodIndex kind="read">
+  <MethodEntry name="resolutionToMs" href="/core/candles/resolutions">
+    Nominal length of a resolution in milliseconds, with the calendar-unit caveat spelled out.
+  </MethodEntry>
+</MethodIndex>
+
+## Types
+
+<MethodIndex kind="type">
+  <MethodEntry name="Candle" href="/core/candles/candle-type">
+    One OHLCV bar — open time in unix milliseconds, aligned by the venue.
+  </MethodEntry>
+  <MethodEntry name="CandleSource" href="/core/candles/candle-source-type">
+    The venue boundary every chart consumer is written against.
+  </MethodEntry>
+</MethodIndex>
+
+## Query options
+
+The history read ships a matching `getCandlesQueryOptions` factory and a `getCandlesQueryKey` builder for TanStack Query. The source's `id` is folded into the key, so switching venues never reads another venue's cached bars. See [`getCandlesQueryOptions`](/core/candles/get-candles) for the exact call.
+
+## Errors
+
+- `UNKNOWN_CANDLE_RESOLUTION` — `resolutionToMs` was given a code outside the SDK's vocabulary.
+- `UNSUPPORTED_CANDLE_RESOLUTION` — the Binance market has no klines interval for the requested resolution.
+- `UNMAPPED_CANDLE_MARKET` — no venue symbol is mapped for the market name.
+- `INVALID_BINANCE_KLINE` — a kline arrived malformed or with non-numeric prices.
+- `FETCH_BINANCE_KLINES_FAILED` — the history request failed.
+- `FETCH_BINANCE_EXCHANGE_INFO_FAILED` — the exchange-info request failed.
+- `BINANCE_KLINES_SOCKET_ERROR` — a transport or parse error on the kline stream.
+- `NO_WEBSOCKET_IMPLEMENTATION` — no `WebSocket` is available and none was injected.
+
+## Related
+
+- [Candles hooks](/react/candles) — the React layer over this slice.
+- [Majors chart guide](/guides/charts/majors) — building a chart end to end.
+- [Orderbook](/core/orderbook) — the same source pattern for market depth.

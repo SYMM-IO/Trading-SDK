@@ -2,7 +2,32 @@ import { toDecimal } from "@symmio/utils/decimal";
 import type { PositionType } from "../../../symmio-contracts/symmio/types";
 import { checkNotionalCap } from "../../notional-cap/check-notional-cap";
 import type { MarketNotionalCap } from "../../notional-cap/types";
-import type { SymbolContractSymbol } from "../../types/generated/enigma-solver";
+
+/**
+ * The constraint fields {@link validateInstantOpenAgainstMarket} reads — the
+ * SDK's **normalized** market spelling (a `useMarkets` / `getMarkets` row).
+ * Raw wire rows (snake_case `/contract-symbols` payloads) are not accepted:
+ * run them through the markets adapter first. One canonical shape keeps a
+ * spelling mismatch from ever silently skipping the checks again.
+ *
+ * Fields are optional structurally; the adapters always populate them, using
+ * `"0"` / `0` for constraints the vendor does not publish — the validator
+ * treats those sentinels as "unpublished" and skips the check.
+ */
+export interface InstantOpenConstraintFields {
+  /** Minimum `lf / (cva + lf + partyAmm)` portion (decimal fraction). */
+  minAcceptablePortionLf?: string;
+  /** Minimum locked-margin sum (decimal string). */
+  minAcceptableQuoteValue?: string;
+  /** Maximum notional position value. `0` ⇒ unpublished. */
+  maxNotionalValue?: number;
+  /** Minimum notional position value (decimal string). */
+  minNotionalValue?: string;
+  /** Maximum order quantity (decimal string). `"0"` ⇒ unpublished. */
+  maxQuantity?: string;
+  /** Minimum tradable increment (decimal string). */
+  lotSize?: string;
+}
 
 /**
  * One reason a candidate instant-open quote violates the market's published
@@ -83,8 +108,8 @@ export type QuoteConstraintViolation =
  * {@link calculateTradeParams}.
  */
 export interface ValidateInstantOpenAgainstMarketParameters {
-  /** Market metadata carrying the constraint fields. */
-  market: SymbolContractSymbol;
+  /** Market metadata carrying the constraint fields — wire or normalized spelling. */
+  market: InstantOpenConstraintFields;
   /** Final leveraged quote quantity (decimal string, e.g. `"1.25"`). */
   quantity: string;
   /** Current mark price (decimal string) — used for the notional bounds. */
@@ -159,8 +184,12 @@ export function validateInstantOpenAgainstMarket(
   const partyAmmDec = toDecimal(partyAmm);
   const lockedSum = cvaDec.plus(lfDec).plus(partyAmmDec);
 
+  const { minAcceptableQuoteValue, maxNotionalValue, minNotionalValue } = market;
+  const maxQuantityValue = market.maxQuantity;
+  const lotSizeValue = market.lotSize;
+
   // 1. LF portion = lf / (cva + lf + partyAmm).
-  const minPortionStr = market.min_acceptable_portion_lf;
+  const minPortionStr = market.minAcceptablePortionLf;
   if (minPortionStr && !lockedSum.isZero() && !lockedSum.isNaN()) {
     const actualPortion = lfDec.div(lockedSum);
     const minPortion = toDecimal(minPortionStr);
@@ -174,7 +203,7 @@ export function validateInstantOpenAgainstMarket(
   }
 
   // 2. min_acceptable_quote_value — compare against locked-margin sum.
-  const minQuoteValueStr = market.min_acceptable_quote_value;
+  const minQuoteValueStr = minAcceptableQuoteValue;
   if (minQuoteValueStr) {
     const minQuoteValue = toDecimal(minQuoteValueStr);
     if (lockedSum.lt(minQuoteValue)) {
@@ -188,8 +217,9 @@ export function validateInstantOpenAgainstMarket(
 
   // 3 & 4. Notional bounds use markPrice × quantity.
   const notional = toDecimal(markPrice).times(quantity);
-  if (market.max_notional_value !== undefined) {
-    const maxNotional = toDecimal(market.max_notional_value);
+  // The adapters emit `0` for a cap the vendor does not publish — skip it.
+  if (maxNotionalValue !== undefined && maxNotionalValue > 0) {
+    const maxNotional = toDecimal(maxNotionalValue);
     if (notional.gt(maxNotional)) {
       violations.push({
         kind: "NOTIONAL_TOO_HIGH",
@@ -198,8 +228,8 @@ export function validateInstantOpenAgainstMarket(
       });
     }
   }
-  if (market.min_notional_value) {
-    const minNotional = toDecimal(market.min_notional_value);
+  if (minNotionalValue) {
+    const minNotional = toDecimal(minNotionalValue);
     if (notional.lt(minNotional)) {
       violations.push({
         kind: "NOTIONAL_TOO_LOW",
@@ -211,9 +241,10 @@ export function validateInstantOpenAgainstMarket(
 
   // 5. max_quantity.
   const actualQuantity = toDecimal(quantity);
-  if (market.max_quantity) {
-    const maxQuantity = toDecimal(market.max_quantity);
-    if (actualQuantity.gt(maxQuantity)) {
+  // `"0"` ⇒ the vendor publishes no quantity cap — skip it.
+  if (maxQuantityValue) {
+    const maxQuantity = toDecimal(maxQuantityValue);
+    if (maxQuantity.gt(0) && actualQuantity.gt(maxQuantity)) {
       violations.push({
         kind: "QUANTITY_TOO_HIGH",
         maxQuantity: maxQuantity.toString(),
@@ -225,8 +256,8 @@ export function validateInstantOpenAgainstMarket(
   // 6. lot_size — quantity must be ≥ lot_size AND an exact integer multiple.
   // Skip the multiple-of check when below the minimum so the user sees one
   // clear error at a time.
-  if (market.lot_size) {
-    const lotSize = toDecimal(market.lot_size);
+  if (lotSizeValue) {
+    const lotSize = toDecimal(lotSizeValue);
     if (lotSize.gt(0) && !lotSize.isNaN()) {
       if (actualQuantity.lt(lotSize)) {
         violations.push({

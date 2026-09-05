@@ -1,4 +1,5 @@
 "use client";
+import { InfoIcon } from "@/components/info-icon";
 import { WEI_DECIMALS } from "@/lib/format";
 import type { UnifiedQuote } from "@symmio/trading-core";
 import { OrderType, PositionType, QuoteStatus } from "@symmio/trading-core";
@@ -46,26 +47,6 @@ function rowIdSort(quote: UnifiedQuote): number {
 /** Best-known creation timestamp (seconds) for sorting/displaying the created column. */
 function createdSeconds(quote: UnifiedQuote): bigint | undefined {
   return quote.createTimestamp ?? quote.statusModifyTimestamp;
-}
-
-/** Inline "info" glyph (apps/web uses inline SVG, never lucide). */
-function InfoIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="size-3.5"
-      aria-hidden
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 16v-4" />
-      <path d="M12 8h.01" />
-    </svg>
-  );
 }
 
 /**
@@ -122,7 +103,7 @@ function TpSlIndicator({ quote }: { quote: UnifiedQuote }) {
       ) : null}
       {hasSl ? (
         <span className="text-muted-foreground/90 font-mono">
-          <span className="text-negative">SL</span> {renderSide(data.sl, data.slState)}
+          <span className="text-info">SL</span> {renderSide(data.sl, data.slState)}
         </span>
       ) : null}
     </span>

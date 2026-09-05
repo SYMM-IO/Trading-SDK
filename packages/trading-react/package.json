@@ -56,6 +56,22 @@
       "types": "./dist/price-service/index.d.ts",
       "import": "./dist/price-service/index.js"
     },
+    "./candles": {
+      "types": "./dist/candles/index.d.ts",
+      "import": "./dist/candles/index.js"
+    },
+    "./orderbook": {
+      "types": "./dist/orderbook/index.d.ts",
+      "import": "./dist/orderbook/index.js"
+    },
+    "./pools": {
+      "types": "./dist/pools/index.d.ts",
+      "import": "./dist/pools/index.js"
+    },
+    "./inventory": {
+      "types": "./dist/inventory/index.d.ts",
+      "import": "./dist/inventory/index.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"

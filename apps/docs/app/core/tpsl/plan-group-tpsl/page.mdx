@@ -1,0 +1,70 @@
+# planGroupTpSl
+
+Diff a desired grouped TP/SL state against what the handler already holds, and decide per child whether to `set`, `delete`, or `skip`.
+
+The conditional-order handler has **no bulk endpoint** — one signed request per quote — so on a merged position of N quotes a naive "apply" costs N signatures every time. This planner's job is to make that fan-out as small as honestly possible:
+
+- a side whose **rounded** trigger price _and_ price type already match the confirmed snapshot is dropped from the leg, so [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) receives only what changed; when both sides drop, the child is skipped as `"unchanged"`;
+- a side cleared to `""` while the handler holds a live order becomes a `delete`; cleared with nothing live, it is dropped;
+- unanchored or fully-closed children are skipped with a typed reason instead of throwing;
+- with `referencePrice` and `config` supplied, each child runs [`validateTpSl`](/core/tpsl/validate-tpsl) against its **resulting** pair — so raising a take profit still gets checked against an untouched stop loss — and a failure becomes `"invalid"` carrying the `TpSlValidation` for inline errors.
+
+Rounding before comparing is what makes `"100"` and `"100.0000"` equal at `pricePrecision: 4`. Without it the handler's own rounding would make every submit look like a change, and the SDK would resubmit unchanged orders forever.
+
+A child can produce **two** actions — cancel one side, write the other — so `actions` is not one entry per child.
+
+```ts
+import { planGroupTpSl, setQuoteTpSl } from "@symmio/trading-core";
+
+const plan = planGroupTpSl({
+  children,
+  desired: Object.fromEntries(children.map((child) => [child.key, { tp: { triggerPrice: "150" } }])),
+  pricePrecision: 4,
+  referencePrice: markPrice,
+  config: tpslConfig,
+});
+
+if (plan.hasInvalid) return;
+for (const action of plan.sets) {
+  await setQuoteTpSl(config, { ...action, subAccount, pricePrecision: 4 });
+}
+```
+
+## Parameters
+
+<Properties>
+  <Property name="children" type="readonly GroupTpSlChild[]" typeHref="/core/tpsl/group-tpsl-child" required>
+    The grouped position's children with their confirmed snapshots.
+  </Property>
+  <Property name="desired" type="GroupTpSlDesiredMap" required>
+    Desired state per child key. A child with no entry is skipped as `"nothing-to-do"`. An entry with an empty
+    `triggerPrice` clears that side.
+  </Property>
+  <Property name="pricePrecision" type="number" required>
+    Market price precision. Trigger prices are rounded to it **before** diffing.
+  </Property>
+  <Property name="referencePrice" type="string" optional>
+    Reference price for validation (decimal string). Pass the live **mark** price — a grouped position is validated
+    against what the trader is looking at, not against each child's own open price. Omit (with `config`) to skip
+    validation.
+  </Property>
+  <Property name="config" type="TpSlConfig" typeHref="/core/tpsl/tpsl-config" optional>
+    Live handler `/configs/` rules. Required for validation to run.
+  </Property>
+  <Property name="only" type="readonly string[]" optional>
+    Restrict planning to these child keys — the retry-failed-only path. Others are omitted entirely.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="PlanGroupTpSlResult" typeHref="/core/tpsl/plan-group-tpsl-result">
+  Every decision in child order, plus pre-split `sets` / `deletes` / `skips`, a `hasInvalid` submit gate and an `isNoop`
+  flag.
+</Returns>
+
+## Related
+
+- [`GroupTpSlAction`](/core/tpsl/group-tpsl-action) — the per-child decision shape.
+- [`planGroupTpSlDelete`](/core/tpsl/plan-group-tpsl-delete) — the cancel-all counterpart.
+- [`useSetQuoteGroupTpSl`](/react/tpsl#usesetquotegrouptpsl) — executes this plan with per-child progress.

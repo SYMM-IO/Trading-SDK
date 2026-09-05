@@ -23,7 +23,7 @@ import { SubAccountPicker } from "./subaccount-picker";
 
 export function ReadDelegationReads() {
   const config = useSymmioConfig();
-  const { solver } = config.getChainConfig();
+  const solver = config.getSolver();
   const { sessionKeyAddress } = useSessionKey();
   const [account, setAccount] = useState<string>("");
   const [delegate, setDelegate] = useState<string>("");

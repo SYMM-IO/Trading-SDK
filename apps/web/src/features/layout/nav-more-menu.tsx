@@ -9,9 +9,13 @@ import { useState, type ReactElement, type SVGProps } from "react";
 
 /** Per-route glyphs for the secondary destinations, keyed by href. */
 const ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElement> = {
+  "/contracts": LayersIcon,
+  "/solvers": SolverIcon,
   "/price-service": PriceIcon,
+  "/candles": CandlesIcon,
+  "/orderbook": OrderbookIcon,
+  "/pools": PoolsIcon,
   "/muon": MuonIcon,
-  "/websocket": WebSocketIcon,
   "/session-keys": KeyIcon,
   "/config": GearIcon,
 };
@@ -123,6 +127,42 @@ function ArrowIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function LayersIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      <path d="M12 3 3 8l9 5 9-5-9-5Z" />
+      <path d="m3 12 9 5 9-5M3 16l9 5 9-5" />
+    </svg>
+  );
+}
+
+function SolverIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      <path d="M4 20V4M4 20h16" />
+      <path d="M8 16v-3M12 16V9M16 16v-6M20 16V6" />
+    </svg>
+  );
+}
+
 function PriceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -136,6 +176,66 @@ function PriceIcon(props: SVGProps<SVGSVGElement>) {
       {...props}
     >
       <path d="M3 12h4l3 7 4-14 3 7h4" />
+    </svg>
+  );
+}
+
+function CandlesIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      <path d="M8 3v4M8 16v5" />
+      <rect x="5.5" y="7" width="5" height="9" rx="1" />
+      <path d="M16 5v4M16 15v4" />
+      <rect x="13.5" y="9" width="5" height="6" rx="1" />
+    </svg>
+  );
+}
+
+function OrderbookIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      {/* A ladder thinning away from the spread, with the seam drawn across the middle. */}
+      <path d="M18 4H9M18 7.5h-5M18 11H14" />
+      <path d="M3.5 14.5H21" />
+      <path d="M18 18h-4M18 21.5H9" />
+    </svg>
+  );
+}
+
+function PoolsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      {/* Stacked liquidity: a filled level under two waterlines, the rim drawn open at the top. */}
+      <path d="M4 7c0-1.66 3.58-3 8-3s8 1.34 8 3-3.58 3-8 3-8-1.34-8-3Z" />
+      <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
+      <path d="M4 7v10c0 1.66 3.58 3 8 3s8-1.34 8-3V7" />
     </svg>
   );
 }
@@ -172,25 +272,6 @@ function GearIcon(props: SVGProps<SVGSVGElement>) {
     >
       <circle cx="12" cy="12" r="3.25" />
       <path d="M12 2.5v2.5M12 19v2.5M21.5 12H19M5 12H2.5M18.7 5.3 16.9 7.1M7.1 16.9l-1.8 1.8M18.7 18.7 16.9 16.9M7.1 7.1 5.3 5.3" />
-    </svg>
-  );
-}
-
-function WebSocketIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-      {...props}
-    >
-      <path d="M4 7a13 13 0 0 1 13 13" />
-      <path d="M4 13a7 7 0 0 1 7 7" />
-      <circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   );
 }

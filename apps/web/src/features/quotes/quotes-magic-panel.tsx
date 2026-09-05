@@ -1,7 +1,7 @@
 "use client";
 import { StatusDot } from "@/components/status-dot";
 import { PartyAField } from "@/features/inspector/party-a-field";
-import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
+import { socketStatusLabel, socketStatusTone } from "@/features/notifications/socket-status-display";
 import type { UnifiedQuote } from "@symmio/trading-core";
 import { useManagedQuotes } from "@symmio/trading-react";
 import { useEffect, useRef } from "react";
@@ -35,6 +35,7 @@ export function QuotesMagicPanel({ intervalMs, enabled, initialInput, persistKey
     pollingInterval: intervalMs,
     includeVirtualAccounts: true,
   });
+  console.log("quotes", quotes);
 
   /**
    * Keep the last loaded feed so a reload shows it instantly instead of

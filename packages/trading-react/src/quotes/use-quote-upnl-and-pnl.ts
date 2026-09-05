@@ -10,7 +10,7 @@ import {
   type UnifiedQuote,
 } from "@symmio/trading-core";
 import { useMemo } from "react";
-import { useEnigmaPriceByMarketId } from "../price-service/use-enigma-price-by-market-id";
+import { usePriceByMarketId } from "../price-service/use-price-by-market-id";
 
 /**
  * Parameters for {@link useQuoteUpnlAndPnl}.
@@ -46,9 +46,10 @@ const EMPTY: UseQuoteUpnlAndPnlReturnType = {
  * Compute unrealized PNL (open size, vs mark) and realized PNL (closed size,
  * vs the quote's recorded close price) for a single {@link UnifiedQuote}.
  *
- * Mark price is resolved live via {@link useEnigmaPriceByMarketId} on the
- * quote's `symbolId`. UPNL stays `"0"` until the first tick for that market
- * arrives.
+ * Mark price is resolved live via {@link usePriceByMarketId} on the quote's
+ * `symbolId` — from whichever price provider serves the chain's resolved solver
+ * (Enigma on lowcap chains, Binance on majors chains). UPNL stays `"0"` until
+ * the first tick for that market arrives.
  *
  * @example
  * ```tsx
@@ -58,7 +59,7 @@ const EMPTY: UseQuoteUpnlAndPnlReturnType = {
 export function useQuoteUpnlAndPnl(parameters: UseQuoteUpnlAndPnlParameters): UseQuoteUpnlAndPnlReturnType {
   const { quote } = parameters;
 
-  const priceQuery = useEnigmaPriceByMarketId({
+  const priceQuery = usePriceByMarketId({
     marketId: quote?.symbolId ?? 0n,
     enabled: quote !== undefined,
   });
@@ -70,6 +71,7 @@ export function useQuoteUpnlAndPnl(parameters: UseQuoteUpnlAndPnlParameters): Us
     const leverage = calculateQuoteLeverage({
       quantity: quote.quantity,
       requestedOpenPrice: quote.requestedOpenPrice,
+      openedPrice: quote.openedPrice,
       lockedValues: lockedValuesForLeverage,
     });
 

@@ -1,5 +1,6 @@
 import type { QuoteTpSlRow, TpSlNotification } from "@symmio/trading-core";
 import { afterEach, describe, expect, it } from "vitest";
+import { isWriteSideSettled } from "./settled-side";
 import { __resetTpSlStore, useTpSlStore } from "./tpsl-store";
 
 function row(overrides: Record<string, unknown>): QuoteTpSlRow {
@@ -130,5 +131,184 @@ describe("useTpSlStore", () => {
     store.markConfirming(42n, "tp");
     store.applyNotification(42n, notification({ successful: false }));
     expect(store.get(42n)?.tpState).toBe("confirming");
+  });
+
+  it("`applyNotification` clears the confirmation guard once the report lands", () => {
+    const store = useTpSlStore.getState();
+    store.markConfirming(42n, "tp", { price: "150" });
+    store.applyNotification(42n, notification({ state: "new" }));
+    expect(store.get(42n)?.tpConfirm).toBeUndefined();
+  });
+
+  it("`setRows` does not erase a pending write the handler has yet to publish", () => {
+    const store = useTpSlStore.getState();
+    store.markConfirming(42n, "tp", { price: "150", cohQuoteId: "coh42" });
+    // The refetch beat the handler's own bookkeeping and came back empty.
+    store.setRows(42n, []);
+    const record = store.get(42n)!;
+    expect(record.tpState).toBe("confirming");
+    expect(record.tp).toBe("150");
+    expect(record.tpCohQuoteId).toBe("coh42");
+  });
+
+  it("`setRows` settles a pending write on a snapshot showing the submitted price", () => {
+    const store = useTpSlStore.getState();
+    store.markConfirming(42n, "tp", { price: "150" });
+    store.setRows(42n, [row({ quote_id: 42, state: "new", conditional_order_price: 150 })]);
+    const record = store.get(42n)!;
+    expect(record.tpState).toBe("new");
+    expect(record.tp).toBe("150");
+    expect(record.tpConfirm).toBeUndefined();
+  });
+
+  it("`setRows` holds a pending write when the snapshot still shows the pre-edit price", () => {
+    const store = useTpSlStore.getState();
+    // The trader edits an existing TP from 150 to 160; the refetch beats the
+    // handler and still returns the old row. That row is not evidence the edit
+    // landed, so the side keeps waiting instead of reporting a stale success.
+    store.markConfirming(42n, "tp", { price: "160", priceType: "markPrice" });
+    store.setRows(42n, [row({ quote_id: 42, state: "new", conditional_order_price: 150 })]);
+    const record = store.get(42n)!;
+    expect(record.tpState).toBe("confirming");
+    expect(record.tp).toBe("160");
+  });
+
+  it("`setRows` tolerates trigger-price re-serialisation when matching a pending write", () => {
+    const store = useTpSlStore.getState();
+    store.markConfirming(42n, "tp", { price: "160.00" });
+    store.setRows(42n, [row({ quote_id: 42, state: "new", conditional_order_price: 160.0000000001 })]);
+    expect(store.get(42n)?.tpState).toBe("new");
+  });
+
+  it("`setRows` ignores the handler id when a price is known — it is per-quote, not per-order", () => {
+    const store = useTpSlStore.getState();
+    // This handler issues one `coh_quote_id` per quote, shared by both sides and
+    // by every superseded order, so a matching id is no evidence at all: the row
+    // being replaced carries the same one. Only the price decides.
+    store.markConfirming(42n, "tp", { price: "160", cohQuoteId: "coh1227" });
+    store.setRows(42n, [row({ quote_id: 42, state: "new", conditional_order_price: 150, coh_quote_id: "coh1227" })]);
+    expect(store.get(42n)?.tpState).toBe("confirming");
+
+    store.setRows(42n, [row({ quote_id: 42, state: "new", conditional_order_price: 160, coh_quote_id: "coh1227" })]);
+    expect(store.get(42n)?.tpState).toBe("new");
+  });
+
+  it("`setRows` settles a two-sided write even when both sides were seeded with one id", () => {
+    const store = useTpSlStore.getState();
+    // One POST covers both sides and can only report one id. Neither side may
+    // depend on that id lining up with whatever the rows carry.
+    store.markConfirming(42n, "tp", { price: "150", cohQuoteId: "coh-post" });
+    store.markConfirming(42n, "sl", { price: "80", cohQuoteId: "coh-post" });
+    store.setRows(42n, [
+      row({ quote_id: 42, state: "new", conditional_order_price: 150, coh_quote_id: "coh-tp" }),
+      row({
+        quote_id: 42,
+        conditional_order_type: "stop_loss",
+        state: "new",
+        conditional_order_price: 80,
+        coh_quote_id: "coh-sl",
+      }),
+    ]);
+    expect(store.get(42n)?.tpState).toBe("new");
+    expect(store.get(42n)?.slState).toBe("new");
+  });
+
+  it("`setRows` settles a pending write the handler rounded to the market's precision", () => {
+    const store = useTpSlStore.getState();
+    // The trader typed five decimals into a four-decimal market; the request was
+    // signed — and stored — as 0.0069. Without the precision the seed and the
+    // row could never agree and the write would hang to the guard.
+    store.markConfirming(42n, "tp", { price: "0.00693", pricePrecision: 4 });
+    store.setRows(42n, [row({ quote_id: 42, state: "new", conditional_order_price: 0.0069 })]);
+    expect(store.get(42n)?.tpState).toBe("new");
+  });
+
+  it("`setRows` still holds an edit that differs within the market's precision", () => {
+    const store = useTpSlStore.getState();
+    // 2.14 vs a stale 2.1 is a real difference at two decimals — and JSON having
+    // stripped the trailing zero must not make them look equal.
+    store.markConfirming(42n, "tp", { price: "2.14", pricePrecision: 2 });
+    store.setRows(42n, [row({ quote_id: 42, state: "new", conditional_order_price: 2.1 })]);
+    expect(store.get(42n)?.tpState).toBe("confirming");
+  });
+
+  it("`setRows` settles a pending write from a `pending` row — the handler holds the order", () => {
+    const store = useTpSlStore.getState();
+    store.markConfirming(42n, "tp", { price: "150" });
+    store.setRows(42n, [row({ quote_id: 42, state: "pending", conditional_order_price: 150 })]);
+    expect(store.get(42n)?.tpState).toBe("pending");
+    expect(isWriteSideSettled(store.get(42n)!, "take_profit")).toBe(true);
+  });
+
+  it("`setRows` settles a pending write whose price type the handler stored differently", () => {
+    const store = useTpSlStore.getState();
+    // The handler keeps its own `action_price_type` — `market` and `last_close`
+    // both appear on one quote. Demanding it echo the submitted type would
+    // strand a perfectly good write until the deadline.
+    store.markConfirming(42n, "tp", { price: "150", priceType: "markPrice" });
+    store.setRows(42n, [
+      row({ quote_id: 42, state: "new", conditional_order_price: 150, action_price_type: "last_close" }),
+    ]);
+    expect(store.get(42n)?.tpState).toBe("new");
+  });
+
+  it("`setRows` settles a write that seeded no evidence, as it always did", () => {
+    const store = useTpSlStore.getState();
+    store.markConfirming(42n, "tp");
+    store.setRows(42n, [row({ quote_id: 42, state: "new", conditional_order_price: 155 })]);
+    expect(store.get(42n)?.tpState).toBe("new");
+  });
+
+  it("`setRowsForSides` leaves the sides it was not given alone", () => {
+    const store = useTpSlStore.getState();
+    // A live TP the caller is not asking about, and an SL edit it is.
+    store.setRows(42n, [
+      row({ quote_id: 42, state: "new", conditional_order_price: 150 }),
+      row({ quote_id: 42, conditional_order_type: "stop_loss", state: "new", conditional_order_price: 80 }),
+    ]);
+    store.markConfirming(42n, "sl", { price: "90" });
+
+    // An account-scoped page that lagged and carries neither side.
+    store.setRowsForSides(42n, [], ["sl"]);
+
+    const record = store.get(42n)!;
+    expect(record.tpState).toBe("new");
+    expect(record.tp).toBe("150");
+    expect(record.slState).toBe("confirming");
+  });
+
+  it("`setRowsForSides` never aliases a foreign quote id onto the record", () => {
+    const store = useTpSlStore.getState();
+    store.setRowsForSides(42n, [row({ quote_id: 99, state: "new" })], ["tp"]);
+    expect(store.get(99n)).toBeUndefined();
+  });
+
+  it("skips the commit entirely when a fold changes nothing", () => {
+    const store = useTpSlStore.getState();
+    store.setRows(42n, [row({ quote_id: 42, state: "new", conditional_order_price: 150 })]);
+    const before = useTpSlStore.getState().records;
+
+    store.setRows(42n, [row({ quote_id: 42, state: "new", conditional_order_price: 150 })]);
+
+    // Same state object — zustand notifies no subscriber, so a repeating sweep
+    // does not wake every waiter or re-render every cell on each tick.
+    expect(useTpSlStore.getState().records).toBe(before);
+  });
+
+  it("`setRows` confirms a pending cancel by the side's absence", () => {
+    const store = useTpSlStore.getState();
+    store.markConfirming(42n, "tp", { intent: "cancel" });
+    store.setRows(42n, []);
+    const record = store.get(42n)!;
+    expect(record.tpState).toBe("canceled");
+    expect(record.tpConfirm).toBeUndefined();
+  });
+
+  it("`clearConfirming` hands the next snapshot back the wheel", () => {
+    const store = useTpSlStore.getState();
+    store.markConfirming(42n, "tp", { price: "150" });
+    store.clearConfirming(42n, "tp");
+    store.setRows(42n, []);
+    expect(store.get(42n)?.tpState).toBe("canceled");
   });
 });

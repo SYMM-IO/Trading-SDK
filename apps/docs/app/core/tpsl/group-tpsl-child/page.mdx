@@ -1,0 +1,39 @@
+# GroupTpSlChild
+
+One child position offered to the grouped TP/SL helpers: the quote's write identity, the sizing and pricing inputs the math needs, and its current confirmed TP/SL snapshot.
+
+Build these from a grouped position's child quotes with [`toGroupTpSlChildren`](/core/tpsl/to-group-tpsl-children). Every amount and price is 18-decimal wei `bigint`, matching `UnifiedQuote`; trigger prices inside `tpsl` stay decimal strings, matching the handler.
+
+## Properties
+
+<Properties>
+  <Property name="key" type="string" required>
+    Stable child identity (`UnifiedQuote.key`) — the key every desired map and plan is addressed by.
+  </Property>
+  <Property name="quoteId" type="bigint" optional>
+    On-chain quote id. Absent while the child is still off-chain; no conditional order can be written against it yet.
+  </Property>
+  <Property name="virtualAccount" type="Address" optional>
+    PartyA the conditional order is signed for: the child's Virtual Account (`vaAddress ?? partyA`).
+  </Property>
+  <Property name="symbolId" type="bigint" required>
+    Market identifier.
+  </Property>
+  <Property name="positionType" type="PositionType" required>
+    Trade side.
+  </Property>
+  <Property name="openQuantity" type="bigint" required>
+    Remaining open size (`quantity − closedAmount`), wei — what a TP/SL leg would close.
+  </Property>
+  <Property name="openPrice" type="bigint" required>
+    Price the child is valued and diffed against (`openedPrice` when settled, else `requestedOpenPrice`), wei.
+  </Property>
+  <Property name="tpsl" type="QuoteTpSl" typeHref="/core/tpsl/quote-tpsl" required>
+    The child's confirmed TP/SL snapshot. Both sides empty means "no orders".
+  </Property>
+</Properties>
+
+## Related
+
+- [`toGroupTpSlChildren`](/core/tpsl/to-group-tpsl-children) — builds these from quotes.
+- [`planGroupTpSl`](/core/tpsl/plan-group-tpsl) — consumes them.

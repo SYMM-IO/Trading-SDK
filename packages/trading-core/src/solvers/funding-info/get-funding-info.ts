@@ -1,7 +1,7 @@
 import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { getGetFundingInfo } from "../types/generated/enigma-solver";
 import { toMarketFundingInfo } from "./to-funding-info";
 import type { MarketFundingInfo } from "./types";
@@ -10,7 +10,7 @@ import type { MarketFundingInfo } from "./types";
  * Parameters for {@link getFundingInfo}.
  */
 export type GetFundingInfoParameters = Compute<
-  ChainIdParameter & {
+  ReadSolverParameter & {
     /** Restrict the result to these market names. Omit to fetch every market (the endpoint default). */
     symbols?: readonly string[];
   }
@@ -46,7 +46,7 @@ export async function getFundingInfo(
   config: Config,
   parameters: GetFundingInfoParameters = {},
 ): Promise<GetFundingInfoReturnType> {
-  const { solver } = config.getChainConfig(parameters.chainId);
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   return fetchFundingInfo(solver.url, parameters.symbols);
 }
 

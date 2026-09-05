@@ -1,0 +1,1560 @@
+import { Callout } from "nextra/components";
+
+# Pools hooks
+
+React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
+
+Twenty-six hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; `useCancelWithdraw` cancels a pending withdrawal before it settles; `useClaimProfit` claims a pool's accrued LP rewards as USDC to a sub-account; `useClaimHistory` reads the authed, per-user list of past claims; `useUserTransactions` reads the authed, per-user list of pool deposits and withdrawals across every pool; `useListingStatus` reads where a market sits in the listing pipeline (public); `useListingMarketConfig` reads the signed-in user's own max-leverage and buyback **opinion** for one pool alongside the pool values in force; `useUpdateListingMarketConfig` submits one; and `useListingMarketConfigProjection` estimates where the pool lands before that write. Four more fill a pool's detail tables — `useListingMarketDetail`, `usePoolQuotes`, `usePoolTradeHistory` and `usePoolTransactions`, covered under [the detail tables](#the-detail-tables) — and four read its rewards over time, covered under [rewards](#rewards-over-time).
+
+Twenty of them are reads. `useAuthenticateListing`, `useAddMarket`, `useWithdrawLp`, `useCancelWithdraw`, `useClaimProfit` and `useUpdateListingMarketConfig` are **mutations** — the first prompts a wallet signature, the other five submit authed writes (a create-pool, an LP withdrawal, a withdrawal cancel, a rewards claim, and a pool-configuration opinion).
+
+## Import
+
+```ts
+import {
+  useAddMarket,
+  useAuthenticateListing,
+  useCancelWithdraw,
+  useClaimHistory,
+  useClaimProfit,
+  useDepositAddress,
+  useListingConfig,
+  useListingMarketConfig,
+  useListingMarketConfigProjection,
+  useListingMarketDetail,
+  useListingMarkets,
+  useListingStatus,
+  usePoolQuotes,
+  usePoolRewardChart,
+  usePoolTotalReward,
+  usePoolTradeHistory,
+  usePoolTransactions,
+  useRefundMarket,
+  useRetryListing,
+  useRetryListingInfo,
+  useSupportsListingService,
+  useUpdateListingMarketConfig,
+  useUserListingMarkets,
+  useUserProfit,
+  useUserRewardChart,
+  useUserTotalReward,
+  useUserTransactions,
+  useWeeklyListingLimit,
+  useWithdrawLp,
+  type AddMarketVariables,
+  type UpdateListingMarketConfigVariables,
+  type UseAddMarketReturnType,
+  type UseAuthenticateListingReturnType,
+  type UseDepositAddressParameters,
+  type UseDepositAddressReturnType,
+  type UseListingConfigParameters,
+  type UseListingConfigReturnType,
+  type UseListingMarketConfigParameters,
+  type UseListingMarketConfigProjectionParameters,
+  type UseListingMarketConfigProjectionReturnType,
+  type UseListingMarketConfigReturnType,
+  type UseListingMarketsParameters,
+  type UseListingMarketsReturnType,
+  type UseUpdateListingMarketConfigParameters,
+  type UseUpdateListingMarketConfigReturnType,
+  type UseUserListingMarketsParameters,
+  type UseUserListingMarketsReturnType,
+  type UsePoolRewardChartParameters,
+  type UsePoolRewardChartReturnType,
+  type UsePoolTotalRewardParameters,
+  type UsePoolTotalRewardReturnType,
+  type UseUserProfitParameters,
+  type UseUserProfitReturnType,
+  type UseUserRewardChartParameters,
+  type UseUserRewardChartReturnType,
+  type UseUserTotalRewardParameters,
+  type UseUserTotalRewardReturnType,
+  type UseWeeklyListingLimitParameters,
+  type UseWeeklyListingLimitReturnType,
+} from "@symmio/trading-react";
+```
+
+Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `UserListingMarket`, `UserListingMarketPage`, `UserPoolProfit`, `CreatedPool`, `ListingConfig`, `ListingDepositChain`, `ListingRateLimits`, `WeeklyListingLimit`, `ListingMarketStatus`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, `PoolRewardPoint`, `UserPoolRewardChart`, `ListingMarketConfig`, `ListingMarketConfigProjection`, `LISTING_MARKET_CONFIG_BOUNDS` — the client-side range for the two configuration knobs — and `LISTING_VALUE_DECIMALS`, the fixed-point scale every money and rate field on a row uses.
+
+## Gate the feature first
+
+Pools is not part of every deployment. A chain has it when it carries a `listing` block pointing at a listing backend. Today that is HyperEVM and nowhere else.
+
+So the outermost thing a Pools UI does is ask whether to render at all:
+
+```tsx
+export function PoolsTab() {
+  const supported = useSupportsListingService();
+  if (!supported) return null;
+  return <PoolsTable />;
+}
+```
+
+### Parameters
+
+| Name       | Type     | Default                 | Notes                                                    |
+| ---------- | -------- | ----------------------- | -------------------------------------------------------- |
+| `chainId?` | `number` | connected chain         | Chain to check.                                          |
+| `config?`  | `Config` | the config from context | Override the `SymmioProvider` config (tests, multi-app). |
+
+Returns a plain `boolean` — no query, no suspense, no loading state. It reads the chain's `listing` config out of the config synchronously.
+
+<Callout type="info">
+  `useSupportsListingService` is `true` when the chain carries a `listing` block, delegating to core's
+  `supportsListingService`. Every request `useListingMarkets` issues resolves the backend through
+  `resolveListingService` — the throwing form — which is why the miss arrives as a thrown `LISTING_NOT_CONFIGURED`
+  rather than as a `false`. Prefer the core twin when you are about to issue a request from outside React.
+</Callout>
+
+Skipping the gate is not fatal, only noisy. A read against a chain without a listing backend fails before it reaches the network with `LISTING_NOT_CONFIGURED`. It arrives as a `SymmioRequestError` with `kind: "sdk"` and that `code`. Passing the gate through `query.enabled` keeps the query idle instead of parking a typed error in the cache.
+
+## `useListingConfig`
+
+The listing service's **public client configuration** — the data a create-pool UI must show a user before they list a token: the recommended and minimum initial deposits, the listing fee, the supported deposit chains, the per-day rate limits, and the protocol reward share. Public, so it needs no token and can be mounted unconditionally.
+
+```tsx
+const { data, isPending, error } = useListingConfig();
+
+const recommended = data?.recommendedInitialDepositUsdc; // 18-decimal bigint (USD)
+const chains = data?.supportedDepositChains ?? []; // the source of truth for a chain picker
+```
+
+It drives the create-pool form two ways: the recommended initial deposit is the figure the user seeds the pool with, and `supportedDepositChains` is the list a deposit-chain picker should render — **derive the `<select>` options from it rather than hardcoding a list**. `apps/web`'s create-pool card does exactly this: it maps `supportedDepositChains` into its chain picker and resets the selected chain to the first supported one whenever the default is not among them.
+
+### Parameters
+
+Every field is optional. The hook takes the core query options plus `config`.
+
+| Name       | Type             | Default                 | Notes                                                    |
+| ---------- | ---------------- | ----------------------- | -------------------------------------------------------- |
+| `chainId?` | `number`         | connected chain         | Which deployment's listing backend to read.              |
+| `query?`   | `QueryParameter` | —                       | TanStack overrides — `enabled`, `staleTime`, `select`, … |
+| `config?`  | `Config`         | the config from context | Override the `SymmioProvider` config.                    |
+
+### Return type
+
+`UseQueryResult<ListingConfig, SymmioRequestError>`. `data` is the [`ListingConfig`](../../core/pools/listing-config#returns):
+
+| Field                           | Type                    | Notes                                                                                                                    |
+| ------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `recommendedInitialDepositUsdc` | `bigint`                | Recommended deposit to seed a pool, USD at `LISTING_VALUE_DECIMALS` (18). The headline figure of a create-pool form.     |
+| `minimumInitialDepositUsdc`     | `bigint`                | Minimum accepted deposit (after slippage), USD at `LISTING_VALUE_DECIMALS` (18).                                         |
+| `listingFeeUsdc`                | `bigint`                | The listing fee, USD at `LISTING_VALUE_DECIMALS` (18).                                                                   |
+| `supportedDepositChains`        | `ListingDepositChain[]` | Deposit chains new listings may use — each `{ chainId, chainName }`. **The source of truth for a deposit-chain picker.** |
+| `rateLimits`                    | `ListingRateLimits`     | `{ marketConfigUpdatesPerDay, profitClaimsPerDay }` — rolling-24h client mutation limits.                                |
+| `protocolRewardSharePercent`    | `number`                | Whole-percent of market revenue to the protocol before buyback/LP (`10` = `10%`). A plain number — do not descale.       |
+
+<Callout type="warning">
+  The three `*Usdc` figures are 18-decimal `bigint`s (USD) — descale with `formatUnits(value, LISTING_VALUE_DECIMALS)`
+  before formatting. `protocolRewardSharePercent` and the `rateLimits` counters are plain `number`s: render them
+  directly.
+</Callout>
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. A read off a Pools target fails before the network with
+  `LISTING_NOT_CONFIGURED`. Gate the create-pool entry point with
+  [`useSupportsListingService`](#gate-the-feature-first).
+</Callout>
+
+## `useListingMarkets`
+
+One page of the listing catalog — the data behind a pools list.
+
+```tsx
+const { data, isPending, error } = useListingMarkets({
+  marketStatus: ListingMarketStatus.LISTED,
+  sortBy: "tvl",
+  orderBy: "desc",
+  limit: 25,
+  offset: 0,
+});
+```
+
+The catalog spans every listing the service knows about, at every lifecycle stage — pass `marketStatus: ListingMarketStatus.LISTED` to see only the tradable ones. With no parameters at all the service returns its default first page of 20 rows. Rows come back newest-listed first unless `sortBy` is set.
+
+### Parameters
+
+Every field is optional. The hook takes the core query options plus `config`.
+
+| Name            | Type                               | Default                 | Notes                                                                                                                                                                          |
+| --------------- | ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `search?`       | `string`                           | —                       | Free text, matched against contract address, ticker, and token name. Named `search` because the TanStack options bag already owns `query`; it goes out as `query` on the wire. |
+| `chainIds?`     | `readonly ListingDepositChainId[]` | —                       | Restrict to tokens **deposited** on these chains. An empty array is sent as no filter.                                                                                         |
+| `marketStatus?` | `ListingMarketStatus`              | —                       | One lifecycle status. `LISTED` is the tradable one.                                                                                                                            |
+| `limit?`        | `number`                           | service `20`            | Page size, `1`–`100`.                                                                                                                                                          |
+| `offset?`       | `number`                           | service `0`             | Row offset.                                                                                                                                                                    |
+| `sortBy?`       | `ListingMarketSortField`           | service order           | Server-side sort key — the service's own snake_case literals.                                                                                                                  |
+| `orderBy?`      | `"asc" \| "desc"`                  | service `"desc"`        | Sort direction.                                                                                                                                                                |
+| `filters?`      | `ListingMarketFilters`             | —                       | Inclusive `[min, max]` range filters. Bounds are 18-decimal `bigint`s; `listingTime` is Unix seconds.                                                                          |
+| `chainId?`      | `number`                           | connected chain         | Which deployment's listing backend to read.                                                                                                                                    |
+| `query?`        | `QueryParameter`                   | —                       | TanStack overrides — `enabled`, `placeholderData`, `staleTime`, `select`, …                                                                                                    |
+| `config?`       | `Config`                           | the config from context | Override the `SymmioProvider` config.                                                                                                                                          |
+
+### Return type
+
+`UseQueryResult<ListingMarketPage, SymmioRequestError>`. `data` is one page plus the totals needed to paginate it:
+
+| Field    | Type              | Notes                                                                                             |
+| -------- | ----------------- | ------------------------------------------------------------------------------------------------- |
+| `total`  | `number`          | Rows matching the query across **all** pages. The page count comes from here, not `items.length`. |
+| `limit`  | `number`          | Page size the service applied.                                                                    |
+| `offset` | `number`          | Row offset of this page.                                                                          |
+| `items`  | `ListingMarket[]` | The rows themselves.                                                                              |
+
+Because filtering happens server-side, `total` is the true match count for the current filters — it is what a "N pools" footer should render, and what the page count must be derived from.
+
+### Reading a row
+
+Every money and rate field on a `ListingMarket` is a `bigint` at `LISTING_VALUE_DECIMALS` (18) — **regardless of the token's own decimals or the collateral's**. What the descaled number means differs by field: money is USD (`1e18` = `$1`), while a rate is **already a percentage** (`1e18` = `1%`) and must not be multiplied by 100. Format at the display edge:
+
+```tsx
+import { LISTING_VALUE_DECIMALS } from "@symmio/trading-core";
+import { formatCompactCurrency, formatPercentage } from "@symmio/utils";
+import { formatUnits } from "@symmio/utils/decimal";
+
+/** An unreported figure must not read as a real zero. */
+const ABSENT = "—";
+
+function usd(raw: bigint | null) {
+  if (raw === null) return ABSENT;
+  return formatCompactCurrency(formatUnits(raw, LISTING_VALUE_DECIMALS), { maxDecimals: 2 });
+}
+
+function rate(raw: bigint | null) {
+  if (raw === null) return ABSENT;
+  /** `withSign` is required for negatives: without it `formatPercentage` prints the absolute value. */
+  return formatPercentage(formatUnits(raw, LISTING_VALUE_DECIMALS), {
+    maxDecimals: 2,
+    withSign: raw < 0n,
+  });
+}
+```
+
+Four row-level facts worth wiring into the UI rather than discovering later:
+
+- **`null` is not `0`.** It means the service reported no value for that column — a market younger than 30 days has no `d30` window. Render it as a dash, never as `$0` or `0%`.
+- **`chainId` is the token's deposit chain**, a `ListingDepositChainId` — not the chain the market trades on. `ListingDepositChainId.SOLANA` is `0`, a non-EVM sentinel, and those rows carry a **base58** `contractAddress`. Check `chainId` before handing an address to any EVM helper.
+- **`symbolId` is `null` until the market is `LISTED`.** Everything downstream — prices, notional caps, quotes, subgraph rows — keys off it, so a `null` here means the row is not tradable yet.
+- **`listingTime` is Unix seconds** (`null` before listing), while the trailing-window metrics (`aprByWindow`, `tvlDrivenApy`, `priceDrivenApy`) are objects keyed `h1` / `h6` / `h24` / `d30`, with the two APY series adding `lifetime`.
+
+### Every control is server-side
+
+Search, filters, sort, and pagination are all applied by the listing backend. The hook never filters an array it already holds — each parameter goes into the query key, so changing one is a **different cache entry** and a fresh request.
+
+That has a direct consequence for a table: on the new key `data` is `undefined` and `isPending` flips back to `true`, so a naive table blanks out on every page turn, sort click, and keystroke. `placeholderData` is what prevents it:
+
+```tsx
+const { data, isFetching } = useListingMarkets({
+  limit: PAGE_SIZE,
+  offset: page * PAGE_SIZE,
+  query: { placeholderData: (previous) => previous },
+});
+```
+
+The previous page's rows stay on screen while the next one loads. `isPending` then stays `false`, so `isFetching` — or `isPlaceholderData`, if you want to dim only the renders that are showing last page's data — becomes the signal to fade the table or spin the pager, rather than to replace it with a skeleton.
+
+Two more habits the server-side model asks for:
+
+- **Debounce the search input.** Every keystroke is otherwise a new key and a new request.
+- **Reset `offset` to `0` whenever anything else changes.** A filter that shrinks the result set can leave you paged past its end, staring at an empty page that is not an error.
+
+### Sort keys
+
+`sortBy` takes the service's wire literals verbatim — snake_case, not the SDK's camelCase field names — because the value is passed straight through:
+
+```ts
+type ListingMarketSortField =
+  | "liquidity"
+  | "tvl"
+  | "market_cap"
+  | "vol24h"
+  | "open_interest"
+  | "apr_1h"
+  | "apr_6h"
+  | "apr_24h"
+  | "apr_30d"
+  | "reward_24h"
+  | "apr"
+  | "tvl_driven_apy_1h"
+  | "tvl_driven_apy_6h"
+  | "tvl_driven_apy_24h"
+  | "tvl_driven_apy_30d"
+  | "tvl_driven_apy"
+  | "price_driven_apy_1h"
+  | "price_driven_apy_6h"
+  | "price_driven_apy_24h"
+  | "price_driven_apy_30d"
+  | "price_driven_apy"
+  | "listing_time";
+```
+
+<Callout type="warning">
+  Two of those keys have no matching bare response field: `tvl_driven_apy` and `price_driven_apy`. They are understood
+  to sort by the **lifetime** column (`tvl_driven_apy_lifetime` / `price_driven_apy_lifetime`) — an assumption about the
+  vendor's intent that has not been confirmed by the service's own documentation. If a column header must be exact,
+  prefer the explicit windowed keys.
+</Callout>
+
+### Range filters are 18-decimal bounds
+
+`filters` bounds use the **same scale as the response**, not the human-readable figure. A one-million-dollar market-cap floor is `1_000_000n * 10n ** 18n`, not `1_000_000` — the latter is a bound of `0.000000000001` USD and quietly matches nothing useful:
+
+```ts
+import { LISTING_VALUE_DECIMALS } from "@symmio/trading-core";
+import { parseUnits } from "viem";
+
+const { data } = useListingMarkets({
+  filters: {
+    marketCap: { min: parseUnits("1000000", LISTING_VALUE_DECIMALS) },
+    apr: { min: parseUnits("5", LISTING_VALUE_DECIMALS) }, // 5% — a rate is already a percentage
+    listingTime: { min: Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60 }, // the exception: Unix seconds
+  },
+});
+```
+
+Every key is optional and either end of a range may be omitted for a one-sided bound. The full key list — `marketCap`, `vol24h`, `tvl`, `liquidity`, `openInterest`, `reward24h`, `apr`, the four APR windows (`apr1h`, `apr6h`, `apr24h`, `apr30d`), the five `tvlDrivenApy*`, the five `priceDrivenApy*`, and `listingTime` — is on [`getListingMarkets`](../../core/pools/get-listing-markets#filters).
+
+## A paged, filtered table
+
+Everything above, wired together:
+
+```tsx
+"use client";
+
+import { LISTING_VALUE_DECIMALS, ListingMarketStatus, type ListingMarketSortField } from "@symmio/trading-core";
+import { useListingMarkets, useSupportsListingService } from "@symmio/trading-react";
+import { formatCompactCurrency } from "@symmio/utils";
+import { formatUnits } from "@symmio/utils/decimal";
+import { useState } from "react";
+
+const PAGE_SIZE = 25;
+
+export function PoolsTable() {
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<ListingMarketSortField>("tvl");
+  const [orderBy, setOrderBy] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(0);
+
+  /** Your own debounce hook: one request per settled input, not one per keystroke. */
+  const debouncedSearch = useDebouncedValue(search, 300);
+
+  const supported = useSupportsListingService();
+
+  const { data, isPending, isFetching, error } = useListingMarkets({
+    search: debouncedSearch === "" ? undefined : debouncedSearch,
+    marketStatus: ListingMarketStatus.LISTED,
+    sortBy,
+    orderBy,
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+    query: { enabled: supported, placeholderData: (previous) => previous },
+  });
+
+  if (!supported) return null;
+  if (error) return <ErrorNote message={error.message} />;
+
+  const rows = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  /** Re-clicking the active column flips direction; a new column starts descending. */
+  function sortOn(field: ListingMarketSortField) {
+    setOrderBy(field === sortBy && orderBy === "desc" ? "asc" : "desc");
+    setSortBy(field);
+    setPage(0);
+  }
+
+  return (
+    <section aria-busy={isFetching}>
+      <input
+        value={search}
+        onChange={(event) => {
+          setSearch(event.target.value);
+          setPage(0);
+        }}
+        placeholder="Ticker, name or contract address"
+      />
+
+      <table data-stale={isFetching && !isPending}>
+        <thead>
+          <tr>
+            <th>Pool</th>
+            <th onClick={() => sortOn("tvl")}>TVL</th>
+            <th onClick={() => sortOn("apr")}>APR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((market) => (
+            <tr key={`${market.chainId}:${market.contractAddress}`}>
+              <td>
+                {market.tokenTicker} <small>{market.tokenName}</small>
+              </td>
+              <td>
+                {market.tvl === null ? "—" : formatCompactCurrency(formatUnits(market.tvl, LISTING_VALUE_DECIMALS))}
+              </td>
+              <td>{market.apr === null ? "—" : `${formatUnits(market.apr, LISTING_VALUE_DECIMALS).toFixed(2)}%`}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <footer>
+        {total} pools · page {page + 1} of {pageCount}
+        <button onClick={() => setPage((current) => Math.max(0, current - 1))} disabled={page === 0}>
+          Previous
+        </button>
+        <button onClick={() => setPage((current) => current + 1)} disabled={page + 1 >= pageCount}>
+          Next
+        </button>
+      </footer>
+    </section>
+  );
+}
+```
+
+The row key is `chainId` + `contractAddress` rather than `symbolId`: a listing that has not reached `LISTED` has no `symbolId` yet, and the deposit chain is what makes an address unique across the catalog.
+
+## `useUserListingMarkets`
+
+**Your Pools** — the authed twin of `useListingMarkets`. It returns the listing markets that generated a deposit address for the signed-in wallet, deposited or not, each row enriched with the user's own position: `userDeposit`, `userSharePercentage`, and `userRevenue`.
+
+```tsx
+const { data, isPending, error } = useUserListingMarkets({
+  accessToken, // from useAuthenticateListing
+  marketStatus: ListingMarketStatus.LISTED,
+  limit: 25,
+});
+```
+
+Everything about search, filtering, sorting, and pagination is identical to [`useListingMarkets`](#uselistingmarkets) — same parameters, same server-side model, same `placeholderData` advice for a table. Two things differ: the required token, and the extra per-row fields.
+
+### It needs a token, and stays idle without one
+
+`accessToken` is required — the Bearer token from [`useAuthenticateListing`](#useauthenticatelisting). The hook gates itself on it: while the token is an empty string it stays **idle** (`enabled: false`) rather than firing an unauthenticated request, so you can mount it before sign-in and let it come alive the moment the token lands.
+
+```tsx
+import { useAuthenticateListing, useUserListingMarkets } from "@symmio/trading-react";
+import { ListingMarketStatus } from "@symmio/trading-core";
+import { useState } from "react";
+
+export function YourPools() {
+  const login = useAuthenticateListing();
+  const [accessToken, setAccessToken] = useState("");
+
+  const { data, isFetching, error } = useUserListingMarkets({
+    accessToken,
+    marketStatus: ListingMarketStatus.LISTED,
+    limit: 25,
+    query: { placeholderData: (previous) => previous },
+  });
+
+  if (!accessToken) {
+    return (
+      <button
+        onClick={() => login.mutate({}, { onSuccess: (token) => setAccessToken(token.accessToken) })}
+        disabled={login.isPending}
+      >
+        {login.isPending ? "Sign in your wallet…" : "Sign in & load your pools"}
+      </button>
+    );
+  }
+
+  if (error) return <p role="alert">{error.message}</p>;
+
+  return (
+    <ul aria-busy={isFetching}>
+      {(data?.items ?? []).map((pool) => (
+        <li key={`${pool.chainId}:${pool.contractAddress}`}>
+          {pool.tokenTicker} ·{" "}
+          {pool.userDeposit === null ? "—" : `$${formatUnits(pool.userDeposit, LISTING_VALUE_DECIMALS)}`} ·{" "}
+          {pool.userSharePercentage}%
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+The `accessToken` is deliberately **not** part of the query key, so refreshing an expired token reuses the cache rather than refetching (and the secret never lands in a devtools-visible key).
+
+### Return type
+
+`UseQueryResult<UserListingMarketPage, SymmioRequestError>`. The envelope (`total` / `limit` / `offset` / `items`) is the same as `useListingMarkets`; each row is a `UserListingMarket` — a `ListingMarket` plus three user-scoped fields:
+
+| Field                 | Type             | Notes                                                                                                                                                                                |
+| --------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `userDeposit`         | `bigint \| null` | The wallet's current deposit into the pool, USD at `LISTING_VALUE_DECIMALS` (18). `null` when a deposit address exists but nothing has been deposited yet — render a dash, not `$0`. |
+| `userSharePercentage` | `number`         | The wallet's share of the pool, a plain percentage `number` (`12.5` = `12.5%`) — **not** 18-decimal scaled. Format it directly, without `formatUnits`.                               |
+| `userRevenue`         | `bigint \| null` | The wallet's accrued revenue from the pool, USD at `LISTING_VALUE_DECIMALS` (18), or `null` when the service reported none.                                                          |
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. A read off a Pools target fails before the network with
+  `LISTING_NOT_CONFIGURED`; a bad or expired token comes back as a `401` on `getUserListingMarkets`. Gate the sign-in
+  entry point with [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a
+  `401`.
+</Callout>
+
+## `useUserProfit`
+
+The authed, per-pool **LP position** — the signed-in user's stake in a single pool, named by its token contract address. Where [`useUserListingMarkets`](#useuserlistingmarkets) is the list of every pool the wallet holds a deposit address in (with a coarse per-row position), this is the full breakdown for **one** pool: LP shares, LP balance valued in tokens and USDC, claimable and claimed rewards, deposited token amount, and the LP shares queued for withdrawal.
+
+```tsx
+const { data, isPending, error } = useUserProfit({
+  accessToken, // from useAuthenticateListing
+  tokenContractAddress: "0x1234…",
+});
+```
+
+### It needs a token and an address, and stays idle without either
+
+Both `accessToken` (the Bearer token from [`useAuthenticateListing`](#useauthenticatelisting)) and `tokenContractAddress` are required. The hook gates itself on **both**: while either is an empty string it stays **idle** (`enabled: false`) rather than firing an incomplete or unauthenticated request, so you can mount it before sign-in and before an address is entered and let it come alive the moment both land. There is **no `solverId`** — listing is resolved at chain level; pass `chainId` only to target a specific deployment.
+
+```tsx
+import { useAuthenticateListing, useUserProfit } from "@symmio/trading-react";
+import { LISTING_VALUE_DECIMALS } from "@symmio/trading-core";
+import { formatUnits } from "@symmio/utils/decimal";
+import { useState } from "react";
+
+export function YourPoolBalance({ tokenContractAddress }: { tokenContractAddress: string }) {
+  const login = useAuthenticateListing();
+  const [accessToken, setAccessToken] = useState("");
+
+  const { data, isPending, error } = useUserProfit({ accessToken, tokenContractAddress });
+
+  if (!accessToken) {
+    return (
+      <button
+        onClick={() => login.mutate({}, { onSuccess: (token) => setAccessToken(token.accessToken) })}
+        disabled={login.isPending}
+      >
+        {login.isPending ? "Sign in your wallet…" : "Sign in to read your position"}
+      </button>
+    );
+  }
+
+  if (error) return <p role="alert">{error.message}</p>;
+  if (isPending || !data) return <p>Loading your pool balance…</p>;
+
+  return (
+    <ul>
+      <li>Balance (USDC): ${formatUnits(data.userBalanceInUsdc, LISTING_VALUE_DECIMALS)}</li>
+      <li>Claimable reward: ${formatUnits(data.claimableReward, LISTING_VALUE_DECIMALS)}</li>
+      <li>Pending withdrawal: {formatUnits(data.pendingWithdrawLpAmount, LISTING_VALUE_DECIMALS)} LP</li>
+    </ul>
+  );
+}
+```
+
+The `accessToken` is deliberately **not** part of the query key, so refreshing an expired token reuses the cache rather than refetching (and the secret never lands in a devtools-visible key).
+
+### Return type
+
+`UseQueryResult<UserPoolProfit, SymmioRequestError>`. `data` is the [`UserPoolProfit`](../../core/pools/user-profit#returns) — one pool, one wallet:
+
+| Field                      | Type     | Notes                                                                        |
+| -------------------------- | -------- | ---------------------------------------------------------------------------- |
+| `userBalanceInTokens`      | `bigint` | LP balance valued in the pool's token units, 18-decimal.                     |
+| `userBalanceInUsdc`        | `bigint` | LP balance valued in USDC, 18-decimal (USD).                                 |
+| `claimableReward`          | `bigint` | Rewards claimable now, 18-decimal (USD).                                     |
+| `claimedReward`            | `bigint` | Rewards already claimed, 18-decimal (USD).                                   |
+| `userDepositedTokenAmount` | `bigint` | Token amount the user deposited, 18-decimal.                                 |
+| `userLpAmount`             | `bigint` | The user's LP shares, 18-decimal.                                            |
+| `pendingWithdrawLpAmount`  | `bigint` | LP shares queued for withdrawal — the pending-withdrawal amount, 18-decimal. |
+
+<Callout type="warning">
+  **Every field is an 18-decimal `bigint`** at `LISTING_VALUE_DECIMALS` (18) — descale with `formatUnits(value,
+  LISTING_VALUE_DECIMALS)` before formatting. The `*Usdc` and reward fields are USD; the token-amount and LP-share
+  fields are counts on that same scale. Unlike a catalog row there is **no `null`**: an absent figure is normalized to
+  `0n`, so a real `$0` and a missing value read the same.
+</Callout>
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. A read off a Pools target fails before the network with
+  `LISTING_NOT_CONFIGURED`; a bad or expired token comes back as a `401` (`FETCH_USER_PROFIT_FAILED`) on
+  `getUserProfit`. Gate the sign-in entry point with [`useSupportsListingService`](#gate-the-feature-first), and re-run
+  [`useAuthenticateListing`](#useauthenticatelisting) on a `401`.
+</Callout>
+
+## `useDepositAddress`
+
+The authed **deposit wallet** for one market — get (or create) the address the signed-in user sends funds to in order to deposit into a market's pool. The endpoint is an idempotent get-or-create: it returns the user's existing wallet for the market, or provisions a new one on the first read, so the same inputs always resolve to the same address.
+
+```tsx
+const { data, isPending, error } = useDepositAddress({
+  accessToken, // from useAuthenticateListing
+  tokenContractAddress: "0x1234…",
+  depositChain: ListingDepositChainId.HYPER_EVM,
+});
+
+// where the user sends funds to deposit into this market:
+data?.depositAddress;
+```
+
+### It needs a token and a market, and stays idle without either
+
+Both `accessToken` (the Bearer token from [`useAuthenticateListing`](#useauthenticatelisting)) and `tokenContractAddress` are required, alongside `depositChain` — the token address and the deposit chain together identify the market. The hook gates itself on the token **and** the address: while either is an empty string it stays **idle** (`enabled: false`) rather than firing an incomplete or unauthenticated request, so you can mount it before sign-in and before a market is picked and let it come alive the moment both land. There is **no `solverId`** — listing is resolved at chain level; pass `chainId` only to target a specific deployment.
+
+A deposit-address UI is a **search → select → show** flow: search the catalog with [`useListingMarkets`](#uselistingmarkets), pick a market to get its `{ tokenContractAddress, chainId }` pair, then read the wallet for it.
+
+```tsx
+import { useAuthenticateListing, useDepositAddress, useListingMarkets } from "@symmio/trading-react";
+import { ListingDepositChainId } from "@symmio/trading-core";
+import { useState } from "react";
+
+export function MarketDepositAddress() {
+  const login = useAuthenticateListing();
+  const [accessToken, setAccessToken] = useState("");
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<{
+    tokenContractAddress: string;
+    depositChain: ListingDepositChainId;
+  } | null>(null);
+
+  /** Your own debounce hook: one request per settled input, not one per keystroke. */
+  const debouncedSearch = useDebouncedValue(search, 300);
+
+  const markets = useListingMarkets({
+    search: debouncedSearch === "" ? undefined : debouncedSearch,
+    limit: 8,
+    query: { enabled: debouncedSearch !== "" },
+  });
+
+  const { data, isPending, error } = useDepositAddress({
+    accessToken,
+    tokenContractAddress: selected?.tokenContractAddress ?? "",
+    depositChain: selected?.depositChain ?? ListingDepositChainId.HYPER_EVM,
+  });
+
+  if (!accessToken) {
+    return (
+      <button
+        onClick={() => login.mutate({}, { onSuccess: (token) => setAccessToken(token.accessToken) })}
+        disabled={login.isPending}
+      >
+        {login.isPending ? "Sign in your wallet…" : "Sign in to read a deposit address"}
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ticker, name or address" />
+      <ul>
+        {(markets.data?.items ?? []).map((market) => (
+          <li key={`${market.chainId}:${market.contractAddress}`}>
+            <button
+              onClick={() =>
+                setSelected({ tokenContractAddress: market.contractAddress, depositChain: market.chainId })
+              }
+            >
+              {market.tokenTicker} · {market.tokenName}
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {selected === null ? null : error ? (
+        <p role="alert">{error.message}</p>
+      ) : isPending || !data ? (
+        <p>Loading the deposit address…</p>
+      ) : (
+        <p>
+          {data.marketStatus} · deposit into this market at <code>{data.depositAddress ?? "—"}</code>
+        </p>
+      )}
+    </>
+  );
+}
+```
+
+The `accessToken` is deliberately **not** part of the query key, so refreshing an expired token reuses the cache rather than refetching (and the secret never lands in a devtools-visible key).
+
+### Return type
+
+`UseQueryResult<MarketDepositAddress, SymmioRequestError>`. `data` is the [`MarketDepositAddress`](../../core/pools/deposit-address#returns) — one market, one wallet:
+
+| Field                  | Type                    | Notes                                                                                                                                                  |
+| ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tokenContractAddress` | `string`                | The market's token contract address, echoed back.                                                                                                      |
+| `userAddress`          | `string`                | The signed-in user this deposit wallet belongs to.                                                                                                     |
+| `depositChain`         | `ListingDepositChainId` | The market's deposit chain.                                                                                                                            |
+| `depositAddress`       | `string \| null`        | **Where the user sends funds** to deposit into this market. `null` when no wallet has been provisioned — render a placeholder, never send funds to it. |
+| `tokenDecimal`         | `number`                | The token's on-chain decimals.                                                                                                                         |
+| `marketStatus`         | `ListingMarketStatus`   | The market's listing lifecycle status.                                                                                                                 |
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. A read off a Pools target fails before the network with
+  `LISTING_NOT_CONFIGURED`; a bad or expired token comes back as a `401` (`FETCH_DEPOSIT_ADDRESS_FAILED`) on
+  `getDepositAddress`. Gate the sign-in entry point with [`useSupportsListingService`](#gate-the-feature-first), and
+  re-run [`useAuthenticateListing`](#useauthenticatelisting) on a `401`.
+</Callout>
+
+## `useAuthenticateListing`
+
+Sign the user in to the listing backend and get their access token — the [SIWE](../../core/pools/listing-auth) exchange (fetch challenge → wallet signature → login) in one mutation. Everything a user _owns_ on Pools is gated by this token, so this is the hook a "Connect / Sign in" button drives.
+
+```tsx
+import { useAuthenticateListing } from "@symmio/trading-react";
+
+function SignInToPools() {
+  const login = useAuthenticateListing();
+
+  return (
+    <>
+      <button onClick={() => login.mutate({})} disabled={login.isPending}>
+        {login.isPending ? "Sign in your wallet…" : "Sign in to Pools"}
+      </button>
+      {login.data ? <code>{login.data.accessToken}</code> : null}
+      {login.error ? <p role="alert">{login.error.message}</p> : null}
+    </>
+  );
+}
+```
+
+`mutate({})` needs nothing: the hook fills `domain` from `window.location.host` and `uri` from `window.location.origin`, and the signing address comes from the connected wallet. Override any of `domain` / `uri` / `statement` / `from` / `chainId` per call.
+
+### Variables
+
+| Name         | Type      | Default                  | Notes                                                       |
+| ------------ | --------- | ------------------------ | ----------------------------------------------------------- |
+| `domain?`    | `string`  | `window.location.host`   | SIWE DNS authority — no scheme.                             |
+| `uri?`       | `string`  | `window.location.origin` | Requesting dApp URI.                                        |
+| `statement?` | `string`  | —                        | Human-readable line inside the signed message.              |
+| `from?`      | `Address` | connected wallet         | Signer hint when the config resolves more than one signer.  |
+| `chainId?`   | `number`  | connected chain          | Which deployment's listing backend to authenticate against. |
+
+### Return type
+
+`UseMutationResult<ListingAuthToken, SymmioRequestError, AuthenticateListingVariables>`. On success, `data` is `{ accessToken, tokenType }` — `accessToken` is the Bearer token (the "access code") to attach as `Authorization: Bearer <accessToken>`.
+
+<Callout type="info">
+  **Enigma-only.** `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing backend, and passes the
+  wallet's own rejection through when the user declines the signature. Gate the button with
+  [`useSupportsListingService`](#gate-the-feature-first) so it only shows where Pools exists.
+</Callout>
+
+This slice **returns** the token; it does not persist it or attach it to later requests. Hold it (context, store) yourself until the authed pool reads/writes land.
+
+## `useAddMarket`
+
+Create a pool — list a new token with the listing backend. It is the authed **write** to Pools: the mutation submits the token and its pool economics, and resolves to the created pool, including the custodial **deposit wallet** to seed it.
+
+```tsx
+const create = useAddMarket();
+
+create.mutate({
+  accessToken, // from useAuthenticateListing
+  tokenContractAddress: "0xToken…",
+  buyBackRatio: 5,
+  maxLeverage: 20,
+  depositChain: ListingDepositChainId.HYPER_EVM,
+});
+
+// on success, seed the pool by sending the listing deposit to:
+create.data?.walletPublicKey;
+```
+
+Like [`useUserListingMarkets`](#useuserlistingmarkets), it takes the Bearer `accessToken` from [`useAuthenticateListing`](#useauthenticatelisting). It is a mutation, not a query, so it stays inert until you call `mutate` / `mutateAsync`.
+
+### Variables
+
+Three headline inputs plus the deposit chain are required; every other field is an optional listing extra the **caller** defaults — the SDK sends it only when set, it does not invent a default.
+
+| Name                   | Type                    | Notes                                                                                            |
+| ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `accessToken`          | `string`                | **Required.** Bearer token from `useAuthenticateListing`. A bad or expired token yields a `401`. |
+| `tokenContractAddress` | `string`                | **Required.** The token to list — EVM (`0x…`) or Solana (base58).                                |
+| `buyBackRatio`         | `number`                | **Required.** Share of trading fees routed to buy-backs, `0`–`100`.                              |
+| `maxLeverage`          | `number`                | **Required.** Max leverage as a whole multiplier (`20` = 20x), `1`–`100`.                        |
+| `depositChain`         | `ListingDepositChainId` | **Required.** Chain the token lives on and where its deposit is made.                            |
+| `isTax?`               | `boolean`               | Whether the token charges a transfer tax. Sent only when set.                                    |
+| `userWhitelistTax?`    | `boolean`               | Whether the deposit wallet is whitelisted from the token's tax. Sent only when set.              |
+| `additionalChains?`    | `readonly number[]`     | Extra deposit chain ids. Sent only when set; an empty array is sent as an empty list.            |
+| `poolAddress?`         | `string`                | An existing pool to attach. Sent only when set.                                                  |
+| `cexList?`             | `readonly string[]`     | CEX names the token trades on. Sent only when set.                                               |
+| `chainId?`             | `number`                | Which deployment's listing backend to write to. Defaults to the connected chain.                 |
+
+<Callout type="info">
+  The optional extras (`isTax`, `userWhitelistTax`, `additionalChains`, `poolAddress`, `cexList`) are **the caller's to
+  default** — the SDK omits any you leave unset. Decide their defaults in your app and pass them explicitly (this is
+  what `apps/web`'s create-pool card does, sending `false` / `[]`).
+</Callout>
+
+### Return type
+
+`UseMutationResult<CreatedPool, SymmioRequestError, AddMarketVariables>`. On success, `data` is the [`CreatedPool`](../../core/pools/add-market#returns): the service-resolved `tokenName` / `tokenTicker` / `tokenDecimal`, the submitted economics, the `marketStatus` (a fresh application is `WAITING_FOR_DEPOSIT`), and the custodial `walletPublicKey` — the deposit wallet to seed the pool. Its money/config fields are plain `number`s, not the 18-decimal `bigint`s of a catalog row.
+
+```tsx
+import { useAddMarket, useAuthenticateListing } from "@symmio/trading-react";
+import { ListingDepositChainId } from "@symmio/trading-core";
+import { useState } from "react";
+
+export function CreatePool() {
+  const login = useAuthenticateListing();
+  const create = useAddMarket();
+  const [accessToken, setAccessToken] = useState("");
+
+  if (!accessToken) {
+    return (
+      <button
+        onClick={() => login.mutate({}, { onSuccess: (token) => setAccessToken(token.accessToken) })}
+        disabled={login.isPending}
+      >
+        {login.isPending ? "Sign in your wallet…" : "Sign in first"}
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <button
+        onClick={() =>
+          create.mutate({
+            accessToken,
+            tokenContractAddress: "0xToken…",
+            buyBackRatio: 5,
+            maxLeverage: 20,
+            depositChain: ListingDepositChainId.HYPER_EVM,
+          })
+        }
+        disabled={create.isPending}
+      >
+        {create.isPending ? "Creating pool…" : "Create pool"}
+      </button>
+      {create.error ? <p role="alert">{create.error.message}</p> : null}
+      {create.data ? (
+        <p>
+          {create.data.tokenTicker} · {create.data.marketStatus} · send the deposit to{" "}
+          <code>{create.data.walletPublicKey}</code>
+        </p>
+      ) : null}
+    </>
+  );
+}
+```
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend, and a bad or expired token comes back as an `ADD_MARKET_FAILED` `401`. Gate the create-pool entry point with
+  [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
+</Callout>
+
+## `useWithdrawLp`
+
+Withdraw LP shares from a pool — queue a withdrawal with the listing backend. It is an authed **write**: the mutation submits the LP `amount`, the pool's `marketAddress`, and the `withdrawAddress` the liquidity is sent to, and resolves to `void` (the backend acknowledges with an empty body).
+
+```tsx
+const withdraw = useWithdrawLp();
+
+withdraw.mutate({
+  accessToken, // from useAuthenticateListing
+  marketAddress: "0xToken…",
+  withdrawAddress: "0xRecipient…",
+  amount: profit?.availableLpAmount ?? 0n, // the cap
+});
+```
+
+Pair it with [`useUserProfit`](#useuserprofit): its derived `availableLpAmount` is the ceiling `amount` may take, and after a successful withdrawal you refetch it to see `pendingWithdrawLpAmount` rise and `availableLpAmount` fall. Like [`useAddMarket`](#useaddmarket) it takes the Bearer `accessToken` from [`useAuthenticateListing`](#useauthenticatelisting), and it is a mutation, so it stays inert until you call `mutate` / `mutateAsync`.
+
+### Variables
+
+| Name              | Type     | Notes                                                                                               |
+| ----------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `accessToken`     | `string` | **Required.** Bearer token from `useAuthenticateListing`. A bad or expired token yields a `401`.    |
+| `marketAddress`   | `string` | **Required.** The pool's token contract address — EVM (`0x…`) or Solana (base58).                   |
+| `withdrawAddress` | `string` | **Required.** Where the withdrawn liquidity is sent — EVM (`0x…`) or Solana (base58).               |
+| `amount`          | `bigint` | **Required.** LP shares to withdraw, raw 18-decimal integer. Cap at the pool's `availableLpAmount`. |
+| `description?`    | `string` | A free-text note on the request. Sent only when set.                                                |
+| `chainId?`        | `number` | Which deployment's listing backend to write to. Defaults to the connected chain.                    |
+
+### Return type
+
+`UseMutationResult<void, SymmioRequestError, WithdrawLpVariables>`. There is no payload on success — the backend returns an empty body, so `data` is `undefined` and a resolved `mutateAsync` (or `isSuccess`) is the whole signal. Refetch [`useUserProfit`](#useuserprofit) to reflect the new pending balance.
+
+```tsx
+import { useAuthenticateListing, useUserProfit, useWithdrawLp } from "@symmio/trading-react";
+import { useState } from "react";
+
+export function Withdraw({ tokenContractAddress }: { tokenContractAddress: string }) {
+  const login = useAuthenticateListing();
+  const withdraw = useWithdrawLp();
+  const [accessToken, setAccessToken] = useState("");
+  const { data: profit, refetch } = useUserProfit({ accessToken, tokenContractAddress });
+
+  if (!accessToken) {
+    return (
+      <button
+        onClick={() => login.mutate({}, { onSuccess: (token) => setAccessToken(token.accessToken) })}
+        disabled={login.isPending}
+      >
+        {login.isPending ? "Sign in your wallet…" : "Sign in first"}
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <button
+        onClick={() =>
+          withdraw.mutate(
+            {
+              accessToken,
+              marketAddress: tokenContractAddress,
+              withdrawAddress: "0xRecipient…",
+              amount: profit?.availableLpAmount ?? 0n,
+            },
+            { onSuccess: () => refetch() },
+          )
+        }
+        disabled={withdraw.isPending}
+      >
+        {withdraw.isPending ? "Withdrawing…" : "Withdraw"}
+      </button>
+      {withdraw.error ? <p role="alert">{withdraw.error.message}</p> : null}
+      {withdraw.isSuccess ? <p>Withdrawal queued.</p> : null}
+    </>
+  );
+}
+```
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend, and a bad or expired token comes back as a `WITHDRAW_LP_FAILED` `401`. An amount above the pool's
+  `availableLpAmount` is rejected by the service, so cap it client-side. Gate the entry point with
+  [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
+</Callout>
+
+## `useCancelWithdraw`
+
+Cancel a queued LP withdrawal — remove a pending withdrawal from a pool's queue before it settles. The authed **write** that undoes [`useWithdrawLp`](#usewithdrawlp): the mutation `DELETE`s the withdrawal by its `withdrawId`, and resolves to a `PoolCancelWithdrawResult`.
+
+```tsx
+const cancel = useCancelWithdraw();
+
+cancel.mutate({
+  accessToken, // from useAuthenticateListing
+  withdrawId: pending.transactionId, // a still-PENDING withdraw row
+});
+```
+
+The `withdrawId` is the `transactionId` of a still-`PENDING` `withdraw` row from [`usePoolTransactions`](#the-detail-tables) (filter by the connected wallet and `status`). On success the shares return to the user's available balance, so refetch [`useUserProfit`](#useuserprofit) to see `availableLpAmount` rise and `pendingWithdrawLpAmount` fall.
+
+### Variables
+
+| Name          | Type     | Notes                                                                                            |
+| ------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `accessToken` | `string` | **Required.** Bearer token from `useAuthenticateListing`. A bad or expired token yields a `401`. |
+| `withdrawId`  | `string` | **Required.** The `transactionId` of the pending `withdraw` row to cancel.                       |
+| `chainId?`    | `number` | Which deployment's listing backend to write to. Defaults to the connected chain.                 |
+
+### Return type
+
+`UseMutationResult<PoolCancelWithdrawResult, SymmioRequestError, CancelWithdrawVariables>`. On success `data` is the receipt — `transactionId` and its resulting `status` (e.g. `"canceled"`).
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend, and a bad or expired token comes back as a `CANCEL_WITHDRAW_FAILED` `401`. A withdrawal that has already
+  settled is rejected by the service. Gate the entry point with [`useSupportsListingService`](#gate-the-feature-first),
+  and re-run `useAuthenticateListing` on a `401`.
+</Callout>
+
+## `useClaimProfit`
+
+Claim a pool's accrued LP rewards as USDC — POST the claim to the listing backend. It is an authed **write**, and unlike [`useWithdrawLp`](#usewithdrawlp) it is **synchronous and returns a receipt**: the mutation submits the USDC `amount`, the pool's `tokenContractAddress`, the pool's `depositChain`, and the `accountAddress` sub-account to credit, and resolves to a `PoolClaimResult`.
+
+```tsx
+const claim = useClaimProfit();
+
+claim.mutate({
+  accessToken, // from useAuthenticateListing
+  tokenContractAddress: "0xToken…",
+  depositChain: market.chainId, // the pool's deposit chain
+  accountAddress: "0xSubAccount…", // which sub-account receives the USDC
+  amount: profit?.claimableReward ?? 0n, // the cap
+});
+```
+
+Pair it with [`useUserProfit`](#useuserprofit): its `claimableReward` is the ceiling `amount` may take, and after a successful claim you refetch it to see `claimableReward` fall and `claimedReward` rise. Like [`useWithdrawLp`](#usewithdrawlp) it takes the Bearer `accessToken` from [`useAuthenticateListing`](#useauthenticatelisting), and it is a mutation, so it stays inert until you call `mutate` / `mutateAsync`.
+
+### Variables
+
+| Name                   | Type                    | Notes                                                                                            |
+| ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `accessToken`          | `string`                | **Required.** Bearer token from `useAuthenticateListing`. A bad or expired token yields a `401`. |
+| `tokenContractAddress` | `string`                | **Required.** The pool's token contract address — EVM (`0x…`) or Solana (base58).                |
+| `depositChain`         | `ListingDepositChainId` | **Required.** The pool's deposit chain — the market's `chainId` from the catalog.                |
+| `accountAddress`       | `string`                | **Required.** The sub-account address that receives the claimed USDC.                            |
+| `amount`               | `bigint`                | **Required.** USDC to claim, raw 18-decimal integer. Cap at the pool's `claimableReward`.        |
+| `chainId?`             | `number`                | Which deployment's listing backend to write to. Defaults to the connected chain.                 |
+
+### Return type
+
+`UseMutationResult<PoolClaimResult, SymmioRequestError, ClaimProfitVariables>`. On success `data` is the receipt — `status`, `amountClaimed` (18-decimal `bigint`), `claimRequestId`, and `transactionHash` (or `null`). Refetch [`useUserProfit`](#useuserprofit) to reflect the new claimable/claimed balances.
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend, and a bad or expired token comes back as a `CLAIM_PROFIT_FAILED` `401`. An amount above the pool's
+  `claimableReward`, or exceeding the per-day claim cap, is rejected by the service, so cap it client-side. Gate the
+  entry point with [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a
+  `401`.
+</Callout>
+
+## `useClaimHistory`
+
+Read the signed-in user's **claim history** — their past pool-reward claims, newest first. The authed read companion to [`useClaimProfit`](#useclaimprofit): it only ever returns claims the user owns, so pass the Bearer `accessToken` from [`useAuthenticateListing`](#useauthenticatelisting). Optionally narrow to one pool (`tokenContractAddress`) or one receiving sub-account (`accountAddress`).
+
+```tsx
+const { data } = useClaimHistory({
+  accessToken, // from useAuthenticateListing
+  tokenContractAddress, // optional — omit for every pool
+  size: 25,
+});
+```
+
+`count` is the total across all pages, so it is what a pager should divide — not `items.length`. Each row is a `PoolClaim`: `claimRequestId`, the `accountAddress` that received the USDC, the `amount` (18-decimal `bigint` USD), the `transactionHash` (or `null`), and the `time` (Unix seconds).
+
+### Return type
+
+`UseQueryResult<PoolClaimHistoryPage, SymmioRequestError>`. Refetch after [`useClaimProfit`](#useclaimprofit) resolves to show the new claim.
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. The query rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend, and a bad or expired token comes back as a `FETCH_CLAIM_HISTORY_FAILED` `401`. Gate the entry point with
+  [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
+</Callout>
+
+## `useUserTransactions`
+
+Read the signed-in user's **transaction history** — their pool deposits and withdrawals across **every** pool, newest first. The authed, per-user counterpart to [`usePoolTransactions`](#the-detail-tables) (which is one pool, every LP), and unlike it, **not** tied to any pool picker — each row carries its own token identity.
+
+```tsx
+const { data } = useUserTransactions({
+  accessToken, // from useAuthenticateListing
+  size: 25,
+});
+```
+
+Optionally narrow by `transactionType`, `transactionStatus`, or `tokenAddress`. `count` is the total across all pages, so it is what a pager should divide — not `items.length`. Each row is a `UserTransaction`: `type` (deposit / withdraw), `status`, `amount` (18-decimal `bigint`), the token identity (`tokenAddress`, `tokenName`, `tokenTicker`, `tokenDecimals`, `chainId`), `wallet`, `refundAddress`, `transactionHash`, and `time`.
+
+### Return type
+
+`UseQueryResult<UserTransactionPage, SymmioRequestError>`. It refetches automatically after [`useWithdrawLp`](#usewithdrawlp) and [`useCancelWithdraw`](#usecancelwithdraw), which invalidate `getUserTransactions` — a claim does **not** touch it (a claim is not a deposit/withdraw).
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. The query rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend, and a bad or expired token comes back as a `FETCH_USER_TRANSACTIONS_FAILED` `401`. Gate the entry point with
+  [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
+</Callout>
+
+## `useRefundMarket`
+
+Reclaim a deposit on a **rejected** market. The authed **write** for the rejected-market flow: the mutation POSTs the rejected `marketAddress`, its `depositChain`, and the `recipientAddress` to send the deposit to, and resolves to a `PoolRefundResult` carrying the transfer's transaction hash.
+
+```tsx
+const refund = useRefundMarket();
+
+refund.mutate({
+  accessToken, // from useAuthenticateListing
+  marketAddress: rejectedMarket.contractAddress,
+  depositChain: rejectedMarket.chainId,
+  recipientAddress: account.address,
+});
+```
+
+Use it only for a market whose `marketStatus` is `REJECTED` (from [`useUserListingMarkets`](#useuserlistingmarkets)). On success the hook invalidates `getUserTransactions`, `getPoolTransactions` and `getUserListingMarkets`, so mounted views refetch.
+
+<Callout type="info">
+  **Enigma-only.** `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing backend, a bad or expired
+  token as a `REFUND_MARKET_FAILED` `401`, and a non-refundable market (not rejected, or already refunded) by the
+  service.
+</Callout>
+
+## `useRetryListingInfo`
+
+Read the retry allowance for a **rejected** market — how many listing retries remain and the cooldown before the next. Authed. Read it to gate [`useRetryListing`](#useretrylisting): only allow a retry when `remainingRetries > 0` and `remainingCooldownSeconds` is `null` or `0`.
+
+```tsx
+const { data } = useRetryListingInfo({ accessToken, tokenContractAddress, depositChain });
+// data: { retryLimit, remainingRetries, remainingCooldownSeconds }
+```
+
+`UseQueryResult<RetryListingInfo, SymmioRequestError>`. Rejects with `LISTING_NOT_CONFIGURED` off-chain and `FETCH_RETRY_LISTING_INFO_FAILED` `401` on a bad token.
+
+## `useRetryListing`
+
+Re-submit a **rejected** market's listing instead of refunding it. The authed **write** paired with [`useRetryListingInfo`](#useretrylistinginfo): the mutation POSTs the rejected `tokenContractAddress` and its `depositChain`, and resolves to a `RetryListingResult` (the retry allowance left).
+
+```tsx
+const retry = useRetryListing();
+
+retry.mutate({ accessToken, tokenContractAddress, depositChain });
+```
+
+Retries are capped and rate-limited — only offer this when `useRetryListingInfo` reports `remainingRetries > 0` and the cooldown has elapsed. On success the market re-enters the listing pipeline (its `marketStatus` moves off `REJECTED`) and the hook invalidates `getRetryListingInfo` and `getUserListingMarkets`.
+
+<Callout type="info">
+  **Enigma-only.** `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing backend, a bad or expired
+  token as a `RETRY_LISTING_FAILED` `401`, and a retry with no allowance left or an un-elapsed cooldown by the service.
+</Callout>
+
+## `useWeeklyListingLimit`
+
+The protocol's remaining new-market listings for the current rolling weekly window — the cap a create-pool flow must check before `useAddMarket`. The service caps how many pools may be created protocol-wide each week; read this so you can **block** the Create button (and explain why) instead of letting the write fail after a round-trip. **Public**, so it needs no token and can be mounted unconditionally.
+
+```tsx
+const weekly = useWeeklyListingLimit();
+const limitReached = weekly.data ? weekly.data.remaining <= 0 : false;
+
+// disable the Create button while `limitReached`; when it is true, show `weekly.data.resetAt`
+// (a Unix timestamp) so the user knows when a pool can be listed again.
+```
+
+The cap is **global**, not per user — no `accessToken`. `apps/web`'s create-pool card reads it unconditionally and folds `remaining <= 0` into the submit button's `disabled` condition.
+
+### Parameters
+
+Every field is optional. The hook takes the core query options plus `config`.
+
+| Name       | Type             | Default                 | Notes                                                    |
+| ---------- | ---------------- | ----------------------- | -------------------------------------------------------- |
+| `chainId?` | `number`         | connected chain         | Which deployment's listing backend to read.              |
+| `query?`   | `QueryParameter` | —                       | TanStack overrides — `enabled`, `staleTime`, `select`, … |
+| `config?`  | `Config`         | the config from context | Override the `SymmioProvider` config.                    |
+
+### Return type
+
+`UseQueryResult<WeeklyListingLimit, SymmioRequestError>`. `data` is the [`WeeklyListingLimit`](../../core/pools/weekly-limit#returns):
+
+| Field       | Type     | Notes                                                                                                   |
+| ----------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| `limit`     | `number` | Total listings allowed per rolling weekly window.                                                       |
+| `remaining` | `number` | Listings still available this window. **`0` means no more pools can be listed** — gate on it.           |
+| `resetAt`   | `number` | When the window resets, as the Unix timestamp the service returns. Show it in the "limit reached" copy. |
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. A read off a Pools target fails before the network with
+  `LISTING_NOT_CONFIGURED`. Gate the create-pool entry point with
+  [`useSupportsListingService`](#gate-the-feature-first).
+</Callout>
+
+## `useListingStatus`
+
+Read a market's **listing status** — its lifecycle status and where it sits in the listing backend's pipeline (current step, all steps, retry count/limit, any step error), keyed by the market's token address and deposit chain.
+
+```tsx
+const { data, isPending } = useListingStatus({
+  tokenContractAddress: "0x1234…",
+  depositChain: ListingDepositChainId.HYPER_EVM,
+  query: { refetchInterval: 5000 }, // poll while it is still progressing
+});
+```
+
+It is a **public** read — no token, no sign-in. It gates on `tokenContractAddress`: while it is an empty string the hook stays **idle** (`enabled: false`), so you can mount it before an address is entered. There is **no `solverId`** — pass `chainId` only to target a specific deployment.
+
+### Return type
+
+`UseQueryResult<ListingStatus, SymmioRequestError>`. `data` carries `marketStatus` (the lifecycle status), `currentStep` / `steps` (the pipeline), `retryCount` / `retryLimit`, and `errorCode` / `errorDetail`. Set `query.refetchInterval` — a number, or a function that returns `false` once the status settles — to poll a listing still moving toward `LISTED`.
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. The query rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend. Gate the entry point with [`useSupportsListingService`](#gate-the-feature-first).
+</Callout>
+
+## `useListingMarketConfig`
+
+The authed, per-pool **configuration opinion** — the signed-in user's own max leverage and buyback percentage for one pool, alongside the pool values those opinions blend into.
+
+A pool's max leverage and buyback percentage are not set by any single LP. Every depositor submits an _opinion_, and the listing service folds them into a **deposit-weighted average**. So this read returns two halves: `userMaxLeverage` / `userBuybackRatio` are what this caller submitted (`null` until they have ever submitted anything for this pool), and `maxLeverage` / `buybackRatio` are the pool values in force — the blend of every LP's opinion, the same figures [`useListingMarketDetail`](#the-detail-tables) reports.
+
+```tsx
+const { data, isPending, error } = useListingMarketConfig({
+  accessToken, // from useAuthenticateListing
+  tokenContractAddress: "0x1234…",
+  depositChain: market.chainId,
+});
+
+const yourBuyback = data?.userBuybackRatio; // null until this user has ever set one
+const poolBuyback = data?.buybackRatio; // the blend in force
+```
+
+Use it to prefill an edit form with what the caller previously set, and to show the pool value next to it so the user can see what their opinion is moving. It is the read half of [`useUpdateListingMarketConfig`](#useupdatelistingmarketconfig): the write on the same endpoint rejects a body with neither knob, so this query is the only way to read the caller's own opinion back.
+
+### It needs a token and an address, and stays idle without either
+
+Both `accessToken` (the Bearer token from [`useAuthenticateListing`](#useauthenticatelisting)) and `tokenContractAddress` are required, alongside `depositChain` — the token address and the deposit chain together identify the pool. The hook gates itself on the token **and** the address: while either is an empty string it stays **idle** (`enabled: false`) rather than firing an incomplete or unauthenticated request, so you can mount it before sign-in and before a pool is picked. There is **no `solverId`** — listing is resolved at chain level; pass `chainId` only to target a specific deployment.
+
+The `accessToken` is deliberately **not** part of the query key, so refreshing an expired token reuses the cache rather than refetching (and the secret never lands in a devtools-visible key). The config is per-user, though — reset the query when the signed-in account changes without a remount.
+
+### Parameters
+
+| Name                   | Type                    | Default                 | Notes                                                                                        |
+| ---------------------- | ----------------------- | ----------------------- | -------------------------------------------------------------------------------------------- |
+| `accessToken`          | `string`                | —                       | **Required.** Bearer token from `useAuthenticateListing`. Empty string keeps the query idle. |
+| `tokenContractAddress` | `string`                | —                       | **Required.** The pool's token contract address — EVM (`0x…`) or Solana (base58).            |
+| `depositChain`         | `ListingDepositChainId` | —                       | **Required.** The pool's deposit chain — the market's `chainId` from the catalog.            |
+| `chainId?`             | `number`                | connected chain         | Which deployment's listing backend to read.                                                  |
+| `query?`               | `QueryParameter`        | —                       | TanStack overrides — `enabled`, `staleTime`, `select`, …                                     |
+| `config?`              | `Config`                | the config from context | Override the `SymmioProvider` config.                                                        |
+
+### Return type
+
+`UseQueryResult<ListingMarketConfig, SymmioRequestError>`. `data` is the [`ListingMarketConfig`](../../core/pools/market-config#returns) — one pool, one wallet:
+
+| Field                  | Type                    | Notes                                                                                                                     |
+| ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `tokenContractAddress` | `string`                | The pool's token contract address, echoed back.                                                                           |
+| `depositChain`         | `ListingDepositChainId` | The pool's deposit chain, echoed back.                                                                                    |
+| `userMaxLeverage`      | `number \| null`        | **The caller's own** max-leverage opinion, a whole multiplier. `null` until they have ever submitted one — render a dash. |
+| `userBuybackRatio`     | `number \| null`        | **The caller's own** buyback opinion, a whole percent. `null` until they have ever submitted one.                         |
+| `maxLeverage`          | `number`                | The pool-level max leverage in force — the deposit-weighted blend. Matches `ListingMarketDetail.maxLeverage`.             |
+| `buybackRatio`         | `number`                | The pool-level buyback percentage in force — the deposit-weighted blend. Matches `ListingMarketDetail.buybackRatio`.      |
+
+<Callout type="warning">
+  **These four numbers are plain whole values, not 18-decimal ones** — unlike every money field on the listing service.
+  `buybackRatio: 50` means 50%, `maxLeverage: 20` means 20x. Render them directly; do **not** run them through
+  `formatUnits`.
+</Callout>
+
+<Callout type="info">
+  Bound an edit form with `LISTING_MARKET_CONFIG_BOUNDS` from `@symmio/trading-core` — `maxLeverage` `1`–`20`,
+  `buybackRatio` `0`–`100`, both inclusive whole numbers. It is a **client-side constant**: the listing service does not
+  publish leverage or buyback bounds in its `/v2/configs` payload today, so these are the values the listing team's own
+  UI enforces. The service remains the authority — an out-of-range value is rejected with a `422`.
+</Callout>
+
+<Callout type="info">
+  **A `404` here is not a failure.** This read can be absent on a listing backend where the write is already live, in
+  which case the query settles with a `FETCH_LISTING_MARKET_CONFIG_FAILED` `404`. Treat it as **opinion unknown** —
+  render the caller's own values as a dash and keep the form usable — rather than blocking the write.
+  [`useListingMarketConfigProjection`](#uselistingmarketconfigprojection) already degrades this way on its own.
+</Callout>
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. A read off a Pools target fails before the network with
+  `LISTING_NOT_CONFIGURED`; a bad or expired token comes back as a `401` (`FETCH_LISTING_MARKET_CONFIG_FAILED`) on
+  `getListingMarketConfig`. Gate the sign-in entry point with [`useSupportsListingService`](#gate-the-feature-first),
+  and re-run [`useAuthenticateListing`](#useauthenticatelisting) on a `401`.
+</Callout>
+
+## `useUpdateListingMarketConfig`
+
+Submit the signed-in user's configuration opinion for one pool — their preferred max leverage, buyback percentage, or both. The authed **write** behind [`useListingMarketConfig`](#uselistingmarketconfig).
+
+It never overwrites the pool. The listing service records the value as _this LP's_ opinion and re-blends it into the deposit-weighted average, so one call **nudges** the pool by the caller's share of it rather than setting it. The mutation resolves to the config after that blend: `userMaxLeverage` / `userBuybackRatio` are what was just recorded, `maxLeverage` / `buybackRatio` are the new pool values.
+
+```tsx
+const update = useUpdateListingMarketConfig();
+
+update.mutate({
+  accessToken, // from useAuthenticateListing
+  tokenContractAddress: "0xToken…",
+  depositChain: market.chainId, // the pool's deposit chain
+  buybackRatio: 50, // 50%
+  maxLeverage: 20, // 20x
+});
+```
+
+### Send only the knobs the user filled in
+
+At least one of `maxLeverage` and `buybackRatio` is required; omitting both rejects the mutation with a `MISSING_MARKET_CONFIG_VALUES` validation error before any request is made. An omitted knob **leaves the caller's current value untouched** — it does not reset it — so a form where the user edited one field should send that field alone:
+
+```tsx
+update.mutate({
+  accessToken,
+  tokenContractAddress,
+  depositChain,
+  ...(buybackRatio === null ? {} : { buybackRatio }),
+  ...(maxLeverage === null ? {} : { maxLeverage }),
+});
+```
+
+Both values are **whole integers**. The endpoint rejects a fractional one, so a slider that emits `19.5` must round before it gets here, and both belong inside `LISTING_MARKET_CONFIG_BOUNDS`.
+
+### It mints a deposit wallet first
+
+The service only counts an opinion from an LP that holds a deposit address on the pool, so by default the mutation calls `getDepositAddress` first. That endpoint is an idempotent get-or-create, so the default is safe to leave on: it is a no-op for a caller who already has one. Pass `ensureDepositAddress: false` to skip the extra round trip when the caller is known to hold one already — right after a deposit flow that just fetched it, for instance.
+
+### It invalidates for you
+
+On success the hook invalidates `getListingMarketConfig` **and** `getListingMarketDetail` by key tag, because the opinion changes both halves of the picture: the caller's own values and the pool-level blend the detail read reports. Any mounted [`useListingMarketConfig`](#uselistingmarketconfig) or [`useListingMarketDetail`](#the-detail-tables) refetches on its own — do not invalidate these by hand.
+
+### Variables
+
+| Name                    | Type                    | Notes                                                                                                                 |
+| ----------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `accessToken`           | `string`                | **Required.** Bearer token from `useAuthenticateListing`. A bad or expired token yields a `401`.                      |
+| `tokenContractAddress`  | `string`                | **Required.** The pool's token contract address — EVM (`0x…`) or Solana (base58).                                     |
+| `depositChain`          | `ListingDepositChainId` | **Required.** The pool's deposit chain — the market's `chainId` from the catalog.                                     |
+| `maxLeverage?`          | `number`                | The caller's max-leverage opinion, a whole multiplier (`20` = 20x). Omit to leave their current value untouched.      |
+| `buybackRatio?`         | `number`                | The caller's buyback opinion, a whole percent (`50` = 50%). Omit to leave their current value untouched.              |
+| `ensureDepositAddress?` | `boolean`               | Mint the caller's deposit wallet before submitting. Defaults to `true`; pass `false` only when they already hold one. |
+| `chainId?`              | `number`                | Which deployment's listing backend to write to. Defaults to the connected chain.                                      |
+
+### Return type
+
+`UseMutationResult<ListingMarketConfig, SymmioRequestError, UpdateListingMarketConfigVariables>`. On success `data` is the pool's [`ListingMarketConfig`](../../core/pools/market-config#returns) **after** the opinion was folded in — the same six fields [`useListingMarketConfig`](#uselistingmarketconfig) returns, and the authoritative figure to show once the write lands.
+
+<Callout type="warning">
+  **Five successful updates per user, per pool, per rolling 24 hours.** The cap is readable — do not hardcode it:
+  `useListingConfig().data?.rateLimits.marketConfigUpdatesPerDay`. Exceeding it surfaces as a `429` on
+  `UPDATE_LISTING_MARKET_CONFIG_FAILED`, so a form that lets a user drag a slider and submit on every change will burn
+  the day's budget in seconds. Submit on an explicit action.
+</Callout>
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend; a bad or expired token comes back as an `UPDATE_LISTING_MARKET_CONFIG_FAILED` `401`, and a value outside the
+  service's accepted range as a `422`. Gate the entry point with [`useSupportsListingService`](#gate-the-feature-first),
+  and re-run `useAuthenticateListing` on a `401`.
+</Callout>
+
+## `useListingMarketConfigProjection`
+
+Where the pool lands **before** the write — the "new pool buyback / new pool leverage" figures an edit form shows next to the values the user is typing, plus the deposit share that gives their opinion its weight.
+
+```tsx
+const [buybackRatio, setBuybackRatio] = useState(50);
+
+const { data, isLoading, error } = useListingMarketConfigProjection({
+  accessToken, // from useAuthenticateListing
+  tokenContractAddress,
+  depositChain: market.chainId,
+  buybackRatio, // the value the user is entering
+});
+
+// e.g. "~52.5%" — an estimate, not the stored figure
+data?.projectedBuybackRatio;
+data?.share; // 0..1 — multiply by 100 to render a percentage
+```
+
+### It composes three hooks and costs no extra request
+
+The service weights an opinion by deposit, so the projection needs three things, and this hook reads each through the hook that already owns it:
+
+- the pool's values in force and its balances — [`useListingMarketDetail`](#the-detail-tables);
+- the caller's prior opinion — [`useListingMarketConfig`](#uselistingmarketconfig);
+- the caller's stake, `userBalanceInTokens` — [`useUserProfit`](#useuserprofit).
+
+It then applies core's pure [`projectListingMarketConfig`](../../core/pools/market-config). Nothing is cached under a key of its own: mounting it beside those three hooks reuses their cache entries, so the projection is free. A single `enabled: false` keeps all three idle.
+
+The shift is `share * (entered - prior)` — exact to first order, because the pool already folds in the caller's **previous** opinion at that same weight. Two things soften that: when the caller has never configured the pool (or the config read `404`s) the pool value stands in for their prior opinion, which makes the result an approximation; and the weight is a deposit **value** share, so the raw token-count share is scaled by the token portion of TVL, `(tvl - usdc) / tvl` — a pool's USDC carries no token-opinion weight, which matters on a small pool where the one-time swap is a large slice of TVL.
+
+### Parameters
+
+| Name                   | Type                    | Default                 | Notes                                                                                        |
+| ---------------------- | ----------------------- | ----------------------- | -------------------------------------------------------------------------------------------- |
+| `accessToken`          | `string`                | —                       | **Required.** Bearer token from `useAuthenticateListing`, forwarded to the two authed reads. |
+| `tokenContractAddress` | `string`                | —                       | **Required.** The pool's token contract address — EVM (`0x…`) or Solana (base58).            |
+| `depositChain`         | `ListingDepositChainId` | —                       | **Required.** The pool's deposit chain — the market's `chainId` from the catalog.            |
+| `buybackRatio?`        | `number`                | —                       | The whole percent the user is about to submit. Omit and `projectedBuybackRatio` is `null`.   |
+| `maxLeverage?`         | `number`                | —                       | The whole multiplier the user is about to submit. Omit and `projectedMaxLeverage` is `null`. |
+| `chainId?`             | `number`                | connected chain         | Which deployment's listing backend to read.                                                  |
+| `enabled?`             | `boolean`               | `true`                  | Set `false` to keep all three underlying reads idle. There is **no `query`** parameter.      |
+| `config?`              | `Config`                | the config from context | Override the `SymmioProvider` config.                                                        |
+
+### Return type
+
+`UseListingMarketConfigProjectionReturnType` — **not** a `UseQueryResult`. Three reads collapse into one plain object:
+
+| Field       | Type                                         | Notes                                                                                                        |
+| ----------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data`      | `ListingMarketConfigProjection \| undefined` | `undefined` until `useListingMarketDetail` resolves — the other two reads have fallbacks and never block it. |
+| `isLoading` | `boolean`                                    | `true` while any of the three underlying reads is still loading.                                             |
+| `error`     | `SymmioRequestError \| null`                 | The first error among the detail, config, and profit reads, in that order.                                   |
+
+`data` is the [`ListingMarketConfigProjection`](../../core/pools/market-config#returns):
+
+| Field                   | Type             | Notes                                                                                                             |
+| ----------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `share`                 | `number`         | The caller's deposit-**value** share of the pool, clamped to `0..1` — the weight the service gives their opinion. |
+| `projectedBuybackRatio` | `number \| null` | Where the pool's buyback percentage lands, a whole percent. `null` when the pool value or the entry is unknown.   |
+| `projectedMaxLeverage`  | `number \| null` | Where the pool's max leverage lands, a whole multiplier. `null` when the pool value or the entry is unknown.      |
+
+<Callout type="warning">
+  **This is an estimate — render it with a `~`.** The service rounds the blend it stores, so the exact figure is
+  whatever [`useUpdateListingMarketConfig`](#useupdatelistingmarketconfig) resolves to. A caller with no stake yet has
+  `share: 0`, and the projection then equals the pool's current values: correct, and worth saying out loud in the UI
+  rather than showing as a no-op.
+</Callout>
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. It inherits the gating of the hooks it composes — an empty `accessToken` or
+  `tokenContractAddress` leaves them idle — and it degrades rather than fails when the config read is missing: a `404`
+  from [`useListingMarketConfig`](#uselistingmarketconfig) only costs the projection its exact baseline.
+</Callout>
+
+## Overview aggregates
+
+The catalogue is only the table. The figures a pools page puts **above** it — TVL, volume, open interest, revenue, the pool count — are not in a `ListingMarket` and are not served by the listing backend at all. Five figures, five requests, and three different vendors behind them:
+
+| Figure                    | Hook                                                     | Served by                                           |
+| ------------------------- | -------------------------------------------------------- | --------------------------------------------------- |
+| Custodial TVL             | [`useInventoryTvl`](../inventory)                        | Inventory service — `/api/v1/markets/tvl-aggregate` |
+| Volume, 24h + lifetime    | [`useMarketInfo`](../markets#usemarketinfo)              | The solver — `/get_market_info`                     |
+| Open + available notional | [`useNotionalCapAll`](../notional-cap#usenotionalcapall) | The solver — `/notional_cap`                        |
+| Revenue                   | [`useSolverRevenue`](../solvers#usesolverrevenue)        | The solver — `/revenue`                             |
+| Pool count                | [`useListingMarkets`](#uselistingmarkets) → `data.total` | Listing backend — `/v2/market/search`               |
+
+Three deployments — the listing backend, the inventory service, and the solver — each with its own host in the chain config, its own latency, and its own way of failing. Render them as separate cards with their own loading and error states: one slow vendor should not blank the figures the other two already returned, and one 500 should not take the page down.
+
+Four things about these numbers that are easy to get wrong:
+
+- **The scales are not the same.** `useInventoryTvl` returns an 18-decimal `bigint`, exactly like a catalogue row's `tvl`. The solver's figures — volume, notional, revenue — are plain dollar `number`s with **no** scaling. Running a solver figure through `formatUnits` divides it by `1e18`; running a TVL through a currency formatter without descaling prints an astronomical number.
+- **Headline TVL is not the sum of the column.** `useInventoryTvl` covers the whole custodial system; the catalogue's per-pool `tvl` covers listed markets. The two will not agree, and the mismatch is not an arithmetic bug.
+- **The volume totals are Enigma-only.** `useMarketInfo` returns a union — narrow on `data.kind === "enigma"` before reading `totalValue24h` / `totalLifetimeValue`. A rasa-kind solver reports per-market rows and no aggregates at all, so render "unsupported", not `$0`.
+- **Revenue is protocol-wide only if you leave `symbolId` off.** Passing one narrows the totals to a single market — the trap the reference UI falls into on its own overview, where a hardcoded market id makes lifetime revenue read as a fraction of the protocol's.
+
+The pool count comes from `data.total`, never `data.items.length`: `total` is the match count across every page for the current filters, while `items` is just the page in hand.
+
+## Rewards over time
+
+A pool page's chart tabs come from three vendors: TVL over time from the inventory service ([`useInventoryTvlHistory`](../inventory#useinventorytvlhistory)), volume from the solver (`useTradeVolume({ symbolId: pool.symbolId })` — see [Markets hooks](../markets); a pool that is not yet `LISTED` has no `symbolId` and so no volume), and rewards from the listing backend, below.
+
+Four hooks fill a pool page's rewards tab: two public reads for the pool itself, and two authed reads for the signed-in wallet.
+
+| Figure                       | Hook                 | Auth   | Scope          |
+| ---------------------------- | -------------------- | ------ | -------------- |
+| Pool's daily rewards         | `usePoolRewardChart` | Public | One pool       |
+| Pool's trailing-window total | `usePoolTotalReward` | Public | One pool       |
+| Your daily rewards           | `useUserRewardChart` | Bearer | **Every** pool |
+| Your trailing-window total   | `useUserTotalReward` | Bearer | **Every** pool |
+
+```tsx
+const chart = usePoolRewardChart({ marketAddress: pool.contractAddress, marketChainId: pool.chainId });
+const headline = usePoolTotalReward({
+  marketAddress: pool.contractAddress,
+  marketChainId: pool.chainId,
+  days: 30,
+});
+```
+
+### `marketChainId` is not `chainId`
+
+The two public hooks address a pool by the pair `(marketAddress, marketChainId)`, where `marketChainId` is
+`ListingMarket.chainId` — the chain the pool's **token** lives on. The hook's own `chainId` still means what it means
+everywhere else: which deployment's listing backend to ask. A pool whose token is on Solana still trades on the HyperEVM
+deployment, so the two genuinely differ.
+
+<Callout type="warning">
+  Passing the SDK's `chainId` as `marketChainId` returns an **empty series**, not an error — the backend simply finds no
+  market at that pair. Take both values off the `ListingMarket` row rather than assembling them by hand.
+</Callout>
+
+`marketAddress` also **gates** both public hooks, so they can be mounted above a pool picker and stay idle until one is chosen.
+
+### The user hooks cover every pool, not one
+
+`useUserRewardChart` takes **no market**: the bearer token identifies the caller and the response carries one entry per
+market they earn in. A single-pool view slices that response itself — match on **both** halves of the pair, since two
+listings on different deposit chains can share an address string:
+
+```tsx
+const { data: charts } = useUserRewardChart({ accessToken });
+
+const mine = charts?.find(
+  (entry) =>
+    entry.marketAddress.toLowerCase() === pool.contractAddress.toLowerCase() && entry.marketChainId === pool.chainId,
+);
+const points = mine?.rewards ?? [];
+```
+
+One request covers every pool, so a page listing several pools' "your rewards" should read this **once** and slice it
+rather than calling it per row. `useUserTotalReward` additionally wants the wallet address alongside the token, and both
+gate on their inputs — mount them before sign-in and they stay idle.
+
+### Money, and earned rather than claimable
+
+Every reward on these hooks is a `bigint` at `LISTING_VALUE_DECIMALS` (18) that descales to a **USD amount** — unlike a
+catalog row's `apr`, which descales to a percentage on the same scale. And both totals are built from **earned** daily
+snapshots, so claiming does not reduce them; `useUserProfit`'s `claimableReward` is the balance a claim actually moves.
+
+<Callout type="warning">
+  `days` is capped at **30** by the service on both total reads. A wider window is rejected with a `422`, not clamped —
+  offer a fixed set of windows rather than a free-text field.
+</Callout>
+
+## The detail tables
+
+A pool's detail view is five tables filled by **three** different backends. The hook you reach for depends on which:
+
+| Table                    | Hook                                         | Backend            |
+| ------------------------ | -------------------------------------------- | ------------------ |
+| Positions                | `useListingMarketDetail` + `toPoolPositions` | Listing backend    |
+| Open quotes              | `usePoolQuotes`                              | Analytics subgraph |
+| Limit orders             | [`useSearchTpSlOrders`](../tpsl)             | TP/SL handler      |
+| Trade history            | `usePoolTradeHistory`                        | Analytics subgraph |
+| Deposits and withdrawals | `usePoolTransactions`                        | Listing backend    |
+
+### They are pool-wide, not account-scoped
+
+This is the thing to internalise before wiring any of them up. None of these reads filters by account: they return **every trader's** rows on the market.
+
+- **No wallet is required**, so the tables render for an anonymous visitor.
+- **Show the account column.** `partyA` / `walletAddress` differs row to row; without it the rows are ambiguous.
+- **They are not the account hooks.** `useQuoteHistory` answers "what does _this_ account hold"; `usePoolTradeHistory` answers "what happened on _this_ market". Picking the wrong one yields an empty table or someone else's trades.
+
+### An unlisted pool has no book
+
+`usePoolQuotes` and `usePoolTradeHistory` need the pool's `symbolId`. A pool that has not reached `LISTED` has none, so both stay idle (`enabled: false`) rather than firing a request that cannot match anything.
+
+`usePoolTransactions` is the exception — deposits exist from the moment a listing is applied for, so that tab has rows well before the pool is tradable. Render the other four as "not tradable yet" rather than "no data".
+
+### One request feeds two tables
+
+`useListingMarketDetail` returns the pool's stats **and** its inventory. `toPoolPositions` folds that same response into positions rows — a pure reshape, not a second request:
+
+```tsx
+import { toPoolPositions } from "@symmio/trading-core";
+import { useListingMarketDetail } from "@symmio/trading-react";
+
+function PoolPositions({ tokenContractAddress, depositChain }) {
+  const { data, isPending } = useListingMarketDetail({ tokenContractAddress, depositChain });
+  const rows = data ? toPoolPositions(data) : [];
+
+  if (isPending) return <p>Loading…</p>;
+  if (rows.length === 0) return <p>This pool holds no inventory.</p>;
+
+  return rows.map((row) => <PositionRow key={row.side} {...row} />);
+}
+```
+
+Sides the backend reported nothing for are omitted, so an empty array means no inventory at all. A side reporting a genuine zero size is kept — a different state, and worth rendering as one.
+
+### Fetch only the visible tab
+
+Each table is a separate backend with its own latency and its own way of failing. Gate the hooks on the open tab so a tab nobody is looking at is not holding a request open:
+
+```tsx
+const quotes = usePoolQuotes({ symbolId, query: { enabled: tab === "openQuotes" } });
+const history = usePoolTradeHistory({ symbolId, query: { enabled: tab === "tradeHistory" } });
+```
+
+<Callout type="warning">
+  A disabled TanStack query sits in `status: "pending"` forever. If a table renders "Loading…" off `isPending` alone, a
+  gated tab will look like it is loading rather than idle — branch on the gate first.
+</Callout>
+
+### Limit orders are not protocol LIMIT orders
+
+The limit-orders tab is `useSearchTpSlOrders` with `conditionalOrderType: TpSlSearchOrderType.SEND_QUOTE` and **no** `account` — that omission is what makes it pool-wide.
+
+A `send_quote` order opens a quote when a trigger fires, which is a different mechanism from a protocol LIMIT order. The lowcap solver declares `limitOrder: false` and can still have them, so do not gate this tab on that capability.
+
+## Related
+
+- [Pools](../../core/pools) — the framework-agnostic slice: the availability rules, the 18-decimal contract, and the `ListingMarket` row shape.
+- [`getListingMarkets`](../../core/pools/get-listing-markets) — the action underneath, with the full sort-key and filter reference.
+- [`getListingConfig`](../../core/pools/listing-config) — the framework-agnostic public config behind `useListingConfig`.
+- [`getWeeklyListingLimit`](../../core/pools/weekly-limit) — the framework-agnostic weekly-cap read behind `useWeeklyListingLimit`.
+- [`addMarket`](../../core/pools/add-market) — the framework-agnostic create-pool action behind `useAddMarket`.
+- [`getDepositAddress`](../../core/pools/deposit-address) — the framework-agnostic deposit-wallet read behind `useDepositAddress`.
+- [`getListingMarketConfig`](../../core/pools/market-config) — the framework-agnostic read behind `useListingMarketConfig`, the `LISTING_MARKET_CONFIG_BOUNDS` constant, and the pure `projectListingMarketConfig` helper the projection hook applies.
+- [`updateListingMarketConfig`](../../core/pools/update-market-config) — the framework-agnostic write behind `useUpdateListingMarketConfig`, with the deposit-weighting model and the rate-limit rules.
+- [Solvers & chains](/core/concepts/solvers-and-chains#pools-listing-service) — where the listing backend is configured and how the capability resolves.
+- [Solvers hooks](../solvers#usesupportslistingservice) — the rest of the capability gates.
+- [Inventory hooks](../inventory) — `useInventoryTvl`, the headline TVL above the catalogue, and `useInventoryTvlHistory`, the TVL series on a pool page.
+- [`getPoolRewardChart`](../../core/pools/pool-reward-chart) — the framework-agnostic rewards series behind `usePoolRewardChart`.
+- [`getUserRewardChart`](../../core/pools/user-reward-chart) — the authed, per-market rewards series behind `useUserRewardChart`.
+- [Pool detail tables](../../core/pools/pool-detail-tables) — the framework-agnostic reads behind the five tables, and which backend fills each.
+- [`searchTpSlOrders`](../../core/tpsl/search-tpsl-orders) — the limit-orders read, and why omitting `account` is what scopes it to a pool.
+- [Errors](../errors) — `SymmioRequestError`, its `kind`, and the `code` a failed listing read carries.

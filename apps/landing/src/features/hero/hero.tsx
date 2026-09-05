@@ -30,7 +30,7 @@ export function Hero() {
             className="border-border/70 bg-muted/40 text-muted-foreground inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium tracking-wide"
           >
             <LiveDot tone="positive" />
-            The SYMMIO SDK · HyperEVM
+            The SYMMIO SDK · HyperEVM · Base
           </motion.span>
 
           <motion.h1

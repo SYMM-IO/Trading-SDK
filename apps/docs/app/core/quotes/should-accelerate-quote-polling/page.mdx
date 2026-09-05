@@ -1,6 +1,6 @@
 # shouldAccelerateQuotePolling
 
-Decide whether quote polling should run at the accelerated interval. Returns `true` while any row is mid-transition — the open stages `OPTIMISTIC` / `PRICE_FILLED` / `WRITE_ONCHAIN`, or the close stages `OPTIMISTIC_CLOSE` / `CLOSE_PRICE_FILLED` / `WRITE_ONCHAIN_CLOSE` / `CLOSING`. Those rows are waiting on a change the SDK can only observe by re-reading, so the consumer should shorten its `refetchInterval` until everything settles, then fall back to the idle interval.
+Decide whether quote polling should run at the accelerated interval. Returns `true` while any row is mid-transition — the open stages `OPTIMISTIC` / `PRICE_FILLED` / `WRITE_ONCHAIN`, or the close stages `OPTIMISTIC_CLOSE` / `CLOSE_PRICE_FILLED` / `WRITE_ONCHAIN_CLOSE`. Those rows are waiting on a change the SDK can only observe by re-reading, so the consumer should shorten its `refetchInterval` until everything settles, then fall back to the idle interval.
 
 For the narrower "should the on-chain reads specifically retry" question — the RPC-lag case — use [`shouldAccelerateOnchainReads`](/core/quotes/should-accelerate-onchain-reads), which excludes the purely off-chain stages.
 

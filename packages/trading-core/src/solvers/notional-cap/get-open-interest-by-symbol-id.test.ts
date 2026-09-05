@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockConfig } from "../../shared/test/mock-config";
-import type { MarketNotionalCap } from "./types";
+import type { EnigmaNotionalCap, RasaNotionalCap } from "./types";
 
 const getNotionalCapBySymbolId = vi.hoisted(() => vi.fn());
 
@@ -10,7 +10,8 @@ vi.mock("./get-notional-cap-by-symbol-id", () => ({
 
 import { getOpenInterestBySymbolId } from "./get-open-interest-by-symbol-id";
 
-const SAMPLE_CAP: MarketNotionalCap = {
+const SAMPLE_CAP: EnigmaNotionalCap = {
+  kind: "enigma",
   symbolId: 132,
   symbol: "DOGEUSDT",
   totalCap: 0,
@@ -23,6 +24,8 @@ const SAMPLE_CAP: MarketNotionalCap = {
   usdcBalance: 6000,
   error: null,
 };
+
+const RASA_CAP: RasaNotionalCap = { kind: "rasa", totalCap: 4000, used: 500 };
 
 describe("getOpenInterestBySymbolId", () => {
   beforeEach(() => {
@@ -58,5 +61,14 @@ describe("getOpenInterestBySymbolId", () => {
     const { config } = mockConfig();
 
     expect((await getOpenInterestBySymbolId(config, { symbolId: 132 })).error).toBe("market paused");
+  });
+
+  it("maps a Rasa cap: openInterest = used, totalCap = totalCap, no per-side/error", async () => {
+    getNotionalCapBySymbolId.mockResolvedValue(RASA_CAP);
+    const { config } = mockConfig();
+
+    const result = await getOpenInterestBySymbolId(config, { symbolId: 7 });
+
+    expect(result).toEqual({ symbolId: 7, symbol: "", openInterest: 500, totalCap: 4000, error: null });
   });
 });

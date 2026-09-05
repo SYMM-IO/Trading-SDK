@@ -1,3 +1,4 @@
+import type { SolverId } from "../../../../core/chains/types";
 import type { Config } from "../../../../core/config";
 import { getLockedParams } from "../../../locked-params/get-locked-params";
 import type { ApiLockedParamsBySymbolIdResponse } from "../../../types/generated/enigma-solver";
@@ -8,6 +9,12 @@ import type { ResolvedLockedParams } from "./types";
  */
 export interface ResolveLockedParamsParameters {
   chainId?: number;
+  /**
+   * Solver whose locked params to read. **Must match the solver the trade is
+   * sent to** — `cva` / `lf` / `partyAmm` / `partyBmm` are encoded into the
+   * signed quote. Defaults to the chain's `defaultSolverId`.
+   */
+  solverId?: SolverId;
   marketName: string;
   leverage: number;
   /**
@@ -38,6 +45,7 @@ export async function resolveLockedParams(
 
   const locked = await getLockedParams(config, {
     chainId: parameters.chainId,
+    solverId: parameters.solverId,
     symbol: parameters.marketName,
     leverage: parameters.leverage,
   });

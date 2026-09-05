@@ -12,7 +12,7 @@ import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
-import { predicateMatch } from "../utils";
+import { invalidateAccountBalances, predicateMatch } from "../utils";
 
 /**
  * Parameters for {@link useInstantCloseAuto}.
@@ -68,6 +68,8 @@ export function useInstantCloseAuto(parameters: UseInstantCloseAutoParameters = 
        */
       const configKey = config.getChainConfigKey(variables.chainId ?? chainId);
       void queryClient.invalidateQueries({ predicate: predicateMatch(getInstantClosesQueryKey, { configKey }) });
+      /** A fill releases locked margin and realizes PnL — every balance read on this chain is now suspect. */
+      invalidateAccountBalances(queryClient, { configKey });
     },
   });
 }

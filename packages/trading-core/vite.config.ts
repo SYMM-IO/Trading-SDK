@@ -138,6 +138,7 @@ export default defineConfig({
        * (`davelosert/vitest-coverage-report-action`) parses.
        */
       reporter: ["text", "html", "json", "json-summary"],
+      reportOnFailure: true,
       include: ["src/**/*.ts"],
       /**
        * Test files and barrel `index.ts` re-exports aren't meaningful coverage

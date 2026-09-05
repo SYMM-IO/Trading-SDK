@@ -5,7 +5,7 @@ React hooks over the core [Instant Open](../../../core/solvers/instant-open) flo
 The page is split into two groups:
 
 - **[Reads](#reads)** — pending queue reads (`useInstantOpens`, `useInstantOpenQuoteId`).
-- **[Writes](#writes)** — the three-function open path (`useInstantOpenAuto`, `useInstantOpen`) plus the composed orchestrator (`useInstantOpenWithTpSl`).
+- **[Writes](#writes)** — the three-function open path (`useInstantOpenAuto`, `useInstantOpen`), the LIMIT-order variant (`useLimitOpenAuto`), plus the composed orchestrator (`useInstantOpenWithTpSl`).
 
 ## Import
 
@@ -13,6 +13,7 @@ The page is split into two groups:
 import {
   useInstantOpen,
   useInstantOpenAuto,
+  useLimitOpenAuto,
   useInstantOpenWithTpSl,
   useInstantOpens,
   useInstantOpenQuoteId,
@@ -65,6 +66,26 @@ const open = useInstantOpenAuto();
 ```
 
 **Latency**: prepare fetches run inline, so click → sign gap includes the network hop. Fine for most flows; see `useInstantOpen` below for the low-latency variant.
+
+### `useLimitOpenAuto`
+
+The LIMIT-order variant — same one-line shape as `useInstantOpenAuto`, but the user's resting `price` is the trigger and the order writes a **pending on-chain quote** instead of filling immediately. Majors / [Rasa](../../rasa-solver) only; throws `UNSUPPORTED_BY_SOLVER` when the resolved solver has no limit support (gate the UI with [`useSupportsLimitOrder`](../#usesupportslimitorder)). Defaults the send deadline to 15 minutes.
+
+```tsx
+const place = useLimitOpenAuto();
+
+place.mutate({
+  from: sessionKey,
+  subAccountAddress: subAccount,
+  market: { id: 1 },
+  positionType: PositionType.LONG,
+  initialMargin: "100",
+  leverage: 5,
+  price: "64000", // resting limit price
+});
+```
+
+On success it invalidates the hedger's instant-open feed, so the order surfaces immediately as an `offchain` row in [`useLimitOrders`](../../quotes#uselimitorders); the anchor notification then flips it to `onchain`. Cancel it with [`useRequestToCancelQuote`](../../quotes#userequesttocancelquote).
 
 ## `useInstantOpen`
 

@@ -1,3 +1,5 @@
+export * from "./aggregate-group-funding";
+export * from "./aggregate-group-upnl";
 export * from "./aggregate-metrics";
 export * from "./group-quotes";
 export * from "./group-strategy";

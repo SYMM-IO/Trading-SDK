@@ -1,0 +1,114 @@
+import { Callout } from "nextra/components";
+
+# getDepositAddress
+
+Return (or create) the signed-in user's **deposit wallet for a single market** — the authed get-or-create behind a pool's "deposit" action. It returns the address the user sends funds to in order to deposit into the market's pool, together with the market's token contract address, the user it belongs to, the deposit chain, the token's decimals, and the market's listing status.
+
+```ts
+import { getDepositAddress, ListingDepositChainId } from "@symmio/trading-core";
+
+const deposit = await getDepositAddress(config, {
+  accessToken: token.accessToken,
+  tokenContractAddress: "0x1234…",
+  depositChain: ListingDepositChainId.HYPER_EVM,
+});
+
+// where the user sends funds to deposit into this market:
+deposit.depositAddress;
+```
+
+The result is a [`MarketDepositAddress`](#returns) — one market, one wallet. The endpoint is **idempotent**: it returns the user's existing wallet for the market, or provisions a new one on the first call, so the same inputs always resolve to the same address. That is why the SDK models this POST as a **query** — the UI fetches it when a market is selected, and re-reads are safe.
+
+<Callout type="info">
+  This is a REST call against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
+  [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>` header. The backend is
+  resolved from the config before the request, so a target without Pools fails immediately and without any network
+  traffic — see [`resolveListingService`](/core/pools/resolve-listing-service).
+</Callout>
+
+## No solver id
+
+Pool listing is **chain-level** — one listing backend is served per chain — so `getDepositAddress` takes only an optional `chainId` and **no `solverId`**. Pass a `chainId` to read a specific deployment's listing backend; omit it to use the config's default chain.
+
+## Identifying the market
+
+Three inputs are required — the endpoint returns nothing without any of them. The token contract address and the deposit chain together identify the market to get (or create) a deposit wallet for; use [`getListingMarkets`](/core/pools/get-listing-markets) to search the catalog and pick the pair.
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401` (see [Throws](#throws)). Mint it once, hold it, and pass it on every call.
+  </Property>
+  <Property name="tokenContractAddress" type="string" required>
+    The market's token contract address — the id that addresses a single market in the listing API. An EVM `0x…`
+    address, or a Solana base58 address for a Solana-deposited listing.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId" required>
+    The market's deposit chain — the chain the token lives on. Pairs with `tokenContractAddress` to identify the market.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
+    folded into the query key. There is **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<MarketDepositAddress>">
+  <Property name="tokenContractAddress" type="string">
+    The market's token contract address (EVM `0x…` or Solana base58) — echoed back from the request.
+  </Property>
+  <Property name="userAddress" type="string">
+    The signed-in user this deposit wallet belongs to.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId">
+    The market's deposit chain.
+  </Property>
+  <Property name="depositAddress" type="string | null">
+    **The deposit address** — where the user sends funds to deposit into this market. `null` when the service returned
+    none (a market that has not yet been provisioned a wallet).
+  </Property>
+  <Property name="tokenDecimal" type="number">
+    The token's on-chain decimals.
+  </Property>
+  <Property name="marketStatus" type="ListingMarketStatus">
+    The market's listing lifecycle status.
+  </Property>
+</Returns>
+
+<Callout type="warning">
+  `depositAddress` can be **`null`**. Treat that as "no wallet yet", not an error, and render a placeholder rather than
+  sending funds to a missing address. It is the only field that is nullable here.
+</Callout>
+
+## Query options
+
+```ts
+import { getDepositAddressQueryOptions, ListingDepositChainId } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(
+  getDepositAddressQueryOptions(config, {
+    accessToken,
+    tokenContractAddress: "0x1234…",
+    depositChain: ListingDepositChainId.HYPER_EVM,
+  }),
+);
+```
+
+`GetDepositAddressOptions` is the action's parameters (including the required `accessToken`, `tokenContractAddress`, and `depositChain`) plus a `query` bag of TanStack overrides. The factory folds `config.getChainConfigKey(chainId)` into the key but leaves `accessToken` out of it, so a refreshed token reuses the cache rather than refetching (and the secret never lands in a devtools-visible key). `getDepositAddressQueryKey` builds the same key for cache matching and invalidation.
+
+The rest of the factory's types are exported too: `GetDepositAddressData` is what the query resolves to (the same `MarketDepositAddress`), `GetDepositAddressReturnType` is the action's return alias, `GetDepositAddressQueryKey` is the key the factory builds, and `GetDepositAddressQueryOptions` is the options bag it produces. `toMarketDepositAddress` is the mapper from the raw endpoint response to the normalized shape.
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide Pools instead of erroring. Only chains with a listing backend have Pools.
+- `FETCH_DEPOSIT_ADDRESS_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`) with the original error as its `cause`. A **`401`** here means the `accessToken` was missing, malformed, or expired — re-run `authenticateListing` and retry.
+
+## Related
+
+- [`getListingMarkets`](/core/pools/get-listing-markets) — search the catalog to pick the `tokenContractAddress` + `depositChain` pair that names the market.
+- [`addMarket`](/core/pools/add-market) — the create-pool write, which also returns a custodial **deposit wallet** (`walletPublicKey`) to seed a **new** listing. This action reads the deposit wallet for an **existing** market.
+- [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this read requires.
+- [`useDepositAddress`](/react/pools#usedepositaddress) — the React hook.
+- [Pools](/core/pools) — the slice overview.

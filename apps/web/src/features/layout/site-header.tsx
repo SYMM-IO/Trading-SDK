@@ -1,6 +1,7 @@
 "use client";
 
 import { ConfigLauncher } from "@/features/config/config-launcher";
+import { ChainSwitcher } from "@/features/layout/chain-switcher";
 import { LogoMark } from "@/features/layout/logo";
 import { isActivePath, primaryNavLinks, secondaryNavLinks, type NavLink } from "@/features/layout/nav";
 import { NavMoreMenu } from "@/features/layout/nav-more-menu";
@@ -71,6 +72,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <ChainSwitcher />
           <SearchLauncher />
           <MagicSidebarLauncher />
           <ConfigLauncher />

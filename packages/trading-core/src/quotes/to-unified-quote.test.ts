@@ -1,7 +1,7 @@
 import type { Address, Hex } from "viem";
 import { describe, expect, it } from "vitest";
 import type { PendingInstantClose } from "../solvers/instant-close/get-instant-closes/to-pending-instant-close";
-import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/to-pending-instant-open";
+import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/types";
 import { OrderType, PositionType, QuoteStatus, type Quote } from "../symmio-contracts/symmio/types";
 import { quoteOpenQuantity } from "./open-quantity";
 import {
@@ -72,6 +72,8 @@ function makeQuote(overrides: Partial<Quote> = {}): Quote {
  */
 function makePendingInstantOpen(overrides: Partial<PendingInstantOpen> = {}): PendingInstantOpen {
   const base: PendingInstantOpen = {
+    kind: "enigma",
+    uuid: "",
     tempQuoteId: 99,
     marketId: 7,
     positionType: PositionType.SHORT,
@@ -100,8 +102,8 @@ describe("lifecycleFromQuoteStatus", () => {
     [QuoteStatus.CANCEL_PENDING, QuoteLifecycle.ONCHAIN],
     [QuoteStatus.OPENED, QuoteLifecycle.ONCHAIN],
     [QuoteStatus.LIQUIDATED_PENDING, QuoteLifecycle.ONCHAIN],
-    [QuoteStatus.CLOSE_PENDING, QuoteLifecycle.CLOSING],
-    [QuoteStatus.CANCEL_CLOSE_PENDING, QuoteLifecycle.CLOSING],
+    [QuoteStatus.CLOSE_PENDING, QuoteLifecycle.ONCHAIN],
+    [QuoteStatus.CANCEL_CLOSE_PENDING, QuoteLifecycle.ONCHAIN],
     [QuoteStatus.CLOSED, QuoteLifecycle.CLOSED],
     [QuoteStatus.CANCELED, QuoteLifecycle.CLOSED],
     [QuoteStatus.EXPIRED, QuoteLifecycle.CLOSED],
@@ -122,12 +124,13 @@ describe("lifecycleFromQuoteStatus", () => {
 });
 
 describe("toUnifiedQuoteFromOnchain", () => {
-  it("keys, origins, and derives the CLOSING lifecycle from a partially-closed CLOSE_PENDING quote", () => {
+  it("keys, origins, and derives the ONCHAIN lifecycle from a partially-closed CLOSE_PENDING quote", () => {
     const quote = makeQuote();
     const row = toUnifiedQuoteFromOnchain(quote);
     expect(row.key).toBe("onchain:42");
     expect(row.origin).toBe("onchain");
-    expect(row.lifecycle).toBe(QuoteLifecycle.CLOSING);
+    // Lifecycle tracks the write progression, not the close status: on-chain = ONCHAIN.
+    expect(row.lifecycle).toBe(QuoteLifecycle.ONCHAIN);
   });
 
   it("copies identity and market metadata straight through from the raw quote", () => {
@@ -233,11 +236,11 @@ describe("toUnifiedQuoteFromInstantClose", () => {
     orderType: OrderType.LIMIT,
   };
 
-  it("keys by quote id, marks the row onchain/CLOSING, and copies the quote id", () => {
+  it("keys by quote id, marks the row onchain/WRITE_ONCHAIN_CLOSE, and copies the quote id", () => {
     const row = toUnifiedQuoteFromInstantClose(pending, context);
     expect(row.key).toBe("onchain:55");
     expect(row.origin).toBe("onchain");
-    expect(row.lifecycle).toBe(QuoteLifecycle.CLOSING);
+    expect(row.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
     expect(row.quoteId).toBe(pending.quoteId);
   });
 

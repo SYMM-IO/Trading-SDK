@@ -1,0 +1,220 @@
+import { Callout } from "nextra/components";
+
+# Rasa Solver Hooks
+
+The `rasa` solver kind (majors, cross-margin, no Virtual Accounts) exposes a handful of REST endpoints the `enigma` kind does not: solver-side balance info, partyA uPnL, global open interest, a symbol's acceptable price range, single error-code lookup, and a whitelist check/add. These hooks wrap those rasa-only endpoints. (Notification history search is **not** on this page — it is the unified [`useSearchNotifications`](/react/notifications#usesearchnotifications), which dispatches to the rasa solver's position-state endpoint for a rasa solver.)
+
+Every hook resolves its target solver from config — the chain's default solver, or the one you name with `solverId`. When the resolved solver is **not** a rasa solver, the hook surfaces a typed `UNSUPPORTED_BY_SOLVER` error. It is a core `SymmError` code; `@symmio/trading-react` normalizes it to `SymmioRequestError` with `kind: "sdk"` like every other hook failure, so a query returns it as `query.error` and a mutation rejects with it. Guard on the message or the code, not on `kind`.
+
+<Callout type="warning">
+  These endpoints exist **only on a rasa-configured chain** (majors — Base, chain `8453`). On any other chain — or when
+  you point `solverId` at a non-rasa solver — the hook fails with `UNSUPPORTED_BY_SOLVER`. Reach for the
+  [price-service](/react/price-service) and [solvers](/react/solvers) hooks for the parts of the surface that work
+  across kinds.
+</Callout>
+
+All params objects also accept the standard hook mixins: an optional `chainId` (defaults to the connected chain from `SymmioProvider`), an optional `solverId` (`SolverId` from `@symmio/trading-core` — defaults to the chain's default solver), and an optional `config` override. The reads additionally take a `query` bag of TanStack Query overrides (`enabled`, `staleTime`, `refetchInterval`, …). Import the hooks and their `Use*Parameters` / `Use*ReturnType` types from `@symmio/trading-react`; import `SolverId` and `SymmioSupportedChainId` from `@symmio/trading-core`.
+
+```ts
+import {
+  useSolverReadiness,
+  useAddSolverWhitelist,
+  useSolverBalanceInfo,
+  usePartyAUpnl,
+  useSolverOpenInterest,
+  useSolverPriceRange,
+  useErrorMessage,
+} from "@symmio/trading-react";
+import type { SolverId } from "@symmio/trading-core";
+```
+
+## Readiness & whitelist gate
+
+Reach for these before you drive a rasa flow: confirm the solver is up, and register an address on its whitelist when the solver requires it.
+
+### `useSolverReadiness`
+
+Is the solver accepting requests? A liveness read over the rasa-only `/readyz` endpoint. Use it to gate a trade form or render a "solver offline" banner. No required params.
+
+```tsx
+import { useSolverReadiness } from "@symmio/trading-react";
+
+function SolverStatus() {
+  const { data, error } = useSolverReadiness({ query: { refetchInterval: 15_000 } });
+  if (error) return <span>solver unreachable</span>;
+  return <span>{data?.isReady ? "online" : "starting up"}</span>;
+}
+```
+
+| Param      | Type       | Required | Notes                                                     |
+| ---------- | ---------- | -------- | --------------------------------------------------------- |
+| `chainId`  | `number`   | no       | Defaults to the connected chain.                          |
+| `solverId` | `SolverId` | no       | Defaults to the chain's default solver.                   |
+| `config`   | `Config`   | no       | Override the config from context.                         |
+| `query`    | object     | no       | TanStack Query overrides (`enabled`, `refetchInterval`…). |
+
+Returns `UseQueryResult<{ isReady: boolean }, SymmioRequestError>`.
+
+### `useAddSolverWhitelist`
+
+Add an address to the solver's whitelist through the rasa-only `/add-sub-address-in-whitelist` endpoint. **This is the one mutation on this page** — it changes solver-side state, so it is a `useMutation`, not a query. Pass the address at call time via `mutate`.
+
+```tsx
+import { useAddSolverWhitelist } from "@symmio/trading-react";
+import type { Address } from "viem";
+
+function WhitelistButton({ subAccount }: { subAccount: Address }) {
+  const { mutate, isPending, error } = useAddSolverWhitelist();
+  return (
+    <>
+      <button disabled={isPending} onClick={() => mutate({ address: subAccount })}>
+        Whitelist
+      </button>
+      {error ? <p>{error.message}</p> : null}
+    </>
+  );
+}
+```
+
+The mutation variables are `{ address: Address; multiAccountAddress?: Address; chainId?: number; solverId?: SolverId }` — `multiAccountAddress` defaults to the chain's `accountLayerAddress`, and `chainId` falls back to the connected chain. The hook itself takes only the optional `config` override.
+
+Returns `UseMutationResult<{ successful: boolean; message?: string | null }, SymmioRequestError, variables>`.
+
+## Reads
+
+Solver-side data the rasa endpoints expose. Every one is a `UseQueryResult`.
+
+### `useSolverBalanceInfo`
+
+Solver-side balance snapshots for an account — per-counterparty allocated balance, uPnL, notional, and the CVA / LF / maintenance-margin legs (including their pending parts), as the solver sees them. Read over the rasa-only `/get_balance_info` endpoint. Use it to reconcile the solver's view of margin against your on-chain reads. `multiAccountAddress` defaults to the chain's `accountLayerAddress`.
+
+```tsx
+import { useSolverBalanceInfo } from "@symmio/trading-react";
+import type { Address } from "viem";
+
+function SolverBalance({ subAccount }: { subAccount: Address }) {
+  const { data } = useSolverBalanceInfo({ address: subAccount });
+  // data is BothUpnlData[]: one { party_a, party_b } row per counterparty
+  const first = data?.[0]?.party_a;
+  return <span>allocated: {first?.allocated_balance ?? "—"}</span>;
+}
+```
+
+| Param                 | Type       | Required | Notes                                          |
+| --------------------- | ---------- | -------- | ---------------------------------------------- |
+| `address`             | `Address`  | **yes**  | Account (partyA / subaccount) address.         |
+| `multiAccountAddress` | `Address`  | no       | Defaults to the chain's `accountLayerAddress`. |
+| `chainId`             | `number`   | no       | Defaults to the connected chain.               |
+| `solverId`            | `SolverId` | no       | Defaults to the chain's default solver.        |
+| `config`              | `Config`   | no       | Override the config from context.              |
+| `query`               | object     | no       | TanStack Query overrides.                      |
+
+Returns `UseQueryResult<BothUpnlData[], SymmioRequestError>` — one `{ party_a, party_b }` row per counterparty; each side is a balance-info snapshot (`upnl`, `notional`, `allocated_balance`, `cva`, `lf`, `party_a_mm`, `party_b_mm`, their `pending_*` counterparts, and a `timestamp`) or `null`. Decimal money fields are strings.
+
+### `usePartyAUpnl`
+
+A partyA's unrealized PnL from the rasa-only `/partyA_upnl` endpoint, as a decimal string. Use it to show cross-margin account-level uPnL where the solver, not an on-chain read, is the source of truth.
+
+```tsx
+import { usePartyAUpnl } from "@symmio/trading-react";
+import type { Address } from "viem";
+
+function AccountUpnl({ subAccount }: { subAccount: Address }) {
+  const { data: upnl } = usePartyAUpnl({ address: subAccount });
+  return <span>uPnL: {upnl ?? "—"}</span>;
+}
+```
+
+| Param      | Type       | Required | Notes                                   |
+| ---------- | ---------- | -------- | --------------------------------------- |
+| `address`  | `Address`  | **yes**  | PartyA (subaccount) address.            |
+| `chainId`  | `number`   | no       | Defaults to the connected chain.        |
+| `solverId` | `SolverId` | no       | Defaults to the chain's default solver. |
+| `config`   | `Config`   | no       | Override the config from context.       |
+| `query`    | object     | no       | TanStack Query overrides.               |
+
+Returns `UseQueryResult<string, SymmioRequestError>` — the uPnL as a decimal string.
+
+### `useSolverOpenInterest`
+
+The solver's **global** open interest — `total_cap` and `used` across the whole solver — from the rasa-only `/open-interest` endpoint. This is the solver-wide gate, distinct from the per-market [`useOpenInterestBySymbolId`](/react/solvers#useopeninterestbysymbolid). Use it to show how much room the solver has left in aggregate. No required params.
+
+```tsx
+import { useSolverOpenInterest } from "@symmio/trading-react";
+
+function GlobalOi() {
+  const { data } = useSolverOpenInterest({ query: { refetchInterval: 15_000 } });
+  if (!data) return null;
+  const remaining = Number(data.total_cap) - Number(data.used);
+  return <span>remaining notional: {remaining}</span>;
+}
+```
+
+| Param      | Type       | Required | Notes                                   |
+| ---------- | ---------- | -------- | --------------------------------------- |
+| `chainId`  | `number`   | no       | Defaults to the connected chain.        |
+| `solverId` | `SolverId` | no       | Defaults to the chain's default solver. |
+| `config`   | `Config`   | no       | Override the config from context.       |
+| `query`    | object     | no       | TanStack Query overrides.               |
+
+Returns `UseQueryResult<{ total_cap: string; used: string }, SymmioRequestError>` — both values are decimal strings.
+
+### `useSolverPriceRange`
+
+A market's acceptable price band — `min_price` / `max_price` — from the rasa-only `/price-range/{symbol}` endpoint. Use it to validate a limit price before you submit, or to clamp a price input to the range the solver will accept. `symbol` is the market's `name` (e.g. `"BTCUSDT"`).
+
+```tsx
+import { useSolverPriceRange } from "@symmio/trading-react";
+
+function PriceGuard({ symbol, price }: { symbol: string; price: number }) {
+  const { data } = useSolverPriceRange({ symbol });
+  if (!data) return null;
+  const ok = price >= Number(data.min_price) && price <= Number(data.max_price);
+  return <span>{ok ? "in range" : `allowed ${data.min_price}–${data.max_price}`}</span>;
+}
+```
+
+| Param      | Type       | Required | Notes                                   |
+| ---------- | ---------- | -------- | --------------------------------------- |
+| `symbol`   | `string`   | **yes**  | Market symbol name, e.g. `"BTCUSDT"`.   |
+| `chainId`  | `number`   | no       | Defaults to the connected chain.        |
+| `solverId` | `SolverId` | no       | Defaults to the chain's default solver. |
+| `config`   | `Config`   | no       | Override the config from context.       |
+| `query`    | object     | no       | TanStack Query overrides.               |
+
+Returns `UseQueryResult<{ min_price: string; max_price: string }, SymmioRequestError>` — both decimal strings.
+
+### `useErrorMessage`
+
+Resolve a single numeric solver error code to its message via the rasa-only `/error_codes/{error_code}` endpoint. Use it to turn the `error_code` on a failed notification or position-state row into human-readable text. For the whole registry at once, use the cross-kind [`useSolverErrorCodes`](/react/solvers#usesolvererrorcodes) instead.
+
+```tsx
+import { useErrorMessage } from "@symmio/trading-react";
+
+function ErrorLabel({ code }: { code: number }) {
+  const { data } = useErrorMessage({ errorCode: code });
+  // data is a { [code]: message } map for the requested code
+  return <span>{data?.[code] ?? `error ${code}`}</span>;
+}
+```
+
+| Param       | Type       | Required | Notes                                   |
+| ----------- | ---------- | -------- | --------------------------------------- |
+| `errorCode` | `number`   | **yes**  | Numeric solver error code to look up.   |
+| `chainId`   | `number`   | no       | Defaults to the connected chain.        |
+| `solverId`  | `SolverId` | no       | Defaults to the chain's default solver. |
+| `config`    | `Config`   | no       | Override the config from context.       |
+| `query`     | object     | no       | TanStack Query overrides.               |
+
+Returns `UseQueryResult<{ [code: string]: string }, SymmioRequestError>` — a `{ code: message }` map for the requested code.
+
+## Notification history search
+
+Searching a rasa solver's notification history is **not** a rasa-only hook — it is the unified [`useSearchNotifications`](/react/notifications#usesearchnotifications), which dispatches to the rasa solver's own position-state endpoint (`POST /position-state/{start}/{size}`) for a rasa solver and returns the `kind: "rasa"` variant (`{ count, rows }` of `PositionStateResponseSchema` records — each row's per-quote fill state: filled amounts, average prices, `last_seen_action`, `action_status`, timing). Pass `solverId: "rasa"` (or narrow on `data.kind`) to read those rows.
+
+## Related
+
+- [Solvers](/react/solvers) — the cross-kind solver reads (`useMarkets`, `useNotionalCapBySymbolId`, `useSolverErrorCodes`) and the instant-open / instant-close flows.
+- [Price Service](/react/price-service) — provider-agnostic and Binance/Enigma-specific price hooks; the direct analog to this page's per-kind guard is `UNSUPPORTED_BY_PRICE_SERVICE`.
+- [Notifications](/react/notifications) — the live `useNotifications` stream and the unified `useSearchNotifications` history search (which serves a rasa solver's position-state history).
+- [Solvers and chains](/core/concepts/solvers-and-chains) — how solver kinds, chains, and the `id ≡ kind` model fit together.

@@ -2,7 +2,13 @@ import type { Address } from "viem";
 import { describe, expect, it } from "vitest";
 import { OrderType, PositionType, type Quote } from "../symmio-contracts/symmio/types";
 import { NotificationType, type Notification } from "../websocket/notifications/types";
-import { applyNotificationToQuotes, classifyQuoteNotificationAction } from "./apply-notification";
+import {
+  applyNotificationToQuotes,
+  classifyQuoteNotificationAction,
+  isCancelAction,
+  isCloseFillAction,
+  isOpenAnchorAction,
+} from "./apply-notification";
 import { QuoteLifecycle, type UnifiedQuote } from "./unified-quote";
 
 const PARTY_A = "0x000000000000000000000000000000000000a11a" as Address;
@@ -83,11 +89,6 @@ describe("applyNotificationToQuotes — close lifecycle", () => {
     expect(result.lifecycle).toBe(QuoteLifecycle.ONCHAIN);
   });
 
-  it("keeps an anchored CLOSE_PENDING row CLOSING (authoritative on-chain status drives it)", () => {
-    const result = apply1(makeRow({ lifecycle: QuoteLifecycle.CLOSING }), makeCloseNotification());
-    expect(result.lifecycle).toBe(QuoteLifecycle.CLOSING);
-  });
-
   it("never overrides a terminal CLOSED row", () => {
     const result = apply1(makeRow({ lifecycle: QuoteLifecycle.CLOSED }), makeCloseNotification());
     expect(result.lifecycle).toBe(QuoteLifecycle.CLOSED);
@@ -138,12 +139,20 @@ describe("applyNotificationToQuotes — close staging", () => {
     expect(result.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
   });
 
-  it("does not regress the poll-confirmed CLOSING when the earlier request notification replays", () => {
+  it("advances CLOSE_PRICE_FILLED → WRITE_ONCHAIN_CLOSE on the limit-close anchor notification", () => {
     const result = apply1(
-      makeRow({ lifecycle: QuoteLifecycle.CLOSING }),
+      makeRow({ lifecycle: QuoteLifecycle.CLOSE_PRICE_FILLED }),
+      makeCloseNotification({ lastSeenAction: "InstantRequestToLimitClose" }),
+    );
+    expect(result.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
+  });
+
+  it("does not regress the furthest close stage (WRITE_ONCHAIN_CLOSE) when the earlier request notification replays", () => {
+    const result = apply1(
+      makeRow({ lifecycle: QuoteLifecycle.WRITE_ONCHAIN_CLOSE }),
       makeCloseNotification({ lastSeenAction: "InstantRequestToClosePosition" }),
     );
-    expect(result.lifecycle).toBe(QuoteLifecycle.CLOSING);
+    expect(result.lifecycle).toBe(QuoteLifecycle.WRITE_ONCHAIN_CLOSE);
   });
 
   it("ignores replayed close notifications on a settled ONCHAIN row (no re-stick)", () => {
@@ -230,10 +239,86 @@ describe("classifyQuoteNotificationAction", () => {
   it("classifies close-request/fill actions as close", () => {
     expect(classifyQuoteNotificationAction("FillMarketOrderInstantClose")).toBe("close");
     expect(classifyQuoteNotificationAction("RequestToClosePosition")).toBe("close");
+    expect(classifyQuoteNotificationAction("InstantRequestToLimitClose")).toBe("close");
   });
 
   it("classifies unknown or missing actions as other", () => {
     expect(classifyQuoteNotificationAction("SomethingElse")).toBe("other");
     expect(classifyQuoteNotificationAction(undefined)).toBe("other");
+  });
+
+  it("classifies cancel actions as other (the chain, not the frame, decides a cancel)", () => {
+    expect(classifyQuoteNotificationAction("RequestToCancelQuote")).toBe("other");
+    expect(classifyQuoteNotificationAction("AcceptCancelRequest")).toBe("other");
+  });
+});
+
+describe("a cancel notification", () => {
+  it("leaves the matched row untouched — only the on-chain read may end a cancelled quote", () => {
+    const row = makeRow({ lifecycle: QuoteLifecycle.ONCHAIN });
+    const next = applyNotificationToQuotes(
+      [row],
+      makeCloseNotification({ lastSeenAction: "RequestToCancelQuote", quoteId: "7293" }),
+    );
+    expect(next[0]).toEqual(row);
+  });
+});
+
+describe("isCancelAction", () => {
+  it("is true for the observed cancel-request action", () => {
+    expect(isCancelAction("RequestToCancelQuote")).toBe(true);
+  });
+
+  it("is true for the other cancel paths the contract exposes", () => {
+    expect(isCancelAction("AcceptCancelRequest")).toBe(true);
+    expect(isCancelAction("ForceCancelQuote")).toBe(true);
+    expect(isCancelAction("ExpireQuote")).toBe(true);
+  });
+
+  it("is false for open, close, and unknown actions", () => {
+    expect(isCancelAction("SendQuoteTransaction")).toBe(false);
+    expect(isCancelAction("InstantRequestToClosePosition")).toBe(false);
+    expect(isCancelAction("RequestToCancelCloseRequest")).toBe(false);
+    expect(isCancelAction("SomethingElse")).toBe(false);
+    expect(isCancelAction(null)).toBe(false);
+    expect(isCancelAction(undefined)).toBe(false);
+  });
+});
+
+describe("isOpenAnchorAction", () => {
+  it("is true only for open-anchor (on-chain) actions", () => {
+    expect(isOpenAnchorAction("SendQuoteTransaction")).toBe(true);
+    expect(isOpenAnchorAction("SendQuote")).toBe(true);
+    expect(isOpenAnchorAction("FillLimitOrderOpen")).toBe(true);
+  });
+
+  it("is false for the off-chain InstantRFQ price-fill (the first notification)", () => {
+    expect(isOpenAnchorAction("InstantRFQ")).toBe(false);
+  });
+
+  it("is false for close actions and unknown / missing actions", () => {
+    expect(isOpenAnchorAction("FillMarketOrderInstantClose")).toBe(false);
+    expect(isOpenAnchorAction("SomethingElse")).toBe(false);
+    expect(isOpenAnchorAction(null)).toBe(false);
+    expect(isOpenAnchorAction(undefined)).toBe(false);
+  });
+});
+
+describe("isCloseFillAction", () => {
+  it("is true only for close-fill actions", () => {
+    expect(isCloseFillAction("FillMarketOrderInstantClose")).toBe(true);
+    expect(isCloseFillAction("FillLimitOrderClose")).toBe(true);
+  });
+
+  it("is false for a close request (not yet filled)", () => {
+    expect(isCloseFillAction("RequestToClosePosition")).toBe(false);
+    expect(isCloseFillAction("InstantRequestToClosePosition")).toBe(false);
+  });
+
+  it("is false for open actions and unknown / missing actions", () => {
+    expect(isCloseFillAction("FillLimitOrderOpen")).toBe(false);
+    expect(isCloseFillAction("SomethingElse")).toBe(false);
+    expect(isCloseFillAction(null)).toBe(false);
+    expect(isCloseFillAction(undefined)).toBe(false);
   });
 });

@@ -8,16 +8,18 @@ export interface NavLink {
 /** Top-level destinations that always sit in the header bar. */
 export const primaryNavLinks: NavLink[] = [
   { href: "/", label: "Overview" },
-  { href: "/contracts", label: "Contracts" },
-  { href: "/solvers", label: "Solvers" },
   { href: "/integration", label: "Integration" },
 ];
 
 /** Secondary destinations, collapsed behind the header "More" menu. */
 export const secondaryNavLinks: NavLink[] = [
-  { href: "/price-service", label: "Price Service", description: "Oracle prices, symbols & health" },
+  { href: "/contracts", label: "Contracts", description: "Live reads & writes on every SDK method" },
+  { href: "/solvers", label: "Solvers", description: "Tradable markets from the chain's solver" },
+  { href: "/price-service", label: "Price Service", description: "Enigma & Binance mark prices" },
+  { href: "/candles", label: "Candles", description: "Historical & live OHLCV chart data" },
+  { href: "/orderbook", label: "Orderbook", description: "Synchronized live market depth" },
+  { href: "/pools", label: "Pools", description: "Permissionless-listing market catalog" },
   { href: "/muon", label: "Muon API", description: "Oracle uPnL, price & settlement signatures" },
-  { href: "/websocket", label: "WebSockets", description: "Live notification, price & order streams" },
   { href: "/session-keys", label: "Session Keys", description: "Browser-local delegated signing key" },
   { href: "/config", label: "Config", description: "Resolved SYMMIO chain config" },
 ];

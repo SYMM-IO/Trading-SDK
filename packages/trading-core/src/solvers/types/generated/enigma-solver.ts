@@ -8,11 +8,14 @@
 import type { AxiosRequestConfig, AxiosResponse } from "axios";
 import axios from "axios";
 
-export interface SymbolContractSymbol {
+export interface ApiContractSymbol {
   asset?: string;
   funding_rate_epoch_duration?: string;
   funding_rate_window_time?: string;
   hedger_fee_close?: string;
+  hedger_fee_close_early_rate?: string;
+  hedger_fee_close_early_threshold?: string;
+  hedger_fee_close_standard_threshold?: string;
   hedger_fee_open?: string;
   is_valid?: boolean;
   lot_size?: string;
@@ -40,7 +43,7 @@ export interface SymbolContractSymbol {
 
 export interface ApiContractSymbolsResponse {
   count?: number;
-  symbols?: SymbolContractSymbol[];
+  symbols?: ApiContractSymbol[];
 }
 
 export type ApiCustomTableDataItem = { [key: string]: unknown };
@@ -56,13 +59,24 @@ export interface ApiCustomTable {
   title?: string;
 }
 
+export interface ApiDailyTradeVolumeResponse {
+  timestamp?: string;
+  volume?: string;
+}
+
+export interface ApiFundingInfoItem {
+  funding_rate_epoch_duration?: number;
+  next_funding_rate_long?: string;
+  next_funding_rate_short?: string;
+  next_funding_time?: number;
+}
+
+export interface ApiFundingInfoBySymbolsResponse {
+  [key: string]: ApiFundingInfoItem;
+}
+
 export interface ApiFundingInfoResponse {
-  [key: string]: {
-    funding_rate_epoch_duration?: number;
-    next_funding_rate_long?: string;
-    next_funding_rate_short?: string;
-    next_funding_time?: number;
-  };
+  [key: string]: ApiFundingInfoItem;
 }
 
 export enum ApiGaslessAction {
@@ -232,12 +246,13 @@ export interface ApiGetStatsResponse {
 }
 
 export interface ApiGetTempQuoteStatusResponse {
+  completion_source?: string;
   cva?: string;
   error_category?: string;
   /** Populated only when State is "Failed" or "Cancelled". ErrorCode mirrors
    * the synchronous /instant_trade contract; ErrorCategory is the stable
    * bucket the frontend maps to user-facing copy. See
-   * docs/v2/INSTANT_TRADE_ERRORS.md. */
+   * docs/reference/instant-trade-errors.md. */
   error_code?: number;
   error_detail?: string;
   error_message?: string;
@@ -252,6 +267,10 @@ export interface ApiGetTempQuoteStatusResponse {
   price?: string;
   quantity?: string;
   quote_id?: number;
+  recovered_at?: string;
+  recovery_log_index?: number;
+  recovery_reason?: string;
+  recovery_tx_hash?: string;
   state?: string;
   sub_account?: string;
   symbol_id?: number;
@@ -309,11 +328,58 @@ export interface ApiRevenueBatchPerSymbolResponse {
   total_revenue?: string;
 }
 
+export interface ApiRevenueRecordItem {
+  amount?: string;
+  created_at?: string;
+  id?: number;
+  symbol_id?: number;
+}
+
+export interface ApiRevenueRecordsResponse {
+  count?: number;
+  records?: ApiRevenueRecordItem[];
+}
+
 export interface ApiRevenueResponse {
   funding_revenue?: string;
   hedger_fee_revenue?: string;
   record_count?: number;
   total_revenue?: string;
+}
+
+export interface ApiSymbolResponse {
+  asset?: string;
+  funding_rate_epoch_duration?: string;
+  funding_rate_window_time?: string;
+  hedger_fee_close?: string;
+  hedger_fee_close_early_rate?: string;
+  hedger_fee_close_early_threshold?: string;
+  hedger_fee_close_standard_threshold?: string;
+  hedger_fee_open?: string;
+  is_valid?: boolean;
+  lot_size?: string;
+  max_funding_rate?: string;
+  max_leverage?: string;
+  max_notional_value?: number;
+  max_quantity?: string;
+  min_acceptable_portion_lf?: string;
+  min_acceptable_quote_value?: string;
+  min_notional_value?: string;
+  name?: string;
+  price_precision?: number;
+  quantity_precision?: number;
+  rfq_allowed?: boolean;
+  state_long?: number;
+  state_short?: number;
+  symbol?: string;
+  symbol_id?: number;
+  token_address?: string;
+  trading_fee?: string;
+}
+
+export interface ApiSymbolsResponse {
+  count?: number;
+  symbols?: ApiSymbolResponse[];
 }
 
 export interface ApiV2InstantCloseRequest {
@@ -380,6 +446,13 @@ export type GetEstimatedPriceParams = {
   price: string;
 };
 
+export type GetFundingInfoParams = {
+  /**
+   * Symbol IDs (omit for all)
+   */
+  symbol_ids?: number[];
+};
+
 export type GetGetFundingInfoParams = {
   /**
    * Symbol names (omit for all)
@@ -397,6 +470,8 @@ export type GetGetLockedParamsSymbolParams = {
 export type GetGetMarketInfo200 = { [key: string]: unknown };
 
 export type GetInstantTradeEip712Config200 = { [key: string]: unknown };
+
+export type GetMarketInfo200 = { [key: string]: unknown };
 
 export type GetNotionalCapParams = {
   /**
@@ -504,6 +579,25 @@ export type GetRevenuePerSymbolParams = {
   end_time?: number;
 };
 
+export type GetRevenueRecordsParams = {
+  /**
+   * Last seen revenue record ID
+   */
+  id?: number;
+  /**
+   * Optional symbol IDs (max 100)
+   */
+  symbolIds?: number[];
+  /**
+   * Offset for pagination (default 0)
+   */
+  offset?: number;
+  /**
+   * Limit results (max 500, default 100)
+   */
+  limit?: number;
+};
+
 export type GetRevenueSymbolIdParams = {
   /**
    * Preset range (1h, 24h, 7d, 30d, lifetime)
@@ -528,6 +622,45 @@ export type GetStatsParams = {
    * Filter response to specific stat types (periodic_stats, single_metrics, custom_tables, alerts)
    */
   include?: string[];
+};
+
+export type GetSymbolsParams = {
+  /**
+   * Limit results (max 500, default 100)
+   */
+  limit?: number;
+  /**
+   * Offset for pagination (default 0)
+   */
+  offset?: number;
+  /**
+   * Symbol ID
+   */
+  symbol_id?: number;
+  /**
+   * Case-insensitive match on symbol name
+   */
+  search?: string;
+  /**
+   * Asset exact match
+   */
+  asset?: string;
+  /**
+   * Token address exact match
+   */
+  token_address?: string;
+  /**
+   * Validity filter: true, false, any (default true)
+   */
+  is_valid?: string;
+  /**
+   * Long-side state filter: disabled, close_only, open_only, enabled
+   */
+  state_long?: string;
+  /**
+   * Short-side state filter: disabled, close_only, open_only, enabled
+   */
+  state_short?: string;
 };
 
 /**
@@ -569,12 +702,26 @@ export const getEstimatedPrice = (
 };
 
 /**
- * @summary Get funding info
+ * @summary Get funding info by symbol ID
+ */
+export const getFundingInfo = (
+  params?: GetFundingInfoParams,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<ApiFundingInfoResponse>> => {
+  return axios.get(`/funding-info`, {
+    ...options,
+    params: { ...params, ...options?.params },
+  });
+};
+
+/**
+ * @deprecated
+ * @summary Get funding info by symbol name
  */
 export const getGetFundingInfo = (
   params?: GetGetFundingInfoParams,
   options?: AxiosRequestConfig,
-): Promise<AxiosResponse<ApiFundingInfoResponse>> => {
+): Promise<AxiosResponse<ApiFundingInfoBySymbolsResponse>> => {
   return axios.get(`/get_funding_info`, {
     ...options,
     params: { ...params, ...options?.params },
@@ -597,7 +744,8 @@ export const getGetLockedParamsSymbol = (
 
 /**
  * Returns a JSON object whose keys are symbol names (dynamic — sourced from contract-symbol data) mapping to {trading_volume, lifetime_value}, plus top-level aggregate fields total_value_24h and total_lifetime_value.
- * @summary Get 24h market info
+ * @deprecated
+ * @summary Get 24h market info by symbol name
  */
 export const getGetMarketInfo = (options?: AxiosRequestConfig): Promise<AxiosResponse<GetGetMarketInfo200>> => {
   return axios.get(`/get_market_info`, options);
@@ -685,6 +833,14 @@ export const postInstantTradeInstantOpen = (
   options?: AxiosRequestConfig,
 ): Promise<AxiosResponse<ApiPostInstantOpenResponse>> => {
   return axios.post(`/instant_trade/instant_open`, apiV2InstantOpenRequest, options);
+};
+
+/**
+ * Returns a JSON object whose keys are symbol IDs mapping to {trading_volume, lifetime_value}, plus top-level aggregate fields total_value_24h and total_lifetime_value.
+ * @summary Get 24h market info by symbol ID
+ */
+export const getMarketInfo = (options?: AxiosRequestConfig): Promise<AxiosResponse<GetMarketInfo200>> => {
+  return axios.get(`/market-info`, options);
 };
 
 /**
@@ -780,6 +936,20 @@ export const getRevenuePerSymbol = (
 };
 
 /**
+ * Returns revenue rows with id greater than the supplied last-seen id. Results are ordered by id ascending before offset/limit pagination. `count` is the total matching record count before pagination. Pass symbolIds as a comma-separated list or repeated query params to filter by symbol; omit it or pass it empty to disable symbol filtering.
+ * @summary Get incremental revenue records
+ */
+export const getRevenueRecords = (
+  params?: GetRevenueRecordsParams,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<ApiRevenueRecordsResponse>> => {
+  return axios.get(`/revenue/records`, {
+    ...options,
+    params: { ...params, ...options?.params },
+  });
+};
+
+/**
  * Returns total, hedger-fee, and funding-rate revenue for one symbol. Filterable by time_range or custom timestamps.
  * @summary Get aggregated revenue for a specific symbol
  */
@@ -809,6 +979,20 @@ export const getStats = (
 };
 
 /**
+ * Returns paginated symbols with optional filters. is_valid defaults to true; pass is_valid=any to include valid and invalid symbols.
+ * @summary Get symbols
+ */
+export const getSymbols = (
+  params?: GetSymbolsParams,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<ApiSymbolsResponse>> => {
+  return axios.get(`/symbols`, {
+    ...options,
+    params: { ...params, ...options?.params },
+  });
+};
+
+/**
  * @summary Get temp quote status
  */
 export const getTempQuoteStatusTempQuoteId = (
@@ -818,11 +1002,23 @@ export const getTempQuoteStatusTempQuoteId = (
   return axios.get(`/temp_quote_status/${tempQuoteId}`, options);
 };
 
+/**
+ * Returns configured last N daily trade volume rows for one symbol, ordered by day ascending.
+ * @summary Get daily trade volume for one market
+ */
+export const getTradeVolumeSymbolId = (
+  symbolId: number,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<ApiDailyTradeVolumeResponse[]>> => {
+  return axios.get(`/trade-volume/${symbolId}`, options);
+};
+
 export type GetContractSymbolsResult = AxiosResponse<ApiContractSymbolsResponse>;
 export type GetErrorCodesResult = AxiosResponse<GetErrorCodes200>;
 export type GetErrorCodesDetailedResult = AxiosResponse<ClientErrorCodeInfo[]>;
 export type GetEstimatedPriceResult = AxiosResponse<ApiGetEstimatedPriceResponse>;
-export type GetGetFundingInfoResult = AxiosResponse<ApiFundingInfoResponse>;
+export type GetFundingInfoResult = AxiosResponse<ApiFundingInfoResponse>;
+export type GetGetFundingInfoResult = AxiosResponse<ApiFundingInfoBySymbolsResponse>;
 export type GetGetLockedParamsSymbolResult = AxiosResponse<ApiLockedParamsBySymbolIdResponse>;
 export type GetGetMarketInfoResult = AxiosResponse<GetGetMarketInfo200>;
 export type GetInstantCloseAccountAddressResult = AxiosResponse<ApiGetInstantCloseResponse[]>;
@@ -832,6 +1028,7 @@ export type GetInstantTradeEip712ConfigResult = AxiosResponse<GetInstantTradeEip
 export type PostInstantTradeExecuteOperationResult = AxiosResponse<ApiGaslessResponse>;
 export type PostInstantTradeInstantCloseResult = AxiosResponse<void>;
 export type PostInstantTradeInstantOpenResult = AxiosResponse<ApiPostInstantOpenResponse>;
+export type GetMarketInfoResult = AxiosResponse<GetMarketInfo200>;
 export type GetNotionalCapResult = AxiosResponse<ApiNotionalCapAllSymbolsResponse>;
 export type GetNotionalCapBatchResult = AxiosResponse<ApiNotionalCapAllSymbolsResponse>;
 export type GetNotionalCapSymbolIdResult = AxiosResponse<ApiNotionalCapBySymbolResponse>;
@@ -839,6 +1036,9 @@ export type GetQuotesResult = AxiosResponse<ApiGetQuotesResponse>;
 export type GetRevenueResult = AxiosResponse<ApiRevenueResponse>;
 export type GetRevenueBatchResult = AxiosResponse<ApiRevenueResponse>;
 export type GetRevenuePerSymbolResult = AxiosResponse<ApiRevenueBatchPerSymbolResponse>;
+export type GetRevenueRecordsResult = AxiosResponse<ApiRevenueRecordsResponse>;
 export type GetRevenueSymbolIdResult = AxiosResponse<ApiRevenueResponse>;
 export type GetStatsResult = AxiosResponse<ApiGetStatsResponse>;
+export type GetSymbolsResult = AxiosResponse<ApiSymbolsResponse>;
 export type GetTempQuoteStatusTempQuoteIdResult = AxiosResponse<ApiGetTempQuoteStatusResponse>;
+export type GetTradeVolumeSymbolIdResult = AxiosResponse<ApiDailyTradeVolumeResponse[]>;

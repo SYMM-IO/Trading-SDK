@@ -1,0 +1,18 @@
+# PlanGroupTpSlDeleteResult
+
+Result of [`planGroupTpSlDelete`](/core/tpsl/plan-group-tpsl-delete).
+
+## Properties
+
+<Properties>
+  <Property name="targets" type="GroupTpSlDeleteTarget[]" required>
+    Cancellable orders — take profit before stop loss within a child, children in input order. Each carries `key`,
+    `quoteId`, `virtualAccount`, `cohQuoteId`, `conditionalOrderType` and the `triggerPrice` being cancelled.
+  </Property>
+  <Property name="skipped" type="GroupTpSlDeleteSkip[]" required>
+    Sides deliberately excluded, each with a `reason` of `"in-flight"`, `"no-coh-id"` or `"not-anchored"`.
+  </Property>
+  <Property name="isNoop" type="boolean" required>
+    `true` when there is nothing to cancel.
+  </Property>
+</Properties>

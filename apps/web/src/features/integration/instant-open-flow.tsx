@@ -4,18 +4,24 @@ import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useSessionKey } from "@/features/session-keys/use-session-key";
 import { formatUsd } from "@/lib/format";
+import type { SolverId } from "@symmio/trading-core";
 import {
   ADD_MARGIN_TO_NEXT_VA_SELECTOR,
   INSTANT_TRADE_REQUIRED_SELECTORS,
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
   SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
+  SubAccountIsolationType,
+  useAccountBalanceInfo,
   useAccountBalanceOf,
   useApproveCollateral,
   useCollateralAllowance,
   useCollateralBalance,
   useDeposit,
+  useDepositAndAllocate,
   useGrantDelegation,
   useIsDelegationActive,
+  useSubAccount,
+  useSymmioChainId,
   useSymmioConfig,
 } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
@@ -28,7 +34,8 @@ import { maxUint256, zeroAddress, type Address } from "viem";
 import { WalletPanel } from "../inspector/wallet-panel";
 import { MagicWatchButton } from "../magic-sidebar/magic-watch-button";
 import { AmountField } from "./amount-field";
-import { FlowRail, type FlowStep } from "./flow-rail";
+import { FlowLayout } from "./flow-layout";
+import type { FlowStep } from "./flow-rail";
 import { OpenPositionStep } from "./open-position-step";
 import { parseAmount } from "./parse-amount";
 import { SubaccountStep } from "./subaccount-step";
@@ -51,22 +58,50 @@ const DELEGATION_TTL_SECONDS = 365 * 24 * 60 * 60;
  * that needs it.
  */
 export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSubAccount, ready }: Props) {
-  const { addresses } = useSymmioConfig().getChainConfig();
+  const config = useSymmioConfig();
+  const chainId = useSymmioChainId();
+  const { addresses } = config.getChainConfig(chainId);
   const collateralDecimals = addresses.collateralDecimals;
   const { sessionKeyAddress } = useSessionKey();
   const sessionKey = sessionKeyAddress ?? undefined;
 
-  // ---- Subaccount balance: gates the Fund step. Available balance > 0 means
-  // the subaccount can fund `addMarginToNextVA` for a trade. ----
-  // `live` refetches on the on-chain settle notification, so the balance drops
-  // after an open/close anchors without a manual refresh.
+  // ---- Solver: which of the chain's solvers the open targets. One per chain
+  // today (HyperEVM → enigma, Base → rasa); the picker makes the target visible
+  // and future-proofs multi-solver chains. Reset on chain switch. ----
+  const solverIds = config.listSolverIds(chainId);
+  const [solverId, setSolverId] = useState<SolverId>(() => config.getDefaultSolverId(chainId));
+  useEffect(() => {
+    setSolverId(config.getDefaultSolverId(chainId));
+  }, [config, chainId]);
+  // ---- Margin model: follows the SELECTED SUB-ACCOUNT's isolation type. ----
+  // `CUSTOM` isolation trades cross-margin on the sub-account directly (funds
+  // live in the ALLOCATED balance, no addMargin/VA leg); the VA isolations
+  // spend the AVAILABLE balance. Isolation is fixed at creation → cache forever.
+  const subAccountQuery = useSubAccount({
+    account: subAccount ?? zeroAddress,
+    query: { enabled: Boolean(subAccount), staleTime: Infinity },
+  });
+  const isCrossMargin = subAccountQuery.data?.isolationType === SubAccountIsolationType.CUSTOM;
+
+  // ---- Subaccount balance: gates the Fund step. ----
+  // VA isolations spend the AVAILABLE balance (`balanceOf`, feeds
+  // `addMarginToNextVA`); CUSTOM isolation spends the ALLOCATED balance
+  // (`balanceInfoOfPartyA.allocatedBalance`). `live` refetches on the on-chain
+  // settle notification, so the balance moves after an open/close anchors
+  // without a manual refresh.
   const subAccountBalance = useAccountBalanceOf({
     account: subAccount ?? zeroAddress,
-    query: { enabled: Boolean(subAccount) },
+    query: { enabled: Boolean(subAccount) && !isCrossMargin },
     live: true,
   });
-  const balanceKnown = Boolean(subAccount) && subAccountBalance.data !== undefined;
-  const balanceFunded = balanceKnown && (subAccountBalance.data ?? 0n) > 0n;
+  const subAccountBalanceInfo = useAccountBalanceInfo({
+    account: subAccount ?? zeroAddress,
+    query: { enabled: Boolean(subAccount) && isCrossMargin },
+    live: true,
+  });
+  const fundingBalance = isCrossMargin ? subAccountBalanceInfo.data?.allocatedBalance : subAccountBalance.data;
+  const balanceKnown = Boolean(subAccount) && fundingBalance !== undefined;
+  const balanceFunded = balanceKnown && (fundingBalance ?? 0n) > 0n;
 
   // ---- Delegation checks (open + close + addMargin). All must be active. ----
   const delegationEnabled = Boolean(subAccount && sessionKey);
@@ -89,11 +124,16 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
     query: { enabled: delegationEnabled },
   });
   const grantDelegation = useGrantDelegation();
+  // Cross-margin (CUSTOM isolation) has no addMargin leg — its gate skips that selector.
   const allDelegationsActive =
-    addMarginDelegation.data === true && sendQuoteDelegation.data === true && closePositionDelegation.data === true;
+    sendQuoteDelegation.data === true &&
+    closePositionDelegation.data === true &&
+    (isCrossMargin || addMarginDelegation.data === true);
   const delegationsLoading =
     delegationEnabled &&
-    (addMarginDelegation.isLoading || sendQuoteDelegation.isLoading || closePositionDelegation.isLoading);
+    (sendQuoteDelegation.isLoading ||
+      closePositionDelegation.isLoading ||
+      (!isCrossMargin && addMarginDelegation.isLoading));
 
   // ---- Step gating ----
   // 0: connect → 1: subaccount → 2: fund → 3: session key → 4: delegation → 5: open.
@@ -123,8 +163,10 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
     : !balanceKnown
       ? "Checking balance…"
       : balanceFunded
-        ? `Available ${formatUsd(subAccountBalance.data ?? 0n)}`
-        : "Deposit collateral";
+        ? `${isCrossMargin ? "Allocated" : "Available"} ${formatUsd(fundingBalance ?? 0n)}`
+        : isCrossMargin
+          ? "Deposit + allocate collateral"
+          : "Deposit collateral";
 
   const steps: FlowStep[] = [
     { label: "Connect wallet", hint: ready && owner ? shortenAddress(owner) : "Connect your wallet", done: ready },
@@ -153,55 +195,80 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-muted-foreground text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <span className="text-muted-foreground min-w-0 text-xs leading-5">
           Watch this subaccount&apos;s quotes, positions, and notifications live while you trade.
         </span>
         <MagicWatchButton partyA={subAccount} />
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_220px]">
-        <div className="flex min-h-60 flex-col gap-5">
-          {current === 0 ? (
-            <WalletPanel />
-          ) : current === 1 ? (
-            <SubaccountStep
-              owner={owner}
-              selected={subAccount}
-              onSelect={(account) => {
-                onSelectSubAccount(account);
-                setStep(2);
-              }}
-            />
-          ) : current === 2 ? (
-            <FundSubaccountStep
-              owner={owner}
-              subAccount={subAccount}
-              decimals={collateralDecimals}
-              balance={subAccountBalance}
-            />
-          ) : current === 3 ? (
-            <SessionKeyStep address={sessionKey} owner={owner} />
-          ) : current === 4 ? (
-            <DelegationStep
-              subAccount={subAccount}
-              sessionKey={sessionKey}
-              addMarginActive={addMarginDelegation.data}
-              sendQuoteActive={sendQuoteDelegation.data}
-              closePositionActive={closePositionDelegation.data}
-              loading={delegationsLoading}
-              grant={grantDelegation}
-              onGrant={onGrantDelegation}
-            />
-          ) : (
-            <OpenPositionStep subAccount={subAccount!} sessionKey={sessionKey!} />
-          )}
+      {/* Solver target: which of the chain's solvers receives the open. */}
+      <div
+        className="border-border/70 bg-muted/20 flex flex-col gap-3 rounded-xl border px-4 py-3 @lg/console:flex-row @lg/console:items-center @lg/console:justify-between"
+        data-testid="instant-open-solver-picker"
+      >
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Solver</span>
+          <span className="text-muted-foreground text-xs leading-5">
+            Orders, markets, and prices route to the selected solver; the margin model follows the sub-account&apos;s
+            isolation type.
+            {solverIds.length === 1 ? " Switch network to reach the other solver." : null}
+          </span>
         </div>
-
-        <div className="lg:border-border/50 lg:border-l lg:pl-8">
-          <FlowRail steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep} />
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {solverIds.map((id) => (
+            <Button
+              key={id}
+              type="button"
+              size="sm"
+              variant={id === solverId ? "default" : "outline"}
+              onClick={() => setSolverId(id)}
+              data-testid={`instant-open-solver-${id}`}
+            >
+              {id}
+            </Button>
+          ))}
         </div>
       </div>
+
+      <FlowLayout steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep}>
+        {current === 0 ? (
+          <WalletPanel />
+        ) : current === 1 ? (
+          <SubaccountStep
+            owner={owner}
+            selected={subAccount}
+            onSelect={(account) => {
+              onSelectSubAccount(account);
+              setStep(2);
+            }}
+          />
+        ) : current === 2 ? (
+          <FundSubaccountStep
+            owner={owner}
+            subAccount={subAccount}
+            decimals={collateralDecimals}
+            balanceWei={fundingBalance}
+            isCrossMargin={isCrossMargin}
+          />
+        ) : current === 3 ? (
+          <SessionKeyStep address={sessionKey} owner={owner} />
+        ) : current === 4 ? (
+          <DelegationStep
+            subAccount={subAccount}
+            sessionKey={sessionKey}
+            addMarginActive={addMarginDelegation.data}
+            sendQuoteActive={sendQuoteDelegation.data}
+            closePositionActive={closePositionDelegation.data}
+            showAddMargin={!isCrossMargin}
+            loading={delegationsLoading}
+            grant={grantDelegation}
+            onGrant={onGrantDelegation}
+          />
+        ) : (
+          <OpenPositionStep subAccount={subAccount!} sessionKey={sessionKey!} solverId={solverId} />
+        )}
+      </FlowLayout>
     </div>
   );
 }
@@ -213,33 +280,41 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
 /**
  * Inline deposit form shown when the selected subaccount has zero balance.
  * Mirrors {@link DepositFlow}'s approve-then-deposit dance but scoped to the
- * subaccount picked upstream, and skips the allocate switch since instant-open
- * pulls margin from the subaccount's available balance.
+ * subaccount picked upstream. VA-isolated sub-accounts fund the **available**
+ * balance (plain deposit — instant open pulls it via `addMarginToNextVA`);
+ * CUSTOM-isolation sub-accounts trade cross-margin and spend the **allocated**
+ * balance, so their primary action is deposit-and-allocate in one transaction.
  */
 function FundSubaccountStep({
   owner,
   subAccount,
   decimals,
-  balance,
+  balanceWei,
+  isCrossMargin,
 }: {
   owner?: Address;
   subAccount?: Address;
   decimals: number;
-  balance: ReturnType<typeof useAccountBalanceOf>;
+  /** The model-appropriate funding balance: allocated (cross-margin) or available (VA isolations). */
+  balanceWei?: bigint;
+  isCrossMargin: boolean;
 }) {
   const [amount, setAmount] = useState("");
   const walletBalance = useCollateralBalance({ owner });
   const allowance = useCollateralAllowance({ owner });
   const approve = useApproveCollateral();
   const deposit = useDeposit();
+  const depositAndAllocate = useDepositAndAllocate();
+  const fund = isCrossMargin ? depositAndAllocate : deposit;
 
   const parsed = parseAmount(amount, decimals);
   const needsApproval = parsed !== undefined && (allowance.data ?? 0n) < parsed;
-  const busy = approve.isPending || deposit.isPending;
+  const busy = approve.isPending || fund.isPending;
 
   function resetActions() {
     approve.reset();
     deposit.reset();
+    depositAndAllocate.reset();
   }
 
   function onPrimary() {
@@ -248,7 +323,7 @@ function FundSubaccountStep({
       approve.mutate({ amount: maxUint256 });
       return;
     }
-    deposit.mutate({ account: subAccount, amount: parsed });
+    fund.mutate({ account: subAccount, amount: parsed });
   }
 
   if (!subAccount) {
@@ -258,12 +333,14 @@ function FundSubaccountStep({
   return (
     <div className="flex flex-col gap-4">
       <div className="border-border/70 bg-muted/20 flex flex-col gap-1 rounded-xl border p-4 text-sm">
-        <span className="text-muted-foreground text-xs tracking-wide uppercase">subaccount balance</span>
-        <span className="text-foreground font-mono">
-          {balance.data !== undefined ? `${formatUsd(balance.data)}` : "—"}
+        <span className="text-muted-foreground text-xs tracking-wide uppercase">
+          {isCrossMargin ? "subaccount allocated balance" : "subaccount balance"}
         </span>
+        <span className="text-foreground font-mono">{balanceWei !== undefined ? `${formatUsd(balanceWei)}` : "—"}</span>
         <span className="text-muted-foreground text-xs">
-          Instant open pulls margin from the subaccount&apos;s available balance. Deposit collateral to enable trading.
+          {isCrossMargin
+            ? "This sub-account trades cross-margin against its allocated balance. Deposit and allocate collateral to enable trading."
+            : "Instant open pulls margin from the subaccount's available balance. Deposit collateral to enable trading."}
         </span>
       </div>
 
@@ -291,10 +368,16 @@ function FundSubaccountStep({
         className="w-full"
       >
         {busy ? <Spinner className="size-4" /> : null}
-        {parsed === undefined ? "Enter an amount" : needsApproval ? "Approve USDC" : "Deposit"}
+        {parsed === undefined
+          ? "Enter an amount"
+          : needsApproval
+            ? "Approve USDC"
+            : isCrossMargin
+              ? "Deposit + allocate"
+              : "Deposit"}
       </Button>
 
-      <FundStatus approve={approve} deposit={deposit} approved={!needsApproval && parsed !== undefined} />
+      <FundStatus approve={approve} deposit={fund} approved={!needsApproval && parsed !== undefined} />
     </div>
   );
 }
@@ -305,7 +388,7 @@ function FundStatus({
   approved,
 }: {
   approve: ReturnType<typeof useApproveCollateral>;
-  deposit: ReturnType<typeof useDeposit>;
+  deposit: ReturnType<typeof useDeposit> | ReturnType<typeof useDepositAndAllocate>;
   approved: boolean;
 }) {
   if (approve.isPending) {
@@ -396,6 +479,7 @@ function DelegationStep({
   addMarginActive,
   sendQuoteActive,
   closePositionActive,
+  showAddMargin,
   loading,
   grant,
   onGrant,
@@ -405,6 +489,8 @@ function DelegationStep({
   addMarginActive?: boolean;
   sendQuoteActive?: boolean;
   closePositionActive?: boolean;
+  /** Cross-margin sub-accounts have no addMargin leg — the row is hidden (the grant still covers every selector). */
+  showAddMargin: boolean;
   loading: boolean;
   grant: ReturnType<typeof useGrantDelegation>;
   onGrant: () => void;
@@ -414,7 +500,7 @@ function DelegationStep({
       <div className="border-border/70 bg-muted/20 grid gap-3 rounded-xl border p-4 text-sm">
         <SelectorRow label="sendQuoteWithAffiliateAndData" active={sendQuoteActive} loading={loading} />
         <SelectorRow label="requestToClosePosition" active={closePositionActive} loading={loading} />
-        <SelectorRow label="addMarginToNextVA" active={addMarginActive} loading={loading} />
+        {showAddMargin ? <SelectorRow label="addMarginToNextVA" active={addMarginActive} loading={loading} /> : null}
 
         <div className="border-border/60 flex flex-col gap-1 border-t pt-3">
           <span className="text-muted-foreground text-xs">subaccount</span>

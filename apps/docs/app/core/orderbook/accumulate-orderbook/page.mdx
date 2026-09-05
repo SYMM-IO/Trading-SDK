@@ -1,0 +1,40 @@
+# accumulateOrderbook
+
+Annotate each level with the depth resting at or better than it. Totals are **inclusive** of the level's own size.
+
+```ts
+import { accumulateOrderbook } from "@symmio/trading-core";
+
+accumulateOrderbook([
+  { price: 100, size: 2 },
+  { price: 99, size: 3 },
+]);
+/** [{ price: 100, size: 2, total: 2, totalQuote: 200 },
+     { price: 99, size: 3, total: 5, totalQuote: 497 }] */
+```
+
+## Parameters
+
+<Properties>
+  <Property name="levels" type="readonly OrderbookLevel[]" required>
+    One side of a book, best price first.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="OrderbookDepthLevel[]">
+  The same levels with `total` (cumulative base-asset size, inclusive) and `totalQuote` (cumulative notional, inclusive)
+  attached. The input is not mutated.
+</Returns>
+
+## Why inclusive matters
+
+An exclusive running total leaves the best bid and the best ask reading `0`. Normalizing a depth bar against that gives the touch level no bar at all and understates every row by one level's size — so the row a trader looks at first is the one drawn wrong.
+
+The last entry's `total` is the depth of the whole series, which is the value a depth bar should normalize against.
+
+## Related
+
+- [`groupOrderbook`](/core/orderbook/group-orderbook) — usually applied first.
+- [`getOrderbookDepthWithin`](/core/orderbook/depth-within) — depth in a price band rather than per level.

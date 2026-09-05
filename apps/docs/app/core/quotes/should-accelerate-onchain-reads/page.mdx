@@ -1,6 +1,6 @@
 # shouldAccelerateOnchainReads
 
-Decide whether the **on-chain reads** specifically should poll at the accelerated interval — the RPC-lag retry. Unlike [`shouldAccelerateQuotePolling`](/core/quotes/should-accelerate-quote-polling) (which is `true` for every mid-transition stage, including the purely off-chain ones), this is `true` only while a row awaits on-chain confirmation: `WRITE_ONCHAIN`, `WRITE_ONCHAIN_CLOSE`, or `CLOSING`. The off-chain stages (`OPTIMISTIC` / `PRICE_FILLED` / `OPTIMISTIC_CLOSE` / `CLOSE_PRICE_FILLED`) have nothing on-chain to read before the anchor, so they must not drive on-chain polling.
+Decide whether the **on-chain reads** specifically should poll at the accelerated interval — the RPC-lag retry. Unlike [`shouldAccelerateQuotePolling`](/core/quotes/should-accelerate-quote-polling) (which is `true` for every mid-transition stage, including the purely off-chain ones), this is `true` only while a row awaits on-chain confirmation: `WRITE_ONCHAIN`, `WRITE_ONCHAIN_CLOSE`. The off-chain stages (`OPTIMISTIC` / `PRICE_FILLED` / `OPTIMISTIC_CLOSE` / `CLOSE_PRICE_FILLED`) have nothing on-chain to read before the anchor, so they must not drive on-chain polling.
 
 ```ts
 import { shouldAccelerateOnchainReads } from "@symmio/trading-core";
@@ -19,7 +19,7 @@ const onchainInterval = shouldAccelerateOnchainReads(result) ? 1_500 : false;
 ## Returns
 
 <Returns type="boolean">
-  `true` when at least one row is awaiting on-chain confirmation (`WRITE_ONCHAIN` / `WRITE_ONCHAIN_CLOSE` / `CLOSING`).
+  `true` when at least one row is awaiting on-chain confirmation (`WRITE_ONCHAIN` / `WRITE_ONCHAIN_CLOSE`).
 </Returns>
 
 ## Related

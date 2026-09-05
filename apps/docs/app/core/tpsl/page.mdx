@@ -1,6 +1,6 @@
 # TP/SL
 
-Take-profit and stop-loss orders for open positions. Trigger prices are held off-chain by a **conditional-order handler** ("handler" from here on) — a solver-adjacent service. `@symmio/trading-core` speaks to the handler over signed HTTP for mutations and a defilytics-protocol WebSocket for state updates. The on-chain contract is only involved when a trigger actually fires and closes the position.
+Take-profit and stop-loss orders for open positions. Trigger prices are held off-chain by a **conditional-order handler** ("handler" from here on) — a solver-adjacent service. `@symmio/trading-core` speaks to the handler over signed HTTP for mutations and a enigma-protocol WebSocket for state updates. The on-chain contract is only involved when a trigger actually fires and closes the position.
 
 Each method, helper, and type below has its own page with the full signature, parameters, return shape, examples, and (for reads) query options.
 
@@ -81,7 +81,7 @@ The React layer overlays a `confirming` synthetic state locally (part of [`TpSlI
     Subscribe to live conditional-order state transitions for a SubAccount.
   </MethodEntry>
   <MethodEntry name="parseTpSlFrame" href="/core/tpsl/parse-tpsl-frame">
-    Parse one raw defilytics frame into a `TpSlNotification`, or `null`.
+    Parse one raw enigma frame into a `TpSlNotification`, or `null`.
   </MethodEntry>
 </MethodIndex>
 
@@ -123,7 +123,7 @@ Two constants ship alongside these helpers: `DEFAULT_TPSL_SLIPPAGE_LOWCAPS` (the
     Normalized WebSocket report the SDK delivers to consumers.
   </MethodEntry>
   <MethodEntry name="RawTpSlNotification" href="/core/tpsl/raw-tpsl-notification">
-    The raw defilytics wire frame retained on `TpSlNotification.raw`.
+    The raw enigma wire frame retained on `TpSlNotification.raw`.
   </MethodEntry>
   <MethodEntry name="QuoteTpSlRow" href="/core/tpsl/quote-tpsl-row">
     One conditional-order row as returned by `getQuoteTpSl`.

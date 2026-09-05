@@ -1,0 +1,220 @@
+import { Callout } from "nextra/components";
+
+# Orderbook
+
+Render live market depth — a ladder, a depth chart, or an execution estimate — from a pluggable source. This guide covers the majors, where a reference exchange carries the book.
+
+```bash npm2yarn
+npm i @symmio/trading-react
+```
+
+## Quick start
+
+```tsx
+import { useBinanceOrderbookSource, useLiveOrderbook } from "@symmio/trading-react";
+
+export function Ladder({ marketName }: { marketName: string }) {
+  const source = useBinanceOrderbookSource();
+
+  const { bids, asks, spread, symbol, isResyncing, isUnsupported } = useLiveOrderbook({
+    source,
+    marketName,
+    rows: 15,
+  });
+
+  if (isUnsupported) return <p>No book for {marketName} on this venue.</p>;
+
+  return (
+    <div data-stale={isResyncing}>
+      {asks
+        .slice()
+        .reverse()
+        .map((level) => (
+          <Row key={level.price} level={level} precision={symbol?.pricePrecision ?? 2} side="ask" />
+        ))}
+
+      <p>{spread ? `${spread.midPrice} · ${spread.spreadBps.toFixed(3)} bps` : "—"}</p>
+
+      {bids.map((level) => (
+        <Row key={level.price} level={level} precision={symbol?.pricePrecision ?? 2} side="bid" />
+      ))}
+    </div>
+  );
+}
+```
+
+Asks are reversed so the best ask sits next to the spread, adjacent to the best bid.
+
+## The source
+
+```ts
+import { createBinanceOrderbookSource } from "@symmio/trading-core";
+
+const source = createBinanceOrderbookSource({
+  /** Which Binance market. Futures symbols are perpetual contracts, matching what a SYMMIO market is. */
+  market: "usd-m-futures",
+  /** A regional mirror or your own caching proxy. */
+  restUrl: "https://fapi.binance.com",
+  /** Keep the route class — see below. */
+  wsUrl: "wss://fstream.binance.com/public/stream",
+  /** Futures serves 100 | 250 | 500; spot serves 100 | 1000. */
+  updateSpeed: 500,
+  /** Return undefined for a market this venue has no listing for. */
+  resolveSymbol: (marketName) => marketName.toUpperCase(),
+});
+```
+
+### Symbol mapping
+
+The default mapping upper-cases the market name, which holds for current SYMMIO deployments where market names are already Binance USD-M symbols. Override `resolveSymbol` rather than relying on that coincidence if your deployment's names can diverge — an unmapped name otherwise resolves to a symbol that does not exist and the ladder simply stays empty.
+
+### Checking coverage before you render
+
+`getSymbol` returns `undefined` for a market the venue does not list. Run that check first: asking Binance for a SYMMIO lowcap name is an HTTP error, not an empty book, so without it your UI shows a raw 400 where the honest answer is "wrong source for this market".
+
+`useLiveOrderbook` does this for you and reports it as `isUnsupported`, waiting for the answer before it subscribes.
+
+## Depths and update speeds
+
+| Market          | Snapshot depths                 | Stream speeds             |
+| --------------- | ------------------------------- | ------------------------- |
+| `usd-m-futures` | `5, 10, 20, 50, 100, 500, 1000` | `100ms`, `250ms`, `500ms` |
+| `spot`          | any value up to `5000`          | `100ms`, `1000ms`         |
+
+The futures limit is an **enum**, not a range. Sending anything else fails outright with `-4021 "<n> is not valid depth limit"` — it is not clamped. Spot accepts any limit and clamps at its maximum. Rate-limit weight grows with depth, so `limit: 1000` is the heaviest read available.
+
+## Why the WebSocket route matters
+
+<Callout type="info">
+  Binance routes futures streams **by class**. `/public` carries `@depth`, partial depth, and `@bookTicker`. `/market`
+  carries `@kline_*`, `@aggTrade`, `@markPrice`, and `@ticker`.
+</Callout>
+
+Subscribing on the wrong route is not an error. The server acknowledges with `{"result":null}` and then **never pushes a single frame** — the socket reports `open`, the status dot goes green, and the book stays empty forever. There is nothing in the response to tell you why.
+
+This is why the orderbook source does not reuse the charts source's WebSocket constant: depth needs `wss://fstream.binance.com/public/stream`, klines need `wss://fstream.binance.com/market/stream`, and the two are not interchangeable. If you override `wsUrl`, keep the route class. Spot has no such routing — one combined-stream endpoint serves everything.
+
+## How the book stays synchronized
+
+A diff stream is only as good as its bookkeeping. Applying updates on faith produces a ladder that looks live and is quietly wrong, and the failure is both silent and permanent. The SDK implements the venue's documented procedure:
+
+1. **Subscribe first, and buffer.** Every update that arrives before the snapshot is held.
+2. **Then fetch the snapshot.** Doing it the other way round leaves the window between the snapshot and the first buffered update uncovered, and nothing downstream can detect the hole.
+3. **Discard what the snapshot already covers** — any update whose final id is behind it.
+4. **Require the first applied update to straddle the snapshot**: `U <= lastUpdateId <= u`. An update starting past the snapshot means the gap between them was never covered, so the snapshot is unusable and is refetched.
+5. **Apply absolute quantities.** A level's quantity is replaced, not added to; a zero removes the level. An update removing a level the book never held is normal and ignored.
+6. **Verify every later update chains onto the last.**
+
+### The continuity rule is per market
+
+This is the part most implementations get wrong, and the two rules are **not interchangeable**:
+
+| Market          | Rule                          | Why                                          |
+| --------------- | ----------------------------- | -------------------------------------------- |
+| `usd-m-futures` | `event.pu === lastUpdateId`   | `pu` carries the previous update's final id. |
+| `spot`          | `event.U <= lastUpdateId + 1` | Spot sends no `pu`; ids chain through `U`.   |
+
+On live USD-M futures, `U` routinely jumps tens to hundreds of ids past the previous `u` while `pu` chains exactly. Applying the spot rule to futures therefore reports a gap on essentially every update, and a book that resyncs constantly is no better than one that never does.
+
+### What a UI should do about it
+
+Any break — a missed update, a reconnect, a snapshot that lands too old — throws the local book away and rebuilds it, announced through `onResync` (`isResyncing` in React). The reasons are `initial`, `sequence-gap`, `reconnect`, and `stale-snapshot`.
+
+While a rebuild is in flight the **last good book is still the most useful thing on screen**. Dim the ladder; do not blank it. Blanking loses the reader's place for a gap that is usually well under a second.
+
+### Row count vs. grouping
+
+`rows` is per side — `rows: 5` gives five bids and five asks. The catch is that grouping collapses levels, so the number of _raw_ levels needed to fill those rows scales with how coarse the grouping is: at ten times the venue tick, one row can swallow ten levels.
+
+`useLiveOrderbook` derives its `levels` budget from `rows` and the active grouping for exactly this reason. A fixed budget that fills the ladder at the venue tick starves it at a coarse one, and the ladder renders half-empty with dead space where the missing rows should be. If you drive `watchOrderbook` yourself, size `levels` the same way.
+
+## Grouping, depth and impact
+
+The book that arrives is at the venue's own tick. Everything past that is plain functions over the same data — no extra requests.
+
+```ts
+import {
+  accumulateOrderbook,
+  getOrderbookDepthWithin,
+  getOrderbookSpread,
+  groupOrderbook,
+  suggestOrderbookTickSizes,
+  walkOrderbook,
+} from "@symmio/trading-core";
+
+/** Read the spread BEFORE grouping — grouping moves the touch prices apart. */
+const spread = getOrderbookSpread(book);
+
+/** Offer only groupings the venue can actually quote. */
+const options = suggestOrderbookTickSizes(symbol.tickSize, spread.midPrice);
+
+const grouped = groupOrderbook(book, 1);
+const bids = accumulateOrderbook(grouped.bids);
+const asks = accumulateOrderbook(grouped.asks);
+
+/** What a 5 BTC market buy would actually cost. */
+const walk = walkOrderbook(book, "buy", 5);
+walk.averagePrice;
+walk.slippageBps;
+walk.partial;
+
+/** Which way the book is leaning, robust to one far-out order. */
+const { imbalance } = getOrderbookDepthWithin(book, 0.005);
+```
+
+Two details that decide whether a ladder reads correctly:
+
+- **Cumulative totals are inclusive.** An exclusive running total leaves the best bid and best ask reading `0`, so the row a trader looks at first gets no depth bar at all.
+- **Decide what your bars mean.** Scaling each side against its own deepest row shows the _shape_ of that side — where the walls are. Scaling both against the deeper side shows relative size, but a side holding a fraction of the other's depth collapses into invisible slivers. If you want cross-side imbalance, `getOrderbookDepthWithin` is a far better instrument than bar length.
+
+## Without React
+
+```ts
+import { createBinanceOrderbookSource, getOrderbookSpread } from "@symmio/trading-core";
+
+const source = createBinanceOrderbookSource();
+
+const snapshot = await source.getOrderbook({ marketName: "BTCUSDT", limit: 20 });
+
+const unwatch = source.watchOrderbook?.({
+  marketName: "BTCUSDT",
+  levels: 15,
+  onOrderbook: (book) => render(book, getOrderbookSpread(book)),
+  onResync: (reason) => markStale(reason),
+  onError: (error) => console.warn(error.code, error.message),
+});
+
+/** Later. */
+unwatch?.();
+```
+
+In Node, pass a WebSocket implementation: `createBinanceOrderbookSource({ webSocketConstructor: WebSocket })` on modern Node, or the `ws` package on older runtimes.
+
+## What the SDK handles for you
+
+- Subscribe-then-snapshot ordering, and buffering the gap between them.
+- The per-market continuity rule, and rebuilding on any break.
+- Absolute-quantity semantics, zero-means-remove, and removals for levels never held.
+- Reconnects with jittered backoff, re-subscribing on every open. Binance closes connections after 24 hours; the book resyncs and the consumer sees one `onResync`.
+- Snapshot retries that resume from a live buffer rather than a cold start.
+- Trimming emitted levels independently of snapshot depth, so a 15-row ladder does not pay for 1000 objects per tick.
+- Float-safe tick rounding — dividing a price by a decimal tick is inexact, and a naive floor loses a whole tick.
+
+## Operational notes
+
+- **No key, no proxy.** Binance serves permissive CORS headers on market data, so both endpoints are reachable straight from a browser.
+- **Blocked in some jurisdictions.** `restUrl` and `wsUrl` exist so you can route through your own proxy where that matters.
+- **Memoize the source.** It caches `exchangeInfo` for its lifetime, and a new source identity re-dials any live subscription. `useBinanceOrderbookSource` does this.
+- **One subscription per ladder.** Each `watchOrderbook` call opens its own connection, which keeps reconnect and teardown trivially correct at this scale.
+
+<Callout type="warning">
+  A source's `priceBasis` of `reference-exchange` means exactly what it says: this is a third-party venue's resting
+  liquidity, **not** the depth a SYMMIO trade executes against. If your UI lets someone size an order off this ladder,
+  tell them what they are looking at.
+</Callout>
+
+## Related
+
+- [Charts](../charts) — the same source pattern for OHLCV bars.
+- [Orderbook (core)](../../core/orderbook) — the framework-agnostic reference.
+- [Orderbook hooks](../../react/orderbook) — the React reference.

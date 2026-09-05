@@ -1,0 +1,41 @@
+# estimateGroupTpSlReturn
+
+Estimate a grouped position's return if every child's take profit (or stop loss) triggers at its target.
+
+Per child: `pnl = openQuantity × (triggerPrice − openPrice)`, negated for a `SHORT`. Children with no trigger on the requested side contribute nothing. All bigint, 18-decimal wei.
+
+**Leverage deliberately does not appear.** The reference formula this ports from multiplies one factor by leverage and divides the other by it, so it cancels algebraically — carrying it would only add a divide-by-zero hazard for identical output. A regression test pins that down.
+
+```ts
+import { estimateGroupTpSlReturn } from "@symmio/trading-core";
+
+const { totalPnl, returnPercent } = estimateGroupTpSlReturn(children, {
+  conditionalOrderType: "take_profit",
+  overrides: editor.desired,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="children" type="readonly GroupTpSlChild[]" typeHref="/core/tpsl/group-tpsl-child" required>
+    The grouped position's children.
+  </Property>
+  <Property name="parameters.conditionalOrderType" type="TpSlConditionalOrderType" required>
+    Which side to estimate — `"take_profit"` or `"stop_loss"`.
+  </Property>
+  <Property name="parameters.overrides" type="GroupTpSlDesiredMap" optional>
+    Pending per-child edits that win over the confirmed snapshot.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GroupTpSlReturnEstimate" typeHref="/core/tpsl/group-tpsl-return-estimate">
+  Signed totals plus the per-child breakdown. `returnPercent` is `undefined` when no child contributes.
+</Returns>
+
+## Related
+
+- [`GroupTpSlReturnEstimate`](/core/tpsl/group-tpsl-return-estimate) — the result shape.
+- [`useQuoteGroupTpSlEditor`](/react/tpsl#usequotegrouptpsleditor) — recomputes this as the buffer changes.

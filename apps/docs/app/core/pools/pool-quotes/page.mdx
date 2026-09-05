@@ -1,0 +1,134 @@
+import { Callout } from "nextra/components";
+
+# getPoolQuotes
+
+Read a **pool's** quote book from the analytics subgraph.
+
+```ts
+import { getPoolQuotes, POOL_OPEN_QUOTE_STATUSES } from "@symmio/trading-core";
+
+const { quotes } = await getPoolQuotes(config, {
+  symbolId: 1,
+  quoteStatuses: POOL_OPEN_QUOTE_STATUSES,
+  first: 25,
+});
+```
+
+<Callout type="warning">
+  This is **pool-wide, not account-scoped**. The query carries no `partyA` or `partyB` filter, so it returns every
+  trader's quotes on the market and `partyA` differs row to row. If you want one account's quotes, this is the wrong
+  read — use [`getSubAccountQuotes`](/core/quotes/get-sub-account-quotes).
+</Callout>
+
+Rows are scoped by the pool's `symbolId` **and** by `source` — the SYMMIO diamond the quotes were opened against, which the SDK resolves from the chain's `symmioAddress`. Nothing extra to configure.
+
+## Which rows you get is the status filter
+
+`quoteStatuses` takes raw `QuoteStatus` ordinals, because that is what the subgraph stores and filters on. Two sets are exported for the common cases:
+
+- `POOL_OPEN_QUOTE_STATUSES` (`[4]`) — open on-chain, i.e. live positions. This is what a pool page's **"open quotes" tab** shows: one row per position, every trader.
+- `POOL_PENDING_QUOTE_STATUSES` (`[0, 2]`) — sent but not yet accepted. The default, but short-lived: a solver accepts within seconds, so against a busy market this is usually a small or empty list. Reach for it for a "pending orders" view, not the open book.
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="symbolId" type="number | null | undefined" required>
+    The pool's solver market id. A pool with no `symbolId` is not tradable and has no book, so the action returns an
+    empty list **without issuing a request** and the query factory stays `enabled: false`.
+  </Property>
+  <Property name="quoteStatuses" type="readonly number[]" optional>
+    Raw `QuoteStatus` ordinals to include. Defaults to `POOL_PENDING_QUOTE_STATUSES`.
+  </Property>
+  <Property name="first" type="number" optional>
+    Page size. Defaults to `50`.
+  </Property>
+  <Property name="skip" type="number" optional>
+    Page offset. Defaults to `0`.
+  </Property>
+  <Property name="orderDirection" type='"asc" | "desc"' optional>
+    Sort direction on the quote timestamp. Defaults to `"desc"`.
+  </Property>
+</Properties>
+
+## Returns
+
+`{ quotes: PoolQuote[] }`. Amounts and prices are `bigint` at 18 decimals — the **protocol's** scale, which happens to match the listing backend's but is a separate thing. `null` means the subgraph had no value for that field.
+
+<Properties>
+  <Property name="id" type="string">
+    Subgraph row id (`{quoteId}-{source}`); stable, use as a table key.
+  </Property>
+  <Property name="quoteId" type="bigint">
+    Protocol quote id.
+  </Property>
+  <Property name="quoteStatus" type="number | null">
+    Raw `QuoteStatus` ordinal.
+  </Property>
+  <Property name="positionType" type="number | null">
+    Raw `PositionType` ordinal — `0` long, `1` short.
+  </Property>
+  <Property name="orderTypeOpen" type="number | null">
+    Raw `OrderType` ordinal of the open — `0` limit, `1` market.
+  </Property>
+  <Property name="symbol" type="string | null">
+    Market ticker, when the subgraph carries one.
+  </Property>
+  <Property name="symbolId" type="number | null">
+    Solver market id.
+  </Property>
+  <Property name="partyA" type="string">
+    The account that opened the quote. **Varies row to row.**
+  </Property>
+  <Property name="partyB" type="string | null">
+    The solver that took the other side.
+  </Property>
+  <Property name="quantity" type="bigint | null">
+    Quote size.
+  </Property>
+  <Property name="closedAmount" type="bigint | null">
+    How much of `quantity` has been closed.
+  </Property>
+  <Property name="quantityToClose" type="bigint | null">
+    Size of an in-flight close request.
+  </Property>
+  <Property name="openedPrice" type="bigint | null">
+    Price the quote actually opened at.
+  </Property>
+  <Property name="requestedOpenPrice" type="bigint | null">
+    Price the opener asked for.
+  </Property>
+  <Property name="averageClosedPrice" type="bigint | null">
+    Size-weighted average of the closes so far.
+  </Property>
+  <Property name="closePrice" type="bigint | null">
+    Price of an in-flight close request.
+  </Property>
+  <Property name="initialOpenedPrice" type="bigint | null">
+    Open price before any modification.
+  </Property>
+  <Property name="liquidateAmount" type="bigint | null">
+    Size liquidated, when the quote was liquidated.
+  </Property>
+  <Property name="liquidatePrice" type="bigint | null">
+    Price the liquidation executed at.
+  </Property>
+  <Property name="timestamp" type="number">
+    Block timestamp of the last update, Unix **seconds**.
+  </Property>
+  <Property name="blockNumber" type="bigint">
+    Block the quote was last updated in.
+  </Property>
+</Properties>
+
+## Throws
+
+- `UNSUPPORTED_CHAIN` / no analytics subgraph — a `SymmError` (`kind: "config"`).
+- A `SymmApiError` when the subgraph request itself fails.
+
+## Related
+
+- [Pool detail tables](/core/pools/pool-detail-tables) — the other four reads.
+- [React: `usePoolQuotes`](/react/pools#usepoolquotes).

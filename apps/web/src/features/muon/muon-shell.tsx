@@ -2,10 +2,12 @@ import { PageHeader } from "@/components/page-header";
 import type { ComponentType } from "react";
 import { MethodGroup } from "../inspector/method-group";
 import { MuonDeallocateUpnlSigCard } from "./muon-deallocate-upnl-sig-card";
+import { MuonForceClosePriceSigCard } from "./muon-force-close-price-sig-card";
 import { MuonPartyAOverviewCard } from "./muon-party-a-overview-card";
 import { MuonPriceCard } from "./muon-price-card";
 import { MuonPriceRangeCard } from "./muon-price-range-card";
 import { MUON_GROUPS, MUON_METHODS } from "./muon-registry";
+import { MuonSendQuoteUpnlSigCard } from "./muon-send-quote-upnl-sig-card";
 import { MuonSettleUpnlCard } from "./muon-settle-upnl-card";
 import { MuonUpnlACard } from "./muon-upnl-a-card";
 import { MuonUpnlAWithSymbolPriceCard } from "./muon-upnl-a-with-symbol-price-card";
@@ -17,6 +19,8 @@ import { MuonUpnlWithSymbolPriceCard } from "./muon-upnl-with-symbol-price-card"
 const CARDS: Record<string, ComponentType> = {
   "muon-uPnl_A": MuonUpnlACard,
   "muon-deallocate-upnl-sig": MuonDeallocateUpnlSigCard,
+  "muon-send-quote-upnl-sig": MuonSendQuoteUpnlSigCard,
+  "muon-force-close-price-sig": MuonForceClosePriceSigCard,
   "muon-partyA_overview": MuonPartyAOverviewCard,
   "muon-uPnl_A_withSymbolPrice": MuonUpnlAWithSymbolPriceCard,
   "muon-uPnl_B": MuonUpnlBCard,

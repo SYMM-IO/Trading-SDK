@@ -2,7 +2,7 @@
 
 import { ResultError, ResultNote } from "@/components/result";
 import { TableSkeleton } from "@/components/skeletons";
-import { useMarkets } from "@symmio/trading-react";
+import { useMarkets, type UseMarketsReturnType } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { Button } from "@symmio/ui/components/button";
 import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
@@ -10,16 +10,18 @@ import { SearchInput } from "@symmio/ui/components/search-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symmio/ui/components/select";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { useMemo, useState } from "react";
+import { SolverTargetSelect, useSolverTargetState } from "../solvers/solver-target";
 import { MethodCard } from "./method-card";
 
-type Market = NonNullable<ReturnType<typeof useMarkets>["data"]>[number];
+// Union across whichever solver the user targets; `state` is Enigma-only, so narrow on `kind`.
+type Market = NonNullable<UseMarketsReturnType["data"]>[number];
 
 const COLUMNS: DataTableColumn<Market>[] = [
   {
     id: "symbol_id",
     header: "ID",
-    cell: (market) => market.symbol_id,
-    sortAccessor: (market) => market.symbol_id ?? 0,
+    cell: (market) => market.symbolId,
+    sortAccessor: (market) => market.symbolId ?? 0,
     cellClassName: "text-muted-foreground font-mono",
   },
   {
@@ -39,29 +41,35 @@ const COLUMNS: DataTableColumn<Market>[] = [
   {
     id: "state",
     header: "State",
-    cell: (market) => <MarketStateBadge state={market.state} />,
-    sortAccessor: (market) => market.state ?? -1,
+    cell: (market) =>
+      market.kind === "enigma" ? (
+        <MarketStateBadge state={market.state} />
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      ),
+    sortAccessor: (market) => (market.kind === "enigma" ? market.state : -1),
   },
   {
     id: "max_leverage",
     header: "Max leverage",
     align: "end",
-    cell: (market) => `${market.max_leverage}×`,
-    sortAccessor: (market) => Number(market.max_leverage ?? 0),
+    cell: (market) => `${market.maxLeverage}×`,
+    sortAccessor: (market) => market.maxLeverage,
     cellClassName: "text-foreground font-mono",
   },
   {
     id: "trading_fee",
     header: "Trading fee",
     align: "end",
-    cell: (market) => market.trading_fee,
-    sortAccessor: (market) => Number(market.trading_fee ?? 0),
+    cell: (market) => market.tradingFee,
+    sortAccessor: (market) => Number(market.tradingFee),
     cellClassName: "text-muted-foreground font-mono",
   },
 ];
 
 export function ReadMarkets() {
-  const query = useMarkets();
+  const { target, setTarget } = useSolverTargetState();
+  const query = useMarkets({ chainId: target.chainId, solverId: target.solverId });
 
   return (
     <MethodCard
@@ -71,6 +79,7 @@ export function ReadMarkets() {
       mutability="view"
       description="Fetch all tradable markets (contract symbols) from the solver."
     >
+      <SolverTargetSelect value={target} onChange={setTarget} testId="select-markets-solver" />
       <div className="flex items-center gap-3">
         <Button
           type="button"
@@ -95,7 +104,7 @@ export function ReadMarkets() {
   );
 }
 
-function ResultPanel({ testId, query }: { testId: string; query: ReturnType<typeof useMarkets> }) {
+function ResultPanel({ testId, query }: { testId: string; query: UseMarketsReturnType }) {
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("all");
 
@@ -107,8 +116,8 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
         term.length === 0 ||
         market.symbol?.toLowerCase().includes(term) ||
         market.name?.toLowerCase().includes(term) ||
-        String(market.symbol_id).includes(term);
-      const matchesState = stateFilter === "all" || market.state === Number(stateFilter);
+        String(market.symbolId).includes(term);
+      const matchesState = stateFilter === "all" || (market.kind === "enigma" && market.state === Number(stateFilter));
       return matchesTerm && matchesState;
     });
   }, [query.data, search, stateFilter]);
@@ -132,8 +141,8 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
       columns={COLUMNS}
       data={visible}
       totalCount={query.data.length}
-      getRowId={(market) => String(market.symbol_id)}
-      rowAttributes={(market) => ({ "data-market-id": market.symbol_id })}
+      getRowId={(market) => String(market.symbolId)}
+      rowAttributes={(market) => ({ "data-market-id": market.symbolId })}
       initialSort={{ columnId: "symbol_id", direction: "asc" }}
       defaultPageSize={5}
       emptyMessage="No markets match these filters."
@@ -166,7 +175,7 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
   );
 }
 
-function MarketStateBadge({ state }: { state: Market["state"] }) {
+function MarketStateBadge({ state }: { state: number }) {
   const map: Record<number, { label: string; variant: "positive" | "secondary" | "destructive" | "warning" }> = {
     0: { label: "Disabled", variant: "destructive" },
     1: { label: "Close only", variant: "warning" },

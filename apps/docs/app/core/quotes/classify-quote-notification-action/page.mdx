@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # classifyQuoteNotificationAction
 
 Classify a notification's `lastSeenAction` into the quote flow it belongs to. Consumers use the result to scope cache invalidation to the reads a notification can actually affect — an open-anchor event never changes the pending-instant-close feed, and vice versa.
@@ -24,8 +26,38 @@ if (classifyQuoteNotificationAction(n.lastSeenAction) === "close") invalidateClo
   The quote flow the action belongs to — `"open"`, `"close"`, or `"other"`.
 </Returns>
 
+## `isOpenAnchorAction`
+
+Boolean helper that narrows the same `lastSeenAction` to just the on-chain **anchor** actions (`SendQuoteTransaction` / `SendQuote` / `FillLimitOrderOpen`) — the _second_ notification of a send flow, where the temp id gains a real on-chain quote id. Excludes the earlier off-chain `InstantRFQ` price fill (which `classifyQuoteNotificationAction` still calls `"open"`). Use it to refetch reads that only change once the quote exists on-chain — e.g. the pending / limit-order list.
+
+```ts
+import { isOpenAnchorAction, NotificationType } from "@symmio/trading-core";
+
+if (n.type === NotificationType.SUCCESS && isOpenAnchorAction(n.lastSeenAction)) refetchPending();
+```
+
+## `isCancelAction`
+
+Boolean helper that matches the **cancel** actions — cancelling a resting order rather than closing a position. `classifyQuoteNotificationAction` deliberately reports every one of them as `"other"`: a cancel frame must not mutate a row, because the chain is the only authority on whether the cancel landed.
+
+Cancel is the one flow whose _confirming_ transaction is sent by someone else. `requestToCancelQuote` on a `LOCKED` quote only moves it to `CANCEL_PENDING` and leaves it in `partyAPendingQuotes`; the solver's later `acceptCancelRequest` is what sets `CANCELED` and removes it — **and that transaction is not announced on the notifications stream**. A consumer that reacts to frames alone therefore renders a cancelled order forever. Use this predicate to start re-reading the chain until the quote is gone.
+
+```ts
+import { isCancelAction } from "@symmio/trading-core";
+
+if (isCancelAction(n.lastSeenAction)) startCancelConfirmChase(n.quoteId);
+```
+
+Matches `RequestToCancelQuote` — the only cancel action observed on a live stream — plus `AcceptCancelRequest`, `ForceCancelQuote`, and `ExpireQuote`, the contract's remaining cancel paths. Whether a vendor publishes frames for those three is unconfirmed; matching them costs nothing when it does not.
+
+<Callout type="info">
+  `useManagedQuotes` and `useLimitOrders` already do this for you. Reach for `isCancelAction` only when you drive the
+  on-chain reads yourself.
+</Callout>
+
 ## Related
 
 - [QuoteNotificationActionKind](/core/quotes/quote-notification-action-kind) — the union this returns.
 - [applyNotificationToQuotes](/core/quotes/apply-notification-to-quotes) — advances a row's lifecycle from the same notifications.
 - [Notifications stream](/core/notifications) — the frames whose `lastSeenAction` is classified.
+- [React `useLimitOrders`](/react/quotes#uselimitorders) — refetches its on-chain read on an `isOpenAnchorAction` or `isCancelAction` frame.

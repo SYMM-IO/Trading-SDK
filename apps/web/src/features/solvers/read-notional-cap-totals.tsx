@@ -7,6 +7,7 @@ import { Button } from "@symmio/ui/components/button";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { useMemo, useState } from "react";
 import { MethodCard } from "../inspector/method-card";
+import { useSolverKindActive } from "./solver-target";
 
 /**
  * Solvers-page card for `/notional_cap` — aggregate open interest, total cap,
@@ -15,8 +16,10 @@ import { MethodCard } from "../inspector/method-card";
  */
 export function ReadNotionalCapTotals() {
   const [polling, setPolling] = useState(true);
+  const active = useSolverKindActive("enigma");
   const query = useNotionalCapAll({
     pollingInterval: polling ? DEFAULT_NOTIONAL_CAP_POLLING_MS : false,
+    query: { enabled: active },
   });
 
   const totalCap = useMemo(() => sumField(query.data?.symbols, "totalCap"), [query.data]);
@@ -33,7 +36,7 @@ export function ReadNotionalCapTotals() {
         <Button
           type="button"
           size="sm"
-          disabled={query.isFetching}
+          disabled={!active || query.isFetching}
           onClick={() => void query.refetch()}
           data-testid="button-read-notional-cap-totals"
         >

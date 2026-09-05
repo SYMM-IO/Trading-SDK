@@ -1,7 +1,7 @@
 import type { Address } from "viem";
 import type { PendingInstantClose } from "../solvers/instant-close/get-instant-closes/to-pending-instant-close";
-import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/to-pending-instant-open";
-import type { Quote } from "../symmio-contracts/symmio/types";
+import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/types";
+import { QuoteStatus, type Quote } from "../symmio-contracts/symmio/types";
 import type { Notification } from "../websocket/notifications/types";
 import { applyNotificationToQuotes } from "./apply-notification";
 import { fingerprintQuote } from "./fingerprint";
@@ -44,6 +44,17 @@ export interface ReconcileQuotesInput {
    * struct, so the retained copy is ignored).
    */
   retainedAnchors?: readonly UnifiedQuote[];
+  /**
+   * On-chain quote ids (decimal strings) whose close is **in flight** — filled
+   * off-chain but not yet reflected by the on-chain read. The close-side mirror
+   * of {@link retainedAnchors}: the poll rebuilds a filled-but-unsettled close as
+   * `ONCHAIN` (`OPENED`) every tick, and a replayed close notification cannot
+   * restore the stage on a poll-confirmed row (apply-notification's `inClosingFlow`
+   * guard), so a row still read `OPENED` whose id is here is held at
+   * {@link QuoteLifecycle.WRITE_ONCHAIN_CLOSE}. The caller bounds the set with its
+   * close-confirm hold, so it clears at `CLOSE_PENDING` / removal / budget.
+   */
+  closingQuoteIds?: readonly string[];
 }
 
 /** Output of {@link reconcileQuotes}: the merged rows plus the temp ↔ on-chain links. */
@@ -158,6 +169,31 @@ export function reconcileQuotes(input: ReconcileQuotesInput): ReconcileQuotesRes
     merged = applyNotificationToQuotes(merged, notification);
   }
   merged = collapseByKey(merged);
+  /**
+   * Close-side retention (mirror of `retainedAnchors`). A close that filled
+   * off-chain sits at `WRITE_ONCHAIN_CLOSE`, but the poll keeps reading the quote
+   * `OPENED` until the settle mines and rebuilds the row as `ONCHAIN` — and the
+   * replayed close notification cannot restore the stage on that poll-confirmed
+   * row (`applyNotificationToQuotes`' `inClosingFlow` guard). So a still-`OPENED`
+   * row whose close the caller is chasing is held at `WRITE_ONCHAIN_CLOSE` until
+   * the chain reflects the close (`CLOSE_PENDING` / removed) or the caller drops it.
+   */
+  if (input.closingQuoteIds?.length) {
+    const closing = new Set(input.closingQuoteIds);
+    merged = merged.map((row) =>
+      row.quoteId !== undefined &&
+      closing.has(`${row.quoteId}`) &&
+      row.lifecycle === QuoteLifecycle.ONCHAIN &&
+      row.quoteStatus === QuoteStatus.OPENED
+        ? { ...row, lifecycle: QuoteLifecycle.WRITE_ONCHAIN_CLOSE }
+        : row,
+    );
+  }
+  // Drop terminal quotes: a `CLOSED` lifecycle only comes from an on-chain
+  // terminal status (`CANCELED` / `CLOSED` / `EXPIRED`) — a done quote a lagging
+  // read still lists (e.g. a just force-cancelled limit order). It is not active,
+  // so it must not linger in the list. (Off-chain rows never reach `CLOSED`.)
+  merged = merged.filter((row) => row.lifecycle !== QuoteLifecycle.CLOSED);
   merged.sort((a, b) => {
     const aTs = a.statusModifyTimestamp ?? 0n;
     const bTs = b.statusModifyTimestamp ?? 0n;
@@ -184,16 +220,20 @@ export function reconcileQuotes(input: ReconcileQuotesInput): ReconcileQuotesRes
 
 /**
  * Lifecycle for an on-chain row that a pending instant-close overlays. Keep a
- * terminal `CLOSED` as-is; keep `CLOSING` when the on-chain status already shows
- * the close pending; otherwise the close is in-flight but the read still shows the
- * position open — surface {@link QuoteLifecycle.OPTIMISTIC_CLOSE} as the base close
- * stage. Close notifications (applied after this overlay) then advance it to
- * `CLOSE_PRICE_FILLED` → `WRITE_ONCHAIN_CLOSE`; the poll moves it to `CLOSING` once
- * the on-chain status reflects the pending close.
+ * terminal `CLOSED` as-is; keep the row's on-chain lifecycle (`ONCHAIN`) when the
+ * on-chain status **already** reflects the close (`CLOSE_PENDING` /
+ * `CANCEL_CLOSE_PENDING`) — the close landed, don't drag it backwards; otherwise
+ * the read still shows the position open while the close is in-flight, so surface
+ * {@link QuoteLifecycle.OPTIMISTIC_CLOSE} as the base close stage. Close
+ * notifications (applied after this overlay) then advance it to
+ * `CLOSE_PRICE_FILLED` → `WRITE_ONCHAIN_CLOSE`, and once the on-chain read reflects
+ * the pending close it resolves to `ONCHAIN` (with `quoteStatus: CLOSE_PENDING`).
  */
 function overlayCloseLifecycle(existing: UnifiedQuote): QuoteLifecycle {
   if (existing.lifecycle === QuoteLifecycle.CLOSED) return QuoteLifecycle.CLOSED;
-  if (existing.lifecycle === QuoteLifecycle.CLOSING) return QuoteLifecycle.CLOSING;
+  if (existing.quoteStatus === QuoteStatus.CLOSE_PENDING || existing.quoteStatus === QuoteStatus.CANCEL_CLOSE_PENDING) {
+    return existing.lifecycle;
+  }
   return QuoteLifecycle.OPTIMISTIC_CLOSE;
 }
 

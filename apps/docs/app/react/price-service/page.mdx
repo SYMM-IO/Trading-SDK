@@ -1,18 +1,278 @@
+import { Callout } from "nextra/components";
+
 # Price Service hooks
 
-Price-service hooks wrap the `@symmio/trading-core` Enigma price-service reads with React Query and SDK provider state. They read the active chain from `SymmioProvider` unless you pass `chainId`.
+Off-chain mark prices for the connected chain's solver. Every SYMMIO chain is priced by one of two providers, and which one depends on the chain's solver kind:
 
-**Read-only page.** REST hooks return `UseQueryResult`; the live-price WebSocket hook is a subscription (still a "read" — no on-chain state mutated).
+- **enigma** (lowcap, HyperEVM) — the Enigma lowcap price service.
+- **rasa** (majors, Base) — Binance USD-M Futures.
 
-## `useEnigmaPriceServicePrices`
+There are three tiers of hook on this page, in the order most consumers reach for them:
+
+1. **Provider-agnostic mark-price hooks** — [`usePrices`](#useprices), [`usePriceByName`](#usepricebyname), [`usePriceByMarketId`](#usepricebymarketid), [`useMarkPrices`](#usemarkprices). Each resolves whichever provider serves the target solver, so a component that only needs a price **never branches on provider**. Reach for these first.
+2. **Binance-only hooks** — [`useBinancePrices`](#usebinanceprices), [`useBinancePremiumIndex`](#usebinancepremiumindex), [`useBinanceSymbolsInfo`](#usebinancesymbolsinfo), [`useBinanceHealth`](#usebinancehealth). Provider-specific twins for callers that already know their source is Binance and want `indexPrice` + funding fields without narrowing.
+3. **Enigma-only REST hooks** — [`useEnigmaPriceServicePricesByAddresses`](#useenigmapriceservicepricesbyaddresses) and friends. The lowcap price service's richer reads (token-addressed prices, metadata, symbol catalog).
+
+They read the active chain from `SymmioProvider` unless you pass `chainId`, and delegate to `@symmio/trading-core`. Import hooks and their `Parameters` / `ReturnType` types from `@symmio/trading-react`; import chain/enum/config types (`SolverId`, `MarkPriceTick`, `BinanceMarkPriceTick`) from `@symmio/trading-core`.
+
+**All reads.** The REST hooks return `UseQueryResult`; the live-price hooks are subscriptions (still a "read" — no on-chain state mutated).
+
+<Callout type="info">
+  Which provider prices a chain is a property of its solver. See [Solvers & chains](/core/concepts/solvers-and-chains)
+  for the mapping and [Rasa solver](/react/rasa-solver) for the majors flow.
+</Callout>
+
+## Import
+
+```ts
+import {
+  // provider-agnostic
+  usePrices,
+  usePriceByName,
+  usePriceByMarketId,
+  useMarkPrices,
+  // Binance-only
+  useBinancePrices,
+  useBinancePremiumIndex,
+  useBinanceSymbolsInfo,
+  useBinanceHealth,
+  // Enigma-only REST
+  useEnigmaPriceServicePricesByAddresses,
+  useEnigmaPriceServiceMetadata,
+  useEnigmaPriceServiceSymbolsInfo,
+  useEnigmaPriceServiceHealth,
+} from "@symmio/trading-react";
+```
+
+## Provider-agnostic mark prices
+
+These four hooks serve whichever price service the target solver uses — Enigma's lowcap service **or** Binance — behind one shape, so the same component works on either chain. The live hooks expose a `prices` map (`name → decimal string`) for the common display case **and** the full `ticks` map; narrow a tick on `provider` (`tick.provider === "binance"`) to reach Binance's `indexPrice` and funding fields.
+
+<Callout type="warning">
+  On Binance the stream pushes **every** listed symbol (~740) once per second. Always pass `names` to `usePrices` /
+  `useBinancePrices` — the filter is what keeps a full-map churn from re-rendering your component tree every tick.
+  `usePriceByName` / `usePriceByMarketId` already filter to a single market for you.
+</Callout>
+
+### `usePrices`
+
+Subscribe to the live mark-price feed of whichever provider serves the resolved solver, and accumulate the latest tick per market name. The subscription is shared across hook instances via the SDK socket pool, so several `usePrices()` mounts on one chain cost one connection. While the socket is not `"open"` it falls back to a REST snapshot poll (visible in devtools, stops the moment the socket connects).
+
+Returns **both** shapes on purpose: `prices` for display, and `ticks` so a Binance consumer keeps `indexPrice` and the funding fields that only live on the full tick.
+
+```tsx
+import { usePrices } from "@symmio/trading-react";
+
+function BtcPrice() {
+  const { prices, ticks, status } = usePrices({ solverId: "rasa", names: ["BTCUSDT"] });
+  const tick = ticks["BTCUSDT"];
+
+  return (
+    <span>
+      BTC {prices["BTCUSDT"] ?? "—"} ({status}){tick?.provider === "binance" ? ` · index ${tick.indexPrice}` : null}
+    </span>
+  );
+}
+```
+
+#### Parameters
+
+| Name           | Type                                          | Default                               | Notes                                                                        |
+| -------------- | --------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------- |
+| `names`        | `readonly string[]?`                          | `undefined`                           | Restrict the map to these market names. **Strongly recommended on Binance.** |
+| `solverId`     | `SolverId?`                                   | chain default                         | Solver whose price provider to subscribe to.                                 |
+| `enabled`      | `boolean?`                                    | `true`                                | Subscribe only when `true`.                                                  |
+| `onTick`       | `(ticks: MarkPriceTick[]) => void?`           | `undefined`                           | Imperative per-tick callback, in addition to map updates.                    |
+| `restFallback` | `{ enabled?: boolean; intervalMs?: number }?` | `{ enabled: true, intervalMs: 5000 }` | REST snapshot polling while the socket is degraded.                          |
+| `chainId`      | `number?`                                     | config default                        | Optional chain override.                                                     |
+| `config`       | `Config?`                                     | provider value                        | Optional config override.                                                    |
+
+#### Return type
+
+Returns `UsePricesReturnType`: `{ ticks: Record<string, MarkPriceTick>; prices: Record<string, string>; status: SocketStatus; error: SymmioRequestError | null }`.
+
+### `usePriceByName`
+
+Track **one** market's mark price. Subscribes with a single-name filter, so on Binance it re-renders on that one market's ticks rather than on all ~740, and a ref gate suppresses re-renders when a tick repeats the price already held. The subscription is disabled while `name` is `undefined`.
+
+```tsx
+import { usePriceByName } from "@symmio/trading-react";
+
+function Mark({ name }: { name?: string }) {
+  const { markPrice, status } = usePriceByName({ name, solverId: "rasa" });
+  return (
+    <span>
+      {markPrice ?? "—"} ({status})
+    </span>
+  );
+}
+```
+
+#### Parameters
+
+| Name           | Type                     | Default             | Notes                                                         |
+| -------------- | ------------------------ | ------------------- | ------------------------------------------------------------- |
+| `name`         | `string?`                | `undefined`         | Market name, e.g. `"BTCUSDT"`. Subscription idle while unset. |
+| `solverId`     | `SolverId?`              | chain default       | Solver whose price provider to subscribe to.                  |
+| `enabled`      | `boolean?`               | `true`              | Subscribe only when `true` (and `name` is set).               |
+| `restFallback` | `UsePricesRestFallback?` | `{ enabled: true }` | REST snapshot polling while degraded. See `usePrices`.        |
+| `chainId`      | `number?`                | config default      | Optional chain override.                                      |
+| `config`       | `Config?`                | provider value      | Optional config override.                                     |
+
+#### Return type
+
+Returns `UsePriceByNameReturnType`: `{ markPrice: string | null; tick: MarkPriceTick | null; status: SocketStatus; error: SymmioRequestError | null }`. `tick` carries the full tick — narrow on `provider` for Binance-only fields.
+
+### `usePriceByMarketId`
+
+The same single-market stream, but resolved from a solver market id (`symbol_id`) instead of a name. Composes [`useMarkets`](/react/markets) to translate `marketId → name`, then subscribes via `usePriceByName`. This is the provider-agnostic replacement for `useEnigmaPriceByMarketId`, which asserts an Enigma price service and therefore fails on a chain priced by Binance.
+
+```tsx
+import { usePriceByMarketId } from "@symmio/trading-react";
+
+function MarkById({ marketId }: { marketId: number }) {
+  const { markPrice, marketName, isLoading } = usePriceByMarketId({ marketId });
+  if (isLoading) return <span>Loading {marketName ?? marketId}…</span>;
+  return <span>{markPrice ?? "—"}</span>;
+}
+```
+
+#### Parameters
+
+| Name           | Type                         | Default             | Notes                                                  |
+| -------------- | ---------------------------- | ------------------- | ------------------------------------------------------ |
+| `marketId`     | `number \| bigint \| string` | —                   | Solver market id (`symbol_id`). Required.              |
+| `solverId`     | `SolverId?`                  | chain default       | Solver whose markets and price provider serve this id. |
+| `enabled`      | `boolean?`                   | `true`              | Subscribe only when `true` and the market resolves.    |
+| `restFallback` | `UsePricesRestFallback?`     | `{ enabled: true }` | REST snapshot polling while degraded. See `usePrices`. |
+| `chainId`      | `number?`                    | config default      | Optional chain override.                               |
+| `config`       | `Config?`                    | provider value      | Optional config override.                              |
+
+#### Return type
+
+Returns `UsePriceByMarketIdReturnType`: adds `marketName: string | null` (resolved from `useMarkets`) and `isLoading: boolean` to the same `markPrice` / `tick` / `status` / `error` shape as `usePriceByName`.
+
+### `useMarkPrices`
+
+The one-shot REST read — a mark-price snapshot from whichever provider serves the resolved solver. Use it for a first paint before the live feed connects, or anywhere a point-in-time read is wanted instead of a subscription. On Binance, passing exactly one name takes the single-symbol request form (weight 1) instead of the all-symbols form (weight 10).
+
+```tsx
+import { useMarkPrices } from "@symmio/trading-react";
+
+const { data } = useMarkPrices({ solverId: "rasa", names: ["BTCUSDT"] });
+// data: MarkPriceTick[]
+```
+
+#### Parameters
+
+`UseMarkPricesParameters` = `GetMarkPricesOptions & ConfigParameter`: `names` (`readonly string[]?`), `solverId` (`SolverId?`), `chainId` (`number?`), `query` (TanStack overrides), `config` (`Config?`).
+
+#### Return type
+
+`UseMarkPricesReturnType` — `UseQueryResult<MarkPriceTick[], SymmioRequestError>`. Standard TanStack query result.
+
+## Binance-only hooks
+
+Provider-specific twins of the mark-price hooks, for callers that already know their source is Binance. Every tick is a `BinanceMarkPriceTick`, so `indexPrice` and the Binance funding fields (`binanceLastFundingRate`, `binanceNextFundingTime`) are reachable **without narrowing** on `provider`. Each surfaces a typed `UNSUPPORTED_BY_PRICE_SERVICE` error (via `error`, or thrown from a REST `queryFn`) when the target solver is not priced by Binance — gate them on a Binance-backed solver. Prefer the [provider-agnostic hooks](#provider-agnostic-mark-prices) when the component should work against either provider.
+
+<Callout type="warning">
+  Binance's own funding fields describe **Binance's** perpetual on **Binance's** schedule — they are **not** the funding
+  you are charged on SYMMIO. For the solver's per-epoch long/short rates use
+  [`useFundingInfo`](/react/solvers#usefundinginfo).
+</Callout>
+
+### `useBinancePrices`
+
+Subscribe to Binance USD-M Futures' all-market mark-price stream. Same `prices` + `ticks` return as `usePrices`, but the tick type is fixed to `BinanceMarkPriceTick`.
+
+```tsx
+import { useBinancePrices } from "@symmio/trading-react";
+
+function BinanceIndex() {
+  const { ticks, status } = useBinancePrices({ solverId: "rasa", names: ["BTCUSDT"] });
+  return (
+    <span>
+      {ticks["BTCUSDT"]?.indexPrice ?? "—"} ({status})
+    </span>
+  );
+}
+```
+
+#### Parameters
+
+Same as `usePrices` minus `restFallback`: `names` (`readonly string[]?`, strongly recommended), `solverId` (`SolverId?`), `enabled` (`boolean?`), `onTick` (`(ticks: BinanceMarkPriceTick[]) => void?`), `chainId`, `config`.
+
+#### Return type
+
+`UseBinancePricesReturnType`: `{ ticks: Record<string, BinanceMarkPriceTick>; prices: Record<string, string>; status: SocketStatus; error: SymmioRequestError | null }`.
+
+### `useBinancePremiumIndex`
+
+REST read of Binance mark, index, and funding data for the resolved solver's markets — the provider-specific twin of `useMarkPrices`. Passing exactly one name takes Binance's single-symbol form (weight 1) instead of the all-symbols form (weight 10).
+
+```tsx
+import { useBinancePremiumIndex } from "@symmio/trading-react";
+
+const { data } = useBinancePremiumIndex({ solverId: "rasa", names: ["BTCUSDT"] });
+```
+
+#### Parameters
+
+`UseBinancePremiumIndexParameters` = `GetBinancePremiumIndexOptions & ConfigParameter`: `names`, `solverId`, `chainId`, `query`, `config`.
+
+#### Return type
+
+`UseBinancePremiumIndexReturnType` — `UseQueryResult<GetBinancePremiumIndexData, SymmioRequestError>`.
+
+### `useBinanceSymbolsInfo`
+
+Read Binance's own contract listing (status, price/quantity precision). Reference data only — [`useMarkets`](/react/markets) remains the authority on what is tradable on SYMMIO; use this to check whether a market has a Binance price source at all. The payload is ~1 MB, so the underlying query defaults to a one-hour `staleTime` — do not poll it.
+
+```tsx
+import { useBinanceSymbolsInfo } from "@symmio/trading-react";
+
+const { data } = useBinanceSymbolsInfo({ solverId: "rasa" });
+```
+
+#### Parameters
+
+`UseBinanceSymbolsInfoParameters` = `GetBinanceSymbolsInfoOptions & ConfigParameter`: `solverId`, `chainId`, `query`, `config`.
+
+#### Return type
+
+`UseBinanceSymbolsInfoReturnType` — `UseQueryResult<GetBinanceSymbolsInfoData, SymmioRequestError>`.
+
+### `useBinanceHealth`
+
+Probe whether Binance is reachable from this client. Resolves `false` rather than erroring when the endpoint cannot be reached, so it distinguishes "Binance is blocked/unreachable here" — the common case in a restricted region — from "this market has no price". A misconfigured (non-Binance) solver still throws `UNSUPPORTED_BY_PRICE_SERVICE`.
+
+```tsx
+import { useBinanceHealth } from "@symmio/trading-react";
+
+const { data: reachable } = useBinanceHealth({ solverId: "rasa" });
+```
+
+#### Parameters
+
+`UseBinanceHealthParameters` = `GetBinanceHealthOptions & ConfigParameter`: `solverId`, `chainId`, `query`, `config`.
+
+#### Return type
+
+`UseBinanceHealthReturnType` — `UseQueryResult<GetBinanceHealthData, SymmioRequestError>` (the data is a `boolean` reachability flag).
+
+## Enigma-only REST hooks
+
+The lowcap price service's richer reads. These throw `UNSUPPORTED_BY_PRICE_SERVICE` on a chain whose provider is not Enigma, so gate them on an Enigma-backed (lowcap) solver. For a plain mark price prefer the [provider-agnostic hooks](#provider-agnostic-mark-prices) above. There is also a by-name twin, `useEnigmaPriceServicePricesByNames`.
+
+### `useEnigmaPriceServicePricesByAddresses`
 
 Fetch mark prices by token addresses.
 
 ```tsx
-import { useEnigmaPriceServicePrices } from "@symmio/trading-react";
+import { useEnigmaPriceServicePricesByAddresses } from "@symmio/trading-react";
 
 function Prices({ tokenAddress }: { tokenAddress: string }) {
-  const query = useEnigmaPriceServicePrices({
+  const query = useEnigmaPriceServicePricesByAddresses({
     addresses: [tokenAddress],
     query: { staleTime: 10_000 },
   });
@@ -24,7 +284,7 @@ function Prices({ tokenAddress }: { tokenAddress: string }) {
 
 `addresses` accepts either `readonly string[]` or a comma-separated `string`.
 
-## `useEnigmaPriceServiceMetadata`
+### `useEnigmaPriceServiceMetadata`
 
 Fetch metadata by token-address array.
 
@@ -38,7 +298,7 @@ const query = useEnigmaPriceServiceMetadata({
 
 `addresses` is required and must be an array.
 
-## `useEnigmaPriceServiceSymbolsInfo`
+### `useEnigmaPriceServiceSymbolsInfo`
 
 Fetch symbol names, statuses, and addresses.
 
@@ -48,7 +308,7 @@ import { useEnigmaPriceServiceSymbolsInfo } from "@symmio/trading-react";
 const query = useEnigmaPriceServiceSymbolsInfo();
 ```
 
-## `useEnigmaPriceServiceHealth`
+### `useEnigmaPriceServiceHealth`
 
 Read the service health endpoint.
 
@@ -60,7 +320,7 @@ const query = useEnigmaPriceServiceHealth();
 
 ## Recipes
 
-- [Lowcap Chart](../../guides/lowcap-chart) — render a price chart for a lowcap market. DexScreener iframe or own OHLC feed (Moralis / GeckoTerminal) with TradingView Lightweight Charts.
+- [Lowcap Chart](../../guides/charts/lowcap) — render a price chart for a lowcap market. DexScreener iframe or own OHLC feed (Moralis / GeckoTerminal) with TradingView Lightweight Charts.
 
 ## Manual Read Buttons
 
@@ -77,3 +337,11 @@ const query = useEnigmaPriceServiceMetadata({
   Read metadata
 </button>;
 ```
+
+## Related
+
+- [Solvers & chains](/core/concepts/solvers-and-chains) — which provider prices each solver kind.
+- [Rasa solver](/react/rasa-solver) — the majors flow that Binance prices back.
+- [Core Price Service](/core/price-service) — the framework-agnostic actions these wrap.
+- [Markets hooks](/react/markets) — `useMarkets`, the catalog `usePriceByMarketId` resolves against.
+- [Errors](/react/errors) — price-service failures surface as `SymmioRequestError`; `UNSUPPORTED_BY_PRICE_SERVICE` marks a provider mismatch.

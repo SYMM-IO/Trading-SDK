@@ -48,8 +48,10 @@ export type SearchNotificationsQueryOptions = SymmioQueryOptions<
 
 /**
  * Build TanStack Query options for {@link searchNotifications}. The query is
- * disabled until `filter` has at least one key (so an empty filter never fires
- * a match-all request); pass `query.refetchInterval` to poll.
+ * **enabled by default** and fires on mount — an empty `{}` is a match-all page
+ * (rasa pages `/position-state/0/100`; enigma posts an empty filter). For an
+ * on-demand search box, gate it with `query: { enabled: false }` and call
+ * `refetch` yourself; pass `query.refetchInterval` to poll.
  *
  * @param config - The SDK config.
  * @param options - Search parameters and TanStack overrides.
@@ -69,20 +71,24 @@ export function searchNotificationsQueryOptions(
   config: Config,
   options: SearchNotificationsOptions,
 ): SearchNotificationsQueryOptions {
-  const hasFilter = options.filter != null && Object.keys(options.filter).length > 0;
   return {
     ...options.query,
     queryKey: searchNotificationsQueryKey({
       ...options,
       configKey: config.getChainConfigKey(options.chainId),
     }),
-    enabled: hasFilter && (options.query?.enabled ?? true),
+    enabled: options.query?.enabled ?? true,
     queryFn: () =>
       searchNotifications(config, {
         chainId: options.chainId,
-        filter: options.filter,
-        size: options.size,
+        solverId: options.solverId,
+        account: options.account,
+        quoteId: options.quoteId,
+        tempQuoteId: options.tempQuoteId,
+        timestampGte: options.timestampGte,
         start: options.start,
+        size: options.size,
+        filter: options.filter,
         baseUrl: options.baseUrl,
       }),
   };

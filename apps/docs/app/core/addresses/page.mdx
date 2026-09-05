@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Addresses
 
 `@symmio/trading-core` ships a per-chain registry of every deployment address, endpoint URL, and configured service. It lives in the core package at:
@@ -46,17 +48,35 @@ Every entry is a `SymmioChainConfig` — the fully-resolved settings for one cha
   <Property name="subgraphs" type="SymmioSubgraphUrls">
     GraphQL endpoints — `analytics` and `events`.
   </Property>
-  <Property name="solver" type="SymmioSolverConfig">
-    Solver / hedger REST API and TP/SL handler.
+  <Property name="solvers" type="Record<SolverId, SymmioSolverConfig>">
+    Solver / hedger REST API, TP/SL handler, optional per-solver price service, and the required per-solver
+    `notifications` config, keyed by solver id (`"enigma"` / `"rasa"`). HyperEVM carries the `enigma` solver; Base carries
+    `rasa`. Resolve one with `config.getSolver({ chainId, solverId })`.
+  </Property>
+  <Property name="defaultSolverId" type="SolverId">
+    The solver an action or hook resolves when `solverId` is omitted — `enigma` on HyperEVM, `rasa` on Base. Read it at
+    runtime with `config.getDefaultSolverId(chainId?)`.
   </Property>
   <Property name="priceService" type="SymmioPriceServiceConfig">
-    Enigma price service (REST + WebSocket).
-  </Property>
-  <Property name="notifications" type="SymmioNotificationsConfig">
-    Solver notifications WebSocket + REST search.
+    Price provider — the Enigma price service on HyperEVM (`type: "enigma"`), or Binance USD-M Futures on Base (`type:
+    "binance"`). Both expose REST + WebSocket.
   </Property>
   <Property name="muon" type="SymmioMuonConfig">
     Muon oracle gateway URLs.
+  </Property>
+  <Property name="listing" type="SymmioListingConfig" optional>
+    The [Pools](/core/pools) listing backend — a single `url`, and that `url` is the **host root**: no version segment
+    and no trailing slash, because the generated client's own paths already begin with `/v2`. Chain-level rather than
+    per-solver, since several solvers on one chain could share one deployment. Present only on HyperEVM today. See [Pools
+    listing service](/core/concepts/solvers-and-chains#pools-listing-service).
+  </Property>
+  <Property name="inventory" type="SymmioInventoryConfig" optional>
+    The [inventory service](/core/inventory) — the custody backend behind the Pools, and a **different vendor** from
+    both the solver and the listing backend. A single `url`, again the **host root**: the generated client's own paths
+    already begin with `/api/v1`, so appending `/api` here would request `/api/api/v1/…` and 404. Chain-level, and
+    unlike `listing` there is no solver capability to declare — a chain either carries the block or it does not, which
+    is why [`resolveInventoryService`](/core/inventory/resolve-inventory-service) takes a bare `chainId`. Missing, it
+    throws `INVENTORY_NOT_CONFIGURED`. Present only on HyperEVM today.
   </Property>
 </Properties>
 
@@ -86,21 +106,73 @@ The `addresses` field — the section people usually want:
   </Property>
 </Properties>
 
-Everything else (solver URL, TP/SL handler, subgraph, notifications WS, Muon gateways) lives on the sibling fields above.
+Each entry in `solvers` is a `SymmioSolverConfig` — the solver's own endpoints, including its notifications config:
+
+<Properties>
+  <Property name="name" type="string">
+    Human-readable solver name.
+  </Property>
+  <Property name="address" type="Address">
+    Solver's on-chain address (used as `partyB` in `sendQuoteWithAffiliateAndData`).
+  </Property>
+  <Property name="url" type="string">
+    Solver / hedger REST API base URL.
+  </Property>
+  <Property name="tpsl" type="SymmioTpSlConfig" optional>
+    TP/SL (conditional-order handler) config — the solver supports conditional orders only when set.
+  </Property>
+  <Property name="priceService" type="SymmioPriceServiceConfig" optional>
+    Price source for **this solver's** markets. Falls back to the chain's `priceService` when omitted.
+  </Property>
+  <Property name="notifications" type="SymmioNotificationsConfig">
+    **Per-solver** notifications config — WebSocket `url` + a `protocol` discriminant (`"enigma"` / `"rasa"`). The
+    `enigma` variant adds `channel` and an optional `searchUrl` (the notification service that backs
+    [`searchNotifications`](/core/notifications)); the `rasa` variant has neither — its history search runs through the
+    solver's own position-state endpoint, also via `searchNotifications`. **Required** on every solver: notifications
+    are inherently solver-specific, so there is no chain-level default to inherit.
+  </Property>
+</Properties>
+
+Everything else (subgraph, Muon gateways, the chain-level price service) lives on the sibling `SymmioChainConfig` fields above.
 
 ## Current chains
 
-Only **HyperEVM (999)** is deployed today. The registry entry (`packages/trading-core/src/core/chains/registry.ts:10-60`) carries:
+Two chains ship in the registry — each runs a different solver kind and product. See [Solvers & Chains](/core/concepts/solvers-and-chains) for how the two axes fit together.
+
+### HyperEVM (999) — enigma / lowcap
 
 - `symmioAddress` — `0x57331038c21982116EE9b0906E4a5c5cB52dcE2e`
 - `instantLayerAddress` — `0x72DBF07457b2712b160F67A85D338F860c1CA620`
 - `accountLayerAddress` — `0x46493c376758Da47823D7E3Ae5d417eA6546eEB3`
 - `affiliatesAddress` — `0xBcB033C9154401fA000a1Ae60843f79f45741b7c` (built-in default; override it per chain via the required `symmioConfig[chainId].addresses.affiliatesAddress` — set your <AffiliateLink>registered affiliate</AffiliateLink> to earn a share of the trading fees)
 - `collateralAddress` — `0xb88339CB7199b77E23DB6E890353E22632Ba630f` (USDC, 6 decimals)
-- `solver.address` — `0x76bc5889c0cfcC20960b0D81F541595d81a95122` (Enigma)
-- `solver.tpsl.cohWalletAddress` — `0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31`
+- `solvers.enigma.address` — `0x76bc5889c0cfcC20960b0D81F541595d81a95122`, `defaultSolverId: "enigma"`
+- `solvers.enigma.tpsl.cohWalletAddress` — `0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31`
+- `solvers.enigma.notifications.protocol` — `"enigma"` (carries a `searchUrl` — the notification service)
+- `priceService.type` — `"enigma"`
+- `listing.url` — `https://listing85.enigma.bz` (the Pools listing backend; host root, no `/v2`)
+- `inventory.url` — `https://inventory85.enigma.bz` (the custody backend behind the Pools; host root, no `/api`)
 
-Plus URLs for solver, TP/SL handler, price service, notifications, subgraphs, and Muon gateways.
+### Base (8453) — rasa / majors
+
+- `symmioAddress` — `0x91Cf2D8Ed503EC52768999aA6D8DBeA6e52dbe43`
+- `instantLayerAddress` — `0x0825435285ac0E5c02c7a7c443F631f3e07fE375`
+- `accountLayerAddress` — `0x56caf00c6C5cB5478570Bb23807B9d1D697863DC`
+- `affiliatesAddress` — `0x45Eecd7B4f442388ACD90467E423A5CAAC3a9C3f` (built-in default; override with your registered affiliate)
+- `collateralAddress` — `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (USDC on Base, 6 decimals)
+- `solvers.rasa.address` — `0x81631953E0C093e72935C1CAA4C7D519B2A0E407`, `defaultSolverId: "rasa"`
+- `solvers.rasa.notifications.protocol` — `"rasa"` (no `searchUrl`; history search runs through the solver's own `position-state` endpoint via `searchNotifications`)
+- `priceService.type` — `"binance"` (Binance USD-M Futures, `fapi.binance.com`)
+
+<Callout type="warning">
+  **Base is staging-configured.** The rasa `solver.url` points at a staging host (`stage-archon.rasa.capital`), and the
+  **subgraph endpoints are HyperEVM placeholders** (they return HyperEVM data, not Base data) until Base's own subgraphs
+  ship — override them via `symmioConfig[8453].subgraphs` when you have real endpoints. Base has **no `tpsl` block**:
+  the COH wallet is not deployed yet, so conditional orders (TP/SL) are unsupported on Base. Muon gateways are real
+  (Muon is deployment-agnostic). Swap the staging solver URL for production when it's published.
+</Callout>
+
+Each entry also carries URLs for the solver, price service, notifications, subgraphs, and Muon gateways.
 
 ## Per-chain overrides
 
@@ -114,6 +186,10 @@ const config = createConfig({
       addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" },
       subgraphs: {
         analytics: "https://staging.example/subgraphs/analytics",
+      },
+      // Notifications are per-solver — override under `solvers[solverId].notifications`.
+      solvers: {
+        enigma: { notifications: { searchUrl: "https://staging.example/notification" } },
       },
     },
   },

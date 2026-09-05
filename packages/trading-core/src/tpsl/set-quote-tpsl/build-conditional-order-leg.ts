@@ -4,7 +4,7 @@ import type { TpSlConditionalOrderLeg, TpSlPriceType } from "../types";
 export const TPSL_LEG_ORDER_TYPE_MARKET = 1;
 
 /**
- * Build one conditional-order leg (TP or SL). Mirrors vibe-ui's
+ * Build one conditional-order leg (TP or SL). Mirrors the reference frontend's
  * `buildConditionalOrderLeg` exactly so the signed payload matches what the
  * handler expects.
  */

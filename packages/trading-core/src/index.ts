@@ -56,6 +56,7 @@ export {
   SubAccountIsolationType,
   addMargin,
   addMarginMutationOptions,
+  calculateAvailableForOrder,
   cancelRegistration,
   cancelRegistrationMutationOptions,
   createSubAccounts,
@@ -130,6 +131,7 @@ export {
   type AddMarginParameters,
   type AddMarginReturnType,
   type AffiliateRegistration,
+  type CalculateAvailableForOrderParameters,
   type CancelRegistrationParameters,
   type CancelRegistrationReturnType,
   type CreateSubAccountsParameters,
@@ -346,15 +348,27 @@ export {
   OrderType,
   PositionType,
   QuoteStatus,
+  getCoolDownsOfMA,
+  getCoolDownsOfMAQueryKey,
+  getCoolDownsOfMAQueryOptions,
   getPartyAOpenPositions,
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
   getPartyAPendingQuotes,
   getPartyAPendingQuotesQueryKey,
   getPartyAPendingQuotesQueryOptions,
+  getPendingQuotes,
+  getPendingQuotesQueryKey,
+  getPendingQuotesQueryOptions,
   getQuote,
   getQuoteQueryKey,
   getQuoteQueryOptions,
+  type GetCoolDownsOfMAData,
+  type GetCoolDownsOfMAOptions,
+  type GetCoolDownsOfMAParameters,
+  type GetCoolDownsOfMAQueryKey,
+  type GetCoolDownsOfMAQueryOptions,
+  type GetCoolDownsOfMAReturnType,
   type GetPartyAOpenPositionsData,
   type GetPartyAOpenPositionsOptions,
   type GetPartyAOpenPositionsParameters,
@@ -367,6 +381,12 @@ export {
   type GetPartyAPendingQuotesQueryKey,
   type GetPartyAPendingQuotesQueryOptions,
   type GetPartyAPendingQuotesReturnType,
+  type GetPendingQuotesData,
+  type GetPendingQuotesOptions,
+  type GetPendingQuotesParameters,
+  type GetPendingQuotesQueryKey,
+  type GetPendingQuotesQueryOptions,
+  type GetPendingQuotesReturnType,
   type GetQuoteData,
   type GetQuoteOptions,
   type GetQuoteParameters,
@@ -415,8 +435,14 @@ export {
 export {
   WithdrawStatus,
   createClassicWithdrawPart,
+  deallocateAndInitiateWithdraw,
+  deallocateAndInitiateWithdrawMutationOptions,
   finalizeWithdrawRequest,
   finalizeWithdrawRequestMutationOptions,
+  forceCancelCloseRequest,
+  forceCancelCloseRequestMutationOptions,
+  forceCancelQuote,
+  forceCancelQuoteMutationOptions,
   getFeeForUser,
   getFeeForUserQueryKey,
   getFeeForUserQueryOptions,
@@ -436,15 +462,31 @@ export {
   initiateWithdrawMutationOptions,
   requestCancelWithdraw,
   requestCancelWithdrawMutationOptions,
+  requestToCancelCloseRequest,
+  requestToCancelCloseRequestMutationOptions,
+  requestToCancelQuote,
+  requestToCancelQuoteMutationOptions,
+  simulateDeallocateAndInitiateWithdraw,
+  simulateDeallocateAndInitiateWithdrawMutationOptions,
   simulateFinalizeWithdrawRequest,
   simulateFinalizeWithdrawRequestMutationOptions,
   simulateInitiateWithdraw,
   simulateInitiateWithdrawMutationOptions,
   simulateRequestCancelWithdraw,
   simulateRequestCancelWithdrawMutationOptions,
+  withdraw,
+  withdrawAuto,
+  withdrawAutoMutationOptions,
+  withdrawMutationOptions,
+  type DeallocateAndInitiateWithdrawParameters,
+  type DeallocateAndInitiateWithdrawReturnType,
   type FeeForUser,
   type FinalizeWithdrawRequestParameters,
   type FinalizeWithdrawRequestReturnType,
+  type ForceCancelCloseRequestParameters,
+  type ForceCancelCloseRequestReturnType,
+  type ForceCancelQuoteParameters,
+  type ForceCancelQuoteReturnType,
   type GetFeeForUserData,
   type GetFeeForUserOptions,
   type GetFeeForUserParameters,
@@ -479,14 +521,24 @@ export {
   type InitiateWithdrawReturnType,
   type RequestCancelWithdrawParameters,
   type RequestCancelWithdrawReturnType,
+  type RequestToCancelCloseRequestParameters,
+  type RequestToCancelCloseRequestReturnType,
+  type RequestToCancelQuoteParameters,
+  type RequestToCancelQuoteReturnType,
+  type SimulateDeallocateAndInitiateWithdrawParameters,
+  type SimulateDeallocateAndInitiateWithdrawReturnType,
   type SimulateFinalizeWithdrawRequestParameters,
   type SimulateFinalizeWithdrawRequestReturnType,
   type SimulateInitiateWithdrawParameters,
   type SimulateInitiateWithdrawReturnType,
   type SimulateRequestCancelWithdrawParameters,
   type SimulateRequestCancelWithdrawReturnType,
+  type WithdrawAutoParameters,
+  type WithdrawAutoReturnType,
+  type WithdrawParameters,
   type WithdrawReceiverPart,
   type WithdrawRequest,
+  type WithdrawReturnType,
 } from "./symmio-contracts/symmio";
 
 /**
@@ -498,16 +550,23 @@ export {
 export {
   SymmioSupportedChainId,
   getChainConfig,
+  getDefaultSolver,
   isChainSupported,
   listSupportedChains,
+  type SolverId,
   type SymmioChainConfig,
   type SymmioContractAddresses,
+  type SymmioEnigmaNotificationsConfig,
+  type SymmioInventoryConfig,
+  type SymmioListingConfig,
   type SymmioMuonConfig,
   type SymmioNotificationsConfig,
   type SymmioNotificationsProtocol,
   type SymmioPriceServiceConfig,
   type SymmioPriceServiceType,
+  type SymmioRasaNotificationsConfig,
   type SymmioSolverConfig,
+  type SymmioSolverKind,
   type SymmioSubgraphName,
   type SymmioSubgraphUrls,
   type SymmioTpSlConfig,
@@ -585,15 +644,18 @@ export {
 export {
   ActionStatus,
   NotificationType,
+  buildRasaSubscribeMessage,
   buildSubscribeMessage,
   classifyNotification,
   normalizeNotification,
   parseNotificationFrame,
   watchNotifications,
   type BuildSubscribeMessageParameters,
-  type DefilyticsNotificationEnvelope,
+  type EnigmaNotificationEnvelope,
   type Notification,
+  type RawEnigmaPositionNotification,
   type RawPositionNotification,
+  type RawRasaPositionNotification,
   type Unwatch,
   type WatchNotificationsParameters,
 } from "./websocket/notifications";
@@ -602,36 +664,119 @@ export type { SocketStatus } from "./websocket/socket";
 /**
  * Price-service stream
  * --------------------
- * `watchEnigmaPrices` subscribes to the chain's Enigma lowcap price WebSocket
- * and delivers parsed `EnigmaPriceTick` batches. Broadcast-only — no subscribe
- * message; watchers sharing the same `wsUrl` share one socket.
+ * `watchPrices` is the provider-agnostic entry point: it subscribes to whichever
+ * live feed serves the resolved solver and delivers `MarkPriceTick` batches, so
+ * a positions table or trade ticket never branches on provider.
+ *
+ * `watchEnigmaPrices` / `watchBinancePrices` are the provider-specific twins for
+ * callers that already know their source. All are broadcast-only — no subscribe
+ * message; watchers sharing the same `wsUrl` share one socket, and a per-watcher
+ * `names` filter is applied after parsing so filters never starve siblings.
  */
 export {
+  parseBinancePriceFrame,
   parsePriceFrame,
+  watchBinancePrices,
   watchEnigmaPrices,
+  watchPrices,
   type EnigmaPriceTick,
   type RawEnigmaPriceFrame,
+  type WatchBinancePricesParameters,
   type WatchEnigmaPricesParameters,
+  type WatchPricesParameters,
 } from "./websocket/prices";
+/**
+ * Mark prices
+ * -----------
+ * `getMarkPrices` reads a one-shot snapshot from whichever price provider serves
+ * the resolved solver — Enigma's lowcap service, or Binance USD-M Futures for
+ * major markets. The provider is derived from `{ chainId, solverId }` via
+ * `solver.priceService ?? chain.priceService`; it is never selected per call.
+ *
+ * `MarkPriceTick` is a discriminated union on `provider`: read `name` /
+ * `markPrice` without narrowing, and narrow to reach provider-specific fields
+ * such as Binance's `indexPrice`.
+ */
+/**
+ * Binance-only price reads
+ * ------------------------
+ * The provider-specific twins of the Enigma price-service family, for callers
+ * that already know their source. Each throws `UNSUPPORTED_BY_PRICE_SERVICE`
+ * when the resolved provider is not Binance.
+ */
+export {
+  getBinanceHealth,
+  getBinanceHealthQueryKey,
+  getBinanceHealthQueryOptions,
+  getBinancePremiumIndex,
+  getBinancePremiumIndexQueryKey,
+  getBinancePremiumIndexQueryOptions,
+  getBinanceSymbolsInfo,
+  getBinanceSymbolsInfoQueryKey,
+  getBinanceSymbolsInfoQueryOptions,
+} from "./price-service/binance";
+export type {
+  BinanceExchangeSymbol,
+  GetBinanceHealthData,
+  GetBinanceHealthOptions,
+  GetBinanceHealthParameters,
+  GetBinanceHealthQueryKey,
+  GetBinanceHealthQueryOptions,
+  GetBinanceHealthReturnType,
+  GetBinancePremiumIndexData,
+  GetBinancePremiumIndexOptions,
+  GetBinancePremiumIndexParameters,
+  GetBinancePremiumIndexQueryKey,
+  GetBinancePremiumIndexQueryOptions,
+  GetBinancePremiumIndexReturnType,
+  GetBinanceSymbolsInfoData,
+  GetBinanceSymbolsInfoOptions,
+  GetBinanceSymbolsInfoParameters,
+  GetBinanceSymbolsInfoQueryKey,
+  GetBinanceSymbolsInfoQueryOptions,
+  GetBinanceSymbolsInfoReturnType,
+  RawBinanceExchangeInfo,
+  RawBinanceMarkPriceFrame,
+  RawBinancePremiumIndexRow,
+} from "./price-service/binance";
+export { getMarkPrices, getMarkPricesQueryKey, getMarkPricesQueryOptions } from "./price-service/get-mark-prices";
+export type {
+  GetMarkPricesData,
+  GetMarkPricesOptions,
+  GetMarkPricesParameters,
+  GetMarkPricesQueryKey,
+  GetMarkPricesQueryOptions,
+  GetMarkPricesReturnType,
+} from "./price-service/get-mark-prices";
+export type {
+  BinanceMarkPriceTick,
+  EnigmaMarkPriceTick,
+  MarkPriceTick,
+  NormalizedMarkPriceByProvider,
+} from "./price-service/types";
 /**
  * Notifications search
  * --------------------
- * `searchNotifications` queries the notification service's `POST /api/v1/search`
- * endpoint — a free-form equality filter over stored notifications. Keys are
- * matched exactly, whether top-level (`app_name`, …) or a dotted payload path
- * (`data.temp_quote_id`, …); {@link NotificationSearchFilter} types the known
- * keys while still accepting any string key. The REST counterpart to the live
- * `watchNotifications` stream.
+ * `searchNotifications` is one interface over both solver kinds, dispatched by
+ * the resolved `solverId`: an **enigma** solver hits the notification service
+ * (`POST /api/v1/search`, a free-form equality filter over stored documents),
+ * while a **rasa** solver hits its own position-state endpoint. The result is a
+ * per-kind union ({@link NotificationSearchResult}) — pass a literal `solverId`
+ * to narrow it, or branch on the returned `kind`. The REST counterpart to the
+ * live `watchNotifications` stream.
  */
 export {
   searchNotifications,
   searchNotificationsQueryKey,
   searchNotificationsQueryOptions,
+  type EnigmaNotificationSearchResult,
   type NotificationDocument,
   type NotificationQueryValue,
   type NotificationSearchField,
   type NotificationSearchFilter,
   type NotificationSearchResult,
+  type NotificationSearchResultByKind,
+  type RasaNotificationSearchResult,
   type SearchNotificationsData,
   type SearchNotificationsOptions,
   type SearchNotificationsParameters,
@@ -649,14 +794,66 @@ export {
   getMarkets,
   getMarketsQueryKey,
   getMarketsQueryOptions,
+  type EnigmaMarket,
   type GetMarketsData,
   type GetMarketsOptions,
   type GetMarketsParameters,
   type GetMarketsQueryKey,
   type GetMarketsQueryOptions,
   type GetMarketsReturnType,
-  type SymbolContractSymbol,
+  type Market,
+  type NormalizedMarketByKind,
+  type RasaMarket,
 } from "./solvers/markets";
+
+export {
+  getSolverCapabilities,
+  supportsGroupClose,
+  supportsLimitOrder,
+  type SolverCapabilities,
+} from "./solvers/capabilities";
+
+export {
+  limitOpenAuto,
+  limitOpenAutoMutationOptions,
+  prepareLimitOpenParams,
+  type PrepareLimitOpenParameters,
+} from "./solvers/limit-open";
+
+export {
+  limitCloseAuto,
+  limitCloseAutoMutationOptions,
+  prepareLimitCloseParams,
+  type PrepareLimitCloseParameters,
+} from "./solvers/limit-close";
+
+export {
+  checkForceCloseEligibility,
+  checkForceClosePriceReached,
+  findForceCloseWindow,
+  forceCloseAuto,
+  forceCloseAutoMutationOptions,
+  forceClosePosition,
+  forceClosePositionMutationOptions,
+  getForceCloseParams,
+  getForceCloseParamsQueryKey,
+  getForceCloseParamsQueryOptions,
+  previewForceClosePrice,
+  type ForceCloseAutoParameters,
+  type ForceCloseAutoReturnType,
+  type ForceCloseEligibility,
+  type ForceCloseIneligibleReason,
+  type ForceCloseParams,
+  type ForceClosePositionParameters,
+  type ForceClosePositionReturnType,
+  type ForceCloseWindow,
+  type GetForceCloseParametersParameters,
+  type GetForceCloseParametersReturnType,
+  type GetForceCloseParamsData,
+  type GetForceCloseParamsOptions,
+  type GetForceCloseParamsQueryKey,
+  type GetForceCloseParamsQueryOptions,
+} from "./solvers/force-close";
 
 /**
  * Funding info
@@ -672,6 +869,7 @@ export {
   getEstimatedPrice,
   getEstimatedPriceQueryKey,
   getEstimatedPriceQueryOptions,
+  supportsEstimatedPrice,
   toEstimatedPrice,
   type CalculatePriceImpactParameters,
   type EstimatedPriceEntry,
@@ -681,6 +879,7 @@ export {
   type GetEstimatedPriceQueryKey,
   type GetEstimatedPriceQueryOptions,
   type GetEstimatedPriceReturnType,
+  type SupportsEstimatedPriceParameters,
 } from "./solvers/estimated-price";
 export {
   getFundingInfo,
@@ -697,6 +896,141 @@ export {
   type MarketFundingInfo,
   type ProjectFundingRateParameters,
 } from "./solvers/funding-info";
+export {
+  getRevenueRecords,
+  getRevenueRecordsQueryKey,
+  getRevenueRecordsQueryOptions,
+  toRevenueRecord,
+  type GetRevenueRecordsData,
+  type GetRevenueRecordsOptions,
+  type GetRevenueRecordsParameters,
+  type GetRevenueRecordsQueryKey,
+  type GetRevenueRecordsQueryOptions,
+  type GetRevenueRecordsReturnType,
+  type SolverRevenueRecord,
+} from "./solvers/revenue-records";
+export {
+  getSymbols,
+  getSymbolsQueryKey,
+  getSymbolsQueryOptions,
+  toSolverSymbols,
+  type GetSymbolsData,
+  type GetSymbolsOptions,
+  type GetSymbolsParameters,
+  type GetSymbolsQueryKey,
+  type GetSymbolsQueryOptions,
+  type GetSymbolsReturnType,
+  type SolverSymbol,
+  type SymbolStateFilter,
+  type SymbolValidityFilter,
+} from "./solvers/symbols";
+export {
+  getTradeVolume,
+  getTradeVolumeQueryKey,
+  getTradeVolumeQueryOptions,
+  toSolverDailyVolume,
+  type GetTradeVolumeData,
+  type GetTradeVolumeOptions,
+  type GetTradeVolumeParameters,
+  type GetTradeVolumeQueryKey,
+  type GetTradeVolumeQueryOptions,
+  type GetTradeVolumeReturnType,
+  type SolverDailyVolume,
+} from "./solvers/trade-volume";
+
+/**
+ * Rasa-only solver reads
+ * ----------------------
+ * Endpoints only the `rasa` solver kind exposes: solver-side balance info,
+ * partyA uPnL, global open interest, symbol price range, position-state and
+ * notification searches, single error-code lookup, whitelist check/add, and
+ * readiness. Each action throws a typed `UNSUPPORTED_BY_SOLVER` `SymmError`
+ * when the resolved solver is not a `rasa` solver.
+ */
+export {
+  addSolverWhitelist,
+  addSolverWhitelistMutationOptions,
+  type AddSolverWhitelistParameters,
+  type AddSolverWhitelistReturnType,
+} from "./solvers/add-solver-whitelist";
+export {
+  getErrorMessage,
+  getErrorMessageQueryKey,
+  getErrorMessageQueryOptions,
+  type GetErrorMessageData,
+  type GetErrorMessageOptions,
+  type GetErrorMessageParameters,
+  type GetErrorMessageQueryKey,
+  type GetErrorMessageQueryOptions,
+  type GetErrorMessageReturnType,
+} from "./solvers/get-error-message";
+export {
+  getPartyAUpnl,
+  getPartyAUpnlQueryKey,
+  getPartyAUpnlQueryOptions,
+  type GetPartyAUpnlData,
+  type GetPartyAUpnlOptions,
+  type GetPartyAUpnlParameters,
+  type GetPartyAUpnlQueryKey,
+  type GetPartyAUpnlQueryOptions,
+  type GetPartyAUpnlReturnType,
+} from "./solvers/get-party-a-upnl";
+export {
+  getSolverBalanceInfo,
+  getSolverBalanceInfoQueryKey,
+  getSolverBalanceInfoQueryOptions,
+  type GetSolverBalanceInfoData,
+  type GetSolverBalanceInfoOptions,
+  type GetSolverBalanceInfoParameters,
+  type GetSolverBalanceInfoQueryKey,
+  type GetSolverBalanceInfoQueryOptions,
+  type GetSolverBalanceInfoReturnType,
+} from "./solvers/get-solver-balance-info";
+export {
+  getSolverOpenInterest,
+  getSolverOpenInterestQueryKey,
+  getSolverOpenInterestQueryOptions,
+  type GetSolverOpenInterestData,
+  type GetSolverOpenInterestOptions,
+  type GetSolverOpenInterestParameters,
+  type GetSolverOpenInterestQueryKey,
+  type GetSolverOpenInterestQueryOptions,
+  type GetSolverOpenInterestReturnType,
+} from "./solvers/get-solver-open-interest";
+export {
+  getSolverPriceRange,
+  getSolverPriceRangeQueryKey,
+  getSolverPriceRangeQueryOptions,
+  type GetSolverPriceRangeData,
+  type GetSolverPriceRangeOptions,
+  type GetSolverPriceRangeParameters,
+  type GetSolverPriceRangeQueryKey,
+  type GetSolverPriceRangeQueryOptions,
+  type GetSolverPriceRangeReturnType,
+} from "./solvers/get-solver-price-range";
+export {
+  getSolverReadiness,
+  getSolverReadinessQueryKey,
+  getSolverReadinessQueryOptions,
+  type GetSolverReadinessData,
+  type GetSolverReadinessOptions,
+  type GetSolverReadinessParameters,
+  type GetSolverReadinessQueryKey,
+  type GetSolverReadinessQueryOptions,
+  type GetSolverReadinessReturnType,
+} from "./solvers/get-solver-readiness";
+export type {
+  BalanceInfoResponseSchema,
+  BothUpnlData,
+  NotificationsSearchResponseSchema,
+  OpenInterestResponseSchema,
+  PositionStateResponseSchema,
+  PositionsStateOutputSchema,
+  ReadinessResponseSchema,
+  StatusResponse,
+  SymbolPriceRangeInputSchema,
+  UpnlData,
+} from "./solvers/types/generated/rasa-solver";
 
 /**
  * Market info (solver)
@@ -709,14 +1043,18 @@ export {
   getMarketInfo,
   getMarketInfoQueryKey,
   getMarketInfoQueryOptions,
-  toMarketInfo,
+  type EnigmaMarketInfo,
   type GetMarketInfoData,
   type GetMarketInfoOptions,
   type GetMarketInfoParameters,
   type GetMarketInfoQueryKey,
   type GetMarketInfoQueryOptions,
   type GetMarketInfoReturnType,
+  type MarketInfo,
   type MarketVolume,
+  type NormalizedMarketInfoByKind,
+  type RasaMarketInfo,
+  type RasaMarketInfoRow,
 } from "./solvers/market-info";
 
 /**
@@ -756,9 +1094,9 @@ export {
   getOpenInterestBySymbolId,
   getOpenInterestBySymbolIdQueryKey,
   getOpenInterestBySymbolIdQueryOptions,
-  toMarketNotionalCap,
   type CheckNotionalCapInputs,
   type CheckNotionalCapResult,
+  type EnigmaNotionalCap,
   type GetNotionalCapAllData,
   type GetNotionalCapAllOptions,
   type GetNotionalCapAllParameters,
@@ -778,6 +1116,8 @@ export {
   type GetOpenInterestBySymbolIdQueryOptions,
   type GetOpenInterestBySymbolIdReturnType,
   type MarketNotionalCap,
+  type NormalizedNotionalCapByKind,
+  type RasaNotionalCap,
 } from "./solvers/notional-cap";
 
 /**
@@ -799,11 +1139,21 @@ export {
 } from "./solvers/error-codes";
 
 /**
+ * Muon attestation structs mirrored from the SYMMIO diamond
+ * ---------------------------------------------------------
+ * The contract-ready tuples the Muon assemblers below produce.
+ * {@link SingleUpnlSig} (uPnL only) is exported with the AccountLayer slice.
+ */
+export type { HighLowPriceSig, SingleUpnlAndPriceSig } from "./symmio-contracts/symmio";
+
+/**
  * Muon oracle service
  * -------------------
- * Fetch the Muon `uPnl_A` attestation `removeMargin` requires, assembled into a
- * contract-ready `SingleUpnlSig`. The gateway is a query-param REST endpoint
- * with no OpenAPI spec, so its request/response types are hand-written.
+ * Fetch the Muon attestations the contracts require, assembled into
+ * contract-ready structs (`SingleUpnlSig` for `removeMargin`,
+ * `SingleUpnlAndPriceSig` for `sendQuote`, `HighLowPriceSig` for force-close).
+ * The gateway is a query-param REST endpoint with no OpenAPI spec, so its
+ * request/response types are hand-written.
  */
 export {
   MUON_APP,
@@ -820,6 +1170,10 @@ export {
   getDeallocateUpnlSig,
   getDeallocateUpnlSigQueryKey,
   getDeallocateUpnlSigQueryOptions,
+  // priceRange assembled into the contract-ready HighLowPriceSig (for force-close)
+  getForceClosePriceSig,
+  getForceClosePriceSigQueryKey,
+  getForceClosePriceSigQueryOptions,
   getMuonPartyAOverview,
   getMuonPartyAOverviewQueryKey,
   getMuonPartyAOverviewQueryOptions,
@@ -848,12 +1202,22 @@ export {
   getMuonUpnlWithSymbolPrice,
   getMuonUpnlWithSymbolPriceQueryKey,
   getMuonUpnlWithSymbolPriceQueryOptions,
+  // uPnl_A_withSymbolPrice assembled into the contract-ready SingleUpnlAndPriceSig (for sendQuote)
+  getSendQuoteUpnlSig,
+  getSendQuoteUpnlSigQueryKey,
+  getSendQuoteUpnlSigQueryOptions,
   type GetDeallocateUpnlSigData,
   type GetDeallocateUpnlSigOptions,
   type GetDeallocateUpnlSigParameters,
   type GetDeallocateUpnlSigQueryKey,
   type GetDeallocateUpnlSigQueryOptions,
   type GetDeallocateUpnlSigReturnType,
+  type GetForceClosePriceSigData,
+  type GetForceClosePriceSigOptions,
+  type GetForceClosePriceSigParameters,
+  type GetForceClosePriceSigQueryKey,
+  type GetForceClosePriceSigQueryOptions,
+  type GetForceClosePriceSigReturnType,
   type GetMuonPartyAOverviewData,
   type GetMuonPartyAOverviewOptions,
   type GetMuonPartyAOverviewParameters,
@@ -908,6 +1272,12 @@ export {
   type GetMuonUpnlWithSymbolPriceQueryKey,
   type GetMuonUpnlWithSymbolPriceQueryOptions,
   type GetMuonUpnlWithSymbolPriceReturnType,
+  type GetSendQuoteUpnlSigData,
+  type GetSendQuoteUpnlSigOptions,
+  type GetSendQuoteUpnlSigParameters,
+  type GetSendQuoteUpnlSigQueryKey,
+  type GetSendQuoteUpnlSigQueryOptions,
+  type GetSendQuoteUpnlSigReturnType,
   type MuonAttestationBase,
   type MuonRawResult,
   type MuonResponse,
@@ -926,11 +1296,15 @@ export type {
   DeepPartial,
   ExactPartial,
   FromParameter,
+  ReadSolverParameter,
   SimulateBeforeWriteParameter,
+  SolverIdParameter,
   WriteContractParameter,
   WriteSolverParameter,
 } from "./shared/types/properties";
 export type { QueryParameter, SymmioQueryOptions } from "./shared/types/query";
+export { sharePercent } from "./shared/utils/percent";
+export { decimalPriceToWei } from "./shared/utils/price";
 export { filterQueryOptions } from "./shared/utils/query";
 export { shouldSimulateBeforeWrite } from "./shared/utils/simulate-before-write";
 
@@ -1005,6 +1379,8 @@ export {
   resolveMarket,
   // hedger api
   sendInstantOpen,
+  sendQuoteUpnlSigFlexRange,
+  sendRasaInstantOpen,
   signAndFormatInstantOperation,
   signSignedOperation,
   toWeiBigInt,
@@ -1018,6 +1394,8 @@ export {
   type ComputePlatformFeeRates,
   type EncodeAddMarginToNextVAParameters,
   type EncodeSendQuoteWithAffiliateAndDataParameters,
+  type EnigmaInstantOpen,
+  type EnigmaInstantOpenResult,
   type FlexField,
   // instant-open read types
   type GetInstantOpenQuoteIdData,
@@ -1032,16 +1410,21 @@ export {
   type GetInstantOpensQueryKey,
   type GetInstantOpensQueryOptions,
   type GetInstantOpensReturnType,
+  type InstantOpenConstraintFields,
   type InstantOpenLockedParams,
   type InstantOpenMargin,
   type InstantOpenMarketData,
   type InstantOpenOrder,
   type InstantOpenParameters,
+  type InstantOpenResultByKind,
   type InstantOpenReturnType,
   type InstantOperationPayload,
+  type NormalizedInstantOpenByKind,
   type PendingInstantOpen,
   type PrepareInstantOpenParameters,
   type QuoteConstraintViolation,
+  type RasaInstantOpen,
+  type RasaInstantOpenResult,
   type ReplayAttackHeader,
   type ResolveFeeRatesParameters,
   type ResolveLockedParamsParameters,
@@ -1051,6 +1434,9 @@ export {
   type ResolvedMarket,
   type SendInstantOpenParameters,
   type SendInstantOpenReturnType,
+  type SendQuoteUpnlSigFlexRange,
+  type SendRasaInstantOpenParameters,
+  type SendRasaInstantOpenReturnType,
   type SignAndFormatInstantOperationParameters,
   type SignedOperation,
   type SignedOperationPayload,
@@ -1112,6 +1498,7 @@ export {
   type InstantCloseBulkOrder,
   type InstantCloseBulkParameters,
   type InstantCloseBulkReturnType,
+  type InstantCloseConstraintFields,
   type InstantCloseMarketData,
   type InstantCloseOrder,
   type InstantCloseParameters,
@@ -1132,18 +1519,35 @@ export {
  * stable, de-duplicated, lifecycle-tagged {@link UnifiedQuote} list. The merge is
  * deterministic given an injected `now` and the previous result (the framework
  * layer drives the clock and polling cadence). `shouldAccelerateQuotePolling`
- * tells the consumer when to poll faster.
+ * tells the consumer when to poll faster. The `aggregate*` folds roll a
+ * {@link QuoteGroup}'s children into one figure — `aggregateGroupFunding`
+ * reports settled-to-date funding with `netReceived = received − paid`, so a
+ * **positive** value means the group **earned** funding, sharing the plain-trader
+ * polarity of `aggregateGroupUpnl`, where a **positive** `upnl` means in profit.
+ *
+ * Grouping itself is a **`MARKET_DIRECTION`-only** feature: it is the one
+ * isolation where a market + side cohort is a real on-chain unit (one Virtual
+ * Account per market + direction), so `groupQuotes` accepts no other
+ * {@link SubAccountIsolationType} and throws `UNSUPPORTED_GROUPING_ISOLATION`
+ * otherwise. Check first with `supportsQuoteGrouping` (or fail loudly with
+ * `assertQuoteGroupingSupported`), and fold on another dimension by passing an
+ * explicit `{ keyOf }` — `keyQuoteByMarket` and `keyQuotePerQuote` cover the
+ * market-wide and one-row-per-quote cases.
  */
 export {
   QuoteLifecycle,
+  aggregateGroupFunding,
   aggregateGroupMetrics,
+  aggregateGroupUpnl,
   applyNotificationToQuotes,
+  assertQuoteGroupingSupported,
   calculateClosePlatformFee,
   calculateLiquidationPrice,
   calculateOpenPlatformFee,
   calculateQuoteLeverage,
   calculateQuotePnl,
   calculateQuoteUpnl,
+  calculateQuoteUpnlWei,
   classifyQuoteNotificationAction,
   fingerprintQuote,
   getSubAccountQuotes,
@@ -1151,14 +1555,23 @@ export {
   getSubAccountQuotesQueryOptions,
   groupQuotes,
   isActivePosition,
+  isCancelAction,
+  isCloseFillAction,
+  isOpenAnchorAction,
   isPendingOrder,
+  keyQuoteByMarket,
+  keyQuotePerQuote,
   lifecycleFromQuoteStatus,
+  minRemainingQuantityOf,
   partitionQuotes,
+  planGroupClose,
   reconcileQuotes,
   resolveQuoteAccounts,
   resolveQuoteGroupingStrategy,
   shouldAccelerateOnchainReads,
   shouldAccelerateQuotePolling,
+  supportsQuoteGrouping,
+  toGroupCloseCandidates,
   toUnifiedQuoteFromInstantClose,
   toUnifiedQuoteFromInstantOpen,
   toUnifiedQuoteFromOnchain,
@@ -1171,19 +1584,28 @@ export {
   type CalculateQuotePnlReturnType,
   type CalculateQuoteUpnlInputs,
   type CalculateQuoteUpnlReturnType,
+  type CalculateQuoteUpnlWeiParameters,
   type GetSubAccountQuotesData,
   type GetSubAccountQuotesOptions,
   type GetSubAccountQuotesParameters,
   type GetSubAccountQuotesQueryKey,
   type GetSubAccountQuotesQueryOptions,
   type GetSubAccountQuotesReturnType,
+  type GroupCloseAllocation,
+  type GroupCloseCandidate,
   type GroupQuotesOptions,
   type PartitionedQuotes,
+  type PlanGroupCloseFailure,
+  type PlanGroupCloseFailureReason,
+  type PlanGroupCloseResult,
+  type PlanGroupCloseSuccess,
   type QuoteGroup,
   type QuoteGroupBy,
+  type QuoteGroupFunding,
   type QuoteGroupKey,
   type QuoteGroupKeyFn,
   type QuoteGroupMetrics,
+  type QuoteGroupUpnl,
   type QuoteGroupingStrategy,
   type QuoteNotificationActionKind,
   type QuoteOrigin,
@@ -1194,6 +1616,22 @@ export {
   type ToUnifiedQuoteFromInstantCloseContext,
   type UnifiedQuote,
 } from "./quotes";
+
+/**
+ * Margin & risk
+ * -------------
+ * `calculateMarginRisk` folds an account's `balanceInfoOfPartyA` fields and its
+ * unrealized PnL into the figures a margin panel shows: total / maintenance /
+ * initial margin, equity, the cushion left before liquidation, and how much of
+ * that cushion is intact. `isLiquidatable` is bit-for-bit the protocol's own
+ * solvency predicate, so a UI never has to approximate it.
+ *
+ * Every figure describes **one liquidation domain** — each Virtual Account is
+ * liquidated independently, so never pass sums across accounts. The **price** at
+ * which liquidation happens is `calculateLiquidationPrice` (exported with the
+ * quotes above).
+ */
+export { calculateMarginRisk, type CalculateMarginRiskInputs, type MarginRiskMetrics } from "./margin";
 
 /**
  * Subgraph layer (GraphQL)
@@ -1251,6 +1689,7 @@ export {
  */
 export {
   DEFAULT_QUOTE_EVENTS_BY_TYPE_PAGE_SIZE,
+  FUNDING_HISTORY_EVENT_TYPES,
   PRICE_HISTORY_EVENT_TYPES,
   QuoteEventType,
   getQuoteEventsByType,
@@ -1268,13 +1707,42 @@ export {
 } from "./quotes";
 
 /**
+ * Quote events by type, batched (subgraph)
+ * ----------------------------------------
+ * `getQuotesEventsByType` is the many-quote sibling of `getQuoteEventsByType`:
+ * one round-trip covers every quote in a position group, and the subgraph
+ * returns the rows already interleaved and sorted by `timestamp`, with `first` /
+ * `skip` paging the merged stream rather than each id. Pair it with
+ * {@link FUNDING_HISTORY_EVENT_TYPES} for a group-wide funding timeline — those
+ * are the charges **settled to date** (what the analytics subgraph indexed);
+ * funding accrued since the last on-chain charge is not indexed and is absent.
+ * Netting a row is `net = fundingPaid - fundingReceived`, so a **positive** net
+ * means the user net-**paid**.
+ */
+export {
+  getQuotesEventsByType,
+  getQuotesEventsByTypeQueryKey,
+  getQuotesEventsByTypeQueryOptions,
+  type GetQuotesEventsByTypeData,
+  type GetQuotesEventsByTypeOptions,
+  type GetQuotesEventsByTypeParameters,
+  type GetQuotesEventsByTypeQueryKey,
+  type GetQuotesEventsByTypeQueryOptions,
+  type GetQuotesEventsByTypeReturnType,
+} from "./quotes";
+
+/**
  * Quote funding (subgraph)
  * ------------------------
  * `getQuoteFunding` reads `userPaidFunding` / `userReceivedFunding` for a batch
- * of on-chain quote ids from the analytics subgraph. Filters by the protocol
- * `quoteId` scalar so callers never need the diamond address.
+ * of on-chain quote ids from the analytics subgraph, chunked at
+ * {@link QUOTES_FUNDING_MAX_IDS_PER_REQUEST} ids per request. Filters by the
+ * protocol `quoteId` scalar so callers never need the diamond address. The rows
+ * are funding **settled to date**; `netReceived = received − paid`, so a
+ * **positive** value means the position **earned** funding.
  */
 export {
+  QUOTES_FUNDING_MAX_IDS_PER_REQUEST,
   getQuoteFunding,
   getQuoteFundingQueryKey,
   getQuoteFundingQueryOptions,
@@ -1298,6 +1766,8 @@ export {
  */
 export {
   DEFAULT_TPSL_SLIPPAGE_LOWCAPS,
+  TPSL_LIVE_ORDER_STATES,
+  TpSlSearchOrderType,
   ZERO_LEG,
   buildConditionalOrderLeg,
   buildConditionalOrderMessage,
@@ -1318,9 +1788,13 @@ export {
   getTpSlSigningSpecQueryKey,
   getTpSlSigningSpecQueryOptions,
   priceSlippageCalculation,
+  searchTpSlOrders,
+  searchTpSlOrdersQueryKey,
+  searchTpSlOrdersQueryOptions,
   setQuoteTpSl,
   setQuoteTpSlMutationOptions,
   signTpSlRequest,
+  supportsTpSl,
   toSignableTpSlMessage,
   validateTpSl,
   type DeleteQuoteTpSlParameters,
@@ -1354,6 +1828,12 @@ export {
   type QuoteTpSlConditionalOrderType,
   type QuoteTpSlRow,
   type QuoteTpSlRowState,
+  type SearchTpSlOrdersData,
+  type SearchTpSlOrdersOptions,
+  type SearchTpSlOrdersParameters,
+  type SearchTpSlOrdersQueryKey,
+  type SearchTpSlOrdersQueryOptions,
+  type SearchTpSlOrdersReturnType,
   type SetQuoteTpSlParameters,
   type SetQuoteTpSlReturnType,
   type SetTpSlSide,
@@ -1368,6 +1848,52 @@ export {
   type TpSlSigningSpec,
   type TpSlValidation,
   type ValidateTpSlInputs,
+} from "./tpsl";
+
+/**
+ * Grouped TP/SL
+ * -------------
+ * Pure helpers that fold the per-quote conditional orders of a grouped position
+ * (`QuoteGroup`) into one state, and plan the writes needed to change it. The
+ * handler has no bulk endpoint — one signed request per quote — so
+ * `planGroupTpSl` diffs the desired state against what the handler already
+ * holds and emits only the children that genuinely need a `set` or a `delete`.
+ */
+export {
+  GROUP_TPSL_SIDES,
+  childNotional,
+  estimateGroupTpSlReturn,
+  planGroupTpSl,
+  planGroupTpSlDelete,
+  resolveChildSide,
+  summarizeQuoteGroupTpSl,
+  toGroupTpSlChildren,
+  toGroupTpSlOrders,
+  triggerPriceToWei,
+  type EstimateGroupTpSlReturnParameters,
+  type GroupTpSlAction,
+  type GroupTpSlChild,
+  type GroupTpSlDeleteScope,
+  type GroupTpSlDeleteSkip,
+  type GroupTpSlDeleteTarget,
+  type GroupTpSlDesiredMap,
+  type GroupTpSlDesiredSide,
+  type GroupTpSlDesiredSides,
+  type GroupTpSlOrder,
+  type GroupTpSlReturnEstimate,
+  type GroupTpSlReturnLeg,
+  type GroupTpSlSideDisplay,
+  type GroupTpSlSideKey,
+  type GroupTpSlSideSummary,
+  type GroupTpSlSkipReason,
+  type GroupTpSlSnapshotLookup,
+  type PlanGroupTpSlDeleteResult,
+  type PlanGroupTpSlParameters,
+  type PlanGroupTpSlResult,
+  type QuoteGroupTpSlSummary,
+  type ResolvedChildSide,
+  type SummarizeQuoteGroupTpSlOptions,
+  type ToGroupTpSlOrdersOptions,
 } from "./tpsl";
 
 /**
@@ -1439,3 +1965,567 @@ export {
   type TransferRow,
   type TransferRowDirection,
 } from "./transfers";
+
+/**
+ * Candles slice
+ * -------------
+ * Chart data, decoupled from any chart library. A `CandleSource` supplies the
+ * three things every charting library needs — symbol metadata, bars for a range,
+ * and a live subscription — so adapters and hooks are written against that
+ * interface rather than against a venue.
+ *
+ * `createBinanceCandleSource` is the reference source for major markets;
+ * `toTradingViewDatafeed` adapts any source to TradingView's Charting Library
+ * without the SDK depending on that licensed package. `priceBasis` on every
+ * source states what its prices actually represent — a reference exchange is
+ * not the solver mark a SYMMIO trade settles at.
+ */
+export {
+  BINANCE_EXCHANGE_INFO_PATH,
+  BINANCE_KLINES_PATH,
+  BINANCE_MAX_LIMIT,
+  BINANCE_REST_URL,
+  BINANCE_WS_URL,
+  CANDLE_RESOLUTION_MS,
+  createBinanceCandleSource,
+  fromTradingViewResolution,
+  getBinanceSupportedResolutions,
+  getCandlesQueryKey,
+  getCandlesQueryOptions,
+  parseBinanceKline,
+  parseBinanceKlineEvent,
+  resolutionToMs,
+  toBinanceInterval,
+  toTradingViewDatafeed,
+  toTradingViewResolution,
+  watchBinanceKlines,
+  type BinanceCandleSourceParameters,
+  type BinanceMarket,
+  type Candle,
+  type CandlePriceBasis,
+  type CandleResolution,
+  type CandleSource,
+  type CandleSymbol,
+  type CandleUpdateMeta,
+  type GetCandlesData,
+  type GetCandlesOptions,
+  type GetCandlesParameters,
+  type GetCandlesQueryKey,
+  type GetCandlesQueryOptions,
+  type GetCandlesReturnType,
+  type ToTradingViewDatafeedOptions,
+  type TradingViewBar,
+  type TradingViewDatafeed,
+  type TradingViewDatafeedConfiguration,
+  type TradingViewHistoryMetadata,
+  type TradingViewPeriodParams,
+  type TradingViewSymbolInfo,
+  type WatchBinanceKlinesParameters,
+  type WatchCandlesParameters,
+} from "./candles";
+
+/**
+ * Orderbook slice
+ * ---------------
+ * Market depth, decoupled from any venue. An `OrderbookSource` supplies the
+ * three things every depth consumer needs — symbol metadata, a snapshot, and a
+ * live subscription — so ladders, depth charts and impact estimates are all
+ * written against that interface rather than against an exchange.
+ *
+ * `createBinanceOrderbookSource` is the reference source for major markets. Its
+ * live book is not a stream of deltas applied on faith: it implements Binance's
+ * documented local-order-book procedure, verifies that every update chains onto
+ * the last, and rebuilds from a fresh snapshot the moment one does not — with
+ * `onResync` telling the consumer it happened.
+ *
+ * The pure helpers on top (`groupOrderbook`, `accumulateOrderbook`,
+ * `getOrderbookSpread`, `walkOrderbook`, `getOrderbookDepthWithin`) work on any
+ * source's book. As with candles, `priceBasis` states what the depth actually
+ * represents — a reference exchange's resting liquidity is not what a SYMMIO
+ * trade executes against.
+ */
+export {
+  BINANCE_DEPTH_DEFAULT_LEVELS,
+  BINANCE_DEPTH_DEFAULT_LIMIT,
+  BINANCE_DEPTH_DEFAULT_UPDATE_SPEED,
+  BINANCE_DEPTH_LIMITS,
+  BINANCE_DEPTH_MAX_BUFFERED_EVENTS,
+  BINANCE_DEPTH_PATH,
+  BINANCE_DEPTH_REST_URL,
+  BINANCE_DEPTH_UPDATE_SPEEDS,
+  BINANCE_DEPTH_WS_URL,
+  BINANCE_ORDERBOOK_EXCHANGE_INFO_PATH,
+  accumulateOrderbook,
+  countTickDecimals,
+  createBinanceOrderbookSource,
+  fetchBinanceDepth,
+  fetchBinanceSymbolFilters,
+  getOrderbookDepthWithin,
+  getOrderbookQueryKey,
+  getOrderbookQueryOptions,
+  getOrderbookSpread,
+  groupOrderbook,
+  parseBinanceDepthLevel,
+  parseBinanceDepthLevels,
+  roundToTick,
+  suggestOrderbookTickSizes,
+  walkOrderbook,
+  watchBinanceDepth,
+  type BinanceOrderbookMarket,
+  type BinanceOrderbookSourceParameters,
+  type BinanceSymbolFilters,
+  type FetchBinanceDepthParameters,
+  type GetOrderbookData,
+  type GetOrderbookOptions,
+  type GetOrderbookParameters,
+  type GetOrderbookQueryKey,
+  type GetOrderbookQueryOptions,
+  type Orderbook,
+  type OrderbookDepthLevel,
+  type OrderbookDepthSummary,
+  type OrderbookLevel,
+  type OrderbookPriceBasis,
+  type OrderbookResyncReason,
+  type OrderbookSource,
+  type OrderbookSpread,
+  type OrderbookSymbol,
+  type OrderbookWalk,
+  type OrderbookWalkSide,
+  type RawBinanceDepthEvent,
+  type RawBinanceDepthLevel,
+  type RawBinanceDepthSnapshot,
+  type SuggestOrderbookTickSizesOptions,
+  type TickRoundingMode,
+  type WatchBinanceDepthParameters,
+  type WatchOrderbookParameters,
+} from "./orderbook";
+/**
+ * Pools (lowcap liquidity markets)
+ * --------------------------------
+ * The lowcap Pools flow, served by a per-chain **listing backend**
+ * ({@link SymmioListingConfig}). Listing is chain-level: `resolveListingService`
+ * returns the chain's backend (throws `LISTING_NOT_CONFIGURED` where the chain
+ * has none); `supportsListingService` is its non-throwing boolean twin for
+ * `enabled` / UI gates.
+ *
+ * `getListingMarkets` reads the pool catalogue — search, filter, sort and
+ * pagination are all server-side. Every money and rate field on a row is a
+ * `bigint` at `LISTING_VALUE_DECIMALS` (18), independent of the token's own
+ * decimals; `null` means the backend reported no value, never zero. Pool writes
+ * (create / deposit / withdraw / claim) land in later slices.
+ */
+export {
+  LISTING_VALUE_DECIMALS,
+  ListingDepositChainId,
+  ListingMarketStatus,
+  addMarket,
+  addMarketMutationOptions,
+  authenticateListing,
+  authenticateListingMutationOptions,
+  cancelWithdraw,
+  cancelWithdrawMutationOptions,
+  claimProfit,
+  claimProfitMutationOptions,
+  getClaimHistory,
+  getClaimHistoryQueryKey,
+  getClaimHistoryQueryOptions,
+  getDepositAddress,
+  getDepositAddressQueryKey,
+  getDepositAddressQueryOptions,
+  getListingConfig,
+  getListingConfigQueryKey,
+  getListingConfigQueryOptions,
+  getListingMarkets,
+  getListingMarketsQueryKey,
+  getListingMarketsQueryOptions,
+  getListingSignInMessage,
+  getListingStatus,
+  getListingStatusQueryKey,
+  getListingStatusQueryOptions,
+  getRetryListingInfo,
+  getRetryListingInfoQueryKey,
+  getRetryListingInfoQueryOptions,
+  getUserListingMarkets,
+  getUserListingMarketsQueryKey,
+  getUserListingMarketsQueryOptions,
+  getUserProfit,
+  getUserProfitQueryKey,
+  getUserProfitQueryOptions,
+  getUserTransactions,
+  getUserTransactionsQueryKey,
+  getUserTransactionsQueryOptions,
+  getWeeklyListingLimit,
+  getWeeklyListingLimitQueryKey,
+  getWeeklyListingLimitQueryOptions,
+  parseListingValue,
+  refundMarket,
+  refundMarketMutationOptions,
+  resolveListingService,
+  retryListing,
+  retryListingMutationOptions,
+  supportsListingService,
+  toAddMarketRequest,
+  toCancelWithdrawResult,
+  toClaimRequest,
+  toClaimResult,
+  toCreatedPool,
+  toListingAuthToken,
+  toListingConfig,
+  toListingMarket,
+  toListingMarketPage,
+  toListingSignInMessage,
+  toListingStatus,
+  toListingValue,
+  toMarketDepositAddress,
+  toPoolClaim,
+  toPoolClaimHistoryPage,
+  toRefundRequest,
+  toRefundResult,
+  toRetryListingInfo,
+  toRetryListingResult,
+  toUserListingMarket,
+  toUserListingMarketPage,
+  toUserPoolProfit,
+  toUserTransaction,
+  toUserTransactionPage,
+  toWeeklyListingLimit,
+  toWithdrawRequest,
+  withdrawLp,
+  withdrawLpMutationOptions,
+  type AddMarketParameters,
+  type AddMarketReturnType,
+  type AuthenticateListingParameters,
+  type AuthenticateListingReturnType,
+  type CancelWithdrawParameters,
+  type CancelWithdrawReturnType,
+  type ClaimProfitParameters,
+  type ClaimProfitReturnType,
+  type CreatedPool,
+  type GetClaimHistoryData,
+  type GetClaimHistoryOptions,
+  type GetClaimHistoryParameters,
+  type GetClaimHistoryQueryKey,
+  type GetClaimHistoryQueryOptions,
+  type GetClaimHistoryReturnType,
+  type GetDepositAddressData,
+  type GetDepositAddressOptions,
+  type GetDepositAddressParameters,
+  type GetDepositAddressQueryKey,
+  type GetDepositAddressQueryOptions,
+  type GetDepositAddressReturnType,
+  type GetListingConfigData,
+  type GetListingConfigOptions,
+  type GetListingConfigParameters,
+  type GetListingConfigQueryKey,
+  type GetListingConfigQueryOptions,
+  type GetListingConfigReturnType,
+  type GetListingMarketsData,
+  type GetListingMarketsOptions,
+  type GetListingMarketsParameters,
+  type GetListingMarketsQueryKey,
+  type GetListingMarketsQueryOptions,
+  type GetListingMarketsReturnType,
+  type GetListingSignInMessageParameters,
+  type GetListingSignInMessageReturnType,
+  type GetListingStatusData,
+  type GetListingStatusOptions,
+  type GetListingStatusParameters,
+  type GetListingStatusQueryKey,
+  type GetListingStatusQueryOptions,
+  type GetListingStatusReturnType,
+  type GetRetryListingInfoData,
+  type GetRetryListingInfoOptions,
+  type GetRetryListingInfoParameters,
+  type GetRetryListingInfoQueryKey,
+  type GetRetryListingInfoQueryOptions,
+  type GetRetryListingInfoReturnType,
+  type GetUserListingMarketsData,
+  type GetUserListingMarketsOptions,
+  type GetUserListingMarketsParameters,
+  type GetUserListingMarketsQueryKey,
+  type GetUserListingMarketsQueryOptions,
+  type GetUserListingMarketsReturnType,
+  type GetUserProfitData,
+  type GetUserProfitOptions,
+  type GetUserProfitParameters,
+  type GetUserProfitQueryKey,
+  type GetUserProfitQueryOptions,
+  type GetUserProfitReturnType,
+  type GetUserTransactionsData,
+  type GetUserTransactionsOptions,
+  type GetUserTransactionsParameters,
+  type GetUserTransactionsQueryKey,
+  type GetUserTransactionsQueryOptions,
+  type GetUserTransactionsReturnType,
+  type GetWeeklyListingLimitData,
+  type GetWeeklyListingLimitOptions,
+  type GetWeeklyListingLimitParameters,
+  type GetWeeklyListingLimitQueryKey,
+  type GetWeeklyListingLimitQueryOptions,
+  type GetWeeklyListingLimitReturnType,
+  type ListingApyWindows,
+  type ListingAuthToken,
+  type ListingConfig,
+  type ListingDepositChain,
+  type ListingMarket,
+  type ListingMarketFilters,
+  type ListingMarketPage,
+  type ListingMarketSortField,
+  type ListingRateLimits,
+  type ListingSignInMessage,
+  type ListingSiweParams,
+  type ListingSortDirection,
+  type ListingStatus,
+  type ListingTimeRange,
+  type ListingTrailingWindows,
+  type ListingValueRange,
+  type MarketDepositAddress,
+  type PoolCancelWithdrawResult,
+  type PoolClaim,
+  type PoolClaimHistoryPage,
+  type PoolClaimResult,
+  type PoolRefundResult,
+  type RefundMarketParameters,
+  type RefundMarketReturnType,
+  type ResolveListingServiceParameters,
+  type RetryListingInfo,
+  type RetryListingParameters,
+  type RetryListingResult,
+  type RetryListingReturnType,
+  type UserListingMarket,
+  type UserListingMarketPage,
+  type UserPoolProfit,
+  type UserTransaction,
+  type UserTransactionPage,
+  type WeeklyListingLimit,
+  type WithdrawLpParameters,
+  type WithdrawLpReturnType,
+} from "./pools";
+/**
+ * Solver revenue
+ * --------------
+ * Aggregate revenue totals from the chain's solver — protocol-wide by default,
+ * or for one market via `symbolId`. Split into a hedger-fee share and a funding
+ * share whose sum is `totalRevenue`. Enigma-only.
+ */
+export {
+  getSolverRevenue,
+  getSolverRevenueQueryKey,
+  getSolverRevenueQueryOptions,
+  toSolverRevenue,
+  type GetSolverRevenueData,
+  type GetSolverRevenueOptions,
+  type GetSolverRevenueParameters,
+  type GetSolverRevenueQueryKey,
+  type GetSolverRevenueQueryOptions,
+  type GetSolverRevenueReturnType,
+  type SolverRevenue,
+  type SolverRevenueTimeRange,
+} from "./solvers/revenue";
+
+/**
+ * Inventory service
+ * -----------------
+ * The custody backend behind the lowcap Pools — a separate vendor from both the
+ * solver and the listing backend. `getInventoryTvl` reads the system-wide
+ * custodial TVL as a `bigint` at `INVENTORY_VALUE_DECIMALS` (18).
+ *
+ * This is **not** the sum of the pool catalogue's per-pool `tvl`: the catalogue
+ * covers listed markets, this covers the whole custodial system.
+ */
+export {
+  INVENTORY_VALUE_DECIMALS,
+  getInventoryTvl,
+  getInventoryTvlHistory,
+  getInventoryTvlHistoryQueryKey,
+  getInventoryTvlHistoryQueryOptions,
+  getInventoryTvlQueryKey,
+  getInventoryTvlQueryOptions,
+  resolveInventoryService,
+  supportsInventoryService,
+  toInventoryTvl,
+  toInventoryTvlPoint,
+  type GetInventoryTvlData,
+  type GetInventoryTvlHistoryData,
+  type GetInventoryTvlHistoryOptions,
+  type GetInventoryTvlHistoryParameters,
+  type GetInventoryTvlHistoryQueryKey,
+  type GetInventoryTvlHistoryQueryOptions,
+  type GetInventoryTvlHistoryReturnType,
+  type GetInventoryTvlOptions,
+  type GetInventoryTvlParameters,
+  type GetInventoryTvlQueryKey,
+  type GetInventoryTvlQueryOptions,
+  type GetInventoryTvlReturnType,
+  type InventoryTvlPoint,
+} from "./inventory";
+/**
+ * Pool detail — the tables on a pool page
+ * ---------------------------------------
+ * The reads behind a pool's detail view, which span three backends:
+ *
+ * - `getListingMarketDetail` (listing backend) — the pool's aggregate stats and
+ *   inventory. `toPoolPositions` folds it into positions-table rows with no
+ *   extra request.
+ * - `getPoolQuotes` / `getPoolTradeHistory` (analytics subgraph) — the pool's
+ *   **whole** book and realized history. Unlike the account-scoped quote reads,
+ *   these carry no `partyA` filter: every trader's rows on that market.
+ * - `getPoolTransactions` (listing backend) — deposits and withdrawals.
+ *
+ * A pool's limit orders are not here: they come from the TP/SL handler via
+ * `searchTpSlOrders({ symbolId, conditionalOrderType: "send_quote" })`.
+ */
+export {
+  POOL_OPEN_QUOTE_STATUSES,
+  POOL_PENDING_QUOTE_STATUSES,
+  PoolPositionSide,
+  PoolTransactionStatus,
+  PoolTransactionType,
+  getListingMarketDetail,
+  getListingMarketDetailQueryKey,
+  getListingMarketDetailQueryOptions,
+  getPoolQuotes,
+  getPoolQuotesQueryKey,
+  getPoolQuotesQueryOptions,
+  getPoolTradeHistory,
+  getPoolTradeHistoryQueryKey,
+  getPoolTradeHistoryQueryOptions,
+  getPoolTransactions,
+  getPoolTransactionsQueryKey,
+  getPoolTransactionsQueryOptions,
+  toListingMarketDetail,
+  toPoolPositions,
+  toPoolQuote,
+  toPoolTransaction,
+  toPoolTransactionPage,
+  type GetListingMarketDetailData,
+  type GetListingMarketDetailOptions,
+  type GetListingMarketDetailParameters,
+  type GetListingMarketDetailQueryKey,
+  type GetListingMarketDetailQueryOptions,
+  type GetListingMarketDetailReturnType,
+  type GetPoolQuotesData,
+  type GetPoolQuotesOptions,
+  type GetPoolQuotesParameters,
+  type GetPoolQuotesQueryKey,
+  type GetPoolQuotesQueryOptions,
+  type GetPoolQuotesReturnType,
+  type GetPoolTradeHistoryData,
+  type GetPoolTradeHistoryOptions,
+  type GetPoolTradeHistoryParameters,
+  type GetPoolTradeHistoryQueryKey,
+  type GetPoolTradeHistoryQueryOptions,
+  type GetPoolTradeHistoryReturnType,
+  type GetPoolTransactionsData,
+  type GetPoolTransactionsOptions,
+  type GetPoolTransactionsParameters,
+  type GetPoolTransactionsQueryKey,
+  type GetPoolTransactionsQueryOptions,
+  type GetPoolTransactionsReturnType,
+  type ListingMarketDetail,
+  type PoolPosition,
+  type PoolQuote,
+  type PoolTransaction,
+  type PoolTransactionPage,
+} from "./pools";
+/**
+ * Market configuration (per-LP opinion)
+ * -------------------------------------
+ * A pool's max leverage and buyback percentage are not set by any one LP. Every
+ * depositor submits an *opinion* with `updateListingMarketConfig`, and the
+ * listing service folds them into a deposit-weighted average — so a call nudges
+ * the pool rather than overwriting it. `getListingMarketConfig` reads the
+ * caller's own opinion back (`null` until they have ever set one) alongside the
+ * pool values in force.
+ *
+ * Both knobs are plain whole numbers, **not** 18-decimal values: `50` is 50%,
+ * `20` is 20x. `projectListingMarketConfig` estimates where the pool lands
+ * before the write, from `getListingMarketDetail` plus the caller's stake.
+ *
+ * The write is authed, requires the caller to hold a deposit address on the
+ * market (minted for them by default), and is capped at
+ * `getListingConfig().rateLimits.marketConfigUpdatesPerDay` per market in a
+ * rolling 24-hour window. Enigma-only.
+ */
+export {
+  LISTING_MARKET_CONFIG_BOUNDS,
+  getListingMarketConfig,
+  getListingMarketConfigQueryKey,
+  getListingMarketConfigQueryOptions,
+  projectListingMarketConfig,
+  toListingMarketConfig,
+  toUpdateListingMarketConfigRequest,
+  updateListingMarketConfig,
+  updateListingMarketConfigMutationOptions,
+  type GetListingMarketConfigData,
+  type GetListingMarketConfigOptions,
+  type GetListingMarketConfigParameters,
+  type GetListingMarketConfigQueryKey,
+  type GetListingMarketConfigQueryOptions,
+  type GetListingMarketConfigReturnType,
+  type ListingMarketConfig,
+  type ListingMarketConfigProjection,
+  type ProjectListingMarketConfigParameters,
+  type UpdateListingMarketConfigParameters,
+  type UpdateListingMarketConfigReturnType,
+} from "./pools";
+/**
+ * Pool rewards over time
+ * ----------------------
+ * The LP-reward series a pool page charts, plus the headline figures above them.
+ *
+ * - `getPoolRewardChart` / `getPoolTotalReward` — **public**, one pool, addressed
+ *   by `(marketAddress, marketChainId)`. `marketChainId` is the chain the pool's
+ *   token lives on (`ListingMarket.chainId`), not the SDK's own `chainId`.
+ * - `getUserRewardChart` / `getUserTotalReward` — **authed** with a bearer token
+ *   from `authenticateListing`, and *not* scoped to one pool: both cover every
+ *   market the signed-in user has rewards in, so a single-pool view filters the
+ *   series by market itself.
+ *
+ * Every reward here is **money**, a `bigint` at `LISTING_VALUE_DECIMALS` (18)
+ * where `1e18` is `$1` — unlike the catalogue's APR/APY fields, which descale to
+ * a percentage. Both totals are built from **earned** daily snapshots, so
+ * claiming does not reduce them; `getUserProfit` has the claimable balance.
+ */
+export {
+  getPoolRewardChart,
+  getPoolRewardChartQueryKey,
+  getPoolRewardChartQueryOptions,
+  getPoolTotalReward,
+  getPoolTotalRewardQueryKey,
+  getPoolTotalRewardQueryOptions,
+  getUserRewardChart,
+  getUserRewardChartQueryKey,
+  getUserRewardChartQueryOptions,
+  getUserTotalReward,
+  getUserTotalRewardQueryKey,
+  getUserTotalRewardQueryOptions,
+  toPoolRewardPoint,
+  toUserPoolRewardChart,
+  type GetPoolRewardChartData,
+  type GetPoolRewardChartOptions,
+  type GetPoolRewardChartParameters,
+  type GetPoolRewardChartQueryKey,
+  type GetPoolRewardChartQueryOptions,
+  type GetPoolRewardChartReturnType,
+  type GetPoolTotalRewardData,
+  type GetPoolTotalRewardOptions,
+  type GetPoolTotalRewardParameters,
+  type GetPoolTotalRewardQueryKey,
+  type GetPoolTotalRewardQueryOptions,
+  type GetPoolTotalRewardReturnType,
+  type GetUserRewardChartData,
+  type GetUserRewardChartOptions,
+  type GetUserRewardChartParameters,
+  type GetUserRewardChartQueryKey,
+  type GetUserRewardChartQueryOptions,
+  type GetUserRewardChartReturnType,
+  type GetUserTotalRewardData,
+  type GetUserTotalRewardOptions,
+  type GetUserTotalRewardParameters,
+  type GetUserTotalRewardQueryKey,
+  type GetUserTotalRewardQueryOptions,
+  type GetUserTotalRewardReturnType,
+  type PoolRewardPoint,
+  type UserPoolRewardChart,
+} from "./pools";

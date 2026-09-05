@@ -4,6 +4,27 @@ import { Callout } from "nextra/components";
 
 Ship a perpetuals trading UI on SYMMIO — connect a wallet, pick a market, open and close leveraged positions, manage TP/SL. There are two ways to build it, and they walk the **same flows**; pick the path by your stack, not by the feature set.
 
+## Which product — lowcap or majors
+
+Before the stack question, decide **which SYMMIO product** you're shipping. The SDK serves two, on two chains, behind one API:
+
+| &nbsp;            | **lowcap** (enigma)                                 | **majors** (rasa)                           |
+| ----------------- | --------------------------------------------------- | ------------------------------------------- |
+| **Chain**         | HyperEVM (`999`)                                    | Base (`8453`)                               |
+| **Margin**        | **Virtual Accounts** (per market/side)              | **cross-margin** on the sub-account (no VA) |
+| **Prices**        | Enigma price service                                | Binance USD-M Futures                       |
+| **Notifications** | `enigma` protocol (search via notification service) | `rasa` protocol (search via the solver)     |
+| **TP/SL**         | supported                                           | not yet on Base (no COH wallet deployed)    |
+| **Markets**       | hundreds                                            | thousands (virtualize the selector)         |
+
+Both build from the **same hooks** — `useMarkets`, `useInstantOpenAuto`, `useManagedQuotes`, and the rest take an optional `solverId` and follow the connected chain's default. The differences are: majors skip the Virtual-Account leg (branch on `SubAccountIsolationType.CUSTOM`, not a chain id), price off Binance, and use the rasa-only reads on the [Rasa Solver hooks](/react/rasa-solver) page. Read **[Solvers & Chains](/core/concepts/solvers-and-chains)** first — it is the authoritative explainer for both.
+
+<Callout type="warning">
+  **The margin model follows the sub-account, not the solver.** A rasa/majors sub-account is cross-margin (`CUSTOM`
+  isolation) with **no Virtual Account** — do not select or predict a VA, and skip the TP/SL-against-VA step. Assuming a
+  VA on Base is the most common majors-integration bug.
+</Callout>
+
 ## Three facts integrators get wrong most often
 
 Read these before you write any integration code — they trip up humans and AI agents alike:

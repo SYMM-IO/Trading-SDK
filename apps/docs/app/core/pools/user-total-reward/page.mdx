@@ -1,0 +1,84 @@
+import { Callout } from "nextra/components";
+
+# getUserTotalReward
+
+Fetch the signed-in user's **aggregate LP reward over the last `days`**, across every market they earn in.
+
+```ts
+import { getUserTotalReward, LISTING_VALUE_DECIMALS } from "@symmio/trading-core";
+import { formatUnits } from "@symmio/utils/decimal";
+
+const earned30d = await getUserTotalReward(config, {
+  accessToken: token.accessToken,
+  userAddress: account.address,
+  days: 30,
+});
+
+formatUnits(earned30d, LISTING_VALUE_DECIMALS).toFixed(2); // "3.20"
+```
+
+One `GET /v2/profit/total-reward` against the chain's listing backend, **authed** with the bearer token from [`authenticateListing`](/core/pools/listing-auth). It is the single-number companion to [`getUserRewardChart`](/core/pools/user-reward-chart) and the per-wallet twin of [`getPoolTotalReward`](/core/pools/pool-total-reward).
+
+<Callout type="warning">
+  `days` is capped at **30** by the service (minimum `1`); a wider window is rejected with a `422`. The endpoint also
+  wants `user_address` as a query parameter **even though the bearer token already identifies the session** — both are
+  required.
+</Callout>
+
+## Earned, not claimable
+
+The figure is built from **earned** daily snapshots, so claiming does not reduce it: it is what the wallet accrued over the window, not what remains unclaimed. For the claimable balance in one pool, read `claimableReward` from [`getUserProfit`](/core/pools/user-profit).
+
+It is also **not scoped to a pool** — it sums every market the wallet earns in. To break the same window down per pool, sum the matching slice of [`getUserRewardChart`](/core/pools/user-reward-chart).
+
+## Parameters
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401` (see [Throws](#throws)).
+  </Property>
+  <Property name="userAddress" type="string" required>
+    The user's wallet address. The endpoint takes it as a query parameter alongside the token.
+  </Property>
+  <Property name="days" type="number" required>
+    Size of the trailing window in days. The service accepts **1–30**.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
+    folded into the query key. There is **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<bigint>">
+  Aggregate reward over the window, 18-decimal fixed point (`LISTING_VALUE_DECIMALS`). A **USD** amount — `1e18` is
+  `$1`. An absent figure comes back as `0n`.
+</Returns>
+
+## Query options
+
+```ts
+import { getUserTotalRewardQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getUserTotalRewardQueryOptions(config, { accessToken, userAddress, days: 30 }));
+```
+
+`GetUserTotalRewardOptions` is the action's parameters plus a `query` bag of TanStack overrides. The bearer token is **dropped from the key** by `filterQueryOptions`, but `userAddress` is kept — it is what the figure is actually scoped to, so two wallets never share a cache entry. `getUserTotalRewardQueryKey` builds the same `["getUserTotalReward", …]` key, and `GetUserTotalRewardData` / `GetUserTotalRewardQueryKey` / `GetUserTotalRewardQueryOptions` name the factory's other halves.
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the resolved chain has no listing backend. Raised by [`resolveListingService`](/core/pools/resolve-listing-service) before any request goes out.
+- `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) when the `chainId` is not one the config knows about at all.
+- `FETCH_USER_TOTAL_REWARD_FAILED` — the request itself failed, including the `401` on a bad token and the `422` on a `days` outside 1–30. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`).
+
+## Related
+
+- [`getUserRewardChart`](/core/pools/user-reward-chart) — the same rewards, day by day and per market.
+- [`getPoolTotalReward`](/core/pools/pool-total-reward) — the same window for a whole pool.
+- [`getUserProfit`](/core/pools/user-profit) — the wallet's LP position and claimable balance in one pool.
+- [`authenticateListing`](/core/pools/listing-auth) — where the bearer token comes from.
+- [`@symmio/trading-react`](/react/pools) — `useUserTotalReward` is the React binding over this read.
+- [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.

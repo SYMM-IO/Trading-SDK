@@ -1,0 +1,36 @@
+# toGroupTpSlOrders
+
+Flatten a grouped position's children into one row per live-or-desired TP/SL order — the data behind an overview list where each order can be inspected or cancelled individually.
+
+Take profit precedes stop loss within a child; children keep input order. `sizePercent` is the child's share of the group's **total** open notional (not of the covered notional), so a partially covered group's rows sum to less than 100%.
+
+```ts
+import { toGroupTpSlOrders } from "@symmio/trading-core";
+
+const orders = toGroupTpSlOrders(children);
+const live = orders.filter((order) => order.hasLiveOrder);
+```
+
+A row that exists only as a local edit reports the snapshot's `state` (`"canceled"` when there is no server order) — branch on `hasLiveOrder`, not on `state`.
+
+## Parameters
+
+<Properties>
+  <Property name="children" type="readonly GroupTpSlChild[]" typeHref="/core/tpsl/group-tpsl-child" required>
+    The grouped position's children.
+  </Property>
+  <Property name="options.overrides" type="GroupTpSlDesiredMap" optional>
+    Pending per-child edits that win over the confirmed snapshot.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GroupTpSlOrder[]" typeHref="/core/tpsl/group-tpsl-order">
+  One row per side that carries a trigger.
+</Returns>
+
+## Related
+
+- [`GroupTpSlOrder`](/core/tpsl/group-tpsl-order) — the row shape.
+- [`planGroupTpSlDelete`](/core/tpsl/plan-group-tpsl-delete) — turns live rows into cancellable targets.

@@ -22,16 +22,19 @@ export type SimulateCallAsSubAccountReturnType = SimulateContractReturnType<type
  * (`simulateInitiateWithdraw`, `simulateRequestCancelWithdraw`).
  *
  * @param config - The SDK config.
- * @param parameters - Subaccount address, the encoded core calldata, optional `from`, optional chain id.
+ * @param parameters - Subaccount address, the encoded core calldata (a single
+ *   `Hex`, or an array of `Hex` to batch several core calls into one `_call`),
+ *   optional `from`, optional chain id.
  * @returns viem's `{ request, result }` for the `_call`.
  * @throws {SymmError} when the chain is unsupported.
  * @throws Viem's call errors when the routed call would revert.
  */
 export async function simulateCallAsSubAccount(
   config: Config,
-  parameters: { account: Address; data: Hex; from?: Address; chainId?: number },
+  parameters: { account: Address; data: Hex | readonly Hex[]; from?: Address; chainId?: number },
 ): Promise<SimulateCallAsSubAccountReturnType> {
   const { account, data, from, chainId } = parameters;
+  const callDatas = typeof data === "string" ? [data] : data;
 
   const { addresses } = config.getChainConfig(chainId);
 
@@ -39,7 +42,7 @@ export async function simulateCallAsSubAccount(
     address: addresses.accountLayerAddress,
     abi: accountLayerAbi,
     functionName: "_call",
-    args: [account, [data]],
+    args: [account, callDatas],
     account: from,
   });
 }

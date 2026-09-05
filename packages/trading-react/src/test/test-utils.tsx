@@ -11,6 +11,7 @@ import {
 } from "@symmio/trading-core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  cleanup,
   render,
   renderHook,
   type RenderHookOptions,
@@ -22,10 +23,17 @@ import { type PropsWithChildren, type ReactElement } from "react";
 import type { Account, Chain, Hash, PublicClient } from "viem";
 import { http } from "viem";
 import { hyperEvm } from "viem/chains";
-import { vi, type Mock } from "vitest";
+import { afterEach, vi, type Mock } from "vitest";
 import { createConfig as createWagmiConfig, WagmiProvider, type Config as WagmiConfig } from "wagmi";
 import { mock, type MockParameters } from "wagmi/connectors";
 import { SymmioProvider } from "../provider/symmio-provider";
+
+// Vitest runs with `globals: false`, so `@testing-library/react`'s automatic
+// afterEach cleanup never registers. Register it here — every hook test imports
+// this module — so a test's rendered hooks unmount before the next runs.
+// Without it, a stale hook stays subscribed to module-level stores and
+// re-renders on their updates, corrupting shared test spies.
+afterEach(() => cleanup());
 
 /**
  * Anvil deterministic test account #0. Public, never used on a real chain. Used

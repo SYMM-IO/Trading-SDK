@@ -1,0 +1,72 @@
+import { Callout } from "nextra/components";
+
+# groupQuotes
+
+Fold a flat list of quotes into grouped positions — one [`QuoteGroup`](/core/quotes/quote-group) per market + side, or per whatever a custom key function decides.
+
+```ts
+import { groupQuotes, partitionQuotes, SubAccountIsolationType } from "@symmio/trading-core";
+
+const { positions } = partitionQuotes(quotes);
+const groups = groupQuotes(positions, SubAccountIsolationType.MARKET_DIRECTION);
+```
+
+## Strategies
+
+A `QuoteGroupingStrategy` is either `SubAccountIsolationType.MARKET_DIRECTION` — the only isolation type accepted — or a custom `{ keyOf }`:
+
+| Strategy                      | Key                            | Result                      |
+| ----------------------------- | ------------------------------ | --------------------------- |
+| `MARKET_DIRECTION`            | `md:<symbolId>:<positionType>` | One group per market + side |
+| `{ keyOf: keyQuoteByMarket }` | `m:<symbolId>`                 | One group per market        |
+| `{ keyOf: keyQuotePerQuote }` | the quote's own key            | One group per quote         |
+| `{ keyOf }`                   | whatever you return            | Whatever you group on       |
+
+<Callout type="warning">
+  **Grouped positions are `MARKET_DIRECTION`-only.** Passing `MARKET`, `POSITION`, or `CUSTOM` throws a `SymmError` with
+  code `UNSUPPORTED_GROUPING_ISOLATION`. `MARKET_DIRECTION` is the one isolation where a market + side cohort is a real
+  on-chain unit — the AccountLayer allocates one Virtual Account per market + direction — so it is the only one where
+  folding the cohort into a single row aggregates values that belong together, and where a group-level action (group
+  close, group TP/SL) acts on quotes that really share a VA. Check first with
+  [`supportsQuoteGrouping`](/core/quotes/supports-quote-grouping).
+</Callout>
+
+To fold on another dimension, say so explicitly with a `{ keyOf }`. `keyQuoteByMarket` and `keyQuotePerQuote` ship as ready-made key functions for the market-wide and one-row-per-quote cases — the same folds the removed built-ins performed, now an opt-in rather than a default:
+
+```ts
+import { groupQuotes, keyQuoteByMarket, keyQuotePerQuote } from "@symmio/trading-core";
+
+// both sides of a market in one row — metrics mix longs and shorts
+const byMarket = groupQuotes(positions, { keyOf: keyQuoteByMarket });
+
+// no aggregation: one single-child group per quote (isAggregate is always false)
+const perQuote = groupQuotes(positions, { keyOf: keyQuotePerQuote });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quotes" type="readonly UnifiedQuote[]" typeHref="/core/quotes/unified-quote" required>
+    Quotes to fold. Pass `partitionQuotes(...).positions` to keep pending orders flat.
+  </Property>
+  <Property name="strategy" type="QuoteGroupingStrategy" required>
+    `SubAccountIsolationType.MARKET_DIRECTION` or a custom `{keyOf}`. Any other isolation type throws
+    `UNSUPPORTED_GROUPING_ISOLATION`.
+  </Property>
+  <Property name="options.sort" type="(a: QuoteGroup, b: QuoteGroup) => number" optional>
+    Group ordering override. Defaults to newest-first by the group's newest child.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="QuoteGroup[]" typeHref="/core/quotes/quote-group">
+  One group per distinct key, newest-first, each with child quotes newest-first.
+</Returns>
+
+## Related
+
+- [`supportsQuoteGrouping`](/core/quotes/supports-quote-grouping) — check an isolation type before folding.
+- [`aggregateGroupMetrics`](/core/quotes/aggregate-group-metrics) — the metrics each group carries.
+- [`partitionQuotes`](/core/quotes/partition-quotes) — split positions from resting orders first.
+- [`useGroupedQuotes`](/react/quotes#usegroupedquotes) — the React hook, which applies the isolation check for you.

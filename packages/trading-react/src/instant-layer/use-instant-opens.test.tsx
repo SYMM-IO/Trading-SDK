@@ -15,6 +15,8 @@ import { useInstantOpens } from "./use-instant-opens";
 const PARTY_A = "0x00000000000000000000000000000000000000a1" as const;
 const RESULT: GetInstantOpensReturnType = [
   {
+    kind: "enigma",
+    uuid: "",
     tempQuoteId: -1001,
     marketId: 7,
     positionType: PositionType.LONG,

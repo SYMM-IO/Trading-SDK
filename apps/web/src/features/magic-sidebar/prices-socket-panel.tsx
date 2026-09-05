@@ -1,7 +1,7 @@
 "use client";
 
 import { StatusDot } from "@/components/status-dot";
-import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
+import { socketStatusLabel, socketStatusTone } from "@/features/notifications/socket-status-display";
 import type { EnigmaPriceTick } from "@symmio/trading-core";
 import { useEnigmaPrices } from "@symmio/trading-react";
 import { useRef } from "react";

@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  getAccountBalanceInfoQueryKey,
+  getAccountBalanceOfQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getWithdrawRequestsQueryKey,
   requestCancelWithdrawMutationOptions,
@@ -31,8 +33,10 @@ export type UseRequestCancelWithdrawReturnType = UseMutationResult<
 
 /**
  * Request cancellation of a pending withdraw request (routed through the
- * AccountLayer `_call` proxy). On success, the subaccount's pending-requests and
- * single-request queries are invalidated.
+ * AccountLayer `_call` proxy). On success (after the receipt), the subaccount's
+ * balance reads (`balanceInfo`, `balanceOf`) and its pending-requests / requests
+ * queries are invalidated — cancel returns the reserved funds to the available
+ * balance.
  *
  * @example
  * ```tsx
@@ -70,9 +74,17 @@ export function useRequestCancelWithdraw(
       }
     },
     onSuccess: (_result, variables) => {
-      const partial = { user: variables.account };
-      void queryClient.invalidateQueries({ predicate: predicateMatch(getPendingWithdrawRequestsQueryKey, partial) });
-      void queryClient.invalidateQueries({ predicate: predicateMatch(getWithdrawRequestsQueryKey, partial) });
+      // Cancel returns the reserved funds to the subaccount's available balance and
+      // removes the request — refetch balances + the withdraw lists (after the receipt).
+      const balancePartial = { account: variables.account };
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceInfoQueryKey, balancePartial) });
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceOfQueryKey, balancePartial) });
+
+      const withdrawPartial = { user: variables.account };
+      void queryClient.invalidateQueries({
+        predicate: predicateMatch(getPendingWithdrawRequestsQueryKey, withdrawPartial),
+      });
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getWithdrawRequestsQueryKey, withdrawPartial) });
     },
   });
 }

@@ -41,11 +41,17 @@ function toMarketIdNumber(value: number | bigint | string): number {
 }
 
 /**
- * Stream the live mark price for a market resolved by its solver `symbol_id`.
+ * Stream the live mark price for a market resolved by its solver `symbol_id`,
+ * **from the Enigma price service only**.
  *
  * Composes {@link useMarkets} (to translate `marketId → name`) with
  * {@link useEnigmaPriceByName} (to subscribe to just that symbol). Re-renders
  * only when this market's price actually changes.
+ *
+ * @deprecated Use `usePriceByMarketId` — it resolves the same market and price
+ * from whichever provider serves the chain's solver, so it also works on
+ * Binance-priced chains where this hook throws `UNSUPPORTED_BY_PRICE_SERVICE`.
+ * This hook will be removed in the next major release.
  *
  * @example
  * ```tsx
@@ -62,7 +68,7 @@ export function useEnigmaPriceByMarketId(
 
   const marketName = useMemo<string | null>(() => {
     if (!marketsQuery.data) return null;
-    const market = marketsQuery.data.find((m) => m.symbol_id === targetId);
+    const market = marketsQuery.data.find((m) => m.symbolId === targetId);
     return market?.name ?? null;
   }, [marketsQuery.data, targetId]);
 

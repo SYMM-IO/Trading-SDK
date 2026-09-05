@@ -2,10 +2,16 @@ import type { Address, Hex } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, WriteSolverParameter } from "../../../shared/types/properties";
 import { buildSignedOperation, signAndFormatInstantOperation } from "../../instant-open/shared/operations";
-import { getMarketOrderDeadline } from "../../instant-open/shared/trade-math";
+import { getLimitOrderDeadline, getMarketOrderDeadline } from "../../instant-open/shared/trade-math";
 import { encodeRequestToClosePosition } from "../shared/calldata";
 import { sendInstantClose } from "../shared/hedger-api";
-import { ORDER_TYPE_MARKET, type InstantCloseOrder, type InstantCloseReturnType } from "../shared/types";
+import {
+  ORDER_TYPE_LIMIT,
+  ORDER_TYPE_MARKET,
+  type InstantCloseOrder,
+  type InstantCloseReturnType,
+  type SolverOrderType,
+} from "../shared/types";
 
 /**
  * Parameters for the pure {@link instantClose} primitive.
@@ -16,13 +22,26 @@ import { ORDER_TYPE_MARKET, type InstantCloseOrder, type InstantCloseReturnType 
  */
 export type InstantCloseParameters = Compute<
   WriteSolverParameter & {
-    /** PartyA — the VA address that owns the position (EIP-712 `signerAccount`). */
+    /**
+     * PartyA — the account that owns the position and signs the close
+     * (EIP-712 `signerAccount`). The VA address on Enigma (lowcap); the
+     * sub-account itself on Rasa (cross-margin, no VA).
+     */
     partyA: Address;
     /** Order-side values (`quoteId`, `closePrice`, `quantityToClose`). */
     order: InstantCloseOrder;
+    /**
+     * Close order type: `ORDER_TYPE_MARKET` (default, instant fill at
+     * `closePrice`) or `ORDER_TYPE_LIMIT` (majors / rasa only — writes a
+     * **pending close** that rests at `closePrice`). Defaults to MARKET.
+     */
+    orderType?: SolverOrderType;
     /** Override the EIP-712 salt. Defaults to a random 32-byte salt. */
     salt?: Hex;
-    /** Override the unix-seconds deadline (defaults to `now + 300s`). */
+    /**
+     * Override the unix-seconds deadline. Defaults to `now + 300s` for a market
+     * close, `now + 900s` (15 min) for a limit close.
+     */
     deadline?: bigint;
   }
 >;
@@ -63,13 +82,15 @@ export async function instantClose(
   const walletClient = await config.getWalletClient({ chainId: parameters.chainId, from: parameters.from });
   const signerAddress = walletClient.account.address;
 
-  const deadline = parameters.deadline ?? getMarketOrderDeadline();
+  const orderType = parameters.orderType ?? ORDER_TYPE_MARKET;
+  const deadline =
+    parameters.deadline ?? (orderType === ORDER_TYPE_LIMIT ? getLimitOrderDeadline() : getMarketOrderDeadline());
 
   const callData = encodeRequestToClosePosition({
     quoteId: parameters.order.quoteId,
     closePrice: parameters.order.closePrice,
     quantityToClose: parameters.order.quantityToClose,
-    orderType: ORDER_TYPE_MARKET,
+    orderType,
     deadline,
   });
 
@@ -90,6 +111,7 @@ export async function instantClose(
 
   await sendInstantClose(config, {
     chainId: parameters.chainId,
+    solverId: parameters.solverId,
     operations: [signed],
   });
 

@@ -19,6 +19,7 @@ const RESULT: GetNotionalCapAllReturnType = {
   totalUsed: 250_000,
   symbols: [
     {
+      kind: "enigma",
       symbolId: 132,
       symbol: "BTCUSDT",
       totalCap: 1_000_000,

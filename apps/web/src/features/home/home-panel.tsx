@@ -20,11 +20,40 @@ const cards: Omit<LinkCardProps, "index">[] = [
     icon: <ChartIcon />,
   },
   {
+    href: "/integration",
+    eyebrow: "End to end",
+    title: "Integration flow",
+    description: "A production-grade deposit and withdraw console composed entirely from @symmio/trading-react hooks.",
+    icon: <FlowIcon />,
+  },
+  {
     href: "/price-service",
     eyebrow: "Price Service",
-    title: "Enigma prices",
-    description: "Read mark prices, token metadata, symbol listings, and service health from the Enigma price service.",
+    title: "Mark prices",
+    description:
+      "Stream and read mark prices from the Enigma or Binance provider, plus Enigma metadata, symbols and health.",
     icon: <PriceIcon />,
+  },
+  {
+    href: "/candles",
+    eyebrow: "Market data",
+    title: "Candles",
+    description: "Load historical OHLCV bars and keep the latest one live from a pluggable CandleSource.",
+    icon: <CandlesIcon />,
+  },
+  {
+    href: "/orderbook",
+    eyebrow: "Market data",
+    title: "Orderbook",
+    description: "Stream a synchronized book — snapshot, buffered diffs, and a resync on every dropped update.",
+    icon: <OrderbookIcon />,
+  },
+  {
+    href: "/muon",
+    eyebrow: "Oracle",
+    title: "Muon signatures",
+    description: "Fetch signed uPnL, price, and settlement attestations the contracts require alongside a write.",
+    icon: <MuonIcon />,
   },
   {
     href: "/session-keys",
@@ -32,13 +61,6 @@ const cards: Omit<LinkCardProps, "index">[] = [
     title: "Session keys",
     description: "Create an encrypted browser-local signing key for delegated flows and later device transfer.",
     icon: <KeyIcon />,
-  },
-  {
-    href: "/integration",
-    eyebrow: "End to end",
-    title: "Integration flow",
-    description: "A production-grade deposit and withdraw console composed entirely from @symmio/trading-react hooks.",
-    icon: <FlowIcon />,
   },
   {
     href: "/config",
@@ -64,8 +86,8 @@ export function HomePanel() {
 
         <p className="text-muted-foreground max-w-2xl text-base leading-7 text-pretty">
           A reference console for the <span className="text-foreground font-medium">@symmio</span> SDK. Run live
-          contract reads and writes, move collateral end to end, and verify the resolved chain config — every call goes
-          through the same surface third-party builders use.
+          contract reads and writes, stream prices, candles and depth, move collateral end to end, and verify the
+          resolved chain config — every call goes through the same surface third-party builders use.
         </p>
 
         <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -140,6 +162,56 @@ function PriceIcon() {
       />
       <path d="M16 9h3v3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M5 6h6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" opacity="0.6" />
+    </svg>
+  );
+}
+
+function CandlesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      <path d="M8 3v4M8 16v5M16 5v4M16 15v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <rect x="5.5" y="7" width="5" height="9" rx="1" stroke="currentColor" strokeWidth="1.75" />
+      <rect x="13.5" y="9" width="5" height="6" rx="1" stroke="currentColor" strokeWidth="1.75" opacity="0.6" />
+    </svg>
+  );
+}
+
+function OrderbookIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      {/* A ladder thinning away from the spread, with the seam drawn across the middle. */}
+      <path d="M18 4H9M18 7.5h-5M18 11H14" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M3.5 14.5H21" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" opacity="0.55" />
+      <path d="M18 18h-4M18 21.5H9" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function MuonIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      <circle cx="12" cy="12" r="2" stroke="currentColor" strokeWidth="1.75" />
+      <ellipse cx="12" cy="12" rx="9.25" ry="3.75" stroke="currentColor" strokeWidth="1.75" opacity="0.7" />
+      <ellipse
+        cx="12"
+        cy="12"
+        rx="9.25"
+        ry="3.75"
+        transform="rotate(60 12 12)"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        opacity="0.7"
+      />
+      <ellipse
+        cx="12"
+        cy="12"
+        rx="9.25"
+        ry="3.75"
+        transform="rotate(120 12 12)"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        opacity="0.7"
+      />
     </svg>
   );
 }

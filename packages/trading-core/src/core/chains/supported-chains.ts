@@ -7,4 +7,6 @@
 export enum SymmioSupportedChainId {
   /** HyperEVM mainnet (chain ID 999) */
   HYPER_EVM = 999,
+  /** Base mainnet (chain ID 8453) */
+  BASE = 8453,
 }

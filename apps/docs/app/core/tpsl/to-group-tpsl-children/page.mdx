@@ -1,0 +1,42 @@
+# toGroupTpSlChildren
+
+Build [`GroupTpSlChild`](/core/tpsl/group-tpsl-child)s from a grouped position's child quotes. This is the adapter every other grouped TP/SL helper takes as input — it is the only place in the slice that knows about `UnifiedQuote`.
+
+Every quote produces a child, including off-chain ones. Those come back with `quoteId: undefined` so the summary still counts them — an unprotected leg genuinely drags coverage down — while [`planGroupTpSl`](/core/tpsl/plan-group-tpsl) skips them as `"not-anchored"`.
+
+Two derivations are worth knowing:
+
+- **`openPrice`** uses the same fallback `aggregateGroupMetrics` uses: `openedPrice` when settled and non-zero, else `requestedOpenPrice`.
+- **`virtualAccount`** is `vaAddress ?? partyA`, which for a Virtual-Account-scoped position is the VA itself — the address the conditional order must be signed for.
+
+```ts
+import { toGroupTpSlChildren, summarizeQuoteGroupTpSl } from "@symmio/trading-core";
+
+const children = toGroupTpSlChildren(group.quotes, (quote) => tpslByKey.get(quote.key));
+const summary = summarizeQuoteGroupTpSl(children);
+```
+
+## Parameters
+
+<Properties>
+  <Property name="quotes" type="readonly UnifiedQuote[]" required>
+    The grouped position's child quotes — `QuoteGroup.quotes`.
+  </Property>
+  <Property name="snapshot" type="GroupTpSlSnapshotLookup" required>
+    Resolves each quote's confirmed TP/SL snapshot. Receives the whole quote, so you can look up by `key`, by `quoteId`,
+    or through a store index that aliases both. A missing snapshot becomes a blank one (both sides empty, both states
+    `"canceled"`).
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GroupTpSlChild[]" typeHref="/core/tpsl/group-tpsl-child">
+  One child per quote, in input order.
+</Returns>
+
+## Related
+
+- [`GroupTpSlChild`](/core/tpsl/group-tpsl-child) — the produced shape.
+- [`summarizeQuoteGroupTpSl`](/core/tpsl/summarize-quote-group-tpsl) — folds children into the cell state.
+- [`planGroupTpSl`](/core/tpsl/plan-group-tpsl) — diffs children against a desired state.

@@ -1,6 +1,6 @@
 import type { Address, Hex } from "viem";
 import type { PendingInstantClose } from "../solvers/instant-close/get-instant-closes/to-pending-instant-close";
-import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/to-pending-instant-open";
+import type { PendingInstantOpen } from "../solvers/instant-open/get-instant-opens/types";
 import type { LockedValues, OrderType, PositionType, Quote, QuoteStatus } from "../symmio-contracts/symmio/types";
 
 /**
@@ -17,8 +17,11 @@ export type QuoteOrigin = "onchain" | "offchain";
  * The stage of a quote's lifecycle as tracked across the on-chain + off-chain
  * merge. Drives row styling and polling acceleration in the consumer.
  *
- * The off-chain stages (`OPTIMISTIC`, `PRICE_FILLED`) and the transient `CLOSING`
- * stage are SDK-side overlays — they do not exist on the on-chain
+ * Lifecycle tracks the **write progression** (off-chain → on-chain), not the
+ * on-chain status: once a quote is on-chain it is `ONCHAIN` whether it is
+ * `OPENED` or `CLOSE_PENDING` — read {@link UnifiedQuote.quoteStatus} for that
+ * distinction. The off-chain stages (`OPTIMISTIC*`, `*PRICE_FILLED`,
+ * `WRITE_ONCHAIN*`) are SDK-side overlays that do not exist on the on-chain
  * {@link QuoteStatus}; reconciliation assigns them from notifications and hedger
  * records.
  */
@@ -50,15 +53,15 @@ export enum QuoteLifecycle {
    */
   CLOSE_PRICE_FILLED = "close-price-filled",
   /**
-   * The close fill (`FillMarketOrderInstantClose`) was reported, or a pending
-   * instant-close overlays the row while the on-chain status still shows the
-   * position open — the close is being "written on-chain", awaiting the RPC. The
-   * close-side analog of {@link QuoteLifecycle.WRITE_ONCHAIN}. Resolves to
-   * {@link QuoteLifecycle.CLOSING} when the on-chain status reflects the pending close.
+   * The close fill (`FillMarketOrderInstantClose`) or the limit-close anchor
+   * (`InstantRequestToLimitClose`) was reported, or a pending instant-close
+   * overlays the row while the on-chain status still shows the position open — the
+   * close is being "written on-chain", awaiting the RPC. The close-side analog of
+   * {@link QuoteLifecycle.WRITE_ONCHAIN}. Resolves to {@link QuoteLifecycle.ONCHAIN}
+   * once the on-chain read returns the quote (now `CLOSE_PENDING`); read
+   * {@link UnifiedQuote.quoteStatus} to see the close is pending.
    */
   WRITE_ONCHAIN_CLOSE = "write-onchain-close",
-  /** The close is confirmed pending on-chain — on-chain `CLOSE_PENDING` / `CANCEL_CLOSE_PENDING`. */
-  CLOSING = "closing",
   /** The position is fully closed. */
   CLOSED = "closed",
   /** A hedger or notification reported the open/close failed. */
@@ -120,6 +123,10 @@ export interface UnifiedQuote {
    * Remaining **open** size (wei): `quantity − closedAmount`, the live quantity
    * still on the position (the figure a UI shows as "position size"); `0` once
    * fully closed. Derived from the other amount fields by {@link quoteOpenQuantity}.
+   *
+   * A size, never a state: a quote that has not opened yet still reports its full
+   * `quantity`. To ask whether a row is a position, use `isPendingOrder` /
+   * `isActivePosition`, which read {@link UnifiedQuote.quoteStatus}.
    */
   openQuantity: bigint;
   /** Quantity targeted by a pending close (wei), when closing. */
@@ -130,7 +137,15 @@ export interface UnifiedQuote {
   initialLockedValues?: LockedValues;
   /** Maximum funding rate partyA accepts, when known. */
   maxFundingRate?: bigint;
-  /** Net funding paid (positive) or received (negative) over the position's life (wei), when known. */
+  /**
+   * Cumulative funding-**rate index** already settled on the quote (18-decimal
+   * fixed point) — the position's funding rate multiplied by the epochs elapsed
+   * since the funding fee started, when known. **Not a currency amount**: the
+   * settled fee is only obtained as
+   * `openAmount × (currentFee − accumulatedPaidFunding) / 1e18`, so summing this
+   * field across quotes is meaningless. For real settled funding amounts use
+   * {@link getQuoteFunding} / {@link aggregateGroupFunding}.
+   */
   accumulatedPaidFunding?: bigint;
   /** Block timestamp funding was last applied, when known. */
   lastFundingPaymentTimestamp?: bigint;

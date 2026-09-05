@@ -1,0 +1,184 @@
+import { Callout } from "nextra/components";
+
+# Inventory hooks
+
+React binding over the [Inventory slice](../../core/inventory) — the **custody backend behind the Pools**. It is a separate deployment from both the solver and the listing backend, with its own host in the chain config — so a pools page that pairs this TVL with the catalogue and the solver's volume and revenue is reading three different vendors, not one.
+
+Two hooks: `useInventoryTvl`, the system-wide TVL figure a pools page puts at the top, and `useInventoryTvlHistory`, the same figure for **one** market over time — the series behind a pool page's TVL chart.
+
+**Two reads.** No contract, no solver, no writes.
+
+## Import
+
+```ts
+import {
+  useInventoryTvl,
+  useInventoryTvlHistory,
+  type UseInventoryTvlHistoryParameters,
+  type UseInventoryTvlHistoryReturnType,
+  type UseInventoryTvlParameters,
+  type UseInventoryTvlReturnType,
+} from "@symmio/trading-react";
+```
+
+`INVENTORY_VALUE_DECIMALS` — the fixed-point scale every returned value carries — comes from `@symmio/trading-core`, as does the `InventoryTvlPoint` type the history hook resolves to.
+
+## `useInventoryTvl`
+
+Total value the inventory holds across the whole custodial system.
+
+```tsx
+const { data: tvl, isPending, error } = useInventoryTvl();
+```
+
+### Parameters
+
+Every field is optional. The hook takes the core query options plus `config`.
+
+| Name       | Type             | Default                 | Notes                                                                       |
+| ---------- | ---------------- | ----------------------- | --------------------------------------------------------------------------- |
+| `chainId?` | `number`         | connected chain         | Which deployment's inventory service to read.                               |
+| `query?`   | `QueryParameter` | —                       | TanStack overrides — `enabled`, `refetchInterval`, `staleTime`, `select`, … |
+| `config?`  | `Config`         | the config from context | Override the `SymmioProvider` config (tests, multi-app).                    |
+
+There is no `solverId`. The inventory service is configured at **chain** level and no solver capability gates it — exactly like [`useListingMarkets`](../pools), which also resolves its listing backend from the chain alone.
+
+Nothing polls by default. A dashboard that wants a live figure passes `query: { refetchInterval: 30_000 }`.
+
+### Return type
+
+`UseQueryResult<bigint, SymmioRequestError>`. `data` is a single `bigint` at `INVENTORY_VALUE_DECIMALS` (18) — a **USD amount**, where `1e18` is `$1`. Format at the display edge and never in the query:
+
+```tsx
+import { INVENTORY_VALUE_DECIMALS } from "@symmio/trading-core";
+import { useInventoryTvl } from "@symmio/trading-react";
+import { formatCompactCurrency } from "@symmio/utils";
+import { formatUnits } from "@symmio/utils/decimal";
+
+export function TvlStat() {
+  const { data, isPending, error } = useInventoryTvl();
+
+  if (error) return <ErrorNote message={error.message} />;
+
+  return (
+    <Stat
+      label="Total value locked"
+      value={
+        isPending || data === undefined
+          ? "—"
+          : formatCompactCurrency(formatUnits(data, INVENTORY_VALUE_DECIMALS), { maxDecimals: 2 })
+      }
+    />
+  );
+}
+```
+
+The scale is the service's own, independent of the collateral token's decimals — do not reach for `collateralDecimals` here. It matches the listing backend's `LISTING_VALUE_DECIMALS` in size only; unlike a listing row, where a descaled rate _is_ a percentage, every inventory value is money.
+
+<Callout type="warning">
+  This is **not** the sum of the catalogue's per-pool `tvl` values. `useListingMarkets` returns listed markets; the
+  inventory service covers the whole custodial system, so the two numbers are answering different questions and will not
+  agree. Show this one as the headline TVL, and per-pool `tvl` inside the table.
+</Callout>
+
+A `0n` is not proof of an empty system: the core mapper defaults an absent or unparseable `tvl` to `0n` rather than throwing, so that one malformed response cannot take down a page. If the distinction matters to your UI, treat a suspicious `0n` as "unknown" rather than as a real zero.
+
+## `useInventoryTvlHistory`
+
+The same custodial value for **one** market, over time — what a pool page's TVL tab plots.
+
+```tsx
+const { data: history } = useInventoryTvlHistory({ symbolAddress: pool.contractAddress });
+```
+
+### Parameters
+
+| Name            | Type             | Default                 | Notes                                                                       |
+| --------------- | ---------------- | ----------------------- | --------------------------------------------------------------------------- |
+| `symbolAddress` | `string`         | — (required)            | The market's token contract address — `ListingMarket.contractAddress`.      |
+| `chainId?`      | `number`         | connected chain         | Which deployment's inventory service to read.                               |
+| `query?`        | `QueryParameter` | —                       | TanStack overrides — `enabled`, `refetchInterval`, `staleTime`, `select`, … |
+| `config?`       | `Config`         | the config from context | Override the `SymmioProvider` config (tests, multi-app).                    |
+
+`symbolAddress` **gates** the query: while it is `""` the hook stays idle rather than firing an incomplete request, so it can be mounted above a pool picker.
+
+### Return type
+
+`UseQueryResult<InventoryTvlPoint[], SymmioRequestError>`. Each point is `{ timestamp, tvl }` — `timestamp` in unix **seconds**, `tvl` an 18-decimal USD `bigint` on the same scale as the headline figure. Points come back in the service's own order, oldest first.
+
+```tsx
+import { INVENTORY_VALUE_DECIMALS } from "@symmio/trading-core";
+import { useInventoryTvlHistory } from "@symmio/trading-react";
+import { formatUnits } from "@symmio/utils/decimal";
+
+export function TvlChart({ pool }: { pool: ListingMarket }) {
+  const { data, isPending, error } = useInventoryTvlHistory({ symbolAddress: pool.contractAddress });
+
+  // The route is not deployed everywhere — an error here means "no chart", not a broken page.
+  if (error) return <ChartEmpty label="TVL history unavailable" />;
+  if (isPending) return <ChartSkeleton />;
+
+  return (
+    <LineChart
+      points={data.map((point) => ({
+        x: point.timestamp * 1000,
+        y: Number(formatUnits(point.tvl, INVENTORY_VALUE_DECIMALS)),
+      }))}
+    />
+  );
+}
+```
+
+<Callout type="warning">
+  This endpoint is **not deployed on every environment**. Where it is missing the service answers `404`, which arrives
+  as a `SymmioRequestError` with `code: "FETCH_INVENTORY_TVL_HISTORY_FAILED"`. Render the chart's empty state rather
+  than the page's error state.
+</Callout>
+
+## Availability
+
+The chain must carry an `inventory` block — `SymmioChainConfig.inventory.url`. Today that is **HyperEVM only** (`https://inventory85.enigma.bz`); see [Addresses](/core/addresses).
+
+<Callout type="warning">
+  That `url` is the **host root** — no path segment and no trailing slash. The generated client's own paths already
+  begin with `/api/v1`, so a base URL with `/api` appended would request `/api/api/v1/…` and 404.
+</Callout>
+
+A chain with no inventory block fails before the network with `INVENTORY_NOT_CONFIGURED`, which arrives in React as a `SymmioRequestError` with `kind: "sdk"` and that `code`. No React gate hook ships for it; core's [`supportsInventoryService`](../../core/inventory/resolve-inventory-service#supportsinventoryservice) is the non-throwing twin, and its `chainId` is a **positional** argument rather than an options bag:
+
+```tsx
+import { supportsInventoryService } from "@symmio/trading-core";
+import { useInventoryTvl, useSymmioChainId, useSymmioConfig } from "@symmio/trading-react";
+
+export function TvlPanel() {
+  const config = useSymmioConfig();
+  const chainId = useSymmioChainId();
+  const supported = supportsInventoryService(config, chainId);
+
+  const { data } = useInventoryTvl({ query: { enabled: supported } });
+
+  if (!supported) return null;
+  return <TvlStat value={data} />;
+}
+```
+
+Gating through `query.enabled` keeps the query idle instead of parking a typed error in the cache — the same habit the [Pools gate](../pools#gate-the-feature-first) asks for.
+
+## Errors
+
+Every code surfaces as a `SymmioRequestError`:
+
+| Code                                 | `kind`            | When                                                                                                                                                                                         |
+| ------------------------------------ | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INVENTORY_NOT_CONFIGURED`           | `"sdk"`           | The resolved chain has no inventory service configured. Core throws it with `kind: "config"`.                                                                                                |
+| `FETCH_INVENTORY_TVL_FAILED`         | `"api"` / `"sdk"` | The request failed. An axios failure — the normal case — arrives with `kind: "api"`, carrying `status` and `responseData`; a non-axios throw arrives with `kind: "sdk"` and the same `code`. |
+| `FETCH_INVENTORY_TVL_HISTORY_FAILED` | `"api"` / `"sdk"` | The per-market history request failed, same shape — including the `404` where that route is not deployed.                                                                                    |
+
+## Related
+
+- [Inventory](../../core/inventory) — the framework-agnostic slice: the 18-decimal contract and the availability rules.
+- [`getInventoryTvl`](../../core/inventory/tvl) — the action underneath.
+- [`getInventoryTvlHistory`](../../core/inventory/tvl-history) — the per-market series' action, and its 404 caveat.
+- [Pools hooks](../pools#overview-aggregates) — the catalogue this figure sits above, and which service supplies each of the other overview numbers.
+- [Addresses](/core/addresses) — where `inventory.url` lives in the chain config.
+- [Errors](../errors) — `SymmioRequestError`, its `kind`, and the `code` a failed read carries.

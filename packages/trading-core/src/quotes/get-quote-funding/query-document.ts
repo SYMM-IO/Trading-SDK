@@ -9,8 +9,8 @@ import { graphql } from "../../symmio-subgraph/types/generated/analytics";
  * The document compiles to a typed query string via graphql-codegen.
  */
 export const QuotesFundingDocument = graphql(`
-  query QuotesFunding($ids: [BigInt!]!) {
-    quotes(where: { quoteId_in: $ids }) {
+  query QuotesFunding($ids: [BigInt!]!, $first: Int!) {
+    quotes(first: $first, where: { quoteId_in: $ids }) {
       quoteId
       userPaidFunding
       userReceivedFunding

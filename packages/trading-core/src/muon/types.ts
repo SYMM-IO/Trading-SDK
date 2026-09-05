@@ -14,7 +14,7 @@ export const MUON_APP = "symmio";
  *
  * @remarks
  * TODO(muon-verify): only `uPnl_A`'s exact casing and response nesting are
- * verified (against Vibe-ui's parser). The other method strings and their
+ * verified (against the reference frontend's parser). The other method strings and their
  * normalized result fields are typed best-effort from the Muon API docs and may
  * need correction once checked against a live gateway.
  *
@@ -44,7 +44,7 @@ export const MUON_METHOD_PRICE_RANGE = "priceRange";
  *
  * @remarks
  * The Muon gateway exposes no OpenAPI/Swagger spec, so these types are
- * hand-written from the API docs + Vibe-ui's response parser. See the
+ * hand-written from the API docs + the reference frontend's response parser. See the
  * TODO(muon-verify) note on {@link MUON_METHOD_UPNL_A}.
  *
  * @see {@link https://docs.symm.io/api-endpoints-and-deployments/muon-api}

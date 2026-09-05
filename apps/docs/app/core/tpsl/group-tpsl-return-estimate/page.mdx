@@ -1,0 +1,22 @@
+# GroupTpSlReturnEstimate
+
+Estimated group return if every contributing child's side triggers. Produced by [`estimateGroupTpSlReturn`](/core/tpsl/estimate-group-tpsl-return).
+
+## Properties
+
+<Properties>
+  <Property name="totalPnl" type="bigint" required>
+    Σ PnL across contributing children, wei (signed).
+  </Property>
+  <Property name="totalNotional" type="bigint" required>
+    Σ open notional across contributing children, wei.
+  </Property>
+  <Property name="returnPercent" type="bigint" optional>
+    `totalPnl / totalNotional × 100` as an 18-decimal fixed-point percent (signed). `undefined` when no child
+    contributes.
+  </Property>
+  <Property name="legs" type="GroupTpSlReturnLeg[]" required>
+    Per-child breakdown, in input order. Each carries `key`, `triggerPrice`, `pnl` and `notional`. Only children with a
+    trigger contribute.
+  </Property>
+</Properties>

@@ -52,10 +52,19 @@ export interface GroupQuotesOptions {
  * resolved Virtual Account, an `isAggregate` flag, and pure
  * {@link QuoteGroupMetrics}. Groups are returned newest-first by default.
  *
+ * Grouped positions are a `MARKET_DIRECTION`-only feature: it is the one
+ * isolation where a market + side cohort is a real on-chain unit (one Virtual
+ * Account per market + direction), so it is the only
+ * {@link SubAccountIsolationType} this accepts. To fold on another dimension,
+ * pass an explicit `{ keyOf }` — `keyQuoteByMarket` and `keyQuotePerQuote` cover
+ * the common cases.
+ *
  * @param quotes - The quotes to group.
- * @param strategy - A {@link SubAccountIsolationType} or a custom `{ keyOf }`.
+ * @param strategy - `SubAccountIsolationType.MARKET_DIRECTION` or a custom `{ keyOf }`.
  * @param options - Optional group ordering override.
  * @returns The groups.
+ * @throws {SymmError} `UNSUPPORTED_GROUPING_ISOLATION` when `strategy` is an
+ *   isolation type other than `MARKET_DIRECTION`.
  *
  * @example
  * ```ts

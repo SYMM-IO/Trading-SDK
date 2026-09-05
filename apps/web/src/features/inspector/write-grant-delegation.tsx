@@ -29,7 +29,7 @@ import { SubAccountPicker } from "./subaccount-picker";
 export function WriteGrantDelegation() {
   const { isConnected, isOnExpectedChain } = useWalletAccount();
   const config = useSymmioConfig();
-  const { solver } = config.getChainConfig();
+  const solver = config.getSolver();
   const { sessionKeyAddress } = useSessionKey();
   const [account, setAccount] = useState<string>("");
   const [isPartyB, setIsPartyB] = useState<boolean>(false);

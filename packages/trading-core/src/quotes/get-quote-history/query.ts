@@ -70,6 +70,7 @@ export function getQuoteHistoryQueryOptions(
       getQuoteHistory(config, {
         chainId: options.chainId,
         subAccounts: options.subAccounts,
+        isolationType: options.isolationType,
         closeType: options.closeType,
         first: options.first,
         skip: options.skip,

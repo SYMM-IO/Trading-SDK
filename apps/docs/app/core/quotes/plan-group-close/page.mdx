@@ -1,0 +1,54 @@
+# planGroupClose
+
+Allocate an exact close quantity across a grouped position's children.
+
+Closing "2.8 of a 5-unit merged position" is not one call — it is a set of per-quote closes that must sum to the target **exactly**, while every partially closed child keeps at least the symbol's dust floor. This planner produces that allocation or fails without closing anything; there is no partial-success middle ground, because a half-applied close leaves the trader with a position they did not ask for.
+
+Largest child first, so the fewest quotes are touched.
+
+```ts
+import { toGroupCloseCandidates, planGroupClose } from "@symmio/trading-core";
+
+const plan = planGroupClose(
+  toGroupCloseCandidates(group.quotes, market.minAcceptableQuoteValue),
+  parseUnits("2.8", 18),
+);
+if (!plan.feasible) return plan.reason; // "exceeds-open" | "nothing-to-close" | "dust-locked"
+```
+
+## Parameters
+
+<Properties>
+  <Property name="candidates" type="readonly GroupCloseCandidate[]" required>
+    From [`toGroupCloseCandidates`](/core/quotes/to-group-close-candidates).
+  </Property>
+  <Property name="targetQuantity" type="bigint" required>
+    Exact total to close across the group, wei.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="PlanGroupCloseResult">
+  `{ feasible: true, allocations }` when the plan sums to the target exactly,
+  otherwise `{ feasible: false, reason, totalOpen, closeableQuantity }` — where
+  `closeableQuantity` is the largest amount the group *could* close, for a UI cap.
+</Returns>
+
+## Failure reasons
+
+<Properties>
+  <Property name="exceeds-open" type="PlanGroupCloseFailureReason">
+    The target exceeds the group's total open quantity.
+  </Property>
+  <Property name="nothing-to-close" type="PlanGroupCloseFailureReason">
+    No candidate has open size, or the target is not positive.
+  </Property>
+  <Property name="dust-locked" type="PlanGroupCloseFailureReason">
+    Every remaining child sits at its dust cap — the exact target is unreachable.
+  </Property>
+</Properties>
+
+## Related
+
+- [`useCloseQuoteGroup`](/react/quotes#useclosequotegroup) — executes the plan in one bulk request with per-child progress.

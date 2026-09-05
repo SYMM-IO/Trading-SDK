@@ -11,7 +11,11 @@ import {
   getPredictedNextVirtualAccountQueryOptions,
   getQuoteQueryKey,
   getQuoteQueryOptions,
+  isCancelAction,
+  isCloseFillAction,
   isolationTypeForSide,
+  isOpenAnchorAction,
+  NotificationType,
   QuoteLifecycle,
   reconcileQuotes,
   shouldAccelerateOnchainReads,
@@ -21,7 +25,7 @@ import {
   type SocketStatus,
   type UnifiedQuote,
 } from "@symmio/trading-core";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAddress, type Address } from "viem";
 import { useVirtualAccountsAddressesOfSubAccount } from "../account-layer/use-virtual-accounts-addresses-of-sub-account";
@@ -32,8 +36,15 @@ import { useInstantOpens } from "../instant-layer/use-instant-opens";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 import { useTpSlStore } from "../tpsl/tpsl-store";
-import { predicateMatch } from "../utils";
+import { invalidateAccountBalances, predicateMatch } from "../utils";
 import { useNotifications } from "../websocket/use-notifications";
+import {
+  nextConfirmDelay,
+  pruneCancelConfirmHold,
+  pruneCloseConfirmHold,
+  pruneOpenConfirmHold,
+  type CloseConfirmEntry,
+} from "./confirm-hold";
 import { useOptimisticQuotesStore } from "./optimistic-quotes-store";
 
 /**
@@ -48,6 +59,41 @@ const FALLBACK_POLLING_INTERVAL = 5_000;
 const ACCELERATED_POLLING_INTERVAL = 1_500;
 
 /**
+ * Confirm-hold backoff (see `openConfirmRef` / `closeConfirmRef` / `pumpConfirm`).
+ * A notification reports a state change the on-chain read lags behind, so the reads
+ * are refetched immediately and then again on a backoff that starts at
+ * {@link CONFIRM_FIRST_DELAY}, doubles each round, and caps at
+ * {@link CONFIRM_MAX_INTERVAL} — until the chain reflects the change or the total
+ * {@link CONFIRM_MAX_MS} budget passes. It covers both directions:
+ *
+ * - an **open** anchor (`SendQuoteTransaction` & friends), which the solver emits when
+ *   it *broadcasts* the transaction: the single invalidation that frame triggers races
+ *   the block and usually loses, and it is the last frame of an instant open, so
+ *   without the chase the position stays invisible until something else refetches;
+ * - a **close** fill, the rasa case where the quote lingers OPENED after
+ *   `FillMarketOrderInstantClose` and the settle lags;
+ * - a **cancel** request, where the confirming transaction is the solver's
+ *   `acceptCancelRequest` and is never announced at all (see
+ *   {@link CANCEL_CONFIRM_MAX_MS}).
+ */
+const CONFIRM_FIRST_DELAY = 500;
+/** Ceiling for the doubling confirm-hold backoff interval (ms). */
+const CONFIRM_MAX_INTERVAL = 60_000;
+/** Total budget (ms) to chase a reported change before giving up (a stuck / failed action). */
+const CONFIRM_MAX_MS = 120_000;
+/**
+ * Budget (ms) for the **cancel** confirm hold, longer than {@link CONFIRM_MAX_MS}
+ * because a cancel can legitimately sit unanswered far longer than an open or a
+ * close: `requestToCancelQuote` on a `LOCKED` quote only asks, and partyA cannot
+ * force the issue until the market-agent force-cancel cooldown elapses (150 s on
+ * Base at the time of writing, read from `coolDownsOfMA()[1]`). Giving up at two
+ * minutes would go blind right as that window closes. The backoff is capped at
+ * {@link CONFIRM_MAX_INTERVAL}, so a long wait costs about one read per minute, and
+ * the hold releases itself the moment the chain drops the quote.
+ */
+const CANCEL_CONFIRM_MAX_MS = 600_000;
+
+/**
  * Cap on the live-notification buffer fed back into the merge. Reconciliation is
  * idempotent over already-applied notifications, so only a recent window is kept
  * to bound memory and reprocessing.
@@ -58,6 +104,17 @@ const NOTIFICATION_BUFFER_LIMIT = 100;
 
 /** Stable empty array so the `accounts` memo doesn't churn while no VAs are retained. */
 const NO_RETAINED_VAS: readonly Address[] = [];
+
+/**
+ * Invalidate the authoritative on-chain quote reads for one chain scope — the open
+ * positions and the pending-quote ids, fanned out across every account. Scoped by
+ * `configKey`, so another chain's cache is untouched; React Query dedups concurrent
+ * refetches of the same query.
+ */
+function invalidateOnchainQuoteReads(client: QueryClient, scope: { configKey: string }): void {
+  void client.invalidateQueries({ predicate: predicateMatch(getPartyAOpenPositionsQueryKey, scope) });
+  void client.invalidateQueries({ predicate: predicateMatch(getPartyAPendingQuotesQueryKey, scope) });
+}
 
 /** Debounce (ms) for coalescing a burst of notifications into one set of read invalidations. */
 const NOTIFICATION_INVALIDATE_DEBOUNCE = 250;
@@ -75,10 +132,11 @@ const OPEN_INTENT_LIFECYCLES = new Set<QuoteLifecycle>([
 
 /**
  * Lifecycle stages that mean a close is in flight, so the hedger instant-closes
- * feed is worth polling. Outside these stages there is no pending close, so
- * polling the feed (merely holding open positions) is wasted.
+ * feed is worth polling. Outside these stages there is no in-flight close (the
+ * close has either not started or already landed on-chain, where the feed drops
+ * it and the close-confirm hold takes over), so polling the feed is wasted.
  */
-const CLOSE_INTENT_LIFECYCLES = new Set<QuoteLifecycle>([QuoteLifecycle.WRITE_ONCHAIN_CLOSE, QuoteLifecycle.CLOSING]);
+const CLOSE_INTENT_LIFECYCLES = new Set<QuoteLifecycle>([QuoteLifecycle.WRITE_ONCHAIN_CLOSE]);
 
 /**
  * Which underlying quote sources {@link useManagedQuotes} should read. Every
@@ -254,6 +312,62 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
   const previousRef = useRef<ReconcileQuotesResult | undefined>(undefined);
 
   /**
+   * Open-confirm hold: on-chain quoteId → deadline (ms). An open-anchor notification
+   * (`onNotification`) records the quote here and kicks off `pumpConfirm`, which
+   * refetches the on-chain reads on a doubling backoff until the read returns the
+   * quote. The solver emits that frame when it *broadcasts* the transaction, so the
+   * one invalidation it triggers races the block — and it is the **last** frame of an
+   * instant open, so nothing else would ever re-read: with the event channel live
+   * there is no idle poll, and the accelerated retry needs a `WRITE_ONCHAIN` row,
+   * which only exists if a pre-chain row from the hedger feed was still there to
+   * anchor. Entries are pruned once the polled struct lands or the
+   * {@link CONFIRM_MAX_MS} budget passes.
+   */
+  const openConfirmRef = useRef<Map<string, number>>(new Map());
+  /**
+   * Close-confirm hold: on-chain quoteId → deadline (ms). A close notification
+   * (`onNotification`) records the quote here and kicks off `pumpConfirm`, which
+   * refetches the on-chain reads on a doubling backoff until the chain reflects the
+   * close — the rasa case, where the quote lingers OPENED after
+   * `FillMarketOrderInstantClose` and the stateless reconcile reverts the row to
+   * `ONCHAIN`. Entries are pruned once the chain confirms the close (row dropped /
+   * closed) or the {@link CONFIRM_MAX_MS} budget passes; when every map empties the
+   * backoff stops.
+   */
+  const closeConfirmRef = useRef<Map<string, CloseConfirmEntry>>(new Map());
+  /**
+   * Cancel-confirm hold: on-chain quoteId → deadline (ms). A cancel notification
+   * (`onNotification`) records the quote here and kicks off `pumpConfirm`, which
+   * refetches the on-chain reads on a doubling backoff until the chain settles the
+   * cancel. Cancelling a `LOCKED` order takes two transactions and only the first is
+   * announced: `requestToCancelQuote` moves the quote to `CANCEL_PENDING` and leaves
+   * it in `partyAPendingQuotes`, then the solver's `acceptCancelRequest` sets
+   * `CANCELED` and removes it — with **no** notification frame. A `CANCEL_PENDING`
+   * row is lifecycle `ONCHAIN`, so it accelerates nothing either; without this chase
+   * the cancelled order stays on screen indefinitely. Entries are pruned once the
+   * chain drops the quote or the {@link CANCEL_CONFIRM_MAX_MS} budget passes.
+   */
+  const cancelConfirmRef = useRef<Map<string, number>>(new Map());
+  /** Pending confirm-hold backoff timer (the next scheduled refetch), if any. */
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** Current confirm-hold backoff interval (ms); doubles each round up to the cap. */
+  const confirmDelayRef = useRef(CONFIRM_FIRST_DELAY);
+  /** Latest `pumpConfirm`, called from the backoff timer (assigned below each render). */
+  const pumpConfirmRef = useRef<() => void>(() => {});
+
+  /**
+   * (Re)start the confirm-hold backoff from its first delay — called whenever a
+   * notification registers a new hold, so a fresh event always gets a prompt retry
+   * even if a long-running chase had already backed off to the cap. Stable (refs
+   * only), so it never re-creates `onNotification` and never resubscribes the socket.
+   */
+  const restartConfirmChase = useCallback(() => {
+    confirmDelayRef.current = CONFIRM_FIRST_DELAY;
+    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    confirmTimerRef.current = setTimeout(() => pumpConfirmRef.current(), CONFIRM_FIRST_DELAY);
+  }, []);
+
+  /**
    * Rows anchored on a prior tick (a notification set their `quoteId`) but not yet
    * returned by the on-chain read — the previous merge's `pendingAnchors`. Fed back
    * into {@link reconcileQuotes} so an anchored row keeps showing while the RPC
@@ -282,11 +396,14 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
   /**
    * On-chain reads accelerate to {@link ACCELERATED_POLLING_INTERVAL} **only** while a
    * row awaits on-chain confirmation (`WRITE_ONCHAIN` / `WRITE_ONCHAIN_CLOSE` /
-   * `CLOSING`) — the RPC-lag retry. Otherwise: no idle poll when the event channel is
-   * live (events drive updates) unless the consumer opted into `idleInterval`; a
-   * baseline fallback when the channel is down so state still progresses. Read from the
-   * previous result because the queries set their interval before this render's result
-   * exists (an on-chain poll / notification re-render advances it a tick later).
+   * `CLOSING`) — the RPC-lag retry. (An anchor or a close the read has not caught up
+   * with is chased separately by `pumpConfirm`'s backoff, which needs no row at all,
+   * not by this steady interval.) Otherwise:
+   * no idle poll when the event channel is live (events drive updates) unless the
+   * consumer opted into `idleInterval`; a baseline fallback when the channel is down so
+   * state still progresses. Read from the previous result because the queries set their
+   * interval before this render's result exists (an on-chain poll / notification
+   * re-render advances it a tick later).
    */
   const accelerateOnchain = previousRef.current ? shouldAccelerateOnchainReads(previousRef.current) : false;
   const onchainIdleInterval = eventChannelLive ? idleInterval : idleInterval || FALLBACK_POLLING_INTERVAL;
@@ -374,48 +491,117 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
     account: partyA,
     chainId: resolvedChainId,
     enabled: active && live,
-    onNotification: useCallback((notification: Notification) => {
-      setNotifications((prev) => [...prev, notification].slice(-NOTIFICATION_BUFFER_LIMIT));
-      // Solver notification carries both `tempQuoteId` and the on-chain
-      // `quoteId` on the frame that anchors a pre-chain quote. Link the two
-      // in the TP/SL store so a record that was written under the temp id
-      // (via `useSetQuoteTpSl` post-instant-open) is instantly reachable via
-      // the on-chain id once the anchor lands — no re-fetch needed.
-      const tempId = notification.tempQuoteId;
-      const onchainStr = notification.quoteId;
-      if (tempId && onchainStr && onchainStr !== `${tempId}`) {
-        useTpSlStore.getState().link(BigInt(tempId), BigInt(onchainStr));
-      }
-      /**
-       * Refetch the authoritative reads off the live event so both tables stay in
-       * sync without polling. The on-chain reads always refresh (any lifecycle event
-       * can change them); the hedger feeds refresh only for the matching flow, so an
-       * open event never re-fetches the closes feed and vice versa. Kinds are
-       * accumulated across the debounce window because a burst can mix open and close
-       * events. Scoped to this chain (`configKey`); React Query dedups concurrent
-       * refetches of the same query.
-       */
-      const kind = classifyQuoteNotificationAction(notification.lastSeenAction);
-      const pending = pendingInvalidationRef.current;
-      if (kind === "open") pending.opens = true;
-      else if (kind === "close") pending.closes = true;
-      else {
-        pending.opens = true;
-        pending.closes = true;
-      }
-      if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
-      invalidateTimerRef.current = setTimeout(() => {
-        const client = queryClientRef.current;
-        const scope = { configKey: configKeyRef.current };
-        const { opens, closes } = pendingInvalidationRef.current;
-        pendingInvalidationRef.current = { opens: false, closes: false };
-        void client.invalidateQueries({ predicate: predicateMatch(getPartyAOpenPositionsQueryKey, scope) });
-        void client.invalidateQueries({ predicate: predicateMatch(getPartyAPendingQuotesQueryKey, scope) });
-        void client.invalidateQueries({ predicate: predicateMatch(getQuoteQueryKey, scope) });
-        if (opens) void client.invalidateQueries({ predicate: predicateMatch(getInstantOpensQueryKey, scope) });
-        if (closes) void client.invalidateQueries({ predicate: predicateMatch(getInstantClosesQueryKey, scope) });
-      }, NOTIFICATION_INVALIDATE_DEBOUNCE);
-    }, []),
+    onNotification: useCallback(
+      (notification: Notification) => {
+        setNotifications((prev) => [...prev, notification].slice(-NOTIFICATION_BUFFER_LIMIT));
+        // Solver notification carries both `tempQuoteId` and the on-chain
+        // `quoteId` on the frame that anchors a pre-chain quote. Link the two
+        // in the TP/SL store so a record that was written under the temp id
+        // (via `useSetQuoteTpSl` post-instant-open) is instantly reachable via
+        // the on-chain id once the anchor lands — no re-fetch needed.
+        const tempId = notification.tempQuoteId;
+        const onchainStr = notification.quoteId;
+        if (tempId && onchainStr && onchainStr !== "0" && onchainStr !== `${tempId}`) {
+          useTpSlStore.getState().link(BigInt(tempId), BigInt(onchainStr));
+        }
+        /**
+         * Refetch the authoritative reads off the live event so both tables stay in
+         * sync without polling. The on-chain reads always refresh (any lifecycle event
+         * can change them); the hedger feeds refresh only for the matching flow, so an
+         * open event never re-fetches the closes feed and vice versa. Kinds are
+         * accumulated across the debounce window because a burst can mix open and close
+         * events. Scoped to this chain (`configKey`); React Query dedups concurrent
+         * refetches of the same query.
+         */
+        const kind = classifyQuoteNotificationAction(notification.lastSeenAction);
+        const pending = pendingInvalidationRef.current;
+        if (kind === "open") pending.opens = true;
+        else if (kind === "close") pending.closes = true;
+        else {
+          pending.opens = true;
+          pending.closes = true;
+        }
+        /**
+         * The quote **anchored on-chain**: the solver reports this when it broadcasts
+         * the transaction, so the read is typically still a block behind and the
+         * debounced invalidation below lands on the pre-anchor state. Register the hold
+         * and chase it (`pumpConfirm`) until the read returns the quote — this is the
+         * last frame of an instant open, so without the chase a confirmed position can
+         * stay out of the table indefinitely. Only for a `SUCCESS` frame carrying a real
+         * on-chain id (still-off-chain frames repeat the negative temp id), so a
+         * reverted anchor is not chased for the full budget.
+         */
+        if (
+          notification.type === NotificationType.SUCCESS &&
+          isOpenAnchorAction(notification.lastSeenAction) &&
+          onchainStr &&
+          onchainStr !== "0" &&
+          onchainStr !== `${tempId}`
+        ) {
+          openConfirmRef.current.set(onchainStr, Date.now() + CONFIRM_MAX_MS);
+          invalidateOnchainQuoteReads(queryClientRef.current, { configKey: configKeyRef.current });
+          restartConfirmChase();
+        }
+        // Close *filled* successfully (not merely requested, and not a failed fill):
+        // refetch the on-chain reads immediately, then chase the settle on a doubling
+        // backoff (`pumpConfirm`) until the chain reflects it or the budget passes.
+        // Covers rasa, where the quote lingers OPENED after `FillMarketOrderInstantClose`
+        // and the row would otherwise revert to ONCHAIN before the settle lands. The
+        // `closedAmount` at fill-time is captured so a **partial** settle (closedAmount
+        // advances, quote stays OPENED) releases the hold instead of hanging at "closing".
+        if (
+          notification.type === NotificationType.SUCCESS &&
+          isCloseFillAction(notification.lastSeenAction) &&
+          onchainStr &&
+          onchainStr !== "0"
+        ) {
+          const baseClosed = previousRef.current?.quotes.find((q) => `${q.quoteId}` === onchainStr)?.closedAmount ?? 0n;
+          closeConfirmRef.current.set(onchainStr, { deadline: Date.now() + CONFIRM_MAX_MS, baseClosed });
+          invalidateOnchainQuoteReads(queryClientRef.current, { configKey: configKeyRef.current });
+          restartConfirmChase();
+        }
+        // A close that **failed** (reverted / rejected): release the hold so the row
+        // drops back to its on-chain state (still OPENED) instead of hanging at
+        // `WRITE_ONCHAIN_CLOSE`, and re-read in case the revert moved anything.
+        if (
+          notification.type === NotificationType.FAILED &&
+          classifyQuoteNotificationAction(notification.lastSeenAction) === "close" &&
+          onchainStr &&
+          onchainStr !== "0"
+        ) {
+          closeConfirmRef.current.delete(onchainStr);
+          invalidateOnchainQuoteReads(queryClientRef.current, { configKey: configKeyRef.current });
+        }
+        /**
+         * A cancel was **requested**. The frame arrives around the time the request
+         * transaction is broadcast, so the debounced invalidation below still reads
+         * `LOCKED` or at best `CANCEL_PENDING` — and the transaction that actually ends
+         * the order, the solver's `acceptCancelRequest`, is never announced. Register
+         * the hold and chase the read until the chain drops the quote. Unlike the open
+         * anchor this deliberately does **not** require `type === SUCCESS`: a failed
+         * cancel frame still means the chain may have moved, and the hold costs one read
+         * that releases itself immediately if nothing changed.
+         */
+        if (isCancelAction(notification.lastSeenAction) && onchainStr && onchainStr !== "0") {
+          cancelConfirmRef.current.set(onchainStr, Date.now() + CANCEL_CONFIRM_MAX_MS);
+          invalidateOnchainQuoteReads(queryClientRef.current, { configKey: configKeyRef.current });
+          invalidateAccountBalances(queryClientRef.current, { configKey: configKeyRef.current });
+          restartConfirmChase();
+        }
+        if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current);
+        invalidateTimerRef.current = setTimeout(() => {
+          const client = queryClientRef.current;
+          const scope = { configKey: configKeyRef.current };
+          const { opens, closes } = pendingInvalidationRef.current;
+          pendingInvalidationRef.current = { opens: false, closes: false };
+          invalidateOnchainQuoteReads(client, scope);
+          void client.invalidateQueries({ predicate: predicateMatch(getQuoteQueryKey, scope) });
+          if (opens) void client.invalidateQueries({ predicate: predicateMatch(getInstantOpensQueryKey, scope) });
+          if (closes) void client.invalidateQueries({ predicate: predicateMatch(getInstantClosesQueryKey, scope) });
+        }, NOTIFICATION_INVALIDATE_DEBOUNCE);
+      },
+      [restartConfirmChase],
+    ),
   });
 
   /** Mirror the live socket status into the ref the interval gating reads next render. */
@@ -433,8 +619,7 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
     if (hasBeenOpenRef.current) {
       const client = queryClientRef.current;
       const scope = { configKey: configKeyRef.current };
-      void client.invalidateQueries({ predicate: predicateMatch(getPartyAOpenPositionsQueryKey, scope) });
-      void client.invalidateQueries({ predicate: predicateMatch(getPartyAPendingQuotesQueryKey, scope) });
+      invalidateOnchainQuoteReads(client, scope);
       void client.invalidateQueries({ predicate: predicateMatch(getQuoteQueryKey, scope) });
       void client.invalidateQueries({ predicate: predicateMatch(getInstantOpensQueryKey, scope) });
       void client.invalidateQueries({ predicate: predicateMatch(getInstantClosesQueryKey, scope) });
@@ -614,15 +799,31 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
       return { quotes: [], links: {}, pendingAnchors: [] };
     }
     const seededInstantOpens = [...(instantOpens.data ?? []), ...Object.values(optimisticEntries)];
+    const onchainPositions = wantOpenPositions ? openPositions.quotes : [];
+    /**
+     * On-chain ids whose close is filled-but-unsettled — held at
+     * WRITE_ONCHAIN_CLOSE across ticks so the row does not flash back to "Opened"
+     * while the settle mines. Dropped the moment the on-chain `closedAmount` moves
+     * past the fill-time baseline (a partial settle back to a live position); the
+     * full-settle and CLOSE_PENDING cases fall out of the reconcile on their own,
+     * and a failed close already released its hold on the FAILED frame.
+     */
+    const closingQuoteIds: string[] = [];
+    for (const [id, { baseClosed }] of closeConfirmRef.current) {
+      const onchainClosed = onchainPositions.find((q) => `${q.id}` === id)?.closedAmount;
+      if (onchainClosed !== undefined && onchainClosed > baseClosed) continue;
+      closingQuoteIds.push(id);
+    }
     const next = reconcileQuotes({
       partyA,
-      onchainPositions: wantOpenPositions ? openPositions.quotes : [],
+      onchainPositions,
       onchainPendingQuotes: wantPendingQuotes ? hydratedPending.quotes : [],
       instantOpens: wantInstantOpens ? seededInstantOpens : [],
       instantCloses: wantInstantCloses ? (instantCloses.data ?? []) : [],
       instantOpenVaByTempId: predictedVas.byTempId,
       notifications,
       retainedAnchors: retainedAnchorsRef.current,
+      closingQuoteIds,
     });
     previousRef.current = next;
     retainedAnchorsRef.current = next.pendingAnchors;
@@ -642,6 +843,67 @@ export function useManagedQuotes(parameters: UseManagedQuotesParameters): UseMan
     wantInstantOpens,
     wantInstantCloses,
   ]);
+
+  /**
+   * One backoff round for every confirm hold. Prunes the entries the on-chain read has
+   * caught up with — an anchored open the read now returns ({@link pruneOpenConfirmHold}),
+   * a close the chain reflects ({@link pruneCloseConfirmHold}), or a cancel the chain
+   * settled ({@link pruneCancelConfirmHold}), all against the latest reconcile — plus
+   * any whose budget passed; if any map still holds something, refetches the on-chain
+   * reads and reschedules itself with a doubled interval (capped). When they are all
+   * empty it stops, so the chase self-terminates the moment the chain catches up. Reads
+   * only refs, so it always sees the latest quotes / config; reassigned each render and
+   * invoked through {@link pumpConfirmRef} from the timer.
+   */
+  pumpConfirmRef.current = () => {
+    const quotes = previousRef.current?.quotes ?? [];
+    const now = Date.now();
+    const expiredOpens = pruneOpenConfirmHold(openConfirmRef.current, quotes, now);
+    const expiredCloses = pruneCloseConfirmHold(closeConfirmRef.current, quotes, now);
+    const expiredCancels = pruneCancelConfirmHold(cancelConfirmRef.current, quotes, now);
+    if (process.env.NODE_ENV !== "production") {
+      if (expiredOpens.length > 0) {
+        console.debug("[useManagedQuotes] open-confirm hold expired without on-chain confirmation", expiredOpens);
+      }
+      if (expiredCloses.length > 0) {
+        console.debug("[useManagedQuotes] close-confirm hold expired without on-chain confirmation", expiredCloses);
+      }
+      if (expiredCancels.length > 0) {
+        console.debug("[useManagedQuotes] cancel-confirm hold expired without on-chain confirmation", expiredCancels);
+      }
+    }
+    if (
+      openConfirmRef.current.size === 0 &&
+      closeConfirmRef.current.size === 0 &&
+      cancelConfirmRef.current.size === 0
+    ) {
+      confirmTimerRef.current = undefined;
+      return;
+    }
+    invalidateOnchainQuoteReads(queryClientRef.current, { configKey: configKeyRef.current });
+    /**
+     * A cancel still in flight also owes the account a refund: `acceptCancelRequest`
+     * (and `forceCancelQuote`) return the open trading fee and release the reserved
+     * margin. That transaction is not the consumer's own — no mutation `onSuccess`
+     * covers it — and no frame announces it, so the balance reads only come back
+     * with this chase. The open and close holds are not included: their balance
+     * moves land in the consumer's own instant-layer mutation, which already
+     * invalidates on success.
+     */
+    if (cancelConfirmRef.current.size > 0) {
+      invalidateAccountBalances(queryClientRef.current, { configKey: configKeyRef.current });
+    }
+    confirmDelayRef.current = nextConfirmDelay(confirmDelayRef.current, CONFIRM_MAX_INTERVAL);
+    confirmTimerRef.current = setTimeout(() => pumpConfirmRef.current(), confirmDelayRef.current);
+  };
+
+  /** Stop the confirm-hold backoff on unmount so a pending timer cannot fire after teardown. */
+  useEffect(
+    () => () => {
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    },
+    [],
+  );
 
   const byKey = useMemo<Record<string, UnifiedQuote>>(() => {
     const map: Record<string, UnifiedQuote> = {};

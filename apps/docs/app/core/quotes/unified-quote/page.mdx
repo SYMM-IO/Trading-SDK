@@ -22,7 +22,9 @@ import type { UnifiedQuote } from "@symmio/trading-core";
   <Property name="symbolId" type="bigint">Market identifier (`symbolId`).</Property>
   <Property name="positionType" type="PositionType">Long or short.</Property>
   <Property name="orderType" type="OrderType">Limit or market order.</Property>
-  <Property name="quoteStatus" type="QuoteStatus">On-chain status, when the row is anchored on-chain.</Property>
+  <Property name="quoteStatus" type="QuoteStatus" typeHref="/core/quotes/quote-status">
+    On-chain status, when the row is anchored on-chain — the field that decides which writes the quote accepts.
+  </Property>
   <Property name="requestedOpenPrice" type="bigint">Price partyA requested to open at (wei).</Property>
   <Property name="openedPrice" type="bigint">Price partyB actually opened at (wei), when known.</Property>
   <Property name="initialOpenedPrice" type="bigint">Initial price partyB opened at before any edits (wei), when known.</Property>
@@ -31,7 +33,12 @@ import type { UnifiedQuote } from "@symmio/trading-core";
   <Property name="marketPrice" type="bigint">Market price snapshot at last state change (wei), when known.</Property>
   <Property name="quantity" type="bigint">Total requested quantity (wei) — fixed for the life of the position; partial closes do not shrink it.</Property>
   <Property name="closedAmount" type="bigint">Quantity already closed (wei), when known.</Property>
-  <Property name="openQuantity" type="bigint">Remaining **open** size (wei): `quantity − closedAmount`, the live quantity still on the position (the figure a UI shows as "position size"); `0` once fully closed.</Property>
+  <Property name="openQuantity" type="bigint">
+    Remaining **open** size (wei): `quantity − closedAmount`, the live quantity still on the position (the figure a UI
+    shows as "position size"); `0` once fully closed. A size, never a state — a quote that has not opened yet still
+    reports its full `quantity` here, so classify with [`isPendingOrder` /
+    `isActivePosition`](/core/quotes/partition-quotes), not with `openQuantity > 0`.
+  </Property>
   <Property name="quantityToClose" type="bigint">Quantity targeted by a pending close (wei), when closing.</Property>
   <Property name="lockedValues" type="LockedValues">Margin locked against the row (wei) — CVA, LF, and the two maintenance-margin legs.</Property>
   <Property name="initialLockedValues" type="LockedValues">Margin locked at open time — basis for leverage (wei), when known.</Property>
@@ -54,5 +61,6 @@ import type { UnifiedQuote } from "@symmio/trading-core";
 
 - [QuoteOrigin](/core/quotes/quote-origin) — the `origin` field.
 - [QuoteLifecycle](/core/quotes/quote-lifecycle) — the `lifecycle` field.
+- [QuoteStatus](/core/quotes/quote-status) — the `quoteStatus` field, and what each status lets partyA do.
 - [toUnifiedQuoteFromOnchain](/core/quotes/to-unified-quote-from-onchain) — builds a row from an on-chain `Quote`.
 - [reconcileQuotes](/core/quotes/reconcile-quotes) — produces the merged `UnifiedQuote[]`.

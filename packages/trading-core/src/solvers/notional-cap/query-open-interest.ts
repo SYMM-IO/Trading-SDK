@@ -55,6 +55,11 @@ export function getOpenInterestBySymbolIdQueryOptions(
       configKey: config.getChainConfigKey(options.chainId),
     }),
     enabled: (options.query?.enabled ?? true) && options.symbolId > 0,
-    queryFn: () => getOpenInterestBySymbolId(config, { chainId: options.chainId, symbolId: options.symbolId }),
+    queryFn: () =>
+      getOpenInterestBySymbolId(config, {
+        chainId: options.chainId,
+        solverId: options.solverId,
+        symbolId: options.symbolId,
+      }),
   };
 }

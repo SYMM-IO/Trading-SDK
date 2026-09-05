@@ -29,7 +29,46 @@ Each method has its own page with the full signature, parameters, return shape, 
   <MethodEntry name="getPartyAPendingQuotes" href="/core/symmio-contract/get-party-a-pending-quotes">
     Pending quote ids for a PartyA.
   </MethodEntry>
+  <MethodEntry name="getPendingQuotes" href="/core/symmio-contract/get-pending-quotes">
+    A PartyA's resting LIMIT orders as full structs — ids hydrated via multicall `getQuote`.
+  </MethodEntry>
 </MethodIndex>
+
+## Cancel a quote
+
+A resting limit order (or any pending quote) is cancelled through the AccountLayer `_call` proxy so the diamond attributes the call to the subaccount; the connected wallet must be the subaccount's `owner`.
+
+<MethodIndex kind="write">
+  <MethodEntry name="requestToCancelQuote" href="/core/symmio-contract/request-to-cancel-quote">
+    Cancel a pending quote. `PENDING` cancels instantly; `LOCKED` enters `CANCEL_PENDING`.
+  </MethodEntry>
+  <MethodEntry name="forceCancelQuote" href="/core/symmio-contract/force-cancel-quote">
+    Force-cancel a `CANCEL_PENDING` quote once the cooldown has elapsed.
+  </MethodEntry>
+</MethodIndex>
+
+<MethodIndex kind="read">
+  <MethodEntry name="getCoolDownsOfMA" href="/core/symmio-contract/get-cool-downs-of-ma">
+    Protocol cooldown periods; index 1 is the force-cancel cooldown, index 2 the force-cancel-close cooldown.
+  </MethodEntry>
+</MethodIndex>
+
+The lifecycle: `requestToCancelQuote` on a `LOCKED` quote sets it `CANCEL_PENDING` and stamps `statusModifyTimestamp`. Once `now ≥ statusModifyTimestamp + getCoolDownsOfMA()[1]` and partyB still has not acted, `forceCancelQuote` completes it. A `PENDING` (unlocked) quote cancels instantly and never needs the force path. The React [`useLimitOrders`](/react/quotes#uselimitorders) + cancel hooks wrap all three.
+
+## Cancel a close
+
+The close-side analog: back out of a resting close (e.g. a limit close) while the quote is `CLOSE_PENDING`. Same `_call` proxy routing.
+
+<MethodIndex kind="write">
+  <MethodEntry name="requestToCancelCloseRequest" href="/core/symmio-contract/request-to-cancel-close-request">
+    Cancel a pending close. If partyB accepts, the quote returns to `OPENED`; if it stalls, `CANCEL_CLOSE_PENDING`.
+  </MethodEntry>
+  <MethodEntry name="forceCancelCloseRequest" href="/core/symmio-contract/force-cancel-close-request">
+    Force-cancel a `CANCEL_CLOSE_PENDING` close once the cooldown has elapsed — the quote returns to `OPENED`.
+  </MethodEntry>
+</MethodIndex>
+
+Mirrors the quote-cancel lifecycle, but keyed on the close: `requestToCancelCloseRequest` on a `CLOSE_PENDING` quote returns it to `OPENED` if partyB accepts, else sets `CANCEL_CLOSE_PENDING`. Once `now ≥ statusModifyTimestamp + getCoolDownsOfMA()[2]` (`forceCancelCloseCooldown`), `forceCancelCloseRequest` completes it. The React [`useRequestToCancelCloseRequest`](/react/quotes#userequesttocancelcloserequest) / [`useForceCancelCloseRequest`](/react/quotes#useforcecancelcloserequest) hooks wrap both.
 
 ## Collateral
 
@@ -59,6 +98,66 @@ Each method has its own page with the full signature, parameters, return shape, 
     The active (non-terminal) withdraw requests for a subaccount.
   </MethodEntry>
 </MethodIndex>
+
+### `withdrawAuto` — high-level entry point
+
+`withdrawAuto(config, params)` is the high-level entry point: pass just
+`{ account, amount, receiver }` — with `amount` in the **collateral token's
+decimals** — and it does all the plumbing. It reads the subaccount's
+[`SubAccountIsolationType`](/core/account-layer/sub-account-isolation-type), builds
+the classic same-chain withdraw part, scales the deallocate amount, and hands off to
+[`withdraw`](#withdraw--pre-resolved-dispatcher). Account-layer balances are
+`1e18`-scaled regardless of the collateral token's decimals, so on the `CUSTOM` path
+it derives the 18-decimal deallocate amount as
+`amount * 10 ** (18 - collateralDecimals)` (assumes `collateralDecimals <= 18`) and
+fetches a fresh Muon uPnL signature for the deallocate leg unless you pass one.
+
+This is the framework-agnostic backing for the React
+[`useWithdraw`](/react/withdraw#usewithdraw--high-level-withdraw) hook. Reach for
+`withdraw` below (or the underlying actions) when you already know the isolation, or
+need custom (multi-part / cross-chain) withdraw parts.
+
+```ts
+import { withdrawAuto } from "@symmio/trading-core";
+
+// amount in the collateral token's decimals (6-dec USDC → 1 USDC):
+const hash = await withdrawAuto(config, { account, amount: 1_000000n, receiver });
+```
+
+### `withdraw` — pre-resolved dispatcher
+
+`withdraw(config, params)` is the lower-level dispatcher: you pass the already-read
+`isolationType` and the ready-made `parts`, and it routes on the isolation without an
+extra read, so callers don't branch on where the collateral sits:
+
+- **`CUSTOM`** (cross-margin) — funds are in the **allocated** balance, so it calls
+  `deallocateAndInitiateWithdraw` (deallocate **and** initiate in one atomic
+  transaction). This path **requires `amount`**, the deallocate amount in **18
+  decimals** (not the collateral token's decimals), and fetches a fresh Muon uPnL
+  signature for the deallocate leg unless you pass one.
+- **`MARKET` / `MARKET_DIRECTION`** (VA) — funds are already in the **available**
+  balance, so it calls `initiateWithdraw` only and ignores `amount`.
+
+A `CUSTOM` subaccount called without `amount` throws a `SymmError`
+(`kind: "validation"`, `code: "WITHDRAW_AMOUNT_REQUIRED"`). Prefer
+[`withdrawAuto`](#withdrawauto--high-level-entry-point) when you want to pass a
+collateral-decimals amount and let the SDK read isolation and scale for you; the
+underlying `deallocateAndInitiateWithdraw` / `initiateWithdraw` actions stay
+available for callers that want to drive one path directly. See the
+[balance model](/core/concepts/balance-model) for available-vs-allocated.
+
+```ts
+import { createClassicWithdrawPart, getSubAccount, SubAccountIsolationType, withdraw } from "@symmio/trading-core";
+
+const { isolationType } = await getSubAccount(config, { account });
+const hash = await withdraw(config, {
+  account,
+  isolationType,
+  parts: [createClassicWithdrawPart({ id: 0n, amount, receiver, chainId })],
+  // required only for CUSTOM — the 18-decimal deallocate amount:
+  amount: isolationType === SubAccountIsolationType.CUSTOM ? deallocateAmount18 : undefined,
+});
+```
 
 ## Query options
 

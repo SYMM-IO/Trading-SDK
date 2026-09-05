@@ -2,6 +2,15 @@
 
 Withdraw request lifecycle — initiate, cancel, finalize, plus reads for the pending queue.
 
+Reach for **`useWithdraw`** first: it is the **high-level** entry point that takes
+just `{ account, amount, receiver }` (amount in the **collateral token's decimals**)
+and does the rest — it reads the subaccount's isolation, picks the right withdraw
+path, builds the withdraw part, and scales the deallocate amount — so the UI never
+branches on where the collateral sits or scales anything. `useInitiateWithdraw` and
+the deallocate-and-initiate variant remain available for callers that already know
+the isolation and want to drive one specific path, or need custom (multi-part /
+cross-chain) withdraw parts.
+
 ## Import
 
 ```ts
@@ -12,6 +21,7 @@ import {
   useWithdrawRequest,
   useWithdrawableTime,
   // Writes
+  useWithdraw, // high-level entry point
   useInitiateWithdraw,
   useSimulateInitiateWithdraw,
   useRequestCancelWithdraw,
@@ -20,6 +30,45 @@ import {
   useSimulateFinalizeWithdrawRequest,
 } from "@symmio/trading-react";
 ```
+
+## `useWithdraw` — high-level withdraw
+
+Pass the subaccount `account` to the hook, then `mutate` with a **minimal input**:
+`{ amount, receiver }`, with `amount` in the **collateral token's decimals** (e.g. 6
+for USDC). You do not pass `isolationType`, build `parts`, or scale anything — the
+hook reads the subaccount's `SubAccountIsolationType` via `useSubAccount` (deduped by
+react-query with any other `useSubAccount` on the same key, e.g. one driving a balance
+display), builds the classic same-chain withdraw part,
+scales the deallocate amount, and dispatches on the isolation, which determines
+**which balance the funds are in** and therefore which underlying action runs:
+
+| `isolationType`                    | Where the funds sit | What runs                                                                      |
+| ---------------------------------- | ------------------- | ------------------------------------------------------------------------------ |
+| `CUSTOM` (cross-margin)            | allocated (margin)  | `deallocateAndInitiateWithdraw` — deallocate **and** initiate in one atomic tx |
+| `MARKET` / `MARKET_DIRECTION` (VA) | available           | `initiateWithdraw` — initiate only                                             |
+
+A `CUSTOM` subaccount holds its collateral in the **allocated** balance, so it must
+first be deallocated into the available balance; that path batches both legs into a
+single transaction. Account-layer balances are `1e18`-scaled regardless of the
+collateral token's decimals, so the hook scales your collateral-decimals `amount` to
+the 18-decimal amount the deallocate leg needs. The VA modes already hold their funds
+in the **available** balance, so they only initiate the request.
+
+```tsx
+import { useWithdraw } from "@symmio/trading-react";
+
+const { mutate } = useWithdraw({ account });
+
+// amount in the collateral token's decimals (6-dec USDC → 1 USDC):
+mutate({ amount: 1_000000n, receiver });
+```
+
+On success it invalidates the subaccount's balance reads (`balanceInfo`,
+`balanceOf`) plus its pending-requests and withdrawable-time reads. On the `CUSTOM`
+path the SDK fetches a fresh Muon uPnL signature for the deallocate leg unless you
+pass one as `upnlSig`. Backed by the core [`withdrawAuto`](../symmio-contract#withdrawauto--high-level-entry-point)
+action; reach for `useInitiateWithdraw` / the deallocate-and-initiate variant when
+you already know the isolation or need custom withdraw parts.
 
 ## Lifecycle overview
 
@@ -68,7 +117,12 @@ const { withdrawableAt, isReady } = useWithdrawableTime({ requestId });
 
 ### `useInitiateWithdraw` / `useSimulateInitiateWithdraw`
 
-Submit a withdraw request.
+Submit a withdraw request directly, without the isolation dispatch. This is the
+**initiate-only** leg — the right call for a `MARKET` / `MARKET_DIRECTION` (VA)
+subaccount whose funds are already in the available balance, or when you drive the
+`deallocateAndInitiateWithdraw` variant yourself for a `CUSTOM` subaccount. Prefer
+[`useWithdraw`](#usewithdraw--isolation-aware-withdraw) when you don't want to
+branch on isolation.
 
 ```ts
 const simulation = useSimulateInitiateWithdraw({ account, amount });

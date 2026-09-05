@@ -1,0 +1,133 @@
+import { Callout } from "nextra/components";
+
+# Listing mappers
+
+The three functions that turn the listing backend's wire JSON into the SDK's shapes. `getListingMarkets` runs all of them for you, so you only reach for these when you hold a raw response yourself — a server route that proxies the backend, a fixture in a test, a cached payload you rehydrate.
+
+```ts
+import { toListingMarket, toListingMarketPage, toListingValue } from "@symmio/trading-core";
+```
+
+They are pure and synchronous. None of them takes a `Config`, touches the network, or raises a `SymmError`.
+
+## toListingValue
+
+Parse one of the backend's 18-decimal value strings into a `bigint`.
+
+```ts
+toListingValue("1000000000000000000"); // 1000000000000000000n  — 1.0 at LISTING_VALUE_DECIMALS
+toListingValue("-25000000000000000"); // -25000000000000000n   — a negative APY
+toListingValue(null); // null
+```
+
+### Parameters
+
+<Properties>
+  <Property name="raw" type="string | null | undefined" required>
+    The value as the backend reported it.
+  </Property>
+</Properties>
+
+### Returns
+
+<Returns type="bigint | null">
+  The value at [`LISTING_VALUE_DECIMALS`](/core/pools#values-are-18-decimal-bigint-and-null-is-not-zero), or `null` when
+  there is nothing to parse.
+</Returns>
+
+The return contract in full — three ways to get `null`, one to get a number:
+
+| Input                                             | Result                                         |
+| ------------------------------------------------- | ---------------------------------------------- |
+| `null` or `undefined`                             | `null`                                         |
+| `""`, or any string that is only whitespace       | `null`                                         |
+| A string that is not an optionally-signed decimal | `null`                                         |
+| A decimal string                                  | its integer part as a `bigint`, sign preserved |
+
+<Callout type="warning">
+  `null` is **not** `0`. An absent figure and a figure of zero are different facts about a market — a listing an hour
+  old has no 30-day window, which is not the same as having earned nothing over thirty days. Collapsing the two makes
+  them indistinguishable in the UI.
+</Callout>
+
+### Why the parse is lenient
+
+The backend's own schema types these fields as unsigned decimal strings. Live responses do not honor that on either count, so the parse handles both deviations rather than trusting the schema:
+
+- **Signs are preserved.** The APY series carries negative values in practice, so a leading `-` survives into the `bigint`.
+- **Fractional tails are truncated toward zero.** A fractional string would make `BigInt()` throw outright, so the digits after the decimal point are dropped rather than rounded: `"1234.9"` is `1234n` and `"-1234.9"` is `-1234n`.
+
+A string with no integer digits at all — `".5"` — has nothing to truncate to and returns `null`, as does anything the pattern rejects (`"n/a"`, `"1e18"`).
+
+## toListingMarket
+
+Map one raw row of the backend's `/v2/market/search` response into a [`ListingMarket`](/core/pools/listing-market-type).
+
+```ts
+const market = toListingMarket(rawRow);
+```
+
+### Parameters
+
+<Properties>
+  <Property name="raw" type="MarketSearchItem" required>
+    One row of the backend's response, in its generated wire shape. That type belongs to the generated client and is not
+    re-exported from the package root; name it as `Parameters<typeof toListingMarket>[0]` if you need it in a signature.
+  </Property>
+</Properties>
+
+### Returns
+
+<Returns type="ListingMarket">
+  The normalized row. See [`ListingMarket`](/core/pools/listing-market-type) for every field.
+</Returns>
+
+What the mapping does:
+
+- Renames the wire's snake_case to the SDK's camelCase (`contract_address` → `contractAddress`, `open_interest` → `openInterest`).
+- Runs every money and rate string through `toListingValue`, so absent figures stay `null`.
+- Folds the flat windowed columns into objects — `apr_1h` … `apr_30d` become `aprByWindow.h1` … `aprByWindow.d30`, and the two APY series add the `lifetime` column they carry.
+- Normalizes `symbol_id` and `listing_time` to `null` when the backend omits them.
+
+`chain_id` and `market_status` are carried across as [`ListingDepositChainId`](/core/pools/listing-market-type#listingdepositchainid) and [`ListingMarketStatus`](/core/pools/listing-market-type#listingmarketstatus). Both enums mirror the backend's own values, so this is a naming of what arrived, not a validation of it — an unrecognized value from a newer backend passes through unchanged.
+
+## toListingMarketPage
+
+Map the backend's paginated envelope into a [`ListingMarketPage`](/core/pools/listing-market-type#listingmarketpage), mapping each row through `toListingMarket` on the way.
+
+```ts
+const page = toListingMarketPage(rawResponseBody);
+```
+
+### Parameters
+
+<Properties>
+  <Property name="raw" type="PaginationResponseMarketSearchItem" required>
+    The backend's `/v2/market/search` response body.
+  </Property>
+</Properties>
+
+### Returns
+
+<Returns type="ListingMarketPage">
+  <Property name="total" type="number">
+    Total rows matching the query across all pages. `0` when the backend omits it.
+  </Property>
+  <Property name="limit" type="number">
+    Page size the backend applied. `0` when omitted.
+  </Property>
+  <Property name="offset" type="number">
+    Row offset of this page. `0` when omitted.
+  </Property>
+  <Property name="items" type="ListingMarket[]">
+    The mapped rows. An empty array when the backend omits them.
+  </Property>
+</Returns>
+
+Every envelope field is defaulted rather than required because the generated schema marks them all optional — the backend declares defaults for them instead of demanding them.
+
+## Related
+
+- [`getListingMarkets`](/core/pools/get-listing-markets) — the read that applies all three.
+- [`ListingMarket`](/core/pools/listing-market-type) — the shape they produce.
+- [Pools](/core/pools) — the slice overview and the 18-decimal value contract.

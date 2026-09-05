@@ -43,6 +43,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json", "json-summary"],
+      reportOnFailure: true,
       include: ["src/**/*.ts"],
       exclude: ["src/**/*.test.ts", "src/**/index.ts"],
     },

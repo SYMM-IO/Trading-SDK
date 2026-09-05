@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { classifyNotification, normalizeNotification } from "./normalize-notification";
-import { NotificationType, type RawPositionNotification } from "./types";
+import { NotificationType, type RawEnigmaPositionNotification, type RawRasaPositionNotification } from "./types";
 
-function rawFrame(overrides: Partial<RawPositionNotification> = {}): RawPositionNotification {
+function rawFrame(overrides: Partial<RawEnigmaPositionNotification> = {}): RawEnigmaPositionNotification {
   return {
     id: "n1",
     quote_id: 0,
@@ -66,5 +66,44 @@ describe("normalizeNotification", () => {
     expect(n.lastSeenAction).toBe("InstantRFQ");
     expect(n.counterpartyAddress).toBe("");
     expect(n.filledAmountOpen).toBeNull();
+  });
+
+  /** The rasa wire variant: numeric zero-sentinels, no `va_address` / `failure_message`. */
+  it("reconciles a rasa frame's numeric zero-sentinels and enigma-only gaps", () => {
+    const rasa: RawRasaPositionNotification = {
+      id: "r1",
+      quote_id: -712,
+      temp_quote_id: -712,
+      counterparty_address: "0xsubaccount",
+      address: "0xsubaccount",
+      state_type: "report",
+      filled_amount_open: "8.500000000000000000",
+      filled_amount_close: 0,
+      avg_price_open: "1.0684",
+      avg_price_close: 0,
+      last_seen_action: "InstantRFQ",
+      action_status: "success",
+      failure_type: null,
+      error_code: 0,
+      order_type: 1,
+    };
+    const n = normalizeNotification(rasa);
+
+    // Numeric `0` means "no value"; decimal strings pass through.
+    expect(n.filledAmountOpen).toBe("8.500000000000000000");
+    expect(n.filledAmountClose).toBeNull();
+    expect(n.avgPriceOpen).toBe("1.0684");
+    expect(n.avgPriceClose).toBe("");
+    // Enigma-only fields default cleanly on the rasa variant.
+    expect(n.vaAddress).toBeNull();
+    expect(n.failureMessage).toBeNull();
+    // The wire-faithful frame is preserved, sentinels included.
+    expect(n.raw).toBe(rasa);
+    expect((n.raw as RawRasaPositionNotification).filled_amount_close).toBe(0);
+  });
+
+  it("keeps a defensive nonzero numeric value as its string form", () => {
+    const n = normalizeNotification({ temp_quote_id: -1, avg_price_close: 1.07 } as RawRasaPositionNotification);
+    expect(n.avgPriceClose).toBe("1.07");
   });
 });

@@ -107,10 +107,14 @@ Read-only exploration (viewing files, searching the repo, reading Vibe-ui or Exp
 
 **Package placement**: which files go in `core` / `react` / `ui` / `web` and why. Justify the core-vs-react split: explain why each piece is framework-agnostic or framework-bound.
 
+**Docs impact** (`apps/docs`): always account for the documentation. Name the exact pages/sections that must change and the ones to add — new public exports need a reference entry, changed signatures/behavior need their existing page updated, and superseded APIs need a "prefer X" pointer. If a slice genuinely needs no docs change, say so explicitly and why. Never leave this blank.
+
 **Out of scope**: what this slice deliberately does not cover.
 
 **Open questions**: anything that needs the user's input.
 ````
+
+Docs are part of every slice, not a follow-up. A proposal that ships new or changed public API without a matching `apps/docs` update plan is incomplete, and the implementation is not done until those doc pages exist and are updated (see the [`apps/docs` rules](./apps/docs/AGENTS.md) — "Every public API added to `core` or `react` must be reflected here").
 
 #### Exceptions (no proposal required)
 
@@ -232,6 +236,8 @@ Before declaring a task done, run the relevant subset of:
 
 Report the output. If any fail, fix before declaring complete.
 
+**Every change must be `pnpm format`-clean.** The user runs `pnpm format` manually before committing, so any code you touch must already match Prettier's output (`.prettierrc` with `prettier-plugin-organize-imports` + `prettier-plugin-tailwindcss`) — correct indentation, quotes, trailing commas, import ordering, wrapped call sites. Do not hand-format in a way Prettier would rewrite. When unsure, run `pnpm format` (or `prettier --check` on the touched files) yourself and fix before declaring complete, so the user's manual `pnpm format` is a no-op.
+
 ## Vendors & Data Sources
 
 > **TODO** — fill in vendor list and reference URLs.
@@ -244,7 +250,10 @@ Report the output. If any fail, fix before declaring complete.
 
 One line each, added from real mistakes. Keep the lesson visible.
 
+> See [`decision.md`](./decision.md) at the repo root for longer-form lessons from past mistakes — read it before adding a flow (invalidate the data it changes) or reading SDK data in React (use the hook, not the cache by hand).
+
 - **Remove unused imports and variables.** After any edit, check that all imports and variables are still used; delete dead code immediately.
 - **Do not make required action inputs optional in SDK query options.** If an action requires inputs, the matching `GetXOptions` / hook parameters must require them too; do not use `ExactPartial` or add `queryFn` missing-input guards unless the API is intentionally optional/disabled-by-missing-input.
 - **Never use the words "Vibe", "VibeCaps", or "vibe" in SDK code or docs.** They are app-product branding and must not leak into framework-neutral packages. Use the project-vocabulary term **lowcap** (or describe the behavior neutrally, e.g. "lowcap trading flow", "lowcap isolation"). This applies to identifiers (function names, constants, types), JSDoc, comments, error codes, and user-facing strings in `packages/*` and `apps/*`. The only place "VibeCaps" may appear is the project vocabulary entry in `AGENTS.md`.
 - **A named subpath export lives in three places — keep them in sync.** Adding or removing a `./<sub>` entry in a package that ships named subpath exports (today `@symmio/trading-react` and `@symmio/utils`; **not** `@symmio/trading-core`, which uses a single entry + `./*` wildcard) means editing all three: (1) `package.json` `exports`, (2) the `vite.config.ts` `entry` map — without its own entry a re-export-only sub-barrel gets hoisted away and no `dist/<sub>/index.js` is emitted, so the export dangles, and (3) the `scripts/verify-packages/published-smoke/` fixtures + `runtime-probe.mjs` `specs`, so the new path is type- and runtime-verified. Miss one and `verify-packages` either ships a broken export map or fails to cover it. See `scripts/verify-packages/published-smoke/README.md`.
+- **Before building a UI component in `apps/web`, use what `packages/ui` already has.** When a task needs a component in `apps/web` , search `packages/ui/src` first (e.g. `grep -ri <thing> packages/ui/src`). If a matching primitive or component exists — `Button`, `Input`, `MarketSelect`, `Spinner`, `DataTable`, … — **use it**; do not hand-roll a local equivalent (a raw `<select>`, a bespoke button, a one-off combobox). Only add a local component when `@symmio/ui` has nothing that fits, and if the piece is reusable add it to `@symmio/ui` rather than duplicating it in `apps/web`. (A native `<select>` was once reimplemented in `apps/web` while `@symmio/ui/components/market-select` already shipped the combobox it needed.)

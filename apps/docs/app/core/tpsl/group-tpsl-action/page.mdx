@@ -1,0 +1,58 @@
+# GroupTpSlAction
+
+What [`planGroupTpSl`](/core/tpsl/plan-group-tpsl) decided for one child. A discriminated union on `action`.
+
+```ts
+type GroupTpSlAction =
+  | {
+      action: "set";
+      key: string;
+      quoteId: bigint;
+      virtualAccount: Address;
+      symbolId: bigint;
+      positionType: PositionType;
+      /** Decimal string, from the child's `openQuantity`. */
+      quantity: string;
+      /** Present only when the take-profit side actually changed. */
+      tp?: SetTpSlSide;
+      /** Present only when the stop-loss side actually changed. */
+      sl?: SetTpSlSide;
+    }
+  | {
+      action: "delete";
+      key: string;
+      quoteId: bigint;
+      virtualAccount: Address;
+      cohQuoteId: string;
+      conditionalOrderType: TpSlConditionalOrderType;
+    }
+  | {
+      action: "skip";
+      key: string;
+      reason: GroupTpSlSkipReason;
+      /** Per-side errors, when `reason` is `"invalid"`. */
+      validation?: TpSlValidation;
+    };
+```
+
+A `set` action is shaped to spread straight into [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) — add `subAccount` and `pricePrecision` and it is a complete call.
+
+## Skip reasons
+
+<Properties>
+  <Property name="unchanged" type="GroupTpSlSkipReason">
+    Every desired side already matches the child's confirmed snapshot.
+  </Property>
+  <Property name="nothing-to-do" type="GroupTpSlSkipReason">
+    The child has no desired entry, or nothing to write and nothing to remove.
+  </Property>
+  <Property name="not-anchored" type="GroupTpSlSkipReason">
+    Not anchored on-chain yet, or no Virtual Account resolved.
+  </Property>
+  <Property name="no-open-quantity" type="GroupTpSlSkipReason">
+    No open size left to attach a conditional order to.
+  </Property>
+  <Property name="invalid" type="GroupTpSlSkipReason">
+    The resulting pair failed [`validateTpSl`](/core/tpsl/validate-tpsl).
+  </Property>
+</Properties>

@@ -1,0 +1,217 @@
+import { Callout } from "nextra/components";
+
+# Pools
+
+A **pool** is the liquidity side of a lowcap market. Every permissionless listing has one behind it — the capital that backs the solver's quotes on that token — and it is what the TVL, reward, APR and APY figures on a catalog row describe.
+
+The pool catalog is owned by an off-chain **listing backend**, not by the chain. It is the backend that decides whether a token becomes tradable, assigns it a `symbolId`, and keeps the running statistics; the SDK talks to it over REST and normalizes what comes back.
+
+<Callout type="warning">
+  **There are no contract calls in this slice.** `getListingMarkets` is a REST read against the listing backend —
+  nothing here signs, sends, simulates, or reads a contract. The pool [writes](#writes) are REST too: they are authed
+  `POST`s the listing backend executes on the user's behalf, not transactions the user signs.
+</Callout>
+
+Each method and type has its own page with the full signature, parameters, return shape, and examples.
+
+## A pools page is several vendors
+
+This slice covers the catalog, and the catalog is only one of the backends behind a pools screen. The screen looks like a single product; the figures on it come from three independent deployments, each with its own refresh cadence and its own failure mode:
+
+| Figure                                            | Owner                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------ |
+| Catalog rows — per-pool `tvl`, `apr`, `liquidity` | Listing backend ([`getListingMarkets`](/core/pools/get-listing-markets)) |
+| Headline system TVL                               | Inventory service ([`getInventoryTvl`](/core/inventory/tvl))             |
+| Revenue totals                                    | The solver ([`getSolverRevenue`](/core/solvers/revenue))                 |
+| Per-market volume and open-interest caps          | The solver again, on separate endpoints ([Solvers](/core/solvers))       |
+
+<Callout type="warning">
+  **Do not sum the catalog's `tvl` column for a headline figure.** That total is not what
+  [`getInventoryTvl`](/core/inventory/tvl) returns, and the two will not agree: the catalog covers listed markets, while
+  the inventory service covers the whole custodial system. Show the inventory figure as the headline and per-pool `tvl`
+  inside the table.
+</Callout>
+
+## Availability
+
+Pools is not universally available. It exists on a chain when the chain carries a `listing` block ([`SymmioListingConfig`](/core/concepts/solvers-and-chains#pools-listing-service)) pointing at a listing backend. A solver may _declare_ it does listing via the `listingService` capability, but that flag is **metadata only** — the listing functions do not check it; resolution is purely chain-level. The URL lives at chain level because several solvers on one chain could share one listing deployment. Today only **HyperEVM** has it.
+
+[`resolveListingService`](/core/pools/resolve-listing-service) returns the chain's listing config or throws `LISTING_NOT_CONFIGURED` when the chain has no backend. `supportsListingService` is the non-throwing twin: use it for `enabled` gates and UI so Pools hides instead of erroring where it does not exist.
+
+```ts
+import { getListingMarkets, supportsListingService } from "@symmio/trading-core";
+
+if (supportsListingService(config, { chainId })) {
+  const page = await getListingMarkets(config, { chainId });
+}
+```
+
+<Callout type="warning">
+  `SymmioListingConfig.url` is the backend's **host root** — no version segment, no trailing slash
+  (`https://listing85.enigma.bz`). The generated client's own paths already begin with `/v2`, so a versioned base URL
+  would request `/v2/v2/market/search` and 404.
+</Callout>
+
+## Values are 18-decimal `bigint`, and `null` is not zero
+
+The backend reports every money and rate field as a decimal **string** at 18 decimals — `LISTING_VALUE_DECIMALS` — regardless of the token's own decimals or the collateral's. The SDK keeps them as `bigint` at that scale so nothing is lost, and formats nothing for you:
+
+```ts
+import { LISTING_VALUE_DECIMALS } from "@symmio/trading-core";
+import { formatUnits } from "@symmio/utils/decimal";
+
+// `formatUnits` from @symmio/utils returns a chainable Decimal, not a string.
+const tvl = market.tvl === null ? "—" : formatUnits(market.tvl, LISTING_VALUE_DECIMALS).toString();
+
+// A descaled rate IS the percentage (1e18 = 1%) — no multiply by 100.
+const apr = market.apr === null ? "—" : `${formatUnits(market.apr, LISTING_VALUE_DECIMALS).toFixed(2)}%`;
+```
+
+Rates can be negative — the APY series in particular — so do not assume an unsigned figure when formatting one.
+
+`null` means the backend reported **no value for that field**, which is distinct from zero. A market listed an hour ago has no 30-day APY — collapsing that to `0` would make it indistinguishable from a market that earned nothing over thirty days. Render the absent case as its own thing (`—`), not as a number.
+
+Two fields sit outside the 18-decimal contract: `maxLeverage` is a plain whole multiplier (`20` = 20x), and `listingTime` is a Unix timestamp in **seconds**.
+
+## Filtering, sorting and paging happen on the server
+
+`search`, `filters`, `sortBy`, `orderBy`, `limit` and `offset` are all applied by the backend. Changing any of them is a new request against a new query key, not a re-slice of a page you already hold — so paging through the catalog never assumes the client has all of it.
+
+Range filter bounds use the **same 18-decimal scale as the response**. A one-million-USD market-cap floor is `1_000_000n * 10n ** 18n`, not `1_000_000`; the latter is a bound of `0.000000000001` USD and filters nothing useful. `listingTime` is the one exception — it takes Unix seconds.
+
+## A row's `chainId` is the deposit chain
+
+`ListingMarket.chainId` is the chain the **token** lives on and where its listing deposit was made. It is **not** the chain the market trades on: a market whose token is on Solana or BSC still trades on the SYMMIO deployment the listing backend is configured for.
+
+`ListingDepositChainId.SOLANA` is `0` — a sentinel for the one non-EVM chain, not a real chain id. Rows on it carry a base58 `contractAddress`, which is why `contractAddress` is typed `string` rather than viem's `Address`. Check `chainId` before handing one to an EVM address helper.
+
+## Reads
+
+<MethodIndex kind="read">
+  <MethodEntry name="getListingMarkets" href="/core/pools/get-listing-markets">
+    Fetch a page of the listing catalog — searched, filtered, sorted and paged by the backend.
+  </MethodEntry>
+  <MethodEntry name="getListingMarketDetail" href="/core/pools/market-detail">
+    One pool's aggregate stats and inventory — the read a whole pool page is built on.
+  </MethodEntry>
+  <MethodEntry name="getListingMarketConfig" href="/core/pools/market-config">
+    The signed-in LP's own leverage and buyback opinion for one pool, next to the pool values in force. Authed.
+  </MethodEntry>
+</MethodIndex>
+
+## Pool detail
+
+A pool page's five tables come from **three** backends, and none of these reads is account-scoped — they return every
+trader's rows on the market. See [Detail tables](/core/pools/pool-detail-tables) for which backend fills which.
+
+<MethodIndex kind="read">
+  <MethodEntry name="getPoolQuotes" href="/core/pools/pool-quotes">
+    The pool's quote book from the analytics subgraph, filtered by quote status.
+  </MethodEntry>
+  <MethodEntry name="getPoolTradeHistory" href="/core/pools/pool-trade-history">
+    The pool's realized closes and liquidations, one row per event.
+  </MethodEntry>
+  <MethodEntry name="getPoolTransactions" href="/core/pools/pool-transactions">
+    The pool's deposits and withdrawals, refunds included.
+  </MethodEntry>
+</MethodIndex>
+
+## Rewards
+
+A pool's LP rewards over time, and the trailing-window totals above them. (A pool page's other two series live with their vendors: TVL over time is [`getInventoryTvlHistory`](/core/inventory/tvl-history) on the inventory service, and daily volume is [`getTradeVolume`](/core/solvers/trade-volume) on the solver, keyed by the pool's `symbolId`.) The two `Pool` reads are **public**; the two
+`User` reads are **authed** and cover every market the signed-in wallet earns in rather than one pool, so a single-pool
+view filters their result itself.
+
+Every reward here is **money** — a `bigint` at `LISTING_VALUE_DECIMALS` where `1e18` is `$1` — not a rate, and the
+totals are built from **earned** snapshots, so claiming does not reduce them.
+
+<MethodIndex kind="read">
+  <MethodEntry name="getPoolRewardChart" href="/core/pools/pool-reward-chart">
+    A pool's daily LP rewards — the public series behind a pool page's rewards chart.
+  </MethodEntry>
+  <MethodEntry name="getPoolTotalReward" href="/core/pools/pool-total-reward">
+    A pool's aggregate reward over the last 1–30 days, the headline above that chart.
+  </MethodEntry>
+  <MethodEntry name="getUserRewardChart" href="/core/pools/user-reward-chart">
+    The signed-in user's daily rewards, grouped by market. Authed.
+  </MethodEntry>
+  <MethodEntry name="getUserTotalReward" href="/core/pools/user-total-reward">
+    The signed-in user's aggregate reward over the last 1–30 days, across every pool. Authed.
+  </MethodEntry>
+</MethodIndex>
+
+## Writes
+
+Every pool write is a **REST call against the listing backend**, not a contract call, and every one is authed with the `accessToken` from [`authenticateListing`](/core/pools/listing-auth).
+
+<MethodIndex kind="write">
+  <MethodEntry name="addMarket" href="/core/pools/add-market">
+    Create a pool — submit a create-pool application for a new token and provision the wallet that seeds it.
+  </MethodEntry>
+  <MethodEntry name="withdrawLp" href="/core/pools/withdraw">
+    Queue a withdrawal of LP shares from a pool. Asynchronous — it enters the pool's pending-withdrawal queue.
+  </MethodEntry>
+  <MethodEntry name="cancelWithdraw" href="/core/pools/cancel-withdraw">
+    Cancel a queued LP withdrawal before it settles, keyed by the withdrawal's id.
+  </MethodEntry>
+  <MethodEntry name="claimProfit" href="/core/pools/claim">
+    Claim a pool's accrued LP rewards as USDC. Synchronous — a resolved call means the USDC has moved.
+  </MethodEntry>
+  <MethodEntry name="updateListingMarketConfig" href="/core/pools/update-market-config">
+    Submit the LP's leverage and buyback opinion for a pool. Nudges the deposit-weighted blend; never overwrites it.
+  </MethodEntry>
+</MethodIndex>
+
+## Config
+
+<MethodIndex kind="read">
+  <MethodEntry name="resolveListingService" href="/core/pools/resolve-listing-service">
+    Resolve the listing backend for a `{chainId}` target, or check availability without throwing.
+  </MethodEntry>
+</MethodIndex>
+
+## Helpers
+
+The mappers `getListingMarkets` runs on the way out. Reach for them only when you hold a raw backend response yourself — a proxy route, a fixture, a rehydrated payload.
+
+<MethodIndex kind="read">
+  <MethodEntry name="toListingValue" href="/core/pools/listing-mappers#tolistingvalue">
+    Parse one 18-decimal value string into a `bigint`, keeping absent apart from zero.
+  </MethodEntry>
+  <MethodEntry name="toListingMarket" href="/core/pools/listing-mappers#tolistingmarket">
+    Normalize one raw catalog row into a `ListingMarket`.
+  </MethodEntry>
+  <MethodEntry name="toListingMarketPage" href="/core/pools/listing-mappers#tolistingmarketpage">
+    Normalize the paginated envelope, rows included.
+  </MethodEntry>
+</MethodIndex>
+
+## Types
+
+<MethodIndex kind="type">
+  <MethodEntry name="ListingMarket" href="/core/pools/listing-market-type">
+    One catalog row, its trailing-window metrics, its lifecycle status, and the page envelope around it.
+  </MethodEntry>
+</MethodIndex>
+
+## Query options
+
+The catalog read ships a matching `getListingMarketsQueryOptions` factory and a `getListingMarketsQueryKey` builder for TanStack Query. The resolved chain config's fingerprint is folded into the key, so a `createConfig` override pointed at staging never reads production's cached catalog. See [`getListingMarkets`](/core/pools/get-listing-markets#query-options) for the exact call.
+
+## Errors
+
+- `LISTING_NOT_CONFIGURED` — the chain has no `listing` backend configured.
+- `FETCH_LISTING_MARKETS_FAILED` — the catalog request failed. An axios failure arrives as a `SymmApiError` with `status`, `statusText`, `responseData`, `url` and `method` (a failure with no response carries `status: 0` / `statusText: "Unknown"`); anything else is a plain `SymmError` with `kind: "api"`.
+- `FETCH_POOL_REWARD_CHART_FAILED` / `FETCH_POOL_TOTAL_REWARD_FAILED` / `FETCH_USER_REWARD_CHART_FAILED` / `FETCH_USER_TOTAL_REWARD_FAILED` — a rewards request failed, with the same shape. The user-scoped pair also carries the `401` on a bad or expired bearer token, and both `total-reward` reads carry the `422` on a `days` outside 1–30.
+- `FETCH_LISTING_MARKET_CONFIG_FAILED` — the [market-config read](/core/pools/market-config) failed, with the same shape. It carries the `401` on a bad or expired bearer token, and a **`404`** where the read is not deployed on the pool's listing backend yet — treat that one as "opinion unknown", not as a blocking failure.
+- `UPDATE_LISTING_MARKET_CONFIG_FAILED` — the [market-config write](/core/pools/update-market-config) failed, with the same shape. It carries the `401` on a bad token, the `422` on a value outside the service's accepted leverage/buyback range, and the `429` when the rolling-24h `marketConfigUpdatesPerDay` cap is exhausted.
+- `MISSING_MARKET_CONFIG_VALUES` — a `SymmError` with `kind: "validation"`, thrown client-side before any request when `updateListingMarketConfig` is called with neither `maxLeverage` nor `buybackRatio`.
+
+## Related
+
+- [Listing mappers](/core/pools/listing-mappers) — `toListingValue`, `toListingMarket`, `toListingMarketPage`.
+- [Inventory](/core/inventory) — the custody backend behind these pools, the source of the headline TVL this catalog does not sum, and of [one pool's TVL over time](/core/inventory/tvl-history).
+- [`getSolverRevenue`](/core/solvers/revenue) — the solver's revenue totals, the third vendor on a pools page.
+- [`useListingMarkets`](/react/pools) — the React layer over this slice.
+- [Solvers & Chains](/core/concepts/solvers-and-chains#pools-listing-service) — where the listing backend sits in the config model.
+- [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.

@@ -1,0 +1,104 @@
+import { Callout } from "nextra/components";
+
+# Orderbook
+
+Market depth, decoupled from any venue. An **`OrderbookSource`** supplies the three things every depth consumer needs — symbol metadata, a snapshot, and a live subscription — so ladders, depth charts, and impact estimates are written against that interface rather than against an exchange.
+
+`createBinanceOrderbookSource` is the reference source for major markets. Any venue that can answer those three questions plugs in the same way.
+
+<Callout type="warning">
+  Every source declares a `priceBasis`. Binance's is `reference-exchange`: it is a third-party venue's resting
+  liquidity, **not** the depth a SYMMIO trade executes against. Surface that to anyone sizing an order off it.
+</Callout>
+
+Each method and type has its own page with the full signature, parameters, return shape, examples, and query options.
+
+## How the live book stays correct
+
+A diff stream is only as good as its bookkeeping. Applying updates on faith produces a ladder that looks live and is quietly wrong — the failure is silent and permanent. `watchOrderbook` implements the venue's documented local-order-book procedure end to end:
+
+1. Subscribe **first**, and buffer every update that arrives.
+2. Fetch the snapshot. Updates it already covers are discarded.
+3. Require the first applied update to straddle the snapshot's sequence number (`U <= lastUpdateId <= u`). If it starts past the snapshot, the window between them was never covered — refetch.
+4. Apply absolute quantities. A zero quantity removes the level.
+5. Verify every later update chains onto the last, using **the market's own rule**.
+6. On any break — a missed update, a reconnect, a snapshot that lands too old — throw the local book away and rebuild, announcing it through `onResync`.
+
+The continuity rule is per market and the two are **not interchangeable**. USD-M futures chains on `pu`, which carries the previous update's `u`; its `U` routinely jumps hundreds of ids past the previous `u`, so the spot rule applied to futures reports a gap on essentially every update. Spot has no `pu` and chains on `U`.
+
+A consumer never has to implement any of this. What it does need to handle is `onResync`: while a rebuild is in flight the last good book is still the best thing to show, so dim the ladder rather than blanking it.
+
+## Reads
+
+<MethodIndex kind="read">
+  <MethodEntry name="getOrderbook" href="/core/orderbook/get-orderbook">
+    Fetch a point-in-time depth snapshot from a source.
+  </MethodEntry>
+</MethodIndex>
+
+## Live depth
+
+<MethodIndex kind="read">
+  <MethodEntry name="watchOrderbook" href="/core/orderbook/watch-orderbook">
+    Subscribe to a continuously synchronized book, rebuilt automatically on any sequence break.
+  </MethodEntry>
+  <MethodEntry name="createBinanceOrderbookSource" href="/core/orderbook/create-source">
+    Build the reference source backed by Binance depth.
+  </MethodEntry>
+</MethodIndex>
+
+## Helpers
+
+<MethodIndex kind="read">
+  <MethodEntry name="groupOrderbook" href="/core/orderbook/group-orderbook">
+    Collapse a book onto a coarser price grid.
+  </MethodEntry>
+  <MethodEntry name="accumulateOrderbook" href="/core/orderbook/accumulate-orderbook">
+    Attach inclusive cumulative depth to each level.
+  </MethodEntry>
+  <MethodEntry name="getOrderbookSpread" href="/core/orderbook/orderbook-spread">
+    Best prices, the absolute spread, and the spread in basis points.
+  </MethodEntry>
+  <MethodEntry name="walkOrderbook" href="/core/orderbook/walk-orderbook">
+    Fill a hypothetical market order against resting depth.
+  </MethodEntry>
+  <MethodEntry name="getOrderbookDepthWithin" href="/core/orderbook/depth-within">
+    Notional resting near the mid, per side, plus the imbalance between them.
+  </MethodEntry>
+  <MethodEntry name="suggestOrderbookTickSizes" href="/core/orderbook/tick-sizes">
+    Build a grouping ladder from the venue's own tick size.
+  </MethodEntry>
+</MethodIndex>
+
+## Types
+
+<MethodIndex kind="type">
+  <MethodEntry name="Orderbook" href="/core/orderbook/orderbook-type">
+    A point-in-time book: bids, asks, and the sequence number it is synchronized to.
+  </MethodEntry>
+  <MethodEntry name="OrderbookSource" href="/core/orderbook/orderbook-source-type">
+    The venue boundary every consumer of depth is written against.
+  </MethodEntry>
+</MethodIndex>
+
+## Query options
+
+The snapshot read ships a matching `getOrderbookQueryOptions` factory and a `getOrderbookQueryKey` builder for TanStack Query. The source's `id` is folded into the key, so switching venues never reads another venue's cached book. See [`getOrderbook`](/core/orderbook/get-orderbook) for the exact call.
+
+## Errors
+
+- `UNSUPPORTED_DEPTH_LIMIT` — the requested depth is not one the venue accepts.
+- `UNSUPPORTED_DEPTH_UPDATE_SPEED` — the requested stream speed is not one the market serves.
+- `UNMAPPED_ORDERBOOK_MARKET` — no venue symbol is mapped for the market name.
+- `INVALID_TICK_SIZE` — a grouping helper was given a non-positive tick.
+- `INVALID_BINANCE_DEPTH` — a level arrived malformed or non-numeric.
+- `FETCH_BINANCE_DEPTH_FAILED` — the snapshot request failed.
+- `FETCH_BINANCE_SYMBOL_FILTERS_FAILED` — the exchange-info request failed.
+- `BINANCE_DEPTH_SOCKET_ERROR` — a transport or parse error on the diff stream.
+- `NO_WEBSOCKET_IMPLEMENTATION` — no `WebSocket` is available and none was injected.
+
+## Related
+
+- [Orderbook hooks](/react/orderbook) — the React layer over this slice.
+- [Orderbook guide](/guides/orderbook) — building a ladder end to end.
+- [Charts](/guides/charts) — the same source pattern for OHLCV bars.

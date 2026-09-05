@@ -1,0 +1,105 @@
+# getQuotesEventsByType
+
+Batched sibling of [`getQuoteEventsByType`](/core/subgraph/get-quote-events-by-type): decoded subgraph events for **many** quotes in one round-trip, filtered to specific event types. This is what a grouped position reaches for — one request covers every child quote instead of one request per leg.
+
+```ts
+import { FUNDING_HISTORY_EVENT_TYPES, getQuotesEventsByType } from "@symmio/trading-core";
+
+const { rows, hasMore } = await getQuotesEventsByType(config, {
+  quoteIds: [7334n, 7335n],
+  types: FUNDING_HISTORY_EVENT_TYPES,
+  first: 100,
+});
+```
+
+## The merge happens server-side
+
+The subgraph filters on `quoteId_in` and sorts by `timestamp`, so rows for every requested id come back **already interleaved and time-ordered** — newest first unless `orderDirection: "asc"` is passed. There is no client-side re-sort, and no per-quote fan-out.
+
+Two consequences for paging:
+
+- `first` / `skip` page over the **merged** stream, not per quote id. A `first: 50` page can be 50 rows from a single busy quote.
+- The subgraph caps `first` at **1000** — do not ask for more than that. Page with `skip` while `hasMore` is `true` instead. Omitting `first` asks for that ceiling, so an un-paged call returns as much as a single request can serve.
+
+Each row carries its own `quoteId`, so a caller that wants a per-position breakdown groups by that field client-side.
+
+## Event-type presets
+
+`types` takes any subset of `QuoteEventType`. Two presets ship with the SDK:
+
+- **`PRICE_HISTORY_EVENT_TYPES`** — everything that moves a quote's open price: `SettleUpnl`, `ChargeFundingRate`, `ChargeAccumulatedFundingFee`.
+- **`FUNDING_HISTORY_EVENT_TYPES`** — the funding subset: `ChargeFundingRate` and `ChargeAccumulatedFundingFee`. It drops `SettleUpnl` (an open-price recompute that settles no funding) and keeps exactly the two events that carry `fundingPaid` / `fundingReceived` / `rate` in their metadata.
+
+On current deployments effectively every funding row is `CHARGE_FUNDING_RATE`; `CHARGE_ACCUMULATED_FUNDING_FEE` is in the preset for completeness but is not yet emitted, so do not rely on seeing it.
+
+## Parameters
+
+<Properties>
+  <Property name="quoteIds" type="readonly bigint[]" required>
+    On-chain quote ids to read events for. Order is irrelevant — rows come back merged. An empty array returns an empty
+    page **without** issuing a request.
+  </Property>
+  <Property name="types" type="readonly QuoteEventType[]" required>
+    Event types to include — `SettleUpnl` (`SETTLE_UPNL`), `ChargeFundingRate` (`CHARGE_FUNDING_RATE`),
+    `ChargeAccumulatedFundingFee` (`CHARGE_ACCUMULATED_FUNDING_FEE`), or one of the presets above. An empty array
+    returns an empty page **without** issuing a request.
+  </Property>
+  <Property name="first" type="number" default="1000">
+    Page size across the whole batch, not per quote id. The subgraph caps it at `1000`, and omitting it asks for that
+    ceiling.
+  </Property>
+  <Property name="skip" type="number" default="0">
+    Page offset into the merged stream.
+  </Property>
+  <Property name="orderDirection" type='"asc" | "desc"' default="desc">
+    Sort direction on the event timestamp (newest first by default).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetQuotesEventsByTypeReturnType">
+  <Property name="rows" type="QuoteEventRow[]">
+    The decoded event rows for every requested quote id, merged and sorted by `timestamp` server-side. Same row shape as
+    the single-quote action — each carries `quoteId`, `type`, `timestamp`, and the decoded metadata fields
+    (`fundingPaid`, `fundingReceived`, `rate`, `newPrice`, `prevPrice`, …) whenever the underlying JSON held them. All
+    amounts are 18-decimal wei `bigint`.
+  </Property>
+  <Property name="hasMore" type="boolean">
+    `true` when the page came back full (`rows.length === first`) — fetch the next page by advancing `skip`.
+  </Property>
+</Returns>
+
+## Funding semantics
+
+The metadata carries the raw on-chain amounts. Net a row the way the rest of the SDK does — `fundingReceived − fundingPaid`, so a **positive** net means the position **earned** funding on that tick, matching [`QuoteFundingData.netReceived`](/core/subgraph/get-quote-funding). The raw `fundingPaid` / `fundingReceived` fields are verbatim from the subgraph and are never re-signed.
+
+These are the charges **settled to date**, i.e. what the analytics subgraph has indexed. Funding that has accrued since a quote's last on-chain charge is not indexed anywhere and is therefore absent from the timeline.
+
+The action does no event-type interpretation beyond decoding the metadata JSON.
+
+## Query options
+
+```ts
+import { FUNDING_HISTORY_EVENT_TYPES, getQuotesEventsByTypeQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(
+  getQuotesEventsByTypeQueryOptions(config, {
+    quoteIds: [7334n, 7335n],
+    types: FUNDING_HISTORY_EVENT_TYPES,
+  }),
+);
+```
+
+The query is **disabled** until at least one quote id _and_ one event type are supplied. `getQuotesEventsByTypeQueryKey` stringifies the `bigint` ids and sorts them ascending, so passing the same ids in a different order shares one cache entry (the caller's array is never mutated).
+
+## Related
+
+- [`getQuoteEventsByType`](/core/subgraph/get-quote-events-by-type) — the single-quote form.
+- [`getQuoteFunding`](/core/subgraph/get-quote-funding) — already-summed funding totals per quote, when the per-tick timeline is not needed.
+- [`aggregateGroupFunding`](/core/quotes/aggregate-group-funding) — folds those totals into one group-level number.
+- [React `useQuoteGroupFundingHistory`](/react/subgraph) — the hook that wires this action to a `QuoteGroup`.

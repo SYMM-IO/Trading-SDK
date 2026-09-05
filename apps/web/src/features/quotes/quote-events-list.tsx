@@ -15,6 +15,12 @@ interface Props {
   quantityPrecision?: number;
   /** Optional override for the empty-state copy. */
   emptyText?: string;
+  /**
+   * Show each row's originating quote id. Off by default (a single-quote list
+   * would just repeat the same id); turn it on for a merged, group-level
+   * timeline, where the rows interleave several children.
+   */
+  showQuoteId?: boolean;
 }
 
 const EMPTY = "—";
@@ -53,15 +59,63 @@ function eventTypeToneClass(type: QuoteEventType): string {
       return "bg-primary/10 text-primary";
     case QuoteEventType.ChargeFundingRate:
     case QuoteEventType.ChargeAccumulatedFundingFee:
-      return "bg-muted text-muted-foreground";
+      return "bg-foreground/10 text-foreground/80";
   }
 }
 
 /**
- * Unified price-history list: every {@link QuoteEventRow} that touches the open
- * price (explicit settle-uPnL events and funding-rate ticks). Each row shows its
- * timestamp, type badge, prev → new price, plus the relevant funding payload
- * when the event carries one.
+ * A labelled figure. `hero` promotes the one value that says what the event
+ * actually did — the funding amount on a charge, the price move on a settle.
+ */
+function Stat({
+  label,
+  value,
+  hero = false,
+  toneClassName = "text-foreground",
+}: {
+  label: string;
+  value: React.ReactNode;
+  hero?: boolean;
+  toneClassName?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      {/* Fixed label line so every stat's label sits on the same row, whatever its value size. */}
+      <span className="text-muted-foreground text-[0.7rem] leading-none font-medium tracking-wider uppercase">
+        {label}
+      </span>
+      <span className={`font-mono leading-none ${hero ? "text-xl" : "text-sm"} ${toneClassName}`}>{value}</span>
+    </div>
+  );
+}
+
+/** `prev → new` as one figure, because the movement is the fact, not the endpoints. */
+function PriceMove({ row, precision, hero = false }: { row: QuoteEventRow; precision: number; hero?: boolean }) {
+  return (
+    <Stat
+      hero={hero}
+      label="Open price"
+      value={
+        <span className="inline-flex items-center gap-2">
+          <span className="text-muted-foreground">{formatWei(row.prevPrice, precision)}</span>
+          <span className="text-muted-foreground/50" aria-label="changed to">
+            →
+          </span>
+          <span>{formatWei(row.newPrice, precision)}</span>
+        </span>
+      }
+    />
+  );
+}
+
+/**
+ * Unified list of {@link QuoteEventRow}s — settle-uPnL recomputes and funding
+ * charges — as one card per event.
+ *
+ * Each card leads with what the event actually did: the amount settled on a
+ * funding charge, the open-price move on a settle-uPnL. A funding charge also
+ * nudges the open price, so that move follows as a secondary line rather than
+ * competing with the amount.
  */
 export function QuoteEventsList({
   rows,
@@ -70,61 +124,78 @@ export function QuoteEventsList({
   pricePrecision = DEFAULT_PRICE_PRECISION,
   quantityPrecision = DEFAULT_QUANTITY_PRECISION,
   emptyText,
+  showQuoteId = false,
 }: Props) {
   if (isLoading && !rows) {
     return (
-      <div className="text-muted-foreground flex items-center gap-2 py-2 text-xs">
-        <Spinner className="size-3" />
+      <div className="text-muted-foreground flex items-center gap-2 py-3 text-sm">
+        <Spinner className="size-4" />
         <span>Loading…</span>
       </div>
     );
   }
 
   if (!rows || rows.length === 0) {
-    return <p className="text-muted-foreground py-2 text-xs">{emptyText ?? "No price history yet."}</p>;
+    return <p className="text-muted-foreground py-3 text-sm">{emptyText ?? "No price history yet."}</p>;
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2.5">
       {rows.map((row) => {
-        const hasFunding = row.fundingPaid !== undefined || row.fundingReceived !== undefined || row.rate !== undefined;
+        const paid = row.fundingPaid ?? 0n;
+        const received = row.fundingReceived ?? 0n;
+        /** Income-positive, matching the SDK's `netReceived`: earned on this tick is `> 0n`. */
+        const settled = received - paid;
+        const movesFunding = row.fundingPaid !== undefined || row.fundingReceived !== undefined;
+        const showsPrice = row.prevPrice !== undefined || row.newPrice !== undefined;
+
         return (
-          <div key={row.eventId} className="border-border/40 flex flex-col gap-1.5 rounded-md border px-2.5 py-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className={`rounded px-1.5 py-0.5 text-[0.6rem] font-medium ${eventTypeToneClass(row.type)}`}>
-                {eventTypeLabel(row.type)}
+          <article
+            key={row.eventId}
+            className="border-border bg-muted/40 flex flex-col gap-3.5 rounded-lg border p-3.5"
+          >
+            <header className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2">
+                <span className={`rounded px-2 py-0.5 text-[0.7rem] font-medium ${eventTypeToneClass(row.type)}`}>
+                  {eventTypeLabel(row.type)}
+                </span>
+                {showQuoteId ? (
+                  <span className="text-muted-foreground font-mono text-xs">#{row.quoteId.toString()}</span>
+                ) : null}
               </span>
-              <span className="text-muted-foreground text-[0.65rem]">{formatTimestamp(row.timestamp)}</span>
+              <time className="text-muted-foreground text-xs">{formatTimestamp(row.timestamp)}</time>
+            </header>
+
+            <div className="flex flex-wrap items-start gap-x-8 gap-y-3.5">
+              {movesFunding ? (
+                <Stat
+                  hero
+                  label={settled === 0n ? "Funding" : settled > 0n ? "Received" : "Paid"}
+                  value={formatWei(settled < 0n ? -settled : settled, 4)}
+                  toneClassName={settled > 0n ? "text-primary" : "text-foreground"}
+                />
+              ) : (
+                /** A settle-uPnL moves no money — the price change is what happened. */
+                showsPrice && <PriceMove hero row={row} precision={pricePrecision} />
+              )}
+              {row.rate !== undefined ? <Stat label="Rate" value={formatSignedWei(row.rate, 6)} /> : null}
+              {row.openQuantity !== undefined ? (
+                <Stat label="Open qty" value={formatWei(row.openQuantity, quantityPrecision)} />
+              ) : null}
             </div>
 
-            <div className="grid grid-cols-3 gap-x-3 gap-y-1 font-mono text-[0.7rem]">
-              <KV label="Prev price" value={formatWei(row.prevPrice, pricePrecision)} />
-              <KV label="New price" value={formatWei(row.newPrice, pricePrecision)} />
-              <KV label="Open qty" value={formatWei(row.openQuantity, quantityPrecision)} />
-            </div>
-
-            {hasFunding ? (
-              <div className="border-border/40 grid grid-cols-3 gap-x-3 gap-y-1 border-t pt-1.5 font-mono text-[0.7rem]">
-                <KV label="Paid" value={formatWei(row.fundingPaid, 4)} />
-                <KV label="Received" value={formatWei(row.fundingReceived, 4)} />
-                <KV label="Rate" value={formatSignedWei(row.rate, 6)} />
-              </div>
+            {movesFunding && showsPrice ? (
+              /** Funding also nudges the open price; secondary to the amount charged. */
+              <footer className="border-border/60 border-t pt-3">
+                <PriceMove row={row} precision={pricePrecision} />
+              </footer>
             ) : null}
-          </div>
+          </article>
         );
       })}
       {hasMore ? (
-        <p className="text-muted-foreground text-center text-[0.65rem]">More events available — paginate to load.</p>
+        <p className="text-muted-foreground py-1 text-center text-xs">More events available — paginate to load.</p>
       ) : null}
-    </div>
-  );
-}
-
-function KV({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col">
-      <span className="text-muted-foreground text-[0.6rem]">{label}</span>
-      <span className="text-foreground">{value}</span>
     </div>
   );
 }

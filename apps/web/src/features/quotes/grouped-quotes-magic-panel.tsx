@@ -1,13 +1,14 @@
 "use client";
 import { StatusDot } from "@/components/status-dot";
 import { PartyAField } from "@/features/inspector/party-a-field";
-import { socketStatusLabel, socketStatusTone } from "@/features/websocket/socket-status-display";
+import { socketStatusLabel, socketStatusTone } from "@/features/notifications/socket-status-display";
 import type { QuoteGroup } from "@symmio/trading-core";
 import { useGroupedQuotes } from "@symmio/trading-react";
 import { useEffect, useRef } from "react";
 import { isAddress, type Address } from "viem";
 import type { MagicMethodPanelProps } from "../magic-sidebar/magic-types";
 import { magicInputPersistKey, usePersistentPinState } from "../magic-sidebar/magic-value-store";
+import { useSessionKey } from "../session-keys/use-session-key";
 import { GroupedQuotesTable } from "./grouped-quotes-table";
 
 /** Persisted snapshot of the last loaded grouped feed, restored on reload. */
@@ -33,8 +34,9 @@ export function GroupedQuotesMagicPanel({
   const [input, setInput] = usePersistentPinState(magicInputPersistKey(persistKey), initialInput ?? "", seedToken);
   const partyA = isAddress(input) ? (input as Address) : undefined;
   const active = enabled && Boolean(partyA);
+  const { sessionKeyAddress } = useSessionKey();
 
-  const { groups, accounts, isLoading, socketStatus } = useGroupedQuotes({
+  const { groups, accounts, isLoading, socketStatus, isGroupingSupported, groupingError } = useGroupedQuotes({
     partyA,
     live: true,
     enabled: active,
@@ -77,7 +79,7 @@ export function GroupedQuotesMagicPanel({
       <div className="flex items-center gap-2 text-xs">
         <StatusDot tone={socketStatusTone(socketStatus)} pulse={socketStatus === "open"} />
         <span className="text-muted-foreground">{socketStatusLabel(socketStatus)}</span>
-        {active ? (
+        {active && isGroupingSupported ? (
           <span
             className="text-muted-foreground ml-auto"
             title="Grouped positions · sub-account + Virtual Accounts scanned"
@@ -90,12 +92,19 @@ export function GroupedQuotesMagicPanel({
 
       {!active ? (
         <p className="text-muted-foreground text-xs">Enter a partyA address to start the grouped feed.</p>
+      ) : !isGroupingSupported ? (
+        <p className="text-warning text-xs">
+          {groupingError?.message ?? "This sub-account's isolation does not support grouped positions."} Use the Quotes
+          panel for a flat view of this partyA.
+        </p>
       ) : isLoading && snapshot.groups.length === 0 ? (
         <p className="text-muted-foreground text-xs">Loading positions…</p>
       ) : (
         <GroupedQuotesTable
           testId="magic-grouped-quotes-table"
           groups={displayGroups}
+          subAccount={partyA}
+          sessionKey={sessionKeyAddress ?? undefined}
           hidePagination
           emptyMessage="No grouped positions for this partyA yet."
         />

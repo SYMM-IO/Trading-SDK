@@ -13,8 +13,8 @@ export function useMarketNameById(): Map<string, string> {
   return useMemo(() => {
     const map = new Map<string, string>();
     for (const market of data ?? []) {
-      if (market.symbol_id !== undefined && market.name) {
-        map.set(String(market.symbol_id), market.name);
+      if (market.name) {
+        map.set(String(market.symbolId), market.name);
       }
     }
     return map;

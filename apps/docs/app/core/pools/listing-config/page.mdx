@@ -1,0 +1,97 @@
+import { Callout } from "nextra/components";
+
+# getListingConfig
+
+Fetch the listing service's **public client configuration** — the initial-deposit guidance, listing fee, supported deposit chains, per-day rate limits, and protocol reward share a create-pool flow needs. It is the public twin of [`getListingMarkets`](/core/pools/get-listing-markets): no auth, resolved from the config, safe to read before sign-in.
+
+<Callout type="warning">
+  **Read this before building a create-pool UI.** A create-pool form must show the user the recommended and minimum
+  initial deposits (this is what they seed the pool with) and must offer **only** the deposit chains
+  `supportedDepositChains` returns — do not hardcode a chain list. The [`addMarket`](/core/pools/add-market) write is
+  the end of this flow, and it is additionally capped by [`getWeeklyListingLimit`](/core/pools/weekly-limit); wire both
+  in before you let a user submit.
+</Callout>
+
+```ts
+import { getListingConfig, LISTING_VALUE_DECIMALS } from "@symmio/trading-core";
+import { formatUnits } from "@symmio/utils/decimal";
+
+const cfg = await getListingConfig(config);
+
+const recommended = formatUnits(cfg.recommendedInitialDepositUsdc, LISTING_VALUE_DECIMALS); // USD
+const chains = cfg.supportedDepositChains; // the source of truth for a deposit-chain picker
+```
+
+<Callout type="info">
+  This is a REST read against the listing backend, not a contract call, and it is **public** — no `accessToken`. The
+  backend is resolved from the config before the request, so a target without Pools fails immediately and without any
+  network traffic — see [`resolveListingService`](/core/pools/resolve-listing-service). Pools is Enigma-only today.
+</Callout>
+
+## Parameters
+
+Both fields are optional — with neither, the config's default chain and that chain's default solver resolve the listing backend.
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
+    folded into the query key.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<ListingConfig>">
+  <Property name="recommendedInitialDepositUsdc" type="bigint">
+    Recommended initial deposit to seed a new pool, in USD as a `bigint` at `LISTING_VALUE_DECIMALS` (18). This is the
+    headline figure a create-pool form should surface.
+  </Property>
+  <Property name="minimumInitialDepositUsdc" type="bigint">
+    Minimum accepted initial deposit (after slippage), USD as a `bigint` at `LISTING_VALUE_DECIMALS` (18).
+  </Property>
+  <Property name="listingFeeUsdc" type="bigint">
+    The listing fee, USD as a `bigint` at `LISTING_VALUE_DECIMALS` (18).
+  </Property>
+  <Property name="supportedDepositChains" type="ListingDepositChain[]">
+    The deposit chains new listings may use — **the source of truth for a create-pool chain picker**. Each entry is a
+    `{ chainId: ListingDepositChainId; chainName: string }`. Render `chainName (chainId)` and use `chainId` as the
+    `depositChain` you pass to `addMarket`.
+  </Property>
+  <Property name="rateLimits" type="ListingRateLimits">
+    The rolling-24h client mutation limits: `{ marketConfigUpdatesPerDay: number; profitClaimsPerDay: number }` — max
+    successful market-config updates and profit claims per user+market per day.
+  </Property>
+  <Property name="protocolRewardSharePercent" type="number">
+    Whole-percent of market revenue routed to the protocol before buyback/LP (e.g. `10` means `10%`).
+  </Property>
+</Returns>
+
+<Callout type="warning">
+  The three `*Usdc` figures are 18-decimal `bigint`s (USD), independent of the collateral token's own decimals — descale
+  with `formatUnits(value, LISTING_VALUE_DECIMALS)` before formatting as USD. `protocolRewardSharePercent` and the two
+  `rateLimits` counters are plain `number`s: render them directly, no descaling.
+</Callout>
+
+## Query options
+
+```ts
+import { getListingConfigQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getListingConfigQueryOptions(config));
+```
+
+`GetListingConfigOptions` is the action's parameters plus a `query` bag of TanStack overrides. The factory folds `config.getChainConfigKey(chainId)` into the key; `getListingConfigQueryKey` builds the same key for cache matching and invalidation. `GetListingConfigData` is what the query resolves to (the same `ListingConfig`), `GetListingConfigReturnType` is the action's return alias, and `GetListingConfigQueryOptions` is the options bag it produces. `toListingConfig` maps the raw service response into the normalized `ListingConfig` for callers driving the request themselves.
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide Pools instead of erroring. Only chains with a listing backend have Pools.
+- `FETCH_LISTING_CONFIG_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`) with the original error as its `cause`.
+
+## Related
+
+- [`addMarket`](/core/pools/add-market) — the create-pool write this config feeds: the recommended deposit and the deposit-chain picker come from here.
+- [`getWeeklyListingLimit`](/core/pools/weekly-limit) — the protocol-wide cap (public) that also gates `addMarket`; block creation when `remaining` is `0`.
+- [`getListingMarkets`](/core/pools/get-listing-markets) — the public catalog, and the definition of the 18-decimal value contract these USDC figures share.
+- [`useListingConfig`](/react/pools#uselistingconfig) — the React hook.
+- [Pools](/core/pools) — the slice overview.

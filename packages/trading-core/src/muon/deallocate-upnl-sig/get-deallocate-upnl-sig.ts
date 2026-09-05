@@ -1,9 +1,8 @@
 import type { Address } from "viem";
 import type { Config } from "../../core/config";
-import { SymmError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import type { SingleUpnlSig } from "../../symmio-contracts/account-layer/types";
-import { fetchMuon } from "../client";
+import { fetchMuon, requireMuonBigInt, toContractSigEnvelope } from "../client";
 import { MUON_METHOD_UPNL_A, type MuonRawResult } from "../types";
 
 /**
@@ -60,31 +59,13 @@ export async function getDeallocateUpnlSig(
 
 /**
  * Map a raw Muon `uPnl_A` result onto the on-chain {@link SingleUpnlSig} tuple,
- * converting numeric strings to `bigint` and pulling the nonce from
- * `data.init.nonceAddress`.
+ * converting numeric strings to `bigint`.
  *
  * @internal
  */
 function toSingleUpnlSig(result: MuonRawResult): SingleUpnlSig {
-  const sig = result.signatures[0];
-
-  if (!sig) {
-    throw new SymmError(
-      "api",
-      "MUON_UPNL_SIG_MALFORMED",
-      "Muon uPnL attestation is missing its Schnorr signature share.",
-    );
-  }
-
   return {
-    reqId: result.reqId,
-    timestamp: BigInt(result.data.timestamp),
-    upnl: BigInt(result.data.result.uPnl as string),
-    gatewaySignature: result.nodeSignature,
-    sigs: {
-      signature: BigInt(sig.signature),
-      owner: sig.owner,
-      nonce: result.data.init.nonceAddress,
-    },
+    ...toContractSigEnvelope(result),
+    upnl: requireMuonBigInt(result.data.result.uPnl, "uPnl"),
   };
 }

@@ -41,6 +41,10 @@ export default defineConfig({
         "markets/index": path.resolve(srcRoot, "markets/index.ts"),
         "fees/index": path.resolve(srcRoot, "fees/index.ts"),
         "price-service/index": path.resolve(srcRoot, "price-service/index.ts"),
+        "candles/index": path.resolve(srcRoot, "candles/index.ts"),
+        "orderbook/index": path.resolve(srcRoot, "orderbook/index.ts"),
+        "pools/index": path.resolve(srcRoot, "pools/index.ts"),
+        "inventory/index": path.resolve(srcRoot, "inventory/index.ts"),
       },
       formats: ["es"],
     },
@@ -123,6 +127,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json", "json-summary"],
+      reportOnFailure: true,
       include: ["src/**/*.ts", "src/**/*.tsx"],
       exclude: ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/index.ts", "src/test/**", "src/integration/**"],
     },

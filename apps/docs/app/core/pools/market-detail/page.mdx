@@ -1,0 +1,163 @@
+import { Callout } from "nextra/components";
+
+# getListingMarketDetail
+
+Fetch one pool's public detail — its aggregate stats and the inventory position behind it. This is the read a whole pool page is built on: the same response feeds the stats cards **and**, through `toPoolPositions`, the positions table, so a pool page costs one request rather than two.
+
+```ts
+import { getListingMarketDetail, ListingDepositChainId, toPoolPositions } from "@symmio/trading-core";
+
+const detail = await getListingMarketDetail(config, {
+  tokenContractAddress: "0x800822d361335b4d5F352Dac293cA4128b5B605f",
+  depositChain: ListingDepositChainId.BASE,
+});
+
+const rows = toPoolPositions(detail);
+```
+
+A pool is addressed by its token **and** its deposit chain. Neither identifies a pool alone — the same token contract can be listed from more than one chain — so both parameters are required.
+
+<Callout type="info">
+  Public: no bearer token. Listed pools report live inventory balances; a **delisted** pool returns cached remaining
+  token and USDC balances with `tvl` fixed at zero, which is the backend's documented behavior rather than missing data.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
+    folded into the query key.
+  </Property>
+  <Property name="tokenContractAddress" type="string" required>
+    The pool's token contract address — its id in the listing API. An EVM `0x…` address, or a Solana base58 address for
+    a Solana-deposited listing, which is why this is `string` and not viem's `Address`.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId" required>
+    The chain the token was deposited on. Take it from the catalog row's `chainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+`ListingMarketDetail`. Money and rate fields are `bigint` at `LISTING_VALUE_DECIMALS` (18) — and recall that a descaled **rate** is already a percentage (`1e18` = `1%`) while a descaled **money** field is USD (`1e18` = `$1`). `null` means the backend reported no value, which is not zero.
+
+<Properties>
+  <Property name="tokenContractAddress" type="string">
+    The pool's token contract address.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId">
+    Chain the token lives on and its deposit was made on.
+  </Property>
+  <Property name="tokenName" type="string">
+    Token display name.
+  </Property>
+  <Property name="tokenTicker" type="string | null">
+    Token ticker, or `null` when the backend has none.
+  </Property>
+  <Property name="tokenDecimal" type="number">
+    Token decimals.
+  </Property>
+  <Property name="symbolId" type="number | null">
+    Solver market id, or `null` when the pool is not tradable yet.
+  </Property>
+  <Property name="marketStatus" type="ListingMarketStatus">
+    Where the pool sits in the listing lifecycle.
+  </Property>
+  <Property name="maxLeverage" type="number">
+    Maximum leverage, as a whole multiplier.
+  </Property>
+  <Property name="buybackRatio" type="number">
+    Share of revenue routed to token buybacks, as a percentage (`50` = 50%).
+  </Property>
+  <Property name="listingTime" type="number | null">
+    When the market went live, Unix **seconds**.
+  </Property>
+  <Property name="age" type="number | null">
+    Pool age in **seconds**, or `null` before listing.
+  </Property>
+  <Property name="activeLps" type="number">
+    Number of distinct LPs in the pool.
+  </Property>
+  <Property name="tvl" type="bigint | null">
+    Total value locked, USD. `0` for a delisted pool by design.
+  </Property>
+  <Property name="totalUsdcInPool" type="bigint">
+    Collateral held by the pool, USD.
+  </Property>
+  <Property name="totalTokenInPool" type="bigint">
+    Pool token held by the pool, in the token's own units.
+  </Property>
+  <Property name="maintenanceFees" type="bigint">
+    Accrued maintenance fees, USD.
+  </Property>
+  <Property name="rewards" type="ListingApyWindows">
+    LP rewards per window, USD.
+  </Property>
+  <Property name="solverRevenue" type="ListingApyWindows">
+    Solver revenue per window, USD.
+  </Property>
+  <Property name="apy" type="ListingApyWindows">
+    Headline APY per window, as a percentage.
+  </Property>
+  <Property name="tvlDrivenApy" type="ListingApyWindows">
+    APY attributed to TVL growth, per window.
+  </Property>
+  <Property name="priceDrivenApy" type="ListingApyWindows">
+    APY attributed to token price movement, per window.
+  </Property>
+  <Property name="longPosition" type="PoolPosition | null">
+    The pool's aggregate long side, or `null` when the backend reported none.
+  </Property>
+  <Property name="shortPosition" type="PoolPosition | null">
+    The pool's aggregate short side, or `null` when the backend reported none.
+  </Property>
+</Properties>
+
+## toPoolPositions
+
+A pool's inventory is **not** a list of trades — the backend reports one aggregate per side. `toPoolPositions` folds a detail into the rows a positions table renders, long first, then short. It is a pure reshape, so it costs nothing beyond the detail you already fetched.
+
+```ts
+const rows = toPoolPositions(detail);
+// [{ side: PoolPositionSide.LONG,  size, value, avgOpenPrice, upnl },
+//  { side: PoolPositionSide.SHORT, size, value, avgOpenPrice, upnl }]
+```
+
+Sides the backend reported nothing for are **omitted**, so an empty array means the pool holds no inventory at all. A side reporting a genuine zero size is kept — that is a different state from an absent one, and collapsing the two would hide it.
+
+Each row is a `PoolPosition`:
+
+<Properties>
+  <Property name="side" type="PoolPositionSide">
+    `LONG` or `SHORT`.
+  </Property>
+  <Property name="size" type="bigint">
+    Total size held on this side, in the pool token's units.
+  </Property>
+  <Property name="value" type="bigint">
+    Notional value of the side, USD.
+  </Property>
+  <Property name="avgOpenPrice" type="bigint">
+    Size-weighted average open price, USD.
+  </Property>
+  <Property name="upnl" type="bigint">
+    Unrealized PnL of the side, USD. **Signed** — a losing side is negative.
+  </Property>
+</Properties>
+
+<Callout type="warning">
+  `long_position_upnl` arrives from the backend with a fractional tail (`"…286154.904298"`) and, when zero, in
+  scientific notation (`"0E-36"`). Both are handled by the shared parser; the fraction truncates toward zero.
+</Callout>
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no listing backend. Gate with `supportsListingService` to hide Pools rather than error.
+- `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) when the `chainId` is not one the config knows about.
+- `FETCH_LISTING_MARKET_DETAIL_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method` (a failure with no response carries `status: 0`); a non-axios throw becomes a plain `SymmError` (`kind: "api"`).
+
+## Related
+
+- [Pool detail tables](/core/pools/pool-detail-tables) — how this fits with the other four reads.
+- [React: `useListingMarketDetail`](/react/pools#uselistingmarketdetail).

@@ -1,11 +1,15 @@
 import { encodeFunctionData, type Address } from "viem";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig, TEST_TX_HASH } from "../../../shared/test/mock-config";
 import { symmioAbi } from "../../abi/v0.8.5/symmio";
 import type { SingleUpnlSig } from "../../account-layer/types";
 import { deallocate } from "./deallocate";
+
+const getDeallocateUpnlSig = vi.hoisted(() => vi.fn());
+
+vi.mock("../../../muon/deallocate-upnl-sig/get-deallocate-upnl-sig", () => ({ getDeallocateUpnlSig }));
 
 const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -23,6 +27,10 @@ const UPNL_SIG: SingleUpnlSig = {
 };
 
 describe("deallocate", () => {
+  afterEach(() => {
+    getDeallocateUpnlSig.mockReset();
+  });
+
   it("wraps the core deallocate call in AccountLayer `_call`", async () => {
     const { config, writeContract } = mockConfig();
 
@@ -42,6 +50,32 @@ describe("deallocate", () => {
         args: [SUB_ACCOUNT, [expectedData]],
       }),
     );
+  });
+
+  it("fetches a fresh uPnL signature when `upnlSig` is omitted", async () => {
+    const { config, writeContract } = mockConfig();
+    getDeallocateUpnlSig.mockResolvedValueOnce(UPNL_SIG);
+
+    await deallocate(config, { account: SUB_ACCOUNT, amount: AMOUNT });
+
+    const expectedData = encodeFunctionData({
+      abi: symmioAbi,
+      functionName: "deallocate",
+      args: [AMOUNT, UPNL_SIG],
+    });
+
+    expect(getDeallocateUpnlSig).toHaveBeenCalledWith(config, expect.objectContaining({ virtualAccount: SUB_ACCOUNT }));
+    expect(writeContract).toHaveBeenCalledWith(
+      expect.objectContaining({ functionName: "_call", args: [SUB_ACCOUNT, [expectedData]] }),
+    );
+  });
+
+  it("does not fetch a signature when `upnlSig` is supplied", async () => {
+    const { config } = mockConfig();
+
+    await deallocate(config, { account: SUB_ACCOUNT, amount: AMOUNT, upnlSig: UPNL_SIG });
+
+    expect(getDeallocateUpnlSig).not.toHaveBeenCalled();
   });
 
   it("throws when the config has no wallet resolver", async () => {

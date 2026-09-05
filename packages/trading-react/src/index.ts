@@ -32,15 +32,18 @@ export {
   SymmApiError,
   SymmError,
   VIRTUAL_ACCOUNT_ISOLATION_TYPE,
+  calculateAvailableForOrder,
   calculateAvailableInstantOpenMargin,
   calculateClosePrice,
   calculatePriceImpact,
   calculateQuotePnl,
   calculateTradeParams,
   clampClosePrecision,
+  decimalPriceToWei,
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
   isolationTypeForSide,
+  supportsEstimatedPrice,
   validateInstantCloseAgainstMarket,
   validateInstantOpenAgainstMarket,
   type CalculateAvailableInstantOpenMarginParameters,
@@ -60,10 +63,12 @@ export {
   type InstantCloseBulkOrder,
   type InstantCloseBulkParameters,
   type InstantCloseBulkReturnType,
+  type InstantCloseConstraintFields,
   type InstantCloseMarketData,
   type InstantCloseOrder,
   type InstantCloseParameters,
   type InstantCloseReturnType,
+  type InstantOpenConstraintFields,
   type Notification,
   type PrepareInstantCloseParameters,
   type QuoteConstraintViolation,
@@ -116,6 +121,7 @@ export {
   useCancelRegistration,
   useCreateSubAccounts,
   useDeallocate,
+  useDeallocateAndInitiateWithdraw,
   useDeleteSubAccount,
   useDeposit,
   useDepositAndAllocate,
@@ -144,6 +150,8 @@ export {
   type AllocateResult,
   type CancelRegistrationResult,
   type CreateSubAccountsResult,
+  type DeallocateAndInitiateWithdrawResult,
+  type DeallocateAndInitiateWithdrawVariables,
   type DeallocateResult,
   type DeallocateVariables,
   type DeleteSubAccountResult,
@@ -167,6 +175,8 @@ export {
   type UseCancelRegistrationReturnType,
   type UseCreateSubAccountsParameters,
   type UseCreateSubAccountsReturnType,
+  type UseDeallocateAndInitiateWithdrawParameters,
+  type UseDeallocateAndInitiateWithdrawReturnType,
   type UseDeallocateParameters,
   type UseDeallocateReturnType,
   type UseDeleteSubAccountParameters,
@@ -261,6 +271,8 @@ export {
   useInstantOpenWithTpSl,
   useInstantOpens,
   useIsDelegationActive,
+  useLimitCloseAuto,
+  useLimitOpenAuto,
   useSimulateGrantDelegation,
   type GrantDelegationResult,
   type UseDelegationExpiryParameters,
@@ -292,6 +304,10 @@ export {
   type UseInstantOpensReturnType,
   type UseIsDelegationActiveParameters,
   type UseIsDelegationActiveReturnType,
+  type UseLimitCloseAutoParameters,
+  type UseLimitCloseAutoReturnType,
+  type UseLimitOpenAutoParameters,
+  type UseLimitOpenAutoReturnType,
   type UseSimulateGrantDelegationParameters,
   type UseSimulateGrantDelegationReturnType,
 } from "./instant-layer";
@@ -312,6 +328,7 @@ export {
   useSimulateFinalizeWithdrawRequest,
   useSimulateInitiateWithdraw,
   useSimulateRequestCancelWithdraw,
+  useWithdraw,
   useWithdrawRequest,
   useWithdrawableTime,
   type FinalizeWithdrawRequestResult,
@@ -333,10 +350,14 @@ export {
   type UseSimulateInitiateWithdrawReturnType,
   type UseSimulateRequestCancelWithdrawParameters,
   type UseSimulateRequestCancelWithdrawReturnType,
+  type UseWithdrawParameters,
   type UseWithdrawRequestParameters,
   type UseWithdrawRequestReturnType,
+  type UseWithdrawReturnType,
+  type UseWithdrawVariables,
   type UseWithdrawableTimeParameters,
   type UseWithdrawableTimeReturnType,
+  type WithdrawResult,
 } from "./withdraw";
 
 /**
@@ -376,11 +397,26 @@ export {
  * (on-chain reads fanned out across the sub-account's Virtual Accounts + hedger
  * instant-ops + live notifications) into one reconciled, lifecycle-tagged table,
  * seeded by the optimistic `useOptimisticQuotesStore`. Import the `UnifiedQuote`
- * / `QuoteLifecycle` value types from `@symmio/trading-core`.
+ * / `QuoteLifecycle` value types from `@symmio/trading-core`. The
+ * `useQuoteGroupFunding*` hooks read a whole group's settled-to-date funding —
+ * one aggregate total, one merged timeline — where `netReceived = received −
+ * paid`, so a **positive** value means the group **earned** funding.
+ * `useQuoteGroupMarginRisk` describes a group's margin, equity and distance to
+ * liquidation; it withholds `metrics` when the group spans several accounts,
+ * since each is liquidated independently.
  */
 export {
   useAccountLiquidationPrice,
+  useAccountUpnl,
+  useCloseQuoteGroup,
+  useCoolDownsOfMA,
+  useForceCancelCloseRequest,
+  useForceCancelQuote,
+  useForceClose,
+  useForceCloseEligibility,
+  useForceCloseParams,
   useGroupedQuotes,
+  useLimitOrders,
   useManagedQuotes,
   useOptimisticQuotesStore,
   usePartyAOpenPositions,
@@ -388,19 +424,53 @@ export {
   useQuote,
   useQuoteEventsByType,
   useQuoteFunding,
+  useQuoteGroupFunding,
+  useQuoteGroupFundingHistory,
+  useQuoteGroupMarginRisk,
   useQuoteHistory,
   useQuotePlatformFee,
   useQuotePriceHistory,
   useQuoteUpnlAndPnl,
   useQuotesFunding,
+  useRequestToCancelCloseRequest,
+  useRequestToCancelQuote,
   useSubgraphQuery,
+  type CloseQuoteGroupParameters,
+  type CloseQuoteGroupStatus,
+  type CloseQuoteGroupStep,
+  type CloseQuoteGroupStepStatus,
+  type CloseQuoteGroupSummary,
+  type ForceCancelCloseRequestResult,
+  type ForceCancelQuoteResult,
+  type ForceCloseEligibilityQuote,
+  type ForceCloseResult,
   type ManagedQuotesSources,
   type OptimisticQuotesStoreState,
   type QuotesFundingInputQuote,
+  type RequestToCancelCloseRequestResult,
+  type RequestToCancelQuoteResult,
   type UseAccountLiquidationPriceParameters,
   type UseAccountLiquidationPriceReturnType,
+  type UseAccountUpnlParameters,
+  type UseAccountUpnlReturnType,
+  type UseCloseQuoteGroupParameters,
+  type UseCloseQuoteGroupReturnType,
+  type UseCoolDownsOfMAParameters,
+  type UseCoolDownsOfMAReturnType,
+  type UseForceCancelCloseRequestParameters,
+  type UseForceCancelCloseRequestReturnType,
+  type UseForceCancelQuoteParameters,
+  type UseForceCancelQuoteReturnType,
+  type UseForceCloseEligibilityParameters,
+  type UseForceCloseEligibilityReturnType,
+  type UseForceCloseParameters,
+  type UseForceCloseParamsParameters,
+  type UseForceCloseParamsReturnType,
+  type UseForceCloseReturnType,
   type UseGroupedQuotesParameters,
   type UseGroupedQuotesResult,
+  type UseLimitOrdersParameters,
+  type UseLimitOrdersReturnType,
   type UseManagedQuotesParameters,
   type UseManagedQuotesResult,
   type UsePartyAOpenPositionsParameters,
@@ -411,6 +481,12 @@ export {
   type UseQuoteEventsByTypeReturnType,
   type UseQuoteFundingParameters,
   type UseQuoteFundingReturnType,
+  type UseQuoteGroupFundingHistoryParameters,
+  type UseQuoteGroupFundingHistoryReturnType,
+  type UseQuoteGroupFundingParameters,
+  type UseQuoteGroupFundingReturnType,
+  type UseQuoteGroupMarginRiskParameters,
+  type UseQuoteGroupMarginRiskReturnType,
   type UseQuoteHistoryParameters,
   type UseQuoteHistoryReturnType,
   type UseQuoteParameters,
@@ -422,15 +498,26 @@ export {
   type UseQuoteUpnlAndPnlReturnType,
   type UseQuotesFundingParameters,
   type UseQuotesFundingReturnType,
+  type UseRequestToCancelCloseRequestParameters,
+  type UseRequestToCancelCloseRequestReturnType,
+  type UseRequestToCancelQuoteParameters,
+  type UseRequestToCancelQuoteReturnType,
   type UseSubgraphQueryParameters,
   type UseSubgraphQueryReturnType,
 } from "./quotes";
 
 /**
- * Margin — derived spendable-margin helpers for the trade form.
+ * Margin — derived spendable-margin helpers for the trade form, plus
+ * `useAccountMarginRisk`: one account's margin, equity and distance to
+ * liquidation, folded by core's `calculateMarginRisk`. Every figure it returns
+ * describes a single liquidation domain, so call it once per account rather than
+ * summing across them.
  */
 export {
+  useAccountMarginRisk,
   useAvailableInstantOpenMargin,
+  type UseAccountMarginRiskParameters,
+  type UseAccountMarginRiskReturnType,
   type UseAvailableInstantOpenMarginParameters,
   type UseAvailableInstantOpenMarginReturnType,
 } from "./margin";
@@ -503,6 +590,13 @@ export {
   type UseEstimatedPriceReturnType,
 } from "./estimated-price";
 export { useFundingInfo, type UseFundingInfoParameters, type UseFundingInfoReturnType } from "./funding-info";
+export {
+  useRevenueRecords,
+  type UseRevenueRecordsParameters,
+  type UseRevenueRecordsReturnType,
+} from "./revenue-records";
+export { useSymbols, type UseSymbolsParameters, type UseSymbolsReturnType } from "./symbols";
+export { useTradeVolume, type UseTradeVolumeParameters, type UseTradeVolumeReturnType } from "./trade-volume";
 
 /**
  * Market-info hooks
@@ -514,6 +608,23 @@ export { useFundingInfo, type UseFundingInfoParameters, type UseFundingInfoRetur
 export { useMarketInfo, type UseMarketInfoParameters, type UseMarketInfoReturnType } from "./market-info";
 
 /**
+ * Solver capabilities & revenue
+ * -----------------------------
+ * Gate flows/UI on what the resolved solver supports (e.g. group close), and
+ * read its revenue totals — protocol-wide by default, or one market via
+ * `symbolId`.
+ */
+export {
+  useSolverCapabilities,
+  useSolverRevenue,
+  useSupportsGroupClose,
+  useSupportsLimitOrder,
+  type UseSolverCapabilitiesParameters,
+  type UseSolverRevenueParameters,
+  type UseSolverRevenueReturnType,
+} from "./solvers";
+
+/**
  * Fee hooks
  * ---------
  * Read SYMMIO fee settings for a user/account, affiliate, and symbol id.
@@ -521,9 +632,65 @@ export { useMarketInfo, type UseMarketInfoParameters, type UseMarketInfoReturnTy
 export { useFeeForUser, type UseFeeForUserParameters, type UseFeeForUserReturnType } from "./fees";
 
 /**
- * Price-service hooks
- * -------------------
- * Read Enigma price-service prices, metadata, symbols info, and health.
+ * Mark-price hooks
+ * ----------------
+ * Provider-agnostic prices: each of these resolves whichever price provider
+ * serves the target solver — Enigma's lowcap service, or Binance USD-M Futures
+ * for major markets — so a component never branches on provider.
+ *
+ * `usePrices` subscribes to the live feed and returns both the ergonomic
+ * `prices` map and the full `ticks` map (narrow on `provider` for Binance's
+ * `indexPrice`). `usePriceByName` tracks one market with re-render gating;
+ * `usePriceByMarketId` does the same from a solver `symbol_id`.
+ * `useMarkPrices` is the one-shot REST read.
+ *
+ * Pass `names` on Binance: its stream pushes every listed symbol once per
+ * second, and the filter is what keeps that from churning your component tree.
+ */
+export {
+  useMarkPrices,
+  usePriceByMarketId,
+  usePriceByName,
+  usePrices,
+  type UseMarkPricesParameters,
+  type UseMarkPricesReturnType,
+  type UsePriceByMarketIdParameters,
+  type UsePriceByMarketIdReturnType,
+  type UsePriceByNameParameters,
+  type UsePriceByNameReturnType,
+  type UsePricesParameters,
+  type UsePricesRestFallback,
+  type UsePricesReturnType,
+} from "./price-service";
+
+/**
+ * Binance-only price hooks
+ * ------------------------
+ * Provider-specific twins of the mark-price hooks, for callers that already know
+ * their source. Every tick is a `BinanceMarkPriceTick`, so `indexPrice` and the
+ * Binance funding fields are reachable without narrowing. Each surfaces
+ * `UNSUPPORTED_BY_PRICE_SERVICE` when the target solver is not priced by Binance.
+ */
+export {
+  useBinanceHealth,
+  useBinancePremiumIndex,
+  useBinancePrices,
+  useBinanceSymbolsInfo,
+  type UseBinanceHealthParameters,
+  type UseBinanceHealthReturnType,
+  type UseBinancePremiumIndexParameters,
+  type UseBinancePremiumIndexReturnType,
+  type UseBinancePricesParameters,
+  type UseBinancePricesReturnType,
+  type UseBinanceSymbolsInfoParameters,
+  type UseBinanceSymbolsInfoReturnType,
+} from "./price-service";
+
+/**
+ * Price-service hooks (Enigma-specific)
+ * -------------------------------------
+ * Read Enigma price-service prices, metadata, symbols info, and health. These
+ * throw `UNSUPPORTED_BY_PRICE_SERVICE` on a chain whose provider is not Enigma.
  */
 export {
   useEnigmaPriceByMarketId,
@@ -564,11 +731,13 @@ export { useNotifications, type UseNotificationsParameters, type UseNotification
 /**
  * Notification search hooks
  * -------------------------
- * `useSearchNotifications` queries the notification service's free-form
- * `POST /api/v1/search` endpoint (the REST counterpart to the live
- * `useNotifications` stream). Import the filter/result value types
- * (`NotificationSearchFilter`, `NotificationDocument`, `NotificationSearchResult`)
- * from `@symmio/trading-core`.
+ * `useSearchNotifications` is one hook over both solver kinds, dispatched by
+ * `solverId`: an enigma solver hits the notification service (`POST /api/v1/search`),
+ * a rasa solver hits its own position-state endpoint. It returns a per-kind union
+ * (narrow on `data.kind`) and is the REST counterpart to the live
+ * `useNotifications` stream. Import the filter/result value types
+ * (`NotificationSearchFilter`, `NotificationDocument`, `NotificationSearchResult`,
+ * `EnigmaNotificationSearchResult`, `RasaNotificationSearchResult`) from `@symmio/trading-core`.
  */
 export {
   useSearchNotifications,
@@ -579,11 +748,19 @@ export {
 /**
  * Muon hooks
  * ----------
- * Fetch the Muon uPnL signature `removeMargin` requires, on demand. `useRemoveMargin`
- * already does this internally; use this hook only for the raw signature.
+ * Fetch Muon attestations on demand. The three `…Sig` hooks return
+ * contract-ready structs (`SingleUpnlSig` for `removeMargin`,
+ * `SingleUpnlAndPriceSig` for `sendQuote`, `HighLowPriceSig` for force-close);
+ * the `useMuon…` hooks return the raw normalized attestations. `useRemoveMargin`
+ * and `useInstantOpen` already fetch their signatures internally — reach for
+ * these only when you drive the calldata yourself.
+ *
+ * All of them are **mutations**, not queries: attestations are timestamped and
+ * short-lived, so they must be fetched on an explicit action, not on mount.
  */
 export {
   useDeallocateUpnlSig,
+  useForceClosePriceSig,
   useMuonPartyAOverview,
   useMuonPrice,
   useMuonPriceRange,
@@ -593,8 +770,11 @@ export {
   useMuonUpnlAWithSymbolPrice,
   useMuonUpnlB,
   useMuonUpnlWithSymbolPrice,
+  useSendQuoteUpnlSig,
   type UseDeallocateUpnlSigParameters,
   type UseDeallocateUpnlSigReturnType,
+  type UseForceClosePriceSigParameters,
+  type UseForceClosePriceSigReturnType,
   type UseMuonPartyAOverviewParameters,
   type UseMuonPartyAOverviewReturnType,
   type UseMuonPriceParameters,
@@ -613,6 +793,8 @@ export {
   type UseMuonUpnlReturnType,
   type UseMuonUpnlWithSymbolPriceParameters,
   type UseMuonUpnlWithSymbolPriceReturnType,
+  type UseSendQuoteUpnlSigParameters,
+  type UseSendQuoteUpnlSigReturnType,
 } from "./muon";
 
 /**
@@ -659,21 +841,50 @@ export {
  */
 export {
   DEFAULT_TPSL_SLIPPAGE_LOWCAPS,
+  GROUP_TPSL_SIDES,
   ZERO_LEG,
   buildConditionalOrderLeg,
   buildConditionalOrderMessage,
   buildTpSlDeleteMessage,
+  childNotional,
   deleteQuoteTpSl,
   deleteQuoteTpSlMutationOptions,
+  estimateGroupTpSlReturn,
   generateTpSlSalt,
   parseTpSlFrame,
+  planGroupTpSl,
+  planGroupTpSlDelete,
   priceSlippageCalculation,
+  sharePercent,
   signTpSlRequest,
+  summarizeQuoteGroupTpSl,
+  toGroupTpSlChildren,
+  toGroupTpSlOrders,
   toSignableTpSlMessage,
   validateTpSl,
   watchTpSlNotifications,
   type DeleteQuoteTpSlParameters,
   type DeleteQuoteTpSlReturnType,
+  type EstimateGroupTpSlReturnParameters,
+  type GroupTpSlAction,
+  type GroupTpSlChild,
+  type GroupTpSlDeleteScope,
+  type GroupTpSlDeleteSkip,
+  type GroupTpSlDeleteTarget,
+  type GroupTpSlDesiredMap,
+  type GroupTpSlDesiredSide,
+  type GroupTpSlDesiredSides,
+  type GroupTpSlOrder,
+  type GroupTpSlReturnEstimate,
+  type GroupTpSlReturnLeg,
+  type GroupTpSlSideDisplay,
+  type GroupTpSlSideKey,
+  type GroupTpSlSideSummary,
+  type GroupTpSlSkipReason,
+  type PlanGroupTpSlDeleteResult,
+  type PlanGroupTpSlParameters,
+  type PlanGroupTpSlResult,
+  type QuoteGroupTpSlSummary,
   type QuoteTpSl,
   type QuoteTpSlActionPriceType,
   type QuoteTpSlConditionalOrderType,
@@ -696,27 +907,262 @@ export {
   type WatchTpSlNotificationsParameters,
 } from "@symmio/trading-core";
 export {
+  invalidateTpSlReads,
   toQuoteTpSl,
+  useDeleteQuoteGroupTpSl,
   useDeleteQuoteTpSl,
+  useQuoteGroupTpSl,
+  useQuoteGroupTpSlEditor,
   useQuoteTpSl,
+  useSearchTpSlOrders,
+  useSetQuoteGroupTpSl,
   useSetQuoteTpSl,
   useTpSlConfig,
   useTpSlRecord,
+  useTpSlRecords,
   useTpSlSigningSpec,
   useTpSlStore,
+  useTpSlSupported,
   useWatchTpSlNotifications,
+  type DeleteQuoteGroupTpSlParameters,
+  type DeleteQuoteGroupTpSlStatus,
+  type DeleteQuoteGroupTpSlStep,
+  type DeleteQuoteGroupTpSlStepStatus,
+  type DeleteQuoteGroupTpSlSummary,
+  type SetQuoteGroupTpSlParameters,
+  type SetQuoteGroupTpSlStatus,
+  type SetQuoteGroupTpSlStep,
+  type SetQuoteGroupTpSlStepKind,
+  type SetQuoteGroupTpSlStepStatus,
+  type SetQuoteGroupTpSlSummary,
   type TpSlRecord,
   type TpSlStoreState,
+  type UseDeleteQuoteGroupTpSlParameters,
+  type UseDeleteQuoteGroupTpSlReturnType,
   type UseDeleteQuoteTpSlParameters,
   type UseDeleteQuoteTpSlReturnType,
+  type UseQuoteGroupTpSlEditorParameters,
+  type UseQuoteGroupTpSlEditorReturnType,
+  type UseQuoteGroupTpSlParameters,
+  type UseQuoteGroupTpSlReturnType,
   type UseQuoteTpSlParameters,
   type UseQuoteTpSlReturnType,
+  type UseSearchTpSlOrdersParameters,
+  type UseSearchTpSlOrdersReturnType,
+  type UseSetQuoteGroupTpSlParameters,
+  type UseSetQuoteGroupTpSlReturnType,
   type UseSetQuoteTpSlParameters,
   type UseSetQuoteTpSlReturnType,
   type UseTpSlConfigParameters,
   type UseTpSlConfigReturnType,
   type UseTpSlSigningSpecParameters,
   type UseTpSlSigningSpecReturnType,
+  type UseTpSlSupportedParameters,
   type UseWatchTpSlNotificationsParameters,
   type UseWatchTpSlNotificationsReturnType,
 } from "./tpsl";
+
+/**
+ * Candles / charting hooks
+ * ------------------------
+ * Chart data decoupled from any chart library. `useBinanceCandleSource` builds
+ * a stable source, `useCandles` reads its history through TanStack Query, and
+ * `useCandleStream` subscribes to live bars. `useTradingViewDatafeed` adapts a
+ * source to TradingView's Charting Library; any other library consumes the same
+ * two data hooks directly. Import the value types (`Candle`, `CandleResolution`,
+ * `CandleSource`) from `@symmio/trading-core`.
+ */
+export {
+  useBinanceCandleSource,
+  useCandleStream,
+  useCandles,
+  useTradingViewDatafeed,
+  type UseBinanceCandleSourceParameters,
+  type UseCandleStreamParameters,
+  type UseCandleStreamReturnType,
+  type UseCandlesParameters,
+  type UseCandlesReturnType,
+  type UseTradingViewDatafeedParameters,
+} from "./candles";
+
+/**
+ * Orderbook hooks
+ * ---------------
+ * Market depth decoupled from any venue. `useBinanceOrderbookSource` builds a
+ * stable source; `useLiveOrderbook` is the one most ladders want — a
+ * synchronized book, grouped onto a tick, with cumulative depth and the spread
+ * already derived. `useOrderbookStream` exposes the raw synchronized book for
+ * custom aggregation, and `useOrderbook` reads a one-off snapshot through
+ * TanStack Query.
+ *
+ * The book behind these is not a stream of deltas applied on faith: the source
+ * verifies that every update chains onto the last and rebuilds from a fresh
+ * snapshot when one does not, surfaced as `isResyncing` / `resyncReason` so a
+ * stale ladder can say so. Import the value types (`Orderbook`,
+ * `OrderbookLevel`, `OrderbookSource`) from `@symmio/trading-core`.
+ */
+export {
+  useBinanceOrderbookSource,
+  useLiveOrderbook,
+  useOrderbook,
+  useOrderbookStream,
+  type UseBinanceOrderbookSourceParameters,
+  type UseLiveOrderbookParameters,
+  type UseLiveOrderbookReturnType,
+  type UseOrderbookParameters,
+  type UseOrderbookReturnType,
+  type UseOrderbookStreamParameters,
+  type UseOrderbookStreamReturnType,
+} from "./orderbook";
+
+/* Rasa-only solver hooks
+ * ----------------------
+ * Hooks over the endpoints only the `rasa` solver kind exposes: solver-side
+ * balance info, partyA uPnL, global open interest, symbol price range,
+ * single error-code lookup, whitelist check/add, and readiness. Each surfaces a
+ * typed `UNSUPPORTED_BY_SOLVER` error when the resolved solver is not a `rasa`
+ * solver. (Notification history search is the unified `useSearchNotifications`.)
+ */
+export {
+  useAddSolverWhitelist,
+  useErrorMessage,
+  usePartyAUpnl,
+  useSolverBalanceInfo,
+  useSolverOpenInterest,
+  useSolverPriceRange,
+  useSolverReadiness,
+  type UseAddSolverWhitelistParameters,
+  type UseAddSolverWhitelistReturnType,
+  type UseErrorMessageParameters,
+  type UseErrorMessageReturnType,
+  type UsePartyAUpnlParameters,
+  type UsePartyAUpnlReturnType,
+  type UseSolverBalanceInfoParameters,
+  type UseSolverBalanceInfoReturnType,
+  type UseSolverOpenInterestParameters,
+  type UseSolverOpenInterestReturnType,
+  type UseSolverPriceRangeParameters,
+  type UseSolverPriceRangeReturnType,
+  type UseSolverReadinessParameters,
+  type UseSolverReadinessReturnType,
+} from "./rasa-solver";
+/**
+ * Pools (lowcap liquidity markets)
+ * --------------------------------
+ * The pool catalogue served by the listing backend. Search, filter, sort and
+ * pagination are all server-side, so every parameter change is a new request
+ * rather than a re-view of an already-fetched page.
+ */
+export {
+  useAddMarket,
+  useAuthenticateListing,
+  useCancelWithdraw,
+  useClaimHistory,
+  useClaimProfit,
+  useDepositAddress,
+  useListingConfig,
+  useListingMarketConfig,
+  useListingMarketConfigProjection,
+  useListingMarketDetail,
+  useListingMarkets,
+  useListingStatus,
+  usePoolQuotes,
+  usePoolRewardChart,
+  usePoolTotalReward,
+  usePoolTradeHistory,
+  usePoolTransactions,
+  useRefundMarket,
+  useRetryListing,
+  useRetryListingInfo,
+  useSupportsListingService,
+  useUpdateListingMarketConfig,
+  useUserListingMarkets,
+  useUserProfit,
+  useUserRewardChart,
+  useUserTotalReward,
+  useUserTransactions,
+  useWeeklyListingLimit,
+  useWithdrawLp,
+  type AddMarketVariables,
+  type AuthenticateListingVariables,
+  type CancelWithdrawVariables,
+  type ClaimProfitVariables,
+  type RefundMarketVariables,
+  type RetryListingVariables,
+  type UpdateListingMarketConfigVariables,
+  type UseAddMarketParameters,
+  type UseAddMarketReturnType,
+  type UseAuthenticateListingParameters,
+  type UseAuthenticateListingReturnType,
+  type UseCancelWithdrawParameters,
+  type UseCancelWithdrawReturnType,
+  type UseClaimHistoryParameters,
+  type UseClaimHistoryReturnType,
+  type UseClaimProfitParameters,
+  type UseClaimProfitReturnType,
+  type UseDepositAddressParameters,
+  type UseDepositAddressReturnType,
+  type UseListingConfigParameters,
+  type UseListingConfigReturnType,
+  type UseListingMarketConfigParameters,
+  type UseListingMarketConfigProjectionParameters,
+  type UseListingMarketConfigProjectionReturnType,
+  type UseListingMarketConfigReturnType,
+  type UseListingMarketDetailParameters,
+  type UseListingMarketDetailReturnType,
+  type UseListingMarketsParameters,
+  type UseListingMarketsReturnType,
+  type UseListingStatusParameters,
+  type UseListingStatusReturnType,
+  type UsePoolQuotesParameters,
+  type UsePoolQuotesReturnType,
+  type UsePoolRewardChartParameters,
+  type UsePoolRewardChartReturnType,
+  type UsePoolTotalRewardParameters,
+  type UsePoolTotalRewardReturnType,
+  type UsePoolTradeHistoryParameters,
+  type UsePoolTradeHistoryReturnType,
+  type UsePoolTransactionsParameters,
+  type UsePoolTransactionsReturnType,
+  type UseRefundMarketParameters,
+  type UseRefundMarketReturnType,
+  type UseRetryListingInfoParameters,
+  type UseRetryListingInfoReturnType,
+  type UseRetryListingParameters,
+  type UseRetryListingReturnType,
+  type UseSupportsListingServiceParameters,
+  type UseUpdateListingMarketConfigParameters,
+  type UseUpdateListingMarketConfigReturnType,
+  type UseUserListingMarketsParameters,
+  type UseUserListingMarketsReturnType,
+  type UseUserProfitParameters,
+  type UseUserProfitReturnType,
+  type UseUserRewardChartParameters,
+  type UseUserRewardChartReturnType,
+  type UseUserTotalRewardParameters,
+  type UseUserTotalRewardReturnType,
+  type UseUserTransactionsParameters,
+  type UseUserTransactionsReturnType,
+  type UseWeeklyListingLimitParameters,
+  type UseWeeklyListingLimitReturnType,
+  type UseWithdrawLpParameters,
+  type UseWithdrawLpReturnType,
+  type WithdrawLpVariables,
+} from "./pools";
+/**
+ * Inventory service
+ * -----------------
+ * The custody backend behind the Pools. `useInventoryTvl` reads the system-wide
+ * custodial TVL as an 18-decimal `bigint` — the headline TVL on a pools page,
+ * and not the same thing as summing the catalogue's per-pool values.
+ * `useInventoryTvlHistory` is its per-market twin: the TVL series behind one
+ * pool's chart.
+ */
+export {
+  useInventoryTvl,
+  useInventoryTvlHistory,
+  type UseInventoryTvlHistoryParameters,
+  type UseInventoryTvlHistoryReturnType,
+  type UseInventoryTvlParameters,
+  type UseInventoryTvlReturnType,
+} from "./inventory";

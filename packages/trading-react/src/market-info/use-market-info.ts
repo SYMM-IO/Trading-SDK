@@ -5,6 +5,7 @@ import {
   type ConfigParameter,
   type GetMarketInfoOptions,
   type GetMarketInfoReturnType,
+  type SymmioSolverKind,
 } from "@symmio/trading-core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
@@ -14,33 +15,39 @@ import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /**
  * Parameters for {@link useMarketInfo}: the core query options plus an optional
- * `config`.
+ * `config`. Generic over the solver kind `K` — a literal `solverId` narrows the
+ * returned market-info type.
  */
-export type UseMarketInfoParameters = GetMarketInfoOptions & ConfigParameter;
+export type UseMarketInfoParameters<K extends SymmioSolverKind = SymmioSolverKind> = GetMarketInfoOptions<K> &
+  ConfigParameter;
 
-/** Return type of {@link useMarketInfo}. */
-export type UseMarketInfoReturnType = UseQueryResult<GetMarketInfoReturnType, SymmioRequestError>;
+/** Return type of {@link useMarketInfo}, generic over the solver kind `K`. */
+export type UseMarketInfoReturnType<K extends SymmioSolverKind = SymmioSolverKind> = UseQueryResult<
+  GetMarketInfoReturnType<K>,
+  SymmioRequestError
+>;
 
 /**
- * Read per-market 24h volume from the active chain's solver in one call.
- * Surfaces the rolling 24-hour trading volume and cumulative lifetime value for
- * every market, plus the aggregate totals across all markets.
+ * Read per-market info from the active chain's solver in one call. The shape
+ * diverges by solver — **Enigma** returns 24h volume + lifetime value plus
+ * aggregate totals; **Rasa** returns price / 24h change / volume / notional cap.
+ * Narrow on `data.kind`, or pass a literal `solverId` to narrow the type.
  *
  * Does not poll by default; pass `query.refetchInterval` to opt into polling.
- * Errors are normalized to {@link SymmioRequestError} so `error.kind` is always
- * a documented value.
+ * Errors are normalized to {@link SymmioRequestError}.
  *
  * @example
  * ```tsx
  * const { data } = useMarketInfo();
- * const btc = data?.markets.find((m) => m.symbol === "BTCUSDT");
- * console.log(btc?.tradingVolume, data?.totalValue24h);
+ * if (data?.kind === "enigma") console.log(data.totalValue24h);
  * ```
  */
-export function useMarketInfo(parameters: UseMarketInfoParameters = {}): UseMarketInfoReturnType {
+export function useMarketInfo<K extends SymmioSolverKind = SymmioSolverKind>(
+  parameters: UseMarketInfoParameters<K> = {},
+): UseMarketInfoReturnType<K> {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
-  const options = getMarketInfoQueryOptions(config, {
+  const options = getMarketInfoQueryOptions<K>(config, {
     ...parameters,
     chainId: parameters.chainId ?? chainId,
   });
@@ -54,5 +61,5 @@ export function useMarketInfo(parameters: UseMarketInfoParameters = {}): UseMark
         throw normalizeSymmError(err);
       }
     },
-  }) as UseMarketInfoReturnType;
+  }) as UseMarketInfoReturnType<K>;
 }

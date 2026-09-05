@@ -1,0 +1,106 @@
+import { Callout } from "nextra/components";
+
+# Retry listing
+
+Re-attempt a **rejected** market's listing instead of refunding it — read the retry allowance with `getRetryListingInfo`, then re-submit with `retryListing`. Retries are capped per market and rate-limited by a cooldown.
+
+<Callout type="info">
+  Both endpoints are REST calls against the listing backend, not contract calls, and both are **authed**: the
+  `accessToken` from [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>`
+  header. The backend is resolved from the config before the request, so a target without Pools fails immediately — see
+  [`resolveListingService`](/core/pools/resolve-listing-service). Pool listing is **chain-level**, so both take only an
+  optional `chainId` and **no `solverId`**.
+</Callout>
+
+## `getRetryListingInfo`
+
+Read the signed-in user's retry allowance for one rejected market: how many retries remain and the cooldown before the next.
+
+```ts
+import { getRetryListingInfo } from "@symmio/trading-core";
+
+const info = await getRetryListingInfo(config, {
+  accessToken: token.accessToken,
+  tokenContractAddress: rejectedMarket.contractAddress,
+  depositChain: rejectedMarket.chainId,
+});
+```
+
+Read this before offering `retryListing`: gate the retry on `remainingRetries > 0` and on `remainingCooldownSeconds` being `null` or `0`.
+
+### Parameters
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). A bad or expired token yields a `401`.
+  </Property>
+  <Property name="tokenContractAddress" type="string" required>
+    The rejected market's token contract address.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId" required>
+    The chain the token/deposit lives on — the market's `chainId`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. **No `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+### Returns
+
+<Returns type="Promise<RetryListingInfo>">
+  `retryLimit` (max retries per market), `remainingRetries` (retries left), and `remainingCooldownSeconds` (seconds
+  until the next retry, or `null` when no cooldown is in effect).
+</Returns>
+
+### Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend. Gate with `supportsListingService`.
+- `FETCH_RETRY_LISTING_INFO_FAILED` — the request failed. Axios failures become a `SymmApiError`; a **`401`** means the token was missing/expired.
+
+## `retryListing`
+
+Re-submit a rejected market's listing. On success the market re-enters the listing pipeline (its `marketStatus` moves off `REJECTED`) and the response reports the retry allowance left.
+
+```ts
+import { retryListing } from "@symmio/trading-core";
+
+const left = await retryListing(config, {
+  accessToken: token.accessToken,
+  tokenContractAddress: rejectedMarket.contractAddress,
+  depositChain: rejectedMarket.chainId,
+});
+```
+
+Only offer this when `getRetryListingInfo` reports `remainingRetries > 0` and the cooldown has elapsed.
+
+### Parameters
+
+Same shape as [`getRetryListingInfo`](#getretrylistinginfo) — `accessToken`, `tokenContractAddress`, `depositChain`, and an optional `chainId`.
+
+### Returns
+
+<Returns type="Promise<RetryListingResult>">
+  `retryLimit`, `remainingRetries` (left after this retry), and `cooldownSeconds` (before the next retry is allowed).
+</Returns>
+
+### Mutation options
+
+```ts
+import { retryListingMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+const { mutateAsync } = useMutation(retryListingMutationOptions(config));
+await mutateAsync({ accessToken, tokenContractAddress, depositChain });
+```
+
+### Throws
+
+- `LISTING_NOT_CONFIGURED` — as above.
+- `RETRY_LISTING_FAILED` — the request failed. A **`401`** means a bad/expired token; the service also rejects a retry when no retries remain or the cooldown has not elapsed, surfaced with its message and status as-is.
+
+## Related
+
+- [`refundMarket`](/core/pools/refund) — the alternative to retrying: refund the deposit instead.
+- [`getUserListingMarkets`](/core/pools/get-user-listing-markets) — surfaces the user's markets and their `marketStatus`, including `REJECTED`.
+- [`useRetryListingInfo`](/react/pools#useretrylistinginfo) / [`useRetryListing`](/react/pools#useretrylisting) — the React hooks.
+- [Pools](/core/pools) — the slice overview.

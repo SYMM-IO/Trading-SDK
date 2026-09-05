@@ -15,34 +15,65 @@ const PRICE_FILL_ACTIONS = new Set(["InstantRFQ"]);
 
 /**
  * Close `lastSeenAction` values that report the close price / fill request — the
- * first close notification, analogous to `InstantRFQ` on the open side. Advances a
- * closing row to {@link QuoteLifecycle.CLOSE_PRICE_FILLED}.
+ * solver **accepted** the close (analogous to `InstantRFQ` on the open side).
+ * Advances a closing row to {@link QuoteLifecycle.CLOSE_PRICE_FILLED}.
  */
 const CLOSE_REQUEST_ACTIONS = new Set(["InstantRequestToClosePosition", "RequestToClosePosition"]);
 
 /**
- * Close `lastSeenAction` values that report the on-chain fill — the second close
- * notification, analogous to the open-anchor actions. Advances a closing row to
- * {@link QuoteLifecycle.WRITE_ONCHAIN_CLOSE}.
+ * Close `lastSeenAction` values that report the on-chain **fill** — the close
+ * executed. Advances a closing row to {@link QuoteLifecycle.WRITE_ONCHAIN_CLOSE}.
  */
 const CLOSE_FILL_ACTIONS = new Set(["FillMarketOrderInstantClose", "FillLimitOrderClose"]);
 
 /**
- * All `lastSeenAction` values that belong to the closing flow (request + fill).
+ * Close `lastSeenAction` values that report the close **anchored on-chain** without
+ * a fill — a resting **limit** close (`InstantRequestToLimitClose`): the position
+ * is being written to `CLOSE_PENDING` at the user's price but nothing filled yet.
+ * Like a fill it advances to {@link QuoteLifecycle.WRITE_ONCHAIN_CLOSE} ("writing
+ * on-chain"), but it is **not** a settle — no balance moves — so it stays out of
+ * {@link CLOSE_FILL_ACTIONS} (and the settle-confirm chase).
  */
-const CLOSE_ACTIONS = new Set([...CLOSE_REQUEST_ACTIONS, ...CLOSE_FILL_ACTIONS]);
+const CLOSE_ANCHOR_ACTIONS = new Set(["InstantRequestToLimitClose"]);
+
+/**
+ * All `lastSeenAction` values that belong to the closing flow (request + anchor + fill).
+ */
+const CLOSE_ACTIONS = new Set([...CLOSE_REQUEST_ACTIONS, ...CLOSE_ANCHOR_ACTIONS, ...CLOSE_FILL_ACTIONS]);
+
+/**
+ * `lastSeenAction` values that belong to the **cancel** flow — cancelling a resting
+ * order rather than closing a position.
+ *
+ * Only `RequestToCancelQuote` is confirmed against a live solver frame. The other
+ * three are the contract's remaining cancel paths (`forceCancelQuote`,
+ * `expireQuote`, the solver's own `acceptCancelRequest`); it is **not** confirmed
+ * that the hedger publishes a frame for any of them — observed history for a
+ * cancelled quote contained the request frame only. They are listed so that a
+ * vendor that does emit them is handled, and cost nothing when it does not.
+ */
+const CANCEL_ACTIONS = new Set([
+  "RequestToCancelQuote",
+  /** TODO(vendor-verify): unconfirmed — never observed on the Rasa notifications stream. */
+  "AcceptCancelRequest",
+  /** TODO(vendor-verify): unconfirmed — never observed on the Rasa notifications stream. */
+  "ForceCancelQuote",
+  /** TODO(vendor-verify): unconfirmed — never observed on the Rasa notifications stream. */
+  "ExpireQuote",
+]);
 
 /**
  * Rank of each closing-stage lifecycle, used to advance a close monotonically and
  * to detect that a row is currently "in a close" (rank &gt; 0). Higher = further
- * along: the poll-confirmed `CLOSING` (`CLOSE_PENDING`) outranks the
- * notification-driven stages, so a replayed close notification never regresses it.
+ * along; `WRITE_ONCHAIN_CLOSE` is the furthest in-flight stage. Once the on-chain
+ * read reflects the close the row leaves the closing flow at `ONCHAIN`
+ * (`quoteStatus: CLOSE_PENDING`, rank 0), so a replayed close notification then
+ * matches nothing to advance.
  */
 const CLOSE_STAGE_RANK: Partial<Record<QuoteLifecycle, number>> = {
   [QuoteLifecycle.OPTIMISTIC_CLOSE]: 1,
   [QuoteLifecycle.CLOSE_PRICE_FILLED]: 2,
   [QuoteLifecycle.WRITE_ONCHAIN_CLOSE]: 3,
-  [QuoteLifecycle.CLOSING]: 4,
 };
 
 /** The closing-stage rank of a lifecycle (0 when it is not a closing stage). */
@@ -78,6 +109,72 @@ export function classifyQuoteNotificationAction(action: string | null | undefine
   if (OPEN_ANCHOR_ACTIONS.has(action) || PRICE_FILL_ACTIONS.has(action)) return "open";
   if (CLOSE_ACTIONS.has(action)) return "close";
   return "other";
+}
+
+/**
+ * Whether a notification's `lastSeenAction` is an open **anchor** — the quote
+ * landed on-chain (`SendQuoteTransaction` / `SendQuote` / `FillLimitOrderOpen`),
+ * as opposed to the earlier off-chain `InstantRFQ` price fill. This is the
+ * "second" notification of a send flow: the temp id now has a real on-chain quote
+ * id. Use it to refetch reads that only change once the quote exists on-chain —
+ * e.g. the pending-quotes (resting limit orders) list.
+ *
+ * @param action - The notification's `lastSeenAction` (may be `null`/absent).
+ * @returns `true` for an open-anchor action, otherwise `false`.
+ *
+ * @example
+ * ```ts
+ * if (n.type === NotificationType.SUCCESS && isOpenAnchorAction(n.lastSeenAction)) refetchPending();
+ * ```
+ */
+export function isOpenAnchorAction(action: string | null | undefined): boolean {
+  return action != null && OPEN_ANCHOR_ACTIONS.has(action);
+}
+
+/**
+ * Whether a notification's `lastSeenAction` is a close **fill** — the close actually
+ * executed (`FillMarketOrderInstantClose` / `FillLimitOrderClose`), as opposed to a
+ * close *request*. Narrower than {@link classifyQuoteNotificationAction} `=== "close"`,
+ * which also matches the request. Use this to react only once the close has filled —
+ * e.g. to start chasing the on-chain settle, which only begins after the fill.
+ *
+ * @param action - The notification's `lastSeenAction` (may be `null`/absent).
+ * @returns `true` for a close-fill action, otherwise `false`.
+ *
+ * @example
+ * ```ts
+ * if (isCloseFillAction(n.lastSeenAction)) startCloseConfirmChase(n.quoteId);
+ * ```
+ */
+export function isCloseFillAction(action: string | null | undefined): boolean {
+  return action != null && CLOSE_FILL_ACTIONS.has(action);
+}
+
+/**
+ * Whether a notification's `lastSeenAction` belongs to the **cancel** flow —
+ * cancelling a resting order (`RequestToCancelQuote` and the other cancel paths).
+ *
+ * Broader than {@link classifyQuoteNotificationAction}, which reports every cancel
+ * action as `"other"` — deliberately, since a cancel frame must not mutate a row
+ * (the chain is the authority on whether the cancel landed).
+ *
+ * Cancel is the one flow whose **confirming** transaction is sent by someone else:
+ * `requestToCancelQuote` on a `LOCKED` quote only moves it to `CANCEL_PENDING` and
+ * leaves it in `partyAPendingQuotes`; the solver's later `acceptCancelRequest` is
+ * what sets `CANCELED` and removes it — and that transaction is not announced on
+ * the notifications stream. A consumer that reacts to frames alone therefore shows
+ * a cancelled order forever. Use this to start chasing the on-chain read.
+ *
+ * @param action - The notification's `lastSeenAction` (may be `null`/absent).
+ * @returns `true` for a cancel-flow action, otherwise `false`.
+ *
+ * @example
+ * ```ts
+ * if (isCancelAction(n.lastSeenAction)) startCancelConfirmChase(n.quoteId);
+ * ```
+ */
+export function isCancelAction(action: string | null | undefined): boolean {
+  return action != null && CANCEL_ACTIONS.has(action);
 }
 
 /**
@@ -143,8 +240,9 @@ function applyToMatched(quote: UnifiedQuote, n: Notification): UnifiedQuote {
     }
     /**
      * Advance the close stage from the notification: the request
-     * (`InstantRequestToClosePosition`) → `CLOSE_PRICE_FILLED`, the fill
-     * (`FillMarketOrderInstantClose`) → `WRITE_ONCHAIN_CLOSE`.
+     * (`InstantRequestToClosePosition`) → `CLOSE_PRICE_FILLED` (solver accepted),
+     * the fill (`FillMarketOrderInstantClose`) or the limit-close anchor
+     * (`InstantRequestToLimitClose`) → `WRITE_ONCHAIN_CLOSE` (writing on-chain).
      *
      * This only applies to a row that is **already in a closing stage** — the
      * pending-instant-close overlay (the self-clearing in-flight signal from the
@@ -157,9 +255,10 @@ function applyToMatched(quote: UnifiedQuote, n: Notification): UnifiedQuote {
      * replay nor the earlier request notification can regress the poll-confirmed
      * `CLOSING`.
      */
-    const stage = CLOSE_FILL_ACTIONS.has(action)
-      ? QuoteLifecycle.WRITE_ONCHAIN_CLOSE
-      : QuoteLifecycle.CLOSE_PRICE_FILLED;
+    const stage =
+      CLOSE_FILL_ACTIONS.has(action) || CLOSE_ANCHOR_ACTIONS.has(action)
+        ? QuoteLifecycle.WRITE_ONCHAIN_CLOSE
+        : QuoteLifecycle.CLOSE_PRICE_FILLED;
     const inClosingFlow = closeStageRank(next.lifecycle) > 0 || next.origin !== "onchain";
     if (inClosingFlow && closeStageRank(stage) > closeStageRank(next.lifecycle)) {
       next.lifecycle = stage;

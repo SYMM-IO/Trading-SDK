@@ -49,6 +49,12 @@ Each method has its own page with the full signature, parameters, return shape, 
   <MethodEntry name="getDeallocateUpnlSig" href="/core/muon/deallocate-upnl-sig">
     A `uPnl_A` attestation assembled into the contract-ready `SingleUpnlSig` that `removeMargin` / `deallocate` need.
   </MethodEntry>
+  <MethodEntry name="getSendQuoteUpnlSig" href="/core/muon/send-quote-upnl-sig">
+    A `uPnl_A_withSymbolPrice` attestation assembled into the `SingleUpnlAndPriceSig` that `sendQuote` needs.
+  </MethodEntry>
+  <MethodEntry name="getForceClosePriceSig" href="/core/muon/force-close-price-sig">
+    A `priceRange` attestation assembled into the `HighLowPriceSig` that `forceClosePosition` verifies.
+  </MethodEntry>
 </MethodIndex>
 
 ## Types

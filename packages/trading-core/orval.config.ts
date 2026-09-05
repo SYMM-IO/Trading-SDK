@@ -16,6 +16,26 @@ export default defineConfig({
       },
     },
   },
+  rasaSolver: {
+    input: {
+      // Rasa staging spec (only one published so far). The JSON itself is
+      // public — only the swagger UI is credential-gated. Swap to the
+      // production spec URL when the vendor publishes one.
+      target: "https://stage-archon.rasa.capital/openapi.json",
+    },
+    output: {
+      // No `clean` here: this file shares `generated/` with enigma-solver.ts,
+      // and orval's clean wipes the whole output directory — it would delete
+      // the sibling during generation.
+      mode: "single",
+      httpClient: "axios",
+      formatter: "prettier",
+      target: "./src/solvers/types/generated/rasa-solver.ts",
+      override: {
+        enumGenerationType: "enum",
+      },
+    },
+  },
   tpslHandler: {
     input: {
       target: "https://conditional-orders-handler-lowcap85.rasa.capital/conditional-orders/openapi.json",
@@ -153,6 +173,46 @@ export default defineConfig({
       httpClient: "axios",
       formatter: "prettier",
       target: "./src/price-service/enigma/types/generated/enigma-price-service.ts",
+      override: {
+        enumGenerationType: "enum",
+      },
+    },
+  },
+  listingBackend: {
+    input: {
+      target: "https://listing85.enigma.bz/openapi.json",
+      override: {
+        // The published spec's `info.title` is the vendor's app-product brand,
+        // which must not leak into `packages/*` identifiers or the generated
+        // file header (repo rule: no "Vibe" in the SDK). Rewrite it to a neutral
+        // name before orval derives anything from it.
+        transformer: (spec) => {
+          if (spec.info) spec.info.title = "Lowcap Permissionless Listing";
+          return spec;
+        },
+      },
+    },
+    output: {
+      clean: true,
+      mode: "single",
+      httpClient: "axios",
+      formatter: "prettier",
+      target: "./src/pools/types/generated/listing-backend.ts",
+      override: {
+        enumGenerationType: "enum",
+      },
+    },
+  },
+  inventoryService: {
+    input: {
+      target: "https://inventory85.enigma.bz/openapi.json",
+    },
+    output: {
+      clean: true,
+      mode: "single",
+      httpClient: "axios",
+      formatter: "prettier",
+      target: "./src/inventory/types/generated/inventory-service.ts",
       override: {
         enumGenerationType: "enum",
       },

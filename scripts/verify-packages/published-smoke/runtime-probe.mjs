@@ -22,6 +22,10 @@ const specs = [
   "@symmio/trading-react/markets",
   "@symmio/trading-react/fees",
   "@symmio/trading-react/price-service",
+  "@symmio/trading-react/candles",
+  "@symmio/trading-react/orderbook",
+  "@symmio/trading-react/inventory",
+  "@symmio/trading-react/pools",
 ];
 
 let failures = 0;

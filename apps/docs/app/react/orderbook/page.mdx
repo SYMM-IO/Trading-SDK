@@ -1,0 +1,199 @@
+import { Callout } from "nextra/components";
+
+# Orderbook hooks
+
+React bindings over the [orderbook slice](../../core/orderbook). The hooks own the source's memoization, the subscription lifecycle, and error normalization; everything about how a book is kept correct lives in `core`.
+
+**All reads.**
+
+## Import
+
+```ts
+import {
+  useBinanceOrderbookSource,
+  useLiveOrderbook,
+  useOrderbook,
+  useOrderbookStream,
+  type UseBinanceOrderbookSourceParameters,
+  type UseLiveOrderbookParameters,
+  type UseLiveOrderbookReturnType,
+  type UseOrderbookParameters,
+  type UseOrderbookReturnType,
+  type UseOrderbookStreamParameters,
+  type UseOrderbookStreamReturnType,
+} from "@symmio/trading-react";
+```
+
+Value types (`Orderbook`, `OrderbookLevel`, `OrderbookSource`, `OrderbookSpread`) come from `@symmio/trading-core`.
+
+## Choosing a hook
+
+| You want                                                      | Use                  |
+| ------------------------------------------------------------- | -------------------- |
+| A one-off snapshot — sizing a single order, a preflight check | `useOrderbook`       |
+| The raw synchronized book, to do your own aggregation         | `useOrderbookStream` |
+| A ladder: grouped, accumulated, with the spread               | `useLiveOrderbook`   |
+
+All three need a source. Build it once with `useBinanceOrderbookSource`.
+
+## `useBinanceOrderbookSource`
+
+Creates a memoized Binance [`OrderbookSource`](../../core/orderbook/orderbook-source-type).
+
+A source caches the venue's `exchangeInfo` for its lifetime, so recreating it per render refetches that on every symbol resolve — and, worse, a new source identity tears down and re-dials any live subscription built on it.
+
+```tsx
+const source = useBinanceOrderbookSource();
+```
+
+### Parameters
+
+Takes the same options as `createBinanceOrderbookSource`.
+
+| Name                    | Type                                          | Default                    | Notes                                                                      |
+| ----------------------- | --------------------------------------------- | -------------------------- | -------------------------------------------------------------------------- |
+| `market?`               | `"usd-m-futures" \| "spot"`                   | `"usd-m-futures"`          | Futures symbols are perpetual contracts, matching what a SYMMIO market is. |
+| `restUrl?`              | `string`                                      | venue default              | A regional mirror or your own caching proxy.                               |
+| `wsUrl?`                | `string`                                      | venue default              | Keep the route class — futures depth is only served on `/public`.          |
+| `updateSpeed?`          | `number`                                      | `500` futures, `1000` spot | Futures serves `100 \| 250 \| 500`; spot serves `100 \| 1000`.             |
+| `resolveSymbol?`        | `(marketName: string) => string \| undefined` | upper-case identity        | Pass a **stable** reference — it participates in the memo.                 |
+| `webSocketConstructor?` | `WebSocketConstructor`                        | `globalThis.WebSocket`     | Pass the `ws` package in Node.                                             |
+
+### Return type
+
+An `OrderbookSource`, stable for as long as its options are unchanged.
+
+## `useLiveOrderbook`
+
+The hook most ladders want. It resolves the market's symbol metadata, holds one synchronized subscription, collapses the book onto the requested tick, attaches cumulative depth to every row, and reports the spread.
+
+```tsx
+const source = useBinanceOrderbookSource();
+
+const { bids, asks, spread, symbol, tickSizeOptions, isResyncing } = useLiveOrderbook({
+  source,
+  marketName: "BTCUSDT",
+  tickSize: 0.1,
+  rows: 15,
+});
+```
+
+### Parameters
+
+| Name         | Type              | Default        | Notes                                                                                                          |
+| ------------ | ----------------- | -------------- | -------------------------------------------------------------------------------------------------------------- |
+| `source`     | `OrderbookSource` | —              | From `useBinanceOrderbookSource`, or your own.                                                                 |
+| `marketName` | `string`          | —              | Market name as SYMMIO names it.                                                                                |
+| `limit?`     | `number`          | source default | Snapshot depth the live book is built on.                                                                      |
+| `levels?`    | `number`          | derived        | Raw levels streamed before grouping. Derived from `rows` and the grouping; set it only to cap per-update cost. |
+| `rows?`      | `number`          | `15`           | Rows per side after grouping. `rows: 5` yields five bids **and** five asks.                                    |
+| `tickSize?`  | `number`          | venue tick     | Price grouping. Pick from `tickSizeOptions`.                                                                   |
+| `enabled?`   | `boolean`         | `true`         | Subscribe only when `true`.                                                                                    |
+
+### Return type
+
+| Field             | Type                            | Notes                                                              |
+| ----------------- | ------------------------------- | ------------------------------------------------------------------ |
+| `bids` / `asks`   | `OrderbookDepthLevel[]`         | Grouped rows with inclusive cumulative totals, best price first.   |
+| `spread`          | `OrderbookSpread \| undefined`  | Computed from the **ungrouped** book.                              |
+| `maxTotal`        | `number`                        | Largest cumulative total across both sides.                        |
+| `symbol`          | `OrderbookSymbol \| undefined`  | Assets, precisions, and the venue tick.                            |
+| `tickSize`        | `number \| undefined`           | The grouping actually applied.                                     |
+| `tickSizeOptions` | `number[]`                      | Groupings worth offering, ascending from the venue tick.           |
+| `orderbook`       | `Orderbook \| null`             | The raw ungrouped book.                                            |
+| `isResyncing`     | `boolean`                       | `true` while rebuilding; the returned rows are the last good ones. |
+| `resyncReason`    | `OrderbookResyncReason \| null` | Why the current or most recent rebuild happened.                   |
+| `isLoading`       | `boolean`                       | `true` until the first book arrives.                               |
+| `status`          | `SocketStatus`                  | Live connection status.                                            |
+| `error`           | `SymmioRequestError \| null`    | Normalized transport, parse, or snapshot error.                    |
+| `isUnsupported`   | `boolean`                       | `true` when the source does not carry this market.                 |
+
+<Callout type="info">
+  The spread is deliberately taken from the ungrouped book. Grouping moves the touch prices apart by up to two ticks, so
+  a spread read off the returned rows would overstate it — badly on a coarse grid.
+</Callout>
+
+### Row count and grouping
+
+`rows` is per side, so `rows: 5` returns five bids and five asks.
+
+Grouping collapses levels, so the number of _raw_ levels needed to fill those rows scales with how coarse the grouping is: at ten times the venue tick each row can swallow ten levels. `levels` is therefore derived from `rows` and the active grouping rather than fixed — a fixed budget that fills the ladder at the venue tick starves it at a coarse one, leaving dead space where the missing rows should be.
+
+The derived budget is quantized into a few buckets, because `levels` is a subscription parameter and recomputing it exactly would re-dial the socket every time the grouping nudged. Pass `levels` yourself only to cap the per-update cost deliberately, accepting that a coarse grouping may then render fewer than `rows` rows.
+
+### Checking coverage first
+
+`isUnsupported` is the source's own answer to "do you carry this market", and it is the check to run before rendering. Asking a venue for a market it does not list is an HTTP error, not an empty book. The hook waits for that answer before subscribing, so an unlisted market never costs a wasted socket — and fails **open** if the check itself errors, so a transient metadata failure does not hide a listed market's depth.
+
+## `useOrderbookStream`
+
+The raw synchronized book, without grouping or accumulation.
+
+```tsx
+const { orderbook, isResyncing, status } = useOrderbookStream({
+  source,
+  marketName: "BTCUSDT",
+  levels: 50,
+  onOrderbook: (book) => depthChart.update(book),
+});
+```
+
+### Parameters
+
+| Name           | Type                                      | Default        | Notes                                                                                           |
+| -------------- | ----------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| `source`       | `OrderbookSource`                         | —              | Must implement `watchOrderbook`.                                                                |
+| `marketName`   | `string`                                  | —              | Changing it tears down the old subscription and clears the stale book.                          |
+| `limit?`       | `number`                                  | source default | Snapshot depth.                                                                                 |
+| `levels?`      | `number`                                  | source default | Levels received per update.                                                                     |
+| `enabled?`     | `boolean`                                 | `true`         | Subscribe only when `true`.                                                                     |
+| `onOrderbook?` | `(orderbook: Orderbook) => void`          | —              | Called ahead of the state update. Read through a ref, so an inline arrow does not re-subscribe. |
+| `onResync?`    | `(reason: OrderbookResyncReason) => void` | —              | Also read through a ref.                                                                        |
+
+### Return type
+
+`{ orderbook, isResyncing, resyncReason, status, error }` — the same fields `useLiveOrderbook` re-exposes, without the derived rows.
+
+Use `onOrderbook` to drive a canvas depth chart imperatively without re-rendering the tree on every tick.
+
+## `useOrderbook`
+
+A point-in-time snapshot through TanStack Query.
+
+```tsx
+const { data, isLoading, error } = useOrderbook({
+  source,
+  marketName: "BTCUSDT",
+  limit: 20,
+});
+```
+
+### Parameters
+
+| Name         | Type              | Default        | Notes                                                                   |
+| ------------ | ----------------- | -------------- | ----------------------------------------------------------------------- |
+| `source`     | `OrderbookSource` | —              | Its `id` is part of the query key, so venues never share a cache entry. |
+| `marketName` | `string`          | —              | Market name as SYMMIO names it.                                         |
+| `limit?`     | `number`          | source default | Must be one of `source.supportedLimits`.                                |
+| `query?`     | `QueryParameter`  | —              | TanStack overrides.                                                     |
+
+### Return type
+
+`UseQueryResult<Orderbook, SymmioRequestError>`.
+
+<Callout type="warning">
+  Do not poll this to build a live ladder. A synchronized diff stream is fresher than any interval you would pick and
+  costs a fraction of the venue's rate-limit weight. Reach for `useLiveOrderbook` instead.
+</Callout>
+
+## Staying correct
+
+The book behind these hooks is not a stream of deltas applied on faith. The source verifies that every update chains onto the last and rebuilds from a fresh snapshot when one does not — on a missed update, a reconnect, or a snapshot that lands too old to bridge.
+
+That is surfaced as `isResyncing` and `resyncReason`. While a rebuild is in flight the **last good book is still returned**, which is deliberate: it is the most useful thing you can show. Dim the ladder rather than blanking it, and let `resyncReason` explain the pause if the UI has room for it.
+
+## Related
+
+- [Orderbook](../../core/orderbook) — the framework-agnostic slice.
+- [Orderbook guide](../../guides/orderbook) — building a ladder end to end.
+- [`watchOrderbook`](../../core/orderbook/watch-orderbook) — what the synchronization guarantees.

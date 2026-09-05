@@ -1,10 +1,39 @@
+import { Callout } from "nextra/components";
+
 # Notifications
 
-The SDK consumes a **shared realtime notification service** where the solver publishes quote and position state transitions (instant open accepted, price filled, close requested, failures, and so on). It exposes that service two ways: a **WebSocket live stream** for real-time updates, and a **REST search** over stored history for backfill, replay, or audit.
+The SDK consumes a **realtime notification service** where the solver publishes quote and position state transitions (instant open accepted, price filled, close requested, failures, and so on). It exposes that service two ways: a **WebSocket live stream** for real-time updates, and a **REST search** over stored history for backfill, replay, or audit.
 
-Both surfaces deliver the same normalized [`Notification`](/core/notifications/notification) shape, so a UI can consume live and historical frames through one code path. The stream reuses the SDK's shared, reconnecting socket pool; the search hits the service's `POST /api/v1/search` endpoint.
+The live stream delivers the normalized [`Notification`](/core/notifications/notification) shape on both protocols, so a UI consumes live frames through one code path. The stream reuses the SDK's shared, reconnecting socket pool; the search dispatches on the resolved solver — the enigma notification service (`POST /api/v1/search`) or the rasa solver's own position-state endpoint.
 
 Each method and type has its own page with the full signature, parameters, return shape, and examples.
+
+## Protocol axis: `enigma` vs `rasa`
+
+Notifications are **configured per solver**, and each solver's endpoint speaks one of two wire protocols. The protocol is set on the solver's `notifications` config (`SymmioNotificationsConfig`, discriminated by `protocol: "enigma" | "rasa"`) and drives how the SDK subscribes and parses. Resolve it with `config.getSolver({ chainId, solverId }).notifications`. The call site — [`watchNotifications`](/core/notifications/watch-notifications) — is identical either way; only the transport underneath differs.
+
+<Callout type="info">
+  The protocol is a property of the **solver**, not the chain. Today HyperEVM's `enigma` solver speaks `enigma` and
+  Base's `rasa` solver speaks `rasa`; `watchNotifications` / `searchNotifications` take an optional `solverId` and
+  dispatch on the resolved solver's protocol. See [Solvers & Chains](/core/concepts/solvers-and-chains) for how the
+  registry ties a solver to its notifications config.
+</Callout>
+
+|                           | `enigma`                                                                      | `rasa`                                                                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Subscribe frame**       | `channel_patterns` scoped to one account (per channel)                        | `{ "address": [...] }` — the watched SubAccount address list                                                           |
+| **Socket sharing**        | One pooled socket per endpoint **and account**                                | One multiplexed hub socket per endpoint; every account shares it                                                       |
+| **Frame shape**           | Envelope-wrapped (`EnigmaNotificationEnvelope`)                               | Bare frame, no envelope                                                                                                |
+| **`account` on the wire** | Hoisted from the envelope's top-level `address`                               | Absent — stamped from the subscription (wire carries `counterparty_address` only)                                      |
+| **History search**        | Notification service — `searchUrl` + `POST /api/v1/search` (stored documents) | The solver's own position-state endpoint — `POST /position-state/{start}/{size}` (no notification-service `searchUrl`) |
+| **Config type**           | `SymmioEnigmaNotificationsConfig` (adds `channel` + `searchUrl`)              | `SymmioRasaNotificationsConfig`                                                                                        |
+
+<Callout type="info">
+  **One search interface, dispatched by solver.** [`searchNotifications`](/core/notifications/search-notifications)
+  covers both kinds: an enigma solver hits the notification service, a rasa solver hits its own position-state endpoint.
+  It returns a **per-kind union** — narrow on the result's `kind`, or pass a literal `solverId`. The live stream also
+  works identically on both protocols.
+</Callout>
 
 ## Live stream
 
@@ -18,7 +47,8 @@ Each method and type has its own page with the full signature, parameters, retur
 
 <MethodIndex kind="read">
   <MethodEntry name="searchNotifications" href="/core/notifications/search-notifications">
-    Search stored notifications with a free-form equality filter over the service's `POST /api/v1/search` endpoint.
+    Search a solver's stored notification history — one interface over both kinds, dispatched by `solverId` (enigma
+    notification service or the rasa position-state endpoint). Returns a per-kind union.
   </MethodEntry>
 </MethodIndex>
 
@@ -32,10 +62,13 @@ Each method and type has its own page with the full signature, parameters, retur
     Classify a raw `action_status` into a `NotificationType`.
   </MethodEntry>
   <MethodEntry name="parseNotificationFrame" href="/core/notifications/parse-notification-frame">
-    Parse an inbound socket frame into a raw notification, or `null` for control/malformed frames.
+    Parse an inbound socket frame into a raw notification for a given protocol, or `null` for control/malformed frames.
   </MethodEntry>
   <MethodEntry name="buildSubscribeMessage" href="/core/notifications/build-subscribe-message">
-    Build the JSON subscribe frame sent on every (re)connect.
+    Build the `enigma` `channel_patterns` subscribe frame sent on every (re)connect.
+  </MethodEntry>
+  <MethodEntry name="buildRasaSubscribeMessage" href="/core/notifications/watch-notifications">
+    Build the `rasa` subscribe frame — the `{ "address": [...] }` list of watched SubAccounts.
   </MethodEntry>
 </MethodIndex>
 
@@ -46,21 +79,33 @@ Each method and type has its own page with the full signature, parameters, retur
     The normalized, classified notification the SDK delivers to consumers.
   </MethodEntry>
   <MethodEntry name="RawPositionNotification" href="/core/notifications/raw-position-notification">
-    The snake_case wire frame as it arrives from the service.
+    The snake_case wire frame as it arrives from the service — a base plus per-protocol variants union
+    (`RawEnigmaPositionNotification | RawRasaPositionNotification`).
   </MethodEntry>
   <MethodEntry name="NotificationType" href="/core/notifications/notification-type">
     Broad classification derived from a frame's `action_status`.
   </MethodEntry>
   <MethodEntry name="NotificationSearchFilter" href="/core/notifications/notification-search-filter">
-    Free-form equality filter accepted by `searchNotifications`.
+    The enigma-only advanced equality filter accepted by `searchNotifications`.
   </MethodEntry>
   <MethodEntry name="NotificationSearchResult" href="/core/notifications/notification-search-result">
-    Normalized result of a notification search: `total`, `count`, `documents`.
+    The per-kind union result of `searchNotifications` — `EnigmaNotificationSearchResult | RasaNotificationSearchResult`;
+    narrow on `kind`.
+  </MethodEntry>
+  <MethodEntry name="RawEnigmaPositionNotification" href="/core/notifications/raw-position-notification">
+    The `enigma` wire variant, after the envelope unwrap — adds `va_address`, `failure_message`, `version`.
+  </MethodEntry>
+  <MethodEntry name="RawRasaPositionNotification" href="/core/notifications/raw-position-notification">
+    The `rasa` wire variant, bare — adds `order_type`.
+  </MethodEntry>
+  <MethodEntry name="EnigmaNotificationEnvelope" href="/core/notifications/raw-position-notification">
+    The `{ data, address }` envelope the `enigma` endpoint nests each frame in.
   </MethodEntry>
 </MethodIndex>
 
 ## Related
 
+- [Solvers & Chains](/core/concepts/solvers-and-chains) — the registry that sets each solver's notifications config and protocol (`enigma` vs `rasa`).
 - [WebSocket concept](/core/concepts/websocket) — the pooled, reconnecting socket primitive and the `SocketStatus` lifecycle behind `watchNotifications`.
 - [Unified Quotes](/core/quotes) — `classifyQuoteNotificationAction` and `applyNotificationToQuotes` consume these frames, but live in the quotes domain, not here.
 - [TP/SL](/core/tpsl) — conditional-order state transitions arrive on a separate channel with their own frame shape.

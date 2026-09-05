@@ -1,6 +1,7 @@
 export default {
   index: "Overview",
   "build-a-dex": "Build a Perps DEX",
-  "lowcap-chart": "Lowcap Chart",
+  charts: "Charts",
+  orderbook: "Orderbook",
   "affiliate-registration": "Register an Affiliate",
 };

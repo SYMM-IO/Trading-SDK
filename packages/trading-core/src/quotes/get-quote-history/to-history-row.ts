@@ -64,7 +64,7 @@ export function toQuoteHistoryRow(row: RawQuoteEventRow): QuoteHistoryRow {
 
   // Overlay the immutable per-event snapshot over the mutable quote values. The
   // snapshot `amount` is this event's settled size — it drives both the closed
-  // amount and the close-request quantity (mirrors Vibe's applyHistoryCloseEventMetadata).
+  // amount and the close-request quantity (mirrors the reference frontend's applyHistoryCloseEventMetadata).
   const closedAmount = snapshotAmount ?? toBigInt(quote.closedAmount);
   const quantityToClose = snapshotAmount ?? toBigInt(quote.quantityToClose);
   const avgClosedPrice = snapshotClosePrice ?? toBigInt(quote.averageClosedPrice);

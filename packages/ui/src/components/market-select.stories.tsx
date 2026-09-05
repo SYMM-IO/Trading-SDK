@@ -46,12 +46,29 @@ export const Default: Story = {
   render: () => <MarketSelectStory />,
 };
 
-function MarketSelectStory() {
+/** A required field: no clear control, so the picker always holds a value. */
+export const NotClearable: Story = {
+  args: {
+    idPrefix: "story-market-select-required",
+    value: "",
+    items: ITEMS,
+    onValueChange: () => undefined,
+  },
+  render: () => <MarketSelectStory idPrefix="story-market-select-required" clearable={false} />,
+};
+
+function MarketSelectStory({
+  idPrefix = "story-market-select",
+  clearable,
+}: {
+  idPrefix?: string;
+  clearable?: boolean;
+}) {
   const [value, setValue] = useState("2");
 
   return (
     <div className="w-[360px]">
-      <MarketSelect idPrefix="story-market-select" value={value} items={ITEMS} onValueChange={setValue} />
+      <MarketSelect idPrefix={idPrefix} value={value} items={ITEMS} onValueChange={setValue} clearable={clearable} />
     </div>
   );
 }

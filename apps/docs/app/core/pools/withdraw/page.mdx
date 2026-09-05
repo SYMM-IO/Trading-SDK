@@ -1,0 +1,90 @@
+import { Callout } from "nextra/components";
+
+# withdrawLp
+
+Queue a **withdrawal of LP shares** from a single pool — the authed write behind a pool's "withdraw" action. You pass the amount of LP to withdraw, the pool's token contract address, and the destination the liquidity is sent to; the listing backend records the request and moves those shares into the pool's pending-withdrawal queue.
+
+```ts
+import { withdrawLp } from "@symmio/trading-core";
+
+await withdrawLp(config, {
+  accessToken: token.accessToken,
+  marketAddress: "0x1234…",
+  withdrawAddress: "0xRecipient…",
+  amount: profit.availableLpAmount, // never more than this
+});
+```
+
+It resolves to `void`: the backend acknowledges a queued withdrawal with an empty `200`. Read the pool position with [`getUserProfit`](/core/pools/user-profit) first — its derived [`availableLpAmount`](/core/pools/user-profit#returns) is the ceiling this request may take. After a successful call, a fresh `getUserProfit` shows the amount moved into `pendingWithdrawLpAmount` and a correspondingly lower `availableLpAmount`.
+
+<Callout type="info">
+  This is a REST write against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
+  [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>` header. The backend is
+  resolved from the config before the request, so a target without Pools fails immediately and without any network
+  traffic — see [`resolveListingService`](/core/pools/resolve-listing-service).
+</Callout>
+
+## No solver id
+
+Pool listing is **chain-level** — one listing backend is served per chain — so `withdrawLp` takes only an optional `chainId` and **no `solverId`**. Pass a `chainId` to target a specific deployment's listing backend; omit it to use the config's default chain.
+
+## Parameters
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401` (see [Throws](#throws)).
+  </Property>
+  <Property name="marketAddress" type="string" required>
+    The pool's token contract address — the id that addresses a single market in the listing API. An EVM `0x…` address,
+    or a Solana base58 address for a Solana-deposited listing.
+  </Property>
+  <Property name="withdrawAddress" type="string" required>
+    The destination the withdrawn liquidity is sent to. An EVM `0x…` address, or a Solana base58 address for a
+    Solana-deposited listing.
+  </Property>
+  <Property name="amount" type="bigint" required>
+    LP shares to withdraw, as a raw integer at `LISTING_VALUE_DECIMALS` (18) — the same scale
+    [`userLpAmount`](/core/pools/user-profit#returns) is reported in. Must not exceed the pool's `availableLpAmount`; the
+    service rejects an over-withdrawal. Build it from a human amount with `parseUnits(value, LISTING_VALUE_DECIMALS)`.
+  </Property>
+  <Property name="description" type="string" optional>
+    A free-text note attached to the withdrawal request. Sent only when set.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used. There is
+    **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<void>">
+  Resolves once the service accepts the request. The endpoint returns an empty body, so there is nothing to read back —
+  refetch [`getUserProfit`](/core/pools/user-profit) to see the updated `pendingWithdrawLpAmount` and
+  `availableLpAmount`.
+</Returns>
+
+## Mutation options
+
+```ts
+import { withdrawLpMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+const { mutateAsync } = useMutation(withdrawLpMutationOptions(config));
+await mutateAsync({ accessToken, marketAddress: "0x1234…", withdrawAddress: "0xRecipient…", amount });
+```
+
+`withdrawLpMutationOptions(config)` returns a `{ mutationKey, mutationFn }` bag for `useMutation`. It is modeled as a mutation, not a query: it queues a withdrawal that changes the user's pending-withdrawal balance, so it is a one-shot write, not cached data.
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide the withdrawal flow instead of erroring.
+- `WITHDRAW_LP_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`) with the original error as its `cause`. A **`401`** means the `accessToken` was missing, malformed, or expired — re-run `authenticateListing` and retry. A rejection for an amount above the available LP also surfaces here, with the service's message and status as-is.
+
+## Related
+
+- [`getUserProfit`](/core/pools/user-profit) — the read that supplies `availableLpAmount`, the cap on `amount`.
+- [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this write requires.
+- [`useWithdrawLp`](/react/pools#usewithdrawlp) — the React hook.
+- [Pools](/core/pools) — the slice overview.

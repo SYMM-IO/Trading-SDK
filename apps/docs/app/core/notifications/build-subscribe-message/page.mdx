@@ -2,16 +2,21 @@
 
 Build the subscribe frame to send on (re)connect for a notifications endpoint.
 
-For `defilytics`, this is a `channel_patterns` frame scoped to the account with wildcard identifiers (every quote id for the account). The frame is returned as a JSON string, ready to send.
+For `enigma`, this is a `channel_patterns` frame scoped to the account with wildcard identifiers (every quote id for the account). The frame is returned as a JSON string, ready to send.
+
+The `rasa` protocol has its own builder, `buildRasaSubscribeMessage(addresses)`: one socket carries many SubAccounts, so its frame is just the full address list — `{ "address": ["0x…", …] }`. [`watchNotifications`](/core/notifications/watch-notifications) manages that list for you; reach for the builder only when driving a raw socket yourself.
 
 ```ts
-import { buildSubscribeMessage } from "@symmio/trading-core";
+import { buildRasaSubscribeMessage, buildSubscribeMessage } from "@symmio/trading-core";
 
 const frame = buildSubscribeMessage({
   account: "0xaccount...",
   channel: "Hyper-EVM_Solver-Low-Cap_Production",
-  protocol: "defilytics",
+  protocol: "enigma",
 });
+
+const rasaFrame = buildRasaSubscribeMessage(["0xaccount..."]);
+// '{"address":["0xaccount..."]}'
 ```
 
 ## Parameters
