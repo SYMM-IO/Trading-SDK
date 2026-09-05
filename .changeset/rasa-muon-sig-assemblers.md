@@ -1,6 +1,6 @@
 ---
-"@symmio/trading-core": minor
-"@symmio/trading-react": minor
+"@symmio/trading-core": major
+"@symmio/trading-react": major
 ---
 
 Add the contract-ready Muon signature assemblers the Rasa (majors) flows need, and let signed InstantLayer operations delegate a calldata region to a solver.

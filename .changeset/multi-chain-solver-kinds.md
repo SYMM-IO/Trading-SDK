@@ -1,6 +1,6 @@
 ---
-"@symmio/trading-core": minor
-"@symmio/trading-react": minor
+"@symmio/trading-core": major
+"@symmio/trading-react": major
 ---
 
 Add multi-chain support and a second solver **kind** — the config, identity, and per-kind normalization that let one SDK serve Enigma (lowcap) and Rasa (majors) side by side, and add Base as a second chain.
@@ -22,6 +22,6 @@ Add multi-chain support and a second solver **kind** — the config, identity, a
 
 **Rasa-only solver reads.** Endpoints only a `rasa` solver exposes — `getSolverBalanceInfo`, `getPartyAUpnl`, `getSolverOpenInterest`, `getSolverPriceRange`, `getSolverReadiness`, `getErrorMessage`, and `addSolverWhitelist` — each throwing a typed `UNSUPPORTED_BY_SOLVER` `SymmError` when the resolved solver is not a Rasa solver. The generated Rasa request/response schemas are re-exported for callers that need the raw wire shape.
 
-**Solver metadata & analytics reads.** `getSymbols` (the `/contract-symbols` catalogue, `SolverSymbol` with `SymbolStateFilter` / `SymbolValidityFilter`) and `getTradeVolume` (`SolverDailyVolume`), plus `getCoolDownsOfMA` and `getPendingQuotes` on the account reads.
+**Solver metadata & analytics reads.** `getSymbols` (the `/contract-symbols` catalogue, `SolverSymbol` with `SymbolStateFilter` / `SymbolValidityFilter`) and `getTradeVolume` (`SolverDailyVolume`), plus `getCoolDownsOfMA` and `getPendingQuotes` on the account reads, and `calculateAvailableForOrder` — the collateral a cross-margin (majors) account can still commit to a new order.
 
 `@symmio/trading-react` adds the matching hooks — the Rasa-only family (`useSolverBalanceInfo`, `usePartyAUpnl`, `useSolverOpenInterest`, `useSolverPriceRange`, `useSolverReadiness`, `useErrorMessage`, `useAddSolverWhitelist`), `useSymbols`, `useTradeVolume`, `useAccountUpnl`, `useCoolDownsOfMA`, and the per-kind `useSearchNotifications` (narrow on `data.kind`). All are `solverId`-aware and inherit the chain's default when it is omitted.

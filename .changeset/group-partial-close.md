@@ -1,6 +1,6 @@
 ---
-"@symmio/trading-core": minor
-"@symmio/trading-react": minor
+"@symmio/trading-core": major
+"@symmio/trading-react": major
 ---
 
 Add grouped partial close — close an exact quantity across a merged position, and fix the group's notional and leverage figures.
