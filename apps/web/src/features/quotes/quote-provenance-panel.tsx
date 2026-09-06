@@ -20,6 +20,7 @@ import { Badge } from "@symmio/ui/components/badge";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { formatTokenAmount } from "@symmio/utils";
 import { useState, type ReactNode } from "react";
+import { parseUnits } from "viem";
 import { QuoteEventsList } from "./quote-events-list";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
 
@@ -202,7 +203,7 @@ interface Props {
 /**
  * Expanded detail panel for one {@link UnifiedQuote}: an evidence-based journey
  * rail (optimistic → price-filled → on-chain → closing/closed, or failed) over a
- * dense identity / prices / size / margin grid. Surfaces the temp ↔ on-chain id
+ * dense identity / size / prices / margin grid. Surfaces the temp ↔ on-chain id
  * linkage and the Virtual Account a lowcap position anchored under, so a row that
  * started off-chain and is "now on-chain" tells that story when expanded.
  */
@@ -216,6 +217,14 @@ export function QuoteProvenancePanel({ quote }: Props) {
 
   const { upnl, upnlPercent, markPrice, isLoading } = useQuoteUpnlAndPnl({ quote });
   const upnlLoading = isLoading || markPrice === null;
+
+  // USD notionals: live size of the remaining position, and the size the
+  // position opened at. `openQuantity` is `quantity − closedAmount`.
+  const wad = 10n ** BigInt(WEI_DECIMALS);
+  const sizeNotional =
+    markPrice === null ? undefined : (quote.openQuantity * parseUnits(markPrice, WEI_DECIMALS)) / wad;
+  const initialSizeNotional =
+    quote.initialOpenedPrice === undefined ? undefined : (quote.quantity * quote.initialOpenedPrice) / wad;
 
   const { openFee, closeFee } = useQuotePlatformFee({ quote });
   const hasClosed = (quote.closedAmount ?? 0n) > 0n;
@@ -262,6 +271,27 @@ export function QuoteProvenancePanel({ quote }: Props) {
           <DetailRow label="PartyB" value={quote.partyB ? truncateAddress(quote.partyB) : EMPTY} title={quote.partyB} />
         </DetailSection>
 
+        <DetailSection title="Size">
+          <DetailRow
+            label="Size"
+            value={
+              upnlLoading ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Spinner className="size-3" />
+                  <span className="text-muted-foreground">Loading…</span>
+                </span>
+              ) : (
+                formatOptionalFixedPoint(sizeNotional, pricePrecision)
+              )
+            }
+          />
+          <DetailRow label="Initial size" value={formatOptionalFixedPoint(initialSizeNotional, pricePrecision)} />
+          <DetailRow label="Quantity" value={formatFixedPoint(quote.quantity, quantityPrecision)} />
+          <DetailRow label="Open" value={formatFixedPoint(quote.openQuantity, quantityPrecision)} />
+          <DetailRow label="Closed" value={formatOptionalFixedPoint(quote.closedAmount, quantityPrecision)} />
+          <DetailRow label="To close" value={formatOptionalFixedPoint(quote.quantityToClose, quantityPrecision)} />
+        </DetailSection>
+
         <DetailSection title="Prices">
           <DetailRow label="Requested" value={formatFixedPoint(quote.requestedOpenPrice, pricePrecision)} />
           <DetailRow label="Opened" value={formatOptionalFixedPoint(quote.openedPrice, pricePrecision)} />
@@ -281,13 +311,6 @@ export function QuoteProvenancePanel({ quote }: Props) {
               )
             }
           />
-        </DetailSection>
-
-        <DetailSection title="Size">
-          <DetailRow label="Quantity" value={formatFixedPoint(quote.quantity, quantityPrecision)} />
-          <DetailRow label="Open" value={formatFixedPoint(quote.openQuantity, quantityPrecision)} />
-          <DetailRow label="Closed" value={formatOptionalFixedPoint(quote.closedAmount, quantityPrecision)} />
-          <DetailRow label="To close" value={formatOptionalFixedPoint(quote.quantityToClose, quantityPrecision)} />
         </DetailSection>
 
         <DetailSection title="Margin · Side">

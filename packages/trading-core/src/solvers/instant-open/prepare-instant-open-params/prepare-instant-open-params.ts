@@ -6,7 +6,20 @@ import { decimalPriceToWei } from "../../../shared/utils/price";
 import type { FeeForUser } from "../../../symmio-contracts/symmio/actions/get-fee-for-user";
 import type { ApiLockedParamsBySymbolIdResponse } from "../../types/generated/enigma-solver";
 import type { InstantOpenParameters } from "../instant-open/types";
-import { calculateMargin, calculateTradeParams, computePlatformFee, toWeiBigInt } from "../shared/trade-math";
+import {
+  assertOpenEstimateWithinSlippage,
+  assertValidSlippage,
+  deriveAutoSlippage,
+  fetchOpenEstimatePrice,
+} from "../shared/open-estimate-guard";
+import {
+  calculateExpectedSettlementLoss,
+  calculateMargin,
+  calculateSolverFees,
+  calculateTradeParams,
+  computePlatformFee,
+  toWeiBigInt,
+} from "../shared/trade-math";
 import { type InstantOpenMarketData, type PositionType } from "../shared/types";
 import { resolveFeeRates, resolveLockedParams, resolveMarket, resolveMarkPrice } from "./resolvers";
 
@@ -57,10 +70,24 @@ export type PrepareInstantOpenParameters = Compute<
     initialMargin: string;
     /** Position leverage (integer ≥ 1). */
     leverage: number;
-    /** Slippage tolerance percent (e.g. `5` for 5%). */
-    slippage: number;
+    /**
+     * Slippage tolerance percent (e.g. `5` for 5%). **Required on majors
+     * (non-lowcap) solvers.** On a lowcap solver it may be omitted to
+     * auto-derive: the SDK dry-runs the sized order and sets the price bound
+     * to the estimated fill price plus 4% headroom (falling back to a flat 4%
+     * off mark when the estimate is unavailable).
+     */
+    slippage?: number;
     /** Pre-fetched mark price as decimal string. When omitted, fetched via Enigma price service. */
     markPrice?: string;
+    /**
+     * Pre-fetched solver estimated open (fill) price as decimal string —
+     * **lowcap/Enigma only**; ignored on any other solver kind. When omitted
+     * on a lowcap solver, fetched via `GET /estimated-price`. Feeds the
+     * settlement-loss provision, the slippage gate, and (when `slippage` is
+     * omitted) the auto-slippage derivation.
+     */
+    estimatedOpenPrice?: string;
     /**
      * Pre-fetched solver locked params (matches `getLockedParams` return —
      * `ApiLockedParamsBySymbolIdResponse`). When supplied with all four
@@ -87,24 +114,64 @@ export type PrepareInstantOpenParameters = Compute<
  * Resolve every input the {@link InstantOpenParameters} primitive needs from a
  * minimal parameter set.
  *
- * Steps:
- * 1. Resolve market metadata, mark price, locked params, and fee rates —
- *    concurrent fetches with caller-supplied fields short-circuiting.
- * 2. Run {@link calculateTradeParams} to derive `requestedOpenPrice`,
- *    `quantity`, `cva`, `lf`, `partyAmm`, `partyBmm`, `notional`.
- * 3. Run {@link computePlatformFee} + {@link calculateMargin} to derive the
- *    `addMargin` amount.
- * 4. Convert all final values to 18-decimal-wei `bigint`.
+ * The estimate-driven steps (auto slippage, dry-run gate, solver fees,
+ * settlement provision) are **lowcap-only** — a majors (non-lowcap) prepare is
+ * unchanged: `slippage` required, no estimate fetch, margin = locks +
+ * platform fee.
  *
- * @throws {SymmError} `RESOLVE_MARKET_NOT_FOUND` /
+ * Steps:
+ * 1. Validate the user's `slippage` ({@link assertValidSlippage}). On a
+ *    lowcap solver it may be omitted and is auto-derived: dry-run the
+ *    mark-sized order and set the price bound to the estimated fill plus 4%
+ *    headroom ({@link deriveAutoSlippage}). On majors an omitted slippage
+ *    throws `SLIPPAGE_REQUIRED`.
+ * 2. Resolve market metadata, mark price, locked params, and fee rates —
+ *    concurrent fetches with caller-supplied fields short-circuiting.
+ * 3. Run {@link calculateTradeParams} to derive `requestedOpenPrice`,
+ *    `quantity`, `cva`, `lf`, `partyAmm`, `partyBmm`, `notional`.
+ * 4. Dry-run the sized order and reject when the expected fill deviates from
+ *    mark beyond the slippage tolerance
+ *    ({@link assertOpenEstimateWithinSlippage}; skipped when the estimate is
+ *    unavailable, reusing the caller-supplied `estimatedOpenPrice` or the
+ *    auto-slippage estimate when one exists).
+ * 5. Run {@link computePlatformFee}, {@link calculateSolverFees}, and
+ *    {@link calculateExpectedSettlementLoss}, then {@link calculateMargin} to
+ *    derive the `addMargin` amount — the solver charges its fees and the
+ *    open-price settlement from the VA, so the transfer funds
+ *    `locks + platformFee + openSolverFee + closeSolverFee +
+ *    expectedSettlementLoss`.
+ * 6. Convert all final values to 18-decimal-wei `bigint`.
+ *
+ * @throws {SymmError} `INVALID_SLIPPAGE` / `SLIPPAGE_REQUIRED` /
+ *   `SLIPPAGE_EXCEEDED` /
+ *   `RESOLVE_MARKET_NOT_FOUND` /
  *   `RESOLVE_MARKET_METADATA_INCOMPLETE` /
  *   `RESOLVE_MARK_PRICE_NOT_FOUND` / `INVALID_TRADE_PARAMETERS` /
- *   `INVALID_SOLVER_FEE_CAP` for missing / invalid resolved inputs.
+ *   `INVALID_SOLVER_FEE_CAP` for invalid inputs or an out-of-tolerance fill.
  */
 export async function prepareInstantOpenParams(
   config: Config,
   parameters: PrepareInstantOpenParameters,
 ): Promise<InstantOpenParameters> {
+  // Reject a malformed user slippage before any network work. An omitted
+  // slippage is auto-derived from the dry-run estimate after sizing.
+  if (parameters.slippage !== undefined) assertValidSlippage(parameters.slippage);
+
+  /**
+   * The estimate-driven behaviors — auto slippage, the dry-run gate, solver
+   * fees, and the settlement provision — exist only on lowcap (Enigma)
+   * solvers. On majors the flow is unchanged: slippage is required, no
+   * estimate is fetched, and the margin carries locks + platform fee only.
+   */
+  const isLowcap = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId }).id === "enigma";
+  if (parameters.slippage === undefined && !isLowcap) {
+    throw new SymmError(
+      "validation",
+      "SLIPPAGE_REQUIRED",
+      "prepareInstantOpenParams: slippage is required on this solver — auto-derived slippage is lowcap-only.",
+    );
+  }
+
   /** Fee caps only exist on the v0.8.6 quote API — don't force a market fetch for them on a legacy chain. */
   const needsSolverFeeCaps = config.getChainConfig(parameters.chainId).contractsVersion === "0.8.6";
 
@@ -118,6 +185,10 @@ export async function prepareInstantOpenParams(
     minOpenSolverFeeCap: parameters.market.minOpenSolverFeeCap,
     minCloseSolverFeeCap: parameters.market.minCloseSolverFeeCap,
     includeSolverFeeCaps: needsSolverFeeCaps,
+    hedgerFeeOpen: parameters.market.hedgerFeeOpen,
+    hedgerFeeClose: parameters.market.hedgerFeeClose,
+    /** Lowcap only: the solver charges its fees from the VA, so `addMargin` must fund them. */
+    includeHedgerFees: isLowcap,
   });
   const [markPrice, lockedParams, feeRates] = await Promise.all([
     resolveMarkPrice(config, {
@@ -141,12 +212,11 @@ export async function prepareInstantOpenParams(
     }),
   ]);
 
-  const tradeCalc = calculateTradeParams({
+  const calculationInput = {
     markPrice,
-    slippage: parameters.slippage,
     positionType: parameters.positionType,
     userInput: parameters.initialMargin,
-    inputField: "PRICE",
+    inputField: "PRICE" as const,
     leverage: parameters.leverage,
     pricePrecision: market.pricePrecision,
     quantityPrecision: market.quantityPrecision,
@@ -154,7 +224,39 @@ export async function prepareInstantOpenParams(
     lfPercent: lockedParams.lf,
     partyAmmPercent: lockedParams.partyAmm,
     partyBmmPercent: lockedParams.partyBmm,
-  });
+  };
+
+  // Auto slippage: dry-run the mark-sized order (quantity is slippage-
+  // independent) and set the price bound to the estimated fill plus 4%
+  // headroom, re-expressed as a percent off mark. A caller-supplied
+  // `estimatedOpenPrice` short-circuits the fetch; either way the estimate is
+  // reused by the gate and the settlement provision so the solver is asked at
+  // most once.
+  let slippage = parameters.slippage;
+  let expectedFillPrice = isLowcap ? parameters.estimatedOpenPrice : undefined;
+  if (slippage === undefined) {
+    const sized = calculateTradeParams({ ...calculationInput, slippage: 0 });
+    if (!sized) {
+      throw new SymmError(
+        "validation",
+        "INVALID_TRADE_PARAMETERS",
+        "Invalid trade parameters: markPrice or initialMargin is zero/NaN.",
+      );
+    }
+    if (isLowcap && expectedFillPrice === undefined) {
+      expectedFillPrice = await fetchOpenEstimatePrice(config, {
+        chainId: parameters.chainId,
+        solverId: parameters.solverId,
+        symbolId: parameters.market.id,
+        positionType: parameters.positionType,
+        quantity: sized.quantity,
+        markPrice,
+      });
+    }
+    slippage = deriveAutoSlippage({ markPrice, expectedFillPrice, positionType: parameters.positionType });
+  }
+
+  const tradeCalc = calculateTradeParams({ ...calculationInput, slippage });
   if (!tradeCalc) {
     throw new SymmError(
       "validation",
@@ -163,7 +265,54 @@ export async function prepareInstantOpenParams(
     );
   }
 
+  // The expected fill price funds the settlement-loss provision and feeds the
+  // slippage gate. Fetch it once here when neither the caller nor the
+  // auto-slippage path supplied it — pass `estimatedOpenPrice` to skip the
+  // round-trip on latency-sensitive submits.
+  if (isLowcap && expectedFillPrice === undefined) {
+    expectedFillPrice = await fetchOpenEstimatePrice(config, {
+      chainId: parameters.chainId,
+      solverId: parameters.solverId,
+      symbolId: parameters.market.id,
+      positionType: parameters.positionType,
+      quantity: tradeCalc.quantity,
+      markPrice,
+    });
+  }
+
+  // Dry-run gate: reject early when the expected fill deviates from mark
+  // beyond the user's slippage — the solver would reject the quote anyway.
+  // Best-effort: an unavailable estimate skips the gate, never blocks the open.
+  if (expectedFillPrice !== undefined) {
+    await assertOpenEstimateWithinSlippage(config, {
+      chainId: parameters.chainId,
+      solverId: parameters.solverId,
+      symbolId: parameters.market.id,
+      positionType: parameters.positionType,
+      quantity: tradeCalc.quantity,
+      markPrice,
+      slippage,
+      expectedFillPrice,
+    });
+  }
+
   const platformFee = computePlatformFee(feeRates, tradeCalc.notional, tradeCalc.notional);
+  // Lowcap: the solver charges its fees and the open-price settlement from the
+  // VA balance — the addMargin transfer moves those funds from the SubAccount.
+  // Majors carry neither leg; their margin stays locks + platform fee.
+  const { openSolverFee, closeSolverFee } = isLowcap
+    ? calculateSolverFees({
+        notional: tradeCalc.notional,
+        hedgerFeeOpen: market.hedgerFeeOpen,
+        hedgerFeeClose: market.hedgerFeeClose,
+      })
+    : { openSolverFee: "0", closeSolverFee: "0" };
+  const expectedSettlementLoss = calculateExpectedSettlementLoss({
+    positionType: parameters.positionType,
+    markPrice,
+    expectedFillPrice,
+    quantity: tradeCalc.quantity,
+  });
   const marginAmount = calculateMargin({
     positionType: parameters.positionType,
     markPrice,
@@ -171,6 +320,9 @@ export async function prepareInstantOpenParams(
     cva: tradeCalc.cva,
     lf: tradeCalc.lf,
     partyAmm: tradeCalc.partyAmm,
+    openSolverFee,
+    closeSolverFee,
+    expectedSettlementLoss,
     cvaPercent: lockedParams.cva,
     lfPercent: lockedParams.lf,
     partyAmmPercent: lockedParams.partyAmm,

@@ -95,8 +95,11 @@ export interface CalculateTradeParamsReturnType {
  *
  * Steps:
  * 1. `requestedOpenPrice = markPrice × (1 ± slippage/100)` trimmed to `pricePrecision`.
- * 2. `quantityBasic = userInput / requestedOpenPrice` (when `inputField === "PRICE"`) or
+ * 2. `quantityBasic = userInput / markPrice` (when `inputField === "PRICE"`) or
  *    `userInput` (when `inputField === "TOKEN"`) trimmed to `quantityPrecision`.
+ *    Sized at the raw mark price, never the slippage-adjusted bound: `V × L` of
+ *    notional at mark `M` is `V × L / M` units on every fill, so changing the
+ *    slippage setting moves only the price bound and never resizes the position.
  * 3. `notionalBasic = quantityBasic × requestedOpenPrice`.
  * 4. `cva / lf / partyAmm / partyBmm = notionalBasic × percent / 100`.
  * 5. `quantity = quantityBasic × leverage` trimmed to `quantityPrecision`.
@@ -133,7 +136,7 @@ export function calculateTradeParams(
 
   const quantityBasic =
     inputField === "PRICE"
-      ? userInputDec.div(requestedOpenPrice).toFixed(quantityPrecision, RoundingMode.ROUND_DOWN)
+      ? userInputDec.div(markPriceDec).toFixed(quantityPrecision, RoundingMode.ROUND_DOWN)
       : userInputDec.toFixed(quantityPrecision, RoundingMode.ROUND_DOWN);
 
   const notionalBasic = toDecimal(quantityBasic).times(requestedOpenPrice).toString();
@@ -156,6 +159,80 @@ export function calculateTradeParams(
     partyAmm,
     partyBmm,
   };
+}
+
+/**
+ * Solver fees charged on the position, funded from the VA at open.
+ */
+export interface SolverFees {
+  /** `hedgerFeeOpen × notional`, decimal string. */
+  openSolverFee: string;
+  /** `hedgerFeeClose × notional`, decimal string. */
+  closeSolverFee: string;
+}
+
+/**
+ * Compute the solver's open and close fees on the leveraged notional.
+ *
+ * The solver charges its fees from the **VA balance**, so both legs must ride
+ * the `addMargin` transfer from the SubAccount into the VA. Rates are the
+ * market's `hedgerFeeOpen` / `hedgerFeeClose` decimal-fraction strings; an
+ * absent, NaN, or negative rate contributes `"0"`.
+ */
+export function calculateSolverFees({
+  notional,
+  hedgerFeeOpen,
+  hedgerFeeClose,
+}: {
+  /** Leveraged notional (decimal string). */
+  notional: string;
+  /** Solver open-fee rate as a decimal fraction string (e.g. `"0.0004"`). */
+  hedgerFeeOpen: string | undefined;
+  /** Solver close-fee rate as a decimal fraction string. */
+  hedgerFeeClose: string | undefined;
+}): SolverFees {
+  const notionalDec = toDecimal(notional);
+  const toFee = (rate: string | undefined) => {
+    const rateDec = toDecimal(rate);
+    if (rateDec.isNaN() || rateDec.isNegative() || notionalDec.isNaN()) return "0";
+    return notionalDec.times(rateDec).toString();
+  };
+  return { openSolverFee: toFee(hedgerFeeOpen), closeSolverFee: toFee(hedgerFeeClose) };
+}
+
+/**
+ * Expected settlement loss charged from the VA when the fill lands away from
+ * the mark price the order was sized at.
+ *
+ * Side-aware: a LONG loses when the expected fill is **above** mark
+ * (`(expectedFillPrice − markPrice) × quantity`), a SHORT when it is **below**
+ * (`(markPrice − expectedFillPrice) × quantity`). Clamped at zero — a
+ * favorable expected fill never shrinks the transfer. Returns `"0"` when no
+ * usable estimate exists.
+ */
+export function calculateExpectedSettlementLoss({
+  positionType,
+  markPrice,
+  expectedFillPrice,
+  quantity,
+}: {
+  positionType: PositionType;
+  /** Mark price the order was sized at (decimal string). */
+  markPrice: string;
+  /** Solver's estimated fill price (decimal string), when available. */
+  expectedFillPrice: string | undefined;
+  /** Leveraged order quantity (decimal string). */
+  quantity: string;
+}): string {
+  if (expectedFillPrice === undefined) return "0";
+  const mark = toDecimal(markPrice);
+  const fill = toDecimal(expectedFillPrice);
+  const quantityDec = toDecimal(quantity);
+  if (mark.isNaN() || fill.isNaN() || fill.isZero() || quantityDec.isNaN()) return "0";
+
+  const loss =
+    positionType === PositionType.SHORT ? mark.minus(fill).times(quantityDec) : fill.minus(mark).times(quantityDec);
+  return loss.isNegative() || loss.isNaN() ? "0" : loss.toString();
 }
 
 /**
@@ -182,14 +259,24 @@ export interface CalculateMarginParameters {
   partyAmmPercent?: string;
   /** On-chain platform fee as decimal string (from {@link computePlatformFee}). */
   platformFee: string;
+  /** Solver open fee funded from the VA (from {@link calculateSolverFees}). Defaults to `"0"`. */
+  openSolverFee?: string;
+  /** Solver close fee provisioned at open (from {@link calculateSolverFees}). Defaults to `"0"`. */
+  closeSolverFee?: string;
+  /** Expected settlement loss vs the estimated fill (from {@link calculateExpectedSettlementLoss}). Defaults to `"0"`. */
+  expectedSettlementLoss?: string;
 }
 
 /**
  * Compute the `addMargin` amount for lowcap isolation.
  *
- * - **LONG**: `margin = cva + lf + partyAmm + platformFee`.
- * - **SHORT**: recompute the locked values at `markPrice`,
- *   then sum + `platformFee`.
+ * - **LONG**: `margin = cva + lf + partyAmm + fees`.
+ * - **SHORT**: recompute the locked values at `markPrice`, then sum + fees.
+ *
+ * `fees = platformFee + openSolverFee + closeSolverFee +
+ * expectedSettlementLoss` — the solver charges its fees and the open-price
+ * settlement from the **VA balance**, so every leg must ride this SubAccount →
+ * VA transfer or the position opens underfunded.
  *
  * @returns Margin as decimal string.
  */
@@ -205,10 +292,15 @@ export function calculateMargin(parameters: CalculateMarginParameters): string {
     lfPercent,
     partyAmmPercent,
     platformFee,
+    openSolverFee = "0",
+    closeSolverFee = "0",
+    expectedSettlementLoss = "0",
   } = parameters;
 
+  const fees = toDecimal(platformFee).plus(openSolverFee).plus(closeSolverFee).plus(expectedSettlementLoss);
+
   if (positionType === PositionType.LONG) {
-    return toDecimal(cva).plus(lf).plus(partyAmm).plus(platformFee).toString();
+    return toDecimal(cva).plus(lf).plus(partyAmm).plus(fees).toString();
   }
 
   const marginPrice = toDecimal(markPrice);
@@ -217,7 +309,7 @@ export function calculateMargin(parameters: CalculateMarginParameters): string {
   const lfMargin = toDecimal(notionalBasicMargin).times(toDecimal(lfPercent)).div(100).toString();
   const partyAmmMargin = toDecimal(notionalBasicMargin).times(toDecimal(partyAmmPercent)).div(100).toString();
 
-  return toDecimal(cvaMargin).plus(lfMargin).plus(partyAmmMargin).plus(platformFee).toString();
+  return toDecimal(cvaMargin).plus(lfMargin).plus(partyAmmMargin).plus(fees).toString();
 }
 
 /**
@@ -290,10 +382,10 @@ export interface CalculateAvailableInstantOpenMarginParameters {
  *           × max(0, 1 − leverage × (openFee + closeFee))
  * ```
  *
- * A SHORT sizes quantity off `requestOpenPrice = markPrice × (1 − s)` (below
- * mark), so a worse fill inflates notional by up to `1 / (1 − s)`; capping usable
- * balance at `balance × (1 − s)` covers it. A LONG sets the request above mark,
- * so fills deflate notional and need no cap.
+ * A SHORT's `requestOpenPrice = markPrice × (1 − s)` is a contract FLOOR: a fill
+ * above it rescales the signed locks by up to `1 / (1 − s)`, so capping usable
+ * balance at `balance × (1 − s)` covers that growth. A LONG's request price is a
+ * ceiling, so fills can only shrink the locks and need no cap.
  *
  * @returns spendable margin in 18-decimal wei.
  * @example

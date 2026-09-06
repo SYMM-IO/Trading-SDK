@@ -31,6 +31,18 @@ export interface ResolveMarketParameters {
   minOpenSolverFeeCap?: string;
   /** Pre-fetched `minCloseSolverFeeCap` (decimal ratio string). */
   minCloseSolverFeeCap?: string;
+  /**
+   * Also resolve the market's solver fee rates (`hedgerFeeOpen` /
+   * `hedgerFeeClose`, decimal fraction strings). Same short-circuit contract as
+   * `includeSolverFeeCaps`: pre-filled metadata skips the fetch only when both
+   * rates are pre-filled too. The open wizard sets this — the solver charges
+   * these fees from the VA, so the `addMargin` transfer must fund them.
+   */
+  includeHedgerFees?: boolean;
+  /** Pre-fetched `hedgerFeeOpen` (decimal fraction string). */
+  hedgerFeeOpen?: string;
+  /** Pre-fetched `hedgerFeeClose` (decimal fraction string). */
+  hedgerFeeClose?: string;
 }
 
 /**
@@ -47,20 +59,25 @@ export interface ResolveMarketParameters {
  */
 export async function resolveMarket(config: Config, parameters: ResolveMarketParameters): Promise<ResolvedMarket> {
   const { marketName, pricePrecision, quantityPrecision, minOpenSolverFeeCap, minCloseSolverFeeCap } = parameters;
+  const { hedgerFeeOpen, hedgerFeeClose } = parameters;
   const needCaps = parameters.includeSolverFeeCaps === true;
   const capsPrefilled = minOpenSolverFeeCap !== undefined && minCloseSolverFeeCap !== undefined;
+  const needFees = parameters.includeHedgerFees === true;
+  const feesPrefilled = hedgerFeeOpen !== undefined && hedgerFeeClose !== undefined;
 
   if (
     marketName !== undefined &&
     pricePrecision !== undefined &&
     quantityPrecision !== undefined &&
-    (!needCaps || capsPrefilled)
+    (!needCaps || capsPrefilled) &&
+    (!needFees || feesPrefilled)
   ) {
     return {
       name: marketName,
       pricePrecision,
       quantityPrecision,
       ...(needCaps ? { minOpenSolverFeeCap, minCloseSolverFeeCap } : {}),
+      ...(needFees ? { hedgerFeeOpen, hedgerFeeClose } : {}),
     };
   }
 
@@ -82,6 +99,12 @@ export async function resolveMarket(config: Config, parameters: ResolveMarketPar
       ? {
           minOpenSolverFeeCap: minOpenSolverFeeCap ?? (match.kind === "enigma" ? match.minOpenSolverFeeCap : "0"),
           minCloseSolverFeeCap: minCloseSolverFeeCap ?? (match.kind === "enigma" ? match.minCloseSolverFeeCap : "0"),
+        }
+      : {}),
+    ...(needFees
+      ? {
+          hedgerFeeOpen: hedgerFeeOpen ?? match.hedgerFeeOpen,
+          hedgerFeeClose: hedgerFeeClose ?? match.hedgerFeeClose,
         }
       : {}),
   };

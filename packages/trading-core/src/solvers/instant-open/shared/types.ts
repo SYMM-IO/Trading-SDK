@@ -183,6 +183,10 @@ export interface InstantOpenMarketData {
   minOpenSolverFeeCap?: string;
   /** Pre-fetched `minCloseSolverFeeCap` (decimal ratio string). When omitted, resolved from solver markets. */
   minCloseSolverFeeCap?: string;
+  /** Pre-fetched solver open-fee rate (decimal fraction string). When omitted, resolved from solver markets. */
+  hedgerFeeOpen?: string;
+  /** Pre-fetched solver close-fee rate (decimal fraction string). When omitted, resolved from solver markets. */
+  hedgerFeeClose?: string;
 }
 
 /**

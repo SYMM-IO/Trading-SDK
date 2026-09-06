@@ -14,4 +14,8 @@ export interface ResolvedMarket {
   minOpenSolverFeeCap?: string;
   /** Present when resolved with `includeSolverFeeCaps`. Decimal ratio string; `"0"` for kinds without caps. */
   minCloseSolverFeeCap?: string;
+  /** Present when resolved with `includeHedgerFees`. Solver open-fee rate, decimal fraction string. */
+  hedgerFeeOpen?: string;
+  /** Present when resolved with `includeHedgerFees`. Solver close-fee rate, decimal fraction string. */
+  hedgerFeeClose?: string;
 }

@@ -8,8 +8,18 @@ const resolveMarket = vi.hoisted(() => vi.fn());
 const resolveMarkPrice = vi.hoisted(() => vi.fn());
 const resolveLockedParams = vi.hoisted(() => vi.fn());
 const resolveFeeRates = vi.hoisted(() => vi.fn());
+const assertValidSlippage = vi.hoisted(() => vi.fn());
+const assertOpenEstimateWithinSlippage = vi.hoisted(() => vi.fn());
+const fetchOpenEstimatePrice = vi.hoisted(() => vi.fn());
+const deriveAutoSlippage = vi.hoisted(() => vi.fn());
 
 vi.mock("./resolvers", () => ({ resolveMarket, resolveMarkPrice, resolveLockedParams, resolveFeeRates }));
+vi.mock("../shared/open-estimate-guard", () => ({
+  assertValidSlippage,
+  assertOpenEstimateWithinSlippage,
+  fetchOpenEstimatePrice,
+  deriveAutoSlippage,
+}));
 
 import { prepareInstantOpenParams } from "./prepare-instant-open-params";
 
@@ -64,6 +74,10 @@ describe("prepareInstantOpenParams", () => {
     resolveMarkPrice.mockReset().mockResolvedValue("64790.2");
     resolveLockedParams.mockReset().mockResolvedValue({ cva: "7", lf: "3", partyAmm: "90", partyBmm: "0" });
     resolveFeeRates.mockReset().mockResolvedValue({ openFee: 0n, closeFee: 0n });
+    assertValidSlippage.mockReset();
+    assertOpenEstimateWithinSlippage.mockReset().mockResolvedValue(undefined);
+    fetchOpenEstimatePrice.mockReset().mockResolvedValue(undefined);
+    deriveAutoSlippage.mockReset().mockReturnValue(4);
   });
 
   /**
@@ -163,5 +177,136 @@ describe("prepareInstantOpenParams", () => {
     await prepareInstantOpenParams(config, { ...PARAMS, markPrice: "100" });
 
     expect(resolveMarkPrice).toHaveBeenCalledWith(config, expect.objectContaining({ markPrice: "100" }));
+  });
+
+  it("validates the user slippage and gates the estimate with the sized order", async () => {
+    fetchOpenEstimatePrice.mockResolvedValue("65000");
+
+    await prepareInstantOpenParams(config, PARAMS);
+
+    expect(assertValidSlippage).toHaveBeenCalledWith(1);
+    // margin 100 × leverage 2 / mark 64790.2 → leveraged quantity 0.002
+    expect(assertOpenEstimateWithinSlippage).toHaveBeenCalledWith(
+      config,
+      expect.objectContaining({
+        symbolId: 1,
+        quantity: "0.002",
+        markPrice: "64790.2",
+        slippage: 1,
+        expectedFillPrice: "65000",
+      }),
+    );
+  });
+
+  it("uses a caller-supplied estimatedOpenPrice without fetching", async () => {
+    await prepareInstantOpenParams(config, { ...PARAMS, estimatedOpenPrice: "65000" });
+
+    expect(fetchOpenEstimatePrice).not.toHaveBeenCalled();
+    expect(assertOpenEstimateWithinSlippage).toHaveBeenCalledWith(
+      config,
+      expect.objectContaining({ expectedFillPrice: "65000" }),
+    );
+  });
+
+  it("ignores estimatedOpenPrice and skips every estimate call on a non-lowcap solver", async () => {
+    await prepareInstantOpenParams(config, { ...PARAMS, solverId: "rasa", estimatedOpenPrice: "65000" });
+
+    expect(fetchOpenEstimatePrice).not.toHaveBeenCalled();
+    expect(assertOpenEstimateWithinSlippage).not.toHaveBeenCalled();
+  });
+
+  it("requires slippage on a non-lowcap solver instead of auto-deriving", async () => {
+    await expect(
+      prepareInstantOpenParams(config, { ...PARAMS, solverId: "rasa", slippage: undefined }),
+    ).rejects.toThrow(/SLIPPAGE_REQUIRED|slippage is required/);
+    expect(deriveAutoSlippage).not.toHaveBeenCalled();
+  });
+
+  it("keeps majors margin at locks + platform fee — no solver fees, no hedger-fee resolution", async () => {
+    resolveMarket.mockResolvedValue({
+      name: "BTCUSDT",
+      pricePrecision: 2,
+      quantityPrecision: 3,
+      hedgerFeeOpen: "0.001",
+      hedgerFeeClose: "0.002",
+    });
+
+    const result = await prepareInstantOpenParams(config, { ...PARAMS, solverId: "rasa" });
+
+    expect(resolveMarket).toHaveBeenCalledWith(config, expect.objectContaining({ includeHedgerFees: false }));
+    // locks only (platform fee is 0n in the fixture): notionalBasic = 0.001 × 65438.10 = 65.4381
+    expect(result.margin?.amount).toBe(65_438_100_000_000_000_000n);
+  });
+
+  it("skips the gate when no usable estimate exists, instead of re-fetching inside it", async () => {
+    fetchOpenEstimatePrice.mockResolvedValue(undefined);
+
+    await prepareInstantOpenParams(config, PARAMS);
+
+    expect(assertOpenEstimateWithinSlippage).not.toHaveBeenCalled();
+  });
+
+  it("propagates a rejection from the estimate gate instead of submitting", async () => {
+    fetchOpenEstimatePrice.mockResolvedValue("70000");
+    assertOpenEstimateWithinSlippage.mockRejectedValue(new Error("SLIPPAGE_EXCEEDED"));
+
+    await expect(prepareInstantOpenParams(config, PARAMS)).rejects.toThrow("SLIPPAGE_EXCEEDED");
+  });
+
+  it("auto-derives slippage from the dry-run estimate when the caller omits it", async () => {
+    const noSlippage = { ...PARAMS, slippage: undefined };
+    fetchOpenEstimatePrice.mockResolvedValue("66000");
+    deriveAutoSlippage.mockReturnValue(10);
+
+    const result = await prepareInstantOpenParams(config, noSlippage);
+
+    // Sized at mark before the estimate: quantity is slippage-independent.
+    expect(fetchOpenEstimatePrice).toHaveBeenCalledWith(
+      config,
+      expect.objectContaining({ symbolId: 1, quantity: "0.002", markPrice: "64790.2" }),
+    );
+    expect(deriveAutoSlippage).toHaveBeenCalledWith({
+      markPrice: "64790.2",
+      expectedFillPrice: "66000",
+      positionType: PARAMS.positionType,
+    });
+    expect(assertValidSlippage).not.toHaveBeenCalled();
+    // requestedOpenPrice = 64790.2 × 1.10 = 71269.22 at the derived 10%.
+    expect(result.order.price).toBe(71_269_220_000_000_000_000_000n);
+    // The gate reuses the already-fetched estimate at the derived tolerance.
+    expect(assertOpenEstimateWithinSlippage).toHaveBeenCalledWith(
+      config,
+      expect.objectContaining({ slippage: 10, expectedFillPrice: "66000" }),
+    );
+  });
+
+  it("fetches the estimate once for settlement provisioning when the caller supplies slippage", async () => {
+    fetchOpenEstimatePrice.mockResolvedValue("65000");
+
+    await prepareInstantOpenParams(config, PARAMS);
+
+    expect(fetchOpenEstimatePrice).toHaveBeenCalledTimes(1);
+    expect(deriveAutoSlippage).not.toHaveBeenCalled();
+    expect(assertValidSlippage).toHaveBeenCalledWith(1);
+  });
+
+  it("funds solver fees and expected settlement loss through the addMargin amount", async () => {
+    resolveMarket.mockResolvedValue({
+      name: "BTCUSDT",
+      pricePrecision: 2,
+      quantityPrecision: 3,
+      hedgerFeeOpen: "0.001",
+      hedgerFeeClose: "0.002",
+    });
+    fetchOpenEstimatePrice.mockResolvedValue("65000");
+
+    const result = await prepareInstantOpenParams(config, PARAMS);
+
+    expect(resolveMarket).toHaveBeenCalledWith(config, expect.objectContaining({ includeHedgerFees: true }));
+    // locks: notionalBasic = 0.001 × 65438.10 = 65.4381 → cva+lf+partyAmm = 65.4381
+    // solver fees on notional 130.8762: open 0.1308762 + close 0.2617524
+    // settlement loss (LONG): (65000 − 64790.2) × 0.002 = 0.4196
+    // margin = 65.4381 + 0.1308762 + 0.2617524 + 0.4196 = 66.2503286
+    expect(result.margin?.amount).toBe(66_250_328_600_000_000_000n);
   });
 });
