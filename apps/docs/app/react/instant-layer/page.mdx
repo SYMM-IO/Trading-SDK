@@ -116,6 +116,30 @@ grant.mutate({ account, delegatedSigner: sessionKey, selectors, expiryTimestamp 
 
 Use it (instead of hardcoding `INSTANT_TRADE_REQUIRED_SELECTORS` / `LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS`) in any flow that can point at more than one chain — a hardcoded set grants and checks the wrong open-leg selector on the other generation's chains. It returns the set in the order `grantDelegation` expects, and destructures cleanly for per-selector `useIsDelegationActive` probes: `const [addMarginSelector, openLegSelector, closeSelector] = useInstantTradeRequiredSelectors()`.
 
+### `useInstantOpenFees`
+
+Preview every fee a new instant-open quote pays — separated by leg plus the total — before the user submits. Read-only; nothing is signed. Wraps [`getInstantOpenFees`](../../core/solvers/instant-open#fee-preview--getinstantopenfees), which mirrors the exact resolution and math `prepareInstantOpenParams` charges, so the preview equals the real open for the same inputs.
+
+The result is a `kind`-discriminated union. Both kinds carry `platformOpenFee`, `platformCloseFee`, `notional`, and `totalFee`; an `"enigma"` (lowcap) result adds `openSolverFee`, `closeSolverFee`, and `expectedSettlementLoss`.
+
+```tsx
+const { data: fees } = useInstantOpenFees({
+  subAccountAddress,
+  market: { id: symbolId },
+  positionType,
+  initialMargin,
+  leverage,
+  // slippage — required on majors; omit on lowcap to auto-derive
+});
+
+// fees?.totalFee — every leg summed
+if (fees?.kind === "enigma") {
+  // fees.openSolverFee, fees.closeSolverFee, fees.expectedSettlementLoss
+}
+```
+
+The query is disabled until `initialMargin` is non-empty, and `initialMargin` is part of the query key — debounce the value you pass in if refetch-per-keystroke matters. Errors are normalized to `SymmioRequestError` (`SLIPPAGE_REQUIRED` on majors without a slippage, `INVALID_SLIPPAGE` on a malformed one).
+
 ## Writes
 
 ### `useGrantDelegation`

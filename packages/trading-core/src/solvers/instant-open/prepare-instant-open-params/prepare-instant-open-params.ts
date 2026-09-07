@@ -18,6 +18,7 @@ import {
   calculateSolverFees,
   calculateTradeParams,
   computePlatformFee,
+  SHORT_FUNDING_BUFFER_PERCENT,
   toWeiBigInt,
 } from "../shared/trade-math";
 import { type InstantOpenMarketData, type PositionType } from "../shared/types";
@@ -323,6 +324,8 @@ export async function prepareInstantOpenParams(
     openSolverFee,
     closeSolverFee,
     expectedSettlementLoss,
+    /** Lowcap SHORT: fund lock growth above the floor. Majors keep the classic basis. */
+    shortFundingBufferPercent: isLowcap ? SHORT_FUNDING_BUFFER_PERCENT : 0,
     cvaPercent: lockedParams.cva,
     lfPercent: lockedParams.lf,
     partyAmmPercent: lockedParams.partyAmm,

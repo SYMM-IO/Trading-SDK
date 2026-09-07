@@ -111,6 +111,25 @@ describe("calculateExpectedSettlementLoss", () => {
 });
 
 describe("calculateMargin", () => {
+  it("applies the short funding buffer to the SHORT margin basis", () => {
+    const base = {
+      positionType: PositionType.SHORT,
+      markPrice: "100",
+      quantityBasic: "1",
+      cva: "0",
+      lf: "0",
+      partyAmm: "0",
+      cvaPercent: "7",
+      lfPercent: "3",
+      partyAmmPercent: "90",
+      platformFee: "0",
+    };
+
+    // locks percents sum to 100% of the (buffered) notional
+    expect(calculateMargin(base)).toBe("100");
+    expect(calculateMargin({ ...base, shortFundingBufferPercent: 1 })).toBe("101");
+  });
+
   it("adds solver fees and expected settlement loss on top of locks and platform fee", () => {
     const margin = calculateMargin({
       positionType: PositionType.LONG,

@@ -222,6 +222,25 @@ describe("prepareInstantOpenParams", () => {
     expect(deriveAutoSlippage).not.toHaveBeenCalled();
   });
 
+  it("funds a lowcap SHORT with the 1% funding buffer on the margin basis", async () => {
+    const result = await prepareInstantOpenParams(config, { ...PARAMS, positionType: PositionType.SHORT });
+
+    // basis = 64790.2 × 1.01 = 65438.102; notionalBasicMargin = 0.001 × basis;
+    // locks percents sum to 100% → margin = 65.438102
+    expect(result.margin?.amount).toBe(65_438_102_000_000_000_000n);
+  });
+
+  it("keeps the classic SHORT margin basis on majors — no funding buffer", async () => {
+    const result = await prepareInstantOpenParams(config, {
+      ...PARAMS,
+      solverId: "rasa",
+      positionType: PositionType.SHORT,
+    });
+
+    // basis = 64790.2 (unbuffered); margin = 0.001 × 64790.2 = 64.7902
+    expect(result.margin?.amount).toBe(64_790_200_000_000_000_000n);
+  });
+
   it("keeps majors margin at locks + platform fee — no solver fees, no hedger-fee resolution", async () => {
     resolveMarket.mockResolvedValue({
       name: "BTCUSDT",

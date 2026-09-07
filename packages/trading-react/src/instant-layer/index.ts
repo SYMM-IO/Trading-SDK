@@ -7,6 +7,7 @@ export * from "./use-instant-close-bulk-auto";
 export * from "./use-instant-closes";
 export * from "./use-instant-open";
 export * from "./use-instant-open-auto";
+export * from "./use-instant-open-fees";
 export * from "./use-instant-open-quote-id";
 export * from "./use-instant-open-with-tpsl";
 export * from "./use-instant-opens";

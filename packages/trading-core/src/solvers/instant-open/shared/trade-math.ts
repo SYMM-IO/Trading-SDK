@@ -265,13 +265,29 @@ export interface CalculateMarginParameters {
   closeSolverFee?: string;
   /** Expected settlement loss vs the estimated fill (from {@link calculateExpectedSettlementLoss}). Defaults to `"0"`. */
   expectedSettlementLoss?: string;
+  /**
+   * Extra funding headroom percent applied to a SHORT's margin basis
+   * (`markPrice × (1 + percent/100)`). A SHORT's `requestedOpenPrice` is a
+   * contract FLOOR — a fill above it rescales the signed locks up, so the
+   * prefund needs headroom the signed values do not carry. Defaults to `0`;
+   * the lowcap open flow passes {@link SHORT_FUNDING_BUFFER_PERCENT}.
+   */
+  shortFundingBufferPercent?: number;
 }
+
+/**
+ * Funding headroom percent the lowcap open flow applies to a SHORT's margin
+ * basis (see {@link CalculateMarginParameters.shortFundingBufferPercent}).
+ */
+export const SHORT_FUNDING_BUFFER_PERCENT = 1;
 
 /**
  * Compute the `addMargin` amount for lowcap isolation.
  *
  * - **LONG**: `margin = cva + lf + partyAmm + fees`.
- * - **SHORT**: recompute the locked values at `markPrice`, then sum + fees.
+ * - **SHORT**: recompute the locked values at
+ *   `markPrice × (1 + shortFundingBufferPercent/100)`, then sum + fees — the
+ *   buffer covers lock growth when the fill lands above the SHORT's floor.
  *
  * `fees = platformFee + openSolverFee + closeSolverFee +
  * expectedSettlementLoss` — the solver charges its fees and the open-price
@@ -295,6 +311,7 @@ export function calculateMargin(parameters: CalculateMarginParameters): string {
     openSolverFee = "0",
     closeSolverFee = "0",
     expectedSettlementLoss = "0",
+    shortFundingBufferPercent = 0,
   } = parameters;
 
   const fees = toDecimal(platformFee).plus(openSolverFee).plus(closeSolverFee).plus(expectedSettlementLoss);
@@ -303,7 +320,7 @@ export function calculateMargin(parameters: CalculateMarginParameters): string {
     return toDecimal(cva).plus(lf).plus(partyAmm).plus(fees).toString();
   }
 
-  const marginPrice = toDecimal(markPrice);
+  const marginPrice = toDecimal(markPrice).times(toDecimal(100 + shortFundingBufferPercent).div(100));
   const notionalBasicMargin = toDecimal(quantityBasic).times(marginPrice).toString();
   const cvaMargin = toDecimal(notionalBasicMargin).times(toDecimal(cvaPercent)).div(100).toString();
   const lfMargin = toDecimal(notionalBasicMargin).times(toDecimal(lfPercent)).div(100).toString();
@@ -340,6 +357,35 @@ export function computePlatformFee(
   const open = toDecimal(rates.openFee.toString()).times(initialNotional);
   const close = toDecimal(rates.closeFee.toString()).times(closeNotional);
   return open.plus(close).div(toDecimal("1e18")).toString();
+}
+
+/**
+ * The two platform-fee legs, separated. Their sum equals
+ * {@link computePlatformFee} for the same inputs.
+ */
+export interface PlatformFeeLegs {
+  /** `openFee × openNotional / 1e18`, decimal string. */
+  platformOpenFee: string;
+  /** `closeFee × closeNotional / 1e18`, decimal string — provisioned at open. */
+  platformCloseFee: string;
+}
+
+/**
+ * Compute the platform open and close fee legs separately.
+ *
+ * Same math as {@link computePlatformFee}, split per leg for fee-breakdown
+ * displays. Rates come from on-chain `getFeeForUser` (18-decimal fixed-point).
+ */
+export function computePlatformFeeLegs(
+  rates: ComputePlatformFeeRates,
+  openNotional: string,
+  closeNotional: string,
+): PlatformFeeLegs {
+  const scale = toDecimal("1e18");
+  return {
+    platformOpenFee: toDecimal(rates.openFee.toString()).times(openNotional).div(scale).toString(),
+    platformCloseFee: toDecimal(rates.closeFee.toString()).times(closeNotional).div(scale).toString(),
+  };
 }
 
 /**

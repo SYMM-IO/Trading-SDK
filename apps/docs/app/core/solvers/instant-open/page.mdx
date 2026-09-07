@@ -21,6 +21,7 @@ import {
   limitOpenAuto,
   prepareLimitOpenParams,
   prepareInstantOpenParams,
+  getInstantOpenFees,
   getInstantOpens,
   getInstantOpenQuoteId,
   type PrepareInstantOpenParameters,
@@ -61,7 +62,7 @@ Pure resolver. Takes the minimal UI-shaped inputs (wallet, market, side, margin,
 2. Resolve market metadata, mark price, locked params, and fee rates — fetched concurrently, with any caller-supplied field short-circuiting its fetch.
 3. Run `calculateTradeParams` to derive `requestedOpenPrice`, the mark-sized `quantity` (`initialMargin × leverage / markPrice`), `cva`, `lf`, `partyAmm`, `partyBmm`, `notional`.
 4. Dry-run the sized order via `GET /estimated-price`: when the expected fill deviates from mark beyond the slippage tolerance (`|estimated − mark| / mark > slippage/100`), the call rejects with `SLIPPAGE_EXCEEDED` instead of submitting an order the solver would refuse. Best-effort — an unavailable estimate (solver down, non-Enigma) skips the gate. Pass a pre-fetched `estimatedOpenPrice` to skip the round-trip on latency-sensitive submits.
-5. Derive the `addMargin` amount via `calculateMargin`: `locks + platformFee + openSolverFee + closeSolverFee + expectedSettlementLoss`. Lowcap only — the solver charges its fees (`hedgerFeeOpen`/`hedgerFeeClose` × leveraged notional) and the open-price settlement (side-aware `max(0, adverse fill − mark) × quantity` vs the dry-run estimate) from the **VA balance**, so the SubAccount → VA transfer must fund every leg. On majors the margin stays `locks + platformFee`.
+5. Derive the `addMargin` amount via `calculateMargin`: `locks + platformFee + openSolverFee + closeSolverFee + expectedSettlementLoss`. Lowcap only — the solver charges its fees (`hedgerFeeOpen`/`hedgerFeeClose` × leveraged notional) and the open-price settlement (side-aware `max(0, adverse fill − mark) × quantity` vs the dry-run estimate) from the **VA balance**, so the SubAccount → VA transfer must fund every leg. A lowcap **SHORT** additionally funds its locks at `mark × 1.01` (`SHORT_FUNDING_BUFFER_PERCENT`) — the request price is a contract floor, so a fill above it rescales the signed locks up and the prefund needs that headroom. On majors the margin stays `locks + platformFee` at the classic basis.
 6. Convert every value to 18-decimal-wei `bigint`.
 
 ```ts
@@ -78,6 +79,36 @@ const resolved = await prepareInstantOpenParams(config, {
 // `resolved` is now inspectable, hashable, and ready to sign.
 console.log(resolved.quantity, resolved.requestedOpenPrice, resolved.addMargin);
 ```
+
+## Fee preview — `getInstantOpenFees`
+
+Preview every fee a new quote pays, separated by leg plus the total, without signing or submitting anything. Same parameters shape as the wizard (minus the signer), same resolution and math — the preview equals what `prepareInstantOpenParams` charges for the same inputs. The result is a `kind`-discriminated union:
+
+| Fee leg                  | Formula                                  | Enigma (lowcap) | Rasa (majors) |
+| ------------------------ | ---------------------------------------- | :-------------: | :-----------: |
+| `platformOpenFee`        | `getFeeForUser.openFee × notional`       |        ✔        |       ✔       |
+| `platformCloseFee`       | `getFeeForUser.closeFee × notional`      |        ✔        |       ✔       |
+| `openSolverFee`          | `hedgerFeeOpen × notional`               |        ✔        |       —       |
+| `closeSolverFee`         | `hedgerFeeClose × notional`              |        ✔        |       —       |
+| `expectedSettlementLoss` | `max(0, adverse fill − mark) × quantity` |        ✔        |       —       |
+
+`totalFee` sums every present leg — including the settlement provision, which the user must fund even though it is a provision rather than a fee the solver keeps. `notional` (the leveraged notional the rates were applied to) is returned alongside for rate displays.
+
+```ts
+const fees = await getInstantOpenFees(config, {
+  subAccountAddress,
+  market: { id: 1 },
+  positionType: PositionType.LONG,
+  initialMargin: "100",
+  leverage: 5,
+  // slippage — required on majors; omit on lowcap to auto-derive
+});
+
+console.log(fees.totalFee);
+if (fees.kind === "enigma") console.log(fees.openSolverFee, fees.expectedSettlementLoss);
+```
+
+`getInstantOpenFeesQueryOptions` / `getInstantOpenFeesQueryKey` ship alongside for TanStack Query consumers; the React layer wraps them as [`useInstantOpenFees`](../../react/instant-layer#useinstantopenfees). Pass the preview's `markPrice` / `estimatedOpenPrice` / `feeRates` into the subsequent `prepareInstantOpenParams` call to make the actual open zero-fetch and guarantee the charged fees match the previewed ones.
 
 ### Parameters
 
