@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { useDeallocate, useDeallocateUpnlSig, useSimulateDeallocate, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
@@ -28,6 +29,8 @@ export function WriteDeallocate() {
 
   const mutation = useDeallocate();
 
+  const gasless = useGaslessWriteOption("deallocate");
+
   /** Fetches the fresh Muon uPnL signature the simulate/dry-run needs. */
   const deallocateSig = useDeallocateUpnlSig();
   /** Dry-run `deallocate` (needs the fetched uPnL signature). */
@@ -50,6 +53,7 @@ export function WriteDeallocate() {
       testId="method-deallocate"
       name="deallocate"
       mutability="nonpayable"
+      gaslessRelayable
       description="Move a subaccount's allocated (tradeable) balance back into its available balance (routed via AccountLayer _call). Sending fetches a fresh Muon uPnL signature automatically; subject to the on-chain deallocate debounce."
     >
       <SubAccountField
@@ -105,7 +109,7 @@ export function WriteDeallocate() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            mutation.mutate({ account: validAccount, amount: validAmount });
+            mutation.mutate({ account: validAccount, amount: validAmount, gasless });
           }}
           data-testid="button-send-deallocate"
         >

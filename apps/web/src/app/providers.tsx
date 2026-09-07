@@ -3,6 +3,7 @@
 import { useAppGetWalletClient } from "@/app/use-app-wallet-client";
 import { wagmiConfig } from "@/config/wagmi";
 import { SymmioOverridesProvider, useSymmioOverrides } from "@/features/config/symmio-overrides-store";
+import { GaslessWriteModeProvider } from "@/features/gasless/gasless-write-mode-store";
 import { MagicPopoutProvider } from "@/features/magic-sidebar/magic-popout-store";
 import { MagicSidebarDock } from "@/features/magic-sidebar/magic-sidebar-dock";
 import { MagicSidebarProvider } from "@/features/magic-sidebar/magic-sidebar-store";
@@ -24,11 +25,13 @@ function SymmioConfigBridge({ children }: { children: ReactNode }) {
 
   return (
     <SymmioProvider symmioConfig={overrides} getWalletClient={getWalletClient}>
-      <MagicSidebarProvider>
-        <MagicPopoutProvider>
-          <MagicSidebarDock>{children}</MagicSidebarDock>
-        </MagicPopoutProvider>
-      </MagicSidebarProvider>
+      <GaslessWriteModeProvider>
+        <MagicSidebarProvider>
+          <MagicPopoutProvider>
+            <MagicSidebarDock>{children}</MagicSidebarDock>
+          </MagicPopoutProvider>
+        </MagicSidebarProvider>
+      </GaslessWriteModeProvider>
     </SymmioProvider>
   );
 }

@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Withdraw hooks
 
 Withdraw request lifecycle — initiate, cancel, finalize, plus reads for the pending queue.
@@ -114,6 +116,12 @@ const { withdrawableAt, isReady } = useWithdrawableTime({ requestId });
 ```
 
 ## Writes
+
+<Callout type="info">
+  Every write on this page is [relayable](/core/gasless/relayable-writes): pass `gasless: true` in the mutation
+  variables to sign it as an InstantLayer operation and let the relayer pay the gas. See [Gasless
+  hooks](/react/gasless).
+</Callout>
 
 ### `useInitiateWithdraw` / `useSimulateInitiateWithdraw`
 

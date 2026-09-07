@@ -191,6 +191,17 @@ Today only **HyperEVM** has it (`listing: { url: "https://listing85.enigma.bz" }
 
 In React, gate with [`useSupportsListingService`](/react/solvers#usesupportslistingservice), then read the catalog with [`useListingMarkets`](/react/pools).
 
+## Gasless relayer service
+
+The [gasless slice](/core/gasless) is the third chain-level optional service: `SymmioChainConfig.gasless` (a `SymmioGaslessConfig`) carries the GaslessQ service base (`url` + `protocolInstance` — the instance key selects the deployment at the vendor gateway, since staging and production can share a chain id), the **GaslessLayer** contract address (`gaslessLayerAddress` — the operational-fee charger and the source of every gasless contract read; a deployment constant with no runtime discovery), an optional server-side `apiKey`, and the transparent execution-mode defaults (`execution: { mode, fallback, … }`).
+
+Gasless resolution is stricter than listing's: beyond the block being present, the chain's [`contractsVersion`](#contracts-version-is-a-chain-axis) must be `"0.8.6"` — the relayer supports only perps-core deployments. `resolveGaslessService` throws `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`; `supportsGaslessService` is the non-throwing twin for `enabled` / UI gates. **Arbitrum is the one chain that ships a built-in block** (the staging GaslessQ deployment); consumers add the API key or proxy `url` and the execution policy with a `createConfig` override, which merges onto that base field by field (a full example lives on the [gasless overview](/core/gasless)).
+
+<Callout type="warning">
+  The `apiKey` is a secret: browser apps must point `gasless.url` at their own same-origin proxy instead of shipping the
+  key in a bundle. Server-side consumers pass it directly.
+</Callout>
+
 ## Configuring chains and solvers
 
 Each registry entry carries a `solvers` map keyed by solver id plus a `defaultSolverId`. You override any of it per chain through `createConfig`'s `symmioConfig` — including a solver's `capabilities` — see [Config](/core/concepts/config) and [Addresses](/core/addresses).

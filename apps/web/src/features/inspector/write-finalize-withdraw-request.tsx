@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import {
   useFinalizeWithdrawRequest,
   useSimulateFinalizeWithdrawRequest,
@@ -34,6 +35,8 @@ export function WriteFinalizeWithdrawRequest() {
 
   const mutation = useFinalizeWithdrawRequest();
 
+  const gasless = useGaslessWriteOption("finalizeWithdrawRequest");
+
   /** Dry-run `finalizeWithdrawRequest` directly on the SYMMIO core. */
   const simulate = useSimulateFinalizeWithdrawRequest();
 
@@ -42,6 +45,7 @@ export function WriteFinalizeWithdrawRequest() {
       testId="method-finalizeWithdrawRequest"
       name="finalizeWithdrawRequest"
       mutability="nonpayable"
+      gaslessRelayable
       description="Finalize a matured withdraw request, paying out to its receivers. Permissionless after cooldown."
     >
       <SubAccountField
@@ -96,7 +100,7 @@ export function WriteFinalizeWithdrawRequest() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validUser || validRequestId === undefined) return;
-            mutation.mutate({ user: validUser, requestId: validRequestId });
+            mutation.mutate({ user: validUser, requestId: validRequestId, gasless });
           }}
           data-testid="button-send-finalize"
         >

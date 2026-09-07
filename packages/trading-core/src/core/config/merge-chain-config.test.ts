@@ -222,3 +222,86 @@ describe("mergeChainConfig — contractsVersion", () => {
     expect(config.getChainConfig(SymmioSupportedChainId.HYPER_EVM).contractsVersion).toBe("0.8.6");
   });
 });
+
+describe("mergeChainConfig — gasless", () => {
+  const ARBITRUM = SymmioSupportedChainId.ARBITRUM;
+  /** The only chain with a built-in gasless block; every other chain is base-less. */
+  const BASE_LESS = SymmioSupportedChainId.BASE;
+  const GASLESS = {
+    url: "https://gaslessq.symmio.foundation",
+    protocolInstance: "arbitrum-42161-vibe",
+    gaslessLayerAddress: "0x8347953D80037b8d82827246f37EC7442AD188B4",
+  } as const;
+
+  it("keeps the key absent when neither side configures the service", () => {
+    const config = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: { [BASE_LESS]: { addresses: { affiliatesAddress: AFFILIATE } } },
+    });
+
+    expect("gasless" in config.getChainConfig(BASE_LESS)).toBe(false);
+  });
+
+  it("merges a partial override onto the built-in block instead of demanding a complete one", () => {
+    const config = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: {
+        [ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { url: "/api/gasless" } },
+      },
+    });
+
+    /**
+     * The inheritance is the cross-wire vector worth pinning down: repointing
+     * `url` at a proxy silently keeps the built-in GaslessLayer, so a proxy
+     * aimed at a different deployment pairs one deployment's gateway with the
+     * other's contracts.
+     */
+    expect(config.getChainConfig(ARBITRUM).gasless).toEqual({
+      url: "/api/gasless",
+      protocolInstance: "arbitrum-42161-vibe-stage",
+      gaslessLayerAddress: "0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca",
+      apiKey: undefined,
+    });
+  });
+
+  it("accepts a complete base-less override", () => {
+    const config = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: { [ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { ...GASLESS } } },
+    });
+
+    expect(config.getChainConfig(ARBITRUM).gasless).toEqual({
+      url: GASLESS.url,
+      protocolInstance: GASLESS.protocolInstance,
+      gaslessLayerAddress: GASLESS.gaslessLayerAddress,
+      apiKey: undefined,
+    });
+  });
+
+  it("merges the nested execution block and keeps apiKey when supplied", () => {
+    const config = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: {
+        [ARBITRUM]: {
+          addresses: { affiliatesAddress: AFFILIATE },
+          gasless: { ...GASLESS, apiKey: "test-key", execution: { mode: "gasless", fallback: "wallet" } },
+        },
+      },
+    });
+
+    const gasless = config.getChainConfig(ARBITRUM).gasless;
+    expect(gasless?.apiKey).toBe("test-key");
+    expect(gasless?.execution).toEqual({ mode: "gasless", fallback: "wallet" });
+  });
+
+  it("throws GASLESS_OVERRIDE_INCOMPLETE for a base-less override missing the layer address", () => {
+    expect(() =>
+      createConfig({
+        getClient: () => ({}) as PublicClient,
+        symmioConfig: {
+          [BASE_LESS]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { url: GASLESS.url } },
+        },
+      }),
+    ).toThrowError(/GASLESS_OVERRIDE_INCOMPLETE|gaslessLayerAddress/);
+  });
+});

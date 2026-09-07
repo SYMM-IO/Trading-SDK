@@ -1,6 +1,8 @@
 import type { Address, Hash } from "viem";
+import { encodeFunctionData } from "viem";
 import type { Config } from "../../../core/config";
-import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
+import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-gasless";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import { simulateAddMargin } from "./simulate-add-margin";
@@ -9,19 +11,20 @@ import { simulateAddMargin } from "./simulate-add-margin";
  * Parameters for {@link addMargin}.
  */
 export type AddMarginParameters = Compute<
-  WriteContractParameter & {
-    /**
-     * The virtual account (VA) to add margin to. The connected wallet must be
-     * the VA's on-chain owner; the contract reverts (`onlyAccountOwner`) otherwise.
-     */
-    virtualAccount: Address;
-    /**
-     * Amount to add, in **18 decimals** (the internal allocated-balance unit,
-     * not the collateral token's decimals). Moved from the parent subaccount's
-     * already-deposited balance into the VA; reverts with `ZeroAmount` when `0`.
-     */
-    amount: bigint;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /**
+       * The virtual account (VA) to add margin to. The connected wallet must be
+       * the VA's on-chain owner; the contract reverts (`onlyAccountOwner`) otherwise.
+       */
+      virtualAccount: Address;
+      /**
+       * Amount to add, in **18 decimals** (the internal allocated-balance unit,
+       * not the collateral token's decimals). Moved from the parent subaccount's
+       * already-deposited balance into the VA; reverts with `ZeroAmount` when `0`.
+       */
+      amount: bigint;
+    }
 >;
 
 /** Return type of {@link addMargin}: the submitted transaction hash. */
@@ -53,6 +56,31 @@ export async function addMargin(config: Config, parameters: AddMarginParameters)
   const { chainId, virtualAccount, amount, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
+
+  /**
+   * Transparent gasless seam: the same AccountLayer calldata is signed as an
+   * InstantLayer operation and relayed; the VA's parent sub-account (resolved
+   * on-chain, or passed as `gasless.account`) is the billing/authority
+   * account. `null` means: proceed on the wallet path below, unchanged.
+   */
+  const relayed = await maybeRelayAsGasless(config, {
+    chainId,
+    from,
+    gasless: parameters.gasless,
+    virtualAccount,
+    calls: [
+      {
+        target: addresses.accountLayerAddress,
+        callData: encodeFunctionData({
+          abi: accountLayerAbi,
+          functionName: "addMargin",
+          args: [virtualAccount, amount],
+        }),
+      },
+    ],
+  });
+  if (relayed !== null) return relayed;
+
   const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {

@@ -1,6 +1,6 @@
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import type { Config } from "../../core/config";
-import type { Compute, WriteContractParameter } from "../../shared/types/properties";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../shared/types/properties";
 import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
 import { callAsSubAccount } from "../../symmio-contracts/symmio/internal/call-as-sub-account";
 import type { HighLowPriceSig } from "../../symmio-contracts/symmio/types";
@@ -9,18 +9,19 @@ import type { HighLowPriceSig } from "../../symmio-contracts/symmio/types";
  * Parameters for {@link forceClosePosition}.
  */
 export type ForceClosePositionParameters = Compute<
-  WriteContractParameter & {
-    /**
-     * The subaccount (partyA) that owns the position. The call is routed through
-     * the AccountLayer `_call` proxy so the core sees this subaccount as the
-     * caller; the connected wallet must be its on-chain `owner`.
-     */
-    account: Address;
-    /** The `CLOSE_PENDING` limit quote id to force-close. */
-    quoteId: bigint;
-    /** The Muon `priceRange` attestation — see `getForceClosePriceSig`. */
-    sig: HighLowPriceSig;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /**
+       * The subaccount (partyA) that owns the position. The call is routed through
+       * the AccountLayer `_call` proxy so the core sees this subaccount as the
+       * caller; the connected wallet must be its on-chain `owner`.
+       */
+      account: Address;
+      /** The `CLOSE_PENDING` limit quote id to force-close. */
+      quoteId: bigint;
+      /** The Muon `priceRange` attestation — see `getForceClosePriceSig`. */
+      sig: HighLowPriceSig;
+    }
 >;
 
 /** Return type of {@link forceClosePosition}: the submitted transaction hash. */
@@ -33,6 +34,12 @@ export type ForceClosePositionReturnType = Hash;
  * `AccountLayer._call(account, …)`, so the connected wallet must be the
  * subaccount's `owner`.
  *
+ * Relayable: pass `gasless` (or run the chain in `gasless.execution.mode`) to
+ * sign the same calldata as an InstantLayer operation instead of sending a
+ * transaction. The operation is signed under `account` — the position's own
+ * subaccount, which is therefore the account charged the operational fee —
+ * unless `gasless.account` names another.
+ *
  * @remarks
  * Reverts `ForceActionsFacet: Cross partyB mode enabled` when the position's
  * partyB runs cross-margin settlement — that solver needs the (not-yet-supported)
@@ -40,7 +47,7 @@ export type ForceClosePositionReturnType = Hash;
  *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
  * @param parameters - The owning subaccount, the quote id, the Muon sig, optional `from` / pre-flight / chain id.
- * @returns The submitted transaction hash.
+ * @returns The submitted transaction hash — the relayer's broadcast hash when relayed.
  * @throws {SymmError} when the chain is unsupported or no wallet client is available.
  *
  * @example
@@ -66,5 +73,6 @@ export async function forceClosePosition(
     chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
+    gasless: parameters.gasless,
   });
 }

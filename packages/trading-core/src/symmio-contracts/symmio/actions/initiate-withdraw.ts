@@ -1,6 +1,6 @@
 import { encodeFunctionData, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "../../../core/config";
-import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 import type { WithdrawReceiverPart } from "../types";
@@ -9,32 +9,33 @@ import type { WithdrawReceiverPart } from "../types";
  * Parameters for {@link initiateWithdraw}.
  */
 export type InitiateWithdrawParameters = Compute<
-  WriteContractParameter & {
-    /**
-     * The subaccount initiating the withdrawal. The call is routed through the
-     * AccountLayer `_call` proxy so the core sees this subaccount as the caller;
-     * the connected wallet must be its on-chain `owner`.
-     */
-    account: Address;
-    /**
-     * The receiver parts the withdrawal is split into. A plain same-chain
-     * withdrawal is a single part with both provider fields set to the zero
-     * address — see `createClassicWithdrawPart`.
-     */
-    parts: readonly WithdrawReceiverPart[];
-    /**
-     * Opt into the cooldown speed-up flow. Only effective for speed-up-eligible
-     * users; ignored otherwise.
-     * @default false
-     */
-    speedUp?: boolean;
-    /**
-     * Opaque provider data forwarded to express/virtual providers (e.g. a signed
-     * option). Pass `0x` for a classic withdrawal.
-     * @default "0x"
-     */
-    providerData?: Hex;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /**
+       * The subaccount initiating the withdrawal. The call is routed through the
+       * AccountLayer `_call` proxy so the core sees this subaccount as the caller;
+       * the connected wallet must be its on-chain `owner`.
+       */
+      account: Address;
+      /**
+       * The receiver parts the withdrawal is split into. A plain same-chain
+       * withdrawal is a single part with both provider fields set to the zero
+       * address — see `createClassicWithdrawPart`.
+       */
+      parts: readonly WithdrawReceiverPart[];
+      /**
+       * Opt into the cooldown speed-up flow. Only effective for speed-up-eligible
+       * users; ignored otherwise.
+       * @default false
+       */
+      speedUp?: boolean;
+      /**
+       * Opaque provider data forwarded to express/virtual providers (e.g. a signed
+       * option). Pass `0x` for a classic withdrawal.
+       * @default "0x"
+       */
+      providerData?: Hex;
+    }
 >;
 
 /** Return type of {@link initiateWithdraw}: the submitted transaction hash. */
@@ -89,5 +90,6 @@ export async function initiateWithdraw(
     chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
+    gasless: parameters.gasless,
   });
 }

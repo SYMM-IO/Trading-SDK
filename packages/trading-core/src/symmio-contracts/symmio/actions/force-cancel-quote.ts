@@ -1,6 +1,6 @@
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 
@@ -8,16 +8,17 @@ import { callAsSubAccount } from "../internal/call-as-sub-account";
  * Parameters for {@link forceCancelQuote}.
  */
 export type ForceCancelQuoteParameters = Compute<
-  WriteContractParameter & {
-    /**
-     * The subaccount (partyA) that owns the quote. Routed through the AccountLayer
-     * `_call` proxy so the core sees this subaccount as the caller; the connected
-     * wallet must be its on-chain `owner`.
-     */
-    account: Address;
-    /** The `CANCEL_PENDING` quote id to force-cancel. */
-    quoteId: bigint;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /**
+       * The subaccount (partyA) that owns the quote. Routed through the AccountLayer
+       * `_call` proxy so the core sees this subaccount as the caller; the connected
+       * wallet must be its on-chain `owner`.
+       */
+      account: Address;
+      /** The `CANCEL_PENDING` quote id to force-cancel. */
+      quoteId: bigint;
+    }
 >;
 
 /** Return type of {@link forceCancelQuote}: the submitted transaction hash. */
@@ -62,5 +63,6 @@ export async function forceCancelQuote(
     chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
+    gasless: parameters.gasless,
   });
 }

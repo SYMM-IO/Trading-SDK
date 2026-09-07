@@ -22,9 +22,10 @@ export default {
   notifications: "Notifications hooks",
   subgraph: "Subgraph hooks",
   muon: "Muon Oracle hooks",
+  gasless: "Gasless hooks",
   "notional-cap": "Notional Cap hooks",
   "locked-params": "Locked Params hooks",
   "error-codes": "Error codes hooks",
-  transactions: "Transactions store",
+  transactions: "Transactions",
   errors: "Errors",
 };

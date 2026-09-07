@@ -1,0 +1,34 @@
+# getGaslessWalletAddress
+
+Read the owner's deterministic gasless-wallet address from the GaslessLayer — a pure `CREATE2` view, safe to display **before** any transaction exists.
+
+```ts
+import { getGaslessWalletAddress } from "@symmio/trading-core";
+
+const depositAddress = await getGaslessWalletAddress(config, { owner });
+```
+
+The same address serves two roles: it is the owner's **deposit address** for [gasless onboarding](/core/gasless/get-gasless-deposit-policy) (bridge collateral there, then settle), and the `target` of [gasless-wallet `execute` operations](/core/gasless/gasless-wallet-execute) that move funds out. Custody is bound by construction — collateral at the address can only ever reach a sub-account owned by `owner`.
+
+Responses from gasless services come back lowercased; compare addresses case-insensitively (`isAddressEqual`).
+
+## Parameters
+
+<Properties>
+  <Property name="owner" type="Address" required>
+    The owner wallet the deterministic wallet belongs to.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<Address>">The deterministic wallet address.</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmError("api", "GASLESS_WALLET_UNAVAILABLE")` — the gateway returned the zero address (an unwired deployment answers `0x0` instead of reverting; the guard is load-bearing).
+- Viem read errors.

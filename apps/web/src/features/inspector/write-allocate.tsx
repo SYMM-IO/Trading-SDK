@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { useAllocate, useSimulateAllocate, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
@@ -28,6 +29,8 @@ export function WriteAllocate() {
 
   const mutation = useAllocate();
 
+  const gasless = useGaslessWriteOption("allocate");
+
   /** Dry-run `allocate` before sending. */
   const simulate = useSimulateAllocate();
 
@@ -36,6 +39,7 @@ export function WriteAllocate() {
       testId="method-allocate"
       name="allocate"
       mutability="nonpayable"
+      gaslessRelayable
       description="Move a subaccount's available balance into allocated (tradeable) margin (routed via AccountLayer _call)."
     >
       <SubAccountField
@@ -90,7 +94,7 @@ export function WriteAllocate() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            mutation.mutate({ account: validAccount, amount: validAmount });
+            mutation.mutate({ account: validAccount, amount: validAmount, gasless });
           }}
           data-testid="button-send-allocate"
         >

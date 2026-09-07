@@ -76,13 +76,7 @@ export function useDeallocate(parameters: UseDeallocateParameters = {}): UseDeal
             virtualAccount: variables.account,
             chainId: resolvedChainId,
           }));
-        const hash = await base.mutationFn({
-          account: variables.account,
-          amount: variables.amount,
-          upnlSig,
-          simulateBeforeWrite: variables.simulateBeforeWrite,
-          chainId: resolvedChainId,
-        });
+        const hash = await base.mutationFn({ ...variables, upnlSig, chainId: resolvedChainId });
         return resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,

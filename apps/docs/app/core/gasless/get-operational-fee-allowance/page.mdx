@@ -1,0 +1,56 @@
+import { Callout } from "nextra/components";
+
+# getOperationalFeeAllowance
+
+Read a payer's operational-fee allowance for a charger from the **SYMMIO core diamond** — the ceiling the gasless gateway can charge against.
+
+```ts
+import { getOperationalFeeAllowance } from "@symmio/trading-core";
+
+const { allowance, pendingAllowance, reductionReadyAt, feeMultiplier } = await getOperationalFeeAllowance(config, {
+  payer: subAccount,
+});
+```
+
+The gateway charges its fee against this allowance atomically with each relayed operation. `maxUint256` reads back as "unlimited"; a never-approved pair reads `0n`. `charger` defaults to the chain's `gasless.gaslessLayerAddress`, so on a gasless-configured chain only the `payer` is needed.
+
+<Callout type="warning">
+  Allowance **reductions are delayed** on-chain: after a lowering approval, the current `allowance` keeps applying until
+  `reductionReadyAt`, and `pendingAllowance` shows what it will drop to. Any revoke UX must surface both.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="payer" type="Address" required>
+    The fee payer — the sub-account whose collateral the charger deducts from.
+  </Property>
+  <Property name="charger" type="Address" optional>
+    The registered fee charger. Defaults to the chain's `gasless.gaslessLayerAddress`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GetOperationalFeeAllowanceReturnType>">
+  <Property name="allowance" type="bigint">
+    Current spendable allowance (raw collateral units).
+  </Property>
+  <Property name="pendingAllowance" type="bigint">
+    The value a pending reduction will lower to.
+  </Property>
+  <Property name="reductionReadyAt" type="bigint">
+    Unix timestamp (seconds) when the pending reduction takes effect; `0n` when none.
+  </Property>
+  <Property name="feeMultiplier" type="bigint">
+    Fee multiplier for the pair in basis points — `10000n` is list price (the default when unset).
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("validation", "GASLESS_CHARGER_REQUIRED")` — no `charger` given and the chain has no gasless block to default from.
+- Viem read errors.

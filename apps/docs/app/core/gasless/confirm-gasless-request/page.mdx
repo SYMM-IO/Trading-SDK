@@ -1,0 +1,100 @@
+import { Callout } from "nextra/components";
+
+# confirmGaslessRequest
+
+Follow one accepted relay request through to on-chain reality — the opinionated layer above [`waitForGaslessRequest`](/core/gasless/wait-for-gasless-request).
+
+```ts
+import { confirmGaslessRequest } from "@symmio/trading-core";
+
+const accepted = await relayGrantDelegation(config, { account, delegatedSigner, selectors, expiryTimestamp });
+const { request, txHash, receipt } = await confirmGaslessRequest(config, {
+  requestId: accepted.requestId,
+  until: "receipt",
+});
+```
+
+Where the driver reports facts — it resolves with whatever terminal it reaches — this asserts the outcome a caller is waiting for: it resolves **only** on `succeeded`, and throws for `reverted` / `failed` / `rejected` with the record attached to the error's `responseData`.
+
+With `until: "receipt"` it then waits for the receipt on **this config's own client**. That is not belt-and-braces: the relayer's `succeeded` is the relayer's node's view, and invalidating cached reads against a node that has not yet seen the block re-reads pre-state — which looks exactly like the stalled UI this whole mechanism exists to prevent.
+
+<Callout type="info">
+  **A receipt-wait timeout is not a failure.** The relayer already reported the transaction mined with `status = 1`; the
+  receipt wait is a freshness barrier on your RPC, not a source of truth. On timeout this resolves with `receipt` absent
+  rather than throwing — turning a succeeded action into an error because a public RPC lagged would be a worse bug than
+  the one being fixed.
+</Callout>
+
+React consumers rarely call this directly: every relay hook in `@symmio/trading-react` confirms by default and invalidates the reads its action changed. See the [React gasless guide](/react/gasless).
+
+## Parameters
+
+<Properties>
+  <Property name="requestId" type="string" required>
+    Stable service tracking id returned by a gasless submit.
+  </Property>
+  <Property name="until" type='"terminal" | "receipt"' optional default='"terminal"'>
+    `"terminal"` resolves on `succeeded`; `"receipt"` additionally waits for the receipt on this config's client.
+  </Property>
+  <Property name="service" type='"operations" | "deposits"' optional default='"operations"'>
+    Which sub-service stores the request. Deposit settlements are `"deposits"`.
+  </Property>
+  <Property name="receiptConfirmations" type="number" optional default="1">
+    Confirmations for the receipt wait. Ignored unless `until: "receipt"`.
+  </Property>
+  <Property name="timeoutMs" type="number" optional default="120_000">
+    Budget for the terminal wait (`GASLESS_WAIT_TIMEOUT_MS`).
+  </Property>
+  <Property name="receiptTimeoutMs" type="number" optional default="90_000">
+    Budget for the receipt wait (`GASLESS_RECEIPT_TIMEOUT_MS`).
+  </Property>
+  <Property name="queuedPollMs" type="number" optional default="1_500">
+    Poll cadence while `queued`.
+  </Property>
+  <Property name="submittedPollMs" type="number" optional default="3_000">
+    Poll cadence after `submitted`.
+  </Property>
+  <Property name="signal" type="AbortSignal" optional>
+    Abort the wait, e.g. on unmount. The request keeps running server-side — an abort means nobody is watching, **not**
+    that the action failed.
+  </Property>
+  <Property name="onUpdate" type="(request: GaslessRequest) => void" optional>
+    Observer invoked with every fetched record, including the final one.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Chain override. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessConfirmedRequest>">
+  <Property name="request" type="GaslessRequest">
+    The terminal record. Always `succeeded` — anything else threw.
+  </Property>
+  <Property name="txHash" type="Hash">
+    The broadcast transaction hash.
+  </Property>
+  <Property name="receipt" type="TransactionReceipt" optional>
+    Receipt from this config's client. Absent for `until: "terminal"`, and absent when the receipt wait ran out of
+    budget.
+  </Property>
+</Returns>
+
+## Errors
+
+| Code                           | When                                                                          |
+| ------------------------------ | ----------------------------------------------------------------------------- |
+| `GASLESS_RELAY_REJECTED`       | The worker refused the request before any broadcast.                          |
+| `GASLESS_RELAY_REVERTED`       | The relayed transaction mined with `status = 0`; all charges rolled back.     |
+| `GASLESS_RELAY_FAILED`         | A service or RPC failure before a successful receipt.                         |
+| `GASLESS_SUCCEEDED_WITHOUT_TX` | A `succeeded` record carried no transaction hash — a service invariant break. |
+| `GASLESS_WAIT_ABORTED`         | `signal` aborted. Nobody is watching; the request continues.                  |
+| `GASLESS_TERMINAL_TIMEOUT`     | The terminal budget ran out. Keep the `requestId` and keep watching.          |
+
+The first three carry the terminal record on `responseData`, so the real cause is readable without parsing a message.
+
+<Callout type="warning">
+  Never re-submit on a terminal failure. A `202` is the point of no return — the relayer owns the intent from that
+  moment, and a second submit can double-execute it.
+</Callout>

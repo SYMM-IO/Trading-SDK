@@ -1,0 +1,63 @@
+import { Callout } from "nextra/components";
+
+# approveOperationalFee
+
+Grant operational-fee allowances to the gasless fee charger, **as the paying sub-account**.
+
+```ts
+import { approveOperationalFee } from "@symmio/trading-core";
+import { maxUint256 } from "viem";
+
+const hash = await approveOperationalFee(config, {
+  account: subAccount,
+  amounts: [maxUint256],
+});
+```
+
+The diamond keys allowances by `msg.sender`, so the call is routed through the AccountLayer `_call` proxy — the diamond sees the **sub-account** as the payer. A direct wallet call would grant the allowance from the wrong account. The connected wallet must be the sub-account's owner. Under the hood this encodes `approveOperationalFeeWithMultiplier(chargers[], amounts[], feeMultipliers[])`; `chargers` defaults to the chain's `gasless.gaslessLayerAddress` and `feeMultipliers` to `OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER` (`10000n` — list price, in basis points).
+
+<Callout type="warning">
+  Grant the allowance **before** relying on gasless execution — without it every relay fails with
+  `INSUFFICIENT_ALLOWANCE`. This wallet-paid path is the one that always works; the approval is itself relayable too
+  (pass `gasless: true` once gasless execution is active). Reducing an existing allowance is delayed on-chain — see
+  [`getOperationalFeeAllowance`](/core/gasless/get-operational-fee-allowance).
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The sub-account that pays operational fees; the connected wallet must be its owner.
+  </Property>
+  <Property name="amounts" type="readonly bigint[]" required>
+    Allowance per charger (raw collateral units, parallel to `chargers`). `maxUint256` means unlimited.
+  </Property>
+  <Property name="chargers" type="readonly Address[]" optional>
+    The fee chargers to approve. Defaults to `[gasless.gaslessLayerAddress]`.
+  </Property>
+  <Property name="feeMultipliers" type="readonly bigint[]" optional>
+    Fee multiplier per charger in basis points; defaults to `10000n` (list price) for every charger.
+  </Property>
+  <Property name="gasless" type="boolean | GaslessWriteOptions" optional>
+    Relay the approval itself through the gasless service — see [Relayable writes](/core/gasless/relayable-writes).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="from" type="Address" optional>
+    Signer override for the wallet-client resolver.
+  </Property>
+  <Property name="simulateBeforeWrite" type="boolean" optional>
+    Dry-run the `_call` before broadcasting; defaults to the config's global setting.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<Hash>">The submitted transaction hash.</Returns>
+
+## Throws
+
+- `SymmError("validation", "GASLESS_CHARGER_REQUIRED")` — no `chargers` given and the chain has no gasless block to default from.
+- `SymmError("validation", "OPERATIONAL_FEE_APPROVAL_MISMATCH")` — `chargers` / `amounts` / `feeMultipliers` lengths disagree.
+- `SymmError` when the chain is unsupported or no wallet client is available; viem errors from the `_call` write.

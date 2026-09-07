@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { useRequestCancelWithdraw, useSimulateRequestCancelWithdraw, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
@@ -30,6 +31,8 @@ export function WriteRequestCancelWithdraw() {
 
   const mutation = useRequestCancelWithdraw();
 
+  const gasless = useGaslessWriteOption("requestCancelWithdraw");
+
   const simulate = useSimulateRequestCancelWithdraw();
 
   return (
@@ -37,6 +40,7 @@ export function WriteRequestCancelWithdraw() {
       testId="method-requestCancelWithdraw"
       name="requestCancelWithdraw"
       mutability="nonpayable"
+      gaslessRelayable
       description="Cancel a pending withdraw request for a subaccount (routed via AccountLayer _call)."
     >
       <SubAccountField
@@ -91,7 +95,7 @@ export function WriteRequestCancelWithdraw() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount || validRequestId === undefined) return;
-            mutation.mutate({ account: validAccount, requestId: validRequestId });
+            mutation.mutate({ account: validAccount, requestId: validRequestId, gasless });
           }}
           data-testid="button-send-cancel"
         >

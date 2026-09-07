@@ -1,6 +1,8 @@
 import type { Address, Hash } from "viem";
+import { encodeFunctionData } from "viem";
 import type { Config } from "../../../core/config";
-import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
+import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-gasless";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import type { SingleUpnlSig } from "../types";
@@ -10,26 +12,27 @@ import { simulateRemoveMargin } from "./simulate-remove-margin";
  * Parameters for {@link removeMargin}.
  */
 export type RemoveMarginParameters = Compute<
-  WriteContractParameter & {
-    /**
-     * The virtual account (VA) to remove margin from. The connected wallet must
-     * be the VA's on-chain owner; the contract reverts (`onlyAccountOwner`) otherwise.
-     */
-    virtualAccount: Address;
-    /**
-     * Amount to remove, in **18 decimals** (the internal allocated-balance unit,
-     * not the collateral token's decimals). Moved from the VA back into the
-     * parent subaccount's available balance; reverts with `ZeroAmount` when `0`.
-     */
-    amount: bigint;
-    /**
-     * A fresh Muon uPnL attestation for `virtualAccount`. The contract verifies
-     * it to prove the VA stays solvent after the deallocation. Fetch one right
-     * before submitting (it is timestamped and short-lived) — see
-     * {@link getDeallocateUpnlSig}.
-     */
-    upnlSig: SingleUpnlSig;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /**
+       * The virtual account (VA) to remove margin from. The connected wallet must
+       * be the VA's on-chain owner; the contract reverts (`onlyAccountOwner`) otherwise.
+       */
+      virtualAccount: Address;
+      /**
+       * Amount to remove, in **18 decimals** (the internal allocated-balance unit,
+       * not the collateral token's decimals). Moved from the VA back into the
+       * parent subaccount's available balance; reverts with `ZeroAmount` when `0`.
+       */
+      amount: bigint;
+      /**
+       * A fresh Muon uPnL attestation for `virtualAccount`. The contract verifies
+       * it to prove the VA stays solvent after the deallocation. Fetch one right
+       * before submitting (it is timestamped and short-lived) — see
+       * {@link getDeallocateUpnlSig}.
+       */
+      upnlSig: SingleUpnlSig;
+    }
 >;
 
 /** Return type of {@link removeMargin}: the submitted transaction hash. */
@@ -72,6 +75,30 @@ export async function removeMargin(
   const { chainId, virtualAccount, amount, upnlSig, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
+
+  /**
+   * Transparent gasless seam — see {@link addMargin}. The Muon uPnL signature
+   * rides inside the calldata, so its freshness window also bounds how long
+   * the relayed operation stays executable.
+   */
+  const relayed = await maybeRelayAsGasless(config, {
+    chainId,
+    from,
+    gasless: parameters.gasless,
+    virtualAccount,
+    calls: [
+      {
+        target: addresses.accountLayerAddress,
+        callData: encodeFunctionData({
+          abi: accountLayerAbi,
+          functionName: "removeMargin",
+          args: [virtualAccount, amount, upnlSig],
+        }),
+      },
+    ],
+  });
+  if (relayed !== null) return relayed;
+
   const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {

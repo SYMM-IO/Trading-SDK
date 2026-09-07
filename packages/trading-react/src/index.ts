@@ -21,6 +21,10 @@
  */
 export {
   ADD_MARGIN_TO_NEXT_VA_SELECTOR,
+  GASLESS_RELAYABLE_SELECTORS,
+  GASLESS_SESSION_KEY_SELECTORS,
+  GASLESS_TERMINAL_STATUSES,
+  GaslessRequestStatus,
   INSTANT_TRADE_REQUIRED_SELECTORS,
   LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS,
   NotificationType,
@@ -44,6 +48,7 @@ export {
   decimalPriceToWei,
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
+  isGaslessRequestTerminal,
   isolationTypeForSide,
   supportsEstimatedPrice,
   validateInstantCloseAgainstMarket,
@@ -54,6 +59,11 @@ export {
   type CalculateTradeParamsReturnType,
   type ClampClosePrecisionParameters,
   type CloseQuoteConstraintViolation,
+  type GaslessDepositAccountData,
+  type GaslessRequest,
+  type GaslessService,
+  type GaslessSubmitReceipt,
+  type GaslessWalletCall,
   type GetPartyAOpenPositionsData,
   type GetPartyAOpenPositionsOptions,
   type GetPartyAOpenPositionsParameters,
@@ -1171,3 +1181,59 @@ export {
   type UseInventoryTvlParameters,
   type UseInventoryTvlReturnType,
 } from "./inventory";
+
+/**
+ * Gasless hooks
+ * -------------
+ * React bindings for the GaslessQ relayer integration. Availability is
+ * chain-level and additionally requires the perps-core (`"0.8.6"`) contracts
+ * generation — gate gasless UI on `useSupportsGaslessService` so features hide
+ * where the relayer is unavailable.
+ */
+export {
+  useApproveOperationalFee,
+  useGaslessDepositPolicy,
+  useGaslessFeeQuote,
+  useGaslessRequest,
+  useGaslessWalletAddress,
+  useGaslessWalletExecute,
+  useOperationalFeeAllowance,
+  useRelayInstantOperations,
+  useSettleGaslessDepositExistingAccount,
+  useSettleGaslessDepositNewAccount,
+  useSupportsGaslessService,
+  type ApproveOperationalFeeResult,
+  type ApproveOperationalFeeVariables,
+  type GaslessRelayParameters,
+  type GaslessRelayProgress,
+  type GaslessRelayResult,
+  type GaslessWalletExecuteResult,
+  type GaslessWalletExecuteVariables,
+  type RelayInstantOperationsResult,
+  type RelayInstantOperationsVariables,
+  type SettleGaslessDepositExistingAccountResult,
+  type SettleGaslessDepositExistingAccountVariables,
+  type SettleGaslessDepositNewAccountResult,
+  type SettleGaslessDepositNewAccountVariables,
+  type UseApproveOperationalFeeParameters,
+  type UseApproveOperationalFeeReturnType,
+  type UseGaslessDepositPolicyParameters,
+  type UseGaslessDepositPolicyReturnType,
+  type UseGaslessFeeQuoteParameters,
+  type UseGaslessFeeQuoteReturnType,
+  type UseGaslessRequestParameters,
+  type UseGaslessRequestReturnType,
+  type UseGaslessWalletAddressParameters,
+  type UseGaslessWalletAddressReturnType,
+  type UseGaslessWalletExecuteParameters,
+  type UseGaslessWalletExecuteReturnType,
+  type UseOperationalFeeAllowanceParameters,
+  type UseOperationalFeeAllowanceReturnType,
+  type UseRelayInstantOperationsParameters,
+  type UseRelayInstantOperationsReturnType,
+  type UseSettleGaslessDepositExistingAccountParameters,
+  type UseSettleGaslessDepositExistingAccountReturnType,
+  type UseSettleGaslessDepositNewAccountParameters,
+  type UseSettleGaslessDepositNewAccountReturnType,
+  type UseSupportsGaslessServiceParameters,
+} from "./gasless";

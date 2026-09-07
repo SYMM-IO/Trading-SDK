@@ -1,0 +1,71 @@
+import { Callout } from "nextra/components";
+
+# waitForGaslessRequest
+
+Poll one gasless request until it broadcasts or reaches a terminal status — the framework-agnostic awaited form of the [`getGaslessRequest`](/core/gasless/get-gasless-request) poll loop.
+
+This is the raw driver: it reports whatever terminal it reaches. To assert an outcome — resolve only on `succeeded`, optionally after the receipt lands on your own client — use [`confirmGaslessRequest`](/core/gasless/confirm-gasless-request) instead. Reach for this one when you want `until: "broadcast"`, or when a non-succeeded terminal is a normal branch rather than an error.
+
+```ts
+import { waitForGaslessRequest, GaslessRequestStatus } from "@symmio/trading-core";
+
+const record = await waitForGaslessRequest(config, { requestId, until: "broadcast" });
+if (record.txHash) {
+  await config.getClient().waitForTransactionReceipt({ hash: record.txHash });
+}
+```
+
+The cadence follows the service recommendation — `GASLESS_QUEUED_POLL_MS` (1 500 ms) while `queued`, `GASLESS_SUBMITTED_POLL_MS` (3 000 ms) after `submitted` — bounded by an overall `timeoutMs` budget (`GASLESS_WAIT_TIMEOUT_MS`, 120 000 ms). Up to three consecutive `404`s are tolerated right after a submit (the accepted record may not be readable yet); a fourth is rethrown.
+
+<Callout type="warning">
+  The wait **resolves** with the record for `reverted` / `failed` / `rejected` terminals — those are workflow outcomes,
+  not transport failures. Branch on `status`; only `succeeded` is success. It **throws** only for transport-level
+  problems: an exhausted budget, an abort, or a persistent fetch failure. On a timeout the request keeps running
+  server-side — keep the `requestId` and keep watching; never re-submit the same intent through the wallet.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="requestId" type="string" required>
+    Stable service tracking id returned by a gasless submit.
+  </Property>
+  <Property name="until" type='"broadcast" | "terminal"' optional default='"terminal"'>
+    `"broadcast"` resolves as soon as a transaction hash exists; `"terminal"` waits for `succeeded | reverted | failed |
+    rejected`.
+  </Property>
+  <Property name="service" type='"operations" | "deposits"' optional default='"operations"'>
+    Which sub-service stores the request.
+  </Property>
+  <Property name="timeoutMs" type="number" optional default="120_000">
+    Overall wait budget.
+  </Property>
+  <Property name="queuedPollMs" type="number" optional default="1_500">
+    Poll cadence while `queued`.
+  </Property>
+  <Property name="submittedPollMs" type="number" optional default="3_000">
+    Poll cadence after `submitted`.
+  </Property>
+  <Property name="signal" type="AbortSignal" optional>
+    Abort the wait (e.g. on unmount). The request itself keeps running server-side.
+  </Property>
+  <Property name="onUpdate" type="(request: GaslessRequest) => void" optional>
+    Observer invoked with every fetched record, including the final one.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessRequest>">
+  The record at broadcast (`until: "broadcast"`) or at the terminal status — the same shape
+  [`getGaslessRequest`](/core/gasless/get-gasless-request) returns.
+</Returns>
+
+## Throws
+
+- `SymmError("api", "GASLESS_BROADCAST_TIMEOUT" | "GASLESS_TERMINAL_TIMEOUT")` — the budget ran out before the wait target.
+- `SymmError("api", "GASLESS_WAIT_ABORTED")` — `signal` aborted.
+- Everything [`getGaslessRequest`](/core/gasless/get-gasless-request) throws, after the `404` tolerance is exhausted.

@@ -1,0 +1,79 @@
+import { Callout } from "nextra/components";
+
+# relayGrantDelegation
+
+Grant an Instant Layer delegation **through the gasless relayer** — session-key onboarding with no native gas.
+
+```ts
+import { GASLESS_SESSION_KEY_SELECTORS, relayGrantDelegation } from "@symmio/trading-core";
+
+const receipt = await relayGrantDelegation(config, {
+  account: subAccount,
+  delegatedSigner: sessionKeyAddress,
+  selectors: GASLESS_SESSION_KEY_SELECTORS,
+  expiryTimestamp: BigInt(Math.floor(Date.now() / 1000) + 30 * 24 * 3600),
+});
+```
+
+A delegation grant is an **ordinary owner-signed operation**: the SDK encodes `InstantLayer.grantDelegation(DelegationInfo)`, targets the InstantLayer, signs under the InstantLayer EIP-712 domain with a fresh sequential nonce, and submits it through `relay-instant` with `operationType: "grantDelegation"`. The account owner's wallet signs — a grant is always owner-signed.
+
+<Callout type="info">
+  The service's old standalone delegation-relay endpoint and its `SignedDelegation` payload **no longer exist** — their
+  signature digest differs and cannot be converted. Do not port code built on them. The wallet-paid alternative is the
+  plain [`grantDelegation`](/core/instant-layer/grant-delegation) write.
+</Callout>
+
+Pair it with [`GASLESS_SESSION_KEY_SELECTORS`](/core/gasless/relayable-writes) to onboard a session key that can then sign gasless account management without further wallet prompts.
+
+<Callout type="info">
+  This action is a **submit**: it resolves with the `202` acceptance. React consumers do not need to follow it by hand —
+  the matching hook in `@symmio/trading-react` confirms the request before it resolves and invalidates the reads this
+  action changes. See the [React gasless guide](/react/gasless).
+</Callout>
+
+<Callout type="info">
+  **Prefer [`grantDelegation`](/core/instant-layer/grant-delegation) with `gasless: true`.** A grant is a relayable
+  write like any other, so the ordinary action relays it and returns a transaction hash — no separate code path, and the
+  receipt wait and cache invalidation work unchanged. This action stays as the low-level escape hatch, for when you want
+  the `requestId` and the fee figures from the acceptance receipt, exactly as
+  [`relayInstantOperations`](/core/gasless/relay-instant-operations) sits beside the transparent path.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The sub-account granting the delegation. The connected wallet must be its owner.
+  </Property>
+  <Property name="delegatedSigner" type="Address" required>
+    The signer being delegated to (e.g. a session key address).
+  </Property>
+  <Property name="selectors" type="readonly Hex[]" required>
+    Function selectors the delegate may sign for.
+  </Property>
+  <Property name="expiryTimestamp" type="bigint" required>
+    Unix timestamp (seconds) when the delegation expires.
+  </Property>
+  <Property name="idempotencyKey" type="string" optional>
+    Stable retry key; defaults to a random UUID.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="from" type="Address" optional>
+    Signer override for the wallet-client resolver.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessSubmitReceipt>">
+  The acceptance receipt — persist `requestId` and poll it with [`getGaslessRequest`](/core/gasless/get-gasless-request)
+  to a terminal status.
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmApiError` with code `GASLESS_RELAY_SUBMIT_FAILED` on HTTP failure.
+- Everything the wallet-client resolver throws (`NO_WALLET_CLIENT`, a user's signature rejection).

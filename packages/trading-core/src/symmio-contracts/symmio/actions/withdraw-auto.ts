@@ -1,6 +1,6 @@
 import type { Address, Hash, Hex } from "viem";
 import type { Config } from "../../../core/config";
-import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { getSubAccount } from "../../account-layer/actions/get-sub-account";
 import type { SingleUpnlSig, SubAccountIsolationType } from "../../account-layer/types";
 import { createClassicWithdrawPart } from "../parts";
@@ -10,49 +10,50 @@ import { withdraw } from "./withdraw";
  * Parameters for {@link withdrawAuto}.
  */
 export type WithdrawAutoParameters = Compute<
-  WriteContractParameter & {
-    /**
-     * The subaccount to withdraw from. The action routes the call through the
-     * AccountLayer `_call` proxy so the core attributes it to this subaccount; the
-     * connected wallet must be its on-chain `owner`.
-     */
-    account: Address;
-    /**
-     * Amount to withdraw, in the **collateral token's decimals** (e.g. 6 for a
-     * USDC-collateralized chain). The action builds the withdraw part from this
-     * amount as-is and, on the `CUSTOM` (cross-margin) path, scales it to the
-     * 18-decimal amount the `deallocate` leg needs.
-     */
-    amount: bigint;
-    /** Destination EVM address the freed collateral is withdrawn to. */
-    receiver: Address;
-    /**
-     * Opt into the cooldown speed-up flow. Only effective for speed-up-eligible
-     * users; ignored otherwise.
-     * @default false
-     */
-    speedUp?: boolean;
-    /**
-     * Opaque provider data forwarded to express/virtual providers (e.g. a signed
-     * option). Pass `0x` for a classic withdrawal.
-     * @default "0x"
-     */
-    providerData?: Hex;
-    /**
-     * A fresh Muon uPnL (`uPnl_A`) attestation for `account`, used only by the
-     * `CUSTOM` (deallocate) path. Omit it to have the action fetch a fresh one;
-     * pass one only to reuse a signature you already fetched. Ignored on the
-     * `MARKET` / `MARKET_DIRECTION` path.
-     */
-    upnlSig?: SingleUpnlSig;
-    /**
-     * The subaccount's isolation type. Pass it to **skip the `getSubAccount` read**
-     * — the React layer already holds it (cached via `useSubAccount`), so passing it
-     * avoids a redundant RPC. Omit it and the action fetches the subaccount to
-     * resolve it.
-     */
-    isolationType?: SubAccountIsolationType;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /**
+       * The subaccount to withdraw from. The action routes the call through the
+       * AccountLayer `_call` proxy so the core attributes it to this subaccount; the
+       * connected wallet must be its on-chain `owner`.
+       */
+      account: Address;
+      /**
+       * Amount to withdraw, in the **collateral token's decimals** (e.g. 6 for a
+       * USDC-collateralized chain). The action builds the withdraw part from this
+       * amount as-is and, on the `CUSTOM` (cross-margin) path, scales it to the
+       * 18-decimal amount the `deallocate` leg needs.
+       */
+      amount: bigint;
+      /** Destination EVM address the freed collateral is withdrawn to. */
+      receiver: Address;
+      /**
+       * Opt into the cooldown speed-up flow. Only effective for speed-up-eligible
+       * users; ignored otherwise.
+       * @default false
+       */
+      speedUp?: boolean;
+      /**
+       * Opaque provider data forwarded to express/virtual providers (e.g. a signed
+       * option). Pass `0x` for a classic withdrawal.
+       * @default "0x"
+       */
+      providerData?: Hex;
+      /**
+       * A fresh Muon uPnL (`uPnl_A`) attestation for `account`, used only by the
+       * `CUSTOM` (deallocate) path. Omit it to have the action fetch a fresh one;
+       * pass one only to reuse a signature you already fetched. Ignored on the
+       * `MARKET` / `MARKET_DIRECTION` path.
+       */
+      upnlSig?: SingleUpnlSig;
+      /**
+       * The subaccount's isolation type. Pass it to **skip the `getSubAccount` read**
+       * — the React layer already holds it (cached via `useSubAccount`), so passing it
+       * avoids a redundant RPC. Omit it and the action fetches the subaccount to
+       * resolve it.
+       */
+      isolationType?: SubAccountIsolationType;
+    }
 >;
 
 /** Return type of {@link withdrawAuto}: the submitted transaction hash. */
@@ -134,5 +135,6 @@ export async function withdrawAuto(
     chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
+    gasless: parameters.gasless,
   });
 }

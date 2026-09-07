@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { useDeposit, useSimulateDeposit, useSymmioConfig, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
@@ -28,6 +29,8 @@ export function WriteDeposit() {
 
   const mutation = useDeposit();
 
+  const gasless = useGaslessWriteOption("depositForAccount");
+
   /** Dry-run `depositForAccount` before sending. */
   const simulate = useSimulateDeposit();
 
@@ -36,6 +39,7 @@ export function WriteDeposit() {
       testId="method-depositForAccount"
       name="depositForAccount"
       mutability="nonpayable"
+      gaslessRelayable
       description="Deposit collateral into a subaccount's available balance. Requires a prior approveCollateral."
     >
       <SubAccountField
@@ -90,7 +94,7 @@ export function WriteDeposit() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            mutation.mutate({ account: validAccount, amount: validAmount });
+            mutation.mutate({ account: validAccount, amount: validAmount, gasless });
           }}
           data-testid="button-send-deposit"
         >

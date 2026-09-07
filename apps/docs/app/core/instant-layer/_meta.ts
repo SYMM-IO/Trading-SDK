@@ -2,6 +2,7 @@ export default {
   index: "Overview",
   "-- reads": { type: "separator", title: "Reads" },
   "get-delegation-expiry": "getDelegationExpiry",
+  "get-instant-layer-nonce": "getInstantLayerNonce",
   "get-is-delegation-active": "getIsDelegationActive",
   "-- writes": { type: "separator", title: "Writes" },
   "grant-delegation": "grantDelegation",

@@ -1,0 +1,58 @@
+import { Callout } from "nextra/components";
+
+# getGaslessOperationalFeeQuote
+
+Quote the operational fee the GaslessLayer would charge for a batch — **before** asking the user to sign anything.
+
+```ts
+import { getGaslessOperationalFeeQuote } from "@symmio/trading-core";
+
+const quote = await getGaslessOperationalFeeQuote(config, {
+  account: subAccount,
+  operations: [operation],
+});
+if (quote.wouldBlockOnQuota) throw new Error("daily gasless quota exhausted");
+```
+
+One `getAccountOperationalFee(account, signedOps[])` view on the **GaslessLayer**, quoting the _exact_ operations about to be relayed — it applies the per-selector base fee, the payer's fee multiplier (`fee = base × multiplier / 10000`), and the per-account daily free quota (UTC reset). Signatures are not needed: an unsigned struct with the final calldata and replay header quotes identically.
+
+The [transparent execution mode](/core/gasless/relayable-writes) runs this as its pre-flight (`preflightFee`, on by default), so an unaffordable relay fails before any signature prompt. Compare `amountDue` against the account's available collateral, and treat `wouldBlockOnQuota` as a hard stop.
+
+<Callout type="info">
+  This is the authoritative preview; the `paidFee` on a submit's 202 receipt is the amount actually charged. The
+  allowance the charge draws against lives on the diamond — see
+  [`getOperationalFeeAllowance`](/core/gasless/get-operational-fee-allowance).
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The billing account (the operations' `signerAccount.addr`).
+  </Property>
+  <Property name="operations" type="readonly SignedOperation[]" required>
+    The exact operations to quote, in order.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GetGaslessOperationalFeeQuoteReturnType>">
+  <Property name="amountDue" type="bigint">
+    Total collateral the gateway would charge for these operations (raw units).
+  </Property>
+  <Property name="freeOpsApplied" type="bigint">
+    How many of the operations the account's daily free quota covers.
+  </Property>
+  <Property name="wouldBlockOnQuota" type="boolean">
+    `true` when the daily-quota policy would reject the batch outright.
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- Viem read errors.

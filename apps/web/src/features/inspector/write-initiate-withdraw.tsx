@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { createClassicWithdrawPart } from "@symmio/trading-core";
 import {
   useInitiateWithdraw,
@@ -42,6 +43,8 @@ export function WriteInitiateWithdraw() {
 
   const mutation = useInitiateWithdraw();
 
+  const gasless = useGaslessWriteOption("initiateWithdraw");
+
   const validParts =
     validReceiver && validAmount !== undefined && chainId !== undefined
       ? [createClassicWithdrawPart({ id: 0n, amount: validAmount, receiver: validReceiver, chainId: BigInt(chainId) })]
@@ -55,6 +58,7 @@ export function WriteInitiateWithdraw() {
       testId="method-initiateWithdraw"
       name="initiateWithdraw"
       mutability="nonpayable"
+      gaslessRelayable
       description="Open a classic same-chain withdraw request for a subaccount (routed via AccountLayer _call)."
     >
       <SubAccountField
@@ -143,7 +147,7 @@ export function WriteInitiateWithdraw() {
               receiver: validReceiver,
               chainId: BigInt(chainId!),
             });
-            mutation.mutate({ account: validAccount, parts: [part] });
+            mutation.mutate({ account: validAccount, parts: [part], gasless });
           }}
           data-testid="button-send-initiate-withdraw"
         >

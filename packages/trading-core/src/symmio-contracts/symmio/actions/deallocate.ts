@@ -1,7 +1,7 @@
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import type { Config } from "../../../core/config";
 import { getDeallocateUpnlSig } from "../../../muon/deallocate-upnl-sig/get-deallocate-upnl-sig";
-import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import type { SingleUpnlSig } from "../../account-layer/types";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
@@ -10,26 +10,27 @@ import { callAsSubAccount } from "../internal/call-as-sub-account";
  * Parameters for {@link deallocate}.
  */
 export type DeallocateParameters = Compute<
-  WriteContractParameter & {
-    /**
-     * The subaccount to deallocate from. The call is routed through the
-     * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
-     */
-    account: Address;
-    /**
-     * Amount to move from the allocated balance back into the available balance,
-     * in **18 decimals** (not the collateral token's decimals).
-     */
-    amount: bigint;
-    /**
-     * A fresh Muon uPnL (`uPnl_A`) attestation for `account`. The contract
-     * verifies it to prove the subaccount stays solvent after the deallocation.
-     * It is timestamped and short-lived, so **omit it** to have the action fetch a
-     * fresh one (via {@link getDeallocateUpnlSig}) immediately before submitting;
-     * pass one only to reuse a signature you already fetched.
-     */
-    upnlSig?: SingleUpnlSig;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /**
+       * The subaccount to deallocate from. The call is routed through the
+       * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
+       */
+      account: Address;
+      /**
+       * Amount to move from the allocated balance back into the available balance,
+       * in **18 decimals** (not the collateral token's decimals).
+       */
+      amount: bigint;
+      /**
+       * A fresh Muon uPnL (`uPnl_A`) attestation for `account`. The contract
+       * verifies it to prove the subaccount stays solvent after the deallocation.
+       * It is timestamped and short-lived, so **omit it** to have the action fetch a
+       * fresh one (via {@link getDeallocateUpnlSig}) immediately before submitting;
+       * pass one only to reuse a signature you already fetched.
+       */
+      upnlSig?: SingleUpnlSig;
+    }
 >;
 
 /** Return type of {@link deallocate}: the submitted transaction hash. */
@@ -90,5 +91,6 @@ export async function deallocate(config: Config, parameters: DeallocateParameter
     chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
+    gasless: parameters.gasless,
   });
 }

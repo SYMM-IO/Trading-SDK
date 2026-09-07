@@ -1,6 +1,6 @@
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 
@@ -8,19 +8,20 @@ import { callAsSubAccount } from "../internal/call-as-sub-account";
  * Parameters for {@link allocate}.
  */
 export type AllocateParameters = Compute<
-  WriteContractParameter & {
-    /**
-     * The subaccount to allocate into. The call is routed through the
-     * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
-     */
-    account: Address;
-    /**
-     * Amount to move from the available balance into the allocated balance, in
-     * **18 decimals** (not the collateral token's decimals). Capped by the
-     * per-user balance limit.
-     */
-    amount: bigint;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /**
+       * The subaccount to allocate into. The call is routed through the
+       * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
+       */
+      account: Address;
+      /**
+       * Amount to move from the available balance into the allocated balance, in
+       * **18 decimals** (not the collateral token's decimals). Capped by the
+       * per-user balance limit.
+       */
+      amount: bigint;
+    }
 >;
 
 /** Return type of {@link allocate}: the submitted transaction hash. */
@@ -67,5 +68,6 @@ export async function allocate(config: Config, parameters: AllocateParameters): 
     chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
+    gasless: parameters.gasless,
   });
 }

@@ -1,0 +1,54 @@
+import { Callout } from "nextra/components";
+
+# deleteSubAccount
+
+Delete a fully wound-down subaccount.
+
+```ts
+import { deleteSubAccount } from "@symmio/trading-core";
+
+const hash = await deleteSubAccount(config, { subAccount: "0xsub..." });
+```
+
+Deletion is irreversible, and the contract only allows it once the subaccount is empty. It reverts when the subaccount
+still has virtual accounts (`HasActiveVirtualAccounts`), a non-zero free or allocated balance (`SubAccountNotEmpty`),
+open positions (`OpenPositionsExist`) or pending quotes (`PendingQuotesExist`) — and when it does not exist
+(`AccountDoesNotExist`) or the signer is not its `owner`. Clear those first. On success it emits
+`SubAccountDeleted(subAccount, owner, affiliate)`.
+
+## Relaying it without gas
+
+`deleteSubAccount` is a [relayable write](/core/gasless/relayable-writes), billed to the subaccount being deleted.
+
+```ts
+const hash = await deleteSubAccount(config, { subAccount: "0xsub...", gasless: true });
+```
+
+<Callout type="warning">
+  A deletable subaccount is empty by definition, so it usually cannot pay the operational fee out of its own balance —
+  the relay succeeds while the account's daily free-ops quota covers it, and otherwise the fee charge reverts the whole
+  relayed transaction. [`getGaslessOperationalFeeQuote`](/core/gasless/get-gasless-fee-quote) answers before you sign
+  anything; bill a funded account instead with `gasless.account` if you need to.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="subAccount" type="Address" required>
+    The subaccount to delete. The signer must equal its `owner` on chain.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+  <Property name="simulateBeforeWrite" type="boolean" optional>
+    Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default).
+  </Property>
+  <Property name="gasless" type="boolean | GaslessWriteOptions" optional>
+    Relay this write through the [gasless execution mode](/core/gasless/relayable-writes) instead of the wallet. A
+    boolean for the common case, or a per-call `GaslessWriteOptions` bag; omitted, the chain's `execution.mode` decides.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hash">The broadcast tx hash.</Returns>

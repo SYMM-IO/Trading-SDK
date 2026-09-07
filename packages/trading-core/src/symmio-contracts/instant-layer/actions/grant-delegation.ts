@@ -1,6 +1,8 @@
-import type { Address, Hash, Hex } from "viem";
+import { encodeFunctionData, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "../../../core/config";
-import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
+import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-gasless";
+import { SymmError } from "../../../shared/errors/symm-error";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { instantLayerAbi } from "../../abi/v0.8.6/instant-layer";
 import type { InstantLayerAccount } from "../types";
@@ -10,19 +12,26 @@ import { simulateGrantDelegation } from "./simulate-grant-delegation";
  * Parameters for {@link grantDelegation}.
  */
 export type GrantDelegationParameters = Compute<
-  WriteContractParameter & {
-    /** Account that grants the delegation. The wallet must own this account. */
-    account: InstantLayerAccount;
-    /** Signer that may call the selected Instant Layer functions. */
-    delegatedSigner: Address;
-    /** Function selectors (`bytes4[]`) to grant. */
-    selectors: readonly Hex[];
-    /** Expiry timestamp in seconds. */
-    expiryTimestamp: bigint;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /** Account that grants the delegation. The wallet must own this account. */
+      account: InstantLayerAccount;
+      /** Signer that may call the selected Instant Layer functions. */
+      delegatedSigner: Address;
+      /** Function selectors (`bytes4[]`) to grant. */
+      selectors: readonly Hex[];
+      /** Expiry timestamp in seconds. */
+      expiryTimestamp: bigint;
+    }
 >;
 
-/** Return type of {@link grantDelegation}: the submitted transaction hash. */
+/**
+ * Return type of {@link grantDelegation}: the submitted transaction hash.
+ *
+ * A relayed grant returns the relayer's broadcast hash, which behaves exactly
+ * like a wallet-submitted one — so a caller's receipt wait and invalidation
+ * work the same either way, and the transport never leaks into the type.
+ */
 export type GrantDelegationReturnType = Hash;
 
 /**
@@ -33,6 +42,16 @@ export type GrantDelegationReturnType = Hash;
  *
  * Dry-runs the call with {@link simulateGrantDelegation} first unless
  * `simulateBeforeWrite` is `false` (per-call, falling back to the config default).
+ *
+ * Relays through the gasless service when the chain runs in gasless execution
+ * mode (or the call passes `gasless: true`), so onboarding a session key costs
+ * the owner no native gas — the grant itself is a relayable write. The relayed
+ * path signs an InstantLayer operation instead of sending a transaction, so it
+ * skips the local dry-run; the relayer simulates its own bundle.
+ *
+ * A `isPartyB: true` account cannot be relayed — the signed-operation encoder
+ * has no PartyB form — so it degrades to the wallet path, or throws when
+ * gasless was demanded explicitly.
  *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
  * @param parameters - Delegation account, signer, selectors, expiry, optional chain id.
@@ -57,6 +76,45 @@ export async function grantDelegation(
   const { chainId, account, delegatedSigner, selectors, expiryTimestamp, from } = parameters;
 
   const { addresses } = config.getChainConfig(chainId);
+
+  /**
+   * Transparent gasless seam: the same InstantLayer calldata is signed as an
+   * InstantLayer operation and relayed, with the granting sub-account as the
+   * billing/authority account — a grant is always owner-signed, so the calldata's
+   * `account.addr` and the operation's `signerAccount` are the same address.
+   * `null` means: proceed on the wallet path below, unchanged.
+   */
+  if (!account.isPartyB) {
+    const relayed = await maybeRelayAsGasless(config, {
+      chainId,
+      from,
+      gasless: parameters.gasless,
+      signerAccount: account.addr,
+      calls: [
+        {
+          target: addresses.instantLayerAddress,
+          callData: encodeFunctionData({
+            abi: instantLayerAbi,
+            functionName: "grantDelegation",
+            args: [{ account, delegatedSigner, selectors, expiryTimestamp }],
+          }),
+        },
+      ],
+    });
+    if (relayed !== null) return relayed;
+  } else if (parameters.gasless === true || (typeof parameters.gasless === "object" && parameters.gasless.enabled)) {
+    /**
+     * Refuse rather than silently sign for the wrong identity: the operation
+     * encoder always builds `isPartyB: false`, so a relayed PartyB grant would
+     * carry a signerAccount the InstantLayer resolves to a different party.
+     */
+    throw new SymmError(
+      "validation",
+      "GASLESS_PARTYB_UNSUPPORTED",
+      "Gasless: a PartyB delegation grant cannot be relayed — the signed-operation encoder has no PartyB form. Send it from the wallet instead.",
+    );
+  }
+
   const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {

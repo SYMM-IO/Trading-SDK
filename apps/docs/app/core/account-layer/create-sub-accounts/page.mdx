@@ -1,0 +1,77 @@
+import { Callout } from "nextra/components";
+
+# createSubAccounts
+
+Create one or more subaccounts under an affiliate. The signing wallet becomes the `owner` of every subaccount created.
+
+```ts
+import { createSubAccounts, SubAccountIsolationType } from "@symmio/trading-core";
+
+const hash = await createSubAccounts(config, {
+  affiliate: "0xaff...",
+  accountsData: [
+    {
+      name: "Main",
+      metadata: "0x",
+      symmioCore: "0xcore...",
+      isolationType: SubAccountIsolationType.MARKET,
+      singleVAMode: true,
+    },
+  ],
+});
+```
+
+The created addresses are deterministic and returned by the contract call, but they are only readable once the
+transaction is mined — take them from the `SubAccountCreated` events on the receipt, or refetch
+[`getUserSubAccounts`](/core/account-layer/get-user-sub-accounts).
+
+## Relaying it without gas
+
+`createSubAccounts` relays like any other [relayable write](/core/gasless/relayable-writes), and the accounts still
+belong to the signing wallet: the relayer scopes the AccountLayer call to the owner, so the contract resolves the
+creator to your EOA rather than to the relayer.
+
+```ts
+const hash = await createSubAccounts(config, {
+  affiliate: "0xaff...",
+  accountsData,
+  gasless: { enabled: true, account: existingSubAccount },
+});
+```
+
+<Callout type="warning">
+  This is the one relayable write that **requires `gasless.account`**. Every relayed operation is signed under an
+  account the InstantLayer can resolve on chain, and the subaccounts being created do not exist yet — so an existing
+  owned subaccount has to sign, and it pays the operational fee. Without it the call throws
+  `GASLESS_ACCOUNT_UNRESOLVED`. A wallet with no subaccount at all cannot bootstrap this way; use
+  [`settleGaslessDepositNewAccount`](/core/gasless/settle-gasless-deposit-new-account), which creates the first account
+  as part of the deposit.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="affiliate" type="Address" required>
+    Affiliate that custodies the new subaccounts. Must be `ACTIVE` on chain, and each entry's `symmioCore` must be
+    whitelisted and registered for it.
+  </Property>
+  <Property name="accountsData" type="readonly SubAccountCreationData[]" required>
+    One entry per subaccount to create — `name`, `metadata`, `symmioCore`,
+    [`isolationType`](/core/account-layer/sub-account-isolation-type) and `singleVAMode`. The created addresses come
+    back in this same order.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+  <Property name="simulateBeforeWrite" type="boolean" optional>
+    Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default).
+  </Property>
+  <Property name="gasless" type="boolean | GaslessWriteOptions" optional>
+    Relay this write through the [gasless execution mode](/core/gasless/relayable-writes) instead of the wallet.
+    `gasless.account` is required — see the callout above.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hash">The broadcast tx hash.</Returns>

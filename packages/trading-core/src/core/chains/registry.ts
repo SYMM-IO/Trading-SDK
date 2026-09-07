@@ -162,7 +162,11 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     contractsVersion: "0.8.6",
     addresses: {
       symmioAddress: "0x573310dB6d160B26026B8706EBe9831c7dEF1D09",
-      instantLayerAddress: "0xDBc6DAe3De0b10a10b6c4d1b33D4C79567E07F6d",
+      // Replaced in the perps-core migration (2026-09-04). The previous value
+      // (`0xDBc6DAe3…`) is still deployed and answers reads, so a stale config
+      // fails late and opaquely: every InstantLayer EIP-712 domain binds to the
+      // wrong `verifyingContract` and the gateway rejects the signature.
+      instantLayerAddress: "0x2C9e944cB71329fC659Da50A10a79a508Dd49ba5",
       accountLayerAddress: "0x5733107211B2801Acd39933a54d482FE303c4907",
       affiliatesAddress: "0xe99c18CF3C62B9229f9251fd2562077a33e7600a",
       collateralAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
@@ -179,26 +183,40 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
         name: "Enigma",
         address: "0x9be79D4977D86D440F9e1Ea0d468A58104B9b932",
         url: "https://arb-staging.enigma.bz/api",
+        // Arbitrum runs its own conditional-order handler and COH wallet; these
+        // were a verbatim copy of HyperEVM's production block, which signed
+        // Arbitrum TP/SL orders against the wrong COH wallet. `url` is a host
+        // root — the client appends `/api/v5/…`.
         tpsl: {
-          url: "https://conditional-orders-handler-lowcap85.rasa.capital",
-          wsUrl: "wss://notification.rasa.capital/ws/v1/subscribe",
-          appName: "Hyper-EVM_COH-Low-Cap_Production",
-          cohWalletAddress: "0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31",
+          url: "https://tpsl-stage.enigma.bz",
+          wsUrl: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
+          appName: "ARB_COH_Low-Cap_Stage",
+          cohWalletAddress: "0x5Cf3fC3722e1780220Ca94C04a6dc7Dfd7615661",
         },
         notifications: {
           url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
           channel: "Arbitrum_Solver-Low-Cap_Stage",
           protocol: "enigma",
-          searchUrl: "https://notification.rasa.capital/notification",
+          /** Host root: `searchEnigmaNotifications` appends `/api/v1/search`. */
+          searchUrl: "https://notification-stage.rasa.capital",
         },
         capabilities: { groupClose: true, listingService: true },
       },
     },
     defaultSolverId: "enigma",
+    // The staging solver's markets only exist in the staging price service —
+    // against the production host roughly half of them have no mark price at
+    // all. `url` is a host root; the client appends `/api/v1/…`.
+    //
+    // `wsUrl` deliberately does not share that host: it mirrors the reference
+    // deployment, which pairs the staging Enigma REST service with this Rasa
+    // socket (its production profile uses one host for both). Both accept
+    // connections, so this follows the configuration known to work rather than
+    // the symmetric-looking one.
     priceService: {
       type: "enigma",
-      url: "https://lowcap-price.enigma.bz",
-      wsUrl: "wss://lowcap-price.enigma.bz/ws",
+      url: "https://lowcap-price-staging.enigma.bz",
+      wsUrl: "wss://lowcap-price.rasa.capital/ws",
     },
     muon: {
       urls: [
@@ -208,11 +226,33 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
         "https://muon-oracle4.rasa.capital/v1/",
       ],
     },
+    // TODO(vendor): inherited from HyperEVM and unconfirmed for Arbitrum — the
+    // reference deployment declares no Arbitrum listing/inventory backend, so
+    // Pools here may be showing HyperEVM data.
     listing: {
       url: "https://listing85.enigma.bz",
     },
     inventory: {
       url: "https://inventory85.enigma.bz",
+    },
+    /**
+     * The GaslessQ relayer for this deployment. `url` is the vendor origin, so
+     * `protocolInstance` is required to build the instance-scoped base — the
+     * instance is not derivable from the chain id (staging and production are
+     * both 42161). Server and CLI consumers add their own `apiKey`; browser
+     * consumers must instead repoint `url` at a proxy that holds the key, since
+     * a gateway client key cannot live in a bundle.
+     *
+     * No `execution` block on purpose: availability is not activation. Shipping
+     * `mode: "gasless"` here would silently route every consumer's relayable
+     * writes through this **staging** deployment, over a `url` that needs an
+     * `apiKey` a browser cannot hold. Integrators activate it deliberately — a
+     * `createConfig` override for the whole chain, or `gasless: true` per call.
+     */
+    gasless: {
+      url: "https://gaslessq-staging.symmio.foundation",
+      protocolInstance: "arbitrum-42161-vibe-stage",
+      gaslessLayerAddress: "0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca",
     },
   },
 };

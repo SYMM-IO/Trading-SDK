@@ -1,0 +1,73 @@
+import { Callout } from "nextra/components";
+
+# gaslessWalletExecute
+
+Execute calls **from the deterministic gasless wallet** without native gas — the exit path for collateral sitting at the wallet (e.g. finalized withdrawals routed there during onboarding).
+
+```ts
+import { gaslessWalletExecute } from "@symmio/trading-core";
+
+const receipt = await gaslessWalletExecute(config, {
+  calls: [{ target: usdcAddress, value: 0n, data: transferCalldata }],
+});
+```
+
+The SDK reads `getGaslessWalletAddress(owner)` and `walletOperationNonces(owner)` from the GaslessLayer, encodes `execute((address,uint256,bytes)[])`, signs, and submits through the same `relay-instant` endpoint with `operationType: "gaslessqWalletExecute"`.
+
+<Callout type="info">
+  This action is a **submit**: it resolves with the `202` acceptance. React consumers do not need to follow it by hand —
+  the matching hook in `@symmio/trading-react` confirms the request before it resolves and invalidates the reads this
+  action changes. See the [React gasless guide](/react/gasless).
+</Callout>
+
+## A deliberately different signature scheme
+
+Wallet operations do **not** reuse the ordinary operation signing:
+
+- the EIP-712 domain is `{ name: "GaslessGateway", version: "1" }` with the **GaslessLayer** as `verifyingContract` — while the operation's `target` is the **wallet**. Swapping the two yields `InvalidWalletOperationTarget` from simulation. (The domain string deliberately kept the contract's old name; do not "fix" it.)
+- the signed `SignedOperation` struct has **five** fields — no `flexFields`, no `maxUses`. The relay body still carries `flexFields: []` and `maxUses: 1`, appended _after_ signing; signing the 7-field InstantLayer struct produces a digest the gateway rejects.
+- the nonce is `walletOperationNonces(owner) + 1` — a separate counter from InstantLayer nonces.
+- `signerAccount.addr` is the **owner wallet itself**, not a sub-account, and the deadline is 10 minutes.
+
+Fees derive from the **inner** call selectors, not the `execute` wrapper. This action is owner-signed only — delegated (session-key) wallet execution additionally requires InstantLayer delegations for the wallet-execution sentinel selector (`GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR`) plus every inner selector, and is not supported here.
+
+<Callout type="info">
+  The wallet address is a pure `CREATE2` view and doubles as the owner's [deposit
+  address](/core/gasless/get-gasless-deposit-policy); collateral at it can only ever reach a sub-account owned by
+  `owner`, and only this gateway-signed path can move it out without gas.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="calls" type="readonly GaslessWalletCall[]" required>
+    The calls to execute from the wallet, in order — each `{ target, value, data }`.
+  </Property>
+  <Property name="owner" type="Address" optional>
+    Owner of the deterministic wallet. Defaults to the signing wallet's address.
+  </Property>
+  <Property name="idempotencyKey" type="string" optional>
+    Stable retry key; defaults to a random UUID.
+  </Property>
+  <Property name="metadata" type="Record<string, unknown>" optional>
+    Non-secret client correlation data stored with the request.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="from" type="Address" optional>
+    Signer override for the wallet-client resolver.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessSubmitReceipt>">
+  The acceptance receipt — persist `requestId` and poll it to a terminal status.
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmError("api", "GASLESS_WALLET_UNAVAILABLE")` — the gateway returned the zero address for the owner's wallet (an unwired deployment answers `0x0` instead of reverting).
+- `SymmApiError` with code `GASLESS_RELAY_SUBMIT_FAILED` — HTTP failure; `InvalidWalletOperationTarget` in the decoded revert means the operation's target was not the owner's wallet.

@@ -1,0 +1,88 @@
+import { Callout } from "nextra/components";
+
+# relayInstantOperations
+
+Submit pre-signed InstantLayer operations to the GaslessQ relayer — the explicit primitive underneath the [transparent execution mode](/core/gasless/relayable-writes). Use it when you build and sign `SignedOperation` structs yourself (with `buildSignedOperation` + `signSignedOperation`) and want full control over batching and labels.
+
+```ts
+import { relayInstantOperations, waitForGaslessRequest } from "@symmio/trading-core";
+
+const receipt = await relayInstantOperations(config, {
+  userAddress: owner,
+  operationType: "initiateWithdraw",
+  operations: [{ operation, signature }],
+});
+const record = await waitForGaslessRequest(config, { requestId: receipt.requestId });
+```
+
+One `POST {operationBase}/gateway/relay-instant`. The service validates and simulates the batch, returns `202` with a `request_id`, and broadcasts asynchronously. The **batch is atomic** — one revert rolls back every operation and every fee — so only bundle operations that must share fate, and give them strictly sequential replay nonces (`current + 1`, `current + 2`, … from [`getInstantLayerNonce`](/core/instant-layer/get-instant-layer-nonce)).
+
+A network-level failure or 5xx is retried **once with the same idempotency key** — safe by contract, since a duplicate submit returns the existing record instead of re-executing. A definitive 4xx is thrown as-is; inspect it with [`parseGaslessErrorDetail`](/core/gasless/errors-and-fallback).
+
+<Callout type="warning">
+  A `202` is the **point of no return**: the workflow exists server-side and the transaction may execute even if polling
+  later fails. Never re-submit the same intent through the wallet afterwards — see the [fallback safety
+  rules](/core/gasless/errors-and-fallback).
+</Callout>
+
+<Callout type="info">
+  This action is a **submit**: it resolves with the `202` acceptance. React consumers do not need to follow it by hand —
+  the matching hook in `@symmio/trading-react` confirms the request before it resolves and invalidates the reads this
+  action changes. See the [React gasless guide](/react/gasless).
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="operations" type="readonly GaslessSignedOperationInput[]" required>
+    The signed operations in execution order — each `{ operation, signature }`, with optional `fills` /
+    `flexFillerSignatures` for flex-field flows.
+  </Property>
+  <Property name="operationType" type="string" required>
+    Workflow label stored with the request (display, metrics, idempotency). Free-form, 1–128 chars — fees derive from
+    the calldata selectors, never from this. Keep it stable per action.
+  </Property>
+  <Property name="userAddress" type="Address" required>
+    Wallet the workflow is tracked under (not necessarily the raw signer).
+  </Property>
+  <Property name="accountId" type="string" optional>
+    Client accounting id stored with the request.
+  </Property>
+  <Property name="templateId" type="number" optional>
+    Registered result-chained template id; omit for independent batches.
+  </Property>
+  <Property name="idempotencyKey" type="string" optional>
+    Stable retry key (max 128 chars); defaults to a random UUID. Reuse only for the byte-identical request; any payload
+    change needs a fresh key.
+  </Property>
+  <Property name="metadata" type="Record<string, unknown>" optional>
+    Non-secret client correlation data stored with the request.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessSubmitReceipt>">
+  <Property name="requestId" type="string">
+    Stable tracking id — persist it immediately.
+  </Property>
+  <Property name="status" type="GaslessRequestStatus">
+    Status at acceptance, normally `queued`.
+  </Property>
+  <Property name="paidFee" type="bigint">
+    Total collateral fee quoted for the request (raw units).
+  </Property>
+  <Property name="remainingFeeAllowance" type="bigint">
+    The payer's remaining operational-fee allowance after `paidFee` (raw units).
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmApiError` with code `GASLESS_RELAY_SUBMIT_FAILED` — HTTP failure; the vendor's `detail.code` (`FEE_POLICY_WOULD_REVERT`, `INSUFFICIENT_ALLOWANCE`, `SIMULATION_REVERTED`, …) rides in `responseData`.
+- `SymmError("api", "GASLESS_INSTANCE_MISMATCH")` — routing cross-wire detected.
+- `SymmError("validation", "GASLESS_VALUE_UNSAFE")` — a uint256 field exceeded the JSON safe-integer range.

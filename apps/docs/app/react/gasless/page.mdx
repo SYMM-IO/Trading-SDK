@@ -1,0 +1,198 @@
+import { Callout } from "nextra/components";
+
+# Gasless hooks
+
+React bindings for the [gasless slice](/core/gasless): relay account actions through the GaslessQ relayer — the user signs EIP-712, the relayer pays the gas, and the GaslessLayer charges the fee from SYMMIO collateral.
+
+The **transparent execution mode needs no hooks from this page**: the relayable write hooks accept the core `gasless` variable and keep returning `{ hash, receipt }` — receipt-waiting and invalidation run unchanged, because the relayed broadcast hash behaves exactly like a wallet-submitted one.
+
+```tsx
+const withdraw = useInitiateWithdraw();
+withdraw.mutate({ account, parts, gasless: true }); // same hook, no gas
+```
+
+Every hook whose [core action is relayable](/core/gasless/relayable-writes) takes it:
+`useAllocate`, `useDeallocate`, `useDeallocateAndInitiateWithdraw`, `useAddMargin`, `useRemoveMargin`,
+`useInitiateWithdraw`, `useRequestCancelWithdraw`, `useFinalizeWithdrawRequest`, `useWithdraw`,
+`useRequestToCancelQuote`, `useRequestToCancelCloseRequest`, `useForceCancelQuote`,
+`useForceCancelCloseRequest`, `useForceClose`, `useCreateSubAccounts`, `useDeleteSubAccount`,
+`useEditAccountName`, `useDeposit`, `useDepositAndAllocate`, `useApproveOperationalFee`, and
+`useGrantDelegation`. A hook not in this list does not accept `gasless` at all — its core action always
+takes the wallet path.
+
+Three of those carry a prerequisite the relayer cannot remove: `useCreateSubAccounts` needs
+`gasless.account`, `useDeleteSubAccount` depends on the free-ops quota, and the two deposit hooks still
+need the collateral allowance. The [relayable writes](/core/gasless/relayable-writes) page has the
+details.
+
+The variable is a per-call **override**, so it wins over the chain's `gasless.execution.mode` in both
+directions: `gasless: true` relays a write on a chain still defaulted to `"wallet"`, and
+`gasless: false` forces the wallet path on a chain running in `"gasless"` mode. Passing the
+`GaslessWriteOptions` bag instead of a boolean sets `fallback`, `idempotencyKey`, `broadcastTimeoutMs`,
+`signal`, or an explicit billing `account` for that one call.
+
+<Callout type="warning">
+  An explicit `gasless: true` on a chain that carries no gasless block **throws** `GASLESS_NOT_CONFIGURED` rather than
+  quietly paying gas — an opt-in the SDK cannot honor is an error, not a downgrade. Only the config-driven mode degrades
+  silently. Gate on [`useSupportsGaslessService`](#usesupportsgaslessservice) before offering the choice.
+</Callout>
+
+## Availability
+
+### `useSupportsGaslessService`
+
+Boolean gate — `true` when the target chain carries a `gasless` block **and** runs perps-core (`"0.8.6"`) contracts. Hide gasless UI where it is `false`.
+
+```tsx
+const supported = useSupportsGaslessService();
+if (!supported) return null;
+```
+
+## Request lifecycle
+
+### `useGaslessRequest`
+
+Poll one relayer request. **It polls on its own** — the query factory ships the service cadence (1.5 s while `queued`, 3 s after `submitted`, stopping at a terminal status) and tolerates the brief post-`202` `404`, so there is no interval to hand-write. Enabled only while `requestId` is non-empty, so it can mount before a submit exists. `submitted` is **not** success. On the transition into `succeeded` the hook invalidates account-balance reads once (`invalidateOnSuccess`, default `true`) — after on-chain reality, not at acceptance.
+
+```tsx
+const request = useGaslessRequest({ requestId: requestId ?? "", query: { enabled: Boolean(requestId) } });
+```
+
+Most consumers need this only to _display_ a relay; the relay hooks already confirm before they resolve.
+
+<Callout type="info">
+  Persist each `requestId` (plus its `service`) app-side — there is no list-by-wallet endpoint, so an unpersisted
+  in-flight workflow is unrecoverable after a reload. The transparent mode hands ids to the config's `execution.onEvent`
+  observer for exactly this purpose.
+</Callout>
+
+## Relays
+
+**Relay mutations resolve when the operation has landed, not when the relayer accepts it.** A submit returns `202` in milliseconds while the transaction lands seconds later, so resolving on acceptance would resolve before the effect exists — and every read the action changed would still serve the old answer. By default each hook waits for the terminal `succeeded`, then for the receipt on your own client, then invalidates the reads its action changed.
+
+A `202` is the point of no return: never re-submit the same intent through the wallet afterwards.
+
+### Confirmation
+
+Every relay hook takes the same options.
+
+<Properties>
+  <Property name="confirmation" type='"none" | "terminal" | "receipt"' optional default='"receipt"'>
+    `"receipt"` waits for the terminal status and then the receipt on this config's client — the only level under which
+    the invalidation that follows is truthful, since refetching against a node that has not seen the block re-reads
+    pre-state. `"terminal"` trusts the relayer's view. `"none"` restores fire-and-forget and hands you the polling and
+    the invalidation.
+  </Property>
+  <Property name="receiptConfirmations" type="number" optional default="1">
+    Confirmations for the receipt wait.
+  </Property>
+  <Property name="timeoutMs" type="number" optional default="120_000">
+    Budget for the terminal wait.
+  </Property>
+  <Property name="receiptTimeoutMs" type="number" optional default="90_000">
+    Budget for the receipt wait. A timeout here resolves without a receipt rather than failing — the relay already
+    reported the transaction mined.
+  </Property>
+  <Property name="abortOnUnmount" type="boolean" optional default="true">
+    Abort the wait when the hook unmounts. TanStack mutations do not cancel on unmount, so this is a deliberate
+    deviation. The invalidation still runs if a `succeeded` terminal was observed before the abort.
+  </Property>
+  <Property name="onProgress" type="(request: GaslessRequest) => void" optional>
+    Observer for every polled record.
+  </Property>
+</Properties>
+
+Each mutation resolves with `{ accepted, confirmed }` — the `202` receipt and the confirmation. They stay separate on
+purpose: `accepted.status` is the _acceptance_ status (normally `queued`) while `confirmed.request.status` is the
+terminal one, and merging them would put a field named `status` holding `"queued"` on a result that means success.
+
+Because a confirmed mutation stays pending for as long as the relayer takes, each hook also exposes `relay` —
+`{ phase, requestId, status, txHash }`, walking `submitting → queued → submitted → awaiting-receipt → confirmed` — so a
+UI can show progress without mounting a second hook.
+
+### What each hook invalidates on `succeeded`
+
+Every relayed action charges the operational fee from SYMMIO collateral, so all of them invalidate account balances and
+the payer's allowance — that is a property of the transport, not of the operation.
+
+| Hook                                     | Additionally invalidates                                                                                                                                                                                                         |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useRelayInstantOperations`              | the InstantLayer nonce per signer account — nothing more: `operationType` is a free-form label, so the SDK cannot know which domain reads a batch touched. Pass your own `onSuccess` to `mutate`; it now runs after confirmation |
+| `useGaslessWalletExecute`                | the gasless-wallet nonce, the wallet's collateral balance                                                                                                                                                                        |
+| `useSettleGaslessDepositExistingAccount` | the swept deposit address's collateral balance                                                                                                                                                                                   |
+| `useSettleGaslessDepositNewAccount`      | the above plus the owner's sub-account list, addresses, and count                                                                                                                                                                |
+
+### `useRelayInstantOperations`
+
+Submit pre-signed InstantLayer operations — the explicit escape hatch under the transparent mode. Variables are [`relayInstantOperations`](/core/gasless/relay-instant-operations)' parameters.
+
+### Granting a delegation
+
+There is no relay-specific delegation hook. [`useGrantDelegation`](/react/instant-layer) is the one hook, and it relays
+whenever the chain runs in gasless execution mode — the grant is itself a relayable write, so onboarding a session key
+costs the owner no gas:
+
+```tsx
+const { mutateAsync } = useGrantDelegation();
+await mutateAsync({
+  account: { addr: subAccount, isPartyB: false },
+  delegatedSigner: sessionKeyAddress,
+  selectors: GASLESS_SESSION_KEY_SELECTORS,
+  expiryTimestamp,
+});
+// Resolves with the relayer's hash and its receipt; the delegation reads are already invalidated.
+```
+
+<Callout type="warning">
+  Grant `GASLESS_SESSION_KEY_SELECTORS`, **not** `GASLESS_RELAYABLE_SELECTORS`. The latter includes `grantDelegation`
+  itself — relayable, but granting it would let the session key mint further delegations for itself, over any selector
+  and any expiry.
+</Callout>
+
+### `useGaslessWalletExecute`
+
+Execute calls from the deterministic gasless wallet — the exit path for collateral sitting at it. Owner-signed under the gateway domain; see [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) for the signature-scheme details.
+
+## Fees & allowance
+
+### `useGaslessFeeQuote`
+
+Quote the operational fee for a batch on the GaslessLayer before prompting for a signature — `wouldBlockOnQuota` is a hard stop. Wraps [`getGaslessOperationalFeeQuote`](/core/gasless/get-gasless-fee-quote).
+
+### `useOperationalFeeAllowance`
+
+Read the payer's allowance for the gasless charger from the core diamond. Reductions are delayed on-chain — surface `pendingAllowance` and `reductionReadyAt` in revoke UX.
+
+### `useApproveOperationalFee`
+
+Grant the charger its allowance as the paying sub-account (an on-chain write via the `_call` proxy; returns `{ hash, receipt }`). Grant it **before** relying on gasless execution. Invalidates the allowance read after the receipt.
+
+```tsx
+const approve = useApproveOperationalFee();
+approve.mutate({ account: subAccount, amounts: [maxUint256] });
+```
+
+## Gasless wallet & deposits
+
+### `useGaslessWalletAddress`
+
+The owner's deterministic gasless-wallet address — a pure `CREATE2` view, safe to show before any transaction. Also the deposit address for onboarding.
+
+### `useGaslessDepositPolicy`
+
+Deposit address plus fee/minimum terms (`settlementMinimum` is the gate the UI should use). Watch the address's balance with `useCollateralBalance({ account: policy.depositAddress })` and enable settlement once it reaches the minimum.
+
+### `useSettleGaslessDepositNewAccount` / `useSettleGaslessDepositExistingAccount`
+
+Queue the sweep of the deposit address into a new (or existing) wallet-owned sub-account. Poll the receipt's `requestId` with `service: "deposits"`. The **entire observed balance** settles together, and an accepted settlement can still turn `rejected` when the worker's re-check finds the funds not yet visible. A `succeeded` new-account settlement still needs an on-chain readiness wait (`useUserSubAccounts` + `useAccountBalanceOf`) before the account is usable.
+
+```tsx
+const policy = useGaslessDepositPolicy({ owner: address });
+const balance = useCollateralBalance({
+  account: policy.data?.depositAddress,
+  query: { enabled: Boolean(policy.data), refetchInterval: 5_000 },
+});
+const canSettle = policy.data && balance.data !== undefined && balance.data >= policy.data.settlementMinimum;
+
+const settle = useSettleGaslessDepositNewAccount();
+```

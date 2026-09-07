@@ -2,6 +2,7 @@
 
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { useDeleteSubAccount, useSimulateDeleteSubAccount, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Spinner } from "@symmio/ui/components/spinner";
@@ -29,6 +30,8 @@ export function WriteDeleteSubAccount() {
 
   const mutation = useDeleteSubAccount();
 
+  const gasless = useGaslessWriteOption("deleteSubAccount");
+
   /** Dry-run the call (`simulateContract`) so the user sees pass/revert before sending. */
   const simulate = useSimulateDeleteSubAccount();
 
@@ -37,6 +40,7 @@ export function WriteDeleteSubAccount() {
       testId="method-deleteSubAccount"
       name="deleteSubAccount"
       mutability="nonpayable"
+      gaslessRelayable
       description="Permanently delete one of the connected wallet's subaccounts. Irreversible."
       wide
     >
@@ -89,7 +93,7 @@ export function WriteDeleteSubAccount() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount) return;
-            mutation.mutate({ subAccount: validAccount });
+            mutation.mutate({ subAccount: validAccount, gasless });
           }}
           data-testid="button-send-delete"
         >

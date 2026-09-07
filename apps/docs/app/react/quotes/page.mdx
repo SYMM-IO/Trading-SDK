@@ -128,6 +128,12 @@ LOCKED  ──requestToCancelQuote──▶ CANCEL_PENDING ──(cooldown + par
 
 Three write / read hooks act on the [`useLimitOrders`](#uselimitorders) list. All route the diamond call through the AccountLayer `_call` proxy (the subaccount's `owner` wallet signs; no session key), and on success invalidate the pending reads, the quote's own `getQuote` hydration (the read that carries `quoteStatus`), and the subaccount balance reads — a cancel refunds the open trading fee and releases the margin the order had reserved.
 
+<Callout type="info">
+  The cancel and force-cancel writes are [relayable](/core/gasless/relayable-writes): pass `gasless: true` in the
+  mutation variables to sign the `_call` as an InstantLayer operation and let the relayer pay the gas. See [Gasless
+  hooks](/react/gasless).
+</Callout>
+
 <Callout type="warning">
   Cancelling a **`LOCKED`** order is a two-transaction flow of which only the first is announced. Your
   `requestToCancelQuote` moves the quote to `CANCEL_PENDING` and it **stays** in `partyAPendingQuotes`; the solver's

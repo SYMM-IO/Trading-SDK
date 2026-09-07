@@ -1,5 +1,7 @@
 import type { Address, Hash, Hex } from "viem";
 import type { Config } from "../../../core/config";
+import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-gasless";
+import type { GaslessWriteParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import { simulateCallAsSubAccount } from "./simulate-call-as-sub-account";
@@ -37,12 +39,29 @@ export async function callAsSubAccount(
     chainId?: number;
     from?: Address;
     simulateBeforeWrite?: boolean;
-  },
+  } & GaslessWriteParameter,
 ): Promise<Hash> {
   const { account, data, chainId, from } = parameters;
   const callDatas = typeof data === "string" ? [data] : data;
 
   const { addresses } = config.getChainConfig(chainId);
+
+  /**
+   * Transparent gasless seam: when the gasless execution mode applies, the
+   * same core calldata is signed as InstantLayer operations (signerAccount =
+   * this sub-account, preserving the `_call` batch's atomicity) and relayed;
+   * the relayer's broadcast hash is returned in place of a wallet submission.
+   * `null` means: proceed on the wallet path below, unchanged.
+   */
+  const relayed = await maybeRelayAsGasless(config, {
+    chainId,
+    from,
+    gasless: parameters.gasless,
+    signerAccount: account,
+    calls: callDatas.map((callData) => ({ target: addresses.symmioAddress, callData })),
+  });
+  if (relayed !== null) return relayed;
+
   const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {

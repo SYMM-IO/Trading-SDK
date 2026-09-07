@@ -45,6 +45,7 @@ export default defineConfig({
         "orderbook/index": path.resolve(srcRoot, "orderbook/index.ts"),
         "pools/index": path.resolve(srcRoot, "pools/index.ts"),
         "inventory/index": path.resolve(srcRoot, "inventory/index.ts"),
+        "gasless/index": path.resolve(srcRoot, "gasless/index.ts"),
       },
       formats: ["es"],
     },

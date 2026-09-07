@@ -20,6 +20,7 @@ export const secondaryNavLinks: NavLink[] = [
   { href: "/orderbook", label: "Orderbook", description: "Synchronized live market depth" },
   { href: "/pools", label: "Pools", description: "Permissionless-listing market catalog" },
   { href: "/muon", label: "Muon API", description: "Oracle uPnL, price & settlement signatures" },
+  { href: "/gasless", label: "Gasless", description: "Relay account actions with no native gas" },
   { href: "/session-keys", label: "Session Keys", description: "Browser-local delegated signing key" },
   { href: "/config", label: "Config", description: "Resolved SYMMIO chain config" },
 ];

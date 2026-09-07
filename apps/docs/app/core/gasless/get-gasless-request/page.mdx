@@ -1,0 +1,92 @@
+import { Callout } from "nextra/components";
+
+# getGaslessRequest
+
+Fetch one stored GaslessQ relayer request — the poll target of every gasless workflow. A relay submit returns `202` immediately; this record is the only source of truth afterwards.
+
+```ts
+import { getGaslessRequest, GaslessRequestStatus, isGaslessRequestTerminal } from "@symmio/trading-core";
+
+const request = await getGaslessRequest(config, { requestId });
+
+if (request.status === GaslessRequestStatus.SUBMITTED && request.txHash) {
+  showExplorerLink(request.txHash);
+}
+if (isGaslessRequestTerminal(request.status)) stopPolling();
+```
+
+One `GET {base}/{request_id}` against the chain's gasless service. Operation relays live on the `"operations"` sub-service (the default); deposit settlements on `"deposits"` — the two are separate databases, so a request id polled against the wrong one is `NOT_FOUND`.
+
+<Callout type="warning">
+  `submitted` is **not** success — it only means a transaction hash exists. Only `succeeded` is success; `reverted`,
+  `failed` and `rejected` are failures the record carries `errorCode` / `errorMessage` for. Right after a `202` the
+  record may briefly `404` (the accept-vs-record race) — retry a few times before treating it as unknown, and never
+  treat a post-accept `404` as "the relay is unavailable".
+</Callout>
+
+**The query factory polls on its own.** A relay request is a workflow, not a value: fetching it once answers `queued` and freezes there, which reads as a stalled UI even though the relayer finished seconds later. So the factory ships the service-recommended cadence — 1.5 s while `queued`, 3 s after `submitted`, and **stop** once terminal, because a terminal record is immutable and polling one forever bills the service for an answer that cannot change.
+
+```ts
+// Polls to a terminal status, then stops. No cadence to hand-write.
+const request = useQuery(getGaslessRequestQueryOptions(config, { requestId }));
+```
+
+It also tolerates the accept-vs-record race: up to three `404`s right after a `202` are retried rather than surfaced, and a terminal record is treated as permanently fresh so a remount does not refetch it. Every default applies only where you supplied nothing, so `query.refetchInterval`, `query.retry` and `query.staleTime` still win.
+
+<Callout type="info">
+  Polling a request by hand is the low-level path. To simply wait for an outcome, use
+  [`confirmGaslessRequest`](/core/gasless/confirm-gasless-request) — or, in React, nothing at all: the relay hooks
+  confirm before they resolve.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="requestId" type="string" required>
+    Stable service tracking id returned by a gasless submit. Persist it — there is no list-by-wallet endpoint to recover
+    lost ids from.
+  </Property>
+  <Property name="service" type='"operations" | "deposits"' optional default='"operations"'>
+    Which sub-service stores the request. Operation relays and delegation grants live on `"operations"`; deposit
+    settlements on `"deposits"`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's gasless service is polled, and is
+    folded into the query key.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessRequest>">
+  <Property name="requestId" type="string">
+    The stable tracking id, echoed back.
+  </Property>
+  <Property name="status" type="GaslessRequestStatus">
+    `queued → submitted → succeeded | reverted | failed`, or `queued → rejected` (the worker refused it before any
+    broadcast).
+  </Property>
+  <Property name="txHash" type="Hash | null">
+    Broadcast transaction hash once the worker has submitted one. A hash is mutable across replacement attempts — the
+    request id is the stable identifier.
+  </Property>
+  <Property name="errorCode" type="string | null">
+    Vendor error code on a failed terminal (`FEE_POLICY_WOULD_REVERT`, `SIMULATION_REVERTED`, …), when stored.
+  </Property>
+  <Property name="errorMessage" type="string | null">
+    Human-readable vendor message, when stored.
+  </Property>
+  <Property name="operationType" type="string | null">
+    The workflow label the submitter attached.
+  </Property>
+  <Property name="idempotencyKey" type="string | null">
+    The retry key the request was submitted with, when stored.
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")` — the chain has no usable gasless service.
+- `SymmApiError` with code `GASLESS_STATUS_FETCH_FAILED` — HTTP failure, including the post-submit `404` race.
+- `SymmError("api", "GASLESS_INSTANCE_MISMATCH")` — the response came from a different protocol instance than the base URL pins.
+- `SymmError("api", "GASLESS_STATUS_UNKNOWN")` — the service returned a status outside the documented lifecycle.

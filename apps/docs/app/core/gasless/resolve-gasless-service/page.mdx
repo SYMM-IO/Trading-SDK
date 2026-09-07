@@ -1,0 +1,66 @@
+import { Callout } from "nextra/components";
+
+# resolveGaslessService
+
+Resolve the chain's GaslessQ relayer configuration — the config-level gate every gasless action runs first, so a chain without the service fails immediately, with a typed error and no network traffic.
+
+```ts
+import { resolveGaslessService } from "@symmio/trading-core";
+
+const { url, gaslessLayerAddress } = resolveGaslessService(config, { chainId });
+```
+
+Two conditions must hold: the chain carries a `gasless` block (`SymmioGaslessConfig`), and its `contractsVersion` is `"0.8.6"` — the relayer supports only perps-core deployments, and backward compatibility with older contracts is intentionally unsupported. **Arbitrum (42161) ships a built-in block**, so this is `true` there out of the box; HyperEVM and Base run `"0.8.5"` contracts and resolve `GASLESS_UNSUPPORTED_CONTRACTS_VERSION` even with a block forced onto them. Consumers add the credentials and execution policy with a `createConfig` override (a full example lives on the [gasless overview](/core/gasless)).
+
+<Callout type="warning">
+  `apiKey` is a secret. Server-side consumers pass it directly; browser apps must omit it and point `url` at their own
+  same-origin proxy instead — the proxy injects the `Authorization` header and pins the protocol instance.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="SymmioGaslessConfig">
+  <Property name="url" type="string">
+    Service base: the vendor origin (the SDK derives `/v1/instances/{protocolInstance}/{service}`), an instance root, or
+    an already-scoped proxy base.
+  </Property>
+  <Property name="protocolInstance" type="string" optional>
+    Instance key selecting the deployment at the vendor gateway. Required with a vendor-origin `url`; irrelevant behind
+    a proxy.
+  </Property>
+  <Property name="gaslessLayerAddress" type="Address">
+    The GaslessLayer proxy — the operational-fee charger and the source of every gasless contract read. A deployment
+    constant with no runtime discovery; update it on a gateway redeploy.
+  </Property>
+  <Property name="apiKey" type="string" optional>
+    Bearer client key for direct (server-side) access.
+  </Property>
+  <Property name="execution" type="GaslessExecutionConfig" optional>
+    Transparent execution-mode defaults — see [Relayable writes](/core/gasless/relayable-writes).
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` — the chain has no `gasless` block.
+- `SymmError("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")` — the chain runs pre-perps-core contracts.
+
+## supportsGaslessService
+
+The non-throwing boolean twin, for `enabled` gates and UI — a chain without the service (or an unknown chain) reads `false` instead of throwing, so gasless features hide rather than error.
+
+```ts
+import { supportsGaslessService } from "@symmio/trading-core";
+
+if (supportsGaslessService(config, { chainId })) showGaslessToggle();
+```
+
+In React, use [`useSupportsGaslessService`](/react/gasless#usesupportsgaslessservice).

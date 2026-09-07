@@ -66,12 +66,7 @@ export function useCreateSubAccounts(parameters: UseCreateSubAccountsParameters 
     mutationFn: async (variables) => {
       try {
         const resolvedChainId = variables.chainId ?? chainId;
-        const hash = await base.mutationFn({
-          affiliate: variables.affiliate,
-          accountsData: variables.accountsData,
-          simulateBeforeWrite: variables.simulateBeforeWrite,
-          chainId: resolvedChainId,
-        });
+        const hash = await base.mutationFn({ ...variables, chainId: resolvedChainId });
         return resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,

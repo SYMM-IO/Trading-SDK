@@ -1,0 +1,71 @@
+import { Callout } from "nextra/components";
+
+# Errors & fallback
+
+How gasless failures surface, how to read the vendor's detail out of them, and when a wallet-paid retry is safe.
+
+## The fallback safety rule
+
+<Callout type="warning">
+  A wallet-paid retry of the same intent is safe **only** when the relay definitively rejected it *before any
+  broadcast*: a fee/quota rejection (`FEE_POLICY_WOULD_REVERT` / `INSUFFICIENT_ALLOWANCE` with HTTP 409 or a `rejected`
+  record), or the relay being unreachable *before* it accepted anything (404/502/503). Never on a timeout, an ambiguous
+  transport failure, or anything after a 202 — the relayed transaction may still execute, and a wallet duplicate would
+  double-execute.
+</Callout>
+
+Two predicates encode exactly this — use them instead of re-deriving the rule:
+
+```ts
+import { isConfirmedGaslessFeeLimitError, isConfirmedGaslessUnavailableError } from "@symmio/trading-core";
+
+try {
+  await relayInstantOperations(config, parameters);
+} catch (err) {
+  const safeToUseWallet =
+    isConfirmedGaslessFeeLimitError(err) || (!accepted && isConfirmedGaslessUnavailableError(err));
+  if (!safeToUseWallet) throw err;
+  // …fall back to the gas-paid path
+}
+```
+
+The [transparent execution mode](/core/gasless/relayable-writes) applies them for you under `fallback: "wallet"`.
+
+## Reading the vendor detail
+
+HTTP failures are thrown as `SymmApiError` with the raw response body preserved; `parseGaslessErrorDetail` digs the vendor's `{ code, message, details }` envelope out of any gasless error — including a decoded on-chain revert when the service's simulation captured one:
+
+```ts
+import { parseGaslessErrorDetail } from "@symmio/trading-core";
+
+const detail = parseGaslessErrorDetail(err);
+detail?.code; // "SIMULATION_REVERTED", "INSUFFICIENT_ALLOWANCE", …
+detail?.contractRevert?.error; // "InvalidWalletOperationTarget", …
+```
+
+## SDK error codes
+
+| Code                                                                                          | Kind       | Meaning                                                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GASLESS_NOT_CONFIGURED`                                                                      | config     | The chain has no `gasless` block.                                                                                                                                                                                                                                                                           |
+| `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`                                                       | config     | The chain runs pre-perps-core contracts.                                                                                                                                                                                                                                                                    |
+| `GASLESS_URL_INVALID` / `GASLESS_URL_SERVICE_MISMATCH` / `GASLESS_PROTOCOL_INSTANCE_REQUIRED` | config     | The `gasless.url` / `protocolInstance` pairing cannot produce a service base.                                                                                                                                                                                                                               |
+| `GASLESS_CONFIG_INCOHERENT`                                                                   | config     | The GaslessLayer verifies against a different InstantLayer than the chain config declares — align the addresses before relaying.                                                                                                                                                                            |
+| `GASLESS_NOT_RELAYABLE`                                                                       | validation | An explicit `gasless: true` on calldata the relay cannot carry.                                                                                                                                                                                                                                             |
+| `GASLESS_ACCOUNT_UNRESOLVED`                                                                  | validation | A margin relay could not resolve the virtual account's parent — pass `gasless.account`.                                                                                                                                                                                                                     |
+| `GASLESS_VALUE_UNSAFE`                                                                        | validation | A uint256 wire field exceeded the JSON safe-integer range.                                                                                                                                                                                                                                                  |
+| `GASLESS_CHARGER_REQUIRED` / `OPERATIONAL_FEE_APPROVAL_MISMATCH`                              | validation | Allowance read/write input problems.                                                                                                                                                                                                                                                                        |
+| `GASLESS_FEE_UNAFFORDABLE`                                                                    | api        | The pre-flight quote says the daily quota would block the batch.                                                                                                                                                                                                                                            |
+| `GASLESS_RELAY_SUBMIT_FAILED` / `GASLESS_SETTLEMENT_SUBMIT_FAILED`                            | api        | An HTTP submit failed; the vendor detail rides in `responseData`.                                                                                                                                                                                                                                           |
+| `GASLESS_SUBMIT_UNCONFIRMED`                                                                  | api        | Retries exhausted on an ambiguous submit — the request may exist server-side; re-POST later with the **same** idempotency key, never through the wallet.                                                                                                                                                    |
+| `GASLESS_RELAY_REJECTED` / `GASLESS_RELAY_FAILED` / `GASLESS_RELAY_REVERTED`                  | api        | The workflow ended `rejected` / `failed` / `reverted`. Thrown by the transparent dispatcher and by `confirmGaslessRequest` — so by every React relay hook, which confirms by default. The terminal record rides in `responseData`. Only raw `getGaslessRequest` polling surfaces these as statuses instead. |
+| `GASLESS_SUCCEEDED_WITHOUT_TX`                                                                | api        | A `succeeded` record carried no transaction hash — a service invariant break.                                                                                                                                                                                                                               |
+| `GASLESS_PARTYB_UNSUPPORTED`                                                                  | validation | A PartyB delegation grant cannot be relayed; the signed-operation encoder has no PartyB form. Send it from the wallet.                                                                                                                                                                                      |
+| `GASLESS_BROADCAST_TIMEOUT` / `GASLESS_TERMINAL_TIMEOUT`                                      | api        | A wait budget ran out; the request keeps running server-side — keep polling its `requestId`.                                                                                                                                                                                                                |
+| `GASLESS_WAIT_ABORTED`                                                                        | api        | The wait's `AbortSignal` fired.                                                                                                                                                                                                                                                                             |
+| `GASLESS_STATUS_FETCH_FAILED` / `GASLESS_TRANSACTIONS_FETCH_FAILED`                           | api        | A status read failed (including the brief post-submit `404` race).                                                                                                                                                                                                                                          |
+| `GASLESS_STATUS_UNKNOWN`                                                                      | api        | The service returned a status outside the documented lifecycle.                                                                                                                                                                                                                                             |
+| `GASLESS_INSTANCE_MISMATCH`                                                                   | api        | A response came from a different protocol instance than the base URL pins — a staging/production cross-wire; fail closed.                                                                                                                                                                                   |
+| `GASLESS_WALLET_UNAVAILABLE`                                                                  | api        | The gateway returned the zero address for an owner's wallet.                                                                                                                                                                                                                                                |
+
+Vendor codes (from the service itself, via `parseGaslessErrorDetail`): `FEE_POLICY_WOULD_REVERT`, `INSUFFICIENT_ALLOWANCE`, `SIMULATION_REVERTED` (with `contractRevert`), `DEPOSIT_BELOW_MINIMUM`, `CHAIN_CONFIGURATION_ERROR`, `CHAIN_EXECUTION_ERROR`, `NOT_FOUND`, `INVALID_ADDRESS`, `INVALID_OPERATION_SELECTOR`. Do not auto-retry the same signature after `SIMULATION_REVERTED` — rebuild, re-sign, and use a new idempotency key.

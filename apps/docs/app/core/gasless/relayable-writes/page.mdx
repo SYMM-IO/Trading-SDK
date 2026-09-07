@@ -1,0 +1,99 @@
+import { Callout } from "nextra/components";
+
+# Relayable writes
+
+The **transparent gasless execution mode**: existing write actions relay through the GaslessQ service with zero signature or behavior change. When active, the SDK signs the write's own calldata as an InstantLayer operation, relays it, waits for the relayer's broadcast, and returns the transaction hash — so receipt-waiting and every hook's invalidation pipeline run unchanged.
+
+```ts
+// Per call…
+await initiateWithdraw(config, { account, parts, gasless: true });
+
+// …or globally, in the chain's gasless block:
+gasless: { url, protocolInstance, gaslessLayerAddress, execution: { mode: "gasless", fallback: "wallet" } }
+```
+
+## Which writes relay
+
+Relayability is a **compile-time truth**: only these actions accept the `gasless` parameter. All selectors derive from the shipped v0.8.6 ABIs at module load.
+
+| Action                                                                                                                                                                                                              | Relayed as                                                                                                                      | Billing account (`signerAccount`)                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `allocate`, `deallocate`, `initiateWithdraw`, `requestCancelWithdraw`, `requestToCancelQuote`, `requestToCancelCloseRequest`, `forceCancelQuote`, `forceCancelCloseRequest`, `forceClosePosition`, `forceCloseAuto` | one operation per inner call, target = core diamond                                                                             | the `account` sub-account the write already takes                                                                        |
+| `deallocateAndInitiateWithdraw`                                                                                                                                                                                     | **two operations in one atomic batch** (one revert rolls back both, matching `_call` semantics) with strictly sequential nonces | same                                                                                                                     |
+| `finalizeWithdrawRequest`                                                                                                                                                                                           | one operation, target = core diamond — the only entry **not** proxied through `_call` (the write is permissionless)             | the request's own `user` sub-account (override with `gasless.account`)                                                   |
+| `approveOperationalFee`                                                                                                                                                                                             | one operation, target = core diamond                                                                                            | the paying `account`                                                                                                     |
+| `addMargin`, `removeMargin`                                                                                                                                                                                         | one operation, target = AccountLayer                                                                                            | the virtual account's **parent sub-account**, resolved on-chain via `getVirtualAccount` (or passed as `gasless.account`) |
+| `deleteSubAccount`, `editAccountName`                                                                                                                                                                               | one operation, target = AccountLayer                                                                                            | the sub-account the write already names                                                                                  |
+| `depositForAccount`, `depositAndAllocateForAccount`                                                                                                                                                                 | one operation, target = AccountLayer                                                                                            | the `account`, or its **parent sub-account** when `account` is a virtual account                                         |
+| `createSubAccounts`                                                                                                                                                                                                 | one operation, target = AccountLayer                                                                                            | **`gasless.account` is required** — the accounts being created do not exist yet, so an existing owned one pays           |
+| `withdraw`, `withdrawAuto`                                                                                                                                                                                          | forward `gasless` to their underlying actions                                                                                   | inherited                                                                                                                |
+
+Writes that are not in this table (`approveCollateral`, `requestToRegisterAffiliate`, `cancelRegistration`, …) never relay — under the config mode they silently keep the wallet path (that _is_ the no-behavior-change promise), and they do not accept `gasless` at all.
+
+<Callout type="warning">
+  Three of these entries relay without native gas but still have a prerequisite the relayer cannot remove.
+  `deleteSubAccount` requires a sub-account with zero free **and** allocated balance, so the payer is empty by
+  construction and the relay only succeeds while the daily free-ops quota covers it. `depositForAccount` and
+  `depositAndAllocateForAccount` still pull the collateral from the owner's wallet, so the ERC20 allowance to the SYMMIO
+  core has to exist already — for a wallet with no gas at all, deposit through
+  [`settleGaslessDepositNewAccount`](/core/gasless/settle-gasless-deposit-new-account) instead. And `createSubAccounts`
+  cannot bootstrap a wallet's first account, since it has to be signed under one that already exists.
+</Callout>
+
+## The dispatch, in order
+
+1. Resolve the mode: per-call `gasless` overrides `execution.mode`; the default is `"wallet"` (zero overhead).
+2. Cross-check the config once per chain: the GaslessLayer's `instantLayer()` must equal the chain's `instantLayerAddress`, or the relay refuses with `GASLESS_CONFIG_INCOHERENT` — a mismatched pairing would produce signatures the gateway rejects.
+3. Quote the fee ([`getGaslessOperationalFeeQuote`](/core/gasless/get-gasless-fee-quote)) **before any signature prompt** (`preflightFee`, default on); `wouldBlockOnQuota` stops with `GASLESS_FEE_UNAFFORDABLE`.
+4. Read the nonce and sign, serialized per `(chainId, account)` so concurrent relays cannot collide. A user's signature rejection propagates — there is no wallet fallback for "the user said no".
+5. Submit, then wait for broadcast (bounded by `broadcastTimeoutMs`) and return the hash. Pre-acceptance failures follow the `fallback` policy; post-202 there is no fallback — see [Errors & fallback](/core/gasless/errors-and-fallback).
+
+Lifecycle observers get every accepted request through `execution.onEvent` (`accepted` / `broadcast` / `terminal`) — persist `requestId`s there so in-flight relays survive reloads.
+
+## Session keys
+
+Two lists, deliberately not the same one.
+
+`GASLESS_RELAYABLE_SELECTORS` is what the relayer will carry — this whole table, **including `grantDelegation`**, which is why onboarding a session key needs no gas either. `isGaslessRelayableSelector(selector)` answers for one selector.
+
+`GASLESS_SESSION_KEY_SELECTORS` is what you grant a key, and it is **enumerated by hand rather than derived from the table above**: the trading, withdraw, margin and operational-fee writes. Relayability and delegability are different questions — the first asks whether the relayer will carry a write, the second whether a browser-held key may sign it unattended — so a write becoming relayable never widens a session key on its own.
+
+Deliberately excluded, though relayable: `createSubAccounts`, `deleteSubAccount`, `editAccountName`, `depositForAccount`, `depositAndAllocateForAccount` and `forceClosePosition`. Those relay without gas but stay owner-signed — creating, deleting and renaming accounts, moving the owner's own collateral, and force-closing are not things a bounded key does unattended. Grant them explicitly if your product wants them.
+
+<Callout type="warning">
+  Never grant `GASLESS_RELAYABLE_SELECTORS`. It contains `grantDelegation`, and a key holding that selector can mint
+  itself further delegations — over any selector, with any expiry — which makes a bounded session key unbounded. Both
+  the exclusion and the hand-enumerated membership are enforced by tests, not just by documentation.
+</Callout>
+
+Grant them with [`grantDelegation`](/core/instant-layer/grant-delegation) and `gasless: true`; the grant relays like any other write.
+
+## Per-call options
+
+<Properties>
+  <Property name="gasless" type="boolean | GaslessWriteOptions" optional>
+    `true` forces this call onto the relay (throwing where unsupported), `false` forces the wallet path; the options bag
+    adds per-call overrides.
+  </Property>
+  <Property name="gasless.fallback" type='"error" | "wallet"' optional default='"error"'>
+    Pre-acceptance failure policy — `"wallet"` silently falls back to the gas-paid path on a definitive rejection.
+  </Property>
+  <Property name="gasless.account" type="Address" optional>
+    Billing sub-account override, for the margin writes when on-chain parent resolution is not wanted.
+  </Property>
+  <Property name="gasless.idempotencyKey" type="string" optional>
+    Stable retry key for the relay submit.
+  </Property>
+  <Property name="gasless.broadcastTimeoutMs" type="number" optional>
+    Per-call broadcast wait budget.
+  </Property>
+  <Property name="gasless.signal" type="AbortSignal" optional>
+    Abort the broadcast wait — the accepted request keeps running server-side.
+  </Property>
+</Properties>
+
+<Callout type="info">
+  The only observable differences under gasless execution: the wallet prompt is an EIP-712 signature instead of a
+  transaction, a couple of seconds pass before the hash exists, `simulateBeforeWrite` is skipped (the relayer simulates
+  instead), and the fee comes from SYMMIO collateral rather than native gas.
+</Callout>

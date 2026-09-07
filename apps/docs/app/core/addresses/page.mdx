@@ -70,6 +70,16 @@ Every entry is a `SymmioChainConfig` — the fully-resolved settings for one cha
     per-solver, since several solvers on one chain could share one deployment. Present only on HyperEVM today. See [Pools
     listing service](/core/concepts/solvers-and-chains#pools-listing-service).
   </Property>
+  <Property name="contractsVersion" type='"0.8.5" | "0.8.6"'>
+    Which perps-core contracts generation the deployment runs. A per-chain deployment fact, not a caller choice —
+    HyperEVM and Base are `"0.8.5"`, Arbitrum is `"0.8.6"`. Features that exist only on the newer generation (today,
+    [gasless](/core/gasless)) gate on it.
+  </Property>
+  <Property name="gasless" type="SymmioGaslessConfig" optional>
+    The [GaslessQ relayer](/core/gasless) — `url`, `protocolInstance`, `gaslessLayerAddress`, plus the consumer's
+    `apiKey` and `execution` policy. Present only on Arbitrum today, pointing at the staging deployment. An override
+    **merges onto that base field by field**, so repointing `url` alone keeps the built-in `gaslessLayerAddress`.
+  </Property>
   <Property name="inventory" type="SymmioInventoryConfig" optional>
     The [inventory service](/core/inventory) — the custody backend behind the Pools, and a **different vendor** from
     both the solver and the listing backend. A single `url`, again the **host root**: the generated client's own paths
@@ -137,7 +147,7 @@ Everything else (subgraph, Muon gateways, the chain-level price service) lives o
 
 ## Current chains
 
-Two chains ship in the registry — each runs a different solver kind and product. See [Solvers & Chains](/core/concepts/solvers-and-chains) for how the two axes fit together.
+Three chains ship in the registry. See [Solvers & Chains](/core/concepts/solvers-and-chains) for how the solver-kind and product axes fit together.
 
 ### HyperEVM (999) — enigma / lowcap
 
@@ -170,6 +180,31 @@ Two chains ship in the registry — each runs a different solver kind and produc
   ship — override them via `symmioConfig[8453].subgraphs` when you have real endpoints. Base has **no `tpsl` block**:
   the COH wallet is not deployed yet, so conditional orders (TP/SL) are unsupported on Base. Muon gateways are real
   (Muon is deployment-agnostic). Swap the staging solver URL for production when it's published.
+</Callout>
+
+### Arbitrum (42161) — enigma / lowcap
+
+The only chain on the **perps-core (`"0.8.6"`) contracts generation**, and therefore the only one where
+[gasless](/core/gasless) can run at all.
+
+- `symmioAddress` — `0x573310dB6d160B26026B8706EBe9831c7dEF1D09`
+- `instantLayerAddress` — `0x2C9e944cB71329fC659Da50A10a79a508Dd49ba5`
+- `accountLayerAddress` — `0x5733107211B2801Acd39933a54d482FE303c4907`
+- `affiliatesAddress` — `0xe99c18CF3C62B9229f9251fd2562077a33e7600a` (built-in default; override with your registered affiliate)
+- `collateralAddress` — `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` (USDC, 6 decimals)
+- `contractsVersion` — `"0.8.6"`
+- `solvers.enigma.address` — `0x9be79D4977D86D440F9e1Ea0d468A58104B9b932`, `defaultSolverId: "enigma"`
+- `solvers.enigma.tpsl.cohWalletAddress` — `0x5Cf3fC3722e1780220Ca94C04a6dc7Dfd7615661` (Arbitrum's own COH wallet, not HyperEVM's)
+- `priceService.type` — `"enigma"` (the **staging** price service — the staging solver's markets do not all exist in the production one)
+- `gasless.gaslessLayerAddress` — `0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca`, instance `arbitrum-42161-vibe-stage`
+
+<Callout type="warning">
+  **Arbitrum is staging-configured**, and the staging and production deployments **share chain id 42161** — the chain id
+  does not identify the deployment. The `gaslessLayerAddress` and the `instantLayerAddress` above are one deployment's
+  pair: the gateway reports its own InstantLayer from `instantLayer()`, and gasless writes assert the two agree
+  (`GASLESS_CONFIG_INCOHERENT`). Switching deployments means changing **both**, plus `symmioAddress`,
+  `accountLayerAddress`, `affiliatesAddress` and the subgraphs — never a subset. The `listing` and `inventory` URLs are
+  inherited HyperEVM values and have not been confirmed for Arbitrum.
 </Callout>
 
 Each entry also carries URLs for the solver, price service, notifications, subgraphs, and Muon gateways.

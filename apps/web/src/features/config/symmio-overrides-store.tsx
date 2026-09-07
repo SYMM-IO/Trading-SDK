@@ -7,7 +7,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 type ChainOverrides = CreateConfigParameters["symmioConfig"];
 
-const STORAGE_KEY = "symmio.config.overrides.v1";
+/**
+ * Bumped to v2 with the Arbitrum deployment profiles: a persisted v1 blob
+ * replaces the app baseline wholesale after hydration, so anyone who had opened
+ * the config panel would otherwise keep the stale InstantLayer and never
+ * receive the `gasless` block.
+ */
+const STORAGE_KEY = "symmio.config.overrides.v2";
 
 interface SymmioOverridesContextValue {
   /** Per-chain overrides currently fed to `SymmioProvider`. */

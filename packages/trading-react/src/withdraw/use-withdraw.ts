@@ -92,7 +92,11 @@ export function useWithdraw(parameters: UseWithdrawParameters = {}): UseWithdraw
   // Resolve the subaccount's isolation type via the standard hook (deduped by
   // react-query with any other useSubAccount on the same key), so the core action
   // skips a redundant getSubAccount RPC.
-  const { data: subAccount } = useSubAccount({ account: parameters.account, chainId: parameters.chainId });
+  const { data: subAccount } = useSubAccount({
+    account: parameters.account,
+    chainId: parameters.chainId,
+    config: parameters.config,
+  });
   const isolationType = subAccount?.isolationType;
 
   const base = withdrawAutoMutationOptions(config);

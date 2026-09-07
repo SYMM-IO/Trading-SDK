@@ -3,9 +3,11 @@ import type { DeepPartial } from "../../shared/types/properties";
 import {
   getChainConfig,
   listSupportedChains,
+  type GaslessExecutionConfig,
   type SolverCapabilitiesConfig,
   type SolverId,
   type SymmioChainConfig,
+  type SymmioGaslessConfig,
   type SymmioInventoryConfig,
   type SymmioListingConfig,
   type SymmioNotificationsConfig,
@@ -40,7 +42,7 @@ export function buildChainConfigs(
 /**
  * Deep-merge a single chain's overrides onto its built-in defaults. Only the
  * known nested groups (`addresses`, `subgraphs`, `solvers`, `priceService`,
- * `notifications`, `muon`, `listing`, `inventory`) are merged; unknown keys are ignored.
+ * `notifications`, `muon`, `listing`, `inventory`, `gasless`) are merged; unknown keys are ignored.
  *
  * @internal
  */
@@ -60,6 +62,57 @@ function mergeChainConfig(base: SymmioChainConfig, override: DeepPartial<SymmioC
     },
     ...mergeListing(base.listing, override.listing),
     ...mergeInventory(base.inventory, override.inventory),
+    ...mergeGasless(base.chainId, base.gasless, override.gasless),
+  };
+}
+
+/**
+ * Merge a GaslessQ service override onto its base.
+ *
+ * Returns a partial so the key stays **absent** when neither side configures
+ * the service (same invariant as {@link mergeListing}). With a base, fields
+ * merge one by one and the nested `execution` block deep-merges. With no base,
+ * the override must be a complete block — `url` and `gaslessLayerAddress` are
+ * both required, since there is nothing to inherit them from and a half-built
+ * block would only fail later, at request time, with a confusing error.
+ *
+ * @throws {SymmError} `GASLESS_OVERRIDE_INCOMPLETE` when a base-less override
+ *   omits `url` or `gaslessLayerAddress`.
+ */
+function mergeGasless(
+  chainId: number,
+  base: SymmioGaslessConfig | undefined,
+  override: DeepPartial<SymmioGaslessConfig> | undefined,
+): Pick<SymmioChainConfig, "gasless"> | Record<string, never> {
+  if (!base && !override) return {};
+  if (!override) return { gasless: base };
+
+  const url = override.url ?? base?.url;
+  const gaslessLayerAddress = override.gaslessLayerAddress ?? base?.gaslessLayerAddress;
+  if (url === undefined || gaslessLayerAddress === undefined) {
+    throw new SymmError(
+      "config",
+      "GASLESS_OVERRIDE_INCOMPLETE",
+      `createConfig: the gasless override for chain ${chainId} must declare ${url === undefined ? "`url`" : "`gaslessLayerAddress`"} — there is no built-in gasless config to inherit it from.`,
+    );
+  }
+
+  const execution =
+    override.execution || base?.execution
+      ? { ...(base?.execution ?? {}), ...((override.execution ?? {}) as GaslessExecutionConfig) }
+      : undefined;
+
+  const protocolInstance = override.protocolInstance ?? base?.protocolInstance;
+  const apiKey = override.apiKey ?? base?.apiKey;
+
+  return {
+    gasless: {
+      url,
+      gaslessLayerAddress,
+      ...(protocolInstance !== undefined ? { protocolInstance } : {}),
+      ...(apiKey !== undefined ? { apiKey } : {}),
+      ...(execution ? { execution } : {}),
+    },
   };
 }
 

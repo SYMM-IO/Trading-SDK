@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import {
   useGrantDelegation,
   useSimulateGrantDelegation,
@@ -47,6 +48,16 @@ export function WriteGrantDelegation() {
 
   const mutation = useGrantDelegation();
 
+  /**
+   * A PartyB grant is never relayable: the signed-operation encoder has no
+   * PartyB form, so the SDK skips the relay seam entirely for one (and throws
+   * `GASLESS_PARTYB_UNSUPPORTED` on an explicit opt-in). Blocking the toggle
+   * keeps the header from claiming a relay that would silently be a wallet
+   * send. See `grantDelegation` in trading-core.
+   */
+  const gaslessBlockedReason = isPartyB ? "the relayer has no PartyB form for a delegation grant" : undefined;
+  const gasless = useGaslessWriteOption("grantDelegation", { blockedReason: gaslessBlockedReason });
+
   const simulate = useSimulateGrantDelegation();
 
   function getVariables(): WriteVariables | undefined {
@@ -64,6 +75,8 @@ export function WriteGrantDelegation() {
       testId="method-grantDelegation"
       name="grantDelegation"
       mutability="nonpayable"
+      gaslessRelayable
+      gaslessBlockedReason={gaslessBlockedReason}
       description="Grant one delegated signer access to selected Instant Layer function selectors."
     >
       <SubAccountPicker
@@ -178,7 +191,7 @@ export function WriteGrantDelegation() {
           onClick={() => {
             const variables = getVariables();
             if (!variables) return;
-            mutation.mutate(variables);
+            mutation.mutate({ ...variables, gasless });
           }}
           data-testid="button-send-grant-delegation"
         >

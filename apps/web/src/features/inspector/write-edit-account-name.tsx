@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { useEditAccountName, useSimulateEditAccountName, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
@@ -24,6 +25,8 @@ export function WriteEditAccountName() {
 
   const mutation = useEditAccountName();
 
+  const gasless = useGaslessWriteOption("editAccountName");
+
   /** Dry-run the call (`simulateContract`) so the user sees pass/revert before sending. */
   const simulate = useSimulateEditAccountName();
 
@@ -32,6 +35,7 @@ export function WriteEditAccountName() {
       testId="method-editAccountName"
       name="editAccountName"
       mutability="nonpayable"
+      gaslessRelayable
       description="Rename one of the connected user's subaccounts."
     >
       <SubAccountField
@@ -78,7 +82,7 @@ export function WriteEditAccountName() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount) return;
-            mutation.mutate({ account: validAccount, name });
+            mutation.mutate({ account: validAccount, name, gasless });
           }}
           data-testid="button-send-rename"
         >

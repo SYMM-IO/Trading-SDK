@@ -1,0 +1,85 @@
+import { Callout } from "nextra/components";
+
+# settleGaslessDepositNewAccount
+
+Queue the sweep of an owner's deposit address into a **new** wallet-owned sub-account — the cold-start onboarding step. The gateway creates the account, credits the net amount, and pays all the gas itself.
+
+```ts
+import { settleGaslessDepositNewAccount, SubAccountIsolationType } from "@symmio/trading-core";
+import { zeroAddress } from "viem";
+
+const receipt = await settleGaslessDepositNewAccount(config, {
+  wallet: owner,
+  affiliate: zeroAddress,
+  accountData: { name: "Main", isolationType: SubAccountIsolationType.MARKET_DIRECTION, singleVAMode: true },
+});
+```
+
+One `POST {depositBase}/deposit-settlements/new-account`. The **entire observed collateral balance** at the deposit address settles, minus the flat fee. The worker re-checks balance, fee, and minimum before broadcasting, so an accepted settlement can still turn `rejected` — funds not yet visible, or moved. Poll the receipt's `requestId` with `service: "deposits"`.
+
+<Callout type="warning">
+  `succeeded` does **not** mean the account is instantly usable — wait until the sub-account and its credited balance
+  are readable on-chain (`getUserSubAccounts` + `getAccountBalanceOf`) before flipping the UI. And never reuse a
+  completed settlement's idempotency key: a replay by key returns the old record without re-checking the vault — mint a
+  fresh key per attempt after any terminal status.
+</Callout>
+
+<Callout type="info">
+  This action is a **submit**: it resolves with the `202` acceptance. React consumers do not need to follow it by hand —
+  the matching hook in `@symmio/trading-react` confirms the request before it resolves and invalidates the reads this
+  action changes. See the [React gasless guide](/react/gasless).
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="wallet" type="Address" required>
+    Owner wallet whose deterministic deposit address is being settled.
+  </Property>
+  <Property name="affiliate" type="Address" required>
+    Affiliate passed to the settlement; the zero address disables attribution.
+  </Property>
+  <Property name="accountData" type="GaslessDepositAccountData" required>
+    Creation data for the new sub-account: `name` (1–64 chars), `isolationType`, `singleVAMode`, optional `metadata`
+    hex. `isolationType` and `singleVAMode` are deliberately **required** — they are product decisions (the lowcap flow
+    uses `MARKET_DIRECTION` with `singleVAMode: true`; majors differ) and the service-side defaults would be silently
+    wrong for either product. There is no `symmioCore` field — the gateway overwrites it with its configured core.
+  </Property>
+  <Property name="idempotencyKey" type="string" optional>
+    Stable retry key; defaults to a random UUID.
+  </Property>
+  <Property name="metadata" type="Record<string, unknown>" optional>
+    Non-secret client correlation data stored with the request.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessDepositSubmitReceipt>">
+  <Property name="requestId" type="string">
+    Stable tracking id — poll it with `service: "deposits"`.
+  </Property>
+  <Property name="status" type="GaslessRequestStatus">
+    Status at acceptance, normally `queued`.
+  </Property>
+  <Property name="depositAddress" type="Address">
+    The deterministic deposit address being swept.
+  </Property>
+  <Property name="observedAmount" type="bigint">
+    Collateral balance the service observed at the address (raw units).
+  </Property>
+  <Property name="paidFee" type="bigint">
+    Flat fee deducted (raw units).
+  </Property>
+  <Property name="creditedAmount" type="bigint">
+    Net amount credited to the new sub-account (raw units).
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmApiError` with code `GASLESS_SETTLEMENT_SUBMIT_FAILED` — HTTP failure; `DEPOSIT_BELOW_MINIMUM` in the vendor detail means the address has not reached the settlement minimum yet.

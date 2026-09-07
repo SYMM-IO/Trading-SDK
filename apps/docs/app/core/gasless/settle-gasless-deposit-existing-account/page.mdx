@@ -1,0 +1,51 @@
+import { Callout } from "nextra/components";
+
+# settleGaslessDepositExistingAccount
+
+Queue the sweep of an owner's deposit address into an **existing** wallet-owned sub-account — a gasless top-up.
+
+```ts
+import { settleGaslessDepositExistingAccount } from "@symmio/trading-core";
+
+const receipt = await settleGaslessDepositExistingAccount(config, {
+  wallet: owner,
+  subAccount,
+});
+```
+
+Same lifecycle as the [new-account settlement](/core/gasless/settle-gasless-deposit-new-account): the entire observed balance settles, the flat fee comes off the top, the worker's pre-broadcast re-check can still turn an accepted settlement `rejected`, and a completed settlement's idempotency key must never be reused. The gateway verifies on-chain that `subAccount` is owned by `wallet`. Note the request body is strict — beyond the retry key it carries only `wallet` and `subAccount` (no metadata slot).
+
+<Callout type="info">
+  This action is a **submit**: it resolves with the `202` acceptance. React consumers do not need to follow it by hand —
+  the matching hook in `@symmio/trading-react` confirms the request before it resolves and invalidates the reads this
+  action changes. See the [React gasless guide](/react/gasless).
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="wallet" type="Address" required>
+    Owner wallet whose deterministic deposit address is being settled.
+  </Property>
+  <Property name="subAccount" type="Address" required>
+    The existing wallet-owned sub-account to credit; ownership is verified by the gateway.
+  </Property>
+  <Property name="idempotencyKey" type="string" optional>
+    Stable retry key; defaults to a random UUID. Mint a fresh one per attempt after any terminal status.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessDepositSubmitReceipt>">
+  The same rich acceptance receipt the new-account settlement returns — `requestId`, `status`, `depositAddress`,
+  `observedAmount`, `paidFee`, `creditedAmount`. Poll `requestId` with `service: "deposits"`.
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmApiError` with code `GASLESS_SETTLEMENT_SUBMIT_FAILED` — HTTP failure, including `DEPOSIT_BELOW_MINIMUM`.

@@ -1,0 +1,56 @@
+# getGaslessRequestTransactions
+
+List the EVM broadcast attempts stored for one gasless request, with each attempt's receipt outcome.
+
+```ts
+import { getGaslessRequestTransactions } from "@symmio/trading-core";
+
+const attempts = await getGaslessRequestTransactions(config, { requestId });
+const latest = attempts.at(-1);
+```
+
+A transaction hash is **mutable across replacement attempts** — the relayer may re-broadcast a stuck transaction with a new hash. The `requestId` is the stable identifier; fetch this list when a hash appears (to show an explorer link) or when a request ends `failed` (to diagnose which attempts were made and why they failed).
+
+## Parameters
+
+<Properties>
+  <Property name="requestId" type="string" required>
+    Stable service tracking id returned by a gasless submit.
+  </Property>
+  <Property name="service" type='"operations" | "deposits"' optional default='"operations"'>
+    Which sub-service stores the request.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<readonly GaslessRequestTransaction[]>">
+  <Property name="id" type="string">
+    Attempt row id.
+  </Property>
+  <Property name="txHash" type="Hash | null">
+    Transaction hash of this attempt.
+  </Property>
+  <Property name="attemptNumber" type="number">
+    1-based attempt number.
+  </Property>
+  <Property name="status" type="string">
+    `submitted` (broadcast, receipt pending), `confirmed` (receipt status 1), `reverted` (receipt status 0), or `failed`
+    (service-side attempt failure).
+  </Property>
+  <Property name="errorCode" type="string | null">
+    Stored error code for a failed attempt, when present.
+  </Property>
+  <Property name="errorMessage" type="string | null">
+    Stored error message, when present.
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmApiError` with code `GASLESS_TRANSACTIONS_FETCH_FAILED` on HTTP failure.
+- `SymmError("api", "GASLESS_INSTANCE_MISMATCH")` — the response came from a different protocol instance than the base URL pins.

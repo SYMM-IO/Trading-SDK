@@ -11,15 +11,15 @@ import { getAddress, isAddress, type Address } from "viem";
 import { symmioChains } from "./symmio";
 
 /**
- * Group a config field belongs to. `addresses` and `subgraphs` are chain-level
- * blocks of the SDK's `SymmioChainConfig`; `solver` and `notifications` are
- * **per-solver** and resolve against the chain's default solver
- * (`solvers[defaultSolverId]` and its nested `notifications` block).
+ * Group a config field belongs to. `addresses`, `subgraphs` and `gasless` are
+ * chain-level blocks of the SDK's `SymmioChainConfig`; `solver` and
+ * `notifications` are **per-solver** and resolve against the chain's default
+ * solver (`solvers[defaultSolverId]` and its nested `notifications` block).
  */
-export type ConfigFieldGroup = "addresses" | "solver" | "subgraphs" | "notifications";
+export type ConfigFieldGroup = "addresses" | "solver" | "subgraphs" | "notifications" | "gasless";
 
 /** How a field is rendered and validated in the editor. */
-export type ConfigFieldKind = "address" | "decimals" | "url" | "wsUrl" | "text";
+export type ConfigFieldKind = "address" | "decimals" | "url" | "wsUrl" | "text" | "toggle";
 
 /** Metadata describing one editable field of a chain config. */
 export interface ConfigFieldDef {
@@ -36,7 +36,32 @@ export interface ConfigFieldDef {
    * hidden (and never written) on a `rasa` chain. See {@link isFieldAvailable}.
    */
   protocols?: readonly SymmioNotificationsProtocol[];
+  /**
+   * For a `toggle` field: the config values the switch writes when it is on and
+   * off. The editor keeps every draft value as a string, so a toggle is just a
+   * two-valued text field with a switch instead of an input.
+   */
+  toggle?: { on: string; off: string };
 }
+
+/**
+ * The chain's gasless execution mode — the app-wide switch behind the
+ * transparent relay. `"gasless"` routes every relayable write through the
+ * GaslessQ relayer (the user signs, the relayer broadcasts and pays);
+ * `"wallet"` keeps every write on the connected wallet. A write card's header
+ * toggle overrides this for one card at a time.
+ *
+ * Exported because {@link buildChainOverrides} has to emit it explicitly rather
+ * than only when it differs from the SDK default — see the note there.
+ */
+export const GASLESS_MODE_FIELD: ConfigFieldDef = {
+  group: "gasless",
+  key: "executionMode",
+  label: "Relay writes gaslessly",
+  kind: "toggle",
+  hint: "execution.mode",
+  toggle: { on: "gasless", off: "wallet" },
+};
 
 /** A labelled section of related fields in the editor. */
 export interface ConfigGroupDef {
@@ -103,6 +128,11 @@ export const CONFIG_GROUPS: ConfigGroupDef[] = [
       },
     ],
   },
+  {
+    group: "gasless",
+    title: "Gasless relay",
+    fields: [GASLESS_MODE_FIELD],
+  },
 ];
 
 /** Flat list of every editable field across all groups. */
@@ -146,6 +176,30 @@ function readField(chainId: number, field: ConfigFieldDef): unknown {
   if (field.group === "notifications") {
     return (solver?.notifications as Record<string, unknown> | undefined)?.[field.key];
   }
+  if (field.group === "gasless") {
+    if (!hasGaslessBlock(chainId)) return undefined;
+    /**
+     * Read the APP BASELINE first, then the registry. Every other field's
+     * baseline value equals its registry value, so "default" is unambiguous for
+     * them — this is the one field the app ships an opinion on (`mode:
+     * "gasless"` on Arbitrum, where the registry deliberately ships no
+     * `execution` block at all).
+     *
+     * Measuring it against the registry inverts the panel's override count:
+     * an untouched config would read as one override, and — worse — turning the
+     * relay OFF would read as zero, which is exactly the state "Reset to
+     * default" needs to be enabled in, since Reset restores the baseline rather
+     * than the registry.
+     *
+     * `execution` is optional on both, and a chain that carries a relayer but
+     * no `execution` defaults to the wallet path.
+     */
+    return (
+      symmioChains?.[chainId]?.gasless?.execution?.mode ??
+      getChainConfig(chainId).gasless?.execution?.mode ??
+      field.toggle?.off
+    );
+  }
   const chainConfig = getChainConfig(chainId) as unknown as Record<string, Record<string, unknown>>;
   return chainConfig[field.group]?.[field.key];
 }
@@ -164,6 +218,9 @@ function overrideFieldValue(
 ): unknown {
   if (!chainOverride) return undefined;
   const record = chainOverride as unknown as Record<string, Record<string, unknown>>;
+  if (field.group === "gasless") {
+    return (record.gasless?.execution as Record<string, unknown> | undefined)?.mode;
+  }
   if (field.group === "solver" || field.group === "notifications") {
     const solvers = record.solvers as Record<string, Record<string, unknown>> | undefined;
     const solver = solvers?.[getChainConfig(chainId).defaultSolverId];
@@ -177,11 +234,20 @@ function overrideFieldValue(
  * Whether a field exists on a given chain. Protocol-exclusive notifications
  * fields (today the enigma `channel`) do not exist on a chain whose solver
  * speaks another protocol, so the editor neither shows nor writes them there.
+ * The gasless group needs a relayer to configure: it is available only where
+ * the SDK registry or the app baseline carries a `gasless` block, since the
+ * editor can switch the mode but cannot invent an endpoint.
  */
 export function isFieldAvailable(chainId: number, field: ConfigFieldDef): boolean {
+  if (field.group === "gasless") return hasGaslessBlock(chainId);
   if (!field.protocols) return true;
   const protocol = defaultSolver(chainId)?.notifications.protocol;
   return protocol !== undefined && field.protocols.includes(protocol);
+}
+
+/** Whether the chain carries a gasless relayer, built-in or from the app baseline. */
+function hasGaslessBlock(chainId: number): boolean {
+  return getChainConfig(chainId).gasless !== undefined || symmioChains?.[chainId]?.gasless !== undefined;
 }
 
 /**
@@ -216,6 +282,7 @@ export function validateFieldValue(field: ConfigFieldDef, raw: string): string |
     case "wsUrl":
       return /^wss?:\/\/\S+$/.test(value) ? null : "Must be a ws(s) URL";
     case "text":
+    case "toggle":
       return null;
   }
 }
@@ -253,6 +320,7 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
       solver: {},
       subgraphs: {},
       notifications: {},
+      gasless: {},
     };
 
     for (const field of CONFIG_FIELDS) {
@@ -271,7 +339,19 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
       symmioChains?.[chainId]?.addresses?.affiliatesAddress;
     if (affiliate) groups.addresses.affiliatesAddress = affiliate;
 
-    const chainOverride: Record<string, unknown> = { addresses: groups.addresses };
+    /**
+     * Seed from the app baseline so the blocks this editor does not model —
+     * `listing`, `inventory`, `priceService`, `muon`, `contractsVersion`, and
+     * the gasless endpoint itself (only its `execution.mode` is editable) —
+     * survive an Apply instead of being dropped. Losing `gasless` would leave
+     * the resolved config holding one deployment's addresses beside the other
+     * deployment's gateway.
+     */
+    const baseline = symmioChains?.[chainId];
+    const chainOverride: Record<string, unknown> = {
+      ...baseline,
+      addresses: { ...baseline?.addresses, ...groups.addresses },
+    };
     /**
      * Notifications are per-solver, so they nest inside the solver override
      * rather than sitting beside it on the chain (see `SymmioSolverConfig`).
@@ -282,6 +362,24 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
       chainOverride.solvers = { [getChainConfig(chainId).defaultSolverId]: solverOverride };
     }
     if (Object.keys(groups.subgraphs).length) chainOverride.subgraphs = groups.subgraphs;
+    /**
+     * Gasless mode is emitted whenever the chain carries a relayer, even when
+     * the draft matches the SDK default — the app baseline turns the relay ON
+     * for its own chains, and that block was just spread onto `chainOverride`
+     * above. An unemitted `"wallet"` draft would lose to it and the switch
+     * would not stick.
+     */
+    if (isFieldAvailable(chainId, GASLESS_MODE_FIELD)) {
+      const mode =
+        (groups.gasless[GASLESS_MODE_FIELD.key] as string | undefined) ??
+        defaultFieldValue(chainId, GASLESS_MODE_FIELD);
+      if (mode) {
+        chainOverride.gasless = {
+          ...baseline?.gasless,
+          execution: { ...baseline?.gasless?.execution, mode },
+        };
+      }
+    }
     result[chainId] = chainOverride as SymmioChainConfigInput;
   }
 

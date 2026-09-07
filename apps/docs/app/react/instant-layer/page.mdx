@@ -120,7 +120,10 @@ Use it (instead of hardcoding `INSTANT_TRADE_REQUIRED_SELECTORS` / `LEGACY_INSTA
 
 ### `useGrantDelegation`
 
-Submit an InstantLayer `grantDelegation` transaction.
+Submit an InstantLayer `grantDelegation` transaction — or relay it, with no native gas, where the chain runs in
+[gasless](/react/gasless) execution mode. The transport comes from config, not from a different hook: the result is a
+transaction hash and its receipt either way, and the same reads are invalidated. Pass `gasless: true` in the mutation
+variables to force the relay for one call.
 
 ```tsx
 import { useGrantDelegation } from "@symmio/trading-react";

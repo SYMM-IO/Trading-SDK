@@ -1,4 +1,5 @@
 import type { Address } from "viem";
+import type { GaslessRelayEvent } from "../../gasless/types";
 
 /**
  * Contract addresses for a SYMMIO chain deployment.
@@ -343,6 +344,97 @@ export interface SymmioInventoryConfig {
 }
 
 /**
+ * Failure policy for the transparent gasless execution mode, applied when the
+ * relay definitively rejects a request **before** it is accepted (a 4xx, or a
+ * pre-broadcast `rejected`).
+ *
+ * - `"error"` (default): surface a typed error; the consumer decides what to do.
+ * - `"wallet"`: silently fall back to the normal gas-paid wallet path.
+ *
+ * After the service accepts a request (HTTP 202) no fallback ever happens — the
+ * relayed transaction may still execute, and a wallet retry would duplicate it.
+ */
+export type GaslessFallback = "error" | "wallet";
+
+/**
+ * Defaults governing how existing contract writes dispatch when the transparent
+ * gasless execution mode is active. Every field can be overridden per call via
+ * the `gasless` write parameter.
+ */
+export interface GaslessExecutionConfig {
+  /**
+   * `"wallet"` (default): writes go through the connected wallet as always.
+   * `"gasless"`: relayable writes are signed as InstantLayer operations and
+   * relayed through GaslessQ; non-relayable writes keep the wallet path.
+   */
+  mode?: "wallet" | "gasless";
+  /** Pre-acceptance failure policy. Default `"error"`. */
+  fallback?: GaslessFallback;
+  /**
+   * Quote the operational fee on-chain (`getAccountOperationalFee`) before
+   * prompting the user for a signature, and fail fast when the fee is
+   * unaffordable or the daily quota would block. Default `true`.
+   */
+  preflightFee?: boolean;
+  /** Max wait for the relayer to broadcast before timing out. Default `120_000` ms. */
+  broadcastTimeoutMs?: number;
+  /** Status poll cadence while the request is `queued`. Default `1_500` ms. */
+  queuedPollMs?: number;
+  /** Status poll cadence after the request is `submitted`. Default `3_000` ms. */
+  submittedPollMs?: number;
+  /**
+   * Lifecycle observer for relayed writes — fires at `accepted`, `broadcast`,
+   * and `terminal`. Persist request ids in the `accepted` event so in-flight
+   * workflows survive reloads.
+   */
+  onEvent?: (event: GaslessRelayEvent) => void;
+}
+
+/**
+ * Chain-level configuration for the GaslessQ relayer service.
+ *
+ * GaslessQ relays user-signed InstantLayer operations so account actions need
+ * no native gas: the relayer broadcasts and pays, and the **GaslessLayer**
+ * contract charges an operational fee from the user's SYMMIO collateral in the
+ * same atomic transaction. Optional and chain-level, like `listing`: present
+ * only on perps-core (`"0.8.6"`) chains with a GaslessLayer deployment.
+ * Resolve it with `resolveGaslessService` / gate on `supportsGaslessService`.
+ */
+export interface SymmioGaslessConfig {
+  /**
+   * Service base URL. Either the vendor **origin** (no path — the SDK derives
+   * `/v1/instances/{protocolInstance}/{operations|deposits}`), or an
+   * already-scoped base such as a same-origin proxy (anything whose path ends
+   * in `/operations` or `/deposits` is used as-is per service).
+   *
+   * Browser apps must point this at their own proxy: the `apiKey` is a secret
+   * and must never ship in a client bundle.
+   */
+  url: string;
+  /**
+   * Protocol-instance key selecting the deployment at the vendor gateway
+   * (e.g. `"arbitrum-42161-vibe"`). Required when `url` is a vendor origin;
+   * ignored when `url` is already instance-scoped.
+   */
+  protocolInstance?: string;
+  /**
+   * The GaslessLayer proxy address — the operational-fee charger and the
+   * source of every gasless read (wallet addresses, deposit policy, fee
+   * quotes, nonces). A deployment fact with **no runtime discovery**: update it
+   * on every gateway redeploy.
+   */
+  gaslessLayerAddress: Address;
+  /**
+   * Bearer client key sent as `Authorization: Bearer …`. Omit when `url`
+   * points at a proxy that injects it. **Never** expose this in a browser
+   * bundle.
+   */
+  apiKey?: string;
+  /** Transparent execution-mode defaults for existing contract writes. */
+  execution?: GaslessExecutionConfig;
+}
+
+/**
  * The perps-core contracts generation a chain's deployment runs.
  *
  * A **deployment fact, declared per chain** — it is not probed at runtime (the
@@ -392,4 +484,10 @@ export interface SymmioChainConfig {
    * resolve it with `resolveInventoryService`.
    */
   inventory?: SymmioInventoryConfig;
+  /**
+   * Optional GaslessQ relayer service. Set on perps-core (`"0.8.6"`) chains
+   * with a GaslessLayer deployment; omitted elsewhere. Resolve it with
+   * `resolveGaslessService` / gate on `supportsGaslessService`.
+   */
+  gasless?: SymmioGaslessConfig;
 }

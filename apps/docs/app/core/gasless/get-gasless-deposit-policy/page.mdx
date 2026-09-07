@@ -1,0 +1,65 @@
+import { Callout } from "nextra/components";
+
+# getGaslessDepositPolicy
+
+Read the gasless **deposit policy** for an owner — the deterministic deposit address plus the fee/minimum terms — directly from the GaslessLayer.
+
+```ts
+import { getGaslessDepositPolicy } from "@symmio/trading-core";
+
+const policy = await getGaslessDepositPolicy(config, { owner });
+showDepositAddress(policy.depositAddress);
+```
+
+Four RPC reads (the service exposes no read endpoints): `getGaslessWalletAddress(owner)`, `collateralToken()`, `depositFee()`, `minimumDeposit()`. The deposit address is a pure `CREATE2` view — safe to display before any transaction — and collateral sent there can only ever reach a sub-account owned by `owner`.
+
+Watch the address's balance with the existing collateral-balance read and enable settlement once it reaches `settlementMinimum`:
+
+```ts
+const observed = await getCollateralBalance(config, { owner: policy.depositAddress });
+const canSettle = observed >= policy.settlementMinimum;
+```
+
+<Callout type="warning">
+  Send **only** the configured collateral token to the address — nothing else is swept, and the settlement consumes the
+  **entire observed balance** (additional funds arriving before settlement settle together, with one flat fee off the
+  top).
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="owner" type="Address" required>
+    The owner wallet onboarding through gasless deposit.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GetGaslessDepositPolicyReturnType>">
+  <Property name="depositAddress" type="Address">
+    The owner's deterministic deposit address (their gasless wallet).
+  </Property>
+  <Property name="collateralTokenAddress" type="Address">
+    The only token the settlement sweeps.
+  </Property>
+  <Property name="depositFee" type="bigint">
+    Flat fee deducted from the observed balance at settlement (raw units).
+  </Property>
+  <Property name="minimumDeposit" type="bigint">
+    Minimum observed balance the service will settle (raw units).
+  </Property>
+  <Property name="settlementMinimum" type="bigint">
+    `max(minimumDeposit, depositFee + 1n)` — the balance that actually settles: it must both clear the minimum and
+    exceed the flat fee. Gate the settlement UI on this.
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmError("api", "GASLESS_WALLET_UNAVAILABLE")` — the gateway returned the zero address for the owner's wallet.
+- Viem read errors.

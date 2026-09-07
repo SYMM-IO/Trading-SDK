@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # forceCancelCloseRequest
 
 Force-cancel a stalled pending close. Only valid once the quote is `CANCEL_CLOSE_PENDING` — you called [`requestToCancelCloseRequest`](/core/symmio-contract/request-to-cancel-close-request) and partyB never acted — **and** the force-cancel-close cooldown has elapsed. The quote returns to `OPENED`. Routed through `AccountLayer._call(account, …)`, so the connected wallet must be the subaccount's `owner`.
@@ -26,6 +28,10 @@ const hash = await forceCancelCloseRequest(config, { account: "0xsub…", quoteI
   <Property name="chainId" type="number" optional>
     Optional chain override.
   </Property>
+  <Property name="gasless" type="boolean | GaslessWriteOptions" optional>
+    Relay this write through the [gasless execution mode](/core/gasless/relayable-writes) instead of the wallet. A
+    boolean for the common case, or a per-call `GaslessWriteOptions` bag; omitted, the chain's `execution.mode` decides.
+  </Property>
 </Properties>
 
 ## Returns
@@ -46,3 +52,12 @@ useMutation(forceCancelCloseRequestMutationOptions(config));
 - [getCoolDownsOfMA](/core/symmio-contract/get-cool-downs-of-ma) — index 2 is the force-cancel-close cooldown gating this call.
 - [React `useForceCancelCloseRequest`](/react/quotes#useforcecancelcloserequest) — the hook wrapper.
 - [Cancel a close](/core/symmio-contract#cancel-a-close) — the full lifecycle.
+
+## Gasless execution
+
+<Callout type="info">
+  `forceCancelCloseRequest` is relayable through the [gasless execution mode](/core/gasless/relayable-writes) — pass
+  `gasless: true` (or set the chain's `execution.mode` to `"gasless"`) and the SDK signs the same calldata as an
+  InstantLayer operation, relays it, and returns the relayer’s broadcast hash; the return type and receipt behavior are
+  unchanged.
+</Callout>

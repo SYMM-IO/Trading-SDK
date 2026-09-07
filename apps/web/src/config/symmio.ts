@@ -28,5 +28,33 @@ export const symmioChains: CreateConfigParameters["symmioConfig"] = {
     addresses: {
       affiliatesAddress: AFFILIATE_BY_CHAIN[SymmioSupportedChainId.ARBITRUM],
     },
+    /**
+     * Overrides no address: the registry's built-in Arbitrum block already is
+     * this deployment, so restating its values would only fill the config panel
+     * with overrides that equal their own defaults.
+     *
+     * Two fields the registry cannot supply:
+     *
+     * `url` — the registry points at the vendor origin, which a browser cannot
+     * use: reaching it needs the gateway client key, and a key in the bundle is
+     * a leaked key. `/api/gasless/staging` is this app's proxy, which injects
+     * the key server-side. The path names its deployment so the proxy can
+     * refuse a request meant for the other one.
+     *
+     * `execution.mode` — without it the dispatcher's `enabled` stays `false`
+     * and every relayable write silently falls through to `writeContract`,
+     * which is a dead end on a wallet holding no native token. `fallback` stays
+     * at its default (`"error"`): a wallet fallback is worth having where the
+     * user can actually pay gas, but here it would trade a precise relay error
+     * for an out-of-gas one and hide why the relay was refused.
+     *
+     * Only `mode` and `fallback` belong under `execution` — the block is
+     * JSON-persisted through the config overrides store, so a function
+     * (`onEvent`) would not survive a reload.
+     */
+    gasless: {
+      url: "/api/gasless/staging",
+      execution: { mode: "gasless" },
+    },
   },
 };

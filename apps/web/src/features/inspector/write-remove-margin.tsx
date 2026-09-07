@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import {
   useDeallocateUpnlSig,
   useRemoveMargin,
@@ -33,6 +34,8 @@ export function WriteRemoveMargin() {
 
   const mutation = useRemoveMargin();
 
+  const gasless = useGaslessWriteOption("removeMargin");
+
   /** Fetches the fresh Muon uPnL signature the simulate/dry-run needs. */
   const deallocateSig = useDeallocateUpnlSig();
   /** Dry-run `removeMargin` (needs the fetched uPnL signature). */
@@ -55,6 +58,7 @@ export function WriteRemoveMargin() {
       testId="method-removeMargin"
       name="removeMargin"
       mutability="nonpayable"
+      gaslessRelayable
       description="Remove margin from a virtual account (deallocate). Sending fetches a fresh Muon uPnL signature automatically; subject to the on-chain deallocate debounce."
     >
       <VirtualAccountField
@@ -110,7 +114,7 @@ export function WriteRemoveMargin() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validVa || validAmount === undefined) return;
-            mutation.mutate({ virtualAccount: validVa, amount: validAmount });
+            mutation.mutate({ virtualAccount: validVa, amount: validAmount, gasless });
           }}
           data-testid="button-send-remove-margin"
         >

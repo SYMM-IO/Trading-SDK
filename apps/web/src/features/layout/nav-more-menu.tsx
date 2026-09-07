@@ -16,6 +16,7 @@ const ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElement> = 
   "/orderbook": OrderbookIcon,
   "/pools": PoolsIcon,
   "/muon": MuonIcon,
+  "/gasless": GaslessIcon,
   "/session-keys": KeyIcon,
   "/config": GearIcon,
 };
@@ -272,6 +273,23 @@ function GearIcon(props: SVGProps<SVGSVGElement>) {
     >
       <circle cx="12" cy="12" r="3.25" />
       <path d="M12 2.5v2.5M12 19v2.5M21.5 12H19M5 12H2.5M18.7 5.3 16.9 7.1M7.1 16.9l-1.8 1.8M18.7 18.7 16.9 16.9M7.1 7.1 5.3 5.3" />
+    </svg>
+  );
+}
+
+function GaslessIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
     </svg>
   );
 }

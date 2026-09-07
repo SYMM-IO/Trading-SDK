@@ -9,6 +9,7 @@ import {
 } from "@/config/symmio-config-schema";
 import { CopyButton } from "@symmio/ui/components/copy-button";
 import { Input } from "@symmio/ui/components/input";
+import { Switch } from "@symmio/ui/components/switch";
 import { cn } from "@symmio/ui/lib/utils";
 import { shortenAddress } from "@symmio/utils";
 import type { CSSProperties } from "react";
@@ -29,9 +30,9 @@ function shortDisplay(field: ConfigFieldDef, value: string): string {
 }
 
 /**
- * One editable field of a chain config: an input that surfaces whether it
- * diverges from the SDK default, with a reset affordance and the default value
- * for reference.
+ * One editable field of a chain config: an input — or a switch, for a `toggle`
+ * field — that surfaces whether it diverges from the SDK default, with a reset
+ * affordance and the default value for reference.
  */
 export function ConfigFieldRow({ field, chainId, value, onChange, index }: Props) {
   const id = `cfg-${chainId}-${field.group}-${field.key}`;
@@ -80,22 +81,38 @@ export function ConfigFieldRow({ field, chainId, value, onChange, index }: Props
         ) : null
       }
     >
-      <Input
-        id={id}
-        value={value}
-        spellCheck={false}
-        autoComplete="off"
-        autoCorrect="off"
-        inputMode={field.kind === "decimals" ? "numeric" : undefined}
-        aria-invalid={error ? true : undefined}
-        placeholder={def}
-        onChange={(event) => onChange(event.target.value)}
-        className={cn(
-          "h-10",
-          mono && "font-mono text-[13px]",
-          overridden && !error && "border-info/45 bg-info/4 focus-visible:border-info",
-        )}
-      />
+      {field.kind === "toggle" ? (
+        <div
+          className={cn(
+            "border-border/70 flex h-10 items-center justify-between gap-3 rounded-lg border px-3",
+            overridden && "border-info/45 bg-info/4",
+          )}
+        >
+          <span className="text-muted-foreground font-mono text-[13px]">{value}</span>
+          <Switch
+            id={id}
+            checked={value === field.toggle?.on}
+            onCheckedChange={(next) => onChange(next ? (field.toggle?.on ?? "") : (field.toggle?.off ?? ""))}
+          />
+        </div>
+      ) : (
+        <Input
+          id={id}
+          value={value}
+          spellCheck={false}
+          autoComplete="off"
+          autoCorrect="off"
+          inputMode={field.kind === "decimals" ? "numeric" : undefined}
+          aria-invalid={error ? true : undefined}
+          placeholder={def}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(
+            "h-10",
+            mono && "font-mono text-[13px]",
+            overridden && !error && "border-info/45 bg-info/4 focus-visible:border-info",
+          )}
+        />
+      )}
     </Field>
   );
 }
