@@ -3,12 +3,14 @@
 import { AddressTag } from "@/components/address-tag";
 import { DataList, DataRow } from "@/components/data-list";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
+import { formatUsd } from "@/lib/format";
 import {
   SubAccountIsolationType,
   useCollateralBalance,
   useGaslessDepositPolicy,
   useSettleGaslessDepositNewAccount,
   useSymmioChainId,
+  useSymmioConfig,
   useWalletAccount,
 } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
@@ -25,6 +27,7 @@ import { storeGaslessRequest } from "./gasless-request-storage";
 export function GaslessDepositCard() {
   const { address, isConnected } = useWalletAccount();
   const chainId = useSymmioChainId();
+  const { collateralDecimals } = useSymmioConfig().getChainConfig(chainId).addresses;
 
   const policy = useGaslessDepositPolicy({
     owner: address ?? zeroAddress,
@@ -62,11 +65,20 @@ export function GaslessDepositCard() {
           <DataList>
             <DataRow label="Deposit address" value={<AddressTag address={policy.data.depositAddress} />} />
             <DataRow label="Collateral token" value={<AddressTag address={policy.data.collateralTokenAddress} />} />
-            <DataRow label="Flat fee (raw)" value={policy.data.depositFee.toString()} mono />
-            <DataRow label="Settlement minimum (raw)" value={policy.data.settlementMinimum.toString()} mono />
+            <DataRow label="Deposit fee" value={`${formatUsd(policy.data.depositFee, collateralDecimals)} USDC`} mono />
             <DataRow
-              label="Observed balance (raw)"
-              value={observed.data !== undefined ? observed.data.toString() : "…"}
+              label="Minimum deposit"
+              value={`${formatUsd(policy.data.minimumDeposit, collateralDecimals)} USDC`}
+              mono
+            />
+            <DataRow
+              label="Settlement minimum"
+              value={`${formatUsd(policy.data.settlementMinimum, collateralDecimals)} USDC`}
+              mono
+            />
+            <DataRow
+              label="Observed balance"
+              value={observed.data !== undefined ? `${formatUsd(observed.data, collateralDecimals)} USDC` : "…"}
               mono
             />
           </DataList>
