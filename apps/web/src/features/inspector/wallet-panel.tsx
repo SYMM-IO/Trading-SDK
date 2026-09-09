@@ -64,7 +64,7 @@ export function WalletPanel() {
               data-testid="switch-chain"
             >
               {switchStatus === "pending" ? <Spinner className="size-4" /> : null}
-              Switch to HyperEVM
+              Switch to Arbitrum
             </Button>
           )}
 

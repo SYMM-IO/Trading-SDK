@@ -17,7 +17,7 @@ import { getChainConfig } from "./get-chain-config";
  *
  * @example
  * ```ts
- * const solver = getDefaultSolver(SymmioSupportedChainId.HYPER_EVM);
+ * const solver = getDefaultSolver(SymmioSupportedChainId.ARBITRUM);
  * console.log(solver.url); // "https://solver.enigma.bz/api"
  * ```
  */

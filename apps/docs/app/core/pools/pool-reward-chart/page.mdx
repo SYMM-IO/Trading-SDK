@@ -19,7 +19,7 @@ One `GET /v2/market/chart/rewards` against the chain's listing backend. **Public
 
 ## Addressing a pool: two chain ids
 
-The endpoint takes the pool's token contract address **and the chain that token lives on**. That is not the same thing as the SDK's `chainId`, which selects which deployment's listing backend to ask — a pool whose token is on Solana still trades on the HyperEVM deployment.
+The endpoint takes the pool's token contract address **and the chain that token lives on**. That is not the same thing as the SDK's `chainId`, which selects which deployment's listing backend to ask — a pool whose token is on Solana still trades on the Arbitrum deployment.
 
 <Callout type="warning">
   `marketChainId` is `ListingMarket.chainId` — the **deposit** chain, a `ListingDepositChainId`, where `SOLANA = 0` is a

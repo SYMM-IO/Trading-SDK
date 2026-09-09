@@ -30,7 +30,7 @@ describe("getOpenInterestBySymbolIdQueryOptions", () => {
   });
 
   it("builds a stable key including the chain id and symbolId", () => {
-    const key = getOpenInterestBySymbolIdQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM, symbolId: 132 });
-    expect(key).toEqual(["getOpenInterestBySymbolId", { chainId: SymmioSupportedChainId.HYPER_EVM, symbolId: 132 }]);
+    const key = getOpenInterestBySymbolIdQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM, symbolId: 132 });
+    expect(key).toEqual(["getOpenInterestBySymbolId", { chainId: SymmioSupportedChainId.ARBITRUM, symbolId: 132 }]);
   });
 });

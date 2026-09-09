@@ -34,14 +34,14 @@ const SETTLED_STATUSES = new Set<ListingMarketStatus>([
  * (listed / rejected / delisted). Deposit chains come from the listing config
  * through {@link DepositChainSelect}, mirroring the create-pool card.
  *
- * Enigma-only: the listing backend lives on HyperEVM, so the card is gated on
+ * Enigma-only: the listing backend lives on Arbitrum, so the card is gated on
  * Enigma being the active solver, mirroring the other Listing cards.
  */
 export function ListingStatusCard() {
   const enigmaActive = useSolverKindActive("enigma");
 
   const [tokenContractAddress, setTokenContractAddress] = useState("");
-  const [depositChain, setDepositChain] = useState<ListingDepositChainId>(ListingDepositChainId.HYPER_EVM);
+  const [depositChain, setDepositChain] = useState<ListingDepositChainId>(ListingDepositChainId.ARBITRUM_ONE);
 
   const address = tokenContractAddress.trim();
   const status = useListingStatus({
@@ -68,7 +68,7 @@ export function ListingStatusCard() {
     >
       {!enigmaActive ? (
         <ResultNote testId="listing-status-gate">
-          Switch to Enigma (HyperEVM) to read a market&rsquo;s listing status.
+          Switch to Enigma (Arbitrum) to read a market&rsquo;s listing status.
         </ResultNote>
       ) : (
         <div className="flex flex-col gap-4">

@@ -113,7 +113,7 @@ function AccountMenu({ address, chainId, isOnExpectedChain }: AccountMenuProps) 
               data-testid="wallet-switch-chain"
             >
               {switchStatus === "pending" ? <Spinner className="size-4" /> : null}
-              Switch to HyperEVM
+              Switch to Arbitrum
             </Button>
           ) : null}
           <Button

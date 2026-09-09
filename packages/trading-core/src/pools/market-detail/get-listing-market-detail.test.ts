@@ -15,7 +15,7 @@ vi.mock("../types/generated/listing-backend", async (importOriginal) => {
 
 import { getListingMarketDetail } from "./get-listing-market-detail";
 
-const LISTING_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).listing?.url;
+const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url;
 const TOKEN = "0x800822d361335b4d5F352Dac293cA4128b5B605f";
 
 /** A live SYMM detail row, trimmed to the fields this test reads back. */

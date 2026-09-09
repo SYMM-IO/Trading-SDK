@@ -4,7 +4,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig } from "../../../shared/test/mock-config";
 import { generateAccountManagerAddress } from "./generate-account-manager-address";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const REGISTRANT: Address = "0x1111111111111111111111111111111111111111";
 const PREDICTED: Address = "0xaff1aff1aff1aff1aff1aff1aff1aff1aff1aff1";
 

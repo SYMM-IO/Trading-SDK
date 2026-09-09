@@ -29,11 +29,11 @@ describe("getSolverErrorCodesQueryOptions", () => {
   });
 
   it("builds a stable key", () => {
-    const key = getSolverErrorCodesQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM });
+    const key = getSolverErrorCodesQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM });
     expect(key).toEqual([
       "getSolverErrorCodes",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
       },
     ]);
   });

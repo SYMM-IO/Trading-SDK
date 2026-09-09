@@ -70,14 +70,14 @@ describe("generateAccountManagerAddressQueryOptions", () => {
 
   it("builds a stable key", () => {
     const key = generateAccountManagerAddressQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       registrant: REGISTRANT,
       name: "Acme",
     });
     expect(key).toEqual([
       "generateAccountManagerAddress",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         registrant: REGISTRANT,
         name: "Acme",
       },
@@ -89,7 +89,7 @@ describe("generateAccountManagerAddressQueryOptions", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1", symmioAddress: CUSTOM_SYMMIO },
         },
       },

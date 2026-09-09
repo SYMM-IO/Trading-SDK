@@ -15,16 +15,16 @@ import { createConfig, type Config } from "@symmio/trading-core";
 ```ts
 import { createConfig, SymmioSupportedChainId } from "@symmio/trading-core";
 import { createPublicClient, createWalletClient, http, zeroAddress } from "viem";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 
-const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
-const walletClient = createWalletClient({ account, chain: hyperEvm, transport: http() });
+const publicClient = createPublicClient({ chain: arbitrum, transport: http() });
+const walletClient = createWalletClient({ account, chain: arbitrum, transport: http() });
 
 const config = createConfig({
   symmioConfig: {
     // `zeroAddress` works out of the box (no fee share);
     // swap in your registered affiliate to earn fees.
-    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } }, // enigma / lowcap
+    [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: zeroAddress } }, // enigma / lowcap
     // Base requires a registered (non-zero) affiliate; the built-in default is used when omitted.
     [SymmioSupportedChainId.BASE]: { addresses: { affiliatesAddress: "0x45Eecd7B4f442388ACD90467E423A5CAAC3a9C3f" } }, // rasa / majors
   },
@@ -46,7 +46,7 @@ The config is meant to be created once at app start and shared across every call
 
 `SymmioChainConfigInput` makes the affiliate mandatory in the type: every field is optional to override **except** `addresses.affiliatesAddress`, so a chain entry without an affiliate is a compile error.
 
-Per-chain SYMMIO configuration, keyed by chain id, deep-merged onto the SDK's built-in defaults. Each entry may override that chain's `contractsVersion`, `addresses`, `subgraphs`, `solvers`, `priceService`, and `muon` endpoints — point at a staging subgraph, override an address, and so on. `contractsVersion` (`"0.8.5" | "0.8.6"`) declares the perps-core generation the chain's deployment runs — built-ins: HyperEVM and Base are `"0.8.5"`, Arbitrum is `"0.8.6"` — and drives which quote-send call the instant-open flow signs, the session-key selector set, and the withdraw-request decode; see [Solvers & Chains](/core/concepts/solvers-and-chains#contracts-version-is-a-chain-axis). **Notifications config is per-solver**, so it lives under `solvers[solverId].notifications` (resolve it at runtime with `config.getSolver({ chainId, solverId }).notifications`), not at the chain level.
+Per-chain SYMMIO configuration, keyed by chain id, deep-merged onto the SDK's built-in defaults. Each entry may override that chain's `contractsVersion`, `addresses`, `subgraphs`, `solvers`, `priceService`, and `muon` endpoints — point at a staging subgraph, override an address, and so on. `contractsVersion` (`"0.8.5" | "0.8.6"`) declares the perps-core generation the chain's deployment runs — built-ins: Base is `"0.8.5"`, while Arbitrum is `"0.8.6"` — and drives which quote-send call the instant-open flow signs, the session-key selector set, and the withdraw-request decode; see [Solvers & Chains](/core/concepts/solvers-and-chains#contracts-version-is-a-chain-axis). **Notifications config is per-solver**, so it lives under `solvers[solverId].notifications` (resolve it at runtime with `config.getSolver({ chainId, solverId }).notifications`), not at the chain level.
 
 Its one mandatory field is **`addresses.affiliatesAddress`** for every supported chain: your frontend's on-chain **affiliate** (your identity in SYMMIO on that chain), attached to every quote (`sendQuote`) so the protocol knows who sourced the trade and routes your share of the trading fee to you. Affiliate addresses are **per chain** — a registration on one chain is not valid on another. Registration lets your affiliate **collect a share of the trading fees**. <AffiliateLink>Register your affiliate</AffiliateLink> and set the registered address here.
 
@@ -103,7 +103,7 @@ The returned `Config` is immutable. It exposes:
 - `getChainConfigKey(chainId?): string` — stable fingerprint of a chain's resolved config, folded into every query key so overrides do not serve stale cache. Returns a `"unsupported"` sentinel for unknown chains (never throws).
 - `getClient({ chainId? }): PublicClient` — resolves the read client.
 - `getWalletClient({ chainId?, from? }): Promise<SymmioWalletClient>` — resolves the write client. Throws `NO_WALLET_CLIENT` when `getWalletClient` was not supplied.
-- `getDefaultSolverId(chainId?): SolverId` — the chain's default solver kind (`"enigma"` on HyperEVM, `"rasa"` on Base), used when an action or hook omits `solverId`. See [Solvers & Chains](../solvers-and-chains).
+- `getDefaultSolverId(chainId?): SolverId` — the chain's default solver kind (`"enigma"` on Arbitrum, `"rasa"` on Base), used when an action or hook omits `solverId`. See [Solvers & Chains](../solvers-and-chains).
 - `getWebSocketConstructor(): WebSocketConstructor` — returns the injected constructor or the global `WebSocket`. Throws `NO_WEBSOCKET` when neither is available.
 
 ## `ConfigParameter`

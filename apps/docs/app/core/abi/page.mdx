@@ -30,10 +30,10 @@ The current version is `v0.8.6` — sourced from [`@symm-io/perps-core`](https:/
 
 ```ts
 import { createPublicClient, http } from "viem";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { accountLayerAbi } from "@symmio/trading-core";
 
-const client = createPublicClient({ chain: hyperEvm, transport: http() });
+const client = createPublicClient({ chain: arbitrum, transport: http() });
 
 const result = await client.readContract({
   address: "0x…",

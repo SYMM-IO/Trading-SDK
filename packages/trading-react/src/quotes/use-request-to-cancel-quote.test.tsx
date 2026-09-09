@@ -17,7 +17,7 @@ import {
 } from "../test/test-utils";
 import { useRequestToCancelQuote } from "./use-request-to-cancel-quote";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const QUOTE_ID = 42n;
 
@@ -90,7 +90,7 @@ describe("useRequestToCancelQuote", () => {
     });
 
     await waitFor(() => expect(invalidate).toHaveBeenCalled());
-    const configKey = config.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM);
+    const configKey = config.getChainConfigKey(SymmioSupportedChainId.ARBITRUM);
     /** Run every predicate the mutation handed to `invalidateQueries` against one key. */
     const matches = (key: QueryKey) =>
       invalidate.mock.calls.some(([filters]) => {

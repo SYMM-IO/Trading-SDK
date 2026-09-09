@@ -88,7 +88,7 @@ export function UserRewardsCard() {
     >
       {!enigmaActive ? (
         <ResultNote testId="user-rewards-gate">
-          Switch to Enigma (HyperEVM) to sign in and read your rewards.
+          Switch to Enigma (Arbitrum) to sign in and read your rewards.
         </ResultNote>
       ) : !signedIn ? (
         <SignInNote testId="user-rewards-idle" buttonTestId="user-rewards-sign-in">

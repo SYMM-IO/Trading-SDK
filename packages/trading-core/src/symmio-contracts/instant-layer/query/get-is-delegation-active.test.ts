@@ -59,7 +59,7 @@ describe("getIsDelegationActiveQueryOptions", () => {
 
   it("builds a stable key", () => {
     const key = getIsDelegationActiveQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       account: ACCOUNT,
       delegate: DELEGATE,
       selector: SELECTOR,
@@ -67,7 +67,7 @@ describe("getIsDelegationActiveQueryOptions", () => {
 
     expect(key).toEqual([
       "getIsDelegationActive",
-      { chainId: SymmioSupportedChainId.HYPER_EVM, account: ACCOUNT, delegate: DELEGATE, selector: SELECTOR },
+      { chainId: SymmioSupportedChainId.ARBITRUM, account: ACCOUNT, delegate: DELEGATE, selector: SELECTOR },
     ]);
   });
 });

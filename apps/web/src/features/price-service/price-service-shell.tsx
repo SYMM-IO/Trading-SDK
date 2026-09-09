@@ -18,7 +18,7 @@ import { WatchPrices } from "./watch-prices";
  * Price-service page.
  *
  * The first group is provider-agnostic: switching the solver target switches the
- * price source (Enigma's lowcap service on HyperEVM, Binance USD-M Futures on
+ * price source (Enigma's lowcap service on Arbitrum, Binance USD-M Futures on
  * Base) with no other change. The Enigma-only groups below call that vendor
  * directly and therefore throw `UNSUPPORTED_BY_PRICE_SERVICE` on a chain whose
  * configured provider is not Enigma.

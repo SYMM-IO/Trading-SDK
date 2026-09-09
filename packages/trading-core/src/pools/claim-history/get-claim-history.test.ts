@@ -15,7 +15,7 @@ vi.mock("../types/generated/listing-backend", async (importOriginal) => {
 
 import { getClaimHistory } from "./get-claim-history";
 
-const LISTING_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).listing?.url;
+const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url;
 
 describe("getClaimHistory", () => {
   beforeEach(() => {

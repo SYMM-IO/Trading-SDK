@@ -65,7 +65,7 @@ export interface SymmioProviderProps {
  * ```tsx
  * <WagmiProvider config={wagmiConfig}>
  *   <QueryClientProvider client={queryClient}>
- *     <SymmioProvider symmioConfig={{ [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0x…" } } }}>
+ *     <SymmioProvider symmioConfig={{ [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: "0x…" } } }}>
  *       <App />
  *     </SymmioProvider>
  *   </QueryClientProvider>

@@ -5,10 +5,11 @@ import { isChainSupported } from "./is-chain-supported";
 
 describe("isChainSupported", () => {
   it("returns true for a chain with a built-in config", () => {
-    expect(isChainSupported(SymmioSupportedChainId.HYPER_EVM)).toBe(true);
+    expect(isChainSupported(SymmioSupportedChainId.ARBITRUM)).toBe(true);
   });
 
   it("returns false for a chain without a built-in config", () => {
     expect(isChainSupported(mainnet.id)).toBe(false);
+    expect(isChainSupported(999)).toBe(false);
   });
 });

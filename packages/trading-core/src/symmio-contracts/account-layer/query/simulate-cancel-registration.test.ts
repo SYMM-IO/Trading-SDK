@@ -4,7 +4,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig } from "../../../shared/test/mock-config";
 import { simulateCancelRegistrationMutationOptions } from "./simulate-cancel-registration";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const AFFILIATE: Address = "0xaff1aff1aff1aff1aff1aff1aff1aff1aff1aff1";
 const FROM: Address = "0x1111111111111111111111111111111111111111";
 

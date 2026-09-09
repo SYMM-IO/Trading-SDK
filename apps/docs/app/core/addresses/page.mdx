@@ -17,12 +17,12 @@ import { createConfig, SymmioSupportedChainId } from "@symmio/trading-core";
 
 const config = createConfig({
   symmioConfig: {
-    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+    [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
   },
   getClient: () => publicClient,
 });
 
-const chain = config.getChainConfig(999);
+const chain = config.getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 chain.addresses.symmioAddress;
 chain.addresses.instantLayerAddress;
@@ -40,7 +40,7 @@ Every entry is a `SymmioChainConfig` — the fully-resolved settings for one cha
 
 <Properties>
   <Property name="chainId" type="number">
-    Numeric chain id (e.g. `999` for HyperEVM).
+    Numeric chain id (for example, `42161` for Arbitrum One).
   </Property>
   <Property name="addresses" type="SymmioContractAddresses">
     On-chain contract addresses (detailed below).
@@ -50,15 +50,15 @@ Every entry is a `SymmioChainConfig` — the fully-resolved settings for one cha
   </Property>
   <Property name="solvers" type="Record<SolverId, SymmioSolverConfig>">
     Solver / hedger REST API, TP/SL handler, optional per-solver price service, and the required per-solver
-    `notifications` config, keyed by solver id (`"enigma"` / `"rasa"`). HyperEVM carries the `enigma` solver; Base carries
+    `notifications` config, keyed by solver id (`"enigma"` / `"rasa"`). Arbitrum carries the `enigma` solver; Base carries
     `rasa`. Resolve one with `config.getSolver({ chainId, solverId })`.
   </Property>
   <Property name="defaultSolverId" type="SolverId">
-    The solver an action or hook resolves when `solverId` is omitted — `enigma` on HyperEVM, `rasa` on Base. Read it at
+    The solver an action or hook resolves when `solverId` is omitted — `enigma` on Arbitrum, `rasa` on Base. Read it at
     runtime with `config.getDefaultSolverId(chainId?)`.
   </Property>
   <Property name="priceService" type="SymmioPriceServiceConfig">
-    Price provider — the Enigma price service on HyperEVM (`type: "enigma"`), or Binance USD-M Futures on Base (`type:
+    Price provider — the Enigma price service on Arbitrum (`type: "enigma"`), or Binance USD-M Futures on Base (`type:
     "binance"`). Both expose REST + WebSocket.
   </Property>
   <Property name="muon" type="SymmioMuonConfig">
@@ -67,7 +67,7 @@ Every entry is a `SymmioChainConfig` — the fully-resolved settings for one cha
   <Property name="listing" type="SymmioListingConfig" optional>
     The [Pools](/core/pools) listing backend — a single `url`, and that `url` is the **host root**: no version segment
     and no trailing slash, because the generated client's own paths already begin with `/v2`. Chain-level rather than
-    per-solver, since several solvers on one chain could share one deployment. Present only on HyperEVM today. See [Pools
+    per-solver, since several solvers on one chain could share one deployment. Present only on Arbitrum today. See [Pools
     listing service](/core/concepts/solvers-and-chains#pools-listing-service).
   </Property>
   <Property name="inventory" type="SymmioInventoryConfig" optional>
@@ -76,7 +76,7 @@ Every entry is a `SymmioChainConfig` — the fully-resolved settings for one cha
     already begin with `/api/v1`, so appending `/api` here would request `/api/api/v1/…` and 404. Chain-level, and
     unlike `listing` there is no solver capability to declare — a chain either carries the block or it does not, which
     is why [`resolveInventoryService`](/core/inventory/resolve-inventory-service) takes a bare `chainId`. Missing, it
-    throws `INVENTORY_NOT_CONFIGURED`. Present only on HyperEVM today.
+    throws `INVENTORY_NOT_CONFIGURED`. Present only on Arbitrum today.
   </Property>
 </Properties>
 
@@ -139,16 +139,22 @@ Everything else (subgraph, Muon gateways, the chain-level price service) lives o
 
 Two chains ship in the registry — each runs a different solver kind and product. See [Solvers & Chains](/core/concepts/solvers-and-chains) for how the two axes fit together.
 
-### HyperEVM (999) — enigma / lowcap
+### Arbitrum (42161) — enigma / lowcap
 
-- `symmioAddress` — `0x57331038c21982116EE9b0906E4a5c5cB52dcE2e`
-- `instantLayerAddress` — `0x72DBF07457b2712b160F67A85D338F860c1CA620`
-- `accountLayerAddress` — `0x46493c376758Da47823D7E3Ae5d417eA6546eEB3`
-- `affiliatesAddress` — `0xBcB033C9154401fA000a1Ae60843f79f45741b7c` (built-in default; override it per chain via the required `symmioConfig[chainId].addresses.affiliatesAddress` — set your <AffiliateLink>registered affiliate</AffiliateLink> to earn a share of the trading fees)
-- `collateralAddress` — `0xb88339CB7199b77E23DB6E890353E22632Ba630f` (USDC, 6 decimals)
-- `solvers.enigma.address` — `0x76bc5889c0cfcC20960b0D81F541595d81a95122`, `defaultSolverId: "enigma"`
-- `solvers.enigma.tpsl.cohWalletAddress` — `0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31`
+- `contractsVersion` — `"0.8.6"`
+- `symmioAddress` — `0x57331027091994FCb9c5Aec48ea92cEf0a93CF6A`
+- `instantLayerAddress` — `0xCB8F789d6f7e59B3D266490e1Aa8e35cFb755132`
+- `accountLayerAddress` — `0x573310d1D6ec18cB21E1aB949414470D9bf5c24E`
+- `affiliatesAddress` — `0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D` (built-in default; override it per chain via the required `symmioConfig[chainId].addresses.affiliatesAddress` — set your <AffiliateLink>registered affiliate</AffiliateLink> to earn a share of the trading fees)
+- `collateralAddress` — `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` (native USDC, 6 decimals)
+- `solvers.enigma.address` — `0x0420b24359d2DCccA53904042aa36A641162445c`, `defaultSolverId: "enigma"`
+- `solvers.enigma.url` — `https://solver.enigma.bz/api`
+- `solvers.enigma.tpsl.url` — `https://tpsl.enigma.bz`
+- `solvers.enigma.tpsl.appName` — `Arbitrum_COH_Production`
+- `solvers.enigma.tpsl.cohWalletAddress` — `0xFC3a98d30AdAA220Ae4150fcaC06Bd200b6E146B`
 - `solvers.enigma.notifications.protocol` — `"enigma"` (carries a `searchUrl` — the notification service)
+- `subgraphs.analytics` — `https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-mainnet-analytics/latest/gn`
+- `subgraphs.events` — `https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-mainnet-events/stage/gn`
 - `priceService.type` — `"enigma"`
 - `listing.url` — `https://listing85.enigma.bz` (the Pools listing backend; host root, no `/v2`)
 - `inventory.url` — `https://inventory85.enigma.bz` (the custody backend behind the Pools; host root, no `/api`)
@@ -166,10 +172,9 @@ Two chains ship in the registry — each runs a different solver kind and produc
 
 <Callout type="warning">
   **Base is staging-configured.** The rasa `solver.url` points at a staging host (`stage-archon.rasa.capital`), and the
-  **subgraph endpoints are HyperEVM placeholders** (they return HyperEVM data, not Base data) until Base's own subgraphs
-  ship — override them via `symmioConfig[8453].subgraphs` when you have real endpoints. Base has **no `tpsl` block**:
-  the COH wallet is not deployed yet, so conditional orders (TP/SL) are unsupported on Base. Muon gateways are real
-  (Muon is deployment-agnostic). Swap the staging solver URL for production when it's published.
+  chain has **no `tpsl` block**: the COH wallet is not deployed yet, so conditional orders (TP/SL) are unsupported on
+  Base. Its contract addresses and subgraphs are production values. Muon gateways are real (Muon is
+  deployment-agnostic). Swap the staging solver URL for production when it's published.
 </Callout>
 
 Each entry also carries URLs for the solver, price service, notifications, subgraphs, and Muon gateways.
@@ -182,7 +187,7 @@ Override any field at runtime via `createConfig({ symmioConfig })`. Deep-merged 
 const config = createConfig({
   getClient: () => publicClient,
   symmioConfig: {
-    999: {
+    [SymmioSupportedChainId.ARBITRUM]: {
       addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" },
       subgraphs: {
         analytics: "https://staging.example/subgraphs/analytics",

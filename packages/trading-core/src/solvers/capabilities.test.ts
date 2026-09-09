@@ -6,11 +6,11 @@ import { getSolverCapabilities, supportsGroupClose, supportsLimitOrder } from ".
 
 /** The shipped registry (no overrides). */
 const config = createConfig({ getClient: () => ({}) as PublicClient, symmioConfig: {} });
-const HYPER = SymmioSupportedChainId.HYPER_EVM;
+const HYPER = SymmioSupportedChainId.ARBITRUM;
 const BASE = SymmioSupportedChainId.BASE;
 
 describe("getSolverCapabilities / supportsGroupClose / supportsLimitOrder", () => {
-  it("HyperEVM enigma: group close, no limit orders", () => {
+  it("Arbitrum enigma: group close, no limit orders", () => {
     expect(getSolverCapabilities(config, { chainId: HYPER })).toEqual({
       groupClose: true,
       limitOrder: false,

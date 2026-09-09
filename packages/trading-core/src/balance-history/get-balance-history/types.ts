@@ -74,7 +74,7 @@ export type InternalTransfersMode =
  * @remarks
  * `amount` is a raw `bigint` in the **collateral token's decimals** (not 18) —
  * scale it with `config.getChainConfig(chainId).addresses.collateralDecimals`
- * (6 on HyperEVM) for display.
+ * (6 on Arbitrum) for display.
  */
 export interface BalanceHistoryRow {
   /** Subgraph entity id (use as a stable row key). */

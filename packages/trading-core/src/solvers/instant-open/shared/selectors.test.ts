@@ -12,10 +12,10 @@ import {
 } from "./selectors";
 
 describe("getInstantTradeRequiredSelectors", () => {
-  it("resolves the legacy set on a v0.8.5 chain (HyperEVM)", () => {
+  it("resolves the legacy set on a v0.8.5 chain (Base)", () => {
     const { config } = mockConfig();
 
-    const selectors = getInstantTradeRequiredSelectors(config, { chainId: SymmioSupportedChainId.HYPER_EVM });
+    const selectors = getInstantTradeRequiredSelectors(config, { chainId: SymmioSupportedChainId.BASE });
 
     expect(selectors).toBe(LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS);
   });

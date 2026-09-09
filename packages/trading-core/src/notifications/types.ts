@@ -64,7 +64,7 @@ export type NotificationSearchFilter = Partial<Record<NotificationSearchField, N
  */
 export interface NotificationDocument {
   id?: string;
-  /** Publishing app / channel identity, e.g. `"Hyper-EVM_Solver-Low-Cap_Production"`. */
+  /** Publishing app / channel identity, e.g. `"Arbitrum_Solver-Low-Cap_Production"`. */
   app_name?: string;
   /** SubAccount address the notification belongs to. */
   address?: string;

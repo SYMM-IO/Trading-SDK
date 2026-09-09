@@ -35,13 +35,13 @@ describe("getEnigmaPriceServicePricesByAddressesQueryOptions", () => {
 
   it("builds a stable key", () => {
     const key = getEnigmaPriceServicePricesByAddressesQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       addresses: ["0xabc", "0xdef"],
     });
     expect(key).toEqual([
       "getEnigmaPriceServicePricesByAddresses",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         addresses: ["0xabc", "0xdef"],
       },
     ]);

@@ -18,7 +18,7 @@ vi.mock("../types/generated/listing-backend", async (importOriginal) => {
 
 import { updateListingMarketConfig } from "./update-listing-market-config";
 
-const LISTING_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).listing?.url;
+const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url;
 
 const PARAMETERS = {
   accessToken: "eyJhbGc.header.sig",

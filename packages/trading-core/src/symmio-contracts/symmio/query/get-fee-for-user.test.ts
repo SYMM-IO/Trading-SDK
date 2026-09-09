@@ -45,7 +45,7 @@ describe("getFeeForUserQueryOptions", () => {
 
   it("builds a stable key", () => {
     const key = getFeeForUserQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       affiliate: AFFILIATE,
       user: USER,
       symbolId: 7,
@@ -54,7 +54,7 @@ describe("getFeeForUserQueryOptions", () => {
     expect(key).toEqual([
       "getFeeForUser",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         affiliate: AFFILIATE,
         user: USER,
         symbolId: 7,

@@ -6,7 +6,7 @@ import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 import { useSimulateRequestCancelWithdraw } from "./use-simulate-request-cancel-withdraw";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const REQUEST_ID = 1n;
 const CALL_DATA = encodeFunctionData({

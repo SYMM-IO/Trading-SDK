@@ -15,7 +15,7 @@ vi.mock("../types/generated/listing-backend", async (importOriginal) => {
 
 import { cancelWithdraw } from "./cancel-withdraw";
 
-const LISTING_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).listing?.url;
+const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url;
 
 describe("cancelWithdraw", () => {
   beforeEach(() => {

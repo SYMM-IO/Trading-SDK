@@ -5,7 +5,7 @@ import { mockConfig } from "../../../shared/test/mock-config";
 import { createClassicWithdrawPart } from "../parts";
 import { simulateInitiateWithdraw } from "./simulate-initiate-withdraw";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const RECEIVER: Address = "0xcccccccccccccccccccccccccccccccccccccccc";
 const FROM: Address = "0x1111111111111111111111111111111111111111";
@@ -15,7 +15,7 @@ describe("simulateInitiateWithdraw", () => {
     const { config, simulateContract } = mockConfig();
     simulateContract.mockResolvedValueOnce({ result: ["0x"], request: {} });
 
-    const part = createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: RECEIVER, chainId: 999n });
+    const part = createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: RECEIVER, chainId: 42161n });
     await simulateInitiateWithdraw(config, { account: ACCOUNT, parts: [part], from: FROM });
 
     const call = simulateContract.mock.calls[0]?.[0] as {

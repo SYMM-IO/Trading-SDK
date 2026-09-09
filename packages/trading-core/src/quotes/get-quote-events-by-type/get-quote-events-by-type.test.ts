@@ -6,10 +6,14 @@ import { createConfig } from "../../core/config";
 import { DEFAULT_QUOTE_EVENTS_BY_TYPE_PAGE_SIZE, getQuoteEventsByType } from "./get-quote-events-by-type";
 import { PRICE_HISTORY_EVENT_TYPES, QuoteEventType } from "./types";
 
-const ANALYTICS_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).subgraphs.analytics;
+const ANALYTICS_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).subgraphs.analytics;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 function makeNode(overrides?: Record<string, unknown>) {

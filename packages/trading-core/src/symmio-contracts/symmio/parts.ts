@@ -18,7 +18,7 @@ import type { WithdrawReceiverPart } from "./types";
  *
  * @example
  * ```ts
- * const part = createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: "0xabc…", chainId: 999n });
+ * const part = createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: "0xabc…", chainId: 42161n });
  * await initiateWithdraw(config, { account, parts: [part] });
  * ```
  */

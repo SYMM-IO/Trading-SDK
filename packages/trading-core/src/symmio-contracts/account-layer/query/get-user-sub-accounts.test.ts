@@ -34,14 +34,14 @@ describe("getUserSubAccountsQueryOptions", () => {
 
   it("builds a stable, bigint-safe key", () => {
     const key = getUserSubAccountsQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       user: TEST_USER,
       offset: 0n,
       limit: 200n,
     });
     expect(key).toEqual([
       "getUserSubAccounts",
-      { chainId: SymmioSupportedChainId.HYPER_EVM, user: TEST_USER, offset: "0", limit: "200" },
+      { chainId: SymmioSupportedChainId.ARBITRUM, user: TEST_USER, offset: "0", limit: "200" },
     ]);
   });
 });

@@ -250,7 +250,7 @@ export function RegistrationForm({ api }: FormProps) {
 
             <AddressList
               legend="Symmio cores"
-              hint="Whitelisted core diamonds to register against. Defaults to HyperEVM."
+              hint="Whitelisted core diamonds to register against. Defaults to Arbitrum."
               idPrefix="symmio-core"
               namePrefix="symmioCores"
               register={register}

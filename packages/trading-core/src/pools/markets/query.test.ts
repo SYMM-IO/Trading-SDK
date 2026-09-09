@@ -18,7 +18,7 @@ vi.mock("../types/generated/listing-backend", async (importOriginal) => {
 
 import { getListingMarketsQueryKey, getListingMarketsQueryOptions } from "./query";
 
-const LISTING_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).listing?.url;
+const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url;
 
 describe("getListingMarketsQueryKey", () => {
   it("separates two searches that differ only by a filter bound", () => {
@@ -134,7 +134,7 @@ describe("getListingMarketsQueryOptions", () => {
     const config = createConfig({
       symmioConfig: {
         [SymmioSupportedChainId.BASE]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } },
-        [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } },
+        [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } },
       },
       getClient: () => ({}) as PublicClient,
       defaultChainId: SymmioSupportedChainId.BASE,

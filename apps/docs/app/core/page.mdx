@@ -19,13 +19,13 @@ Every read is `getXyz(config, params)`; every write is `xyz(config, params)`. Th
 ```ts
 import { createConfig, getUserSubAccounts } from "@symmio/trading-core";
 import { createPublicClient, http } from "viem";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 
-const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
+const publicClient = createPublicClient({ chain: arbitrum, transport: http() });
 
 const config = createConfig({
   symmioConfig: {
-    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+    [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
   },
   getClient: () => publicClient,
 });

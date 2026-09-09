@@ -35,7 +35,7 @@ const STATE_VIEW: Record<AffiliateState, { label: string; body: string; tone: St
 /** Label for the adaptive primary action, keyed on what the next step is. */
 const PRIMARY_LABEL = {
   "connect-to-cancel": "Connect to cancel",
-  switch: "Switch to HyperEVM",
+  switch: "Switch to Arbitrum",
   cancel: "Cancel registration",
 } as const;
 

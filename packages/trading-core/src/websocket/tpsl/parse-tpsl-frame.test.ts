@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseTpSlFrame } from "./parse-tpsl-frame";
 
 const LIVE_FRAME = {
-  app_name: "Hyper-EVM_COH-Low-Cap_Production",
+  app_name: "Arbitrum_COH_Production",
   primary_identifier: 9565,
   secondary_identifier: 0,
   address: "0xaE96C48Cb4D3ECff70E31bddeFb87edc1C41e64D",

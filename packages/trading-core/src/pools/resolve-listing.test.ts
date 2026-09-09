@@ -5,24 +5,28 @@ import { createConfig } from "../core/config";
 import { SymmError } from "../shared/errors/symm-error";
 import { resolveListingService, supportsListingService } from "./resolve-listing";
 
-const HYPEREVM = SymmioSupportedChainId.HYPER_EVM;
+const ARBITRUM = SymmioSupportedChainId.ARBITRUM;
 const BASE = SymmioSupportedChainId.BASE;
-const LISTING_URL = getChainConfig(HYPEREVM).listing?.url;
+const LISTING_URL = getChainConfig(ARBITRUM).listing?.url;
 
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 describe("resolveListingService", () => {
-  it("returns the chain's listing backend on HyperEVM", () => {
+  it("returns the chain's listing backend on Arbitrum", () => {
     /**
      * Host root, **no** `/v2`: the generated client's own paths already start
      * with `/v2`, so a versioned base would request `/v2/v2/market/search` and
      * 404. Asserted here because the value is only exercised at request time.
      */
     expect(LISTING_URL).toBe("https://listing85.enigma.bz");
-    expect(resolveListingService(config, { chainId: HYPEREVM })).toEqual({ url: LISTING_URL });
+    expect(resolveListingService(config, { chainId: ARBITRUM })).toEqual({ url: LISTING_URL });
   });
 
   it("throws LISTING_NOT_CONFIGURED when the chain has no listing backend", () => {
@@ -34,8 +38,8 @@ describe("resolveListingService", () => {
 });
 
 describe("supportsListingService", () => {
-  it("is true for HyperEVM", () => {
-    expect(supportsListingService(config, { chainId: HYPEREVM })).toBe(true);
+  it("is true for Arbitrum", () => {
+    expect(supportsListingService(config, { chainId: ARBITRUM })).toBe(true);
   });
 
   it("is false for a chain with no listing backend", () => {

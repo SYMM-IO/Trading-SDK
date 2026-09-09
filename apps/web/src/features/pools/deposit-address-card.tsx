@@ -22,7 +22,7 @@ import { SignInNote } from "./sign-in-note";
  * session) and a selected market gate the read, so it stays idle until the user
  * has signed in *and* picked a market.
  *
- * Enigma-only: the listing backend lives on HyperEVM, so the card is gated on
+ * Enigma-only: the listing backend lives on Arbitrum, so the card is gated on
  * Enigma being the active solver, mirroring the other Listing-session cards.
  */
 export function DepositAddressCard() {
@@ -35,7 +35,7 @@ export function DepositAddressCard() {
   const deposit = useDepositAddress({
     accessToken: accessToken ?? "",
     tokenContractAddress: contractAddress,
-    depositChain: selectedMarket?.chainId ?? ListingDepositChainId.HYPER_EVM,
+    depositChain: selectedMarket?.chainId ?? ListingDepositChainId.ARBITRUM_ONE,
   });
 
   const signedIn = accessToken !== null;
@@ -50,7 +50,7 @@ export function DepositAddressCard() {
     >
       {!enigmaActive ? (
         <ResultNote testId="deposit-address-gate">
-          Switch to Enigma (HyperEVM) to sign in and read a market&rsquo;s deposit address.
+          Switch to Enigma (Arbitrum) to sign in and read a market&rsquo;s deposit address.
         </ResultNote>
       ) : (
         <div className="flex flex-col gap-4">

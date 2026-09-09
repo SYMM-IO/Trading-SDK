@@ -103,7 +103,7 @@ export type WithdrawReturnType = Hash;
  * @example
  * ```ts
  * const { isolationType } = await getSubAccount(config, { account: "0xsub…" });
- * const part = createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: "0xabc…", chainId: 999n });
+ * const part = createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: "0xabc…", chainId: 42161n });
  * const hash = await withdraw(config, {
  *   account: "0xsub…",
  *   isolationType,

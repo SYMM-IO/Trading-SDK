@@ -5,7 +5,7 @@ import { SymmioSupportedChainId } from "../chains/supported-chains";
 import { createConfig } from "./create-config";
 
 const AFFILIATE = "0x000000000000000000000000000000000000aFF1";
-const CHAIN = SymmioSupportedChainId.HYPER_EVM;
+const CHAIN = SymmioSupportedChainId.ARBITRUM;
 
 function build(priceService: Record<string, unknown>) {
   return createConfig({
@@ -205,20 +205,20 @@ describe("mergeChainConfig — contractsVersion", () => {
   it("inherits the built-in version when no override is supplied", () => {
     const config = createConfig({
       getClient: () => ({}) as PublicClient,
-      symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: AFFILIATE } } },
+      symmioConfig: { [SymmioSupportedChainId.BASE]: { addresses: { affiliatesAddress: AFFILIATE } } },
     });
 
-    expect(config.getChainConfig(SymmioSupportedChainId.HYPER_EVM).contractsVersion).toBe("0.8.5");
+    expect(config.getChainConfig(SymmioSupportedChainId.BASE).contractsVersion).toBe("0.8.5");
   });
 
   it("lets an override restate the version — every version-branched seam follows it", () => {
     const config = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: AFFILIATE }, contractsVersion: "0.8.6" },
+        [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, contractsVersion: "0.8.6" },
       },
     });
 
-    expect(config.getChainConfig(SymmioSupportedChainId.HYPER_EVM).contractsVersion).toBe("0.8.6");
+    expect(config.getChainConfig(SymmioSupportedChainId.ARBITRUM).contractsVersion).toBe("0.8.6");
   });
 });

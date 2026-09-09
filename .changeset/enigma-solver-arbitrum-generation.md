@@ -3,7 +3,7 @@
 "@symmio/trading-react": major
 ---
 
-Regenerate the Enigma solver client from the Arbitrum solver's OpenAPI spec — the enigma generation matching perps-core v0.8.6 (`orval.config.ts` now points at `https://arb-staging.enigma.bz/api/swagger/doc.json`).
+Regenerate the Enigma solver client from the Arbitrum solver's OpenAPI spec — the enigma generation matching perps-core v0.8.6 (`orval.config.ts` now points at `https://solver.enigma.bz/api/swagger/doc.json`).
 
 Breaking — `getSolverRevenue` / `useSolverRevenue` are now **per-market**:
 

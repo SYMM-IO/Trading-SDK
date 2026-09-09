@@ -8,7 +8,7 @@ export interface InstantLayerDelegateeSuggestion {
   description: string;
 }
 
-export const COH_WALLET_MAINNET_ADDRESS = "0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31" as const;
+export const COH_WALLET_MAINNET_ADDRESS = "0xFC3a98d30AdAA220Ae4150fcaC06Bd200b6E146B" as const;
 export const COH_WALLET_STAGING_ADDRESS = "0x2471c82ffe24462720d99014e6ec800548B9b1d6" as const;
 
 export function getInstantLayerDelegateeSuggestions(

@@ -1,4 +1,4 @@
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { truncateAddress, type CancellationPayload, type NotificationPayload } from "./registration-utils";
 
 /**
@@ -15,8 +15,8 @@ function escapeHtml(value: string): string {
  * have no explorer for it (the message then shows the bare hash).
  */
 function explorerTxUrl(chainId: number, txHash: string): string | undefined {
-  if (chainId !== hyperEvm.id) return undefined;
-  const base = hyperEvm.blockExplorers?.default.url;
+  if (chainId !== arbitrum.id) return undefined;
+  const base = arbitrum.blockExplorers?.default.url;
   return base ? `${base}/tx/${txHash}` : undefined;
 }
 

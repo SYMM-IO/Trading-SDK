@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 /**
  * Playwright config for `apps/web`.
  *
- * `read` project drives the Inspector page against live Hyperliquid RPC with
+ * `read` project drives the Inspector page against live Arbitrum RPC with
  * the `mock` connector "connected" to the repo's well-known test EOA. No
  * credentials needed in env — the address is public.
  *

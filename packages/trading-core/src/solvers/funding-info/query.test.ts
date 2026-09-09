@@ -24,13 +24,13 @@ describe("getFundingInfoQueryOptions", () => {
 
   it("builds a stable key including the symbols filter", () => {
     const key = getFundingInfoQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       symbols: ["BTCUSDT"],
     });
     expect(key).toEqual([
       "getFundingInfo",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         symbols: ["BTCUSDT"],
       },
     ]);

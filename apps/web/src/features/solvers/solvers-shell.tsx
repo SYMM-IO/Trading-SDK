@@ -34,9 +34,8 @@ import { ReadTradeVolumeCard } from "./read-trade-volume-card";
 import { SolverErrorCodesCard } from "./solver-error-codes-card";
 
 const CHAIN_LABELS: Record<number, string> = {
-  [SymmioSupportedChainId.HYPER_EVM]: "HyperEVM (Enigma)",
-  [SymmioSupportedChainId.BASE]: "Base (Rasa)",
   [SymmioSupportedChainId.ARBITRUM]: "Arbitrum (Enigma)",
+  [SymmioSupportedChainId.BASE]: "Base (Rasa)",
 };
 
 /** Segmented switch between the supported chains. */

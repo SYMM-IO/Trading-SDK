@@ -6,7 +6,7 @@ import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 import { usePredictedNextVirtualAccount } from "./use-predicted-next-virtual-account";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const PREDICTED: Address = "0xcccccccccccccccccccccccccccccccccccccccc";
 const SYMBOL_ID = 1n;

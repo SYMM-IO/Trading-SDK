@@ -72,7 +72,7 @@ const KEY_ITEMS: ComboboxItem[] = KNOWN_KEYS.map((key) => ({
 const SUGGESTIONS: Suggestion[] = [
   { label: "Quote by temp id", hint: "data.temp_quote_id", key: "data.temp_quote_id", value: "-172" },
   { label: "Quote by on-chain id", hint: "data.quote_id", key: "data.quote_id", value: "" },
-  { label: "By app channel", hint: "app_name", key: "app_name", value: "Hyper-EVM_Solver-Low-Cap_Production" },
+  { label: "By app channel", hint: "app_name", key: "app_name", value: "Arbitrum_Solver-Low-Cap_Production" },
   { label: "Failed actions", hint: "data.action_status", key: "data.action_status", value: "failed" },
   { label: "By SubAccount", hint: "address", key: "address", value: "" },
 ];

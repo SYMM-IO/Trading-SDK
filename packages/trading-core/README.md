@@ -19,9 +19,9 @@ viem is a peer dependency.
 ```ts
 import { createConfig, getMarkets } from "@symmio/trading-core";
 import { createPublicClient, http } from "viem";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 
-const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
+const publicClient = createPublicClient({ chain: arbitrum, transport: http() });
 
 const config = createConfig({
   getClient: () => publicClient,

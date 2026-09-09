@@ -5,10 +5,14 @@ import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
 import { createConfig } from "../../core/config";
 import { getTransferHistory } from "./get-transfer-history";
 
-const EVENTS_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).subgraphs.events;
+const EVENTS_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).subgraphs.events;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 /** Checksummed; the action lowercases them for the subgraph filter. */

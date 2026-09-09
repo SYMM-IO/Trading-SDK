@@ -6,7 +6,7 @@ import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 import { useVirtualAccount } from "./use-virtual-account";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const VA: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const PARENT: Address = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const DETAIL = {

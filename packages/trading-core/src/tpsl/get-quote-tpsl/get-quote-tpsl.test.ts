@@ -17,7 +17,7 @@ import {
 } from "../types/generated/tpsl-handler";
 import { getQuoteTpSl } from "./get-quote-tpsl";
 
-const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solvers.enigma!.tpsl!;
+const TPSL = getChainConfig(SymmioSupportedChainId.ARBITRUM).solvers.enigma!.tpsl!;
 
 /** Two rows of the handler's live (unwrapped) `GET /api/v5/?quote_id=…` payload. */
 const TAKE_PROFIT_ROW: ConditionalOrderResponseSchema = {
@@ -269,7 +269,7 @@ describe("getQuoteTpSl", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
           solvers: { enigma: { tpsl: { url: "https://tpsl.override.test", appName: "Override-App" } } },
         },

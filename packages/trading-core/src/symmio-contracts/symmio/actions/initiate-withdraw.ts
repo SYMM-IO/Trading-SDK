@@ -67,7 +67,7 @@ export type InitiateWithdrawReturnType = Hash;
  *
  * @example
  * ```ts
- * const part = createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: "0xabc…", chainId: 999n });
+ * const part = createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: "0xabc…", chainId: 42161n });
  * const hash = await initiateWithdraw(config, { account: "0xsub…", parts: [part] });
  * ```
  */

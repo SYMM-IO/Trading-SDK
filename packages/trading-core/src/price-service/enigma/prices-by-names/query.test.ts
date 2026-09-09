@@ -32,13 +32,13 @@ describe("getEnigmaPriceServicePricesByNamesQueryOptions", () => {
 
   it("builds a stable key", () => {
     const key = getEnigmaPriceServicePricesByNamesQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       names: ["BTCUSDT", "ETHUSDT"],
     });
     expect(key).toEqual([
       "getEnigmaPriceServicePricesByNames",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         names: ["BTCUSDT", "ETHUSDT"],
       },
     ]);

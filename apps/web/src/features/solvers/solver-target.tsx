@@ -20,7 +20,7 @@ export interface SolverTarget {
 /**
  * True when the given solver kind's chain is the active wallet chain. Use it to
  * gate a solver-exclusive card's query so the endpoint is only called when its
- * solver is active (Enigma → HyperEVM or Arbitrum, Rasa → Base) — the endpoints
+ * solver is active (Enigma → Arbitrum, Rasa → Base) — the endpoints
  * 404 on chains that do not register that kind.
  */
 export function useSolverKindActive(kind: SymmioSolverKind): boolean {
@@ -30,12 +30,6 @@ export function useSolverKindActive(kind: SymmioSolverKind): boolean {
 
 /** Every solver the app can target, across chains. */
 export const SOLVER_TARGETS: readonly SolverTarget[] = [
-  {
-    id: "enigma",
-    chainId: SymmioSupportedChainId.HYPER_EVM,
-    solverId: "enigma",
-    label: "Enigma · HyperEVM",
-  },
   {
     id: "enigma-arbitrum",
     chainId: SymmioSupportedChainId.ARBITRUM,

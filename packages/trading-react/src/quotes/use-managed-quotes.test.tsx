@@ -13,7 +13,7 @@ import {
 import type { Query, QueryClient, QueryKey } from "@tanstack/react-query";
 import { act, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 import { createTestQueryClient, renderHookWithProviders, TEST_EOA } from "../test/test-utils";
@@ -136,7 +136,7 @@ function renderManaged(queryClient?: QueryClient) {
     () =>
       useManagedQuotes({
         partyA: TEST_EOA,
-        chainId: hyperEvm.id,
+        chainId: arbitrum.id,
         includeVirtualAccounts: false,
         sources: { pendingQuotes: false, instantOpens: false, instantCloses: false },
       }),
@@ -150,7 +150,7 @@ function renderManaged(queryClient?: QueryClient) {
  * function of the config, so it matches the one the hook under test computes.
  */
 function renderConfigKey(): string {
-  const { result } = renderHookWithProviders(() => useSymmioConfig().getChainConfigKey(hyperEvm.id));
+  const { result } = renderHookWithProviders(() => useSymmioConfig().getChainConfigKey(arbitrum.id));
   return result.current;
 }
 

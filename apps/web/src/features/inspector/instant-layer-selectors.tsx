@@ -1,6 +1,7 @@
 import {
   ADD_MARGIN_TO_NEXT_VA_SELECTOR,
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
+  SEND_QUOTE_SELECTOR,
   SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
 } from "@symmio/trading-react";
 import type { ComboboxItem } from "@symmio/ui/components/combobox";
@@ -18,6 +19,7 @@ interface InstantLayerSelectorSuggestion {
  */
 const SELECTOR_SUGGESTIONS: readonly InstantLayerSelectorSuggestion[] = [
   { name: "addMarginToNextVA", selector: ADD_MARGIN_TO_NEXT_VA_SELECTOR },
+  { name: "sendQuote", selector: SEND_QUOTE_SELECTOR },
   { name: "sendQuoteWithAffiliateAndData", selector: SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR },
   { name: "requestToClosePosition", selector: REQUEST_TO_CLOSE_POSITION_SELECTOR },
 ] as const;

@@ -48,13 +48,13 @@ describe("getAffiliateStateQueryOptions", () => {
 
   it("builds a stable key", () => {
     const key = getAffiliateStateQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       affiliate: AFFILIATE,
     });
     expect(key).toEqual([
       "getAffiliateState",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         affiliate: AFFILIATE,
       },
     ]);
@@ -65,7 +65,7 @@ describe("getAffiliateStateQueryOptions", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1", symmioAddress: CUSTOM_SYMMIO },
         },
       },

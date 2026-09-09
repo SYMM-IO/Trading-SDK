@@ -33,7 +33,7 @@ describe("getQuoteQueryOptions", () => {
   });
 
   it("builds a stable, bigint-safe key", () => {
-    const key = getQuoteQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM, quoteId: 42n });
-    expect(key).toEqual(["getQuote", { chainId: SymmioSupportedChainId.HYPER_EVM, quoteId: "42" }]);
+    const key = getQuoteQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM, quoteId: 42n });
+    expect(key).toEqual(["getQuote", { chainId: SymmioSupportedChainId.ARBITRUM, quoteId: "42" }]);
   });
 });

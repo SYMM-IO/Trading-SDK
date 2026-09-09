@@ -15,13 +15,13 @@ const OPTIONS = {
 
 describe("getListingMarketConfigQueryKey", () => {
   it("keys by the market and drops the bearer token", () => {
-    const key = getListingMarketConfigQueryKey({ ...OPTIONS, configKey: "hyperEvm" });
+    const key = getListingMarketConfigQueryKey({ ...OPTIONS, configKey: "arbitrum" });
 
     expect(key[0]).toBe("getListingMarketConfig");
     expect(key[1]).toMatchObject({
       tokenContractAddress: OPTIONS.tokenContractAddress,
       depositChain: ListingDepositChainId.HYPER_EVM,
-      configKey: "hyperEvm",
+      configKey: "arbitrum",
     });
     expect(key[1]).not.toHaveProperty("accessToken");
   });

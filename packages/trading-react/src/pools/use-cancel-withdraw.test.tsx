@@ -1,5 +1,5 @@
 import { act, waitFor } from "@testing-library/react";
-import { base, hyperEvm } from "viem/chains";
+import { arbitrum, base } from "viem/chains";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
@@ -36,7 +36,7 @@ describe("useCancelWithdraw", () => {
       await result.current.mutateAsync(VARIABLES);
     });
 
-    expect(mutationFn).toHaveBeenCalledWith({ ...VARIABLES, chainId: hyperEvm.id });
+    expect(mutationFn).toHaveBeenCalledWith({ ...VARIABLES, chainId: arbitrum.id });
   });
 
   it("forwards an explicit chainId override unchanged", async () => {

@@ -5,8 +5,8 @@ import { QuoteCloseType } from "../../quotes/get-quote-history/types";
 import { mockConfig } from "../../shared/test/mock-config";
 import { getPoolTradeHistory } from "./get-pool-trade-history";
 
-const ANALYTICS_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).subgraphs.analytics;
-const SOURCE = getChainConfig(SymmioSupportedChainId.HYPER_EVM).addresses.symmioAddress.toLowerCase();
+const ANALYTICS_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).subgraphs.analytics;
+const SOURCE = getChainConfig(SymmioSupportedChainId.ARBITRUM).addresses.symmioAddress.toLowerCase();
 const SUB = "0xf55534bbf9011ca7ad84b804fda9e7f4be18fe8a";
 
 /** One close event carrying the frozen snapshot the mapper overlays. */

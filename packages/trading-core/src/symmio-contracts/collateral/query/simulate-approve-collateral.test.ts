@@ -7,7 +7,7 @@ import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig, TEST_AFFILIATE_ADDRESS } from "../../../shared/test/mock-config";
 import { simulateApproveCollateralMutationOptions } from "./simulate-approve-collateral";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const AMOUNT = 7_500000n;
 const SENDER: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
@@ -73,7 +73,7 @@ describe("simulateApproveCollateralMutationOptions", () => {
     /** An unsupported fallback chain makes the per-call `chainId` observable. */
     const config = createConfig({
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } },
+        [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } },
       },
       getClient,
       defaultChainId: mainnet.id,
@@ -86,10 +86,10 @@ describe("simulateApproveCollateralMutationOptions", () => {
 
     await simulateApproveCollateralMutationOptions(config).mutationFn({
       amount: AMOUNT,
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
     });
 
-    expect(getClient).toHaveBeenCalledWith({ chainId: SymmioSupportedChainId.HYPER_EVM });
+    expect(getClient).toHaveBeenCalledWith({ chainId: SymmioSupportedChainId.ARBITRUM });
   });
 
   it("mutationFn rejects with UNSUPPORTED_CHAIN before reaching the client", async () => {

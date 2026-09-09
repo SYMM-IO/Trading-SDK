@@ -3,7 +3,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig, TEST_USER } from "../../../shared/test/mock-config";
 import { getCollateralAllowance } from "./get-collateral-allowance";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 describe("getCollateralAllowance", () => {
   it("reads the owner's allowance to the SYMMIO core", async () => {

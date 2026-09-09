@@ -21,7 +21,7 @@ import { SignInNote } from "./sign-in-note";
  * `useUserProfit` gates itself on **both**, so it stays idle until the user has
  * signed in *and* picked a pool.
  *
- * Enigma-only: the listing backend lives on HyperEVM, so the card is gated on
+ * Enigma-only: the listing backend lives on Arbitrum, so the card is gated on
  * Enigma being the active solver, mirroring the other Listing-session cards.
  */
 export function UserProfitCard() {
@@ -46,7 +46,7 @@ export function UserProfitCard() {
     >
       {!enigmaActive ? (
         <ResultNote testId="user-profit-gate">
-          Switch to Enigma (HyperEVM) to sign in and read your pool balance.
+          Switch to Enigma (Arbitrum) to sign in and read your pool balance.
         </ResultNote>
       ) : !signedIn ? (
         <SignInNote testId="user-profit-idle" buttonTestId="user-profit-sign-in">

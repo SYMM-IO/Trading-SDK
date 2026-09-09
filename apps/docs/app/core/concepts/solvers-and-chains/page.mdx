@@ -8,10 +8,10 @@ SYMMIO is a **multi-solver, multi-chain** protocol, and the SDK models both axes
 
 A deployment is one **chain** running one or more **solvers**. Every solver has an `id`, and in this SDK the **solver `id` _is_ its kind** — there is no separate version axis. Two kinds ship today:
 
-| Kind       | Product      | Chain                                | Margin model                       | Price provider        | Notifications protocol          |
-| ---------- | ------------ | ------------------------------------ | ---------------------------------- | --------------------- | ------------------------------- |
-| **enigma** | lowcap perps | HyperEVM (`999`), Arbitrum (`42161`) | Virtual Accounts (per market/side) | Enigma price service  | `enigma` — notification service |
-| **rasa**   | majors perps | Base (`8453`)                        | cross-margin on the sub-account    | Binance USD-M Futures | `rasa` — solver position-state  |
+| Kind       | Product      | Chain              | Margin model                       | Price provider        | Notifications protocol          |
+| ---------- | ------------ | ------------------ | ---------------------------------- | --------------------- | ------------------------------- |
+| **enigma** | lowcap perps | Arbitrum (`42161`) | Virtual Accounts (per market/side) | Enigma price service  | `enigma` — notification service |
+| **rasa**   | majors perps | Base (`8453`)      | cross-margin on the sub-account    | Binance USD-M Futures | `rasa` — solver position-state  |
 
 The two are not tiers of the same thing — they are different counterparties with different endpoints, response shapes, and lifecycles. The SDK's job is to hide that behind one stable surface.
 
@@ -23,11 +23,11 @@ The two are not tiers of the same thing — they are different counterparties wi
 
 ## Contracts version is a chain axis
 
-Chains do not all run the same perps-core generation: HyperEVM and Base run **v0.8.5**, Arbitrum runs **v0.8.6**. Each registry entry declares it as `contractsVersion` (a `SymmioContractsVersion`, override-able per chain through `createConfig`'s `symmioConfig`), and the SDK branches on it exactly where the generations diverge: which quote-send call the instant-open flow signs (`sendQuote` with solver-fee caps on v0.8.6, the legacy `sendQuoteWithAffiliateAndData` on v0.8.5), which selector set a session key needs (`getInstantTradeRequiredSelectors` / `useInstantTradeRequiredSelectors`), and which output shape the withdraw-request reads decode (`advancedAmount` is `undefined` on a v0.8.5 chain). It is a **declared deployment fact** — the diamond exposes no version view, so nothing is probed at runtime.
+Chains do not all run the same perps-core generation: Base runs **v0.8.5**, while Arbitrum runs **v0.8.6**. Each registry entry declares it as `contractsVersion` (a `SymmioContractsVersion`, override-able per chain through `createConfig`'s `symmioConfig`), and the SDK branches on it exactly where the generations diverge: which quote-send call the instant-open flow signs (`sendQuote` with solver-fee caps on v0.8.6, the legacy `sendQuoteWithAffiliateAndData` on v0.8.5), which selector set a session key needs (`getInstantTradeRequiredSelectors` / `useInstantTradeRequiredSelectors`), and which output shape the withdraw-request reads decode (`advancedAmount` is `undefined` on a v0.8.5 chain). It is a **declared deployment fact** — the diamond exposes no version view, so nothing is probed at runtime.
 
 ## Targeting a solver
 
-Every solver-aware action and hook takes an optional `solverId`. Omit it and the SDK resolves the chain's **default solver** (`defaultSolverId` in the registry — `enigma` on HyperEVM, `rasa` on Base). Pass a literal kind to target a specific solver and, where the return is a normalized union, **narrow the return type to that kind**.
+Every solver-aware action and hook takes an optional `solverId`. Omit it and the SDK resolves the chain's **default solver** (`defaultSolverId` in the registry — `enigma` on Arbitrum, `rasa` on Base). Pass a literal kind to target a specific solver and, where the return is a normalized union, **narrow the return type to that kind**.
 
 ```ts
 import { getMarkets } from "@symmio/trading-core";
@@ -42,7 +42,7 @@ const rasa = await getMarkets(config, { solverId: "rasa" }); // RasaMarket[]
 Read the chain's default at runtime with `config.getDefaultSolverId(chainId?)`:
 
 ```ts
-const solverId = config.getDefaultSolverId(); // "enigma" on HyperEVM, "rasa" on Base
+const solverId = config.getDefaultSolverId(); // "enigma" on Arbitrum, "rasa" on Base
 ```
 
 In React, pass `solverId` to the hook the same way — `useMarkets({ solverId })`, `usePriceByName({ name, solverId })`, and so on — or omit it to follow the connected chain's default.
@@ -103,7 +103,7 @@ const isCrossMargin = subAccount.isolationType === SubAccountIsolationType.CUSTO
 
 The active solver's chain decides the price service, and the SDK's mark-price reads are **provider-agnostic** — they serve whichever provider the target solver uses, so a component never branches on it:
 
-- **Enigma** — the Enigma price service (REST + WebSocket) on HyperEVM.
+- **Enigma** — the Enigma price service (REST + WebSocket) on Arbitrum.
 - **Rasa** — **Binance USD-M Futures**: REST at `fapi.binance.com` and the mark-price stream `wss://fstream.binance.com/market/ws/!markPrice@arr@1s`.
 
 `usePriceByName` / `useMarkPrices` return the same shape for both; narrow the tick on `provider` when you need a Binance-only field (`indexPrice`, funding). Provider-specific twins (`useBinancePrices`, `useBinanceHealth`, …) exist for callers that already know their source and want the Binance fields without narrowing — they surface `UNSUPPORTED_BY_PRICE_SERVICE` when the target solver is not priced by Binance. See [Price Service](/core/price-service).
@@ -182,7 +182,7 @@ if (supportsListingService(config, { chainId })) showPoolsTab();
 const { url } = resolveListingService(config, { chainId });
 ```
 
-Today only **HyperEVM** has it (`listing: { url: "https://listing85.enigma.bz" }`). Point it at staging with a `createConfig` override — there is no separate environment axis.
+Today only **Arbitrum** has it (`listing: { url: "https://listing85.enigma.bz" }`). Point it at staging with a `createConfig` override — there is no separate environment axis.
 
 <Callout type="warning">
   The `url` is the **host root**, with no version segment and no trailing slash. The generated client's own paths
@@ -202,7 +202,7 @@ import { zeroAddress } from "viem";
 const config = createConfig({
   getClient: () => publicClient,
   symmioConfig: {
-    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } }, // enigma / lowcap
+    [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: zeroAddress } }, // enigma / lowcap
     [SymmioSupportedChainId.BASE]: {
       // Base requires a registered (non-zero) affiliate — the built-in default is used when you omit it.
       addresses: { affiliatesAddress: "0x45Eecd7B4f442388ACD90467E423A5CAAC3a9C3f" },

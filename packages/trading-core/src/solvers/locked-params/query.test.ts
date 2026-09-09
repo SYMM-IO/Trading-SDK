@@ -26,14 +26,14 @@ describe("getLockedParamsQueryOptions", () => {
 
   it("builds a stable key", () => {
     const key = getLockedParamsQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       symbol: "BTCUSDT",
       leverage: 5,
     });
     expect(key).toEqual([
       "getLockedParams",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         symbol: "BTCUSDT",
         leverage: 5,
       },

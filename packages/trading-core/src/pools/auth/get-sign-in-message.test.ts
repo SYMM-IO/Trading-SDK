@@ -15,7 +15,7 @@ vi.mock("../types/generated/listing-backend", async (importOriginal) => {
 
 import { getListingSignInMessage } from "./get-sign-in-message";
 
-const LISTING_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).listing?.url;
+const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url;
 
 describe("getListingSignInMessage", () => {
   beforeEach(() => {
@@ -32,7 +32,7 @@ describe("getListingSignInMessage", () => {
           address: TEST_USER,
           uri: "https://app.example.com",
           version: "1",
-          chainId: 999,
+          chainId: 42161,
           issuedAt: "2026-08-24T00:00:00.000Z",
           nonce: "0xabcdefabcdefabcdefabcdefabcdefab",
           statement: "Sign in to Pools",
@@ -63,7 +63,7 @@ describe("getListingSignInMessage", () => {
         address: TEST_USER,
         uri: "https://app.example.com",
         version: "1",
-        chainId: 999,
+        chainId: 42161,
         issuedAt: "2026-08-24T00:00:00.000Z",
         nonce: "0xabcdefabcdefabcdefabcdefabcdefab",
         statement: "Sign in to Pools",

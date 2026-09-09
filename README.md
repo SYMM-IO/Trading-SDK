@@ -43,7 +43,7 @@ Not part of the SDK surface — SDK consumers never need these:
 | [`@symmio/eslint-config`](packages/eslint-config)         |     [![npm](https://img.shields.io/npm/v/@symmio/eslint-config)](https://www.npmjs.com/package/@symmio/eslint-config)     | Shared ESLint flat configs.                    |
 | [`@symmio/typescript-config`](packages/typescript-config) | [![npm](https://img.shields.io/npm/v/@symmio/typescript-config)](https://www.npmjs.com/package/@symmio/typescript-config) | Shared TypeScript configs.                     |
 
-**Chain support:** HyperEVM mainnet (`999`) is the only chain that ships today. The plumbing is chain-keyed throughout, so adding one is a registry entry rather than a refactor.
+**Chain support:** Arbitrum One (`42161`) and Base (`8453`) ship today. The plumbing is chain-keyed throughout, so adding another chain is a registry entry rather than a refactor.
 
 ## Development
 

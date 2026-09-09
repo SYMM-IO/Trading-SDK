@@ -68,7 +68,7 @@ export function ReadSymbolsCard() {
 
       {active ? null : (
         <ResultNote testId="result-getSymbols-inactive">
-          Switch to the Enigma chain (HyperEVM) to call this endpoint.
+          Switch to the Enigma chain (Arbitrum) to call this endpoint.
         </ResultNote>
       )}
 

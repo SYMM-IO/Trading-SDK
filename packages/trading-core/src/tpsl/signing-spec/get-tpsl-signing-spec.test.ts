@@ -8,7 +8,7 @@ import type { TpSlSigningSpec } from "../types";
 import { getTpSlDeleteSigningSpec } from "./get-tpsl-delete-signing-spec";
 import { getTpSlSigningSpec } from "./get-tpsl-signing-spec";
 
-const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solvers.enigma!.tpsl!;
+const TPSL = getChainConfig(SymmioSupportedChainId.ARBITRUM).solvers.enigma!.tpsl!;
 /** Path the orval-generated `v5SigningSpecApiV5SigningSpecGet` client requests. */
 const SPEC_PATH = "/api/v5/signing-spec";
 /** Path the sibling DELETE-spec action requests — must never be the same one. */
@@ -24,7 +24,7 @@ const SIGNING_SPEC: TpSlSigningSpec = {
   domain: {
     name: "SymmioConditionalOrder",
     version: "1",
-    chainId: SymmioSupportedChainId.HYPER_EVM,
+    chainId: SymmioSupportedChainId.ARBITRUM,
     verifyingContract: TPSL.cohWalletAddress,
   },
   types: {
@@ -76,7 +76,7 @@ describe("getTpSlSigningSpec", () => {
     const { config } = mockConfig();
     vi.spyOn(axios, "get").mockResolvedValue(okResponse(SIGNING_SPEC));
 
-    const spec = await getTpSlSigningSpec(config, { chainId: SymmioSupportedChainId.HYPER_EVM });
+    const spec = await getTpSlSigningSpec(config, { chainId: SymmioSupportedChainId.ARBITRUM });
 
     /** The action only casts `response.data`, so the exact object round-trips untouched. */
     expect(spec).toBe(SIGNING_SPEC);

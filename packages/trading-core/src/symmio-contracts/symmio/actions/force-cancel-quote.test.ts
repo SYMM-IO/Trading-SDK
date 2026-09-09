@@ -6,7 +6,7 @@ import { mockConfig, TEST_TX_HASH } from "../../../shared/test/mock-config";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { forceCancelQuote } from "./force-cancel-quote";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const QUOTE_ID = 42n;
 

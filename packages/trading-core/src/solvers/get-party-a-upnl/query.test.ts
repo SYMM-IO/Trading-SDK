@@ -16,7 +16,11 @@ const BASE = SymmioSupportedChainId.BASE;
 const USER = "0x1111111111111111111111111111111111111111" as const;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 describe("getPartyAUpnlQueryOptions", () => {

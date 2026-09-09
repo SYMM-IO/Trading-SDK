@@ -38,7 +38,7 @@ describe("getSubAccountsCountOfUserQueryOptions", () => {
   });
 
   it("builds a stable key", () => {
-    const key = getSubAccountsCountOfUserQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM, user: TEST_USER });
-    expect(key).toEqual(["getSubAccountsCountOfUser", { chainId: SymmioSupportedChainId.HYPER_EVM, user: TEST_USER }]);
+    const key = getSubAccountsCountOfUserQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM, user: TEST_USER });
+    expect(key).toEqual(["getSubAccountsCountOfUser", { chainId: SymmioSupportedChainId.ARBITRUM, user: TEST_USER }]);
   });
 });

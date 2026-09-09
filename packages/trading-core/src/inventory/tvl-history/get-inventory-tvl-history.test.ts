@@ -15,7 +15,7 @@ vi.mock("../types/generated/inventory-service", async (importOriginal) => {
 
 import { getInventoryTvlHistory } from "./get-inventory-tvl-history";
 
-const INVENTORY_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).inventory?.url;
+const INVENTORY_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).inventory?.url;
 const SYMBOL_ADDRESS = "0x000000000000000000000000000000000000dEaD";
 
 describe("getInventoryTvlHistory", () => {

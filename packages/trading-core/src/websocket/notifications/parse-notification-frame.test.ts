@@ -18,7 +18,7 @@ describe("parseNotificationFrame", () => {
   it("parses a payload that omits `id` (e.g. an InstantRFQ report)", () => {
     const frame = parseNotificationFrame(
       JSON.stringify({
-        app_name: "Hyper-evm_Solver-lowcap_Stage",
+        app_name: "Arbitrum_Solver-Low-Cap_Production",
         primary_identifier: 0,
         secondary_identifier: null,
         address: "0xsubaccount",

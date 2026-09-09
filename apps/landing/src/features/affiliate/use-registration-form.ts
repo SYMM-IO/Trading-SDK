@@ -12,7 +12,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { parseEventLogs, type Address, type Hash, type TransactionReceipt } from "viem";
-import { hyperEvm } from "wagmi/chains";
+import { arbitrum } from "wagmi/chains";
 import { registrationSchema, sharesTotalBps, valuesToDraft, type RegistrationValues } from "./registration-schema";
 import { BPS_SCALE, buildRegistration, toNotificationPayload } from "./registration-utils";
 
@@ -20,7 +20,7 @@ import { BPS_SCALE, buildRegistration, toNotificationPayload } from "./registrat
 export type NotifyStatus = "idle" | "sending" | "sent" | "error";
 
 /** The whitelisted Symmio core (diamond) new affiliates register against by default. */
-const DEFAULT_SYMMIO_CORE = getChainConfig(SymmioSupportedChainId.HYPER_EVM).addresses.symmioAddress;
+const DEFAULT_SYMMIO_CORE = getChainConfig(SymmioSupportedChainId.ARBITRUM).addresses.symmioAddress;
 
 /** Ember coral — a sensible default the registrant can override in the color field. */
 const DEFAULT_BRAND_COLOR = "#F0553A";
@@ -150,7 +150,7 @@ export function useRegistrationForm() {
       const payload = toNotificationPayload(valuesToDraft(values), {
         registrant,
         affiliate,
-        chainId: wallet.chainId ?? hyperEvm.id,
+        chainId: wallet.chainId ?? arbitrum.id,
         txHash,
         honeypot,
       });

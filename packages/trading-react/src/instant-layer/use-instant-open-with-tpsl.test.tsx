@@ -8,7 +8,7 @@ import {
 } from "@symmio/trading-core";
 import type { Query, QueryKey } from "@tanstack/react-query";
 import { act, waitFor } from "@testing-library/react";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, createTestQueryClient, renderHookWithProviders } from "../test/test-utils";
 import { __resetTpSlStore, useTpSlStore } from "../tpsl/tpsl-store";
@@ -83,7 +83,7 @@ describe("useInstantOpenWithTpSl", () => {
       await result.current.mutateAsync(OPEN_VARS);
     });
 
-    expect(openFn).toHaveBeenCalledWith({ ...OPEN_VARS, chainId: hyperEvm.id });
+    expect(openFn).toHaveBeenCalledWith({ ...OPEN_VARS, chainId: arbitrum.id });
     expect(tpslFn).not.toHaveBeenCalled();
     expect(result.current.data).toEqual({ instantOpen: OPEN_OK });
     expect(result.current.phase).toBe("success");
@@ -103,7 +103,7 @@ describe("useInstantOpenWithTpSl", () => {
 
     expect(tpslFn).toHaveBeenCalledWith({
       ...TPSL_BLOCK,
-      chainId: hyperEvm.id,
+      chainId: arbitrum.id,
       quoteId: -1001n,
     });
     expect(result.current.data).toEqual({ instantOpen: OPEN_OK, tpsl: TPSL_OK });
@@ -196,7 +196,7 @@ describe("useInstantOpenWithTpSl", () => {
 
     await waitFor(() => expect(invalidate).toHaveBeenCalled());
     const { predicate } = invalidate.mock.calls[0]![0] as { predicate: (q: Query) => boolean };
-    const configKey = config.getChainConfigKey(hyperEvm.id);
+    const configKey = config.getChainConfigKey(arbitrum.id);
     expect(predicate(queryWith(getInstantOpensQueryKey({ configKey })))).toBe(true);
   });
 });

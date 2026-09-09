@@ -23,10 +23,14 @@ vi.mock("../types/generated/rasa-solver", async (importOriginal) => {
 
 import { getMarketInfo } from "./get-market-info";
 
-const SOLVER_URL = getDefaultSolver(SymmioSupportedChainId.HYPER_EVM).url;
+const SOLVER_URL = getDefaultSolver(SymmioSupportedChainId.ARBITRUM).url;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 const SAMPLE_RESPONSE: { data: GetGetMarketInfo200 } = {

@@ -4,7 +4,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig } from "../../../shared/test/mock-config";
 import { simulateApproveCollateral } from "./simulate-approve-collateral";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const FROM: Address = "0x1111111111111111111111111111111111111111";
 
 describe("simulateApproveCollateral", () => {

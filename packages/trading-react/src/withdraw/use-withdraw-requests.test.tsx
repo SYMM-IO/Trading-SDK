@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 import { useWithdrawRequest } from "./use-withdraw-requests";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const REQUEST_ID = 1n;
 
@@ -49,7 +49,7 @@ describe("useWithdrawRequest", () => {
         args: [SUB_ACCOUNT, REQUEST_ID],
       }),
     );
-    /** HyperEVM is a v0.8.5 chain — the legacy decode has no `advancedAmount`, and none is fabricated. */
+    /** A missing `advancedAmount` is not fabricated by the v0.8.6 decode. */
     expect(result.current.data).toEqual(request);
     expect(result.current.data?.advancedAmount).toBeUndefined();
   });

@@ -29,7 +29,7 @@ Separate deployments mean separate refresh cadences and separate failure modes. 
 
 The inventory service is configured at **chain level** and optional: `SymmioChainConfig.inventory`, a `SymmioInventoryConfig`. Like the Pools listing backend, no solver capability **gates** it — a chain either carries an `inventory` block or it does not. That is why [`resolveInventoryService`](/core/inventory/resolve-inventory-service) takes a bare `chainId`.
 
-Today only **HyperEVM** carries one (`inventory: { url: "https://inventory85.enigma.bz" }`).
+Today only **Arbitrum** carries one (`inventory: { url: "https://inventory85.enigma.bz" }`).
 
 ```ts
 import { getInventoryTvl, supportsInventoryService } from "@symmio/trading-core";

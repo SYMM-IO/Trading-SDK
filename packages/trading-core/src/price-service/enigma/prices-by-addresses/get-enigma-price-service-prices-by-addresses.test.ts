@@ -16,10 +16,14 @@ vi.mock("../types/generated/enigma-price-service", async (importOriginal) => {
 
 import { getEnigmaPriceServicePricesByAddresses } from "./get-enigma-price-service-prices-by-addresses";
 
-const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).priceService.url;
+const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).priceService.url;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 describe("getEnigmaPriceServicePricesByAddresses", () => {

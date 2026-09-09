@@ -1,4 +1,9 @@
-import { PoolTransactionStatus, PoolTransactionType, type GetUserTransactionsReturnType } from "@symmio/trading-core";
+import {
+  ListingDepositChainId,
+  PoolTransactionStatus,
+  PoolTransactionType,
+  type GetUserTransactionsReturnType,
+} from "@symmio/trading-core";
 import { waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
@@ -24,7 +29,7 @@ const PAGE: GetUserTransactionsReturnType = {
       tokenAddress: "0xToken",
       tokenName: "Demo",
       tokenTicker: "DEMO",
-      chainId: 999,
+      chainId: ListingDepositChainId.HYPER_EVM,
       wallet: null,
       refundAddress: null,
       transactionHash: "0xabc",

@@ -23,7 +23,7 @@ export interface UseMajorMarketsReturn {
  * Pinned to Rasa on Base rather than following the connected wallet on purpose.
  * Rasa is the majors solver, and majors are exactly the markets a reference
  * exchange also lists — which is what the Binance-backed candle and orderbook
- * sources need. The other configured deployment (Enigma on HyperEVM) trades
+ * sources need. The other configured deployment (Enigma on Arbitrum) trades
  * lowcaps, which have no exchange listing at all and chart from their liquidity
  * pool instead, so they are a different card rather than a filtered-out half of
  * this list.

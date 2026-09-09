@@ -26,7 +26,7 @@ import { usePoolScope } from "./pool-scope";
  *
  * The bearer token comes from the shared {@link useListingAuth} session, so the
  * user signs in **once** and this card reuses it. Enigma-only: the listing
- * backend lives on HyperEVM, so the card is gated on Enigma being the active
+ * backend lives on Arbitrum, so the card is gated on Enigma being the active
  * solver, mirroring the other Listing-session cards.
  */
 export function ClaimCard() {
@@ -118,7 +118,7 @@ export function ClaimCard() {
       </Button>
 
       {!enigmaActive ? (
-        <ResultNote testId="claim-gate">Switch to Enigma (HyperEVM) to claim pool rewards.</ResultNote>
+        <ResultNote testId="claim-gate">Switch to Enigma (Arbitrum) to claim pool rewards.</ResultNote>
       ) : claim.error ? (
         <ResultError kind={claim.error.kind} message={claim.error.message} testId="claim-error" />
       ) : claim.isSuccess ? (

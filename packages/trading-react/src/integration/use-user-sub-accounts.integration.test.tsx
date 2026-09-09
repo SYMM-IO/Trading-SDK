@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { type PropsWithChildren } from "react";
 import { http } from "viem";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { describe, expect, it } from "vitest";
 import { createConfig, WagmiProvider } from "wagmi";
 import { useUserSubAccounts } from "../account-layer/use-user-sub-accounts";
@@ -10,15 +10,15 @@ import { SymmioProvider } from "../provider/symmio-provider";
 import { TEST_EOA } from "../test/test-utils";
 
 /**
- * Public Hyperliquid HTTP RPC used by the production config. Anyone can
+ * Public Arbitrum HTTP RPC used by the production config. Anyone can
  * hit this endpoint; no API key needed.
  */
-const HYPER_EVM_RPC = "https://rpc.hyperliquid.xyz/evm";
+const ARBITRUM_RPC = "https://arb1.arbitrum.io/rpc";
 
 const INTEGRATION_WAGMI = createConfig({
-  chains: [hyperEvm],
+  chains: [arbitrum],
   transports: {
-    [hyperEvm.id]: http(HYPER_EVM_RPC, {
+    [arbitrum.id]: http(ARBITRUM_RPC, {
       batch: { wait: 16 },
     }),
   },
@@ -33,7 +33,9 @@ function IntegrationProviders({ children }: PropsWithChildren) {
     <WagmiProvider config={INTEGRATION_WAGMI}>
       <QueryClientProvider client={queryClient}>
         <SymmioProvider
-          symmioConfig={{ 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } }}
+          symmioConfig={{
+            [arbitrum.id]: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } },
+          }}
         >
           {children}
         </SymmioProvider>
@@ -42,7 +44,7 @@ function IntegrationProviders({ children }: PropsWithChildren) {
   );
 }
 
-describe("useUserSubAccounts — integration (real HyperEVM RPC)", () => {
+describe("useUserSubAccounts — integration (real Arbitrum RPC)", () => {
   it("resolves with an array (possibly empty) for a known EOA", async () => {
     const { result } = renderHook(() => useUserSubAccounts({ user: TEST_EOA }), { wrapper: IntegrationProviders });
 
@@ -58,7 +60,7 @@ describe("useUserSubAccounts — integration (real HyperEVM RPC)", () => {
         expect(typeof sub.isExists).toBe("boolean");
       }
     } else {
-      console.warn("[integration] Hyperliquid RPC returned an error:", result.current.error?.message);
+      console.warn("[integration] Arbitrum RPC returned an error:", result.current.error?.message);
     }
   });
 });

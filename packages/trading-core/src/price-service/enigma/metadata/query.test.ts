@@ -18,7 +18,7 @@ vi.mock("../types/generated/enigma-price-service", async (importOriginal) => {
 
 import { getEnigmaPriceServiceMetadataQueryKey, getEnigmaPriceServiceMetadataQueryOptions } from "./query";
 
-const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).priceService.url;
+const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).priceService.url;
 
 /** Arbitrary symbol addresses — the price service treats them as opaque strings. */
 const SYMBOL_A = "0x0000000000000000000000000000000000000a11";
@@ -51,7 +51,7 @@ describe("getEnigmaPriceServiceMetadataQueryOptions", () => {
 
     const { config } = mockConfig();
     const options = getEnigmaPriceServiceMetadataQueryOptions(config, {
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       addresses: [SYMBOL_A, SYMBOL_B],
     });
 
@@ -81,12 +81,12 @@ describe("getEnigmaPriceServiceMetadataQueryOptions", () => {
   it("builds a stable key from the chain id and the address list", () => {
     expect(
       getEnigmaPriceServiceMetadataQueryKey({
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         addresses: [SYMBOL_A, SYMBOL_B],
       }),
     ).toEqual([
       "getEnigmaPriceServiceMetadata",
-      { chainId: SymmioSupportedChainId.HYPER_EVM, addresses: [SYMBOL_A, SYMBOL_B] },
+      { chainId: SymmioSupportedChainId.ARBITRUM, addresses: [SYMBOL_A, SYMBOL_B] },
     ]);
   });
 
@@ -139,16 +139,16 @@ describe("getEnigmaPriceServiceMetadataQueryOptions", () => {
   it("keeps TanStack-only fields out of the key while still forwarding them", () => {
     const { config } = mockConfig();
     const options = getEnigmaPriceServiceMetadataQueryOptions(config, {
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       addresses: [SYMBOL_A],
       query: { staleTime: 5_000 },
     });
 
     expect(options.staleTime).toBe(5_000);
     expect(options.queryKey[1]).toEqual({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       addresses: [SYMBOL_A],
-      configKey: config.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM),
+      configKey: config.getChainConfigKey(SymmioSupportedChainId.ARBITRUM),
     });
   });
 
@@ -167,7 +167,7 @@ describe("getEnigmaPriceServiceMetadataQueryOptions", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
           priceService: { url: overriddenUrl },
         },

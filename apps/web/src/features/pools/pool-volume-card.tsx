@@ -53,7 +53,7 @@ export function PoolVolumeCard() {
       description="One pool's traded notional per day, from the solver — keyed by the pool's solver market id, so only a listed pool has a series. Enigma-only."
     >
       {!enigmaActive ? (
-        <ResultNote testId="pool-volume-gate">Switch to Enigma (HyperEVM) to read a pool’s volume.</ResultNote>
+        <ResultNote testId="pool-volume-gate">Switch to Enigma (Arbitrum) to read a pool’s volume.</ResultNote>
       ) : !hasPool ? (
         <ResultNote testId="pool-volume-idle">Pick a pool above to read its daily volume.</ResultNote>
       ) : symbolId === null ? (

@@ -4,7 +4,7 @@ React hooks over `@symmio/trading-core`'s Solvers slice — market catalog, lock
 
 Every hook on this landing page is a **read**. The writes (instant-open / instant-close) live on their own pages linked at the bottom.
 
-Each hook takes an optional `solverId` and defaults to the connected chain's solver (`enigma` on HyperEVM, `rasa` on Base). `useMarkets` returns the `Market` union — narrow on `kind` for solver-specific fields. Endpoints only the rasa solver serves (readiness, whitelist, uPnL, open interest, price range) are on the [Rasa Solver hooks](/react/rasa-solver) page; see [Solvers & Chains](/core/concepts/solvers-and-chains) for the model.
+Each hook takes an optional `solverId` and defaults to the connected chain's solver (`enigma` on Arbitrum, `rasa` on Base). `useMarkets` returns the `Market` union — narrow on `kind` for solver-specific fields. Endpoints only the rasa solver serves (readiness, whitelist, uPnL, open interest, price range) are on the [Rasa Solver hooks](/react/rasa-solver) page; see [Solvers & Chains](/core/concepts/solvers-and-chains) for the model.
 
 ## Import
 
@@ -182,7 +182,7 @@ Boolean shorthand — whether the chain has the lowcap **Pools**, i.e. whether i
 const hasPools = useSupportsListingService();
 ```
 
-It is `true` when the chain carries a `listing` block, delegating to core's `supportsListingService`. Every request [`useListingMarkets`](/react/pools) issues resolves the backend through `resolveListingService` — the throwing form — which is why a read against a chain without a listing backend surfaces as `LISTING_NOT_CONFIGURED` rather than as a `false`. Today only HyperEVM has it. See [Pools listing service](/core/concepts/solvers-and-chains#pools-listing-service).
+It is `true` when the chain carries a `listing` block, delegating to core's `supportsListingService`. Every request [`useListingMarkets`](/react/pools) issues resolves the backend through `resolveListingService` — the throwing form — which is why a read against a chain without a listing backend surfaces as `LISTING_NOT_CONFIGURED` rather than as a `false`. Today only Arbitrum has it. See [Pools listing service](/core/concepts/solvers-and-chains#pools-listing-service).
 
 ## Trading flows
 

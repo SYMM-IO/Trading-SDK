@@ -6,10 +6,14 @@ import { createConfig } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import { querySubgraph } from "./query-subgraph";
 
-const ANALYTICS_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).subgraphs.analytics;
+const ANALYTICS_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).subgraphs.analytics;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 describe("querySubgraph", () => {
@@ -36,7 +40,7 @@ describe("querySubgraph", () => {
     const unconfigured = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
           subgraphs: { analytics: "" },
         },

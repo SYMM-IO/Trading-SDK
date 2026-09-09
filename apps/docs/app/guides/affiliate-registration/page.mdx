@@ -44,7 +44,7 @@ Register through the SYMMIO affiliate page:
 
 It runs the whole flow from the browser:
 
-- Connect a wallet (HyperEVM), pick an **affiliate name**, and watch your deterministic address resolve live as you type.
+- Connect a wallet (Arbitrum), pick an **affiliate name**, and watch your deterministic address resolve live as you type.
 - Set the **admin** address, split fees across **stakeholders** and the protocol (the meter must total 100%), and optionally add metadata, legacy accounts, or extra cores.
 - Submit the on-chain request, then track approval on the **Check status** tab — where a still-`PENDING` registration can also be cancelled.
 
@@ -60,7 +60,7 @@ It also collects one optional off-chain detail the on-chain transaction never ca
 Once the state is `ACTIVE`, swap the zero address you shipped with for your registered affiliate as `affiliatesAddress` on every supported chain. The field is required per chain — the SDK throws `AFFILIATE_ADDRESS_REQUIRED` only when it is missing entirely; the zero address stays a valid fee-less default — and only a **registered** affiliate earns a fee share.
 
 ```ts
-[SymmioSupportedChainId.HYPER_EVM]: {
+[SymmioSupportedChainId.ARBITRUM]: {
   addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" },
 },
 ```

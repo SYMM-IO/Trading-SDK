@@ -3,7 +3,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig, TEST_USER } from "../../../shared/test/mock-config";
 import { getPartyAPendingQuotes } from "./get-party-a-pending-quotes";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 describe("getPartyAPendingQuotes", () => {
   it("reads the pending quote ids from the SYMMIO core", async () => {

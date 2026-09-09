@@ -28,7 +28,7 @@ import { getSolverPriceRange } from "./get-solver-price-range";
 import { getSolverReadiness } from "./get-solver-readiness";
 
 const BASE = SymmioSupportedChainId.BASE;
-const HYPER = SymmioSupportedChainId.HYPER_EVM;
+const HYPER = SymmioSupportedChainId.ARBITRUM;
 const RASA_URL = getDefaultSolver(BASE).url;
 const BASE_ACCOUNT_LAYER = getChainConfig(BASE).addresses.accountLayerAddress;
 const USER = "0x1111111111111111111111111111111111111111" as const;
@@ -92,7 +92,7 @@ const CASES = [
   },
 ] as const;
 
-/** Same actions targeted at HyperEVM's enigma solver — every one must refuse. */
+/** Same actions targeted at Arbitrum's enigma solver — every one must refuse. */
 const ENIGMA_RUNS = [
   () => getSolverBalanceInfo(config, { chainId: HYPER, address: USER }),
   () => getPartyAUpnl(config, { chainId: HYPER, address: USER }),

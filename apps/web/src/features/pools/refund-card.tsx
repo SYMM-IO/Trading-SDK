@@ -105,7 +105,7 @@ export function RefundCard() {
       </Button>
 
       {!enigmaActive ? (
-        <ResultNote testId="refund-gate">Switch to Enigma (HyperEVM) to refund a rejected market.</ResultNote>
+        <ResultNote testId="refund-gate">Switch to Enigma (Arbitrum) to refund a rejected market.</ResultNote>
       ) : refund.error ? (
         <ResultError kind={refund.error.kind} message={refund.error.message} testId="refund-error" />
       ) : refund.isSuccess ? (

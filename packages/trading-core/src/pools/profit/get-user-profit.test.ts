@@ -15,7 +15,7 @@ vi.mock("../types/generated/listing-backend", async (importOriginal) => {
 
 import { getUserProfit } from "./get-user-profit";
 
-const LISTING_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).listing?.url;
+const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url;
 const TOKEN_ADDRESS = "0x000000000000000000000000000000000000dEaD";
 
 describe("getUserProfit", () => {

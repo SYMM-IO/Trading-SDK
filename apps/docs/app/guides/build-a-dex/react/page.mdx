@@ -5,14 +5,14 @@ import { Callout } from "nextra/components";
 Ship a perpetuals trading UI on `@symmio/trading-react`: connect a wallet, pick a market, open and close leveraged positions, manage TP/SL. This page maps each part of the app to the exact hooks, providers, and the gotchas that break integrations. Follow the cross-links for per-hook reference and snippets.
 
 <Callout type="info">
-  **This guide walks the lowcap build (enigma / HyperEVM).** The same hooks build the **majors** DEX (rasa / Base) — see
+  **This guide walks the lowcap build (enigma / Arbitrum).** The same hooks build the **majors** DEX (rasa / Base) — see
   [Solver & chain](#solver--chain-lowcap-vs-majors) below for what differs, and [Solvers &
   Chains](/core/concepts/solvers-and-chains) for the model.
 </Callout>
 
 ## Solver & chain: lowcap vs majors
 
-Every hook here takes an optional `solverId` and follows the connected chain's **default solver** when you omit it — `enigma` on HyperEVM, `rasa` on Base. So the same app serves both products; a handful of things differ on **majors (rasa / Base)**:
+Every hook here takes an optional `solverId` and follows the connected chain's **default solver** when you omit it — `enigma` on Arbitrum, `rasa` on Base. So the same app serves both products; a handful of things differ on **majors (rasa / Base)**:
 
 - **No Virtual Accounts.** A rasa sub-account is cross-margin (`SubAccountIsolationType.CUSTOM`). Skip `usePredictedNextVirtualAccount` and the TP/SL-against-VA step; read liquidation at the account level. Branch the UI on `subAccount.isolationType === SubAccountIsolationType.CUSTOM`, **not** on a chain id.
 - **Prices come from Binance.** The mark-price hooks (`usePriceByName`, `useMarkPrices`) are provider-agnostic and serve Binance USD-M Futures for majors automatically — no code change. Narrow a tick on `provider` for Binance-only fields (`indexPrice`).
@@ -123,7 +123,7 @@ Nest **`WagmiProvider` → `QueryClientProvider` → `SymmioProvider`**. The SDK
   import { zeroAddress } from "viem";
 
   const symmioConfig = {
-    [SymmioSupportedChainId.HYPER_EVM]: {
+    [SymmioSupportedChainId.ARBITRUM]: {
       // `zeroAddress` works out of the box — trades open, you earn no fee share.
       // Swap in your registered affiliate to collect fees (see the callout below).
       addresses: { affiliatesAddress: zeroAddress },
@@ -169,7 +169,7 @@ A trading page reveals one call-to-action at a time. Each gate hides everything 
 
 ```
 Connect wallet          ← useWalletAccount.isConnected
-Switch to target chain   ← wallet.chainId === targetChainId (Base majors / HyperEVM lowcap)
+Switch to target chain   ← wallet.chainId === targetChainId (Base majors / Arbitrum lowcap)
 Select SubAccount        ← your SubAccount picker
 Deposit collateral       ← useAccountBalanceOf > 0
 Initialize session key   ← @symmio/session-key
@@ -183,7 +183,7 @@ The sections below follow this order.
 
 Every trading page starts with the same guard — connected, on the right chain, then render.
 
-- **[`useWalletAccount`](/react/wallet#usewalletaccount)** → `{ address, chainId, isConnected, isReconnecting, isOnExpectedChain }`. `isOnExpectedChain` is true when the wallet is on **any** SDK-supported chain (HyperEVM **or** Base).
+- **[`useWalletAccount`](/react/wallet#usewalletaccount)** → `{ address, chainId, isConnected, isReconnecting, isOnExpectedChain }`. `isOnExpectedChain` is true when the wallet is on **any** SDK-supported chain (Arbitrum **or** Base).
 - **[`useConnectWallet`](/react/wallet#useconnectwallet)** → `{ connectors, connect, status, error }`. Connectors come from your wagmi config.
 - **[`useDisconnectWallet`](/react/wallet#usedisconnectwallet)** → `{ disconnect }`.
 - **[`useSwitchToSymmioChain`](/react/wallet#useswitchtosymmiochain)** → `{ switchChain, status, error }`. Switches to the config's **default** chain — enough for a single-chain app.
@@ -192,23 +192,23 @@ A single `WalletButton` renders three states off `useWalletAccount()`: **not-con
 
 <Callout type="warning">
   **Serving both products? Gate on the _target_ chain, not just "any supported chain."** `isOnExpectedChain` and
-  `useSwitchToSymmioChain` are chain-agnostic — a wallet on HyperEVM passes `isOnExpectedChain` even when you're building
+  `useSwitchToSymmioChain` are chain-agnostic — a wallet on Arbitrum passes `isOnExpectedChain` even when you're building
   the **majors** DEX (Base). Pick the target chain from the product/solver you're showing, compare the wallet against it,
-  and prompt a switch to that **exact** id (wagmi's `useSwitchChain`), so a majors user lands on Base, not HyperEVM:
+  and prompt a switch to that **exact** id (wagmi's `useSwitchChain`), so a majors user lands on Base, not Arbitrum:
 
 ```tsx
 import { SymmioSupportedChainId } from "@symmio/trading-core";
 import { useSwitchChain } from "wagmi";
 
-// targetChainId = the chain of the product you're rendering (majors → Base, lowcap → HyperEVM).
-const targetChainId = isMajors ? SymmioSupportedChainId.BASE : SymmioSupportedChainId.HYPER_EVM;
+// targetChainId = the chain of the product you're rendering (majors → Base, lowcap → Arbitrum).
+const targetChainId = isMajors ? SymmioSupportedChainId.BASE : SymmioSupportedChainId.ARBITRUM;
 const { chainId, isConnected } = useWalletAccount();
 const { switchChain } = useSwitchChain();
 
 if (isConnected && chainId !== targetChainId) {
   return (
     <button type="button" onClick={() => switchChain({ chainId: targetChainId })}>
-      Switch to {isMajors ? "Base" : "HyperEVM"}
+      Switch to {isMajors ? "Base" : "Arbitrum"}
     </button>
   );
 }
@@ -728,7 +728,7 @@ See the [TP/SL reference](/react/tpsl) for the full state machine, store shape, 
 
 | Symptom                                                                            | Cause                                                            | Fix                                                                                              |
 | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `Cannot read properties of undefined (reading 'HYPER_EVM')`                        | `SymmioSupportedChainId` imported from react                     | Import from `@symmio/trading-core`                                                               |
+| `Cannot read properties of undefined (reading 'ARBITRUM')`                         | `SymmioSupportedChainId` imported from react                     | Import from `@symmio/trading-core`                                                               |
 | `useConfig must be used within WagmiProvider` (at runtime)                         | Two wagmi copies in `node_modules`                               | Force one copy via a package-manager override ([Setup](#setup))                                  |
 | `useConfig must be used within WagmiProvider` (during `next build`, `/_not-found`) | Provider tree server-rendered                                    | Mount it client-only — gate on `mounted` ([Providers](#providers))                               |
 | `Actions.wallet.send is not exported from 'viem/tempo'` at build                   | Next 15 fails to tree-shake `viem/tempo`                         | Upgrade to Next 16, or add `wagmi` to `transpilePackages`                                        |

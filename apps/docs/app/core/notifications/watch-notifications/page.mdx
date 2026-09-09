@@ -8,7 +8,7 @@ Opens (or reuses) one reconnecting socket to the resolved solver's notifications
 
 It is a thin **per-protocol dispatch**: it resolves the target solver (`config.getSolver({ chainId, solverId })`), reads its `notifications.protocol`, and hands off to that protocol's adapter, which owns the subscribe frame, parse, and socket-sharing story. The call site is identical either way:
 
-- **`enigma`** (HyperEVM lowcap): watchers sharing the same endpoint and account share one pooled socket. The subscribe frame is a `channel_patterns` frame ([`buildSubscribeMessage`](/core/notifications/build-subscribe-message)), and each inbound push is unwrapped from its [`EnigmaNotificationEnvelope`](/core/notifications/raw-position-notification).
+- **`enigma`** (Arbitrum lowcap): watchers sharing the same endpoint and account share one pooled socket. The subscribe frame is a `channel_patterns` frame ([`buildSubscribeMessage`](/core/notifications/build-subscribe-message)), and each inbound push is unwrapped from its [`EnigmaNotificationEnvelope`](/core/notifications/raw-position-notification).
 - **`rasa`** (Base position-state): every account multiplexes onto **one hub socket per endpoint** — the subscribe frame carries the full watched-address list ([`buildRasaSubscribeMessage`](#buildrasasubscribemessage)), and each watcher receives only its own account's frames, with `notification.account` stamped from the subscription (the rasa wire only carries `counterparty_address`, no `address`).
 
 Either way, the socket closes when the last watcher unwatches.

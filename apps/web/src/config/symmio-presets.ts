@@ -16,42 +16,65 @@ export interface ConfigPreset {
 
 /**
  * Staging deployment overrides. Applying this points the SDK at the SYMMIO
- * staging contracts, the Enigma staging solver (partyB), the staging analytics
- * subgraph, and the staging notifications WebSocket on HyperEVM. The staging
- * collateral is an 18-decimal mintable test token.
+ * Arbitrum staging contracts, the Enigma staging solver (partyB), the staging
+ * subgraphs, and the staging notifications WebSocket.
  */
 export const STAGING_CHAIN_OVERRIDES = {
-  [SymmioSupportedChainId.HYPER_EVM]: {
+  [SymmioSupportedChainId.ARBITRUM]: {
+    contractsVersion: "0.8.6",
     addresses: {
-      symmioAddress: "0x99641E06d38F327166b3a48f86Ca2cbB3B4fB7EB",
-      instantLayerAddress: "0xCeE28784EFE6EEaf6da977D3F1d0cf05E62717eB",
-      accountLayerAddress: "0x812e98F31A4EfFC09dD82e6e87ff7456151a0dFB",
-      affiliatesAddress: "0x98490Efdd691ab58601302F98E1492DC28eCAA56",
-      collateralAddress: "0x6aA554A167864027A02051D3F5C553244439B7Fd",
-      collateralDecimals: 18,
+      symmioAddress: "0x573310dB6d160B26026B8706EBe9831c7dEF1D09",
+      instantLayerAddress: "0x2C9e944cB71329fC659Da50A10a79a508Dd49ba5",
+      accountLayerAddress: "0x5733107211B2801Acd39933a54d482FE303c4907",
+      affiliatesAddress: "0xe99c18CF3C62B9229f9251fd2562077a33e7600a",
+      collateralAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      collateralDecimals: 6,
     },
     solvers: {
       enigma: {
         name: "Enigma (staging)",
-        address: "0xf62a670cda28FfAE65eE2a42D6cf6CF05EC5E775",
-        url: "https://solver-staging.enigma.bz/api",
-        // Notifications are per-solver: this staging override merges onto the
-        // built-in enigma notifications block (same `enigma` protocol).
+        address: "0x9be79D4977D86D440F9e1Ea0d468A58104B9b932",
+        url: "https://arb-staging.enigma.bz/api",
+        tpsl: {
+          url: "https://conditional-orders-handler-lowcap85.rasa.capital",
+          wsUrl: "wss://notification.rasa.capital/ws/v1/subscribe",
+          appName: "Arbitrum_COH_Production",
+          cohWalletAddress: "0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31",
+        },
         notifications: {
           url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
-          channel: "Hyper-evm_Solver-lowcap_Stage",
+          channel: "Arbitrum_Solver-Low-Cap_Stage",
+          protocol: "enigma",
+          searchUrl: "https://notification.rasa.capital/notification",
         },
+        capabilities: { groupClose: true, listingService: true },
       },
     },
+    defaultSolverId: "enigma",
     subgraphs: {
       analytics:
-        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_analytics/latest/gn",
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-analytics/latest/gn",
       events:
-        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_events/latest/gn",
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-events/latest/gn",
     },
     priceService: {
-      url: "https://lowcap-price-staging.enigma.bz",
-      wsUrl: "wss://lowcap-price-staging.enigma.bz/ws",
+      type: "enigma",
+      url: "https://lowcap-price.enigma.bz",
+      wsUrl: "wss://lowcap-price.enigma.bz/ws",
+    },
+    muon: {
+      urls: [
+        "https://muon-oracle1.rasa.capital/v1/",
+        "https://muon-oracle2.rasa.capital/v1/",
+        "https://muon-oracle3.rasa.capital/v1/",
+        "https://muon-oracle4.rasa.capital/v1/",
+      ],
+    },
+    listing: {
+      url: "https://listing85.enigma.bz",
+    },
+    inventory: {
+      url: "https://inventory85.enigma.bz",
     },
   },
 } satisfies CreateConfigParameters["symmioConfig"];
@@ -61,6 +84,6 @@ export const STAGING_PRESET: ConfigPreset = {
   id: "staging",
   label: "Staging",
   description:
-    "SYMMIO staging contracts, the Enigma staging solver, the staging notifications stream, and an 18-decimal test collateral.",
+    "Arbitrum staging contracts, the Enigma staging solver, and the staging notifications stream and subgraphs.",
   overrides: STAGING_CHAIN_OVERRIDES,
 };

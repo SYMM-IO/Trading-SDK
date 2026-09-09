@@ -18,7 +18,7 @@ vi.mock("../types/generated/listing-backend", async (importOriginal) => {
 
 import { authenticateListing } from "./authenticate-listing";
 
-const LISTING_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).listing?.url;
+const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url;
 const SIGNATURE = `0x${"ab".repeat(65)}`;
 
 const SIWE_PARAMS = {
@@ -26,7 +26,7 @@ const SIWE_PARAMS = {
   address: TEST_USER,
   uri: "https://app.example.com",
   version: "1",
-  chainId: 999,
+  chainId: 42161,
   issuedAt: "2026-08-24T00:00:00.000Z",
   nonce: "0xabcdefabcdefabcdefabcdefabcdefab",
   statement: "Sign in to Pools",
@@ -38,12 +38,12 @@ function makeConfigWithSigner() {
   const account = { address: TEST_USER, type: "json-rpc" } as Account;
   const walletClient = {
     account,
-    chain: { id: SymmioSupportedChainId.HYPER_EVM },
+    chain: { id: SymmioSupportedChainId.ARBITRUM },
     signMessage,
   } as unknown as SymmioWalletClient;
 
   const config = createConfig({
-    symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } } },
+    symmioConfig: { [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } } },
     getClient: () => ({}) as PublicClient,
     getWalletClient: async () => walletClient,
   });
@@ -78,7 +78,7 @@ describe("authenticateListing", () => {
           address: TEST_USER,
           uri: "https://app.example.com",
           version: "1",
-          chainId: 999,
+          chainId: 42161,
           issuedAt: "2026-08-24T00:00:00.000Z",
           nonce: "0xabcdefabcdefabcdefabcdefabcdefab",
           statement: "Sign in to Pools",

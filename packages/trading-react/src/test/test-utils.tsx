@@ -22,7 +22,7 @@ import {
 import { type PropsWithChildren, type ReactElement } from "react";
 import type { Account, Chain, Hash, PublicClient } from "viem";
 import { http } from "viem";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { afterEach, vi, type Mock } from "vitest";
 import { createConfig as createWagmiConfig, WagmiProvider, type Config as WagmiConfig } from "wagmi";
 import { mock, type MockParameters } from "wagmi/connectors";
@@ -46,13 +46,13 @@ export const TEST_EOA = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as const;
 export const TEST_TX_HASH: Hash = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
 
 /**
- * Build a wagmi config wired against HyperEVM with the `mock` connector. The
+ * Build a wagmi config wired against Arbitrum with the `mock` connector. The
  * transport URL is a localhost placeholder — hook tests inject a mock SDK config
  * via the hook's `config` parameter, so no real RPC traffic happens.
  *
  * @param opts.connected - `false` registers no connectors (no wallet available).
  * @param opts.chains - Chains the wagmi config knows about. Defaults to
- *   `[hyperEvm]`. Pass a chain the SDK does not support (e.g. `mainnet`) to drive
+ *   `[arbitrum]`. Pass a chain the SDK does not support (e.g. `mainnet`) to drive
  *   the "connected but on the wrong network" path, or several chains to exercise
  *   `switchChain`. The first entry is the chain the mock connector connects on.
  * @param opts.features - Forwarded to the `mock` connector. Use
@@ -65,7 +65,7 @@ export function createTestWagmiConfig(opts?: {
   chains?: readonly [Chain, ...Chain[]];
   features?: MockParameters["features"];
 }): WagmiConfig {
-  const chains = opts?.chains ?? [hyperEvm];
+  const chains = opts?.chains ?? [arbitrum];
   const connectors = opts?.connected === false ? [] : [mock({ accounts: [TEST_EOA], features: opts?.features })];
 
   return createWagmiConfig({
@@ -103,10 +103,12 @@ export function createMockSymmioConfig(opts?: {
 
   const publicClient = { readContract, simulateContract, waitForTransactionReceipt } as unknown as PublicClient;
   const account = { address: TEST_EOA, type: "json-rpc" } as Account;
-  const walletClient = { account, chain: hyperEvm as Chain, writeContract } as unknown as SymmioWalletClient;
+  const walletClient = { account, chain: arbitrum as Chain, writeContract } as unknown as SymmioWalletClient;
 
   const config = createConfig({
-    symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+    symmioConfig: {
+      [arbitrum.id]: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } },
+    },
     getClient: () => publicClient,
     getWalletClient: opts?.withWallet === false ? undefined : async () => walletClient,
     webSocketConstructor: opts?.webSocketConstructor,
@@ -221,7 +223,9 @@ export function TestProviders({
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <SymmioProvider
-          symmioConfig={{ 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } }}
+          symmioConfig={{
+            [arbitrum.id]: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } },
+          }}
         >
           {children}
         </SymmioProvider>

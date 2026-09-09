@@ -1,7 +1,7 @@
 import { createConfig, editAccountName, getUserSubAccounts, type SymmioWalletClient } from "@symmio/trading-core";
 import { createPublicClient, createWalletClient, http, type PublicClient } from "viem";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { describe, expect, it } from "vitest";
 import { loadIntegrationEnv } from "./load-env";
 
@@ -9,7 +9,7 @@ loadIntegrationEnv();
 
 /**
  * Layer B integration test — broadcasts a real `editAccountName` transaction
- * on HyperEVM using credentials from the repo-root `.env` file.
+ * on Arbitrum using credentials from the repo-root `.env` file.
  *
  * Skipped automatically when neither `E2E_SEED_PHRASE` nor
  * `SYMM_TEST_PRIVATE_KEY` is set, so the default test run requires zero
@@ -20,7 +20,7 @@ loadIntegrationEnv();
  * the resolver — the same shape `@symmio/trading-react` builds from wagmi.
  */
 
-const HYPER_EVM_RPC = "https://rpc.hyperliquid.xyz/evm";
+const ARBITRUM_RPC = "https://arb1.arbitrum.io/rpc";
 const SEED = process.env.E2E_SEED_PHRASE;
 const RAW_KEY = process.env.SYMM_TEST_PRIVATE_KEY;
 
@@ -33,23 +33,25 @@ const account =
 
 const maybe = account ? describe : describe.skip;
 
-maybe("editAccountName — integration (real broadcast on HyperEVM)", () => {
+maybe("editAccountName — integration (real broadcast on Arbitrum)", () => {
   it("renames the signer's first subaccount and observes the new name on chain", async () => {
     if (!account) throw new Error("unreachable");
 
     const publicClient = createPublicClient({
-      chain: hyperEvm,
-      transport: http(HYPER_EVM_RPC),
+      chain: arbitrum,
+      transport: http(ARBITRUM_RPC),
     });
 
     const walletClient = createWalletClient({
-      chain: hyperEvm,
+      chain: arbitrum,
       account,
-      transport: http(HYPER_EVM_RPC),
+      transport: http(ARBITRUM_RPC),
     });
 
     const config = createConfig({
-      symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+      symmioConfig: {
+        [arbitrum.id]: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } },
+      },
       getClient: () => publicClient as PublicClient,
       getWalletClient: async () => walletClient as unknown as SymmioWalletClient,
     });

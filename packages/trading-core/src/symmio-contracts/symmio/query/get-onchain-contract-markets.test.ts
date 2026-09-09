@@ -56,7 +56,7 @@ describe("getOnchainContractMarketsQueryOptions", () => {
 
   it("builds a stable key", () => {
     const key = getOnchainContractMarketsQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       start: 0,
       size: 100,
     });
@@ -64,7 +64,7 @@ describe("getOnchainContractMarketsQueryOptions", () => {
     expect(key).toEqual([
       "getOnchainContractMarkets",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         start: 0,
         size: 100,
       },

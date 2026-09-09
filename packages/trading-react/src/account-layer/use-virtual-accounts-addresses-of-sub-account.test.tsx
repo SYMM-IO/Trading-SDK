@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_EOA } from "../test/test-utils";
 import { useVirtualAccountsAddressesOfSubAccount } from "./use-virtual-accounts-addresses-of-sub-account";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 describe("useVirtualAccountsAddressesOfSubAccount", () => {
   it("is disabled while `subAccount` is undefined and never reads", () => {

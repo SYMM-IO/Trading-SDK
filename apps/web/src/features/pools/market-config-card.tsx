@@ -57,7 +57,7 @@ function formatBlend(value: number | null | undefined): string | null {
  *
  * The pool comes from the section&rsquo;s shared picker ({@link usePoolScope}) and the
  * bearer token from the shared {@link useListingAuth} session. Enigma-only: the
- * listing backend lives on HyperEVM, so the card is gated on Enigma being the
+ * listing backend lives on Arbitrum, so the card is gated on Enigma being the
  * active solver, mirroring the other Listing-session cards.
  */
 export function MarketConfigCard() {
@@ -68,7 +68,7 @@ export function MarketConfigCard() {
   const [buybackInput, setBuybackInput] = useState("");
   const [leverageInput, setLeverageInput] = useState("");
 
-  const depositChain = selectedMarket?.chainId ?? ListingDepositChainId.HYPER_EVM;
+  const depositChain = selectedMarket?.chainId ?? ListingDepositChainId.ARBITRUM_ONE;
 
   const marketConfig = useListingMarketConfig({
     accessToken: accessToken ?? "",
@@ -229,7 +229,7 @@ export function MarketConfigCard() {
       </Button>
 
       {!enigmaActive ? (
-        <ResultNote testId="market-config-gate">Switch to Enigma (HyperEVM) to configure a pool.</ResultNote>
+        <ResultNote testId="market-config-gate">Switch to Enigma (Arbitrum) to configure a pool.</ResultNote>
       ) : update.error ? (
         <ResultError kind={update.error.kind} message={update.error.message} testId="market-config-error" />
       ) : update.isSuccess ? (

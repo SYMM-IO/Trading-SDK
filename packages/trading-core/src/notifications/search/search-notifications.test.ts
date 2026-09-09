@@ -7,10 +7,14 @@ import { SymmError } from "../../shared/errors/symm-error";
 import type { NotificationSearchFilter } from "../types";
 import { searchNotifications } from "./search-notifications";
 
-const SEARCH_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solvers.enigma!.notifications.searchUrl;
+const SEARCH_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).solvers.enigma!.notifications.searchUrl;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 const FILTER: NotificationSearchFilter = {
@@ -68,7 +72,7 @@ describe("searchNotifications", () => {
     const unconfigured = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
           solvers: { enigma: { notifications: { searchUrl: "" } } },
         },

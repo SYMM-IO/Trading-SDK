@@ -59,7 +59,7 @@ const COLUMNS: DataTableColumn<PoolClaim>[] = [
  * ({@link usePoolScope}) the list narrows to that pool; otherwise it shows the
  * user's claims across every pool.
  *
- * Enigma-only: the listing backend lives on HyperEVM, so the card is gated on
+ * Enigma-only: the listing backend lives on Arbitrum, so the card is gated on
  * Enigma being the active solver, mirroring the other Listing-session cards.
  */
 export function ClaimHistoryCard() {
@@ -83,7 +83,7 @@ export function ClaimHistoryCard() {
       wide
     >
       {!enigmaActive ? (
-        <ResultNote testId="claim-history-gate">Switch to Enigma (HyperEVM) to read your claim history.</ResultNote>
+        <ResultNote testId="claim-history-gate">Switch to Enigma (Arbitrum) to read your claim history.</ResultNote>
       ) : !signedIn ? (
         <SignInNote testId="claim-history-idle" buttonTestId="claim-history-sign-in">
           Sign in to read your claim history.

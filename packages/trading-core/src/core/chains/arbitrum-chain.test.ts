@@ -18,10 +18,10 @@ describe("Arbitrum chain", () => {
     const arbitrum = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
     expect(arbitrum.addresses).toEqual({
-      symmioAddress: "0x573310dB6d160B26026B8706EBe9831c7dEF1D09",
-      instantLayerAddress: "0x2C9e944cB71329fC659Da50A10a79a508Dd49ba5",
-      accountLayerAddress: "0x5733107211B2801Acd39933a54d482FE303c4907",
-      affiliatesAddress: "0xe99c18CF3C62B9229f9251fd2562077a33e7600a",
+      symmioAddress: "0x57331027091994FCb9c5Aec48ea92cEf0a93CF6A",
+      instantLayerAddress: "0xCB8F789d6f7e59B3D266490e1Aa8e35cFb755132",
+      accountLayerAddress: "0x573310d1D6ec18cB21E1aB949414470D9bf5c24E",
+      affiliatesAddress: "0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D",
       collateralAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
       collateralDecimals: 6,
     });
@@ -32,9 +32,9 @@ describe("Arbitrum chain", () => {
 
     expect(arbitrum.subgraphs).toEqual({
       analytics:
-        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-analytics/latest/gn",
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-mainnet-analytics/latest/gn",
       events:
-        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-events/latest/gn",
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-mainnet-events/stage/gn",
     });
   });
 
@@ -45,27 +45,34 @@ describe("Arbitrum chain", () => {
     expect(arbitrum.defaultSolverId).toBe("enigma");
     expect(arbitrum.solvers.enigma).toMatchObject({
       name: "Enigma",
-      address: "0x9be79D4977D86D440F9e1Ea0d468A58104B9b932",
-      url: "https://arb-staging.enigma.bz/api",
+      address: "0x0420b24359d2DCccA53904042aa36A641162445c",
+      url: "https://solver.enigma.bz/api",
+      tpsl: {
+        url: "https://tpsl.enigma.bz",
+        appName: "Arbitrum_COH_Production",
+        cohWalletAddress: "0xFC3a98d30AdAA220Ae4150fcaC06Bd200b6E146B",
+      },
       notifications: {
-        url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
-        channel: "Arbitrum_Solver-Low-Cap_Stage",
+        url: "wss://notification.rasa.capital/ws/v1/subscribe",
+        channel: "Arbitrum_Solver-Low-Cap_Production",
         protocol: "enigma",
         searchUrl: "https://notification.rasa.capital/notification",
       },
     });
   });
 
-  it("reuses the HyperEVM lowcap service and capability configuration", () => {
+  it("ships the lowcap services and capabilities", () => {
     const arbitrum = getChainConfig(SymmioSupportedChainId.ARBITRUM);
-    const hyperEvm = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
 
-    expect(arbitrum.priceService).toEqual(hyperEvm.priceService);
-    expect(arbitrum.muon).toEqual(hyperEvm.muon);
-    expect(arbitrum.listing).toEqual(hyperEvm.listing);
-    expect(arbitrum.inventory).toEqual(hyperEvm.inventory);
-    expect(arbitrum.solvers.enigma?.tpsl).toEqual(hyperEvm.solvers.enigma?.tpsl);
-    expect(arbitrum.solvers.enigma?.capabilities).toEqual(hyperEvm.solvers.enigma?.capabilities);
+    expect(arbitrum.priceService).toEqual({
+      type: "enigma",
+      url: "https://lowcap-price.enigma.bz",
+      wsUrl: "wss://lowcap-price.enigma.bz/ws",
+    });
+    expect(arbitrum.muon.urls).toHaveLength(4);
+    expect(arbitrum.listing).toEqual({ url: "https://listing85.enigma.bz" });
+    expect(arbitrum.inventory).toEqual({ url: "https://inventory85.enigma.bz" });
+    expect(arbitrum.solvers.enigma?.capabilities).toEqual({ groupClose: true, listingService: true });
   });
 
   it("resolves the Arbitrum solver through Config", () => {
@@ -78,8 +85,8 @@ describe("Arbitrum chain", () => {
 
     expect(config.getSolver({ chainId: SymmioSupportedChainId.ARBITRUM })).toMatchObject({
       id: "enigma",
-      address: "0x9be79D4977D86D440F9e1Ea0d468A58104B9b932",
-      url: "https://arb-staging.enigma.bz/api",
+      address: "0x0420b24359d2DCccA53904042aa36A641162445c",
+      url: "https://solver.enigma.bz/api",
     });
   });
 });

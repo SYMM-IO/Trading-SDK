@@ -78,7 +78,7 @@ Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `Listin
 
 ## Gate the feature first
 
-Pools is not part of every deployment. A chain has it when it carries a `listing` block pointing at a listing backend. Today that is HyperEVM and nowhere else.
+Pools is not part of every deployment. A chain has it when it carries a `listing` block pointing at a listing backend. Today that is Arbitrum and nowhere else.
 
 So the outermost thing a Pools UI does is ask whether to render at all:
 
@@ -1433,7 +1433,7 @@ const headline = usePoolTotalReward({
 
 The two public hooks address a pool by the pair `(marketAddress, marketChainId)`, where `marketChainId` is
 `ListingMarket.chainId` — the chain the pool's **token** lives on. The hook's own `chainId` still means what it means
-everywhere else: which deployment's listing backend to ask. A pool whose token is on Solana still trades on the HyperEVM
+everywhere else: which deployment's listing backend to ask. A pool whose token is on Solana still trades on the Arbitrum
 deployment, so the two genuinely differ.
 
 <Callout type="warning">

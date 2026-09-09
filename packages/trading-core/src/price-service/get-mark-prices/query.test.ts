@@ -13,7 +13,7 @@ import * as actionModule from "./get-mark-prices";
 import { getMarkPricesQueryKey, getMarkPricesQueryOptions } from "./query";
 
 const AFFILIATE = "0x000000000000000000000000000000000000aFF1";
-const CHAIN = SymmioSupportedChainId.HYPER_EVM;
+const CHAIN = SymmioSupportedChainId.ARBITRUM;
 
 const config = createConfig({
   getClient: () => ({}) as PublicClient,

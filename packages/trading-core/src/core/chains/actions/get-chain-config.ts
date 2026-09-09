@@ -11,7 +11,7 @@ import type { SymmioChainConfig } from "../types";
  *
  * @example
  * ```ts
- * const config = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+ * const config = getChainConfig(SymmioSupportedChainId.ARBITRUM);
  * console.log(config.addresses.accountLayerAddress);
  * ```
  */

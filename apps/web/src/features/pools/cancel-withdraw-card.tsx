@@ -64,7 +64,7 @@ export function CancelWithdrawCard() {
       wide
     >
       {!enigmaActive ? (
-        <ResultNote testId="cancel-withdraw-gate">Switch to Enigma (HyperEVM) to cancel a withdrawal.</ResultNote>
+        <ResultNote testId="cancel-withdraw-gate">Switch to Enigma (Arbitrum) to cancel a withdrawal.</ResultNote>
       ) : !signedIn ? (
         <SignInNote testId="cancel-withdraw-idle" buttonTestId="cancel-withdraw-sign-in">
           Sign in to see and cancel your pending withdrawals.
