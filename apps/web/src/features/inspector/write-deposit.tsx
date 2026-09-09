@@ -29,7 +29,7 @@ export function WriteDeposit() {
 
   const mutation = useDeposit();
 
-  const gasless = useGaslessWriteOption("depositForAccount");
+  const write = useGaslessWriteOption("depositForAccount");
 
   /** Dry-run `depositForAccount` before sending. */
   const simulate = useSimulateDeposit();
@@ -94,7 +94,7 @@ export function WriteDeposit() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            mutation.mutate({ account: validAccount, amount: validAmount, gasless });
+            mutation.mutate({ account: validAccount, amount: validAmount, ...write });
           }}
           data-testid="button-send-deposit"
         >

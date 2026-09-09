@@ -39,6 +39,23 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 /**
+ * Recover the vendor response body from an error that merely *carries* one.
+ *
+ * Framework layers re-wrap {@link SymmApiError} into their own error type —
+ * `@symmio/trading-react`'s `normalizeSymmError` produces a `SymmioRequestError`
+ * that extends `Error` while preserving `responseData`. Without this the
+ * `instanceof Error` bail below would discard the gateway's decoded revert
+ * exactly where a consumer needs it most: through a hook. Matched structurally
+ * because `core` cannot import a framework layer's error class.
+ */
+function unwrapBody(err: unknown): unknown {
+  if (typeof err === "object" && err !== null && "responseData" in err) {
+    return (err as { responseData: unknown }).responseData;
+  }
+  return err;
+}
+
+/**
  * Extract the vendor's `{ code, message, details }` error detail (including a
  * decoded `contract_revert`, when present) from any error a gasless action
  * throws.
@@ -64,7 +81,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
  * ```
  */
 export function parseGaslessErrorDetail(err: unknown): GaslessErrorDetail | null {
-  const body = err instanceof SymmApiError ? err.responseData : err instanceof SymmError ? null : (err as unknown);
+  const body = err instanceof SymmApiError ? err.responseData : err instanceof SymmError ? null : unwrapBody(err);
   /** A plain Error is not a response body — its `message` is not vendor detail. */
   if (body instanceof Error) return null;
   const record = asRecord(body);

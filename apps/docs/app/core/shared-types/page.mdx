@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Shared types
 
 Cross-cutting parameter and utility types used across every slice of the SDK. They are public because consumers composing their own higher-level actions need to reference the same building blocks. Most are single-property _mixins_ combined into an action's parameter type via `Compute<A & B>`, mirroring the `@wagmi/core` convention.
@@ -60,13 +62,23 @@ Folded into query keys so a runtime config override yields a fresh key instead o
 
 ### FromParameter
 
-Optional sender for write simulations. Named `from` (not `account`) so it never collides with an action's own `account` / `user` field.
+Optional **signer selector**, not merely a simulation detail. Named `from` (not `account`) so it never collides with an action's own `account` / `user` field.
+
+`from` is handed to the config's `getWalletClient` resolver, which decides which wallet client to return. The SDK does no address matching of its own — passing `from` is a hint your resolver interprets. That makes it the mechanism by which a **session key** signs: a resolver that returns a session-key client when `from` matches the loaded key turns any relayable write into a promptless, gas-free one.
+
+On a relayed write the resolved client's address becomes the Instant Layer operation's EIP-712 `signer`, while the billing account stays the sub-account. On the wallet path it is the sender, and the address a simulation runs as.
 
 <Properties>
   <Property name="from" type="Address" optional>
-    The address the simulation runs as (becomes `msg.sender`). Defaults to the connected wallet in the React layer.
+    The signer to resolve the wallet client with, and the address a simulation runs as (`msg.sender`). Defaults to the
+    connected wallet in the React layer.
   </Property>
 </Properties>
+
+<Callout type="warning">
+  A `from` that is not the account owner only works on the relay. `CoreFacet._call` is `onlyAccountOwner`, so a
+  session-key `from` on the wallet path reverts `NotOwner` — and the key holds no native gas to send it with anyway.
+</Callout>
 
 ### SimulateBeforeWriteParameter
 

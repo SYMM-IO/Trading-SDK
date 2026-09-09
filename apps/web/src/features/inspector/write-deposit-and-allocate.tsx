@@ -34,7 +34,7 @@ export function WriteDepositAndAllocate() {
 
   const mutation = useDepositAndAllocate();
 
-  const gasless = useGaslessWriteOption("depositAndAllocateForAccount");
+  const write = useGaslessWriteOption("depositAndAllocateForAccount");
 
   /** Dry-run `depositAndAllocateForAccount` before sending. */
   const simulate = useSimulateDepositAndAllocate();
@@ -102,7 +102,7 @@ export function WriteDepositAndAllocate() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            mutation.mutate({ account: validAccount, amount: validAmount, gasless });
+            mutation.mutate({ account: validAccount, amount: validAmount, ...write });
           }}
           data-testid="button-send-deposit-allocate"
         >

@@ -40,7 +40,7 @@ export function GaslessWriteToggle({ method, blockedReason }: Props) {
         aria-label={`Gasless relay unavailable for ${method}`}
         title={`Gasless relay unavailable — ${blockedReason}. This call is sent from the connected wallet.`}
         data-testid={`gasless-toggle-${method}`}
-        className="border-border/70 text-muted-foreground/50 inline-flex size-7 shrink-0 cursor-not-allowed items-center justify-center rounded-lg border"
+        className="border-border/70 text-muted-foreground/50 inline-flex size-6 shrink-0 cursor-not-allowed items-center justify-center rounded-md border"
       >
         <BoltIcon struck />
       </span>
@@ -62,7 +62,7 @@ export function GaslessWriteToggle({ method, blockedReason }: Props) {
       data-testid={`gasless-toggle-${method}`}
       onClick={() => setEnabled(!enabled)}
       className={cn(
-        "focus-visible:ring-ring/40 relative inline-flex size-7 shrink-0 items-center justify-center rounded-lg border transition-colors outline-none focus-visible:ring-2",
+        "focus-visible:ring-ring/40 relative inline-flex size-6 shrink-0 items-center justify-center rounded-md border transition-colors outline-none focus-visible:ring-2",
         enabled
           ? "border-info/40 bg-info/10 text-info"
           : "border-border/70 text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -80,7 +80,7 @@ function BoltIcon({ struck }: { struck: boolean }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      className="size-4"
+      className="size-3.5"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.7"

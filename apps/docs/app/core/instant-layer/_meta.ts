@@ -4,8 +4,12 @@ export default {
   "get-delegation-expiry": "getDelegationExpiry",
   "get-instant-layer-nonce": "getInstantLayerNonce",
   "get-is-delegation-active": "getIsDelegationActive",
+  "get-active-delegations": "getActiveDelegations",
+  "get-revocation-cooldown": "getRevocationCooldown",
   "-- writes": { type: "separator", title: "Writes" },
   "grant-delegation": "grantDelegation",
+  "initiate-revoke-delegation": "initiateRevokeDelegation",
+  "finalize-revoke-delegation": "finalizeRevokeDelegation",
   "-- types": { type: "separator", title: "Types" },
   "instant-layer-account": "InstantLayerAccount",
 };

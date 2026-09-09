@@ -1,0 +1,70 @@
+import { Callout } from "nextra/components";
+
+# initiateRevokeDelegation
+
+Schedule the revocation of a delegated signer's authority. This is the first of the Instant Layer's two revocation steps.
+
+```ts
+import { getSessionKeySelectors, initiateRevokeDelegation } from "@symmio/trading-core";
+
+const hash = await initiateRevokeDelegation(config, {
+  account: { addr: subAccount, isPartyB: false },
+  delegate: sessionKeyAddress,
+  selectors: getSessionKeySelectors(config, { chainId }),
+});
+```
+
+<Callout type="warning">
+  **This write cannot be relayed, and takes no `gasless` option.** The relay signs Instant Layer *operations*, and
+  `_verifyOperation` sends every operation whose `target` is the Instant Layer itself to `_verifyGrantOperation`, which
+  rejects any selector other than `grantDelegation` / `grantDelegations`. A relayed revocation would always revert.
+  Budget native gas for this call — including when the delegate revokes itself.
+</Callout>
+
+## Who may call it
+
+The contract accepts a revocation from the account **owner**, from the **delegate itself**, or from a holder of `REVOKER_ROLE`. A session key can therefore retire its own authority without an owner prompt, provided that key holds native gas.
+
+## The cooldown, and what it means for security
+
+This call only _schedules_ the revocation. It stamps `pendingRevocationEta = block.timestamp + revocationCooldown` (read it with [`getRevocationCooldown`](/core/instant-layer/get-revocation-cooldown)) and silently skips any selector that is not currently active.
+
+Until that ETA passes the delegate **keeps signing**. Revocation is not an instant kill switch: budget for the cooldown when you plan an incident response. Once the ETA passes, enforcement stops honoring the delegation, and [`finalizeRevokeDelegation`](/core/instant-layer/finalize-revoke-delegation) clears the stored grant.
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="InstantLayerAccount" required>
+    The account the delegation was granted under.
+  </Property>
+  <Property name="delegate" type="Address" required>
+    The delegated signer whose authority is being revoked.
+  </Property>
+  <Property name="selectors" type="readonly Hex[]" required>
+    Function selectors (`bytes4[]`) to revoke. Selectors that are not active are skipped.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+  <Property name="from" type="Address" optional>
+    Signer override passed to the wallet-client resolver.
+  </Property>
+  <Property name="simulateBeforeWrite" type="boolean" optional>
+    Dry-run the call first. Defaults to the config's setting.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hash">The submitted transaction hash. The caller waits on the receipt.</Returns>
+
+## Mutation options
+
+```ts
+import { initiateRevokeDelegationMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+useMutation(initiateRevokeDelegationMutationOptions(config));
+```
+
+The React binding is [`useInitiateRevokeDelegation`](/react/instant-layer).

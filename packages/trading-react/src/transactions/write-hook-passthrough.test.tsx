@@ -1,4 +1,5 @@
 import {
+  GASLESS_SESSION_KEY_SELECTORS,
   SubAccountIsolationType,
   type GaslessWriteOptions,
   type SingleUpnlSig,
@@ -34,11 +35,13 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "depositAndAllocateForAccountMutationOptions",
     "depositForAccountMutationOptions",
     "editAccountNameMutationOptions",
+    "finalizeRevokeDelegationMutationOptions",
     "finalizeWithdrawRequestMutationOptions",
     "forceCancelCloseRequestMutationOptions",
     "forceCancelQuoteMutationOptions",
     "forceCloseAutoMutationOptions",
     "grantDelegationMutationOptions",
+    "initiateRevokeDelegationMutationOptions",
     "initiateWithdrawMutationOptions",
     "removeMarginMutationOptions",
     "requestCancelWithdrawMutationOptions",
@@ -71,7 +74,9 @@ import { useRemoveMargin } from "../account-layer/use-remove-margin";
 import { useRequestToRegisterAffiliate } from "../account-layer/use-request-to-register-affiliate";
 import { useApproveCollateral } from "../collateral/use-approve-collateral";
 import { useApproveOperationalFee } from "../gasless/use-approve-operational-fee";
+import { useFinalizeRevokeDelegation } from "../instant-layer/use-finalize-revoke-delegation";
 import { useGrantDelegation } from "../instant-layer/use-grant-delegation";
+import { useInitiateRevokeDelegation } from "../instant-layer/use-initiate-revoke-delegation";
 import { useForceCancelCloseRequest } from "../quotes/use-force-cancel-close-request";
 import { useForceCancelQuote } from "../quotes/use-force-cancel-quote";
 import { useForceClose } from "../quotes/use-force-close";
@@ -272,6 +277,34 @@ const PROBES: Probe<never>[] = [
       delegatedSigner: VIRTUAL_ACCOUNT,
       selectors: ["0xa6d66852" as Hex],
       expiryTimestamp: 1n,
+    },
+  }),
+  probe({
+    /**
+     * Both revoke hooks are `acceptsGasless: false` by contract, not by
+     * omission: a revocation targets the InstantLayer, and the contract accepts
+     * a self-targeted operation only as a delegation grant, so it can never be
+     * relayed.
+     */
+    file: "instant-layer/use-initiate-revoke-delegation.ts",
+    name: "useInitiateRevokeDelegation",
+    acceptsGasless: false,
+    useWrite: (config) => useInitiateRevokeDelegation({ config, waitForReceipt: false }),
+    variables: {
+      account: { addr: ACCOUNT, isPartyB: false },
+      delegate: VIRTUAL_ACCOUNT,
+      selectors: GASLESS_SESSION_KEY_SELECTORS.slice(0, 1),
+    },
+  }),
+  probe({
+    file: "instant-layer/use-finalize-revoke-delegation.ts",
+    name: "useFinalizeRevokeDelegation",
+    acceptsGasless: false,
+    useWrite: (config) => useFinalizeRevokeDelegation({ config, waitForReceipt: false }),
+    variables: {
+      account: { addr: ACCOUNT, isPartyB: false },
+      delegate: VIRTUAL_ACCOUNT,
+      selectors: GASLESS_SESSION_KEY_SELECTORS.slice(0, 1),
     },
   }),
   probe({

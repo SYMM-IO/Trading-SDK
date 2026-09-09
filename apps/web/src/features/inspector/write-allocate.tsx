@@ -29,7 +29,7 @@ export function WriteAllocate() {
 
   const mutation = useAllocate();
 
-  const gasless = useGaslessWriteOption("allocate");
+  const write = useGaslessWriteOption("allocate");
 
   /** Dry-run `allocate` before sending. */
   const simulate = useSimulateAllocate();
@@ -94,7 +94,7 @@ export function WriteAllocate() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            mutation.mutate({ account: validAccount, amount: validAmount, gasless });
+            mutation.mutate({ account: validAccount, amount: validAmount, ...write });
           }}
           data-testid="button-send-allocate"
         >

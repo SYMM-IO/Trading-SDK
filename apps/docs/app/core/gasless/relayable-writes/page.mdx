@@ -56,14 +56,19 @@ Two lists, deliberately not the same one.
 
 `GASLESS_RELAYABLE_SELECTORS` is what the relayer will carry — this whole table, **including `grantDelegation`**, which is why onboarding a session key needs no gas either. `isGaslessRelayableSelector(selector)` answers for one selector.
 
-`GASLESS_SESSION_KEY_SELECTORS` is what you grant a key, and it is **enumerated by hand rather than derived from the table above**: the trading, withdraw, margin and operational-fee writes. Relayability and delegability are different questions — the first asks whether the relayer will carry a write, the second whether a browser-held key may sign it unattended — so a write becoming relayable never widens a session key on its own.
+[`getSessionKeySelectors`](/core/gasless/get-session-key-selectors) is what you grant a key. Prefer it over the raw constants: it unions gasless account management with the instant-trade lifecycle and resolves the chain's contracts generation, so a key comes out able to both trade and manage the account. `GASLESS_SESSION_KEY_SELECTORS` is the account-management half on its own, **enumerated by hand rather than derived from the table above**: the cancel, withdraw-completion, margin and operational-fee writes. There is no trading write among them — trading is delegated through the instant-trade selectors, which the relayer does not carry at all.
 
-Deliberately excluded, though relayable: `createSubAccounts`, `deleteSubAccount`, `editAccountName`, `depositForAccount`, `depositAndAllocateForAccount` and `forceClosePosition`. Those relay without gas but stay owner-signed — creating, deleting and renaming accounts, moving the owner's own collateral, and force-closing are not things a bounded key does unattended. Grant them explicitly if your product wants them.
+Relayability and delegability are different questions — the first asks whether the relayer will carry a write, the second whether a browser-held key may sign it unattended — so a write becoming relayable never widens a session key on its own.
+
+`GASLESS_SESSION_KEY_WITHDRAW_SELECTORS` holds `initiateWithdraw` alone, and is **not** in the default set. Request it with `getSessionKeySelectors(config, { withdraw: true })` only for a key that must run withdrawals unattended: it takes a caller-supplied `receiver`, and delegation is selector-and-expiry only — no argument scope exists — so a key holding it can move the sub-account's collateral anywhere. `finalizeWithdrawRequest` and `requestCancelWithdraw` stay in the default set precisely because neither takes a receiver: both only complete or cancel a withdrawal the owner already addressed.
+
+Deliberately excluded, though relayable: `createSubAccounts`, `deleteSubAccount`, `editAccountName`, `depositForAccount`, `depositAndAllocateForAccount` and `forceClosePosition`. The two deposits pull the **owner's** ERC-20 collateral, which a session key has no allowance for, and `createSubAccounts` carries no `onlyAccountOwner` guard, so the Instant Layer's scope never confines it. The rest relay without gas but stay owner-signed as a product decision — grant them explicitly if you want them.
 
 <Callout type="warning">
-  Never grant `GASLESS_RELAYABLE_SELECTORS`. It contains `grantDelegation`, and a key holding that selector can mint
-  itself further delegations — over any selector, with any expiry — which makes a bounded session key unbounded. Both
-  the exclusion and the hand-enumerated membership are enforced by tests, not just by documentation.
+  Never grant `GASLESS_RELAYABLE_SELECTORS`. It contains `grantDelegation`, and while the contract does reject a
+  delegate-signed grant outright — `_verifyOperation` routes any self-targeted operation to `_verifyGrantOperation`,
+  which ends owner-only — handing a key that selector buys it nothing and turns a clear "the owner must sign this" into
+  an opaque relay rejection. The hand-enumerated membership is enforced by tests, not just by documentation.
 </Callout>
 
 Grant them with [`grantDelegation`](/core/instant-layer/grant-delegation) and `gasless: true`; the grant relays like any other write.

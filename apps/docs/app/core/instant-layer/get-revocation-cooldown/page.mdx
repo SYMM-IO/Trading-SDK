@@ -1,0 +1,36 @@
+# getRevocationCooldown
+
+Read the Instant Layer's global delegation revocation cooldown, in seconds.
+
+```ts
+import { getRevocationCooldown } from "@symmio/trading-core";
+
+const cooldownSeconds = await getRevocationCooldown(config, {});
+```
+
+This is the delay the two-step revocation enforces. [`initiateRevokeDelegation`](/core/instant-layer/initiate-revoke-delegation) stamps `pendingRevocationEta = block.timestamp + revocationCooldown`; [`finalizeRevokeDelegation`](/core/instant-layer/finalize-revoke-delegation) reverts until that ETA passes.
+
+Surface it wherever you offer revocation, so a user learns **before** they start that a compromised key keeps signing for the cooldown's duration.
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="bigint">The cooldown in seconds, as configured on the chain's Instant Layer.</Returns>
+
+## Query options
+
+```ts
+import { getRevocationCooldownQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getRevocationCooldownQueryOptions(config, {}));
+```
+
+The React binding is [`useRevocationCooldown`](/react/instant-layer).

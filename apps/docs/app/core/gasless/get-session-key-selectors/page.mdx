@@ -1,0 +1,82 @@
+import { Callout } from "nextra/components";
+
+# getSessionKeySelectors
+
+**The** selector set to grant a session key. Resolves the chain's contracts generation and unions the instant-trade lifecycle with gasless account management, de-duplicated.
+
+```ts
+import { getSessionKeySelectors, grantDelegation } from "@symmio/trading-core";
+
+await grantDelegation(config, {
+  account: { addr: subAccount, isPartyB: false },
+  delegatedSigner: sessionKeyAddress,
+  selectors: getSessionKeySelectors(config, { chainId }),
+  expiryTimestamp,
+  gasless: true,
+});
+```
+
+## Why one function instead of two constants
+
+A session key needs authority from two different places: the trade lifecycle (`sendQuote`, `requestToClosePosition`, `addMarginToNextVA`) and gasless account management (allocate, margin, cancels, the operational-fee approval). Those sets are **disjoint**, and they are shaped differently — one is chain-dependent, because a v0.8.5 chain's open leg is the legacy `sendQuoteWithAffiliateAndData`.
+
+Granting only one of them is the common mistake, and it is not a compile error: grant the trade set and every account write still prompts the wallet; grant the account set and the key cannot trade. Either way the failure arrives much later as an on-chain `InvalidDelegation`. This function is the single answer.
+
+## One prompt, then silence
+
+Because the contract enforces that `grantDelegation` is owner-only, this grant is the **only** wallet prompt a session key ever costs. Every write it covers afterwards is promptless — and, relayed, needs no native gas either.
+
+## Scope
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+  <Property name="trade" type="boolean" optional>
+    The instant trade lifecycle. Defaults to `true`.
+  </Property>
+  <Property name="account" type="boolean" optional>
+    Relayable account management. Defaults to `true`.
+  </Property>
+  <Property name="withdraw" type="boolean" optional>
+    `initiateWithdraw`. Defaults to **`false`** — see below.
+  </Property>
+</Properties>
+
+<Callout type="warning">
+  **`withdraw` is opt-in because it is collateral-exit authority.** `initiateWithdraw` takes a caller-supplied
+  `receiver`, and Instant Layer delegation is selector-and-expiry only — there is no argument or value scope. A key
+  holding it can move the sub-account's collateral to any address it chooses, unattended, for the life of the grant.
+
+`finalizeWithdrawRequest` and `requestCancelWithdraw` are in the default `account` scope and stay there: neither takes
+a receiver, so both can only complete or cancel a withdrawal whose destination the owner already fixed.
+
+</Callout>
+
+## Returns
+
+<Returns type="readonly Hex[]">The de-duplicated selector set for the requested scope on that chain.</Returns>
+
+## Throws
+
+<Callout type="error">
+  `SESSION_KEY_SELECTORS_UNSUPPORTED_CHAIN` when `account` or `withdraw` is requested on a chain whose
+  `contractsVersion` is not `"0.8.6"`. The account-management selectors exist only on perps-core 0.8.6 deployments, and
+  the function refuses rather than silently returning a narrower set than you asked for.
+
+Gate the scope on [`supportsGaslessService`](/core/gasless/resolve-gasless-service) — which tests the same condition —
+and fall back to `{ account: false, withdraw: false }` for a trade-only key:
+
+```ts
+const supported = supportsGaslessService(config, { chainId });
+const selectors = getSessionKeySelectors(config, { chainId, account: supported, withdraw: false });
+```
+
+</Callout>
+
+## Related
+
+- [Relayable writes](/core/gasless/relayable-writes) — what the relayer carries, and what a key may hold
+- [`grantDelegation`](/core/instant-layer/grant-delegation) — the owner-signed grant itself
+- [`initiateRevokeDelegation`](/core/instant-layer/initiate-revoke-delegation) — taking the authority back
+- [`useSessionKeySelectors`](/react/instant-layer) — the React binding

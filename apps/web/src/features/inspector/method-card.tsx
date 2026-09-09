@@ -45,8 +45,8 @@ interface Props {
  * Visual frame for a single AccountLayer method on the Inspector page. A tinted
  * status dot and read/write chip distinguish view methods from writes; the body
  * holds the inputs and the result panel. A write marked `gaslessRelayable` also
- * gets a {@link GaslessWriteToggle} beside its chip, so the call can be taken
- * off the relay without changing the app-wide config.
+ * gets a {@link GaslessWriteToggle} just ahead of its chip, so the call can be
+ * taken off the relay without changing the app-wide config.
  */
 export function MethodCard({
   testId,
@@ -77,13 +77,16 @@ export function MethodCard({
         <div className="flex flex-wrap items-center gap-2.5">
           <span className={cn("size-2 rounded-full", isWrite ? "bg-warning" : "bg-info")} aria-hidden />
           <CardTitle className="font-mono text-[0.95rem] font-medium tracking-tight">{name}</CardTitle>
-          <Badge variant={isWrite ? "warning" : "info"} className="ml-auto tracking-wide uppercase">
-            {isWrite ? "write" : "read"}
-          </Badge>
-          {isWrite && gaslessRelayable ? (
-            <GaslessWriteToggle method={name} blockedReason={gaslessBlockedReason} />
-          ) : null}
-          {magicMethodId ? <MagicPinButton methodId={magicMethodId} input={magicMethodInput} /> : null}
+          {/* Trailing controls travel together, so a long method name wraps them as one cluster. */}
+          <div className="ml-auto flex items-center gap-2">
+            {isWrite && gaslessRelayable ? (
+              <GaslessWriteToggle method={name} blockedReason={gaslessBlockedReason} />
+            ) : null}
+            <Badge variant={isWrite ? "warning" : "info"} className="tracking-wide uppercase">
+              {isWrite ? "write" : "read"}
+            </Badge>
+            {magicMethodId ? <MagicPinButton methodId={magicMethodId} input={magicMethodInput} /> : null}
+          </div>
         </div>
         <CardDescription className="leading-6">{description}</CardDescription>
       </CardHeader>

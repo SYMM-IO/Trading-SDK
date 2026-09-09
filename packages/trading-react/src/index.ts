@@ -23,6 +23,7 @@ export {
   ADD_MARGIN_TO_NEXT_VA_SELECTOR,
   GASLESS_RELAYABLE_SELECTORS,
   GASLESS_SESSION_KEY_SELECTORS,
+  GASLESS_SESSION_KEY_WITHDRAW_SELECTORS,
   GASLESS_TERMINAL_STATUSES,
   GaslessRequestStatus,
   INSTANT_TRADE_REQUIRED_SELECTORS,
@@ -48,8 +49,10 @@ export {
   decimalPriceToWei,
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
+  getSessionKeySelectors,
   isGaslessRequestTerminal,
   isolationTypeForSide,
+  parseGaslessErrorDetail,
   supportsEstimatedPrice,
   validateInstantCloseAgainstMarket,
   validateInstantOpenAgainstMarket,
@@ -96,8 +99,10 @@ export {
 export type { GetWalletClientFn, SymmioWalletClient } from "@symmio/trading-core";
 export {
   SymmioProvider,
+  createSessionKeyWalletClientResolver,
   useSymmioChainId,
   useSymmioConfig,
+  type CreateSessionKeyWalletClientResolverParameters,
   type SymmioProviderProps,
   type UseSymmioConfigParameters,
 } from "./provider";
@@ -270,8 +275,12 @@ export {
  * contract.
  */
 export {
+  useActiveDelegations,
+  useAreDelegationsActive,
   useDelegationExpiry,
+  useFinalizeRevokeDelegation,
   useGrantDelegation,
+  useInitiateRevokeDelegation,
   useInstantClose,
   useInstantCloseAuto,
   useInstantCloseBulk,
@@ -286,12 +295,24 @@ export {
   useIsDelegationActive,
   useLimitCloseAuto,
   useLimitOpenAuto,
+  useRevocationCooldown,
+  useSessionKeySelectors,
   useSimulateGrantDelegation,
+  type FinalizeRevokeDelegationResult,
   type GrantDelegationResult,
+  type InitiateRevokeDelegationResult,
+  type UseActiveDelegationsParameters,
+  type UseActiveDelegationsReturnType,
+  type UseAreDelegationsActiveParameters,
+  type UseAreDelegationsActiveReturnType,
   type UseDelegationExpiryParameters,
   type UseDelegationExpiryReturnType,
+  type UseFinalizeRevokeDelegationParameters,
+  type UseFinalizeRevokeDelegationReturnType,
   type UseGrantDelegationParameters,
   type UseGrantDelegationReturnType,
+  type UseInitiateRevokeDelegationParameters,
+  type UseInitiateRevokeDelegationReturnType,
   type UseInstantCloseAutoParameters,
   type UseInstantCloseAutoReturnType,
   type UseInstantCloseBulkAutoParameters,
@@ -323,6 +344,10 @@ export {
   type UseLimitCloseAutoReturnType,
   type UseLimitOpenAutoParameters,
   type UseLimitOpenAutoReturnType,
+  type UseRevocationCooldownParameters,
+  type UseRevocationCooldownReturnType,
+  type UseSessionKeySelectorsParameters,
+  type UseSessionKeySelectorsReturnType,
   type UseSimulateGrantDelegationParameters,
   type UseSimulateGrantDelegationReturnType,
 } from "./instant-layer";
@@ -838,8 +863,12 @@ export {
  * ------------
  * Shared shape for write hooks (`WriteParameters` / `WriteResult`), plus an
  * optional zustand store for tracking in-flight tx hashes in the UI.
+ * `TransactionRevertedError` is what every write hook throws when its
+ * transaction mined but reverted — viem resolves such a receipt normally, so
+ * the shared write tail raises it rather than reporting a no-op as success.
  */
 export {
+  TransactionRevertedError,
   useTransactionsStore,
   type TrackedTx,
   type TransactionsStoreState,

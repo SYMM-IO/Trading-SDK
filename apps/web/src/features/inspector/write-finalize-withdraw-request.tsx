@@ -35,7 +35,7 @@ export function WriteFinalizeWithdrawRequest() {
 
   const mutation = useFinalizeWithdrawRequest();
 
-  const gasless = useGaslessWriteOption("finalizeWithdrawRequest");
+  const write = useGaslessWriteOption("finalizeWithdrawRequest");
 
   /** Dry-run `finalizeWithdrawRequest` directly on the SYMMIO core. */
   const simulate = useSimulateFinalizeWithdrawRequest();
@@ -100,7 +100,7 @@ export function WriteFinalizeWithdrawRequest() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validUser || validRequestId === undefined) return;
-            mutation.mutate({ user: validUser, requestId: validRequestId, gasless });
+            mutation.mutate({ user: validUser, requestId: validRequestId, ...write });
           }}
           data-testid="button-send-finalize"
         >

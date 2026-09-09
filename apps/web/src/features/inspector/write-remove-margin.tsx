@@ -34,7 +34,7 @@ export function WriteRemoveMargin() {
 
   const mutation = useRemoveMargin();
 
-  const gasless = useGaslessWriteOption("removeMargin");
+  const write = useGaslessWriteOption("removeMargin");
 
   /** Fetches the fresh Muon uPnL signature the simulate/dry-run needs. */
   const deallocateSig = useDeallocateUpnlSig();
@@ -114,7 +114,7 @@ export function WriteRemoveMargin() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validVa || validAmount === undefined) return;
-            mutation.mutate({ virtualAccount: validVa, amount: validAmount, gasless });
+            mutation.mutate({ virtualAccount: validVa, amount: validAmount, ...write });
           }}
           data-testid="button-send-remove-margin"
         >

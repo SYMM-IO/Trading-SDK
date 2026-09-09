@@ -17,7 +17,7 @@ import { isAddress } from "viem";
 import { useSessionKey } from "../session-keys/use-session-key";
 import { getInstantLayerDelegateeSuggestions, toDelegateeComboboxItems } from "./instant-layer-delegatees";
 import { SelectorIcon, WalletIcon } from "./instant-layer-icons";
-import { toSelectorComboboxItems } from "./instant-layer-selectors";
+import { useSelectorComboboxItems } from "./instant-layer-selectors";
 import { MethodCard } from "./method-card";
 import { SubAccountPicker } from "./subaccount-picker";
 
@@ -77,7 +77,7 @@ export function ReadDelegationReads() {
           value={selector}
           onValueChange={setSelector}
           onSelect={(item) => setSelector(item.id)}
-          items={toSelectorComboboxItems(validSelector ? [validSelector] : [])}
+          items={useSelectorComboboxItems(validSelector ? [validSelector] : [])}
           placeholder="0x12345678"
           mono
           invalid={selector.length > 0 && !validSelector}

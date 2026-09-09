@@ -376,6 +376,14 @@ export interface GaslessExecutionConfig {
    * unaffordable or the daily quota would block. Default `true`.
    */
   preflightFee?: boolean;
+  /**
+   * Verify on-chain (`isDelegationActive`) that the signing key is authorized
+   * for every selector a relayed write carries before prompting the user for a
+   * signature, and fail fast when a session key is missing a delegation.
+   * Skipped for the sub-account's own owner, who needs no delegation.
+   * Default `true`.
+   */
+  preflightDelegation?: boolean;
   /** Max wait for the relayer to broadcast before timing out. Default `120_000` ms. */
   broadcastTimeoutMs?: number;
   /** Status poll cadence while the request is `queued`. Default `1_500` ms. */

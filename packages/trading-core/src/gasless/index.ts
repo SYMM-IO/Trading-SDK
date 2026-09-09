@@ -11,6 +11,7 @@ export * from "./get-gasless-request";
 export * from "./get-gasless-request-transactions";
 export * from "./get-gasless-wallet-address";
 export * from "./get-gasless-wallet-nonce";
+export * from "./get-session-key-selectors";
 export * from "./relay-grant-delegation";
 export * from "./relay-instant-operations";
 export * from "./relayable-writes";

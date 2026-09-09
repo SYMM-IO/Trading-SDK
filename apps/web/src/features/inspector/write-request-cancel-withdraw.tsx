@@ -31,7 +31,7 @@ export function WriteRequestCancelWithdraw() {
 
   const mutation = useRequestCancelWithdraw();
 
-  const gasless = useGaslessWriteOption("requestCancelWithdraw");
+  const write = useGaslessWriteOption("requestCancelWithdraw");
 
   const simulate = useSimulateRequestCancelWithdraw();
 
@@ -95,7 +95,7 @@ export function WriteRequestCancelWithdraw() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount || validRequestId === undefined) return;
-            mutation.mutate({ account: validAccount, requestId: validRequestId, gasless });
+            mutation.mutate({ account: validAccount, requestId: validRequestId, ...write });
           }}
           data-testid="button-send-cancel"
         >

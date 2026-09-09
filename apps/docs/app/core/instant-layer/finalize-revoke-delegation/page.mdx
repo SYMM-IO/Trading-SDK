@@ -1,0 +1,71 @@
+import { Callout } from "nextra/components";
+
+# finalizeRevokeDelegation
+
+Complete a scheduled revocation, deleting the stored delegation. This is the second of the Instant Layer's two revocation steps.
+
+```ts
+import { finalizeRevokeDelegation } from "@symmio/trading-core";
+
+const hash = await finalizeRevokeDelegation(config, {
+  account: { addr: subAccount, isPartyB: false },
+  delegate: sessionKeyAddress,
+  selectors,
+});
+```
+
+<Callout type="warning">
+  **This write cannot be relayed, and takes no `gasless` option.** `_verifyOperation` routes every operation targeting
+  the Instant Layer itself to `_verifyGrantOperation`, which accepts only `grantDelegation` / `grantDelegations`. See
+  [`initiateRevokeDelegation`](/core/instant-layer/initiate-revoke-delegation).
+</Callout>
+
+## Permissionless
+
+Unlike the initiating step, **anyone** may call this once the cooldown ETA has passed — a keeper, a backend, or the user's own wallet can finish a revocation the owner started.
+
+It reverts `RevocationCooldownNotOver` while the ETA is still in the future, and silently skips any selector that was never scheduled.
+
+<Callout type="info">
+  Enforcement already stops honoring the delegation the moment the ETA passes, so this call is the bookkeeping leg
+  rather than the moment authority ends. Do not present it to users as "the revoke" — by the time it can be sent, the
+  key has already lost its authority.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="InstantLayerAccount" required>
+    The account the delegation was granted under.
+  </Property>
+  <Property name="delegate" type="Address" required>
+    The delegated signer whose scheduled revocation is being completed.
+  </Property>
+  <Property name="selectors" type="readonly Hex[]" required>
+    Function selectors (`bytes4[]`) to clear.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+  <Property name="from" type="Address" optional>
+    Signer override passed to the wallet-client resolver.
+  </Property>
+  <Property name="simulateBeforeWrite" type="boolean" optional>
+    Dry-run the call first. Defaults to the config's setting.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hash">The submitted transaction hash. The caller waits on the receipt.</Returns>
+
+## Mutation options
+
+```ts
+import { finalizeRevokeDelegationMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+useMutation(finalizeRevokeDelegationMutationOptions(config));
+```
+
+The React binding is [`useFinalizeRevokeDelegation`](/react/instant-layer).

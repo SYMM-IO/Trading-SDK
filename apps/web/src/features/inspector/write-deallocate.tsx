@@ -29,7 +29,7 @@ export function WriteDeallocate() {
 
   const mutation = useDeallocate();
 
-  const gasless = useGaslessWriteOption("deallocate");
+  const write = useGaslessWriteOption("deallocate");
 
   /** Fetches the fresh Muon uPnL signature the simulate/dry-run needs. */
   const deallocateSig = useDeallocateUpnlSig();
@@ -109,7 +109,7 @@ export function WriteDeallocate() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            mutation.mutate({ account: validAccount, amount: validAmount, gasless });
+            mutation.mutate({ account: validAccount, amount: validAmount, ...write });
           }}
           data-testid="button-send-deallocate"
         >

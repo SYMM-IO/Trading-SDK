@@ -52,3 +52,41 @@ describe("parseGaslessErrorDetail", () => {
     expect(parseGaslessErrorDetail(undefined)).toBeNull();
   });
 });
+
+describe("parseGaslessErrorDetail through a framework re-wrap", () => {
+  /**
+   * `@symmio/trading-react` re-wraps `SymmApiError` into its own `Error`
+   * subclass that keeps `responseData`. The detail has to survive that hop, or
+   * the gateway's decoded revert is unreachable from every hook.
+   */
+  it("recovers the vendor detail from an error that merely carries responseData", () => {
+    class ReWrapped extends Error {
+      readonly responseData: unknown;
+      constructor(responseData: unknown) {
+        super("Request failed with status code 400");
+        this.responseData = responseData;
+      }
+    }
+
+    const detail = parseGaslessErrorDetail(
+      new ReWrapped({
+        detail: {
+          code: "SIMULATION_REVERTED",
+          message: "The signed operation could not be executed in gateway simulation.",
+          details: {
+            contract_revert: {
+              selector: "0x08c379a0",
+              error: "Error",
+              signature: "Error(string)",
+              arguments: { message: "OperationalFee: Allowance exceeded" },
+              decoded: "Error(message=OperationalFee: Allowance exceeded)",
+            },
+          },
+        },
+      }),
+    );
+
+    expect(detail?.code).toBe("SIMULATION_REVERTED");
+    expect(detail?.contractRevert?.decoded).toBe("Error(message=OperationalFee: Allowance exceeded)");
+  });
+});

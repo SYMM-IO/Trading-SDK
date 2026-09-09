@@ -72,6 +72,16 @@ export interface ConfigGroupDef {
 
 /** The editable surface of a chain config, grouped for display. */
 export const CONFIG_GROUPS: ConfigGroupDef[] = [
+  /**
+   * Execution switches lead: they change HOW every write dispatches, so they
+   * belong above the endpoint and address fields that only say WHERE it goes.
+   * A chain with no relayer renders no fields here and the group disappears.
+   */
+  {
+    group: "gasless",
+    title: "Gasless relay",
+    fields: [GASLESS_MODE_FIELD],
+  },
   {
     group: "addresses",
     title: "Contracts & collateral",
@@ -127,11 +137,6 @@ export const CONFIG_GROUPS: ConfigGroupDef[] = [
         protocols: ["enigma"],
       },
     ],
-  },
-  {
-    group: "gasless",
-    title: "Gasless relay",
-    fields: [GASLESS_MODE_FIELD],
   },
 ];
 

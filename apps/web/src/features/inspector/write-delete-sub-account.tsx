@@ -30,7 +30,7 @@ export function WriteDeleteSubAccount() {
 
   const mutation = useDeleteSubAccount();
 
-  const gasless = useGaslessWriteOption("deleteSubAccount");
+  const write = useGaslessWriteOption("deleteSubAccount");
 
   /** Dry-run the call (`simulateContract`) so the user sees pass/revert before sending. */
   const simulate = useSimulateDeleteSubAccount();
@@ -93,7 +93,7 @@ export function WriteDeleteSubAccount() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount) return;
-            mutation.mutate({ subAccount: validAccount, gasless });
+            mutation.mutate({ subAccount: validAccount, ...write });
           }}
           data-testid="button-send-delete"
         >

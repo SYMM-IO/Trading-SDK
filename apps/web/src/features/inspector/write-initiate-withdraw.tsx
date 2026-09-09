@@ -43,7 +43,7 @@ export function WriteInitiateWithdraw() {
 
   const mutation = useInitiateWithdraw();
 
-  const gasless = useGaslessWriteOption("initiateWithdraw");
+  const write = useGaslessWriteOption("initiateWithdraw");
 
   const validParts =
     validReceiver && validAmount !== undefined && chainId !== undefined
@@ -147,7 +147,7 @@ export function WriteInitiateWithdraw() {
               receiver: validReceiver,
               chainId: BigInt(chainId!),
             });
-            mutation.mutate({ account: validAccount, parts: [part], gasless });
+            mutation.mutate({ account: validAccount, parts: [part], ...write });
           }}
           data-testid="button-send-initiate-withdraw"
         >

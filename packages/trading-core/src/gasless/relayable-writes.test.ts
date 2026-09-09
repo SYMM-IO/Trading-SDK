@@ -7,6 +7,7 @@ import {
   GASLESS_RELAYABLE_SELECTORS,
   GASLESS_RELAYABLE_WRITES,
   GASLESS_SESSION_KEY_SELECTORS,
+  GASLESS_SESSION_KEY_WITHDRAW_SELECTORS,
   isGaslessRelayableSelector,
   type GaslessRelayableTarget,
   type GaslessRelayableWrite,
@@ -24,15 +25,20 @@ describe("gasless selector sets", () => {
 
   it("never offers grantDelegation as a session-key grant", () => {
     /**
-     * The escalation this guard exists for: a key holding this selector could
-     * mint itself further delegations over any selector and any expiry, which
-     * makes the bounded session key unbounded.
+     * Not an escalation guard — the contract already forbids the escalation.
+     * The InstantLayer routes a self-targeted operation to
+     * `_verifyGrantOperation`, which reverts unless the signer is the account
+     * owner, and `grantDelegation` is `onlyOwner` on top of that, so a
+     * delegate-signed grant never lands. Granting the selector would buy a key
+     * nothing and turn a clear "the owner must sign this" into an opaque relay
+     * rejection.
      */
     expect(GASLESS_SESSION_KEY_SELECTORS).not.toContain(GRANT_DELEGATION_SELECTOR);
+    expect(GASLESS_SESSION_KEY_WITHDRAW_SELECTORS).not.toContain(GRANT_DELEGATION_SELECTOR);
   });
 
   it("only offers selectors the relayer will actually carry", () => {
-    for (const selector of GASLESS_SESSION_KEY_SELECTORS) {
+    for (const selector of [...GASLESS_SESSION_KEY_SELECTORS, ...GASLESS_SESSION_KEY_WITHDRAW_SELECTORS]) {
       expect(isGaslessRelayableSelector(selector)).toBe(true);
     }
   });
@@ -50,38 +56,66 @@ describe("gasless selector sets", () => {
     expect(delegable).toEqual([
       "allocate",
       "deallocate",
-      "initiateWithdraw",
       "requestCancelWithdraw",
       "finalizeWithdrawRequest",
       "requestToCancelQuote",
       "requestToCancelCloseRequest",
       "forceCancelQuote",
       "forceCancelCloseRequest",
+      "forceClosePosition",
       "approveOperationalFee",
       "addMargin",
       "removeMargin",
+      "editAccountName",
     ]);
   });
 
   it("keeps the relayable-but-owner-signed writes out of a session key's reach", () => {
     /**
-     * These relay without native gas, but each still costs one wallet signature:
-     * account creation, deletion, renaming, moving the owner's own collateral and
-     * force-closing are not things a bounded session key gets to do unattended.
+     * These relay without native gas, but each still costs one wallet signature.
+     * `createSubAccounts` is the one relayable AccountLayer write with no
+     * `onlyAccountOwner` guard, so the delegation scope never confines it;
+     * `deleteSubAccount` destroys the account the delegation is scoped to; and
+     * the two deposit writes move the owner's own token balance, collateral that
+     * has not entered the sub-account yet — not something a bounded session key
+     * gets to do unattended. Withdrawals are a separate, narrower boundary: only
+     * `initiateWithdraw` names a destination, and it lives in
+     * {@link GASLESS_SESSION_KEY_WITHDRAW_SELECTORS} behind an explicit opt-in.
      */
-    const ownerSigned = [
-      "createSubAccounts",
-      "deleteSubAccount",
-      "editAccountName",
-      "depositForAccount",
-      "depositAndAllocateForAccount",
-      "forceClosePosition",
-    ];
+    const ownerSigned = ["createSubAccounts", "deleteSubAccount", "depositForAccount", "depositAndAllocateForAccount"];
     const delegable = new Set(
       GASLESS_SESSION_KEY_SELECTORS.map((selector) => GASLESS_RELAYABLE_WRITES.get(selector)?.operationType),
     );
     for (const operationType of ownerSigned) {
       expect(delegable.has(operationType), `${operationType} must stay owner-signed`).toBe(false);
+    }
+  });
+
+  it("splits the withdrawal boundary at the one write that names a receiver", () => {
+    /**
+     * `initiateWithdraw(WithdrawPart[] parts, bool speedUp, bytes data)` carries
+     * a caller-supplied `receiver` in every part, so delegating it hands the key
+     * authority over the sub-account's collateral. `finalizeWithdrawRequest` and
+     * `requestCancelWithdraw` take no receiver and can only settle or unwind a
+     * request whose destination an owner-signed initiate already fixed.
+     */
+    const withdrawOnly = GASLESS_SESSION_KEY_WITHDRAW_SELECTORS.map(
+      (selector) => GASLESS_RELAYABLE_WRITES.get(selector)?.operationType,
+    );
+    expect(withdrawOnly).toEqual(["initiateWithdraw"]);
+
+    const delegable = new Set(
+      GASLESS_SESSION_KEY_SELECTORS.map((selector) => GASLESS_RELAYABLE_WRITES.get(selector)?.operationType),
+    );
+    expect(delegable.has("initiateWithdraw")).toBe(false);
+    expect(delegable.has("finalizeWithdrawRequest")).toBe(true);
+    expect(delegable.has("requestCancelWithdraw")).toBe(true);
+  });
+
+  it("keeps the two session-key sets disjoint", () => {
+    const base = new Set<string>(GASLESS_SESSION_KEY_SELECTORS);
+    for (const selector of GASLESS_SESSION_KEY_WITHDRAW_SELECTORS) {
+      expect(base.has(selector), `${selector} must live in exactly one session-key set`).toBe(false);
     }
   });
 

@@ -285,11 +285,21 @@ export {
 /**
  * InstantLayer slice
  * ------------------
- * Delegated signer access on the Instant Layer contract. Reads expose both the
- * raw mapping expiry and the contract's active status; writes submit
- * `grantDelegation`.
+ * Delegated signer access on the Instant Layer contract. Reads expose the raw
+ * mapping expiry, the contract's active status, and — via
+ * `getActiveDelegations` — the canonicalizing multi-selector probe that
+ * resolves a virtual account to its parent the way enforcement does. Writes
+ * cover the full grant lifecycle: `grantDelegation` (relayable, so onboarding a
+ * session key costs no gas) and the two-step `initiateRevokeDelegation` /
+ * `finalizeRevokeDelegation`, which are wallet-only because the contract
+ * accepts a self-targeted operation solely as a delegation grant.
  */
 export {
+  finalizeRevokeDelegation,
+  finalizeRevokeDelegationMutationOptions,
+  getActiveDelegations,
+  getActiveDelegationsQueryKey,
+  getActiveDelegationsQueryOptions,
   getDelegationExpiry,
   getDelegationExpiryQueryKey,
   getDelegationExpiryQueryOptions,
@@ -299,10 +309,24 @@ export {
   getIsDelegationActive,
   getIsDelegationActiveQueryKey,
   getIsDelegationActiveQueryOptions,
+  getRevocationCooldown,
+  getRevocationCooldownQueryKey,
+  getRevocationCooldownQueryOptions,
   grantDelegation,
   grantDelegationMutationOptions,
+  initiateRevokeDelegation,
+  initiateRevokeDelegationMutationOptions,
   simulateGrantDelegation,
   simulateGrantDelegationMutationOptions,
+  type ActiveDelegationInfo,
+  type FinalizeRevokeDelegationParameters,
+  type FinalizeRevokeDelegationReturnType,
+  type GetActiveDelegationsData,
+  type GetActiveDelegationsOptions,
+  type GetActiveDelegationsParameters,
+  type GetActiveDelegationsQueryKey,
+  type GetActiveDelegationsQueryOptions,
+  type GetActiveDelegationsReturnType,
   type GetDelegationExpiryData,
   type GetDelegationExpiryOptions,
   type GetDelegationExpiryParameters,
@@ -321,8 +345,16 @@ export {
   type GetIsDelegationActiveQueryKey,
   type GetIsDelegationActiveQueryOptions,
   type GetIsDelegationActiveReturnType,
+  type GetRevocationCooldownData,
+  type GetRevocationCooldownOptions,
+  type GetRevocationCooldownParameters,
+  type GetRevocationCooldownQueryKey,
+  type GetRevocationCooldownQueryOptions,
+  type GetRevocationCooldownReturnType,
   type GrantDelegationParameters,
   type GrantDelegationReturnType,
+  type InitiateRevokeDelegationParameters,
+  type InitiateRevokeDelegationReturnType,
   type InstantLayerAccount,
   type SimulateGrantDelegationParameters,
   type SimulateGrantDelegationReturnType,
@@ -348,6 +380,7 @@ export {
   GASLESS_RECEIPT_TIMEOUT_MS,
   GASLESS_RELAYABLE_SELECTORS,
   GASLESS_SESSION_KEY_SELECTORS,
+  GASLESS_SESSION_KEY_WITHDRAW_SELECTORS,
   GASLESS_SUBMITTED_POLL_MS,
   GASLESS_TERMINAL_STATUSES,
   GASLESS_WAIT_TIMEOUT_MS,
@@ -380,6 +413,7 @@ export {
   getGaslessWalletNonce,
   getGaslessWalletNonceQueryKey,
   getGaslessWalletNonceQueryOptions,
+  getSessionKeySelectors,
   isConfirmedGaslessFeeLimitError,
   isConfirmedGaslessUnavailableError,
   isGaslessRelayableSelector,
@@ -449,11 +483,13 @@ export {
   type GetGaslessWalletNonceQueryKey,
   type GetGaslessWalletNonceQueryOptions,
   type GetGaslessWalletNonceReturnType,
+  type GetSessionKeySelectorsParameters,
   type RelayGrantDelegationParameters,
   type RelayGrantDelegationReturnType,
   type RelayInstantOperationsParameters,
   type RelayInstantOperationsReturnType,
   type ResolveGaslessServiceParameters,
+  type SessionKeySelectorScope,
   type SettleGaslessDepositExistingAccountParameters,
   type SettleGaslessDepositExistingAccountReturnType,
   type SettleGaslessDepositNewAccountParameters,

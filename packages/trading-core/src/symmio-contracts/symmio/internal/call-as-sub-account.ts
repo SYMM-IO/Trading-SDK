@@ -1,9 +1,11 @@
-import type { Address, Hash, Hex } from "viem";
+import { isAddressEqual, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "../../../core/config";
 import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-gasless";
+import { SymmError } from "../../../shared/errors/symm-error";
 import type { GaslessWriteParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
+import { getSubAccount } from "../../account-layer/actions/get-sub-account";
 import { simulateCallAsSubAccount } from "./simulate-call-as-sub-account";
 
 /**
@@ -64,6 +66,13 @@ export async function callAsSubAccount(
 
   const walletClient = await config.getWalletClient({ chainId, from });
 
+  await assertWalletPathSigner(config, {
+    account,
+    chainId,
+    from,
+    signer: walletClient.account.address,
+  });
+
   if (shouldSimulateBeforeWrite(config, parameters)) {
     await simulateCallAsSubAccount(config, { account, data, chainId, from: walletClient.account.address });
   }
@@ -76,4 +85,70 @@ export async function callAsSubAccount(
     account: walletClient.account,
     chain: walletClient.chain,
   });
+}
+
+/**
+ * Reject the ordinary gas-paid wallet path when the resolved signer is not the
+ * sub-account's owner — in practice, a session key.
+ *
+ * `AccountLayer._call` is `onlyAccountOwner` and reverts `NotOwner` for anybody
+ * else, and a session key holds no native gas to pay for the attempt anyway. So
+ * a session key reaching this point can only produce a confusing on-chain
+ * failure: it is authorized through the InstantLayer delegation (the gasless
+ * relay), never through a direct wallet submission. The guard lives at the write
+ * seam rather than inside the gasless fallback branch because the same thing
+ * happens when a caller passes `from: sessionKeyAddress` with gasless simply off.
+ *
+ * @remarks
+ * **Why the check is keyed on `from` being supplied.** Comparing `from` against
+ * the resolved wallet's own address would catch nothing: `getWalletClient({ from })`
+ * returns a client whose account *is* `from`, so the two are equal by
+ * construction. The meaningful signal is whether the caller steered the signer at
+ * all. With `from` omitted the SDK uses the app's connected account, which is the
+ * owner on the ordinary path; a session key can only enter the SDK through an
+ * explicit `from`. Keying on `from !== undefined` therefore costs **zero extra
+ * RPC** on the ordinary owner path and reads the owner only for the calls that
+ * could plausibly be signing with something else.
+ *
+ * @param config - The SDK config.
+ * @param parameters - The sub-account, the chain, the caller's `from` (if any),
+ *   and the address the wallet client actually resolved to.
+ * @throws {SymmError} `validation` / `WALLET_PATH_REQUIRES_OWNER` when `from` was
+ *   supplied and the resolved signer is not the sub-account's owner.
+ */
+async function assertWalletPathSigner(
+  config: Config,
+  parameters: {
+    account: Address;
+    chainId?: number;
+    from?: Address;
+    signer: Address;
+  },
+): Promise<void> {
+  const { account, chainId, from, signer } = parameters;
+  if (from === undefined) return;
+
+  /**
+   * TODO(session-key): replace this uncached `getSubAccount` read with the
+   * shared owner accessor once it is lifted into
+   * `symmio-contracts/account-layer/actions/get-account-owner`. The gasless
+   * dispatcher already owns an equivalent cache — `getCachedAccountOwner`, still
+   * private to `gasless/dispatch/maybe-relay-as-gasless.ts` — and this guard must
+   * reuse that one helper rather than start a competing cache here.
+   */
+  const detail = await getSubAccount(config, { chainId, account });
+  /**
+   * An address the AccountLayer does not know as a sub-account (a virtual
+   * account, for one) has no `owner` to compare against — `getSubAccount`
+   * returns the zero address for it. Leave those writes to the contract's own
+   * `onlyAccountOwner` guard rather than blocking them on a false negative.
+   */
+  if (!detail.isExists) return;
+  if (isAddressEqual(detail.owner, signer)) return;
+
+  throw new SymmError(
+    "validation",
+    "WALLET_PATH_REQUIRES_OWNER",
+    `The wallet path for sub-account ${account} requires its owner (${detail.owner}) to sign, but the resolved signer is ${signer}. AccountLayer._call is onlyAccountOwner and would revert NotOwner. This signer can only act on the sub-account through the gasless relay (an InstantLayer delegation), so enable gasless execution for this write instead of falling back to the wallet.`,
+  );
 }

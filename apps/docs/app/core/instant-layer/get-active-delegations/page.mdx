@@ -1,0 +1,82 @@
+import { Callout } from "nextra/components";
+
+# getActiveDelegations
+
+Read which of the probed `(delegate, selector)` pairs the Instant Layer currently enforces, in a single call.
+
+```ts
+import { getActiveDelegations, getSessionKeySelectors } from "@symmio/trading-core";
+
+const selectors = getSessionKeySelectors(config, { chainId });
+
+const active = await getActiveDelegations(config, {
+  delegator: { addr: subAccount, isPartyB: false },
+  delegates: [sessionKeyAddress],
+  selectors: [selectors],
+});
+```
+
+<Callout type="info">
+  **Prefer this over [`getIsDelegationActive`](/core/instant-layer/get-is-delegation-active) when the account may be a
+  virtual account.** This getter canonicalizes a VA to its parent sub-account exactly the way enforcement does. The
+  single-selector read hits the raw `delegations` mapping and reports `false` for a VA whose *parent* holds the grant.
+</Callout>
+
+## Parallel arrays
+
+`delegates` and `selectors` are parallel: `selectors[i]` is the `bytes4[]` probed for `delegates[i]`, so the two arrays must be the same length. One delegate means one nested array.
+
+## Parameters
+
+<Properties>
+  <Property name="delegator" type="InstantLayerAccount" required>
+    The account the delegations are enforced under. May be a sub-account **or** a virtual account.
+  </Property>
+  <Property name="delegates" type="readonly Address[]" required>
+    Delegated signers to probe.
+  </Property>
+  <Property name="selectors" type="readonly (readonly Hex[])[]" required>
+    Selectors to probe per delegate, parallel to `delegates`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly ActiveDelegationInfo[]">
+  Only the delegations the contract reports as live. A delegate with nothing active is absent from the result rather
+  than present with an empty `selectors`.
+</Returns>
+
+<Properties>
+  <Property name="account" type="InstantLayerAccount">
+    The canonical account the delegation is enforced under.
+  </Property>
+  <Property name="delegatedSigner" type="Address">
+    The signer holding the delegated authority.
+  </Property>
+  <Property name="selectors" type="readonly Hex[]">
+    Those of the probed selectors that are actually delegated and live.
+  </Property>
+  <Property name="expiryTimestamp" type="bigint">
+    Grant expiry as a Unix timestamp in seconds.
+  </Property>
+</Properties>
+
+<Callout type="warning">
+  Selectors granted in separate transactions expire at different times, and the contract reports only the soonest.
+  Render `expiryTimestamp` as "usable until", never as a per-selector expiry.
+</Callout>
+
+## Query options
+
+```ts
+import { getActiveDelegationsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getActiveDelegationsQueryOptions(config, { delegator, delegates, selectors }));
+```
+
+The React binding is [`useActiveDelegations`](/react/instant-layer); for the common "is my session key ready?" question, prefer [`useAreDelegationsActive`](/react/instant-layer), which answers it directly.

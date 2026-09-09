@@ -4,8 +4,10 @@ import { AddressTag } from "@/components/address-tag";
 import { DataList, DataRow } from "@/components/data-list";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { formatUsd } from "@/lib/format";
+import { encodeSubAccountHookMetadata } from "@/lib/subaccount-metadata";
 import {
   SubAccountIsolationType,
+  SymmioRequestError,
   useCollateralBalance,
   useGaslessDepositPolicy,
   useSettleGaslessDepositNewAccount,
@@ -19,6 +21,22 @@ import { zeroAddress } from "viem";
 import { GaslessCard } from "./gasless-card";
 import { storeGaslessRequest } from "./gasless-request-storage";
 
+/** Name of the subaccount the settlement creates, and the referral code recorded for it. */
+const NEW_ACCOUNT_NAME = "Main";
+
+/**
+ * The gateway explains a rejection in the response body (`detail.code`,
+ * `detail.details.revert_selector`, …) — `error.message` carries only the HTTP
+ * status, which turns every distinct failure into the same unhelpful line.
+ * Render the body verbatim so a rejection is diagnosable from the UI.
+ */
+function gatewayDetailOf(error: unknown): string | undefined {
+  if (!(error instanceof SymmioRequestError) || error.kind !== "api") return undefined;
+  const body = error.responseData;
+  if (body === null || body === undefined) return undefined;
+  return typeof body === "string" ? body : JSON.stringify(body, null, 2);
+}
+
 /**
  * Deposit-onboarding card: the connected wallet's deterministic deposit
  * address, its live collateral balance against the settlement minimum, and the
@@ -27,7 +45,16 @@ import { storeGaslessRequest } from "./gasless-request-storage";
 export function GaslessDepositCard() {
   const { address, isConnected } = useWalletAccount();
   const chainId = useSymmioChainId();
-  const { collateralDecimals } = useSymmioConfig().getChainConfig(chainId).addresses;
+  const chainConfig = useSymmioConfig().getChainConfig(chainId);
+  const { affiliatesAddress, collateralDecimals } = chainConfig.addresses;
+  /**
+   * The settlement creates the subaccount under the chain's affiliate, and the
+   * AccountLayer rejects an affiliate that is not ACTIVE — the zero address
+   * never is, so it reverts with `AffiliateNotActive()` in the gateway's
+   * simulation. The affiliate's `onAccountCreation` hook then decodes the
+   * metadata, which is why the blob binds the chain's solver as PartyB.
+   */
+  const partyBToBind = chainConfig.solvers[chainConfig.defaultSolverId]?.address;
 
   const policy = useGaslessDepositPolicy({
     owner: address ?? zeroAddress,
@@ -39,6 +66,7 @@ export function GaslessDepositCard() {
   });
   const settle = useSettleGaslessDepositNewAccount();
 
+  const gatewayDetail = gatewayDetailOf(settle.error);
   const canSettle =
     Boolean(address) &&
     policy.data !== undefined &&
@@ -97,9 +125,10 @@ export function GaslessDepositCard() {
               settle.mutate(
                 {
                   wallet: address,
-                  affiliate: zeroAddress,
+                  affiliate: affiliatesAddress,
                   accountData: {
-                    name: "Main",
+                    name: NEW_ACCOUNT_NAME,
+                    metadata: encodeSubAccountHookMetadata({ partyBToBind }),
                     isolationType: SubAccountIsolationType.MARKET_DIRECTION,
                     singleVAMode: true,
                   },
@@ -129,7 +158,20 @@ export function GaslessDepositCard() {
           </Button>
 
           {settle.error ? (
-            <ResultError kind={settle.error.kind} message={settle.error.message} testId="gasless-settle-error" />
+            <ResultError
+              kind={settle.error.kind}
+              message={
+                <>
+                  {settle.error.message}
+                  {gatewayDetail ? (
+                    <pre className="mt-2 max-h-64 overflow-auto font-mono text-[0.7rem] whitespace-pre-wrap">
+                      {gatewayDetail}
+                    </pre>
+                  ) : null}
+                </>
+              }
+              testId="gasless-settle-error"
+            />
           ) : settle.isSuccess ? (
             <ResultSuccess testId="gasless-settle-result">
               Settlement confirmed — request <span className="font-mono text-xs">{settle.data.accepted.requestId}</span>{" "}

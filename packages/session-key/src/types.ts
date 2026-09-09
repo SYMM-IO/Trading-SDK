@@ -1,4 +1,4 @@
-import type { Address, Hex, TypedDataDomain } from "viem";
+import type { Address, Hex, LocalAccount, TypedDataDomain } from "viem";
 
 /**
  * Raw session-key material.
@@ -134,7 +134,34 @@ export interface SessionKeyManager {
   isReady(): boolean;
   /** Return the current session key public address, if loaded. */
   getAddress(): Address | null;
-  /** Return the current raw private key, if loaded. Intended for explicit device-transfer flows only. */
+  /**
+   * Return the loaded session key as a viem account.
+   *
+   * This is the signer to hand to viem's `createWalletClient` or to an SDK
+   * wallet-client resolver. It is strictly preferred over
+   * {@link SessionKeyManager.getPrivateKey}: the raw private key never leaves
+   * the manager, only its signing capability does.
+   *
+   * @example
+   * ```ts
+   * const account = manager.getAccount();
+   * if (account) {
+   *   const walletClient = createWalletClient({ account, chain, transport: http() });
+   * }
+   * ```
+   *
+   * @returns The session key account, or `null` when no key is loaded.
+   */
+  getAccount(): LocalAccount | null;
+  /**
+   * Return the current raw private key, if loaded.
+   *
+   * Intended for explicit device-transfer/export flows only. For signing, use
+   * {@link SessionKeyManager.getAccount} instead so the raw key never leaves
+   * the manager.
+   *
+   * @returns The raw private key, or `null` when no key is loaded.
+   */
   getPrivateKey(): Hex | null;
   /** Return stored metadata for `owner`. */
   getMetadata(owner: Address): Promise<SessionKeyMetadata | null>;

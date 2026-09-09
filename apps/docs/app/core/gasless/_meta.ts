@@ -24,5 +24,6 @@ export default {
   "settle-gasless-deposit-existing-account": "settleGaslessDepositExistingAccount",
   "-- helpers": { type: "separator", title: "Helpers" },
   "relayable-writes": "Relayable writes",
+  "get-session-key-selectors": "getSessionKeySelectors",
   "errors-and-fallback": "Errors & fallback",
 };

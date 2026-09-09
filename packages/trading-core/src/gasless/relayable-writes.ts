@@ -109,32 +109,57 @@ export const GASLESS_RELAYABLE_WRITES: ReadonlyMap<Hex, GaslessRelayableWrite> =
  * Every selector the transparent gasless mode can relay.
  *
  * **Not a delegation set.** This list includes `grantDelegation`, because the
- * relayer carries it like any other write — but granting that selector to a
- * session key would let the key mint further delegations for itself, over any
- * selector and any expiry, which defeats the point of a bounded session key.
- * To onboard a key, use {@link GASLESS_SESSION_KEY_SELECTORS}.
+ * relayer carries it like any other write — but delegating that selector buys a
+ * session key nothing. The InstantLayer routes an operation whose target is the
+ * InstantLayer itself to `_verifyGrantOperation`, which reverts unless the
+ * signer is the account owner, and `grantDelegation` is `onlyOwner` on top of
+ * that: a delegate-signed grant is rejected by the contract outright. Handing a
+ * key the selector would only turn a clear "the owner must sign this" into an
+ * opaque relay rejection, so no delegation set carries it. To onboard a key,
+ * use `getSessionKeySelectors`.
  */
 export const GASLESS_RELAYABLE_SELECTORS: readonly Hex[] = [...GASLESS_RELAYABLE_WRITES.keys()];
 
 /**
  * The selectors safe to delegate to a session key for gasless account
- * management.
+ * management — everything a key needs to run an account unattended **except**
+ * moving collateral out of it (see {@link GASLESS_SESSION_KEY_WITHDRAW_SELECTORS}).
  *
  * **Enumerated deliberately — never derived from {@link GASLESS_RELAYABLE_WRITES}.**
  * Relayability and delegability are different questions. The first asks whether
  * the relayer will carry a write at all; the second asks whether a browser-held
  * key may sign it with no wallet prompt. Deriving this list from the map would
  * widen a session key's authority every time a write becomes relayable, so each
- * selector is listed here on its own merits — and `grantDelegation` is never one
- * of them, since a key that can mint delegations can grant itself any selector
- * and any expiry.
+ * selector is listed here on its own merits.
  *
- * Deliberately absent, though relayable: `createSubAccounts`, `deleteSubAccount`,
- * `editAccountName`, `depositForAccount`, `depositAndAllocateForAccount` and
- * `forceClosePosition`. Those relay without native gas but stay owner-signed.
+ * Deliberately absent, though relayable:
+ *
+ * - `initiateWithdraw` — the one write that picks a destination for the
+ *   sub-account's collateral. It lives in
+ *   {@link GASLESS_SESSION_KEY_WITHDRAW_SELECTORS}, granted only on an explicit
+ *   opt-in.
+ * - `createSubAccounts` — the one relayable AccountLayer write with **no**
+ *   `onlyAccountOwner` guard, so the InstantLayer's per-account delegation scope
+ *   never confines it: a key granted this selector is not bounded to the account
+ *   that granted it. It stays owner-signed for that reason, not because creating
+ *   an account is sensitive.
+ * - `deleteSubAccount` — destroys the account the delegation is scoped to, which
+ *   is not a step a key should take unattended.
+ * - `depositForAccount` and `depositAndAllocateForAccount` — `CoreFacet` funds
+ *   these straight from the signer's own token balance, so they reach collateral
+ *   that has not entered the sub-account yet.
+ * - `grantDelegation` — the contract rejects a delegate-signed grant (see
+ *   {@link GASLESS_RELAYABLE_SELECTORS}), so it would relay only to revert.
+ *
+ * `editAccountName` and `forceClosePosition` **are** in the set: the first is
+ * scope-confined by `onlyAccountOwner` and writes nothing but a bounded display
+ * string, and the second is guarded identically to the two force-cancels beside
+ * it and can only finish a close the owner already initiated.
  *
  * Pair it with `grantDelegation` (itself relayable, so the onboarding grant
- * needs no gas either) to give a key promptless account management.
+ * needs no gas either) to give a key promptless account management. In an app
+ * that also trades, prefer `getSessionKeySelectors`, which unions this set with
+ * the trade lifecycle and resolves the chain's contracts generation for you.
  *
  * @example
  * ```ts
@@ -150,16 +175,54 @@ export const GASLESS_RELAYABLE_SELECTORS: readonly Hex[] = [...GASLESS_RELAYABLE
 export const GASLESS_SESSION_KEY_SELECTORS: readonly Hex[] = [
   selectorFromAbi(symmioAbi as Abi, "allocate"),
   selectorFromAbi(symmioAbi as Abi, "deallocate"),
-  selectorFromAbi(symmioAbi as Abi, "initiateWithdraw"),
   selectorFromAbi(symmioAbi as Abi, "requestCancelWithdraw"),
   selectorFromAbi(symmioAbi as Abi, "finalizeWithdrawRequest"),
   selectorFromAbi(symmioAbi as Abi, "requestToCancelQuote"),
   selectorFromAbi(symmioAbi as Abi, "requestToCancelCloseRequest"),
   selectorFromAbi(symmioAbi as Abi, "forceCancelQuote"),
   selectorFromAbi(symmioAbi as Abi, "forceCancelCloseRequest"),
+  selectorFromAbi(symmioAbi as Abi, "forceClosePosition"),
   selectorFromAbi(symmioAbi as Abi, "approveOperationalFeeWithMultiplier"),
   selectorFromAbi(accountLayerAbi as Abi, "addMargin"),
   selectorFromAbi(accountLayerAbi as Abi, "removeMargin"),
+  selectorFromAbi(accountLayerAbi as Abi, "editAccountName"),
+];
+
+/**
+ * The withdrawal authority a session key only gets on an explicit opt-in:
+ * `initiateWithdraw`, and nothing else.
+ *
+ * It is split out of {@link GASLESS_SESSION_KEY_SELECTORS} because it is the one
+ * delegable write that names a destination.
+ * `initiateWithdraw(WithdrawPart[] parts, bool speedUp, bytes data)` carries a
+ * caller-supplied `receiver` in every part, so a key holding this selector can
+ * send the sub-account's collateral to an address of its own choosing — that is
+ * authority over the funds, not merely over the account's bookkeeping.
+ *
+ * The other two withdrawal writes stay in the base set precisely because they
+ * cannot do that: `finalizeWithdrawRequest(address user, uint256 requestId)` and
+ * `requestCancelWithdraw(uint256 requestId)` take no receiver at all. They can
+ * only settle or cancel a request whose destination an owner-signed
+ * `initiateWithdraw` already fixed, so the worst a key can do with them is
+ * complete or unwind a transfer the owner authorized.
+ *
+ * Grant it when a key must run withdrawals end to end unattended, and treat the
+ * grant as what it is: the key can drain the sub-account until the delegation
+ * expires or is revoked.
+ *
+ * @example
+ * ```ts
+ * await grantDelegation(config, {
+ *   account: { addr: subAccount, isPartyB: false },
+ *   delegatedSigner: sessionKey,
+ *   selectors: [...GASLESS_SESSION_KEY_SELECTORS, ...GASLESS_SESSION_KEY_WITHDRAW_SELECTORS],
+ *   expiryTimestamp,
+ *   gasless: true,
+ * });
+ * ```
+ */
+export const GASLESS_SESSION_KEY_WITHDRAW_SELECTORS: readonly Hex[] = [
+  selectorFromAbi(symmioAbi as Abi, "initiateWithdraw"),
 ];
 
 /**

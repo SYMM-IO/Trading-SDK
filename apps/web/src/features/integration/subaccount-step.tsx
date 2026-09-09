@@ -4,6 +4,7 @@ import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { ListSkeleton } from "@/components/skeletons";
 import { TxReceipt } from "@/components/tx-result";
 import { formatUsd } from "@/lib/format";
+import { encodeSubAccountHookMetadata } from "@/lib/subaccount-metadata";
 import {
   SubAccountIsolationType,
   useAccountBalanceInfo,
@@ -217,7 +218,9 @@ function UpnlLabel({
  * standalone Subaccounts page suggests.
  */
 function CreateSubaccountInline({ owner, onCreated }: { owner: Address; onCreated: () => void }) {
-  const { addresses } = useSymmioConfig().getChainConfig();
+  const chainConfig = useSymmioConfig().getChainConfig();
+  const { addresses } = chainConfig;
+  const partyBToBind = chainConfig.solvers[chainConfig.defaultSolverId]?.address;
   const [name, setName] = useState("");
   const mutation = useCreateSubAccounts();
 
@@ -235,7 +238,8 @@ function CreateSubaccountInline({ owner, onCreated }: { owner: Address; onCreate
       accountsData: [
         {
           name: trimmed,
-          metadata: "0x",
+          /** The affiliate's `onAccountCreation` hook decodes this; `0x` reverts as `HookFailed`. */
+          metadata: encodeSubAccountHookMetadata({ partyBToBind }),
           symmioCore: addresses.symmioAddress,
           isolationType: SubAccountIsolationType.MARKET_DIRECTION,
           singleVAMode: true,

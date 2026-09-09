@@ -25,7 +25,7 @@ export function WriteEditAccountName() {
 
   const mutation = useEditAccountName();
 
-  const gasless = useGaslessWriteOption("editAccountName");
+  const write = useGaslessWriteOption("editAccountName");
 
   /** Dry-run the call (`simulateContract`) so the user sees pass/revert before sending. */
   const simulate = useSimulateEditAccountName();
@@ -82,7 +82,7 @@ export function WriteEditAccountName() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount) return;
-            mutation.mutate({ account: validAccount, name, gasless });
+            mutation.mutate({ account: validAccount, name, ...write });
           }}
           data-testid="button-send-rename"
         >

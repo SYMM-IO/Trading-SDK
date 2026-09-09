@@ -59,6 +59,25 @@ function readUpstreamConfig(deployment: Deployment): UpstreamConfig | null {
   return { origin, protocolInstance, apiKey };
 }
 
+/**
+ * `fetch` reports every transport failure as the same bare "fetch failed" — the
+ * part that says what to fix (`ENOTFOUND`, `ECONNREFUSED`, `ETIMEDOUT`, a TLS
+ * error) hangs off `cause`. Unwrap it so the response names the actual fault.
+ */
+function describeFetchFailure(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const cause: unknown = error.cause;
+  if (!(cause instanceof Error)) return error.message;
+  const { code, address, port } = cause as { code?: unknown; address?: unknown; port?: unknown };
+  /** A connect timeout carries an empty `message`, so build the detail from whichever parts exist. */
+  const detail = [
+    typeof code === "string" ? code : undefined,
+    cause.message === "" ? undefined : cause.message,
+    typeof address === "string" ? `${address}${typeof port === "number" ? `:${port}` : ""}` : undefined,
+  ].filter((part) => part !== undefined);
+  return detail.length === 0 ? error.message : `${error.message} (${detail.join(" ")})`;
+}
+
 async function proxy(request: NextRequest, pathSegments: string[]): Promise<NextResponse> {
   if (!FORWARDED_METHODS.has(request.method)) {
     return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
@@ -87,16 +106,30 @@ async function proxy(request: NextRequest, pathSegments: string[]): Promise<Next
     .join("/")}`;
 
   const body = request.method === "POST" ? await request.text() : undefined;
-  const upstream = await fetch(upstreamUrl, {
-    method: request.method,
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${apiKey}`,
-      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-    },
-    ...(body !== undefined ? { body } : {}),
-    cache: "no-store",
-  });
+
+  /**
+   * A DNS or connect failure rejects `fetch`, and an unhandled rejection here
+   * surfaces as a bodyless 500 that reads like a gateway error — the one
+   * failure the caller cannot tell apart from a real upstream fault. Report it
+   * as the transport failure it is.
+   */
+  let upstream: Response;
+  try {
+    upstream = await fetch(upstreamUrl, {
+      method: request.method,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(body !== undefined ? { body } : {}),
+      cache: "no-store",
+    });
+  } catch (error) {
+    const reason = describeFetchFailure(error);
+    console.error(`Gasless proxy could not reach ${upstreamUrl}:`, error);
+    return NextResponse.json({ error: `Gasless upstream unreachable: ${reason}` }, { status: 502 });
+  }
 
   /** Fail closed on a routing mismatch — the only guard against a cross-wire. */
   const actualInstance = upstream.headers.get("x-gaslessq-protocol-instance");

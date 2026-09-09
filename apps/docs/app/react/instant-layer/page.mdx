@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # InstantLayer hooks
 
 React-query wrappers over `@symmio/trading-core`'s InstantLayer slice.
@@ -162,3 +164,154 @@ On success, `useGrantDelegation` invalidates both read caches for the account an
 - `getIsDelegationActiveQueryKey`
 
 Mounted `useDelegationExpiry` and `useIsDelegationActive` hooks refetch independently.
+
+### `useSessionKeySelectors`
+
+**The** selector set to grant a session key: the instant-trade lifecycle unioned with gasless account management, resolved for the connected chain's contracts generation.
+
+```tsx
+const selectors = useSessionKeySelectors();
+const withWithdrawals = useSessionKeySelectors({ withdraw: true });
+```
+
+Returns `readonly Hex[]` synchronously — it is a memoized config read, not a query.
+
+#### Parameters
+
+```ts
+interface UseSessionKeySelectorsParameters {
+  chainId?: number;
+  trade?: boolean; // default true
+  account?: boolean; // default true
+  withdraw?: boolean; // default false
+}
+```
+
+<Callout type="warning">
+  Requesting `account` or `withdraw` on a chain that is not perps-core 0.8.6 **throws**
+  `SESSION_KEY_SELECTORS_UNSUPPORTED_CHAIN`, which will crash the rendering component. Gate the scope on
+  [`useSupportsGaslessService`](/react/gasless), which tests the same condition:
+
+```tsx
+const supported = useSupportsGaslessService();
+const selectors = useSessionKeySelectors({ account: supported, withdraw: false });
+```
+
+`withdraw` is off by default because `initiateWithdraw` carries a caller-supplied `receiver` — see
+[`getSessionKeySelectors`](/core/gasless/get-session-key-selectors).
+
+</Callout>
+
+### `useAreDelegationsActive`
+
+Answers "can this key sign?" directly — the hook to reach for when rendering readiness.
+
+```tsx
+const { allActive, missing, isLoading, refetch } = useAreDelegationsActive({
+  account: { addr: subAccount, isPartyB: false },
+  delegate: sessionKeyAddress,
+  selectors: useSessionKeySelectors(),
+});
+```
+
+#### Parameters
+
+<Properties>
+  <Property name="account" type="InstantLayerAccount" required>
+    The account the delegation is enforced under. May be a sub-account **or** a virtual account — the underlying read
+    canonicalizes a VA to its parent the way the contract does.
+  </Property>
+  <Property name="delegate" type="Address" required>
+    The delegated signer, typically the session key's address.
+  </Property>
+  <Property name="selectors" type="readonly Hex[]" required>
+    The selectors the key must hold. Normally the output of `useSessionKeySelectors`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+  <Property name="query" type="QueryParameter" optional>
+    TanStack overrides for the underlying read — use `enabled` while addresses are still resolving.
+  </Property>
+</Properties>
+
+#### Return type
+
+<Properties>
+  <Property name="allActive" type="boolean">
+    `true` only when every requested selector is active. It is `false` while loading, and `false` for an empty
+    `selectors` list — a key holding no authority is never "ready", and a vacuous `true` would green-light a flow that
+    cannot sign.
+  </Property>
+  <Property name="missing" type="readonly Hex[]">
+    Requested selectors the contract does not report as active. Until the read resolves this is the full requested set,
+    so gate on `isLoading` before rendering it as a re-grant list.
+  </Property>
+  <Property name="activeSelectors" type="readonly Hex[]">
+    Requested selectors the contract does report as active.
+  </Property>
+  <Property name="expiryTimestamp" type="bigint | undefined">
+    Earliest expiry across the matched delegations, in Unix seconds. Render as "usable until" — selectors granted
+    separately expire at different times and the contract reports only the soonest.
+  </Property>
+  <Property name="isLoading" type="boolean">
+    Whether the underlying read is in flight.
+  </Property>
+  <Property name="refetch" type="() => Promise<...>">
+    Re-read after a grant or revocation settles.
+  </Property>
+</Properties>
+
+### `useActiveDelegations`
+
+The raw canonicalizing read, for probing several delegates at once. Prefer `useAreDelegationsActive` for the single-key readiness question.
+
+```tsx
+const { data } = useActiveDelegations({
+  delegator: { addr: subAccount, isPartyB: false },
+  delegates: [sessionKeyAddress],
+  selectors: [selectors],
+});
+```
+
+`delegates` and `selectors` are parallel arrays — see [`getActiveDelegations`](/core/instant-layer/get-active-delegations).
+
+### `useRevocationCooldown`
+
+```tsx
+const { data: cooldownSeconds } = useRevocationCooldown();
+```
+
+The delay the two-step revocation enforces. Show it before a user starts a revocation, so they learn up front that a compromised key keeps signing for its duration.
+
+### `useInitiateRevokeDelegation`
+
+```tsx
+const { mutate } = useInitiateRevokeDelegation();
+
+mutate({ account: { addr: subAccount, isPartyB: false }, delegate: sessionKeyAddress, selectors });
+```
+
+Schedules the revocation. Callable by the owner, the delegate itself, or a `REVOKER_ROLE` holder.
+
+### `useFinalizeRevokeDelegation`
+
+```tsx
+const { mutate } = useFinalizeRevokeDelegation();
+
+mutate({ account: { addr: subAccount, isPartyB: false }, delegate: sessionKeyAddress, selectors });
+```
+
+Clears the stored grant once the cooldown ETA has passed. Permissionless — anyone may complete it.
+
+<Callout type="warning">
+  **Neither revoke hook accepts `gasless`, and that is contract-enforced, not an omission.** Both target the Instant
+  Layer, and `_verifyOperation` routes any self-targeted operation to `_verifyGrantOperation`, which accepts only
+  `grantDelegation` / `grantDelegations`. A relayed revocation always reverts, so both are gas-paid wallet transactions
+  — including when a session key revokes itself.
+</Callout>
+
+#### Cache invalidation
+
+Both revoke hooks invalidate `getDelegationExpiryQueryKey`, `getIsDelegationActiveQueryKey`, and
+`getActiveDelegationsQueryKey` for the account and delegate, so mounted readiness hooks refetch on their own.

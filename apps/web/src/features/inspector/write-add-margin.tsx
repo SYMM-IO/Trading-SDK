@@ -29,7 +29,7 @@ export function WriteAddMargin() {
 
   const mutation = useAddMargin();
 
-  const gasless = useGaslessWriteOption("addMargin");
+  const write = useGaslessWriteOption("addMargin");
 
   /** Dry-run `addMargin` before sending. */
   const simulate = useSimulateAddMargin();
@@ -94,7 +94,7 @@ export function WriteAddMargin() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validVa || validAmount === undefined) return;
-            mutation.mutate({ virtualAccount: validVa, amount: validAmount, gasless });
+            mutation.mutate({ virtualAccount: validVa, amount: validAmount, ...write });
           }}
           data-testid="button-send-add-margin"
         >
