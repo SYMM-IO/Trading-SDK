@@ -151,7 +151,28 @@ await mutateAsync({
 
 ### `useGaslessWalletExecute`
 
-Execute calls from the deterministic gasless wallet — the exit path for collateral sitting at it. Owner-signed under the gateway domain; see [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) for the signature-scheme details.
+Run **any contract call from the deterministic gasless wallet** — an atomic batch of arbitrary calls, each given either as raw `data` or as an `{ abi, functionName, args }` triple the SDK encodes.
+
+```tsx
+const relay = useGaslessWalletExecute();
+
+await relay.mutateAsync({
+  calls: [
+    { target: usdc, abi: erc20Abi, functionName: "approve", args: [router, amount] },
+    { target: router, data: routeCalldata },
+  ],
+});
+```
+
+The wallet's own balance never pays the fee — it is priced from the inner call selectors and charged to `signerAccount`, which defaults to the owner EOA and so should be a funded sub-account.
+
+A session key can sign it: pass `from` (the key) and `signerAccount` (the sub-account holding the delegation), having granted [`getGaslessWalletExecuteSelectors(calls)`](/core/gasless/get-gasless-wallet-execute-selectors) once through `useGrantDelegation`. A missing grant rejects with `GASLESS_SIGNER_NOT_DELEGATED` before any prompt.
+
+```tsx
+await relay.mutateAsync({ calls, signerAccount: subAccount, from: sessionKey });
+```
+
+See [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) for the signature scheme and [the guide](/guides/gasless-wallet-calls) for the end-to-end flow.
 
 ## Fees & allowance
 

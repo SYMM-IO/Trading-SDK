@@ -6,6 +6,7 @@ import {
   useFinalizeRevokeDelegation,
   useGrantDelegation,
   useInitiateRevokeDelegation,
+  usePendingRevocation,
   useRevocationCooldown,
   useSessionKeySelectors,
   useSupportsGaslessService,
@@ -56,6 +57,21 @@ export interface UseSessionKeyDelegationResult {
   activeExpiryTimestamp?: bigint;
   /** Revocation cooldown in seconds, as configured on the Instant Layer. */
   cooldownSeconds?: bigint;
+  /**
+   * `true` while a scheduled revocation has not yet reached its ETA — the key
+   * still signs, but it is on its way out. Read from the contract, so it
+   * survives a reload and shows up in any tab.
+   */
+  isRevoking: boolean;
+  /**
+   * Seconds until the scheduled revocation lands — i.e. until the key stops
+   * signing — reticking every second, and `0` once it lands.
+   */
+  revocationSecondsRemaining?: number;
+  /** How many of {@link UseSessionKeyDelegationResult.activeSelectors} are scheduled for revocation. */
+  revokingSelectorCount: number;
+  /** `true` once every scheduled ETA has passed, so finalizing will go through. */
+  isFinalizable: boolean;
   /** Grant the scope's selectors in one relayed, gas-free transaction. */
   grant: () => Promise<void>;
   /** Start revoking every selector this key holds. Costs native gas. */
@@ -158,6 +174,28 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
   const missingSelectors = delegations.missing;
 
   /**
+   * A scheduled revocation is invisible to the readiness read — the contract
+   * keeps enforcing the delegation for the whole cooldown, so
+   * `useAreDelegationsActive` reports the key as active right up to the ETA.
+   * This is the only read that shows the revocation in flight, and reading it
+   * from the chain (rather than remembering the click) is what makes the state
+   * survive a reload and show up in a second tab.
+   *
+   * It probes `requiredSelectors`, not `activeSelectors`: the moment the ETA
+   * passes, enforcement stops and `activeSelectors` empties out — probing it
+   * would drop the scheduled revocation from view and disable Finalize at
+   * exactly the point it becomes callable. `activeSelectors` is filtered from
+   * `requiredSelectors`, so the wider set can only ever probe more.
+   */
+  const pendingRevocation = usePendingRevocation({
+    account,
+    delegate: sessionKey ?? zeroAddress,
+    selectors: requiredSelectors,
+    query: { enabled },
+  });
+  const refetchPendingRevocation = pendingRevocation.refetch;
+
+  /**
    * The delegation expiry is the session key's own expiry, not a fresh TTL.
    * Granting a longer-lived delegation than the key would leave stale authority
    * on-chain after the key stops working; a shorter one silently breaks the key
@@ -192,9 +230,18 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
         expiryTimestamp,
         gasless: true,
       });
-      await refetchDelegations();
+      await Promise.all([refetchDelegations(), refetchPendingRevocation()]);
     });
-  }, [subAccount, sessionKey, expiryTimestamp, requiredSelectors, grantDelegation, refetchDelegations, run]);
+  }, [
+    subAccount,
+    sessionKey,
+    expiryTimestamp,
+    requiredSelectors,
+    grantDelegation,
+    refetchDelegations,
+    refetchPendingRevocation,
+    run,
+  ]);
 
   /**
    * Revocation targets what the key actually holds, not what the current scope
@@ -211,9 +258,17 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
         delegate: sessionKey,
         selectors: revokableSelectors,
       });
-      await refetchDelegations();
+      await Promise.all([refetchDelegations(), refetchPendingRevocation()]);
     });
-  }, [subAccount, sessionKey, revokableSelectors, initiateRevokeDelegation, refetchDelegations, run]);
+  }, [
+    subAccount,
+    sessionKey,
+    revokableSelectors,
+    initiateRevokeDelegation,
+    refetchDelegations,
+    refetchPendingRevocation,
+    run,
+  ]);
 
   const finalizeRevoke = useCallback(async () => {
     if (!subAccount || !sessionKey) return;
@@ -223,9 +278,17 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
         delegate: sessionKey,
         selectors: revokableSelectors,
       });
-      await refetchDelegations();
+      await Promise.all([refetchDelegations(), refetchPendingRevocation()]);
     });
-  }, [subAccount, sessionKey, revokableSelectors, finalizeRevokeDelegation, refetchDelegations, run]);
+  }, [
+    subAccount,
+    sessionKey,
+    revokableSelectors,
+    finalizeRevokeDelegation,
+    refetchDelegations,
+    refetchPendingRevocation,
+    run,
+  ]);
 
   return {
     requiredSelectors,
@@ -237,6 +300,10 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
     expiryTimestamp,
     activeExpiryTimestamp: delegations.expiryTimestamp,
     cooldownSeconds: cooldown.data,
+    isRevoking: pendingRevocation.isRevoking,
+    revocationSecondsRemaining: pendingRevocation.secondsRemaining,
+    revokingSelectorCount: pendingRevocation.revokingSelectors.length,
+    isFinalizable: pendingRevocation.isFinalizable,
     grant,
     initiateRevoke,
     finalizeRevoke,

@@ -80,3 +80,7 @@ const selectors = getSessionKeySelectors(config, { chainId, account: supported, 
 - [`grantDelegation`](/core/instant-layer/grant-delegation) — the owner-signed grant itself
 - [`initiateRevokeDelegation`](/core/instant-layer/initiate-revoke-delegation) — taking the authority back
 - [`useSessionKeySelectors`](/react/instant-layer) — the React binding
+
+## Gasless-wallet execution is a separate grant
+
+This function covers the InstantLayer surface — trading, account management, withdrawals. It does **not** cover [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute), which the GaslessLayer authorizes against its own sentinel selector plus each inner call selector. Build that set with [`getGaslessWalletExecuteSelectors`](/core/gasless/get-gasless-wallet-execute-selectors) and grant it alongside — in the same `selectors` array, or as its own grant.

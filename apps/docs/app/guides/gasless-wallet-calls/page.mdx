@@ -1,0 +1,163 @@
+import { Callout, Steps } from "nextra/components";
+
+# Run any contract call gaslessly
+
+Every wallet that touches GaslessQ gets a **deterministic wallet of its own** — a per-owner `CREATE2` contract deployed by the GaslessLayer. It is the address users fund during onboarding, and it is also a general-purpose executor: you can make it call any contract, with any calldata, and the relayer pays the native gas.
+
+This guide covers the whole loop: finding the address, funding it, understanding who pays the fee, building a batch, and following it to a terminal status.
+
+<Callout type="info">
+  Gasless is available on chains that ship a `gasless` config block **and** run perps-core `"0.8.6"`. Gate your UI on
+  [`supportsGaslessService`](/core/gasless/resolve-gasless-service) before showing any of this.
+</Callout>
+
+## One address, two jobs
+
+[`getGaslessWalletAddress(owner)`](/core/gasless/get-gasless-wallet-address) is a pure view — safe to render before any transaction exists, and stable forever for a given owner.
+
+```ts
+import { getGaslessDepositPolicy, getGaslessWalletAddress } from "@symmio/trading-core";
+
+const wallet = await getGaslessWalletAddress(config, { owner });
+
+// The same address, with the onboarding terms attached.
+const policy = await getGaslessDepositPolicy(config, { owner });
+policy.depositAddress === wallet; // true
+```
+
+That single address plays two roles:
+
+1. **The deposit address** for [cold-start onboarding](/core/gasless/settle-gasless-deposit-new-account) — send collateral to it and the relayer sweeps it into a new sub-account, paying every step's gas.
+2. **The executor** for [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) — anything still sitting at the address can be moved by calling contracts from it.
+
+Custody is bound by construction: the address is derived from `owner`, so only that owner can ever move what is at it.
+
+## Who pays for what
+
+Two different fees, from two different places. Getting this wrong is the most common surprise.
+
+|             | Deposit settlement                                 | Wallet execute                                                               |
+| ----------- | -------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Native gas  | Relayer pays                                       | Relayer pays                                                                 |
+| Service fee | Flat `depositFee`, deducted from the swept balance | Priced from the **inner call selectors**                                     |
+| Charged to  | The deposit itself                                 | The **`signerAccount`** collateral, bounded by its operational-fee allowance |
+
+**The wallet's own balance never pays for a wallet execute.** Collateral parked at the address is cargo, not fuel. An account with no collateral and no allowance cannot run wallet calls even when the wallet is full — so grant the allowance during onboarding, while the relayer is already covering gas:
+
+```ts
+import { approveOperationalFee } from "@symmio/trading-core";
+import { maxUint256 } from "viem";
+
+await approveOperationalFee(config, { account: subAccount, amounts: [maxUint256] });
+```
+
+Read the current ceiling with [`getOperationalFeeAllowance`](/core/gasless/get-operational-fee-allowance). A per-account daily free quota (resetting at 00:00 UTC) can waive the fee entirely for the first few operations of a day.
+
+The payer is whatever you pass as `signerAccount`, and it **defaults to the owner EOA** — which holds no SYMMIO collateral. Left at the default, a wallet execute is payable only while the free quota covers it. Naming a funded sub-account is what makes the fee chargeable, and it changes nothing else: the gateway derives the wallet from `ownerOf(signerAccount)`, so the address stays the same.
+
+```ts
+await gaslessWalletExecute(config, { calls, signerAccount: subAccount });
+```
+
+## Building a batch
+
+<Steps>
+
+### Describe the calls
+
+Each entry is either an ABI-level call the SDK encodes, or raw calldata you already have. Mix them freely — the order is the execution order.
+
+```ts
+import { erc20Abi } from "viem";
+
+const calls = [
+  { target: usdcAddress, abi: erc20Abi, functionName: "approve", args: [router, amount] },
+  { target: router, data: routeCalldata },
+];
+```
+
+A cross-chain withdrawal is exactly this shape: approve a bridge, then call it with a quote's calldata. So is a plain token transfer out of the wallet — one `transfer` call and nothing else.
+
+### Submit it
+
+```ts
+import { gaslessWalletExecute } from "@symmio/trading-core";
+
+const receipt = await gaslessWalletExecute(config, { calls, operationType: "bridgeWithdraw" });
+```
+
+The user signs one EIP-712 payload for the whole batch. `operationType` is a free-form label for metrics and vendor support — fees are not keyed from it.
+
+### Follow it to a terminal status
+
+The submit returns a `202` acceptance, not a result. Persist `requestId` immediately: there is no list-by-wallet endpoint, so a request id lost to a page reload is unrecoverable.
+
+```ts
+import { confirmGaslessRequest } from "@symmio/trading-core";
+
+const {
+  request,
+  txHash,
+  receipt: onchain,
+} = await confirmGaslessRequest(config, {
+  requestId: receipt.requestId,
+  service: "operations",
+});
+```
+
+</Steps>
+
+In React, reach for [`useGaslessWalletExecute`](/react/gasless) instead — it confirms the request before resolving and invalidates the affected reads for you.
+
+```tsx
+const relay = useGaslessWalletExecute();
+
+await relay.mutateAsync({ calls });
+// relay.relay.phase: "queued" → "submitted" → "confirmed"
+```
+
+## What can go wrong
+
+- **`GASLESS_WALLET_UNAVAILABLE`** — the gateway returned `0x0` for the owner's wallet. The deployment is not fully configured; this is not a user-fixable state.
+- **An encoding error** — an ABI-level call whose `args` do not match `functionName` throws while encoding, before anything is signed or sent. Nothing was submitted.
+- **`InvalidWalletOperationTarget`** in a decoded revert — the operation targeted something other than the owner's own wallet.
+- **`FEE_POLICY_WOULD_REVERT` / `INSUFFICIENT_ALLOWANCE`** in the rejection body — the fee could not be charged. This is the allowance problem above, not a problem with the calls.
+- **A reverted batch** — batches are atomic, so one failing call reverts everything and the fee charge rolls back with it. A failed batch costs time, not money.
+
+<Callout type="warning">
+  A `202` is the point of no return. The relayed transaction may still execute even if your polling fails, so never
+  re-submit the same intent through the wallet after a submit has been accepted.
+</Callout>
+
+## Running it unattended with a session key
+
+A session key can sign the batch, so a background job or an auto-exit flow never prompts a wallet. The GaslessLayer authorizes a non-owner signer against the wallet-execution **sentinel** plus **every inner call selector**:
+
+```ts
+const calls = [{ target: usdcAddress, abi: erc20Abi, functionName: "transfer", args: [to, amount] }];
+
+// Once, owner-signed — relayed, so it costs no gas either.
+await grantDelegation(config, {
+  account: { addr: subAccount, isPartyB: false },
+  delegatedSigner: sessionKey,
+  selectors: getGaslessWalletExecuteSelectors(calls),
+  expiryTimestamp,
+  gasless: true,
+});
+
+// Thereafter, no prompt.
+await gaslessWalletExecute(config, { calls, signerAccount: subAccount, from: sessionKey });
+```
+
+Two things are easy to get wrong:
+
+- **The delegation must sit on a sub-account, never the owner EOA.** `grantDelegation` is `onlyAccountOwner` and the AccountLayer reports no owner for a bare EOA, so an EOA delegator can never be granted. This is the same sub-account you pass as `signerAccount`.
+- **Delegations bind selectors, not arguments.** A key granted `transfer` can send the wallet's whole balance anywhere. Scope the grant to the batch you actually run and keep `expiryTimestamp` short.
+
+The SDK checks the grants before prompting and throws `GASLESS_SIGNER_NOT_DELEGATED` naming what is missing, so a bad grant fails locally rather than inside the relayer.
+
+## Limits
+
+- **`value` is `0n` in practice.** The wallet holds no native token, so forwarding native value reverts the batch.
+- **Inner calls are unrestricted for the owner, scoped for a delegate.** Neither the SDK nor the relayer keeps an allow-list — but a session key can only run selectors it was granted.
+- **PartyB accounts cannot run wallet operations** (`WalletOperationForPartyBUnsupported`).

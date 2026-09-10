@@ -25,5 +25,6 @@ export default {
   "-- helpers": { type: "separator", title: "Helpers" },
   "relayable-writes": "Relayable writes",
   "get-session-key-selectors": "getSessionKeySelectors",
+  "get-gasless-wallet-execute-selectors": "getGaslessWalletExecuteSelectors",
   "errors-and-fallback": "Errors & fallback",
 };

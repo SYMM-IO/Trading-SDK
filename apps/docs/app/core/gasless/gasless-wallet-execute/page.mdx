@@ -2,23 +2,101 @@ import { Callout } from "nextra/components";
 
 # gaslessWalletExecute
 
-Execute calls **from the deterministic gasless wallet** without native gas — the exit path for collateral sitting at the wallet (e.g. finalized withdrawals routed there during onboarding).
+Run **any contract call from the deterministic gasless wallet**, with no native gas — an atomic batch of arbitrary `{ target, value, data }` calls relayed by GaslessQ.
 
 ```ts
 import { gaslessWalletExecute } from "@symmio/trading-core";
+import { erc20Abi } from "viem";
 
+// Approve a router, then call it — one atomic, gas-free batch.
 const receipt = await gaslessWalletExecute(config, {
-  calls: [{ target: usdcAddress, value: 0n, data: transferCalldata }],
+  calls: [
+    { target: usdcAddress, abi: erc20Abi, functionName: "approve", args: [router, amount] },
+    { target: router, data: routeCalldata },
+  ],
+  operationType: "bridgeWithdraw",
 });
 ```
 
-The SDK reads `getGaslessWalletAddress(owner)` and `walletOperationNonces(owner)` from the GaslessLayer, encodes `execute((address,uint256,bytes)[])`, signs, and submits through the same `relay-instant` endpoint with `operationType: "gaslessqWalletExecute"`.
+The SDK reads `getGaslessWalletAddress(owner)` and `walletOperationNonces(owner)` from the GaslessLayer, encodes `execute((address,uint256,bytes)[])`, signs, and submits through the same `relay-instant` endpoint.
 
 <Callout type="info">
   This action is a **submit**: it resolves with the `202` acceptance. React consumers do not need to follow it by hand —
   the matching hook in `@symmio/trading-react` confirms the request before it resolves and invalidates the reads this
   action changes. See the [React gasless guide](/react/gasless).
 </Callout>
+
+For the end-to-end story — funding the wallet, paying the fee, building a batch — see the [Run any contract call gaslessly](/guides/gasless-wallet-calls) guide.
+
+## Two ways to give a call
+
+Every entry in `calls` is either raw calldata or an ABI-level call the SDK encodes. Both forms mix freely in one batch, and `value` defaults to `0n`.
+
+```ts
+calls: [
+  // ABI form — encoded by the SDK with viem's `encodeFunctionData`.
+  { target: usdcAddress, abi: erc20Abi, functionName: "approve", args: [router, amount] },
+
+  // Raw form — for calldata you already have (a bridge quote, a router route).
+  { target: router, data: routeCalldata },
+];
+```
+
+The ABI form types `args` as `readonly unknown[]`, so arguments are validated when they are encoded rather than by the compiler — a wrong arity or type throws before any signature prompt or network call. When you want compile-time-checked arguments, encode with viem yourself and pass the result as a raw call:
+
+```ts
+import { encodeFunctionData, erc20Abi } from "viem";
+
+// `args` is fully inferred here.
+const data = encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [router, amount] });
+calls: [{ target: usdcAddress, data }];
+```
+
+## Who pays
+
+**The wallet balance never pays the fee.** The GaslessLayer prices the operation from the **inner** call selectors — not from the `execute` wrapper and not from `operationType` — and charges it to the account it resolves as the billing parent, bounded by that account's diamond-side [operational-fee allowance](/core/gasless/get-operational-fee-allowance). A per-account daily free quota (resetting at 00:00 UTC) can waive it. Collateral parked at the wallet is a thing you can move, not a source of gas.
+
+The payer is `signerAccount` (a virtual account rolls up to its parent sub-account), and the fee is taken through `chargeOperationalFee` on the core diamond.
+
+<Callout type="warning">
+  `signerAccount` defaults to the **owner EOA**, and an EOA holds no SYMMIO collateral — so the default is payable only
+  while the daily free quota covers it. Pass a funded **sub-account** as `signerAccount` to make the fee chargeable, and
+  grant its allowance with [`approveOperationalFee`](/core/gasless/approve-operational-fee) first. A rejection body
+  carrying `FEE_POLICY_WOULD_REVERT` / `INSUFFICIENT_ALLOWANCE` is this problem.
+</Callout>
+
+## Signing with a session key
+
+A signer that is not the wallet's owner is a delegate. The GaslessLayer then requires active InstantLayer delegations for the wallet-execution **sentinel** and **every inner call selector** — build the set with [`getGaslessWalletExecuteSelectors`](/core/gasless/get-gasless-wallet-execute-selectors).
+
+The delegation has to live on a **sub-account**: `grantDelegation` is `onlyAccountOwner`, and the AccountLayer reports no owner for a bare EOA, so an EOA delegator can never be authorized. Pass that sub-account as `signerAccount` — the wallet it resolves to is unchanged, because the gateway derives the wallet from `ownerOf(signerAccount)`, which is the same owner and therefore the same address.
+
+```ts
+const calls = [{ target: usdcAddress, abi: erc20Abi, functionName: "transfer", args: [to, amount] }];
+
+// Once, owner-signed (itself relayable, so it costs no gas either).
+await grantDelegation(config, {
+  account: { addr: subAccount, isPartyB: false },
+  delegatedSigner: sessionKey,
+  selectors: getGaslessWalletExecuteSelectors(calls),
+  expiryTimestamp,
+});
+
+// Then, unattended — no wallet prompt.
+await gaslessWalletExecute(config, { calls, signerAccount: subAccount, from: sessionKey });
+```
+
+The SDK probes those delegations **before** the signature prompt and throws `GASLESS_SIGNER_NOT_DELEGATED` naming the missing selectors, rather than letting the relayer fail with an opaque `WalletDelegationMissing`. Disable that probe with `execution.preflightDelegation: false`. The owner-signed path short-circuits with no extra reads.
+
+Note the nonce moves with the account: `walletOperationNonces` is keyed on `signerAccount`, so a sub-account has its own counter, separate from the owner's.
+
+## What the wallet can and cannot do
+
+- **Inner targets and selectors are unrestricted.** Neither the SDK nor the relayer keeps an allow-list for wallet calls; authority comes from the signature. (This is unlike the [transparent gasless mode](/core/gasless/relayable-writes), which relays a fixed selector set.) A **delegated** signer is the exception — it is confined to the selectors it was granted.
+- **The operation `target` must be the owner's own wallet.** Anything else reverts with `InvalidWalletOperationTarget`.
+- **The batch is atomic.** If any call reverts, the whole operation reverts and the fee charge rolls back with it — a failed batch costs nothing but time.
+- **`value` is `0n` in practice.** The wallet holds no native token unless someone funded it directly, so a non-zero `value` reverts the batch.
+- **Custody is bound by construction.** The address is a pure `CREATE2` view of `owner`, so collateral at it can only ever be moved by that owner.
 
 ## A deliberately different signature scheme
 
@@ -27,9 +105,7 @@ Wallet operations do **not** reuse the ordinary operation signing:
 - the EIP-712 domain is `{ name: "GaslessGateway", version: "1" }` with the **GaslessLayer** as `verifyingContract` — while the operation's `target` is the **wallet**. Swapping the two yields `InvalidWalletOperationTarget` from simulation. (The domain string deliberately kept the contract's old name; do not "fix" it.)
 - the signed `SignedOperation` struct has **five** fields — no `flexFields`, no `maxUses`. The relay body still carries `flexFields: []` and `maxUses: 1`, appended _after_ signing; signing the 7-field InstantLayer struct produces a digest the gateway rejects.
 - the nonce is `walletOperationNonces(owner) + 1` — a separate counter from InstantLayer nonces.
-- `signerAccount.addr` is the **owner wallet itself**, not a sub-account, and the deadline is 10 minutes.
-
-Fees derive from the **inner** call selectors, not the `execute` wrapper. This action is owner-signed only — delegated (session-key) wallet execution additionally requires InstantLayer delegations for the wallet-execution sentinel selector (`GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR`) plus every inner selector, and is not supported here.
+- `signerAccount.addr` defaults to the **owner wallet itself** rather than a sub-account, and the deadline is 10 minutes.
 
 <Callout type="info">
   The wallet address is a pure `CREATE2` view and doubles as the owner's [deposit
@@ -41,10 +117,23 @@ Fees derive from the **inner** call selectors, not the `execute` wrapper. This a
 
 <Properties>
   <Property name="calls" type="readonly GaslessWalletCall[]" required>
-    The calls to execute from the wallet, in order — each `{ target, value, data }`.
+    The calls to execute from the wallet, in order. Each is either a `GaslessWalletRawCall` (`{ target, value?, data }`)
+    or a `GaslessWalletContractCall` (`{ target, value?, abi, functionName, args? }`). The batch is atomic.
+  </Property>
+  <Property name="calls[].value" type="bigint" optional default="0n">
+    Native value forwarded with the call. The wallet holds no native balance, so a non-zero value reverts the batch.
+  </Property>
+  <Property name="operationType" type="string" optional default='"gaslessqWalletExecute"'>
+    Free-form workflow label (1–128 characters) stored with the request for metrics and vendor support. Fees are **not**
+    keyed from it.
+  </Property>
+  <Property name="signerAccount" type="Address" optional>
+    Account whose delegations authorize the operation, whose wallet-operation nonce is consumed, and which the gateway
+    bills. Defaults to `owner`. Pass a sub-account whenever a session key signs.
   </Property>
   <Property name="owner" type="Address" optional>
-    Owner of the deterministic wallet. Defaults to the signing wallet's address.
+    Owner of the deterministic wallet. Defaults to `signerAccount`, or to the signing wallet's address when that is
+    omitted too; read from the AccountLayer when `signerAccount` names a sub-account.
   </Property>
   <Property name="idempotencyKey" type="string" optional>
     Stable retry key; defaults to a random UUID.
@@ -70,4 +159,6 @@ Fees derive from the **inner** call selectors, not the `execute` wrapper. This a
 
 - `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
 - `SymmError("api", "GASLESS_WALLET_UNAVAILABLE")` — the gateway returned the zero address for the owner's wallet (an unwired deployment answers `0x0` instead of reverting).
+- A viem `AbiEncodingLengthMismatchError` (or similar) when an ABI-level call's `args` do not match `functionName`. Thrown while encoding, before anything is signed or sent.
+- `SymmError("validation", "GASLESS_SIGNER_NOT_DELEGATED")` — a non-owner signer is missing a delegation for the sentinel or an inner selector.
 - `SymmApiError` with code `GASLESS_RELAY_SUBMIT_FAILED` — HTTP failure; `InvalidWalletOperationTarget` in the decoded revert means the operation's target was not the owner's wallet.

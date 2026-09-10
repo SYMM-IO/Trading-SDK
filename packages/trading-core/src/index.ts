@@ -292,7 +292,9 @@ export {
  * cover the full grant lifecycle: `grantDelegation` (relayable, so onboarding a
  * session key costs no gas) and the two-step `initiateRevokeDelegation` /
  * `finalizeRevokeDelegation`, which are wallet-only because the contract
- * accepts a self-targeted operation solely as a delegation grant.
+ * accepts a self-targeted operation solely as a delegation grant. A revocation
+ * in flight is visible only through `getPendingRevocationEtas` — the active
+ * reads keep reporting the key as live for the whole cooldown, because it is.
  */
 export {
   finalizeRevokeDelegation,
@@ -309,6 +311,9 @@ export {
   getIsDelegationActive,
   getIsDelegationActiveQueryKey,
   getIsDelegationActiveQueryOptions,
+  getPendingRevocationEtas,
+  getPendingRevocationEtasQueryKey,
+  getPendingRevocationEtasQueryOptions,
   getRevocationCooldown,
   getRevocationCooldownQueryKey,
   getRevocationCooldownQueryOptions,
@@ -345,6 +350,12 @@ export {
   type GetIsDelegationActiveQueryKey,
   type GetIsDelegationActiveQueryOptions,
   type GetIsDelegationActiveReturnType,
+  type GetPendingRevocationEtasData,
+  type GetPendingRevocationEtasOptions,
+  type GetPendingRevocationEtasParameters,
+  type GetPendingRevocationEtasQueryKey,
+  type GetPendingRevocationEtasQueryOptions,
+  type GetPendingRevocationEtasReturnType,
   type GetRevocationCooldownData,
   type GetRevocationCooldownOptions,
   type GetRevocationCooldownParameters,
@@ -410,6 +421,7 @@ export {
   getGaslessWalletAddress,
   getGaslessWalletAddressQueryKey,
   getGaslessWalletAddressQueryOptions,
+  getGaslessWalletExecuteSelectors,
   getGaslessWalletNonce,
   getGaslessWalletNonceQueryKey,
   getGaslessWalletNonceQueryOptions,
@@ -445,8 +457,10 @@ export {
   type GaslessSignedOperationInput,
   type GaslessSubmitReceipt,
   type GaslessWalletCall,
+  type GaslessWalletContractCall,
   type GaslessWalletExecuteParameters,
   type GaslessWalletExecuteReturnType,
+  type GaslessWalletRawCall,
   type GetGaslessDepositPolicyData,
   type GetGaslessDepositPolicyOptions,
   type GetGaslessDepositPolicyParameters,

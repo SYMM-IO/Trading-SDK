@@ -29,6 +29,12 @@ import { useSessionKeyDelegation } from "./use-session-key-delegation";
  * one and only wallet prompt the key ever needs. Revoking cannot be relayed: it
  * is a wallet transaction that costs native gas, and the key keeps working
  * until the cooldown ETA passes.
+ *
+ * Only the *first* revoke step is load-bearing. Enforcement checks
+ * `pendingRevocationEta` on every operation, so authority ends at the ETA with
+ * no second transaction; finalizing merely deletes the storage, and re-granting
+ * clears the stale schedule by itself. The card therefore offers that step only
+ * while something is actually scheduled, and never calls it "the revoke".
  */
 /**
  * Name the authority groups the grant actually covers. The account and withdraw
@@ -46,7 +52,6 @@ export function SessionKeyDelegationCard() {
   const subAccounts = useUserSubAccounts({ user: owner });
   const [subAccount, setSubAccount] = useState<Address | undefined>(undefined);
   const [withdraw, setWithdraw] = useState(false);
-  const [revokeStartedAtMs, setRevokeStartedAtMs] = useState<number | null>(null);
 
   /** Default to the first sub-account once the list arrives, without pinning a stale choice. */
   useEffect(() => {
@@ -71,11 +76,6 @@ export function SessionKeyDelegationCard() {
   const canWrite = Boolean(
     isConnected && isOnExpectedChain && subAccount && sessionKeyAddress && delegation.expiryTimestamp !== undefined,
   );
-  const cooldownEtaSeconds =
-    revokeStartedAtMs !== null && delegation.cooldownSeconds !== undefined
-      ? BigInt(Math.floor(revokeStartedAtMs / 1000)) + delegation.cooldownSeconds
-      : undefined;
-  const isCoolingDown = cooldownEtaSeconds !== undefined && cooldownEtaSeconds > BigInt(Math.floor(Date.now() / 1000));
 
   return (
     <Card data-testid="card-session-key-delegation">
@@ -130,6 +130,9 @@ export function SessionKeyDelegationCard() {
               label="scope"
               value={`${delegation.requiredSelectors.length} selectors — ${describeScope(delegation.supportsAccountScope, withdraw)}`}
             />
+            {delegation.revokingSelectorCount > 0 ? (
+              <DataRow label="revocation" value={<RevocationStatus delegation={delegation} />} />
+            ) : null}
           </DataList>
 
           {delegation.missingSelectors.length > 0 ? <MissingSelectors selectors={delegation.missingSelectors} /> : null}
@@ -174,31 +177,48 @@ export function SessionKeyDelegationCard() {
               type="button"
               size="sm"
               variant="outline"
-              disabled={!canWrite || delegation.isWriting || delegation.activeSelectors.length === 0}
-              onClick={() => {
-                setRevokeStartedAtMs(Date.now());
-                void delegation.initiateRevoke();
-              }}
+              disabled={
+                !canWrite || delegation.isWriting || delegation.activeSelectors.length === 0 || delegation.isRevoking
+              }
+              onClick={() => void delegation.initiateRevoke()}
               data-testid="button-initiate-revoke-delegation"
+              title={
+                delegation.isRevoking
+                  ? "A revocation is already scheduled — starting another would only push its ETA further out."
+                  : undefined
+              }
             >
               Start revoke (costs gas)
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              disabled={!canWrite || delegation.isWriting || isCoolingDown}
-              onClick={() => void delegation.finalizeRevoke()}
-              data-testid="button-finalize-revoke-delegation"
-            >
-              Finalize revoke (costs gas)
-            </Button>
+            {/*
+             * Only offered while something is actually scheduled. Finalizing is
+             * optional cleanup, not the revoke — authority ends on its own at
+             * the ETA — so a permanently visible button implies a step the user
+             * must take and then greys out with no way to explain itself.
+             */}
+            {delegation.revokingSelectorCount > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!canWrite || delegation.isWriting || !delegation.isFinalizable}
+                onClick={() => void delegation.finalizeRevoke()}
+                data-testid="button-finalize-revoke-delegation"
+                title={
+                  delegation.isFinalizable
+                    ? undefined
+                    : "The cooldown is still running. Authority ends by itself when it does — this only clears the stored grant afterwards."
+                }
+              >
+                Clear stored grant (costs gas)
+              </Button>
+            ) : null}
           </div>
 
           <RevocationNotice
             cooldownSeconds={delegation.cooldownSeconds}
-            etaSeconds={cooldownEtaSeconds}
-            isCoolingDown={isCoolingDown}
+            secondsRemaining={delegation.revocationSecondsRemaining}
+            isRevoking={delegation.isRevoking}
           />
 
           {delegation.error ? (
@@ -210,13 +230,25 @@ export function SessionKeyDelegationCard() {
   );
 }
 
-/** Ready / missing-N summary for the current scope. */
+/** Ready / revoking / missing-N summary for the current scope. */
 function ReadinessBadge({ delegation }: { delegation: ReturnType<typeof useSessionKeyDelegation> }) {
   if (delegation.isLoading)
     return (
       <span className="text-muted-foreground flex items-center gap-1.5">
         <Spinner className="size-3.5" /> Reading delegations...
       </span>
+    );
+  /**
+   * A key inside the cooldown is both ready and on its way out, and the
+   * revocation is the fact the operator needs — the contract still enforces the
+   * grant, so the readiness read alone would render a reassuring “Ready”.
+   */
+  if (delegation.isRevoking)
+    return (
+      <Badge variant="warning" data-testid="badge-delegation-revoking">
+        <ClockIcon className="size-3" /> Revoking {delegation.revokingSelectorCount} of{" "}
+        {delegation.requiredSelectors.length}
+      </Badge>
     );
   if (delegation.isReady)
     return (
@@ -229,6 +261,26 @@ function ReadinessBadge({ delegation }: { delegation: ReturnType<typeof useSessi
       <AlertTriangleIcon className="size-3" /> Missing {delegation.missingSelectors.length} of{" "}
       {delegation.requiredSelectors.length}
     </Badge>
+  );
+}
+
+/**
+ * The scheduled revocation, straight from the contract's `pendingRevocationEta`
+ * — live until the ETA, then finalizable by anyone.
+ */
+function RevocationStatus({ delegation }: { delegation: ReturnType<typeof useSessionKeyDelegation> }) {
+  if (delegation.isFinalizable)
+    return (
+      <span className="text-warning" data-testid="text-revocation-finalizable">
+        Cooldown over — authority already gone, finalize to clear the grant
+      </span>
+    );
+  if (delegation.revocationSecondsRemaining === undefined) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span data-testid="text-revocation-eta">
+      Still live — authority ends in{" "}
+      <span className="font-mono tabular-nums">{formatCountdown(delegation.revocationSecondsRemaining)}</span>
+    </span>
   );
 }
 
@@ -257,27 +309,52 @@ function MissingSelectors({ selectors }: { selectors: readonly Hex[] }) {
 /** States the cost and the timing of revocation without ever implying it can be relayed. */
 function RevocationNotice({
   cooldownSeconds,
-  etaSeconds,
-  isCoolingDown,
+  secondsRemaining,
+  isRevoking,
 }: {
   cooldownSeconds?: bigint;
-  etaSeconds?: bigint;
-  isCoolingDown: boolean;
+  secondsRemaining?: number;
+  isRevoking: boolean;
 }) {
+  const countdown = isRevoking && secondsRemaining !== undefined ? formatCountdown(secondsRemaining) : undefined;
+
   return (
     <div className="text-muted-foreground flex items-start gap-2 text-xs" data-testid="note-revocation-cost">
       <ClockIcon className="mt-0.5 size-4 shrink-0" />
       <p>
         Revocation cannot be relayed — both steps are wallet transactions that cost native gas. Starting a revoke does
         not take authority away immediately: the key keeps signing for the full cooldown
-        {cooldownSeconds !== undefined ? ` (${formatCooldown(cooldownSeconds)})` : ""}, and only stops when the ETA
-        passes. Finalizing afterwards clears the stored grant and may be called by anyone.
-        {isCoolingDown && etaSeconds !== undefined
-          ? ` Still live — finalize ${formatRelativeTimestamp(etaSeconds)}.`
-          : ""}
+        {cooldownSeconds !== undefined ? ` (${formatCooldown(cooldownSeconds)})` : ""}, and stops by itself when the ETA
+        passes — no second transaction required.
+        {countdown ? (
+          <>
+            {" "}
+            Still live for <span className="font-mono tabular-nums">{countdown}</span>.
+          </>
+        ) : null}{" "}
+        Clearing the stored grant afterwards is optional bookkeeping, permissionless, and unnecessary before re-granting
+        — a new grant wipes the stale schedule on its own.
       </p>
     </div>
   );
+}
+
+/**
+ * Render a live countdown in the same compact shape as {@link formatCooldown},
+ * one unit finer: `47s`, `9m 07s`, `1h 09m 07s`.
+ *
+ * Minutes and seconds are zero-padded once a larger unit precedes them, so the
+ * string keeps its width as it ticks and the row does not jitter.
+ */
+function formatCountdown(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const secs = total % 60;
+  const mins = Math.floor(total / 60) % 60;
+  const hours = Math.floor(total / 3_600);
+
+  if (total < 60) return `${secs}s`;
+  if (total < 3_600) return `${mins}m ${String(secs).padStart(2, "0")}s`;
+  return `${hours}h ${String(mins).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s`;
 }
 
 /** Render a cooldown duration in seconds as a compact `10m` / `2h` style string. */

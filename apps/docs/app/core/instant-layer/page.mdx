@@ -1,6 +1,8 @@
 # InstantLayer
 
-The `InstantLayer` contract manages delegated signer access for instant actions. SYMM Trading-SDK exposes the delegation reads as separate APIs: one reads the raw expiry timestamp from `delegations`, and one reads the contract's computed active status from `isDelegationActive`.
+The `InstantLayer` contract manages delegated signer access for instant actions. SYMM Trading-SDK exposes the delegation reads as separate APIs: one reads the raw expiry timestamp from `delegations`, one reads the contract's computed active status from `isDelegationActive`, and one reads the scheduled revocation ETA from `pendingRevocationEta`.
+
+Revocation is two-step and **not** instant. `initiateRevokeDelegation` only schedules; the contract keeps enforcing the delegation for the whole cooldown, so every "is it active?" read keeps answering yes until the ETA passes. [`getPendingRevocationEtas`](/core/instant-layer/get-pending-revocation-etas) is what makes a revocation in flight visible.
 
 Contract reference: [SYMMIO perps-core v0.8.6 docs](https://github.com/SYMM-IO/perps-core/tree/version_0.8.6/docs/v0.8.6).
 
@@ -18,6 +20,15 @@ Each method has its own page with the full signature, parameters, return shape, 
   <MethodEntry name="getIsDelegationActive" href="/core/instant-layer/get-is-delegation-active">
     Whether the contract considers a delegation active.
   </MethodEntry>
+  <MethodEntry name="getActiveDelegations" href="/core/instant-layer/get-active-delegations">
+    Which probed `(delegate, selector)` pairs are live, in one canonicalizing call.
+  </MethodEntry>
+  <MethodEntry name="getRevocationCooldown" href="/core/instant-layer/get-revocation-cooldown">
+    How long a revoked key keeps signing — the chain's global cooldown, in seconds.
+  </MethodEntry>
+  <MethodEntry name="getPendingRevocationEtas" href="/core/instant-layer/get-pending-revocation-etas">
+    Scheduled revocations per selector — the only read that shows one in flight.
+  </MethodEntry>
 </MethodIndex>
 
 ## Writes
@@ -25,6 +36,12 @@ Each method has its own page with the full signature, parameters, return shape, 
 <MethodIndex kind="write">
   <MethodEntry name="grantDelegation" href="/core/instant-layer/grant-delegation">
     Grant a delegated signer access to selectors until an expiry.
+  </MethodEntry>
+  <MethodEntry name="initiateRevokeDelegation" href="/core/instant-layer/initiate-revoke-delegation">
+    Schedule a revocation. The key keeps signing until the cooldown ETA passes.
+  </MethodEntry>
+  <MethodEntry name="finalizeRevokeDelegation" href="/core/instant-layer/finalize-revoke-delegation">
+    Clear a scheduled grant once its ETA has passed. Callable by anyone.
   </MethodEntry>
 </MethodIndex>
 

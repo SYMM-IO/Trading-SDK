@@ -22,6 +22,10 @@ const active = await getActiveDelegations(config, {
   single-selector read hits the raw `delegations` mapping and reports `false` for a VA whose *parent* holds the grant.
 </Callout>
 
+## A pending revocation still reads as active
+
+A delegation stays in this result for the whole revocation cooldown after [`initiateRevokeDelegation`](/core/instant-layer/initiate-revoke-delegation) — enforcement only stops at the ETA, and the grant is deleted later still. That is correct, because the key really can keep signing, but it means this read alone cannot tell "healthy" from "being revoked". Pair it with [`getPendingRevocationEtas`](/core/instant-layer/get-pending-revocation-etas) whenever you render delegation status to a user.
+
 ## Parallel arrays
 
 `delegates` and `selectors` are parallel: `selectors[i]` is the `bytes4[]` probed for `delegates[i]`, so the two arrays must be the same length. One delegate means one nested array.

@@ -8,7 +8,7 @@ import { getGaslessWalletAddress } from "@symmio/trading-core";
 const depositAddress = await getGaslessWalletAddress(config, { owner });
 ```
 
-The same address serves two roles: it is the owner's **deposit address** for [gasless onboarding](/core/gasless/get-gasless-deposit-policy) (bridge collateral there, then settle), and the `target` of [gasless-wallet `execute` operations](/core/gasless/gasless-wallet-execute) that move funds out. Custody is bound by construction — collateral at the address can only ever reach a sub-account owned by `owner`.
+The same address serves two roles: it is the owner's **deposit address** for [gasless onboarding](/core/gasless/get-gasless-deposit-policy) (bridge collateral there, then settle), and the `target` of [gasless-wallet `execute` operations](/core/gasless/gasless-wallet-execute), which can call **any** contract from it with the relayer paying the gas. Custody is bound by construction — collateral at the address can only ever reach a sub-account owned by `owner`.
 
 Responses from gasless services come back lowercased; compare addresses case-insensitively (`isAddressEqual`).
 

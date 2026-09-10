@@ -48,6 +48,13 @@ export const GASLESS_METHODS: readonly GaslessMethodMeta[] = [
     aliases: ["waitForGaslessRequest", "request status", "polling"],
   },
   {
+    id: "gasless-wallet-execute",
+    method: "gaslessWalletExecute",
+    action: "useGaslessWalletExecute",
+    kind: "write",
+    aliases: ["getGaslessWalletAddress", "useGaslessWalletAddress", "arbitrary call", "gasless wallet", "batch"],
+  },
+  {
     id: "gasless-deposit",
     method: "getGaslessDepositPolicy",
     action: "useGaslessDepositPolicy",

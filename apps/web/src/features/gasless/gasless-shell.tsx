@@ -1,10 +1,12 @@
 import { PageHeader } from "@/components/page-header";
+import { WalletPanel } from "@/features/inspector/wallet-panel";
 import type { ComponentType } from "react";
 import { GaslessAllowanceCard } from "./gasless-allowance-card";
 import { GaslessDepositCard } from "./gasless-deposit-card";
 import { GASLESS_METHODS } from "./gasless-methods";
 import { GaslessRequestCard } from "./gasless-request-card";
 import { GaslessServiceCard } from "./gasless-service-card";
+import { GaslessWalletExecuteCard } from "./gasless-wallet-execute-card";
 
 /** The card component for each {@link GASLESS_METHODS} entry, keyed by its registry id. */
 const CARDS: Record<string, ComponentType> = {
@@ -12,11 +14,13 @@ const CARDS: Record<string, ComponentType> = {
   "gasless-allowance": GaslessAllowanceCard,
   "gasless-request": GaslessRequestCard,
   "gasless-deposit": GaslessDepositCard,
+  "gasless-wallet-execute": GaslessWalletExecuteCard,
 };
 
 /**
  * Gasless page: the GaslessQ relayer integration end to end — availability,
- * request-status polling, operational-fee allowance, and deposit onboarding.
+ * request-status polling, operational-fee allowance, deposit onboarding, and
+ * arbitrary contract calls from the deterministic gasless wallet.
  * The transparent execution mode itself needs no page: any relayable write on
  * the Contracts page relays once the chain's gasless block sets
  * `execution.mode: "gasless"` (or a call passes `gasless: true`).
@@ -32,6 +36,8 @@ export function GaslessShell() {
         title="Gasless relayer"
         description="Account actions with no native gas: the user signs an EIP-712 operation, the GaslessQ relayer broadcasts it and pays the gas, and the GaslessLayer charges the fee from SYMMIO collateral atomically."
       />
+
+      <WalletPanel />
 
       <div className="grid gap-6 lg:grid-cols-2">
         {GASLESS_METHODS.map((method) => {

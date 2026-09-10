@@ -4,6 +4,7 @@ import {
   getActiveDelegationsQueryKey,
   getDelegationExpiryQueryKey,
   getIsDelegationActiveQueryKey,
+  getPendingRevocationEtasQueryKey,
   initiateRevokeDelegationMutationOptions,
   type InitiateRevokeDelegationParameters,
 } from "@symmio/trading-core";
@@ -83,6 +84,17 @@ export function useInitiateRevokeDelegation(
        */
       void queryClient.invalidateQueries({
         predicate: predicateMatch(getActiveDelegationsQueryKey, { configKey, delegator: variables.account }),
+      });
+      /**
+       * The one read whose answer this write actually changes — the others keep
+       * reporting the delegation as active until the cooldown ETA passes.
+       */
+      void queryClient.invalidateQueries({
+        predicate: predicateMatch(getPendingRevocationEtasQueryKey, {
+          configKey,
+          delegator: variables.account,
+          delegate: variables.delegate,
+        }),
       });
     },
   });

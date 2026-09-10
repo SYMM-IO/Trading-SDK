@@ -5,6 +5,7 @@ import {
   getActiveDelegationsQueryKey,
   getDelegationExpiryQueryKey,
   getIsDelegationActiveQueryKey,
+  getPendingRevocationEtasQueryKey,
   type FinalizeRevokeDelegationParameters,
 } from "@symmio/trading-core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
@@ -83,6 +84,14 @@ export function useFinalizeRevokeDelegation(
        */
       void queryClient.invalidateQueries({
         predicate: predicateMatch(getActiveDelegationsQueryKey, { configKey, delegator: variables.account }),
+      });
+      /** Finalizing clears the schedule too, so the pending read must not go stale. */
+      void queryClient.invalidateQueries({
+        predicate: predicateMatch(getPendingRevocationEtasQueryKey, {
+          configKey,
+          delegator: variables.account,
+          delegate: variables.delegate,
+        }),
       });
     },
   });

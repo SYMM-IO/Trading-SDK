@@ -6,6 +6,7 @@ export default {
   "get-is-delegation-active": "getIsDelegationActive",
   "get-active-delegations": "getActiveDelegations",
   "get-revocation-cooldown": "getRevocationCooldown",
+  "get-pending-revocation-etas": "getPendingRevocationEtas",
   "-- writes": { type: "separator", title: "Writes" },
   "grant-delegation": "grantDelegation",
   "initiate-revoke-delegation": "initiateRevokeDelegation",

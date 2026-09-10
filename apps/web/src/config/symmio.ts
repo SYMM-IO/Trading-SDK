@@ -54,6 +54,7 @@ export const symmioChains: CreateConfigParameters["symmioConfig"] = {
      */
     gasless: {
       url: "/api/gasless/staging",
+      protocolInstance: "arbitrum-42161-vibe",
       execution: { mode: "gasless" },
     },
   },

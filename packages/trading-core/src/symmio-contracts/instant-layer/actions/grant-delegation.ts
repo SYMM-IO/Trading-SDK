@@ -53,6 +53,11 @@ export type GrantDelegationReturnType = Hash;
  * has no PartyB form — so it degrades to the wallet path, or throws when
  * gasless was demanded explicitly.
  *
+ * **Granting clears any pending revocation** for each selector it covers: the
+ * contract deletes `pendingRevocationEta` alongside writing the new expiry. A
+ * schedule left unfinalized therefore cannot silently neuter a fresh grant, and
+ * {@link finalizeRevokeDelegation} is never a prerequisite for re-granting.
+ *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
  * @param parameters - Delegation account, signer, selectors, expiry, optional chain id.
  * @returns The submitted transaction hash. The caller waits on the receipt.

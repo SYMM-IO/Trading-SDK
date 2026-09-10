@@ -29,6 +29,8 @@ The contract accepts a revocation from the account **owner**, from the **delegat
 
 This call only _schedules_ the revocation. It stamps `pendingRevocationEta = block.timestamp + revocationCooldown` (read it with [`getRevocationCooldown`](/core/instant-layer/get-revocation-cooldown)) and silently skips any selector that is not currently active.
 
+Because it leaves the `delegations` mapping untouched, none of the "is it active?" reads change when this lands — the key keeps signing and keeps reporting as ready. Read [`getPendingRevocationEtas`](/core/instant-layer/get-pending-revocation-etas) to show the revocation as pending, and to know when it becomes finalizable.
+
 Until that ETA passes the delegate **keeps signing**. Revocation is not an instant kill switch: budget for the cooldown when you plan an incident response. Once the ETA passes, enforcement stops honoring the delegation, and [`finalizeRevokeDelegation`](/core/instant-layer/finalize-revoke-delegation) clears the stored grant.
 
 ## Parameters

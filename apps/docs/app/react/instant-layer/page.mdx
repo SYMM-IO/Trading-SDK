@@ -284,6 +284,101 @@ const { data: cooldownSeconds } = useRevocationCooldown();
 
 The delay the two-step revocation enforces. Show it before a user starts a revocation, so they learn up front that a compromised key keeps signing for its duration.
 
+It is the _size_ of that window, not a countdown for any particular revocation — for that, use `usePendingRevocation`.
+
+### `usePendingRevocation`
+
+Answers "is this key being revoked, and until when is it still live?" — the pending half of the two-step revocation, against a clock that ticks.
+
+```tsx
+const { isRevoking, etaTimestamp, isFinalizable } = usePendingRevocation({
+  account: { addr: subAccount, isPartyB: false },
+  delegate: sessionKeyAddress,
+  selectors: useSessionKeySelectors(),
+});
+```
+
+<Callout type="warning">
+  **This is the only hook that shows a revocation in flight.** `useInitiateRevokeDelegation` does not clear the grant —
+  it schedules one, and the contract keeps enforcing the delegation until the ETA passes. `useAreDelegationsActive`
+  therefore keeps reporting the key as **ready** for the whole cooldown, correctly, because it is. A UI built on
+  readiness alone shows nothing at all after a successful revoke transaction.
+</Callout>
+
+Pair the two: `useAreDelegationsActive` answers "can it sign?", this one answers "is it on its way out, and when does that land?".
+
+#### Probe the granted selectors, not the active ones
+
+Pass the same set you hand to `useAreDelegationsActive` — the output of `useSessionKeySelectors` — not that hook's `activeSelectors`. Enforcement stops the moment the ETA passes while the schedule survives until someone finalizes, so `activeSelectors` empties out exactly when `isFinalizable` should turn `true`. Feeding it back in here would disable a finalize button at the moment it becomes callable.
+
+#### Parameters
+
+<Properties>
+  <Property name="account" type="InstantLayerAccount" required>
+    The account the delegation is enforced under. Pass the same account you revoked with — unlike
+    `useAreDelegationsActive`, the underlying read does **not** canonicalize a virtual account to its parent, because
+    neither does the mapping it reads.
+  </Property>
+  <Property name="delegate" type="Address" required>
+    The delegated signer, typically the session key's address.
+  </Property>
+  <Property name="selectors" type="readonly Hex[]" required>
+    Selectors to probe — the granted set.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+  <Property name="query" type="QueryParameter" optional>
+    TanStack overrides for the underlying read — use `enabled` while addresses are still resolving.
+  </Property>
+</Properties>
+
+#### Return type
+
+<Properties>
+  <Property name="isRevoking" type="boolean">
+    `true` while at least one probed selector has a scheduled revocation whose ETA has not passed — the key is still
+    signing, but on its way out.
+  </Property>
+  <Property name="etaTimestamp" type="bigint | undefined">
+    The **latest** ETA across the scheduled selectors, in Unix seconds — the moment the key stops being able to sign
+    anything at all. `undefined` when no revocation is scheduled.
+  </Property>
+  <Property name="secondsRemaining" type="number | undefined">
+    Whole seconds left until `etaTimestamp`, recomputed every second and clamped at `0` once it lands. Render **this**
+    as a live countdown — `etaTimestamp` is a fixed instant, so formatting it relatively (`"in 9m"`) looks frozen for a
+    minute at a time.
+  </Property>
+  <Property name="revokingSelectors" type="readonly Hex[]">
+    Probed selectors with a scheduled revocation, in the order requested. A selector stays in this list after its ETA
+    passes, until someone finalizes — it is scheduled either way, only no longer enforced.
+  </Property>
+  <Property name="isFinalizable" type="boolean">
+    `true` when a revocation is scheduled and **every** scheduled ETA has passed, so `useFinalizeRevokeDelegation` will
+    go through. Finalizing while any ETA is still in the future reverts with `RevocationCooldownNotOver`.
+  </Property>
+  <Property name="isLoading" type="boolean">
+    Whether the underlying read is in flight.
+  </Property>
+  <Property name="refetch" type="() => Promise<...>">
+    Re-read after an initiate or finalize settles.
+  </Property>
+</Properties>
+
+#### The clock ticks itself
+
+The time comparison runs against a 1-second clock that starts only while something is actually counting down and stops itself once the last ETA passes. `isRevoking` flips to `false` and `isFinalizable` to `true` on their own, so a finalize button gated on them enables itself without a refresh.
+
+That same clock drives `secondsRemaining`, so a countdown needs no timer of its own:
+
+```tsx
+const { isRevoking, secondsRemaining } = usePendingRevocation({ account, delegate, selectors });
+
+if (isRevoking) return <p>Still live — authority ends in {formatCountdown(secondsRemaining)}</p>;
+```
+
+The read is skipped for an empty `selectors` list unless `query.enabled` says otherwise. The core action is [`getPendingRevocationEtas`](/core/instant-layer/get-pending-revocation-etas).
+
 ### `useInitiateRevokeDelegation`
 
 ```tsx
@@ -304,6 +399,8 @@ mutate({ account: { addr: subAccount, isPartyB: false }, delegate: sessionKeyAdd
 
 Clears the stored grant once the cooldown ETA has passed. Permissionless — anyone may complete it.
 
+**It is optional.** Authority ends by itself at the ETA, and `useGrantDelegation` clears any pending schedule for the selectors it grants, so this is never a prerequisite for re-granting. Offer it as cleanup, gated on `usePendingRevocation`'s `isFinalizable`, and only while `revokingSelectors` is non-empty.
+
 <Callout type="warning">
   **Neither revoke hook accepts `gasless`, and that is contract-enforced, not an omission.** Both target the Instant
   Layer, and `_verifyOperation` routes any self-targeted operation to `_verifyGrantOperation`, which accepts only
@@ -313,5 +410,6 @@ Clears the stored grant once the cooldown ETA has passed. Permissionless — any
 
 #### Cache invalidation
 
-Both revoke hooks invalidate `getDelegationExpiryQueryKey`, `getIsDelegationActiveQueryKey`, and
-`getActiveDelegationsQueryKey` for the account and delegate, so mounted readiness hooks refetch on their own.
+Both revoke hooks invalidate `getDelegationExpiryQueryKey`, `getIsDelegationActiveQueryKey`,
+`getActiveDelegationsQueryKey`, and `getPendingRevocationEtasQueryKey` for the account and delegate, so mounted
+readiness hooks — and `usePendingRevocation` — refetch on their own.

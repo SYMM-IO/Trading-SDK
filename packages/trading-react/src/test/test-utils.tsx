@@ -80,6 +80,8 @@ export function createTestWagmiConfig(opts?: {
 export interface MockSymmioConfig {
   config: Config;
   readContract: Mock;
+  /** Stub viem `multicall` — batched-read hooks (e.g. `usePendingRevocation`) call this. */
+  multicall: Mock;
   writeContract: Mock;
   simulateContract: Mock;
   waitForTransactionReceipt: Mock;
@@ -97,11 +99,17 @@ export function createMockSymmioConfig(opts?: {
   webSocketConstructor?: WebSocketConstructor;
 }): MockSymmioConfig {
   const readContract = vi.fn();
+  const multicall = vi.fn();
   const writeContract = vi.fn();
   const simulateContract = vi.fn();
   const waitForTransactionReceipt = vi.fn();
 
-  const publicClient = { readContract, simulateContract, waitForTransactionReceipt } as unknown as PublicClient;
+  const publicClient = {
+    readContract,
+    multicall,
+    simulateContract,
+    waitForTransactionReceipt,
+  } as unknown as PublicClient;
   const account = { address: TEST_EOA, type: "json-rpc" } as Account;
   const walletClient = { account, chain: hyperEvm as Chain, writeContract } as unknown as SymmioWalletClient;
 
@@ -112,7 +120,7 @@ export function createMockSymmioConfig(opts?: {
     webSocketConstructor: opts?.webSocketConstructor,
   });
 
-  return { config, readContract, writeContract, simulateContract, waitForTransactionReceipt };
+  return { config, readContract, multicall, writeContract, simulateContract, waitForTransactionReceipt };
 }
 
 /**

@@ -34,8 +34,13 @@ export type UseGaslessWalletExecuteReturnType = UseMutationResult<
 };
 
 /**
- * Execute calls from the deterministic gasless wallet without native gas -
- * the exit path for collateral sitting at the wallet.
+ * Run **any contract call from the deterministic gasless wallet**, with no
+ * native gas — an atomic batch of arbitrary calls, each given either as raw
+ * `data` or as an `{ abi, functionName, args }` triple the SDK encodes.
+ *
+ * The wallet's own balance never pays the fee: the GaslessLayer prices the
+ * operation from the inner call selectors and charges the SYMMIO account,
+ * bounded by its operational-fee allowance. See `gaslessWalletExecute`.
  *
  * **Resolves when the operation has landed, not when the relayer accepts it.**
  * A submit returns `202` in milliseconds while the transaction lands seconds
@@ -53,7 +58,12 @@ export type UseGaslessWalletExecuteReturnType = UseMutationResult<
  * @example
  * ```tsx
  * const relay = useGaslessWalletExecute();
- * const receipt = await relay.mutateAsync({ calls });
+ * const receipt = await relay.mutateAsync({
+ *   calls: [
+ *     { target: usdc, abi: erc20Abi, functionName: "approve", args: [router, amount] },
+ *     { target: router, data: routeCalldata },
+ *   ],
+ * });
  * ```
  */
 export function useGaslessWalletExecute(

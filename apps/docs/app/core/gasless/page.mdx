@@ -94,6 +94,8 @@ Nonces are sequential and read immediately before signing; a batch must carry st
 - [`getGaslessOperationalFeeQuote`](/core/gasless/get-gasless-fee-quote) — the authoritative quote for the exact operations, on the **GaslessLayer**; `wouldBlockOnQuota` is a hard stop. The transparent mode runs it before every signature prompt (`preflightFee`).
 - [`getOperationalFeeAllowance`](/core/gasless/get-operational-fee-allowance) — the payer's allowance for the charger, on the **core diamond**. Grant it with [`approveOperationalFee`](/core/gasless/approve-operational-fee) **before** relying on gasless execution.
 
+[`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) is priced the same way, from its **inner** call selectors rather than the `execute` wrapper — and it bills its `signerAccount`, never the collateral sitting at the wallet it executes from. That defaults to the owner EOA, which holds no collateral, so pass a funded sub-account to make the fee chargeable.
+
 ## Reads are RPC, not endpoints
 
 The service exposes no read endpoints: wallet addresses, deposit policy, fee quotes, allowances, and nonces are all direct contract reads on the GaslessLayer / diamond. The GaslessLayer address is a **config constant** with no runtime discovery — the SDK cross-checks it against the chain's InstantLayer (`GASLESS_CONFIG_INCOHERENT`) before the first relay, so a stale pairing fails loudly instead of producing signatures the gateway rejects.
@@ -141,7 +143,7 @@ The service exposes no read endpoints: wallet addresses, deposit policy, fee quo
     Grant a delegation as an ordinary relayed operation — session-key onboarding without gas.
   </MethodEntry>
   <MethodEntry name="gaslessWalletExecute" href="/core/gasless/gasless-wallet-execute">
-    Execute calls from the deterministic gasless wallet.
+    Run any contract call from the deterministic gasless wallet.
   </MethodEntry>
   <MethodEntry name="approveOperationalFee" href="/core/gasless/approve-operational-fee">
     Grant the fee charger its allowance, as the paying sub-account.
@@ -155,6 +157,9 @@ The service exposes no read endpoints: wallet addresses, deposit policy, fee quo
 </MethodIndex>
 
 <MethodIndex kind="type">
+  <MethodEntry name="getGaslessWalletExecuteSelectors" href="/core/gasless/get-gasless-wallet-execute-selectors">
+    The selector set a session key needs to run a batch from the gasless wallet.
+  </MethodEntry>
   <MethodEntry name="Relayable writes" href="/core/gasless/relayable-writes">
     Which existing writes the transparent mode can relay, and the selector set to delegate.
   </MethodEntry>

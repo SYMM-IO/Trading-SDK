@@ -272,7 +272,9 @@ export {
  * InstantLayer hooks
  * ------------------
  * Delegated signer access reads and grant writes for the Instant Layer
- * contract.
+ * contract. `usePendingRevocation` covers the pending half of the two-step
+ * revocation — the readiness hooks keep reporting a cooling-down key as active,
+ * because the contract keeps enforcing it until the ETA passes.
  */
 export {
   useActiveDelegations,
@@ -295,6 +297,7 @@ export {
   useIsDelegationActive,
   useLimitCloseAuto,
   useLimitOpenAuto,
+  usePendingRevocation,
   useRevocationCooldown,
   useSessionKeySelectors,
   useSimulateGrantDelegation,
@@ -344,6 +347,8 @@ export {
   type UseLimitCloseAutoReturnType,
   type UseLimitOpenAutoParameters,
   type UseLimitOpenAutoReturnType,
+  type UsePendingRevocationParameters,
+  type UsePendingRevocationReturnType,
   type UseRevocationCooldownParameters,
   type UseRevocationCooldownReturnType,
   type UseSessionKeySelectorsParameters,

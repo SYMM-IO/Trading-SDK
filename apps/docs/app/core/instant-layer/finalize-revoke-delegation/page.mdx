@@ -24,13 +24,21 @@ const hash = await finalizeRevokeDelegation(config, {
 
 Unlike the initiating step, **anyone** may call this once the cooldown ETA has passed — a keeper, a backend, or the user's own wallet can finish a revocation the owner started.
 
-It reverts `RevocationCooldownNotOver` while the ETA is still in the future, and silently skips any selector that was never scheduled.
+It reverts `RevocationCooldownNotOver` while the ETA is still in the future, and silently skips any selector that was never scheduled. Gate the call on [`getPendingRevocationEtas`](/core/instant-layer/get-pending-revocation-etas) — every scheduled ETA in the probed set must have passed, or the whole transaction reverts.
 
 <Callout type="info">
   Enforcement already stops honoring the delegation the moment the ETA passes, so this call is the bookkeeping leg
   rather than the moment authority ends. Do not present it to users as "the revoke" — by the time it can be sent, the
   key has already lost its authority.
 </Callout>
+
+## It is optional
+
+Skipping this call leaves a revoked key just as powerless: `_verifyOperation` checks `isDelegationActive` on every operation, and that returns `false` once the ETA passes. All this write does is delete the storage slots.
+
+It is not a prerequisite for re-granting either. [`grantDelegation`](/core/instant-layer/grant-delegation) deletes `pendingRevocationEta` for every selector it grants, so a schedule left unfinalized cannot silently neuter a fresh grant.
+
+Surface it as optional cleanup, and only while something is actually scheduled — a permanently visible "finalize" control implies a step the user must take, then greys out with nothing to explain itself.
 
 ## Parameters
 

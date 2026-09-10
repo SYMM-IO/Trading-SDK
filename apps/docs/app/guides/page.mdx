@@ -10,6 +10,7 @@ Guides are **consumer-facing**. Reference docs under [Core](../core), [React](..
 - [Register an Affiliate](./affiliate-registration) — register your frontend as a SYMMIO affiliate so trading fees route to you. Predict your deterministic address, submit the on-chain request, get approved, then wire the address into your config. Use the hosted page or drive it from your own UI with the SDK.
 - [Charts](./charts) — render a price chart for any market. [Majors](./charts/majors) stream real OHLCV from a reference exchange through the SDK's `CandleSource`; [lowcaps](./charts/lowcap) have no such listing and chart from their liquidity pool instead, via a DexScreener embed or your own OHLC feed.
 - [Orderbook](./orderbook) — render live market depth. A pluggable `OrderbookSource` keeps a book continuously synchronized against the venue's own sequence rules, so a ladder is never quietly wrong, and the grouping, spread and impact helpers work on any source's book.
+- [Gasless Wallet Calls](./gasless-wallet-calls) — run any contract call from a user's deterministic gasless wallet, with the relayer paying the native gas. Covers the one address that is both the onboarding deposit target and a general-purpose executor, who actually pays the service fee, and how to build and follow a batch.
 
 ## When to reach for a guide vs a reference
 

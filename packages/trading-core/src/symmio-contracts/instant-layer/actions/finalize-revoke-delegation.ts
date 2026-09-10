@@ -37,9 +37,13 @@ export type FinalizeRevokeDelegationReturnType = Hash;
  * `grantDelegations` and reverts `InvalidGrantOperation` for anything else — a
  * relayed revocation would always revert. See {@link initiateRevokeDelegation}.
  *
- * Note the ordering subtlety: enforcement stops honoring the delegation once
- * the ETA passes, so this call is the bookkeeping leg rather than the moment
- * authority ends.
+ * **It is optional.** Enforcement reads `pendingRevocationEta` on every
+ * operation, so authority ends on its own at the ETA — this call is the
+ * bookkeeping leg, not the moment the key loses access, and skipping it leaves
+ * a revoked key just as powerless. Nor is it a prerequisite for re-granting:
+ * {@link grantDelegation} deletes the pending ETA for each selector it grants,
+ * so a stale schedule cannot silently neuter a fresh grant. Present it as
+ * cleanup — never as "the revoke".
  *
  * Dry-runs the call first unless `simulateBeforeWrite` is `false` (per-call,
  * falling back to the config default).
