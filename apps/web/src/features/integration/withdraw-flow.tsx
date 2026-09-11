@@ -3,6 +3,8 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useFlowWriteOption, type GaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { SessionKeySignerNote } from "@/features/gasless/session-key-signer-note";
 import { formatUsd } from "@/lib/format";
 import { SubAccountIsolationType, WithdrawStatus, type WithdrawRequest } from "@symmio/trading-core";
 import {
@@ -43,7 +45,8 @@ interface Props {
 /**
  * Withdraw wizard: Connect → Select subaccount → Withdraw. Navigable via the rail.
  * The withdraw step initiates a classic same-chain request, shows the cooldown
- * timing, and lists pending requests with inline finalize / cancel actions.
+ * timing, and lists pending requests with inline finalize / cancel actions. All
+ * three writes follow the wallet menu's session-key default.
  */
 export function WithdrawFlow({
   owner,
@@ -60,6 +63,8 @@ export function WithdrawFlow({
 
   const withdrawableTime = useWithdrawableTime({ user: subAccount });
   const withdraw = useWithdraw({ account: subAccount, chainId });
+  /** The session key when the wallet menu's default is on; the CUSTOM path's deallocate leg rides along. */
+  const initiateWrite = useFlowWriteOption("initiateWithdraw");
 
   // The subaccount's isolation strategy selects the withdraw path: CUSTOM
   // (cross-margin) funds sit in the ALLOCATED balance and must be deallocated
@@ -92,7 +97,7 @@ export function WithdrawFlow({
     // `account`/`chainId` are bound on the hook (which resolves the subaccount's
     // isolation via useSubAccount); `parsed` is in the collateral token's decimals
     // and the hook builds the part + scales the deallocate amount.
-    withdraw.mutate({ amount: parsed, receiver: validReceiver });
+    withdraw.mutate({ amount: parsed, receiver: validReceiver, ...initiateWrite });
   }
 
   const steps: FlowStep[] = [
@@ -177,7 +182,11 @@ export function WithdrawFlow({
             {parsed === undefined ? "Enter an amount" : "Initiate withdrawal"}
           </Button>
 
-          <InitiateStatus withdraw={withdraw} />
+          <SessionKeySignerNote signer={initiateWrite.from}>
+            Initiating also needs “Also allow withdrawals” ticked in the key’s grant on Session Keys.
+          </SessionKeySignerNote>
+
+          <InitiateStatus withdraw={withdraw} bySessionKey={initiateWrite.from !== undefined} />
 
           {subAccount ? (
             <SubaccountBalance isCustom={isCustom} margin={marginBalance} available={availableBalance} />
@@ -205,11 +214,20 @@ function WithdrawableReadout({ query }: { query: ReturnType<typeof useWithdrawab
   );
 }
 
-function InitiateStatus({ withdraw }: { withdraw: ReturnType<typeof useWithdraw> }) {
+function InitiateStatus({
+  withdraw,
+  bySessionKey,
+}: {
+  withdraw: ReturnType<typeof useWithdraw>;
+  /** The session key signs, so there is no wallet prompt to wait on. */
+  bySessionKey: boolean;
+}) {
   if (withdraw.isPending) {
     return (
       <ResultNote testId="integration-withdraw-status" loading>
-        Submitting withdrawal request… confirm in your wallet.
+        {bySessionKey
+          ? "Relaying the withdrawal request, signed by the session key…"
+          : "Submitting withdrawal request… confirm in your wallet."}
       </ResultNote>
     );
   }
@@ -280,6 +298,8 @@ function PendingRequests({ subAccount, decimals }: { subAccount: Address; decima
   const query = usePendingWithdrawRequests({ user: subAccount });
   const finalize = useFinalizeWithdrawRequest();
   const cancel = useRequestCancelWithdraw();
+  const finalizeWrite = useFlowWriteOption("finalizeWithdrawRequest");
+  const cancelWrite = useFlowWriteOption("requestCancelWithdraw");
 
   const items = query.data ?? [];
 
@@ -303,6 +323,8 @@ function PendingRequests({ subAccount, decimals }: { subAccount: Address; decima
               decimals={decimals}
               finalize={finalize}
               cancel={cancel}
+              finalizeWrite={finalizeWrite}
+              cancelWrite={cancelWrite}
             />
           ))}
         </ul>
@@ -317,12 +339,16 @@ function RequestRow({
   decimals,
   finalize,
   cancel,
+  finalizeWrite,
+  cancelWrite,
 }: {
   request: WithdrawRequest;
   subAccount: Address;
   decimals: number;
   finalize: ReturnType<typeof useFinalizeWithdrawRequest>;
   cancel: ReturnType<typeof useRequestCancelWithdraw>;
+  finalizeWrite: GaslessWriteOption;
+  cancelWrite: GaslessWriteOption;
 }) {
   const cooldownAt = Number(request.cooldownEndTime) * 1000;
   const { remainingMs, ready: finalizable } = useCountdown(cooldownAt);
@@ -347,7 +373,7 @@ function RequestRow({
           type="button"
           size="sm"
           disabled={!finalizable || finalizingThis}
-          onClick={() => finalize.mutate({ user: subAccount, requestId: request.id })}
+          onClick={() => finalize.mutate({ user: subAccount, requestId: request.id, ...finalizeWrite })}
           data-testid={`finalize-${request.id}`}
         >
           {finalizingThis ? <Spinner className="size-4" /> : null}
@@ -358,7 +384,7 @@ function RequestRow({
           size="sm"
           variant="outline"
           disabled={cancellingThis}
-          onClick={() => cancel.mutate({ account: subAccount, requestId: request.id })}
+          onClick={() => cancel.mutate({ account: subAccount, requestId: request.id, ...cancelWrite })}
           data-testid={`cancel-${request.id}`}
         >
           {cancellingThis ? <Spinner className="size-4" /> : null}

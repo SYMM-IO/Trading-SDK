@@ -3,6 +3,7 @@
 import { AddressTag } from "@/components/address-tag";
 import { StatusDot } from "@/components/status-dot";
 import { chainLabel } from "@/config/symmio-config-schema";
+import { SessionKeyDefaultSwitch } from "@/features/gasless/session-key-default-switch";
 import { WalletConnectDialog, WalletGlyph } from "@/features/wallet/wallet-connect-dialog";
 import { useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
@@ -19,8 +20,8 @@ const ICON_BUTTON =
 /**
  * Toolbar wallet control. While disconnected it is an icon button that opens the
  * wallet picker; once connected it becomes an account menu — address, network
- * state, and disconnect — with a corner dot marking whether the wallet sits on
- * the chain the SDK expects.
+ * state, the app-wide session-key switch, and disconnect — with a corner dot
+ * marking whether the wallet sits on the chain the SDK expects.
  */
 export function WalletLauncher() {
   const { address, chainId, isConnected, isOnExpectedChain } = useWalletAccount();
@@ -101,6 +102,8 @@ function AccountMenu({ address, chainId, isOnExpectedChain }: AccountMenuProps) 
             </span>
           </div>
         </div>
+
+        <SessionKeyDefaultSwitch onNavigate={() => setOpen(false)} />
 
         <div className="border-border/60 flex flex-col gap-2 border-t p-3">
           {!isOnExpectedChain ? (

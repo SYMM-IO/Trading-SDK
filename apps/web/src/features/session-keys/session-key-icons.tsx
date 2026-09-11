@@ -63,6 +63,37 @@ export function ClockIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+interface KeyIconProps extends SVGProps<SVGSVGElement> {
+  /** Fill the bow — the key is signing. */
+  filled?: boolean;
+  /** Cross the key out — it is off, or cannot sign here. */
+  struck?: boolean;
+}
+
+/**
+ * A key lying flat — the session key as a signer. The shaft is horizontal so a
+ * strike runs the same way as the gasless bolt's beside it: a diagonal shaft
+ * crossed by a diagonal strike reads as scissors.
+ */
+export function KeyIcon({ filled = false, struck = false, ...props }: KeyIconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <circle cx="7" cy="12" r="4" fill={filled ? "currentColor" : "none"} />
+      <path d="M11 12h10M17 12v3.5M20.5 12v2.5" />
+      {struck ? <path d="M4 20 20 4" /> : null}
+    </svg>
+  );
+}
+
 /** Fuel drop struck through — the write costs the owner no native gas. */
 export function GasFreeIcon(props: SVGProps<SVGSVGElement>) {
   return (

@@ -9,6 +9,10 @@ import { useState } from "react";
 import { maxUint256, type Address } from "viem";
 import { SubAccountPicker } from "../inspector/subaccount-picker";
 import { GaslessCard } from "./gasless-card";
+import { useGaslessWriteOption } from "./gasless-write-mode-store";
+
+/** The write this card sends — its key into the per-card session-key store. */
+const APPROVE_METHOD = "approveOperationalFee";
 
 interface Selection {
   subAccount?: Address;
@@ -23,7 +27,8 @@ function formatAllowance(value: bigint): string {
 /**
  * Operational-fee allowance card: read the payer's allowance for the gasless
  * charger from the core diamond, and grant an unlimited one as the paying
- * sub-account (via the `_call` proxy — the connected wallet must own it).
+ * sub-account (via the `_call` proxy — the connected wallet must own it, or the
+ * session key must hold its delegation when the card's key toggle is on).
  */
 export function GaslessAllowanceCard() {
   const [selection, setSelection] = useState<Selection>({});
@@ -34,12 +39,15 @@ export function GaslessAllowanceCard() {
     query: { enabled: Boolean(payer) },
   });
   const approve = useApproveOperationalFee();
+  /** No relay toggle here, so this only changes the call while the key toggle is on. */
+  const write = useGaslessWriteOption(APPROVE_METHOD);
 
   return (
     <GaslessCard
       testId="gasless-allowance"
       method="getOperationalFeeAllowance"
       description="The gateway can only charge a payer up to this diamond-side allowance. Grant it before relying on gasless execution — approval is routed through the sub-account so the diamond sees the right payer."
+      sessionKeyMethod={APPROVE_METHOD}
     >
       <SubAccountPicker
         idPrefix="input-gasless-allowance-payer"
@@ -79,7 +87,7 @@ export function GaslessAllowanceCard() {
         disabled={!payer || approve.isPending}
         onClick={() => {
           if (!payer) return;
-          approve.mutate({ account: payer, amounts: [maxUint256] });
+          approve.mutate({ account: payer, amounts: [maxUint256], ...write });
         }}
         data-testid="button-gasless-approve-allowance"
       >

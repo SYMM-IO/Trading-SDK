@@ -1,4 +1,5 @@
 import { GaslessWriteToggle } from "@/features/gasless/gasless-write-toggle";
+import { SessionKeyWriteToggle } from "@/features/gasless/session-key-write-toggle";
 import { MagicPinButton } from "@/features/magic-sidebar/magic-pin-button";
 import { Badge } from "@symmio/ui/components/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symmio/ui/components/card";
@@ -18,8 +19,9 @@ interface Props {
   /**
    * Set on a `nonpayable` card whose write the gasless relayer can carry **and**
    * whose body forwards `useGaslessWriteOption(name)` to its mutation. Renders
-   * the relay toggle beside the write chip. The two go together: a toggle on a
-   * card that drops the parameter would silently do nothing.
+   * the relay and session-key toggles beside the write chip. The two go
+   * together: a toggle on a card that drops the parameter would silently do
+   * nothing.
    */
   gaslessRelayable?: boolean;
   /**
@@ -45,8 +47,9 @@ interface Props {
  * Visual frame for a single AccountLayer method on the Inspector page. A tinted
  * status dot and read/write chip distinguish view methods from writes; the body
  * holds the inputs and the result panel. A write marked `gaslessRelayable` also
- * gets a {@link GaslessWriteToggle} just ahead of its chip, so the call can be
- * taken off the relay without changing the app-wide config.
+ * gets its dispatch controls just ahead of its chip — a
+ * {@link GaslessWriteToggle} and a {@link SessionKeyWriteToggle} — so each card
+ * picks its own relay and signer without changing the app-wide config.
  */
 export function MethodCard({
   testId,
@@ -80,7 +83,11 @@ export function MethodCard({
           {/* Trailing controls travel together, so a long method name wraps them as one cluster. */}
           <div className="ml-auto flex items-center gap-2">
             {isWrite && gaslessRelayable ? (
-              <GaslessWriteToggle method={name} blockedReason={gaslessBlockedReason} />
+              /** `empty:hidden` drops the group, and its gap, on a chain with no relayer. */
+              <div className="flex items-center gap-1 empty:hidden">
+                <GaslessWriteToggle method={name} blockedReason={gaslessBlockedReason} />
+                <SessionKeyWriteToggle method={name} gaslessBlockedReason={gaslessBlockedReason} />
+              </div>
             ) : null}
             <Badge variant={isWrite ? "warning" : "info"} className="tracking-wide uppercase">
               {isWrite ? "write" : "read"}

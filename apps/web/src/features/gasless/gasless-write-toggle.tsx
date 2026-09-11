@@ -1,7 +1,7 @@
 "use client";
 
-import { cn } from "@symmio/ui/lib/utils";
 import { useGaslessWriteMode } from "./gasless-write-mode-store";
+import { WriteModeSwitch } from "./write-mode-switch";
 
 interface Props {
   /** Contract method name — the shared key into the per-card override store. */
@@ -22,57 +22,56 @@ interface Props {
  * only, so a call the relayer refuses — or one the user would rather pay gas
  * for — can be sent from the wallet without touching the app-wide config.
  *
+ * While the card's session key is on, the bolt shows on: the key signs only
+ * through the relay. Switching the relay off then takes the key off with it.
+ *
  * Renders nothing on a chain with no gasless service configured, and renders a
  * disabled, explained control when the card passes a `blockedReason`. Whether
  * the write is relayable at all is the card's declaration — `MethodCard` only
  * mounts this for a write marked `gaslessRelayable`.
  */
 export function GaslessWriteToggle({ method, blockedReason }: Props) {
-  const { available, enabled, isOverridden, setEnabled } = useGaslessWriteMode(method);
+  const { available, enabled, isOverridden, forcedBySessionKey, setEnabled } = useGaslessWriteMode(method, {
+    blockedReason,
+  });
   if (!available) return null;
 
   if (blockedReason) {
     return (
-      <span
-        role="switch"
-        aria-checked={false}
-        aria-disabled
-        aria-label={`Gasless relay unavailable for ${method}`}
-        title={`Gasless relay unavailable — ${blockedReason}. This call is sent from the connected wallet.`}
-        data-testid={`gasless-toggle-${method}`}
-        className="border-border/70 text-muted-foreground/50 inline-flex size-6 shrink-0 cursor-not-allowed items-center justify-center rounded-md border"
+      <WriteModeSwitch
+        testId={`gasless-toggle-${method}`}
+        label={`Gasless relay unavailable for ${method}`}
+        tooltip={`Gasless relay unavailable — ${blockedReason}. This call is sent from the connected wallet.`}
+        checked={false}
+        blocked
+        tone="info"
       >
         <BoltIcon struck />
-      </span>
+      </WriteModeSwitch>
     );
   }
 
-  const label = enabled ? "Gasless relay on" : "Gasless relay off";
-  const detail = enabled
-    ? "relayed with no native gas — click to send it from the wallet"
-    : "sent from the connected wallet — click to relay it with no native gas";
+  const tooltip = forcedBySessionKey
+    ? "Relayed, because the session key signs only through the relay. Click to send from the wallet instead."
+    : enabled
+      ? "Gasless relay on — relayed with no native gas. Click to send from the wallet."
+      : "Gasless relay off — sent from the connected wallet. Click to relay with no native gas.";
+
+  /** While the key holds the relay on, the card's own relay choice is not in effect, so it is not marked. */
+  const showOverride = isOverridden && !forcedBySessionKey;
 
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={enabled}
-      aria-label={`${label} for ${method}`}
-      title={`${label} — ${detail}${isOverridden ? " (overrides the app config for this card)" : ""}`}
-      data-testid={`gasless-toggle-${method}`}
-      onClick={() => setEnabled(!enabled)}
-      className={cn(
-        "focus-visible:ring-ring/40 relative inline-flex size-6 shrink-0 items-center justify-center rounded-md border transition-colors outline-none focus-visible:ring-2",
-        enabled
-          ? "border-info/40 bg-info/10 text-info"
-          : "border-border/70 text-muted-foreground hover:bg-muted hover:text-foreground",
-      )}
+    <WriteModeSwitch
+      testId={`gasless-toggle-${method}`}
+      label={`Gasless relay for ${method}`}
+      tooltip={showOverride ? `${tooltip} Overrides the app config for this card.` : tooltip}
+      checked={enabled}
+      onCheckedChange={setEnabled}
+      tone="info"
+      marker={showOverride}
     >
       <BoltIcon struck={!enabled} />
-      {isOverridden ? (
-        <span className="bg-primary ring-card absolute -top-0.5 -right-0.5 size-1.5 rounded-full ring-2" aria-hidden />
-      ) : null}
-    </button>
+    </WriteModeSwitch>
   );
 }
 

@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symm
 import { cn } from "@symmio/ui/lib/utils";
 import type { ReactNode } from "react";
 import { GASLESS_METHODS } from "./gasless-methods";
+import { SessionKeyWriteToggle } from "./session-key-write-toggle";
 
 interface Props {
   /** Registry id from {@link GASLESS_METHODS} — also the card's anchor and its read/write lookup key. */
@@ -13,6 +14,14 @@ interface Props {
   children: ReactNode;
   /** Span both columns in the grid (for wide result tables). */
   wide?: boolean;
+  /**
+   * The write this card signs, when a session key may sign it instead of the
+   * wallet. Renders the card's {@link SessionKeyWriteToggle} beside the chip,
+   * keyed by this name; the body must read the same name back (through
+   * `useGaslessWriteOption` or `useSessionKeyWriteMode`) for the toggle to mean
+   * anything.
+   */
+  sessionKeyMethod?: string;
 }
 
 /**
@@ -22,7 +31,7 @@ interface Props {
  * amber for a write — so the chip matches its command-palette row and amber keeps
  * meaning "write" everywhere. The body holds the form inputs and the result panel.
  */
-export function GaslessCard({ testId, method, description, children, wide = false }: Props) {
+export function GaslessCard({ testId, method, description, children, wide = false, sessionKeyMethod }: Props) {
   const isWrite = GASLESS_METHODS.find((entry) => entry.id === testId)?.kind === "write";
 
   return (
@@ -38,9 +47,12 @@ export function GaslessCard({ testId, method, description, children, wide = fals
         <div className="flex flex-wrap items-center gap-2.5">
           <span className={cn("size-2 rounded-full", isWrite ? "bg-warning" : "bg-info")} aria-hidden />
           <CardTitle className="font-mono text-[0.95rem] font-medium tracking-tight">{method}</CardTitle>
-          <Badge variant={isWrite ? "warning" : "info"} className="ml-auto tracking-wide uppercase">
-            Gasless
-          </Badge>
+          <div className="ml-auto flex items-center gap-2">
+            {sessionKeyMethod ? <SessionKeyWriteToggle method={sessionKeyMethod} /> : null}
+            <Badge variant={isWrite ? "warning" : "info"} className="tracking-wide uppercase">
+              Gasless
+            </Badge>
+          </div>
         </div>
         <CardDescription className="leading-6">{description}</CardDescription>
       </CardHeader>

@@ -3,7 +3,6 @@
 import { AddressTag } from "@/components/address-tag";
 import { StatusDot } from "@/components/status-dot";
 import { chainLabel } from "@/config/symmio-config-schema";
-import { SessionKeySignerToggle } from "@/features/gasless/session-key-signer-toggle";
 import { ConnectWalletButton } from "@/features/wallet/connect-wallet-button";
 import { useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
@@ -53,8 +52,6 @@ export function WalletPanel() {
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <SessionKeySignerToggle />
-
           {!isConnected && <ConnectWalletButton />}
 
           {isConnected && !isOnExpectedChain && (

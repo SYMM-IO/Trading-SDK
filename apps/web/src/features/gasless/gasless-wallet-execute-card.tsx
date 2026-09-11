@@ -24,10 +24,13 @@ import { erc20Abi, isAddress, parseUnits, zeroAddress, type Address, type Hex } 
 import { SubAccountPicker } from "../inspector/subaccount-picker";
 import { GaslessCard } from "./gasless-card";
 import { storeGaslessRequest } from "./gasless-request-storage";
-import { useSessionKeySigning } from "./gasless-write-mode-store";
+import { useSessionKeyWriteMode } from "./gasless-write-mode-store";
 
 /** Which of the two call forms the builder composes. */
 type CallForm = "transfer" | "raw";
+
+/** The card's key into the per-card session-key store. */
+const METHOD = "gaslessWalletExecute";
 
 /** Calldata is `0x` plus whole bytes — a selector alone is four bytes. */
 const HEX_CALLDATA = /^0x([0-9a-fA-F]{2})*$/;
@@ -60,7 +63,7 @@ export function GaslessWalletExecuteCard() {
   const chainId = useSymmioChainId();
   const { collateralAddress, collateralDecimals } = useSymmioConfig().getChainConfig(chainId).addresses;
 
-  const sessionKey = useSessionKeySigning();
+  const sessionKey = useSessionKeyWriteMode(METHOD);
 
   const [signerAccount, setSignerAccount] = useState<{ subAccount?: Address; name?: string }>({});
   const [form, setForm] = useState<CallForm>("transfer");
@@ -103,7 +106,7 @@ export function GaslessWalletExecuteCard() {
     return [{ target: target as Address, data: calldata as Hex }];
   }
 
-  /** Only route `from` to the key when it is loaded and the user asked for it. */
+  /** Only route `from` to the key when it is loaded and this card's key toggle is on. */
   const signingKey = sessionKey.enabled ? sessionKey.sessionKeyAddress : undefined;
   /** A delegate signer needs an account to hold its delegation; an EOA cannot. */
   const needsSignerAccount = signingKey !== undefined && signerAccount.subAccount === undefined;
@@ -113,9 +116,10 @@ export function GaslessWalletExecuteCard() {
   return (
     <GaslessCard
       testId="gasless-wallet-execute"
-      method="gaslessWalletExecute"
+      method={METHOD}
       description="Run any contract call from the deterministic gasless wallet — an atomic batch of arbitrary calls, with the relayer paying the native gas."
       wide
+      sessionKeyMethod={METHOD}
     >
       {!isConnected ? (
         <ResultNote testId="gasless-wallet-execute-disconnected">
