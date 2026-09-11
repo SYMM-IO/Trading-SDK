@@ -99,14 +99,15 @@ describe("aggregateGroupMetrics", () => {
     expect(aggregateGroupMetrics([edited]).initialNotional).toBe(300_000000000000000000n);
   });
 
-  it("leverages original quantity × requestedOpenPrice over frozen initialLockedValues (incl. partyBmm)", () => {
+  it("leverages original quantity × initialOpenedPrice over frozen initialLockedValues (incl. partyBmm)", () => {
     // Partially-closed quote: leverage stays frozen at open, ignoring the settled
     // price, the shrunken current lockedValues, and the reduced open quantity.
     const partiallyClosed = makeUnifiedQuote({
       quantity: 2_000000000000000000n,
       closedAmount: 1_000000000000000000n, // openQuantity 1, but leverage uses original quantity 2
-      requestedOpenPrice: 100_000000000000000000n,
-      openedPrice: 120_000000000000000000n, // ignored — the requested price wins while non-zero
+      initialOpenedPrice: 100_000000000000000000n, // the frozen at-open reference — wins
+      requestedOpenPrice: 90_000000000000000000n, // drifts after edits — ignored
+      openedPrice: 120_000000000000000000n, // settled fill — ignored
       // frozen basis: 5 + 5 + 5 + 5 = 20 (partyBmm included)
       initialLockedValues: {
         cva: 5_000000000000000000n,
@@ -122,7 +123,7 @@ describe("aggregateGroupMetrics", () => {
         partyBmm: 1_000000000000000000n,
       },
     });
-    // 2 × 100 / 20 = 10.0x (openedPrice 120, current margin 4, or excluding partyBmm would all differ)
+    // 2 × 100 / 20 = 10.0x (initialOpenedPrice 100 wins over opened 120 / requested 90; frozen margin 20, not current 4)
     expect(aggregateGroupMetrics([partiallyClosed]).leverage).toBe(10_000000000000000000n);
   });
 

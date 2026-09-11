@@ -5,6 +5,7 @@ import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import type { SolverId } from "@symmio/trading-core";
 import {
   calculateClosePrice,
+  calculateSolverCloseFee,
   PositionType,
   SymmioRequestError,
   useFeeForUser,
@@ -46,6 +47,8 @@ export interface ClosablePosition {
   lockedValues: { cva: bigint; lf: bigint; partyAmm: bigint; partyBmm: bigint };
   /** Owner of the quote (the VA address). */
   partyA: Address;
+  /** When the position opened (unix seconds) — drives the holding-time solver close fee. */
+  createTimestamp?: bigint;
 }
 
 interface Props {
@@ -345,6 +348,8 @@ export function ClosePositionStep({
           markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
           quantity={validQuantity !== undefined ? String(validQuantity) : undefined}
           feeRates={feeQuery.data}
+          market={market}
+          openedAtSeconds={position.createTimestamp}
           idPrefix={idPrefix}
         />
       ) : null}
@@ -426,12 +431,18 @@ function ClosePreview({
   markPrice,
   quantity,
   feeRates,
+  market,
+  openedAtSeconds,
   idPrefix,
 }: {
   closePrice: string;
   markPrice: string | undefined;
   quantity: string | undefined;
   feeRates: { openFee: bigint; closeFee: bigint } | undefined;
+  /** Resolved market — its Enigma close-fee rates drive the time-based solver close fee. */
+  market: Market | undefined;
+  /** When the position opened (unix seconds); holding time = now − this. */
+  openedAtSeconds: bigint | undefined;
   idPrefix: string;
 }) {
   const notional = useMemo(() => {
@@ -440,6 +451,17 @@ function ClosePreview({
   }, [markPrice, quantity]);
 
   const closeFeeAmount = feeRates && notional ? computeFeeAmount(feeRates.closeFee, notional) : undefined;
+
+  // Solver close fee at the position's *current* holding time — the fee decays
+  // from the early (peak) rate to the standard rate, so an aged position pays
+  // less. Enigma-only; Rasa markets carry no solver close fee.
+  const solverCloseFee =
+    market?.kind === "enigma" && notional !== undefined && openedAtSeconds !== undefined
+      ? calculateSolverCloseFee(market, {
+          notional,
+          holdingSeconds: Math.max(0, Math.floor(Date.now() / 1000) - Number(openedAtSeconds)),
+        })
+      : undefined;
 
   return (
     <div
@@ -460,10 +482,18 @@ function ClosePreview({
           testId={`${idPrefix}-preview-notional`}
         />
         <PreviewRow
-          label="Close fee"
+          label="Platform close fee"
           value={closeFeeAmount !== undefined ? formatDecimalUsd(closeFeeAmount) : "—"}
           testId={`${idPrefix}-preview-close-fee`}
         />
+        {solverCloseFee !== undefined ? (
+          <PreviewRow
+            label="Solver close fee"
+            hint="(at current holding time)"
+            value={formatDecimalUsd(solverCloseFee)}
+            testId={`${idPrefix}-preview-solver-close-fee`}
+          />
+        ) : null}
       </dl>
     </div>
   );

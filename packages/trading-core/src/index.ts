@@ -1474,6 +1474,22 @@ export {
 } from "./solvers/instant-open";
 
 /**
+ * Solver close fee (time-decaying)
+ * --------------------------------
+ * The solver charges more to close a freshly opened position; the rate decays
+ * from `hedgerFeeCloseEarlyRate` to the standard `hedgerFeeClose` over the
+ * market's thresholds. Those rates are flat fields on every `SolverSymbol`, so
+ * a symbol satisfies `SolverCloseFeeRates` — pass it straight to
+ * `getSolverCloseFeeRate` / `calculateSolverCloseFee` with a holding time.
+ */
+export {
+  calculateSolverCloseFee,
+  getSolverCloseFeeRate,
+  toThresholdSeconds,
+  type SolverCloseFeeRates,
+} from "./solvers/shared/solver-close-fee";
+
+/**
  * InstantLayer v2 (lowcap) — Instant Close
  * ----------------------------------------
  * Lowcap instant-close flow: close-price math, calldata encoder for

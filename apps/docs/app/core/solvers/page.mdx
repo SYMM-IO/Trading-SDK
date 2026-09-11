@@ -56,14 +56,15 @@ const rasa = await getMarkets(config, { solverId: "rasa" }); // RasaMarket[]
 
 Important market fields (all on `Market`):
 
-| Field              | Type     | Notes                                                                                                            |
-| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| `kind`             | `string` | Discriminant: `"enigma"` or `"rasa"`.                                                                            |
-| `symbolId`         | `number` | Contract symbol id.                                                                                              |
-| `name`             | `string` | Solver market name, often the value to pass as `symbol`.                                                         |
-| `symbol`           | `string` | Display symbol.                                                                                                  |
-| `maxLeverage`      | `number` | Maximum leverage accepted for this market.                                                                       |
-| `state` _(Enigma)_ | `number` | Enigma only — `0` disabled, `1` close only, `2` open only, `3` enabled. Narrow on `kind === "enigma"` to access. |
+| Field                                | Type     | Notes                                                                                                                                                                 |
+| ------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`                               | `string` | Discriminant: `"enigma"` or `"rasa"`.                                                                                                                                 |
+| `symbolId`                           | `number` | Contract symbol id.                                                                                                                                                   |
+| `name`                               | `string` | Solver market name, often the value to pass as `symbol`.                                                                                                              |
+| `symbol`                             | `string` | Display symbol.                                                                                                                                                       |
+| `maxLeverage`                        | `number` | Maximum leverage accepted for this market.                                                                                                                            |
+| `state` _(Enigma)_                   | `number` | Enigma only — `0` disabled, `1` close only, `2` open only, `3` enabled. Narrow on `kind === "enigma"` to access.                                                      |
+| `hedgerFeeCloseEarlyRate` _(Enigma)_ | `string` | Enigma only — early (peak) close-fee rate; see [Solver close fee](#solver-close-fee). Paired with `hedgerFeeCloseEarlyThreshold` / `hedgerFeeCloseStandardThreshold`. |
 
 ### `getMarketsQueryOptions`
 
@@ -118,15 +119,39 @@ const page = await getSymbols(config, {
 
 **Returns** — `SolverSymbol[]`. Same camelCase, gap-filled shape as an `EnigmaMarket`, except `/symbols` reports trading state **per side** (`stateLong` / `stateShort`) instead of the single `state` on `getMarkets`.
 
-| Field         | Type      | Notes                                                                      |
-| ------------- | --------- | -------------------------------------------------------------------------- |
-| `symbolId`    | `number`  | Contract symbol id.                                                        |
-| `name`        | `string`  | Solver market name (e.g. `"BTCUSDT"`).                                     |
-| `symbol`      | `string`  | Display ticker.                                                            |
-| `maxLeverage` | `number`  | Maximum leverage (coerced to a number).                                    |
-| `stateLong`   | `number`  | Long-side state: `0` disabled, `1` close only, `2` open only, `3` enabled. |
-| `stateShort`  | `number`  | Short-side state (same encoding).                                          |
-| `isValid`     | `boolean` | Whether the symbol is currently valid.                                     |
+| Field                             | Type      | Notes                                                                         |
+| --------------------------------- | --------- | ----------------------------------------------------------------------------- |
+| `symbolId`                        | `number`  | Contract symbol id.                                                           |
+| `name`                            | `string`  | Solver market name (e.g. `"BTCUSDT"`).                                        |
+| `symbol`                          | `string`  | Display ticker.                                                               |
+| `maxLeverage`                     | `number`  | Maximum leverage (coerced to a number).                                       |
+| `stateLong`                       | `number`  | Long-side state: `0` disabled, `1` close only, `2` open only, `3` enabled.    |
+| `stateShort`                      | `number`  | Short-side state (same encoding).                                             |
+| `isValid`                         | `boolean` | Whether the symbol is currently valid.                                        |
+| `hedgerFeeClose`                  | `string`  | **Standard** (floor) close-fee rate.                                          |
+| `hedgerFeeCloseEarlyRate`         | `string`  | Early (peak) close-fee rate — see [Solver close fee](#solver-close-fee).      |
+| `hedgerFeeCloseEarlyThreshold`    | `number`  | Seconds the early rate applies flat.                                          |
+| `hedgerFeeCloseStandardThreshold` | `number`  | Seconds after which the standard rate applies (linear decay between the two). |
+
+### Solver close fee
+
+The solver charges **more to close a freshly opened position** than an aged one. The close-fee rate starts at `hedgerFeeCloseEarlyRate`, holds flat until `hedgerFeeCloseEarlyThreshold` seconds, then decays linearly to the standard `hedgerFeeClose` by `hedgerFeeCloseStandardThreshold`. These are flat fields on both `EnigmaMarket` (from [`getMarkets`](#getmarkets)) and `SolverSymbol` (from [`getSymbols`](#getsymbols)), so either satisfies `SolverCloseFeeRates` — pass a market or a symbol straight in:
+
+```ts
+import { calculateSolverCloseFee, getSolverCloseFeeRate } from "@symmio/trading-core";
+
+const market = markets.find((m) => m.kind === "enigma" && m.symbolId === id);
+getSolverCloseFeeRate(market, 30); // "0.0024" — still in the early window
+getSolverCloseFeeRate(market, 105); // "0.0015" — halfway through the decay
+getSolverCloseFeeRate(market, 180); // "0.0006" — standard rate
+
+// Price a real close: holding time = now − the position's createTimestamp (seconds).
+const holdingSeconds = Number(nowSeconds - createTimestamp);
+const fee = calculateSolverCloseFee(market, { notional: "1000", holdingSeconds });
+// Pass holdingSeconds: 0 for the worst case (a just-opened position) — what an open must provision.
+```
+
+A market with no decay — a non-Enigma solver, or one that omits the early fields — has `hedgerFeeCloseEarlyRate === hedgerFeeClose` and both thresholds `0`, so `getSolverCloseFeeRate` returns the standard rate for every holding time.
 
 ### `getSymbolsQueryOptions`
 

@@ -76,7 +76,13 @@ export interface EnigmaInstantOpenFees extends BaseInstantOpenFees {
   kind: "enigma";
   /** Solver open fee: `hedgerFeeOpen × notional` (decimal string). */
   openSolverFee: string;
-  /** Solver close fee, provisioned at open: `hedgerFeeClose × notional` (decimal string). */
+  /**
+   * Solver close fee provisioned at open (decimal string). Because the holding
+   * time is unknown at open and an early close costs more, this is the
+   * worst-case `earlyRate × notional` from the market's close-fee schedule
+   * (falling back to the flat `hedgerFeeClose × notional` when no schedule is
+   * available).
+   */
   closeSolverFee: string;
   /**
    * Expected settlement loss vs the dry-run estimate: side-aware
@@ -109,8 +115,9 @@ export type GetInstantOpenFeesReturnType = EnigmaInstantOpenFees | RasaInstantOp
  *
  * - **Both kinds**: `platformOpenFee` + `platformCloseFee`
  *   (on-chain `getFeeForUser` rates × leveraged notional).
- * - **Lowcap (Enigma) only**: `openSolverFee` + `closeSolverFee`
- *   (`hedgerFeeOpen` / `hedgerFeeClose` × notional) and
+ * - **Lowcap (Enigma) only**: `openSolverFee` (`hedgerFeeOpen × notional`) +
+ *   `closeSolverFee` (the worst-case close rate × notional — see
+ *   {@link EnigmaInstantOpenFees.closeSolverFee}) and
  *   `expectedSettlementLoss` (dry-run estimate vs mark) — the legs the solver
  *   charges from the VA balance.
  *
@@ -161,6 +168,9 @@ export async function getInstantOpenFees(
     quantityPrecision: parameters.market.quantityPrecision,
     hedgerFeeOpen: parameters.market.hedgerFeeOpen,
     hedgerFeeClose: parameters.market.hedgerFeeClose,
+    hedgerFeeCloseEarlyRate: parameters.market.hedgerFeeCloseEarlyRate,
+    hedgerFeeCloseEarlyThreshold: parameters.market.hedgerFeeCloseEarlyThreshold,
+    hedgerFeeCloseStandardThreshold: parameters.market.hedgerFeeCloseStandardThreshold,
     includeHedgerFees: isLowcap,
   });
   const [markPrice, feeRates] = await Promise.all([
@@ -252,6 +262,9 @@ export async function getInstantOpenFees(
     notional: tradeCalc.notional,
     hedgerFeeOpen: market.hedgerFeeOpen,
     hedgerFeeClose: market.hedgerFeeClose,
+    hedgerFeeCloseEarlyRate: market.hedgerFeeCloseEarlyRate,
+    hedgerFeeCloseEarlyThreshold: market.hedgerFeeCloseEarlyThreshold,
+    hedgerFeeCloseStandardThreshold: market.hedgerFeeCloseStandardThreshold,
   });
   const expectedSettlementLoss = calculateExpectedSettlementLoss({
     positionType: parameters.positionType,

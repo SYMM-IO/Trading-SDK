@@ -30,7 +30,7 @@ function leverageMarginOf(quote: UnifiedQuote): bigint {
  * - `weightedOpenPrice = Σ(openQuantity × openPrice) / Σ openQuantity`, suppressed
  *   (`undefined`) when there is no open size or any child has an unsettled open price.
  * - `lockedValues` sums each margin leg.
- * - `leverage = Σ(quantity × (requestedOpenPrice ?? openedPrice)) / Σ(cva + lf +
+ * - `leverage = Σ(quantity × (initialOpenedPrice ?? openedPrice ?? requestedOpenPrice)) / Σ(cva + lf +
  *   partyAmm + partyBmm)`, each child using its frozen `initialLockedValues` (else
  *   `lockedValues`), as an 18-decimal fixed-point `bigint`; `undefined` when that
  *   margin is `0`.

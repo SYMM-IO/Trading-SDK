@@ -123,6 +123,7 @@ function LimitOrderRow({
 }) {
   const leverage = calculateQuoteLeverage({
     quantity: quote.quantity,
+    initialOpenedPrice: quote.initialOpenedPrice,
     requestedOpenPrice: quote.requestedOpenPrice,
     openedPrice: quote.openedPrice,
     lockedValues: quote.lockedValues,

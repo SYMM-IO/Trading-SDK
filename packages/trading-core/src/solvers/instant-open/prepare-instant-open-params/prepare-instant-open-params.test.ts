@@ -13,7 +13,12 @@ const assertOpenEstimateWithinSlippage = vi.hoisted(() => vi.fn());
 const fetchOpenEstimatePrice = vi.hoisted(() => vi.fn());
 const deriveAutoSlippage = vi.hoisted(() => vi.fn());
 
-vi.mock("./resolvers", () => ({ resolveMarket, resolveMarkPrice, resolveLockedParams, resolveFeeRates }));
+vi.mock("./resolvers", () => ({
+  resolveMarket,
+  resolveMarkPrice,
+  resolveLockedParams,
+  resolveFeeRates,
+}));
 vi.mock("../shared/open-estimate-guard", () => ({
   assertValidSlippage,
   assertOpenEstimateWithinSlippage,

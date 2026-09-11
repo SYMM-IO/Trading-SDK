@@ -187,6 +187,16 @@ export interface InstantOpenMarketData {
   hedgerFeeOpen?: string;
   /** Pre-fetched solver close-fee rate (decimal fraction string). When omitted, resolved from solver markets. */
   hedgerFeeClose?: string;
+  /**
+   * Pre-fetched early (peak) close-fee rate. When omitted on a lowcap (Enigma)
+   * solver, resolved from `/symbols`; the open provisions this worst-case rate.
+   * Ignored on non-lowcap solvers.
+   */
+  hedgerFeeCloseEarlyRate?: string;
+  /** Pre-fetched early-window length in seconds (paired with `hedgerFeeCloseEarlyRate`). */
+  hedgerFeeCloseEarlyThreshold?: number;
+  /** Pre-fetched standard-rate threshold in seconds (paired with `hedgerFeeCloseEarlyRate`). */
+  hedgerFeeCloseStandardThreshold?: number;
 }
 
 /**

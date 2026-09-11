@@ -14,14 +14,26 @@ describe("calculateQuoteLeverage", () => {
     expect(leverage).toBe("10");
   });
 
-  it("falls back to openedPrice when the requested open price is zero", () => {
+  it("prefers initialOpenedPrice over openedPrice and requestedOpenPrice", () => {
     const leverage = calculateQuoteLeverage({
       quantity: 10n * ONE,
-      requestedOpenPrice: 0n,
-      openedPrice: 100n * ONE,
+      initialOpenedPrice: 100n * ONE,
+      openedPrice: 200n * ONE,
+      requestedOpenPrice: 300n * ONE,
       lockedValues: { cva: 25n * ONE, lf: 25n * ONE, partyAmm: 25n * ONE, partyBmm: 25n * ONE },
     });
-    // 10 * 100 / 100 = 10
+    // 10 * 100 / 100 = 10 — initialOpenedPrice wins.
+    expect(leverage).toBe("10");
+  });
+
+  it("uses openedPrice over requestedOpenPrice when no initial price is set", () => {
+    const leverage = calculateQuoteLeverage({
+      quantity: 10n * ONE,
+      openedPrice: 100n * ONE,
+      requestedOpenPrice: 300n * ONE,
+      lockedValues: { cva: 25n * ONE, lf: 25n * ONE, partyAmm: 25n * ONE, partyBmm: 25n * ONE },
+    });
+    // 10 * 100 / 100 = 10 — settled fill wins over the (drift-prone) requested price.
     expect(leverage).toBe("10");
   });
 

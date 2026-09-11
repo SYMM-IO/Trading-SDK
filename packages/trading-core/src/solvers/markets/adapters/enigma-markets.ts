@@ -1,3 +1,4 @@
+import { toThresholdSeconds } from "../../shared/solver-close-fee";
 import { getContractSymbols, type ApiContractSymbol } from "../../types/generated/enigma-solver";
 import type { EnigmaMarket } from "../types";
 
@@ -46,6 +47,10 @@ function toEnigmaMarket(symbol: IdentifiedEnigmaSymbol): EnigmaMarket {
     tradingFee: symbol.trading_fee ?? "0",
     hedgerFeeOpen: symbol.hedger_fee_open ?? "0",
     hedgerFeeClose: symbol.hedger_fee_close ?? "0",
+    // No early rate published → no decay: the early rate collapses to the standard rate.
+    hedgerFeeCloseEarlyRate: symbol.hedger_fee_close_early_rate ?? symbol.hedger_fee_close ?? "0",
+    hedgerFeeCloseEarlyThreshold: toThresholdSeconds(symbol.hedger_fee_close_early_threshold),
+    hedgerFeeCloseStandardThreshold: toThresholdSeconds(symbol.hedger_fee_close_standard_threshold),
     maxFundingRate: symbol.max_funding_rate ?? "0",
     minNotionalValue: symbol.min_notional_value ?? "0",
     maxQuantity: symbol.max_quantity ?? "0",

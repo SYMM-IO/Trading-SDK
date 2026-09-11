@@ -83,6 +83,16 @@ export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): Us
   const hedgerFeeOpen = market.hedgerFeeOpen ?? resolvedMarket?.hedgerFeeOpen;
   const hedgerFeeClose = market.hedgerFeeClose ?? resolvedMarket?.hedgerFeeClose;
 
+  // Time-decaying close-fee rates ride the same `useMarkets` read — they are
+  // Enigma-only fields on `EnigmaMarket`, so narrow on `kind` before reading.
+  const resolvedEnigmaMarket = resolvedMarket?.kind === "enigma" ? resolvedMarket : undefined;
+  const hedgerFeeCloseEarlyRate =
+    market.hedgerFeeCloseEarlyRate ?? resolvedEnigmaMarket?.hedgerFeeCloseEarlyRate ?? hedgerFeeClose;
+  const hedgerFeeCloseEarlyThreshold =
+    market.hedgerFeeCloseEarlyThreshold ?? resolvedEnigmaMarket?.hedgerFeeCloseEarlyThreshold ?? 0;
+  const hedgerFeeCloseStandardThreshold =
+    market.hedgerFeeCloseStandardThreshold ?? resolvedEnigmaMarket?.hedgerFeeCloseStandardThreshold ?? 0;
+
   // On-chain platform fee rates — contract state, changes rarely; cached hard.
   const feeQuery = useFeeForUser({
     config: parameters.config,
@@ -165,6 +175,9 @@ export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): Us
       quantityPrecision,
       hedgerFeeOpen,
       hedgerFeeClose,
+      hedgerFeeCloseEarlyRate,
+      hedgerFeeCloseEarlyThreshold,
+      hedgerFeeCloseStandardThreshold,
     },
     positionType,
     initialMargin,

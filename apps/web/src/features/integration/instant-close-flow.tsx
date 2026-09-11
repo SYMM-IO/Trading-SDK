@@ -154,6 +154,7 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
           partyBmm: q.lockedValues.partyBmm,
         },
         partyA: q.partyA,
+        createTimestamp: q.createTimestamp,
       })),
     [positionsQuery.data],
   );

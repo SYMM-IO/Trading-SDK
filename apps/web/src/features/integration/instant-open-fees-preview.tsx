@@ -1,7 +1,7 @@
 "use client";
 
 import type { SolverId } from "@symmio/trading-core";
-import { useInstantOpenFees, type PositionType } from "@symmio/trading-react";
+import { calculateSolverCloseFee, useInstantOpenFees, useMarkets, type PositionType } from "@symmio/trading-react";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
 import { cn } from "@symmio/ui/lib/utils";
@@ -57,6 +57,32 @@ export function InstantOpenFeesPreview({
   });
   const fees = feesQuery.data;
 
+  // The SDK provisions the worst-case (early) close fee — other consumers rely on
+  // that. This app instead previews the **minimum** (standard-rate) close fee: the
+  // solver close-fee rate once the position is held past its early-close window.
+  const marketsQuery = useMarkets({ solverId, query: { enabled } });
+  const resolvedMarket = marketsQuery.data?.find((entry) => entry.symbolId === marketId);
+  const enigmaMarket = resolvedMarket?.kind === "enigma" ? resolvedMarket : undefined;
+  const minCloseSolverFee =
+    fees?.kind === "enigma" && enigmaMarket !== undefined
+      ? calculateSolverCloseFee(enigmaMarket, {
+          notional: fees.notional,
+          holdingSeconds: enigmaMarket.hedgerFeeCloseStandardThreshold,
+        })
+      : undefined;
+  // Fall back to the SDK's (max) value only until the market loads.
+  const displayCloseSolverFee = fees?.kind === "enigma" ? (minCloseSolverFee ?? fees.closeSolverFee) : undefined;
+  const displayTotalFee =
+    fees?.kind === "enigma" && displayCloseSolverFee !== undefined
+      ? String(
+          Number(fees.platformOpenFee) +
+            Number(fees.platformCloseFee) +
+            Number(fees.openSolverFee) +
+            Number(displayCloseSolverFee) +
+            Number(fees.expectedSettlementLoss),
+        )
+      : fees?.totalFee;
+
   return (
     <div
       data-testid={`${idPrefix}-fees-preview`}
@@ -84,7 +110,9 @@ export function InstantOpenFeesPreview({
               <span className="text-muted-foreground text-[0.65rem] tracking-wide uppercase">
                 {fees.kind === "enigma" ? "lowcap" : "majors"}
               </span>
-              <span className="text-foreground font-mono font-semibold">{formatFeeUsd(fees.totalFee)}</span>
+              <span className="text-foreground font-mono font-semibold">
+                {formatFeeUsd(displayTotalFee ?? fees.totalFee)}
+              </span>
             </span>
           </TooltipTrigger>
           <TooltipContent className="w-72 p-3" sideOffset={6}>
@@ -94,7 +122,11 @@ export function InstantOpenFeesPreview({
               {fees.kind === "enigma" ? (
                 <>
                   <FeeRow label="Solver open fee" value={formatFeeUsd(fees.openSolverFee)} />
-                  <FeeRow label="Solver close fee" value={formatFeeUsd(fees.closeSolverFee)} sub="provisioned" />
+                  <FeeRow
+                    label="Solver close fee"
+                    value={formatFeeUsd(displayCloseSolverFee ?? fees.closeSolverFee)}
+                    sub="min (standard rate)"
+                  />
                   <FeeRow
                     label="Expected settlement"
                     value={formatFeeUsd(fees.expectedSettlementLoss)}
@@ -103,7 +135,7 @@ export function InstantOpenFeesPreview({
                 </>
               ) : null}
               <div className="border-border/60 mt-1 border-t pt-1.5">
-                <FeeRow label="Total" value={formatFeeUsd(fees.totalFee)} bold />
+                <FeeRow label="Total" value={formatFeeUsd(displayTotalFee ?? fees.totalFee)} bold />
               </div>
               <FeeRow label="On notional" value={formatFeeUsd(fees.notional)} sub="qty × request price" />
               <p className="text-muted-foreground text-[0.7rem] leading-snug">

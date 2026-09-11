@@ -62,7 +62,7 @@ Pure resolver. Takes the minimal UI-shaped inputs (wallet, market, side, margin,
 2. Resolve market metadata, mark price, locked params, and fee rates — fetched concurrently, with any caller-supplied field short-circuiting its fetch.
 3. Run `calculateTradeParams` to derive `requestedOpenPrice`, the mark-sized `quantity` (`initialMargin × leverage / markPrice`), `cva`, `lf`, `partyAmm`, `partyBmm`, `notional`.
 4. Dry-run the sized order via `GET /estimated-price`: when the expected fill deviates from mark beyond the slippage tolerance (`|estimated − mark| / mark > slippage/100`), the call rejects with `SLIPPAGE_EXCEEDED` instead of submitting an order the solver would refuse. Best-effort — an unavailable estimate (solver down, non-Enigma) skips the gate. Pass a pre-fetched `estimatedOpenPrice` to skip the round-trip on latency-sensitive submits.
-5. Derive the `addMargin` amount via `calculateMargin`: `locks + platformFee + openSolverFee + closeSolverFee + expectedSettlementLoss`. Lowcap only — the solver charges its fees (`hedgerFeeOpen`/`hedgerFeeClose` × leveraged notional) and the open-price settlement (side-aware `max(0, adverse fill − mark) × quantity` vs the dry-run estimate) from the **VA balance**, so the SubAccount → VA transfer must fund every leg. A lowcap **SHORT** additionally funds its locks at `mark × 1.01` (`SHORT_FUNDING_BUFFER_PERCENT`) — the request price is a contract floor, so a fill above it rescales the signed locks up and the prefund needs that headroom. On majors the margin stays `locks + platformFee` at the classic basis.
+5. Derive the `addMargin` amount via `calculateMargin`: `locks + platformFee + openSolverFee + closeSolverFee + expectedSettlementLoss`. Lowcap only — the solver charges its fees (`hedgerFeeOpen × leveraged notional` on open; on close, the [time-decaying rate](/core/solvers#solver-close-fee) provisioned at its worst-case peak `hedgerFeeCloseEarlyRate` since the holding time is unknown at open) and the open-price settlement (side-aware `max(0, adverse fill − mark) × quantity` vs the dry-run estimate) from the **VA balance**, so the SubAccount → VA transfer must fund every leg. A lowcap **SHORT** additionally funds its locks at `mark × 1.01` (`SHORT_FUNDING_BUFFER_PERCENT`) — the request price is a contract floor, so a fill above it rescales the signed locks up and the prefund needs that headroom. On majors the margin stays `locks + platformFee` at the classic basis.
 6. Convert every value to 18-decimal-wei `bigint`.
 
 ```ts
@@ -89,10 +89,12 @@ Preview every fee a new quote pays, separated by leg plus the total, without sig
 | `platformOpenFee`        | `getFeeForUser.openFee × notional`       |        ✔        |       ✔       |
 | `platformCloseFee`       | `getFeeForUser.closeFee × notional`      |        ✔        |       ✔       |
 | `openSolverFee`          | `hedgerFeeOpen × notional`               |        ✔        |       —       |
-| `closeSolverFee`         | `hedgerFeeClose × notional`              |        ✔        |       —       |
+| `closeSolverFee`         | `hedgerFeeCloseEarlyRate × notional`     |        ✔        |       —       |
 | `expectedSettlementLoss` | `max(0, adverse fill − mark) × quantity` |        ✔        |       —       |
 
 `totalFee` sums every present leg — including the settlement provision, which the user must fund even though it is a provision rather than a fee the solver keeps. `notional` (the leveraged notional the rates were applied to) is returned alongside for rate displays.
+
+The close fee decays with holding time (see [Solver close fee](/core/solvers#solver-close-fee)), and the holding time is unknown at open — so `closeSolverFee` provisions the **worst case**: the peak `hedgerFeeCloseEarlyRate` (the rate a just-opened position pays), resolved from the market catalogue (`getMarkets` / `/contract-symbols`). Without the early rate it falls back to the flat `hedgerFeeClose`.
 
 ```ts
 const fees = await getInstantOpenFees(config, {

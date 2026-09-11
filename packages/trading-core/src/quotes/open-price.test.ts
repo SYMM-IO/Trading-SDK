@@ -3,6 +3,7 @@ import { hasUnsettledOpenPrice, leveragePriceOf, openPriceOf, settledOpenPriceOf
 
 const SETTLED = 150_000000000000000000n;
 const REQUESTED = 149_000000000000000000n;
+const INITIAL = 148_000000000000000000n;
 
 describe("settledOpenPriceOf", () => {
   it("returns the settled price once it is on record", () => {
@@ -35,18 +36,28 @@ describe("openPriceOf", () => {
 });
 
 describe("leveragePriceOf", () => {
-  it("prefers the requested price — the inverse of openPriceOf's precedence", () => {
-    const quote = { openedPrice: SETTLED, requestedOpenPrice: REQUESTED };
-    expect(leveragePriceOf(quote)).toBe(REQUESTED);
-    expect(openPriceOf(quote)).toBe(SETTLED);
+  it("prefers the initial open price above all", () => {
+    expect(leveragePriceOf({ initialOpenedPrice: INITIAL, openedPrice: SETTLED, requestedOpenPrice: REQUESTED })).toBe(
+      INITIAL,
+    );
   });
 
-  it("falls back to the settled price when no requested price is on record", () => {
-    expect(leveragePriceOf({ openedPrice: SETTLED, requestedOpenPrice: 0n })).toBe(SETTLED);
+  it("falls back to the settled open price when there is no initial price", () => {
+    expect(leveragePriceOf({ initialOpenedPrice: 0n, openedPrice: SETTLED, requestedOpenPrice: REQUESTED })).toBe(
+      SETTLED,
+    );
+    expect(leveragePriceOf({ openedPrice: SETTLED, requestedOpenPrice: REQUESTED })).toBe(SETTLED);
   });
 
-  it("returns zero when neither price is set", () => {
+  it("falls back to the requested price when neither initial nor settled is set", () => {
+    expect(leveragePriceOf({ openedPrice: 0n, requestedOpenPrice: REQUESTED })).toBe(REQUESTED);
+    expect(
+      leveragePriceOf({ initialOpenedPrice: undefined, openedPrice: undefined, requestedOpenPrice: REQUESTED }),
+    ).toBe(REQUESTED);
+  });
+
+  it("returns zero when none is set", () => {
     expect(leveragePriceOf({ openedPrice: undefined, requestedOpenPrice: 0n })).toBe(0n);
-    expect(leveragePriceOf({ openedPrice: 0n, requestedOpenPrice: 0n })).toBe(0n);
+    expect(leveragePriceOf({ initialOpenedPrice: 0n, openedPrice: 0n, requestedOpenPrice: 0n })).toBe(0n);
   });
 });

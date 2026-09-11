@@ -16,6 +16,12 @@ export interface ResolvedMarket {
   minCloseSolverFeeCap?: string;
   /** Present when resolved with `includeHedgerFees`. Solver open-fee rate, decimal fraction string. */
   hedgerFeeOpen?: string;
-  /** Present when resolved with `includeHedgerFees`. Solver close-fee rate, decimal fraction string. */
+  /** Present when resolved with `includeHedgerFees`. Solver standard (floor) close-fee rate, decimal fraction string. */
   hedgerFeeClose?: string;
+  /** Present when resolved with `includeHedgerFees` on an Enigma market. Early (peak) close-fee rate, decimal fraction string. */
+  hedgerFeeCloseEarlyRate?: string;
+  /** Present when resolved with `includeHedgerFees` on an Enigma market. Early-window length in seconds. */
+  hedgerFeeCloseEarlyThreshold?: number;
+  /** Present when resolved with `includeHedgerFees` on an Enigma market. Standard-rate threshold in seconds. */
+  hedgerFeeCloseStandardThreshold?: number;
 }

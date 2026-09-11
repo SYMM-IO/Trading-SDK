@@ -80,6 +80,23 @@ describe("calculateSolverFees", () => {
       closeSolverFee: "0",
     });
   });
+
+  it("provisions the worst-case (early) close fee, ignoring the flat rate", () => {
+    expect(
+      calculateSolverFees({
+        notional: "1000",
+        hedgerFeeOpen: "0.0004",
+        hedgerFeeClose: "0.0006",
+        hedgerFeeCloseEarlyRate: "0.0024",
+        hedgerFeeCloseEarlyThreshold: 30,
+        hedgerFeeCloseStandardThreshold: 180,
+      }),
+    ).toEqual({
+      openSolverFee: "0.4",
+      // hedgerFeeCloseEarlyRate × notional (0.0024 × 1000), not the flat 0.0006 × 1000.
+      closeSolverFee: "2.4",
+    });
+  });
 });
 
 describe("calculateExpectedSettlementLoss", () => {

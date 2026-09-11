@@ -9,7 +9,11 @@ const resolveMarkPrice = vi.hoisted(() => vi.fn());
 const resolveFeeRates = vi.hoisted(() => vi.fn());
 const fetchOpenEstimatePrice = vi.hoisted(() => vi.fn());
 
-vi.mock("../prepare-instant-open-params/resolvers", () => ({ resolveMarket, resolveMarkPrice, resolveFeeRates }));
+vi.mock("../prepare-instant-open-params/resolvers", () => ({
+  resolveMarket,
+  resolveMarkPrice,
+  resolveFeeRates,
+}));
 vi.mock("../shared/open-estimate-guard", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   fetchOpenEstimatePrice,

@@ -1,4 +1,5 @@
 import { parseEther, RoundingMode, toDecimal } from "@symmio/utils/decimal";
+import { calculateSolverCloseFee } from "../../shared/solver-close-fee";
 import { PositionType } from "./types";
 
 /**
@@ -167,7 +168,13 @@ export function calculateTradeParams(
 export interface SolverFees {
   /** `hedgerFeeOpen × notional`, decimal string. */
   openSolverFee: string;
-  /** `hedgerFeeClose × notional`, decimal string. */
+  /**
+   * Close fee provisioned at open, decimal string. The solver charges more to
+   * close a freshly opened position, so — since the holding time is unknown at
+   * open — this provisions the **worst case**: `hedgerFeeCloseEarlyRate ×
+   * notional` when the early-rate field is supplied, else the flat
+   * `hedgerFeeClose × notional`.
+   */
   closeSolverFee: string;
 }
 
@@ -175,21 +182,33 @@ export interface SolverFees {
  * Compute the solver's open and close fees on the leveraged notional.
  *
  * The solver charges its fees from the **VA balance**, so both legs must ride
- * the `addMargin` transfer from the SubAccount into the VA. Rates are the
- * market's `hedgerFeeOpen` / `hedgerFeeClose` decimal-fraction strings; an
- * absent, NaN, or negative rate contributes `"0"`.
+ * the `addMargin` transfer from the SubAccount into the VA. The open leg is
+ * `hedgerFeeOpen × notional`. The close leg is provisioned for the **worst
+ * case**, because the holding time is unknown at open and an early close costs
+ * more: when `hedgerFeeCloseEarlyRate` is supplied it uses the peak rate (the
+ * rate at holding time 0); without it it falls back to the flat
+ * `hedgerFeeClose`. An absent, NaN, or negative rate contributes `"0"`.
  */
 export function calculateSolverFees({
   notional,
   hedgerFeeOpen,
   hedgerFeeClose,
+  hedgerFeeCloseEarlyRate,
+  hedgerFeeCloseEarlyThreshold,
+  hedgerFeeCloseStandardThreshold,
 }: {
   /** Leveraged notional (decimal string). */
   notional: string;
   /** Solver open-fee rate as a decimal fraction string (e.g. `"0.0004"`). */
   hedgerFeeOpen: string | undefined;
-  /** Solver close-fee rate as a decimal fraction string. */
+  /** Solver standard close-fee rate as a decimal fraction string. Used when no early rate is given. */
   hedgerFeeClose: string | undefined;
+  /** Early (peak) close-fee rate; when given, the close leg provisions this worst-case rate. */
+  hedgerFeeCloseEarlyRate?: string;
+  /** Early-window length in seconds (paired with `hedgerFeeCloseEarlyRate`). */
+  hedgerFeeCloseEarlyThreshold?: number;
+  /** Standard-rate threshold in seconds (paired with `hedgerFeeCloseEarlyRate`). */
+  hedgerFeeCloseStandardThreshold?: number;
 }): SolverFees {
   const notionalDec = toDecimal(notional);
   const toFee = (rate: string | undefined) => {
@@ -197,7 +216,19 @@ export function calculateSolverFees({
     if (rateDec.isNaN() || rateDec.isNegative() || notionalDec.isNaN()) return "0";
     return notionalDec.times(rateDec).toString();
   };
-  return { openSolverFee: toFee(hedgerFeeOpen), closeSolverFee: toFee(hedgerFeeClose) };
+  const closeSolverFee =
+    hedgerFeeCloseEarlyRate !== undefined
+      ? calculateSolverCloseFee(
+          {
+            hedgerFeeClose: hedgerFeeClose ?? "0",
+            hedgerFeeCloseEarlyRate,
+            hedgerFeeCloseEarlyThreshold: hedgerFeeCloseEarlyThreshold ?? 0,
+            hedgerFeeCloseStandardThreshold: hedgerFeeCloseStandardThreshold ?? 0,
+          },
+          { notional, holdingSeconds: 0 },
+        )
+      : toFee(hedgerFeeClose);
+  return { openSolverFee: toFee(hedgerFeeOpen), closeSolverFee };
 }
 
 /**

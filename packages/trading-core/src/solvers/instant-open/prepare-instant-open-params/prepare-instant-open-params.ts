@@ -188,6 +188,9 @@ export async function prepareInstantOpenParams(
     includeSolverFeeCaps: needsSolverFeeCaps,
     hedgerFeeOpen: parameters.market.hedgerFeeOpen,
     hedgerFeeClose: parameters.market.hedgerFeeClose,
+    hedgerFeeCloseEarlyRate: parameters.market.hedgerFeeCloseEarlyRate,
+    hedgerFeeCloseEarlyThreshold: parameters.market.hedgerFeeCloseEarlyThreshold,
+    hedgerFeeCloseStandardThreshold: parameters.market.hedgerFeeCloseStandardThreshold,
     /** Lowcap only: the solver charges its fees from the VA, so `addMargin` must fund them. */
     includeHedgerFees: isLowcap,
   });
@@ -306,6 +309,9 @@ export async function prepareInstantOpenParams(
         notional: tradeCalc.notional,
         hedgerFeeOpen: market.hedgerFeeOpen,
         hedgerFeeClose: market.hedgerFeeClose,
+        hedgerFeeCloseEarlyRate: market.hedgerFeeCloseEarlyRate,
+        hedgerFeeCloseEarlyThreshold: market.hedgerFeeCloseEarlyThreshold,
+        hedgerFeeCloseStandardThreshold: market.hedgerFeeCloseStandardThreshold,
       })
     : { openSolverFee: "0", closeSolverFee: "0" };
   const expectedSettlementLoss = calculateExpectedSettlementLoss({
