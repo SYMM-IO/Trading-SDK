@@ -70,7 +70,7 @@ function muonMethodEntries(): SearchEntry[] {
     title: method.method,
     subtitle: "Muon API",
     kind: "read",
-    keywords: [method.action, "muon", "oracle", "off-chain api"],
+    keywords: [method.action, "read", "muon", "oracle", "off-chain api"],
     href: `/muon#${method.id}`,
   }));
 }
@@ -83,7 +83,7 @@ function solverMethodEntries(): SearchEntry[] {
     title: method.method,
     subtitle: "Solver API",
     kind: method.kind,
-    keywords: [method.action, "solver", "off-chain api"],
+    keywords: [method.action, method.kind, "solver", "off-chain api"],
     href: `/solvers#${method.id}`,
   }));
 }
@@ -96,7 +96,7 @@ function gaslessMethodEntries(): SearchEntry[] {
     title: method.method,
     subtitle: "Gasless relayer",
     kind: method.kind,
-    keywords: [method.action, ...(method.aliases ?? []), "gasless", "relayer", "off-chain api"],
+    keywords: [method.action, method.kind, ...(method.aliases ?? []), "gasless", "relayer", "off-chain api"],
     href: `/gasless#${method.id}`,
   }));
 }
