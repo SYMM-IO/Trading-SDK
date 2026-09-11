@@ -1,12 +1,12 @@
 "use client";
 
-import { txExplorerUrl } from "@/lib/explorer";
+import { type BlockExplorer, useBlockExplorer } from "@/lib/explorer";
 import { formatUsd, WEI_DECIMALS } from "@/lib/format";
 import type { TransferRow } from "@symmio/trading-core";
 import { Badge } from "@symmio/ui/components/badge";
 import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
 import { shortenAddress } from "@symmio/utils";
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 
 /** Truncate a 32-byte tx hash for display (`shortenAddress` is 20-byte only). */
 function shortenHash(hash: string): string {
@@ -20,67 +20,70 @@ function formatTimestamp(seconds: number): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-const COLUMNS: DataTableColumn<TransferRow>[] = [
-  {
-    id: "direction",
-    header: "Action",
-    cell: (row) => (
-      <Badge variant={row.direction === "outgoing" ? "secondary" : "positive"}>
-        {row.direction === "outgoing" ? "Sent" : "Received"}
-      </Badge>
-    ),
-    sortAccessor: (row) => row.direction,
-  },
-  {
-    id: "parties",
-    header: "From → To",
-    cell: (row) => (
-      <span className="font-mono text-xs whitespace-nowrap">
-        <span title={row.from}>{shortenAddress(row.from)}</span>
-        <span className="text-muted-foreground"> → </span>
-        <span title={row.to}>{shortenAddress(row.to)}</span>
-      </span>
-    ),
-  },
-  {
-    id: "amount",
-    header: "Amount",
-    align: "end",
-    widthClassName: "min-w-24",
-    cell: (row) => formatUsd(row.amount, WEI_DECIMALS),
-    sortAccessor: (row) => Number(row.amount),
-    cellClassName: "text-foreground font-mono",
-  },
-  {
-    id: "timestamp",
-    header: "Date",
-    align: "end",
-    cell: (row) => <span className="text-muted-foreground whitespace-nowrap">{formatTimestamp(row.timestamp)}</span>,
-    sortAccessor: (row) => row.timestamp,
-  },
-  {
-    id: "transaction",
-    header: "Tx",
-    align: "end",
-    cell: (row) => {
-      const href = txExplorerUrl(row.transaction);
-      const label = shortenHash(row.transaction);
-      return href ? (
-        <a
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          className="text-primary font-mono hover:underline"
-          aria-label="View transaction on block explorer"
-        >
-          {label}
-        </a>
-      ) : (
-        <span className="text-muted-foreground font-mono">{label}</span>
-      );
+/** Build the column set; `txUrl` links each row's hash to the active chain's explorer. */
+function buildColumns(txUrl: BlockExplorer["txUrl"]): DataTableColumn<TransferRow>[] {
+  return [
+    {
+      id: "direction",
+      header: "Action",
+      cell: (row) => (
+        <Badge variant={row.direction === "outgoing" ? "secondary" : "positive"}>
+          {row.direction === "outgoing" ? "Sent" : "Received"}
+        </Badge>
+      ),
+      sortAccessor: (row) => row.direction,
     },
-  },
-];
+    {
+      id: "parties",
+      header: "From → To",
+      cell: (row) => (
+        <span className="font-mono text-xs whitespace-nowrap">
+          <span title={row.from}>{shortenAddress(row.from)}</span>
+          <span className="text-muted-foreground"> → </span>
+          <span title={row.to}>{shortenAddress(row.to)}</span>
+        </span>
+      ),
+    },
+    {
+      id: "amount",
+      header: "Amount",
+      align: "end",
+      widthClassName: "min-w-24",
+      cell: (row) => formatUsd(row.amount, WEI_DECIMALS),
+      sortAccessor: (row) => Number(row.amount),
+      cellClassName: "text-foreground font-mono",
+    },
+    {
+      id: "timestamp",
+      header: "Date",
+      align: "end",
+      cell: (row) => <span className="text-muted-foreground whitespace-nowrap">{formatTimestamp(row.timestamp)}</span>,
+      sortAccessor: (row) => row.timestamp,
+    },
+    {
+      id: "transaction",
+      header: "Tx",
+      align: "end",
+      cell: (row) => {
+        const href = txUrl(row.transaction);
+        const label = shortenHash(row.transaction);
+        return href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary font-mono hover:underline"
+            aria-label="View transaction on block explorer"
+          >
+            {label}
+          </a>
+        ) : (
+          <span className="text-muted-foreground font-mono">{label}</span>
+        );
+      },
+    },
+  ];
+}
 
 interface Props {
   rows: TransferRow[];
@@ -101,10 +104,13 @@ interface Props {
  * `hidePagination` when the parent drives server-side paging.
  */
 export function TransfersTable({ rows, defaultPageSize = 10, hidePagination = false, testId, emptyMessage }: Props) {
+  const { txUrl } = useBlockExplorer();
+  const columns = useMemo(() => buildColumns(txUrl), [txUrl]);
+
   return (
     <DataTable
       testId={testId}
-      columns={COLUMNS}
+      columns={columns}
       data={rows}
       totalCount={rows.length}
       getRowId={(row) => row.id}

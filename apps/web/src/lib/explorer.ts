@@ -1,17 +1,30 @@
-import { hyperEvm } from "viem/chains";
+"use client";
 
-/**
- * App targets HyperEVM (see `config/wagmi.ts`). These helpers resolve the
- * chain's canonical block-explorer URL from viem's chain definition so we
- * never hard-code a base URL. Return `undefined` when the chain ships no
- * explorer, letting callers skip the link.
- */
-const EXPLORER_BASE = hyperEvm.blockExplorers?.default?.url;
+import { useMemo } from "react";
+import { useChainId, useChains } from "wagmi";
 
-export function addressExplorerUrl(address: string): string | undefined {
-  return EXPLORER_BASE ? `${EXPLORER_BASE}/address/${address}` : undefined;
+/** Explorer link builders bound to one chain; each returns `undefined` when that chain ships no explorer. */
+export interface BlockExplorer {
+  addressUrl: (address: string) => string | undefined;
+  txUrl: (hash: string) => string | undefined;
 }
 
-export function txExplorerUrl(hash: string): string | undefined {
-  return EXPLORER_BASE ? `${EXPLORER_BASE}/tx/${hash}` : undefined;
+/**
+ * Resolves block-explorer links for the active wagmi chain (the one picked in
+ * the header chain switcher), using the explorer from viem's chain definition
+ * so no base URL is hard-coded. Every tx and address the app renders lives on
+ * that chain, so links follow it when the user switches network.
+ */
+export function useBlockExplorer(): BlockExplorer {
+  const chainId = useChainId();
+  const chains = useChains();
+  const baseUrl = chains.find((chain) => chain.id === chainId)?.blockExplorers?.default.url;
+
+  return useMemo(
+    () => ({
+      addressUrl: (address) => (baseUrl ? `${baseUrl}/address/${address}` : undefined),
+      txUrl: (hash) => (baseUrl ? `${baseUrl}/tx/${hash}` : undefined),
+    }),
+    [baseUrl],
+  );
 }
