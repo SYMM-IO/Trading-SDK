@@ -13,7 +13,10 @@ test.describe("supported-chain controls", () => {
     await page.goto("/solvers");
     await connectMockWallet(page);
 
+    /** The network picker lives in the wallet menu. */
+    await page.getByTestId("wallet-launcher").click();
     await expect(page.getByTestId("chain-switcher-42161")).toHaveText("Arbitrum");
+    await page.keyboard.press("Escape");
 
     const arbitrumButton = page.getByTestId("button-solvers-chain-42161");
     await expect(arbitrumButton).toHaveText("Arbitrum (Enigma)");

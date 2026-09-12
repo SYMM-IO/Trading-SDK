@@ -4,11 +4,11 @@ import { AddressTag } from "@/components/address-tag";
 import { StatusDot } from "@/components/status-dot";
 import { chainLabel } from "@/config/symmio-config-schema";
 import { SessionKeyDefaultSwitch } from "@/features/gasless/session-key-default-switch";
+import { ChainSwitcher } from "@/features/wallet/chain-switcher";
 import { WalletConnectDialog, WalletGlyph } from "@/features/wallet/wallet-connect-dialog";
-import { useDisconnectWallet, useSwitchToSymmioChain, useWalletAccount } from "@symmio/trading-react";
+import { useDisconnectWallet, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@symmio/ui/components/popover";
-import { Spinner } from "@symmio/ui/components/spinner";
 import { cn } from "@symmio/ui/lib/utils";
 import { useState } from "react";
 import type { Address } from "viem";
@@ -19,9 +19,10 @@ const ICON_BUTTON =
 
 /**
  * Toolbar wallet control. While disconnected it is an icon button that opens the
- * wallet picker; once connected it becomes an account menu — address, network
- * state, the app-wide session-key switch, and disconnect — with a corner dot
- * marking whether the wallet sits on the chain the SDK expects.
+ * wallet picker (which carries the network picker too); once connected it becomes
+ * an account menu — address, network state and picker, the app-wide session-key
+ * switch, and disconnect — with a corner dot marking whether the wallet sits on
+ * the chain the SDK expects.
  */
 export function WalletLauncher() {
   const { address, chainId, isConnected, isOnExpectedChain } = useWalletAccount();
@@ -65,7 +66,6 @@ interface AccountMenuProps {
 function AccountMenu({ address, chainId, isOnExpectedChain }: AccountMenuProps) {
   const [open, setOpen] = useState(false);
   const { disconnect } = useDisconnectWallet();
-  const { switchChain, status: switchStatus } = useSwitchToSymmioChain();
   const tone = isOnExpectedChain ? "positive" : "warning";
 
   return (
@@ -103,22 +103,19 @@ function AccountMenu({ address, chainId, isOnExpectedChain }: AccountMenuProps) 
           </div>
         </div>
 
+        <div className="border-border/60 flex flex-col gap-2 border-t px-4 py-3">
+          <span className="text-muted-foreground text-[0.7rem] font-medium tracking-[0.18em] uppercase">Network</span>
+          <ChainSwitcher />
+          {!isOnExpectedChain ? (
+            <p className="text-warning text-xs leading-5">
+              Your wallet is on an unsupported network — pick one to switch.
+            </p>
+          ) : null}
+        </div>
+
         <SessionKeyDefaultSwitch onNavigate={() => setOpen(false)} />
 
         <div className="border-border/60 flex flex-col gap-2 border-t p-3">
-          {!isOnExpectedChain ? (
-            <Button
-              type="button"
-              size="sm"
-              className="w-full"
-              onClick={() => switchChain().catch(() => undefined)}
-              disabled={switchStatus === "pending"}
-              data-testid="wallet-switch-chain"
-            >
-              {switchStatus === "pending" ? <Spinner className="size-4" /> : null}
-              Switch to HyperEVM
-            </Button>
-          ) : null}
           <Button
             type="button"
             size="sm"
