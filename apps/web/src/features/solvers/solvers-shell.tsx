@@ -20,7 +20,6 @@ import { RasaOpenInterestCard } from "./rasa-open-interest-card";
 import { RasaPartyAUpnlCard } from "./rasa-party-a-upnl-card";
 import { RasaPriceRangeCard } from "./rasa-price-range-card";
 import { RasaReadinessCard } from "./rasa-readiness-card";
-import { RasaWhitelistCard } from "./rasa-whitelist-card";
 import { ReadFundingInfoCard } from "./read-funding-info-card";
 import { ReadInstantOpensCard } from "./read-instant-opens-card";
 import { ReadLockedParams } from "./read-locked-params";
@@ -121,10 +120,9 @@ export function SolversShell() {
         <NotificationSearchCard />
       </MethodGroup>
 
-      <MethodGroup label="Writes" count={3} fullWidth>
+      <MethodGroup label="Writes" count={2} fullWidth>
         <EnigmaInstantOpenCard />
         <EnigmaInstantCloseCard />
-        <RasaWhitelistCard />
       </MethodGroup>
     </section>
   );
