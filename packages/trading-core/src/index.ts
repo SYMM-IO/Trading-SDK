@@ -943,16 +943,10 @@ export {
  * ----------------------
  * Endpoints only the `rasa` solver kind exposes: solver-side balance info,
  * partyA uPnL, global open interest, symbol price range, position-state and
- * notification searches, single error-code lookup, whitelist check/add, and
- * readiness. Each action throws a typed `UNSUPPORTED_BY_SOLVER` `SymmError`
- * when the resolved solver is not a `rasa` solver.
+ * notification searches, single error-code lookup, and readiness. Each action
+ * throws a typed `UNSUPPORTED_BY_SOLVER` `SymmError` when the resolved solver
+ * is not a `rasa` solver.
  */
-export {
-  addSolverWhitelist,
-  addSolverWhitelistMutationOptions,
-  type AddSolverWhitelistParameters,
-  type AddSolverWhitelistReturnType,
-} from "./solvers/add-solver-whitelist";
 export {
   getErrorMessage,
   getErrorMessageQueryKey,
