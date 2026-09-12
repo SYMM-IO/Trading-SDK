@@ -96,6 +96,10 @@ describe("gaslessWalletExecute", () => {
 
 const ROUTER = "0x9999999999999999999999999999999999999999" as const;
 const AMOUNT = 1_000_000n;
+const ACCEPTED = {
+  headers: HEADERS,
+  data: { request_id: "req-w1", status: "queued", paid_fee: "0", remaining_fee_allowance: "0" },
+};
 
 /** Happy-path rig: a wired gateway and a relay that accepts. */
 function walletExecuteRig() {
@@ -105,10 +109,7 @@ function walletExecuteRig() {
     if (functionName === "walletOperationNonces") return Promise.resolve(4n);
     return Promise.reject(new Error(`unprogrammed read: ${functionName}`));
   });
-  post.mockResolvedValue({
-    headers: HEADERS,
-    data: { request_id: "req-w1", status: "queued", paid_fee: "0", remaining_fee_allowance: "0" },
-  });
+  post.mockResolvedValue(ACCEPTED);
   return rig;
 }
 
@@ -345,5 +346,56 @@ describe("gaslessWalletExecute signerAccount + session keys", () => {
     ).rejects.toThrowError(/holds no delegation/);
 
     expect(signTypedData).not.toHaveBeenCalled();
+  });
+});
+
+describe("gaslessWalletExecute submit retries", () => {
+  beforeEach(() => {
+    post.mockReset();
+  });
+
+  it("retries once after a network-level failure, resending the signed body verbatim", async () => {
+    const { config, signTypedData } = walletExecuteRig();
+    /** Snapshot each body as sent: both attempts share one object, so `mock.calls` would compare it with itself. */
+    const sent: unknown[] = [];
+    post.mockImplementation((_path: string, body: unknown) => {
+      sent.push(structuredClone(body));
+      return sent.length === 1
+        ? Promise.reject({ isAxiosError: true, message: "socket hang up", config: { url: "/gateway/relay-instant" } })
+        : Promise.resolve(ACCEPTED);
+    });
+
+    const receipt = await gaslessWalletExecute(config, {
+      chainId: GASLESS_TEST_CHAIN,
+      calls: [{ target: USDC, data: "0xa9059cbb" }],
+    });
+
+    expect(receipt.requestId).toBe("req-w1");
+    expect(sent).toHaveLength(2);
+    /** One signature, one key: re-signing would mint a new salt and turn the retry into a second request. */
+    expect(signTypedData).toHaveBeenCalledTimes(1);
+    expect(sent[1]).toEqual(sent[0]);
+  });
+
+  it("does not retry a definitive 4xx", async () => {
+    const { config } = walletExecuteRig();
+    post.mockRejectedValue({
+      isAxiosError: true,
+      message: "unprocessable",
+      response: {
+        status: 422,
+        statusText: "Unprocessable Entity",
+        data: { detail: { code: "SIMULATION_REVERTED" } },
+      },
+      config: { url: "/gateway/relay-instant", method: "post" },
+    });
+
+    await expect(
+      gaslessWalletExecute(config, {
+        chainId: GASLESS_TEST_CHAIN,
+        calls: [{ target: USDC, data: "0xa9059cbb" }],
+      }),
+    ).rejects.toMatchObject({ code: "GASLESS_RELAY_SUBMIT_FAILED", status: 422 });
+    expect(post).toHaveBeenCalledTimes(1);
   });
 });

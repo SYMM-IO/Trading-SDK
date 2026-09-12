@@ -1,13 +1,31 @@
 import type { AxiosResponse } from "axios";
 import { describe, expect, it } from "vitest";
-import { SymmError } from "../shared/errors/symm-error";
-import { assertGaslessInstance, buildGaslessHttpContext, resolveGaslessHttp } from "./http";
+import { SymmApiError, SymmError } from "../shared/errors/symm-error";
+import {
+  assertGaslessInstance,
+  buildGaslessHttpContext,
+  generateGaslessIdempotencyKey,
+  isRetryableGaslessSubmitError,
+  resolveGaslessHttp,
+  toGaslessError,
+} from "./http";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS, gaslessTestConfig } from "./test/config";
 
 const CHAIN = GASLESS_TEST_CHAIN;
 
 function response(headers: Record<string, string>): AxiosResponse {
   return { headers } as unknown as AxiosResponse;
+}
+
+function apiError(status: number): SymmApiError {
+  return new SymmApiError({
+    code: "GASLESS_RELAY_SUBMIT_FAILED",
+    message: `HTTP ${status}`,
+    status,
+    statusText: "",
+    url: "https://gasless.test/gateway/relay-instant",
+    method: "POST",
+  });
 }
 
 describe("buildGaslessHttpContext", () => {
@@ -74,6 +92,21 @@ describe("buildGaslessHttpContext", () => {
       ),
     ).toThrowError(/GASLESS_PROTOCOL_INSTANCE_REQUIRED|protocolInstance/);
   });
+
+  it("uses a service base with no instance segment as-is and pins no instance", () => {
+    const url = "https://gasless.example/v1/operations";
+
+    const context = buildGaslessHttpContext(CHAIN, { ...TEST_GASLESS, url }, "operations");
+
+    expect(context.baseURL).toBe(url);
+    expect(context.protocolInstance).toBeNull();
+  });
+
+  it("rejects an unparseable url with a typed config error", () => {
+    expect(() => buildGaslessHttpContext(CHAIN, { ...TEST_GASLESS, url: "https://[" }, "operations")).toThrow(
+      expect.objectContaining({ kind: "config", code: "GASLESS_URL_INVALID" }),
+    );
+  });
 });
 
 describe("resolveGaslessHttp", () => {
@@ -114,5 +147,96 @@ describe("assertGaslessInstance", () => {
     );
 
     expect(() => assertGaslessInstance(proxyContext, response({}))).not.toThrow();
+  });
+});
+
+describe("toGaslessError", () => {
+  const context = buildGaslessHttpContext(CHAIN, TEST_GASLESS, "operations");
+
+  it("passes an SDK error through untouched", () => {
+    const err = new SymmError("api", "GASLESS_INSTANCE_MISMATCH", "wrong instance");
+
+    expect(toGaslessError(err, context, "GASLESS_RELAY_SUBMIT_FAILED")).toBe(err);
+  });
+
+  it("normalizes an axios error into a SymmApiError under the call's code", () => {
+    const vendorBody = { detail: { code: "FEE_POLICY_WOULD_REVERT" } };
+
+    const normalized = toGaslessError(
+      {
+        isAxiosError: true,
+        message: "conflict",
+        response: { status: 409, statusText: "Conflict", data: vendorBody },
+        config: { url: "/gateway/relay-instant", method: "post" },
+      },
+      context,
+      "GASLESS_RELAY_SUBMIT_FAILED",
+    );
+
+    expect(normalized).toBeInstanceOf(SymmApiError);
+    expect(normalized).toMatchObject({
+      code: "GASLESS_RELAY_SUBMIT_FAILED",
+      status: 409,
+      responseData: vendorBody,
+      url: `${context.baseURL}/gateway/relay-instant`,
+      method: "POST",
+    });
+  });
+
+  it("wraps any other error in a SymmError that keeps the original as its cause", () => {
+    const cause = new TypeError("adapter exploded");
+
+    const normalized = toGaslessError(cause, context, "GASLESS_RELAY_SUBMIT_FAILED");
+
+    expect(normalized).toBeInstanceOf(SymmError);
+    expect(normalized).not.toBeInstanceOf(SymmApiError);
+    expect(normalized).toMatchObject({ code: "GASLESS_RELAY_SUBMIT_FAILED" });
+    expect(normalized.message).toContain("adapter exploded");
+    expect(normalized.cause).toBe(cause);
+  });
+
+  it("describes a non-Error throw without inventing a cause", () => {
+    const normalized = toGaslessError("socket closed", context, "GASLESS_STATUS_FETCH_FAILED");
+
+    expect(normalized).toMatchObject({ code: "GASLESS_STATUS_FETCH_FAILED" });
+    expect(normalized.message).toContain("socket closed");
+    expect(normalized.cause).toBeUndefined();
+  });
+});
+
+describe("isRetryableGaslessSubmitError", () => {
+  it.each([
+    { label: "a network failure normalized to status 0", err: apiError(0), retryable: true },
+    { label: "a 500", err: apiError(500), retryable: true },
+    { label: "a 503", err: apiError(503), retryable: true },
+    {
+      label: "a raw axios error with no response",
+      err: { isAxiosError: true, message: "socket hang up" },
+      retryable: true,
+    },
+    { label: "a 409 fee-policy rejection", err: apiError(409), retryable: false },
+    { label: "a 404", err: apiError(404), retryable: false },
+    {
+      label: "a non-HTTP SymmError",
+      err: new SymmError("api", "GASLESS_INSTANCE_MISMATCH", "wrong"),
+      retryable: false,
+    },
+    {
+      label: "a raw axios error that carries a response",
+      err: { isAxiosError: true, message: "conflict", response: { status: 409 } },
+      retryable: false,
+    },
+    { label: "a plain Error", err: new Error("boom"), retryable: false },
+  ])("answers $retryable for $label", ({ err, retryable }) => {
+    expect(isRetryableGaslessSubmitError(err)).toBe(retryable);
+  });
+});
+
+describe("generateGaslessIdempotencyKey", () => {
+  it("mints a fresh UUID for every submit", () => {
+    const first = generateGaslessIdempotencyKey();
+
+    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(generateGaslessIdempotencyKey()).not.toBe(first);
   });
 });

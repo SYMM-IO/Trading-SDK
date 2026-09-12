@@ -76,13 +76,14 @@ describe("relayInstantOperations", () => {
 
   it("retries once with the same idempotency key on a network-level failure", async () => {
     const { config } = gaslessTestConfig();
-    post
-      .mockRejectedValueOnce({
-        isAxiosError: true,
-        message: "socket hang up",
-        config: { url: "/gateway/relay-instant" },
-      })
-      .mockResolvedValueOnce(ACCEPTED);
+    /** Snapshot each body as sent: both attempts share one object, so `mock.calls` would compare it with itself. */
+    const sent: { idempotencyKey?: unknown }[] = [];
+    post.mockImplementation((_path: string, body: { idempotencyKey?: unknown }) => {
+      sent.push(structuredClone(body));
+      return sent.length === 1
+        ? Promise.reject({ isAxiosError: true, message: "socket hang up", config: { url: "/gateway/relay-instant" } })
+        : Promise.resolve(ACCEPTED);
+    });
 
     const receipt = await relayInstantOperations(config, {
       chainId: GASLESS_TEST_CHAIN,
@@ -92,10 +93,9 @@ describe("relayInstantOperations", () => {
     });
 
     expect(receipt.requestId).toBe("req-1");
-    expect(post).toHaveBeenCalledTimes(2);
-    const firstKey = (post.mock.calls[0]?.[1] as { idempotencyKey: string }).idempotencyKey;
-    const secondKey = (post.mock.calls[1]?.[1] as { idempotencyKey: string }).idempotencyKey;
-    expect(firstKey).toBe(secondKey);
+    expect(sent).toHaveLength(2);
+    expect(sent[0]?.idempotencyKey).toEqual(expect.any(String));
+    expect(sent[1]).toEqual(sent[0]);
   });
 
   it("does not retry a definitive 4xx and preserves the vendor body", async () => {

@@ -1,6 +1,7 @@
-import { encodeFunctionData, type Hex } from "viem";
+import { encodeFunctionData, erc20Abi, slice, zeroAddress, type Address, type Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig } from "../../core/chains";
+import { SymmApiError } from "../../shared/errors/symm-error";
 import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
 import { addMargin } from "../../symmio-contracts/account-layer/actions/add-margin";
 import { createSubAccounts } from "../../symmio-contracts/account-layer/actions/create-sub-accounts";
@@ -9,9 +10,10 @@ import { SubAccountIsolationType } from "../../symmio-contracts/account-layer/ty
 import { deallocateAndInitiateWithdraw } from "../../symmio-contracts/symmio/actions/deallocate-and-initiate-withdraw";
 import { initiateWithdraw } from "../../symmio-contracts/symmio/actions/initiate-withdraw";
 import { createClassicWithdrawPart } from "../../symmio-contracts/symmio/parts";
-import { GASLESS_RELAYABLE_WRITES } from "../relayable-writes";
+import { parseGaslessErrorDetail } from "../errors";
+import { GASLESS_RELAYABLE_WRITES, isGaslessRelayableSelector } from "../relayable-writes";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS_SIGNER, TEST_GASLESS_TX_HASH, gaslessWriteTestConfig } from "../test/config";
-import type { GaslessRelayEvent } from "../types";
+import { GaslessRequestStatus, type GaslessRelayEvent } from "../types";
 import { maybeRelayAsGasless, type GaslessDispatchCall } from "./maybe-relay-as-gasless";
 
 const post = vi.hoisted(() => vi.fn());
@@ -49,6 +51,11 @@ function relayableSelector(operationType: string): Hex {
 
 const DEALLOCATE_SELECTOR = relayableSelector("deallocate");
 const INITIATE_WITHDRAW_SELECTOR = relayableSelector("initiateWithdraw");
+
+/** How many times the public-client stub served `functionName`. */
+function countReads(readContract: ReturnType<typeof vi.fn>, functionName: string): number {
+  return readContract.mock.calls.filter(([read]) => (read as StubRead).functionName === functionName).length;
+}
 
 /** The `isDelegationActive` reads the stub was asked for, in order, as `[account, delegate, selector]`. */
 function delegationReads(readContract: ReturnType<typeof vi.fn>): unknown[][] {
@@ -231,6 +238,20 @@ describe("transparent gasless dispatch", () => {
     expect(body.signedOps[0]?.signerAccount.addr).toBe(SUB_ACCOUNT);
   });
 
+  it("refuses a margin write whose virtual account does not exist, before any signature", async () => {
+    const { config, readContract, signTypedData } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
+    programReads(readContract, {
+      getVirtualAccount: { accountAddress: VIRTUAL_ACCOUNT, parentAccount: zeroAddress, symbolId: 0n, isExists: false },
+    });
+    programRelaySuccess();
+
+    await expect(
+      addMargin(config, { virtualAccount: VIRTUAL_ACCOUNT, amount: 1n, gasless: true }),
+    ).rejects.toMatchObject({ code: "GASLESS_ACCOUNT_UNRESOLVED" });
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it("bills a deposit to the sub-account itself when the target is not a virtual account", async () => {
     const { config, readContract } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
     /** A plain sub-account: `getVirtualAccount` finds no VA record for it. */
@@ -357,6 +378,20 @@ describe("transparent gasless dispatch", () => {
     await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).rejects.toThrowError(
       /GASLESS_FEE_UNAFFORDABLE|quota/,
     );
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("takes the wallet path, with no signature prompt, when the quota would block under fallback: wallet", async () => {
+    const { config, readContract, writeContract, signTypedData } = gaslessWriteTestConfig({
+      execution: { mode: "gasless", fallback: "wallet" },
+    });
+    programReads(readContract, { getAccountOperationalFee: [1_000_000n, 0n, true] });
+
+    const hash = await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
+
+    expect(hash).toBe(TEST_GASLESS_TX_HASH);
+    expect(writeContract).toHaveBeenCalledTimes(1);
     expect(signTypedData).not.toHaveBeenCalled();
     expect(post).not.toHaveBeenCalled();
   });
@@ -501,6 +536,263 @@ describe("transparent gasless dispatch", () => {
       expect(hash).toBe(RELAY_TX_HASH);
       expect(delegationReads(readContract)).toEqual([]);
       expect(readContract.mock.calls.some(([read]) => (read as StubRead).functionName === "getSubAccount")).toBe(false);
+    });
+  });
+
+  describe("selector gate", () => {
+    /** Real calldata whose selector no relayable write carries. */
+    const TRANSFER: GaslessDispatchCall = {
+      target: SUB_ACCOUNT,
+      callData: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [SUB_ACCOUNT, 1n] }),
+    };
+
+    it("sends the whole write to the wallet path when gasless is only the config default", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
+      programReads(readContract);
+      expect(isGaslessRelayableSelector(slice(TRANSFER.callData, 0, 4))).toBe(false);
+
+      const hash = await maybeRelayAsGasless(config, {
+        gasless: undefined,
+        signerAccount: SUB_ACCOUNT,
+        calls: [...batchCalls(), TRANSFER],
+      });
+
+      /** One non-relayable call is enough — a relay batch is atomic, so it never splits. */
+      expect(hash).toBeNull();
+      expect(readContract).not.toHaveBeenCalled();
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it("refuses an explicit gasless write that carries a non-relayable call", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
+      programReads(readContract);
+
+      await expect(
+        maybeRelayAsGasless(config, { gasless: true, signerAccount: SUB_ACCOUNT, calls: [...batchCalls(), TRANSFER] }),
+      ).rejects.toMatchObject({ code: "GASLESS_NOT_RELAYABLE" });
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it("returns null for an explicit gasless write under fallback: wallet", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+      programReads(readContract);
+
+      const hash = await maybeRelayAsGasless(config, {
+        gasless: { enabled: true, fallback: "wallet" },
+        signerAccount: SUB_ACCOUNT,
+        calls: [TRANSFER],
+      });
+
+      expect(hash).toBeNull();
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("terminal without a broadcast", () => {
+    const ERROR_MESSAGE = "operational-fee allowance exhausted";
+
+    /** Accept the relay, then report a terminal record that never got a transaction. */
+    function programTerminal(status: "rejected" | "failed", errorCode: string): void {
+      post.mockResolvedValue({
+        headers: HEADERS,
+        data: { request_id: "req-1", status: "queued", paid_fee: "0", remaining_fee_allowance: "0" },
+      });
+      get.mockResolvedValue({
+        headers: HEADERS,
+        data: {
+          id: "req-1",
+          user_address: TEST_GASLESS_SIGNER,
+          operation_type: "initiateWithdraw",
+          payload: {},
+          status,
+          tx_hash: null,
+          error_code: errorCode,
+          error_message: ERROR_MESSAGE,
+        },
+      });
+    }
+
+    it("throws GASLESS_RELAY_REJECTED carrying the stored record, and reports the terminal", async () => {
+      const events: GaslessRelayEvent[] = [];
+      const { config, readContract, writeContract } = gaslessWriteTestConfig({
+        execution: { mode: "gasless", onEvent: (event: GaslessRelayEvent) => events.push(event) },
+      });
+      programReads(readContract);
+      programTerminal("rejected", "INSUFFICIENT_ALLOWANCE");
+
+      const error = await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS }).catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(SymmApiError);
+      expect(error).toMatchObject({
+        code: "GASLESS_RELAY_REJECTED",
+        responseData: {
+          request_id: "req-1",
+          status: GaslessRequestStatus.REJECTED,
+          error_code: "INSUFFICIENT_ALLOWANCE",
+          error_message: ERROR_MESSAGE,
+        },
+      });
+      expect((error as SymmApiError).message).toContain(ERROR_MESSAGE);
+      /** Consumers read the vendor cause off the error instead of parsing its message. */
+      expect(parseGaslessErrorDetail(error)?.code).toBe("INSUFFICIENT_ALLOWANCE");
+      expect(writeContract).not.toHaveBeenCalled();
+      expect(events.map((event) => event.type)).toEqual(["accepted", "terminal"]);
+      expect(events[1]).toMatchObject({ requestId: "req-1", status: GaslessRequestStatus.REJECTED, txHash: null });
+    });
+
+    it("falls back to the wallet for a confirmed fee-limit rejection under fallback: wallet — nothing was broadcast", async () => {
+      const { config, readContract, writeContract } = gaslessWriteTestConfig({
+        execution: { mode: "gasless", fallback: "wallet" },
+      });
+      programReads(readContract);
+      programTerminal("rejected", "INSUFFICIENT_ALLOWANCE");
+
+      const hash = await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
+
+      expect(hash).toBe(TEST_GASLESS_TX_HASH);
+      expect(writeContract).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      {
+        label: "a rejection with a non-fee cause",
+        status: "rejected",
+        errorCode: "SIMULATION_REVERTED",
+        code: "GASLESS_RELAY_REJECTED",
+      },
+      {
+        label: "a failure, even with a fee-limit code",
+        status: "failed",
+        errorCode: "INSUFFICIENT_ALLOWANCE",
+        code: "GASLESS_RELAY_FAILED",
+      },
+    ] as const)(
+      "never falls back after acceptance for $label, even under fallback: wallet",
+      async ({ status, errorCode, code }) => {
+        const { config, readContract, writeContract } = gaslessWriteTestConfig({
+          execution: { mode: "gasless", fallback: "wallet" },
+        });
+        programReads(readContract);
+        programTerminal(status, errorCode);
+
+        await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).rejects.toMatchObject({ code });
+        expect(writeContract).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  describe("per-config caches", () => {
+    const SUB_ACCOUNT_RECORD = {
+      accountAddress: SUB_ACCOUNT,
+      owner: TEST_GASLESS_SIGNER,
+      name: "Main",
+      isExists: true,
+      singleVAMode: false,
+      affiliate: SUB_ACCOUNT,
+      symmioCore: SUB_ACCOUNT,
+    };
+
+    it("probes gateway coherence once per config and chain", async () => {
+      const { config, readContract } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
+      programReads(readContract);
+      programRelaySuccess();
+
+      await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
+      await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
+
+      expect(post).toHaveBeenCalledTimes(2);
+      expect(countReads(readContract, "instantLayer")).toBe(1);
+    });
+
+    it("probes again after a transient coherence-read failure instead of caching it", async () => {
+      const { config, readContract } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
+      const registryInstantLayer = getChainConfig(GASLESS_TEST_CHAIN).addresses.instantLayerAddress;
+      let probes = 0;
+      programReads(readContract, {
+        instantLayer: () => (probes++ === 0 ? Promise.reject(new Error("rpc timeout")) : registryInstantLayer),
+      });
+      programRelaySuccess();
+
+      await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).rejects.toThrow("rpc timeout");
+      await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).resolves.toBe(RELAY_TX_HASH);
+      expect(probes).toBe(2);
+    });
+
+    it("rejects a concurrent write that joined an in-flight probe of an incoherent gateway", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
+      let answerProbe!: (instantLayer: Address) => void;
+      const probe = new Promise<Address>((resolve) => {
+        answerProbe = resolve;
+      });
+      programReads(readContract, { instantLayer: () => probe });
+      programRelaySuccess();
+
+      const writes = Promise.allSettled([
+        initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS }),
+        initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS }),
+      ]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      /** Both writes are parked on the one in-flight probe. */
+      expect(countReads(readContract, "instantLayer")).toBe(1);
+
+      answerProbe("0x9999999999999999999999999999999999999999");
+      const settled = await writes;
+
+      /** A cached copy that swallowed the rejection would wave the second write through to a signature. */
+      expect(settled.map((write) => write.status)).toEqual(["rejected", "rejected"]);
+      for (const write of settled) {
+        expect((write as PromiseRejectedResult).reason).toMatchObject({ code: "GASLESS_CONFIG_INCOHERENT" });
+      }
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it("reads a sub-account's owner once across relays signed by a session key", async () => {
+      const { config, readContract } = gaslessWriteTestConfig(
+        { execution: { mode: "gasless" } },
+        { signersByFrom: { [SESSION_KEY]: SESSION_KEY } },
+      );
+      programReads(readContract);
+      programRelaySuccess();
+      const relay = () =>
+        maybeRelayAsGasless(config, {
+          gasless: true,
+          from: SESSION_KEY,
+          signerAccount: SUB_ACCOUNT,
+          calls: batchCalls(),
+        });
+
+      await relay();
+      await relay();
+
+      expect(post).toHaveBeenCalledTimes(2);
+      expect(countReads(readContract, "getSubAccount")).toBe(1);
+    });
+
+    it("reads the owner again after a transient failure instead of caching it", async () => {
+      const { config, readContract } = gaslessWriteTestConfig(
+        { execution: { mode: "gasless" } },
+        { signersByFrom: { [SESSION_KEY]: SESSION_KEY } },
+      );
+      let ownerReads = 0;
+      programReads(readContract, {
+        getSubAccount: () => (ownerReads++ === 0 ? Promise.reject(new Error("rpc timeout")) : SUB_ACCOUNT_RECORD),
+      });
+      programRelaySuccess();
+      const relay = () =>
+        maybeRelayAsGasless(config, {
+          gasless: true,
+          from: SESSION_KEY,
+          signerAccount: SUB_ACCOUNT,
+          calls: batchCalls(),
+        });
+
+      await expect(relay()).rejects.toThrow("rpc timeout");
+      await expect(relay()).resolves.toBe(RELAY_TX_HASH);
+      expect(ownerReads).toBe(2);
     });
   });
 });

@@ -34,4 +34,24 @@ describe("getGaslessOperationalFeeQuote", () => {
       }),
     );
   });
+
+  it("quotes every operation field by field, flex fields included, and reports a quota block", async () => {
+    const { config, readContract } = gaslessTestConfig();
+    readContract.mockResolvedValueOnce([2_000_000n, 0n, true]);
+    const flexed: SignedOperation = {
+      ...OPERATION,
+      flexFields: [{ offset: 36n, length: 32n, authorizedFlexFiller: "0x4444444444444444444444444444444444444444" }],
+      replayAttackHeader: { ...OPERATION.replayAttackHeader, nonce: 8n },
+    };
+
+    const quote = await getGaslessOperationalFeeQuote(config, {
+      chainId: GASLESS_TEST_CHAIN,
+      account: ACCOUNT,
+      operations: [OPERATION, flexed],
+    });
+
+    expect(quote).toEqual({ amountDue: 2_000_000n, freeOpsApplied: 0n, wouldBlockOnQuota: true });
+    /** The on-chain quote prices the exact structs, so every field reaches the read unchanged and in order. */
+    expect(readContract).toHaveBeenCalledWith(expect.objectContaining({ args: [ACCOUNT, [OPERATION, flexed]] }));
+  });
 });
