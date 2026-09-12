@@ -11,6 +11,7 @@ import {
   useAccountLiquidationPrice,
   useMarkets,
   useQuoteFunding,
+  useQuotePendingFunding,
   useQuotePlatformFee,
   useQuotePriceHistory,
   useQuoteTpSl,
@@ -25,6 +26,13 @@ import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
 
 /** Em-dash placeholder for an absent field. */
 const EMPTY = "—";
+
+/** Pending funding grows every epoch and no event announces it, so the panel polls it. */
+const PENDING_FUNDING_REFETCH_MS = 60_000;
+
+/** Tooltip on the pending row: what it is, and why it is not part of `Net`. */
+const PENDING_FUNDING_TITLE =
+  "Accrued since the last settlement and not yet charged. Not part of Net; it settles on the next charge or close.";
 
 /** Shorten an address to `0x1234…abcd` for dense display; keeps the full value in `title`. */
 export function truncateAddress(address: string): string {
@@ -224,6 +232,13 @@ export function QuoteProvenancePanel({ quote }: Props) {
 
   const funding = useQuoteFunding({ quoteId: quote.quoteId });
 
+  const pendingFunding = useQuotePendingFunding({ quote, query: { refetchInterval: PENDING_FUNDING_REFETCH_MS } });
+  /**
+   * A quote that is not an active position is never read: the hook answers `null`
+   * and idle, so the row is left out. Only a read quote can load or fail.
+   */
+  const showPendingFunding = pendingFunding.data !== null || pendingFunding.isLoading || pendingFunding.error !== null;
+
   // Prefer the on-chain id once the quote anchors; fall back to the temp id
   // pre-chain. The store aliases both to the same record via the solver's
   // temp ↔ on-chain link, so this resolves to a single coherent status.
@@ -360,6 +375,15 @@ export function QuoteProvenancePanel({ quote }: Props) {
             label="Net"
             value={renderFundingSigned(funding.data?.netReceived, funding.isLoading, quote.quoteId !== undefined)}
           />
+          {showPendingFunding ? (
+            <div className="border-border/60 mt-0.5 border-t border-dashed pt-1.5">
+              <DetailRow
+                label="Pending (unsettled)"
+                value={renderPendingFunding(pendingFunding.data?.pendingNetReceived, pendingFunding.isLoading)}
+                title={pendingFunding.error?.message ?? PENDING_FUNDING_TITLE}
+              />
+            </div>
+          ) : null}
         </DetailSection>
       </div>
 
@@ -472,6 +496,28 @@ function renderFunding(value: bigint | undefined, isLoading: boolean, hasQuoteId
     );
   }
   return formatFee(value);
+}
+
+/**
+ * Pending funding, income-positive like {@link renderFundingSigned} — except a
+ * resolved `0n` prints `0` rather than the em dash. On a pair that does not run
+ * accumulated funding every active position reads exactly zero, and that is an
+ * answer, not a missing value.
+ */
+function renderPendingFunding(value: bigint | undefined, isLoading: boolean): ReactNode {
+  if (value === undefined) {
+    if (!isLoading) return EMPTY;
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <Spinner className="size-3" />
+        <span className="text-muted-foreground">Loading…</span>
+      </span>
+    );
+  }
+  if (value === 0n) return "0";
+  const sign = value > 0n ? "+" : "-";
+  const magnitude = value < 0n ? -value : value;
+  return `${sign}${formatTokenAmount(magnitude, WEI_DECIMALS, { maxFractionDigits: 4 })}`;
 }
 
 /** Net funding, income-positive like the SDK returns it: `+` earned, `-` paid. */

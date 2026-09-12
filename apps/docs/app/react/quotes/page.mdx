@@ -38,7 +38,7 @@ The orchestrator. Handles:
 2. **Notifications** — subscribes via `useNotifications`, folds each frame through `applyNotificationToQuotes`.
 3. **Reconciliation** — merges every source via `reconcileQuotes` with the `useOptimisticQuotesStore` ledger.
 4. **Polling acceleration** — switches to a tighter interval (~1.5 s) while any row is mid-transition (`shouldAccelerate(quotes) === true`); otherwise idles at ~5 s.
-5. **Invalidation on notification** — debounces + invalidates the on-chain reads so the next poll returns fresh data.
+5. **Invalidation on notification** — debounces + invalidates the on-chain reads, pending funding included, so the next poll returns fresh data.
 6. **Confirm holds** — after a frame that reports a change the chain has not shown yet, re-reads on a doubling backoff until it has. Covers an open **anchor** (the solver emits it when it _broadcasts_ the transaction, so the one invalidation it triggers loses the race), a close **fill** (the quote lingers `OPENED` while the settle lags), and a **cancel** request — the case with no second frame at all, since the solver's `acceptCancelRequest` is never announced. Each hold releases itself the moment the chain catches up. While a cancel hold is live the balance reads are re-read too, since the accept is what returns the fee and the reserved margin.
 
 ```tsx
@@ -202,7 +202,7 @@ When a partyA requested to close a **LIMIT** position but the hedger never fille
 
 ### `useForceClose`
 
-The one-call, end-to-end force close from a `quoteId` (wraps `forceCloseAuto`): reads the quote + params, gates on eligibility, finds a price window from reference candles, fetches the Muon sig, preflights the gap, and sends. `onSuccess` invalidates the subaccount's open positions.
+The one-call, end-to-end force close from a `quoteId` (wraps `forceCloseAuto`): reads the quote + params, gates on eligibility, finds a price window from reference candles, fetches the Muon sig, preflights the gap, and sends. `onSuccess` (after the receipt, by default) invalidates the subaccount's open positions and the chain's pending-funding reads ([`useQuotesPendingFunding`](../symmio-contract#funding)), since the close settles the funding the position had accrued.
 
 ```tsx
 const forceClose = useForceClose();
@@ -307,7 +307,7 @@ Small derived hooks that compose reads on a specific quote:
 
 ### `useQuoteUpnlAndPnl`
 
-`{ upnl, upnlPercent, markPrice }` snapshot for a quote — composes on-chain quote + mark price + Muon UPNL.
+`{ upnl, upnlPercent, markPrice }` snapshot for a quote — composes on-chain quote + live mark price, measured from `openedPrice`. A mark-price uPnL: it excludes pending accumulated funding ([Funding](/core/concepts/funding#muon-upnl-vs-mark-price-upnl)).
 
 ```ts
 const { upnl, upnlPercent, markPrice } = useQuoteUpnlAndPnl({ quote });

@@ -2,6 +2,8 @@ import {
   ActionStatus,
   getAccountBalanceInfoQueryKey,
   getAccountBalanceOfQueryKey,
+  getPartyAOpenPositionsQueryKey,
+  getQuotePendingFundingQueryKey,
   NotificationType,
   OrderType,
   PositionType,
@@ -201,6 +203,31 @@ describe("useManagedQuotes — open-confirm hold", () => {
 
     expect(state.reads).toBe(readsBefore);
     expect(result.current.quotes).toEqual([]);
+  });
+
+  it("invalidates the chain's pending-funding reads together with the on-chain quote reads", async () => {
+    const queryClient = createTestQueryClient();
+    renderManaged(queryClient);
+    await waitFor(() => expect(state.reads).toBeGreaterThan(0));
+
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    act(() => state.onNotification?.(notification()));
+
+    /** Run every predicate handed to `invalidateQueries` since the frame against one key. */
+    const matches = (key: QueryKey) =>
+      invalidate.mock.calls.some(([filters]) => {
+        const { predicate } = filters as { predicate?: (q: Query) => boolean };
+        return predicate?.({ queryKey: key } as Query<unknown, Error, unknown, QueryKey>) ?? false;
+      });
+
+    const configKey = renderConfigKey();
+    /** An open adds a position that accrues funding, so the pending-funding reads move with the positions. */
+    await waitFor(() =>
+      expect(matches(getQuotePendingFundingQueryKey({ configKey, quoteIds: [ANCHORED_QUOTE.id] }))).toBe(true),
+    );
+    expect(matches(getPartyAOpenPositionsQueryKey({ configKey, partyA: TEST_EOA }))).toBe(true);
+    /** Another chain config's pending funding must survive. */
+    expect(matches(getQuotePendingFundingQueryKey({ configKey: "other", quoteIds: [ANCHORED_QUOTE.id] }))).toBe(false);
   });
 });
 

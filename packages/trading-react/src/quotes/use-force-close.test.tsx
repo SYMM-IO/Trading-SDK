@@ -1,8 +1,19 @@
-import { type ForceCloseAutoParameters } from "@symmio/trading-core";
+import {
+  getPartyAOpenPositionsQueryKey,
+  getQuotePendingFundingQueryKey,
+  SymmioSupportedChainId,
+  type ForceCloseAutoParameters,
+} from "@symmio/trading-core";
+import type { Query, QueryKey } from "@tanstack/react-query";
 import { act, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMockSymmioConfig, renderHookWithProviders, TEST_TX_HASH } from "../test/test-utils";
+import {
+  createMockSymmioConfig,
+  createTestQueryClient,
+  renderHookWithProviders,
+  TEST_TX_HASH,
+} from "../test/test-utils";
 
 const forceCloseAutoMutationOptions = vi.hoisted(() => vi.fn());
 
@@ -56,5 +67,36 @@ describe("useForceClose", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect((error as { kind: string }).kind).toBe("unknown");
+  });
+
+  it("invalidates the open positions and the chain's pending-funding reads after the receipt", async () => {
+    const { config, waitForTransactionReceipt } = createMockSymmioConfig();
+    mockMutationFn(vi.fn().mockResolvedValue(TEST_TX_HASH));
+    waitForTransactionReceipt.mockResolvedValueOnce({ status: "success" });
+    const queryClient = createTestQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHookWithProviders(() => useForceClose({ config }), { queryClient });
+
+    await act(async () => {
+      await result.current.mutateAsync(VARS);
+    });
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalled());
+    expect(waitForTransactionReceipt).toHaveBeenCalledWith({ hash: TEST_TX_HASH, confirmations: 1 });
+    const configKey = config.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM);
+    /** Run every predicate the mutation handed to `invalidateQueries` against one key. */
+    const matches = (key: QueryKey) =>
+      invalidate.mock.calls.some(([filters]) => {
+        const { predicate } = filters as { predicate: (q: Query) => boolean };
+        return predicate({ queryKey: key } as Query<unknown, Error, unknown, QueryKey>);
+      });
+
+    /** The row's status moves, so the owning partyA's open positions are re-read… */
+    expect(matches(getPartyAOpenPositionsQueryKey({ configKey, partyA: SUB_ACCOUNT }))).toBe(true);
+    /** …and the close settles the accrued funding, so every pending-funding read on the chain is stale. */
+    expect(matches(getQuotePendingFundingQueryKey({ configKey, quoteIds: [VARS.quoteId] }))).toBe(true);
+    /** Another chain config's pending funding must survive. */
+    expect(matches(getQuotePendingFundingQueryKey({ configKey: "other", quoteIds: [VARS.quoteId] }))).toBe(false);
   });
 });

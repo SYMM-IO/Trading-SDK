@@ -1,0 +1,129 @@
+import { Callout } from "nextra/components";
+
+# getFundingFeesOfPartyB
+
+Read the accumulated-funding state a solver (partyB) keeps for one symbol — the SYMMIO diamond's `FundingFee` struct: current and weighted-average per-epoch rates, epoch tracking, and carried-over fee snapshots. Reach for it to tell whether a market accrues accumulated funding at all, or to show the raw rates a solver has posted.
+
+These are per-unit **rates**, not amounts. For what a position actually owes or will receive, read [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding) instead.
+
+```ts
+import { getFundingFeesOfPartyB } from "@symmio/trading-core";
+
+const fee = await getFundingFeesOfPartyB(config, { symbolId: 1n, partyB });
+const accruing = fee.epochDuration > 0n && (fee.startEpoch !== 0n || fee.startEpochTimeStamp !== 0n);
+```
+
+<Callout type="info">
+  **Rates are raw, cost-positive contract values.** A positive long or short value means the trader on that side
+  **pays** — the opposite of the SDK's income-positive funding amounts (`netReceived`, `pendingNetReceived`). The SDK
+  returns the struct exactly as the contract stores it and does not re-sign it. See the [sign
+  table](/core/concepts/funding#sign-conventions).
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="symbolId" type="bigint" required>
+    SYMMIO symbol id of the market. A quote's `symbolId` fits as-is.
+  </Property>
+  <Property name="partyB" type="Address" required>
+    The solver whose funding state to read — each partyB sets its own rates per symbol. A quote's `partyB` is the solver
+    that locked it.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="FundingFee">
+  <Property name="currentLongRate" type="bigint">
+    Current per-epoch long rate, price-adjusted (`rate × marketPrice at the last update / 1e18`, 18-decimal). Positive =
+    longs pay. `0n` during a symbol restatement, rebased afterwards.
+  </Property>
+  <Property name="currentShortRate" type="bigint">
+    Current per-epoch short rate, price-adjusted (`rate × marketPrice at the last update / 1e18`, 18-decimal). Positive
+    = shorts pay. `0n` during a symbol restatement, rebased afterwards.
+  </Property>
+  <Property name="accumulatedLongRate" type="bigint">
+    Weighted-average per-epoch long rate over `[startEpoch, lastUpdatedEpoch]` (18-decimal, price-adjusted). An average
+    rate, **not** a cumulative amount.
+  </Property>
+  <Property name="accumulatedShortRate" type="bigint">
+    Weighted-average per-epoch short rate over `[startEpoch, lastUpdatedEpoch]` (18-decimal, price-adjusted). An average
+    rate, **not** a cumulative amount.
+  </Property>
+  <Property name="lastUpdatedEpoch" type="bigint">
+    Absolute epoch index (`floor(timestamp / epochDuration)`) at which the accumulated rates were last folded. On v0.8.5
+    this also moves on every quote operation on the pair.
+  </Property>
+  <Property name="lastUpdatedTimeStamp" type="bigint">
+    Unix timestamp (seconds) at which the accumulated rates were last folded. On v0.8.5 this also moves on every quote
+    operation on the pair.
+  </Property>
+  <Property name="startEpochTimeStamp" type="bigint">
+    Unix timestamp (seconds) the current funding history started at: the solver's first rate update, re-based to the
+    fold time whenever `epochDuration` changes (the fee accrued before that change is carried in the snapshots). `0n`
+    until the first rate update.
+  </Property>
+  <Property name="startEpoch" type="bigint">
+    Absolute epoch index (`floor(timestamp / epochDuration)`) the current funding history started at — re-based
+    alongside `startEpochTimeStamp` on an `epochDuration` change. `0n` until the first rate update.
+  </Property>
+  <Property name="epochDuration" type="bigint">
+    Epoch length in seconds. `0n` means accumulated funding is not configured for the pair.
+  </Property>
+  <Property name="snapshotLongFee" type="bigint">
+    Cumulative per-unit long fee (18-decimal) carried over from before the last `epochDuration` change.
+  </Property>
+  <Property name="snapshotShortFee" type="bigint">
+    Cumulative per-unit short fee (18-decimal) carried over from before the last `epochDuration` change.
+  </Property>
+</Returns>
+
+Field names and order mirror the contract's struct exactly. A pair that was never configured reads as an all-zero struct rather than reverting.
+
+## Pair states
+
+Three fields put the pair in one of three states:
+
+| State                       | Condition                                                               | What accrues                                                                                |
+| --------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Not configured**          | `epochDuration === 0n`                                                  | No accumulated funding. Legacy funding may still apply; it moves the quote's `openedPrice`. |
+| **Configured, not started** | `epochDuration > 0n && startEpoch === 0n && startEpochTimeStamp === 0n` | Nothing — a duration is set, but the solver has not posted a rate yet.                      |
+| **Accruing**                | anything else                                                           | Every open quote on the pair accrues funding each epoch until it is charged or closed.      |
+
+Which chains and markets accrue accumulated funding is a deployment fact the SDK does not encode, so check `epochDuration` and the start fields here rather than hard-coding a chain list. [Funding › Pair states](/core/concepts/funding#pair-states) covers what each state means for the other funding reads.
+
+## Versions
+
+The view's inputs and outputs are identical on v0.8.5 and v0.8.6, so the read behaves the same on every supported chain — no version gate. The generations differ in when the struct changes:
+
+- **v0.8.5** re-folds `accumulated*Rate`, `lastUpdatedEpoch` and `lastUpdatedTimeStamp` on every quote operation on the pair, so they move on other traders' actions.
+- **v0.8.6** evaluates funding lazily and writes the struct only on a solver configuration change or a symbol restatement, emitting `AccumulatedFundingStateUpdated` each time.
+
+Exact integers can therefore differ between the two generations by rounding dust.
+
+## Errors
+
+- `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) when the `chainId` is not one the config knows about.
+- On-chain failures pass through as viem errors (`ContractFunctionExecutionError` and friends).
+
+## Query options
+
+```ts
+import { getFundingFeesOfPartyBQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getFundingFeesOfPartyBQueryOptions(config, { symbolId: 1n, partyB }));
+```
+
+Both inputs are required. Nothing polls by default — pass `query.refetchInterval` if you display the rates live. `getFundingFeesOfPartyBQueryKey` stringifies `symbolId` so the key hashes.
+
+## Related
+
+- [Funding](/core/concepts/funding) — the four funding numbers, pair states, and sign conventions.
+- [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding) — the per-quote amount this state accrues.
+- [React `useFundingFeesOfPartyB`](/react/markets#usefundingfeesofpartyb) — the hook.
+- [React `useFundingInfo`](/react/solvers#usefundinginfo) — the solver's next-epoch rate per market, from its REST API.

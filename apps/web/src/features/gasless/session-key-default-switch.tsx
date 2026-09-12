@@ -23,8 +23,13 @@ interface Props {
  * button spills it, and "who signs" belongs with the account anyway.
  *
  * Renders nothing until a key is loaded. On a chain with no gasless relayer —
- * the only path the key signs on — the switch is disabled but keeps its state,
- * which applies again on a chain that has one.
+ * the only path the key signs these writes on — the switch is disabled but keeps
+ * its state, which applies again on a chain that has one.
+ *
+ * The instant-trading flows (open, close, close all, TP/SL) never read it: the
+ * solver or the TP/SL handler submits what the key signs, so they use the key on
+ * every chain, relayer or not. The help text says so, so a disabled switch never
+ * reads as an unusable key.
  */
 export function SessionKeyDefaultSwitch({ onNavigate }: Props) {
   const { supported, enabled, sessionKeyAddress, setEnabled } = useSessionKeyDefault();
@@ -59,8 +64,8 @@ export function SessionKeyDefaultSwitch({ onNavigate }: Props) {
       <div className="flex items-end justify-between gap-3">
         <p className="text-muted-foreground text-xs leading-5">
           {supported
-            ? "Signs every write that can use it — cards and Integration flows — with no wallet prompt, relayed."
-            : "Unavailable on this chain: the key signs only through a gasless relayer."}
+            ? "Also signs withdraw, cancel and card writes, relayed with no wallet prompt. Instant trades and TP/SL always use the key."
+            : "Instant trades and TP/SL always sign with this key. This chain has no gasless relayer, so withdraw and cancel use your wallet."}
         </p>
         <Link
           href="/session-keys"

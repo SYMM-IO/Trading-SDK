@@ -531,6 +531,27 @@ export {
 } from "./symmio-contracts/symmio";
 
 /**
+ * SYMMIO Core funding reads
+ * -------------------------
+ * Direct on-chain reads of a solver's accumulated-funding state from the SYMMIO
+ * core diamond. `getFundingFeesOfPartyB` returns the (symbol, partyB)
+ * {@link FundingFee} struct verbatim — rates are raw and cost-positive. Per-quote
+ * pending funding is `getQuotePendingFunding`.
+ */
+export {
+  getFundingFeesOfPartyB,
+  getFundingFeesOfPartyBQueryKey,
+  getFundingFeesOfPartyBQueryOptions,
+  type FundingFee,
+  type GetFundingFeesOfPartyBData,
+  type GetFundingFeesOfPartyBOptions,
+  type GetFundingFeesOfPartyBParameters,
+  type GetFundingFeesOfPartyBQueryKey,
+  type GetFundingFeesOfPartyBQueryOptions,
+  type GetFundingFeesOfPartyBReturnType,
+} from "./symmio-contracts/symmio";
+
+/**
  * SYMMIO Core quote reads
  * -----------------------
  * On-chain reads of quotes and open positions from the SYMMIO core diamond.
@@ -1774,6 +1795,7 @@ export {
   getSubAccountQuotesQueryOptions,
   groupQuotes,
   isActivePosition,
+  isActiveQuoteStatus,
   isCancelAction,
   isCloseFillAction,
   isOpenAnchorAction,
@@ -1934,9 +1956,10 @@ export {
  * `skip` paging the merged stream rather than each id. Pair it with
  * {@link FUNDING_HISTORY_EVENT_TYPES} for a group-wide funding timeline — those
  * are the charges **settled to date** (what the analytics subgraph indexed);
- * funding accrued since the last on-chain charge is not indexed and is absent.
- * Netting a row is `net = fundingPaid - fundingReceived`, so a **positive** net
- * means the user net-**paid**.
+ * funding accrued since the last on-chain charge is not indexed by the subgraph
+ * — read it with {@link getQuotePendingFunding}. Netting a row is
+ * `net = fundingReceived − fundingPaid`, so a **positive** net means the
+ * position **earned** funding on that tick, matching `QuoteFundingData.netReceived`.
  */
 export {
   getQuotesEventsByType,
@@ -1958,7 +1981,9 @@ export {
  * {@link QUOTES_FUNDING_MAX_IDS_PER_REQUEST} ids per request. Filters by the
  * protocol `quoteId` scalar so callers never need the diamond address. The rows
  * are funding **settled to date**; `netReceived = received − paid`, so a
- * **positive** value means the position **earned** funding.
+ * **positive** value means the position **earned** funding. Funding accrued
+ * since the last charge is not indexed by the subgraph — read it with
+ * {@link getQuotePendingFunding}.
  */
 export {
   QUOTES_FUNDING_MAX_IDS_PER_REQUEST,
@@ -1974,6 +1999,30 @@ export {
   type GetQuoteFundingReturnType,
   type QuoteFundingData,
   type RawQuoteFundingRow,
+} from "./quotes";
+
+/**
+ * Quote pending funding (on-chain)
+ * --------------------------------
+ * `getQuotePendingFunding` reads the accumulated funding a batch of quotes has
+ * accrued but not yet settled, from the SYMMIO core diamond's
+ * `getQuoteFundingDebts` view. `pendingNetReceived` is income-positive like every
+ * SDK funding amount — the negation of the cost-positive contract value. Pass
+ * active positions only ({@link isActiveQuoteStatus}): the view does not check
+ * quote status. Settled (subgraph) and pending (RPC) funding come from different
+ * sources at different heights — do not add them into a lifetime total.
+ */
+export {
+  getQuotePendingFunding,
+  getQuotePendingFundingQueryKey,
+  getQuotePendingFundingQueryOptions,
+  type GetQuotePendingFundingData,
+  type GetQuotePendingFundingOptions,
+  type GetQuotePendingFundingParameters,
+  type GetQuotePendingFundingQueryKey,
+  type GetQuotePendingFundingQueryOptions,
+  type GetQuotePendingFundingReturnType,
+  type QuotePendingFunding,
 } from "./quotes";
 
 /**

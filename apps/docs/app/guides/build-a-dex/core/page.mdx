@@ -1140,15 +1140,16 @@ Sources you assemble the input from:
 
 ### Position details
 
-Read the display fields off each `UnifiedQuote` (or the underlying `Quote`). Enums and value structs come from core: `OrderType`, `QuoteStatus`, `PositionType`, and `LockedValues`.
+Read the display fields off each `UnifiedQuote` (or the underlying `Quote`). Enums and value structs come from core: `OrderType`, `QuoteStatus`, `PositionType`, and `LockedValues`. Pending funding is the one figure that needs its own read.
 
-| Detail        | Source field                    | Notes                               |
-| ------------- | ------------------------------- | ----------------------------------- |
-| Side          | `positionType` (`PositionType`) | `LONG` / `SHORT`                    |
-| Order kind    | `orderType` (`OrderType`)       | market vs limit                     |
-| Status        | `quoteStatus` (`QuoteStatus`)   | drives the lifecycle gate below     |
-| Size / price  | quantity, open price fields     | **wei / 18-dec**                    |
-| Locked margin | `lockedValues` (`LockedValues`) | `cva`, `lf`, `partyAmm`, `partyBmm` |
+| Detail          | Source field                                                                                       | Notes                                                                            |
+| --------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Side            | `positionType` (`PositionType`)                                                                    | `LONG` / `SHORT`                                                                 |
+| Order kind      | `orderType` (`OrderType`)                                                                          | market vs limit                                                                  |
+| Status          | `quoteStatus` (`QuoteStatus`)                                                                      | drives the lifecycle gate below                                                  |
+| Size / price    | quantity, open price fields                                                                        | **wei / 18-dec**                                                                 |
+| Locked margin   | `lockedValues` (`LockedValues`)                                                                    | `cva`, `lf`, `partyAmm`, `partyBmm`                                              |
+| Pending funding | [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding) → `pendingNetReceived` | **wei / 18-dec**, income-positive; active positions only (`isActiveQuoteStatus`) |
 
 <Callout type="warning">
   **Amounts are wei (18-dec), not display units.** Every quantity, price, and locked-value field on a `Quote` /

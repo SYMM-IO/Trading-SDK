@@ -7,15 +7,16 @@ import { ResultError, ResultNote } from "@/components/result";
 import { QuoteEventsList } from "@/features/quotes/quote-events-list";
 import { WEI_DECIMALS } from "@/lib/format";
 import { OrderType, PositionType, QuoteStatus } from "@symmio/trading-core";
-import { useQuote, useQuotePriceHistory, useQuoteTpSl } from "@symmio/trading-react";
+import { useQuote, useQuotePendingFunding, useQuotePriceHistory, useQuoteTpSl } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { formatTokenAmount } from "@symmio/utils";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import type { Address, Hex } from "viem";
 import { MethodCard } from "./method-card";
+import { formatTimestampSeconds, Section } from "./section";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -31,11 +32,6 @@ function formatFixedPoint(raw: bigint): string {
 function formatSignedFixedPoint(raw: bigint): string {
   if (raw >= 0n) return formatFixedPoint(raw);
   return `-${formatFixedPoint(-raw)}`;
-}
-
-function formatTimestamp(seconds: bigint): string | undefined {
-  if (seconds === 0n) return undefined;
-  return new Date(Number(seconds) * 1000).toLocaleString();
 }
 
 function formatHex(value: Hex): string {
@@ -195,15 +191,20 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
           <DataRow label="accumulatedPaidFunding" value={formatSignedFixedPoint(quote.accumulatedPaidFunding)} mono />
           <DataRow label="tradingFee" value={formatFixedPoint(quote.tradingFee)} mono />
           <DataRow label="closeFee" value={formatFixedPoint(quote.closeFee)} mono />
-          <DataRow label="lastFundingPaymentTimestamp" value={formatTimestamp(quote.lastFundingPaymentTimestamp)} />
+          <DataRow
+            label="lastFundingPaymentTimestamp"
+            value={formatTimestampSeconds(quote.lastFundingPaymentTimestamp)}
+          />
         </DataList>
       </Section>
 
+      <QuotePendingFundingSection quoteId={quote.id} quoteStatus={quote.quoteStatus} />
+
       <Section title="Timestamps">
         <DataList>
-          <DataRow label="createTimestamp" value={formatTimestamp(quote.createTimestamp)} />
-          <DataRow label="statusModifyTimestamp" value={formatTimestamp(quote.statusModifyTimestamp)} />
-          <DataRow label="deadline" value={formatTimestamp(quote.deadline)} />
+          <DataRow label="createTimestamp" value={formatTimestampSeconds(quote.createTimestamp)} />
+          <DataRow label="statusModifyTimestamp" value={formatTimestampSeconds(quote.statusModifyTimestamp)} />
+          <DataRow label="deadline" value={formatTimestampSeconds(quote.deadline)} />
         </DataList>
       </Section>
 
@@ -251,6 +252,37 @@ function QuoteTpSlSection({ quoteId, subAccount }: { quoteId: bigint; subAccount
   );
 }
 
+/**
+ * Funding accrued since the quote's last settlement, read with its own hook like
+ * the TP/SL and price-history sections. The hook reads only an active position,
+ * so any other status resolves to `null` without a request and gets a hint here.
+ */
+function QuotePendingFundingSection({ quoteId, quoteStatus }: { quoteId: bigint; quoteStatus: QuoteStatus }) {
+  const pending = useQuotePendingFunding({ quote: { quoteId, quoteStatus } });
+  return (
+    <Section title="Pending funding">
+      {pending.isLoading ? (
+        <span className="text-muted-foreground text-xs">Loading…</span>
+      ) : pending.error ? (
+        <span className="text-destructive text-xs">{pending.error.message}</span>
+      ) : pending.data ? (
+        <>
+          <DataList>
+            <DataRow label="pendingNetReceived" value={formatSignedFixedPoint(pending.data.pendingNetReceived)} mono />
+          </DataList>
+          <span className="text-muted-foreground text-xs">
+            Positive: the position receives it. Negative: the position owes it. Settles on the next charge or close.
+          </span>
+        </>
+      ) : (
+        <span className="text-muted-foreground text-xs">
+          {`No amount read — this quote is ${QuoteStatus[quoteStatus] ?? String(quoteStatus)}. Pending funding is read only for active positions (OPENED, CLOSE_PENDING, CANCEL_CLOSE_PENDING, LIQUIDATED_PENDING).`}
+        </span>
+      )}
+    </Section>
+  );
+}
+
 function QuotePriceHistorySection({ quoteId }: { quoteId: bigint }) {
   const priceHistory = useQuotePriceHistory({ quoteId });
   return (
@@ -261,17 +293,6 @@ function QuotePriceHistorySection({ quoteId }: { quoteId: bigint }) {
         hasMore={priceHistory.data?.hasMore}
       />
     </Section>
-  );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-muted-foreground/80 border-border border-b pb-1 text-[0.65rem] font-medium tracking-wider uppercase">
-        {title}
-      </span>
-      {children}
-    </div>
   );
 }
 

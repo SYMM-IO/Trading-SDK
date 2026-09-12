@@ -343,7 +343,9 @@ export function useSessionKeyWriteMode(
 export interface SessionKeyDefault {
   /**
    * The connected chain has a gasless relayer — the only path the key can sign
-   * on. Where it has none the preference still holds, but applies to nothing.
+   * the writes this default covers on. Where it has none the preference still
+   * holds, but applies to nothing; the instant-trading flows sign with the key
+   * either way.
    */
   supported: boolean;
   /** Whether write cards sign with the session key unless a card says otherwise. */
