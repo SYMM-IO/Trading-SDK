@@ -2,11 +2,12 @@ import { Callout } from "nextra/components";
 
 # SYMMIO Contract hooks
 
-React hooks over `@symmio/trading-core`'s on-chain SYMMIO contract slice — quote reads, party positions, collateral, allocate / deallocate, on-chain markets. Solver-side reads (`useMarkets`, `useLockedParams`, `useNotionalCap*`) live under [Solvers](../solvers).
+React hooks over `@symmio/trading-core`'s on-chain SYMMIO contract slice — quote reads, pending funding, party positions, collateral, allocate / deallocate, on-chain markets. Solver-side reads (`useMarkets`, `useLockedParams`, `useNotionalCap*`) live under [Solvers](../solvers).
 
-The page is split into two groups:
+The page is split into three groups:
 
 - **[Reads](#reads)** — quote reads, collateral balances, on-chain markets, Muon UPNL sig, derived reads.
+- **[Funding](#funding)** — pending (unsettled) accumulated funding for one quote or many.
 - **[Writes](#writes)** — approve collateral, deposit, allocate, deallocate. Every write has a paired `useSimulateXyz` — see [Simulate then write](../concepts/simulate-then-write).
 
 ## Import
@@ -24,6 +25,8 @@ import {
   useCollateralBalance,
   useDeallocateUpnlSig,
   useQuoteUpnlAndPnl,
+  useQuotesPendingFunding,
+  useQuotePendingFunding,
   // Writes
   useApproveCollateral,
   useSimulateApproveCollateral,
@@ -120,11 +123,77 @@ const upnl = useDeallocateUpnlSig({ partyA });
 
 ### `useQuoteUpnlAndPnl`
 
-Composes an on-chain quote + mark price + Muon UPNL into a single reactive `{ upnl, upnlPercent, markPrice }` snapshot. UI-shaped, ready for a position row.
+Composes an on-chain quote + live mark price into a single reactive `{ upnl, upnlPercent, markPrice }` snapshot, measured from `openedPrice`. UI-shaped, ready for a position row. It is a mark-price uPnL: it excludes pending accumulated funding — see [Funding](/core/concepts/funding#muon-upnl-vs-mark-price-upnl).
 
 ```ts
 const { upnl, upnlPercent, markPrice, isLoading } = useQuoteUpnlAndPnl({ quote });
 ```
+
+## Funding
+
+**Pending** accumulated funding — funding a position has accrued on-chain since its last settlement and the protocol has not charged yet. Both hooks wrap core's [`getQuotePendingFunding`](../../core/symmio-contract/get-quote-pending-funding) and return it **income-positive** (`pendingNetReceived > 0n` means the position will receive it), like every SDK funding amount — see the [sign table](../../core/concepts/funding#sign-conventions).
+
+Both take quotes, not bare ids, because the underlying view does not check quote status: only a row with a `quoteId` **and** a known active `quoteStatus` (`OPENED`, `CLOSE_PENDING`, `CANCEL_CLOSE_PENDING`, `LIQUIDATED_PENDING`) is read. A `LOCKED` or cancelled quote would otherwise return a meaningless, growing amount. Settled funding is the separate subgraph read [`useQuoteFunding`](../subgraph#usequotefunding); show the two as separate figures, never as one total.
+
+<Callout type="warning">
+  **Don't net pending funding into a Muon uPnL.** A Muon-signed uPnL already includes it; the SDK's mark-price uPnL
+  (`useQuoteUpnlAndPnl`, `useQuoteGroupMarginRisk`) does not. See [Funding › Muon uPnL vs mark-price
+  uPnL](../../core/concepts/funding#muon-upnl-vs-mark-price-upnl).
+</Callout>
+
+Neither hook polls by default — pass `query.refetchInterval`. [`useManagedQuotes`](../quotes#usemanagedquotes) invalidates the pending-funding reads together with its other on-chain quote reads, and [`useForceClose`](../quotes#useforceclose) invalidates them once the write succeeds (after its receipt, by default). `chainId` defaults to the connected chain.
+
+### `useQuotesPendingFunding`
+
+Pending funding for many quotes in one read, plus the running sum — a `UnifiedQuote[]` works as-is. Unreadable rows (no `quoteId`, or not an active position) are skipped, and duplicate ids are read — and summed — once.
+
+```ts
+const { rows, pendingNetReceived, isLoading } = useQuotesPendingFunding({
+  quotes: group.quotes,
+  query: { refetchInterval: 60_000 },
+});
+```
+
+#### Parameters
+
+| Name        | Type                                                        | Default         | Notes                                                                                 |
+| ----------- | ----------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------- |
+| `quotes`    | `readonly Pick<UnifiedQuote, "quoteId" \| "quoteStatus">[]` | required        | Quotes to read. Only rows with a `quoteId` and a known active `quoteStatus` are read. |
+| `batchSize` | `number?`                                                   | `25`            | Ids per `eth_call`.                                                                   |
+| `chainId`   | `number?`                                                   | connected chain | Optional chain override.                                                              |
+| `query`     | object                                                      | —               | TanStack overrides (`enabled`, `refetchInterval`, `staleTime`, …).                    |
+| `config`    | `Config?`                                                   | provider value  | Optional config override.                                                             |
+
+#### Return type
+
+```ts
+interface UseQuotesPendingFundingReturnType {
+  /** One entry per input quote, aligned by index; `null` for a row that is not read (no id, not active) or until resolved. */
+  rows: readonly (QuotePendingFunding | null)[];
+  /** Σ `pendingNetReceived` over the distinct ids read (18-decimal); `undefined` until resolved, `0n` when nothing is readable. */
+  pendingNetReceived?: bigint;
+  /** First load in flight. */
+  isLoading: boolean;
+  /** Any fetch in flight, including a refetch. */
+  isFetching: boolean;
+  error: SymmioRequestError | null;
+  refetch: () => void;
+}
+```
+
+### `useQuotePendingFunding`
+
+The single-quote form, for a position's details panel. It takes the quote rather than a bare id so the status filter cannot be bypassed: an `undefined` quote, an off-chain row, or a quote that is not an active position disables the read, and `data` stays `null`.
+
+```ts
+const { data, isLoading } = useQuotePendingFunding({ quote, query: { refetchInterval: 60_000 } });
+/** `data` is `QuotePendingFunding | null`; `pendingNetReceived > 0n` means the position will receive it. */
+const pending = data?.pendingNetReceived;
+```
+
+Takes the same parameters as `useQuotesPendingFunding`, with `quote?: Pick<UnifiedQuote, "quoteId" | "quoteStatus">` in place of `quotes`.
+
+**Returns** — `{ data: QuotePendingFunding | null; isLoading: boolean; isFetching: boolean; error: SymmioRequestError | null; refetch: () => void }`.
 
 ## Writes
 

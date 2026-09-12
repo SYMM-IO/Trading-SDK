@@ -43,7 +43,13 @@ import type { UnifiedQuote } from "@symmio/trading-core";
   <Property name="lockedValues" type="LockedValues">Margin locked against the row (wei) — CVA, LF, and the two maintenance-margin legs.</Property>
   <Property name="initialLockedValues" type="LockedValues">Margin locked at open time — basis for leverage (wei), when known.</Property>
   <Property name="maxFundingRate" type="bigint">Maximum funding rate partyA accepts, when known.</Property>
-  <Property name="accumulatedPaidFunding" type="bigint">Net funding paid (positive) or received (negative) over the position's life (wei), when known.</Property>
+  <Property name="accumulatedPaidFunding" type="bigint">
+    Per-unit cumulative funding-rate **index** at the quote's last settlement (18-decimal fixed point, cost-positive), when
+    known — **not an amount**. The contract measures the next charge from it, so summing it across quotes is
+    meaningless. For money, read settled funding with [`getQuoteFunding`](/core/subgraph/get-quote-funding) and pending
+    funding with [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding); see
+    [Funding](/core/concepts/funding).
+  </Property>
   <Property name="lastFundingPaymentTimestamp" type="bigint">Block timestamp funding was last applied, when known.</Property>
   <Property name="deadline" type="bigint">Quote deadline (expiry) timestamp, when known.</Property>
   <Property name="tradingFee" type="bigint">Trading fee charged on the quote (wei), when known.</Property>

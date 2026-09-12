@@ -1,0 +1,125 @@
+import { Callout } from "nextra/components";
+
+# getQuotePendingFunding
+
+Read the **pending** accumulated funding of a batch of quotes — the funding each position has accrued since its last settlement and the protocol has not charged yet. It wraps the SYMMIO diamond view `getQuoteFundingDebts` and **negates** it: the contract is cost-positive, the SDK is income-positive, so `pendingNetReceived > 0n` means the position will receive funding and `< 0n` means it owes it.
+
+Reach for it beside [`getQuoteFunding`](/core/subgraph/get-quote-funding), which covers the funding already settled. [Funding](/core/concepts/funding) explains how the two relate and why they are not added into one total.
+
+```ts
+import { getQuotePendingFunding } from "@symmio/trading-core";
+
+const rows = await getQuotePendingFunding(config, { quoteIds: [7334n, 7335n] });
+const total = rows.reduce((sum, row) => sum + row.pendingNetReceived, 0n);
+```
+
+<Callout type="warning">
+  **Pass active positions only.** The view does not check quote status. For a quote a solver locked but never opened —
+  `LOCKED`, `CANCEL_PENDING`, or `CANCELED` / `EXPIRED` after a lock — it returns a meaningless amount that grows every
+  epoch. Filter on a **known** on-chain status with
+  [`isActiveQuoteStatus`](/core/quotes/partition-quotes#isactivequotestatus) before calling.
+</Callout>
+
+```ts
+import { getQuotePendingFunding, isActiveQuoteStatus } from "@symmio/trading-core";
+
+const quoteIds = quotes.flatMap((quote) =>
+  quote.quoteId !== undefined && quote.quoteStatus !== undefined && isActiveQuoteStatus(quote.quoteStatus)
+    ? [quote.quoteId]
+    : [],
+);
+const rows = await getQuotePendingFunding(config, { quoteIds });
+```
+
+The React hooks [`useQuotesPendingFunding`](/react/symmio-contract#usequotespendingfunding) and [`useQuotePendingFunding`](/react/symmio-contract#usequotependingfunding) apply this filter for you.
+
+## Parameters
+
+<Properties>
+  <Property name="quoteIds" type="readonly bigint[]" required>
+    On-chain quote ids to read — active positions only. Duplicates are read once, and an empty list resolves to `[]`
+    without an RPC call.
+  </Property>
+  <Property name="batchSize" type="number" default="25">
+    Ids per `eth_call`. Must be a positive integer; anything else throws before any RPC call. The view costs about 21k
+    gas per id when the id's (symbol, partyB) pair is already warm and about 40k for the first id on each pair, so the
+    default keeps each call near 1M gas even in the worst case — well under HyperEVM's 3M-gas small blocks, whose
+    `eth_call` gas cap is not documented.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly QuotePendingFunding[]">
+  <Property name="quoteId" type="bigint">
+    On-chain quote id.
+  </Property>
+  <Property name="pendingNetReceived" type="bigint">
+    Funding accrued since the quote's last settlement, **income-positive** like every SDK funding amount: `> 0n` the
+    position will receive it, `< 0n` it owes it. 18-decimal collateral units — SYMMIO's internal scale, the same as
+    `allocatedBalance`, not the token's decimals — truncated toward zero per quote. The negation of the contract's
+    cost-positive `getQuoteFundingDebts`.
+  </Property>
+</Returns>
+
+One row per **distinct** input id, sorted by `quoteId` ascending. Because of the de-duplication and the sort, match rows to your quotes by `quoteId`, not by input position.
+
+## What the value means
+
+- **Exact, for one block.** Each row is what the contract would settle if the quote were charged in the block the RPC ran the call against (its `latest`).
+- **Whole-epoch steps.** It moves when a new epoch begins (`currentEpoch = floor(block.timestamp / epochDuration)`), not continuously.
+- **It moves with the position.** A solver rate update, a charge, a partial close, or a liquidation changes it — so the amount eventually settled can differ. For a `LIQUIDATED_PENDING` quote treat it as an estimate only.
+- **`0n` without an error** for a pair whose accumulated funding is not configured or has not started, a fully closed or `LIQUIDATED` quote, a `PENDING` quote (no partyB yet), and an unknown id. See the three [pair states](/core/concepts/funding#pair-states).
+
+This is funding that has **not** settled yet. Funding already charged lives in the analytics subgraph — read it with [`getQuoteFunding`](/core/subgraph/get-quote-funding). The two come from different sources at different heights, so do not add them into a lifetime total.
+
+## Batching
+
+Ids are de-duplicated, sorted ascending, and read in **sequential** batches of `batchSize` — one `eth_call` per batch, one after the other.
+
+<Callout type="info">
+  **Rows from different batches can come from adjacent blocks.** Each batch is its own `eth_call` against the RPC's
+  `latest` block, so with more than `batchSize` ids the rows — and any total summed from them — are not one block's
+  figure. The SDK deliberately does not pin a `blockNumber`: HyperEVM's RPC only serves `eth_call` against `latest`. The
+  value only moves at epoch boundaries, on rate updates and on quote operations, so the skew is rare — but do not
+  present a multi-batch sum as a single-block snapshot.
+</Callout>
+
+## Versions
+
+The view's inputs and outputs are identical on v0.8.5 and v0.8.6, so the read behaves the same on every supported chain — no version gate. One v0.8.5-only edge: with accumulated funding active, a quote whose legacy funding was prepaid into a later epoch makes the view revert, which fails that batch and therefore the whole read. See [Funding › v0.8.5 and v0.8.6](/core/concepts/funding#v085-and-v086).
+
+## Errors
+
+- `INVALID_BATCH_SIZE` — a `SymmError` (`kind: "validation"`) when `batchSize` is not a positive integer. Checked first, so no RPC call is made.
+- `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) when the `chainId` is not one the config knows about. Only reached when there is at least one id to read.
+- On-chain failures pass through as viem errors (`ContractFunctionExecutionError` and friends), including the v0.8.5 revert above. One failing batch fails the whole call.
+
+## Query options
+
+```ts
+import { getQuotePendingFundingQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(
+  getQuotePendingFundingQueryOptions(config, {
+    quoteIds: [7334n, 7335n],
+    query: { refetchInterval: 60_000 },
+  }),
+);
+```
+
+The query is **disabled** until at least one quote id is supplied, and nothing polls by default — pass `query.refetchInterval` to keep the value fresh. An unsupported chain surfaces the `SymmError` from the query function rather than silently disabling the query.
+
+`getQuotePendingFundingQueryKey` de-duplicates, sorts and stringifies the ids, so the same id set in any order, or with repeats, shares one cache entry; `batchSize` is part of the key. Called with only a scope — `getQuotePendingFundingQueryKey({ configKey })` — it matches every pending-funding read of one chain scope, which is the shape [`predicateMatch`](/react/concepts/invalidation) needs to invalidate them all. See [Query keys](/core/concepts/query-keys).
+
+## Related
+
+- [Funding](/core/concepts/funding) — settled vs pending funding, pair states, and the sign conventions.
+- [`getFundingFeesOfPartyB`](/core/symmio-contract/get-funding-fees-of-party-b) — the per-pair state this funding accrues from.
+- [`isActiveQuoteStatus`](/core/quotes/partition-quotes#isactivequotestatus) — the status filter to run first.
+- [`getQuoteFunding`](/core/subgraph/get-quote-funding) — the funding already settled, from the subgraph.
+- [React `useQuotesPendingFunding` / `useQuotePendingFunding`](/react/symmio-contract#funding) — the hooks, with the status filter built in.

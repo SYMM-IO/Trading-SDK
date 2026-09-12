@@ -59,8 +59,10 @@ export interface UseQuoteGroupFundingReturnType {
  *
  * **Settled to date only** — these totals cover funding the protocol has already
  * charged and the analytics subgraph has indexed. Funding accrued since a
- * quote's last funding charge is not indexed anywhere and is therefore not
- * included.
+ * quote's last funding charge is not in the subgraph and is therefore not
+ * included — read it on-chain with {@link useQuotesPendingFunding} (pass
+ * `group.quotes`). The two come from different sources at different heights, so
+ * do not add them into a lifetime total.
  *
  * @param parameters - The group to read, plus optional chain/query/config overrides.
  * @returns The aggregated group funding, the per-child rows, and query state.

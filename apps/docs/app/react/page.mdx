@@ -84,7 +84,7 @@ Every domain slice, one page. Each mirrors its `core` counterpart plus the React
 
 - **[AccountLayer](/react/account-layer)** — sub-account / virtual-account reads + writes.
 - **[InstantLayer](/react/instant-layer)** — delegation reads + `useGrantDelegation`.
-- **[SYMMIO Contract](/react/symmio-contract)** — quote reads, party positions, collateral, allocate / deallocate, on-chain markets.
+- **[SYMMIO Contract](/react/symmio-contract)** — quote reads, pending funding, party positions, collateral, allocate / deallocate, on-chain markets.
 - **[Withdraw](/react/withdraw)** — request / cancel / finalize + polling helpers.
 
 ### Trading
@@ -94,7 +94,7 @@ Every domain slice, one page. Each mirrors its `core` counterpart plus the React
   - [Instant Open](/react/solvers/instant-open)
   - [Instant Close](/react/solvers/instant-close)
 - **[TP/SL](/react/tpsl)** — `useQuoteTpSl`, mutations, `useTpSlStore`.
-- **[Markets](/react/markets)** — solver + on-chain market catalog hooks.
+- **[Markets](/react/markets)** — solver + on-chain market catalog hooks, and a market's on-chain funding state (`useFundingFeesOfPartyB`).
 - **[Fees](/react/fees)** — `useFeeForUser`, `useQuotePlatformFee`.
 
 ### Data

@@ -3,6 +3,7 @@
 import {
   forceCloseAutoMutationOptions,
   getPartyAOpenPositionsQueryKey,
+  getQuotePendingFundingQueryKey,
   type ForceCloseAutoParameters,
 } from "@symmio/trading-core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
@@ -28,7 +29,8 @@ export type UseForceCloseReturnType = UseMutationResult<ForceCloseResult, Symmio
  * eligibility, find a price window from reference candles, fetch the Muon
  * `HighLowPriceSig`, preflight the gap, and send `forceClosePosition` through the
  * AccountLayer `_call` proxy. On success (after the receipt) the subaccount's
- * open-positions read is invalidated so the row updates.
+ * open-positions read is invalidated so the row updates, and so are the chain's
+ * pending-funding reads, since the close settles the position's accrued funding.
  *
  * Throws (normalized) on ineligibility (`FORCE_CLOSE_NOT_ELIGIBLE`), the market
  * not having hit the price (`FORCE_CLOSE_PRICE_NOT_REACHED`), or a contract
@@ -67,6 +69,13 @@ export function useForceClose(parameters: UseForceCloseParameters = {}): UseForc
       // open positions so the status updates.
       const partial = { partyA: variables.account };
       void queryClient.invalidateQueries({ predicate: predicateMatch(getPartyAOpenPositionsQueryKey, partial) });
+      /**
+       * The close settles the funding the position had accrued, so its pending-funding
+       * read is stale. That key carries only the id set, not the partyA, so scope it
+       * by the chain config instead.
+       */
+      const fundingScope = { configKey: config.getChainConfigKey(variables.chainId ?? chainId) };
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getQuotePendingFundingQueryKey, fundingScope) });
     },
   });
 }

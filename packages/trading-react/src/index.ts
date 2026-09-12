@@ -409,11 +409,15 @@ export {
  * Markets hooks
  * -------------
  * Fetch tradable markets from the solver and on-chain contract markets from
- * SYMMIO core.
+ * SYMMIO core. `useFundingFeesOfPartyB` reads the accumulated-funding state a
+ * solver keeps for one symbol (raw, cost-positive rates and epoch tracking).
  */
 export {
+  useFundingFeesOfPartyB,
   useMarkets,
   useOnchainContractMarkets,
+  type UseFundingFeesOfPartyBParameters,
+  type UseFundingFeesOfPartyBReturnType,
   type UseMarketsParameters,
   type UseMarketsReturnType,
   type UseOnchainContractMarketsParameters,
@@ -446,9 +450,12 @@ export {
  * `useQuoteGroupFunding*` hooks read a whole group's settled-to-date funding —
  * one aggregate total, one merged timeline — where `netReceived = received −
  * paid`, so a **positive** value means the group **earned** funding.
- * `useQuoteGroupMarginRisk` describes a group's margin, equity and distance to
- * liquidation; it withholds `metrics` when the group spans several accounts,
- * since each is liquidated independently.
+ * `useQuotesPendingFunding` / `useQuotePendingFunding` read the funding accrued
+ * on-chain since the last settlement (income-positive `pendingNetReceived`) for
+ * active positions only — a separate figure from the settled totals, never
+ * added to them. `useQuoteGroupMarginRisk` describes a group's margin, equity
+ * and distance to liquidation; it withholds `metrics` when the group spans
+ * several accounts, since each is liquidated independently.
  */
 export {
   useAccountLiquidationPrice,
@@ -473,10 +480,12 @@ export {
   useQuoteGroupFundingHistory,
   useQuoteGroupMarginRisk,
   useQuoteHistory,
+  useQuotePendingFunding,
   useQuotePlatformFee,
   useQuotePriceHistory,
   useQuoteUpnlAndPnl,
   useQuotesFunding,
+  useQuotesPendingFunding,
   useRequestToCancelCloseRequest,
   useRequestToCancelQuote,
   useSubgraphQuery,
@@ -535,6 +544,8 @@ export {
   type UseQuoteHistoryParameters,
   type UseQuoteHistoryReturnType,
   type UseQuoteParameters,
+  type UseQuotePendingFundingParameters,
+  type UseQuotePendingFundingReturnType,
   type UseQuotePlatformFeeParameters,
   type UseQuotePlatformFeeReturnType,
   type UseQuotePriceHistoryParameters,
@@ -543,6 +554,8 @@ export {
   type UseQuoteUpnlAndPnlReturnType,
   type UseQuotesFundingParameters,
   type UseQuotesFundingReturnType,
+  type UseQuotesPendingFundingParameters,
+  type UseQuotesPendingFundingReturnType,
   type UseRequestToCancelCloseRequestParameters,
   type UseRequestToCancelCloseRequestReturnType,
   type UseRequestToCancelQuoteParameters,

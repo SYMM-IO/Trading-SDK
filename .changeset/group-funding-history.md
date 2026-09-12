@@ -15,7 +15,7 @@ Add grouped funding — read the settled funding of a merged position as one tot
 
 **Sign convention** — `netReceived = received − paid` everywhere in this slice: a **positive** `netReceived` means the position **earned** funding, the P&L perspective trading venues present. It matches the polarity of `QuoteGroupUpnl.upnl`, so a card can colour and total funding and uPnL together, and it is the inverse of the cost-positive on-chain `int256`. A UI that colors "money in" green renders it as-is — the SDK nets it the way it is read, so no consumer negates.
 
-**Settled to date only** — every total and row covers funding the protocol has already charged and the analytics subgraph has indexed. Funding accrued since a quote's last funding charge is not indexed anywhere and is therefore not included.
+**Settled to date only** — every total and row covers funding the protocol has already charged and the analytics subgraph has indexed. Funding accrued since a quote's last funding charge is not indexed by the subgraph and is therefore not included; read it with `getQuotePendingFunding`.
 
 Two behavioural fixes ship alongside. Both can legitimately change numbers a consumer already renders:
 

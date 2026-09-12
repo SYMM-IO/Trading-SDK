@@ -30,7 +30,7 @@ Each row carries its own `quoteId`, so a caller that wants a per-position breakd
 - **`PRICE_HISTORY_EVENT_TYPES`** — everything that moves a quote's open price: `SettleUpnl`, `ChargeFundingRate`, `ChargeAccumulatedFundingFee`.
 - **`FUNDING_HISTORY_EVENT_TYPES`** — the funding subset: `ChargeFundingRate` and `ChargeAccumulatedFundingFee`. It drops `SettleUpnl` (an open-price recompute that settles no funding) and keeps exactly the two events that carry `fundingPaid` / `fundingReceived` / `rate` in their metadata.
 
-On current deployments effectively every funding row is `CHARGE_FUNDING_RATE`; `CHARGE_ACCUMULATED_FUNDING_FEE` is in the preset for completeness but is not yet emitted, so do not rely on seeing it.
+Which of the two a quote produces depends on its pair: `CHARGE_ACCUMULATED_FUNDING_FEE` rows appear only for pairs on accumulated funding, and legacy pairs produce `CHARGE_FUNDING_RATE` rows. Whether a pair accrues accumulated funding is a per-pair deployment fact — see [Funding › Pair states](/core/concepts/funding#pair-states) — so do not assume every row is one type.
 
 ## Parameters
 
@@ -77,7 +77,7 @@ On current deployments effectively every funding row is `CHARGE_FUNDING_RATE`; `
 
 The metadata carries the raw on-chain amounts. Net a row the way the rest of the SDK does — `fundingReceived − fundingPaid`, so a **positive** net means the position **earned** funding on that tick, matching [`QuoteFundingData.netReceived`](/core/subgraph/get-quote-funding). The raw `fundingPaid` / `fundingReceived` fields are verbatim from the subgraph and are never re-signed.
 
-These are the charges **settled to date**, i.e. what the analytics subgraph has indexed. Funding that has accrued since a quote's last on-chain charge is not indexed anywhere and is therefore absent from the timeline.
+These are the charges **settled to date**, i.e. what the analytics subgraph has indexed. Funding that has accrued since a quote's last on-chain charge is not in the subgraph and is therefore absent from the timeline — read it on-chain with [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding).
 
 The action does no event-type interpretation beyond decoding the metadata JSON.
 

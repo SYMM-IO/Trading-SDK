@@ -16,8 +16,9 @@ import type { UnifiedQuote } from "../unified-quote";
  *
  * **Settled-to-date only** — these totals cover funding the protocol has already
  * charged and the analytics subgraph has indexed. Funding accrued since the last
- * charge is **not** included: it is not indexed anywhere, so it cannot be part of
- * this sum.
+ * charge is **not** included: it is not indexed by the subgraph — read it with
+ * {@link getQuotePendingFunding}. The two come from different sources at
+ * different heights, so do not add them into a lifetime total.
  *
  * **Completeness** — `netReceived` is always the sum over the children that *did*
  * resolve, i.e. a lower bound while rows are still missing; it is never
@@ -81,14 +82,14 @@ export interface QuoteGroupFunding {
  *
  * Sign convention: `netReceived = received − paid`, so **positive means the group
  * earned funding** (see {@link QuoteGroupFunding}). The totals are funding
- * **settled to date**; funding accrued since the last charge is not indexed and
- * not included.
+ * **settled to date**; funding accrued since the last charge is not indexed by
+ * the subgraph and not included — read it with {@link getQuotePendingFunding}.
  *
  * Do **not** substitute `Σ UnifiedQuote.accumulatedPaidFunding` as a shortcut.
- * That field is the quote's cumulative funding *rate index* on-chain
- * (`accumulatedRate × epochsSinceStart`), not a settled amount — summing it
- * across quotes is dimensionally meaningless, and it is cost-positive where
- * `netReceived` is income-positive.
+ * That field is the quote's per-unit cumulative funding-fee *index* recorded at
+ * its last settlement, not a settled amount — summing it across quotes is
+ * dimensionally meaningless, and it is cost-positive where `netReceived` is
+ * income-positive.
  *
  * Pure, order-independent, no IO. Empty input yields all-zero amounts with
  * `isComplete: false`.
