@@ -23,7 +23,11 @@ export type GetGaslessOperationalFeeQuoteParameters = Compute<
 
 /** Return type of {@link getGaslessOperationalFeeQuote}. */
 export interface GetGaslessOperationalFeeQuoteReturnType {
-  /** Total collateral the gateway would charge for these operations (raw units). */
+  /**
+   * Total fee the gateway would charge for these operations, **normalized to 18
+   * decimals** (the contract's `amountDue18`). Rescale to the collateral token's
+   * decimals before comparing against a raw balance.
+   */
   amountDue: bigint;
   /** How many of the operations the account's daily free quota covers. */
   freeOpsApplied: bigint;
@@ -60,30 +64,36 @@ export async function getGaslessOperationalFeeQuote(
   const gasless = resolveGaslessService(config, { chainId });
   const client = config.getClient({ chainId });
 
+  const signedOps = operations.map((operation) => ({
+    signer: operation.signer,
+    target: operation.target,
+    callData: operation.callData,
+    signerAccount: { addr: operation.signerAccount.addr, isPartyB: operation.signerAccount.isPartyB },
+    flexFields: operation.flexFields.map((field) => ({
+      offset: field.offset,
+      length: field.length,
+      authorizedFlexFiller: field.authorizedFlexFiller,
+    })),
+    maxUses: operation.maxUses,
+    replayAttackHeader: {
+      nonce: operation.replayAttackHeader.nonce,
+      deadline: operation.replayAttackHeader.deadline,
+      salt: operation.replayAttackHeader.salt,
+    },
+  }));
+
+  /**
+   * One wallet index per operation (`walletIds.length === signedOps.length`).
+   * `0` selects the original/index-zero wallet — the single-wallet default.
+   * Multi-wallet selection (index > 0) is not yet exposed on this action.
+   */
+  const walletIds = signedOps.map(() => 0n);
+
   const [amountDue, freeOpsApplied, wouldBlockOnQuota] = await client.readContract({
     address: gasless.gaslessLayerAddress,
     abi: gaslessLayerAbi,
     functionName: "getAccountOperationalFee",
-    args: [
-      account,
-      operations.map((operation) => ({
-        signer: operation.signer,
-        target: operation.target,
-        callData: operation.callData,
-        signerAccount: { addr: operation.signerAccount.addr, isPartyB: operation.signerAccount.isPartyB },
-        flexFields: operation.flexFields.map((field) => ({
-          offset: field.offset,
-          length: field.length,
-          authorizedFlexFiller: field.authorizedFlexFiller,
-        })),
-        maxUses: operation.maxUses,
-        replayAttackHeader: {
-          nonce: operation.replayAttackHeader.nonce,
-          deadline: operation.replayAttackHeader.deadline,
-          salt: operation.replayAttackHeader.salt,
-        },
-      })),
-    ],
+    args: [account, signedOps, walletIds],
   });
 
   return { amountDue, freeOpsApplied, wouldBlockOnQuota };

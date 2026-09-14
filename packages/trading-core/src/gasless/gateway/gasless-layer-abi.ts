@@ -4,10 +4,13 @@
  *
  * TODO(gasless-abi): no canonical ABI artifact exists for these contracts —
  * they are not part of perps-core and the vendor ships no JSON. Every entry
- * below is production-verified: the view surface was confirmed by direct
- * `eth_call` against the deployed Arbitrum gateways on 2026-09-04, and the
- * tuple shapes mirror the on-chain structs the InstantLayer signs. Replace
- * with the vendor artifact when one ships.
+ * below is production-verified: the view surface was re-synced on 2026-09-14
+ * against the verified GaslessLayer ABI at
+ * `0x640b404a0b2cC8D7F95b6356CC97e44639b91d64` (Arbitrum), which moved to a
+ * multi-wallet-per-owner model — every wallet-scoped view now takes a
+ * `walletId` (index `0` is the original/index-zero wallet). The tuple shapes
+ * mirror the on-chain structs the InstantLayer signs. Replace with the vendor
+ * artifact when one ships.
  */
 
 /**
@@ -38,14 +41,21 @@ export const gaslessLayerAbi = [
     type: "function",
   },
   {
-    inputs: [{ internalType: "address", name: "owner", type: "address" }],
+    inputs: [
+      { internalType: "address", name: "owner", type: "address" },
+      { internalType: "uint256", name: "walletId", type: "uint256" },
+    ],
     name: "getGaslessWalletAddress",
     outputs: [{ internalType: "address", name: "", type: "address" }],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [{ internalType: "address", name: "account", type: "address" }],
+    inputs: [
+      { internalType: "address", name: "owner", type: "address" },
+      { internalType: "uint256", name: "walletId", type: "uint256" },
+      { internalType: "address", name: "signerAccount", type: "address" },
+    ],
     name: "walletOperationNonces",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
@@ -108,10 +118,11 @@ export const gaslessLayerAbi = [
         name: "signedOps",
         type: "tuple[]",
       },
+      { internalType: "uint256[]", name: "walletIds", type: "uint256[]" },
     ],
     name: "getAccountOperationalFee",
     outputs: [
-      { internalType: "uint256", name: "amountDue", type: "uint256" },
+      { internalType: "uint256", name: "amountDue18", type: "uint256" },
       { internalType: "uint256", name: "freeOpsApplied", type: "uint256" },
       { internalType: "bool", name: "wouldBlockOnQuota", type: "bool" },
     ],

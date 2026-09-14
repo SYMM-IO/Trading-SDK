@@ -293,7 +293,9 @@ describe("gaslessWalletExecute signerAccount + session keys", () => {
     const nonceRead = readContract.mock.calls
       .map((call) => call[0] as { functionName: string; args: readonly unknown[] })
       .find((call) => call.functionName === "walletOperationNonces");
-    expect(nonceRead?.args[0]).toBe(SUB_ACCOUNT);
+    /** Nonce is keyed `(owner, walletId, signerAccount)`; the sub-account is the signer slot. */
+    expect(nonceRead?.args[0]).toBe(TEST_GASLESS_SIGNER);
+    expect(nonceRead?.args[2]).toBe(SUB_ACCOUNT);
   });
 
   it("checks the sentinel and every inner selector against the canonical account", async () => {

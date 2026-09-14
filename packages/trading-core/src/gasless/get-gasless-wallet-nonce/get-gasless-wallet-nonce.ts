@@ -9,7 +9,13 @@ import { resolveGaslessService } from "../resolve-gasless";
  */
 export type GetGaslessWalletNonceParameters = Compute<
   ChainIdParameter & {
-    /** The account whose wallet-operation nonce to read (the owner wallet). */
+    /** The owner wallet the gasless wallet belongs to. */
+    owner: Address;
+    /**
+     * The signer account the nonce is keyed under — the operation's
+     * `signerAccount.addr` (the owner itself for an owner-signed call, or a
+     * sub-account for a session-key signer).
+     */
     account: Address;
   }
 >;
@@ -22,22 +28,24 @@ export type GetGaslessWalletNonceReturnType = bigint;
  *
  * A separate counter from the InstantLayer's operation nonces — the two are
  * not interchangeable. Wallet-execute operations sign with `nonce + 1`, read
- * immediately before signing.
+ * immediately before signing. The counter is keyed by
+ * `(owner, walletId, signerAccount)`; `walletId` 0 (the original/index-zero
+ * wallet) is used.
  *
  * @param config - The SDK config.
- * @param parameters - Owner account, optional chain id.
+ * @param parameters - Owner wallet, signer account, optional chain id.
  * @returns The current wallet-operation nonce. Sign with `nonce + 1n`.
  *
  * @example
  * ```ts
- * const current = await getGaslessWalletNonce(config, { account: owner });
+ * const current = await getGaslessWalletNonce(config, { owner, account: owner });
  * ```
  */
 export async function getGaslessWalletNonce(
   config: Config,
   parameters: GetGaslessWalletNonceParameters,
 ): Promise<GetGaslessWalletNonceReturnType> {
-  const { chainId, account } = parameters;
+  const { chainId, owner, account } = parameters;
   const gasless = resolveGaslessService(config, { chainId });
   const client = config.getClient({ chainId });
 
@@ -45,6 +53,6 @@ export async function getGaslessWalletNonce(
     address: gasless.gaslessLayerAddress,
     abi: gaslessLayerAbi,
     functionName: "walletOperationNonces",
-    args: [account],
+    args: [owner, 0n, account],
   });
 }

@@ -51,7 +51,7 @@ export type GetGaslessWalletNonceQueryOptions = SymmioQueryOptions<
  *
  * @example
  * ```ts
- * useQuery(getGaslessWalletNonceQueryOptions(config, { account }));
+ * useQuery(getGaslessWalletNonceQueryOptions(config, { owner, account: owner }));
  * ```
  */
 export function getGaslessWalletNonceQueryOptions(
@@ -63,8 +63,8 @@ export function getGaslessWalletNonceQueryOptions(
     queryKey: getGaslessWalletNonceQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
     enabled: options.query?.enabled ?? true,
     queryFn: () => {
-      const { chainId, account } = options;
-      return getGaslessWalletNonce(config, { chainId, account });
+      const { chainId, owner, account } = options;
+      return getGaslessWalletNonce(config, { chainId, owner, account });
     },
   };
 }

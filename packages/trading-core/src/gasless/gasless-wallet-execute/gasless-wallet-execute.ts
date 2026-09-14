@@ -127,7 +127,7 @@ export type GaslessWalletExecuteReturnType = GaslessSubmitReceipt;
  * - the signed struct has five fields (no `flexFields`, no `maxUses`) — the
  *   relay body still carries `flexFields: []` / `maxUses: 1`, appended after
  *   signing;
- * - the nonce comes from `walletOperationNonces(owner) + 1`, a separate
+ * - the nonce comes from `walletOperationNonces(owner, 0, signerAccount) + 1`, a separate
  *   counter from InstantLayer nonces;
  * - `signerAccount.addr` defaults to the **owner wallet itself**; pass a
  *   sub-account through `signerAccount` to sign with a session key.
@@ -231,7 +231,7 @@ export async function gaslessWalletExecute(
   return withGaslessNonceLock(config, chain.chainId, `wallet:${account}`, async () => {
     const [wallet, currentNonce] = await Promise.all([
       getGaslessWalletAddress(config, { chainId, owner }),
-      getGaslessWalletNonce(config, { chainId, account }),
+      getGaslessWalletNonce(config, { chainId, owner, account }),
     ]);
 
     const replayAttackHeader = {
