@@ -45,11 +45,12 @@ export async function getGaslessWalletAddress(
   const gasless = resolveGaslessService(config, { chainId });
   const client = config.getClient({ chainId });
 
+  /** `walletId` 0 selects the owner's original/index-zero gasless wallet. */
   const wallet = await client.readContract({
     address: gasless.gaslessLayerAddress,
     abi: gaslessLayerAbi,
     functionName: "getGaslessWalletAddress",
-    args: [owner],
+    args: [owner, 0n],
   });
 
   /** The zero-address guard is load-bearing: an unwired gateway answers 0x0. */
