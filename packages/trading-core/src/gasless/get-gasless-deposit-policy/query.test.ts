@@ -60,7 +60,7 @@ describe("getGaslessDepositPolicyQueryOptions", () => {
 
     await expect(options.queryFn()).resolves.toMatchObject({ depositAddress: DEPOSIT_ADDRESS });
     expect(readContract).toHaveBeenCalledWith(
-      expect.objectContaining({ functionName: "getGaslessWalletAddress", args: [OWNER] }),
+      expect.objectContaining({ functionName: "getGaslessWalletAddress", args: [OWNER, 0n] }),
     );
   });
 });

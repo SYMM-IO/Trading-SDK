@@ -105,6 +105,7 @@ describe("getGaslessOperationalFeeQuoteQueryOptions", () => {
               replayAttackHeader: OPERATION.replayAttackHeader,
             }),
           ],
+          [0n],
         ],
       }),
     );

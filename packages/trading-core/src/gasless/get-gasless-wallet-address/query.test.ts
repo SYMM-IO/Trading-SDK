@@ -53,7 +53,7 @@ describe("getGaslessWalletAddressQueryOptions", () => {
       expect.objectContaining({
         address: TEST_GASLESS.gaslessLayerAddress,
         functionName: "getGaslessWalletAddress",
-        args: [OWNER],
+        args: [OWNER, 0n],
       }),
     );
   });

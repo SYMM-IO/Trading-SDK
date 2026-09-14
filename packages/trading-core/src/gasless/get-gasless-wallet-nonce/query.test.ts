@@ -3,6 +3,7 @@ import { supportsGaslessService } from "../resolve-gasless";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS, gaslessTestConfig } from "../test/config";
 import { getGaslessWalletNonceQueryKey, getGaslessWalletNonceQueryOptions } from "./query";
 
+const OWNER = "0x2222222222222222222222222222222222222222" as const;
 const ACCOUNT = "0x1111111111111111111111111111111111111111" as const;
 
 describe("getGaslessWalletNonceQueryKey", () => {
@@ -19,22 +20,35 @@ describe("getGaslessWalletNonceQueryKey", () => {
 });
 
 describe("getGaslessWalletNonceQueryOptions", () => {
-  it("keys the query by chain, account, and config", () => {
+  it("keys the query by chain, owner, account, and config", () => {
     const { config } = gaslessTestConfig();
 
-    const options = getGaslessWalletNonceQueryOptions(config, { chainId: GASLESS_TEST_CHAIN, account: ACCOUNT });
+    const options = getGaslessWalletNonceQueryOptions(config, {
+      chainId: GASLESS_TEST_CHAIN,
+      owner: OWNER,
+      account: ACCOUNT,
+    });
 
     expect(options.enabled).toBe(true);
     expect(options.queryKey).toEqual([
       "getGaslessWalletNonce",
-      { chainId: GASLESS_TEST_CHAIN, account: ACCOUNT, configKey: config.getChainConfigKey(GASLESS_TEST_CHAIN) },
+      {
+        chainId: GASLESS_TEST_CHAIN,
+        owner: OWNER,
+        account: ACCOUNT,
+        configKey: config.getChainConfigKey(GASLESS_TEST_CHAIN),
+      },
     ]);
   });
 
   it("honours query.enabled", () => {
     const { config } = gaslessTestConfig();
 
-    const options = getGaslessWalletNonceQueryOptions(config, { account: ACCOUNT, query: { enabled: false } });
+    const options = getGaslessWalletNonceQueryOptions(config, {
+      owner: OWNER,
+      account: ACCOUNT,
+      query: { enabled: false },
+    });
 
     expect(options.enabled).toBe(false);
   });
@@ -45,14 +59,18 @@ describe("getGaslessWalletNonceQueryOptions", () => {
     /** The config's default chain has no gasless block, so a dropped `chainId` would throw instead. */
     expect(supportsGaslessService(config)).toBe(false);
 
-    const options = getGaslessWalletNonceQueryOptions(config, { chainId: GASLESS_TEST_CHAIN, account: ACCOUNT });
+    const options = getGaslessWalletNonceQueryOptions(config, {
+      chainId: GASLESS_TEST_CHAIN,
+      owner: OWNER,
+      account: ACCOUNT,
+    });
 
     await expect(options.queryFn()).resolves.toBe(4n);
     expect(readContract).toHaveBeenCalledWith(
       expect.objectContaining({
         address: TEST_GASLESS.gaslessLayerAddress,
         functionName: "walletOperationNonces",
-        args: [ACCOUNT],
+        args: [OWNER, 0n, ACCOUNT],
       }),
     );
   });

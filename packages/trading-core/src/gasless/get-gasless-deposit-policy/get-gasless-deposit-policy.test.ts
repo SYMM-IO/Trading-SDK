@@ -56,7 +56,7 @@ describe("getGaslessDepositPolicy", () => {
     ]);
     expect(reads.every((read) => read.address === TEST_GASLESS.gaslessLayerAddress)).toBe(true);
     expect(readContract).toHaveBeenCalledWith(
-      expect.objectContaining({ functionName: "getGaslessWalletAddress", args: [OWNER] }),
+      expect.objectContaining({ functionName: "getGaslessWalletAddress", args: [OWNER, 0n] }),
     );
   });
 

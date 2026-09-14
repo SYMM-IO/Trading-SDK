@@ -52,6 +52,8 @@ describe("getGaslessOperationalFeeQuote", () => {
 
     expect(quote).toEqual({ amountDue: 2_000_000n, freeOpsApplied: 0n, wouldBlockOnQuota: true });
     /** The on-chain quote prices the exact structs, so every field reaches the read unchanged and in order. */
-    expect(readContract).toHaveBeenCalledWith(expect.objectContaining({ args: [ACCOUNT, [OPERATION, flexed]] }));
+    expect(readContract).toHaveBeenCalledWith(
+      expect.objectContaining({ args: [ACCOUNT, [OPERATION, flexed], [0n, 0n]] }),
+    );
   });
 });
