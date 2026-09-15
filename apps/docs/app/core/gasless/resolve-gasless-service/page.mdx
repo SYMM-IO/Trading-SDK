@@ -10,7 +10,7 @@ import { resolveGaslessService } from "@symmio/trading-core";
 const { url, gaslessLayerAddress } = resolveGaslessService(config, { chainId });
 ```
 
-Two conditions must hold: the chain carries a `gasless` block (`SymmioGaslessConfig`), and its `contractsVersion` is `"0.8.6"` — the relayer supports only perps-core deployments, and backward compatibility with older contracts is intentionally unsupported. **Arbitrum (42161) ships a built-in block**, so this is `true` there out of the box; HyperEVM and Base run `"0.8.5"` contracts and resolve `GASLESS_UNSUPPORTED_CONTRACTS_VERSION` even with a block forced onto them. Consumers add the credentials and execution policy with a `createConfig` override (a full example lives on the [gasless overview](/core/gasless)).
+Two conditions must hold: the chain carries a `gasless` block (`SymmioGaslessConfig`), and its `contractsVersion` is `"0.8.6"` — the relayer supports only perps-core deployments, and backward compatibility with older contracts is intentionally unsupported. No chain ships a built-in block, so this is `false` until an override supplies one — Arbitrum (42161) is the only `"0.8.6"` chain; Base runs `"0.8.5"` contracts and resolves `GASLESS_UNSUPPORTED_CONTRACTS_VERSION` even with a block forced onto it. Consumers add the credentials and execution policy with a `createConfig` override (a full example lives on the [gasless overview](/core/gasless)).
 
 <Callout type="warning">
   `apiKey` is a secret. Server-side consumers pass it directly; browser apps must omit it and point `url` at their own

@@ -31,6 +31,11 @@ export function gaslessTestConfig(overrides?: DeepPartial<SymmioGaslessConfig>):
 
   const config = createConfig({
     getClient: () => publicClient,
+    /**
+     * A default chain without a gasless block, so a test that drops `chainId`
+     * throws instead of silently resolving the gasless chain.
+     */
+    defaultChainId: SymmioSupportedChainId.BASE,
     symmioConfig: {
       [GASLESS_TEST_CHAIN]: {
         addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },

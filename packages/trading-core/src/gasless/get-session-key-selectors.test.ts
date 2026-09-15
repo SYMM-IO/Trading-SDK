@@ -13,7 +13,7 @@ import { GASLESS_SESSION_KEY_SELECTORS, GASLESS_SESSION_KEY_WITHDRAW_SELECTORS }
 
 /** The 0.8.6 chain in the registry, and the 0.8.5 one it must not be confused with. */
 const V086_CHAIN = SymmioSupportedChainId.ARBITRUM;
-const V085_CHAIN = SymmioSupportedChainId.HYPER_EVM;
+const V085_CHAIN = SymmioSupportedChainId.BASE;
 
 const GRANT_DELEGATION_SELECTOR = toFunctionSelector(
   instantLayerAbi.find((item) => item.type === "function" && item.name === "grantDelegation") as AbiFunction,

@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     default: "Symmio Trading-SDK",
     template: "%s · Symmio Trading-SDK",
   },
-  description: "The SYMMIO SDK surface for builders — connect, inspect, and trade on HyperEVM.",
+  description: "The SYMMIO SDK surface for builders — connect, inspect, and trade on Arbitrum.",
 };
 
 export default function RootLayout({

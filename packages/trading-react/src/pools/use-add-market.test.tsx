@@ -1,6 +1,6 @@
 import { ListingDepositChainId, ListingMarketStatus, type CreatedPool } from "@symmio/trading-core";
 import { act, waitFor } from "@testing-library/react";
-import { arbitrum, hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
@@ -58,7 +58,7 @@ describe("useAddMarket", () => {
     });
 
     expect(res).toEqual(POOL);
-    expect(mutationFn).toHaveBeenCalledWith({ ...VARIABLES, chainId: hyperEvm.id });
+    expect(mutationFn).toHaveBeenCalledWith({ ...VARIABLES, chainId: arbitrum.id });
   });
 
   it("forwards an explicit chainId override unchanged", async () => {

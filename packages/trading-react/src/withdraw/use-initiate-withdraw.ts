@@ -41,7 +41,7 @@ export type UseInitiateWithdrawReturnType = UseMutationResult<
  * ```tsx
  * import { createClassicWithdrawPart } from "@symmio/trading-core";
  * const { mutate } = useInitiateWithdraw();
- * mutate({ account: "0xsub…", parts: [createClassicWithdrawPart({ id: 0n, amount, receiver, chainId: 999n })] });
+ * mutate({ account: "0xsub…", parts: [createClassicWithdrawPart({ id: 0n, amount, receiver, chainId: 42161n })] });
  * ```
  */
 export function useInitiateWithdraw(parameters: UseInitiateWithdrawParameters = {}): UseInitiateWithdrawReturnType {

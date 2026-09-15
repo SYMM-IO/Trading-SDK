@@ -5,6 +5,7 @@ import type { WebSocketConstructor } from "../../shared/types/websocket";
 import {
   assertSupportedPriceServiceType,
   assertSupportedSolver,
+  listSupportedChains,
   resolveSolver,
   type SolverId,
   type SymmioChainConfig,
@@ -80,8 +81,8 @@ export interface CreateConfigParameters {
    * @example
    * ```ts
    * symmioConfig: {
-   *   [SymmioSupportedChainId.HYPER_EVM]: {
-   *     addresses: { affiliatesAddress: "0xYourHyperEvmAffiliate…" },
+   *   [SymmioSupportedChainId.ARBITRUM]: {
+   *     addresses: { affiliatesAddress: "0xYourArbitrumAffiliate…" },
    *     // optional: subgraphs, solvers, priceService, notifications, muon
    *   },
    * }
@@ -220,13 +221,13 @@ export interface ConfigParameter {
  * ```ts
  * import { createConfig } from "@symmio/trading-core";
  * import { createPublicClient, createWalletClient, http } from "viem";
- * import { hyperEvm } from "viem/chains";
+ * import { arbitrum } from "viem/chains";
  *
- * const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
- * const walletClient = createWalletClient({ account, chain: hyperEvm, transport: http() });
+ * const publicClient = createPublicClient({ chain: arbitrum, transport: http() });
+ * const walletClient = createWalletClient({ account, chain: arbitrum, transport: http() });
  *
  * const config = createConfig({
- *   symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourHyperEvmAffiliate…" } } },
+ *   symmioConfig: { [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: "0xYourArbitrumAffiliate…" } } },
  *   getClient: () => publicClient,
  *   getWalletClient: async () => walletClient,
  * });
@@ -268,7 +269,7 @@ export function createConfig(parameters: CreateConfigParameters): Config {
       );
   }
 
-  const chainIds = Object.keys(chainConfigs).map(Number);
+  const chainIds = listSupportedChains();
   if (chainIds.length === 0)
     throw new SymmError("config", "NO_CHAINS_CONFIGURED", "createConfig: no supported chains are configured.");
   const resolvedDefaultChainId = defaultChainId ?? chainIds[0]!;

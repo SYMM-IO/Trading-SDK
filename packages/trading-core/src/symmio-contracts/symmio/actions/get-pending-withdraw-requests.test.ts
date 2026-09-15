@@ -6,7 +6,7 @@ import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { getPendingWithdrawRequestsAbiV085 } from "../internal/withdraw-requests-v0-8-5";
 import { getPendingWithdrawRequests } from "./get-pending-withdraw-requests";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 /** A decoded v0.8.5 request row — no `advancedAmount`; the action must stamp it. */
@@ -53,8 +53,11 @@ describe("getPendingWithdrawRequests", () => {
     const { config, readContract } = mockConfig();
     readContract.mockResolvedValue([LEGACY_ROW]);
 
-    /** HyperEVM is a `contractsVersion: "0.8.5"` chain. */
-    const result = await getPendingWithdrawRequests(config, { user: SUB_ACCOUNT });
+    /** Base is a `contractsVersion: "0.8.5"` chain. */
+    const result = await getPendingWithdrawRequests(config, {
+      chainId: SymmioSupportedChainId.BASE,
+      user: SUB_ACCOUNT,
+    });
 
     expect(readContract).toHaveBeenCalledWith(expect.objectContaining({ abi: getPendingWithdrawRequestsAbiV085 }));
     expect(result).toEqual([LEGACY_ROW]);

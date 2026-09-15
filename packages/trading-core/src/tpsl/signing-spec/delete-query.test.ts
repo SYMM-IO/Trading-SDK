@@ -10,7 +10,7 @@ import type { TpSlSigningSpec } from "../types";
 import { getTpSlDeleteSigningSpecQueryKey, getTpSlDeleteSigningSpecQueryOptions } from "./delete-query";
 import { getTpSlSigningSpecQueryKey } from "./query";
 
-const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solvers.enigma!.tpsl!;
+const TPSL = getChainConfig(SymmioSupportedChainId.ARBITRUM).solvers.enigma!.tpsl!;
 const DELETE_SPEC_PATH = "/api/v5/signing-spec-del";
 /** The exact axios request config the action builds from the chain's tpsl block. */
 const EXPECTED_REQUEST = {
@@ -24,7 +24,7 @@ const DELETE_SIGNING_SPEC: TpSlSigningSpec = {
   domain: {
     name: "SymmioConditionalOrder",
     version: "1",
-    chainId: SymmioSupportedChainId.HYPER_EVM,
+    chainId: SymmioSupportedChainId.ARBITRUM,
     verifyingContract: TPSL.cohWalletAddress,
   },
   types: {
@@ -46,12 +46,12 @@ function okResponse<T>(data: T): AxiosResponse<T> {
   } as AxiosResponse<T>;
 }
 
-/** A config whose HYPER_EVM tpsl block only overrides `url`, leaving `appName` from the registry. */
+/** A config whose Arbitrum TP/SL block only overrides `url`, leaving `appName` from the registry. */
 function overriddenConfig() {
   return createConfig({
     getClient: () => ({}) as PublicClient,
     symmioConfig: {
-      [SymmioSupportedChainId.HYPER_EVM]: {
+      [SymmioSupportedChainId.ARBITRUM]: {
         addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
         solvers: { enigma: { tpsl: { url: OVERRIDE_URL } } },
       },
@@ -67,7 +67,7 @@ describe("getTpSlDeleteSigningSpecQueryOptions", () => {
   it("is enabled by default", () => {
     const { config } = mockConfig();
     expect(getTpSlDeleteSigningSpecQueryOptions(config).enabled).toBe(true);
-    expect(getTpSlDeleteSigningSpecQueryOptions(config, { chainId: SymmioSupportedChainId.HYPER_EVM }).enabled).toBe(
+    expect(getTpSlDeleteSigningSpecQueryOptions(config, { chainId: SymmioSupportedChainId.ARBITRUM }).enabled).toBe(
       true,
     );
   });
@@ -120,12 +120,12 @@ describe("getTpSlDeleteSigningSpecQueryOptions", () => {
 
   it("builds a stable key", () => {
     const key = getTpSlDeleteSigningSpecQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       configKey: "fingerprint",
     });
     expect(key).toEqual([
       "getTpSlDeleteSigningSpec",
-      { chainId: SymmioSupportedChainId.HYPER_EVM, configKey: "fingerprint" },
+      { chainId: SymmioSupportedChainId.ARBITRUM, configKey: "fingerprint" },
     ]);
   });
 
@@ -133,21 +133,21 @@ describe("getTpSlDeleteSigningSpecQueryOptions", () => {
     const { config } = mockConfig();
 
     const withChain = getTpSlDeleteSigningSpecQueryOptions(config, {
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       query: { staleTime: Infinity },
     }).queryKey;
     const withoutChain = getTpSlDeleteSigningSpecQueryOptions(config).queryKey;
 
     expect(withChain).toEqual([
       "getTpSlDeleteSigningSpec",
-      { chainId: SymmioSupportedChainId.HYPER_EVM, configKey: config.getChainConfigKey() },
+      { chainId: SymmioSupportedChainId.ARBITRUM, configKey: config.getChainConfigKey() },
     ]);
     /** `filterQueryOptions` strips `undefined`, so an omitted chainId leaves no key entry at all. */
     expect(withoutChain).toEqual(["getTpSlDeleteSigningSpec", { configKey: config.getChainConfigKey() }]);
   });
 
   it("never collides with the POST-spec key", () => {
-    const parameters = { chainId: SymmioSupportedChainId.HYPER_EVM, configKey: "fingerprint" };
+    const parameters = { chainId: SymmioSupportedChainId.ARBITRUM, configKey: "fingerprint" };
 
     expect(getTpSlDeleteSigningSpecQueryKey(parameters)[0]).toBe("getTpSlDeleteSigningSpec");
     expect(getTpSlDeleteSigningSpecQueryKey(parameters)).not.toEqual(getTpSlSigningSpecQueryKey(parameters));

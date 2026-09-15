@@ -60,7 +60,7 @@ export function ReadRevenueRecordsCard() {
 
       {active ? null : (
         <ResultNote testId="result-getRevenueRecords-inactive">
-          Switch to the Enigma chain (HyperEVM) to call this endpoint.
+          Switch to the Enigma chain (Arbitrum) to call this endpoint.
         </ResultNote>
       )}
 

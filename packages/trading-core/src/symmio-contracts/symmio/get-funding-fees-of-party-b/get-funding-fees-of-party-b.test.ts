@@ -8,7 +8,7 @@ import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { getFundingFeesOfPartyB } from "./get-funding-fees-of-party-b";
 import type { FundingFee } from "./types";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const ARBITRUM = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const PARTY_B: Address = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 

@@ -2,9 +2,9 @@ import { Callout } from "nextra/components";
 
 # Rasa Solver Hooks
 
-The `rasa` solver kind (majors, cross-margin, no Virtual Accounts) exposes a handful of REST endpoints the `enigma` kind does not: solver-side balance info, partyA uPnL, global open interest, a symbol's acceptable price range, single error-code lookup, and a whitelist check/add. These hooks wrap those rasa-only endpoints. (Notification history search is **not** on this page — it is the unified [`useSearchNotifications`](/react/notifications#usesearchnotifications), which dispatches to the rasa solver's position-state endpoint for a rasa solver.)
+The `rasa` solver kind (majors, cross-margin, no Virtual Accounts) exposes a handful of REST endpoints the `enigma` kind does not: solver-side balance info, partyA uPnL, global open interest, a symbol's acceptable price range, and single error-code lookup. These hooks wrap those rasa-only endpoints. (Notification history search is **not** on this page — it is the unified [`useSearchNotifications`](/react/notifications#usesearchnotifications), which dispatches to the rasa solver's position-state endpoint for a rasa solver.)
 
-Every hook resolves its target solver from config — the chain's default solver, or the one you name with `solverId`. When the resolved solver is **not** a rasa solver, the hook surfaces a typed `UNSUPPORTED_BY_SOLVER` error. It is a core `SymmError` code; `@symmio/trading-react` normalizes it to `SymmioRequestError` with `kind: "sdk"` like every other hook failure, so a query returns it as `query.error` and a mutation rejects with it. Guard on the message or the code, not on `kind`.
+Every hook resolves its target solver from config — the chain's default solver, or the one you name with `solverId`. When the resolved solver is **not** a rasa solver, the hook surfaces a typed `UNSUPPORTED_BY_SOLVER` error. It is a core `SymmError` code; `@symmio/trading-react` normalizes it to `SymmioRequestError` with `kind: "sdk"` like every other hook failure, so a query returns it as `query.error`. Guard on the message or the code, not on `kind`.
 
 <Callout type="warning">
   These endpoints exist **only on a rasa-configured chain** (majors — Base, chain `8453`). On any other chain — or when
@@ -18,7 +18,6 @@ All params objects also accept the standard hook mixins: an optional `chainId` (
 ```ts
 import {
   useSolverReadiness,
-  useAddSolverWhitelist,
   useSolverBalanceInfo,
   usePartyAUpnl,
   useSolverOpenInterest,
@@ -28,9 +27,9 @@ import {
 import type { SolverId } from "@symmio/trading-core";
 ```
 
-## Readiness & whitelist gate
+## Readiness
 
-Reach for these before you drive a rasa flow: confirm the solver is up, and register an address on its whitelist when the solver requires it.
+Reach for this before you drive a rasa flow: confirm the solver is up.
 
 ### `useSolverReadiness`
 
@@ -54,31 +53,6 @@ function SolverStatus() {
 | `query`    | object     | no       | TanStack Query overrides (`enabled`, `refetchInterval`…). |
 
 Returns `UseQueryResult<{ isReady: boolean }, SymmioRequestError>`.
-
-### `useAddSolverWhitelist`
-
-Add an address to the solver's whitelist through the rasa-only `/add-sub-address-in-whitelist` endpoint. **This is the one mutation on this page** — it changes solver-side state, so it is a `useMutation`, not a query. Pass the address at call time via `mutate`.
-
-```tsx
-import { useAddSolverWhitelist } from "@symmio/trading-react";
-import type { Address } from "viem";
-
-function WhitelistButton({ subAccount }: { subAccount: Address }) {
-  const { mutate, isPending, error } = useAddSolverWhitelist();
-  return (
-    <>
-      <button disabled={isPending} onClick={() => mutate({ address: subAccount })}>
-        Whitelist
-      </button>
-      {error ? <p>{error.message}</p> : null}
-    </>
-  );
-}
-```
-
-The mutation variables are `{ address: Address; multiAccountAddress?: Address; chainId?: number; solverId?: SolverId }` — `multiAccountAddress` defaults to the chain's `accountLayerAddress`, and `chainId` falls back to the connected chain. The hook itself takes only the optional `config` override.
-
-Returns `UseMutationResult<{ successful: boolean; message?: string | null }, SymmioRequestError, variables>`.
 
 ## Reads
 

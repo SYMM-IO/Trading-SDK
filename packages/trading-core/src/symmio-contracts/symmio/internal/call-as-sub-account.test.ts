@@ -11,7 +11,7 @@ vi.mock("../../../gasless/dispatch/maybe-relay-as-gasless", () => ({
   maybeRelayAsGasless: vi.fn(),
 }));
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 /** The sub-account's owner EOA — the only signer `AccountLayer._call` accepts. */
 const OWNER: Address = TEST_USER;
@@ -35,12 +35,12 @@ function buildConfig(options?: { owner?: Address; isExists?: boolean }) {
   const publicClient = { readContract, simulateContract } as unknown as PublicClient;
 
   const config = createConfig({
-    symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } } },
+    symmioConfig: { [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } } },
     getClient: () => publicClient,
     getWalletClient: async ({ from }) =>
       ({
         account: { address: from ?? OWNER, type: "json-rpc" } as Account,
-        chain: { id: SymmioSupportedChainId.HYPER_EVM } as Chain,
+        chain: { id: SymmioSupportedChainId.ARBITRUM } as Chain,
         writeContract,
       }) as unknown as SymmioWalletClient,
   });

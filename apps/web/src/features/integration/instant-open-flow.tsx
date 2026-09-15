@@ -63,7 +63,7 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
   const sessionKey = sessionKeyAddress ?? undefined;
 
   // ---- Solver: which of the chain's solvers the open targets. One per chain
-  // today (HyperEVM → enigma, Base → rasa); the picker makes the target visible
+  // today (Arbitrum → enigma, Base → rasa); the picker makes the target visible
   // and future-proofs multi-solver chains. Reset on chain switch. ----
   const solverIds = config.listSolverIds(chainId);
   const [solverId, setSolverId] = useState<SolverId>(() => config.getDefaultSolverId(chainId));

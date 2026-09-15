@@ -5,7 +5,7 @@ import { SymmioSupportedChainId } from "../chains/supported-chains";
 import { createConfig } from "./create-config";
 
 const AFFILIATE = "0x000000000000000000000000000000000000aFF1";
-const CHAIN = SymmioSupportedChainId.HYPER_EVM;
+const CHAIN = SymmioSupportedChainId.ARBITRUM;
 
 function build(priceService: Record<string, unknown>) {
   return createConfig({
@@ -205,27 +205,27 @@ describe("mergeChainConfig — contractsVersion", () => {
   it("inherits the built-in version when no override is supplied", () => {
     const config = createConfig({
       getClient: () => ({}) as PublicClient,
-      symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: AFFILIATE } } },
+      symmioConfig: { [SymmioSupportedChainId.BASE]: { addresses: { affiliatesAddress: AFFILIATE } } },
     });
 
-    expect(config.getChainConfig(SymmioSupportedChainId.HYPER_EVM).contractsVersion).toBe("0.8.5");
+    expect(config.getChainConfig(SymmioSupportedChainId.BASE).contractsVersion).toBe("0.8.5");
   });
 
   it("lets an override restate the version — every version-branched seam follows it", () => {
     const config = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: AFFILIATE }, contractsVersion: "0.8.6" },
+        [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, contractsVersion: "0.8.6" },
       },
     });
 
-    expect(config.getChainConfig(SymmioSupportedChainId.HYPER_EVM).contractsVersion).toBe("0.8.6");
+    expect(config.getChainConfig(SymmioSupportedChainId.ARBITRUM).contractsVersion).toBe("0.8.6");
   });
 });
 
 describe("mergeChainConfig — gasless", () => {
   const ARBITRUM = SymmioSupportedChainId.ARBITRUM;
-  /** The only chain with a built-in gasless block; every other chain is base-less. */
+  /** No chain in the registry ships a built-in gasless block. */
   const BASE_LESS = SymmioSupportedChainId.BASE;
   const GASLESS = {
     url: "https://gaslessq.symmio.foundation",
@@ -242,26 +242,24 @@ describe("mergeChainConfig — gasless", () => {
     expect("gasless" in config.getChainConfig(BASE_LESS)).toBe(false);
   });
 
-  it("merges a partial override onto the built-in block instead of demanding a complete one", () => {
+  it("keeps the key absent on Arbitrum too when nothing configures the service", () => {
     const config = createConfig({
       getClient: () => ({}) as PublicClient,
-      symmioConfig: {
-        [ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { url: "/api/gasless" } },
-      },
+      symmioConfig: { [ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE } } },
     });
 
-    /**
-     * The inheritance is the cross-wire vector worth pinning down: repointing
-     * `url` at a proxy silently keeps the built-in GaslessLayer, so a proxy
-     * aimed at a different deployment pairs one deployment's gateway with the
-     * other's contracts.
-     */
-    expect(config.getChainConfig(ARBITRUM).gasless).toEqual({
-      url: "/api/gasless",
-      protocolInstance: "arbitrum-42161-vibe-stage",
-      gaslessLayerAddress: "0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca",
-      apiKey: undefined,
-    });
+    expect("gasless" in config.getChainConfig(ARBITRUM)).toBe(false);
+  });
+
+  it("throws GASLESS_OVERRIDE_INCOMPLETE for a partial Arbitrum override — there is no built-in block to inherit", () => {
+    expect(() =>
+      createConfig({
+        getClient: () => ({}) as PublicClient,
+        symmioConfig: {
+          [ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { url: "/api/gasless" } },
+        },
+      }),
+    ).toThrowError(/GASLESS_OVERRIDE_INCOMPLETE|gaslessLayerAddress/);
   });
 
   it("accepts a complete base-less override", () => {

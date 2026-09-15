@@ -40,11 +40,6 @@ describe("useSupportsGaslessService", () => {
   it("reports false for a chain with no gasless block, instead of throwing", () => {
     const config = buildConfig(false);
 
-    /**
-     * Base, not Arbitrum: Arbitrum ships a built-in gasless block, so an
-     * override-free config is `true` there and the false branch is only
-     * reachable through a chain that carries no block at all.
-     */
     const { result } = renderHookWithProviders(() =>
       useSupportsGaslessService({ config, chainId: SymmioSupportedChainId.BASE }),
     );
@@ -52,21 +47,21 @@ describe("useSupportsGaslessService", () => {
     expect(result.current).toBe(false);
   });
 
-  it("reports true for Arbitrum with no override — the registry ships its block", () => {
+  it("reports false for Arbitrum with no override — the registry ships no gasless block", () => {
     const config = buildConfig(false);
 
     const { result } = renderHookWithProviders(() =>
       useSupportsGaslessService({ config, chainId: SymmioSupportedChainId.ARBITRUM }),
     );
 
-    expect(result.current).toBe(true);
+    expect(result.current).toBe(false);
   });
 
   it("reports false on a 0.8.5 chain even if a gasless block is forced onto it", () => {
     const config = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.BASE]: {
           addresses: { affiliatesAddress: AFFILIATE },
           gasless: {
             url: "https://gaslessq.symmio.foundation",
@@ -77,7 +72,7 @@ describe("useSupportsGaslessService", () => {
     });
 
     const { result } = renderHookWithProviders(() =>
-      useSupportsGaslessService({ config, chainId: SymmioSupportedChainId.HYPER_EVM }),
+      useSupportsGaslessService({ config, chainId: SymmioSupportedChainId.BASE }),
     );
 
     expect(result.current).toBe(false);

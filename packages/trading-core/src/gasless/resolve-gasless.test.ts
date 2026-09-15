@@ -27,25 +27,18 @@ describe("resolveGaslessService", () => {
     const config = buildConfig();
 
     /**
-     * Base, not Arbitrum: Arbitrum ships a built-in block, so the not-configured
-     * branch is only reachable through a chain that has none. The block check
-     * runs before the contracts-version gate, so a 0.8.5 chain lands here too.
+     * The registry ships no built-in gasless block, so a 0.8.6 chain without an
+     * override lands here too. The block check runs before the contracts-version
+     * gate, so a 0.8.5 chain does as well.
      */
-    expect(() => resolveGaslessService(config, { chainId: SymmioSupportedChainId.BASE })).toThrowError(SymmError);
-    try {
-      resolveGaslessService(config, { chainId: SymmioSupportedChainId.BASE });
-    } catch (err) {
-      expect((err as SymmError).code).toBe("GASLESS_NOT_CONFIGURED");
+    for (const chainId of [SymmioSupportedChainId.ARBITRUM, SymmioSupportedChainId.BASE]) {
+      expect(() => resolveGaslessService(config, { chainId })).toThrowError(SymmError);
+      try {
+        resolveGaslessService(config, { chainId });
+      } catch (err) {
+        expect((err as SymmError).code).toBe("GASLESS_NOT_CONFIGURED");
+      }
     }
-  });
-
-  it("returns Arbitrum's built-in staging block with no override at all", () => {
-    const config = buildConfig();
-
-    const resolved = resolveGaslessService(config, { chainId: SymmioSupportedChainId.ARBITRUM });
-    expect(resolved.url).toBe("https://gaslessq-staging.symmio.foundation");
-    expect(resolved.protocolInstance).toBe("arbitrum-42161-vibe-stage");
-    expect(resolved.gaslessLayerAddress).toBe("0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca");
   });
 
   it("returns the chain's gasless block on a perps-core chain", () => {
@@ -60,11 +53,11 @@ describe("resolveGaslessService", () => {
 
   it("throws GASLESS_UNSUPPORTED_CONTRACTS_VERSION on a 0.8.5 chain even with a gasless block", () => {
     const config = buildConfig({
-      [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { ...GASLESS } },
+      [SymmioSupportedChainId.BASE]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { ...GASLESS } },
     });
 
     try {
-      resolveGaslessService(config, { chainId: SymmioSupportedChainId.HYPER_EVM });
+      resolveGaslessService(config, { chainId: SymmioSupportedChainId.BASE });
       expect.unreachable("expected resolveGaslessService to throw");
     } catch (err) {
       expect((err as SymmError).code).toBe("GASLESS_UNSUPPORTED_CONTRACTS_VERSION");
@@ -77,8 +70,8 @@ describe("supportsGaslessService", () => {
     const bare = buildConfig();
     expect(supportsGaslessService(bare, { chainId: SymmioSupportedChainId.BASE })).toBe(false);
 
-    /** Arbitrum needs no override — the registry ships its block. */
-    expect(supportsGaslessService(bare, { chainId: SymmioSupportedChainId.ARBITRUM })).toBe(true);
+    /** The registry ships no built-in block, so Arbitrum needs an override too. */
+    expect(supportsGaslessService(bare, { chainId: SymmioSupportedChainId.ARBITRUM })).toBe(false);
 
     const configured = buildConfig({
       [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { ...GASLESS } },

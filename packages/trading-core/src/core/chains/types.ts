@@ -164,7 +164,7 @@ export interface SymmioTpSlConfig {
   url: string;
   /** Handler WebSocket URL — enigma-protocol notifications scoped by `appName`. */
   wsUrl: string;
-  /** `App-Name` header value, e.g. `Hyper-EVM_COH-Low-Cap_Production`. */
+  /** `App-Name` header value, e.g. `Arbitrum_COH_Production`. */
   appName: string;
   /** COH wallet address that must be granted delegation to execute TP/SL orders. */
   cohWalletAddress: Address;
@@ -298,7 +298,7 @@ export interface SymmioMuonConfig {
  * — the pool catalogue, per-pool stats, a user's stake/rewards, and the
  * create/deposit/withdraw/claim actions. It is chain-level: one listing backend
  * is served per chain (a chain has at most one), with no solver or capability
- * involved. Present only where Pools is available (Enigma on HyperEVM); omitted
+ * involved. Present only where Pools is available (Enigma on Arbitrum); omitted
  * elsewhere.
  *
  * One deployment serves listings whose collateral was deposited on **several**
@@ -482,7 +482,7 @@ export interface SymmioChainConfig {
   muon: SymmioMuonConfig;
   /**
    * Optional Pools listing backend, served per chain. Set on chains where the
-   * lowcap Pools flow is available (Enigma on HyperEVM); omitted elsewhere.
+   * lowcap Pools flow is available (Enigma on Arbitrum); omitted elsewhere.
    * Resolve it with `resolveListingService` / gate on `supportsListingService`.
    */
   listing?: SymmioListingConfig;

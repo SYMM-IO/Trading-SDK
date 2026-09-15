@@ -25,7 +25,7 @@ vi.mock("../symmio-contracts/account-layer/actions/predict-next-virtual-account"
   getPredictedNextVirtualAccount,
 }));
 
-const CHAIN_ID = SymmioSupportedChainId.HYPER_EVM;
+const CHAIN_ID = SymmioSupportedChainId.ARBITRUM;
 const SUB = "0x00000000000000000000000000000000000000a1" as Address;
 const VA1 = "0x00000000000000000000000000000000000000b1" as Address;
 const VA2 = "0x00000000000000000000000000000000000000b2" as Address;
@@ -38,7 +38,11 @@ const EXTRA = "0x00000000000000000000000000000000000000d1" as Address;
 /** Stub config — both reads are mocked, so the client is never touched. */
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 /**

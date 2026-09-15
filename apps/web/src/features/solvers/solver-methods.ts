@@ -53,10 +53,4 @@ export const SOLVER_METHODS: readonly SolverMethodMeta[] = [
   { id: "method-searchNotifications", method: "searchNotifications", action: "useSearchNotifications", kind: "read" },
   { id: "method-enigma-instant-open", method: "instantOpen", action: "useInstantOpen", kind: "write" },
   { id: "method-enigma-instant-close", method: "instantClose", action: "useInstantClose", kind: "write" },
-  {
-    id: "method-rasa-whitelist",
-    method: "addSolverWhitelist",
-    action: "useAddSolverWhitelist",
-    kind: "write",
-  },
 ];

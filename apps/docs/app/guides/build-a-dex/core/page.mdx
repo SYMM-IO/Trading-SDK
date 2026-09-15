@@ -11,7 +11,7 @@ This guide builds the same perps DEX as [Build a Perps DEX (React)](/guides/buil
 
 <Callout type="info">
   **Serves both products.** Every action takes an optional `solverId` and defaults to the chain's solver — `enigma`
-  (lowcap / HyperEVM) or `rasa` (majors / Base). For majors, price off Binance with `watchPrices` / `watchBinancePrices`
+  (lowcap / Arbitrum) or `rasa` (majors / Base). For majors, price off Binance with `watchPrices` / `watchBinancePrices`
   instead of `watchEnigmaPrices`, skip the Virtual-Account leg (cross-margin, `SubAccountIsolationType.CUSTOM`), and use
   the rasa-only reads (`getPartyAUpnl`, …). See [Solvers & Chains](/core/concepts/solvers-and-chains).
 </Callout>
@@ -55,7 +55,7 @@ your state / query layer          ← you build (cache, stores, WS wiring)
 contracts + hedger + handler + WebSocket feeds
 ```
 
-Two chains ship today — **HyperEVM (`999`, lowcap/enigma)** and **Base (`8453`, majors/rasa)**, as `SymmioSupportedChainId.HYPER_EVM` / `.BASE`. Frame chain-gating as "on the **target** chain": the chain of the product you're building. `chainId` is optional on every action and falls back to `config.defaultChainId`; pass it (and gate the wallet against it) when your app serves a specific chain.
+Two chains ship today — **Arbitrum (`42161`, lowcap/enigma)** and **Base (`8453`, majors/rasa)**, as `SymmioSupportedChainId.ARBITRUM` / `.BASE`. Frame chain-gating as "on the **target** chain": the chain of the product you're building. `chainId` is optional on every action and falls back to `config.defaultChainId`; pass it (and gate the wallet against it) when your app serves a specific chain.
 
 ### The parts and their core exports
 
@@ -110,13 +110,13 @@ pnpm add @symmio/trading-core viem
 
 ```ts
 const publicClient = createPublicClient({
-  transport: http("https://rpc.hyperliquid.xyz/evm"), // HyperEVM (chainId 999)
+  transport: http("https://arb1.arbitrum.io/rpc"), // Arbitrum (chainId 42161)
 }) as PublicClient;
 
 const config = createConfig({
   // per-chain overrides deep-merged onto built-in defaults; keyed by chainId
   symmioConfig: {
-    [SymmioSupportedChainId.HYPER_EVM]: {
+    [SymmioSupportedChainId.ARBITRUM]: {
       addresses: {
         // required field — `zeroAddress` works out of the box (no fee share);
         // a registered affiliate earns fees. See the warning below.
@@ -124,7 +124,7 @@ const config = createConfig({
       },
     },
   },
-  defaultChainId: SymmioSupportedChainId.HYPER_EVM,
+  defaultChainId: SymmioSupportedChainId.ARBITRUM,
   // (parameters?: { chainId? }) => PublicClient — required
   getClient: () => publicClient,
   // omit for a read-only config; required before any doX / sign flow
@@ -135,7 +135,7 @@ const config = createConfig({
 The full `CreateConfigParameters` surface:
 
 - **`symmioConfig: Partial<Record<number, SymmioChainConfigInput>>`** — **required**. Per-chain overrides deep-merged onto the built-in defaults, keyed by chainId. Each entry's `addresses.affiliatesAddress` is mandatory (the field must be present; the zero address is accepted — see the warning below).
-- **`getClient: (parameters?: { chainId? }) => PublicClient`** — **required**. Returns a viem `PublicClient` bound to a HyperEVM transport. Every read (`getX`) resolves its client through this.
+- **`getClient: (parameters?: { chainId? }) => PublicClient`** — **required**. Returns a viem `PublicClient` bound to a Arbitrum transport. Every read (`getX`) resolves its client through this.
 - **`getWalletClient?: (parameters: { chainId; from? }) => Promise<SymmioWalletClient>`** — optional. Returns a `SymmioWalletClient` (`WalletClient<Transport, Chain, Account>`). Omit it for a read-only config; every write (`doX`) and sign flow resolves its wallet through this.
 - **`defaultChainId?: number`** — falls back to the first configured chain. Every action's optional `chainId` param falls back to this.
 - **`simulateBeforeWrite?: boolean`** — default `true`. Dry-runs every contract write through its `simulate*` sibling before broadcasting.
@@ -160,9 +160,9 @@ The full `CreateConfigParameters` surface:
   throws `NO_WEBSOCKET` if a stream needs a socket and none is available.
 </Callout>
 
-### Two chains: HyperEVM (lowcap) and Base (majors)
+### Two chains: Arbitrum (lowcap) and Base (majors)
 
-Two chains ship: **HyperEVM (`999`)** for lowcap/enigma and **Base (`8453`)** for majors/rasa (`SymmioSupportedChainId.HYPER_EVM` / `.BASE`). Every action's `chainId` param is optional and falls back to `config.defaultChainId`. Pick a **target** chain from the product you're building, gate the wallet on `chainId === targetChainId`, and — when it differs — prompt the wallet to switch to that exact id.
+Two chains ship: **Arbitrum (`42161`)** for lowcap/enigma and **Base (`8453`)** for majors/rasa (`SymmioSupportedChainId.ARBITRUM` / `.BASE`). Every action's `chainId` param is optional and falls back to `config.defaultChainId`. Pick a **target** chain from the product you're building, gate the wallet on `chainId === targetChainId`, and — when it differs — prompt the wallet to switch to that exact id.
 
 <Callout type="info">
   **`config` is immutable — create it once and hold it.** Do not rebuild it per render or per request.
@@ -339,7 +339,7 @@ A perps DEX is a **one-CTA-at-a-time** funnel: each rung of the ladder gates eve
 
 ```
 Connect wallet          ← your wallet lib, then config.getWalletClient({ chainId, from }) resolves
-On target chain          ← chainId === targetChainId (999 lowcap / 8453 majors)
+On target chain          ← chainId === targetChainId (42161 lowcap / 8453 majors)
 Select SubAccount        ← getUserSubAccounts(config, { user }).length > 0
 Deposit collateral       ← getAccountBalanceOf(config, { account }) > 0n
 Initialize session key   ← your session-key keypair (you own this)
@@ -363,7 +363,7 @@ async function resolveGate(config, ctx) {
   // rung 1 — wallet connected (your wallet lib owns this)
   if (!ctx.address) return "connect-wallet";
 
-  // rung 2 — on the target chain (the product's chain: 999 lowcap / 8453 majors)
+  // rung 2 — on the target chain (the product's chain: 42161 lowcap / 8453 majors)
   if (ctx.chainId !== ctx.targetChainId) return "wrong-chain";
 
   // rung 3 — has a SubAccount
@@ -404,9 +404,9 @@ async function resolveGate(config, ctx) {
 
 <Callout type="warning">
   **Gate the chain rung on the _target_ chain — the product's chain, not "any supported chain."** Two chains ship
-  (`SymmioSupportedChainId.HYPER_EVM` = `999` lowcap, `.BASE` = `8453` majors). Pick the target from the product you're
+  (`SymmioSupportedChainId.ARBITRUM` = `42161` lowcap, `.BASE` = `8453` majors). Pick the target from the product you're
   building, compare the wallet's `chainId` against it, and — when it differs — prompt a switch to that **exact** id (a
-  wallet on HyperEVM is still "wrong chain" for a majors/Base DEX).
+  wallet on Arbitrum is still "wrong chain" for a majors/Base DEX).
 </Callout>
 
 <Callout type="warning">
@@ -419,7 +419,7 @@ async function resolveGate(config, ctx) {
 Two rungs are worth calling out because they have no dedicated read of their own:
 
 - **Session key** — the keypair is yours to generate and persist; core does not manage it. The gate is simply "does a session key exist and is it usable."
-- **On expected chain** — there is no core call; you compare the wallet's `chainId` against `SymmioSupportedChainId.HYPER_EVM`. Writes resolve `config.getWalletClient({ chainId, from })`, so a wrong-chain wallet must make that resolver throw rather than silently sign against the wrong contract.
+- **On expected chain** — there is no core call; you compare the wallet's `chainId` against `SymmioSupportedChainId.ARBITRUM`. Writes resolve `config.getWalletClient({ chainId, from })`, so a wrong-chain wallet must make that resolver throw rather than silently sign against the wrong contract.
 
 Every other rung is a single read: [`getUserSubAccounts`](/core/account-layer/get-user-sub-accounts), [`getAccountBalanceOf`](/core/account-layer/get-account-balance-of), and [`getIsDelegationActive`](/core/instant-layer/get-is-delegation-active). Wire each into your query layer with its `getXQueryOptions` factory (see [The data & state layer you build](#data-layer)) so the ladder re-evaluates automatically as each precondition is satisfied.
 
@@ -436,19 +436,19 @@ let connectedChainId: number | undefined;
 
 const config = createConfig({
   symmioConfig: {
-    [SymmioSupportedChainId.HYPER_EVM]: {
+    [SymmioSupportedChainId.ARBITRUM]: {
       addresses: { affiliatesAddress: zeroAddress }, // zeroAddress OK — register to earn fees (see Setup)
     },
   },
-  defaultChainId: SymmioSupportedChainId.HYPER_EVM,
-  getClient: ({ chainId } = {}) => createPublicClient({ transport: http(/* HyperEVM RPC */) }),
+  defaultChainId: SymmioSupportedChainId.ARBITRUM,
+  getClient: ({ chainId } = {}) => createPublicClient({ transport: http(/* Arbitrum RPC */) }),
   getWalletClient: async ({ chainId, from }) => {
     // Fail fast: no connection, or wrong chain, means no signer.
     if (!connectedAddress) throw new Error("wallet not connected");
     if (connectedChainId !== chainId) throw new Error("wallet on wrong chain");
     return createWalletClient({
       account: from ?? connectedAddress,
-      chain: /* HyperEVM viem chain */ undefined,
+      chain: /* Arbitrum viem chain */ undefined,
       transport: custom((window as any).ethereum),
     });
   },
@@ -457,14 +457,14 @@ const config = createConfig({
 
 ### The chain gate
 
-Two chains ship — HyperEVM (`999`, lowcap) and Base (`8453`, majors). Pick the **target** chain from the product you're building; the gate is a plain comparison against your tracked chain id — there is no core read for it:
+Two chains ship — Arbitrum (`42161`, lowcap) and Base (`8453`, majors). Pick the **target** chain from the product you're building; the gate is a plain comparison against your tracked chain id — there is no core read for it:
 
 ```ts
-const targetChainId = isMajors ? SymmioSupportedChainId.BASE : SymmioSupportedChainId.HYPER_EVM;
+const targetChainId = isMajors ? SymmioSupportedChainId.BASE : SymmioSupportedChainId.ARBITRUM;
 const onExpectedChain = connectedChainId === targetChainId;
 ```
 
-When `onExpectedChain` is false, hide everything below this rung in the gate ladder and **prompt the wallet to switch to `targetChainId`** — a wallet on HyperEVM is still wrong for a majors/Base DEX, so gate on the target chain, not "any supported chain."
+When `onExpectedChain` is false, hide everything below this rung in the gate ladder and **prompt the wallet to switch to `targetChainId`** — a wallet on Arbitrum is still wrong for a majors/Base DEX, so gate on the target chain, not "any supported chain."
 
 <Callout type="warning">
   **Writes resolve `config.getWalletClient({ chainId, from })` at call time.** If the wallet is disconnected or on the wrong chain, your resolver must **throw** so the write fails fast — before any payload is signed. Do not silently fall back to a client on the wrong chain: signing against the wrong contract address wastes the user's signature and can produce a request the solver rejects. A config created *without* a `getWalletClient` resolver throws `SymmError("config", "NO_WALLET_CLIENT")` on the first write attempt, so read-only configs stay safe.
@@ -574,11 +574,11 @@ Once the user has picked a SubAccount, hold its `accountAddress`: it is the `acc
 
 ## 3. Collateral: deposit & withdraw
 
-On HyperEVM you fund a subaccount with a single deposit, and withdraw with a single request plus a cooldown. Deposited collateral is directly tradeable — you do **not** allocate it into a separate pool first.
+On Arbitrum you fund a subaccount with a single deposit, and withdraw with a single request plus a cooldown. Deposited collateral is directly tradeable — you do **not** allocate it into a separate pool first.
 
 <Callout type="info">
   **The classic allocate / deallocate pool flow is not supported in `@symmio/trading-core` in this version — it is
-  planned for a later release.** On HyperEVM, deposit straight to the subaccount with `depositForAccount` and withdraw
+  planned for a later release.** On Arbitrum, deposit straight to the subaccount with `depositForAccount` and withdraw
   with `initiateWithdraw`. Do not reach for `allocate` / `deallocate` (or the manual virtual-account margin ops
   `addMargin` / `removeMargin`) — those belong to the classic pool model this guide does not cover yet.
 </Callout>
@@ -605,7 +605,7 @@ async function deposit(config, { owner, account, amount }) {
     // wait for the receipt before depositing (viem waitForTransactionReceipt)
   }
 
-  // credits the subaccount — directly tradeable on HyperEVM
+  // credits the subaccount — directly tradeable on Arbitrum
   await depositForAccount(config, { account, amount });
 }
 ```
@@ -653,7 +653,7 @@ async function withdraw(config, { account, receiver, amount /* collateral units 
     id: 0n,
     amount,
     receiver,
-    chainId: 999n, // HyperEVM
+    chainId: 42161n, // Arbitrum
   });
   await initiateWithdraw(config, { account, parts: [part] });
 

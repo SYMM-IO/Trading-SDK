@@ -15,7 +15,7 @@ test.describe("/inspector/account-layer · reads", () => {
   test("loads the Inspector shell and renders the wallet panel", async ({ page }) => {
     await page.goto("/inspector/account-layer");
     await expect(page.getByTestId("wallet-panel")).toBeVisible();
-    await expect(page.getByRole("heading", { name: /AccountLayer · HyperEVM/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /AccountLayer · Arbitrum/i })).toBeVisible();
   });
 
   test("auto-connects the mock connector in E2E mode", async ({ page }) => {
@@ -35,7 +35,7 @@ test.describe("/inspector/account-layer · reads", () => {
     await expect(page.getByTestId("wallet-address")).not.toHaveText("Not connected", { timeout: 10_000 });
   });
 
-  test("runs getUserSubAccounts against real Hyperliquid RPC and renders a result", async ({ page }) => {
+  test("runs getUserSubAccounts against real Arbitrum RPC and renders a result", async ({ page }) => {
     await page.goto("/inspector/account-layer");
 
     await connectMockWallet(page);

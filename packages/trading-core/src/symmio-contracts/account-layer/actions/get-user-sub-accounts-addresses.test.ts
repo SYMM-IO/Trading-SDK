@@ -3,7 +3,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig, TEST_USER } from "../../../shared/test/mock-config";
 import { getUserSubAccountsAddresses } from "./get-user-sub-accounts-addresses";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 describe("getUserSubAccountsAddresses", () => {
   it("reads from the AccountLayer with default pagination", async () => {

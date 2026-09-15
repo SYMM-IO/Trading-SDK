@@ -7,78 +7,6 @@ import type { SymmioChainConfig } from "./types";
  * @internal
  */
 export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
-  [SymmioSupportedChainId.HYPER_EVM]: {
-    chainId: SymmioSupportedChainId.HYPER_EVM,
-    contractsVersion: "0.8.5",
-    addresses: {
-      symmioAddress: "0x57331038c21982116EE9b0906E4a5c5cB52dcE2e",
-      instantLayerAddress: "0x72DBF07457b2712b160F67A85D338F860c1CA620",
-      accountLayerAddress: "0x46493c376758Da47823D7E3Ae5d417eA6546eEB3",
-      affiliatesAddress: "0xBcB033C9154401fA000a1Ae60843f79f45741b7c",
-      collateralAddress: "0xb88339CB7199b77E23DB6E890353E22632Ba630f",
-      collateralDecimals: 6,
-    },
-    subgraphs: {
-      analytics:
-        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_mainnet_analytics/latest/gn",
-      events:
-        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/hyperevm_mainnet_events/latest/gn",
-    },
-    solvers: {
-      enigma: {
-        name: "Enigma",
-        address: "0x76bc5889c0cfcC20960b0D81F541595d81a95122",
-        url: "https://solver.enigma.bz/api",
-        tpsl: {
-          url: "https://conditional-orders-handler-lowcap85.rasa.capital",
-          wsUrl: "wss://notification.rasa.capital/ws/v1/subscribe",
-          appName: "Hyper-EVM_COH-Low-Cap_Production",
-          cohWalletAddress: "0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31",
-        },
-        notifications: {
-          url: "wss://notification.rasa.capital/ws/v1/subscribe",
-          channel: "Hyper-EVM_Solver-Low-Cap_Production",
-          protocol: "enigma",
-          // Same host as the WebSocket stream; the REST search API is served under
-          // the `/notification` prefix (OpenAPI `servers[0].url`).
-          searchUrl: "https://notification.rasa.capital/notification",
-        },
-        // VA-per-market/side isolation supports folding a group into one close.
-        // `listingService`: declares this solver does the lowcap Pools/listing —
-        // declarative only; the listing functions resolve the backend at chain level.
-        capabilities: { groupClose: true, listingService: true },
-      },
-    },
-    defaultSolverId: "enigma",
-    priceService: {
-      type: "enigma",
-      url: "https://lowcap-price.enigma.bz",
-      wsUrl: "wss://lowcap-price.enigma.bz/ws",
-    },
-    muon: {
-      // Muon oracle gateways (https://docs.symm.io/api-endpoints-and-deployments/muon-api),
-      // tried in order until one returns a successful attestation.
-      urls: [
-        "https://muon-oracle1.rasa.capital/v1/",
-        "https://muon-oracle2.rasa.capital/v1/",
-        "https://muon-oracle3.rasa.capital/v1/",
-        "https://muon-oracle4.rasa.capital/v1/",
-      ],
-    },
-    listing: {
-      // Pools listing backend. Host root only — the generated client's paths
-      // already carry `/v2`, so a versioned base would 404.
-      // Staging: https://listing-staging.enigma.bz
-      url: "https://listing85.enigma.bz",
-    },
-    inventory: {
-      // Custody backend behind the Pools; source of system-wide TVL. Host root
-      // only — the generated client's paths already carry `/api/v1`.
-      // Staging: https://inventory-staging.enigma.bz
-      url: "https://inventory85.enigma.bz",
-    },
-  },
-
   [SymmioSupportedChainId.BASE]: {
     chainId: SymmioSupportedChainId.BASE,
     contractsVersion: "0.8.5",
@@ -146,7 +74,7 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     // Muon is deployment-agnostic: one `symmio` app on one shared gateway set
     // serves every SYMMIO deployment, and the per-deployment input is the
     // `symmio` request param (this chain's diamond, from `addresses` above).
-    // So these are Base's real gateways, not a HyperEVM stand-in.
+    // So these are Base's real gateways, not another chain's stand-in.
     muon: {
       urls: [
         "https://muon-oracle1.rasa.capital/v1/",
@@ -161,62 +89,44 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
     chainId: SymmioSupportedChainId.ARBITRUM,
     contractsVersion: "0.8.6",
     addresses: {
-      symmioAddress: "0x573310dB6d160B26026B8706EBe9831c7dEF1D09",
-      // Replaced in the perps-core migration (2026-09-04). The previous value
-      // (`0xDBc6DAe3…`) is still deployed and answers reads, so a stale config
-      // fails late and opaquely: every InstantLayer EIP-712 domain binds to the
-      // wrong `verifyingContract` and the gateway rejects the signature.
-      instantLayerAddress: "0x38AaBc7A73523Cd47c710FcdEb3b20ae02310180",
-      accountLayerAddress: "0x5733107211B2801Acd39933a54d482FE303c4907",
-      affiliatesAddress: "0xe99c18CF3C62B9229f9251fd2562077a33e7600a",
+      symmioAddress: "0x57331027091994FCb9c5Aec48ea92cEf0a93CF6A",
+      instantLayerAddress: "0xCB8F789d6f7e59B3D266490e1Aa8e35cFb755132",
+      accountLayerAddress: "0x573310d1D6ec18cB21E1aB949414470D9bf5c24E",
+      affiliatesAddress: "0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D",
       collateralAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
       collateralDecimals: 6,
     },
     subgraphs: {
       analytics:
-        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-analytics/latest/gn",
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-mainnet-analytics/latest/gn",
       events:
-        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-events/latest/gn",
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-mainnet-events/stage/gn",
     },
     solvers: {
       enigma: {
         name: "Enigma",
-        address: "0x9be79D4977D86D440F9e1Ea0d468A58104B9b932",
-        url: "https://arb-staging.enigma.bz/api",
-        // Arbitrum runs its own conditional-order handler and COH wallet; these
-        // were a verbatim copy of HyperEVM's production block, which signed
-        // Arbitrum TP/SL orders against the wrong COH wallet. `url` is a host
-        // root — the client appends `/api/v5/…`.
+        address: "0x0420b24359d2DCccA53904042aa36A641162445c",
+        url: "https://solver.enigma.bz/api",
         tpsl: {
-          url: "https://tpsl-stage.enigma.bz",
-          wsUrl: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
-          appName: "ARB_COH_Low-Cap_Stage",
-          cohWalletAddress: "0x5Cf3fC3722e1780220Ca94C04a6dc7Dfd7615661",
+          url: "https://tpsl.enigma.bz",
+          wsUrl: "wss://notification.rasa.capital/ws/v1/subscribe",
+          appName: "Arbitrum_COH_Production",
+          cohWalletAddress: "0xFC3a98d30AdAA220Ae4150fcaC06Bd200b6E146B",
         },
         notifications: {
-          url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
-          channel: "Arbitrum_Solver-Low-Cap_Stage",
+          url: "wss://notification.rasa.capital/ws/v1/subscribe",
+          channel: "Arbitrum_Solver-Low-Cap_Production",
           protocol: "enigma",
-          /** Host root: `searchEnigmaNotifications` appends `/api/v1/search`. */
-          searchUrl: "https://notification-stage.rasa.capital",
+          searchUrl: "https://notification.rasa.capital/notification",
         },
         capabilities: { groupClose: true, listingService: true },
       },
     },
     defaultSolverId: "enigma",
-    // The staging solver's markets only exist in the staging price service —
-    // against the production host roughly half of them have no mark price at
-    // all. `url` is a host root; the client appends `/api/v1/…`.
-    //
-    // `wsUrl` deliberately does not share that host: it mirrors the reference
-    // deployment, which pairs the staging Enigma REST service with this Rasa
-    // socket (its production profile uses one host for both). Both accept
-    // connections, so this follows the configuration known to work rather than
-    // the symmetric-looking one.
     priceService: {
       type: "enigma",
-      url: "https://lowcap-price-staging.enigma.bz",
-      wsUrl: "wss://lowcap-price.rasa.capital/ws",
+      url: "https://lowcap-price.enigma.bz",
+      wsUrl: "wss://lowcap-price.enigma.bz/ws",
     },
     muon: {
       urls: [
@@ -226,33 +136,11 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
         "https://muon-oracle4.rasa.capital/v1/",
       ],
     },
-    // TODO(vendor): inherited from HyperEVM and unconfirmed for Arbitrum — the
-    // reference deployment declares no Arbitrum listing/inventory backend, so
-    // Pools here may be showing HyperEVM data.
     listing: {
       url: "https://listing85.enigma.bz",
     },
     inventory: {
       url: "https://inventory85.enigma.bz",
-    },
-    /**
-     * The GaslessQ relayer for this deployment. `url` is the vendor origin, so
-     * `protocolInstance` is required to build the instance-scoped base — the
-     * instance is not derivable from the chain id (staging and production are
-     * both 42161). Server and CLI consumers add their own `apiKey`; browser
-     * consumers must instead repoint `url` at a proxy that holds the key, since
-     * a gateway client key cannot live in a bundle.
-     *
-     * No `execution` block on purpose: availability is not activation. Shipping
-     * `mode: "gasless"` here would silently route every consumer's relayable
-     * writes through this **staging** deployment, over a `url` that needs an
-     * `apiKey` a browser cannot hold. Integrators activate it deliberately — a
-     * `createConfig` override for the whole chain, or `gasless: true` per call.
-     */
-    gasless: {
-      url: "https://gaslessq-staging.symmio.foundation",
-      protocolInstance: "arbitrum-42161-vibe-stage",
-      gaslessLayerAddress: "0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca",
     },
   },
 };

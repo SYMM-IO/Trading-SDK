@@ -27,10 +27,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useSwitchChain } from "wagmi";
 
 /**
- * The staging preset applied **onto** the app baseline. The preset itself only
- * models HyperEVM, so writing it wholesale would drop the Arbitrum deployment
- * profile (its address set and `gasless` block) and silently fall back to the
- * registry's built-in Arbitrum values.
+ * The staging preset applied **onto** the app baseline. The preset only models
+ * Arbitrum, so writing it wholesale would drop the baseline's other chains
+ * (Base's affiliate) and silently fall back to their registry values.
  */
 const STAGING_OVERRIDES = { ...symmioChains, ...STAGING_CHAIN_OVERRIDES };
 

@@ -1,0 +1,64 @@
+import { Callout } from "nextra/components";
+
+# Resolutions
+
+`CandleResolution` is the SDK's own vocabulary for bar sizes — not any single provider's:
+
+```ts
+type CandleResolution =
+  | "1s"
+  | "10s"
+  | "1m"
+  | "3m"
+  | "5m"
+  | "15m"
+  | "30m"
+  | "1h"
+  | "2h"
+  | "4h"
+  | "6h"
+  | "8h"
+  | "12h"
+  | "1d"
+  | "3d"
+  | "1w"
+  | "1M";
+```
+
+A [`CandleSource`](/core/candles/candle-source-type) maps these onto its native interval strings and declares the subset it can actually serve via `supportedResolutions` — no venue supports all of them. Binance futures, for instance, has neither `1s` nor `10s`; Binance spot serves `1s` but not `10s`.
+
+## `resolutionToMs`
+
+Nominal length of a resolution in milliseconds.
+
+```ts
+import { resolutionToMs } from "@symmio/trading-core";
+
+resolutionToMs("5m"); // 300_000
+```
+
+<Returns type="number">The nominal length in ms.</Returns>
+
+Throws `UNKNOWN_CANDLE_RESOLUTION` when given a code outside the vocabulary.
+
+## `CANDLE_RESOLUTION_MS`
+
+The underlying table, `Record<CandleResolution, number>`.
+
+<Callout type="info">
+  `1w` and `1M` are calendar units — a month is not a fixed span. The values here use nominal 7-day and 30-day lengths
+  and are only ever used for request paging arithmetic (advancing a cursor past bars already received), never for
+  aligning a bar to its boundary. Bars arrive already aligned by the venue.
+</Callout>
+
+## Per-venue translation
+
+Each venue integration ships its own mapping in and out of this vocabulary:
+
+- [`toBinanceInterval` / `getBinanceSupportedResolutions`](/core/candles/create-source) — Binance interval strings.
+- [`toTradingViewResolution` / `fromTradingViewResolution`](/core/candles/tradingview-datafeed) — TradingView's resolution codes (`"1h"` ↔ `"60"`).
+
+## Related
+
+- [`CandleSource`](/core/candles/candle-source-type) — where `supportedResolutions` is declared.
+- [`getCandlesQueryOptions`](/core/candles/get-candles) — the read these resolutions parameterize.

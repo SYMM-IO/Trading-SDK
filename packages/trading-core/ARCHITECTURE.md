@@ -84,7 +84,7 @@ Individual selectors are **derived** from the ABI, so they self-correct when a s
 
 ### 2.5 Amendment — the one-app-two-versions scenario became real (`contractsVersion`)
 
-§2.2's revisit clause fired: HyperEVM and Base run **v0.8.5** while Arbitrum runs **v0.8.6**, and one app serves all three. The response is deliberately **narrower than the rejected registry**: a required per-chain `contractsVersion: SymmioContractsVersion` field ("0.8.5" | "0.8.6") in the chain config — a declared deployment fact, never probed — read at exactly the seams where the generations diverge:
+§2.2's revisit clause fired: Base runs **v0.8.5** while Arbitrum runs **v0.8.6**, and one app serves both. The response is deliberately **narrower than the rejected registry**: a required per-chain `contractsVersion: SymmioContractsVersion` field ("0.8.5" | "0.8.6") in the chain config — a declared deployment fact, never probed — read at exactly the seams where the generations diverge:
 
 - **Quote-send encoding** (`enigma-instant-open` adapter): v0.8.6 signs `sendQuote` with `SolverFeeCaps`; v0.8.5 signs the legacy `sendQuoteWithAffiliateAndData` (the capped selector does not exist on its diamond, and the v0.8.6 solver rejects the legacy call's zero caps).
 - **Session-key delegation set** (`getInstantTradeRequiredSelectors`): picks the matching open-leg selector.

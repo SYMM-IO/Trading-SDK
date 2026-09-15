@@ -3,7 +3,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig, TEST_USER } from "../../../shared/test/mock-config";
 import { getSubAccountsCountOfUser } from "./get-sub-accounts-count-of-user";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 describe("getSubAccountsCountOfUser", () => {
   it("reads getSubAccountsCountOfUser from the AccountLayer", async () => {

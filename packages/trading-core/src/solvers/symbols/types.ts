@@ -45,8 +45,25 @@ export interface SolverSymbol {
   tradingFee: string;
   /** Hedger fee charged on open, as a decimal string. */
   hedgerFeeOpen: string;
-  /** Hedger fee charged on close, as a decimal string. */
+  /**
+   * Hedger fee charged on close, as a decimal string. This is the **standard**
+   * (floor) rate; a freshly opened position pays more — see
+   * {@link SolverSymbol.hedgerFeeCloseEarlyRate}. Pass the symbol to
+   * `getSolverCloseFeeRate` / `calculateSolverCloseFee` to price a close by
+   * holding time.
+   */
   hedgerFeeClose: string;
+  /**
+   * Early (peak) close-fee rate charged flat until
+   * {@link SolverSymbol.hedgerFeeCloseEarlyThreshold} seconds, then decaying to
+   * {@link SolverSymbol.hedgerFeeClose}. Decimal string. Equals `hedgerFeeClose`
+   * when the solver publishes no decay.
+   */
+  hedgerFeeCloseEarlyRate: string;
+  /** Seconds from open during which `hedgerFeeCloseEarlyRate` applies flat. `0` when the solver publishes no decay. */
+  hedgerFeeCloseEarlyThreshold: number;
+  /** Seconds from open at/after which `hedgerFeeClose` applies; the rate decays linearly between the two thresholds. */
+  hedgerFeeCloseStandardThreshold: number;
   /** Maximum funding rate, as a decimal string. */
   maxFundingRate: string;
   /** Minimum notional position value, as a decimal string. */

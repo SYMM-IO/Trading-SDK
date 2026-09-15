@@ -18,7 +18,7 @@ const hash = await initiateWithdraw(config, { account, parts, gasless: true });
 
 Chain-level and optional, like Pools: a chain either carries a `gasless` config block or it does not, and the service additionally requires the **perps-core (`"0.8.6"`) contracts generation** — backward compatibility with older deployments is intentionally unsupported. Gate UI with [`supportsGaslessService`](/core/gasless/resolve-gasless-service); actions fail fast with `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`.
 
-**Arbitrum (42161) ships a built-in `gasless` block** pointing at the **staging** GaslessQ deployment; no other chain has one. So `supportsGaslessService` is already `true` on Arbitrum, and what a consumer supplies is the part the registry cannot know — an `apiKey` (server-side) or a proxy `url` (browser), plus the execution policy:
+**No chain ships a built-in `gasless` block**, so `supportsGaslessService` is `false` everywhere until a consumer supplies one. Arbitrum (42161) is the only chain on the perps-core generation, so it is where a block goes — the complete block (`url`, `protocolInstance`, `gaslessLayerAddress`), plus the part only the consumer holds: an `apiKey` (server-side) or a proxy `url` (browser), and the execution policy:
 
 ```ts
 const config = createConfig({
@@ -27,6 +27,9 @@ const config = createConfig({
     [SymmioSupportedChainId.ARBITRUM]: {
       addresses: { affiliatesAddress: "0x…" },
       gasless: {
+        url: "https://gaslessq.symmio.foundation",
+        protocolInstance: "arbitrum-42161-vibe",
+        gaslessLayerAddress: "0x8347953D80037b8d82827246f37EC7442AD188B4",
         apiKey: process.env.GASLESSQ_API_KEY, // server-side only — see below
         execution: { mode: "gasless", fallback: "wallet" },
       },
@@ -36,19 +39,11 @@ const config = createConfig({
 ```
 
 <Callout type="warning">
-  A `gasless` override on Arbitrum **merges onto that base**, field by field — it does not replace it. Overriding only
-  `url` (the documented browser-proxy shape) silently keeps the staging `gaslessLayerAddress`, so a proxy pointed at a
-  different deployment pairs one deployment's gateway with the other's contracts. To target another deployment, state
-  the whole block — `url`, `protocolInstance` and `gaslessLayerAddress` together — and change
-  `addresses.instantLayerAddress` to match, since the gateway verifies signatures against its own InstantLayer:
-
-```ts
-gasless: {
-  url: "https://gaslessq.symmio.foundation",
-  protocolInstance: "arbitrum-42161-vibe",
-  gaslessLayerAddress: "0x8347953D80037b8d82827246f37EC7442AD188B4",
-},
-```
+  With no built-in block to inherit from, an override missing `url` or `gaslessLayerAddress` throws
+  `GASLESS_OVERRIDE_INCOMPLETE` at `createConfig`. `url`, `protocolInstance` and `gaslessLayerAddress` must all come from
+  the same deployment, and `addresses.instantLayerAddress` must match it too, since the gateway verifies signatures
+  against its own InstantLayer (`GASLESS_CONFIG_INCOHERENT`). Staging and production share chain id 42161, so a
+  staging relayer also needs the staging contract addresses.
 
 </Callout>
 

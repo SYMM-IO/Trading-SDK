@@ -6,8 +6,8 @@ import { mockConfig } from "../../shared/test/mock-config";
 import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
 import { getQuotePendingFunding } from "./get-quote-pending-funding";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
-const ARBITRUM = getChainConfig(SymmioSupportedChainId.ARBITRUM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
+const BASE = getChainConfig(SymmioSupportedChainId.BASE);
 
 /** The `readContract` request shape this action sends. */
 interface DebtsRequest {
@@ -135,18 +135,18 @@ describe("getQuotePendingFunding", () => {
     expect(readContract).not.toHaveBeenCalled();
   });
 
-  it("reads the Arbitrum diamond when chainId targets Arbitrum", async () => {
+  it("reads the Base diamond when chainId targets Base", async () => {
     const { config, readContract } = mockConfig();
     readContract.mockResolvedValueOnce([-3n]);
 
     const rows = await getQuotePendingFunding(config, {
-      chainId: SymmioSupportedChainId.ARBITRUM,
+      chainId: SymmioSupportedChainId.BASE,
       quoteIds: [42n],
     });
 
     expect(readContract).toHaveBeenCalledWith(
       expect.objectContaining({
-        address: ARBITRUM.addresses.symmioAddress,
+        address: BASE.addresses.symmioAddress,
         functionName: "getQuoteFundingDebts",
         args: [[42n]],
       }),

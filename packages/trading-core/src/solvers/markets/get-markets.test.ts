@@ -22,11 +22,15 @@ vi.mock("../types/generated/rasa-solver", async (importOriginal) => {
 
 import { getMarkets, type GetMarketsReturnType } from "./get-markets";
 
-const ENIGMA_URL = getDefaultSolver(SymmioSupportedChainId.HYPER_EVM).url;
+const ENIGMA_URL = getDefaultSolver(SymmioSupportedChainId.ARBITRUM).url;
 const RASA_URL = getDefaultSolver(SymmioSupportedChainId.BASE).url;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 const ENIGMA_RESPONSE: { data: ApiContractSymbolsResponse } = {

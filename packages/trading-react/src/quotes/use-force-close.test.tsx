@@ -84,7 +84,7 @@ describe("useForceClose", () => {
 
     await waitFor(() => expect(invalidate).toHaveBeenCalled());
     expect(waitForTransactionReceipt).toHaveBeenCalledWith({ hash: TEST_TX_HASH, confirmations: 1 });
-    const configKey = config.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM);
+    const configKey = config.getChainConfigKey(SymmioSupportedChainId.ARBITRUM);
     /** Run every predicate the mutation handed to `invalidateQueries` against one key. */
     const matches = (key: QueryKey) =>
       invalidate.mock.calls.some(([filters]) => {

@@ -1,6 +1,6 @@
 import { encodeFunctionData, erc20Abi, slice, zeroAddress, type Address, type Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getChainConfig } from "../../core/chains";
+import { SymmioSupportedChainId, getChainConfig } from "../../core/chains";
 import { SymmApiError } from "../../shared/errors/symm-error";
 import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
 import { addMargin } from "../../symmio-contracts/account-layer/actions/add-margin";
@@ -331,9 +331,14 @@ describe("transparent gasless dispatch", () => {
   it("throws the typed config error on an explicit gasless: true for an unconfigured chain", async () => {
     const { config, readContract } = gaslessWriteTestConfig();
     programReads(readContract);
-    /** HyperEVM in this config has no gasless block and runs 0.8.5. */
+    /** Base in this config has no gasless block and runs 0.8.5. */
     await expect(
-      initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS, chainId: 999, gasless: true }),
+      initiateWithdraw(config, {
+        account: SUB_ACCOUNT,
+        parts: PARTS,
+        chainId: SymmioSupportedChainId.BASE,
+        gasless: true,
+      }),
     ).rejects.toThrowError(/GASLESS|gasless/);
   });
 

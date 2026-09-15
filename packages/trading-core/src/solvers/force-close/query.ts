@@ -1,5 +1,5 @@
 import type { Config } from "../../core/config";
-import type { Compute, ConfigKeyParameter, ExactPartial } from "../../shared/types/properties";
+import type { Compute, ConfigKeyParameter } from "../../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../../shared/types/query";
 import { filterQueryOptions } from "../../shared/utils/query";
 import { forceCloseAuto, type ForceCloseAutoParameters } from "./force-close-auto";
@@ -16,9 +16,7 @@ export type GetForceCloseParamsData = GetForceCloseParametersReturnType;
 /**
  * Build the TanStack Query key for {@link getForceCloseParamsQueryOptions}.
  */
-export function getForceCloseParamsQueryKey(
-  options: Compute<ExactPartial<GetForceCloseParametersParameters> & ConfigKeyParameter> = {},
-) {
+export function getForceCloseParamsQueryKey(options: Compute<GetForceCloseParametersParameters & ConfigKeyParameter>) {
   return ["getForceCloseParams", filterQueryOptions(options)] as const;
 }
 
@@ -27,7 +25,7 @@ export type GetForceCloseParamsQueryKey = ReturnType<typeof getForceCloseParamsQ
 
 /** Options accepted by {@link getForceCloseParamsQueryOptions}. */
 export type GetForceCloseParamsOptions = Compute<
-  ExactPartial<GetForceCloseParametersParameters> &
+  GetForceCloseParametersParameters &
     QueryParameter<GetForceCloseParamsData, Error, GetForceCloseParamsData, GetForceCloseParamsQueryKey>
 >;
 
@@ -40,8 +38,9 @@ export type GetForceCloseParamsQueryOptions = SymmioQueryOptions<
 >;
 
 /**
- * Build TanStack Query options for {@link getForceCloseParams}. Disabled until
- * `symbolId` is set. These change rarely, so a long `staleTime` fits.
+ * Build TanStack Query options for {@link getForceCloseParams}. These change
+ * rarely, so a long `staleTime` fits. Callers that do not have a `symbolId` yet
+ * gate with `query.enabled` rather than omitting it.
  *
  * @param config - The SDK config.
  * @param options - Query parameters (`symbolId`, chain id) and TanStack overrides.
@@ -54,16 +53,13 @@ export type GetForceCloseParamsQueryOptions = SymmioQueryOptions<
  */
 export function getForceCloseParamsQueryOptions(
   config: Config,
-  options: GetForceCloseParamsOptions = {},
+  options: GetForceCloseParamsOptions,
 ): GetForceCloseParamsQueryOptions {
   return {
     ...options.query,
     queryKey: getForceCloseParamsQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
-    enabled: (options.query?.enabled ?? true) && options.symbolId !== undefined,
-    queryFn: () => {
-      if (options.symbolId === undefined) throw new Error("getForceCloseParams requires a symbolId.");
-      return getForceCloseParams(config, { symbolId: options.symbolId, chainId: options.chainId });
-    },
+    enabled: options.query?.enabled ?? true,
+    queryFn: () => getForceCloseParams(config, { symbolId: options.symbolId, chainId: options.chainId }),
   };
 }
 

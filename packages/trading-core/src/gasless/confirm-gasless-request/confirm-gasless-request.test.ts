@@ -4,6 +4,7 @@ import { SymmioSupportedChainId } from "../../core/chains";
 import type { GaslessExecutionConfig } from "../../core/chains/types";
 import { createConfig, type Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
+import { TEST_GASLESS } from "../test/config";
 import { GaslessRequestStatus, type GaslessRequest } from "../types";
 
 const waitForGaslessRequest = vi.hoisted(() => vi.fn());
@@ -38,7 +39,7 @@ function buildConfig(overrides?: { execution?: GaslessExecutionConfig }): {
     symmioConfig: {
       [CHAIN]: {
         addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
-        ...(overrides?.execution ? { gasless: { execution: overrides.execution } } : {}),
+        gasless: { ...TEST_GASLESS, ...(overrides?.execution ? { execution: overrides.execution } : {}) },
       },
     },
   });

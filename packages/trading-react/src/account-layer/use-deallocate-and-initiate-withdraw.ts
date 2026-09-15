@@ -69,7 +69,7 @@ export type UseDeallocateAndInitiateWithdrawReturnType = UseMutationResult<
  * mutate({
  *   account: "0xsub…",
  *   amount: 1_000000000000000000n,
- *   parts: [createClassicWithdrawPart({ id: 0n, amount, receiver, chainId: 999n })],
+ *   parts: [createClassicWithdrawPart({ id: 0n, amount, receiver, chainId: 42161n })],
  * });
  * ```
  */

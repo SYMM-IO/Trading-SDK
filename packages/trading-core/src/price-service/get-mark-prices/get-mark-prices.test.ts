@@ -12,7 +12,7 @@ vi.mock("../adapters/binance-mark-prices", () => ({ fetchBinanceMarkPrices }));
 import { getMarkPrices } from "./get-mark-prices";
 
 const AFFILIATE = "0x000000000000000000000000000000000000aFF1";
-const CHAIN = SymmioSupportedChainId.HYPER_EVM;
+const CHAIN = SymmioSupportedChainId.ARBITRUM;
 
 const ENIGMA_PRICE_SERVICE = {
   type: "enigma" as const,

@@ -23,7 +23,7 @@ const AFFILIATE = "0x000000000000000000000000000000000000aFF1";
 
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: AFFILIATE } } },
+  symmioConfig: { [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE } } },
 });
 
 /**

@@ -41,6 +41,7 @@ import { formatCompact, formatWithCommas, shortenAddress } from "@symmio/utils";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits, type Address } from "viem";
 import { EstimatedPricePreview } from "./estimated-price-preview";
+import { InstantOpenFeesPreview } from "./instant-open-fees-preview";
 
 type TradeSide = "long" | "short";
 type Market = NonNullable<ReturnType<typeof useMarkets>["data"]>[number];
@@ -622,6 +623,21 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
         pricePrecision={Number(selectedMarket?.pricePrecision ?? 2)}
         idPrefix={idPrefix}
       />
+
+      {/* SDK fee preview — market orders only; a limit order's fee story is priced at its resting price. */}
+      {!isLimit ? (
+        <InstantOpenFeesPreview
+          subAccount={subAccount}
+          solverId={resolvedSolverId}
+          marketId={selectedMarket ? Number(selectedMarket.symbolId ?? 0) : undefined}
+          positionType={positionTypeForSide}
+          initialMargin={initialMargin}
+          leverage={leverage}
+          slippage={validSlippage}
+          markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
+          idPrefix={idPrefix}
+        />
+      ) : null}
 
       {quoteViolations.length > 0 ? <QuoteViolationsPanel violations={quoteViolations} idPrefix={idPrefix} /> : null}
 

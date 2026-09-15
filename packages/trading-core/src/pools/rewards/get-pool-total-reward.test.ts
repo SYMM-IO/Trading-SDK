@@ -16,7 +16,7 @@ vi.mock("../types/generated/listing-backend", async (importOriginal) => {
 
 import { getPoolTotalReward } from "./get-pool-total-reward";
 
-const LISTING_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).listing?.url;
+const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url;
 const MARKET_ADDRESS = "0x000000000000000000000000000000000000dEaD";
 
 describe("getPoolTotalReward", () => {

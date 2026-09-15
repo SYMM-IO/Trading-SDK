@@ -5,7 +5,7 @@ import { createConfig } from "../core/config";
 import { resolvePriceService } from "./resolve-price-service";
 
 const AFFILIATE = "0x000000000000000000000000000000000000aFF1";
-const CHAIN = SymmioSupportedChainId.HYPER_EVM;
+const CHAIN = SymmioSupportedChainId.ARBITRUM;
 
 const CHAIN_LEVEL = { type: "enigma", url: "https://chain.test", wsUrl: "wss://chain.test/ws" } as const;
 const SOLVER_LEVEL = { type: "binance", url: "https://solver.test", wsUrl: "wss://solver.test/ws" } as const;

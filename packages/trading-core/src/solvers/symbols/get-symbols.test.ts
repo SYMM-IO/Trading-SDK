@@ -17,10 +17,14 @@ vi.mock("../types/generated/enigma-solver", async (importOriginal) => {
 
 import { getSymbols as getSymbolsAction } from "./get-symbols";
 
-const SOLVER_URL = getDefaultSolver(SymmioSupportedChainId.HYPER_EVM).url;
+const SOLVER_URL = getDefaultSolver(SymmioSupportedChainId.ARBITRUM).url;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 const SAMPLE_RESPONSE: { data: ApiSymbolsResponse } = {
@@ -64,6 +68,46 @@ describe("getSymbols", () => {
         stateShort: 3,
       }),
     ]);
+  });
+
+  it("maps the time-decaying close-fee fields from the wire", async () => {
+    getSymbols.mockResolvedValue({
+      data: {
+        symbols: [
+          {
+            symbol_id: 1,
+            name: "BTCUSDT",
+            symbol: "BTC",
+            hedger_fee_close: "0.0006",
+            hedger_fee_close_early_rate: "0.0024",
+            hedger_fee_close_early_threshold: "30",
+            hedger_fee_close_standard_threshold: "180",
+          },
+        ],
+      },
+    });
+
+    const symbols = await getSymbolsAction(config, {});
+
+    expect(symbols[0]).toMatchObject({
+      hedgerFeeClose: "0.0006",
+      hedgerFeeCloseEarlyRate: "0.0024",
+      hedgerFeeCloseEarlyThreshold: 30,
+      hedgerFeeCloseStandardThreshold: 180,
+    });
+  });
+
+  it("collapses the early rate to the standard rate when the early fields are absent", async () => {
+    getSymbols.mockResolvedValue(SAMPLE_RESPONSE);
+
+    const symbols = await getSymbolsAction(config, {});
+
+    expect(symbols[0]).toMatchObject({
+      hedgerFeeClose: "0",
+      hedgerFeeCloseEarlyRate: "0",
+      hedgerFeeCloseEarlyThreshold: 0,
+      hedgerFeeCloseStandardThreshold: 0,
+    });
   });
 
   it("maps camelCase filters onto the solver's snake_case query params", async () => {

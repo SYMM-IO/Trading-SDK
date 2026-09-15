@@ -4,7 +4,7 @@ import { renderHook } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { createWalletClient, http, type Account } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 import { WagmiProvider, type Config as WagmiConfig } from "wagmi";
 import { connect } from "wagmi/actions";
@@ -19,9 +19,9 @@ import { useSymmioConfig } from "./use-symmio-config";
 const SESSION_PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d" as const;
 const sessionAccount: Account = privateKeyToAccount(SESSION_PRIVATE_KEY);
 
-/** Minimal per-chain SYMMIO config: HyperEVM with a placeholder affiliate. */
+/** Minimal per-chain SYMMIO config: Arbitrum with a placeholder affiliate. */
 const TEST_SYMMIO_CONFIG = {
-  [hyperEvm.id]: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" as const } },
+  [arbitrum.id]: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" as const } },
 };
 
 /**
@@ -58,7 +58,7 @@ describe("SymmioProvider default wallet-client resolver", () => {
   it("returns the wagmi-connected wallet when no `from` is requested", async () => {
     const config = await renderSymmioConfig();
 
-    const client = await config.getWalletClient({ chainId: hyperEvm.id });
+    const client = await config.getWalletClient({ chainId: arbitrum.id });
 
     expect(client.account.address).toBe(TEST_EOA);
   });
@@ -66,7 +66,7 @@ describe("SymmioProvider default wallet-client resolver", () => {
   it("returns the wagmi-connected wallet when `from` is the connected account", async () => {
     const config = await renderSymmioConfig();
 
-    const client = await config.getWalletClient({ chainId: hyperEvm.id, from: TEST_EOA });
+    const client = await config.getWalletClient({ chainId: arbitrum.id, from: TEST_EOA });
 
     expect(client.account.address).toBe(TEST_EOA);
   });
@@ -75,7 +75,7 @@ describe("SymmioProvider default wallet-client resolver", () => {
     const config = await renderSymmioConfig();
 
     const client = await config.getWalletClient({
-      chainId: hyperEvm.id,
+      chainId: arbitrum.id,
       from: TEST_EOA.toLowerCase() as `0x${string}`,
     });
 
@@ -85,7 +85,7 @@ describe("SymmioProvider default wallet-client resolver", () => {
   it("throws SESSION_SIGNER_UNAVAILABLE instead of silently signing with the connected wallet", async () => {
     const config = await renderSymmioConfig();
 
-    const rejection = config.getWalletClient({ chainId: hyperEvm.id, from: sessionAccount.address });
+    const rejection = config.getWalletClient({ chainId: arbitrum.id, from: sessionAccount.address });
 
     await expect(rejection).rejects.toMatchObject({ kind: "config", code: "SESSION_SIGNER_UNAVAILABLE" });
     await expect(rejection).rejects.toThrow(sessionAccount.address);
@@ -95,7 +95,7 @@ describe("SymmioProvider default wallet-client resolver", () => {
   it("still throws NO_WALLET_CONNECTED when no wallet is connected", async () => {
     const config = await renderSymmioConfig({ connected: false });
 
-    await expect(config.getWalletClient({ chainId: hyperEvm.id })).rejects.toMatchObject({
+    await expect(config.getWalletClient({ chainId: arbitrum.id })).rejects.toMatchObject({
       kind: "config",
       code: "NO_WALLET_CONNECTED",
     });
@@ -105,15 +105,15 @@ describe("SymmioProvider default wallet-client resolver", () => {
     /** A real client, so no cast is needed: the prop's return type is the assertion. */
     const sessionClient: SymmioWalletClient = createWalletClient({
       account: sessionAccount,
-      chain: hyperEvm,
+      chain: arbitrum,
       transport: http(),
     });
     const getWalletClient = vi.fn(async () => sessionClient);
 
     const config = await renderSymmioConfig({ getWalletClient });
-    const client = await config.getWalletClient({ chainId: hyperEvm.id, from: sessionAccount.address });
+    const client = await config.getWalletClient({ chainId: arbitrum.id, from: sessionAccount.address });
 
     expect(client).toBe(sessionClient);
-    expect(getWalletClient).toHaveBeenCalledWith({ chainId: hyperEvm.id, from: sessionAccount.address });
+    expect(getWalletClient).toHaveBeenCalledWith({ chainId: arbitrum.id, from: sessionAccount.address });
   });
 });

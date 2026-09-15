@@ -16,7 +16,7 @@ vi.mock("../types/generated/listing-backend", async (importOriginal) => {
 
 import { getListingStatus } from "./get-listing-status";
 
-const LISTING_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).listing?.url;
+const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url;
 const TOKEN_ADDRESS = "0x000000000000000000000000000000000000dEaD";
 
 describe("getListingStatus", () => {

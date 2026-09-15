@@ -12,7 +12,7 @@ import { initiateRevokeDelegation } from "./initiate-revoke-delegation";
  */
 vi.mock("../../../gasless/dispatch/maybe-relay-as-gasless", () => ({ maybeRelayAsGasless: vi.fn() }));
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const CHAIN = SymmioSupportedChainId.ARBITRUM;
 const ARBITRUM = getChainConfig(CHAIN);
 const ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";

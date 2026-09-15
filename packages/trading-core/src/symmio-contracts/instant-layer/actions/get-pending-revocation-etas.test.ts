@@ -4,7 +4,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig, TEST_USER } from "../../../shared/test/mock-config";
 import { getPendingRevocationEtas } from "./get-pending-revocation-etas";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const DELEGATOR = { addr: TEST_USER, isPartyB: false } as const;
 const DELEGATE: Hex = "0x2222222222222222222222222222222222222222";
 const SELECTORS: Hex[] = ["0xaaaaaaaa", "0xbbbbbbbb", "0xcccccccc"];

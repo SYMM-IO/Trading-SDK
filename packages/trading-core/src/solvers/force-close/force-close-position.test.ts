@@ -7,7 +7,7 @@ import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
 import type { HighLowPriceSig } from "../../symmio-contracts/symmio/types";
 import { forceClosePosition } from "./force-close-position";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const QUOTE_ID = 42n;
 

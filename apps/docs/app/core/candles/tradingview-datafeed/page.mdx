@@ -1,0 +1,85 @@
+import { Callout } from "nextra/components";
+
+# toTradingViewDatafeed
+
+Adapt a [`CandleSource`](/core/candles/candle-source-type) into a TradingView Charting Library datafeed.
+
+A pure translation layer: resolution codes, unix-second period params, and the library's callback style on one side; the SDK's resolution vocabulary, millisecond timestamps, and promise/`Unwatch` style on the other. It holds no framework state and imports nothing from TradingView — the datafeed contract is modeled structurally, so the returned object satisfies the library's own `IBasicDataFeed` type without the SDK depending on the licensed package.
+
+```ts
+import { createBinanceCandleSource, toTradingViewDatafeed } from "@symmio/trading-core";
+
+const datafeed = toTradingViewDatafeed(createBinanceCandleSource());
+
+new TradingView.widget({ datafeed, symbol: "BTCUSDT", interval: "60" });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="source" type="CandleSource">
+    The candle source to read from.
+  </Property>
+  <Property name="options.exchange" type="string" optional>
+    Exchange label shown in the chart's symbol header. Defaults to the source's `id`.
+  </Property>
+  <Property name="options.session" type="string" optional>
+    Session string for the instrument. Defaults to `"24x7"` — correct for crypto perps, which never close.
+  </Property>
+  <Property name="options.timezone" type="string" optional>
+    Timezone the chart renders bar times in. Defaults to `"Etc/UTC"`, matching the UTC-aligned bar boundaries every
+    source returns.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="TradingViewDatafeed">
+  A datafeed object to pass straight to `widget({datafeed})` — `onReady`, `searchSymbols`, `resolveSymbol`, `getBars`,
+  `subscribeBars`, and `unsubscribeBars` implemented over the source.
+</Returns>
+
+## Behavior worth knowing
+
+- **Symbol search is reported as unsupported.** A SYMMIO app already has its market list (`useMarkets`), and driving symbol selection from that is both more accurate and less surprising than a second search surface here.
+- **`countBack` wins over `from`.** In the library's contract `countBack` is the exact number of bars the chart needs ending at `to`; the adapter widens the window to at least that many bars so a short `from` cannot starve the chart.
+- **Reconnects invalidate the chart's cache.** When the source signals a reset, the adapter calls the library's `onResetCacheNeeded`, so it refetches history instead of splicing the live bar onto a series with a hole in it.
+- **`has_empty_bars` is `false`** — the chart leaves real gaps rather than inventing flat bars where the venue reported none.
+- **Live-streaming markets report `data_status: "streaming"`;** a source without `watchCandles` reports `"endofday"`.
+
+<Callout type="info">
+  The datafeed owns its live subscriptions, keyed by the library's listener guid. Keep one instance alive per widget —
+  in React, use [`useTradingViewDatafeed`](/react/candles), which memoizes it.
+</Callout>
+
+## Resolution mapping
+
+TradingView encodes intraday resolutions as bare minute counts (`"60"` is one hour), seconds with an `S` suffix, and days/weeks/months with a letter. Two helpers translate:
+
+```ts
+import { fromTradingViewResolution, toTradingViewResolution } from "@symmio/trading-core";
+
+fromTradingViewResolution("60"); // "1h" — undefined when the code is unrecognized
+toTradingViewResolution("1h"); // "60"
+```
+
+The bare-letter forms (`"D"`, `"W"`, `"M"`) are accepted alongside the numbered ones on the way in, because the library emits both depending on how the chart was configured; only one spelling per resolution is advertised on the way out.
+
+## Types
+
+| Type                               | What it is                                                                 |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| `TradingViewDatafeed`              | The datafeed object `widget({ datafeed })` expects.                        |
+| `TradingViewDatafeedConfiguration` | Capabilities reported from `onReady`.                                      |
+| `TradingViewSymbolInfo`            | Symbol metadata returned from `resolveSymbol`.                             |
+| `TradingViewBar`                   | A bar in TradingView's shape — `time` is unix **milliseconds**.            |
+| `TradingViewPeriodParams`          | The range and bar count the library asks `getBars` for (unix **seconds**). |
+| `TradingViewHistoryMetadata`       | `{ noData: boolean }` accompanying a `getBars` result.                     |
+
+These are structural types declared by the SDK — the Charting Library is a licensed artifact a consumer self-hosts, so the SDK cannot depend on its types without forcing every consumer to vendor it.
+
+## Related
+
+- [`useTradingViewDatafeed`](/react/candles) — the memoized React wrapper.
+- [Majors chart guide](/guides/charts/majors) — wiring the widget end to end.
+- [Resolutions](/core/candles/resolutions) — the SDK's resolution vocabulary.

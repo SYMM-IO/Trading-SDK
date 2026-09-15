@@ -61,7 +61,7 @@ const { switchChain, status } = useSwitchToSymmioChain();
 if (!isOnExpectedChain) {
   return (
     <button onClick={switchChain} disabled={status === "pending"}>
-      Switch to {/* chain name from config */} HyperEVM
+      Switch to {/* chain name from config */} Arbitrum
     </button>
   );
 }

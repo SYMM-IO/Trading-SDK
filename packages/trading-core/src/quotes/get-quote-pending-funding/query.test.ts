@@ -100,7 +100,7 @@ describe("getQuotePendingFundingQueryOptions", () => {
     readContract.mockResolvedValueOnce([4n]).mockResolvedValueOnce([-6n]);
 
     const options = getQuotePendingFundingQueryOptions(config, {
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       quoteIds: [2n, 1n],
       batchSize: 1,
     });

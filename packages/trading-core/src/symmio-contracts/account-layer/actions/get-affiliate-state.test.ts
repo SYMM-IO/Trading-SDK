@@ -5,7 +5,7 @@ import { mockConfig } from "../../../shared/test/mock-config";
 import { AffiliateState } from "../types";
 import { getAffiliateState } from "./get-affiliate-state";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const AFFILIATE: Address = "0xaff1aff1aff1aff1aff1aff1aff1aff1aff1aff1";
 
 describe("getAffiliateState", () => {

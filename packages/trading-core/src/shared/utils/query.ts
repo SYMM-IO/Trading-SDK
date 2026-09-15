@@ -20,8 +20,8 @@ const NON_KEY_FIELDS = new Set(["query", "enabled", "config", "accessToken"]);
  *
  * @example
  * ```ts
- * filterQueryOptions({ chainId: 999, user: "0x…", offset: 0n, query: { staleTime: 1 } });
- * // → { chainId: 999, user: "0x…", offset: "0" }
+ * filterQueryOptions({ chainId: 42161, user: "0x…", offset: 0n, query: { staleTime: 1 } });
+ * // → { chainId: 42161, user: "0x…", offset: "0" }
  * ```
  */
 export function filterQueryOptions<type extends Record<string, unknown>>(options: type): Record<string, unknown> {

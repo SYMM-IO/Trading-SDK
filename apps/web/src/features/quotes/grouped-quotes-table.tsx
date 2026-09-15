@@ -252,7 +252,7 @@ function buildColumns(
       header: (
         <CalculatedHeader
           label="Leverage"
-          formula="Leverage = Σ (quantity × requestedOpenPrice) ÷ Σ (CVA + LF + partyAMM + partyBMM) — the group's blended opening leverage against its initial locked margin."
+          formula="Leverage = Σ (quantity × (initialOpenedPrice, else openedPrice, else requestedOpenPrice)) ÷ Σ (CVA + LF + partyAMM + partyBMM) — the group's blended opening leverage against its initial locked margin."
         />
       ),
       align: "end",

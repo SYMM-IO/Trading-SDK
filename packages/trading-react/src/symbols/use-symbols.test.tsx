@@ -40,6 +40,9 @@ const RESULT = [
     stateShort: 3,
     minOpenSolverFeeCap: "0",
     minCloseSolverFeeCap: "0",
+    hedgerFeeCloseEarlyRate: "0",
+    hedgerFeeCloseEarlyThreshold: 0,
+    hedgerFeeCloseStandardThreshold: 0,
   },
 ] satisfies GetSymbolsReturnType;
 

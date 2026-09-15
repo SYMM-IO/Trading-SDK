@@ -6,7 +6,7 @@ import {
 } from "@symmio/trading-core";
 import type { Query, QueryKey } from "@tanstack/react-query";
 import { act, waitFor } from "@testing-library/react";
-import { arbitrum, hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { createMockSymmioConfig, createTestQueryClient, renderHookWithProviders } from "../test/test-utils";
@@ -54,7 +54,7 @@ describe("useInstantClose", () => {
     });
 
     expect(res).toEqual(RESULT);
-    expect(mutationFn).toHaveBeenCalledWith({ ...VARS, chainId: hyperEvm.id });
+    expect(mutationFn).toHaveBeenCalledWith({ ...VARS, chainId: arbitrum.id });
   });
 
   it("forwards an explicit chainId override unchanged", async () => {
@@ -104,7 +104,7 @@ describe("useInstantClose", () => {
 
     await waitFor(() => expect(invalidate).toHaveBeenCalled());
     const { predicate } = invalidate.mock.calls[0]![0] as { predicate: (q: Query) => boolean };
-    const configKey = config.getChainConfigKey(hyperEvm.id);
+    const configKey = config.getChainConfigKey(arbitrum.id);
     expect(predicate(queryWith(getInstantClosesQueryKey({ configKey })))).toBe(true);
     expect(predicate(queryWith(getInstantOpensQueryKey({ configKey })))).toBe(false);
   });

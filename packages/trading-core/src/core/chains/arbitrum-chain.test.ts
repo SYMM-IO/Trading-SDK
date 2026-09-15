@@ -18,10 +18,10 @@ describe("Arbitrum chain", () => {
     const arbitrum = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
     expect(arbitrum.addresses).toEqual({
-      symmioAddress: "0x573310dB6d160B26026B8706EBe9831c7dEF1D09",
-      instantLayerAddress: "0x2C9e944cB71329fC659Da50A10a79a508Dd49ba5",
-      accountLayerAddress: "0x5733107211B2801Acd39933a54d482FE303c4907",
-      affiliatesAddress: "0xe99c18CF3C62B9229f9251fd2562077a33e7600a",
+      symmioAddress: "0x57331027091994FCb9c5Aec48ea92cEf0a93CF6A",
+      instantLayerAddress: "0xCB8F789d6f7e59B3D266490e1Aa8e35cFb755132",
+      accountLayerAddress: "0x573310d1D6ec18cB21E1aB949414470D9bf5c24E",
+      affiliatesAddress: "0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D",
       collateralAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
       collateralDecimals: 6,
     });
@@ -32,9 +32,9 @@ describe("Arbitrum chain", () => {
 
     expect(arbitrum.subgraphs).toEqual({
       analytics:
-        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-analytics/latest/gn",
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-mainnet-analytics/latest/gn",
       events:
-        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-events/latest/gn",
+        "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-mainnet-events/stage/gn",
     });
   });
 
@@ -45,73 +45,34 @@ describe("Arbitrum chain", () => {
     expect(arbitrum.defaultSolverId).toBe("enigma");
     expect(arbitrum.solvers.enigma).toMatchObject({
       name: "Enigma",
-      address: "0x9be79D4977D86D440F9e1Ea0d468A58104B9b932",
-      url: "https://arb-staging.enigma.bz/api",
+      address: "0x0420b24359d2DCccA53904042aa36A641162445c",
+      url: "https://solver.enigma.bz/api",
+      tpsl: {
+        url: "https://tpsl.enigma.bz",
+        appName: "Arbitrum_COH_Production",
+        cohWalletAddress: "0xFC3a98d30AdAA220Ae4150fcaC06Bd200b6E146B",
+      },
       notifications: {
-        url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
-        channel: "Arbitrum_Solver-Low-Cap_Stage",
+        url: "wss://notification.rasa.capital/ws/v1/subscribe",
+        channel: "Arbitrum_Solver-Low-Cap_Production",
         protocol: "enigma",
-        searchUrl: "https://notification-stage.rasa.capital",
+        searchUrl: "https://notification.rasa.capital/notification",
       },
     });
   });
 
-  it("shares the HyperEVM Muon, listing, inventory and capability configuration", () => {
+  it("ships the lowcap services and capabilities", () => {
     const arbitrum = getChainConfig(SymmioSupportedChainId.ARBITRUM);
-    const hyperEvm = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
 
-    expect(arbitrum.muon).toEqual(hyperEvm.muon);
-    expect(arbitrum.solvers.enigma?.capabilities).toEqual(hyperEvm.solvers.enigma?.capabilities);
-    /** TODO(vendor): inherited from HyperEVM and unconfirmed for Arbitrum. */
-    expect(arbitrum.listing).toEqual(hyperEvm.listing);
-    expect(arbitrum.inventory).toEqual(hyperEvm.inventory);
-  });
-
-  it("runs its own price service and conditional-order handler, not HyperEVM's", () => {
-    const arbitrum = getChainConfig(SymmioSupportedChainId.ARBITRUM);
-    const hyperEvm = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
-
-    /**
-     * Both blocks were once a verbatim copy of HyperEVM's production values,
-     * which pointed Arbitrum at a price feed missing half its markets and
-     * signed its TP/SL orders against the wrong COH wallet.
-     */
     expect(arbitrum.priceService).toEqual({
       type: "enigma",
-      url: "https://lowcap-price-staging.enigma.bz",
-      wsUrl: "wss://lowcap-price.rasa.capital/ws",
+      url: "https://lowcap-price.enigma.bz",
+      wsUrl: "wss://lowcap-price.enigma.bz/ws",
     });
-    expect(arbitrum.solvers.enigma?.tpsl).toEqual({
-      url: "https://tpsl-stage.enigma.bz",
-      wsUrl: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
-      appName: "ARB_COH_Low-Cap_Stage",
-      cohWalletAddress: "0x5Cf3fC3722e1780220Ca94C04a6dc7Dfd7615661",
-    });
-    expect(arbitrum.priceService).not.toEqual(hyperEvm.priceService);
-    expect(arbitrum.solvers.enigma?.tpsl).not.toEqual(hyperEvm.solvers.enigma?.tpsl);
-  });
-
-  it("ships the staging GaslessQ relayer block", () => {
-    const arbitrum = getChainConfig(SymmioSupportedChainId.ARBITRUM);
-
-    /**
-     * The only chain in the registry with a gasless block. The GaslessLayer and
-     * the InstantLayer above are one deployment's pair — the gateway reports
-     * that InstantLayer from `instantLayer()`, and a mismatch is what
-     * `assertGatewayCoherence` rejects.
-     */
-    expect(arbitrum.gasless).toEqual({
-      url: "https://gaslessq-staging.symmio.foundation",
-      protocolInstance: "arbitrum-42161-vibe-stage",
-      gaslessLayerAddress: "0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca",
-    });
-    expect(arbitrum.gasless?.apiKey).toBeUndefined();
-    /**
-     * Pinned deliberately: the registry advertises the service but never turns
-     * it on. Defaulting `mode` here would reroute every consumer's writes
-     * through a staging relayer, so activation stays the integrator's call.
-     */
-    expect(arbitrum.gasless?.execution).toBeUndefined();
+    expect(arbitrum.muon.urls).toHaveLength(4);
+    expect(arbitrum.listing).toEqual({ url: "https://listing85.enigma.bz" });
+    expect(arbitrum.inventory).toEqual({ url: "https://inventory85.enigma.bz" });
+    expect(arbitrum.solvers.enigma?.capabilities).toEqual({ groupClose: true, listingService: true });
   });
 
   it("resolves the Arbitrum solver through Config", () => {
@@ -124,8 +85,8 @@ describe("Arbitrum chain", () => {
 
     expect(config.getSolver({ chainId: SymmioSupportedChainId.ARBITRUM })).toMatchObject({
       id: "enigma",
-      address: "0x9be79D4977D86D440F9e1Ea0d468A58104B9b932",
-      url: "https://arb-staging.enigma.bz/api",
+      address: "0x0420b24359d2DCccA53904042aa36A641162445c",
+      url: "https://solver.enigma.bz/api",
     });
   });
 });

@@ -81,7 +81,7 @@ describe("instantOpen — kind dispatch", () => {
     vi.clearAllMocks();
   });
 
-  it("routes a HyperEVM (Enigma) chain to the two-operation Enigma flow", async () => {
+  it("routes an Arbitrum (Enigma) chain to the two-operation Enigma flow", async () => {
     const { config } = mockConfig();
     postInstantTradeInstantOpen.mockResolvedValue({ data: { temp_quote_id: 7, partyBmm: "1.5" } });
 
@@ -103,7 +103,7 @@ describe("instantOpen — kind dispatch", () => {
     await instantOpen(config, params());
 
     const [request] = postInstantTradeInstantOpen.mock.calls[0]!;
-    const solverAddress = config.getSolver({ chainId: SymmioSupportedChainId.HYPER_EVM }).address;
+    const solverAddress = config.getSolver({ chainId: SymmioSupportedChainId.ARBITRUM }).address;
 
     expect(request.sendQuote.signedOperation.flexFields).toHaveLength(1);
     expect(request.sendQuote.signedOperation.flexFields[0].authorizedFlexFiller).toBe(solverAddress);
@@ -113,17 +113,18 @@ describe("instantOpen — kind dispatch", () => {
   });
 
   it("signs the chain-generation quote-send call: legacy on v0.8.5, capped sendQuote on v0.8.6", async () => {
-    const { config } = mockConfig();
+    const { config: legacyConfig } = mockConfig({ contractsVersion: "0.8.5" });
+    const { config: cappedConfig } = mockConfig();
     postInstantTradeInstantOpen.mockResolvedValue({ data: { temp_quote_id: 7 } });
 
-    await instantOpen(config, params({ chainId: SymmioSupportedChainId.HYPER_EVM }));
+    await instantOpen(legacyConfig, params({ chainId: SymmioSupportedChainId.ARBITRUM }));
     const [legacyRequest] = postInstantTradeInstantOpen.mock.calls[0]!;
     expect(
       legacyRequest.sendQuote.signedOperation.callData.startsWith(SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR),
     ).toBe(true);
 
     await instantOpen(
-      config,
+      cappedConfig,
       params({ chainId: SymmioSupportedChainId.ARBITRUM, solverFeeCaps: { openRateCap: 1n, closeRateCap: 2n } }),
     );
     const [cappedRequest] = postInstantTradeInstantOpen.mock.calls[1]!;

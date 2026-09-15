@@ -11,7 +11,7 @@ interface Props {
 
 /**
  * Network picker shared by the wallet menu and the connect dialog: one chip per
- * configured wagmi chain (HyperEVM, Base, Arbitrum), the active one highlighted.
+ * configured wagmi chain (Arbitrum, Base), the active one highlighted.
  * The chain picks the target solver (Enigma vs Rasa) and every SDK read, so it
  * sits with the wallet instead of taking header space of its own.
  *

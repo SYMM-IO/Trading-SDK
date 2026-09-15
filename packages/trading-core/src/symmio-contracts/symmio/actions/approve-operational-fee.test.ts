@@ -5,7 +5,7 @@ import { mockConfig, TEST_TX_HASH } from "../../../shared/test/mock-config";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { approveOperationalFee, OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER } from "./approve-operational-fee";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const CHARGER: Address = "0x8347953D80037b8d82827246f37EC7442AD188B4";
 

@@ -32,9 +32,7 @@ describe("Base chain", () => {
     expect(base.solvers.rasa?.tpsl).toBeUndefined();
   });
 
-  it("carries placeholder service configs until Base's own are integrated", () => {
-    // Services are HyperEVM placeholders for now — swapped out per service as Base
-    // integrates its own. Present so the config type stays complete.
+  it("carries its configured service endpoints", () => {
     const base = getChainConfig(SymmioSupportedChainId.BASE);
     expect(base.subgraphs).toBeDefined();
     expect(base.priceService).toBeDefined();
@@ -42,13 +40,13 @@ describe("Base chain", () => {
     expect(base.muon).toBeDefined();
   });
 
-  it("does not force a Base affiliate on a consumer who only configures HyperEVM", () => {
+  it("does not force a Base affiliate on a consumer who only configures Arbitrum", () => {
     // Base has a solver now, but the affiliate gate only fires for chains the consumer
-    // EXPLICITLY configures. A consumer that configures only HYPER_EVM is not forced to
+    // EXPLICITLY configures. A consumer that configures only Arbitrum is not forced to
     // supply a Base affiliate; Base falls back to its registry affiliate.
     expect(() =>
       createConfig({
-        symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } } },
+        symmioConfig: { [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: zeroAddress } } },
         getClient: noopClient,
       }),
     ).not.toThrow();
@@ -56,7 +54,7 @@ describe("Base chain", () => {
 
   it("getSolver on Base resolves the Rasa solver", () => {
     const config = createConfig({
-      symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } } },
+      symmioConfig: { [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: zeroAddress } } },
       getClient: noopClient,
     });
     const solver = config.getSolver({ chainId: SymmioSupportedChainId.BASE });
@@ -64,14 +62,14 @@ describe("Base chain", () => {
     expect(solver.id).toBe("rasa");
   });
 
-  it("getChainConfigKey on Base is defined and distinct from HyperEVM's", () => {
+  it("getChainConfigKey on Base is defined and distinct from Arbitrum's", () => {
     const config = createConfig({
-      symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } } },
+      symmioConfig: { [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: zeroAddress } } },
       getClient: noopClient,
     });
     expect(config.getChainConfigKey(SymmioSupportedChainId.BASE)).not.toBe("unsupported");
     expect(config.getChainConfigKey(SymmioSupportedChainId.BASE)).not.toBe(
-      config.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM),
+      config.getChainConfigKey(SymmioSupportedChainId.ARBITRUM),
     );
   });
 });

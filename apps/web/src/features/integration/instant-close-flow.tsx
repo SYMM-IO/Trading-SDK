@@ -69,7 +69,7 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
   const sessionKey = sessionKeyAddress ?? undefined;
 
   // ---- Solver: which of the chain's solvers the close targets (one per chain
-  // today — HyperEVM → enigma, Base → rasa). Reset on chain switch. ----
+  // today — Arbitrum → enigma, Base → rasa). Reset on chain switch. ----
   const solverIds = config.listSolverIds(chainId);
   const [solverId, setSolverId] = useState<SolverId>(() => config.getDefaultSolverId(chainId));
   useEffect(() => {
@@ -154,6 +154,7 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
           partyBmm: q.lockedValues.partyBmm,
         },
         partyA: q.partyA,
+        createTimestamp: q.createTimestamp,
       })),
     [positionsQuery.data],
   );

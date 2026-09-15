@@ -5,7 +5,7 @@ import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 import { useSimulateApproveCollateral } from "./use-simulate-approve-collateral";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 describe("useSimulateApproveCollateral", () => {
   it("is idle until mutate is called", () => {

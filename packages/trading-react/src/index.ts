@@ -43,7 +43,9 @@ export {
   calculateAvailableInstantOpenMargin,
   calculateClosePrice,
   calculatePriceImpact,
+  calculateQuoteLeverage,
   calculateQuotePnl,
+  calculateSolverCloseFee,
   calculateTradeParams,
   clampClosePrecision,
   decimalPriceToWei,
@@ -290,6 +292,7 @@ export {
   useInstantCloses,
   useInstantOpen,
   useInstantOpenAuto,
+  useInstantOpenFees,
   useInstantOpenQuoteId,
   useInstantOpenWithTpSl,
   useInstantOpens,
@@ -328,6 +331,8 @@ export {
   type UseInstantClosesReturnType,
   type UseInstantOpenAutoParameters,
   type UseInstantOpenAutoReturnType,
+  type UseInstantOpenFeesParameters,
+  type UseInstantOpenFeesReturnType,
   type UseInstantOpenParameters,
   type UseInstantOpenQuoteIdParameters,
   type UseInstantOpenQuoteIdReturnType,
@@ -1081,20 +1086,17 @@ export {
  * ----------------------
  * Hooks over the endpoints only the `rasa` solver kind exposes: solver-side
  * balance info, partyA uPnL, global open interest, symbol price range,
- * single error-code lookup, whitelist check/add, and readiness. Each surfaces a
- * typed `UNSUPPORTED_BY_SOLVER` error when the resolved solver is not a `rasa`
+ * single error-code lookup, and readiness. Each surfaces a typed
+ * `UNSUPPORTED_BY_SOLVER` error when the resolved solver is not a `rasa`
  * solver. (Notification history search is the unified `useSearchNotifications`.)
  */
 export {
-  useAddSolverWhitelist,
   useErrorMessage,
   usePartyAUpnl,
   useSolverBalanceInfo,
   useSolverOpenInterest,
   useSolverPriceRange,
   useSolverReadiness,
-  type UseAddSolverWhitelistParameters,
-  type UseAddSolverWhitelistReturnType,
   type UseErrorMessageParameters,
   type UseErrorMessageReturnType,
   type UsePartyAUpnlParameters,

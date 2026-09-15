@@ -7,11 +7,11 @@ import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { createClassicWithdrawPart } from "../parts";
 import { initiateWithdraw } from "./initiate-withdraw";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const RECEIVER: Address = "0xdddddddddddddddddddddddddddddddddddddddd";
 
-const PARTS = [createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: RECEIVER, chainId: 999n })];
+const PARTS = [createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: RECEIVER, chainId: 42161n })];
 
 describe("initiateWithdraw", () => {
   it("wraps the core initiateWithdraw call in AccountLayer `_call`", async () => {

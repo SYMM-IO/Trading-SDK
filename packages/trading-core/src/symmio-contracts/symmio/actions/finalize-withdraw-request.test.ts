@@ -5,7 +5,7 @@ import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig, TEST_TX_HASH } from "../../../shared/test/mock-config";
 import { finalizeWithdrawRequest } from "./finalize-withdraw-request";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 describe("finalizeWithdrawRequest", () => {

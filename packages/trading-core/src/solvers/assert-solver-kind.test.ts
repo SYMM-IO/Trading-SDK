@@ -10,7 +10,7 @@ describe("assertSolverKind", () => {
   });
 
   it("throws UNSUPPORTED_BY_SOLVER naming the action and both kinds", () => {
-    const enigma = getDefaultSolver(SymmioSupportedChainId.HYPER_EVM);
+    const enigma = getDefaultSolver(SymmioSupportedChainId.ARBITRUM);
     const error = (() => {
       try {
         assertSolverKind(enigma, "rasa", "someAction");

@@ -71,6 +71,17 @@ export interface EnigmaMarket extends BaseMarket {
   minOpenSolverFeeCap: string;
   /** Minimum solver-fee cap a quote must allow on close, as a decimal string (perps-core v0.8.6 solver fees). Enigma-only. */
   minCloseSolverFeeCap: string;
+  /**
+   * Early (peak) close-fee rate charged flat until {@link EnigmaMarket.hedgerFeeCloseEarlyThreshold}
+   * seconds, then decaying to {@link BaseMarket.hedgerFeeClose}. Decimal string; equals `hedgerFeeClose`
+   * when the solver publishes no decay. Enigma-only. Pass the market to `getSolverCloseFeeRate` /
+   * `calculateSolverCloseFee` to price a close by holding time.
+   */
+  hedgerFeeCloseEarlyRate: string;
+  /** Seconds from open during which `hedgerFeeCloseEarlyRate` applies flat. `0` when no decay. Enigma-only. */
+  hedgerFeeCloseEarlyThreshold: number;
+  /** Seconds from open at/after which `hedgerFeeClose` applies; linear decay between the thresholds. Enigma-only. */
+  hedgerFeeCloseStandardThreshold: number;
 }
 
 /**
