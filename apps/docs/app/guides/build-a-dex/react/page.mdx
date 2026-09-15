@@ -18,7 +18,7 @@ Every hook here takes an optional `solverId` and follows the connected chain's *
 - **Prices come from Binance.** The mark-price hooks (`usePriceByName`, `useMarkPrices`) are provider-agnostic and serve Binance USD-M Futures for majors automatically — no code change. Narrow a tick on `provider` for Binance-only fields (`indexPrice`).
 - **No TP/SL yet.** Base has no COH wallet, so conditional orders (TP/SL) are unsupported there today. (Notification history search **does** work — the unified `useSearchNotifications` hits the rasa solver's position-state endpoint by `solverId`; only the notification-_service_ `searchUrl` is enigma-only.)
 - **Thousands of markets.** Majors list far more markets than lowcap — **virtualize** the market selector list so opening it stays instant.
-- **Rasa-only reads.** Solver readiness, whitelist, uPnL, open interest, and price range live on the [Rasa Solver hooks](/react/rasa-solver) page and throw `UNSUPPORTED_BY_SOLVER` off a non-rasa solver.
+- **Rasa-only reads.** Solver readiness, uPnL, open interest, and price range live on the [Rasa Solver hooks](/react/rasa-solver) page and throw `UNSUPPORTED_BY_SOLVER` off a non-rasa solver.
 
 Everything else in this guide — the gate ladder, session keys, `useManagedQuotes`, the close flow — is identical across both.
 
