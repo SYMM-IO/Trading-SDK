@@ -1,0 +1,97 @@
+import { Callout } from "nextra/components";
+
+# CandleSource
+
+The SDK's charting boundary. Every chart library needs the same three things — symbol metadata, bars for a time range, and a live subscription — so that is exactly what a source provides. Chart-library adapters ([`toTradingViewDatafeed`](/core/candles/tradingview-datafeed)) and framework hooks ([`useCandles`](/react/candles)) are written against this interface, never against a specific venue.
+
+```ts
+interface CandleSource {
+  readonly id: string; // stable identifier, scopes query keys (e.g. "binance:usd-m-futures")
+  readonly priceBasis: CandlePriceBasis;
+  readonly supportedResolutions: readonly CandleResolution[];
+  readonly maxCandlesPerRequest: number;
+  getSymbol(marketName: string): Promise<CandleSymbol | undefined>;
+  getCandles(parameters: GetCandlesParameters): Promise<GetCandlesReturnType>;
+  watchCandles?(parameters: WatchCandlesParameters): Unwatch;
+}
+```
+
+<Callout type="info">
+  Unlike most SDK actions, a source is **not** derived from `Config`: a reference exchange is not a SYMMIO chain
+  deployment, and which venue to chart is the consumer's choice. Construct one and pass it in explicitly.
+</Callout>
+
+- `getSymbol` resolves to `undefined` when the source does not carry the market — the check to run before rendering.
+- `getCandles` pages internally past `maxCandlesPerRequest`; the field is exposed so a caller can size its own requests sensibly.
+- `watchCandles` is **absent** when the source has no realtime feed, in which case a consumer must poll `getCandles`.
+
+## `GetCandlesParameters`
+
+<Properties>
+  <Property name="marketName" type="string">
+    Market name as SYMMIO names it.
+  </Property>
+  <Property name="resolution" type="CandleResolution">
+    Bar size to fetch. Must be listed in `supportedResolutions`.
+  </Property>
+  <Property name="from" type="number">
+    Range start, unix ms, inclusive.
+  </Property>
+  <Property name="to" type="number">
+    Range end, unix ms, exclusive.
+  </Property>
+  <Property name="limit" type="number" optional>
+    Maximum bars to return. A source pages internally to satisfy this.
+  </Property>
+  <Property name="signal" type="AbortSignal" optional>
+    Aborts in-flight requests. Wired to TanStack Query cancellation by the hooks.
+  </Property>
+</Properties>
+
+## `GetCandlesReturnType`
+
+<Properties>
+  <Property name="candles" type="Candle[]">
+    Bars in ascending time order, de-duplicated and clipped to the requested range.
+  </Property>
+  <Property name="noMoreData" type="boolean">
+    `true` when the source has nothing at or before `from` — typically because the request predates the instrument's
+    listing. A chart paging backwards should stop when it sees this.
+  </Property>
+</Properties>
+
+## `WatchCandlesParameters`
+
+<Properties>
+  <Property name="marketName" type="string">
+    Market name as SYMMIO names it.
+  </Property>
+  <Property name="resolution" type="CandleResolution">
+    Bar size to stream.
+  </Property>
+  <Property name="onCandle" type="(candle: Candle, meta: CandleUpdateMeta) => void">
+    Called on every update to the in-progress bar, and once more with `closed: true` when that bar finalizes.
+  </Property>
+  <Property name="onReset" type="() => void" optional>
+    Called after a reconnect, when bars may have been missed while the socket was down. Drop cached bars and refetch
+    history rather than splicing a live bar onto a stale series.
+  </Property>
+  <Property name="onStatusChange" type="(status: SocketStatus) => void" optional>
+    Called whenever the underlying connection status changes.
+  </Property>
+  <Property name="onError" type="(error: SymmError) => void" optional>
+    Called on a transport or parse error; does not stop the subscription.
+  </Property>
+</Properties>
+
+`CandleUpdateMeta` is `{ closed: boolean }` — `true` when the bar has finalized and the next update starts a new one.
+
+## Implementing your own source
+
+Anything that can answer the three questions plugs in: a solver mark-price stream folded into bars (`priceBasis: "solver-mark"`), a DEX pool OHLCV API (`"dex-pool"`), another exchange. Declare honest `supportedResolutions`, keep `time` in unix milliseconds aligned to the resolution boundary, report `volume: 0` when the venue cannot supply it, and give the source a stable `id` — it scopes the query cache.
+
+## Related
+
+- [`createBinanceCandleSource`](/core/candles/create-source) — the reference implementation.
+- [`Candle`](/core/candles/candle-type) — the bar and symbol shapes.
+- [`getCandlesQueryOptions`](/core/candles/get-candles) — TanStack Query over `getCandles`.

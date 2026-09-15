@@ -1,0 +1,61 @@
+import { Callout } from "nextra/components";
+
+# Candle
+
+One OHLCV bar.
+
+```ts
+interface Candle {
+  time: number; // bar open time, unix ms, aligned to the resolution boundary
+  open: number;
+  high: number;
+  low: number;
+  close: number; // the latest price while the bar is still in progress
+  volume: number;
+}
+```
+
+<Callout type="info">
+  `time` is the bar's **open** time in unix **milliseconds**, UTC, aligned by the venue. Chart libraries disagree on
+  whether they want seconds or milliseconds — the SDK always speaks milliseconds and each adapter converts at its own
+  edge.
+</Callout>
+
+`volume` is base-asset volume over the bar, and `0` when the source cannot report volume — the case for any source that folds a price-tick stream into bars.
+
+## `CandleSymbol`
+
+Symbol metadata a chart needs before it can render a series: how to label the instrument and how many decimals to draw its prices at.
+
+<Properties>
+  <Property name="marketName" type="string">
+    Market name as SYMMIO names it (e.g. `"BTCUSDT"`).
+  </Property>
+  <Property name="sourceSymbol" type="string">
+    The same instrument in the source's own namespace (e.g. the Binance symbol).
+  </Property>
+  <Property name="description" type="string">
+    Human-readable description for a chart's symbol header.
+  </Property>
+  <Property name="pricePrecision" type="number">
+    Decimal places prices should be rendered at.
+  </Property>
+  <Property name="volumePrecision" type="number">
+    Decimal places volume should be rendered at.
+  </Property>
+</Properties>
+
+## `CandlePriceBasis`
+
+What the prices in a candle series actually represent. Surfaced deliberately rather than hidden: a chart drawn from a reference exchange is not the price a SYMMIO trade settles at, and a UI that lets a user place orders off that chart should be able to tell them so.
+
+| Value                  | The bars are                                                              | Matches execution? |
+| ---------------------- | ------------------------------------------------------------------------- | ------------------ |
+| `"reference-exchange"` | Mark price of a third-party perp venue (e.g. Binance USD-M).              | No                 |
+| `"dex-pool"`           | Spot price of an on-chain liquidity pool, USD-denominated.                | No                 |
+| `"solver-mark"`        | The SYMMIO solver's own mark price — the basis execution settles against. | Yes                |
+
+## Related
+
+- [`CandleSource`](/core/candles/candle-source-type) — where these types flow from.
+- [Charts guide](/guides/charts) — the `priceBasis` caveat in full.
