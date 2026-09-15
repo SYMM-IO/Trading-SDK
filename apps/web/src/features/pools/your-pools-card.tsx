@@ -95,7 +95,7 @@ function userPoolColumns(): DataTableColumn<UserListingMarket>[] {
  * and this card reuses it: "Refresh" re-reads with the held token via `refetch()`
  * instead of prompting a new signature.
  *
- * Enigma-only: the listing backend lives on HyperEVM, so the card is gated on
+ * Enigma-only: the listing backend lives on Arbitrum, so the card is gated on
  * Enigma being the active solver, mirroring the listing-auth card.
  */
 export function YourPoolsCard() {
@@ -121,7 +121,7 @@ export function YourPoolsCard() {
       wide
     >
       {!enigmaActive ? (
-        <ResultNote testId="your-pools-gate">Switch to Enigma (HyperEVM) to sign in and load your pools.</ResultNote>
+        <ResultNote testId="your-pools-gate">Switch to Enigma (Arbitrum) to sign in and load your pools.</ResultNote>
       ) : authError ? (
         <ResultError kind={authError.kind} message={authError.message} testId="your-pools-auth-error" />
       ) : !accessToken ? (

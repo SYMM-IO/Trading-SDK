@@ -15,7 +15,7 @@ vi.mock("./initiate-withdraw", () => ({ initiateWithdraw }));
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const RECEIVER: Address = "0xdddddddddddddddddddddddddddddddddddddddd";
 const AMOUNT = 1_000000000000000000n;
-const PARTS = [createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: RECEIVER, chainId: 999n })];
+const PARTS = [createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: RECEIVER, chainId: 42161n })];
 const UPNL_SIG: SingleUpnlSig = {
   reqId: "0x1234",
   timestamp: 1_700_000_000n,
@@ -122,12 +122,12 @@ describe("withdraw", () => {
       parts: PARTS,
       speedUp: true,
       providerData: "0x1234",
-      chainId: 999,
+      chainId: 42161,
     });
 
     expect(initiateWithdraw).toHaveBeenCalledWith(
       config,
-      expect.objectContaining({ speedUp: true, providerData: "0x1234", chainId: 999 }),
+      expect.objectContaining({ speedUp: true, providerData: "0x1234", chainId: 42161 }),
     );
   });
 });

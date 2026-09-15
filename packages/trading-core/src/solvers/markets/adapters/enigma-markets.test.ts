@@ -26,6 +26,9 @@ describe("toEnigmaMarkets", () => {
       trading_fee: "0.0006",
       hedger_fee_open: "0.0001",
       hedger_fee_close: "0.0002",
+      hedger_fee_close_early_rate: "0.0024",
+      hedger_fee_close_early_threshold: "30",
+      hedger_fee_close_standard_threshold: "180",
       max_funding_rate: "0.001",
       min_notional_value: "5",
       max_quantity: "100",
@@ -37,6 +40,8 @@ describe("toEnigmaMarkets", () => {
       token_address: "0xabc",
       funding_rate_epoch_duration: "3600",
       funding_rate_window_time: "60",
+      min_open_solver_fee_cap: "0.5",
+      min_close_solver_fee_cap: "0.25",
     };
 
     expect(toEnigmaMarkets([raw])).toEqual([
@@ -55,6 +60,9 @@ describe("toEnigmaMarkets", () => {
         tradingFee: "0.0006",
         hedgerFeeOpen: "0.0001",
         hedgerFeeClose: "0.0002",
+        hedgerFeeCloseEarlyRate: "0.0024",
+        hedgerFeeCloseEarlyThreshold: 30,
+        hedgerFeeCloseStandardThreshold: 180,
         maxFundingRate: "0.001",
         minNotionalValue: "5",
         maxQuantity: "100",
@@ -66,6 +74,8 @@ describe("toEnigmaMarkets", () => {
         tokenAddress: "0xabc",
         fundingRateEpochDuration: "3600",
         fundingRateWindowTime: "60",
+        minOpenSolverFeeCap: "0.5",
+        minCloseSolverFeeCap: "0.25",
       },
     ]);
   });
@@ -87,6 +97,9 @@ describe("toEnigmaMarkets", () => {
       tradingFee: "0",
       hedgerFeeOpen: "0",
       hedgerFeeClose: "0",
+      hedgerFeeCloseEarlyRate: "0",
+      hedgerFeeCloseEarlyThreshold: 0,
+      hedgerFeeCloseStandardThreshold: 0,
       maxFundingRate: "0",
       minNotionalValue: "0",
       maxQuantity: "0",
@@ -98,6 +111,8 @@ describe("toEnigmaMarkets", () => {
       tokenAddress: "",
       fundingRateEpochDuration: "0",
       fundingRateWindowTime: "0",
+      minOpenSolverFeeCap: "0",
+      minCloseSolverFeeCap: "0",
     });
   });
 

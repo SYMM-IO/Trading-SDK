@@ -1,7 +1,7 @@
 import type { Address, Hash, Hex } from "viem";
 import type { Config } from "../../../core/config";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
-import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
+import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import { simulateCallAsSubAccount } from "./simulate-call-as-sub-account";
 
 /**

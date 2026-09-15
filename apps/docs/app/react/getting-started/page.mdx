@@ -33,13 +33,13 @@ import { SymmioProvider, SymmioSupportedChainId } from "@symmio/trading-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { http, zeroAddress } from "viem";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { createConfig, WagmiProvider } from "wagmi";
 import { injected } from "wagmi/connectors";
 
 const wagmiConfig = createConfig({
-  chains: [hyperEvm],
-  transports: { [hyperEvm.id]: http("https://rpc.hyperliquid.xyz/evm") },
+  chains: [arbitrum],
+  transports: { [arbitrum.id]: http("https://arb1.arbitrum.io/rpc") },
   connectors: [injected()],
 });
 
@@ -51,7 +51,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <SymmioProvider
           symmioConfig={{
-            [SymmioSupportedChainId.HYPER_EVM]: {
+            [SymmioSupportedChainId.ARBITRUM]: {
               // `zeroAddress` works out of the box — trades open, you just earn no
               // fee share. Swap in your registered affiliate to collect fees.
               addresses: { affiliatesAddress: zeroAddress },

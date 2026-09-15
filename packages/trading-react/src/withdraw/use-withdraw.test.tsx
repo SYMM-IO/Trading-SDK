@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_TX_HASH } from "../test/test-utils";
 import { useWithdraw } from "./use-withdraw";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const RECEIVER: Address = "0xdddddddddddddddddddddddddddddddddddddddd";
 // Collateral is 6-decimal (USDC) on the default test chain: 1 USDC.

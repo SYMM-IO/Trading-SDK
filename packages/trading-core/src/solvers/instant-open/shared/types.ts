@@ -179,6 +179,39 @@ export interface InstantOpenMarketData {
   pricePrecision?: number;
   /** Pre-fetched market quantity precision. When omitted, resolved from solver markets. */
   quantityPrecision?: number;
+  /** Pre-fetched `minOpenSolverFeeCap` (decimal ratio string). When omitted, resolved from solver markets. */
+  minOpenSolverFeeCap?: string;
+  /** Pre-fetched `minCloseSolverFeeCap` (decimal ratio string). When omitted, resolved from solver markets. */
+  minCloseSolverFeeCap?: string;
+  /** Pre-fetched solver open-fee rate (decimal fraction string). When omitted, resolved from solver markets. */
+  hedgerFeeOpen?: string;
+  /** Pre-fetched solver close-fee rate (decimal fraction string). When omitted, resolved from solver markets. */
+  hedgerFeeClose?: string;
+  /**
+   * Pre-fetched early (peak) close-fee rate. When omitted on a lowcap (Enigma)
+   * solver, resolved from `/symbols`; the open provisions this worst-case rate.
+   * Ignored on non-lowcap solvers.
+   */
+  hedgerFeeCloseEarlyRate?: string;
+  /** Pre-fetched early-window length in seconds (paired with `hedgerFeeCloseEarlyRate`). */
+  hedgerFeeCloseEarlyThreshold?: number;
+  /** Pre-fetched standard-rate threshold in seconds (paired with `hedgerFeeCloseEarlyRate`). */
+  hedgerFeeCloseStandardThreshold?: number;
+}
+
+/**
+ * Solver-fee rate caps authorized on a quote, as 18-decimal fixed-point ratios
+ * of quote notional (perps-core v0.8.6 solver fees).
+ *
+ * Both caps are set immutably at `sendQuote` time — the close-side cap cannot
+ * be changed later in `requestToClosePosition`. On-chain the solver may charge
+ * up to `notional * rateCap / 1e18` on each side.
+ */
+export interface SolverFeeCaps {
+  /** Maximum open-side solver fee, as an 18-decimal ratio of open notional. */
+  openRateCap: bigint;
+  /** Maximum close-side solver fee, as an 18-decimal ratio of close notional. Immutable after `sendQuote`. */
+  closeRateCap: bigint;
 }
 
 /**

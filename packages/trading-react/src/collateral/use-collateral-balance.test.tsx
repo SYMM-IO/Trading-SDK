@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_EOA } from "../test/test-utils";
 import { useCollateralBalance } from "./use-collateral-balance";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 describe("useCollateralBalance", () => {
   it("is disabled while `owner` is undefined and never reads", () => {

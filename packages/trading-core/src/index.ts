@@ -22,9 +22,9 @@
  * Raw viem-style `Abi` arrays for SYMMIO contracts, for consumers who call viem
  * directly (e.g. `readContract({ abi: accountLayerAbi })`).
  */
-export { accountLayerAbi } from "./symmio-contracts/abi/v0.8.5/account-layer";
-export { instantLayerAbi } from "./symmio-contracts/abi/v0.8.5/instant-layer";
-export { symmioAbi } from "./symmio-contracts/abi/v0.8.5/symmio";
+export { accountLayerAbi } from "./symmio-contracts/abi/v0.8.6/account-layer";
+export { instantLayerAbi } from "./symmio-contracts/abi/v0.8.6/instant-layer";
+export { symmioAbi } from "./symmio-contracts/abi/v0.8.6/symmio";
 
 /**
  * Config
@@ -556,6 +556,7 @@ export {
   type SolverId,
   type SymmioChainConfig,
   type SymmioContractAddresses,
+  type SymmioContractsVersion,
   type SymmioEnigmaNotificationsConfig,
   type SymmioInventoryConfig,
   type SymmioListingConfig,
@@ -1332,12 +1333,15 @@ export {
   INSTANT_LAYER_EIP712_DOMAIN_NAME,
   INSTANT_LAYER_EIP712_DOMAIN_VERSION,
   INSTANT_TRADE_REQUIRED_SELECTORS,
+  LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS,
   // trade math
   MARKET_ORDER_DEADLINE_SECONDS,
   // types / constants
   ORDER_TYPE_MARKET,
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
+  SEND_QUOTE_SELECTOR,
   SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
+  SHORT_FUNDING_BUFFER_PERCENT,
   SIGNED_OPERATION_TYPES,
   VIRTUAL_ACCOUNT_ISOLATION_TYPE,
   // calldata
@@ -1347,15 +1351,23 @@ export {
   buildSignedOperation,
   // trade math — spendable margin for the Max chip (fee + slippage shave)
   calculateAvailableInstantOpenMargin,
+  calculateExpectedSettlementLoss,
   calculateMargin,
+  calculateSolverFees,
   calculateTradeParams,
   computePlatformFee,
+  computePlatformFeeLegs,
+  deriveAutoSlippage,
   encodeAddMarginToNextVA,
+  encodeSendQuote,
   encodeSendQuoteWithAffiliateAndData,
   formatSignedOperationPayload,
   generateSalt,
   getFakeSendQuoteMuonSignature,
   getInstantLayerEip712Domain,
+  getInstantOpenFees,
+  getInstantOpenFeesQueryKey,
+  getInstantOpenFeesQueryOptions,
   // instant-open reads (off-chain hedger)
   getInstantOpenQuoteId,
   getInstantOpenQuoteIdQueryKey,
@@ -1363,6 +1375,7 @@ export {
   getInstantOpens,
   getInstantOpensQueryKey,
   getInstantOpensQueryOptions,
+  getInstantTradeRequiredSelectors,
   getMarketOrderDeadline,
   // instantOpen — primitive (all inputs required, no fetching)
   instantOpen,
@@ -1386,6 +1399,8 @@ export {
   toWeiBigInt,
   // quote constraints — pre-submit validation against market caps/floors
   validateInstantOpenAgainstMarket,
+  // instant-open fee-preview types
+  type BaseInstantOpenFees,
   type BuildSignedOperationParameters,
   type CalculateAvailableInstantOpenMarginParameters,
   type CalculateMarginParameters,
@@ -1393,10 +1408,18 @@ export {
   type CalculateTradeParamsReturnType,
   type ComputePlatformFeeRates,
   type EncodeAddMarginToNextVAParameters,
+  type EncodeSendQuoteParameters,
   type EncodeSendQuoteWithAffiliateAndDataParameters,
   type EnigmaInstantOpen,
+  type EnigmaInstantOpenFees,
   type EnigmaInstantOpenResult,
   type FlexField,
+  type GetInstantOpenFeesData,
+  type GetInstantOpenFeesOptions,
+  type GetInstantOpenFeesParameters,
+  type GetInstantOpenFeesQueryKey,
+  type GetInstantOpenFeesQueryOptions,
+  type GetInstantOpenFeesReturnType,
   // instant-open read types
   type GetInstantOpenQuoteIdData,
   type GetInstantOpenQuoteIdOptions,
@@ -1421,9 +1444,11 @@ export {
   type InstantOperationPayload,
   type NormalizedInstantOpenByKind,
   type PendingInstantOpen,
+  type PlatformFeeLegs,
   type PrepareInstantOpenParameters,
   type QuoteConstraintViolation,
   type RasaInstantOpen,
+  type RasaInstantOpenFees,
   type RasaInstantOpenResult,
   type ReplayAttackHeader,
   type ResolveFeeRatesParameters,
@@ -1440,11 +1465,29 @@ export {
   type SignAndFormatInstantOperationParameters,
   type SignedOperation,
   type SignedOperationPayload,
+  type SolverFeeCaps,
+  type SolverFees,
   type UpnlSig,
   type ValidateInstantOpenAgainstMarketParameters,
   type ValidateInstantOpenAgainstMarketReturnType,
   type VirtualAccountIsolationType,
 } from "./solvers/instant-open";
+
+/**
+ * Solver close fee (time-decaying)
+ * --------------------------------
+ * The solver charges more to close a freshly opened position; the rate decays
+ * from `hedgerFeeCloseEarlyRate` to the standard `hedgerFeeClose` over the
+ * market's thresholds. Those rates are flat fields on every `SolverSymbol`, so
+ * a symbol satisfies `SolverCloseFeeRates` — pass it straight to
+ * `getSolverCloseFeeRate` / `calculateSolverCloseFee` with a holding time.
+ */
+export {
+  calculateSolverCloseFee,
+  getSolverCloseFeeRate,
+  toThresholdSeconds,
+  type SolverCloseFeeRates,
+} from "./solvers/shared/solver-close-fee";
 
 /**
  * InstantLayer v2 (lowcap) — Instant Close

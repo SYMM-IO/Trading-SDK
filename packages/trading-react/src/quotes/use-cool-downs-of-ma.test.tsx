@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 import { useCoolDownsOfMA } from "./use-cool-downs-of-ma";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 describe("useCoolDownsOfMA", () => {
   it("reads the cooldown tuple; index 1 is the force-cancel cooldown", async () => {

@@ -1,5 +1,5 @@
 import { encodeFunctionData, type Hex } from "viem";
-import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.5/symmio";
+import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.6/symmio";
 
 /**
  * Parameters for {@link encodeRequestToClosePosition}.

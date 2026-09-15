@@ -50,6 +50,7 @@ export function EnigmaInstantCloseCard() {
           partyBmm: q.lockedValues.partyBmm,
         },
         partyA: q.partyA,
+        createTimestamp: q.createTimestamp,
       })),
     [positionsQuery.data],
   );

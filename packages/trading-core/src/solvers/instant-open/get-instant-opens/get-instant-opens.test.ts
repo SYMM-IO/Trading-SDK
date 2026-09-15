@@ -23,11 +23,15 @@ vi.mock("../../types/generated/rasa-solver", async (importOriginal) => {
 
 import { getInstantOpens } from "./get-instant-opens";
 
-const SOLVER_URL = getDefaultSolver(SymmioSupportedChainId.HYPER_EVM).url;
+const SOLVER_URL = getDefaultSolver(SymmioSupportedChainId.ARBITRUM).url;
 const PARTY_A = "0x00000000000000000000000000000000000000a1" as const;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 describe("getInstantOpens", () => {

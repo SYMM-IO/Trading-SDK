@@ -17,7 +17,7 @@ export const Default: Story = {
     <Card className="w-[360px]">
       <CardHeader>
         <CardTitle>Connect a wallet</CardTitle>
-        <CardDescription>Pick a connector to start a session on HyperEVM.</CardDescription>
+        <CardDescription>Pick a connector to start a session on Arbitrum.</CardDescription>
       </CardHeader>
       <CardContent>
         <p className="text-muted-foreground text-sm">
@@ -40,7 +40,7 @@ export const WithAction: Story = {
     <Card className="w-[360px]">
       <CardHeader>
         <CardTitle>Account balance</CardTitle>
-        <CardDescription>USDC on Hyperliquid</CardDescription>
+        <CardDescription>USDC on Arbitrum</CardDescription>
         <CardAction>
           <Button variant="ghost" size="xs">
             Refresh

@@ -3,7 +3,7 @@
 Every SDK read has a matching query-key factory (`getMarketsQueryKey`, `getUserSubAccountsQueryKey`, …). Keys are two-element arrays: a leading string tag identifying the action, and a plain object holding the request-shaped options.
 
 ```ts
-["getUserSubAccounts", { chainId: 999, user: "0x…", configKey: "sha1:…" }];
+["getUserSubAccounts", { chainId: 42161, user: "0x…", configKey: "sha1:…" }];
 ```
 
 Consistent shape across the SDK means an app can invalidate a whole slice by tag, or match a subset of one slice by field — without knowing each key's internals.
@@ -25,8 +25,8 @@ Each factory produces a `readonly [tag, options]` tuple:
 The transform is done by `filterQueryOptions`:
 
 ```ts
-filterQueryOptions({ chainId: 999, user: "0x…", offset: 0n, query: { staleTime: 1 } });
-// → { chainId: 999, user: "0x…", offset: "0" }
+filterQueryOptions({ chainId: 42161, user: "0x…", offset: 0n, query: { staleTime: 1 } });
+// → { chainId: 42161, user: "0x…", offset: "0" }
 ```
 
 Every factory routes its inputs through `filterQueryOptions` so the shape is uniform.

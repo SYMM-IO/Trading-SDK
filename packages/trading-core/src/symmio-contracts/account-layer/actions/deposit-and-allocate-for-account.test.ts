@@ -5,7 +5,7 @@ import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig, TEST_TX_HASH } from "../../../shared/test/mock-config";
 import { depositAndAllocateForAccount } from "./deposit-and-allocate-for-account";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const AMOUNT = 1_000000n;
 

@@ -5,7 +5,7 @@ import { mockConfig } from "../../../shared/test/mock-config";
 import type { AffiliateRegistration } from "../types";
 import { simulateRequestToRegisterAffiliate } from "./simulate-request-to-register-affiliate";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const ADMIN: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const CORE: Address = "0xcccccccccccccccccccccccccccccccccccccccc";
 const FROM: Address = "0x1111111111111111111111111111111111111111";

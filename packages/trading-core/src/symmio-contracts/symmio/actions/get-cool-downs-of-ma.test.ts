@@ -3,7 +3,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig } from "../../../shared/test/mock-config";
 import { getCoolDownsOfMA } from "./get-cool-downs-of-ma";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 describe("getCoolDownsOfMA", () => {
   it("reads coolDownsOfMA and returns the four cooldowns (index 1 = forceCancelCooldown)", async () => {

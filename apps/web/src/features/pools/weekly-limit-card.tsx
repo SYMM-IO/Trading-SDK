@@ -36,7 +36,7 @@ export function WeeklyLimitCard() {
     >
       {!enigmaActive ? (
         <ResultNote testId="weekly-limit-gate">
-          Switch to Enigma (HyperEVM) to read the weekly listing limit.
+          Switch to Enigma (Arbitrum) to read the weekly listing limit.
         </ResultNote>
       ) : weekly.error ? (
         <ResultError kind={weekly.error.kind} message={weekly.error.message} testId="weekly-limit-error" />

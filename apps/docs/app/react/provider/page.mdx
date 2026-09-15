@@ -11,7 +11,7 @@ import { zeroAddress } from "viem";
 
 const symmioConfig = {
   // `zeroAddress` works out of the box (no fee share) — swap in your registered affiliate to earn fees.
-  [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } },
+  [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: zeroAddress } },
 };
 
 <SymmioProvider symmioConfig={symmioConfig}>{children}</SymmioProvider>;
@@ -41,8 +41,8 @@ Its one mandatory field is **`addresses.affiliatesAddress`** for every supported
 ```tsx
 <SymmioProvider
   symmioConfig={{
-    [SymmioSupportedChainId.HYPER_EVM]: {
-      addresses: { affiliatesAddress: "0xYourHyperEvmAffiliate…" },
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0xYourArbitrumAffiliate…" },
       // optional per-chain overrides:
       subgraphs: { analytics: "https://staging.example/subgraphs/analytics" },
     },
@@ -83,7 +83,7 @@ function useAppGetWalletClient() {
 
 <SymmioProvider
   symmioConfig={{
-    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+    [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
   }}
   getWalletClient={useAppGetWalletClient()}
 >

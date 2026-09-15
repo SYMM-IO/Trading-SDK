@@ -1,5 +1,5 @@
 import { waitFor } from "@testing-library/react";
-import { hyperEvm, mainnet } from "viem/chains";
+import { arbitrum, mainnet } from "viem/chains";
 import { describe, expect, it } from "vitest";
 import { createTestWagmiConfig, renderHookWithProviders, TEST_EOA } from "../test/test-utils";
 import { useWalletAccount } from "./use-wallet-account";
@@ -19,7 +19,7 @@ describe("useWalletAccount", () => {
 
   it("surfaces the connected address, chain, and isOnExpectedChain on a supported chain", async () => {
     const wagmiConfig = createTestWagmiConfig({
-      chains: [hyperEvm],
+      chains: [arbitrum],
       features: { defaultConnected: true, reconnect: true },
     });
 
@@ -27,7 +27,7 @@ describe("useWalletAccount", () => {
 
     await waitFor(() => expect(result.current.isConnected).toBe(true));
     expect(result.current.address).toBe(TEST_EOA);
-    expect(result.current.chainId).toBe(hyperEvm.id);
+    expect(result.current.chainId).toBe(arbitrum.id);
     expect(result.current.isOnExpectedChain).toBe(true);
   });
 

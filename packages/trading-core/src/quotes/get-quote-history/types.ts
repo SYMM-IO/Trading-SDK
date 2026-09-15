@@ -27,8 +27,8 @@ export enum QuoteCloseType {
  * therefore appear in history. Each carries an immutable `metadata` snapshot.
  *
  * @remarks
- * Mirrors the event-type strings emitted by the SYMMIO subgraphs (v0.8.5+);
- * see the subgraphs `0.8.5_migration` doc — QuoteEvent metadata.
+ * Mirrors the event-type strings emitted by the SYMMIO subgraphs (v0.8.6+);
+ * see the subgraphs `0.8.6_migration` doc — QuoteEvent metadata.
  */
 export enum QuoteCloseEventType {
   /** A normal (partial or full) close. */

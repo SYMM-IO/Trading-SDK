@@ -5,13 +5,13 @@ import { TxReceipt } from "@/components/tx-result";
 import { useSessionKey } from "@/features/session-keys/use-session-key";
 import type { SolverId } from "@symmio/trading-core";
 import {
-  INSTANT_TRADE_REQUIRED_SELECTORS,
   PositionType,
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
   SubAccountIsolationType,
   VIRTUAL_ACCOUNT_ISOLATION_TYPE,
   useGrantDelegation,
   useGroupedQuotes,
+  useInstantTradeRequiredSelectors,
   useIsDelegationActive,
   useOnchainContractMarkets,
   usePartyAOpenPositions,
@@ -69,7 +69,7 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
   const sessionKey = sessionKeyAddress ?? undefined;
 
   // ---- Solver: which of the chain's solvers the close targets (one per chain
-  // today — HyperEVM → enigma, Base → rasa). Reset on chain switch. ----
+  // today — Arbitrum → enigma, Base → rasa). Reset on chain switch. ----
   const solverIds = config.listSolverIds(chainId);
   const [solverId, setSolverId] = useState<SolverId>(() => config.getDefaultSolverId(chainId));
   useEffect(() => {
@@ -123,6 +123,7 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
     query: { enabled: delegationEnabled },
   });
   const grant = useGrantDelegation();
+  const requiredSelectors = useInstantTradeRequiredSelectors();
   const delegationActive = closeDelegation.data === true;
   const delegationLoading = delegationEnabled && closeDelegation.isLoading;
 
@@ -153,6 +154,7 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
           partyBmm: q.lockedValues.partyBmm,
         },
         partyA: q.partyA,
+        createTimestamp: q.createTimestamp,
       })),
     [positionsQuery.data],
   );
@@ -181,7 +183,7 @@ export function InstantCloseFlow({ owner, subAccount, subAccountName, onSelectSu
     grant.mutate({
       account: { addr: subAccount, isPartyB: false },
       delegatedSigner: sessionKey,
-      selectors: INSTANT_TRADE_REQUIRED_SELECTORS,
+      selectors: requiredSelectors,
       expiryTimestamp: BigInt(Math.floor(Date.now() / 1000) + DELEGATION_TTL_SECONDS),
     });
   }

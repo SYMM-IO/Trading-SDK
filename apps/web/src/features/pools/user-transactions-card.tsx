@@ -72,7 +72,7 @@ const COLUMNS: DataTableColumn<UserTransaction>[] = [
  * {@link useListingAuth} session. Pool-independent — it is not tied to the
  * section's pool picker; every row carries its own token identity.
  *
- * Enigma-only: the listing backend lives on HyperEVM, so the card is gated on
+ * Enigma-only: the listing backend lives on Arbitrum, so the card is gated on
  * Enigma being the active solver, mirroring the other Listing-session cards.
  */
 export function UserTransactionsCard() {
@@ -94,7 +94,7 @@ export function UserTransactionsCard() {
       wide
     >
       {!enigmaActive ? (
-        <ResultNote testId="user-transactions-gate">Switch to Enigma (HyperEVM) to read your transactions.</ResultNote>
+        <ResultNote testId="user-transactions-gate">Switch to Enigma (Arbitrum) to read your transactions.</ResultNote>
       ) : !signedIn ? (
         <SignInNote testId="user-transactions-idle" buttonTestId="user-transactions-sign-in">
           Sign in to read your transactions.

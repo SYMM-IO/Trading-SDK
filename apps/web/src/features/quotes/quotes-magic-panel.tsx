@@ -35,7 +35,6 @@ export function QuotesMagicPanel({ intervalMs, enabled, initialInput, persistKey
     pollingInterval: intervalMs,
     includeVirtualAccounts: true,
   });
-  console.log("quotes", quotes);
 
   /**
    * Keep the last loaded feed so a reload shows it instantly instead of

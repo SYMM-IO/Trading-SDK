@@ -28,7 +28,7 @@ describe("sendInstantClose — kind dispatch", () => {
     vi.clearAllMocks();
   });
 
-  it("routes a HyperEVM (Enigma) chain to /instant_trade/instant_close with a wrapped body", async () => {
+  it("routes an Arbitrum (Enigma) chain to /instant_trade/instant_close with a wrapped body", async () => {
     const { config } = mockConfig();
     postInstantTradeInstantClose.mockResolvedValue({ data: undefined });
 
@@ -38,7 +38,7 @@ describe("sendInstantClose — kind dispatch", () => {
     expect(instantRequestToCloseWithSignatureInstantTradeClosePost).not.toHaveBeenCalled();
     const [body, options] = postInstantTradeInstantClose.mock.calls[0]!;
     expect(body).toEqual({ operations: OPERATIONS });
-    expect(options.baseURL).toBe(config.getSolver({ chainId: SymmioSupportedChainId.HYPER_EVM }).url);
+    expect(options.baseURL).toBe(config.getSolver({ chainId: SymmioSupportedChainId.ARBITRUM }).url);
   });
 
   it("routes a Base (Rasa) chain to /instant_trade/close with the bare operations array", async () => {

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_EOA } from "../test/test-utils";
 import { usePartyAOpenPositions } from "./use-party-a-open-positions";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 describe("usePartyAOpenPositions", () => {
   it("is disabled while `partyA` is undefined and never reads", () => {

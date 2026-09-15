@@ -17,7 +17,7 @@ vi.mock("../types/generated/enigma-price-service", async (importOriginal) => {
 
 import { getEnigmaPriceServiceHealth } from "./get-enigma-price-service-health";
 
-const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).priceService.url;
+const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).priceService.url;
 
 /** Build a real `AxiosError` (so `isAxiosError` is true) carrying request + response context. */
 function axiosFailure(): AxiosError {
@@ -49,7 +49,7 @@ describe("getEnigmaPriceServiceHealth", () => {
     healthCheckHealthGet.mockResolvedValue({ data });
 
     const { config } = mockConfig();
-    const result = await getEnigmaPriceServiceHealth(config, { chainId: SymmioSupportedChainId.HYPER_EVM });
+    const result = await getEnigmaPriceServiceHealth(config, { chainId: SymmioSupportedChainId.ARBITRUM });
 
     expect(healthCheckHealthGet).toHaveBeenCalledTimes(1);
     expect(healthCheckHealthGet).toHaveBeenCalledWith({ baseURL: PRICE_SERVICE_URL });

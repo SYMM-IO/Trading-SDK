@@ -1,9 +1,9 @@
 "use client";
 
 import {
-  INSTANT_TRADE_REQUIRED_SELECTORS,
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
   useGrantDelegation,
+  useInstantTradeRequiredSelectors,
   useIsDelegationActive,
   useSymmioConfig,
 } from "@symmio/trading-react";
@@ -48,6 +48,7 @@ export function useTpSlDelegation(parameters: { subAccount?: Address; sessionKey
   const config = useSymmioConfig();
   const chainConfig = config.getChainConfig();
   const cohWallet = chainConfig.solvers[chainConfig.defaultSolverId]?.tpsl?.cohWalletAddress;
+  const requiredSelectors = useInstantTradeRequiredSelectors();
 
   const sessionEnabled = Boolean(subAccount && sessionKey);
   const cohEnabled = Boolean(subAccount && cohWallet);
@@ -83,7 +84,7 @@ export function useTpSlDelegation(parameters: { subAccount?: Address; sessionKey
         await grant.mutateAsync({
           account: { addr: subAccount, isPartyB: false },
           delegatedSigner,
-          selectors: INSTANT_TRADE_REQUIRED_SELECTORS,
+          selectors: requiredSelectors,
           expiryTimestamp,
         });
       }
@@ -93,7 +94,7 @@ export function useTpSlDelegation(parameters: { subAccount?: Address; sessionKey
     } finally {
       setIsEnabling(false);
     }
-  }, [subAccount, sessionKey, cohWallet, grant, sessionDelegation, cohDelegation]);
+  }, [subAccount, sessionKey, cohWallet, requiredSelectors, grant, sessionDelegation, cohDelegation]);
 
   return {
     ready: sessionDelegation.data === true && cohDelegation.data === true,

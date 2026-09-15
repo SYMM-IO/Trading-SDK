@@ -1,7 +1,7 @@
 import type { SimulateContractReturnType } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, FromParameter } from "../../../shared/types/properties";
-import { instantLayerAbi } from "../../abi/v0.8.5/instant-layer";
+import { instantLayerAbi } from "../../abi/v0.8.6/instant-layer";
 import type { GrantDelegationParameters } from "./grant-delegation";
 
 /**

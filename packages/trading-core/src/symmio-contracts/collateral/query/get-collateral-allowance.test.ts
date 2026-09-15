@@ -7,14 +7,14 @@ import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig, TEST_AFFILIATE_ADDRESS, TEST_USER } from "../../../shared/test/mock-config";
 import { getCollateralAllowanceQueryKey, getCollateralAllowanceQueryOptions } from "./get-collateral-allowance";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const CUSTOM_COLLATERAL: Address = "0xcccccccccccccccccccccccccccccccccccccccc";
 
 describe("getCollateralAllowanceQueryKey", () => {
   it("builds a stable key from the query parameters", () => {
-    expect(getCollateralAllowanceQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM, owner: TEST_USER })).toEqual([
+    expect(getCollateralAllowanceQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM, owner: TEST_USER })).toEqual([
       "getCollateralAllowance",
-      { chainId: SymmioSupportedChainId.HYPER_EVM, owner: TEST_USER },
+      { chainId: SymmioSupportedChainId.ARBITRUM, owner: TEST_USER },
     ]);
   });
 
@@ -69,7 +69,7 @@ describe("getCollateralAllowanceQueryOptions", () => {
 
     const options = getCollateralAllowanceQueryOptions(config, {
       owner: TEST_USER,
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       query: { staleTime: 30_000 },
     });
 
@@ -78,9 +78,9 @@ describe("getCollateralAllowanceQueryOptions", () => {
     expect(options.queryKey).toEqual([
       "getCollateralAllowance",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         owner: TEST_USER,
-        configKey: config.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM),
+        configKey: config.getChainConfigKey(SymmioSupportedChainId.ARBITRUM),
       },
     ]);
   });
@@ -142,7 +142,7 @@ describe("getCollateralAllowanceQueryOptions", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS, collateralAddress: CUSTOM_COLLATERAL },
         },
       },

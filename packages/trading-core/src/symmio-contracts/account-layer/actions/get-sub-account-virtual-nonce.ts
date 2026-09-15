@@ -1,7 +1,7 @@
 import type { Address } from "viem";
 import type { Config } from "../../../core/config";
 import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
-import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
+import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 
 /**
  * Parameters for {@link getSubAccountVirtualNonce}.

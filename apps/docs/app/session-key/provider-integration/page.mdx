@@ -24,7 +24,7 @@ function useAppGetWalletClient(manager: SessionKeyManager) {
 
 <SymmioProvider
   symmioConfig={{
-    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
+    [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: "0xYourRegisteredAffiliate…" } },
   }}
   getWalletClient={useAppGetWalletClient(manager)}
 >

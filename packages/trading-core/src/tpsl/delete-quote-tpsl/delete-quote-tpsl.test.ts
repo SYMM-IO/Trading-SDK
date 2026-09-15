@@ -10,7 +10,7 @@ import type { TpSlSigningSpec } from "../types";
 import type { StatusResponse } from "../types/generated/tpsl-handler";
 import { deleteQuoteTpSl, type DeleteQuoteTpSlParameters } from "./delete-quote-tpsl";
 
-const CHAIN_CONFIG = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const CHAIN_CONFIG = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const TPSL = CHAIN_CONFIG.solvers.enigma!.tpsl!;
 
 /** Local fixtures — handler-issued / test-only values, never real on-chain constants. */
@@ -30,7 +30,7 @@ const SIGNING_SPEC: TpSlSigningSpec = {
   domain: {
     name: "ConditionalOrders",
     version: "1",
-    chainId: SymmioSupportedChainId.HYPER_EVM,
+    chainId: SymmioSupportedChainId.ARBITRUM,
     verifyingContract: TPSL.cohWalletAddress,
   },
   types: {
@@ -45,7 +45,7 @@ const SIGNING_SPEC: TpSlSigningSpec = {
 };
 
 const PARAMETERS: DeleteQuoteTpSlParameters = {
-  chainId: SymmioSupportedChainId.HYPER_EVM,
+  chainId: SymmioSupportedChainId.ARBITRUM,
   from: TEST_USER,
   quoteId: 42n,
   virtualAccount: VIRTUAL_ACCOUNT,
@@ -82,14 +82,14 @@ function mockSigningConfig(options?: {
   const account = { address: options?.signerAddress ?? TEST_USER, type: "json-rpc" } as Account;
   const walletClient = {
     account,
-    chain: { id: SymmioSupportedChainId.HYPER_EVM } as Chain,
+    chain: { id: SymmioSupportedChainId.ARBITRUM } as Chain,
     signTypedData,
   } as unknown as SymmioWalletClient;
   const getWalletClient = vi.fn(async () => walletClient);
 
   const config = createConfig({
     symmioConfig: {
-      [SymmioSupportedChainId.HYPER_EVM]: {
+      [SymmioSupportedChainId.ARBITRUM]: {
         addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
         ...(options?.tpslUrl ? { solvers: { enigma: { tpsl: { url: options.tpslUrl } } } } : {}),
       },
@@ -195,7 +195,7 @@ describe("deleteQuoteTpSl", () => {
 
     expect(getWalletClient).toHaveBeenCalledTimes(1);
     expect(getWalletClient).toHaveBeenCalledWith({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       from: TEST_USER,
     });
   });
@@ -251,8 +251,8 @@ describe("deleteQuoteTpSl", () => {
       conditionalOrderType: "take_profit",
     });
 
-    expect(config.defaultChainId).toBe(SymmioSupportedChainId.HYPER_EVM);
-    expect(getWalletClient).toHaveBeenCalledWith({ chainId: SymmioSupportedChainId.HYPER_EVM, from: TEST_USER });
+    expect(config.defaultChainId).toBe(SymmioSupportedChainId.ARBITRUM);
+    expect(getWalletClient).toHaveBeenCalledWith({ chainId: SymmioSupportedChainId.ARBITRUM, from: TEST_USER });
   });
 
   it("signs a delete message bound to the virtual account, cohQuoteId and side", async () => {

@@ -41,13 +41,13 @@ describe("getAccountBalanceOfQueryOptions", () => {
 
   it("builds a stable key", () => {
     const key = getAccountBalanceOfQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       account: ACCOUNT,
     });
     expect(key).toEqual([
       "getAccountBalanceOf",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         account: ACCOUNT,
       },
     ]);
@@ -58,7 +58,7 @@ describe("getAccountBalanceOfQueryOptions", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1", symmioAddress: CUSTOM_SYMMIO },
         },
       },

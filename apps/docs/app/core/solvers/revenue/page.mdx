@@ -2,14 +2,14 @@ import { Callout } from "nextra/components";
 
 # getSolverRevenue
 
-Read what the solver has earned — total, split into the hedger-fee share and the funding share — over a trailing window. Every parameter is optional: with none set you get the **protocol-wide lifetime** total.
+Read what the solver has earned on **one market** — total, split into the hedger-fee share and the funding share — over a trailing window. `symbolId` names the market and is required; the window defaults to lifetime.
 
 ```ts
 import { getSolverRevenue } from "@symmio/trading-core";
 
-const revenue = await getSolverRevenue(config);
+const revenue = await getSolverRevenue(config, { symbolId: 1 });
 
-revenue.totalRevenue; // 19139.5 — dollars, protocol-wide, since listing
+revenue.totalRevenue; // 15936.3 — dollars, market 1, since listing
 revenue.hedgerFeeRevenue; // the share earned from hedger fees
 revenue.fundingRevenue; // the share earned from funding payments
 revenue.recordCount; // how many underlying rows produced those totals
@@ -17,7 +17,7 @@ revenue.recordCount; // how many underlying rows produced those totals
 
 This is the solver's own bookkeeping, not the inventory service's and not the listing backend's. A pools dashboard that shows revenue next to TVL next to a catalog row is reading three different vendors — see [Pools](/core/pools) for how they divide up.
 
-The two halves of the signature are exported as `GetSolverRevenueParameters` (the parameters object, every field optional) and `GetSolverRevenueReturnType` (an alias of [`SolverRevenue`](#returns)), so you can name them in your own wrappers:
+The two halves of the signature are exported as `GetSolverRevenueParameters` (the parameters object) and `GetSolverRevenueReturnType` (an alias of [`SolverRevenue`](#returns)), so you can name them in your own wrappers:
 
 ```ts
 import type { GetSolverRevenueParameters, GetSolverRevenueReturnType } from "@symmio/trading-core";
@@ -27,24 +27,17 @@ function lastDay(parameters: GetSolverRevenueParameters): Promise<GetSolverReven
 }
 ```
 
-## Omitting `symbolId` is the protocol-wide total
+## The read is per-market
 
 <Callout type="warning">
-  **`symbolId` is a narrowing filter, not an identifier you are expected to supply.** Omit it and the solver returns the
-  aggregate across **every market** — that is the headline number. Pass one and you get that single market's share of
-  it, which is always smaller and is _not_ the protocol's revenue.
+  **There is no protocol-wide variant.** Earlier solver generations served an aggregate `/revenue` endpoint and this
+  action exposed it by omitting `symbolId`; the current generation removed that endpoint, so `symbolId` is now required
+  and the read answers for exactly one market.
 </Callout>
 
-The two calls hit different endpoints and answer different questions:
+For a figure that spans several markets, call once per market and label the result with the markets it covers — do not sum a handful of markets and call it "protocol revenue". A sum over markets `[1, 2, 3]` is the revenue of markets 1–3, nothing more, and every market you skip makes the label more wrong.
 
-| Call                                        | Endpoint              | Answers                           |
-| ------------------------------------------- | --------------------- | --------------------------------- |
-| `getSolverRevenue(config)`                  | `/revenue`            | What has the **protocol** earned? |
-| `getSolverRevenue(config, { symbolId: 1 })` | `/revenue/{symbolId}` | What has **market 1** earned?     |
-
-The size of the gap is the reason this matters. Against the enigma solver today, the lifetime protocol-wide total is **$19,139.50**, while market `1` alone is **$15,936.30** — market 1 dominates, so a one-market figure looks plausible enough to ship and still under-reports by roughly $3,200. The reference UI hardcodes `symbolId: 1` on its overview and does exactly that; the SDK's default is the true aggregate.
-
-If you want a per-market breakdown, call once per market and keep the protocol-wide call as its own row — do not sum a handful of markets and label the result "total".
+The underlying rows are still available: [`getRevenueRecords`](/core/solvers#getrevenuerecords) pages through every revenue-bearing row (optionally filtered by symbol), which is the honest source for anything cross-market.
 
 ## Parameters
 
@@ -57,17 +50,15 @@ If you want a per-market breakdown, call once per market and keep the protocol-w
     Solver kind to target. Defaults to the chain's default solver. Must resolve to an `enigma` solver — see
     [Enigma-only](#enigma-only).
   </Property>
-  <Property name="symbolId" type="number" optional>
-    Restrict the totals to one market. **Omit it for the protocol-wide total.** Present, it switches the read to
-    `/revenue/{symbolId}`.
+  <Property name="symbolId" type="number">
+    The market whose revenue to read. Required — the read hits `/revenue/{symbolId}` and there is no aggregate endpoint
+    to fall back to.
   </Property>
   <Property name="timeRange" type="SolverRevenueTimeRange" optional default='"lifetime"'>
     Trailing window: `"1h"`, `"24h"`, `"7d"`, `"30d"` or `"lifetime"`. Omitted entirely from the request when unset, so
     the solver applies its own default of `lifetime`.
   </Property>
 </Properties>
-
-`parameters` itself is optional — `getSolverRevenue(config)` is the same call as `getSolverRevenue(config, {})`.
 
 ## `timeRange` is a closed set
 
@@ -83,7 +74,7 @@ Windows are trailing from now, not calendar buckets: `"24h"` is the last twenty-
 
 <Returns type="Promise<SolverRevenue>">
   <Property name="totalRevenue" type="number">
-    Total revenue over the window, in **dollars** — `19139.5` means $19,139.50. Equal to `hedgerFeeRevenue` +
+    Total revenue over the window, in **dollars** — `15936.3` means $15,936.30. Equal to `hedgerFeeRevenue` +
     `fundingRevenue`.
   </Property>
   <Property name="hedgerFeeRevenue" type="number">
@@ -109,7 +100,7 @@ Every field is optional in the solver's own schema — it omits a dimension rath
 Because `totalRevenue` is the sum of the other two, the split is a share breakdown you can chart without a second call:
 
 ```ts
-const { totalRevenue, hedgerFeeRevenue, fundingRevenue } = await getSolverRevenue(config);
+const { totalRevenue, hedgerFeeRevenue, fundingRevenue } = await getSolverRevenue(config, { symbolId: 1 });
 
 const feeShare = totalRevenue === 0 ? 0 : (hedgerFeeRevenue / totalRevenue) * 100;
 const fundingShare = totalRevenue === 0 ? 0 : (fundingRevenue / totalRevenue) * 100;
@@ -117,60 +108,54 @@ const fundingShare = totalRevenue === 0 ? 0 : (fundingRevenue / totalRevenue) * 
 
 ## Enigma-only
 
-The `/revenue` endpoints exist on the **enigma** solver only. `getSolverRevenue` resolves the target solver and checks its kind _before_ the network hop, so a rasa target fails immediately with `UNSUPPORTED_BY_SOLVER` instead of surfacing a vendor 404 that reads like an outage.
+The `/revenue/{symbolId}` endpoint exists on the **enigma** solver only. `getSolverRevenue` resolves the target solver and checks its kind _before_ the network hop, so a rasa target fails immediately with `UNSUPPORTED_BY_SOLVER` instead of surfacing a vendor 404 that reads like an outage.
 
 ```ts
 import { getSolverRevenue } from "@symmio/trading-core";
 import { base } from "viem/chains";
 
 // Throws UNSUPPORTED_BY_SOLVER — Base's default solver is rasa-kind. No request is made.
-await getSolverRevenue(config, { chainId: base.id });
+await getSolverRevenue(config, { chainId: base.id, symbolId: 1 });
 ```
 
-Reaching that check means resolving a rasa solver, which is why the example switches chains rather than forcing `solverId: "rasa"`. Asking for a solver kind a chain does not register — `"rasa"` on HyperEVM, which carries the enigma solver alone — fails one step earlier with `UNKNOWN_SOLVER`.
+Reaching that check means resolving a rasa solver, which is why the example switches chains rather than forcing `solverId: "rasa"`. Asking for a solver kind a chain does not register — `"rasa"` on a chain that carries the enigma solver alone — fails one step earlier with `UNKNOWN_SOLVER`.
 
 In a UI that can point at either solver, gate the panel on the resolved kind rather than catching the error.
 
 ## Examples
 
-### Protocol-wide, since listing
+### One market, since listing
 
-The headline figure — no `symbolId`, no `timeRange`:
+No `timeRange` — the solver's own default window is lifetime:
 
 ```ts
-const lifetime = await getSolverRevenue(config);
+const lifetime = await getSolverRevenue(config, { symbolId: 1 });
 
-lifetime.totalRevenue; // 19139.5
+lifetime.totalRevenue; // 15936.3
 lifetime.recordCount; // > 0, so those totals are real and not a data gap
 ```
 
 ### The trailing 24 hours
 
 ```ts
-const day = await getSolverRevenue(config, { timeRange: "24h" });
+const day = await getSolverRevenue(config, { symbolId: 1, timeRange: "24h" });
 
 if (day.recordCount === 0) {
   // No rows in the window at all — render "no data", not "$0.00".
 }
 ```
 
-### One market's share
+### Several markets, labeled honestly
+
+One call per market, and the label names what the sum covers:
 
 ```ts
-const market = await getSolverRevenue(config, { symbolId: 1, timeRange: "7d" });
-```
+const symbolIds = [1, 2, 3];
 
-### Protocol-wide next to one market
+const totals = await Promise.all(symbolIds.map((symbolId) => getSolverRevenue(config, { symbolId, timeRange: "30d" })));
 
-Both figures on one screen, fetched together so the pair is consistent:
-
-```ts
-const [protocol, market] = await Promise.all([
-  getSolverRevenue(config, { timeRange: "30d" }),
-  getSolverRevenue(config, { symbolId: 1, timeRange: "30d" }),
-]);
-
-const share = protocol.totalRevenue === 0 ? 0 : (market.totalRevenue / protocol.totalRevenue) * 100;
+const markets123 = totals.reduce((sum, t) => sum + t.totalRevenue, 0);
+// Render as "Revenue · markets 1–3", not "Protocol revenue".
 ```
 
 ## Query options
@@ -179,12 +164,12 @@ const share = protocol.totalRevenue === 0 ? 0 : (market.totalRevenue / protocol.
 import { getSolverRevenueQueryOptions } from "@symmio/trading-core";
 import { useQuery } from "@tanstack/react-query";
 
-useQuery(getSolverRevenueQueryOptions(config, { timeRange: "24h" }));
+useQuery(getSolverRevenueQueryOptions(config, { symbolId: 1, timeRange: "24h" }));
 ```
 
 `GetSolverRevenueOptions` is the action's parameters plus a `query` bag of TanStack overrides. The factory folds `config.getChainConfigKey(chainId)` into the key, so a runtime config override pointed at a different solver deployment refetches instead of serving the previous one's cache. `getSolverRevenueQueryKey` builds the same key for cache matching and invalidation.
 
-Both `symbolId` and `timeRange` are part of the key, so the protocol-wide total and each market/window pair cache independently — the protocol-wide row on a dashboard never gets overwritten by a per-market fetch.
+Both `symbolId` and `timeRange` are part of the key, so each market/window pair caches independently — one market's 24-hour figure never gets overwritten by another market's fetch.
 
 The rest of the factory's types are exported too: `GetSolverRevenueData` is what the query resolves to (the same `SolverRevenue`), `GetSolverRevenueQueryKey` is the key `getSolverRevenueQueryKey` returns, and `GetSolverRevenueQueryOptions` is the options bag the factory produces.
 

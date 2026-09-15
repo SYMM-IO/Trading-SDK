@@ -44,6 +44,7 @@ export interface MockConfigResult {
  *   implementation for streaming-action tests.
  */
 export function mockConfig(options?: {
+  contractsVersion?: "0.8.5" | "0.8.6";
   withWallet?: boolean;
   simulateBeforeWrite?: boolean;
   webSocketConstructor?: WebSocketConstructor;
@@ -58,13 +59,18 @@ export function mockConfig(options?: {
   const account = { address: TEST_USER, type: "json-rpc" } as Account;
   const walletClient = {
     account,
-    chain: { id: SymmioSupportedChainId.HYPER_EVM } as Chain,
+    chain: { id: SymmioSupportedChainId.ARBITRUM } as Chain,
     writeContract,
     signTypedData,
   } as unknown as SymmioWalletClient;
 
   const config = createConfig({
-    symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } } },
+    symmioConfig: {
+      [SymmioSupportedChainId.ARBITRUM]: {
+        addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
+        contractsVersion: options?.contractsVersion,
+      },
+    },
     getClient: () => publicClient,
     getWalletClient: options?.withWallet === false ? undefined : async () => walletClient,
     simulateBeforeWrite: options?.simulateBeforeWrite,

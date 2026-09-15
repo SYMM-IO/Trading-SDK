@@ -1,13 +1,16 @@
 import type { Address, Hex } from "viem";
-import { zeroAddress } from "viem";
+import { decodeFunctionData, zeroAddress } from "viem";
 import { describe, expect, it } from "vitest";
 import { SymmError } from "../../../shared/errors/symm-error";
+import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.6/symmio";
 import {
   buildQuoteMetadata,
+  encodeSendQuote,
   encodeSendQuoteWithAffiliateAndData,
   getFakeSendQuoteMuonSignature,
   sendQuoteUpnlSigFlexRange,
   ZERO_UPNL_SIG,
+  type EncodeSendQuoteParameters,
 } from "./calldata";
 import type { UpnlSig } from "./types";
 
@@ -108,5 +111,61 @@ describe("sendQuoteUpnlSigFlexRange", () => {
     const truncated = callData.slice(0, 40) as Hex;
 
     expect(() => sendQuoteUpnlSigFlexRange(truncated)).toThrow(SymmError);
+  });
+});
+
+function encodeCapped(overrides: Partial<EncodeSendQuoteParameters> = {}): Hex {
+  return encodeSendQuote({
+    partyBsWhiteList: [SOLVER],
+    symbolId: 1n,
+    positionType: 0,
+    orderType: 1,
+    price: PRICE,
+    quantity: 1_000000000000000000n,
+    cva: 1_000000000000000000n,
+    lf: 500000000000000000n,
+    partyAmm: 1_500000000000000000n,
+    partyBmm: 1_500000000000000000n,
+    deadline: 1_700_300n,
+    affiliate: AFFILIATE,
+    data: buildQuoteMetadata("11111111-2222-3333-4444-555555555555"),
+    upnlSig: getFakeSendQuoteMuonSignature(PRICE),
+    ...overrides,
+  });
+}
+
+describe("encodeSendQuote", () => {
+  it("encodes the v0.8.6 sendQuote with the solver-fee caps as the trailing argument", () => {
+    const callData = encodeCapped({
+      solverFeeCaps: { openRateCap: 500_000000000000n, closeRateCap: 300_000000000000n },
+    });
+
+    const decoded = decodeFunctionData({ abi: symmioAbi, data: callData });
+
+    expect(decoded.functionName).toBe("sendQuote");
+    expect(decoded.args[14]).toEqual({ openRateCap: 500_000000000000n, closeRateCap: 300_000000000000n });
+  });
+
+  it("defaults to zero caps when solverFeeCaps is omitted", () => {
+    const decoded = decodeFunctionData({ abi: symmioAbi, data: encodeCapped() });
+
+    expect(decoded.functionName).toBe("sendQuote");
+    expect(decoded.args[14]).toEqual({ openRateCap: 0n, closeRateCap: 0n });
+  });
+
+  it("shifts the upnlSig region by exactly the caps tuple's two head words versus the legacy encoding", () => {
+    const legacy = sendQuoteUpnlSigFlexRange(encode(getFakeSendQuoteMuonSignature(PRICE)));
+    const capped = sendQuoteUpnlSigFlexRange(
+      encodeCapped({ deadline: 1_700_000_300n, solverFeeCaps: { openRateCap: 1n, closeRateCap: 2n } }),
+    );
+
+    /**
+     * `solverFeeCaps` is a static tuple: its two `uint256`s live inline in the
+     * head region, growing it by two words and pushing every tail (including
+     * `upnlSig`'s) 64 bytes further out. The region's size is untouched — the
+     * signature's own bytes are what the solver's flex fill replaces.
+     */
+    expect(capped.offset).toBe(legacy.offset + 64n);
+    expect(capped.length).toBe(legacy.length);
   });
 });

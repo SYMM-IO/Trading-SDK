@@ -19,7 +19,7 @@ vi.mock("../types/generated/enigma-price-service", async (importOriginal) => {
 
 import { getEnigmaPriceServiceSymbolsInfoQueryKey, getEnigmaPriceServiceSymbolsInfoQueryOptions } from "./query";
 
-const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).priceService.url;
+const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).priceService.url;
 
 /**
  * Fixture typed as the generated `SymbolInfo` so a change to the generated shape
@@ -55,7 +55,7 @@ describe("getEnigmaPriceServiceSymbolsInfoQueryOptions", () => {
 
     const { config } = mockConfig();
     const options = getEnigmaPriceServiceSymbolsInfoQueryOptions(config, {
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
     });
 
     await expect(options.queryFn()).resolves.toBe(SYMBOLS);
@@ -79,7 +79,7 @@ describe("getEnigmaPriceServiceSymbolsInfoQueryOptions", () => {
   it("builds the options bag without issuing a request — the queryFn stays lazy", () => {
     const { config } = mockConfig();
 
-    getEnigmaPriceServiceSymbolsInfoQueryOptions(config, { chainId: SymmioSupportedChainId.HYPER_EVM });
+    getEnigmaPriceServiceSymbolsInfoQueryOptions(config, { chainId: SymmioSupportedChainId.ARBITRUM });
 
     expect(getSymbolsInfoApiV1SymbolsInfoGet).not.toHaveBeenCalled();
   });
@@ -99,24 +99,24 @@ describe("getEnigmaPriceServiceSymbolsInfoQueryOptions", () => {
   });
 
   it("builds a stable key from the chain id", () => {
-    expect(getEnigmaPriceServiceSymbolsInfoQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM })).toEqual([
+    expect(getEnigmaPriceServiceSymbolsInfoQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM })).toEqual([
       "getEnigmaPriceServiceSymbolsInfo",
-      { chainId: SymmioSupportedChainId.HYPER_EVM },
+      { chainId: SymmioSupportedChainId.ARBITRUM },
     ]);
   });
 
   it("keeps TanStack-only fields out of the key while still forwarding them", () => {
     const { config } = mockConfig();
     const options = getEnigmaPriceServiceSymbolsInfoQueryOptions(config, {
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       query: { staleTime: 5_000, retry: false },
     });
 
     expect(options.staleTime).toBe(5_000);
     expect(options.retry).toBe(false);
     expect(options.queryKey[1]).toEqual({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
-      configKey: config.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM),
+      chainId: SymmioSupportedChainId.ARBITRUM,
+      configKey: config.getChainConfigKey(SymmioSupportedChainId.ARBITRUM),
     });
   });
 
@@ -135,7 +135,7 @@ describe("getEnigmaPriceServiceSymbolsInfoQueryOptions", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
           priceService: { url: overriddenUrl },
         },
@@ -163,7 +163,7 @@ describe("getEnigmaPriceServiceSymbolsInfoQueryOptions", () => {
 
     const unsupported = getEnigmaPriceServiceSymbolsInfoQueryOptions(config, { chainId: mainnet.id }).queryKey;
     const supported = getEnigmaPriceServiceSymbolsInfoQueryOptions(config, {
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
     }).queryKey;
 
     expect(unsupported[1]).toEqual({ chainId: mainnet.id, configKey: config.getChainConfigKey(mainnet.id) });

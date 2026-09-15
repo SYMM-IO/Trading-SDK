@@ -17,7 +17,7 @@ import {
 } from "../types/generated/tpsl-handler";
 import { getQuoteTpSlQueryKey, getQuoteTpSlQueryOptions } from "./query";
 
-const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solvers.enigma!.tpsl!;
+const TPSL = getChainConfig(SymmioSupportedChainId.ARBITRUM).solvers.enigma!.tpsl!;
 
 const ROW: ConditionalOrderResponseSchema = {
   quote_id: 128,
@@ -159,33 +159,33 @@ describe("getQuoteTpSlQueryOptions", () => {
   it("builds a stable key with the quote id serialized as a decimal string", () => {
     expect(
       getQuoteTpSlQueryKey({
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         quoteId: 128n,
       }),
     ).toEqual([
       "getQuoteTpSl",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         quoteId: "128",
       },
     ]);
   });
 
   it("serializes a negative quote id as a decimal string too", () => {
-    expect(getQuoteTpSlQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM, quoteId: -77n })).toEqual([
+    expect(getQuoteTpSlQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM, quoteId: -77n })).toEqual([
       "getQuoteTpSl",
-      { chainId: SymmioSupportedChainId.HYPER_EVM, quoteId: "-77" },
+      { chainId: SymmioSupportedChainId.ARBITRUM, quoteId: "-77" },
     ]);
   });
 
   it("strips TanStack control fields from the key", () => {
     const withQuery = getQuoteTpSlQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       quoteId: 128n,
       query: { enabled: false, staleTime: 5_000, refetchInterval: 1_000 },
     } as Parameters<typeof getQuoteTpSlQueryKey>[0]);
 
-    expect(withQuery).toEqual(getQuoteTpSlQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM, quoteId: 128n }));
+    expect(withQuery).toEqual(getQuoteTpSlQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM, quoteId: 128n }));
   });
 
   it("keys two different quote ids apart", () => {
@@ -203,7 +203,7 @@ describe("getQuoteTpSlQueryOptions", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
           solvers: { enigma: { tpsl: { url: "https://tpsl.override.test" } } },
         },
@@ -216,8 +216,8 @@ describe("getQuoteTpSlQueryOptions", () => {
     const basePayload = baseKey[1] as KeyPayload;
     const overriddenPayload = overriddenKey[1] as KeyPayload;
 
-    expect(basePayload.configKey).toBe(base.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM));
-    expect(overriddenPayload.configKey).toBe(overridden.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM));
+    expect(basePayload.configKey).toBe(base.getChainConfigKey(SymmioSupportedChainId.ARBITRUM));
+    expect(overriddenPayload.configKey).toBe(overridden.getChainConfigKey(SymmioSupportedChainId.ARBITRUM));
     /** Only the fingerprint moves — the identifying payload is otherwise identical. */
     expect(overriddenPayload.configKey).not.toBe(basePayload.configKey);
     expect({ ...overriddenPayload, configKey: undefined }).toEqual({ ...basePayload, configKey: undefined });

@@ -1,12 +1,17 @@
 import type { PublicClient } from "viem";
 import { describe, expect, it } from "vitest";
+import { SymmioSupportedChainId } from "../../core/chains";
 import { createConfig } from "../../core/config";
 import { FUNDING_HISTORY_EVENT_TYPES, QuoteEventType } from "../get-quote-events-by-type/types";
 import { getQuotesEventsByTypeQueryKey, getQuotesEventsByTypeQueryOptions } from "./query";
 
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 describe("getQuotesEventsByTypeQueryKey", () => {

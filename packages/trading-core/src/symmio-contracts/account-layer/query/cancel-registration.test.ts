@@ -4,7 +4,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig, TEST_TX_HASH } from "../../../shared/test/mock-config";
 import { cancelRegistrationMutationOptions } from "./cancel-registration";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const AFFILIATE: Address = "0xaff1aff1aff1aff1aff1aff1aff1aff1aff1aff1";
 
 describe("cancelRegistrationMutationOptions", () => {

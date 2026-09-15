@@ -3,7 +3,7 @@ import { InfoIcon } from "@/components/info-icon";
 import { WEI_DECIMALS } from "@/lib/format";
 import type { UnifiedQuote } from "@symmio/trading-core";
 import { OrderType, PositionType, QuoteStatus } from "@symmio/trading-core";
-import { useQuoteTpSl } from "@symmio/trading-react";
+import { calculateQuoteLeverage, useQuoteTpSl } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
@@ -28,6 +28,18 @@ function formatFixedPoint(raw: bigint): string {
 /** Format an optional wei amount, falling back to {@link EMPTY} when absent. */
 function formatOptionalFixedPoint(raw?: bigint): string {
   return raw === undefined ? EMPTY : formatFixedPoint(raw);
+}
+
+/**
+ * A quote's opening leverage as e.g. `10.5×` — `quantity × (initialOpenedPrice,
+ * else openedPrice, else requestedOpenPrice) ÷ (CVA + LF + partyAMM + partyBMM)`.
+ * {@link EMPTY} when the locked-margin sum is zero (no partyA collateral on
+ * record yet), which `calculateQuoteLeverage` returns as `"0"`.
+ */
+function formatLeverage(quote: UnifiedQuote): string {
+  const leverage = Number(calculateQuoteLeverage(quote));
+  if (!Number.isFinite(leverage) || leverage === 0) return EMPTY;
+  return `${parseFloat(leverage.toFixed(2))}×`;
 }
 
 /** Primary identifier shown for a row: the on-chain quote id, or the temp id with an origin hint. */
@@ -242,6 +254,15 @@ function buildColumns(marketNameById: Map<string, string>): DataTableColumn<Unif
       cell: (quote) => formatFixedPoint(quote.lockedValues.cva + quote.lockedValues.lf),
       sortAccessor: (quote) => Number(quote.lockedValues.cva + quote.lockedValues.lf),
       cellClassName: "text-muted-foreground font-mono",
+    },
+    {
+      id: "leverage",
+      header: "Leverage",
+      align: "end",
+      widthClassName: NUMERIC_COLUMN_WIDTH,
+      cell: (quote) => formatLeverage(quote),
+      sortAccessor: (quote) => Number(calculateQuoteLeverage(quote)),
+      cellClassName: "text-foreground font-mono",
     },
     {
       id: "created",

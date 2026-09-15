@@ -31,7 +31,7 @@ All amounts are 18-decimal wei `bigint` and may be negative where the arithmetic
   <Property name="isLiquidatable" type="boolean" required>
     `remainingToLiquidation < 0n` — bit-for-bit the on-chain predicate
     `allocatedBalance − (cva + lf) + upnl < 0` from `LibAccount.partyAAvailableBalanceForLiquidation` (perps-core
-    v0.8.5). The boundary is strict: equity exactly equal to the maintenance margin is still solvent.
+    v0.8.6). The boundary is strict: equity exactly equal to the maintenance margin is still solvent.
   </Property>
 </Properties>
 

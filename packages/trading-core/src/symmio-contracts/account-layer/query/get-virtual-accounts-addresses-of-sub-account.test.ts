@@ -47,14 +47,14 @@ describe("getVirtualAccountsAddressesOfSubAccountQueryOptions", () => {
 
   it("builds a stable, bigint-safe key", () => {
     const key = getVirtualAccountsAddressesOfSubAccountQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       subAccount: TEST_USER,
       offset: 0n,
       limit: 200n,
     });
     expect(key).toEqual([
       "getVirtualAccountsAddressesOfSubAccount",
-      { chainId: SymmioSupportedChainId.HYPER_EVM, subAccount: TEST_USER, offset: "0", limit: "200" },
+      { chainId: SymmioSupportedChainId.ARBITRUM, subAccount: TEST_USER, offset: "0", limit: "200" },
     ]);
   });
 });
