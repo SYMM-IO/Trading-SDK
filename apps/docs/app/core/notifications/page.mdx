@@ -13,7 +13,7 @@ Each method and type has its own page with the full signature, parameters, retur
 Notifications are **configured per solver**, and each solver's endpoint speaks one of two wire protocols. The protocol is set on the solver's `notifications` config (`SymmioNotificationsConfig`, discriminated by `protocol: "enigma" | "rasa"`) and drives how the SDK subscribes and parses. Resolve it with `config.getSolver({ chainId, solverId }).notifications`. The call site — [`watchNotifications`](/core/notifications/watch-notifications) — is identical either way; only the transport underneath differs.
 
 <Callout type="info">
-  The protocol is a property of the **solver**, not the chain. Today HyperEVM's `enigma` solver speaks `enigma` and
+  The protocol is a property of the **solver**, not the chain. Today Arbitrum's `enigma` solver speaks `enigma` and
   Base's `rasa` solver speaks `rasa`; `watchNotifications` / `searchNotifications` take an optional `solverId` and
   dispatch on the resolved solver's protocol. See [Solvers & Chains](/core/concepts/solvers-and-chains) for how the
   registry ties a solver to its notifications config.

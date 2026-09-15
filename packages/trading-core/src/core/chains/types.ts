@@ -110,7 +110,7 @@ export interface SolverCapabilitiesConfig {
 export interface SymmioSolverConfig {
   /** Human-readable solver name */
   name: string;
-  /** Solver's on-chain address (used as `partyB` in `sendQuoteWithAffiliateAndData`) */
+  /** Solver's on-chain address (used as `partyB` in `sendQuote`) */
   address: Address;
   /** Solver / hedger API base URL */
   url: string;
@@ -163,7 +163,7 @@ export interface SymmioTpSlConfig {
   url: string;
   /** Handler WebSocket URL — enigma-protocol notifications scoped by `appName`. */
   wsUrl: string;
-  /** `App-Name` header value, e.g. `Hyper-EVM_COH-Low-Cap_Production`. */
+  /** `App-Name` header value, e.g. `Arbitrum_COH_Production`. */
   appName: string;
   /** COH wallet address that must be granted delegation to execute TP/SL orders. */
   cohWalletAddress: Address;
@@ -297,7 +297,7 @@ export interface SymmioMuonConfig {
  * — the pool catalogue, per-pool stats, a user's stake/rewards, and the
  * create/deposit/withdraw/claim actions. It is chain-level: one listing backend
  * is served per chain (a chain has at most one), with no solver or capability
- * involved. Present only where Pools is available (Enigma on HyperEVM); omitted
+ * involved. Present only where Pools is available (Enigma on Arbitrum); omitted
  * elsewhere.
  *
  * One deployment serves listings whose collateral was deposited on **several**
@@ -343,11 +343,26 @@ export interface SymmioInventoryConfig {
 }
 
 /**
+ * The perps-core contracts generation a chain's deployment runs.
+ *
+ * A **deployment fact, declared per chain** — it is not probed at runtime (the
+ * diamond exposes no version view). It drives the version-sensitive seams the
+ * SDK carries for serving mixed-generation chains from one release: which
+ * quote-send call the instant-open flow signs (`sendQuote` with solver-fee caps
+ * on `"0.8.6"`, the legacy `sendQuoteWithAffiliateAndData` on `"0.8.5"`), which
+ * selector the session-key delegation set includes, and which output shape the
+ * withdraw-request reads decode.
+ */
+export type SymmioContractsVersion = "0.8.5" | "0.8.6";
+
+/**
  * Complete resolved configuration for a SYMMIO chain deployment.
  */
 export interface SymmioChainConfig {
   /** Chain ID */
   chainId: number;
+  /** Contracts generation deployed on this chain. See {@link SymmioContractsVersion}. */
+  contractsVersion: SymmioContractsVersion;
   /** Contract addresses */
   addresses: SymmioContractAddresses;
   /** Subgraph endpoints */
@@ -367,7 +382,7 @@ export interface SymmioChainConfig {
   muon: SymmioMuonConfig;
   /**
    * Optional Pools listing backend, served per chain. Set on chains where the
-   * lowcap Pools flow is available (Enigma on HyperEVM); omitted elsewhere.
+   * lowcap Pools flow is available (Enigma on Arbitrum); omitted elsewhere.
    * Resolve it with `resolveListingService` / gate on `supportsListingService`.
    */
   listing?: SymmioListingConfig;

@@ -27,7 +27,7 @@ import { useListingAuth } from "./listing-auth-context";
  * Until signed in the submit button reads "Sign in first" and runs the SIWE
  * exchange instead.
  *
- * Enigma-only: the listing backend lives on HyperEVM, so the button is gated on
+ * Enigma-only: the listing backend lives on Arbitrum, so the button is gated on
  * Enigma being the active solver, mirroring the other Listing-session cards.
  */
 export function CreatePoolCard() {
@@ -43,7 +43,7 @@ export function CreatePoolCard() {
   const [tokenContractAddress, setTokenContractAddress] = useState("");
   const [buyBackRatio, setBuyBackRatio] = useState("5");
   const [maxLeverage, setMaxLeverage] = useState("20");
-  const [depositChain, setDepositChain] = useState<ListingDepositChainId>(ListingDepositChainId.HYPER_EVM);
+  const [depositChain, setDepositChain] = useState<ListingDepositChainId>(ListingDepositChainId.ARBITRUM_ONE);
 
   const buyBack = Number(buyBackRatio);
   const leverage = Number(maxLeverage);
@@ -176,7 +176,7 @@ export function CreatePoolCard() {
       </ResultNote>
 
       {!enigmaActive ? (
-        <ResultNote testId="create-pool-gate">Switch to Enigma (HyperEVM) to create a pool.</ResultNote>
+        <ResultNote testId="create-pool-gate">Switch to Enigma (Arbitrum) to create a pool.</ResultNote>
       ) : create.error ? (
         <ResultError kind={create.error.kind} message={create.error.message} testId="create-pool-error" />
       ) : create.data ? (

@@ -44,19 +44,23 @@ export function openPriceOf(quote: Pick<UnifiedQuote, "openedPrice" | "requested
 }
 
 /**
- * A quote's reference price for leverage: the `requestedOpenPrice`, else the
- * settled `openedPrice`.
+ * A quote's reference price for leverage, in descending precedence: the
+ * `initialOpenedPrice` it first opened at, else the settled `openedPrice`, else
+ * the current `requestedOpenPrice`.
  *
- * **The precedence is the inverse of {@link openPriceOf}** and that is
- * deliberate: leverage describes the position as it was *opened*, so the price
- * the trader committed to wins, and the settled fill steps in only when there is
- * no requested price on record. Shared by `aggregateGroupMetrics` and
- * `calculateQuoteLeverage`, which agree on this rule while deliberately
- * differing in numeric strategy (exact bigint vs. float).
+ * Leverage describes the position *as it was opened*, so the original open price
+ * wins — `requestedOpenPrice` can drift after edits and is only the last resort.
+ * A `0n` (or absent) price at any tier falls through to the next. Shared by
+ * `aggregateGroupMetrics` and `calculateQuoteLeverage`, which agree on this rule
+ * while deliberately differing in numeric strategy (exact bigint vs. float).
  *
  * @param quote - Any object carrying the quote's open prices.
- * @returns The leverage reference price in wei, or `0n` when neither is set.
+ * @returns The leverage reference price in wei, or `0n` when none is set.
  */
-export function leveragePriceOf(quote: Pick<UnifiedQuote, "openedPrice" | "requestedOpenPrice">): bigint {
-  return quote.requestedOpenPrice !== 0n ? quote.requestedOpenPrice : (quote.openedPrice ?? 0n);
+export function leveragePriceOf(
+  quote: Pick<UnifiedQuote, "initialOpenedPrice" | "openedPrice" | "requestedOpenPrice">,
+): bigint {
+  if (quote.initialOpenedPrice !== undefined && quote.initialOpenedPrice !== 0n) return quote.initialOpenedPrice;
+  if (quote.openedPrice !== undefined && quote.openedPrice !== 0n) return quote.openedPrice;
+  return quote.requestedOpenPrice;
 }

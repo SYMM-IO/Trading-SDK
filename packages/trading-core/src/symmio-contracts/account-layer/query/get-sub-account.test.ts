@@ -37,8 +37,8 @@ describe("getSubAccountQueryOptions", () => {
   });
 
   it("builds a stable key", () => {
-    const key = getSubAccountQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM, account: SUB_ACCOUNT });
-    expect(key).toEqual(["getSubAccount", { chainId: SymmioSupportedChainId.HYPER_EVM, account: SUB_ACCOUNT }]);
+    const key = getSubAccountQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM, account: SUB_ACCOUNT });
+    expect(key).toEqual(["getSubAccount", { chainId: SymmioSupportedChainId.ARBITRUM, account: SUB_ACCOUNT }]);
   });
 
   it("folds the chain config fingerprint into the factory key so overrides rekey", () => {
@@ -46,7 +46,7 @@ describe("getSubAccountQueryOptions", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: {
             affiliatesAddress: "0x000000000000000000000000000000000000aFF1",
             accountLayerAddress: "0x9999999999999999999999999999999999999999",

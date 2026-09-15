@@ -20,7 +20,7 @@ import { formatListingUsd } from "./format-listing-value";
  * picker — so those two are given visual weight over the rest.
  *
  * Public read (`useListingConfig`, no token), but Enigma-only like the rest of
- * Pools — the listing backend lives on HyperEVM — so it carries the same Enigma
+ * Pools — the listing backend lives on Arbitrum — so it carries the same Enigma
  * gate note as the other Listing-session cards.
  */
 export function ListingConfigCard() {
@@ -35,7 +35,7 @@ export function ListingConfigCard() {
       description="Listing config — the deposit guidance, listing fee, rate limits, reward share, and supported deposit chains to read before creating a pool. Public, Enigma-only."
     >
       {!enigmaActive ? (
-        <ResultNote testId="listing-config-gate">Switch to Enigma (HyperEVM) to load the listing config.</ResultNote>
+        <ResultNote testId="listing-config-gate">Switch to Enigma (Arbitrum) to load the listing config.</ResultNote>
       ) : error ? (
         <ResultError kind={error.kind} message={error.message} testId="listing-config-error" />
       ) : isPending || data === undefined ? (

@@ -4,7 +4,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig, TEST_TX_HASH } from "../../../shared/test/mock-config";
 import { deleteSubAccountMutationOptions } from "./delete-sub-account";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 describe("deleteSubAccountMutationOptions", () => {

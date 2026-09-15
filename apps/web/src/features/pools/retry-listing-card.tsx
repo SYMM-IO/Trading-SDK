@@ -36,7 +36,7 @@ export function RetryListingCard() {
   const info = useRetryListingInfo({
     accessToken: accessToken ?? "",
     tokenContractAddress: selectedContractAddress,
-    depositChain: depositChain ?? ListingDepositChainId.HYPER_EVM,
+    depositChain: depositChain ?? ListingDepositChainId.ARBITRUM_ONE,
     query: { enabled: canRead },
   });
 
@@ -92,7 +92,7 @@ export function RetryListingCard() {
       </Button>
 
       {!enigmaActive ? (
-        <ResultNote testId="retry-gate">Switch to Enigma (HyperEVM) to retry a rejected market.</ResultNote>
+        <ResultNote testId="retry-gate">Switch to Enigma (Arbitrum) to retry a rejected market.</ResultNote>
       ) : retry.error ? (
         <ResultError kind={retry.error.kind} message={retry.error.message} testId="retry-error" />
       ) : retry.isSuccess ? (

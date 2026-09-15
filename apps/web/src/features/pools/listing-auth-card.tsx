@@ -18,7 +18,7 @@ import { useListingAuth } from "./listing-auth-context";
  * because it heads the listing section: every authed card below reuses this
  * token, so it reads as the section's status bar rather than as one more card.
  *
- * Enigma-only: the listing service lives on HyperEVM, so the card gates its
+ * Enigma-only: the listing service lives on Arbitrum, so the card gates its
  * button on Enigma being the active chain and the SDK rejects the call on any
  * other solver.
  */
@@ -39,7 +39,7 @@ export function ListingAuthCard() {
           <div className="min-w-0 flex-1">
             {!enigmaActive ? (
               <ResultNote testId="listing-auth-gate">
-                Switch to Enigma (HyperEVM) to sign in to the listing backend.
+                Switch to Enigma (Arbitrum) to sign in to the listing backend.
               </ResultNote>
             ) : error ? (
               <ResultError kind={error.kind} message={error.message} testId="listing-auth-error" />

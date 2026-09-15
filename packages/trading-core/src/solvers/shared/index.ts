@@ -6,3 +6,4 @@
  * own `shared/` folder.
  */
 export * from "./resolvers";
+export * from "./solver-close-fee";

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig, TEST_TX_HASH } from "../../../shared/test/mock-config";
-import { symmioAbi } from "../../abi/v0.8.5/symmio";
+import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import type { SingleUpnlSig } from "../../account-layer/types";
 import { deallocate } from "./deallocate";
 
@@ -11,7 +11,7 @@ const getDeallocateUpnlSig = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../muon/deallocate-upnl-sig/get-deallocate-upnl-sig", () => ({ getDeallocateUpnlSig }));
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const AMOUNT = 1_000000000000000000n;
 const UPNL_SIG: SingleUpnlSig = {

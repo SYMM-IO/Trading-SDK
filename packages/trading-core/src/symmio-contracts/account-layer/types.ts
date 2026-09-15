@@ -8,7 +8,7 @@ import type { Address, Hex } from "viem";
  * Both `owner` and `nonce` are `address` on-chain (not numbers) — `nonce` is the
  * Muon nonce **address**, not a numeric nonce.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/interfaces/ISymmio.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/accountLayer/interfaces/ISymmio.sol}
  */
 export interface SchnorrSign {
   /** Aggregated Schnorr signature scalar. */
@@ -31,7 +31,7 @@ export interface SchnorrSign {
  * submitting — the attestation is timestamped and short-lived. Note there is
  * **no** `price` field (this is the uPnL-only sig, not `SingleUpnlAndPriceSig`).
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/interfaces/ISymmio.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/accountLayer/interfaces/ISymmio.sol}
  */
 export interface SingleUpnlSig {
   /** Muon request id (opaque bytes). */
@@ -52,10 +52,10 @@ export interface SingleUpnlSig {
  *
  * @remarks
  * Names and ordering mirror the on-chain `enum SubAccountIsolationType` in
- * `AccountStorage.sol` (perps-core v0.8.5) exactly, so a `uint8` returned by
+ * `AccountStorage.sol` (perps-core v0.8.6) exactly, so a `uint8` returned by
  * `getUserSubAccounts` casts directly to this enum without translation.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/storages/AccountStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/accountLayer/storages/AccountStorage.sol}
  */
 export enum SubAccountIsolationType {
   /**
@@ -156,10 +156,10 @@ export interface AccountBalanceInfo {
  * Input parameters for creating one subaccount via `createSubAccounts`.
  *
  * Field shapes and ordering mirror the on-chain `SubAccountCreationData` struct
- * in `AccountStorage.sol` (perps-core v0.8.5) exactly, so the object encodes
+ * in `AccountStorage.sol` (perps-core v0.8.6) exactly, so the object encodes
  * directly as the contract tuple without translation.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/storages/AccountStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/accountLayer/storages/AccountStorage.sol}
  */
 export interface SubAccountCreationData {
   /**
@@ -193,10 +193,10 @@ export interface SubAccountCreationData {
  *
  * @remarks
  * Names and ordering mirror the on-chain `enum AffiliateState` in
- * `AffiliateStorage.sol` (perps-core v0.8.5) exactly, so a `uint8` returned by
+ * `AffiliateStorage.sol` (perps-core v0.8.6) exactly, so a `uint8` returned by
  * `getAffiliateState` casts directly to this enum without translation.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/storages/AffiliateStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/accountLayer/storages/AffiliateStorage.sol}
  */
 export enum AffiliateState {
   /** No registration exists for this address. */
@@ -217,7 +217,7 @@ export enum AffiliateState {
  * `share` is scaled to `1e18`; the sum of every stakeholder's `share` plus the
  * registration's `symmioShare` must equal exactly `1e18` or the contract reverts.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/storages/AffiliateStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/accountLayer/storages/AffiliateStorage.sol}
  */
 export interface Stakeholder {
   /** Address that receives this stakeholder's cut of affiliate fees. */
@@ -238,7 +238,7 @@ export interface Stakeholder {
  * creates a `PENDING` affiliate; an `APPROVER_ROLE` holder must approve it before
  * it becomes `ACTIVE`.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/accountLayer/storages/AffiliateStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/accountLayer/storages/AffiliateStorage.sol}
  */
 export interface AffiliateRegistration {
   /** Display name for the affiliate. Validated on-chain to 1..maxNameLength characters. */

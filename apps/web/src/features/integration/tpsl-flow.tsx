@@ -3,12 +3,12 @@
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { useSessionKey } from "@/features/session-keys/use-session-key";
 import {
-  INSTANT_TRADE_REQUIRED_SELECTORS,
   PositionType,
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
   SymmioRequestError,
   useDeleteQuoteTpSl,
   useGrantDelegation,
+  useInstantTradeRequiredSelectors,
   useIsDelegationActive,
   useMarkets,
   usePartyAOpenPositions,
@@ -82,6 +82,7 @@ export function TpSlFlow({ owner, subAccount, subAccountName, onSelectSubAccount
     query: { enabled: delegationEnabled },
   });
   const grant = useGrantDelegation();
+  const requiredSelectors = useInstantTradeRequiredSelectors();
   const delegationActive = delegationCheck.data === true;
   const delegationLoading = delegationEnabled && delegationCheck.isLoading;
 
@@ -118,7 +119,7 @@ export function TpSlFlow({ owner, subAccount, subAccountName, onSelectSubAccount
     grant.mutate({
       account: { addr: subAccount, isPartyB: false },
       delegatedSigner: cohWalletAddress,
-      selectors: INSTANT_TRADE_REQUIRED_SELECTORS,
+      selectors: requiredSelectors,
       expiryTimestamp: BigInt(Math.floor(Date.now() / 1000) + DELEGATION_TTL_SECONDS),
     });
   }

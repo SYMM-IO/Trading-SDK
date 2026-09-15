@@ -94,7 +94,7 @@ export default defineConfig({
     /**
      * Two Vitest projects: `unit` runs colocated `*.test.ts(x)` files in a
      * happy-dom environment with mocked wagmi; `integration` runs `*.integration.test.ts`
-     * files in node against real Hyperliquid RPC. CI runs `unit` by default;
+     * files in node against real Arbitrum RPC. CI runs `unit` by default;
      * `pnpm test:integration` runs the integration suite.
      */
     projects: [
@@ -114,7 +114,7 @@ export default defineConfig({
           name: "integration",
           /**
            * `happy-dom` (not `node`) because integration tests render hooks
-           * with `@testing-library/react` against real Hyperliquid RPC, so a
+           * with `@testing-library/react` against real Arbitrum RPC, so a
            * DOM is required. Network access works the same in either env.
            */
           environment: "happy-dom",

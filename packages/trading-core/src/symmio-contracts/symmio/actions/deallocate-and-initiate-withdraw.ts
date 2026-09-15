@@ -2,7 +2,7 @@ import { encodeFunctionData, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "../../../core/config";
 import { getDeallocateUpnlSig } from "../../../muon/deallocate-upnl-sig/get-deallocate-upnl-sig";
 import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
-import { symmioAbi } from "../../abi/v0.8.5/symmio";
+import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import type { SingleUpnlSig } from "../../account-layer/types";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 import type { WithdrawReceiverPart } from "../types";
@@ -90,7 +90,7 @@ export type DeallocateAndInitiateWithdrawReturnType = Hash;
  *
  * @example
  * ```ts
- * const part = createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: "0xabc…", chainId: 999n });
+ * const part = createClassicWithdrawPart({ id: 0n, amount: 1_000000n, receiver: "0xabc…", chainId: 42161n });
  * // upnlSig fetched automatically:
  * const hash = await deallocateAndInitiateWithdraw(config, {
  *   account: "0xsub…",

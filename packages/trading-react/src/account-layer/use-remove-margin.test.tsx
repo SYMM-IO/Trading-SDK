@@ -12,7 +12,7 @@ vi.mock("@symmio/trading-core", async (importOriginal) => {
   return { ...actual, getDeallocateUpnlSig };
 });
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const VIRTUAL_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const AMOUNT = 50_000000000000000000n;
 const UPNL_SIG: SingleUpnlSig = {

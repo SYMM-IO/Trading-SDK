@@ -112,7 +112,7 @@ export const CONFIG_FIELDS: ConfigFieldDef[] = CONFIG_GROUPS.flatMap((group) => 
 export const SUPPORTED_CHAIN_IDS: number[] = listSupportedChains();
 
 const CHAIN_LABELS: Record<number, string> = {
-  [SymmioSupportedChainId.HYPER_EVM]: "HyperEVM",
+  [SymmioSupportedChainId.ARBITRUM]: "Arbitrum",
   [SymmioSupportedChainId.BASE]: "Base",
 };
 

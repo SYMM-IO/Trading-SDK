@@ -5,6 +5,7 @@ import type { WebSocketConstructor } from "../../shared/types/websocket";
 import {
   assertSupportedPriceServiceType,
   assertSupportedSolver,
+  listSupportedChains,
   resolveSolver,
   type SolverId,
   type SymmioChainConfig,
@@ -60,7 +61,7 @@ export interface CreateConfigParameters {
    * **Required.** Every supported chain must supply an
    * `addresses.affiliatesAddress` — your frontend's on-chain **affiliate**
    * (your identity in SYMMIO on that chain), attached to every quote
-   * (`sendQuoteWithAffiliateAndData`) so the protocol knows who sourced the trade
+   * (`sendQuote`) so the protocol knows who sourced the trade
    * and routes your share of the trading fee to you. Affiliate addresses are per
    * chain: a registration on one chain is not valid on another. `createConfig`
    * throws `AFFILIATE_ADDRESS_REQUIRED` only when it is **missing**, so a trade
@@ -80,8 +81,8 @@ export interface CreateConfigParameters {
    * @example
    * ```ts
    * symmioConfig: {
-   *   [SymmioSupportedChainId.HYPER_EVM]: {
-   *     addresses: { affiliatesAddress: "0xYourHyperEvmAffiliate…" },
+   *   [SymmioSupportedChainId.ARBITRUM]: {
+   *     addresses: { affiliatesAddress: "0xYourArbitrumAffiliate…" },
    *     // optional: subgraphs, solvers, priceService, notifications, muon
    *   },
    * }
@@ -220,13 +221,13 @@ export interface ConfigParameter {
  * ```ts
  * import { createConfig } from "@symmio/trading-core";
  * import { createPublicClient, createWalletClient, http } from "viem";
- * import { hyperEvm } from "viem/chains";
+ * import { arbitrum } from "viem/chains";
  *
- * const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
- * const walletClient = createWalletClient({ account, chain: hyperEvm, transport: http() });
+ * const publicClient = createPublicClient({ chain: arbitrum, transport: http() });
+ * const walletClient = createWalletClient({ account, chain: arbitrum, transport: http() });
  *
  * const config = createConfig({
- *   symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: "0xYourHyperEvmAffiliate…" } } },
+ *   symmioConfig: { [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: "0xYourArbitrumAffiliate…" } } },
  *   getClient: () => publicClient,
  *   getWalletClient: async () => walletClient,
  * });
@@ -247,7 +248,7 @@ export function createConfig(parameters: CreateConfigParameters): Config {
   // Affiliate is required only for a chain the consumer EXPLICITLY configured (has a
   // `symmioConfig[chainId]` entry) that can ALSO trade — one with at least one solver.
   // Configuring a chain is the opt-in that obliges you to name your affiliate for it;
-  // the affiliate rides every quote (`sendQuoteWithAffiliateAndData`). A built-in chain
+  // the affiliate rides every quote (`sendQuote`). A built-in chain
   // the consumer never mentions is left alone: it may be an onboarding/placeholder chain
   // not really tradable yet, and it falls back to its registry affiliate — so we do not
   // force every consumer to supply an affiliate for a chain they never touch. The zero
@@ -268,7 +269,7 @@ export function createConfig(parameters: CreateConfigParameters): Config {
       );
   }
 
-  const chainIds = Object.keys(chainConfigs).map(Number);
+  const chainIds = listSupportedChains();
   if (chainIds.length === 0)
     throw new SymmError("config", "NO_CHAINS_CONFIGURED", "createConfig: no supported chains are configured.");
   const resolvedDefaultChainId = defaultChainId ?? chainIds[0]!;

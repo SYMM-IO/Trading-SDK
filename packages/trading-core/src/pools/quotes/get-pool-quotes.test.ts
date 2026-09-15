@@ -4,8 +4,8 @@ import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
 import { mockConfig } from "../../shared/test/mock-config";
 import { getPoolQuotes, POOL_OPEN_QUOTE_STATUSES, POOL_PENDING_QUOTE_STATUSES } from "./get-pool-quotes";
 
-const ANALYTICS_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).subgraphs.analytics;
-const SOURCE = getChainConfig(SymmioSupportedChainId.HYPER_EVM).addresses.symmioAddress.toLowerCase();
+const ANALYTICS_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).subgraphs.analytics;
+const SOURCE = getChainConfig(SymmioSupportedChainId.ARBITRUM).addresses.symmioAddress.toLowerCase();
 
 const ROW = {
   id: "8232-source",

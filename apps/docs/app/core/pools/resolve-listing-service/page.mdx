@@ -10,7 +10,7 @@ import { resolveListingService } from "@symmio/trading-core";
 const { url } = resolveListingService(config, { chainId });
 ```
 
-Listing is served **per chain**: a chain either carries a `listing` block or it does not. `resolveListingService` does **not** check any solver capability — a solver may _declare_ the `listingService` capability, but that is metadata the resolver ignores. The URL lives on the chain because several solvers on one chain could share one listing deployment. Today only **HyperEVM** has it.
+Listing is served **per chain**: a chain either carries a `listing` block or it does not. `resolveListingService` does **not** check any solver capability — a solver may _declare_ the `listingService` capability, but that is metadata the resolver ignores. The URL lives on the chain because several solvers on one chain could share one listing deployment. Today only **Arbitrum** has it.
 
 ## Parameters
 

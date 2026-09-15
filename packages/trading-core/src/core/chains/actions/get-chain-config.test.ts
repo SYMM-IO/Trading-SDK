@@ -5,15 +5,15 @@ import { CHAIN_CONFIGS } from "../registry";
 import { SymmioSupportedChainId } from "../supported-chains";
 import { getChainConfig } from "./get-chain-config";
 
-const HYPEREVM = SymmioSupportedChainId.HYPER_EVM;
+const ARBITRUM = SymmioSupportedChainId.ARBITRUM;
 
 describe("getChainConfig", () => {
   it("returns the registered config for a supported chain", () => {
-    expect(getChainConfig(HYPEREVM)).toBe(CHAIN_CONFIGS[HYPEREVM]);
+    expect(getChainConfig(ARBITRUM)).toBe(CHAIN_CONFIGS[ARBITRUM]);
   });
 
   it("returns a config whose chainId matches the requested chain", () => {
-    expect(getChainConfig(HYPEREVM).chainId).toBe(HYPEREVM);
+    expect(getChainConfig(ARBITRUM).chainId).toBe(ARBITRUM);
   });
 
   it("throws a SymmError for an unsupported chain", () => {

@@ -60,7 +60,7 @@ available ── allocate ──▶ allocated (classic pool) ── deallocate (
 
 The SDK exposes both families because the contracts do, but they serve different products:
 
-- **Instant (lowcap) flow — the default on HyperEVM.** Fund with [`depositForAccount`](/core/account-layer/deposit-for-account) (`useDeposit`), trade with the instant open/close actions, withdraw with the [withdraw slice](/react/withdraw). The only balance the user manages is **available**.
+- **Instant (lowcap) flow — the default on Arbitrum.** Fund with [`depositForAccount`](/core/account-layer/deposit-for-account) (`useDeposit`), trade with the instant open/close actions, withdraw with the [withdraw slice](/react/withdraw). The only balance the user manages is **available**.
 - **Classic pool flow.** [`allocate`](/core/account-layer/allocate) / [`deallocate`](/core/account-layer/deallocate) / [`depositAndAllocateForAccount`](/core/account-layer/deposit-and-allocate-for-account) move funds into and out of the allocated pool where the CVA / LF locks of classic (non-instant) positions sit. **Not supported end-to-end in this SDK version — planned for a later release.**
 
 <Callout type="warning">

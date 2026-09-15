@@ -77,7 +77,7 @@ export function HomePanel() {
       <div className="animate-enter-up flex max-w-3xl flex-col gap-6">
         <span className="border-border/70 bg-muted/40 text-muted-foreground inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium tracking-wide">
           <StatusDot tone="positive" pulse />
-          SYMMIO SDK Console · HyperEVM
+          SYMMIO SDK Console · Arbitrum
         </span>
 
         <h1 className="font-display text-foreground text-4xl font-semibold tracking-tight text-balance sm:text-6xl sm:leading-[1.04]">

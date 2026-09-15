@@ -1,4 +1,5 @@
 import { toFiniteNumber } from "@symmio/utils/number";
+import { toThresholdSeconds } from "../shared/solver-close-fee";
 import type { ApiSymbolResponse } from "../types/generated/enigma-solver";
 import type { SolverSymbol } from "./types";
 
@@ -48,6 +49,10 @@ function toSolverSymbol(symbol: IdentifiedSymbol): SolverSymbol {
     tradingFee: symbol.trading_fee ?? "0",
     hedgerFeeOpen: symbol.hedger_fee_open ?? "0",
     hedgerFeeClose: symbol.hedger_fee_close ?? "0",
+    // No early rate published → no decay: the early rate collapses to the standard rate.
+    hedgerFeeCloseEarlyRate: symbol.hedger_fee_close_early_rate ?? symbol.hedger_fee_close ?? "0",
+    hedgerFeeCloseEarlyThreshold: toThresholdSeconds(symbol.hedger_fee_close_early_threshold),
+    hedgerFeeCloseStandardThreshold: toThresholdSeconds(symbol.hedger_fee_close_standard_threshold),
     maxFundingRate: symbol.max_funding_rate ?? "0",
     minNotionalValue: symbol.min_notional_value ?? "0",
     maxQuantity: symbol.max_quantity ?? "0",
@@ -59,5 +64,7 @@ function toSolverSymbol(symbol: IdentifiedSymbol): SolverSymbol {
     fundingRateWindowTime: symbol.funding_rate_window_time ?? "0",
     stateLong: symbol.state_long ?? 0,
     stateShort: symbol.state_short ?? 0,
+    minOpenSolverFeeCap: symbol.min_open_solver_fee_cap ?? "0",
+    minCloseSolverFeeCap: symbol.min_close_solver_fee_cap ?? "0",
   };
 }

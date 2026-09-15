@@ -8,7 +8,7 @@ import type { TpSlSigningSpec } from "../types";
 import { getTpSlDeleteSigningSpec } from "./get-tpsl-delete-signing-spec";
 import { getTpSlSigningSpec } from "./get-tpsl-signing-spec";
 
-const TPSL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).solvers.enigma!.tpsl!;
+const TPSL = getChainConfig(SymmioSupportedChainId.ARBITRUM).solvers.enigma!.tpsl!;
 /** Path the orval-generated `v5SigningSpecDelApiV5SigningSpecDelGet` client requests. */
 const DELETE_SPEC_PATH = "/api/v5/signing-spec-del";
 /** Path the sibling POST-spec action requests — must never be the same one. */
@@ -24,7 +24,7 @@ const DELETE_SIGNING_SPEC: TpSlSigningSpec = {
   domain: {
     name: "SymmioConditionalOrder",
     version: "1",
-    chainId: SymmioSupportedChainId.HYPER_EVM,
+    chainId: SymmioSupportedChainId.ARBITRUM,
     verifyingContract: TPSL.cohWalletAddress,
   },
   types: {
@@ -73,7 +73,7 @@ describe("getTpSlDeleteSigningSpec", () => {
     const { config } = mockConfig();
     vi.spyOn(axios, "get").mockResolvedValue(okResponse(DELETE_SIGNING_SPEC));
 
-    const spec = await getTpSlDeleteSigningSpec(config, { chainId: SymmioSupportedChainId.HYPER_EVM });
+    const spec = await getTpSlDeleteSigningSpec(config, { chainId: SymmioSupportedChainId.ARBITRUM });
 
     /** The action only casts `response.data`, so the exact object round-trips untouched. */
     expect(spec).toBe(DELETE_SIGNING_SPEC);

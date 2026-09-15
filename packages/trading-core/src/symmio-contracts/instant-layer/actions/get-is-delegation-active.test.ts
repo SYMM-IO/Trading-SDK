@@ -4,7 +4,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig } from "../../../shared/test/mock-config";
 import { getIsDelegationActive } from "./get-is-delegation-active";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DELEGATE: Address = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const SELECTOR: Hex = "0x12345678";

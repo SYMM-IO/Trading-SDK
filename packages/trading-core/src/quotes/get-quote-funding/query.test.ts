@@ -1,11 +1,16 @@
 import type { PublicClient } from "viem";
 import { describe, expect, it } from "vitest";
+import { SymmioSupportedChainId } from "../../core/chains";
 import { createConfig } from "../../core/config";
 import { getQuoteFundingQueryKey, getQuoteFundingQueryOptions } from "./query";
 
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 describe("getQuoteFundingQueryKey", () => {

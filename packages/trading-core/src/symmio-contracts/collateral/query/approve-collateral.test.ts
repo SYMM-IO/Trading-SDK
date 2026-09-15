@@ -7,7 +7,7 @@ import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig, TEST_AFFILIATE_ADDRESS, TEST_TX_HASH, TEST_USER } from "../../../shared/test/mock-config";
 import { approveCollateralMutationOptions } from "./approve-collateral";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const AMOUNT = 25_000000n;
 /** A signer hint distinct from the stub wallet's own account, so `from` routing is observable. */
 const SENDER: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -26,12 +26,12 @@ function spyWalletConfig(defaultChainId?: number) {
   const simulateContract = vi.fn().mockResolvedValue({ result: true, request: {} });
   const walletClient = {
     account: { address: TEST_USER, type: "json-rpc" } as Account,
-    chain: { id: SymmioSupportedChainId.HYPER_EVM } as Chain,
+    chain: { id: SymmioSupportedChainId.ARBITRUM } as Chain,
     writeContract,
   } as unknown as SymmioWalletClient;
   const getWalletClient = vi.fn(async () => walletClient);
   const config = createConfig({
-    symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } } },
+    symmioConfig: { [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } } },
     getClient: () => ({ simulateContract }) as unknown as PublicClient,
     getWalletClient,
     defaultChainId,
@@ -120,7 +120,7 @@ describe("approveCollateralMutationOptions", () => {
 
     await approveCollateralMutationOptions(config).mutationFn({ amount: AMOUNT, from: SENDER });
 
-    expect(getWalletClient).toHaveBeenCalledWith({ chainId: SymmioSupportedChainId.HYPER_EVM, from: SENDER });
+    expect(getWalletClient).toHaveBeenCalledWith({ chainId: SymmioSupportedChainId.ARBITRUM, from: SENDER });
     /** The pre-flight runs as the wallet the resolver actually returned, not as the `from` hint. */
     expect(simulateContract).toHaveBeenCalledWith(expect.objectContaining({ account: TEST_USER }));
   });
@@ -136,11 +136,11 @@ describe("approveCollateralMutationOptions", () => {
 
     const hash = await approveCollateralMutationOptions(config).mutationFn({
       amount: AMOUNT,
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
     });
 
     expect(hash).toBe(TEST_TX_HASH);
-    expect(getWalletClient).toHaveBeenCalledWith({ chainId: SymmioSupportedChainId.HYPER_EVM, from: undefined });
+    expect(getWalletClient).toHaveBeenCalledWith({ chainId: SymmioSupportedChainId.ARBITRUM, from: undefined });
     expect(writeContract).toHaveBeenCalledTimes(1);
   });
 

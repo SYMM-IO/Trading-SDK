@@ -1,7 +1,7 @@
 import type { SimulateContractReturnType } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, FromParameter } from "../../../shared/types/properties";
-import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
+import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import type { DepositForAccountParameters } from "./deposit-for-account";
 
 /**

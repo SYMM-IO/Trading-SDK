@@ -17,17 +17,17 @@ describe("searchTpSlOrdersQueryKey", () => {
   it("tags the key and carries the account so two accounts never share a cache entry", () => {
     const other = "0x00000000000000000000000000000000000000b2" as const;
 
-    const key = searchTpSlOrdersQueryKey({ account: TEST_USER, configKey: "hyperEvm" });
-    const otherKey = searchTpSlOrdersQueryKey({ account: other, configKey: "hyperEvm" });
+    const key = searchTpSlOrdersQueryKey({ account: TEST_USER, configKey: "arbitrum" });
+    const otherKey = searchTpSlOrdersQueryKey({ account: other, configKey: "arbitrum" });
 
     expect(key[0]).toBe("searchTpSlOrders");
-    expect(key[1]).toMatchObject({ account: TEST_USER, configKey: "hyperEvm" });
+    expect(key[1]).toMatchObject({ account: TEST_USER, configKey: "arbitrum" });
     expect(key).not.toEqual(otherKey);
   });
 
   it("separates entries that differ only by filter, so a narrowed search cannot serve a broad one", () => {
-    const broad = searchTpSlOrdersQueryKey({ account: TEST_USER, configKey: "hyperEvm" });
-    const narrow = searchTpSlOrdersQueryKey({ account: TEST_USER, symbolId: 4, configKey: "hyperEvm" });
+    const broad = searchTpSlOrdersQueryKey({ account: TEST_USER, configKey: "arbitrum" });
+    const narrow = searchTpSlOrdersQueryKey({ account: TEST_USER, symbolId: 4, configKey: "arbitrum" });
 
     expect(broad).not.toEqual(narrow);
   });

@@ -6,12 +6,16 @@ import { supportsEstimatedPrice } from "./supports-estimated-price";
 
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 describe("supportsEstimatedPrice", () => {
   it("supports the enigma solver", () => {
-    expect(supportsEstimatedPrice(config, { chainId: SymmioSupportedChainId.HYPER_EVM })).toBe(true);
+    expect(supportsEstimatedPrice(config, { chainId: SymmioSupportedChainId.ARBITRUM })).toBe(true);
   });
 
   it("does not support the rasa solver (its API has no /estimated-price route)", () => {

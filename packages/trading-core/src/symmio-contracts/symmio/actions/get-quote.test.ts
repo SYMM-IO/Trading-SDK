@@ -3,7 +3,7 @@ import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { mockConfig } from "../../../shared/test/mock-config";
 import { getQuote } from "./get-quote";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 describe("getQuote", () => {
   it("reads a single quote from the SYMMIO core by id", async () => {

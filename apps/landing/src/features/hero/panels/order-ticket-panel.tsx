@@ -34,7 +34,7 @@ export function OrderTicketPanel() {
         </div>
         <span className="border-border/70 bg-muted/50 text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-medium">
           <LiveDot tone="positive" className="size-1.5" />
-          HyperEVM
+          Arbitrum
         </span>
       </div>
 

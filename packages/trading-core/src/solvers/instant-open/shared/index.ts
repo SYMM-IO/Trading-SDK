@@ -1,6 +1,7 @@
 export * from "./calldata";
 export * from "./eip712";
 export * from "./hedger-api";
+export * from "./open-estimate-guard";
 export * from "./operations";
 export * from "./quote-constraints";
 export * from "./selectors";

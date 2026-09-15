@@ -1,5 +1,5 @@
 /**
- * Complete ABI for the SYMMIO core (diamond) contract at version **0.8.5**.
+ * Complete ABI for the SYMMIO core (diamond) contract at version **0.8.6**.
  *
  * @remarks
  * This is the **full** ABI — every error, event, and function as deployed on
@@ -11,9 +11,9 @@
  * - support new wrapper helpers without having to amend this file each time.
  *
  * @see Source of truth — the SYMMIO `perps-core` repo, pinned to the matching
- * version tag: {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/abis/symmio.json}.
- * for a new version, add a sibling folder (e.g. `v0.9.0/`) and copy from the
- * matching `version_0.9.0` tag rather than editing this file in place.
+ * version tag: {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/abis/symmio.json}.
+ * Upgrading to a new contracts version means swapping the fragments in this
+ * folder in place as part of a new SDK release — see `ARCHITECTURE.md` §2.
  */
 export const symmioAbi = [
   {
@@ -1063,125 +1063,19 @@ export const symmioAbi = [
     type: "function",
   },
   {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "quoteId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "enum QuoteStatus",
-        name: "quoteStatus",
-        type: "uint8",
-      },
-    ],
-    name: "AcceptCancelRequest",
-    type: "event",
+    inputs: [],
+    name: "ExternalCallContextNotSuspended",
+    type: "error",
   },
   {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "quoteId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "partyA",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "partyB",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "filledAmount",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "openedPrice",
-        type: "uint256",
-      },
-    ],
-    name: "OpenPosition",
-    type: "event",
+    inputs: [],
+    name: "ExternalCallContextWasModified",
+    type: "error",
   },
   {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "quoteId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "partyA",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "partyB",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "filledAmount",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "openedPrice",
-        type: "uint256",
-      },
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "cva",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "lf",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "partyAmm",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "partyBmm",
-            type: "uint256",
-          },
-        ],
-        indexed: false,
-        internalType: "struct LockedValues",
-        name: "lockedValues",
-        type: "tuple",
-      },
-    ],
-    name: "OpenPosition",
-    type: "event",
+    inputs: [],
+    name: "ExternalCallSignerWasModified",
+    type: "error",
   },
   {
     inputs: [
@@ -1232,6 +1126,50 @@ export const symmioAbi = [
       },
     ],
     name: "AcceptCancelCloseRequest",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "enum QuoteStatus",
+        name: "quoteStatus",
+        type: "uint8",
+      },
+    ],
+    name: "AcceptCancelRequest",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "enum SharedEvents.BalanceChangeType",
+        name: "_type",
+        type: "uint8",
+      },
+    ],
+    name: "BalanceChangePartyA",
     type: "event",
   },
   {
@@ -1439,6 +1377,157 @@ export const symmioAbi = [
       },
     ],
     name: "LiquidatePartyB",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "filledAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "openedPrice",
+        type: "uint256",
+      },
+    ],
+    name: "OpenPosition",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "filledAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "openedPrice",
+        type: "uint256",
+      },
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "cva",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "lf",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "partyAmm",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "partyBmm",
+            type: "uint256",
+          },
+        ],
+        indexed: false,
+        internalType: "struct LockedValues",
+        name: "lockedValues",
+        type: "tuple",
+      },
+    ],
+    name: "OpenPosition",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "rate",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "allowedShortfall",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "actualShortfall",
+        type: "uint256",
+      },
+    ],
+    name: "PartyALiquidationOvershootUsed",
     type: "event",
   },
   {
@@ -1708,6 +1797,190 @@ export const symmioAbi = [
       },
     ],
     name: "SendQuote",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "openRateCap",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "closeRateCap",
+        type: "uint256",
+      },
+    ],
+    name: "SendQuoteSolverFeeCaps",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "receiver",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "enum SolverFeeType",
+        name: "feeType",
+        type: "uint8",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "bytes32",
+        name: "tag",
+        type: "bytes32",
+      },
+    ],
+    name: "SolverFeeCharged",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "enum SharedEvents.TradeVolumeType",
+        name: "_type",
+        type: "uint8",
+      },
+    ],
+    name: "TradeVolumeRecorded",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "enum SharedEvents.TradingFeeType",
+        name: "_type",
+        type: "uint8",
+      },
+    ],
+    name: "TradingFeeCharged",
     type: "event",
   },
   {
@@ -2893,6 +3166,19 @@ export const symmioAbi = [
   },
   {
     anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
+      },
+    ],
+    name: "CancelAffiliateShutdown",
+    type: "event",
+  },
+  {
+    anonymous: false,
     inputs: [],
     name: "DeactiveEmergencyMode",
     type: "event",
@@ -2939,6 +3225,51 @@ export const symmioAbi = [
     anonymous: false,
     inputs: [],
     name: "LegacyWithdrawalDeprecated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+    ],
+    name: "OperationalFeeChargerRegistered",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+    ],
+    name: "OperationalFeeChargerUnregistered",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "oldDelay",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newDelay",
+        type: "uint256",
+      },
+    ],
+    name: "OperationalFeeReductionDelaySet",
     type: "event",
   },
   {
@@ -2993,6 +3324,12 @@ export const symmioAbi = [
     anonymous: false,
     inputs: [],
     name: "PausePartyBOpenPositions",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [],
+    name: "PauseWithdrawAdvance",
     type: "event",
   },
   {
@@ -3223,6 +3560,25 @@ export const symmioAbi = [
       },
     ],
     name: "RoleRevoked",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "shutdownTime",
+        type: "uint256",
+      },
+    ],
+    name: "ScheduleAffiliateShutdown",
     type: "event",
   },
   {
@@ -3712,6 +4068,25 @@ export const symmioAbi = [
     inputs: [
       {
         indexed: false,
+        internalType: "bool",
+        name: "oldValue",
+        type: "bool",
+      },
+      {
+        indexed: false,
+        internalType: "bool",
+        name: "newValue",
+        type: "bool",
+      },
+    ],
+    name: "SetLegacyPartyALiquidationDeprecated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
         internalType: "address",
         name: "insuranceVault",
         type: "address",
@@ -3851,6 +4226,25 @@ export const symmioAbi = [
     anonymous: false,
     inputs: [
       {
+        indexed: true,
+        internalType: "enum MuonFunction",
+        name: "func",
+        type: "uint8",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "upnlValidTime",
+        type: "uint256",
+      },
+    ],
+    name: "SetMuonFunctionUpnlValidTime",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: false,
         internalType: "uint256",
         name: "muonAppId",
@@ -3858,6 +4252,25 @@ export const symmioAbi = [
       },
     ],
     name: "SetMuonIds",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "receiver",
+        type: "address",
+      },
+    ],
+    name: "SetOperationalFeeReceiver",
     type: "event",
   },
   {
@@ -3908,6 +4321,43 @@ export const symmioAbi = [
         type: "address",
       },
       {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "oldRate",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newRate",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "bool",
+        name: "hasOverride",
+        type: "bool",
+      },
+    ],
+    name: "SetPartyBLiquidationOvershootRate",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
         indexed: false,
         internalType: "bool",
         name: "status",
@@ -3915,6 +4365,25 @@ export const symmioAbi = [
       },
     ],
     name: "SetPartyBOpenPositionsPausedForPartyB",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "bool",
+        name: "enabled",
+        type: "bool",
+      },
+    ],
+    name: "SetPartyBStrictDeallocation",
     type: "event",
   },
   {
@@ -3998,6 +4467,50 @@ export const symmioAbi = [
       },
     ],
     name: "SetSoftLiquidationPenaltyCollector",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "receiver",
+        type: "address",
+      },
+    ],
+    name: "SetSolverFeeReceiver",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "receiver",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "bytes32",
+        name: "tag",
+        type: "bytes32",
+      },
+    ],
+    name: "SetSolverFeeReceiverForTag",
     type: "event",
   },
   {
@@ -4123,6 +4636,37 @@ export const symmioAbi = [
       },
     ],
     name: "SetSymbolMaxLeverage",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "oldMinAcceptableNotionalLFRate",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newMinAcceptableNotionalLFRate",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "bool",
+        name: "hasOverride",
+        type: "bool",
+      },
+    ],
+    name: "SetSymbolMinAcceptableNotionalLFRate",
     type: "event",
   },
   {
@@ -4297,6 +4841,12 @@ export const symmioAbi = [
     anonymous: false,
     inputs: [],
     name: "UnpausePartyBOpenPositions",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [],
+    name: "UnpauseWithdrawAdvance",
     type: "event",
   },
   {
@@ -4558,6 +5108,37 @@ export const symmioAbi = [
       },
       {
         internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "clearPartyBLiquidationOvershootRateOverride",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "clearSymbolMinAcceptableNotionalLFRateOverride",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
         name: "symbolType",
         type: "uint256",
       },
@@ -4599,6 +5180,29 @@ export const symmioAbi = [
       },
     ],
     name: "removeSymbolsFromWhitelist",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "rate",
+        type: "uint256",
+      },
+    ],
+    name: "setPartyBLiquidationOvershootRate",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -4663,6 +5267,24 @@ export const symmioAbi = [
       },
     ],
     name: "setSymbolMaxLeverage",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "minAcceptableNotionalLFRate",
+        type: "uint256",
+      },
+    ],
+    name: "setSymbolMinAcceptableNotionalLFRate",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -5065,6 +5687,457 @@ export const symmioAbi = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "filledAmount",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "closedPrice",
+        type: "uint256",
+      },
+      {
+        components: [
+          {
+            internalType: "bytes",
+            name: "reqId",
+            type: "bytes",
+          },
+          {
+            internalType: "uint256",
+            name: "timestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "int256",
+            name: "upnlPartyA",
+            type: "int256",
+          },
+          {
+            internalType: "int256",
+            name: "upnlPartyB",
+            type: "int256",
+          },
+          {
+            internalType: "uint256",
+            name: "price",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "gatewaySignature",
+            type: "bytes",
+          },
+          {
+            components: [
+              {
+                internalType: "uint256",
+                name: "signature",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "owner",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "nonce",
+                type: "address",
+              },
+            ],
+            internalType: "struct IMuonSignatureVerifier.SchnorrSign",
+            name: "sigs",
+            type: "tuple",
+          },
+        ],
+        internalType: "struct PairUpnlAndPriceSig",
+        name: "upnlSig",
+        type: "tuple",
+      },
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "amount",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes32",
+            name: "tag",
+            type: "bytes32",
+          },
+        ],
+        internalType: "struct SolverFeeEntry[]",
+        name: "solverFees",
+        type: "tuple[]",
+      },
+    ],
+    name: "fillCloseRequest",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "maxFillAmount",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "closedPrice",
+        type: "uint256",
+      },
+      {
+        components: [
+          {
+            internalType: "bytes",
+            name: "reqId",
+            type: "bytes",
+          },
+          {
+            internalType: "uint256",
+            name: "timestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "int256",
+            name: "upnlPartyA",
+            type: "int256",
+          },
+          {
+            internalType: "int256",
+            name: "upnlPartyB",
+            type: "int256",
+          },
+          {
+            internalType: "uint256",
+            name: "price",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "gatewaySignature",
+            type: "bytes",
+          },
+          {
+            components: [
+              {
+                internalType: "uint256",
+                name: "signature",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "owner",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "nonce",
+                type: "address",
+              },
+            ],
+            internalType: "struct IMuonSignatureVerifier.SchnorrSign",
+            name: "sigs",
+            type: "tuple",
+          },
+        ],
+        internalType: "struct PairUpnlAndPriceSig",
+        name: "upnlSig",
+        type: "tuple",
+      },
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "amount",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes32",
+            name: "tag",
+            type: "bytes32",
+          },
+        ],
+        internalType: "struct SolverFeeEntry[]",
+        name: "maxSolverFees",
+        type: "tuple[]",
+      },
+    ],
+    name: "fillCloseRequestToLiquidation",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "filledAmount",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "filledAmount",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "openedPrice",
+        type: "uint256",
+      },
+      {
+        components: [
+          {
+            internalType: "bytes",
+            name: "reqId",
+            type: "bytes",
+          },
+          {
+            internalType: "uint256",
+            name: "timestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "int256",
+            name: "upnl",
+            type: "int256",
+          },
+          {
+            internalType: "bytes",
+            name: "gatewaySignature",
+            type: "bytes",
+          },
+          {
+            components: [
+              {
+                internalType: "uint256",
+                name: "signature",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "owner",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "nonce",
+                type: "address",
+              },
+            ],
+            internalType: "struct IMuonSignatureVerifier.SchnorrSign",
+            name: "sigs",
+            type: "tuple",
+          },
+        ],
+        internalType: "struct SingleUpnlSig",
+        name: "lockSig",
+        type: "tuple",
+      },
+      {
+        components: [
+          {
+            internalType: "bytes",
+            name: "reqId",
+            type: "bytes",
+          },
+          {
+            internalType: "uint256",
+            name: "timestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "int256",
+            name: "upnlPartyA",
+            type: "int256",
+          },
+          {
+            internalType: "int256",
+            name: "upnlPartyB",
+            type: "int256",
+          },
+          {
+            internalType: "uint256",
+            name: "price",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "gatewaySignature",
+            type: "bytes",
+          },
+          {
+            components: [
+              {
+                internalType: "uint256",
+                name: "signature",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "owner",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "nonce",
+                type: "address",
+              },
+            ],
+            internalType: "struct IMuonSignatureVerifier.SchnorrSign",
+            name: "sigs",
+            type: "tuple",
+          },
+        ],
+        internalType: "struct PairUpnlAndPriceSig",
+        name: "upnlSig",
+        type: "tuple",
+      },
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "amount",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes32",
+            name: "tag",
+            type: "bytes32",
+          },
+        ],
+        internalType: "struct SolverFeeEntry[]",
+        name: "solverFees",
+        type: "tuple[]",
+      },
+    ],
+    name: "lockAndOpenPosition",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "filledAmount",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "openedPrice",
+        type: "uint256",
+      },
+      {
+        components: [
+          {
+            internalType: "bytes",
+            name: "reqId",
+            type: "bytes",
+          },
+          {
+            internalType: "uint256",
+            name: "timestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "int256",
+            name: "upnlPartyA",
+            type: "int256",
+          },
+          {
+            internalType: "int256",
+            name: "upnlPartyB",
+            type: "int256",
+          },
+          {
+            internalType: "uint256",
+            name: "price",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "gatewaySignature",
+            type: "bytes",
+          },
+          {
+            components: [
+              {
+                internalType: "uint256",
+                name: "signature",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "owner",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "nonce",
+                type: "address",
+              },
+            ],
+            internalType: "struct IMuonSignatureVerifier.SchnorrSign",
+            name: "sigs",
+            type: "tuple",
+          },
+        ],
+        internalType: "struct PairUpnlAndPriceSig",
+        name: "upnlSig",
+        type: "tuple",
+      },
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "amount",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes32",
+            name: "tag",
+            type: "bytes32",
+          },
+        ],
+        internalType: "struct SolverFeeEntry[]",
+        name: "solverFees",
+        type: "tuple[]",
+      },
+    ],
+    name: "openPosition",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     anonymous: false,
     inputs: [
       {
@@ -5339,6 +6412,88 @@ export const symmioAbi = [
       },
       {
         internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        components: [
+          {
+            internalType: "bytes",
+            name: "reqId",
+            type: "bytes",
+          },
+          {
+            internalType: "uint256",
+            name: "timestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "int256",
+            name: "upnl",
+            type: "int256",
+          },
+          {
+            internalType: "uint256",
+            name: "fundingDebt",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "pendingBalance",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "scaledLockedBalance",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "gatewaySignature",
+            type: "bytes",
+          },
+          {
+            components: [
+              {
+                internalType: "uint256",
+                name: "signature",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "owner",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "nonce",
+                type: "address",
+              },
+            ],
+            internalType: "struct IMuonSignatureVerifier.SchnorrSign",
+            name: "sigs",
+            type: "tuple",
+          },
+        ],
+        internalType: "struct SingleUpnlWithPendingBalanceSig",
+        name: "upnlSig",
+        type: "tuple",
+      },
+    ],
+    name: "safeDeallocateForPartyB",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
         name: "origin",
         type: "address",
       },
@@ -5414,6 +6569,37 @@ export const symmioAbi = [
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "enum SharedEvents.BalanceChangeType",
+        name: "_type",
+        type: "uint8",
+      },
+    ],
+    name: "BalanceChangePartyB",
+    type: "event",
   },
   {
     inputs: [
@@ -5648,6 +6834,25 @@ export const symmioAbi = [
         name: "symbolId",
         type: "uint256",
       },
+    ],
+    name: "getCumulativeFactor",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
       {
         internalType: "address",
         name: "partyB",
@@ -5725,6 +6930,180 @@ export const symmioAbi = [
   {
     inputs: [
       {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "getPartyBLiquidationOvershootRate",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "rate",
+        type: "uint256",
+      },
+      {
+        internalType: "bool",
+        name: "hasOverride",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "getProspectiveCumulativeFactor",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+    ],
+    name: "getQuoteRestatedEpoch",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "getRestatementFundingProgress",
+    outputs: [
+      {
+        internalType: "enum RestatementPhase",
+        name: "phase",
+        type: "uint8",
+      },
+      {
+        internalType: "uint256",
+        name: "pendingPartyBCount",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "fundingCutoffTimestamp",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "fundingRestorationTimestamp",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+    ],
+    name: "getRestatementInventoryProgress",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "epoch",
+        type: "uint256",
+      },
+      {
+        internalType: "bool",
+        name: "prepared",
+        type: "bool",
+      },
+      {
+        internalType: "uint256",
+        name: "partyBRemainingLong",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "partyBRemainingShort",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "totalRemainingLong",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "totalRemainingShort",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "getRestatementState",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "restating",
+        type: "bool",
+      },
+      {
+        internalType: "uint256",
+        name: "epoch",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "uint256",
         name: "symbolId",
         type: "uint256",
@@ -5783,6 +7162,126 @@ export const symmioAbi = [
         internalType: "struct Symbol",
         name: "",
         type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "getSymbolAdjustment",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "factor",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "effectiveTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "enum AdjustmentState",
+            name: "state",
+            type: "uint8",
+          },
+          {
+            internalType: "uint256",
+            name: "scheduledCount",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "cumulativeFactor",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "restatementEpoch",
+            type: "uint256",
+          },
+          {
+            internalType: "bool",
+            name: "restating",
+            type: "bool",
+          },
+          {
+            internalType: "bool",
+            name: "restatementMutated",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "restatementFactor",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "basisVersion",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "restatementStartedAt",
+            type: "uint256",
+          },
+          {
+            internalType: "enum RestatementPhase",
+            name: "restatementPhase",
+            type: "uint8",
+          },
+          {
+            internalType: "uint256",
+            name: "fundingCutoffTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "pendingFundingPartyBCount",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "fundingRestorationTimestamp",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct SymbolAdjustment",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "getSymbolMinAcceptableNotionalLFRate",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "rate",
+        type: "uint256",
+      },
+      {
+        internalType: "bool",
+        name: "hasOverride",
+        type: "bool",
       },
     ],
     stateMutability: "view",
@@ -6033,6 +7532,49 @@ export const symmioAbi = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+    ],
+    name: "isRestatementFundingCheckpointed",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "isSymbolFrozen",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "address",
         name: "partyB",
         type: "address",
@@ -6049,6 +7591,82 @@ export const symmioAbi = [
         internalType: "bool",
         name: "",
         type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+    ],
+    name: "previewQuoteAdjustment",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "factor",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "quantity",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "openedPrice",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "initialOpenedPrice",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "requestedOpenPrice",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "marketPrice",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "closedAmount",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "avgClosedPrice",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "quantityToClose",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "requestedClosePrice",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct ISymbolAdjustmentFacet.QuoteAdjustmentPreview",
+        name: "preview",
+        type: "tuple",
       },
     ],
     stateMutability: "view",
@@ -6323,6 +7941,716 @@ export const symmioAbi = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "address",
+        name: "token",
+        type: "address",
+      },
+    ],
+    name: "SafeERC20FailedOperation",
+    type: "error",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "adjustmentIndex",
+        type: "uint256",
+      },
+    ],
+    name: "AdjustmentCancelled",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "adjustmentIndex",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "factor",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "effectiveTimestamp",
+        type: "uint256",
+      },
+    ],
+    name: "AdjustmentScheduled",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "PendingQuoteCancelledByAdjustment",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "adjustmentIndex",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newCumulativeFactor",
+        type: "uint256",
+      },
+    ],
+    name: "PriceAdjustmentConfirmed",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "epoch",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "factor",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "oldQuantity",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newQuantity",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "oldOpenedPrice",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newOpenedPrice",
+        type: "uint256",
+      },
+    ],
+    name: "QuoteAdjusted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "epoch",
+        type: "uint256",
+      },
+    ],
+    name: "RestatementAborted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "epoch",
+        type: "uint256",
+      },
+    ],
+    name: "RestatementFinalized",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "epoch",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "bool",
+        name: "finalizing",
+        type: "bool",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "processedPartyBs",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "remainingPartyBs",
+        type: "uint256",
+      },
+    ],
+    name: "RestatementFundingRestorationProgress",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "epoch",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "bool",
+        name: "finalizing",
+        type: "bool",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "pendingPartyBs",
+        type: "uint256",
+      },
+    ],
+    name: "RestatementFundingRestorationStarted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "epoch",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "enum PositionType",
+        name: "positionType",
+        type: "uint8",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "consumedAmount",
+        type: "uint256",
+      },
+    ],
+    name: "RestatementInventoryConsumed",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "epoch",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "partyBRemainingLongAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "partyBRemainingShortAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "totalRemainingLongAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "totalRemainingShortAmount",
+        type: "uint256",
+      },
+    ],
+    name: "RestatementInventoryPrepared",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "epoch",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "totalRemainingLongAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "totalRemainingShortAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "pendingFundingPartyBCount",
+        type: "uint256",
+      },
+    ],
+    name: "RestatementPreparationCompleted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "epoch",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "submittedPartyBCount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newlyPreparedPartyBCount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "fundingCheckpointedPartyBCount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "totalRemainingLongAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "totalRemainingShortAmount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "pendingFundingPartyBCount",
+        type: "uint256",
+      },
+    ],
+    name: "RestatementPreparationProgress",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "epoch",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "restatementFactor",
+        type: "uint256",
+      },
+    ],
+    name: "RestatementStarted",
+    type: "event",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "abortRestatement",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256[]",
+        name: "quoteIds",
+        type: "uint256[]",
+      },
+    ],
+    name: "applyAdjustment",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "cancelAdjustment",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256[]",
+        name: "quoteIds",
+        type: "uint256[]",
+      },
+    ],
+    name: "cancelPendingQuotes",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "completeRestatementFundingPreparation",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "confirmPriceAdjusted",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "finalizeRestatement",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        internalType: "address[]",
+        name: "partyBs",
+        type: "address[]",
+      },
+    ],
+    name: "processRestatementFunding",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "factor",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "effectiveTimestamp",
+        type: "uint256",
+      },
+    ],
+    name: "scheduleAdjustment",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+    ],
+    name: "startRestatement",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "currentLongRate",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "currentShortRate",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "accumulatedLongRate",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "accumulatedShortRate",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "lastUpdatedEpoch",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "lastUpdatedTimeStamp",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "startEpochTimeStamp",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "startEpoch",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "epochDuration",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "snapshotLongFee",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "snapshotShortFee",
+        type: "int256",
+      },
+    ],
+    name: "AccumulatedFundingStateUpdated",
+    type: "event",
+  },
+  {
     inputs: [],
     name: "activateAccumulatedFunding",
     outputs: [],
@@ -6416,6 +8744,13 @@ export const symmioAbi = [
   {
     inputs: [],
     name: "pausePartyBOpenPositions",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "pauseWithdrawAdvance",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -6528,6 +8863,13 @@ export const symmioAbi = [
   {
     inputs: [],
     name: "unpausePartyBOpenPositions",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "unpauseWithdrawAdvance",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -6948,6 +9290,25 @@ export const symmioAbi = [
         internalType: "address",
         name: "hook",
         type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
+      },
+    ],
+    name: "getAffiliateShutdownTime",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "shutdownTime",
+        type: "uint256",
       },
     ],
     stateMutability: "view",
@@ -7459,45 +9820,6 @@ export const symmioAbi = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "quoteId",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "closedPrice",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "marketPrice",
-        type: "uint256",
-      },
-      {
-        internalType: "int256",
-        name: "upnlPartyA",
-        type: "int256",
-      },
-    ],
-    name: "getMaxCloseAmountToLiquidation",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "maxCloseAmount",
-        type: "uint256",
-      },
-      {
-        internalType: "bool",
-        name: "canCloseAll",
-        type: "bool",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
     inputs: [],
     name: "getMaxWithdrawParts",
     outputs: [
@@ -7579,6 +9901,30 @@ export const symmioAbi = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "enum MuonFunction",
+        name: "func",
+        type: "uint8",
+      },
+    ],
+    name: "getMuonFunctionUpnlValidTime",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "upnlValidTime",
+        type: "uint256",
+      },
+      {
+        internalType: "bool",
+        name: "isOverridden",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "getMuonIds",
     outputs: [
@@ -7599,6 +9945,77 @@ export const symmioAbi = [
         internalType: "uint256",
         name: "",
         type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "payer",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+    ],
+    name: "getOperationalFeeAllowance",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "allowance",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "pendingAllowance",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "reductionReadyAt",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "feeMultiplier",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+    ],
+    name: "getOperationalFeeReceiver",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getOwner",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
       },
     ],
     stateMutability: "view",
@@ -7835,6 +10252,11 @@ export const symmioAbi = [
             name: "totalVirtualAmount",
             type: "uint256",
           },
+          {
+            internalType: "uint256",
+            name: "advancedAmount",
+            type: "uint256",
+          },
         ],
         internalType: "struct WithdrawRequest[]",
         name: "",
@@ -7951,6 +10373,49 @@ export const symmioAbi = [
   {
     inputs: [],
     name: "getSoftLiquidationPenaltyCollector",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+    ],
+    name: "getSolverFeeReceiver",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        internalType: "bytes32",
+        name: "tag",
+        type: "bytes32",
+      },
+    ],
+    name: "getSolverFeeReceiverForTag",
     outputs: [
       {
         internalType: "address",
@@ -8154,6 +10619,11 @@ export const symmioAbi = [
             name: "totalVirtualAmount",
             type: "uint256",
           },
+          {
+            internalType: "uint256",
+            name: "advancedAmount",
+            type: "uint256",
+          },
         ],
         internalType: "struct WithdrawRequest",
         name: "",
@@ -8282,6 +10752,11 @@ export const symmioAbi = [
             name: "totalVirtualAmount",
             type: "uint256",
           },
+          {
+            internalType: "uint256",
+            name: "advancedAmount",
+            type: "uint256",
+          },
         ],
         internalType: "struct WithdrawRequest[]",
         name: "",
@@ -8379,6 +10854,25 @@ export const symmioAbi = [
       {
         internalType: "bool",
         name: "",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
+      },
+    ],
+    name: "isAffiliateShutdownScheduled",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "isScheduled",
         type: "bool",
       },
     ],
@@ -8495,6 +10989,38 @@ export const symmioAbi = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "isLegacyPartyALiquidationDeprecated",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+    ],
+    name: "isOperationalFeeCharger",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       {
         internalType: "address",
@@ -8588,6 +11114,25 @@ export const symmioAbi = [
       {
         internalType: "bool",
         name: "isPaused",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+    ],
+    name: "isPartyBStrictDeallocationEnabled",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
         type: "bool",
       },
     ],
@@ -8750,6 +11295,176 @@ export const symmioAbi = [
         name: "partyA",
         type: "address",
       },
+      {
+        internalType: "int256",
+        name: "upnl",
+        type: "int256",
+      },
+    ],
+    name: "maxDeallocatableForPartyA",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        internalType: "int256",
+        name: "upnl",
+        type: "int256",
+      },
+    ],
+    name: "maxDeallocatableForPartyB",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        internalType: "int256",
+        name: "upnl",
+        type: "int256",
+      },
+      {
+        internalType: "uint256",
+        name: "pendingBalance",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "scaledLockedBalance",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "fundingDebt",
+        type: "uint256",
+      },
+    ],
+    name: "maxRemovableMarginForPartyA",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        internalType: "int256",
+        name: "upnl",
+        type: "int256",
+      },
+      {
+        internalType: "uint256",
+        name: "pendingBalance",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "scaledLockedBalance",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "fundingDebt",
+        type: "uint256",
+      },
+    ],
+    name: "maxRemovableMarginForPartyB",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        internalType: "int256",
+        name: "upnl",
+        type: "int256",
+      },
+      {
+        internalType: "uint256",
+        name: "pendingBalance",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "fundingDebt",
+        type: "uint256",
+      },
+    ],
+    name: "maxSafeDeallocatableForPartyA",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
     ],
     name: "nonceOfPartyA",
     outputs: [
@@ -8781,19 +11496,6 @@ export const symmioAbi = [
         internalType: "uint256",
         name: "",
         type: "uint256",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "owner",
-    outputs: [
-      {
-        internalType: "address",
-        name: "",
-        type: "address",
       },
     ],
     stateMutability: "view",
@@ -8975,6 +11677,11 @@ export const symmioAbi = [
         name: "partyBOpenPositionsPaused",
         type: "bool",
       },
+      {
+        internalType: "bool",
+        name: "withdrawAdvancePaused",
+        type: "bool",
+      },
     ],
     stateMutability: "view",
     type: "function",
@@ -9021,6 +11728,49 @@ export const symmioAbi = [
   {
     inputs: [],
     name: "unbindCooldown",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+    ],
+    name: "upnlCounterOfPartyA",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+    ],
+    name: "upnlCounterOfPartyB",
     outputs: [
       {
         internalType: "uint256",
@@ -9248,6 +11998,16 @@ export const symmioAbi = [
             internalType: "bool",
             name: "inProgress",
             type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "basisVersion",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "closeId",
+            type: "uint256",
           },
         ],
         internalType: "struct ForceCloseDetail",
@@ -9583,6 +12343,153 @@ export const symmioAbi = [
     anonymous: false,
     inputs: [
       {
+        indexed: true,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "allocationKey",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "rawFunding",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "settledFunding",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "rawPnl",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "settledPnl",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "scaleNumerator",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "scaleDenominator",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "bytes",
+        name: "liquidationId",
+        type: "bytes",
+      },
+    ],
+    name: "LiquidationFundingSettled",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "rawFunding",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "bytes",
+        name: "liquidationId",
+        type: "bytes",
+      },
+    ],
+    name: "LiquidationFundingSettlementAbandoned",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "rawFunding",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "rawPnl",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "bytes",
+        name: "liquidationId",
+        type: "bytes",
+      },
+    ],
+    name: "QuoteLiquidationFundingCalculated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: false,
         internalType: "address",
         name: "partyA",
@@ -9614,6 +12521,61 @@ export const symmioAbi = [
       },
     ],
     name: "ResolveLiquidationDispute",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "address",
+        name: "liquidator",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "address[]",
+        name: "partyBs",
+        type: "address[]",
+      },
+      {
+        indexed: false,
+        internalType: "uint256[]",
+        name: "symbolIds",
+        type: "uint256[]",
+      },
+      {
+        indexed: false,
+        internalType: "uint256[]",
+        name: "prices",
+        type: "uint256[]",
+      },
+      {
+        indexed: false,
+        internalType: "int256[]",
+        name: "cumulativeLongFees",
+        type: "int256[]",
+      },
+      {
+        indexed: false,
+        internalType: "int256[]",
+        name: "cumulativeShortFees",
+        type: "int256[]",
+      },
+      {
+        indexed: false,
+        internalType: "bytes",
+        name: "liquidationId",
+        type: "bytes",
+      },
+    ],
+    name: "SetPartyALiquidationSnapshot",
     type: "event",
   },
   {
@@ -9673,6 +12635,49 @@ export const symmioAbi = [
         internalType: "int256[]",
         name: "amounts",
         type: "int256[]",
+      },
+      {
+        indexed: false,
+        internalType: "bytes",
+        name: "liquidationId",
+        type: "bytes",
+      },
+    ],
+    name: "SettlePartyALiquidation",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "address[]",
+        name: "partyBs",
+        type: "address[]",
+      },
+      {
+        indexed: false,
+        internalType: "address[]",
+        name: "allocationKeys",
+        type: "address[]",
+      },
+      {
+        indexed: false,
+        internalType: "int256[]",
+        name: "amounts",
+        type: "int256[]",
+      },
+      {
+        indexed: false,
+        internalType: "uint256[]",
+        name: "cvaAmounts",
+        type: "uint256[]",
       },
       {
         indexed: false,
@@ -11228,6 +14233,31 @@ export const symmioAbi = [
     type: "function",
   },
   {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "price",
+        type: "uint256",
+      },
+    ],
+    name: "ADLClose",
+    type: "event",
+  },
+  {
     inputs: [
       {
         internalType: "uint256[]",
@@ -11353,13 +14383,13 @@ export const symmioAbi = [
       },
       {
         internalType: "uint256",
-        name: "maxFundingRate",
+        name: "deadline",
         type: "uint256",
       },
       {
-        internalType: "uint256",
-        name: "deadline",
-        type: "uint256",
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
       },
       {
         components: [
@@ -11415,9 +14445,37 @@ export const symmioAbi = [
         name: "upnlSig",
         type: "tuple",
       },
+      {
+        internalType: "bytes",
+        name: "data",
+        type: "bytes",
+      },
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "openRateCap",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "closeRateCap",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct SolverFeeCaps",
+        name: "solverFeeCaps",
+        type: "tuple",
+      },
     ],
     name: "sendQuote",
-    outputs: [],
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+    ],
     stateMutability: "nonpayable",
     type: "function",
   },
@@ -12112,6 +15170,49 @@ export const symmioAbi = [
     anonymous: false,
     inputs: [
       {
+        indexed: true,
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "allocationKey",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "funding",
+        type: "int256",
+      },
+    ],
+    name: "QuoteFundingSettled",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: false,
         internalType: "uint256[]",
         name: "symbolIds",
@@ -12726,6 +15827,50 @@ export const symmioAbi = [
         internalType: "struct Quote[]",
         name: "",
         type: "tuple[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "closedPrice",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "marketPrice",
+        type: "uint256",
+      },
+      {
+        internalType: "int256",
+        name: "upnlPartyA",
+        type: "int256",
+      },
+      {
+        internalType: "uint256",
+        name: "maxSolverFee",
+        type: "uint256",
+      },
+    ],
+    name: "getMaxCloseAmountToLiquidation",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "maxCloseAmount",
+        type: "uint256",
+      },
+      {
+        internalType: "bool",
+        name: "canCloseAll",
+        type: "bool",
       },
     ],
     stateMutability: "view",
@@ -13948,6 +17093,248 @@ export const symmioAbi = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+    ],
+    name: "getQuoteInVenueUnits",
+    outputs: [
+      {
+        components: [
+          {
+            components: [
+              {
+                internalType: "uint256",
+                name: "id",
+                type: "uint256",
+              },
+              {
+                internalType: "address[]",
+                name: "partyBsWhiteList",
+                type: "address[]",
+              },
+              {
+                internalType: "uint256",
+                name: "symbolId",
+                type: "uint256",
+              },
+              {
+                internalType: "enum PositionType",
+                name: "positionType",
+                type: "uint8",
+              },
+              {
+                internalType: "enum OrderType",
+                name: "orderType",
+                type: "uint8",
+              },
+              {
+                internalType: "uint256",
+                name: "openedPrice",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "initialOpenedPrice",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "requestedOpenPrice",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "marketPrice",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "quantity",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "closedAmount",
+                type: "uint256",
+              },
+              {
+                components: [
+                  {
+                    internalType: "uint256",
+                    name: "cva",
+                    type: "uint256",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "lf",
+                    type: "uint256",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "partyAmm",
+                    type: "uint256",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "partyBmm",
+                    type: "uint256",
+                  },
+                ],
+                internalType: "struct LockedValues",
+                name: "initialLockedValues",
+                type: "tuple",
+              },
+              {
+                components: [
+                  {
+                    internalType: "uint256",
+                    name: "cva",
+                    type: "uint256",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "lf",
+                    type: "uint256",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "partyAmm",
+                    type: "uint256",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "partyBmm",
+                    type: "uint256",
+                  },
+                ],
+                internalType: "struct LockedValues",
+                name: "lockedValues",
+                type: "tuple",
+              },
+              {
+                internalType: "uint256",
+                name: "maxFundingRate",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "partyA",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "partyB",
+                type: "address",
+              },
+              {
+                internalType: "enum QuoteStatus",
+                name: "quoteStatus",
+                type: "uint8",
+              },
+              {
+                internalType: "uint256",
+                name: "avgClosedPrice",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "requestedClosePrice",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "quantityToClose",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "parentId",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "createTimestamp",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "statusModifyTimestamp",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "lastFundingPaymentTimestamp",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "deadline",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "tradingFee",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "affiliate",
+                type: "address",
+              },
+              {
+                internalType: "int256",
+                name: "accumulatedPaidFunding",
+                type: "int256",
+              },
+              {
+                internalType: "uint256",
+                name: "closeFee",
+                type: "uint256",
+              },
+              {
+                internalType: "bytes",
+                name: "data",
+                type: "bytes",
+              },
+            ],
+            internalType: "struct Quote",
+            name: "quote",
+            type: "tuple",
+          },
+          {
+            internalType: "uint256",
+            name: "factorApplied",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "restatementEpoch",
+            type: "uint256",
+          },
+          {
+            internalType: "bool",
+            name: "storedInVenueUnits",
+            type: "bool",
+          },
+          {
+            internalType: "bool",
+            name: "symbolFrozen",
+            type: "bool",
+          },
+        ],
+        internalType: "struct IViewFacetQuote.VenueQuoteView",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "address",
         name: "partyA",
         type: "address",
@@ -14393,6 +17780,248 @@ export const symmioAbi = [
   {
     inputs: [
       {
+        internalType: "uint256[]",
+        name: "quoteIds",
+        type: "uint256[]",
+      },
+    ],
+    name: "getQuotesInVenueUnits",
+    outputs: [
+      {
+        components: [
+          {
+            components: [
+              {
+                internalType: "uint256",
+                name: "id",
+                type: "uint256",
+              },
+              {
+                internalType: "address[]",
+                name: "partyBsWhiteList",
+                type: "address[]",
+              },
+              {
+                internalType: "uint256",
+                name: "symbolId",
+                type: "uint256",
+              },
+              {
+                internalType: "enum PositionType",
+                name: "positionType",
+                type: "uint8",
+              },
+              {
+                internalType: "enum OrderType",
+                name: "orderType",
+                type: "uint8",
+              },
+              {
+                internalType: "uint256",
+                name: "openedPrice",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "initialOpenedPrice",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "requestedOpenPrice",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "marketPrice",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "quantity",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "closedAmount",
+                type: "uint256",
+              },
+              {
+                components: [
+                  {
+                    internalType: "uint256",
+                    name: "cva",
+                    type: "uint256",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "lf",
+                    type: "uint256",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "partyAmm",
+                    type: "uint256",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "partyBmm",
+                    type: "uint256",
+                  },
+                ],
+                internalType: "struct LockedValues",
+                name: "initialLockedValues",
+                type: "tuple",
+              },
+              {
+                components: [
+                  {
+                    internalType: "uint256",
+                    name: "cva",
+                    type: "uint256",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "lf",
+                    type: "uint256",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "partyAmm",
+                    type: "uint256",
+                  },
+                  {
+                    internalType: "uint256",
+                    name: "partyBmm",
+                    type: "uint256",
+                  },
+                ],
+                internalType: "struct LockedValues",
+                name: "lockedValues",
+                type: "tuple",
+              },
+              {
+                internalType: "uint256",
+                name: "maxFundingRate",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "partyA",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "partyB",
+                type: "address",
+              },
+              {
+                internalType: "enum QuoteStatus",
+                name: "quoteStatus",
+                type: "uint8",
+              },
+              {
+                internalType: "uint256",
+                name: "avgClosedPrice",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "requestedClosePrice",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "quantityToClose",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "parentId",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "createTimestamp",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "statusModifyTimestamp",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "lastFundingPaymentTimestamp",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "deadline",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "tradingFee",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "affiliate",
+                type: "address",
+              },
+              {
+                internalType: "int256",
+                name: "accumulatedPaidFunding",
+                type: "int256",
+              },
+              {
+                internalType: "uint256",
+                name: "closeFee",
+                type: "uint256",
+              },
+              {
+                internalType: "bytes",
+                name: "data",
+                type: "bytes",
+              },
+            ],
+            internalType: "struct Quote",
+            name: "quote",
+            type: "tuple",
+          },
+          {
+            internalType: "uint256",
+            name: "factorApplied",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "restatementEpoch",
+            type: "uint256",
+          },
+          {
+            internalType: "bool",
+            name: "storedInVenueUnits",
+            type: "bool",
+          },
+          {
+            internalType: "bool",
+            name: "symbolFrozen",
+            type: "bool",
+          },
+        ],
+        internalType: "struct IViewFacetQuote.VenueQuoteView[]",
+        name: "",
+        type: "tuple[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         components: [
           {
             internalType: "uint256",
@@ -14637,6 +18266,47 @@ export const symmioAbi = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+    ],
+    name: "getSolverFeeState",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint256",
+            name: "openRateCap",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "closeRateCap",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "openFeeCharged",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "closeFeeCharged",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct SolverFeeState",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "uint256[]",
         name: "quoteIds",
         type: "uint256[]",
@@ -14761,6 +18431,105 @@ export const symmioAbi = [
       },
     ],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bool",
+        name: "instantOpenMode",
+        type: "bool",
+      },
+    ],
+    name: "beginInstantLayerExecution",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "endInstantLayerExecution",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "restoreExecutionContextAfterExternalCall",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "signer",
+        type: "address",
+      },
+    ],
+    name: "setTransientSigner",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "suspendExecutionContextForExternalCall",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "suspended",
+        type: "bool",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "ExternalCallContextAlreadySuspended",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "TransientContextAlreadyActive",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "TransientContextNotActive",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "TransientSignerNotCleared",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bool",
+        name: "callFromInstantLayer",
+        type: "bool",
+      },
+    ],
+    name: "setCallFromInstantLayer",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bool",
+        name: "instantOpenMode",
+        type: "bool",
+      },
+    ],
+    name: "setInstantOpenMode",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -15235,6 +19004,87 @@ export const symmioAbi = [
     anonymous: false,
     inputs: [
       {
+        indexed: true,
+        internalType: "address",
+        name: "payer",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newAllowance",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "readyAt",
+        type: "uint256",
+      },
+    ],
+    name: "OperationalFeeAllowanceReductionRequested",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "payer",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newAllowance",
+        type: "uint256",
+      },
+    ],
+    name: "OperationalFeeAllowanceSet",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "payer",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "feeMultiplier",
+        type: "uint256",
+      },
+    ],
+    name: "OperationalFeeMultiplierSet",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: false,
         internalType: "address",
         name: "sender",
@@ -15296,6 +19146,65 @@ export const symmioAbi = [
       },
     ],
     name: "allocate",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address[]",
+        name: "chargers",
+        type: "address[]",
+      },
+      {
+        internalType: "uint256[]",
+        name: "amounts",
+        type: "uint256[]",
+      },
+    ],
+    name: "approveOperationalFee",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address[]",
+        name: "chargers",
+        type: "address[]",
+      },
+      {
+        internalType: "uint256[]",
+        name: "amounts",
+        type: "uint256[]",
+      },
+      {
+        internalType: "uint256[]",
+        name: "feeMultipliers",
+        type: "uint256[]",
+      },
+    ],
+    name: "approveOperationalFeeWithMultiplier",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "payer",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "chargeOperationalFee",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -15517,7 +19426,17 @@ export const symmioAbi = [
           },
           {
             internalType: "uint256",
+            name: "fundingDebt",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
             name: "pendingBalance",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "scaledLockedBalance",
             type: "uint256",
           },
           {
@@ -15644,6 +19563,37 @@ export const symmioAbi = [
     type: "function",
   },
   {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "payer",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "receiver",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "OperationalFeeCharged",
+    type: "event",
+  },
+  {
     inputs: [
       {
         internalType: "address",
@@ -15678,6 +19628,117 @@ export const symmioAbi = [
       },
     ],
     name: "AutoTakeoverPartyALiquidation",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "subject",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "allocationKey",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "amount",
+        type: "int256",
+      },
+    ],
+    name: "ClearingHouseAccountSettlement",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "subject",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "symbolId",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "allocationKey",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "realizedPnl",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "funding",
+        type: "int256",
+      },
+      {
+        indexed: false,
+        internalType: "int256",
+        name: "platformFee",
+        type: "int256",
+      },
+    ],
+    name: "ClearingHouseSettlementComponent",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256[]",
+        name: "quoteIds",
+        type: "uint256[]",
+      },
+      {
+        indexed: false,
+        internalType: "uint256[]",
+        name: "closedAmounts",
+        type: "uint256[]",
+      },
+      {
+        indexed: false,
+        internalType: "uint256[]",
+        name: "prices",
+        type: "uint256[]",
+      },
+    ],
+    name: "CloseAffiliatePositions",
     type: "event",
   },
   {
@@ -15878,6 +19939,37 @@ export const symmioAbi = [
       {
         indexed: true,
         internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "newBalance",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "enum SharedEvents.ReimbursementChangeType",
+        name: "_type",
+        type: "uint8",
+      },
+    ],
+    name: "PartyAReimbursementChange",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
         name: "partyB",
         type: "address",
       },
@@ -15968,22 +20060,44 @@ export const symmioAbi = [
         type: "address",
       },
       {
-        internalType: "address[]",
-        name: "parties",
-        type: "address[]",
-      },
-      {
-        internalType: "address[]",
-        name: "allocationKeys",
-        type: "address[]",
-      },
-      {
-        internalType: "uint256[]",
-        name: "amounts",
-        type: "uint256[]",
+        components: [
+          {
+            internalType: "address",
+            name: "account",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "allocationKey",
+            type: "address",
+          },
+          {
+            internalType: "uint256",
+            name: "symbolId",
+            type: "uint256",
+          },
+          {
+            internalType: "int256",
+            name: "realizedPnl",
+            type: "int256",
+          },
+          {
+            internalType: "int256",
+            name: "funding",
+            type: "int256",
+          },
+          {
+            internalType: "int256",
+            name: "platformFee",
+            type: "int256",
+          },
+        ],
+        internalType: "struct ClearingHouseSettlement[]",
+        name: "settlements",
+        type: "tuple[]",
       },
     ],
-    name: "deallocateForClearingHouse",
+    name: "applyClearingHouseSettlement",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -15992,28 +20106,79 @@ export const symmioAbi = [
     inputs: [
       {
         internalType: "address",
-        name: "subject",
+        name: "affiliate",
+        type: "address",
+      },
+      {
+        internalType: "uint256[]",
+        name: "quoteIds",
+        type: "uint256[]",
+      },
+      {
+        internalType: "uint256[]",
+        name: "prices",
+        type: "uint256[]",
+      },
+    ],
+    name: "closeAffiliatePositions",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "",
         type: "address",
       },
       {
         internalType: "address[]",
-        name: "receivers",
+        name: "",
         type: "address[]",
       },
       {
         internalType: "address[]",
-        name: "allocationKeys",
+        name: "",
         type: "address[]",
       },
       {
         internalType: "uint256[]",
-        name: "amounts",
+        name: "",
+        type: "uint256[]",
+      },
+    ],
+    name: "deallocateForClearingHouse",
+    outputs: [],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+      {
+        internalType: "address[]",
+        name: "",
+        type: "address[]",
+      },
+      {
+        internalType: "address[]",
+        name: "",
+        type: "address[]",
+      },
+      {
+        internalType: "uint256[]",
+        name: "",
         type: "uint256[]",
       },
     ],
     name: "distributeForClearingHouse",
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "view",
     type: "function",
   },
   {
@@ -16196,6 +20361,11 @@ export const symmioAbi = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "ReentrancyGuardReentrantCall",
+    type: "error",
+  },
+  {
     anonymous: false,
     inputs: [
       {
@@ -16212,6 +20382,31 @@ export const symmioAbi = [
       },
     ],
     name: "WithdrawAccepted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "uint256",
+        name: "requestId",
+        type: "uint256",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
+    ],
+    name: "WithdrawAdvanced",
     type: "event",
   },
   {
@@ -16480,8 +20675,13 @@ export const symmioAbi = [
         name: "requestId",
         type: "uint256",
       },
+      {
+        internalType: "uint256",
+        name: "amount",
+        type: "uint256",
+      },
     ],
-    name: "finalizeWithdrawRequest",
+    name: "advanceWithdraw",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -16499,7 +20699,7 @@ export const symmioAbi = [
         type: "uint256",
       },
     ],
-    name: "forceCancelWithdraw",
+    name: "finalizeWithdrawRequest",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -16620,6 +20820,450 @@ export const symmioAbi = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        components: [
+          {
+            internalType: "bytes",
+            name: "reqId",
+            type: "bytes",
+          },
+          {
+            internalType: "uint256",
+            name: "timestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "liquidationId",
+            type: "bytes",
+          },
+          {
+            internalType: "int256",
+            name: "upnl",
+            type: "int256",
+          },
+          {
+            internalType: "int256",
+            name: "totalUnrealizedLoss",
+            type: "int256",
+          },
+          {
+            components: [
+              {
+                internalType: "address",
+                name: "partyB",
+                type: "address",
+              },
+              {
+                internalType: "uint256",
+                name: "symbolId",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "price",
+                type: "uint256",
+              },
+              {
+                internalType: "int256",
+                name: "cumulativeLongFee",
+                type: "int256",
+              },
+              {
+                internalType: "int256",
+                name: "cumulativeShortFee",
+                type: "int256",
+              },
+            ],
+            internalType: "struct LiquidationPartyBSymbolState[]",
+            name: "states",
+            type: "tuple[]",
+          },
+          {
+            internalType: "uint256",
+            name: "liquidationBlockNumber",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "liquidationTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "liquidationAllocatedBalance",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "gatewaySignature",
+            type: "bytes",
+          },
+          {
+            components: [
+              {
+                internalType: "uint256",
+                name: "signature",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "owner",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "nonce",
+                type: "address",
+              },
+            ],
+            internalType: "struct IMuonSignatureVerifier.SchnorrSign",
+            name: "sigs",
+            type: "tuple",
+          },
+        ],
+        internalType: "struct LiquidationSnapshotSig",
+        name: "liquidationSig",
+        type: "tuple",
+      },
+    ],
+    name: "liquidatePartyAWithSnapshot",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+    ],
+    name: "liquidatePendingPositionsPartyAWithSnapshot",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        internalType: "uint256[]",
+        name: "quoteIds",
+        type: "uint256[]",
+      },
+    ],
+    name: "liquidatePositionsPartyAWithSnapshot",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        internalType: "address[]",
+        name: "partyBs",
+        type: "address[]",
+      },
+      {
+        internalType: "int256[]",
+        name: "amounts",
+        type: "int256[]",
+      },
+      {
+        internalType: "bool",
+        name: "disputed",
+        type: "bool",
+      },
+    ],
+    name: "resolveLiquidationDisputeWithSnapshot",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        components: [
+          {
+            internalType: "bytes",
+            name: "reqId",
+            type: "bytes",
+          },
+          {
+            internalType: "uint256",
+            name: "timestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "liquidationId",
+            type: "bytes",
+          },
+          {
+            internalType: "int256",
+            name: "upnl",
+            type: "int256",
+          },
+          {
+            internalType: "int256",
+            name: "totalUnrealizedLoss",
+            type: "int256",
+          },
+          {
+            components: [
+              {
+                internalType: "address",
+                name: "partyB",
+                type: "address",
+              },
+              {
+                internalType: "uint256",
+                name: "symbolId",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "price",
+                type: "uint256",
+              },
+              {
+                internalType: "int256",
+                name: "cumulativeLongFee",
+                type: "int256",
+              },
+              {
+                internalType: "int256",
+                name: "cumulativeShortFee",
+                type: "int256",
+              },
+            ],
+            internalType: "struct LiquidationPartyBSymbolState[]",
+            name: "states",
+            type: "tuple[]",
+          },
+          {
+            internalType: "uint256",
+            name: "liquidationBlockNumber",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "liquidationTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "liquidationAllocatedBalance",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "gatewaySignature",
+            type: "bytes",
+          },
+          {
+            components: [
+              {
+                internalType: "uint256",
+                name: "signature",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "owner",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "nonce",
+                type: "address",
+              },
+            ],
+            internalType: "struct IMuonSignatureVerifier.SchnorrSign",
+            name: "sigs",
+            type: "tuple",
+          },
+        ],
+        internalType: "struct LiquidationSnapshotSig",
+        name: "liquidationSig",
+        type: "tuple",
+      },
+    ],
+    name: "setSymbolsPriceWithSnapshot",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        internalType: "address[]",
+        name: "partyBs",
+        type: "address[]",
+      },
+    ],
+    name: "settlePartyALiquidationWithSnapshot",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyA",
+        type: "address",
+      },
+      {
+        components: [
+          {
+            internalType: "bytes",
+            name: "reqId",
+            type: "bytes",
+          },
+          {
+            internalType: "uint256",
+            name: "timestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "liquidationId",
+            type: "bytes",
+          },
+          {
+            internalType: "int256",
+            name: "upnl",
+            type: "int256",
+          },
+          {
+            internalType: "int256",
+            name: "totalUnrealizedLoss",
+            type: "int256",
+          },
+          {
+            components: [
+              {
+                internalType: "address",
+                name: "partyB",
+                type: "address",
+              },
+              {
+                internalType: "uint256",
+                name: "symbolId",
+                type: "uint256",
+              },
+              {
+                internalType: "uint256",
+                name: "price",
+                type: "uint256",
+              },
+              {
+                internalType: "int256",
+                name: "cumulativeLongFee",
+                type: "int256",
+              },
+              {
+                internalType: "int256",
+                name: "cumulativeShortFee",
+                type: "int256",
+              },
+            ],
+            internalType: "struct LiquidationPartyBSymbolState[]",
+            name: "states",
+            type: "tuple[]",
+          },
+          {
+            internalType: "uint256",
+            name: "liquidationBlockNumber",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "liquidationTimestamp",
+            type: "uint256",
+          },
+          {
+            internalType: "uint256",
+            name: "liquidationAllocatedBalance",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes",
+            name: "gatewaySignature",
+            type: "bytes",
+          },
+          {
+            components: [
+              {
+                internalType: "uint256",
+                name: "signature",
+                type: "uint256",
+              },
+              {
+                internalType: "address",
+                name: "owner",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "nonce",
+                type: "address",
+              },
+            ],
+            internalType: "struct IMuonSignatureVerifier.SchnorrSign",
+            name: "sigs",
+            type: "tuple",
+          },
+        ],
+        internalType: "struct LiquidationSnapshotSig",
+        name: "liquidationSig",
+        type: "tuple",
+      },
+      {
+        internalType: "uint256[]",
+        name: "quoteIds",
+        type: "uint256[]",
+      },
+      {
+        internalType: "address[]",
+        name: "partyBs",
+        type: "address[]",
+      },
+    ],
+    name: "singleStepLiquidatePartyAWithSnapshot",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     anonymous: false,
     inputs: [
       {
@@ -16733,6 +21377,11 @@ export const symmioAbi = [
   },
   {
     inputs: [],
+    name: "IncompatibleSignatureVerifier",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "acceptOwnership",
     outputs: [],
     stateMutability: "nonpayable",
@@ -16783,6 +21432,19 @@ export const symmioAbi = [
       },
     ],
     name: "addRoleAdmin",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
+      },
+    ],
+    name: "cancelAffiliateShutdown",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -16891,6 +21553,19 @@ export const symmioAbi = [
     inputs: [
       {
         internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+    ],
+    name: "registerOperationalFeeCharger",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
         name: "partyB",
         type: "address",
       },
@@ -16971,6 +21646,24 @@ export const symmioAbi = [
       },
     ],
     name: "revokeRole",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "affiliate",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "shutdownTime",
+        type: "uint256",
+      },
+    ],
+    name: "scheduleAffiliateShutdown",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -17111,19 +21804,6 @@ export const symmioAbi = [
       },
     ],
     name: "setBalanceLimitPerUser",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "bool",
-        name: "callFromInstantLayer",
-        type: "bool",
-      },
-    ],
-    name: "setCallFromInstantLayer",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -17320,19 +22000,6 @@ export const symmioAbi = [
   {
     inputs: [
       {
-        internalType: "bool",
-        name: "instantOpenMode",
-        type: "bool",
-      },
-    ],
-    name: "setInstantOpenMode",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
         internalType: "address",
         name: "pool",
         type: "address",
@@ -17352,6 +22019,19 @@ export const symmioAbi = [
       },
     ],
     name: "setLegacyDeallocateDeprecated",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bool",
+        name: "deprecated",
+        type: "bool",
+      },
+    ],
+    name: "setLegacyPartyALiquidationDeprecated",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -17473,12 +22153,61 @@ export const symmioAbi = [
   {
     inputs: [
       {
+        internalType: "enum MuonFunction",
+        name: "func",
+        type: "uint8",
+      },
+      {
+        internalType: "uint256",
+        name: "upnlValidTime",
+        type: "uint256",
+      },
+    ],
+    name: "setMuonFunctionUpnlValidTime",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "uint256",
         name: "muonAppId",
         type: "uint256",
       },
     ],
     name: "setMuonIds",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "receiver",
+        type: "address",
+      },
+    ],
+    name: "setOperationalFeeReceiver",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "delay",
+        type: "uint256",
+      },
+    ],
+    name: "setOperationalFeeReductionDelay",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -17532,6 +22261,24 @@ export const symmioAbi = [
       },
     ],
     name: "setPartyBMetadata",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        internalType: "bool",
+        name: "enabled",
+        type: "bool",
+      },
+    ],
+    name: "setPartyBStrictDeallocation",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -17618,6 +22365,47 @@ export const symmioAbi = [
     inputs: [
       {
         internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "receiver",
+        type: "address",
+      },
+    ],
+    name: "setSolverFeeReceiver",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "partyB",
+        type: "address",
+      },
+      {
+        internalType: "bytes32",
+        name: "tag",
+        type: "bytes32",
+      },
+      {
+        internalType: "address",
+        name: "receiver",
+        type: "address",
+      },
+    ],
+    name: "setSolverFeeReceiverForTag",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
         name: "user",
         type: "address",
       },
@@ -17688,6 +22476,19 @@ export const symmioAbi = [
     inputs: [
       {
         internalType: "address",
+        name: "charger",
+        type: "address",
+      },
+    ],
+    name: "unregisterOperationalFeeCharger",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
         name: "provider",
         type: "address",
       },
@@ -17696,6 +22497,57 @@ export const symmioAbi = [
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "pendingOwner",
+        type: "address",
+      },
+    ],
+    name: "OwnershipTransferCanceled",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "currentOwner",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "pendingOwner",
+        type: "address",
+      },
+    ],
+    name: "OwnershipTransferStarted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "previousOwner",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "newOwner",
+        type: "address",
+      },
+    ],
+    name: "OwnershipTransferred",
+    type: "event",
   },
   {
     inputs: [
@@ -17709,31 +22561,6 @@ export const symmioAbi = [
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "quoteId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "price",
-        type: "uint256",
-      },
-    ],
-    name: "ADLClose",
-    type: "event",
   },
   {
     inputs: [
@@ -18360,19 +23187,6 @@ export const symmioAbi = [
   },
   {
     inputs: [],
-    name: "WITHDRAW_FORCE_CANCEL_ROLE",
-    outputs: [
-      {
-        internalType: "bytes32",
-        name: "",
-        type: "bytes32",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
     name: "WITHDRAW_SPEED_UP_ROLE",
     outputs: [
       {
@@ -18385,160 +23199,6 @@ export const symmioAbi = [
     type: "function",
   },
   {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "partyA",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "enum SharedEvents.BalanceChangeType",
-        name: "_type",
-        type: "uint8",
-      },
-    ],
-    name: "BalanceChangePartyA",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "partyB",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "partyA",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "enum SharedEvents.BalanceChangeType",
-        name: "_type",
-        type: "uint8",
-      },
-    ],
-    name: "BalanceChangePartyB",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "quoteId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "partyA",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "partyB",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "symbolId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "affiliate",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "enum SharedEvents.TradeVolumeType",
-        name: "_type",
-        type: "uint8",
-      },
-    ],
-    name: "TradeVolumeRecorded",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "quoteId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "partyA",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "partyB",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "symbolId",
-        type: "uint256",
-      },
-      {
-        indexed: false,
-        internalType: "address",
-        name: "affiliate",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "enum SharedEvents.TradingFeeType",
-        name: "_type",
-        type: "uint8",
-      },
-    ],
-    name: "TradingFeeCharged",
-    type: "event",
-  },
-  {
     inputs: [
       {
         internalType: "uint256",
@@ -18547,6 +23207,64 @@ export const symmioAbi = [
       },
     ],
     name: "getAccumulatedFundingFee",
+    outputs: [
+      {
+        internalType: "int256",
+        name: "fee",
+        type: "int256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "timestamp",
+        type: "uint256",
+      },
+    ],
+    name: "getAccumulatedFundingFeeAt",
+    outputs: [
+      {
+        internalType: "int256",
+        name: "fee",
+        type: "int256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "quoteId",
+        type: "uint256",
+      },
+      {
+        internalType: "int256",
+        name: "cumulativeLongFee",
+        type: "int256",
+      },
+      {
+        internalType: "int256",
+        name: "cumulativeShortFee",
+        type: "int256",
+      },
+      {
+        internalType: "uint256",
+        name: "timestamp",
+        type: "uint256",
+      },
+    ],
+    name: "getAccumulatedFundingFeeFromSnapshot",
     outputs: [
       {
         internalType: "int256",

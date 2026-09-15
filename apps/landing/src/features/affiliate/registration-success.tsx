@@ -6,7 +6,7 @@ import { useAffiliateState } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { CopyButton } from "@symmio/ui/components/copy-button";
 import { motion } from "motion/react";
-import { hyperEvm } from "wagmi/chains";
+import { arbitrum } from "wagmi/chains";
 import { AddressReadout } from "./address-readout";
 import { CheckIcon } from "./icons";
 import { truncateAddress } from "./registration-utils";
@@ -37,7 +37,7 @@ const STATE_VIEW: Record<AffiliateState, { label: string; body: string; tone: St
   },
 };
 
-const explorerUrl = hyperEvm.blockExplorers?.default.url;
+const explorerUrl = arbitrum.blockExplorers?.default.url;
 
 interface SuccessProps {
   result: RegistrationResult;

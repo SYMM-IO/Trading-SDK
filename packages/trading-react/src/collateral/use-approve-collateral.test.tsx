@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_TX_HASH } from "../test/test-utils";
 import { useApproveCollateral } from "./use-approve-collateral";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 
 describe("useApproveCollateral", () => {
   it("approves the collateral token for the SYMMIO core", async () => {

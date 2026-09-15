@@ -10,7 +10,7 @@ import {
 } from "@symmio/trading-react";
 import { useEffect, useState } from "react";
 import { isAddress, type Address, type Hash } from "viem";
-import { hyperEvm } from "wagmi/chains";
+import { arbitrum } from "wagmi/chains";
 import type { CancellationPayload } from "./registration-utils";
 
 /**
@@ -92,7 +92,7 @@ export function useStatusLookup() {
         kind: "cancellation",
         affiliate,
         canceller,
-        chainId: wallet.chainId ?? hyperEvm.id,
+        chainId: wallet.chainId ?? arbitrum.id,
         txHash,
       };
       await fetch("/api/affiliate-notify", {
