@@ -2,11 +2,11 @@
 
 import {
   calculateTradeParams,
-  getInstantOpenFeesQueryOptions,
   PositionType,
+  prepareInstantOpenParamsQueryOptions,
   type ConfigParameter,
-  type GetInstantOpenFeesOptions,
-  type GetInstantOpenFeesReturnType,
+  type InstantOpenParameters,
+  type PrepareInstantOpenParamsOptions,
 } from "@symmio/trading-core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -21,52 +21,67 @@ import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /**
- * Parameters for {@link useInstantOpenFees}: the trade intent
- * (`subAccountAddress`, `market`, `positionType`, `initialMargin` **or**
- * `fund` for a full-balance preview, `leverage`, optional `slippage` /
- * pre-fetched data, TanStack `query` overrides) plus an optional `config`.
+ * Parameters for {@link usePrepareInstantOpenParams}: the same trade intent the
+ * submit takes (`subAccountAddress`, `from`, `market`, `positionType`,
+ * `initialMargin` **or** `fund`, `leverage`, optional `slippage` / pre-fetched
+ * data, TanStack `query` overrides) plus an optional `config`.
  */
-export type UseInstantOpenFeesParameters = GetInstantOpenFeesOptions & ConfigParameter;
-
-/** Return type of {@link useInstantOpenFees}. */
-export type UseInstantOpenFeesReturnType = UseQueryResult<GetInstantOpenFeesReturnType, SymmioRequestError>;
+export type UsePrepareInstantOpenParamsParameters = PrepareInstantOpenParamsOptions & ConfigParameter;
 
 /**
- * Preview every fee a new instant-open quote pays — separated by leg plus the
- * total — before the user submits. Read-only; nothing is signed.
+ * Return type of {@link usePrepareInstantOpenParams}: the query result carrying
+ * the prepared {@link InstantOpenParameters}, plus the dry-run estimate the
+ * params were built with.
+ */
+export type UsePrepareInstantOpenParamsReturnType = UseQueryResult<InstantOpenParameters, SymmioRequestError> & {
+  /**
+   * The dry-run estimate the preview was built with (`undefined` when none was
+   * usable). Forward it as `estimatedOpenPrice` to the submit so its
+   * `margin.amount` — whose settlement leg tracks the estimate — matches this
+   * preview bit-for-bit.
+   */
+  estimatedOpenPrice: string | undefined;
+};
+
+/**
+ * Live-preview the exact {@link InstantOpenParameters} an instant-open submit
+ * will sign — `order` (price + quantity), `lockedParam`, `margin.amount`, and
+ * `solverFeeCaps` — by running `prepareInstantOpenParams` as a read.
+ * `prepareInstantOpenParams` neither signs nor submits, so this is safe to run
+ * live; drive a "quote preview" from it and what the user sees is bit-for-bit
+ * what `sendQuote` receives, with no separate local recomputation to drift.
  *
- * Wraps `getInstantOpenFees`, but **pre-fetches every input through its own
- * cached queries and passes them in as prefills**, so the query function is
- * pure math with zero network hops: market metadata (`useMarkets`) and
- * on-chain fee rates (`useFeeForUser`) are slow-moving and cached for
- * minutes; the mark price rides the shared price stream; the lowcap dry-run
- * estimate uses `useEstimatedPrice` (debounced internally). Previous data is
- * kept while inputs move, so a mark-price tick updates the numbers in place —
- * it never resets the result to a loading state.
+ * Like {@link useInstantOpenFees}, it **pre-fetches every input through its own
+ * cached queries** (market metadata, mark price, locked params, on-chain fee
+ * rates, and the lowcap dry-run estimate) and passes them in as prefills, so the
+ * query function is pure and does no per-render network. Previous data is kept
+ * while inputs move, so a mark-price tick updates the numbers in place.
  *
- * The result is a `kind`-discriminated union: both kinds carry the platform
- * legs, the sized `quantity`, and `totalFee`; an `"enigma"` (lowcap) result
- * adds `openSolverFee`, `closeSolverFee`, and `expectedSettlementLoss`.
- *
- * With `fund` (`FullBalanceFunding`) instead of `initialMargin`, the
- * preview runs the same probe-and-rescale sizing as the open, so the legs and
- * `quantity` equal what a full-balance open will actually charge and submit —
- * the extra inputs it needs (locked-param percents, market quote constraints)
- * are prefetched here through the same cached queries.
+ * For bit-for-bit parity on `margin.amount`, forward {@link
+ * UsePrepareInstantOpenParamsReturnType.estimatedOpenPrice} to the submit call
+ * (`useInstantOpenAuto` / `useInstantOpenWithTpSl`) as `estimatedOpenPrice`, so
+ * both the preview and the send provision settlement at the same estimate. The
+ * `order` and `lockedParam` fields already match without freezing — they do not
+ * depend on the estimate.
  *
  * @example
  * ```tsx
- * const { data: fees } = useInstantOpenFees({
+ * const preview = usePrepareInstantOpenParams({
  *   subAccountAddress,
+ *   from: sessionKey,
  *   market: { id: symbolId },
  *   positionType,
  *   initialMargin,
  *   leverage,
+ *   slippage,
  * });
- * // fees?.totalFee; fees?.kind === "enigma" && fees.expectedSettlementLoss
+ * // preview.data?.order.quantity — the exact leveraged quantity (wei) the send signs
+ * // submit: mutate({ …, estimatedOpenPrice: preview.estimatedOpenPrice })
  * ```
  */
-export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): UseInstantOpenFeesReturnType {
+export function usePrepareInstantOpenParams(
+  parameters: UsePrepareInstantOpenParamsParameters,
+): UsePrepareInstantOpenParamsReturnType {
   const config = useSymmioConfig(parameters);
   const contextChainId = useSymmioChainId();
   const chainId = parameters.chainId ?? contextChainId;
@@ -93,8 +108,8 @@ export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): Us
   const hedgerFeeOpen = market.hedgerFeeOpen ?? resolvedMarket?.hedgerFeeOpen;
   const hedgerFeeClose = market.hedgerFeeClose ?? resolvedMarket?.hedgerFeeClose;
 
-  // Time-decaying close-fee rates ride the same `useMarkets` read — they are
-  // Enigma-only fields on `EnigmaMarket`, so narrow on `kind` before reading.
+  // Time-decaying close-fee rates ride the same `useMarkets` read — Enigma-only
+  // fields on `EnigmaMarket`, so narrow on `kind` before reading.
   const resolvedEnigmaMarket = resolvedMarket?.kind === "enigma" ? resolvedMarket : undefined;
   const hedgerFeeCloseEarlyRate =
     market.hedgerFeeCloseEarlyRate ?? resolvedEnigmaMarket?.hedgerFeeCloseEarlyRate ?? hedgerFeeClose;
@@ -103,8 +118,8 @@ export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): Us
   const hedgerFeeCloseStandardThreshold =
     market.hedgerFeeCloseStandardThreshold ?? resolvedEnigmaMarket?.hedgerFeeCloseStandardThreshold ?? 0;
 
-  // Quote constraints — full-balance sizing snaps to the lot grid and checks
-  // the published floors; they ride the same `useMarkets` read.
+  // Quote constraints — full-balance sizing snaps to the lot grid and checks the
+  // published floors; they ride the same `useMarkets` read.
   const minAcceptablePortionLf = market.minAcceptablePortionLf ?? resolvedMarket?.minAcceptablePortionLf;
   const minAcceptableQuoteValue = market.minAcceptableQuoteValue ?? resolvedMarket?.minAcceptableQuoteValue;
   const maxNotionalValue = market.maxNotionalValue ?? resolvedMarket?.maxNotionalValue;
@@ -120,8 +135,8 @@ export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): Us
       maxQuantity !== undefined &&
       lotSize !== undefined);
 
-  // Locked-param percents — only the full-balance sizing needs them (the locks
-  // dominate the margin the balance must cover). Cached like the markets read.
+  // Locked-param percents — `prepareInstantOpenParams` always needs them to build
+  // the signed `lockedParam` (both funding modes), so they are always prefilled.
   const lockedParamsQuery = useLockedParams({
     config: parameters.config,
     chainId,
@@ -129,24 +144,23 @@ export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): Us
     symbol: marketName ?? "",
     leverage,
     query: {
-      enabled: enabled && isFullBalance && parameters.lockedParamPercent === undefined && marketName !== undefined,
+      enabled: enabled && parameters.lockedParamPercent === undefined && marketName !== undefined,
       staleTime: 300_000,
     },
   });
-  const lockedParamPercent = !isFullBalance
-    ? undefined
-    : (parameters.lockedParamPercent ??
-      (lockedParamsQuery.data
-        ? {
-            // The action skips its fetch only when all four fields are present —
-            // mirror the resolver's `"0"` defaults for fields the solver omits.
-            cva: lockedParamsQuery.data.cva ?? "0",
-            lf: lockedParamsQuery.data.lf ?? "0",
-            partyAmm: lockedParamsQuery.data.partyAmm ?? "0",
-            partyBmm: lockedParamsQuery.data.partyBmm ?? "0",
-          }
-        : undefined));
-  const lockedParamsReady = !isFullBalance || lockedParamPercent !== undefined;
+  const lockedParamPercent =
+    parameters.lockedParamPercent ??
+    (lockedParamsQuery.data
+      ? {
+          // The resolver skips its fetch only when all four fields are present —
+          // mirror its `"0"` defaults for fields the solver omits.
+          cva: lockedParamsQuery.data.cva ?? "0",
+          lf: lockedParamsQuery.data.lf ?? "0",
+          partyAmm: lockedParamsQuery.data.partyAmm ?? "0",
+          partyBmm: lockedParamsQuery.data.partyBmm ?? "0",
+        }
+      : undefined);
+  const lockedParamsReady = lockedParamPercent !== undefined;
 
   // On-chain platform fee rates — contract state, changes rarely; cached hard.
   const feeQuery = useFeeForUser({
@@ -166,8 +180,8 @@ export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): Us
   });
   const markPrice = parameters.markPrice ?? priceQuery.markPrice ?? undefined;
 
-  // Lowcap dry-run estimate: mark-sized quantity, wide fixed request bound so
-  // the solver's price gate never rejects the question. Debounced internally.
+  // Lowcap dry-run estimate: mark-sized quantity, wide fixed request bound so the
+  // solver's price gate never rejects the question. Debounced internally.
   const estimateQuantity = useMemo(() => {
     if (!enabled || !isLowcap || markPrice === undefined) return "";
     if (pricePrecision === undefined || quantityPrecision === undefined) return "";
@@ -199,16 +213,19 @@ export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): Us
       staleTime: 30_000,
     },
   });
-  // `"0"` is the action's "no usable estimate" sentinel: it suppresses the
-  // action's own fetch (the input IS supplied) and yields a zero settlement
-  // provision — so a solver outage never puts network calls back in queryFn.
-  const estimatedOpenPrice = !isLowcap
+  // `prepareInstantOpenParams` runs the slippage gate, which rejects a zero/`"0"`
+  // fill — so unlike the fees action it must receive a *real* estimate or
+  // `undefined`, never the `"0"` sentinel. An unusable estimate falls to
+  // `undefined`: the params still build (gate skipped, zero settlement), and the
+  // submit fed the same `undefined` provisions identically.
+  const resolvedEstimate = !isLowcap
     ? undefined
-    : (parameters.estimatedOpenPrice ?? estimateQuery.data?.estimatedPrice ?? "0");
+    : (parameters.estimatedOpenPrice ?? estimateQuery.data?.estimatedPrice);
+  const estimatedOpenPrice = resolvedEstimate && resolvedEstimate !== "0" ? resolvedEstimate : undefined;
   const estimateSettled =
     !isLowcap || parameters.estimatedOpenPrice !== undefined || estimateQuery.isFetched || estimateQuery.isError;
 
-  // Every prefill present → the query function is pure math, zero fetches.
+  // Every prefill present → the query function is pure, zero fetches.
   const ready =
     enabled &&
     marketName !== undefined &&
@@ -216,13 +233,14 @@ export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): Us
     quantityPrecision !== undefined &&
     feeRates !== undefined &&
     markPrice !== undefined &&
+    lockedParamsReady &&
     (!isLowcap || (hedgerFeeOpen !== undefined && hedgerFeeClose !== undefined)) &&
     constraintsReady &&
-    lockedParamsReady &&
     estimateSettled;
 
-  const options = getInstantOpenFeesQueryOptions(config, {
+  const options = prepareInstantOpenParamsQueryOptions(config, {
     subAccountAddress,
+    from: parameters.from,
     solverId,
     chainId,
     market: {
@@ -255,12 +273,12 @@ export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): Us
       ...parameters.query,
       enabled: ready,
       // Inputs (mark price, estimate) tick often; keep showing the previous
-      // numbers while the pure recompute runs instead of flashing a loader.
-      placeholderData: (previous: GetInstantOpenFeesReturnType | undefined) => previous,
+      // params while the pure recompute runs instead of flashing a loader.
+      placeholderData: (previous: InstantOpenParameters | undefined) => previous,
     },
   });
 
-  return useQuery({
+  const query = useQuery({
     ...options,
     queryFn: async () => {
       try {
@@ -269,5 +287,7 @@ export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): Us
         throw normalizeSymmError(err);
       }
     },
-  }) as UseInstantOpenFeesReturnType;
+  }) as UseQueryResult<InstantOpenParameters, SymmioRequestError>;
+
+  return { ...query, estimatedOpenPrice } as UsePrepareInstantOpenParamsReturnType;
 }

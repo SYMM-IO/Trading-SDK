@@ -80,6 +80,63 @@ const resolved = await prepareInstantOpenParams(config, {
 console.log(resolved.quantity, resolved.requestedOpenPrice, resolved.addMargin);
 ```
 
+### Full-balance funding (lowcap)
+
+Fund with a typed `initialMargin` **or** with `fund` — never both. `fund` deploys the user's **entire** selected collateral into the position's Virtual Account and sizes the quantity to fit it. It is **lowcap (Enigma) only**.
+
+With a typed `initialMargin`, the SubAccount keeps back whatever the position did not consume (locks + fees + settlement). A user who deposited `$100` and pressed "Max" therefore saw a smaller spendable figure and left dust behind. In full-balance mode the whole `$100` moves to the VA, and the SDK shrinks the quantity instead so its locks + fees + worst-case settlement fit inside it — nothing is stranded, and the figure deployed is the figure picked. Any tiny remainder rides as free VA margin.
+
+How it sizes:
+
+1. **Probe** — run the trade math with the whole balance as margin input and price its cost legs. Every leg is linear in the sizing input at a fixed fill price, so `balance / probeMargin` is the exact factor that makes locks + fees + settlement equal the balance.
+2. **Rescale** by that factor, less a `0.1%` safety epsilon that (together with the maintenance-margin `partyAmm` lock) absorbs a fill landing a hair worse than the estimate.
+3. **Lot snap** — the rescaled quantity is snapped **down** to the market's lot grid (falling back to the quantity-precision quantum when the market publishes no lot size), and the locked values are rebuilt from the exact snapped quantity. Down is the safe direction: less quantity always needs less margin.
+4. **Cost invariant** — the costs are recomputed and, while `locks + fees + settlement > balance`, the quantity steps down one grid step. The linear factor only mispredicts through precision rounding — worth at most a few quanta — so the loop is short and guarantees the funded VA is never smaller than what the signed quote locks.
+5. **Constraint validation** — the final quantity is validated against the market's published quote constraints (lot multiple, min/max notional, max quantity, min quote value, LF portion). A violation throws `QUOTE_CONSTRAINT_VIOLATED`.
+
+Settlement is budgeted at the expected fill when the dry-run estimate exists — and at the **slippage bound** (the signed request price vs mark) when it does not. Never at zero: a full-balance open leaves nothing behind in the SubAccount to absorb an optimistic estimate, so an unavailable estimate must fail safe.
+
+Note the sizing factor can exceed `1`: when the market's locked-param percents sum below 100, a position's locks + fees cost less than the margin figure that sized it, so deploying everything can open a **larger** position than typing the same number as `initialMargin`. Full-balance sizes the quantity to _fit_ the balance — in either direction. The estimate is only trusted at or below the probe size it was quoted for, though: when the factor would upsize past the probe, the sizing re-solves with settlement at the slippage bound (and when even the bound model no longer upsizes, it clamps to the probe size, where the estimate is still valid).
+
+```ts
+const resolved = await prepareInstantOpenParams(config, {
+  from: sessionKey,
+  subAccountAddress,
+  market: { id: 1 },
+  positionType: PositionType.LONG,
+  fund: { mode: "full-balance", balance: "100" }, // deploy all $100 — no initialMargin
+  leverage: 5,
+  // slippage optional on lowcap — auto-derived from the dry-run estimate
+});
+
+// addMargin === the full 100; quantity is sized so locks + fees + settlement fit inside it.
+```
+
+## Quote preview — `prepareInstantOpenParamsQueryOptions`
+
+`prepareInstantOpenParams` neither signs nor submits — it only resolves inputs and builds the params — so it is safe to run **live** as a read. `prepareInstantOpenParamsQueryOptions(config, options)` wraps it as a TanStack Query, so a UI can render a "quote preview" that is **bit-for-bit** the `InstantOpenParameters` the submit will sign: the same `order` (price + quantity), `lockedParam`, `margin.amount`, and `solverFeeCaps`. No separate local recomputation to drift, and the full-balance rescale + lot snap are included for free.
+
+The query is disabled until a funding source exists (a non-empty `initialMargin`, or a `fund` with a balance). Pre-fill the optional inputs (`markPrice`, `feeRates`, `lockedParamPercent`, `estimatedOpenPrice`, market metadata) so the query function is pure and does no per-render network. The slippage gate still runs, so an out-of-tolerance estimate surfaces as the query error — the honest preview of a quote the submit would also reject.
+
+`order` and `lockedParam` do not depend on the estimate, so they match the send with no extra work. `margin.amount`'s settlement leg does — pass the **same** `estimatedOpenPrice` to both the preview and the submit to make it match bit-for-bit too. In React, [`usePrepareInstantOpenParams`](../../../react/solvers/instant-open#useprepareinstantopenparams) wraps this and returns the estimate it used for exactly that.
+
+```ts
+import { prepareInstantOpenParamsQueryOptions, PositionType } from "@symmio/trading-core";
+
+useQuery(
+  prepareInstantOpenParamsQueryOptions(config, {
+    subAccountAddress,
+    from: sessionKey,
+    market: { id: 1 },
+    positionType: PositionType.LONG,
+    initialMargin: "100",
+    leverage: 5,
+    slippage: 1,
+  }),
+);
+// data.order.quantity / data.lockedParam.cva / data.margin.amount — exactly what the send signs.
+```
+
 ## Fee preview — `getInstantOpenFees`
 
 Preview every fee a new quote pays, separated by leg plus the total, without signing or submitting anything. Same parameters shape as the wizard (minus the signer), same resolution and math — the preview equals what `prepareInstantOpenParams` charges for the same inputs. The result is a `kind`-discriminated union:
@@ -92,7 +149,9 @@ Preview every fee a new quote pays, separated by leg plus the total, without sig
 | `closeSolverFee`         | `hedgerFeeCloseEarlyRate × notional`     |        ✔        |       —       |
 | `expectedSettlementLoss` | `max(0, adverse fill − mark) × quantity` |        ✔        |       —       |
 
-`totalFee` sums every present leg — including the settlement provision, which the user must fund even though it is a provision rather than a fee the solver keeps. `notional` (the leveraged notional the rates were applied to) is returned alongside for rate displays.
+`totalFee` sums every present leg — including the settlement provision, which the user must fund even though it is a provision rather than a fee the solver keeps. `notional` (the leveraged notional the rates were applied to) is returned alongside for rate displays, together with `quantity` — the leveraged base-asset quantity the legs were computed on.
+
+The funding one-of applies here too: pass a typed `initialMargin` **or** `fund` (see [Full-balance funding](#full-balance-funding-lowcap)). A `fund` preview runs the **exact same sizing as the open** — probe, linear rescale, lot snap, cost invariant, slippage-bound settlement fallback — so the reported legs and `quantity` equal what the open will actually charge and submit. Feed that `quantity` to TP/SL and constraint previews instead of re-deriving it from a typed figure. Full-balance sizing additionally consults the solver's locked-param percents; pre-fill `lockedParamPercent` to skip that fetch.
 
 The close fee decays with holding time (see [Solver close fee](/core/solvers#solver-close-fee)), and the holding time is unknown at open — so `closeSolverFee` provisions the **worst case**: the peak `hedgerFeeCloseEarlyRate` (the rate a just-opened position pays), resolved from the market catalogue (`getMarkets` / `/contract-symbols`). Without the early rate it falls back to the flat `hedgerFeeClose`.
 
@@ -118,24 +177,27 @@ Required = inputs only the caller can know (wallet, session key, trade intent). 
 
 **Every optional field you pre-fill skips its network fetch.** If you already have `markPrice` from a live price stream, `lockedParamPercent` from a cached solver read, or `feeRates` from an earlier `getFeeForUser` call, pass them in — `prepareInstantOpenParams` short-circuits each field and only fetches what's still missing. Pass all four optional derivable fields and the function becomes pure math with zero network hops — the fastest possible path from UI inputs to a signed message.
 
-| Name                 | Type                                 | Required | Notes                                                                                                          |
-| -------------------- | ------------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------- |
-| `from`               | `Address`                            | ✔        | Session-key signer.                                                                                            |
-| `subAccountAddress`  | `Address`                            | ✔        | SubAccount that owns the trade.                                                                                |
-| `market`             | `InstantOpenMarketData`              | ✔        | `{ id }`, plus optional pre-fetched metadata (precisions, `minOpenSolverFeeCap` / `minCloseSolverFeeCap`).     |
-| `positionType`       | `PositionType`                       | ✔        | LONG / SHORT.                                                                                                  |
-| `initialMargin`      | `string`                             | ✔        | Decimal collateral amount.                                                                                     |
-| `leverage`           | `number`                             | ✔        | Positive integer / decimal.                                                                                    |
-| `slippage`           | `number?`                            |          | Percent (e.g. `1` for 1%). Required on majors; on lowcap, omit to auto-derive from the dry-run estimate + 4%.  |
-| `markPrice`          | `string?`                            |          | Pre-fetched mark price (decimal). Omit to fetch via Enigma.                                                    |
-| `estimatedOpenPrice` | `string?`                            |          | Pre-fetched estimated fill price (decimal). Lowcap/Enigma only — ignored elsewhere. Omit to fetch via dry-run. |
-| `lockedParamPercent` | `ApiLockedParamsBySymbolIdResponse?` |          | Pre-fetched solver locked params. Omit to fetch via `getLockedParams`.                                         |
-| `feeRates`           | `FeeForUser?`                        |          | Pre-fetched on-chain fee rates. Omit to fetch via `getFeeForUser`.                                             |
-| `uuid`               | `string?`                            |          | Forwarded to `InstantOpenParameters`.                                                                          |
-| `addMarginSalt`      | `Hex?`                               |          | Forwarded.                                                                                                     |
-| `sendQuoteSalt`      | `Hex?`                               |          | Forwarded.                                                                                                     |
-| `deadline`           | `bigint?`                            |          | Forwarded.                                                                                                     |
-| `chainId`            | `number?`                            |          | Optional chain override.                                                                                       |
+| Name                 | Type                                 | Required | Notes                                                                                                                  |
+| -------------------- | ------------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `from`               | `Address`                            | ✔        | Session-key signer.                                                                                                    |
+| `subAccountAddress`  | `Address`                            | ✔        | SubAccount that owns the trade.                                                                                        |
+| `market`             | `InstantOpenMarketData`              | ✔        | `{ id }`, plus optional pre-fetched metadata (precisions, `minOpenSolverFeeCap` / `minCloseSolverFeeCap`).             |
+| `positionType`       | `PositionType`                       | ✔        | LONG / SHORT.                                                                                                          |
+| `initialMargin`      | `string`                             | ✔ †      | Decimal collateral amount. Provide this **or** `fund`.                                                                 |
+| `fund`               | `FullBalanceFunding?`                | ✔ †      | `{ mode: "full-balance", balance }` — deploy the whole balance, size quantity to fit. Lowcap only. Or `initialMargin`. |
+| `leverage`           | `number`                             | ✔        | Positive integer / decimal.                                                                                            |
+| `slippage`           | `number?`                            |          | Percent (e.g. `1` for 1%). Required on majors; on lowcap, omit to auto-derive from the dry-run estimate + 4%.          |
+| `markPrice`          | `string?`                            |          | Pre-fetched mark price (decimal). Omit to fetch via Enigma.                                                            |
+| `estimatedOpenPrice` | `string?`                            |          | Pre-fetched estimated fill price (decimal). Lowcap/Enigma only — ignored elsewhere. Omit to fetch via dry-run.         |
+| `lockedParamPercent` | `ApiLockedParamsBySymbolIdResponse?` |          | Pre-fetched solver locked params. Omit to fetch via `getLockedParams`.                                                 |
+| `feeRates`           | `FeeForUser?`                        |          | Pre-fetched on-chain fee rates. Omit to fetch via `getFeeForUser`.                                                     |
+| `uuid`               | `string?`                            |          | Forwarded to `InstantOpenParameters`.                                                                                  |
+| `addMarginSalt`      | `Hex?`                               |          | Forwarded.                                                                                                             |
+| `sendQuoteSalt`      | `Hex?`                               |          | Forwarded.                                                                                                             |
+| `deadline`           | `bigint?`                            |          | Forwarded.                                                                                                             |
+| `chainId`            | `number?`                            |          | Optional chain override.                                                                                               |
+
+† Funding is one-of: pass **exactly one** of `initialMargin` or `fund`. Passing both throws `AMBIGUOUS_FUNDING`; passing neither throws `INITIAL_MARGIN_REQUIRED`.
 
 ### Returns
 
@@ -147,6 +209,10 @@ Required = inputs only the caller can know (wallet, session key, trade intent). 
 - `RESOLVE_MARKET_METADATA_INCOMPLETE` — market response missing precision fields.
 - `RESOLVE_MARK_PRICE_NOT_FOUND` — price service returned no tick for the symbol.
 - `INVALID_TRADE_PARAMETERS` — math failed (e.g. bad leverage, zero margin).
+- `AMBIGUOUS_FUNDING` — both `initialMargin` and `fund` were passed; provide exactly one.
+- `INITIAL_MARGIN_REQUIRED` — neither `initialMargin` nor `fund` was passed.
+- `FULL_BALANCE_UNSUPPORTED` — `fund` was used on a non-lowcap (majors) solver.
+- `QUOTE_CONSTRAINT_VIOLATED` — the full-balance-sized quantity violates a published market constraint (lot multiple, min/max notional, max quantity, min quote value, LF portion).
 
 ## `instantOpen`
 

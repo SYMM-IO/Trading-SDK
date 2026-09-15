@@ -1377,14 +1377,16 @@ export {
   getInstantOpensQueryOptions,
   getInstantTradeRequiredSelectors,
   getMarketOrderDeadline,
+  // instantOpen — wizard (auto-fetches missing inputs)
+  getPrepareInstantOpenParamsQueryKey,
   // instantOpen — primitive (all inputs required, no fetching)
   instantOpen,
   instantOpenAuto,
   instantOpenAutoMutationOptions,
   instantOpenMutationOptions,
   isolationTypeForSide,
-  // instantOpen — wizard (auto-fetches missing inputs)
   prepareInstantOpenParams,
+  prepareInstantOpenParamsQueryOptions,
   // resolvers (sub-units used by the wizard)
   resolveFeeRates,
   resolveLockedParams,
@@ -1414,6 +1416,7 @@ export {
   type EnigmaInstantOpenFees,
   type EnigmaInstantOpenResult,
   type FlexField,
+  type FullBalanceFunding,
   type GetInstantOpenFeesData,
   type GetInstantOpenFeesOptions,
   type GetInstantOpenFeesParameters,
@@ -1446,6 +1449,10 @@ export {
   type PendingInstantOpen,
   type PlatformFeeLegs,
   type PrepareInstantOpenParameters,
+  type PrepareInstantOpenParamsData,
+  type PrepareInstantOpenParamsOptions,
+  type PrepareInstantOpenParamsQueryKey,
+  type PrepareInstantOpenParamsQueryOptions,
   type QuoteConstraintViolation,
   type RasaInstantOpen,
   type RasaInstantOpenFees,

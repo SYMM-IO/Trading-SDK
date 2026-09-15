@@ -279,6 +279,7 @@ export {
   useIsDelegationActive,
   useLimitCloseAuto,
   useLimitOpenAuto,
+  usePrepareInstantOpenParams,
   useSimulateGrantDelegation,
   type GrantDelegationResult,
   type UseDelegationExpiryParameters,
@@ -318,6 +319,8 @@ export {
   type UseLimitCloseAutoReturnType,
   type UseLimitOpenAutoParameters,
   type UseLimitOpenAutoReturnType,
+  type UsePrepareInstantOpenParamsParameters,
+  type UsePrepareInstantOpenParamsReturnType,
   type UseSimulateGrantDelegationParameters,
   type UseSimulateGrantDelegationReturnType,
 } from "./instant-layer";

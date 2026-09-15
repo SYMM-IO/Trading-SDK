@@ -120,7 +120,9 @@ Use it (instead of hardcoding `INSTANT_TRADE_REQUIRED_SELECTORS` / `LEGACY_INSTA
 
 Preview every fee a new instant-open quote pays — separated by leg plus the total — before the user submits. Read-only; nothing is signed. Wraps [`getInstantOpenFees`](../../core/solvers/instant-open#fee-preview--getinstantopenfees), which mirrors the exact resolution and math `prepareInstantOpenParams` charges, so the preview equals the real open for the same inputs.
 
-The result is a `kind`-discriminated union. Both kinds carry `platformOpenFee`, `platformCloseFee`, `notional`, and `totalFee`; an `"enigma"` (lowcap) result adds `openSolverFee`, `closeSolverFee`, and `expectedSettlementLoss`. `closeSolverFee` is the worst-case (early) close fee — the hook reads the [time-decaying close-fee rates](../../core/solvers#solver-close-fee) from the same `useMarkets` data (they are Enigma-only fields on `EnigmaMarket`) so the preview matches what the open provisions.
+The result is a `kind`-discriminated union. Both kinds carry `platformOpenFee`, `platformCloseFee`, `notional`, the sized `quantity`, and `totalFee`; an `"enigma"` (lowcap) result adds `openSolverFee`, `closeSolverFee`, and `expectedSettlementLoss`. `closeSolverFee` is the worst-case (early) close fee — the hook reads the [time-decaying close-fee rates](../../core/solvers#solver-close-fee) from the same `useMarkets` data (they are Enigma-only fields on `EnigmaMarket`) so the preview matches what the open provisions.
+
+With `fund: { mode: "full-balance", balance }` instead of `initialMargin` (lowcap only), the hook previews a [full-balance open](../../core/solvers/instant-open#full-balance-funding-lowcap): it runs the exact probe-and-rescale sizing the open runs, so the legs and `quantity` equal what the open will charge and submit. The extra inputs the sizing needs — the solver's locked-param percents (`useLockedParams`) and the market's quote constraints (from the same `useMarkets` read) — are prefetched through cached queries like every other input, so the query function stays pure math. In this mode `data.quantity` is the rescaled, lot-snapped size — feed it to TP/SL (see [`useInstantOpenWithTpSl`](../solvers/instant-open#useinstantopenwithtpsl)) instead of re-deriving it from a typed figure.
 
 ```tsx
 const { data: fees } = useInstantOpenFees({
@@ -138,7 +140,7 @@ if (fees?.kind === "enigma") {
 }
 ```
 
-The query is disabled until `initialMargin` is non-empty, and `initialMargin` is part of the query key — debounce the value you pass in if refetch-per-keystroke matters. Errors are normalized to `SymmioRequestError` (`SLIPPAGE_REQUIRED` on majors without a slippage, `INVALID_SLIPPAGE` on a malformed one).
+The query is disabled until a funding source exists — a non-empty `initialMargin` or a `fund` with a balance — and the funding value is part of the query key, so debounce the value you pass in if refetch-per-keystroke matters. Errors are normalized to `SymmioRequestError` (`SLIPPAGE_REQUIRED` on majors without a slippage, `INVALID_SLIPPAGE` on a malformed one, and in full-balance mode `QUOTE_CONSTRAINT_VIOLATED` when the sized quantity violates a published market constraint).
 
 ## Writes
 

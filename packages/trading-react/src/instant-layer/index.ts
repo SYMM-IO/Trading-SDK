@@ -15,4 +15,5 @@ export * from "./use-instant-trade-required-selectors";
 export * from "./use-is-delegation-active";
 export * from "./use-limit-close-auto";
 export * from "./use-limit-open-auto";
+export * from "./use-prepare-instant-open-params";
 export * from "./use-simulate-grant-delegation";

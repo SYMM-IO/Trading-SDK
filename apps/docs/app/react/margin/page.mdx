@@ -114,6 +114,14 @@ interface UseAvailableInstantOpenMarginReturnType {
   framework-agnostic function and the reasoning behind each shave.
 </Callout>
 
+<Callout>
+  **On a lowcap (Enigma) solver, prefer full-balance funding for the Max flow.** The shaved figure above exists for a
+  typed `initialMargin` — it predicts how much of the balance a typed open can spend. A lowcap `Max` is better served by
+  passing `fund: { mode: "full-balance", balance }` to the open instead: it deploys the raw balance into the position's
+  VA and sizes the quantity down to fit, so nothing is shaved or stranded. See
+  [Full-balance funding](../../core/solvers/instant-open#full-balance-funding-lowcap).
+</Callout>
+
 ## Related
 
 - [Margin & risk (core)](../../core/margin) — `calculateMarginRisk`, the pure fold behind `useAccountMarginRisk`.

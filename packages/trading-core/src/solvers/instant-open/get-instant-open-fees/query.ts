@@ -35,8 +35,9 @@ export type GetInstantOpenFeesQueryOptions = SymmioQueryOptions<
 
 /**
  * Build TanStack Query options for {@link getInstantOpenFees}. Disabled until
- * `initialMargin` is non-empty, so the fee preview does not fire on an empty
- * amount input.
+ * a funding source exists — a non-empty `initialMargin`, or `fund` with a
+ * non-empty balance — so the fee preview does not fire on an empty amount
+ * input.
  *
  * @example
  * ```ts
@@ -55,13 +56,15 @@ export function getInstantOpenFeesQueryOptions(
   config: Config,
   options: GetInstantOpenFeesOptions,
 ): GetInstantOpenFeesQueryOptions {
+  const hasFunding =
+    options.fund !== undefined ? options.fund.balance.length > 0 : (options.initialMargin?.length ?? 0) > 0;
   return {
     ...options.query,
     queryKey: getInstantOpenFeesQueryKey({
       ...options,
       configKey: config.getChainConfigKey(options.chainId),
     }),
-    enabled: (options.query?.enabled ?? true) && options.initialMargin.length > 0,
+    enabled: (options.query?.enabled ?? true) && hasFunding,
     queryFn: () =>
       getInstantOpenFees(config, {
         chainId: options.chainId,
@@ -70,11 +73,13 @@ export function getInstantOpenFeesQueryOptions(
         market: options.market,
         positionType: options.positionType,
         initialMargin: options.initialMargin,
+        fund: options.fund,
         leverage: options.leverage,
         slippage: options.slippage,
         markPrice: options.markPrice,
         feeRates: options.feeRates,
         estimatedOpenPrice: options.estimatedOpenPrice,
+        lockedParamPercent: options.lockedParamPercent,
       }),
   };
 }

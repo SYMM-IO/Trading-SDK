@@ -1,6 +1,6 @@
 "use client";
 
-import type { SolverId } from "@symmio/trading-core";
+import type { FullBalanceFunding, SolverId } from "@symmio/trading-core";
 import { calculateSolverCloseFee, useInstantOpenFees, useMarkets, type PositionType } from "@symmio/trading-react";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
@@ -15,8 +15,14 @@ interface Props {
   /** Selected market id; the query stays idle until one is picked. */
   marketId?: number;
   positionType: PositionType;
-  /** Raw margin input (decimal string); the query stays idle while empty/invalid. */
+  /** Raw margin input (decimal string); the query stays idle while empty/invalid. Ignored when `fund` is set. */
   initialMargin: string;
+  /**
+   * Full-balance funding (lowcap only). When set it replaces `initialMargin`:
+   * the preview runs the SDK's probe-and-rescale sizing off the whole balance,
+   * so the legs and sized quantity equal what the open will actually submit.
+   */
+  fund?: FullBalanceFunding;
   leverage: number;
   /** Percent. Required on majors; on lowcap the SDK auto-derives when omitted. */
   slippage?: number;
@@ -30,7 +36,8 @@ interface Props {
  * with the full per-leg breakdown on hover — platform open/close on both
  * kinds, plus the solver fees and expected settlement provision on lowcap
  * (Enigma). Driven by `useInstantOpenFees`, which mirrors the exact math
- * `prepareInstantOpenParams` charges.
+ * `prepareInstantOpenParams` charges. With `fund` set the breakdown adds the
+ * SDK-sized quantity row so the user sees the size the balance can carry.
  */
 export function InstantOpenFeesPreview({
   subAccount,
@@ -38,18 +45,23 @@ export function InstantOpenFeesPreview({
   marketId,
   positionType,
   initialMargin,
+  fund,
   leverage,
   slippage,
   markPrice,
   idPrefix,
 }: Props) {
-  const enabled = marketId !== undefined && Number(initialMargin) > 0 && leverage > 0;
+  const isFullBalance = fund !== undefined;
+  const fundingAmount = isFullBalance ? fund.balance : initialMargin;
+  const enabled = marketId !== undefined && Number(fundingAmount) > 0 && leverage > 0;
   const feesQuery = useInstantOpenFees({
     subAccountAddress: subAccount,
     solverId,
     market: { id: marketId ?? 0 },
     positionType,
-    initialMargin,
+    // The SDK enforces the funding one-of — never pass both.
+    initialMargin: isFullBalance ? undefined : initialMargin,
+    fund,
     leverage,
     slippage,
     markPrice,
@@ -91,7 +103,9 @@ export function InstantOpenFeesPreview({
       <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Fees (SDK preview)</div>
 
       {!enabled ? (
-        <span className="text-muted-foreground text-xs">Select a market and enter a margin.</span>
+        <span className="text-muted-foreground text-xs">
+          {isFullBalance ? "Select a market — the full balance funds the open." : "Select a market and enter a margin."}
+        </span>
       ) : feesQuery.isError ? (
         <span className="text-destructive text-xs" data-testid={`${idPrefix}-fees-preview-error`}>
           {feesQuery.error?.message ?? "Fee preview unavailable."}
@@ -138,6 +152,10 @@ export function InstantOpenFeesPreview({
                 <FeeRow label="Total" value={formatFeeUsd(displayTotalFee ?? fees.totalFee)} bold />
               </div>
               <FeeRow label="On notional" value={formatFeeUsd(fees.notional)} sub="qty × request price" />
+              {isFullBalance ? (
+                // The SDK rescaled the quantity down so locks + fees + settlement fit the balance.
+                <FeeRow label="Sized quantity" value={formatQuantityAmount(fees.quantity)} sub="fits the balance" />
+              ) : null}
               <p className="text-muted-foreground text-[0.7rem] leading-snug">
                 {fees.kind === "enigma"
                   ? "Lowcap: platform + solver fees and the settlement provision are charged from the Virtual Account — the addMargin transfer funds every leg."
@@ -168,4 +186,11 @@ function formatFeeUsd(value: string): string {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return value;
   return `$${formatWithCommas(String(parseFloat(parsed.toFixed(4))))}`;
+}
+
+/** Format a base-asset quantity at up to 6 fraction digits, comma-separated. */
+function formatQuantityAmount(value: string): string {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return value;
+  return formatWithCommas(String(parseFloat(parsed.toFixed(6))));
 }
