@@ -1,5 +1,69 @@
 # @symmio/trading-core
 
+## 3.0.0
+
+### Major Changes
+
+- 4d2d62d: Replace the built-in Arbitrum staging deployment with its production contracts, Enigma solver, notifications, TP/SL identity, and mainnet subgraphs. Remove HyperEVM from the supported trading-chain registry while retaining it as a Pools listing-deposit chain, and make Arbitrum the default trading chain.
+- 4f88f2a: Regenerate the Enigma solver client from the Arbitrum solver's OpenAPI spec — the enigma generation matching perps-core v0.8.6 (`orval.config.ts` now points at `https://solver.enigma.bz/api/swagger/doc.json`).
+
+  Breaking — `getSolverRevenue` / `useSolverRevenue` are now **per-market**:
+  - The new solver generation removed the protocol-wide `GET /revenue` aggregate (and the unused `/revenue/batch` and `/revenue/per-symbol`); only `/revenue/{symbolId}` and `/revenue/records` remain.
+  - `GetSolverRevenueParameters.symbolId` is therefore **required**, and the parameters object is no longer optional on `getSolverRevenue`, `getSolverRevenueQueryOptions` and `useSolverRevenue`. For a multi-market figure, call once per market and label the sum with the markets it covers; `getRevenueRecords` remains the honest cross-market source.
+
+  Additive — solver-fee caps on the market catalog:
+  - `EnigmaMarket` and `SolverSymbol` gain `minOpenSolverFeeCap` / `minCloseSolverFeeCap` (decimal strings, defaulted to `"0"` when the solver omits them) — the minimum solver-fee caps a quote must allow under the perps-core v0.8.6 solver-fee mechanism, from the new `min_open_solver_fee_cap` / `min_close_solver_fee_cap` fields on `/contract-symbols` and `/symbols`.
+
+- c810229: Per-chain contracts generation: chains declare `contractsVersion` and the instant-open signing path follows it.
+
+  `SymmioChainConfig` gains a required **`contractsVersion: SymmioContractsVersion`** (`"0.8.5" | "0.8.6"`; overridable via `symmioConfig`). Built-ins: Base is `"0.8.5"`, while Arbitrum is `"0.8.6"`. The SDK branches on it at exactly the seams where the generations diverge:
+  - **Quote-send signing (Enigma flow).** On a v0.8.6 chain the session key signs the new `sendQuote(...)` carrying `SolverFeeCaps { openRateCap, closeRateCap }` (18-decimal ratios of quote notional); on a v0.8.5 chain it keeps signing the legacy `sendQuoteWithAffiliateAndData(...)` — the capped selector does not exist on a v0.8.5 diamond. `prepareInstantOpenParams` resolves the caps from the market's `minOpenSolverFeeCap` / `minCloseSolverFeeCap` on v0.8.6 chains (pre-fillable via its `market` parameter) and emits `InstantOpenParameters.solverFeeCaps`. The Rasa flow is unchanged.
+  - **Session-key delegation set.** New `getInstantTradeRequiredSelectors(config, { chainId })` (React: `useInstantTradeRequiredSelectors()`) resolves the per-chain set. `INSTANT_TRADE_REQUIRED_SELECTORS` now holds the v0.8.6 set (`SEND_QUOTE_SELECTOR` as the open leg) and the new `LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS` holds the v0.8.5 set; multi-chain flows must resolve instead of hardcoding either.
+  - **Withdraw-request decodes.** `getWithdrawRequests` / `getPendingWithdrawRequests` decode with a pinned v0.8.5 fragment on v0.8.5 chains (their on-chain struct predates `advancedAmount`) — without this, those reads fail to decode on Base. `WithdrawRequest.advancedAmount` is now **optional**: `undefined` on v0.8.5 chains, the on-chain value on v0.8.6 chains.
+
+  New exports: `SymmioContractsVersion`, `encodeSendQuote` / `EncodeSendQuoteParameters`, `SolverFeeCaps`, `SEND_QUOTE_SELECTOR`, `LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS`, `getInstantTradeRequiredSelectors`, `useInstantTradeRequiredSelectors`. The legacy encoder and selector stay exported.
+
+  **Breaking.** `INSTANT_TRADE_REQUIRED_SELECTORS` changed value (its open leg is now `SEND_QUOTE_SELECTOR`) — on v0.8.5 chains use `LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS` or, better, the resolver. On v0.8.6 chains, session keys delegated under the legacy set must be re-granted before they can open.
+
+- 5606854: Upgrade the supported contracts version from perps-core v0.8.5 to **v0.8.6**.
+
+  Per the one-contracts-version-per-release doctrine (`ARCHITECTURE.md` §2), the ABI fragments under `src/symmio-contracts/abi/` were swapped in place and now live under `v0.8.6/` — `symmioAbi`, `accountLayerAbi` and `instantLayerAbi` are the complete/fragment ABIs from the `version_0.8.6` tag of `SYMM-IO/perps-core`.
+
+  Breaking, for consumers using the raw ABI exports directly:
+  - `symmioAbi` no longer contains `forceCancelWithdraw` / `WITHDRAW_FORCE_CANCEL_ROLE`, the pre-affiliate `sendQuote` overload, or `owner` (replaced by `getOwner`); it gains the 0.8.6 surface (withdraw advance, restatement, operational/solver fees, snapshot liquidation, funding views, …).
+  - `accountLayerAbi` drops the express-rate and virtual-provider admin functions and gains the 0.8.6 additions (scoped signers, sub-account ownership transfer, `createSubAccountsFor`, …).
+
+  SDK-surface change: `WithdrawRequest` gains the required field `advancedAmount: bigint` — the collateral already advanced to the provider before cooldown expiry (express credit-line flow), mirroring the 0.8.6 `WithdrawStorage.WithdrawRequest` struct. The withdraw read views (`getWithdrawRequests`, `getPendingWithdrawRequests`) and the hooks built on them now return it.
+
+  No typed action changed shape or behavior otherwise: every function the SDK wraps is signature-identical in 0.8.6 (the `QuoteStatus` and `WithdrawStatus` enums and `LibAccount.partyAAvailableBalanceForLiquidation` were verified unchanged against the `version_0.8.6` sources).
+
+### Minor Changes
+
+- 605a3b0: Rework instant-open sizing and funding around the solver's estimated fill price.
+
+  `calculateTradeParams` now sizes collateral-input quantity from the raw mark price instead of the slippage-adjusted requested-open price. Slippage changes the execution bound without silently resizing the position while preserving the existing input and output structures.
+
+  For lowcap instant opens, `prepareInstantOpenParams` now:
+  - accepts an optional pre-fetched `estimatedOpenPrice` and can derive slippage automatically when the caller omits it;
+  - validates the estimated fill against the effective slippage tolerance;
+  - includes solver open/close fees and expected mark-to-fill settlement loss in the margin transfer; and
+  - applies 1% funding headroom to the SHORT margin basis to cover lock growth when the final fill is above the estimate.
+
+  Add `getInstantOpenFees`, its query helpers, and `useInstantOpenFees` for a normalized platform-fee, solver-fee, settlement-loss, and total-funding preview. Also export the supporting fee and calculation helpers and types.
+
+- 265eac6: Remove the rasa-only `addSolverWhitelist` action and `useAddSolverWhitelist` hook. The `/add-sub-address-in-whitelist` endpoint has no backing logic on the rasa solver, so the SDK no longer wraps it. Drop any calls to `addSolverWhitelist`, `addSolverWhitelistMutationOptions`, or `useAddSolverWhitelist` — there is no replacement.
+- 800e272: Provision the worst-case solver close fee, and price a close by how long the position was held.
+
+  The solver charges more to close a freshly opened position than an aged one: the close-fee rate starts at `hedger_fee_close_early_rate`, holds flat until `hedger_fee_close_early_threshold` seconds, then decays linearly to the standard `hedger_fee_close` by `hedger_fee_close_standard_threshold`. With the staging numbers a close pays `0.0024` up to 30s, `0.0006` from 180s on, and interpolates between. The SDK priced the close fee as the flat `hedger_fee_close` everywhere — so an open under-provisioned its own close, and an immediate close came up short in the VA.
+
+  **`@symmio/trading-core`**
+  - The close-fee decay is exposed as **flat fields** mirroring the wire — `hedgerFeeCloseEarlyRate`, `hedgerFeeCloseEarlyThreshold`, `hedgerFeeCloseStandardThreshold` — alongside the existing `hedgerFeeClose` (the floor). They are carried on **`EnigmaMarket`** (from `getMarkets` / `/contract-symbols`) and on `SolverSymbol` (from `getSymbols` / `/symbols`); both wire endpoints return them. Enigma-only — a Rasa market has neither the wire fields nor the SDK fields. No nested object: the fields stay greppable and the shape stays flat.
+  - New `SolverCloseFeeRates` (the four flat fields as a param type) with `getSolverCloseFeeRate(fees, holdingSeconds)` and `calculateSolverCloseFee(fees, { notional, holdingSeconds })` — the rate/amount the solver charges to close a position held `holdingSeconds` (`now − createTimestamp`). Piecewise: peak until the early threshold, linear decay between the thresholds, floor after. An `EnigmaMarket` or a `SolverSymbol` satisfies `SolverCloseFeeRates`, so pass either straight in. A negative holding time clamps to the peak; a market with no decay collapses to the flat rate. `toThresholdSeconds` coerces a wire threshold to whole seconds.
+  - `calculateSolverFees` accepts the optional flat early-rate fields. When the early rate is given, the close leg provisions the **worst case** — `hedgerFeeCloseEarlyRate × notional`, the fee a just-opened position would pay — instead of the flat `hedgerFeeClose × notional`. `resolveMarket` resolves the fields under `includeHedgerFees`, so the open-fee preview (`getInstantOpenFees`) and the open wizard (`prepareInstantOpenParams`) provision accordingly from the market they already read — `addMargin` funds an immediate close. `EnigmaInstantOpenFees.closeSolverFee` is now that worst-case figure.
+
+  **`@symmio/trading-react`**
+  - `useInstantOpenFees` reads the early-close rates from the same `useMarkets` data it already fetches (no second request), so the previewed `closeSolverFee` matches what the open provisions. `InstantOpenMarketData` accepts the pre-fetched flat rate fields.
+
 ## 2.0.0
 
 ### Major Changes
