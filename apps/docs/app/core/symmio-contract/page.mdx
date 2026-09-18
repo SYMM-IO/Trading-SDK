@@ -1,4 +1,11 @@
+import { Callout } from "nextra/components";
+
 # SYMMIO Contract
+
+<Callout type="info">
+  Building a provider-assisted withdrawal flow? Keep these primitives for custom request handling, or use the [Express
+  Withdraw orchestrator](/core/express-withdraw) to prepare and execute the default classic/Express route.
+</Callout>
 
 Reads and writes against the on-chain SYMMIO diamond contract — quotes, funding, collateral, allocation, withdraw, and the on-chain market list. This slice targets the `Symmio` contract directly via viem clients.
 

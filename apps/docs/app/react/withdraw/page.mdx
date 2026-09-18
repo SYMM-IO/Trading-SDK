@@ -18,11 +18,15 @@ cross-chain) withdraw parts.
 ```ts
 import {
   // Reads
+  useExpressWithdrawOptions,
+  useExpressWithdrawStatus,
   useLastWithdrawRequestId,
   usePendingWithdrawRequests,
+  useWithdrawRoute,
   useWithdrawRequest,
   useWithdrawableTime,
   // Writes
+  useWithdrawWithExpress,
   useWithdraw, // high-level entry point
   useInitiateWithdraw,
   useSimulateInitiateWithdraw,
@@ -32,6 +36,90 @@ import {
   useSimulateFinalizeWithdrawRequest,
 } from "@symmio/trading-react";
 ```
+
+## Express-aware withdrawal
+
+Use `useWithdrawRoute` to prepare a route before the user confirms, then pass that exact route to
+`useWithdrawWithExpress`. This keeps fee and timing details shown in the UI bound to the signed option submitted on-chain.
+The existing `useWithdraw` hook remains the classic-only API.
+
+```tsx
+import {
+  isExpressWithdrawPayoutComplete,
+  useExpressWithdrawStatus,
+  useWithdrawRoute,
+  useWithdrawWithExpress,
+} from "@symmio/trading-react";
+
+function WithdrawPanel({ account, amount, receiver }) {
+  const route = useWithdrawRoute({
+    user: account,
+    amount,
+    receiver,
+    query: { enabled: amount > 0n },
+  });
+  const withdraw = useWithdrawWithExpress({ account });
+  const requestId = withdraw.data?.requestId;
+  const status = useExpressWithdrawStatus({
+    user: account,
+    requestId: requestId ?? 0n,
+    query: { enabled: requestId !== undefined && withdraw.data?.route.kind === "express" },
+  });
+
+  const submit = () => {
+    if (!route.data) return;
+    withdraw.mutate({ amount, receiver, preparedRoute: route.data });
+  };
+
+  const paid = status.data ? isExpressWithdrawPayoutComplete(status.data) : false;
+  // Render route.data, submit, status.data, and paid.
+}
+```
+
+The default router chooses classic immediate withdrawal when the account holds at least the requested available balance and its cooldown is already satisfied. Otherwise it
+prefers `SAME_TX`, then `STANDARD`, and falls back to classic cooldown withdrawal if the service is disabled or cannot
+return a usable option. `CUSTOM` accounts retain the classic deallocate-and-initiate path. Opt into `WINDOWED` or strict
+service failure explicitly:
+
+```ts
+useWithdrawRoute({
+  user: account,
+  amount,
+  receiver,
+  policy: {
+    optionPriority: ["WINDOWED", "SAME_TX", "STANDARD"],
+    fallback: "error",
+  },
+});
+```
+
+<Callout type="warning">
+  Express v1 is same-chain only. For a `STANDARD` option, Core `FINALIZED` means the provider recovered its funds—not
+  that the receiver was paid. `useExpressWithdrawStatus` keeps polling until provider `PROCESSED`, and
+  `isExpressWithdrawPayoutComplete` applies the correct option-aware rule.
+</Callout>
+
+### Lower-level hooks
+
+- `useExpressWithdrawOptions` requests signed, non-expired service offers for one exact account, amount, receiver, and
+  affiliate. It never retries automatically because `POST /options` creates service records.
+- `useExpressWithdrawStatus` polls every three seconds by default. It continues through `NOT_FOUND` while indexing and
+  through `STANDARD` + `FINALIZED`; it stops after proven payout or cancellation, suspension, or local failure.
+- `useWithdrawRoute` owns safe automatic ordering and classic fallback. Its returned `WithdrawRoute` is the preview
+  object accepted by the mutation.
+- `useWithdrawWithExpress` waits for the mined receipt, decodes the exact `WithdrawInitiated` request id, and returns
+  `{ hash, receipt, requestId, route }`.
+
+Each hook exports its matching parameter and return aliases:
+`UseExpressWithdrawOptionsParameters` / `UseExpressWithdrawOptionsReturnType`,
+`UseWithdrawRouteParameters` / `UseWithdrawRouteReturnType`,
+`UseExpressWithdrawStatusParameters` / `UseExpressWithdrawStatusReturnType`, and
+`UseWithdrawWithExpressParameters` / `UseWithdrawWithExpressReturnType`. The mutation additionally exports
+`WithdrawWithExpressVariables` and `WithdrawWithExpressResult`.
+
+After success, `useWithdrawWithExpress` invalidates account balance info, balance-of, withdrawable time, pending requests,
+all withdrawal requests, and last request id. It removes every cached Express offer and prepared route for that account so
+a signed offer cannot be accidentally reused.
 
 ## `useWithdraw` — high-level withdraw
 

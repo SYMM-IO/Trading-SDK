@@ -636,7 +636,34 @@ Nothing invalidates these for you in a core-only build — you own the cache (se
 
 ### Withdraw
 
-Withdrawing is a cooldown flow: open a withdraw request against the deposited balance, wait out the cooldown, then finalize. You do **not** deallocate first.
+Use the Express-aware router when the target chain has a trusted service configured. It preserves the classic flow as its
+fallback and prefers the cheapest safe route: already-mature classic withdrawal first, then `SAME_TX`, then `STANDARD`.
+Prepare once so the UI can display the route, fee, and estimated payout time, then submit that same object.
+
+```ts
+import { getWithdrawRoute, withdrawWithExpress } from "@symmio/trading-core";
+
+const route = await getWithdrawRoute(config, { user: account, amount, receiver });
+
+const submitted = await withdrawWithExpress(config, {
+  account,
+  amount,
+  receiver,
+  preparedRoute: route,
+});
+```
+
+Configure the browser-facing API as a same-origin proxy and allow only `POST /options` and
+`GET /status/{user}/{requestId}`. See [Express Withdraw](/core/express-withdraw) for the proxy contract, configuration,
+status polling, complete [Next.js proxy implementation](/core/express-withdraw#configuration), and public API.
+
+<Callout type="warning">
+  Express v1 is same-chain only, and `WINDOWED` is opt-in. A `STANDARD` request is not receiver-paid at Core
+  `FINALIZED`; continue reading `getExpressWithdrawStatus` until `isExpressWithdrawPayoutComplete` returns `true`.
+</Callout>
+
+Without Express configuration—or when no acceptable offer exists—the router returns the ordinary cooldown path below.
+You can also keep using these low-level primitives directly:
 
 ```ts
 import {

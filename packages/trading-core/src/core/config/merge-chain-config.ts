@@ -7,6 +7,7 @@ import {
   type SolverCapabilitiesConfig,
   type SolverId,
   type SymmioChainConfig,
+  type SymmioExpressWithdrawConfig,
   type SymmioGaslessConfig,
   type SymmioInventoryConfig,
   type SymmioListingConfig,
@@ -42,7 +43,7 @@ export function buildChainConfigs(
 /**
  * Deep-merge a single chain's overrides onto its built-in defaults. Only the
  * known nested groups (`addresses`, `subgraphs`, `solvers`, `priceService`,
- * `notifications`, `muon`, `listing`, `inventory`, `gasless`) are merged; unknown keys are ignored.
+ * `notifications`, `muon`, `listing`, `inventory`, `expressWithdraw`, `gasless`) are merged; unknown keys are ignored.
  *
  * @internal
  */
@@ -63,7 +64,34 @@ function mergeChainConfig(base: SymmioChainConfig, override: DeepPartial<SymmioC
     ...mergeListing(base.listing, override.listing),
     ...mergeInventory(base.inventory, override.inventory),
     ...mergeGasless(base.chainId, base.gasless, override.gasless),
+    ...mergeExpressWithdraw(base.chainId, base.expressWithdraw, override.expressWithdraw),
   };
+}
+
+/**
+ * Merge an Express Withdraw override while rejecting an unusable half-config.
+ *
+ * @internal
+ */
+function mergeExpressWithdraw(
+  chainId: number,
+  base: SymmioExpressWithdrawConfig | undefined,
+  override: DeepPartial<SymmioExpressWithdrawConfig> | undefined,
+): Pick<SymmioChainConfig, "expressWithdraw"> | Record<string, never> {
+  if (!base && !override) return {};
+  if (!override) return { expressWithdraw: base };
+
+  const url = override.url ?? base?.url;
+  const providerAddress = override.providerAddress ?? base?.providerAddress;
+  if (url === undefined || providerAddress === undefined) {
+    throw new SymmError(
+      "config",
+      "EXPRESS_WITHDRAW_OVERRIDE_INCOMPLETE",
+      `createConfig: the expressWithdraw override for chain ${chainId} must declare ${url === undefined ? "`url`" : "`providerAddress`"} - there is no built-in Express Withdraw config to inherit it from.`,
+    );
+  }
+
+  return { expressWithdraw: { url, providerAddress } };
 }
 
 /**

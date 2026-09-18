@@ -17,7 +17,7 @@ export interface ConfigPreset {
 /**
  * Staging deployment overrides. Applying this points the SDK at the SYMMIO
  * Arbitrum staging contracts, the Enigma staging solver (partyB), the staging
- * subgraphs, the staging notifications WebSocket, and the staging GaslessQ relayer.
+ * subgraphs, Express Withdraw, the staging notifications WebSocket, and the staging GaslessQ relayer.
  */
 export const STAGING_CHAIN_OVERRIDES = {
   [SymmioSupportedChainId.ARBITRUM]: {
@@ -76,6 +76,10 @@ export const STAGING_CHAIN_OVERRIDES = {
     inventory: {
       url: "https://inventory85.enigma.bz",
     },
+    expressWithdraw: {
+      url: "/api/express-withdraw",
+      providerAddress: "0x573310D7b04fF21BB8628C69eE103dDF4922294A",
+    },
     /**
      * The staging GaslessQ relayer, paired with the staging InstantLayer above.
      * The built-in registry ships no gasless block, so every field is stated.
@@ -106,7 +110,6 @@ export const STAGING_CHAIN_OVERRIDES = {
 export const STAGING_PRESET: ConfigPreset = {
   id: "staging",
   label: "Staging",
-  description:
-    "Arbitrum staging contracts, the Enigma staging solver, and the staging notifications stream and subgraphs.",
+  description: "Arbitrum staging contracts, Enigma services, Express Withdraw, notifications, and subgraphs.",
   overrides: STAGING_CHAIN_OVERRIDES,
 };

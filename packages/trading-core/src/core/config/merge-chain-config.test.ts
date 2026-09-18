@@ -223,6 +223,50 @@ describe("mergeChainConfig — contractsVersion", () => {
   });
 });
 
+describe("mergeChainConfig — expressWithdraw", () => {
+  const providerAddress = "0x573310D7b04fF21BB8628C69eE103dDF4922294A" as const;
+
+  it("keeps Express Withdraw absent from built-in production chains", () => {
+    const config = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: { [CHAIN]: { addresses: { affiliatesAddress: AFFILIATE } } },
+    });
+
+    expect(config.getChainConfig(CHAIN).expressWithdraw).toBeUndefined();
+  });
+
+  it("accepts a complete base-less service override", () => {
+    const config = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: {
+        [CHAIN]: {
+          addresses: { affiliatesAddress: AFFILIATE },
+          expressWithdraw: { url: "/api/express-withdraw", providerAddress },
+        },
+      },
+    });
+
+    expect(config.getChainConfig(CHAIN).expressWithdraw).toEqual({
+      url: "/api/express-withdraw",
+      providerAddress,
+    });
+  });
+
+  it("rejects a partial base-less service override", () => {
+    expect(() =>
+      createConfig({
+        getClient: () => ({}) as PublicClient,
+        symmioConfig: {
+          [CHAIN]: {
+            addresses: { affiliatesAddress: AFFILIATE },
+            expressWithdraw: { url: "/api/express-withdraw" },
+          },
+        },
+      }),
+    ).toThrow(/EXPRESS_WITHDRAW_OVERRIDE_INCOMPLETE|providerAddress/);
+  });
+});
+
 describe("mergeChainConfig — gasless", () => {
   const ARBITRUM = SymmioSupportedChainId.ARBITRUM;
   /** No chain in the registry ships a built-in gasless block. */

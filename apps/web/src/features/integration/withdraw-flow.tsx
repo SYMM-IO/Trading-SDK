@@ -8,13 +8,16 @@ import { SessionKeySignerNote } from "@/features/gasless/session-key-signer-note
 import { formatUsd } from "@/lib/format";
 import { SubAccountIsolationType, WithdrawStatus, type WithdrawRequest } from "@symmio/trading-core";
 import {
+  isExpressWithdrawPayoutComplete,
   useAccountBalanceInfo,
   useAccountBalanceOf,
+  useExpressWithdrawStatus,
   useFinalizeWithdrawRequest,
   usePendingWithdrawRequests,
   useRequestCancelWithdraw,
   useSubAccount,
-  useWithdraw,
+  useWithdrawRoute,
+  useWithdrawWithExpress,
   useWithdrawableTime,
 } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
@@ -23,7 +26,7 @@ import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { shortenAddress } from "@symmio/utils";
 import { useEffect, useState } from "react";
-import { isAddress, type Address } from "viem";
+import { isAddress, isAddressEqual, zeroAddress, type Address } from "viem";
 import { WalletPanel } from "../inspector/wallet-panel";
 import { AmountField } from "./amount-field";
 import { FlowLayout } from "./flow-layout";
@@ -44,9 +47,9 @@ interface Props {
 
 /**
  * Withdraw wizard: Connect → Select subaccount → Withdraw. Navigable via the rail.
- * The withdraw step initiates a classic same-chain request, shows the cooldown
- * timing, and lists pending requests with inline finalize / cancel actions. All
- * three writes follow the wallet menu's session-key default.
+ * The withdraw step previews and submits the SDK-selected classic or Express
+ * route, shows provider/cooldown progress, and keeps classic pending requests
+ * available for inline finalize / cancel actions.
  */
 export function WithdrawFlow({
   owner,
@@ -61,8 +64,19 @@ export function WithdrawFlow({
   const [amount, setAmount] = useState<string>("");
   const [receiver, setReceiver] = useState<string>("");
 
-  const withdrawableTime = useWithdrawableTime({ user: subAccount });
-  const withdraw = useWithdraw({ account: subAccount, chainId });
+  const parsed = parseAmount(amount, decimals);
+  const validReceiver = isAddress(receiver) ? (receiver as Address) : undefined;
+  const canInitiate = Boolean(subAccount && parsed !== undefined && validReceiver && chainId !== undefined);
+
+  const withdrawableTime = useWithdrawableTime({ user: subAccount, chainId });
+  const route = useWithdrawRoute({
+    user: subAccount ?? zeroAddress,
+    amount: parsed ?? 0n,
+    receiver: validReceiver ?? zeroAddress,
+    chainId,
+    query: { enabled: canInitiate },
+  });
+  const withdraw = useWithdrawWithExpress({ account: subAccount, chainId });
   /** The session key when the wallet menu's default is on; the CUSTOM path's deallocate leg rides along. */
   const initiateWrite = useFlowWriteOption("initiateWithdraw");
 
@@ -81,9 +95,17 @@ export function WithdrawFlow({
     query: { enabled: isolationType !== undefined && !isCustom },
   });
 
-  const parsed = parseAmount(amount, decimals);
-  const validReceiver = isAddress(receiver) ? (receiver as Address) : undefined;
-  const canInitiate = Boolean(subAccount && parsed !== undefined && validReceiver && chainId !== undefined);
+  const expressRequestId = withdraw.data?.route.kind === "express" ? withdraw.data.requestId : undefined;
+  const expressStatus = useExpressWithdrawStatus({
+    user: subAccount ?? zeroAddress,
+    requestId: expressRequestId ?? 0n,
+    chainId,
+    query: { enabled: expressRequestId !== undefined },
+  });
+  const withdrawDone =
+    withdraw.isSuccess &&
+    (withdraw.data.route.kind === "classic" ||
+      (expressStatus.data !== undefined && isExpressWithdrawPayoutComplete(expressStatus.data)));
 
   const maxStep = !ready ? 0 : !subAccount ? 1 : 2;
   const current = Math.min(step, maxStep);
@@ -93,11 +115,11 @@ export function WithdrawFlow({
   }, [maxStep]);
 
   function onInitiate() {
-    if (!subAccount || parsed === undefined || !validReceiver || chainId === undefined) return;
+    if (!subAccount || parsed === undefined || !validReceiver || chainId === undefined || !route.data) return;
     // `account`/`chainId` are bound on the hook (which resolves the subaccount's
     // isolation via useSubAccount); `parsed` is in the collateral token's decimals
     // and the hook builds the part + scales the deallocate amount.
-    withdraw.mutate({ amount: parsed, receiver: validReceiver, ...initiateWrite });
+    withdraw.mutate({ amount: parsed, receiver: validReceiver, preparedRoute: route.data, ...initiateWrite });
   }
 
   const steps: FlowStep[] = [
@@ -109,8 +131,13 @@ export function WithdrawFlow({
     },
     {
       label: "Withdraw",
-      hint: canInitiate ? "Ready to initiate" : "Amount & receiver",
-      done: withdraw.isSuccess,
+      hint:
+        route.data?.kind === "express"
+          ? `${route.data.option.optionTypeName} available`
+          : canInitiate
+            ? "Ready"
+            : "Amount & receiver",
+      done: withdrawDone,
     },
   ];
 
@@ -173,20 +200,28 @@ export function WithdrawFlow({
           <Button
             type="button"
             size="lg"
-            disabled={!canInitiate || withdraw.isPending}
+            disabled={!canInitiate || route.isFetching || !route.data || withdraw.isPending}
             onClick={onInitiate}
             data-testid="button-initiate-withdraw"
             className="w-full"
           >
-            {withdraw.isPending ? <Spinner className="size-4" /> : null}
-            {parsed === undefined ? "Enter an amount" : "Initiate withdrawal"}
+            {withdraw.isPending || route.isFetching ? <Spinner className="size-4" /> : null}
+            {parsed === undefined
+              ? "Enter an amount"
+              : route.data?.kind === "express"
+                ? `Withdraw with ${route.data.option.optionTypeName}`
+                : route.data?.finalize === "immediate"
+                  ? "Withdraw now"
+                  : "Initiate withdrawal"}
           </Button>
+
+          {canInitiate ? <WithdrawRouteReadout route={route} amount={parsed!} decimals={decimals} /> : null}
 
           <SessionKeySignerNote signer={initiateWrite.from}>
             Initiating also needs “Also allow withdrawals” ticked in the key’s grant on Session Keys.
           </SessionKeySignerNote>
 
-          <InitiateStatus withdraw={withdraw} bySessionKey={initiateWrite.from !== undefined} />
+          <InitiateStatus withdraw={withdraw} status={expressStatus} bySessionKey={initiateWrite.from !== undefined} />
 
           {subAccount ? (
             <SubaccountBalance isCustom={isCustom} margin={marginBalance} available={availableBalance} />
@@ -214,11 +249,65 @@ function WithdrawableReadout({ query }: { query: ReturnType<typeof useWithdrawab
   );
 }
 
+function WithdrawRouteReadout({
+  route,
+  amount,
+  decimals,
+}: {
+  route: ReturnType<typeof useWithdrawRoute>;
+  amount: bigint;
+  decimals: number;
+}) {
+  if (route.isFetching) {
+    return <ResultNote loading>Checking the safest withdrawal route…</ResultNote>;
+  }
+  if (route.error) {
+    return <ResultError kind={route.error.kind} message={route.error.message} />;
+  }
+  if (!route.data) return null;
+
+  if (route.data.kind === "classic") {
+    const fallbackDescription = {
+      "service-disabled": "Express is disabled on this chain; the classic cooldown path will be used.",
+      "service-error": "The Express service is unavailable; the classic cooldown path will be used.",
+      "no-option": "No preferred Express option is available; the classic cooldown path will be used.",
+      "unsupported-account": "This account requires deallocation, so the classic cooldown path will be used.",
+      "cooldown-ready": "The cooldown is already satisfied; initiation and finalization will be atomic.",
+    }[route.data.reason];
+    return (
+      <ResultNote>
+        <span className="flex items-center gap-2">
+          <Badge variant="secondary">Classic</Badge>
+          {fallbackDescription}
+        </span>
+      </ResultNote>
+    );
+  }
+
+  const { option } = route.data;
+  const grossFees = option.fee + option.operatorFee;
+  const userFee = grossFees > option.sponsorCoverage ? grossFees - option.sponsorCoverage : 0n;
+  const estimatedPayout = amount > userFee ? amount - userFee : 0n;
+  return (
+    <ResultNote>
+      <span className="flex flex-wrap items-center gap-2">
+        <Badge>{option.optionTypeName}</Badge>
+        <span>
+          Estimated payout {formatUsd(estimatedPayout, decimals)} USDC · fee {formatUsd(userFee, decimals)} USDC · about{" "}
+          {formatRemaining(option.estimatedTimeSeconds * 1000)}
+        </span>
+      </span>
+    </ResultNote>
+  );
+}
+
 function InitiateStatus({
   withdraw,
+  status,
   bySessionKey,
 }: {
-  withdraw: ReturnType<typeof useWithdraw>;
+  withdraw: ReturnType<typeof useWithdrawWithExpress>;
+  status: ReturnType<typeof useExpressWithdrawStatus>;
   /** The session key signs, so there is no wallet prompt to wait on. */
   bySessionKey: boolean;
 }) {
@@ -237,9 +326,52 @@ function InitiateStatus({
     );
   }
   if (withdraw.isSuccess) {
+    if (withdraw.data.route.kind === "express") {
+      const progress = status.data;
+      const failed =
+        progress?.onChain.status === "CANCELLED" ||
+        progress?.onChain.status === "SUSPENDED" ||
+        progress?.local.status === "FAILED" ||
+        progress?.local.status === "CANCELLED" ||
+        progress?.local.status === "SUSPENDED";
+      if (status.error) {
+        return (
+          <ResultError testId="integration-withdraw-status" kind={status.error.kind} message={status.error.message} />
+        );
+      }
+      if (failed) {
+        return (
+          <ResultError
+            testId="integration-withdraw-status"
+            kind="unknown"
+            message={`Express withdrawal stopped (${progress?.local.status ?? progress?.onChain.status}).`}
+          />
+        );
+      }
+      if (!progress || !isExpressWithdrawPayoutComplete(progress)) {
+        const detail =
+          progress?.local.status === "NOT_FOUND"
+            ? "Waiting for the service to index the transaction."
+            : progress?.onChain.status === "FINALIZED" && progress.onChain.optionType === "STANDARD"
+              ? "Core released the funds; provider payout is still pending."
+              : `Provider status: ${progress?.onChain.status ?? "pending"}.`;
+        return (
+          <ResultNote testId="integration-withdraw-status" loading={status.isFetching}>
+            Express request #{String(withdraw.data.requestId)} submitted. {detail}
+          </ResultNote>
+        );
+      }
+    }
+
     return (
       <ResultSuccess testId="integration-withdraw-status">
-        <span className="text-foreground">Withdrawal initiated. Finalize it below after the cooldown.</span>
+        <span className="text-foreground">
+          {withdraw.data.route.kind === "express"
+            ? "Express withdrawal paid to the receiver."
+            : withdraw.data.route.finalize === "immediate"
+              ? "Withdrawal completed in one transaction."
+              : "Withdrawal initiated. Finalize it below after the cooldown."}
+        </span>
         <TxReceipt
           hash={withdraw.data.hash}
           receipt={
@@ -301,7 +433,7 @@ function PendingRequests({ subAccount, decimals }: { subAccount: Address; decima
   const finalizeWrite = useFlowWriteOption("finalizeWithdrawRequest");
   const cancelWrite = useFlowWriteOption("requestCancelWithdraw");
 
-  const items = query.data ?? [];
+  const items = (query.data ?? []).filter((request) => isAddressEqual(request.provider, zeroAddress));
 
   return (
     <div className="flex flex-col gap-3">

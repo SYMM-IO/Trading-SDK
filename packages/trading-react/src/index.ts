@@ -52,6 +52,7 @@ export {
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
   getSessionKeySelectors,
+  isExpressWithdrawPayoutComplete,
   isGaslessRequestTerminal,
   isolationTypeForSide,
   parseGaslessErrorDetail,
@@ -370,6 +371,8 @@ export {
  * pending requests, ids, and the withdrawable time.
  */
 export {
+  useExpressWithdrawOptions,
+  useExpressWithdrawStatus,
   useFinalizeWithdrawRequest,
   useInitiateWithdraw,
   useLastWithdrawRequestId,
@@ -380,10 +383,16 @@ export {
   useSimulateRequestCancelWithdraw,
   useWithdraw,
   useWithdrawRequest,
+  useWithdrawRoute,
+  useWithdrawWithExpress,
   useWithdrawableTime,
   type FinalizeWithdrawRequestResult,
   type InitiateWithdrawResult,
   type RequestCancelWithdrawResult,
+  type UseExpressWithdrawOptionsParameters,
+  type UseExpressWithdrawOptionsReturnType,
+  type UseExpressWithdrawStatusParameters,
+  type UseExpressWithdrawStatusReturnType,
   type UseFinalizeWithdrawRequestParameters,
   type UseFinalizeWithdrawRequestReturnType,
   type UseInitiateWithdrawParameters,
@@ -404,10 +413,16 @@ export {
   type UseWithdrawRequestParameters,
   type UseWithdrawRequestReturnType,
   type UseWithdrawReturnType,
+  type UseWithdrawRouteParameters,
+  type UseWithdrawRouteReturnType,
   type UseWithdrawVariables,
+  type UseWithdrawWithExpressParameters,
+  type UseWithdrawWithExpressReturnType,
   type UseWithdrawableTimeParameters,
   type UseWithdrawableTimeReturnType,
   type WithdrawResult,
+  type WithdrawWithExpressResult,
+  type WithdrawWithExpressVariables,
 } from "./withdraw";
 
 /**
