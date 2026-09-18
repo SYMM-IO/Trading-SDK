@@ -1,6 +1,7 @@
 import { decodeFunctionData, encodeFunctionData, erc20Abi, type Address, type Hex } from "viem";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import { GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR, gaslessWalletAbi } from "../gateway/gasless-layer-abi";
+import { gaslessWalletAbi } from "../../symmio-contracts/abi/v0.8.6/gasless-wallet";
+import { GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR } from "../constants";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS, TEST_GASLESS_SIGNER, gaslessWriteTestConfig } from "../test/config";
 
 const post = vi.hoisted(() => vi.fn());
@@ -15,7 +16,7 @@ import { getGaslessWalletExecuteSelectors } from "./selectors";
 
 const WALLET = "0x5555555555555555555555555555555555555555" as const;
 const USDC = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" as const;
-const HEADERS = { "x-gaslessq-protocol-instance": "arbitrum-42161-vibe" };
+const HEADERS = { "x-gaslessq-protocol-instance": TEST_GASLESS.protocolInstance };
 
 describe("gaslessWalletExecute", () => {
   beforeEach(() => {
@@ -75,6 +76,84 @@ describe("gaslessWalletExecute", () => {
     expect(body.signedOps[0]?.replayAttackHeader.nonce).toBe(5);
   });
 
+  it("threads the wallet id through the address read, the nonce read and the relay body", async () => {
+    const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+    const OTHER_WALLET = "0x6666666666666666666666666666666666666666" as const;
+    readContract.mockImplementation(({ functionName }: { functionName: string }) => {
+      if (functionName === "getGaslessWalletAddress") return Promise.resolve(OTHER_WALLET);
+      if (functionName === "walletOperationNonces") return Promise.resolve(9n);
+      return Promise.reject(new Error(`unprogrammed read: ${functionName}`));
+    });
+    post.mockResolvedValue({
+      headers: HEADERS,
+      data: { request_id: "req-w2", status: "queued", paid_fee: "0", remaining_fee_allowance: "0" },
+    });
+
+    const receipt = await gaslessWalletExecute(config, {
+      chainId: GASLESS_TEST_CHAIN,
+      walletId: 2n,
+      calls: [{ target: USDC, value: 0n, data: "0xa9059cbb" }],
+    });
+
+    const reads = readContract.mock.calls.map(([read]) => read as { functionName: string; args: unknown[] });
+    expect(reads.find((read) => read.functionName === "getGaslessWalletAddress")?.args).toEqual([
+      TEST_GASLESS_SIGNER,
+      2n,
+    ]);
+    /** Each wallet id is its own nonce stream, keyed `(owner, walletId, signerAccount)`. */
+    expect(reads.find((read) => read.functionName === "walletOperationNonces")?.args).toEqual([
+      TEST_GASLESS_SIGNER,
+      2n,
+      TEST_GASLESS_SIGNER,
+    ]);
+
+    const signCall = signTypedData.mock.calls[0]?.[0] as { message: { target: string } };
+    /** A positive id must match the signed target, or the relay reverts on execution. */
+    expect(signCall.message.target).toBe(OTHER_WALLET);
+
+    const body = post.mock.calls[0]?.[1] as { walletIds: string[] };
+    expect(body.walletIds).toEqual(["2"]);
+    expect(receipt.walletIds).toEqual([2n]);
+    expect(receipt.owner).toBe(TEST_GASLESS_SIGNER);
+  });
+
+  it("refuses an owner that does not own the signer account, before any signature prompt", async () => {
+    const OTHER_OWNER = "0x7777777777777777777777777777777777777777" as const;
+    const SUB_ACCOUNT = "0x3333333333333333333333333333333333333333" as const;
+    const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+    readContract.mockImplementation(({ functionName }: { functionName: string }) => {
+      if (functionName === "getVirtualAccount")
+        return Promise.resolve({
+          accountAddress: SUB_ACCOUNT,
+          parentAccount: SUB_ACCOUNT,
+          symbolId: 0n,
+          isExists: false,
+        });
+      if (functionName === "getSubAccount")
+        return Promise.resolve({
+          accountAddress: SUB_ACCOUNT,
+          owner: TEST_GASLESS_SIGNER,
+          name: "Main",
+          isExists: true,
+          singleVAMode: false,
+          affiliate: SUB_ACCOUNT,
+          symmioCore: SUB_ACCOUNT,
+        });
+      return Promise.reject(new Error(`unprogrammed read: ${functionName}`));
+    });
+
+    await expect(
+      gaslessWalletExecute(config, {
+        chainId: GASLESS_TEST_CHAIN,
+        owner: OTHER_OWNER,
+        signerAccount: SUB_ACCOUNT,
+        calls: [{ target: USDC, value: 0n, data: "0xa9059cbb" }],
+      }),
+    ).rejects.toMatchObject({ code: "GASLESS_WALLET_OWNER_MISMATCH" });
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it("refuses a zero wallet address from an unwired gateway", async () => {
     const { config, readContract } = gaslessWriteTestConfig();
     readContract.mockImplementation(({ functionName }: { functionName: string }) => {
@@ -116,7 +195,10 @@ function walletExecuteRig() {
 /** The `(address,uint256,bytes)[]` batch the wallet was actually asked to run. */
 function innerCallsOf(signTypedData: Mock): readonly { target: Address; value: bigint; data: Hex }[] {
   const signCall = signTypedData.mock.calls[0]?.[0] as { message: { callData: Hex } };
-  return decodeFunctionData({ abi: gaslessWalletAbi, data: signCall.message.callData }).args[0];
+  const decoded = decodeFunctionData({ abi: gaslessWalletAbi, data: signCall.message.callData });
+  /** The full wallet ABI decodes to a union over every function; only `execute` is a valid wallet operation. */
+  if (decoded.functionName !== "execute") throw new Error(`expected execute calldata, got ${decoded.functionName}`);
+  return decoded.args[0];
 }
 
 describe("gaslessWalletExecute call forms", () => {

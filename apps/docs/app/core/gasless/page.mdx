@@ -18,7 +18,16 @@ const hash = await initiateWithdraw(config, { account, parts, gasless: true });
 
 Chain-level and optional, like Pools: a chain either carries a `gasless` config block or it does not, and the service additionally requires the **perps-core (`"0.8.6"`) contracts generation** — backward compatibility with older deployments is intentionally unsupported. Gate UI with [`supportsGaslessService`](/core/gasless/resolve-gasless-service); actions fail fast with `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`.
 
-**No chain ships a built-in `gasless` block**, so `supportsGaslessService` is `false` everywhere until a consumer supplies one. Arbitrum (42161) is the only chain on the perps-core generation, so it is where a block goes — the complete block (`url`, `protocolInstance`, `gaslessLayerAddress`), plus the part only the consumer holds: an `apiKey` (server-side) or a proxy `url` (browser), and the execution policy:
+<Callout type="warning">
+  **Multi-wallet GaslessLayer only.** The SDK targets the GaslessLayer interface where a gasless wallet is identified by
+  `(owner, walletId)` and fees are quoted with `previewFeeQuote` — the [pinned ABI](/core/abi). A GaslessLayer proxy
+  that has not been upgraded to it is unsupported: its multi-wallet reads revert with empty data, and the fee quote
+  throws `GASLESS_LAYER_INTERFACE_UNSUPPORTED`. The production proxy `0x8347953D80037b8d82827246f37EC7442AD188B4` is in
+  that state until the vendor upgrades it. The staging proxy `0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca` runs the
+  supported interface.
+</Callout>
+
+**No chain ships a built-in `gasless` block**, so `supportsGaslessService` is `false` everywhere until a consumer supplies one. Arbitrum (42161) is the only chain on the perps-core generation, so it is where a block goes — the complete block (`url`, `protocolInstance`, `gaslessLayerAddress`), plus the execution policy and, only on a server that holds a partner key, an `apiKey`:
 
 ```ts
 const config = createConfig({
@@ -27,10 +36,10 @@ const config = createConfig({
     [SymmioSupportedChainId.ARBITRUM]: {
       addresses: { affiliatesAddress: "0x…" },
       gasless: {
-        url: "https://gaslessq.symmio.foundation",
-        protocolInstance: "arbitrum-42161-vibe",
-        gaslessLayerAddress: "0x8347953D80037b8d82827246f37EC7442AD188B4",
-        apiKey: process.env.GASLESSQ_API_KEY, // server-side only — see below
+        url: "https://gaslessq-staging.symmio.foundation",
+        protocolInstance: "<protocol-instance>",
+        gaslessLayerAddress: "0x…", // a multi-wallet GaslessLayer — see the callout above
+        // apiKey: process.env.GASLESSQ_API_KEY, // optional partner key, server-side only — see below
         execution: { mode: "gasless", fallback: "wallet" },
       },
     },
@@ -47,15 +56,23 @@ const config = createConfig({
 
 </Callout>
 
-### Connection model & the API key
+### Connection model & authentication
 
-The service is instance-routed: `{origin}/v1/instances/{protocolInstance}/{operations|deposits}`. The instance key selects the deployment (staging and production can share a chain id), so `url` + `protocolInstance` must come from the same environment. Every response is stamped with an `X-GasLessQ-Protocol-Instance` header; the SDK asserts it against the pinned instance and fails closed on a mismatch (`GASLESS_INSTANCE_MISMATCH`) — the guard against a staging/production cross-wire.
+The gateway is instance-routed: `{origin}/v1/instances/{protocolInstance}/{operations|deposits}`. The instance key selects the deployment (staging and production can share a chain id), so `url` + `protocolInstance` must come from the same environment. The gateway stamps every response it routes with an `X-GasLessQ-Protocol-Instance` header; the SDK checks it on every successful response against the instance it expects and fails closed on a mismatch (`GASLESS_INSTANCE_MISMATCH`) — the guard against a staging/production cross-wire. Point `url` at the gateway origin and pass `protocolInstance`; [`resolveGaslessService`](/core/gasless/resolve-gasless-service#url-forms) lists the other accepted forms.
+
+**Anonymous access is the default.** Leave `apiKey` out and the SDK sends no `Authorization` header at all. The gateway then serves the request under its anonymous profile: **10 requests per second per caller IP and protocol instance**, shared across operations and deposits and by every client behind the same public IP. Past the limit the gateway answers `429` — see [Gateway statuses](/core/gasless/errors-and-fallback#gateway-statuses).
+
+A browser app can call the gateway directly, with no proxy, once the gateway allows the app's Origin for that environment. Like the URL and the instance key, the allowed Origins are a deployment-handoff fact. A disallowed Origin surfaces in the browser as a CORS network error: a `SymmApiError` with `status` `0`.
+
+Where anonymous access is on, a partner `apiKey` only raises those limits. A deployment can turn anonymous access off; keyless requests then get `401`, and a server-side partner key is required. Fees, wallet selection and signatures are unchanged either way. The SDK sends the key as `Authorization: Bearer <key>`, and it must be authorized for the protocol instance and service it calls.
 
 <Callout type="warning">
-  The `apiKey` is a **secret**. Never ship it in a browser bundle. Browser apps point `url` at their own same-origin
-  proxy (any base whose path is not a vendor origin is treated as a proxy root — the SDK appends `/operations` /
-  `/deposits` and lets the proxy inject the `Authorization` header and pin the instance). Server-side consumers pass the
-  key directly.
+  Keep a partner key on a server: a Node consumer, or a backend-for-frontend proxy that `url` points at. A key in a
+  browser bundle is readable by anyone. An invalid, disabled or unauthorized key is rejected (`401` / `403`) and **never
+  falls back to anonymous access** — remove it to go anonymous where the deployment allows it. Errors the SDK throws
+  never carry the key: a gasless HTTP failure keeps no request headers. Its `responseData` is still the raw response
+  body, which a `422` can fill with echoed request fields — see [Errors &
+  fallback](/core/gasless/errors-and-fallback#reading-the-vendor-detail).
 </Callout>
 
 ## The request lifecycle
@@ -67,9 +84,26 @@ queued → submitted → succeeded | reverted | failed
 queued → rejected
 ```
 
-`submitted` means a transaction hash exists — it is **not** success; only `succeeded` is. Poll [`getGaslessRequest`](/core/gasless/get-gasless-request) until `isGaslessRequestTerminal(status)` (1.5 s while queued, 3 s after submitted), or await [`waitForGaslessRequest`](/core/gasless/wait-for-gasless-request) in plain code. **A 202 is the point of no return** — the relayed transaction may execute even if your polling fails, so never re-submit the same intent through the wallet; the only safe wallet retry is a definitive pre-broadcast rejection (see [Errors & fallback](/core/gasless/errors-and-fallback)).
+`submitted` means a transaction hash exists — it is **not** success; only `succeeded` is. Poll [`getGaslessRequest`](/core/gasless/get-gasless-request) until `isGaslessRequestTerminal(status)` (a jittered 1–2 s while queued, 3–5 s after submitted), or await [`waitForGaslessRequest`](/core/gasless/wait-for-gasless-request) in plain code. **A 202 is the point of no return** — the relayed transaction may execute even if your polling fails, so never re-submit the same intent through the wallet; the only safe wallet retry is a definitive pre-broadcast rejection (see [Errors & fallback](/core/gasless/errors-and-fallback)).
 
 There is no list-by-wallet endpoint: persist each `requestId` (with its service and protocol instance) if users must resume polling after a reload. The transparent mode surfaces them through the `execution.onEvent` observer.
+
+### Streaming instead of polling
+
+Where a deployment enables the gateway's status WebSocket, the SDK follows a workflow over it and polls only while the stream is not delivering. Declare the opt-in per deployment — a staging confirmation does not cover production:
+
+```ts
+gasless: {
+  url: "https://<gateway-origin>",
+  protocolInstance: "<protocol-instance>",
+  gaslessLayerAddress: "0x…",
+  statusStream: { enabled: true },
+}
+```
+
+With that in place, `waitForGaslessRequest` and `confirmGaslessRequest` subscribe automatically (`transport: "auto"`, the default; pass `"poll"` to force HTTP), and React's `useGaslessRequest` stops polling while the stream is live and reports `stream.status` so a UI can show "live" versus "polling". [`watchGaslessRequest`](/core/gasless/watch-gasless-request) is the raw subscription for non-React layers; it opens a socket and never issues HTTP, so pair it with the polling read yourself.
+
+The stream changes nothing about outcomes: it carries the same records the reads return, an unavailable stream is never an error, and the fallback is the behavior you already have.
 
 ## Two EIP-712 domains, three nonce counters
 
@@ -78,16 +112,38 @@ There is no list-by-wallet endpoint: persist each `requestId` (with its service 
 | Domain name         | `SymmioInstantLayer`                    | `GaslessGateway` (kept deliberately after the contract's rename)                          |
 | `verifyingContract` | InstantLayer                            | **GaslessLayer** (while the operation's `target` is the wallet)                           |
 | Signed struct       | 7 fields (with `flexFields`, `maxUses`) | **5 fields** (without them — the relay body still carries `flexFields: []`, `maxUses: 1`) |
-| Nonce               | `InstantLayer.nonces(account) + 1`      | `walletOperationNonces(owner) + 1`                                                        |
+| Nonce               | `InstantLayer.nonces(account) + 1`      | `walletOperationNonces(owner, walletId, signerAccount) + 1`                               |
 
-Nonces are sequential and read immediately before signing; a batch must carry strictly consecutive nonces. The SDK serializes relays per `(chainId, account)` so concurrent calls cannot collide. (`topUpNonces` is the third counter, reserved for the native gas top-up flow — documented by the service but **not implemented in this SDK yet**.)
+Nonces are sequential and read immediately before signing; a batch must carry strictly consecutive nonces. (`topUpNonces` is the third counter, reserved for the native gas top-up flow — documented by the service but **not implemented in this SDK yet**.)
+
+### Nonce streams
+
+The service forwards signed nonces; it never reserves, replaces or repairs them. So two relays that sign the same nonce guarantee that one of them reverts, and the SDK serializes read–sign–submit per **stream**:
+
+| Stream                         | Key                                         | Why                                                                              |
+| ------------------------------ | ------------------------------------------- | -------------------------------------------------------------------------------- |
+| InstantLayer operations        | `(chainId, signerAccount)`                  | `InstantLayer.nonces` counts per account.                                        |
+| Gasless-wallet execute, id `0` | `(chainId, signerAccount)`                  | Wallet `0` keeps the original per-signer-account counter, shared across owners.  |
+| Gasless-wallet execute, id > 0 | `(chainId, walletId, owner, signerAccount)` | Each positive id counts on its own wallet, so its nonces never apply to another. |
+
+The lock is released at the `202`, not at broadcast — holding it until a relay lands would stall every later write behind one slow request. Instead the SDK remembers what it signed on that stream, and the **next** caller waits for it: for the pending request to reach any terminal status (a failed one frees the nonce again), or for the on-chain nonce to move past it, bounded by the signature's own deadline and at most two minutes. If neither happens in that budget — which is what an unconfirmed submit looks like — it throws `GASLESS_NONCE_STREAM_BUSY` rather than signing a nonce that is probably already in flight.
+
+A submit that _fails_ is remembered the same way whenever it leaves the nonce spendable: an ambiguous transport failure (no response, or a 5xx), where the service may still have accepted the batch, and a `202` whose body carried no `request_id` (`GASLESS_ACCEPTANCE_INVALID`), where it certainly did and only the handle was lost. Any other rejection accepted nothing, so it frees the nonce immediately.
+
+<Callout type="warning">
+  **This guard is per `Config`, so it is per tab.** Another tab, another device or a backend signing for the same
+  account shares the on-chain counter but not this bookkeeping. Coordinate pending requests across them yourself before
+  signing — the SDK cannot see them.
+</Callout>
 
 ## Fees
 
-`fee = base(selector) × feeMultiplier / 10000`, with a per-account daily free quota (UTC reset). Two reads on two contracts:
+`fee = base(selector) × feeMultiplier / 10000`, with a per-account daily free quota (UTC reset) and a one-time creation fee when a relayed operation first deploys a GaslessWallet, whatever its id (wallet `0` included). Two reads on two contracts:
 
-- [`getGaslessOperationalFeeQuote`](/core/gasless/get-gasless-fee-quote) — the authoritative quote for the exact operations, on the **GaslessLayer**; `wouldBlockOnQuota` is a hard stop. The transparent mode runs it before every signature prompt (`preflightFee`).
+- [`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote) — the GaslessLayer's `previewFeeQuote` for the exact batch, with one 18-decimal payment per operation. It is a preview (`exact` is always `false`); the relayer's simulation is authoritative. An exhausted daily free quota is a revert, surfaced as `GASLESS_FREE_QUOTA_EXHAUSTED`. The transparent mode runs it before every signature prompt (`preflightFee`).
 - [`getOperationalFeeAllowance`](/core/gasless/get-operational-fee-allowance) — the payer's allowance for the charger, on the **core diamond**. Grant it with [`approveOperationalFee`](/core/gasless/approve-operational-fee) **before** relying on gasless execution.
+
+Fees, allowances and the payer's Core balance are all **18-decimal Core units**. Token transfers and the GaslessLayer's deposit terms use the collateral token's decimals. Convert between the two with [`collateralToCore18`](/core/shared-types#collateraltocore18) and [`core18ToCollateral`](/core/shared-types#core18tocollateral); see [Core 18-decimal units](/core/concepts/balance-model#core-18-decimal-units). An allowance only permits a charge and adds no balance. The fee is collected when the batch executes, so a relay's acceptance receipt reports the service's acceptance-time figures, not the charge.
 
 [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) is priced the same way, from its **inner** call selectors rather than the `execute` wrapper — and it bills its `signerAccount`, never the collateral sitting at the wallet it executes from. That defaults to the owner EOA, which holds no collateral, so pass a funded sub-account to make the fee chargeable.
 
@@ -113,20 +169,26 @@ The service exposes no read endpoints: wallet addresses, deposit policy, fee quo
   <MethodEntry name="waitForGaslessRequest" href="/core/gasless/wait-for-gasless-request">
     Await a request to broadcast or terminal (abortable, framework-agnostic).
   </MethodEntry>
-  <MethodEntry name="getGaslessOperationalFeeQuote" href="/core/gasless/get-gasless-fee-quote">
-    Quote the fee for a batch before prompting for a signature.
+  <MethodEntry name="getGaslessWriteRequest" href="/core/gasless/get-gasless-write-request">
+    Resolve a transparently relayed write’s hash back to the request behind it.
+  </MethodEntry>
+  <MethodEntry name="getGaslessFeeQuote" href="/core/gasless/get-gasless-fee-quote">
+    Preview the fees for a batch (`previewFeeQuote`) before prompting for a signature.
   </MethodEntry>
   <MethodEntry name="getOperationalFeeAllowance" href="/core/gasless/get-operational-fee-allowance">
     Read the payer's fee allowance for the charger from the diamond.
   </MethodEntry>
   <MethodEntry name="getGaslessWalletAddress" href="/core/gasless/get-gasless-wallet-address">
-    The owner's deterministic gasless wallet — also the deposit address.
+    The deterministic address of an `(owner, walletId)` gasless wallet — also its deposit address.
   </MethodEntry>
   <MethodEntry name="getGaslessWalletNonce" href="/core/gasless/get-gasless-wallet-nonce">
-    The wallet-operation replay nonce (a separate counter).
+    The wallet-operation replay nonce, one stream per wallet and signer account (a separate counter).
+  </MethodEntry>
+  <MethodEntry name="getGaslessWalletCreationFee" href="/core/gasless/get-gasless-wallet-creation-fee">
+    The one-time fee for deploying a gasless wallet — `0n` once it is deployed.
   </MethodEntry>
   <MethodEntry name="getGaslessDepositPolicy" href="/core/gasless/get-gasless-deposit-policy">
-    Deposit address plus fee/minimum terms for onboarding.
+    Deposit address, collateral, fees and the settlement minimum for one wallet.
   </MethodEntry>
 </MethodIndex>
 
@@ -148,6 +210,9 @@ The service exposes no read endpoints: wallet addresses, deposit policy, fee quo
   </MethodEntry>
   <MethodEntry name="settleGaslessDepositExistingAccount" href="/core/gasless/settle-gasless-deposit-existing-account">
     Sweep the deposit address into an existing sub-account.
+  </MethodEntry>
+  <MethodEntry name="resubmitGaslessRequest" href="/core/gasless/resubmit-gasless-request">
+    Replay a submit whose outcome was never established, byte for byte, under its original key.
   </MethodEntry>
 </MethodIndex>
 

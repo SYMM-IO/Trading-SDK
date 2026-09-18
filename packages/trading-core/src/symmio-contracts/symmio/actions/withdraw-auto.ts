@@ -1,6 +1,7 @@
 import type { Address, Hash, Hex } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
+import { collateralToCore18 } from "../../../shared/utils/core-units";
 import { getSubAccount } from "../../account-layer/actions/get-sub-account";
 import type { SingleUpnlSig, SubAccountIsolationType } from "../../account-layer/types";
 import { createClassicWithdrawPart } from "../parts";
@@ -78,17 +79,19 @@ export type WithdrawAutoReturnType = Hash;
  * @remarks
  * Account-layer balances are `1e18`-scaled regardless of the collateral token's
  * decimals, so the `CUSTOM` deallocate leg needs the 18-decimal amount; this action
- * derives it as `amount * 10 ** (18 - collateralDecimals)` (assumes
- * `collateralDecimals <= 18`). On the `CUSTOM` path it also fetches a fresh Muon
- * `upnlSig` for the deallocate leg unless one is passed. Reach for {@link withdraw}
- * directly when you already hold the subaccount's `isolationType` and want to skip
- * the extra read, or need custom (multi-part / cross-chain) withdraw parts.
+ * derives it with {@link collateralToCore18} (`amount * 10 ** (18 - collateralDecimals)`).
+ * On the `CUSTOM` path it also fetches a fresh Muon `upnlSig` for the deallocate
+ * leg unless one is passed. Reach for {@link withdraw} directly when you already
+ * hold the subaccount's `isolationType` and want to skip the extra read, or need
+ * custom (multi-part / cross-chain) withdraw parts.
  *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
  * @param parameters - Subaccount, `amount` (collateral decimals), `receiver`,
  *   optional speed-up / provider data, optional Muon `upnlSig`, optional chain id.
  * @returns The submitted transaction hash. The caller waits on the receipt.
  * @throws {SymmError} when the chain is unsupported or no wallet is available.
+ * @throws {SymmError} `COLLATERAL_DECIMALS_UNSUPPORTED` when the chain's
+ *   `collateralDecimals` is not an integer from 0 to 18.
  * @throws Viem's write errors (`ContractFunctionExecutionError`, ...).
  *
  * @example
@@ -120,9 +123,8 @@ export async function withdrawAuto(
     chainId: BigInt(chainId),
   });
 
-  // Account-layer balances are 1e18-scaled regardless of collateral decimals; the
-  // deallocate leg needs the 18-dec amount. (Assumes collateralDecimals <= 18.)
-  const amount18 = parameters.amount * 10n ** BigInt(18 - addresses.collateralDecimals);
+  /** Account-layer balances are 1e18-scaled whatever the collateral's decimals; the deallocate leg needs that scale. */
+  const amount18 = collateralToCore18(parameters.amount, addresses.collateralDecimals);
 
   return withdraw(config, {
     account: parameters.account,

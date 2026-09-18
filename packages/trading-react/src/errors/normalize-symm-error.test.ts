@@ -1,4 +1,4 @@
-import { SymmError } from "@symmio/trading-core";
+import { SymmApiError, SymmError } from "@symmio/trading-core";
 import {
   BaseError,
   ContractFunctionRevertedError,
@@ -23,6 +23,44 @@ describe("normalizeSymmError", () => {
     expect(out.kind).toBe("sdk");
     expect(out.message).toBe("no chain bound");
     expect(out.cause).toBe(err);
+    expect(out.retryAfterMs).toBeNull();
+  });
+
+  it("classifies SymmApiError as kind 'api', forwarding status, body and the Retry-After delay", () => {
+    const err = new SymmApiError({
+      code: "GASLESS_STATUS_FETCH_FAILED",
+      message: "rate limited",
+      status: 429,
+      statusText: "Too Many Requests",
+      responseData: { error: "Rate limit exceeded" },
+      url: "https://gasless.test/v1/instances/arbitrum-42161-test/operations/req-1",
+      method: "GET",
+      retryAfterMs: 2_000,
+    });
+
+    const out = normalizeSymmError(err);
+
+    expect(out).toMatchObject({
+      kind: "api",
+      code: "GASLESS_STATUS_FETCH_FAILED",
+      status: 429,
+      responseData: { error: "Rate limit exceeded" },
+      retryAfterMs: 2_000,
+    });
+    expect(out.cause).toBe(err);
+  });
+
+  it("keeps retryAfterMs null for an api error without a Retry-After delay", () => {
+    const err = new SymmApiError({
+      code: "X_FAILED",
+      message: "down",
+      status: 503,
+      statusText: "",
+      url: "",
+      method: "GET",
+    });
+
+    expect(normalizeSymmError(err).retryAfterMs).toBeNull();
   });
 
   it("classifies a wrapped UserRejectedRequestError as 'user-rejected'", () => {

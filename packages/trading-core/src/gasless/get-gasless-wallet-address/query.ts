@@ -14,13 +14,24 @@ export type GetGaslessWalletAddressData = GetGaslessWalletAddressReturnType;
 /**
  * Build the TanStack Query key for {@link getGaslessWalletAddressQueryOptions}.
  *
+ * An omitted `walletId` keys as `0n`, so `{ owner }` and `{ owner, walletId: 0n }`
+ * share one cache entry — they read the same wallet. `predicateMatch` compares
+ * only the fields its partial sets, so `predicateMatch(getGaslessWalletAddressQueryKey, { owner })`
+ * still matches every wallet id of the owner.
+ *
  * @param options - Partial query parameters.
  * @returns A stable, hashable query key.
+ *
+ * @example
+ * ```ts
+ * getGaslessWalletAddressQueryKey({ owner });
+ * // → ["getGaslessWalletAddress", { owner, walletId: "0" }]
+ * ```
  */
 export function getGaslessWalletAddressQueryKey(
   options: Compute<ExactPartial<GetGaslessWalletAddressParameters> & ConfigKeyParameter> = {},
 ) {
-  return ["getGaslessWalletAddress", filterQueryOptions(options)] as const;
+  return ["getGaslessWalletAddress", filterQueryOptions({ ...options, walletId: options.walletId ?? 0n })] as const;
 }
 
 /** Query-key type produced by {@link getGaslessWalletAddressQueryKey}. */
@@ -51,20 +62,22 @@ export type GetGaslessWalletAddressQueryOptions = SymmioQueryOptions<
  *
  * @example
  * ```ts
- * useQuery(getGaslessWalletAddressQueryOptions(config, { owner }));
+ * useQuery(getGaslessWalletAddressQueryOptions(config, { owner, walletId: 1n }));
  * ```
  */
 export function getGaslessWalletAddressQueryOptions(
   config: Config,
   options: GetGaslessWalletAddressOptions,
 ): GetGaslessWalletAddressQueryOptions {
+  /** Every parameter reaches the action: a hand-listed subset would silently drop a new one, such as `walletId`. */
+  const { query, ...parameters } = options;
   return {
-    ...options.query,
-    queryKey: getGaslessWalletAddressQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
-    enabled: options.query?.enabled ?? true,
-    queryFn: () => {
-      const { chainId, owner } = options;
-      return getGaslessWalletAddress(config, { chainId, owner });
-    },
+    ...query,
+    queryKey: getGaslessWalletAddressQueryKey({
+      ...parameters,
+      configKey: config.getChainConfigKey(parameters.chainId),
+    }),
+    enabled: query?.enabled ?? true,
+    queryFn: () => getGaslessWalletAddress(config, parameters),
   };
 }

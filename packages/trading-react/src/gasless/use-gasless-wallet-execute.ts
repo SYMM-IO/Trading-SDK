@@ -52,8 +52,9 @@ export type UseGaslessWalletExecuteReturnType = UseMutationResult<
  * polling and the invalidation. A non-succeeded terminal rejects with the
  * record attached to the error's `responseData`.
  *
- * On success the wallet's nonce, its collateral balance and the fee allowance
- * are invalidated.
+ * On success the wallet-operation nonce of the signer account, the wallet's
+ * collateral balance, the fee allowance, and the owner's deposit policy and
+ * wallet creation fee (a first use deploys the wallet) are invalidated.
  *
  * @example
  * ```tsx
@@ -80,15 +81,18 @@ export function useGaslessWalletExecute(
     mutationFn: async (variables: GaslessWalletExecuteVariables): Promise<GaslessWalletExecuteResult> => {
       const resolvedChainId = variables.chainId ?? chainId;
       try {
-        const accepted = await options.mutationFn({ ...variables, chainId: resolvedChainId });
+        const accepted = await confirmation.submit(() =>
+          options.mutationFn({ ...variables, chainId: resolvedChainId }),
+        );
         const confirmed = await confirmation.confirm(accepted, {
           chainId: resolvedChainId,
           service: "operations",
+          operationType: variables.operationType,
           invalidate: (queryClient) =>
             invalidateGaslessWalletExecuteReads(
               queryClient,
               { configKey: config.getChainConfigKey(resolvedChainId) },
-              variables.owner,
+              variables,
             ),
         });
         return { accepted, confirmed };

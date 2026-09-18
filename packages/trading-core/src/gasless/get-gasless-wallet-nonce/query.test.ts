@@ -10,22 +10,32 @@ describe("getGaslessWalletNonceQueryKey", () => {
   it("tags the key with the action name and drops undefined fields", () => {
     expect(getGaslessWalletNonceQueryKey({ chainId: undefined, account: ACCOUNT, configKey: "k" })).toEqual([
       "getGaslessWalletNonce",
-      { account: ACCOUNT, configKey: "k" },
+      { account: ACCOUNT, walletId: "0", configKey: "k" },
     ]);
   });
 
+  it("keys an omitted wallet id as wallet 0", () => {
+    expect(getGaslessWalletNonceQueryKey({ owner: OWNER, account: ACCOUNT })).toEqual(
+      getGaslessWalletNonceQueryKey({ owner: OWNER, walletId: 0n, account: ACCOUNT }),
+    );
+    expect(getGaslessWalletNonceQueryKey({ owner: OWNER, account: ACCOUNT })).not.toEqual(
+      getGaslessWalletNonceQueryKey({ owner: OWNER, walletId: 1n, account: ACCOUNT }),
+    );
+  });
+
   it("accepts no options at all", () => {
-    expect(getGaslessWalletNonceQueryKey()).toEqual(["getGaslessWalletNonce", {}]);
+    expect(getGaslessWalletNonceQueryKey()).toEqual(["getGaslessWalletNonce", { walletId: "0" }]);
   });
 });
 
 describe("getGaslessWalletNonceQueryOptions", () => {
-  it("keys the query by chain, owner, account, and config", () => {
+  it("keys the query by chain, owner, wallet id, account, and config", () => {
     const { config } = gaslessTestConfig();
 
     const options = getGaslessWalletNonceQueryOptions(config, {
       chainId: GASLESS_TEST_CHAIN,
       owner: OWNER,
+      walletId: 5n,
       account: ACCOUNT,
     });
 
@@ -35,10 +45,20 @@ describe("getGaslessWalletNonceQueryOptions", () => {
       {
         chainId: GASLESS_TEST_CHAIN,
         owner: OWNER,
+        walletId: "5",
         account: ACCOUNT,
         configKey: config.getChainConfigKey(GASLESS_TEST_CHAIN),
       },
     ]);
+  });
+
+  it("shares one cache entry between an omitted wallet id and 0n", () => {
+    const { config } = gaslessTestConfig();
+
+    const omitted = getGaslessWalletNonceQueryOptions(config, { owner: OWNER, account: ACCOUNT });
+    const zero = getGaslessWalletNonceQueryOptions(config, { owner: OWNER, walletId: 0n, account: ACCOUNT });
+
+    expect(omitted.queryKey).toEqual(zero.queryKey);
   });
 
   it("honours query.enabled", () => {
@@ -51,6 +71,7 @@ describe("getGaslessWalletNonceQueryOptions", () => {
     });
 
     expect(options.enabled).toBe(false);
+    expect(options.queryKey[1]).not.toHaveProperty("query");
   });
 
   it("queryFn reads the forwarded account's wallet-operation nonce on the forwarded chain", async () => {
@@ -72,6 +93,23 @@ describe("getGaslessWalletNonceQueryOptions", () => {
         functionName: "walletOperationNonces",
         args: [OWNER, 0n, ACCOUNT],
       }),
+    );
+  });
+
+  it("queryFn forwards the wallet id — a dropped one would silently read wallet 0's stream", async () => {
+    const { config, readContract } = gaslessTestConfig();
+    readContract.mockResolvedValue(9n);
+
+    const options = getGaslessWalletNonceQueryOptions(config, {
+      chainId: GASLESS_TEST_CHAIN,
+      owner: OWNER,
+      walletId: 3n,
+      account: ACCOUNT,
+    });
+    await options.queryFn();
+
+    expect(readContract).toHaveBeenCalledWith(
+      expect.objectContaining({ functionName: "walletOperationNonces", args: [OWNER, 3n, ACCOUNT] }),
     );
   });
 });

@@ -25,6 +25,8 @@ With `until: "receipt"` it then waits for the receipt on **this config's own cli
   the one being fixed.
 </Callout>
 
+Transient read failures — a `429`, a `503`, a dropped connection — are absorbed by the status wait underneath rather than reported as failures. Subscribe to `onTransportIssue` to show "status unavailable" while they last; the relay is unaffected. This never re-submits: a `202` is the point of no return.
+
 React consumers rarely call this directly: every relay hook in `@symmio/trading-react` confirms by default and invalidates the reads its action changed. See the [React gasless guide](/react/gasless).
 
 ## Parameters
@@ -45,7 +47,7 @@ React consumers rarely call this directly: every relay hook in `@symmio/trading-
   <Property name="timeoutMs" type="number" optional default="120_000">
     Budget for the terminal wait (`GASLESS_WAIT_TIMEOUT_MS`).
   </Property>
-  <Property name="receiptTimeoutMs" type="number" optional default="90_000">
+  <Property name="receiptTimeoutMs" type="number" optional default="60_000">
     Budget for the receipt wait (`GASLESS_RECEIPT_TIMEOUT_MS`).
   </Property>
   <Property name="queuedPollMs" type="number" optional default="1_500">
@@ -60,6 +62,11 @@ React consumers rarely call this directly: every relay hook in `@symmio/trading-
   </Property>
   <Property name="onUpdate" type="(request: GaslessRequest) => void" optional>
     Observer invoked with every fetched record, including the final one.
+  </Property>
+  <Property name="onTransportIssue" type="(error: SymmError) => void" optional>
+    Observer invoked for every transient read failure the status wait absorbed — see
+    [`waitForGaslessRequest`](/core/gasless/wait-for-gasless-request#a-failed-read-is-not-a-failed-request). It means
+    the status is temporarily unreadable, never that the request failed.
   </Property>
   <Property name="chainId" type="number" optional>
     Chain override. Defaults to the config's `defaultChainId`.

@@ -18,7 +18,9 @@ const receipt = await gaslessWalletExecute(config, {
 });
 ```
 
-The SDK reads `getGaslessWalletAddress(owner)` and `walletOperationNonces(owner)` from the GaslessLayer, encodes `execute((address,uint256,bytes)[])`, signs, and submits through the same `relay-instant` endpoint.
+The SDK reads `getGaslessWalletAddress(owner, walletId)` and `walletOperationNonces(owner, walletId, signerAccount)` from the GaslessLayer, encodes `execute((address,uint256,bytes)[])`, signs, and submits through the same `relay-instant` endpoint with `walletIds: ["<walletId>"]`.
+
+`walletId` selects everything at once — the signed `target`, the nonce stream and the relayed id — so a positive id must match the wallet the operation was signed against. Changing the id to pick a different wallet needs a new target and a new signature; the SDK derives all three from the same `walletId`, so that only goes wrong if you sign by hand.
 
 <Callout type="info">
   This action is a **submit**: it resolves with the `202` acceptance. React consumers do not need to follow it by hand —
@@ -104,7 +106,7 @@ Wallet operations do **not** reuse the ordinary operation signing:
 
 - the EIP-712 domain is `{ name: "GaslessGateway", version: "1" }` with the **GaslessLayer** as `verifyingContract` — while the operation's `target` is the **wallet**. Swapping the two yields `InvalidWalletOperationTarget` from simulation. (The domain string deliberately kept the contract's old name; do not "fix" it.)
 - the signed `SignedOperation` struct has **five** fields — no `flexFields`, no `maxUses`. The relay body still carries `flexFields: []` and `maxUses: 1`, appended _after_ signing; signing the 7-field InstantLayer struct produces a digest the gateway rejects.
-- the nonce is `walletOperationNonces(owner) + 1` — a separate counter from InstantLayer nonces.
+- the nonce is `walletOperationNonces(owner, walletId, signerAccount) + 1` — a separate counter from InstantLayer nonces, and a separate stream per wallet id. Wallet `0` keeps its original per-signer-account counter; every positive id counts on its own wallet.
 - `signerAccount.addr` defaults to the **owner wallet itself** rather than a sub-account, and the deadline is 10 minutes.
 
 <Callout type="info">
@@ -127,16 +129,22 @@ Wallet operations do **not** reuse the ordinary operation signing:
     Free-form workflow label (1–128 characters) stored with the request for metrics and vendor support. Fees are **not**
     keyed from it.
   </Property>
+  <Property name="walletId" type="bigint" optional default="0n">
+    Which of the owner's GaslessWallets the calls execute from. Each id is an independent wallet with its own address,
+    balance and nonce stream, deployed lazily on first use — its one-time creation fee
+    ([`getGaslessWalletCreationFee`](/core/gasless/get-gasless-wallet-creation-fee)) is charged to the signer account
+    then. Ids are an application convention, so persist your assignment under
+    `(environment, protocolInstance, owner, walletId)`.
+  </Property>
   <Property name="signerAccount" type="Address" optional>
     Account whose delegations authorize the operation, whose wallet-operation nonce is consumed, and which the gateway
     bills. Defaults to `owner`. Pass a sub-account whenever a session key signs.
   </Property>
   <Property name="owner" type="Address" optional>
     Owner of the deterministic wallet. Defaults to `signerAccount`, or to the signing wallet's address when that is
-    omitted too; read from the AccountLayer when `signerAccount` names a sub-account.
-  </Property>
-  <Property name="idempotencyKey" type="string" optional>
-    Stable retry key; defaults to a random UUID.
+    omitted too; read from the AccountLayer when `signerAccount` names a sub-account. An explicit `owner` that does not
+    own `signerAccount` throws `GASLESS_WALLET_OWNER_MISMATCH` **before** the signature prompt — the contract derives
+    the wallet from `ownerOf(signerAccount)`, so such an operation could only ever revert.
   </Property>
   <Property name="metadata" type="Record<string, unknown>" optional>
     Non-secret client correlation data stored with the request.
@@ -155,10 +163,22 @@ Wallet operations do **not** reuse the ordinary operation signing:
   The acceptance receipt — persist `requestId` and poll it to a terminal status.
 </Returns>
 
+<Callout type="info">
+  **The idempotency key is minted per call, not a parameter.** This action signs a fresh operation every time, so a key
+  a caller could reuse would describe a different payload than the one it first keyed, and the service would answer `409
+  IDEMPOTENCY_KEY_CONFLICT`. The key it used comes back on the receipt — persist it, and replay a lost response with
+  [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request). See [idempotency
+  keys](/core/gasless/errors-and-fallback#idempotency-keys).
+</Callout>
+
 ## Throws
 
 - `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
 - `SymmError("api", "GASLESS_WALLET_UNAVAILABLE")` — the gateway returned the zero address for the owner's wallet (an unwired deployment answers `0x0` instead of reverting).
 - A viem `AbiEncodingLengthMismatchError` (or similar) when an ABI-level call's `args` do not match `functionName`. Thrown while encoding, before anything is signed or sent.
 - `SymmError("validation", "GASLESS_SIGNER_NOT_DELEGATED")` — a non-owner signer is missing a delegation for the sentinel or an inner selector.
+- `SymmError("validation", "GASLESS_WALLET_OWNER_MISMATCH")` — an explicit `owner` does not own `signerAccount`.
+- `SymmError("validation", "GASLESS_WALLET_ID_INVALID")` — a `walletId` outside `0 … 2^256 − 1`, or a JavaScript `number`.
+- `SymmError("api", "GASLESS_NONCE_STREAM_BUSY")` — an earlier relay on this `(walletId, signerAccount)` stream is still unaccounted for; see [nonce streams](/core/gasless#nonce-streams).
 - `SymmApiError` with code `GASLESS_RELAY_SUBMIT_FAILED` — HTTP failure; `InvalidWalletOperationTarget` in the decoded revert means the operation's target was not the owner's wallet.
+- `SymmApiError` with code `GASLESS_SUBMIT_UNCONFIRMED` — the outcome could not be established. The signature is spent either way, so replay the submit with [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request); signing a new operation would risk executing the batch twice.

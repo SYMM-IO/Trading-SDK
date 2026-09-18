@@ -115,7 +115,9 @@ export function createMockSymmioConfig(opts?: {
 
   const config = createConfig({
     symmioConfig: {
-      [arbitrum.id]: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } },
+      [arbitrum.id]: {
+        addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+      },
     },
     getClient: () => publicClient,
     getWalletClient: opts?.withWallet === false ? undefined : async () => walletClient,

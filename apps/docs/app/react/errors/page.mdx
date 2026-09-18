@@ -7,7 +7,11 @@ Every SYMMIO React hook surfaces failures as a single error class — `SymmioReq
 ```ts
 class SymmioRequestError extends Error {
   readonly name = "SymmioRequestError";
-  readonly kind: "user-rejected" | "contract-revert" | "insufficient-funds" | "rpc" | "sdk" | "unknown";
+  readonly kind: "user-rejected" | "contract-revert" | "insufficient-funds" | "rpc" | "api" | "sdk" | "unknown";
+  readonly code?: string; // SDK error code, for kind === "api" or "sdk"
+  readonly status?: number; // HTTP status, for kind === "api"
+  readonly responseData?: unknown; // raw response body, for kind === "api"
+  readonly retryAfterMs: number | null; // Retry-After delay in ms for kind === "api", when readable; else null
   readonly reason?: string; // populated for kind === "contract-revert"
   readonly shortMessage?: string; // viem short message for kind === "rpc"
   // ...standard Error fields, including `cause`
@@ -16,14 +20,15 @@ class SymmioRequestError extends Error {
 
 ### Kinds, with intent
 
-| `kind`               | When                                                                                                               | Typical UI                               |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
-| `user-rejected`      | Wallet popup dismissed.                                                                                            | Silent — no toast, no banner.            |
-| `contract-revert`    | On-chain call reverted. `reason` carries the Solidity revert string.                                               | Show the reason inline.                  |
-| `insufficient-funds` | Signing EOA had not enough native gas.                                                                             | "Top up your wallet" prompt.             |
-| `rpc`                | Transport-layer failure (network, node unreachable, bad response). `shortMessage` is the viem human-readable form. | Generic "Try again later."               |
-| `sdk`                | SDK precondition failed (unknown chain, missing wallet, missing config).                                           | Fix the app's wiring; usually a bug.     |
-| `unknown`            | Fell through every classifier.                                                                                     | Show the message; treat as a bug to fix. |
+| `kind`               | When                                                                                                                                                                                                  | Typical UI                                                                                                             |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `user-rejected`      | Wallet popup dismissed.                                                                                                                                                                               | Silent — no toast, no banner.                                                                                          |
+| `contract-revert`    | On-chain call reverted. `reason` carries the Solidity revert string.                                                                                                                                  | Show the reason inline.                                                                                                |
+| `insufficient-funds` | Signing EOA had not enough native gas.                                                                                                                                                                | "Top up your wallet" prompt.                                                                                           |
+| `rpc`                | RPC transport failure (network, node unreachable, bad response). `shortMessage` is the viem human-readable form; `retryAfterMs` is always `null`.                                                     | Generic "Try again later."                                                                                             |
+| `api`                | HTTP/REST service failure (solver, price service, gasless gateway, …), from a core `SymmApiError`. `status`, `code`, `responseData` and `retryAfterMs` carry the details.                             | Show the status and message; on `429` / `503` wait `retryAfterMs`, or at least a second plus jitter when it is `null`. |
+| `sdk`                | Any other core `SymmError`: a failed SDK precondition (unknown chain, missing wallet, missing config) or an SDK-level service check such as `GASLESS_INSTANCE_MISMATCH`. `code` carries the SDK code. | Fix the app's wiring; usually a bug.                                                                                   |
+| `unknown`            | Fell through every classifier.                                                                                                                                                                        | Show the message; treat as a bug to fix.                                                                               |
 
 ## Branching in the UI
 
@@ -41,6 +46,11 @@ function RenameButton() {
       {error?.kind === "contract-revert" && <p className="error">Reverted: {error.reason}</p>}
       {error?.kind === "insufficient-funds" && <p className="warn">Top up your wallet to cover gas.</p>}
       {error?.kind === "rpc" && <p className="warn">{error.shortMessage}</p>}
+      {error?.kind === "api" && (
+        <p className="warn">
+          API {error.status}: {error.message}
+        </p>
+      )}
       {error?.kind === "sdk" && <p className="error">SDK error: {error.message}</p>}
       {error?.kind === "unknown" && <p className="error">{error.message}</p>}
     </>
@@ -70,7 +80,7 @@ Useful when:
 
 ## Re-exported `SymmError`
 
-`@symmio/trading-react` re-exports `SymmError` from `core` for convenience. `normalizeSymmError(symmError).kind` is always `"sdk"`.
+`@symmio/trading-react` re-exports `SymmError` from `core` for convenience. `normalizeSymmError(symmError).kind` is `"sdk"`, except for a `SymmApiError` (an HTTP failure), which becomes `"api"`.
 
 ```ts
 import { SymmError } from "@symmio/trading-react"; // same as `from "@symmio/trading-core"`

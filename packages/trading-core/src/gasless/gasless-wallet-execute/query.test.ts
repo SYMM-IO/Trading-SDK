@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { GASLESS_TEST_CHAIN, TEST_GASLESS_SIGNER, gaslessWriteTestConfig } from "../test/config";
+import { GASLESS_TEST_CHAIN, TEST_GASLESS, TEST_GASLESS_SIGNER, gaslessWriteTestConfig } from "../test/config";
 import { GaslessRequestStatus, type GaslessSubmitReceipt } from "../types";
 import type { GaslessWalletExecuteParameters } from "./gasless-wallet-execute";
 
@@ -14,6 +14,10 @@ const RECEIPT: GaslessSubmitReceipt = {
   status: GaslessRequestStatus.QUEUED,
   paidFee: 0n,
   remainingFeeAllowance: 0n,
+  idempotencyKey: "idem-1",
+  protocolInstance: TEST_GASLESS.protocolInstance ?? null,
+  owner: TEST_GASLESS_SIGNER,
+  walletIds: [0n],
 };
 
 /** Every optional field set, so a variable the factory dropped would fail the equality below. */
@@ -24,7 +28,6 @@ const VARIABLES: GaslessWalletExecuteParameters = {
   signerAccount: "0x3333333333333333333333333333333333333333",
   calls: [{ target: "0x9999999999999999999999999999999999999999", value: 0n, data: "0xa9059cbb" }],
   operationType: "bridgeWithdraw",
-  idempotencyKey: "idem-1",
   metadata: { flow: "exit" },
 };
 

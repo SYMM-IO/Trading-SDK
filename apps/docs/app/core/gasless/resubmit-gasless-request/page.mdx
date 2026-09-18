@@ -1,0 +1,89 @@
+import { Callout } from "nextra/components";
+
+# resubmitGaslessRequest
+
+Resend a gasless submit whose outcome was never established — byte for byte, under its original idempotency key.
+
+```ts
+import { getGaslessUnconfirmedSubmit, relayInstantOperations, resubmitGaslessRequest } from "@symmio/trading-core";
+
+try {
+  await relayInstantOperations(config, parameters);
+} catch (err) {
+  const pending = getGaslessUnconfirmedSubmit(err);
+  if (!pending) throw err;
+
+  await store.save(pending); // survive a reload before retrying
+  const receipt = await resubmitGaslessRequest(config, pending);
+  await store.clear(pending.idempotencyKey);
+}
+```
+
+A submit that fails ambiguously — no response, a timeout, a `502`/`504`, or a `202` with no `request_id` — may still have been accepted. The SDK resends it once itself, and if that is inconclusive too it throws [`GASLESS_SUBMIT_UNCONFIRMED`](/core/gasless/errors-and-fallback#the-fallback-safety-rule) carrying the exact bytes it sent. This action replays them.
+
+The vendor's contract makes that safe: the same key with the same payload either lands the request or returns the record the service already created. Rebuilding the payload does not — the signatures inside it cover specific nonces and deadlines, and a regenerated body under a bound key is answered with `409 IDEMPOTENCY_KEY_CONFLICT`.
+
+<Callout type="warning">
+  **Never respond to an unconfirmed submit by running the intent through the wallet.** The relayed transaction may
+  execute at any moment; a wallet-paid duplicate would execute it twice. Resubmitting is the only safe recovery, and it
+  stays safe however many times you repeat it.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="submit" type="GaslessUnconfirmedSubmit" required>
+    The record from `getGaslessUnconfirmedSubmit(err)`, passed through unmodified.
+  </Property>
+  <Property name="submit.chainId" type="number">
+    The chain the submit was made on. The replay resolves this chain's gasless config, never the config default.
+  </Property>
+  <Property name="submit.service" type='"operations" | "deposits"'>
+    The service that stores the workflow, derived from `path`.
+  </Property>
+  <Property
+    name="submit.path"
+    type='"/gateway/relay-instant" | "/deposit-settlements/new-account" | "/deposit-settlements/existing-account"'
+  >
+    The gateway route the body was POSTed to. A closed union: an open string would let arbitrary paths be POSTed with a
+    signed body.
+  </Property>
+  <Property name="submit.body" type="unknown">
+    The exact JSON that was sent. Sent again as-is.
+  </Property>
+  <Property name="submit.idempotencyKey" type="string">
+    The key the submit carried, and that this replay reuses.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessSubmitReceipt | GaslessDepositSubmitReceipt>">
+  <Property name="requestId" type="string">
+    The workflow id — the one the original submit created, when it was accepted after all.
+  </Property>
+  <Property name="idempotencyKey" type="string">
+    The replayed key, unchanged.
+  </Property>
+</Returns>
+
+A `/gateway/relay-instant` replay returns the operations receipt ([`GaslessSubmitReceipt`](/core/gasless/relay-instant-operations#returns)); either settlement path returns the deposit receipt ([`GaslessDepositSubmitReceipt`](/core/gasless/settle-gasless-deposit-new-account#returns)). Discriminate on `submit.service`, or on the presence of `depositAddress`.
+
+A deposit replay re-runs the original submit's safety check: the wallet's deterministic address is read **before** the POST and compared with the acceptance, so a replay can never sweep a wallet you did not fund.
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")` — for the chain named in the record.
+- `SymmError("validation", "GASLESS_RESUBMIT_BODY_INVALID")` — the record is not a submit this SDK produced (no JSON object body, or no `userAddress` / `owner` to attribute the acceptance to).
+- `SymmApiError` with code `GASLESS_SUBMIT_UNCONFIRMED` — the replay was itself inconclusive. Keep the record and try again later; it never expires the way a signature does, and the service still holds the key.
+- `SymmApiError` with code `GASLESS_RELAY_SUBMIT_FAILED` / `GASLESS_SETTLEMENT_SUBMIT_FAILED` — the service answered with a verdict. A `409 IDEMPOTENCY_KEY_CONFLICT` ([`isGaslessIdempotencyConflictError`](/core/gasless/errors-and-fallback#vendor-codes)) means the record was modified before the replay.
+- `SymmApiError` with code `GASLESS_DEPOSIT_WALLET_MISMATCH` — the acceptance named another wallet or deposit address.
+
+<Callout type="info">
+  Persist the record, not just the id. A `GaslessUnconfirmedSubmit` is the only artefact that can recover a workflow the
+  relayer may already be running, and it is worthless once rebuilt. Store it under `(environment, protocolInstance,
+  service, idempotencyKey)` alongside your pending workflows — and keep it out of third-party logging: `body` holds the
+  user's signed operations, and a signature the service never executed stays valid until its deadline.
+</Callout>
+
+The React binding is [`useResubmitGaslessRequest`](/react/gasless), which confirms the replayed request before it resolves and invalidates what it changed.

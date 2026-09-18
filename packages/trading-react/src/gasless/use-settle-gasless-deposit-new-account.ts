@@ -54,10 +54,14 @@ export type UseSettleGaslessDepositNewAccountReturnType = UseMutationResult<
  * and its balance are readable when they refetch. Lowering it to `"terminal"`
  * brings the caveat back.
  *
+ * On success the swept deposit address's collateral balance, account balances,
+ * the owner's sub-account lists, and the owner's deposit policy and wallet
+ * creation fee (the settlement deploys the wallet on first use) are invalidated.
+ *
  * @example
  * ```tsx
  * const relay = useSettleGaslessDepositNewAccount();
- * const receipt = await relay.mutateAsync({ wallet, affiliate, accountData });
+ * const receipt = await relay.mutateAsync({ owner, walletId: 1n, affiliate, accountData });
  * ```
  */
 export function useSettleGaslessDepositNewAccount(
@@ -76,7 +80,9 @@ export function useSettleGaslessDepositNewAccount(
     ): Promise<SettleGaslessDepositNewAccountResult> => {
       const resolvedChainId = variables.chainId ?? chainId;
       try {
-        const accepted = await options.mutationFn({ ...variables, chainId: resolvedChainId });
+        const accepted = await confirmation.submit(() =>
+          options.mutationFn({ ...variables, chainId: resolvedChainId }),
+        );
         const confirmed = await confirmation.confirm(accepted, {
           chainId: resolvedChainId,
           service: "deposits",
@@ -84,7 +90,12 @@ export function useSettleGaslessDepositNewAccount(
             invalidateDepositSettlementReads(
               queryClient,
               { configKey: config.getChainConfigKey(resolvedChainId) },
-              { depositAddress: accepted.depositAddress, wallet: variables.wallet },
+              {
+                depositAddress: accepted.depositAddress,
+                owner: variables.owner,
+                walletId: accepted.walletId,
+                newAccount: true,
+              },
             ),
         });
         return { accepted, confirmed };

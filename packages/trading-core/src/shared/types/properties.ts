@@ -106,6 +106,12 @@ export type WriteContractParameter = ChainIdParameter & FromParameter & Simulate
 
 /**
  * Per-call overrides for the transparent gasless execution mode.
+ *
+ * @remarks
+ * There is deliberately no `idempotencyKey`: a relayed write signs a fresh
+ * operation on every call, so one key can only ever describe one signature.
+ * The dispatcher mints it, puts it on the acceptance event and the receipt, and
+ * `resubmitGaslessRequest` is what replays a submit whose response was lost.
  */
 export interface GaslessWriteOptions {
   /** Force this call onto (`true`) or off (`false`) the gasless relay, overriding the config default. */
@@ -116,8 +122,6 @@ export interface GaslessWriteOptions {
    * accepts (HTTP 202) no fallback ever happens.
    */
   fallback?: "error" | "wallet";
-  /** Stable retry key for the relay submit; defaults to a random UUID. */
-  idempotencyKey?: string;
   /**
    * Billing/authority sub-account for the relayed operation, for actions whose
    * parameters do not carry it (`addMargin` / `removeMargin` receive only the

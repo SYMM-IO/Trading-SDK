@@ -15,7 +15,7 @@ const receipt = await relayGrantDelegation(config, {
 });
 ```
 
-A delegation grant is an **ordinary owner-signed operation**: the SDK encodes `InstantLayer.grantDelegation(DelegationInfo)`, targets the InstantLayer, signs under the InstantLayer EIP-712 domain with a fresh sequential nonce, and submits it through `relay-instant` with `operationType: "grantDelegation"`. The account owner's wallet signs — a grant is always owner-signed.
+A delegation grant is an **ordinary owner-signed operation**: the SDK encodes `InstantLayer.grantDelegation(DelegationInfo)`, targets the InstantLayer, signs under the InstantLayer EIP-712 domain with a fresh sequential nonce, and submits it through `relay-instant` with `operationType: "grantDelegation"` and `walletIds: ["0"]` — a grant is an ordinary InstantLayer operation, so it never relays from a GaslessWallet. The account owner's wallet signs — a grant is always owner-signed.
 
 <Callout type="info">
   The service's old standalone delegation-relay endpoint and its `SignedDelegation` payload **no longer exist** — their
@@ -54,9 +54,6 @@ Pair it with [`GASLESS_SESSION_KEY_SELECTORS`](/core/gasless/relayable-writes) t
   <Property name="expiryTimestamp" type="bigint" required>
     Unix timestamp (seconds) when the delegation expires.
   </Property>
-  <Property name="idempotencyKey" type="string" optional>
-    Stable retry key; defaults to a random UUID.
-  </Property>
   <Property name="chainId" type="number" optional>
     Target chain id. Defaults to the config's `defaultChainId`.
   </Property>
@@ -72,8 +69,16 @@ Pair it with [`GASLESS_SESSION_KEY_SELECTORS`](/core/gasless/relayable-writes) t
   to a terminal status.
 </Returns>
 
+<Callout type="info">
+  **The idempotency key is minted per call, not a parameter.** Every call signs a fresh operation, so one key can only
+  ever describe one signature. It comes back on the receipt; replay a lost response with
+  [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request) rather than signing a new grant. See [idempotency
+  keys](/core/gasless/errors-and-fallback#idempotency-keys).
+</Callout>
+
 ## Throws
 
 - `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
 - `SymmApiError` with code `GASLESS_RELAY_SUBMIT_FAILED` on HTTP failure.
+- `SymmApiError` with code `GASLESS_SUBMIT_UNCONFIRMED` — the outcome could not be established; replay it with [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request).
 - Everything the wallet-client resolver throws (`NO_WALLET_CLIENT`, a user's signature rejection).

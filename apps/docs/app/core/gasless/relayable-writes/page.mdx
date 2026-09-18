@@ -44,11 +44,28 @@ Writes that are not in this table (`approveCollateral`, `requestToRegisterAffili
 
 1. Resolve the mode: per-call `gasless` overrides `execution.mode`; the default is `"wallet"` (zero overhead).
 2. Cross-check the config once per chain: the GaslessLayer's `instantLayer()` must equal the chain's `instantLayerAddress`, or the relay refuses with `GASLESS_CONFIG_INCOHERENT` — a mismatched pairing would produce signatures the gateway rejects.
-3. Quote the fee ([`getGaslessOperationalFeeQuote`](/core/gasless/get-gasless-fee-quote)) **before any signature prompt** (`preflightFee`, default on); `wouldBlockOnQuota` stops with `GASLESS_FEE_UNAFFORDABLE`.
-4. Read the nonce and sign, serialized per `(chainId, account)` so concurrent relays cannot collide. A user's signature rejection propagates — there is no wallet fallback for "the user said no".
-5. Submit, then wait for broadcast (bounded by `broadcastTimeoutMs`) and return the hash. Pre-acceptance failures follow the `fallback` policy; post-202 there is no fallback — see [Errors & fallback](/core/gasless/errors-and-fallback).
+3. Read the nonce and build the operations, serialized per [nonce stream](/core/gasless#nonce-streams) so concurrent relays cannot collide.
+4. Quote the batch ([`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote), every operation on wallet `0`) **before any signature prompt** (`preflightFee`, default on). The quote carries placeholder signatures, so it needs no prompt of its own:
+   - an exhausted daily free quota stops with `GASLESS_FREE_QUOTA_EXHAUSTED`, or takes the wallet path under `fallback: "wallet"`, since nothing was signed;
+   - a quote the contract rejects stops with `GASLESS_FEE_QUOTE_REVERTED`, and a GaslessLayer without the multi-wallet interface with `GASLESS_LAYER_INTERFACE_UNSUPPORTED`. Neither falls back, because the relay would fail the same way;
+   - a quote read that fails for transport reasons does **not** block. Signing proceeds, and the relayer's simulation decides.
+5. Sign. A user's signature rejection propagates — there is no wallet fallback for "the user said no".
+6. Submit, then wait for broadcast (bounded by `broadcastTimeoutMs`) and return the hash. Pre-acceptance failures follow the `fallback` policy; post-202 there is no fallback — see [Errors & fallback](/core/gasless/errors-and-fallback).
 
-Lifecycle observers get every accepted request through `execution.onEvent` (`accepted` / `broadcast` / `terminal`) — persist `requestId`s there so in-flight relays survive reloads.
+Lifecycle observers get every accepted request through `execution.onEvent` (`accepted` / `broadcast` / `terminal`) — persist it there so in-flight relays survive reloads. The `accepted` event is a `GaslessAcceptedRequest`, and carries everything needed to resume the workflow, not just the id:
+
+```ts
+execution: {
+  mode: "gasless",
+  onEvent: (event) => {
+    if (event.type !== "accepted") return;
+    // { requestId, service, chainId, protocolInstance, idempotencyKey, operationType, owner, walletIds }
+    persist(event);
+  },
+}
+```
+
+`owner` is the **billing sub-account's owner**, which is also the `userAddress` the request is tracked under — not the signing key, since a session key owns nothing. `walletIds` is one id per operation, always `0n` here: transparent writes are ordinary InstantLayer operations. Store the row under `(environment, protocolInstance, service, requestId)`; a bare request id is not enough context to reconcile it later.
 
 ## Session keys
 
@@ -86,9 +103,6 @@ Grant them with [`grantDelegation`](/core/instant-layer/grant-delegation) and `g
   <Property name="gasless.account" type="Address" optional>
     Billing sub-account override, for the margin writes when on-chain parent resolution is not wanted.
   </Property>
-  <Property name="gasless.idempotencyKey" type="string" optional>
-    Stable retry key for the relay submit.
-  </Property>
   <Property name="gasless.broadcastTimeoutMs" type="number" optional>
     Per-call broadcast wait budget.
   </Property>
@@ -96,6 +110,13 @@ Grant them with [`grantDelegation`](/core/instant-layer/grant-delegation) and `g
     Abort the broadcast wait — the accepted request keeps running server-side.
   </Property>
 </Properties>
+
+<Callout type="info">
+  There is no `gasless.idempotencyKey`: a relayed write signs a fresh operation on every call, so one key could only
+  ever describe one signature. The dispatcher mints it and puts it on the acceptance event and the receipt; replaying a
+  submit whose response was lost is [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request)'s job. See
+  [idempotency keys](/core/gasless/errors-and-fallback#idempotency-keys).
+</Callout>
 
 <Callout type="info">
   The only observable differences under gasless execution: the wallet prompt is an EIP-712 signature instead of a

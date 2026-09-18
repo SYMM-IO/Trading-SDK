@@ -20,9 +20,13 @@
  * ABI fragments
  * -------------
  * Raw viem-style `Abi` arrays for SYMMIO contracts, for consumers who call viem
- * directly (e.g. `readContract({ abi: accountLayerAbi })`).
+ * directly (e.g. `readContract({ abi: accountLayerAbi })`). The GaslessLayer and
+ * GaslessWallet ABIs are the multi-wallet generation, pinned to a perps-core
+ * commit.
  */
 export { accountLayerAbi } from "./symmio-contracts/abi/v0.8.6/account-layer";
+export { gaslessLayerAbi } from "./symmio-contracts/abi/v0.8.6/gasless-layer";
+export { gaslessWalletAbi } from "./symmio-contracts/abi/v0.8.6/gasless-wallet";
 export { instantLayerAbi } from "./symmio-contracts/abi/v0.8.6/instant-layer";
 export { symmioAbi } from "./symmio-contracts/abi/v0.8.6/symmio";
 
@@ -398,44 +402,56 @@ export {
   GASLESS_WALLET_EXECUTE_SELECTOR,
   GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR,
   GASLESS_WALLET_OPERATION_TYPES,
+  GaslessFeeSource,
   GaslessRequestStatus,
+  GaslessTransactionAttemptStatus,
+  classifyGaslessFailure,
   confirmGaslessRequest,
-  gaslessLayerAbi,
+  decodeGaslessOperationFailure,
   gaslessPollDelay,
-  gaslessWalletAbi,
   gaslessWalletExecute,
   gaslessWalletExecuteMutationOptions,
   getGaslessDepositPolicy,
   getGaslessDepositPolicyQueryKey,
   getGaslessDepositPolicyQueryOptions,
+  getGaslessFeeQuote,
+  getGaslessFeeQuoteQueryKey,
+  getGaslessFeeQuoteQueryOptions,
   getGaslessGatewayEip712Domain,
-  getGaslessOperationalFeeQuote,
-  getGaslessOperationalFeeQuoteQueryKey,
-  getGaslessOperationalFeeQuoteQueryOptions,
   getGaslessRequest,
   getGaslessRequestQueryKey,
   getGaslessRequestQueryOptions,
   getGaslessRequestTransactions,
   getGaslessRequestTransactionsQueryKey,
   getGaslessRequestTransactionsQueryOptions,
+  getGaslessUnconfirmedSubmit,
   getGaslessWalletAddress,
   getGaslessWalletAddressQueryKey,
   getGaslessWalletAddressQueryOptions,
+  getGaslessWalletCreationFee,
+  getGaslessWalletCreationFeeQueryKey,
+  getGaslessWalletCreationFeeQueryOptions,
   getGaslessWalletExecuteSelectors,
   getGaslessWalletNonce,
   getGaslessWalletNonceQueryKey,
   getGaslessWalletNonceQueryOptions,
+  getGaslessWriteRequest,
   getSessionKeySelectors,
   isConfirmedGaslessFeeLimitError,
   isConfirmedGaslessUnavailableError,
+  isGaslessFreeQuotaExhaustedError,
+  isGaslessIdempotencyConflictError,
   isGaslessRelayableSelector,
   isGaslessRequestTerminal,
+  isNewerGaslessRequest,
   parseGaslessErrorDetail,
   relayGrantDelegation,
   relayGrantDelegationMutationOptions,
   relayInstantOperations,
   relayInstantOperationsMutationOptions,
   resolveGaslessService,
+  resubmitGaslessRequest,
+  resubmitGaslessRequestMutationOptions,
   settleGaslessDepositExistingAccount,
   settleGaslessDepositExistingAccountMutationOptions,
   settleGaslessDepositNewAccount,
@@ -444,35 +460,49 @@ export {
   waitForGaslessRequest,
   type ConfirmGaslessRequestParameters,
   type ConfirmGaslessRequestReturnType,
+  type GaslessAcceptedRequest,
   type GaslessConfirmation,
   type GaslessConfirmedRequest,
   type GaslessContractRevert,
+  type GaslessDecodedOperationFailure,
   type GaslessDepositAccountData,
+  type GaslessDepositRequest,
   type GaslessDepositSubmitReceipt,
   type GaslessErrorDetail,
+  type GaslessFailedOperation,
+  type GaslessFailureReason,
+  type GaslessFeePayment,
+  type GaslessFeeQuote,
+  type GaslessFeeQuoteOperation,
+  type GaslessOperationRequest,
   type GaslessRelayEvent,
   type GaslessRequest,
+  type GaslessRequestBase,
   type GaslessRequestTransaction,
   type GaslessService,
   type GaslessSignedOperationInput,
+  type GaslessSubmitPath,
   type GaslessSubmitReceipt,
+  type GaslessUnconfirmedSubmit,
+  type GaslessValidationIssue,
   type GaslessWalletCall,
   type GaslessWalletContractCall,
   type GaslessWalletExecuteParameters,
   type GaslessWalletExecuteReturnType,
   type GaslessWalletRawCall,
+  type GaslessWriteRequest,
   type GetGaslessDepositPolicyData,
   type GetGaslessDepositPolicyOptions,
   type GetGaslessDepositPolicyParameters,
   type GetGaslessDepositPolicyQueryKey,
   type GetGaslessDepositPolicyQueryOptions,
   type GetGaslessDepositPolicyReturnType,
-  type GetGaslessOperationalFeeQuoteData,
-  type GetGaslessOperationalFeeQuoteOptions,
-  type GetGaslessOperationalFeeQuoteParameters,
-  type GetGaslessOperationalFeeQuoteQueryKey,
-  type GetGaslessOperationalFeeQuoteQueryOptions,
-  type GetGaslessOperationalFeeQuoteReturnType,
+  type GetGaslessFeeQuoteData,
+  type GetGaslessFeeQuoteOptions,
+  type GetGaslessFeeQuoteParameters,
+  type GetGaslessFeeQuoteQueryKey,
+  type GetGaslessFeeQuoteQueryOptions,
+  type GetGaslessFeeQuoteReturnType,
   type GetGaslessRequestData,
   type GetGaslessRequestOptions,
   type GetGaslessRequestParameters,
@@ -491,6 +521,12 @@ export {
   type GetGaslessWalletAddressQueryKey,
   type GetGaslessWalletAddressQueryOptions,
   type GetGaslessWalletAddressReturnType,
+  type GetGaslessWalletCreationFeeData,
+  type GetGaslessWalletCreationFeeOptions,
+  type GetGaslessWalletCreationFeeParameters,
+  type GetGaslessWalletCreationFeeQueryKey,
+  type GetGaslessWalletCreationFeeQueryOptions,
+  type GetGaslessWalletCreationFeeReturnType,
   type GetGaslessWalletNonceData,
   type GetGaslessWalletNonceOptions,
   type GetGaslessWalletNonceParameters,
@@ -503,6 +539,8 @@ export {
   type RelayInstantOperationsParameters,
   type RelayInstantOperationsReturnType,
   type ResolveGaslessServiceParameters,
+  type ResubmitGaslessRequestParameters,
+  type ResubmitGaslessRequestReturnType,
   type SessionKeySelectorScope,
   type SettleGaslessDepositExistingAccountParameters,
   type SettleGaslessDepositExistingAccountReturnType,
@@ -789,6 +827,7 @@ export {
   type SymmioContractsVersion,
   type SymmioEnigmaNotificationsConfig,
   type SymmioGaslessConfig,
+  type SymmioGaslessStatusStreamConfig,
   type SymmioInventoryConfig,
   type SymmioListingConfig,
   type SymmioMuonConfig,
@@ -905,6 +944,29 @@ export type { SocketStatus } from "./websocket/socket";
  * message; watchers sharing the same `wsUrl` share one socket, and a per-watcher
  * `names` filter is applied after parsing so filters never starve siblings.
  */
+/**
+ * GasLessQ status stream
+ *
+ * `watchGaslessRequest` subscribes to one relayer workflow over the gateway's
+ * status WebSocket: the subscribe snapshot, then every stored change, each
+ * carrying complete state. It opens a socket and nothing else — the stream is
+ * optional and off unless a deployment sets `gasless.statusStream.enabled`, so
+ * pair it with the polling read (`getGaslessRequestQueryOptions`) and poll
+ * whenever `onStatusChange` reports anything but `"live"`. Ask
+ * `supportsGaslessStatusStream` first to skip the attempt entirely on a
+ * deployment that cannot stream.
+ */
+export { type GaslessStatusTransport } from "./gasless/observe-gasless-request";
+export {
+  supportsGaslessStatusStream,
+  watchGaslessRequest,
+  type GaslessRequestStreamUpdate,
+  type GaslessStreamStatus,
+  type GaslessStreamStatusDetail,
+  type UnwatchGaslessRequest,
+  type WatchGaslessRequestParameters,
+} from "./websocket/gasless";
+
 export {
   parseBinancePriceFrame,
   parsePriceFrame,
@@ -1512,8 +1574,9 @@ export {
 /**
  * Shared types & query helpers
  * ----------------------------
- * Parameter-helper types (mirroring wagmi's conventions) and the query-key
- * filter used by the options factories.
+ * Parameter-helper types (mirroring wagmi's conventions), the query-key filter
+ * used by the options factories, and value helpers for prices, percents and
+ * collateral ↔ 18-decimal Core unit conversion.
  */
 export type {
   ChainIdParameter,
@@ -1531,6 +1594,7 @@ export type {
   WriteSolverParameter,
 } from "./shared/types/properties";
 export type { QueryParameter, SymmioQueryOptions } from "./shared/types/query";
+export { collateralToCore18, core18ToCollateral, type Core18ToCollateralOptions } from "./shared/utils/core-units";
 export { sharePercent } from "./shared/utils/percent";
 export { decimalPriceToWei } from "./shared/utils/price";
 export { filterQueryOptions } from "./shared/utils/query";

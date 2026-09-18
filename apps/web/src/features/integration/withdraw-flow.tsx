@@ -31,6 +31,16 @@ import type { FlowStep } from "./flow-rail";
 import { parseAmount } from "./parse-amount";
 import { SubaccountStep } from "./subaccount-step";
 
+/**
+ * Relay outcomes that mean "submitted, status unknown" rather than "failed":
+ * the wait ran out of budget, or the submit itself was never confirmed.
+ */
+const PENDING_RELAY_CODES = [
+  "GASLESS_SUBMIT_UNCONFIRMED",
+  "GASLESS_TERMINAL_TIMEOUT",
+  "GASLESS_BROADCAST_TIMEOUT",
+] as const;
+
 interface Props {
   owner?: Address;
   subAccount?: Address;
@@ -63,6 +73,7 @@ export function WithdrawFlow({
 
   const withdrawableTime = useWithdrawableTime({ user: subAccount });
   const withdraw = useWithdraw({ account: subAccount, chainId });
+
   /** The session key when the wallet menu's default is on; the CUSTOM path's deallocate leg rides along. */
   const initiateWrite = useFlowWriteOption("initiateWithdraw");
 
@@ -232,6 +243,20 @@ function InitiateStatus({
     );
   }
   if (withdraw.error) {
+    /**
+     * A relay whose status we lost is not a failed withdrawal: the request may
+     * be executing right now. Rendering it as an error is what invites a second
+     * signature for an intent that already went through.
+     */
+    const pendingCode = PENDING_RELAY_CODES.find((code) => withdraw.error?.message.includes(code));
+    if (pendingCode) {
+      return (
+        <ResultNote testId="integration-withdraw-status">
+          The withdrawal was submitted, but its status is unavailable right now ({pendingCode}). It keeps running on the
+          relayer — check the request on the Gasless page before submitting again; do not re-sign.
+        </ResultNote>
+      );
+    }
     return (
       <ResultError testId="integration-withdraw-status" kind={withdraw.error.kind} message={withdraw.error.message} />
     );

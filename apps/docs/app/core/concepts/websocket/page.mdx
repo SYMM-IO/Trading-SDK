@@ -1,8 +1,8 @@
 # WebSocket streams
 
-Every live stream in `@symmio/trading-core` — solver notifications, TP/SL reports, Enigma price ticks — shares one connection model: a reconnecting socket wrapped in a per-config pool.
+Every live stream in `@symmio/trading-core` — solver notifications, TP/SL reports, price ticks, Binance candles and order-book depth — connects and reconnects the same way. The notification, TP/SL and price streams also share connections through a per-config pool; the Binance kline and depth watchers open one connection per call (see [Connection pool](#connection-pool)).
 
-Consumers never see the socket directly. They call a `watchXyz(config, params)` action that returns an idempotent disposer; the SDK deduplicates connections, reconnects on drops, and forwards parsed frames to every subscriber.
+Consumers never see the socket directly. They call a `watchXyz` action that returns an idempotent disposer. The SDK reconnects on drops, re-subscribes on every open, and forwards parsed frames to your handlers; for the pooled streams it also deduplicates connections, so subscribers to the same stream share one socket.
 
 ## Import
 
@@ -19,35 +19,42 @@ import {
 
 ## Watcher signature
 
-Every streaming action follows the same shape:
+The pooled streaming actions share one shape. The frame handler is named for what it delivers: `onNotification` on the notification and TP/SL streams, `onPrices` on the price streams.
 
 ```ts
 type Watch<Params, Frame> = (
   config: Config,
   parameters: Params & {
-    onNotification?: (frame: Frame) => void;
+    onNotification: (frame: Frame) => void;
     onStatusChange?: (status: SocketStatus) => void;
     onError?: (error: SymmError) => void;
   },
 ) => () => void;
 ```
 
+The Binance kline and depth watchers take no `config`: they read `wsUrl` and `webSocketConstructor` from their parameters and deliver frames through `onCandle` and `onOrderbook`.
+
 The returned disposer is idempotent — calling it twice is a no-op. Framework layers wire it into `useEffect` cleanup automatically.
 
 ## Connection pool
 
-`getSocketPool(config)` returns a per-config connection pool. Every `watchXyz` call goes through the pool with a stable key (typically `<wsUrl>|<channel>|<accountOrScope>`). When two subscribers ask for the same key, the pool hands them the **same** underlying connection with a fanout dispatcher — one socket, N subscribers, N frames delivered per message.
+`watchNotifications`, `watchTpSlNotifications`, `watchEnigmaPrices` and `watchBinancePrices` (and `watchPrices`, which dispatches to the last two) share connections through a pool scoped to the `Config`. The pool key identifies the endpoint and, for the account streams, the account. When two subscribers ask for the same key, the pool hands them the **same** underlying connection with a fan-out dispatcher — one socket, N subscribers, every frame delivered to each.
 
-The pool ref-counts subscribers. Disposing the last one closes the socket after a grace period; a new subscription within that window reuses the still-open connection.
+Two streams connect differently:
+
+- On a Rasa solver, `watchNotifications` keeps one socket per endpoint for every watched account, and re-sends the full account list whenever it changes.
+- The Binance kline and depth watchers behind candles and the orderbook open one connection per call.
+
+Shared connections are ref-counted. Disposing the last subscriber closes the socket **immediately**; there is no grace period. A later subscription to the same key opens a new connection, so in development React StrictMode's double mount dials the connection, closes it and dials it again.
 
 ## Reconnect behavior
 
-`createReconnectingSocket` wraps the raw `WebSocket`:
+Every stream is built on one internal reconnecting-socket primitive:
 
-- Exponential-backoff reconnect on drops (starting ~500 ms, capped ~15 s).
-- Emits `SocketStatus` transitions (`"connecting"` → `"open"` → `"reconnecting"` → `"closing"` → `"closed"`).
-- Replays any queue of `getOpenMessages()` — the subscribe frames — on every fresh open, so a reconnect re-subscribes automatically.
-- Surfaces parse and transport errors on `onError` without closing the subscription.
+- **Any close you did not ask for is redialed.** The close code is not inspected, so a clean server-side close (Binance rotates connections every 24 hours) reconnects like a dropped connection.
+- **Backoff is exponential with jitter.** The wait before a retry starts at 500 ms and doubles with each consecutive retry, capped at 10 s. Each wait is then scaled by a random factor between 0.5 and 1, so clients that dropped together do not redial together. Retries never stop on their own, and the backoff resets after every successful open.
+- **Subscriptions survive reconnects.** The subscribe frames are re-sent on every open, so a reconnect re-subscribes without any action from you. Frames missed while the connection was down are not replayed; refetch on reopen if a gap matters.
+- **Disposing the last subscriber is final.** It cancels any pending retry and nothing redials, even when you dispose from inside your own `onStatusChange` handler. No frame reaches a disposed watcher's frame handler, even while its connection is still closing.
 
 ## `SocketStatus`
 
@@ -55,7 +62,18 @@ The pool ref-counts subscribers. Disposing the last one closes the socket after 
 type SocketStatus = "connecting" | "open" | "reconnecting" | "closing" | "closed";
 ```
 
-Fires once on subscribe and every time the underlying socket transitions. A brief `"reconnecting"` → `"open"` bounce is normal on network flap; only sustained `"closed"` (with an error on `onError`) is a real failure.
+- `"connecting"` — dialing, on the first connect and again when each backoff wait ends.
+- `"open"` — connected; frames flow.
+- `"reconnecting"` — the connection dropped, or a dial failed, and a retry is waiting out its backoff.
+- `"closing"` → `"closed"` — the connection is shutting down for good.
+
+Pooled watchers report the current status as soon as you subscribe; every watcher reports each transition after that. A `"reconnecting"` → `"connecting"` → `"open"` cycle is normal on a network flap. Retries never stop on their own, so `"closed"` only follows a dispose, and no single status marks an outage:
+
+- A dial that fails switches between `"reconnecting"` and `"connecting"` on every retry, and no backoff wait lasts longer than 10 s.
+- A dial that hangs stays in `"connecting"`. The SDK sets no dial timeout, so it lasts until the WebSocket implementation gives up.
+- A server that closes each connection right after accepting it passes through `"open"` every time, and is redialed within 250–500 ms because each open resets the backoff.
+
+To detect an outage, watch for a stream that has not reached `"open"` for longer than you can tolerate — counting from when you subscribed if it never opened — or that keeps dropping right after it opens. Time spent in any one status tells you neither.
 
 ## Bring your own WebSocket
 
@@ -65,7 +83,7 @@ For older Node runtimes:
 
 ```ts
 import { WebSocket as NodeWebSocket } from "ws";
-import { createConfig } from "@symmio/trading-core";
+import { createConfig, SymmioSupportedChainId, type WebSocketConstructor } from "@symmio/trading-core";
 
 const config = createConfig({
   symmioConfig: {
@@ -76,7 +94,7 @@ const config = createConfig({
 });
 ```
 
-`WebSocketLike` is the minimal subset the SDK needs (`send`, `close`, `addEventListener`, `readyState`, `CONNECTING` / `OPEN` / `CLOSING` / `CLOSED` constants). Anything spec-compliant works.
+`WebSocketLike` is the minimal subset the SDK drives: `readyState`, `send(data)`, `close(code?, reason?)`, and the `onopen` / `onclose` / `onmessage` / `onerror` handler properties. The SDK assigns those handlers and never calls `addEventListener`. It compares `readyState` against the standard numbers (0–3), so the `CONNECTING` / `OPEN` constants are not needed. The browser `WebSocket`, Node's global `WebSocket` and the `ws` package all fit.
 
 ## Error handling
 
@@ -86,9 +104,20 @@ const config = createConfig({
 - Parse failures (unknown frame shape) surface with the raw payload on `cause`.
 - Errors do **not** stop the subscription. The pool keeps the connection open and continues delivering good frames.
 
+## The GasLessQ status stream is different
+
+Every stream above is broadcast-only: connect, receive, filter client-side. The relayer's status WebSocket is a **command protocol**, so its watcher — [`watchGaslessRequest`](../../gasless/watch-gasless-request) — layers a few rules on the same socket primitives:
+
+- **It is opt-in per deployment.** The gateway serves it per protocol instance and keeps it disabled until operators enable it, so the SDK dials only when `gasless.statusStream.enabled` says so, and `supportsGaslessStatusStream` answers before you subscribe.
+- **Nothing is sent before `ready`.** The gateway greets each connection with `{"type":"ready","protocol_instance":…,"max_subscriptions":…}`; commands wait for it, and every later frame is checked against the configured instance.
+- **Commands are paced and single-flight**, because subscribe/unsubscribe share the caller's request quota — unlike a broadcast feed, which costs nothing after the handshake.
+- **Close codes carry policy.** Capacity and not-ready codes reconnect with backoff; `1008`, `1009`, `4001`, `4003` and `4004` stop the stream for the config instead of retrying into a wall.
+- **HTTP polling is the fallback**, and it is always available: the stream never becomes the only way to read a workflow.
+
 ## Related
 
-- [Notifications stream](../../notifications/stream) — solver events.
+- [Notifications stream](../../notifications/watch-notifications) — solver events.
+- [GasLessQ status stream](../../gasless/watch-gasless-request) — relayer workflow status.
 - [TP/SL WebSocket](../../tpsl) — conditional-order reports.
 - [Price service](../../price-service) — Enigma price ticks.
 - [Config](../config) — `webSocketConstructor` override.

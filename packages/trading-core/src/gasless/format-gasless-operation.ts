@@ -3,14 +3,19 @@ import type { SignedOperation } from "../solvers/instant-open/shared/types";
 import type { GaslessWireSignedOperation } from "./wire-types";
 
 /**
- * Convert a `bigint` field to the JSON **number** the GaslessQ wire format
- * requires, refusing values outside the safe-integer range.
+ * Convert a `bigint` field to a JSON **number** for the GaslessQ wire format,
+ * refusing values outside the safe-integer range.
  *
- * The service schema types `nonce`, `deadline`, `maxUses`, and flex-field
- * offsets as integers — decimal strings are rejected. Every value the SDK puts
- * in these fields (sequential nonces, unix-second deadlines, `maxUses: 1`,
- * calldata byte offsets) fits comfortably below `2^53`; anything larger is a
- * bug worth failing loudly on rather than silently truncating.
+ * The service schema types `replayAttackHeader.nonce` and `deadline`,
+ * `maxUses`, and the flex-field `offset` and `length` as integers, so the SDK
+ * sends numbers. The vendor guide says the API also accepts
+ * `replayAttackHeader.nonce` and `deadline` as decimal strings, but a number
+ * is valid under both the guide and the schema. Wallet IDs are different:
+ * they travel as decimal strings (`toGaslessWalletIdWire`) and never pass
+ * through here. Every value the SDK puts in these fields (sequential nonces,
+ * unix-second deadlines, `maxUses: 1`, calldata byte offsets) fits comfortably
+ * below `2^53`; anything larger is a bug worth failing loudly on rather than
+ * silently truncating.
  *
  * @throws {SymmError} `GASLESS_VALUE_UNSAFE` outside `[0, Number.MAX_SAFE_INTEGER]`.
  *

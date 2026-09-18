@@ -5,6 +5,7 @@ import type { GaslessExecutionConfig } from "../../core/chains/types";
 import { createConfig, type Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import { TEST_GASLESS } from "../test/config";
+import { operationRequestFixture } from "../test/records";
 import { GaslessRequestStatus, type GaslessRequest } from "../types";
 
 const waitForGaslessRequest = vi.hoisted(() => vi.fn());
@@ -17,15 +18,7 @@ const CHAIN = SymmioSupportedChainId.ARBITRUM;
 const TX_HASH = `0x${"ab".repeat(32)}` as const;
 
 function record(status: GaslessRequestStatus, txHash: GaslessRequest["txHash"] = TX_HASH): GaslessRequest {
-  return {
-    requestId: "req-1",
-    status,
-    txHash,
-    errorCode: null,
-    errorMessage: null,
-    operationType: "grantDelegation",
-    idempotencyKey: null,
-  };
+  return operationRequestFixture({ status, txHash });
 }
 
 function buildConfig(overrides?: { execution?: GaslessExecutionConfig }): {

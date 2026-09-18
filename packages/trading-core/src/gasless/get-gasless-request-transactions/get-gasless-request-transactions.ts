@@ -1,6 +1,7 @@
 import type { Config } from "../../core/config";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { gaslessGet, resolveGaslessHttp } from "../http";
+import { acquireGaslessStatusRead } from "../status-read-limiter";
 import type { GaslessRequestTransaction, GaslessService } from "../types";
 import type { GaslessWireTransactionAttempt } from "../wire-types";
 import { toGaslessRequestTransaction } from "./to-gasless-request-transaction";
@@ -14,6 +15,8 @@ export type GetGaslessRequestTransactionsParameters = Compute<
     requestId: string;
     /** Which sub-service stores the request. Defaults to `"operations"`. */
     service?: GaslessService;
+    /** Cancel the read in flight — the React hook passes TanStack's query signal. */
+    signal?: AbortSignal;
   }
 >;
 
@@ -33,6 +36,8 @@ export type GetGaslessRequestTransactionsReturnType = readonly GaslessRequestTra
  * @returns The stored attempts, oldest first as the service returns them.
  * @throws {SymmError} `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`.
  * @throws {SymmApiError} `GASLESS_TRANSACTIONS_FETCH_FAILED` on HTTP failure.
+ * @throws {SymmError} `GASLESS_ATTEMPT_STATUS_UNKNOWN` when the service reports
+ *   an attempt status outside {@link GaslessTransactionAttemptStatus}.
  *
  * @example
  * ```ts
@@ -44,13 +49,17 @@ export async function getGaslessRequestTransactions(
   config: Config,
   parameters: GetGaslessRequestTransactionsParameters,
 ): Promise<GetGaslessRequestTransactionsReturnType> {
-  const { chainId, requestId, service = "operations" } = parameters;
+  const { chainId, requestId, service = "operations", signal } = parameters;
   const context = resolveGaslessHttp(config, { chainId, service });
+
+  /** Shares the status-read budget: the attempts list is polled beside the record it belongs to. */
+  await acquireGaslessStatusRead(config, context, { signal });
 
   const raw = await gaslessGet<GaslessWireTransactionAttempt[]>(
     context,
     `/${encodeURIComponent(requestId)}/transactions`,
     "GASLESS_TRANSACTIONS_FETCH_FAILED",
+    { signal },
   );
   return raw.map(toGaslessRequestTransaction);
 }

@@ -14,7 +14,6 @@ import {
   useSymmioConfig,
   useUserSubAccounts,
 } from "@symmio/trading-react";
-import { Badge } from "@symmio/ui/components/badge";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
@@ -166,10 +165,7 @@ function SubAccountOption({ address, name, isolationType, active, onSelect }: Su
         <span className="text-muted-foreground font-mono text-[0.7rem] leading-tight">{shortenAddress(address)}</span>
       </span>
       <span className="flex flex-col items-end justify-between gap-1 self-stretch">
-        <span className="flex flex-col items-end gap-1">
-          <BalanceLabel balance={balance} testId={`subaccount-${address}-balance`} />
-          {active ? <Badge variant="positive">Selected</Badge> : null}
-        </span>
+        <BalanceLabel balance={balance} testId={`subaccount-${address}-balance`} />
         {/* Pinned to the card's bottom-right corner. */}
         <UpnlLabel
           upnl={accountUpnl.upnl}

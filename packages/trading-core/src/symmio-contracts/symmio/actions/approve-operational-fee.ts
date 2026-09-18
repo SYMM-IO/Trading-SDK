@@ -28,18 +28,30 @@ export type ApproveOperationalFeeParameters = Compute<
       account: Address;
       /**
        * The fee chargers to approve. Defaults to the chain's
-       * `gasless.gaslessLayerAddress` (the one charger that exists today).
+       * `gasless.gaslessLayerAddress` — the GaslessLayer **proxy**, which is
+       * the charger for relayed operations. Never the relayer's executor
+       * address.
        */
       chargers?: readonly Address[];
       /**
-       * Allowance per charger (raw collateral units, parallel to `chargers`).
-       * Use `maxUint256` for "unlimited". **Reducing** an existing allowance is
-       * delayed on-chain — the old value keeps applying until `reductionReadyAt`.
+       * Allowance per charger, parallel to `chargers`, in **18-decimal Core
+       * units** — the scale of the Core balance the fee is drawn from, not the
+       * collateral token's decimals. `parseUnits("5", 18)` is a budget of 5
+       * collateral tokens; `collateralToCore18` converts a token amount.
+       *
+       * Each value **replaces** the current allowance (ERC-20 `approve`
+       * style, not an increment), and every charge decrements it. Choose a
+       * bounded budget for the operations you intend to relay rather than
+       * `maxUint256`. A raise applies immediately; a **reduction** can be
+       * timelocked on-chain, in which case the old value keeps applying until
+       * `reductionReadyAt`.
        */
       amounts: readonly bigint[];
       /**
        * Fee multiplier per charger in basis points; `10000n` = list price.
-       * Defaults to {@link OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER} for every charger.
+       * Defaults to {@link OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER} for every
+       * charger. The call always sets the multiplier, so omitting this resets
+       * a previously set one to list price.
        */
       feeMultipliers?: readonly bigint[];
     }
@@ -52,11 +64,17 @@ export type ApproveOperationalFeeReturnType = Hash;
  * Approve operational-fee allowances (`approveOperationalFeeWithMultiplier`)
  * for the gasless fee charger, as the paying sub-account.
  *
- * The gasless gateway can only charge a payer up to this allowance; grant it
- * **before** relying on gasless execution — when the relayer itself is down,
+ * The GaslessLayer proxy can only charge a payer up to this allowance, so grant
+ * it **before** relying on gasless execution. When the relayer itself is down,
  * this wallet-paid path (via `AccountLayer._call`) is the only way to grant it.
  * The approval is also itself relayable: pass `gasless: true` once the
  * transparent gasless mode is active to have the relayer submit it.
+ *
+ * Amounts are **18-decimal Core units**. Approving only permits the charge — it
+ * does not add collateral, and the fee is still drawn from the payer's Core
+ * balance. Whatever its allowance, a payer short of balance fails with
+ * `OperationalFee: Insufficient balance`. Read the allowance back with
+ * `getOperationalFeeAllowance` after the transaction lands, before relying on it.
  *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
  * @param parameters - Paying sub-account, chargers/amounts/multipliers, write options.
@@ -67,9 +85,12 @@ export type ApproveOperationalFeeReturnType = Hash;
  *
  * @example
  * ```ts
+ * import { parseUnits } from "viem";
+ *
+ * // A bounded fee budget of 5 collateral tokens, in 18-decimal Core units.
  * const hash = await approveOperationalFee(config, {
  *   account: subAccount,
- *   amounts: [maxUint256],
+ *   amounts: [parseUnits("5", 18)],
  * });
  * ```
  */

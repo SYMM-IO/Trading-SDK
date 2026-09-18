@@ -1,0 +1,133 @@
+import { Callout } from "nextra/components";
+
+# watchGaslessRequest
+
+Follow one relayer workflow over the gateway's status WebSocket: the subscribe snapshot, then every stored change, each carrying complete state.
+
+```ts
+import { watchGaslessRequest } from "@symmio/trading-core";
+
+const unwatch = watchGaslessRequest(config, {
+  requestId,
+  onUpdate: ({ request, transactions }) => render(request, transactions),
+  onStatusChange: (status) => setPolling(status !== "live"),
+});
+```
+
+<Callout type="warning">
+  **It opens a socket and nothing else.** The stream is optional and off unless a deployment declares
+  `gasless.statusStream.enabled`, so pair it with the polling read and poll whenever the status is not `"live"`. In
+  React, [`useGaslessRequest`](/react/gasless) already does both — reach for this only in a non-React layer or a custom
+  status manager.
+</Callout>
+
+## Availability
+
+The gateway serves status WebSockets per protocol instance, disabled by default, and a staging confirmation does not cover production. Declare it per deployment:
+
+```ts
+gasless: {
+  url: "https://<gateway-origin>",
+  protocolInstance: "<protocol-instance>",
+  gaslessLayerAddress: "0x…",
+  statusStream: { enabled: true },
+}
+```
+
+When HTTP goes through your own proxy, the stream still needs the gateway itself — a proxy that forwards HTTP does not necessarily forward a WebSocket upgrade, and the stream is anonymous either way:
+
+```ts
+gasless: {
+  url: "/api/gasless",
+  protocolInstance: "<protocol-instance>",
+  statusStream: { enabled: true, origin: "https://<gateway-origin>" },
+}
+```
+
+Ask [`supportsGaslessStatusStream`](#supportsgaslessstatusstream) before subscribing; it answers `false` instead of throwing when the deployment cannot stream.
+
+## Parameters
+
+<Properties>
+  <Property name="requestId" type="string" required>
+    The stable id a gasless submit returned. Prefer it over a transaction hash, which may not exist yet and can change
+    across replacement attempts.
+  </Property>
+  <Property name="service" type='"operations" | "deposits"'>
+    Which service stores the workflow. Defaults to `"operations"`. An operations stream cannot carry deposits, or
+    another instance.
+  </Property>
+  <Property name="chainId" type="number">
+    Chain override; defaults to the config's default chain.
+  </Property>
+  <Property name="onUpdate" type="(update: GaslessRequestStreamUpdate) => void" required>
+    Called with the subscribe snapshot (`kind: "snapshot"`) and every later change (`kind: "update"`). Both carry the
+    complete record and its transaction attempts, never a patch — replace your state from each one. `request` is `null`
+    only when the gateway sent a record the SDK could not normalize; the poll fallback then refetches it.
+  </Property>
+  <Property
+    name="onStatusChange"
+    type="(status: GaslessStreamStatus, detail: GaslessStreamStatusDetail | null) => void"
+  >
+    Called whenever the stream's health changes. Poll while this is anything but `"live"`.
+  </Property>
+  <Property name="onError" type="(error: SymmError) => void">
+    Called on a stream-level problem (`GASLESS_STREAM_NOT_FOUND`, `GASLESS_STREAM_INSTANCE_MISMATCH`,
+    `GASLESS_STREAM_DISABLED`, …). The subscription stays; your HTTP reads are unaffected.
+  </Property>
+</Properties>
+
+<Returns type="() => void">
+  An unwatch function. Call it on teardown; the shared socket closes shortly after its last watcher leaves.
+</Returns>
+
+## Stream status
+
+| Status         | Meaning                                                                             | Poll? |
+| -------------- | ----------------------------------------------------------------------------------- | ----- |
+| `"idle"`       | Nothing subscribed yet.                                                             | yes   |
+| `"connecting"` | Dialing, or waiting for the `ready` handshake and this workflow's snapshot.         | yes   |
+| `"live"`       | Subscribed and delivering.                                                          | no    |
+| `"degraded"`   | Temporarily not delivering — reconnecting, throttled, or over the subscription cap. | yes   |
+| `"disabled"`   | Off for this config: streams disabled, unauthorized, misrouted, or a client bug.    | yes   |
+
+`detail.reason` names the cause and `detail.detail` is one sentence naming what would change it, which is what a status badge should show.
+
+## What the SDK handles for you
+
+- **One socket per service and instance**, shared by every watcher, with subscriptions replayed after each reconnect.
+- **The `ready` handshake** is awaited before any command, and every frame is checked against the configured protocol instance — a mismatch disables the stream rather than trusting another deployment's data.
+- **Commands are paced and single-flight**, well under the gateway's 4 096-byte limit, because they share your request quota. The gateway's throttle notice requeues the command instead of tearing down the socket.
+- **Close codes decide the next move**: capacity and not-ready codes reconnect with a jittered 1 s → 30 s backoff (reset only after a snapshot), an unexplained close retries a bounded number of times, and `1008`, `1009`, `4001`, `4003` and `4004` disable the stream for the config.
+- **The accept race**: a `NOT_FOUND` right after a `202` resubscribes a few times before giving up, because the gateway does not retain a `NOT_FOUND` subscription.
+- **A terminal status unsubscribes itself**, and a lost heartbeat (about every 20 s) forces a reconnect.
+
+## supportsGaslessStatusStream
+
+```ts
+import { supportsGaslessStatusStream } from "@symmio/trading-core";
+
+if (supportsGaslessStatusStream(config, { service: "deposits" })) {
+  /* subscribe */
+}
+```
+
+<Properties>
+  <Property name="chainId" type="number">
+    Chain override; defaults to the config's default chain.
+  </Property>
+  <Property name="service" type='"operations" | "deposits"'>
+    Which service to check. Defaults to `"operations"`.
+  </Property>
+</Properties>
+
+<Returns type="boolean">
+  Whether `watchGaslessRequest` would resolve an endpoint. `false` for a chain with no gasless block, a deployment that
+  has not enabled the stream, or a proxy url with no `statusStream.origin`.
+</Returns>
+
+## Related
+
+- [`getGaslessRequest`](/core/gasless/get-gasless-request) — the polling read this pairs with
+- [`waitForGaslessRequest`](/core/gasless/wait-for-gasless-request) — awaits a terminal status, preferring the stream and polling when it is not live
+- [`useGaslessRequest`](/react/gasless) — the React hook that composes both

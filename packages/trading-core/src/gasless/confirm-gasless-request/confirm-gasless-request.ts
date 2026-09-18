@@ -3,6 +3,7 @@ import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { fireGaslessEvent, toGaslessRecordBody } from "../events";
+import type { GaslessStatusTransport } from "../observe-gasless-request";
 import { resolveGaslessService } from "../resolve-gasless";
 import { GaslessRequestStatus, type GaslessRequest, type GaslessService } from "../types";
 import { waitForGaslessRequest } from "../wait-for-gasless-request/wait-for-gasless-request";
@@ -61,6 +62,19 @@ export type ConfirmGaslessRequestParameters = Compute<
     signal?: AbortSignal;
     /** Observer invoked with every fetched record, including the final one. */
     onUpdate?: (request: GaslessRequest) => void;
+    /**
+     * Observer invoked for every transient read failure the status wait
+     * absorbed — see {@link waitForGaslessRequest}.
+     * It means the status is temporarily unreadable, never that the request
+     * failed.
+     */
+    onTransportIssue?: (error: SymmError) => void;
+    /**
+     * How to follow the workflow: `"auto"` (default) prefers the gateway's
+     * status stream where the deployment enables it and polls while it is not
+     * delivering; `"poll"` forces HTTP polling. The outcome is identical.
+     */
+    transport?: GaslessStatusTransport;
   }
 >;
 
@@ -88,7 +102,10 @@ export type ConfirmGaslessRequestReturnType = GaslessConfirmedRequest;
  * absent rather than throwing — turning a succeeded action into an error
  * because a public RPC lagged would be a worse bug than the one being fixed.
  *
- * Never re-submits: a 202 is the point of no return.
+ * Transient read failures are absorbed by the status wait underneath, not
+ * reported as failures — subscribe to `onTransportIssue` to show "status
+ * unavailable" while they last. Never re-submits: a 202 is the point of no
+ * return.
  *
  * @param config - The SDK config.
  * @param parameters - Request id, how far to follow it, and the budgets.
@@ -120,6 +137,8 @@ export async function confirmGaslessRequest(
     receiptTimeoutMs = GASLESS_RECEIPT_TIMEOUT_MS,
     signal,
     onUpdate,
+    onTransportIssue,
+    transport,
   } = parameters;
 
   const gasless = resolveGaslessService(config, { chainId });
@@ -135,6 +154,8 @@ export async function confirmGaslessRequest(
     submittedPollMs: parameters.submittedPollMs,
     signal,
     onUpdate,
+    onTransportIssue,
+    transport,
   });
 
   fireGaslessEvent(events, {
