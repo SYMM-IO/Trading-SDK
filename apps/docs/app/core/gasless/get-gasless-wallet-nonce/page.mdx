@@ -1,21 +1,39 @@
 # getGaslessWalletNonce
 
-Read the GaslessLayer's **wallet-operation** replay nonce for an account — the counter behind [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) signatures.
+Read the GaslessLayer's **wallet-operation** replay nonce — `walletOperationNonces(owner, walletId, signerAccount)`, the counter behind [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) signatures.
 
 ```ts
 import { getGaslessWalletNonce } from "@symmio/trading-core";
 
-const current = await getGaslessWalletNonce(config, { account: owner });
+const current = await getGaslessWalletNonce(config, { owner, walletId: 2n, account: subAccount });
 // a wallet operation signs with current + 1n
 ```
 
-This is a **separate counter** from the InstantLayer's operation nonces ([`getInstantLayerNonce`](/core/instant-layer/get-instant-layer-nonce)) — the two are not interchangeable. Like every gasless nonce it is sequential: sign with `nonce + 1`, read immediately before signing, and never build two operations from one read. `gaslessWalletExecute` does all of this internally; reach for the raw read only when assembling wallet operations yourself.
+This is a **separate counter** from the InstantLayer's operation nonces ([`getInstantLayerNonce`](/core/instant-layer/get-instant-layer-nonce)) — the two are not interchangeable. The value is the last nonce the wallet consumed for that signer account. Like every gasless nonce it is sequential: sign with `nonce + 1`, read immediately before signing, and never build two operations from one read. `gaslessWalletExecute` does all of this internally; reach for the raw read only when assembling wallet operations yourself.
+
+## One stream per wallet and signer account
+
+Every `(walletId, account)` pair is its own nonce stream:
+
+- **Wallet `0`** keeps the original counter, keyed by the signer account alone, so it carries on from signatures made before the multi-wallet upgrade. `owner` does not change the value.
+- **Each positive id** counts separately for its own wallet address. A nonce consumed on wallet `2` never advances wallet `0` or wallet `1`.
+
+`account` is the operation's `signerAccount.addr`: the owner itself for an owner-signed call, or the sub-account a session key signs for. A sub-account therefore has its own counter, separate from the owner's.
 
 ## Parameters
 
 <Properties>
+  <Property name="owner" type="Address" required>
+    The owner the wallet belongs to: `account` itself for an owner-signed call, otherwise the owner of the sub-account
+    (or of a virtual account's parent). Pass the owner's address, never a GaslessWallet address. For a positive
+    `walletId` it selects whose wallet the stream belongs to; wallet `0`'s value does not depend on it.
+  </Property>
+  <Property name="walletId" type="bigint" optional default="0n">
+    Which of the owner's wallets the operation executes from, from `0n` through `2^256 - 1`. `0n` is the original
+    wallet.
+  </Property>
   <Property name="account" type="Address" required>
-    The account whose wallet-operation nonce to read (the owner wallet).
+    The signer account the nonce is keyed under — the operation's `signerAccount.addr`.
   </Property>
   <Property name="chainId" type="number" optional>
     Target chain id. Defaults to the config's `defaultChainId`.
@@ -24,9 +42,23 @@ This is a **separate counter** from the InstantLayer's operation nonces ([`getIn
 
 ## Returns
 
-<Returns type="Promise<bigint>">The current on-chain wallet-operation nonce. Sign with `nonce + 1n`.</Returns>
+<Returns type="Promise<bigint>">
+  The last wallet-operation nonce consumed on this stream. Sign with `nonce + 1n`.
+</Returns>
+
+## Query options
+
+```ts
+import { getGaslessWalletNonceQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getGaslessWalletNonceQueryOptions(config, { owner, walletId: 2n, account: subAccount }));
+```
+
+An omitted `walletId` keys the same as `0n`. Use the query to display a wallet's state, never to sign from a cached value. React consumers use [`useGaslessWalletNonce`](/react/gasless#usegaslesswalletnonce), which `useGaslessWalletExecute` invalidates once an operation lands.
 
 ## Throws
 
+- `SymmError("validation", "GASLESS_WALLET_ID_INVALID")` — `walletId` is not a `bigint` from `0n` through `2^256 - 1` (a JavaScript `number` included). Thrown before any RPC call.
 - `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
-- Viem read errors.
+- Viem read errors. A GaslessLayer that has not been upgraded to the multi-wallet interface reverts with empty data.

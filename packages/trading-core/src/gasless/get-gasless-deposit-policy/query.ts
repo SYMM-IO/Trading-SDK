@@ -14,13 +14,25 @@ export type GetGaslessDepositPolicyData = GetGaslessDepositPolicyReturnType;
 /**
  * Build the TanStack Query key for {@link getGaslessDepositPolicyQueryOptions}.
  *
+ * An omitted `walletId` keys as `0n`, so `{ owner }` and `{ owner, walletId: 0n }`
+ * share one cache entry — they read the same wallet's policy. `predicateMatch`
+ * compares only the fields its partial sets, so
+ * `predicateMatch(getGaslessDepositPolicyQueryKey, { owner })` still matches every
+ * wallet id of the owner.
+ *
  * @param options - Partial query parameters.
  * @returns A stable, hashable query key.
+ *
+ * @example
+ * ```ts
+ * getGaslessDepositPolicyQueryKey({ owner });
+ * // → ["getGaslessDepositPolicy", { owner, walletId: "0" }]
+ * ```
  */
 export function getGaslessDepositPolicyQueryKey(
   options: Compute<ExactPartial<GetGaslessDepositPolicyParameters> & ConfigKeyParameter> = {},
 ) {
-  return ["getGaslessDepositPolicy", filterQueryOptions(options)] as const;
+  return ["getGaslessDepositPolicy", filterQueryOptions({ ...options, walletId: options.walletId ?? 0n })] as const;
 }
 
 /** Query-key type produced by {@link getGaslessDepositPolicyQueryKey}. */
@@ -45,26 +57,32 @@ export type GetGaslessDepositPolicyQueryOptions = SymmioQueryOptions<
 /**
  * Build TanStack Query options for {@link getGaslessDepositPolicy}.
  *
+ * The policy carries the wallet's creation fee, which drops to `0n` once any
+ * action deploys the wallet, so invalidate this query after a settlement or
+ * wallet operation — the React relay hooks do.
+ *
  * @param config - The SDK config.
  * @param options - Query parameters and TanStack overrides.
  * @returns Options to pass to `useQuery` / `queryClient.fetchQuery`.
  *
  * @example
  * ```ts
- * useQuery(getGaslessDepositPolicyQueryOptions(config, { owner }));
+ * useQuery(getGaslessDepositPolicyQueryOptions(config, { owner, walletId: 1n }));
  * ```
  */
 export function getGaslessDepositPolicyQueryOptions(
   config: Config,
   options: GetGaslessDepositPolicyOptions,
 ): GetGaslessDepositPolicyQueryOptions {
+  /** Every parameter reaches the action: a hand-listed subset would silently drop a new one, such as `walletId`. */
+  const { query, ...parameters } = options;
   return {
-    ...options.query,
-    queryKey: getGaslessDepositPolicyQueryKey({ ...options, configKey: config.getChainConfigKey(options.chainId) }),
-    enabled: options.query?.enabled ?? true,
-    queryFn: () => {
-      const { chainId, owner } = options;
-      return getGaslessDepositPolicy(config, { chainId, owner });
-    },
+    ...query,
+    queryKey: getGaslessDepositPolicyQueryKey({
+      ...parameters,
+      configKey: config.getChainConfigKey(parameters.chainId),
+    }),
+    enabled: query?.enabled ?? true,
+    queryFn: () => getGaslessDepositPolicy(config, parameters),
   };
 }

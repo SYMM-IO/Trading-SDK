@@ -1,11 +1,13 @@
 import type {
   ConfigParameter,
+  GaslessAcceptedRequest,
   GaslessConfirmation,
   GaslessConfirmedRequest,
   GaslessRequest,
   GaslessRequestStatus,
 } from "@symmio/trading-core";
 import type { Hash } from "viem";
+import type { SymmioRequestError } from "../errors/symmio-request-error";
 
 /**
  * Confirmation options shared by every explicit relay hook — the gasless
@@ -45,6 +47,22 @@ export interface GaslessRelayParameters extends ConfigParameter {
   abortOnUnmount?: boolean;
   /** Observer for every polled record — the imperative form of {@link GaslessRelayProgress}. */
   onProgress?: (request: GaslessRequest) => void;
+  /**
+   * Observer invoked the moment the service accepts the request — before any
+   * confirmation, and before the `confirmation: "none"` early return.
+   *
+   * This is the persistence hook. There is no list-by-wallet endpoint, so a
+   * request id that never left memory is unrecoverable: a reload, a crash or a
+   * closed tab loses the only handle on a workflow that keeps running and will
+   * spend the user's collateral. Persist `{ service, protocolInstance,
+   * requestId, owner, walletIds, idempotencyKey }` here, not in `onSuccess`,
+   * which does not run until the relay has landed — or never, if the wait
+   * times out.
+   *
+   * Its own failures are swallowed: a broken observer must not fail a relay
+   * that the service has already accepted.
+   */
+  onAccepted?: (accepted: GaslessAcceptedRequest) => void;
 }
 
 /**
@@ -70,15 +88,38 @@ export interface GaslessRelayResult<accepted> {
  * exposes the lifecycle without making every consumer mount a second hook.
  */
 export interface GaslessRelayProgress {
-  /** Coarse phase, suitable for driving a label or a spinner. */
-  phase: "idle" | "submitting" | "queued" | "submitted" | "awaiting-receipt" | "confirmed" | "error";
+  /**
+   * Coarse phase, suitable for driving a label or a spinner.
+   *
+   * `"unconfirmed"` is the one that needs a deliberate UI: the wait ran out of
+   * budget, so the relay's outcome is **unknown**, not failed. The request is
+   * still running server-side — show the request id and keep watching it (the
+   * mutation itself still rejects, because it cannot report a result it does not
+   * have). Never re-run the intent through the wallet from this phase.
+   */
+  phase: "idle" | "submitting" | "queued" | "submitted" | "awaiting-receipt" | "confirmed" | "unconfirmed" | "error";
   /** Present from acceptance onward — persist it; a lost id is unrecoverable. */
   requestId?: string;
+  /**
+   * The idempotency key the request was submitted with, from acceptance onward.
+   * Persist it with the id: resending the byte-identical request under this key
+   * is what makes a lost response recoverable.
+   */
+  idempotencyKey?: string;
   /** The relayer's last reported status. */
   status?: GaslessRequestStatus;
   /** Present once the relayer broadcasts. */
   txHash?: Hash;
+  /**
+   * Whether the status is currently unreadable — a `429`, a `503`, a dropped
+   * connection. The workflow is unaffected; only our view of it is stale, so
+   * render "status unavailable" rather than anything that reads as a failure.
+   * Clears as soon as a read succeeds.
+   */
+  degraded: boolean;
+  /** The last transient read failure, while `degraded` — for diagnostics, never for a retry decision. */
+  issue?: SymmioRequestError;
 }
 
 /** The initial, nothing-in-flight progress value. */
-export const IDLE_RELAY_PROGRESS: GaslessRelayProgress = { phase: "idle" };
+export const IDLE_RELAY_PROGRESS: GaslessRelayProgress = { phase: "idle", degraded: false };

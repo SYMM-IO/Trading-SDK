@@ -7,9 +7,9 @@ import { resolveGaslessService, supportsGaslessService } from "./resolve-gasless
 
 const AFFILIATE = "0x000000000000000000000000000000000000aFF1";
 const GASLESS = {
-  url: "https://gaslessq.symmio.foundation",
-  protocolInstance: "arbitrum-42161-vibe",
-  gaslessLayerAddress: "0x8347953D80037b8d82827246f37EC7442AD188B4",
+  url: "https://gaslessq-staging.symmio.foundation",
+  protocolInstance: "arbitrum-42161-test",
+  gaslessLayerAddress: "0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca",
 } as const;
 
 function buildConfig(overrides?: Record<number, Record<string, unknown>>) {

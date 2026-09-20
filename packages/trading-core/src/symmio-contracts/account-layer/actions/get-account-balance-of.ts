@@ -13,18 +13,24 @@ export type GetAccountBalanceOfParameters = Compute<
   }
 >;
 
-/** Return type of {@link getAccountBalanceOf}: raw collateral token units. */
+/**
+ * Return type of {@link getAccountBalanceOf}: the free Core balance, in
+ * 18-decimal Core units (not the collateral token's decimals).
+ */
 export type GetAccountBalanceOfReturnType = bigint;
 
 /**
  * Read a SYMMIO account's raw deposited balance from `balanceOf`.
  *
  * Resolves the viem client and default SYMMIO core/diamond address from
- * `config`.
+ * `config`. The diamond keeps balances in **18 decimals** whatever the
+ * collateral token's decimals, so convert a token amount with
+ * `collateralToCore18` before comparing — e.g. a relayed withdrawal needs
+ * `collateralToCore18(amount, collateralDecimals)` plus its 18-decimal fee.
  *
  * @param config - The SDK config.
  * @param parameters - Account address and optional chain id.
- * @returns The raw `balanceOf(account)` value in collateral token units.
+ * @returns The raw `balanceOf(account)` value, in 18-decimal Core units.
  * @throws {SymmError} when the chain is not supported.
  * @throws Viem's `ContractFunctionExecutionError` and friends for on-chain failures.
  *

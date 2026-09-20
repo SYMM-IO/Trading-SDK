@@ -1,5 +1,5 @@
 import type { Hex } from "viem";
-import { GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR } from "../gateway/gasless-layer-abi";
+import { GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR } from "../constants";
 import { gaslessWalletCallSelector, type GaslessWalletCall } from "./calls";
 
 /**

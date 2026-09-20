@@ -24,6 +24,8 @@ interface GaslessWriteModeContextValue {
   setSessionKeyOverride: (method: string, enabled: boolean) => void;
   /** The browser-local session key, when one is loaded. */
   sessionKeyAddress?: Address;
+  /** That key's own expiry, in milliseconds — the expiry any delegation on it must match. */
+  sessionKeyExpiresAtMs?: number;
 }
 
 const GaslessWriteModeContext = createContext<GaslessWriteModeContextValue | undefined>(undefined);
@@ -54,7 +56,7 @@ export function GaslessWriteModeProvider({ children }: { children: ReactNode }) 
    * connected wallet's stored key (or mints one), which is why it runs once
    * here: read per card, a page of write cards initialized the key once per card.
    */
-  const { sessionKeyAddress } = useSessionKey();
+  const { sessionKeyAddress, state } = useSessionKey();
 
   /** Restore the persisted default after mount, so the first client render matches the server's. */
   useEffect(() => {
@@ -103,6 +105,7 @@ export function GaslessWriteModeProvider({ children }: { children: ReactNode }) 
       sessionKeyOverrides,
       setSessionKeyOverride,
       sessionKeyAddress: sessionKeyAddress ?? undefined,
+      sessionKeyExpiresAtMs: state.expiresAt ?? undefined,
     }),
     [
       relayOverrides,
@@ -112,6 +115,7 @@ export function GaslessWriteModeProvider({ children }: { children: ReactNode }) 
       sessionKeyOverrides,
       setSessionKeyOverride,
       sessionKeyAddress,
+      state.expiresAt,
     ],
   );
 
@@ -166,6 +170,7 @@ interface ResolvedWriteMode {
   /** The card's signer differs from the app-wide default. */
   sessionKeyOverridden: boolean;
   sessionKeyAddress?: Address;
+  sessionKeyExpiresAtMs?: number;
   setRelay: (enabled: boolean) => void;
   setSessionKey: (enabled: boolean) => void;
 }
@@ -198,6 +203,7 @@ function useResolvedWriteMode(
     sessionKeyOverrides,
     setSessionKeyOverride,
     sessionKeyAddress,
+    sessionKeyExpiresAtMs,
   } = ctx;
 
   const setRelay = useCallback((enabled: boolean) => setRelayOverride(method, enabled), [method, setRelayOverride]);
@@ -228,6 +234,7 @@ function useResolvedWriteMode(
     sessionKeyEnabled,
     sessionKeyOverridden: sessionKeyOverride !== undefined,
     sessionKeyAddress,
+    sessionKeyExpiresAtMs,
     setRelay,
     setSessionKey,
   };
@@ -294,6 +301,11 @@ export interface SessionKeyWriteMode {
   isOverridden: boolean;
   /** The session key's address, when one is loaded. */
   sessionKeyAddress?: Address;
+  /**
+   * The key's own expiry, in milliseconds. A delegation granted for it must use
+   * exactly this expiry, so the key and its authority can never drift apart.
+   */
+  sessionKeyExpiresAtMs?: number;
   /** Sign this card's calls with the session key (`true`) or the connected wallet (`false`). */
   setEnabled: (enabled: boolean) => void;
 }
@@ -314,7 +326,9 @@ export interface SessionKeyWriteMode {
  * pre-flights that per selector and throws a typed
  * `GASLESS_SIGNER_NOT_DELEGATED`, which is a far more useful thing to show in
  * an inspector than a control that silently disables itself. Grant the
- * selectors on the Session Keys page.
+ * selectors on the Session Keys page — except for `gaslessqWalletExecute`,
+ * whose authority is scoped to the batch on screen and is granted from the
+ * wallet-execute card itself.
  *
  * @param method - The contract method name, as shown on the card.
  * @param parameters - The card's relay block, which blocks the key as well.
@@ -335,6 +349,7 @@ export function useSessionKeyWriteMode(
     enabled: mode.sessionKeyEnabled,
     isOverridden: mode.sessionKeyOverridden,
     sessionKeyAddress: mode.sessionKeyAddress,
+    sessionKeyExpiresAtMs: mode.sessionKeyExpiresAtMs,
     setEnabled: mode.setSessionKey,
   };
 }

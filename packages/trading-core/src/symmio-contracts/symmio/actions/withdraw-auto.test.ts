@@ -1,6 +1,8 @@
-import type { Address } from "viem";
+import type { Address, PublicClient } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mockConfig, TEST_TX_HASH } from "../../../shared/test/mock-config";
+import { SymmioSupportedChainId } from "../../../core/chains";
+import { createConfig } from "../../../core/config";
+import { mockConfig, TEST_AFFILIATE_ADDRESS, TEST_TX_HASH } from "../../../shared/test/mock-config";
 import { SubAccountIsolationType } from "../../account-layer/types";
 import { withdrawAuto } from "./withdraw-auto";
 
@@ -141,5 +143,26 @@ describe("withdrawAuto", () => {
       config,
       expect.objectContaining({ speedUp: true, providerData: "0x1234", chainId: config.defaultChainId }),
     );
+  });
+
+  it("rejects collateral decimals Core cannot hold before dispatching anything", async () => {
+    const config = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: {
+        [SymmioSupportedChainId.ARBITRUM]: {
+          addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS, collateralDecimals: 19 },
+        },
+      },
+    });
+
+    await expect(
+      withdrawAuto(config, {
+        account: SUB_ACCOUNT,
+        amount: COLLATERAL_AMOUNT,
+        receiver: RECEIVER,
+        isolationType: SubAccountIsolationType.MARKET,
+      }),
+    ).rejects.toThrowError(expect.objectContaining({ code: "COLLATERAL_DECIMALS_UNSUPPORTED", kind: "validation" }));
+    expect(withdraw).not.toHaveBeenCalled();
   });
 });

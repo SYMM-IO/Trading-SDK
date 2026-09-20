@@ -5,20 +5,30 @@ import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { GaslessWriteOptions } from "../../shared/types/properties";
 import { getInstantLayerEip712Domain, signSignedOperation } from "../../solvers/instant-open/shared/eip712";
 import { buildSignedOperation } from "../../solvers/instant-open/shared/operations";
+import { gaslessLayerAbi } from "../../symmio-contracts/abi/v0.8.6/gasless-layer";
 import { getSubAccount } from "../../symmio-contracts/account-layer/actions/get-sub-account";
 import { getVirtualAccount } from "../../symmio-contracts/account-layer/actions/get-virtual-account";
 import { getInstantLayerNonce } from "../../symmio-contracts/instant-layer/actions/get-instant-layer-nonce";
 import { getIsDelegationActive } from "../../symmio-contracts/instant-layer/actions/get-is-delegation-active";
 import { fireGaslessEvent, toGaslessRecordBody } from "../events";
 import { isConfirmedGaslessFeeLimitError, isConfirmedGaslessUnavailableError } from "../fallback";
-import { gaslessLayerAbi } from "../gateway/gasless-layer-abi";
-import { getGaslessOperationalFeeQuote } from "../get-gasless-operational-fee-quote/get-gasless-operational-fee-quote";
-import { withGaslessNonceLock } from "../nonce-lock";
+import { isGaslessFreeQuotaExhaustedError } from "../get-gasless-fee-quote/fee-quote-errors";
+import { getGaslessFeeQuote } from "../get-gasless-fee-quote/get-gasless-fee-quote";
+import { generateGaslessIdempotencyKey, isGaslessAcceptedInstanceMismatchError } from "../http";
+import {
+  blocksGaslessNonceStream,
+  gaslessInstantNonceStreamKey,
+  readGaslessStreamNonce,
+  submitOnGaslessNonceStream,
+  withGaslessNonceLock,
+} from "../nonce-lock";
 import { relayInstantOperations } from "../relay-instant-operations/relay-instant-operations";
 import { GASLESS_RELAYABLE_WRITES } from "../relayable-writes";
 import { resolveGaslessService, supportsGaslessService } from "../resolve-gasless";
-import { GaslessRequestStatus } from "../types";
+import { GaslessRequestStatus, type GaslessSubmitReceipt } from "../types";
+import { getGaslessUnconfirmedSubmit, isGaslessIdempotencyConflictError } from "../unconfirmed-submit";
 import { waitForGaslessRequest } from "../wait-for-gasless-request/wait-for-gasless-request";
+import { registerGaslessWriteRequest } from "../write-request-registry";
 
 /** How long a relayed operation's signature stays valid. */
 const GASLESS_OPERATION_DEADLINE_SECONDS = 20 * 60;
@@ -57,6 +67,13 @@ export interface MaybeRelayAsGaslessParameters {
    */
   accountMaybeVirtual?: Address;
 }
+
+/**
+ * What the locked read-sign-submit section hands back: the acceptance and the
+ * owner it was tracked under, or `"wallet"` when a definitive pre-broadcast
+ * rejection sends the write down the wallet path.
+ */
+type GaslessDispatchSubmit = { receipt: GaslessSubmitReceipt; owner: Address } | "wallet";
 
 interface ResolvedGaslessDispatch {
   gasless: SymmioGaslessConfig;
@@ -236,10 +253,18 @@ async function findUndelegatedSelectors(
  *   (`execution.preflightDelegation`, default on): a session key missing a
  *   selector throws `GASLESS_SIGNER_NOT_DELEGATED` — the selector set to grant
  *   is the one `getSessionKeySelectors` builds. Under `fallback: "wallet"` that
- *   rejection returns `null` instead, exactly like a blocked fee quota; note
+ *   rejection returns `null` instead, exactly like an exhausted free quota; note
  *   the wallet path will then fail too for a session key, which holds no gas
  *   and is not the owner — guarding that is the caller's concern, not this
  *   dispatcher's.
+ * - The fee quote runs **before** the signature prompt too
+ *   (`execution.preflightFee`, default on). An exhausted daily free quota throws
+ *   `GASLESS_FREE_QUOTA_EXHAUSTED` (or returns `null` under `fallback: "wallet"`);
+ *   a quote the contract rejects throws `GASLESS_FEE_QUOTE_REVERTED` and a
+ *   GaslessLayer without the multi-wallet interface throws
+ *   `GASLESS_LAYER_INTERFACE_UNSUPPORTED`, neither with a fallback. A quote that
+ *   fails for transport reasons does not block: the relayer's own simulation is
+ *   authoritative.
  *
  * @internal
  */
@@ -331,10 +356,19 @@ export async function maybeRelayAsGasless(
   }
 
   const domain = getInstantLayerEip712Domain(config, { chainId });
+  const events = execution.onEvent;
+  const streamKey = gaslessInstantNonceStreamKey(chainId, resolvedSignerAccount);
 
-  return withGaslessNonceLock(config, chainId, resolvedSignerAccount, async () => {
+  /**
+   * The lock spans read-sign-submit only. Holding it across the broadcast wait
+   * would stall every later write behind one slow relay; instead the signed
+   * nonce is recorded on the stream and the next caller waits for it lazily.
+   */
+  const submitted = await withGaslessNonceLock(config, streamKey, async (): Promise<GaslessDispatchSubmit> => {
     /** Fresh sequential nonces, read inside the lock, immediately before signing. */
-    const currentNonce = await getInstantLayerNonce(config, { chainId, account: resolvedSignerAccount });
+    const currentNonce = await readGaslessStreamNonce(config, streamKey, () =>
+      getInstantLayerNonce(config, { chainId, account: resolvedSignerAccount }),
+    );
     const deadline = BigInt(Math.floor(Date.now() / 1000) + GASLESS_OPERATION_DEADLINE_SECONDS);
 
     const operations = parameters.calls.map((call, index) =>
@@ -348,20 +382,27 @@ export async function maybeRelayAsGasless(
       }),
     );
 
-    /** Fee pre-flight before any signature prompt. */
+    /**
+     * Fee pre-flight before any signature prompt. Ordinary InstantLayer
+     * operations always relay with wallet id 0.
+     */
     if (execution.preflightFee ?? true) {
-      const quote = await getGaslessOperationalFeeQuote(config, {
-        chainId,
-        account: resolvedSignerAccount,
-        operations,
-      });
-      if (quote.wouldBlockOnQuota) {
-        if (fallback === "wallet") return null;
-        throw new SymmError(
-          "api",
-          "GASLESS_FEE_UNAFFORDABLE",
-          `Gasless: the daily gasless quota would block this request (quoted fee ${quote.amountDue}). Retry after the UTC reset or use the wallet path.`,
-        );
+      try {
+        await getGaslessFeeQuote(config, { chainId, operations: operations.map((operation) => ({ operation })) });
+      } catch (err) {
+        /** A definitive pre-acceptance rejection — nothing was signed, so a wallet retry is safe. */
+        if (isGaslessFreeQuotaExhaustedError(err)) {
+          if (fallback === "wallet") return "wallet";
+          throw err;
+        }
+        /** A reverted quote or an unsupported GaslessLayer: the relay would fail the same way. */
+        if (err instanceof SymmError) throw err;
+        /**
+         * Anything else is inconclusive: a transport or RPC failure of the quote
+         * read itself, or an empty-data revert whose classifying read failed. The
+         * relayer simulates the full transaction before accepting it, so signing
+         * proceeds.
+         */
       }
     }
 
@@ -371,73 +412,132 @@ export async function maybeRelayAsGasless(
       signatures.push(await signSignedOperation(operation, domain, walletClient));
     }
 
-    const idempotencyKey = options.idempotencyKey ?? globalThis.crypto.randomUUID();
-    const events = execution.onEvent;
+    /**
+     * One key per signature: the operations above were just signed, so the key
+     * is minted here rather than taken from the caller. A caller-supplied key
+     * could only ever be reused for a different payload, which the service
+     * answers with `409 IDEMPOTENCY_KEY_CONFLICT`.
+     */
+    const idempotencyKey = generateGaslessIdempotencyKey();
 
-    let receipt;
+    /**
+     * `userAddress` is the service's tracking identity, and the vendor asks for
+     * a workflow to be persisted under its owner. The billing sub-account's
+     * owner is that identity — the signer may be a session key that owns
+     * nothing. An unreadable owner falls back to the signer rather than failing
+     * a write over a tracking label.
+     */
+    const owner =
+      (await getCachedAccountOwner(config, chainId, resolvedSignerAccount).catch(() => null)) ??
+      walletClient.account.address;
+
     try {
-      receipt = await relayInstantOperations(config, {
-        chainId,
-        userAddress: walletClient.account.address,
-        operationType,
-        operations: operations.map((operation, index) => ({ operation, signature: signatures[index]! })),
-        idempotencyKey,
-      });
+      const receipt = await submitOnGaslessNonceStream(
+        config,
+        streamKey,
+        {
+          signedNonce: currentNonce + BigInt(operations.length),
+          service: "operations",
+          chainId,
+          deadline,
+        },
+        () =>
+          relayInstantOperations(config, {
+            chainId,
+            userAddress: owner,
+            operationType,
+            operations: operations.map((operation, index) => ({ operation, signature: signatures[index]! })),
+            idempotencyKey,
+          }),
+        blocksGaslessNonceStream,
+      );
+      return { receipt, owner };
     } catch (err) {
-      const canFallBack = isConfirmedGaslessFeeLimitError(err) || isConfirmedGaslessUnavailableError(err);
-      if (canFallBack && fallback === "wallet") return null;
+      /**
+       * The two fallback predicates already exclude everything ambiguous, but
+       * the rule this guard encodes is the one that must never be re-derived
+       * wrong: an unconfirmed submit, an idempotency conflict and a `2xx` from
+       * the wrong instance all describe a request that may be executing right
+       * now. Paying for the same intent from the wallet would double-execute
+       * it, so they end the write here whatever `fallback` says.
+       */
+      const mayBeExecuting =
+        getGaslessUnconfirmedSubmit(err) !== null ||
+        isGaslessIdempotencyConflictError(err) ||
+        isGaslessAcceptedInstanceMismatchError(err);
+      const canFallBack =
+        !mayBeExecuting && (isConfirmedGaslessFeeLimitError(err) || isConfirmedGaslessUnavailableError(err));
+      if (canFallBack && fallback === "wallet") return "wallet";
       throw err;
     }
+  });
 
-    fireGaslessEvent(events, {
-      type: "accepted",
+  if (submitted === "wallet") return null;
+  const { receipt, owner } = submitted;
+
+  fireGaslessEvent(events, {
+    type: "accepted",
+    requestId: receipt.requestId,
+    service: "operations",
+    chainId,
+    protocolInstance: gasless.protocolInstance ?? null,
+    operationType,
+    idempotencyKey: receipt.idempotencyKey,
+    owner,
+    walletIds: receipt.walletIds,
+  });
+
+  const record = await waitForGaslessRequest(config, {
+    chainId,
+    requestId: receipt.requestId,
+    until: "broadcast",
+    timeoutMs: options.broadcastTimeoutMs ?? execution.broadcastTimeoutMs,
+    queuedPollMs: execution.queuedPollMs,
+    submittedPollMs: execution.submittedPollMs,
+    signal: options.signal,
+    onUpdate: (update) => {
+      if (update.txHash)
+        fireGaslessEvent(events, { type: "broadcast", requestId: update.requestId, txHash: update.txHash, chainId });
+    },
+  });
+
+  if (record.txHash !== null) {
+    /**
+     * The hash the write is about to return is only the *first* broadcast — the
+     * relayer replaces it on a gas bump or a stuck nonce. Registering it here is
+     * what lets the caller's receipt wait follow the request instead of a hash
+     * that may never mine (`getGaslessWriteRequest`).
+     */
+    registerGaslessWriteRequest(config, {
       requestId: receipt.requestId,
       service: "operations",
       chainId,
-      protocolInstance: gasless.protocolInstance ?? "",
-      operationType,
-      idempotencyKey,
+      protocolInstance: gasless.protocolInstance ?? null,
+      broadcastHash: record.txHash,
     });
+    return record.txHash;
+  }
 
-    const record = await waitForGaslessRequest(config, {
-      chainId,
-      requestId: receipt.requestId,
-      until: "broadcast",
-      timeoutMs: options.broadcastTimeoutMs ?? execution.broadcastTimeoutMs,
-      queuedPollMs: execution.queuedPollMs,
-      submittedPollMs: execution.submittedPollMs,
-      signal: options.signal,
-      onUpdate: (update) => {
-        if (update.txHash)
-          fireGaslessEvent(events, { type: "broadcast", requestId: update.requestId, txHash: update.txHash, chainId });
-      },
-    });
-
-    if (record.txHash !== null) {
-      return record.txHash;
-    }
-
-    /** Terminal without a broadcast: rejected or failed before any transaction. */
-    fireGaslessEvent(events, {
-      type: "terminal",
-      requestId: record.requestId,
-      status: record.status,
-      txHash: record.txHash,
-      chainId,
-    });
-
-    const terminalError = new SymmApiError({
-      code: record.status === GaslessRequestStatus.REJECTED ? "GASLESS_RELAY_REJECTED" : "GASLESS_RELAY_FAILED",
-      message: `Gasless: request ${record.requestId} ended ${record.status} before any broadcast${record.errorMessage ? ` — ${record.errorMessage}` : ""}.`,
-      status: 200,
-      statusText: "OK",
-      responseData: toGaslessRecordBody(record),
-      url: gasless.url,
-      method: "GET",
-    });
-
-    /** A confirmed fee/quota rejection never broadcast — the one post-202 wallet fallback. */
-    if (fallback === "wallet" && isConfirmedGaslessFeeLimitError(terminalError)) return null;
-    throw terminalError;
+  /** Terminal without a broadcast: rejected or failed before any transaction. */
+  fireGaslessEvent(events, {
+    type: "terminal",
+    requestId: record.requestId,
+    status: record.status,
+    txHash: record.txHash,
+    chainId,
   });
+
+  const terminalError = new SymmApiError({
+    code: record.status === GaslessRequestStatus.REJECTED ? "GASLESS_RELAY_REJECTED" : "GASLESS_RELAY_FAILED",
+    message: `Gasless: request ${record.requestId} ended ${record.status} before any broadcast${record.errorMessage ? ` — ${record.errorMessage}` : ""}.`,
+    status: 200,
+    statusText: "OK",
+    responseData: toGaslessRecordBody(record),
+    url: gasless.url,
+    method: "GET",
+  });
+
+  /** A confirmed fee/quota rejection never broadcast — the one post-202 wallet fallback. */
+  if (fallback === "wallet" && isConfirmedGaslessFeeLimitError(terminalError)) return null;
+  throw terminalError;
 }

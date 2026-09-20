@@ -49,6 +49,7 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "requestToCancelQuoteMutationOptions",
     "requestToRegisterAffiliateMutationOptions",
     "withdrawAutoMutationOptions",
+    "withdrawWithExpressMutationOptions",
   ],
 }));
 
@@ -95,14 +96,13 @@ const AFFILIATE: Address = "0x000000000000000000000000000000000000aFF1";
  * The sentinels. `from` is an address no other fixture uses, so it can only
  * arrive by being forwarded. `gasless` is a full {@link GaslessWriteOptions}
  * bag rather than `true`: a hook that forwarded only a boolean would still drop
- * `fallback` / `account` / `idempotencyKey`, and the per-call bag is the half
- * consumers actually reach for.
+ * `fallback` / `account` / `broadcastTimeoutMs`, and the per-call bag is the
+ * half consumers actually reach for.
  */
 const SENTINEL_FROM: Address = "0x000000000000000000000000000000000000F00D";
 const SENTINEL_GASLESS: GaslessWriteOptions = {
   enabled: true,
   fallback: "wallet",
-  idempotencyKey: "passthrough-probe",
   account: ACCOUNT,
   broadcastTimeoutMs: 5_000,
 };
@@ -383,11 +383,13 @@ describe("write hooks forward their mutation variables to the core action", () =
       const { config } = createMockSymmioConfig();
       const { result } = renderHookWithProviders(() => row.useWrite(config));
 
-      await result.current.mutateAsync({
-        ...(row.variables as object),
-        from: SENTINEL_FROM,
-        ...(row.acceptsGasless ? { gasless: SENTINEL_GASLESS } : {}),
-      } as never);
+      await result.current
+        .mutateAsync({
+          ...(row.variables as object),
+          from: SENTINEL_FROM,
+          ...(row.acceptsGasless ? { gasless: SENTINEL_GASLESS } : {}),
+        } as never)
+        .catch(() => undefined);
 
       const expected: Record<string, unknown> = { from: SENTINEL_FROM };
       if (row.acceptsGasless) expected.gasless = SENTINEL_GASLESS;

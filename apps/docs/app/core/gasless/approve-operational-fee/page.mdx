@@ -5,21 +5,37 @@ import { Callout } from "nextra/components";
 Grant operational-fee allowances to the gasless fee charger, **as the paying sub-account**.
 
 ```ts
-import { approveOperationalFee } from "@symmio/trading-core";
-import { maxUint256 } from "viem";
+import { approveOperationalFee, getOperationalFeeAllowance } from "@symmio/trading-core";
+import { parseUnits } from "viem";
 
+// A bounded fee budget of 5 collateral tokens, in 18-decimal Core units.
 const hash = await approveOperationalFee(config, {
   account: subAccount,
-  amounts: [maxUint256],
+  amounts: [parseUnits("5", 18)],
 });
+
+// Once the transaction has landed, read the allowance back before relying on it.
+const { allowance } = await getOperationalFeeAllowance(config, { payer: subAccount });
 ```
 
-The diamond keys allowances by `msg.sender`, so the call is routed through the AccountLayer `_call` proxy — the diamond sees the **sub-account** as the payer. A direct wallet call would grant the allowance from the wrong account. The connected wallet must be the sub-account's owner. Under the hood this encodes `approveOperationalFeeWithMultiplier(chargers[], amounts[], feeMultipliers[])`; `chargers` defaults to the chain's `gasless.gaslessLayerAddress` and `feeMultipliers` to `OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER` (`10000n` — list price, in basis points).
+The diamond keys allowances by `msg.sender`, so the call is routed through the AccountLayer `_call` proxy — the diamond sees the **sub-account** as the payer. A direct wallet call would grant the allowance from the wrong account. The connected wallet must be the sub-account's owner. Under the hood this encodes `approveOperationalFeeWithMultiplier(chargers[], amounts[], feeMultipliers[])`; `chargers` defaults to the chain's `gasless.gaslessLayerAddress` and `feeMultipliers` to `OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER` (`10000n` — list price, in basis points). Because the call always sets a multiplier, omitting `feeMultipliers` resets a previously set one to list price.
+
+## Amounts and what an approval does
+
+- **Amounts are 18-decimal Core units**, the scale of the Core balance fees are drawn from, not the collateral token's decimals. On a 6-decimal USDC chain `parseUnits("5", 18)` is a 5 USDC budget, while `parseUnits("5", 6)` would allow only 0.000000000005 USDC. To start from a token amount, convert it with [`collateralToCore18`](/core/shared-types#collateraltocore18).
+- **Each amount replaces the current allowance.** It works like ERC-20 `approve`, not an increment, and every relayed charge decrements it. Choose a bounded budget sized to the operations you intend to relay, not `maxUint256`: a bounded allowance caps what the charger can ever draw from the payer in fees.
+- **The charger is the GaslessLayer proxy** (`gasless.gaslessLayerAddress`), not the relayer's executor address. An ERC-20 `approve` of the collateral token is a different permission and grants nothing here.
+- **Approving adds no balance.** The fee is still drawn from the payer's Core balance after the operation executes, so fund the sub-account as well as approving it.
 
 <Callout type="warning">
-  Grant the allowance **before** relying on gasless execution — without it every relay fails with
-  `INSUFFICIENT_ALLOWANCE`. This wallet-paid path is the one that always works; the approval is itself relayable too
-  (pass `gasless: true` once gasless execution is active). Reducing an existing allowance is delayed on-chain — see
+  Grant the allowance **before** relying on gasless execution. The service simulates every relay before accepting it, so
+  a payer without enough allowance is refused up front, with no request id. Today that arrives as HTTP `400`
+  `SIMULATION_REVERTED` carrying the Core revert `OperationalFee: Allowance exceeded` in the vendor detail; a deployment
+  can also report the service code `INSUFFICIENT_ALLOWANCE`. Read either with
+  [`parseGaslessErrorDetail`](/core/gasless/errors-and-fallback). A payer short of Core balance is refused the same way
+  with `OperationalFee: Insufficient balance`, which no approval fixes. This wallet-paid path is the one that always
+  works; the approval is itself relayable too (pass `gasless: true` once gasless execution is active). Reducing an
+  existing allowance can be timelocked on-chain — see
   [`getOperationalFeeAllowance`](/core/gasless/get-operational-fee-allowance).
 </Callout>
 
@@ -30,13 +46,15 @@ The diamond keys allowances by `msg.sender`, so the call is routed through the A
     The sub-account that pays operational fees; the connected wallet must be its owner.
   </Property>
   <Property name="amounts" type="readonly bigint[]" required>
-    Allowance per charger (raw collateral units, parallel to `chargers`). `maxUint256` means unlimited.
+    Allowance per charger, parallel to `chargers`, in **18-decimal Core units**. Each value replaces the current
+    allowance. Use a bounded budget.
   </Property>
   <Property name="chargers" type="readonly Address[]" optional>
-    The fee chargers to approve. Defaults to `[gasless.gaslessLayerAddress]`.
+    The fee chargers to approve. Defaults to `[gasless.gaslessLayerAddress]`, the GaslessLayer proxy.
   </Property>
   <Property name="feeMultipliers" type="readonly bigint[]" optional>
-    Fee multiplier per charger in basis points; defaults to `10000n` (list price) for every charger.
+    Fee multiplier per charger in basis points; defaults to `10000n` (list price) for every charger, replacing any
+    multiplier set before.
   </Property>
   <Property name="gasless" type="boolean | GaslessWriteOptions" optional>
     Relay the approval itself through the gasless service — see [Relayable writes](/core/gasless/relayable-writes).

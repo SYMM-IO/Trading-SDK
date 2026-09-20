@@ -15,13 +15,15 @@ import { settleGaslessDepositExistingAccount } from "./settle-gasless-deposit-ex
 
 const OWNER = "0x1111111111111111111111111111111111111111" as const;
 const SUB_ACCOUNT = "0x3333333333333333333333333333333333333333" as const;
+const DEPOSIT_ADDRESS = "0x5555555555555555555555555555555555555555" as const;
 const HEADERS = { "x-gaslessq-protocol-instance": TEST_GASLESS.protocolInstance };
 const ACCEPTED = {
   headers: HEADERS,
   data: {
     request_id: "dep-2",
     status: "queued",
-    deposit_address: "0x5555555555555555555555555555555555555555",
+    wallet_id: "1",
+    deposit_address: DEPOSIT_ADDRESS,
     observed_amount: "5000000",
     paid_fee: "1000000",
     credited_amount: "4000000",
@@ -35,18 +37,26 @@ const SERVER_FAILURE = {
   config: { url: "/deposit-settlements", method: "post" },
 };
 
+/** A config whose GaslessLayer derives {@link DEPOSIT_ADDRESS} for every wallet id. */
+function settleTestConfig() {
+  const { config, readContract } = gaslessTestConfig();
+  readContract.mockResolvedValue(DEPOSIT_ADDRESS);
+  return { config, readContract };
+}
+
 describe("settleGaslessDepositExistingAccount", () => {
   beforeEach(() => {
     post.mockReset();
   });
 
   it("posts the strict existing-account body to the deposits service and parses the receipt", async () => {
-    const { config } = gaslessTestConfig();
+    const { config } = settleTestConfig();
     post.mockResolvedValue(ACCEPTED);
 
     const receipt = await settleGaslessDepositExistingAccount(config, {
       chainId: GASLESS_TEST_CHAIN,
-      wallet: OWNER,
+      owner: OWNER,
+      walletId: 1n,
       subAccount: SUB_ACCOUNT,
       idempotencyKey: "dep-key-2",
     });
@@ -54,26 +64,51 @@ describe("settleGaslessDepositExistingAccount", () => {
     expect(receipt).toEqual({
       requestId: "dep-2",
       status: GaslessRequestStatus.QUEUED,
-      depositAddress: "0x5555555555555555555555555555555555555555",
+      depositAddress: DEPOSIT_ADDRESS,
+      walletId: 1n,
+      owner: OWNER,
       observedAmount: 5_000_000n,
       paidFee: 1_000_000n,
       creditedAmount: 4_000_000n,
+      idempotencyKey: "dep-key-2",
+      protocolInstance: TEST_GASLESS.protocolInstance,
     });
 
     const [path, body, requestConfig] = post.mock.calls[0] as [string, Record<string, unknown>, { baseURL: string }];
     expect(path).toBe("/deposit-settlements/existing-account");
     expect(requestConfig.baseURL).toBe(buildGaslessHttpContext(GASLESS_TEST_CHAIN, TEST_GASLESS, "deposits").baseURL);
-    /** The service model rejects unknown fields — the body carries exactly these three. */
-    expect(body).toEqual({ idempotencyKey: "dep-key-2", wallet: OWNER, subAccount: SUB_ACCOUNT });
+    /** The service model rejects unknown fields — the body carries exactly these four. */
+    expect(body).toEqual({ idempotencyKey: "dep-key-2", owner: OWNER, walletId: "1", subAccount: SUB_ACCOUNT });
+  });
+
+  it("derives the selected wallet's deposit address and rejects an acceptance for another wallet", async () => {
+    const { config, readContract } = settleTestConfig();
+    post.mockResolvedValue({ ...ACCEPTED, data: { ...ACCEPTED.data, wallet_id: "4" } });
+
+    const settlement = settleGaslessDepositExistingAccount(config, {
+      chainId: GASLESS_TEST_CHAIN,
+      owner: OWNER,
+      walletId: 1n,
+      subAccount: SUB_ACCOUNT,
+    });
+
+    await expect(settlement).rejects.toMatchObject({
+      code: "GASLESS_DEPOSIT_WALLET_MISMATCH",
+      responseData: expect.objectContaining({ requestId: "dep-2" }),
+    });
+    expect(readContract).toHaveBeenCalledWith(
+      expect.objectContaining({ functionName: "getGaslessWalletAddress", args: [OWNER, 1n] }),
+    );
   });
 
   it("mints an idempotency key when the caller passes none", async () => {
-    const { config } = gaslessTestConfig();
+    const { config } = settleTestConfig();
     post.mockResolvedValue(ACCEPTED);
 
     await settleGaslessDepositExistingAccount(config, {
       chainId: GASLESS_TEST_CHAIN,
-      wallet: OWNER,
+      owner: OWNER,
+      walletId: 1n,
       subAccount: SUB_ACCOUNT,
     });
 
@@ -85,7 +120,7 @@ describe("settleGaslessDepositExistingAccount", () => {
     { label: "a network-level failure", failure: NETWORK_FAILURE },
     { label: "a 5xx", failure: SERVER_FAILURE },
   ])("retries once after $label with the byte-identical body and key", async ({ failure }) => {
-    const { config } = gaslessTestConfig();
+    const { config } = settleTestConfig();
     /** Snapshot each body as sent: both attempts share one object, so `mock.calls` would compare it with itself. */
     const sent: unknown[] = [];
     post.mockImplementation((_path: string, body: unknown) => {
@@ -95,7 +130,8 @@ describe("settleGaslessDepositExistingAccount", () => {
 
     const receipt = await settleGaslessDepositExistingAccount(config, {
       chainId: GASLESS_TEST_CHAIN,
-      wallet: OWNER,
+      owner: OWNER,
+      walletId: 1n,
       subAccount: SUB_ACCOUNT,
     });
 
@@ -106,21 +142,22 @@ describe("settleGaslessDepositExistingAccount", () => {
   });
 
   it("gives up after the single retry", async () => {
-    const { config } = gaslessTestConfig();
+    const { config } = settleTestConfig();
     post.mockRejectedValue(NETWORK_FAILURE);
 
     const settlement = settleGaslessDepositExistingAccount(config, {
       chainId: GASLESS_TEST_CHAIN,
-      wallet: OWNER,
+      owner: OWNER,
+      walletId: 1n,
       subAccount: SUB_ACCOUNT,
     });
 
-    await expect(settlement).rejects.toMatchObject({ code: "GASLESS_SETTLEMENT_SUBMIT_FAILED", status: 0 });
+    await expect(settlement).rejects.toMatchObject({ code: "GASLESS_SUBMIT_UNCONFIRMED", status: 0 });
     expect(post).toHaveBeenCalledTimes(2);
   });
 
   it("does not retry a definitive 4xx and preserves the vendor body", async () => {
-    const { config } = gaslessTestConfig();
+    const { config } = settleTestConfig();
     const vendorBody = { detail: { code: "SUB_ACCOUNT_NOT_OWNED" } };
     post.mockRejectedValue({
       isAxiosError: true,
@@ -131,7 +168,8 @@ describe("settleGaslessDepositExistingAccount", () => {
 
     const settlement = settleGaslessDepositExistingAccount(config, {
       chainId: GASLESS_TEST_CHAIN,
-      wallet: OWNER,
+      owner: OWNER,
+      walletId: 1n,
       subAccount: SUB_ACCOUNT,
     });
 

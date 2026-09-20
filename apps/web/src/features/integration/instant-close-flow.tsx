@@ -517,7 +517,6 @@ function VirtualAccountOption({
           {sideLabel ? ` · ${sideLabel}` : ""}
         </span>
       </span>
-      {active ? <Badge variant="positive">Selected</Badge> : null}
     </button>
   );
 }

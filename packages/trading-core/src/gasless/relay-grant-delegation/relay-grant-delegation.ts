@@ -5,7 +5,13 @@ import { getInstantLayerEip712Domain, signSignedOperation } from "../../solvers/
 import { buildSignedOperation } from "../../solvers/instant-open/shared/operations";
 import { instantLayerAbi } from "../../symmio-contracts/abi/v0.8.6/instant-layer";
 import { getInstantLayerNonce } from "../../symmio-contracts/instant-layer/actions/get-instant-layer-nonce";
-import { withGaslessNonceLock } from "../nonce-lock";
+import {
+  blocksGaslessNonceStream,
+  gaslessInstantNonceStreamKey,
+  readGaslessStreamNonce,
+  submitOnGaslessNonceStream,
+  withGaslessNonceLock,
+} from "../nonce-lock";
 import { relayInstantOperations } from "../relay-instant-operations/relay-instant-operations";
 import type { GaslessSubmitReceipt } from "../types";
 
@@ -26,8 +32,6 @@ export type RelayGrantDelegationParameters = Compute<
       selectors: readonly Hex[];
       /** Unix timestamp (seconds) when the delegation expires. */
       expiryTimestamp: bigint;
-      /** Stable retry key for the relay submit; defaults to a random UUID. */
-      idempotencyKey?: string;
     }
 >;
 
@@ -57,11 +61,17 @@ export type RelayGrantDelegationReturnType = GaslessSubmitReceipt;
  * `getGaslessRequest` (or `waitForGaslessRequest`) to a terminal status. The
  * wallet-paid alternative is the plain `grantDelegation` write.
  *
+ * The idempotency key is minted per call and is not a parameter: every call
+ * signs a fresh operation, so one key can only ever describe one signature.
+ * Replaying a submit whose response was lost is `resubmitGaslessRequest`'s job.
+ *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
  * @param parameters - Delegation fields, optional chain id / signer override.
  * @returns The acceptance receipt; persist `requestId` immediately.
  * @throws {SymmError} `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`.
  * @throws {SymmApiError} `GASLESS_RELAY_SUBMIT_FAILED` on HTTP failure.
+ * @throws {SymmApiError} `GASLESS_SUBMIT_UNCONFIRMED` when the outcome could not be
+ *   established; replay it with `resubmitGaslessRequest` rather than signing a new grant.
  *
  * @example
  * ```ts
@@ -96,25 +106,37 @@ export async function relayGrantDelegation(
     ],
   });
 
-  return withGaslessNonceLock(config, chain.chainId, account, async () => {
-    const currentNonce = await getInstantLayerNonce(config, { chainId, account });
+  const streamKey = gaslessInstantNonceStreamKey(chain.chainId, account);
+
+  return withGaslessNonceLock(config, streamKey, async () => {
+    const currentNonce = await readGaslessStreamNonce(config, streamKey, () =>
+      getInstantLayerNonce(config, { chainId, account }),
+    );
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
 
     const operation = buildSignedOperation({
       signer: walletClient.account.address,
       target: chain.addresses.instantLayerAddress,
       callData,
       signerAccount: account,
-      deadline: BigInt(Math.floor(Date.now() / 1000) + 20 * 60),
+      deadline,
       nonce: currentNonce + 1n,
     });
     const signature = await signSignedOperation(operation, domain, walletClient);
 
-    return relayInstantOperations(config, {
-      chainId,
-      userAddress: walletClient.account.address,
-      operationType: "grantDelegation",
-      operations: [{ operation, signature }],
-      idempotencyKey: parameters.idempotencyKey,
-    });
+    return submitOnGaslessNonceStream(
+      config,
+      streamKey,
+      { signedNonce: currentNonce + 1n, service: "operations", chainId: chain.chainId, deadline },
+      () =>
+        relayInstantOperations(config, {
+          chainId,
+          userAddress: walletClient.account.address,
+          operationType: "grantDelegation",
+          /** A delegation grant is an ordinary InstantLayer operation: wallet 0. */
+          operations: [{ operation, signature }],
+        }),
+      blocksGaslessNonceStream,
+    );
   });
 }

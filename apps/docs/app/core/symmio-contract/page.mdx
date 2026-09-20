@@ -121,8 +121,9 @@ decimals** — and it does all the plumbing. It reads the subaccount's
 the classic same-chain withdraw part, scales the deallocate amount, and hands off to
 [`withdraw`](#withdraw--pre-resolved-dispatcher). Account-layer balances are
 `1e18`-scaled regardless of the collateral token's decimals, so on the `CUSTOM` path
-it derives the 18-decimal deallocate amount as
-`amount * 10 ** (18 - collateralDecimals)` (assumes `collateralDecimals <= 18`) and
+it derives the 18-decimal deallocate amount with
+[`collateralToCore18`](/core/shared-types#collateraltocore18) (`amount * 10 ** (18 - collateralDecimals)`;
+decimals outside 0–18 throw `COLLATERAL_DECIMALS_UNSUPPORTED`) and
 fetches a fresh Muon uPnL signature for the deallocate leg unless you pass one.
 
 This is the framework-agnostic backing for the React

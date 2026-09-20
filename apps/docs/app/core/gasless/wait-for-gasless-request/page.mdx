@@ -17,6 +17,39 @@ if (record.txHash) {
 
 The cadence follows the service recommendation — `GASLESS_QUEUED_POLL_MS` (1 500 ms) while `queued`, `GASLESS_SUBMITTED_POLL_MS` (3 000 ms) after `submitted` — bounded by an overall `timeoutMs` budget (`GASLESS_WAIT_TIMEOUT_MS`, 120 000 ms). Up to three consecutive `404`s are tolerated right after a submit (the accepted record may not be readable yet); a fourth is rethrown.
 
+## A failed read is not a failed request
+
+Once the service has returned a `202` the workflow is running whether or not you can see it, so the loop absorbs every transient transport failure instead of reporting one:
+
+| Failure                                               | What the loop does                                                                                        |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| No response, `408`, `429`, `500`, `502`, `503`, `504` | Reports it through `onTransportIssue`, then retries after `max(Retry-After, jittered 1 s → 30 s backoff)` |
+| `404`, up to three in a row right after a submit      | Retries — the accepted record may not be readable yet                                                     |
+| A fourth consecutive `404`                            | Throws: the id is not a request this service knows                                                        |
+| `401`, `403`, `422`, a service error code             | Throws: the service gave a definitive answer                                                              |
+
+Every retry is capped by whatever is left of `timeoutMs`, so a 30-second backoff can never hide a 5-second budget. Use `onTransportIssue` to render "status unavailable, still running" — never a failure, and never a reason to re-submit an intent that is already executing.
+
+```ts
+const record = await waitForGaslessRequest(config, {
+  requestId,
+  onTransportIssue: () => setDegraded(true),
+  onUpdate: () => setDegraded(false),
+});
+```
+
+When the budget does run out, the thrown timeout carries the last transient failure as its `cause`, which is how you tell "the relayer is slow" from "we went blind":
+
+```ts
+try {
+  await waitForGaslessRequest(config, { requestId });
+} catch (err) {
+  if (err instanceof SymmError && err.code === "GASLESS_TERMINAL_TIMEOUT") {
+    const wentBlind = err.cause !== undefined;
+  }
+}
+```
+
 <Callout type="warning">
   The wait **resolves** with the record for `reverted` / `failed` / `rejected` terminals — those are workflow outcomes,
   not transport failures. Branch on `status`; only `succeeded` is success. It **throws** only for transport-level
@@ -52,6 +85,10 @@ The cadence follows the service recommendation — `GASLESS_QUEUED_POLL_MS` (1 5
   <Property name="onUpdate" type="(request: GaslessRequest) => void" optional>
     Observer invoked with every fetched record, including the final one.
   </Property>
+  <Property name="onTransportIssue" type="(error: SymmError) => void" optional>
+    Observer invoked for every transient read failure the loop absorbed. Nothing is wrong with the workflow when it
+    fires — only your view of it is stale.
+  </Property>
   <Property name="chainId" type="number" optional>
     Target chain id. Defaults to the config's `defaultChainId`.
   </Property>
@@ -66,6 +103,6 @@ The cadence follows the service recommendation — `GASLESS_QUEUED_POLL_MS` (1 5
 
 ## Throws
 
-- `SymmError("api", "GASLESS_BROADCAST_TIMEOUT" | "GASLESS_TERMINAL_TIMEOUT")` — the budget ran out before the wait target.
+- `SymmError("api", "GASLESS_BROADCAST_TIMEOUT" | "GASLESS_TERMINAL_TIMEOUT")` — the budget ran out before the wait target. `cause` is the last transient read failure, when the budget was spent going blind rather than waiting.
 - `SymmError("api", "GASLESS_WAIT_ABORTED")` — `signal` aborted.
-- Everything [`getGaslessRequest`](/core/gasless/get-gasless-request) throws, after the `404` tolerance is exhausted.
+- Everything [`getGaslessRequest`](/core/gasless/get-gasless-request) throws for a definitive answer, and after the `404` tolerance is exhausted. Transient transport failures are absorbed rather than thrown.

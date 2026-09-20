@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { GASLESS_TEST_CHAIN, gaslessTestConfig } from "../test/config";
+import { GASLESS_TEST_CHAIN, TEST_GASLESS, gaslessTestConfig } from "../test/config";
 import { GaslessRequestStatus, type GaslessDepositSubmitReceipt } from "../types";
 import type { SettleGaslessDepositExistingAccountParameters } from "./settle-gasless-deposit-existing-account";
 
@@ -13,15 +13,20 @@ const RECEIPT: GaslessDepositSubmitReceipt = {
   requestId: "dep-2",
   status: GaslessRequestStatus.QUEUED,
   depositAddress: "0x5555555555555555555555555555555555555555",
+  walletId: 2n,
+  owner: "0x1111111111111111111111111111111111111111",
   observedAmount: 5_000_000n,
   paidFee: 1_000_000n,
   creditedAmount: 4_000_000n,
+  idempotencyKey: "dep-key",
+  protocolInstance: TEST_GASLESS.protocolInstance ?? null,
 };
 
 /** Every optional field set, so a variable the factory dropped would fail the equality below. */
 const VARIABLES: SettleGaslessDepositExistingAccountParameters = {
   chainId: GASLESS_TEST_CHAIN,
-  wallet: "0x1111111111111111111111111111111111111111",
+  owner: "0x1111111111111111111111111111111111111111",
+  walletId: 2n,
   subAccount: "0x3333333333333333333333333333333333333333",
   idempotencyKey: "dep-key-2",
 };

@@ -36,10 +36,11 @@ export type UseAccountBalanceOfParameters = GetAccountBalanceOfOptions &
 export type UseAccountBalanceOfReturnType = UseQueryResult<GetAccountBalanceOfReturnType, SymmioRequestError>;
 
 /**
- * Read raw `balanceOf` for a SYMMIO account. The query is disabled until
- * `account` is set. Omitted `chainId` resolves through the SDK config. Errors are
- * normalized to {@link SymmioRequestError}. Pass `live: true` to auto-refetch
- * when an open/close settles on-chain.
+ * Read raw `balanceOf` for a SYMMIO account, in 18-decimal Core units (not the
+ * collateral token's decimals). The query is disabled until `account` is set.
+ * Omitted `chainId` resolves through the SDK config. Errors are normalized to
+ * {@link SymmioRequestError}. Pass `live: true` to auto-refetch when an
+ * open/close settles on-chain.
  *
  * @example
  * ```tsx

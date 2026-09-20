@@ -11,5 +11,7 @@
  * `ARCHITECTURE.md` at the package root.
  */
 export { accountLayerAbi } from "./v0.8.6/account-layer";
+export { gaslessLayerAbi } from "./v0.8.6/gasless-layer";
+export { gaslessWalletAbi } from "./v0.8.6/gasless-wallet";
 export { instantLayerAbi } from "./v0.8.6/instant-layer";
 export { symmioAbi } from "./v0.8.6/symmio";

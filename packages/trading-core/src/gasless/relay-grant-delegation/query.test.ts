@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { GASLESS_TEST_CHAIN, TEST_GASLESS_SIGNER, gaslessWriteTestConfig } from "../test/config";
+import { GASLESS_TEST_CHAIN, TEST_GASLESS, TEST_GASLESS_SIGNER, gaslessWriteTestConfig } from "../test/config";
 import { GaslessRequestStatus, type GaslessSubmitReceipt } from "../types";
 import type { RelayGrantDelegationParameters } from "./relay-grant-delegation";
 
@@ -14,6 +14,10 @@ const RECEIPT: GaslessSubmitReceipt = {
   status: GaslessRequestStatus.QUEUED,
   paidFee: 0n,
   remainingFeeAllowance: 0n,
+  idempotencyKey: "idem-1",
+  protocolInstance: TEST_GASLESS.protocolInstance ?? null,
+  owner: TEST_GASLESS_SIGNER,
+  walletIds: [0n],
 };
 
 /** Every optional field set, so a variable the factory dropped would fail the equality below. */
@@ -24,7 +28,6 @@ const VARIABLES: RelayGrantDelegationParameters = {
   delegatedSigner: "0x6666666666666666666666666666666666666666",
   selectors: ["0xcf70cb69"],
   expiryTimestamp: 4_102_444_800n,
-  idempotencyKey: "idem-1",
 };
 
 describe("relayGrantDelegationMutationOptions", () => {

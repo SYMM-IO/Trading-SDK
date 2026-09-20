@@ -6,13 +6,16 @@ import type { Query, QueryKey } from "@tanstack/react-query";
  *
  * A cache entry matches when:
  * 1. its key's leading tag equals the factory's tag (the key's first segment), and
- * 2. for every field in the partial, the key's trailing options object has an
- *    equal value. Omitted fields match anything.
+ * 2. for every field the partial sets, the key's trailing options object has an
+ *    equal value. Omitted (or `undefined`) fields match anything.
  *
  * Both the partial and the stored keys are run through the same factory, so
  * `bigint` values are compared in the decimal-string form the factory emits.
- * This enables "invalidate every subaccount query for `user`, regardless of
- * pagination or chain" — which TanStack's leading-prefix matching can't express.
+ * A default the factory fills in for an omitted field (an omitted gasless
+ * `walletId` keys as `0n`) is not compared, so leaving that field out still
+ * matches every value of it. This enables "invalidate every subaccount query for
+ * `user`, regardless of pagination or chain" — which TanStack's leading-prefix
+ * matching can't express.
  *
  * @param keyFn - A core query-key factory, e.g. `getUserSubAccountsQueryKey`.
  * @param partial - Fields to match on. Omit to match every entry from `keyFn`.
@@ -31,6 +34,10 @@ export function predicateMatch<options extends object>(
   const reference = keyFn(partial);
   const tag = reference[0];
   const referenceFilter = (reference[1] ?? {}) as Record<string, unknown>;
+  const requested = (partial ?? {}) as Record<string, unknown>;
+  const fields = Object.entries(referenceFilter).filter(
+    ([field, value]) => value !== undefined && requested[field] !== undefined,
+  );
 
   return (query) => {
     const key = query.queryKey;
@@ -41,8 +48,7 @@ export function predicateMatch<options extends object>(
     if (typeof segment !== "object" || segment === null) return false;
 
     const record = segment as Record<string, unknown>;
-    for (const [field, value] of Object.entries(referenceFilter)) {
-      if (value === undefined) continue;
+    for (const [field, value] of fields) {
       if (record[field] !== value) return false;
     }
     return true;

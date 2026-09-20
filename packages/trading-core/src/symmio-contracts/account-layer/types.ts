@@ -129,7 +129,9 @@ export interface SubAccountDetail {
  * Raw balance fields returned by `balanceInfoOfPartyA(account)` on a SYMMIO
  * core/diamond contract.
  *
- * Values are returned in the collateral token's raw units.
+ * Values are in SYMMIO Core's **18-decimal** units, whatever the collateral
+ * token's decimals — convert a token amount with `collateralToCore18` before
+ * comparing.
  */
 export interface AccountBalanceInfo {
   /** Total allocated balance. */

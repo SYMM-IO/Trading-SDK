@@ -77,9 +77,10 @@ Every entry is a `SymmioChainConfig` — the fully-resolved settings for one cha
   </Property>
   <Property name="gasless" type="SymmioGaslessConfig" optional>
     The [GaslessQ relayer](/core/gasless) — `url`, `protocolInstance`, `gaslessLayerAddress`, plus the consumer's
-    `apiKey` and `execution` policy. **No chain ships a built-in block** — a consumer supplies the whole block through a
-    `createConfig` override, and a base-less override missing `url` or `gaslessLayerAddress` throws
-    `GASLESS_OVERRIDE_INCOMPLETE`.
+    `execution` policy, an optional `statusStream` declaration, and an optional partner `apiKey` for server-side use
+    (access is anonymous without one, unless the deployment turns anonymous access off). **No chain ships a built-in
+    block** — a consumer supplies the whole block through a `createConfig` override, and a base-less override missing
+    `url` or `gaslessLayerAddress` throws `GASLESS_OVERRIDE_INCOMPLETE`.
   </Property>
   <Property name="inventory" type="SymmioInventoryConfig" optional>
     The [inventory service](/core/inventory) — the custody backend behind the Pools, and a **different vendor** from

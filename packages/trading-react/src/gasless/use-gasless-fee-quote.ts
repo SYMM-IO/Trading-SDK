@@ -1,10 +1,10 @@
 "use client";
 
 import {
-  getGaslessOperationalFeeQuoteQueryOptions,
+  getGaslessFeeQuoteQueryOptions,
   type ConfigParameter,
-  type GetGaslessOperationalFeeQuoteOptions,
-  type GetGaslessOperationalFeeQuoteReturnType,
+  type GetGaslessFeeQuoteOptions,
+  type GetGaslessFeeQuoteReturnType,
 } from "@symmio/trading-core";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
@@ -13,26 +13,32 @@ import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 
 /** Parameters for {@link useGaslessFeeQuote}. */
-export type UseGaslessFeeQuoteParameters = GetGaslessOperationalFeeQuoteOptions & ConfigParameter;
+export type UseGaslessFeeQuoteParameters = GetGaslessFeeQuoteOptions & ConfigParameter;
 
 /** Return type of {@link useGaslessFeeQuote}. */
-export type UseGaslessFeeQuoteReturnType = UseQueryResult<GetGaslessOperationalFeeQuoteReturnType, SymmioRequestError>;
+export type UseGaslessFeeQuoteReturnType = UseQueryResult<GetGaslessFeeQuoteReturnType, SymmioRequestError>;
 
 /**
- * Quote the operational fee the GaslessLayer would charge for a batch of
- * operations - the authoritative pre-flight before asking the user to sign.
- * Treat `wouldBlockOnQuota` as a hard stop.
+ * Quote what the GaslessLayer would charge to relay a batch (`previewFeeQuote`)
+ * before prompting the user to sign. Amounts are 18-decimal and the quote is a
+ * preview (`exact` is always `false`). An exhausted daily free quota surfaces as
+ * an error with code `GASLESS_FREE_QUOTA_EXHAUSTED` — check it with
+ * `isGaslessFreeQuotaExhaustedError`.
+ *
+ * @param parameters - The batch (`operations`, each with an optional `walletId`), optional chain id, config and query overrides.
+ * @returns The TanStack query result, with failures normalized to {@link SymmioRequestError}.
  *
  * @example
  * ```tsx
- * const query = useGaslessFeeQuote({ account, operations });
+ * const quote = useGaslessFeeQuote({ operations: [{ operation }] });
+ * const fee18 = quote.data?.totalFee18;
  * ```
  */
 export function useGaslessFeeQuote(parameters: UseGaslessFeeQuoteParameters): UseGaslessFeeQuoteReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
 
-  const options = getGaslessOperationalFeeQuoteQueryOptions(config, {
+  const options = getGaslessFeeQuoteQueryOptions(config, {
     ...parameters,
     chainId: parameters.chainId ?? chainId,
   });

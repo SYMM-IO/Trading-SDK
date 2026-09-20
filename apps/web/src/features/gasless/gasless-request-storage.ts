@@ -10,7 +10,15 @@
  * store.
  */
 
-const STORAGE_PREFIX = "symmio.gasless.requests.v2";
+/**
+ * v3 widens the row to the identity the vendor doc requires — the deployment
+ * and protocol instance that accepted the workflow, its owner, the wallet ids
+ * it selected and the idempotency key that could resubmit it — and records the
+ * last status seen, so a reload can tell a pending workflow from a finished
+ * one before re-enabling the same action. A v2 row carries none of that, so the
+ * key is bumped rather than migrated.
+ */
+const STORAGE_PREFIX = "symmio.gasless.requests.v3";
 const MAX_ENTRIES = 20;
 
 /** One persisted gasless request reference. */
@@ -21,8 +29,24 @@ export interface StoredGaslessRequest {
   /** Instance the request was accepted on (empty when a proxy hides it). */
   protocolInstance: string;
   operationType: string;
+  /** Owner the workflow was submitted for, when the acceptance named one. */
+  owner?: string;
+  /** Wallet ids the submit selected, as decimal strings (`["0"]` for ordinary relays). */
+  walletIds?: string[];
+  /** The key that resubmits this exact request after a lost response. */
+  idempotencyKey?: string;
+  /** Last status observed, so a reload knows whether the workflow is still open. */
+  lastStatus?: string;
   /** Unix ms at persistence time. */
   at: number;
+}
+
+/** Statuses that end a workflow; anything else is still in flight. */
+const TERMINAL_STATUSES = new Set(["succeeded", "reverted", "failed", "rejected"]);
+
+/** Whether a stored row is still running, and so blocks a duplicate submit. */
+export function isStoredGaslessRequestPending(entry: StoredGaslessRequest): boolean {
+  return !entry.lastStatus || !TERMINAL_STATUSES.has(entry.lastStatus);
 }
 
 const listeners = new Set<() => void>();
@@ -66,6 +90,39 @@ export function parseGaslessRequests(raw: string | null): StoredGaslessRequest[]
     return Array.isArray(parsed) ? (parsed as StoredGaslessRequest[]) : [];
   } catch {
     return [];
+  }
+}
+
+/**
+ * The newest still-running workflow for an operation type, if any.
+ *
+ * The gateway has no list-by-wallet endpoint, so this local record is the only
+ * way a reload can know an action is already in flight and refuse to submit it
+ * twice.
+ */
+export function findPendingGaslessRequest(
+  chainId: number,
+  match: { operationType: string; protocolInstance?: string },
+): StoredGaslessRequest | undefined {
+  return parseGaslessRequests(readGaslessRequestsRaw(chainId)).find(
+    (entry) =>
+      entry.operationType === match.operationType &&
+      isStoredGaslessRequestPending(entry) &&
+      (match.protocolInstance === undefined || entry.protocolInstance === match.protocolInstance),
+  );
+}
+
+/** Record the status a workflow reached, so a later load stops treating it as open. */
+export function updateStoredGaslessRequestStatus(chainId: number, requestId: string, lastStatus: string): void {
+  try {
+    const current = parseGaslessRequests(readGaslessRequestsRaw(chainId));
+    const index = current.findIndex((row) => row.requestId === requestId);
+    if (index === -1 || current[index]?.lastStatus === lastStatus) return;
+    const next = current.map((row, position) => (position === index ? { ...row, lastStatus } : row));
+    window.localStorage.setItem(storageKey(chainId), JSON.stringify(next));
+    for (const listener of listeners) listener();
+  } catch {
+    /** Storage may be unavailable — persistence is best-effort. */
   }
 }
 

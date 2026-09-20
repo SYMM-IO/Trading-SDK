@@ -27,8 +27,8 @@ const hash = await deleteSubAccount(config, { subAccount: "0xsub...", gasless: t
 <Callout type="warning">
   A deletable subaccount is empty by definition, so it usually cannot pay the operational fee out of its own balance —
   the relay succeeds while the account's daily free-ops quota covers it, and otherwise the fee charge reverts the whole
-  relayed transaction. [`getGaslessOperationalFeeQuote`](/core/gasless/get-gasless-fee-quote) answers before you sign
-  anything; bill a funded account instead with `gasless.account` if you need to.
+  relayed transaction. [`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote) answers before you sign anything;
+  bill a funded account instead with `gasless.account` if you need to.
 </Callout>
 
 ## Parameters

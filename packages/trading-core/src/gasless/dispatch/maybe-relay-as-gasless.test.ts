@@ -1,7 +1,17 @@
-import { encodeFunctionData, erc20Abi, slice, zeroAddress, type Address, type Hex } from "viem";
+import {
+  HttpRequestError,
+  decodeFunctionData,
+  encodeFunctionData,
+  erc20Abi,
+  slice,
+  zeroAddress,
+  type Address,
+  type Hex,
+} from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmioSupportedChainId, getChainConfig } from "../../core/chains";
 import { SymmApiError } from "../../shared/errors/symm-error";
+import { gaslessLayerAbi } from "../../symmio-contracts/abi/v0.8.6/gasless-layer";
 import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
 import { addMargin } from "../../symmio-contracts/account-layer/actions/add-margin";
 import { createSubAccounts } from "../../symmio-contracts/account-layer/actions/create-sub-accounts";
@@ -13,7 +23,9 @@ import { createClassicWithdrawPart } from "../../symmio-contracts/symmio/parts";
 import { parseGaslessErrorDetail } from "../errors";
 import { GASLESS_RELAYABLE_WRITES, isGaslessRelayableSelector } from "../relayable-writes";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS_SIGNER, TEST_GASLESS_TX_HASH, gaslessWriteTestConfig } from "../test/config";
+import { asReadContractError, feeQuoteRawRevert, feeQuoteRevert, rawFeeQuote } from "../test/fee-quote";
 import { GaslessRequestStatus, type GaslessRelayEvent } from "../types";
+import { getGaslessWriteRequest } from "../write-request-registry";
 import { maybeRelayAsGasless, type GaslessDispatchCall } from "./maybe-relay-as-gasless";
 
 const post = vi.hoisted(() => vi.fn());
@@ -27,7 +39,7 @@ vi.mock("axios", () => ({
 const SUB_ACCOUNT = "0x3333333333333333333333333333333333333333" as const;
 const VIRTUAL_ACCOUNT = "0x4444444444444444444444444444444444444444" as const;
 const RELAY_TX_HASH = `0x${"ef".repeat(32)}` as const;
-const HEADERS = { "x-gaslessq-protocol-instance": "arbitrum-42161-vibe" };
+const HEADERS = { "x-gaslessq-protocol-instance": "arbitrum-42161-test" };
 const PARTS = [
   createClassicWithdrawPart({ id: 1n, amount: 1_000_000n, receiver: TEST_GASLESS_SIGNER, chainId: 42_161n }),
 ];
@@ -102,9 +114,9 @@ function programReads(readContract: ReturnType<typeof vi.fn>, overrides?: Partia
       case "isDelegationActive":
         return Promise.resolve(true);
       case "nonces":
-        return Promise.resolve(5n);
-      case "getAccountOperationalFee":
-        return Promise.resolve([0n, 1n, false]);
+        return Promise.resolve(consumedNonce);
+      case "previewFeeQuote":
+        return Promise.resolve(rawFeeQuote(SUB_ACCOUNT));
       case "getVirtualAccount":
         return Promise.resolve({
           accountAddress: VIRTUAL_ACCOUNT,
@@ -118,10 +130,21 @@ function programReads(readContract: ReturnType<typeof vi.fn>, overrides?: Partia
   });
 }
 
+/**
+ * The InstantLayer nonce the stub chain has consumed. A relayed batch advances
+ * it by one per signed operation, exactly as the chain does — without that, the
+ * nonce-stream guard would (correctly) make every second relay wait for the
+ * first one's signature to land.
+ */
+let consumedNonce = 5n;
+
 function programRelaySuccess(): void {
-  post.mockResolvedValue({
-    headers: HEADERS,
-    data: { request_id: "req-1", status: "queued", paid_fee: "0", remaining_fee_allowance: "0" },
+  post.mockImplementation((_path: string, body: unknown) => {
+    consumedNonce += BigInt((body as RelayBody).signedOps.length);
+    return Promise.resolve({
+      headers: HEADERS,
+      data: { request_id: "req-1", status: "queued", paid_fee: "0", remaining_fee_allowance: "0" },
+    });
   });
   get.mockResolvedValue({
     headers: HEADERS,
@@ -170,6 +193,7 @@ describe("transparent gasless dispatch", () => {
   beforeEach(() => {
     post.mockReset();
     get.mockReset();
+    consumedNonce = 5n;
   });
 
   it("stays on the wallet path when gasless is off (the default)", async () => {
@@ -203,6 +227,37 @@ describe("transparent gasless dispatch", () => {
     expect(body.operationType).toBe("initiateWithdraw");
     expect(body.signedOps[0]?.signerAccount.addr).toBe(SUB_ACCOUNT);
     expect(body.signedOps[0]?.replayAttackHeader.nonce).toBe(6);
+  });
+
+  it("registers the relay behind the hash it returns, so the caller can follow the request", async () => {
+    const { config, readContract } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
+    programReads(readContract);
+    programRelaySuccess();
+
+    const hash = await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
+
+    /**
+     * The returned hash is only the relayer's first broadcast — without this
+     * entry a replacement transaction would leave the caller waiting on a hash
+     * that never mines.
+     */
+    expect(getGaslessWriteRequest(config, { hash })).toEqual({
+      requestId: "req-1",
+      service: "operations",
+      chainId: GASLESS_TEST_CHAIN,
+      protocolInstance: "arbitrum-42161-test",
+      broadcastHash: RELAY_TX_HASH,
+    });
+  });
+
+  it("registers nothing for a write that took the wallet path", async () => {
+    const { config, readContract, writeContract } = gaslessWriteTestConfig();
+    programReads(readContract);
+    writeContract.mockResolvedValue(TEST_GASLESS_TX_HASH);
+
+    const hash = await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
+
+    expect(getGaslessWriteRequest(config, { hash })).toBeNull();
   });
 
   it("relays an atomic two-call batch with strictly sequential nonces", async () => {
@@ -360,6 +415,82 @@ describe("transparent gasless dispatch", () => {
     expect(writeContract).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    {
+      label: "a network failure",
+      failure: { isAxiosError: true, message: "socket hang up", config: { url: "/gateway/relay-instant" } },
+    },
+    {
+      label: "a 502",
+      failure: {
+        isAxiosError: true,
+        message: "bad gateway",
+        response: { status: 502, statusText: "Bad Gateway", data: "error code: 502" },
+        config: { url: "/gateway/relay-instant", method: "post" },
+      },
+    },
+    {
+      label: "a 503 without the gateway envelope",
+      failure: {
+        isAxiosError: true,
+        message: "unavailable",
+        response: { status: 503, statusText: "Service Unavailable", data: {} },
+        config: { url: "/gateway/relay-instant", method: "post" },
+      },
+    },
+  ])("never falls back to the wallet after $label — the relay may already have accepted it", async ({ failure }) => {
+    const { config, readContract, writeContract } = gaslessWriteTestConfig({
+      execution: { mode: "gasless", fallback: "wallet" },
+    });
+    programReads(readContract);
+    post.mockRejectedValue(failure);
+
+    await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).rejects.toMatchObject({
+      code: "GASLESS_SUBMIT_UNCONFIRMED",
+    });
+    expect(writeContract).not.toHaveBeenCalled();
+    /** One same-key retry, then the unconfirmed verdict — never a second execution path. */
+    expect(post).toHaveBeenCalledTimes(2);
+  });
+
+  it("does fall back to the wallet on a 429 the gateway dropped before the service saw it", async () => {
+    /** A submit budget too small for a retry wait, so the throttle verdict is immediate. */
+    const { config, readContract, writeContract } = gaslessWriteTestConfig({
+      execution: { mode: "gasless", fallback: "wallet", submitTimeoutMs: 500 },
+    });
+    programReads(readContract);
+    post.mockRejectedValue({
+      isAxiosError: true,
+      message: "too many requests",
+      response: { status: 429, statusText: "Too Many Requests", data: { error: "Rate limit exceeded" } },
+      config: { url: "/gateway/relay-instant", method: "post" },
+    });
+
+    const hash = await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
+
+    expect(hash).toBe(TEST_GASLESS_TX_HASH);
+    expect(writeContract).toHaveBeenCalledTimes(1);
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it("never falls back to the wallet after an idempotency conflict", async () => {
+    const { config, readContract, writeContract } = gaslessWriteTestConfig({
+      execution: { mode: "gasless", fallback: "wallet" },
+    });
+    programReads(readContract);
+    post.mockRejectedValue({
+      isAxiosError: true,
+      message: "conflict",
+      response: { status: 409, statusText: "Conflict", data: { detail: { code: "IDEMPOTENCY_KEY_CONFLICT" } } },
+      config: { url: "/gateway/relay-instant", method: "post" },
+    });
+
+    await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).rejects.toMatchObject({
+      code: "GASLESS_RELAY_SUBMIT_FAILED",
+    });
+    expect(writeContract).not.toHaveBeenCalled();
+  });
+
   it("throws (no fallback) on the same rejection under the default fallback: error", async () => {
     const { config, readContract, writeContract } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
     programReads(readContract);
@@ -376,29 +507,130 @@ describe("transparent gasless dispatch", () => {
     expect(writeContract).not.toHaveBeenCalled();
   });
 
-  it("stops before any signature when the daily quota would block", async () => {
-    const { config, readContract, signTypedData } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
-    programReads(readContract, { getAccountOperationalFee: [1_000_000n, 0n, true] });
+  describe("fee pre-flight", () => {
+    /** A `previewFeeQuote` stub that fails with `error`. */
+    function failingQuote(error: Error): () => Promise<never> {
+      return () => Promise.reject(error);
+    }
 
-    await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).rejects.toThrowError(
-      /GASLESS_FEE_UNAFFORDABLE|quota/,
-    );
-    expect(signTypedData).not.toHaveBeenCalled();
-    expect(post).not.toHaveBeenCalled();
-  });
+    it("quotes exactly the operations it then signs, all on wallet 0, before any signature", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
+      programReads(readContract);
+      programRelaySuccess();
 
-  it("takes the wallet path, with no signature prompt, when the quota would block under fallback: wallet", async () => {
-    const { config, readContract, writeContract, signTypedData } = gaslessWriteTestConfig({
-      execution: { mode: "gasless", fallback: "wallet" },
+      await deallocateAndInitiateWithdraw(config, {
+        account: SUB_ACCOUNT,
+        amount: 1_000_000_000_000_000_000n,
+        parts: PARTS,
+        upnlSig: UPNL_SIG,
+      });
+
+      const quoteIndex = readContract.mock.calls.findIndex(
+        ([read]) => (read as StubRead).functionName === "previewFeeQuote",
+      );
+      const quoteRead = readContract.mock.calls[quoteIndex]?.[0] as StubRead;
+      const { functionName, args } = decodeFunctionData({ abi: gaslessLayerAbi, data: quoteRead.args?.[0] as Hex });
+      expect(functionName).toBe("relayInstantBatch");
+      const [signedOps, , , , walletIds] = args as unknown as [
+        { replayAttackHeader: { nonce: bigint } }[],
+        unknown,
+        unknown,
+        unknown,
+        bigint[],
+      ];
+      expect(signedOps.map((op) => op.replayAttackHeader.nonce)).toEqual([6n, 7n]);
+      expect(walletIds).toEqual([0n, 0n]);
+      /** The quote is read before the first signature prompt. */
+      expect(readContract.mock.invocationCallOrder[quoteIndex]).toBeLessThan(
+        signTypedData.mock.invocationCallOrder[0] as number,
+      );
     });
-    programReads(readContract, { getAccountOperationalFee: [1_000_000n, 0n, true] });
 
-    const hash = await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
+    it("stops before any signature when the daily free quota is exhausted", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
+      programReads(readContract, {
+        previewFeeQuote: failingQuote(feeQuoteRevert("DailyFreeOpsLimitExceeded", [SUB_ACCOUNT, 5n])),
+      });
 
-    expect(hash).toBe(TEST_GASLESS_TX_HASH);
-    expect(writeContract).toHaveBeenCalledTimes(1);
-    expect(signTypedData).not.toHaveBeenCalled();
-    expect(post).not.toHaveBeenCalled();
+      await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).rejects.toMatchObject({
+        code: "GASLESS_FREE_QUOTA_EXHAUSTED",
+      });
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it("takes the wallet path, with no signature prompt, when the free quota is exhausted under fallback: wallet", async () => {
+      const { config, readContract, writeContract, signTypedData } = gaslessWriteTestConfig({
+        execution: { mode: "gasless", fallback: "wallet" },
+      });
+      programReads(readContract, {
+        previewFeeQuote: failingQuote(feeQuoteRevert("DailyFreeOpsLimitExceeded", [SUB_ACCOUNT, 5n])),
+      });
+
+      const hash = await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
+
+      expect(hash).toBe(TEST_GASLESS_TX_HASH);
+      expect(writeContract).toHaveBeenCalledTimes(1);
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      {
+        label: "a reverted quote",
+        quote: () => failingQuote(feeQuoteRevert("InvalidWalletOperationTarget", [SUB_ACCOUNT, VIRTUAL_ACCOUNT])),
+        code: "GASLESS_FEE_QUOTE_REVERTED",
+      },
+      {
+        /** An empty revert, but the empty-calldata interface check comes back with revert data. */
+        label: "a batch the GaslessLayer cannot decode",
+        quote: () => (read: StubRead) =>
+          Promise.reject(
+            read.args?.[0] === "0x"
+              ? feeQuoteRevert("UnsupportedFeeQuoteCall", ["0x00000000"])
+              : feeQuoteRawRevert("0x"),
+          ),
+        code: "GASLESS_FEE_QUOTE_REVERTED",
+      },
+      {
+        label: "a GaslessLayer without the multi-wallet interface",
+        quote: () => failingQuote(feeQuoteRawRevert("0x")),
+        code: "GASLESS_LAYER_INTERFACE_UNSUPPORTED",
+      },
+    ])("throws for $label before any signature, even under fallback: wallet", async ({ quote, code }) => {
+      const { config, readContract, writeContract, signTypedData } = gaslessWriteTestConfig({
+        execution: { mode: "gasless", fallback: "wallet" },
+      });
+      programReads(readContract, { previewFeeQuote: quote() });
+
+      await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).rejects.toMatchObject({ code });
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(writeContract).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it("still signs and relays when the quote read fails for transport reasons", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
+      programReads(readContract, {
+        previewFeeQuote: failingQuote(asReadContractError(new HttpRequestError({ url: "https://rpc.invalid" }))),
+      });
+      programRelaySuccess();
+
+      const hash = await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
+
+      expect(hash).toBe(RELAY_TX_HASH);
+      expect(signTypedData).toHaveBeenCalledTimes(1);
+      expect(post).toHaveBeenCalledTimes(1);
+    });
+
+    it("issues no quote read at all when preflightFee is false", async () => {
+      const { config, readContract } = gaslessWriteTestConfig({ execution: { mode: "gasless", preflightFee: false } });
+      programReads(readContract, { previewFeeQuote: failingQuote(feeQuoteRawRevert("0x")) });
+      programRelaySuccess();
+
+      await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).resolves.toBe(RELAY_TX_HASH);
+      expect(countReads(readContract, "previewFeeQuote")).toBe(0);
+    });
   });
 
   it("refuses to relay when the gateway verifies against a different InstantLayer", async () => {
@@ -421,7 +653,39 @@ describe("transparent gasless dispatch", () => {
     await initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS });
 
     expect(events.map((event) => event.type)).toEqual(["accepted", "broadcast"]);
-    expect(events[0]?.requestId).toBe("req-1");
+    /** Everything needed to resume the workflow after a reload, not just the id. */
+    expect(events[0]).toMatchObject({
+      requestId: "req-1",
+      service: "operations",
+      chainId: GASLESS_TEST_CHAIN,
+      protocolInstance: "arbitrum-42161-test",
+      operationType: "initiateWithdraw",
+      owner: TEST_GASLESS_SIGNER,
+      walletIds: [0n],
+    });
+    expect((events[0] as { idempotencyKey?: string }).idempotencyKey).toEqual(expect.any(String));
+  });
+
+  it("tracks the request under the billing sub-account's owner, not the signing key", async () => {
+    const { config, readContract } = gaslessWriteTestConfig(
+      { execution: { mode: "gasless" } },
+      { signersByFrom: { [SESSION_KEY]: SESSION_KEY } },
+    );
+    programReads(readContract);
+    programRelaySuccess();
+
+    await maybeRelayAsGasless(config, {
+      gasless: true,
+      from: SESSION_KEY,
+      signerAccount: SUB_ACCOUNT,
+      calls: batchCalls(),
+    });
+
+    const body = post.mock.calls[0]?.[1] as RelayBody & { userAddress: string; walletIds: string[] };
+    /** A session key owns nothing; the workflow belongs to the sub-account's owner. */
+    expect(body.userAddress).toBe(TEST_GASLESS_SIGNER);
+    /** Ordinary InstantLayer operations always relay from wallet 0, one explicit id per op. */
+    expect(body.walletIds).toEqual(["0", "0"]);
   });
   describe("delegation pre-flight", () => {
     it("skips every delegation read when the signer is the sub-account's owner", async () => {
@@ -540,7 +804,8 @@ describe("transparent gasless dispatch", () => {
 
       expect(hash).toBe(RELAY_TX_HASH);
       expect(delegationReads(readContract)).toEqual([]);
-      expect(readContract.mock.calls.some(([read]) => (read as StubRead).functionName === "getSubAccount")).toBe(false);
+      /** The owner is still read once: it is the request's `userAddress`, not a delegation check. */
+      expect(countReads(readContract, "getSubAccount")).toBe(1);
     });
   });
 
