@@ -24,7 +24,7 @@ interface CandleSource {
 }
 ```
 
-Hooks (`useCandles`, `useCandleStream`) and adapters (`toTradingViewDatafeed`) are written against that interface, never against a venue. Swapping the source swaps the data and nothing else.
+Hooks (`useCandles`, `useCandleStream`) and adapters (`toTradingViewDatafeed`) are written against that interface, never against a venue. Swapping the source swaps the data and nothing else. Full signatures live in the reference: [Candles](/core/candles) for the slice, [Candles hooks](/react/candles) for the React layer.
 
 ## Know which price you are drawing
 
