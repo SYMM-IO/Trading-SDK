@@ -1,7 +1,13 @@
 "use client";
 
 import type { FullBalanceFunding, SolverId } from "@symmio/trading-core";
-import { calculateSolverCloseFee, useInstantOpenFees, useMarkets, type PositionType } from "@symmio/trading-react";
+import {
+  calculateSolverCloseFee,
+  useInstantOpenFees,
+  useMarkets,
+  useSolverInfo,
+  type PositionType,
+} from "@symmio/trading-react";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
 import { cn } from "@symmio/ui/lib/utils";
@@ -54,6 +60,11 @@ export function InstantOpenFeesPreview({
   const isFullBalance = fund !== undefined;
   const fundingAmount = isFullBalance ? fund.balance : initialMargin;
   const enabled = marketId !== undefined && Number(fundingAmount) > 0 && leverage > 0;
+  // TanStack-cached static fees: passed through as `solverInfo` so per-input
+  // preview refetches skip the SDK's own `/info` round-trip. On a non-enigma
+  // solver the hook fails fast (UNSUPPORTED_BY_SOLVER) and `data` stays
+  // undefined — the SDK then ignores the field on that kind anyway.
+  const solverInfoQuery = useSolverInfo({ solverId, query: { enabled } });
   const feesQuery = useInstantOpenFees({
     subAccountAddress: subAccount,
     solverId,
@@ -65,6 +76,7 @@ export function InstantOpenFeesPreview({
     leverage,
     slippage,
     markPrice,
+    solverInfo: solverInfoQuery.data,
     query: { enabled },
   });
   const fees = feesQuery.data;
@@ -91,6 +103,8 @@ export function InstantOpenFeesPreview({
             Number(fees.platformCloseFee) +
             Number(fees.openSolverFee) +
             Number(displayCloseSolverFee) +
+            Number(fees.staticSolverFeeOpen) +
+            Number(fees.staticSolverFeeClose) +
             Number(fees.expectedSettlementLoss),
         )
       : fees?.totalFee;
@@ -141,6 +155,8 @@ export function InstantOpenFeesPreview({
                     value={formatFeeUsd(displayCloseSolverFee ?? fees.closeSolverFee)}
                     sub="min (standard rate)"
                   />
+                  <FeeRow label="Solver static open fee" value={formatFeeUsd(fees.staticSolverFeeOpen)} sub="flat" />
+                  <FeeRow label="Solver static close fee" value={formatFeeUsd(fees.staticSolverFeeClose)} sub="flat" />
                   <FeeRow
                     label="Expected settlement"
                     value={formatFeeUsd(fees.expectedSettlementLoss)}

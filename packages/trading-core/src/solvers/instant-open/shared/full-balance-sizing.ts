@@ -46,6 +46,10 @@ export interface InstantOpenCostLegs {
   openSolverFee: string;
   /** Worst-case solver close fee provisioned at open. `"0"` on non-lowcap solvers. */
   closeSolverFee: string;
+  /** Static solver fee charged per instant open — flat USD (solver `/info`). `"0"` on non-lowcap solvers or when unpublished. */
+  staticSolverFeeOpen: string;
+  /** Static solver close fee provisioned at open — flat USD (solver `/info`). `"0"` on non-lowcap solvers or when unpublished. */
+  staticSolverFeeClose: string;
   /** Side-aware `max(0, adverse fill deviation × quantity)`. `"0"` without a usable fill price. */
   expectedSettlementLoss: string;
   /**
@@ -81,6 +85,10 @@ export interface ComputeInstantOpenCostsParameters {
   hedgerFeeCloseEarlyThreshold?: number;
   /** Standard-rate threshold in seconds (paired with `hedgerFeeCloseEarlyRate`). */
   hedgerFeeCloseStandardThreshold?: number;
+  /** Static solver fee per instant open — flat USD, size-independent (solver `/info`). Lowcap only. */
+  staticSolverFeeOpen?: string;
+  /** Static solver close fee provisioned at open — flat USD, size-independent (solver `/info`). Lowcap only. */
+  staticSolverFeeClose?: string;
   /** Solver locked-param percents — needed for the SHORT buffered-basis recompute. */
   cvaPercent?: string;
   /** Solver locked-param percents. */
@@ -95,16 +103,18 @@ export interface ComputeInstantOpenCostsParameters {
  * `getInstantOpenFees`, so the preview equals what the open charges by
  * construction.
  *
- * Pure in `trade`: at a fixed fill price every leg scales linearly with the
- * sizing input (rates × notional, price delta × quantity, percents ×
- * notionalBasic), which is what lets {@link sizeFullBalanceInstantOpen} solve
- * the full-balance factor in one pass.
+ * Pure in `trade`: at a fixed fill price every size-dependent leg scales
+ * linearly with the sizing input (rates × notional, price delta × quantity,
+ * percents × notionalBasic), which is what lets
+ * {@link sizeFullBalanceInstantOpen} solve the full-balance factor in one pass.
+ * The static solver legs are the exception — flat USD constants — so the
+ * sizing carves them off the balance up front instead of scaling them.
  */
 export function computeInstantOpenCosts(parameters: ComputeInstantOpenCostsParameters): InstantOpenCostLegs {
   const { trade, positionType, markPrice, expectedFillPrice, feeRates, isLowcap } = parameters;
 
   const { platformOpenFee, platformCloseFee } = computePlatformFeeLegs(feeRates, trade.notional, trade.notional);
-  const { openSolverFee, closeSolverFee } = isLowcap
+  const { openSolverFee, closeSolverFee, staticSolverFeeOpen, staticSolverFeeClose } = isLowcap
     ? calculateSolverFees({
         notional: trade.notional,
         hedgerFeeOpen: parameters.hedgerFeeOpen,
@@ -112,8 +122,10 @@ export function computeInstantOpenCosts(parameters: ComputeInstantOpenCostsParam
         hedgerFeeCloseEarlyRate: parameters.hedgerFeeCloseEarlyRate,
         hedgerFeeCloseEarlyThreshold: parameters.hedgerFeeCloseEarlyThreshold,
         hedgerFeeCloseStandardThreshold: parameters.hedgerFeeCloseStandardThreshold,
+        staticSolverFeeOpen: parameters.staticSolverFeeOpen,
+        staticSolverFeeClose: parameters.staticSolverFeeClose,
       })
-    : { openSolverFee: "0", closeSolverFee: "0" };
+    : { openSolverFee: "0", closeSolverFee: "0", staticSolverFeeOpen: "0", staticSolverFeeClose: "0" };
   const expectedSettlementLoss = calculateExpectedSettlementLoss({
     positionType,
     markPrice,
@@ -129,6 +141,8 @@ export function computeInstantOpenCosts(parameters: ComputeInstantOpenCostsParam
     partyAmm: trade.partyAmm,
     openSolverFee,
     closeSolverFee,
+    staticSolverFeeOpen,
+    staticSolverFeeClose,
     expectedSettlementLoss,
     platformFee: toDecimal(platformOpenFee).plus(platformCloseFee).toString(),
     /** Lowcap SHORT: fund lock growth above the floor. Majors keep the classic basis. */
@@ -138,7 +152,16 @@ export function computeInstantOpenCosts(parameters: ComputeInstantOpenCostsParam
     partyAmmPercent: parameters.partyAmmPercent,
   });
 
-  return { platformOpenFee, platformCloseFee, openSolverFee, closeSolverFee, expectedSettlementLoss, marginAmount };
+  return {
+    platformOpenFee,
+    platformCloseFee,
+    openSolverFee,
+    closeSolverFee,
+    staticSolverFeeOpen,
+    staticSolverFeeClose,
+    expectedSettlementLoss,
+    marginAmount,
+  };
 }
 
 /**
@@ -174,6 +197,13 @@ export interface SizeFullBalanceInstantOpenParameters {
   hedgerFeeCloseEarlyThreshold?: number;
   /** Standard-rate threshold in seconds (paired with `hedgerFeeCloseEarlyRate`). */
   hedgerFeeCloseStandardThreshold?: number;
+  /**
+   * Static solver fee per instant open — flat USD, size-independent (solver
+   * `/info`). Carved off the balance before the linear solve.
+   */
+  staticSolverFeeOpen?: string;
+  /** Static solver close fee provisioned at open — flat USD, size-independent (solver `/info`). */
+  staticSolverFeeClose?: string;
   /**
    * Market quote constraints. The sized quantity is snapped down to the lot
    * grid and validated against every published constraint; unpublished
@@ -221,8 +251,15 @@ export interface SizeFullBalanceInstantOpenReturnType {
  * re-solves with settlement at the slippage bound, or clamps to the probe
  * size when the bound model no longer upsizes.
  *
+ * The static solver legs (flat USD, size-independent) would break the linear
+ * factor solve, so they are carved off the balance first: the position is
+ * sized against `balance − staticSolverFeeOpen − staticSolverFeeClose`, which
+ * keeps the solve exact, and the reported costs then include the static legs —
+ * `marginAmount ≤ balance` still holds by construction.
+ *
  * @throws {SymmError} `INVALID_TRADE_PARAMETERS` when the inputs cannot size a
- *   positive quantity whose costs fit the balance;
+ *   positive quantity whose costs fit the balance (including a balance that
+ *   cannot even cover the static solver fees);
  *   `QUOTE_CONSTRAINT_VIOLATED` when the sized quantity violates a published
  *   market constraint.
  */
@@ -231,7 +268,22 @@ export function sizeFullBalanceInstantOpen(
 ): SizeFullBalanceInstantOpenReturnType {
   const { balance, calculationInput, feeRates, constraints } = parameters;
 
-  const probe = calculateTradeParams({ ...calculationInput, userInput: balance, inputField: "PRICE" });
+  // Flat legs off the top: the linear solve below only holds for costs that
+  // scale with the sizing input, so the size-independent static fees shrink
+  // the budget instead of joining the solve.
+  const staticSolverFeeOpen = parameters.staticSolverFeeOpen ?? "0";
+  const staticSolverFeeClose = parameters.staticSolverFeeClose ?? "0";
+  const effectiveBalanceDec = toDecimal(balance).minus(staticSolverFeeOpen).minus(staticSolverFeeClose);
+  if (effectiveBalanceDec.isNaN() || effectiveBalanceDec.lte(0)) {
+    throw new SymmError(
+      "validation",
+      "INVALID_TRADE_PARAMETERS",
+      "sizeFullBalanceInstantOpen: the balance cannot cover the solver's static fees.",
+    );
+  }
+  const effectiveBalance = effectiveBalanceDec.toString();
+
+  const probe = calculateTradeParams({ ...calculationInput, userInput: effectiveBalance, inputField: "PRICE" });
   if (!probe) {
     throw new SymmError(
       "validation",
@@ -240,6 +292,8 @@ export function sizeFullBalanceInstantOpen(
     );
   }
 
+  // Deliberately WITHOUT the static legs: every cost this context prices is
+  // linear in the sizing input, and the solve runs against `effectiveBalance`.
   const costsContext = {
     positionType: calculationInput.positionType,
     markPrice: calculationInput.markPrice,
@@ -275,7 +329,7 @@ export function sizeFullBalanceInstantOpen(
   }
 
   const epsilonFactor = toDecimal(100 - FULL_BALANCE_SAFETY_EPSILON_PERCENT).div(100);
-  let sizingFactor = toDecimal(balance).div(probeMargin).times(epsilonFactor);
+  let sizingFactor = toDecimal(effectiveBalance).div(probeMargin).times(epsilonFactor);
   // The estimate was quoted at the probe size, so it only bounds fills at or
   // below it. A factor above 1 upsizes PAST the probe; there the estimate is
   // no longer conservative, so re-solve with settlement at the slippage bound
@@ -286,7 +340,7 @@ export function sizeFullBalanceInstantOpen(
     const probeMarginBound = toDecimal(
       computeInstantOpenCosts({ ...costsContext, expectedFillPrice: boundFillPrice, trade: probe }).marginAmount,
     );
-    const boundFactor = toDecimal(balance).div(probeMarginBound).times(epsilonFactor);
+    const boundFactor = toDecimal(effectiveBalance).div(probeMarginBound).times(epsilonFactor);
     if (boundFactor.gt(1)) {
       sizingFactor = boundFactor;
       settlementFillPrice = boundFillPrice;
@@ -296,7 +350,7 @@ export function sizeFullBalanceInstantOpen(
   }
   const rescaled = calculateTradeParams({
     ...calculationInput,
-    userInput: toDecimal(balance).times(sizingFactor).toString(),
+    userInput: toDecimal(effectiveBalance).times(sizingFactor).toString(),
     inputField: "PRICE",
   });
   if (!rescaled) {
@@ -322,7 +376,9 @@ export function sizeFullBalanceInstantOpen(
 
   // Invariant: the funded VA must cover everything the signed quote locks. The
   // linear factor is exact up to precision rounding, so at most a few steps.
-  for (let iteration = 0; toDecimal(costs.marginAmount).gt(balance); iteration++) {
+  // Compared against the static-fee-reduced budget — the statics were carved
+  // off up front and rejoin the reported costs below.
+  for (let iteration = 0; toDecimal(costs.marginAmount).gt(effectiveBalance); iteration++) {
     quantity = quantity.minus(step);
     if (quantity.lte(0) || iteration >= MAX_STEP_DOWN_ITERATIONS) {
       throw new SymmError(
@@ -351,6 +407,16 @@ export function sizeFullBalanceInstantOpen(
       `sizeFullBalanceInstantOpen: the sized quantity ${trade.quantity} violates market constraints: ${summary}.`,
     );
   }
+
+  // Reported costs carry the static legs the solve carved off the budget:
+  // marginAmount = linear costs (≤ effectiveBalance) + statics ≤ balance.
+  costs = computeInstantOpenCosts({
+    ...costsContext,
+    staticSolverFeeOpen,
+    staticSolverFeeClose,
+    expectedFillPrice: settlementFillPrice,
+    trade,
+  });
 
   return { trade, costs };
 }

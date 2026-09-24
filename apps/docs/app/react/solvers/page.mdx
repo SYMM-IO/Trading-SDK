@@ -147,6 +147,8 @@ Returns `UseQueryResult<EnigmaSolverInfo, SymmioRequestError>`:
 
 Amounts are USD decimal strings exactly as the solver reports them — no decimal scaling. **Enigma-only:** on a rasa-kind solver the query fails before the wire with a `SymmioRequestError` carrying `code: "UNSUPPORTED_BY_SOLVER"`; a failed request carries `FETCH_SOLVER_INFO_FAILED`.
 
+The instant-open cost model consumes these legs — [`useInstantOpenFees`](../instant-layer#useinstantopenfees) reports them per preview, and the open's `addMargin` amount funds both. Pass `data` as that hook's `solverInfo` to share this query's cache.
+
 ### `useSolverErrorCodes`
 
 Fetch the solver's error-code registry. Cache once, look up by code.

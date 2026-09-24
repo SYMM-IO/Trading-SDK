@@ -4,6 +4,7 @@ import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, WriteSolverParameter } from "../../../shared/types/properties";
 import { decimalPriceToWei } from "../../../shared/utils/price";
 import type { FeeForUser } from "../../../symmio-contracts/symmio/actions/get-fee-for-user";
+import type { EnigmaSolverInfo } from "../../get-solver-info";
 import type { ApiLockedParamsBySymbolIdResponse } from "../../types/generated/enigma-solver";
 import type { InstantOpenParameters } from "../instant-open/types";
 import { computeInstantOpenCosts, sizeFullBalanceInstantOpen } from "../shared/full-balance-sizing";
@@ -15,7 +16,7 @@ import {
 } from "../shared/open-estimate-guard";
 import { calculateTradeParams, toWeiBigInt } from "../shared/trade-math";
 import { type InstantOpenMarketData, type PositionType } from "../shared/types";
-import { resolveFeeRates, resolveLockedParams, resolveMarket, resolveMarkPrice } from "./resolvers";
+import { resolveFeeRates, resolveLockedParams, resolveMarket, resolveMarkPrice, resolveSolverInfo } from "./resolvers";
 
 /**
  * Default solver-fee rate cap when the market publishes none: `"0.01"` — 1% of
@@ -115,6 +116,14 @@ type PrepareInstantOpenBaseParameters = WriteSolverParameter & {
    * `FeeForUser`). When omitted, fetched via `getFeeForUser`.
    */
   feeRates?: FeeForUser;
+  /**
+   * Pre-fetched solver static fees (matches `getSolverInfo` return) —
+   * **lowcap/Enigma only**; ignored on any other solver kind. When omitted on
+   * a lowcap solver, fetched via `getSolverInfo` (fail-soft: an unreachable
+   * `/info` prices both static legs at `"0"`). The flat USD legs ride the
+   * `addMargin` transfer like the rate-based solver fees.
+   */
+  solverInfo?: EnigmaSolverInfo;
   /** Forwarded to {@link InstantOpenParameters}. */
   uuid?: string;
   /** Forwarded to {@link InstantOpenParameters}. */
@@ -190,8 +199,11 @@ export type PrepareInstantOpenParameters = Compute<
  *    derive the `addMargin` amount — the solver charges its fees and the
  *    open-price settlement from the VA, so the transfer funds
  *    `locks + platformFee + openSolverFee + closeSolverFee +
- *    expectedSettlementLoss`. In full-balance mode the quantity is rescaled to
- *    fit the balance and the `addMargin` amount is the whole balance instead.
+ *    staticSolverFeeOpen + staticSolverFeeClose + expectedSettlementLoss`
+ *    (the static legs are flat USD amounts from the solver's `/info` config).
+ *    In full-balance mode the quantity is rescaled to fit the balance — the
+ *    static legs are carved off the budget before the linear solve — and the
+ *    `addMargin` amount is the whole balance instead.
  * 6. Convert all final values to 18-decimal-wei `bigint`.
  *
  * @throws {SymmError} `INVALID_SLIPPAGE` / `SLIPPAGE_REQUIRED` /
@@ -284,7 +296,7 @@ export async function prepareInstantOpenParams(
     maxQuantity: parameters.market.maxQuantity,
     lotSize: parameters.market.lotSize,
   });
-  const [markPrice, lockedParams, feeRates] = await Promise.all([
+  const [markPrice, lockedParams, feeRates, staticFees] = await Promise.all([
     resolveMarkPrice(config, {
       chainId: parameters.chainId,
       solverId: parameters.solverId,
@@ -304,6 +316,14 @@ export async function prepareInstantOpenParams(
       marketId: parameters.market.id,
       feeRates: parameters.feeRates,
     }),
+    // Static solver fees are a lowcap leg — a majors open never fetches them.
+    isLowcap
+      ? resolveSolverInfo(config, {
+          chainId: parameters.chainId,
+          solverId: parameters.solverId,
+          solverInfo: parameters.solverInfo,
+        })
+      : Promise.resolve({ staticSolverFeeOpen: "0", staticSolverFeeClose: "0" }),
   ]);
 
   const calculationInput = {
@@ -405,6 +425,8 @@ export async function prepareInstantOpenParams(
     hedgerFeeCloseEarlyRate: market.hedgerFeeCloseEarlyRate,
     hedgerFeeCloseEarlyThreshold: market.hedgerFeeCloseEarlyThreshold,
     hedgerFeeCloseStandardThreshold: market.hedgerFeeCloseStandardThreshold,
+    staticSolverFeeOpen: staticFees.staticSolverFeeOpen,
+    staticSolverFeeClose: staticFees.staticSolverFeeClose,
     cvaPercent: lockedParams.cva,
     lfPercent: lockedParams.lf,
     partyAmmPercent: lockedParams.partyAmm,
@@ -429,6 +451,8 @@ export async function prepareInstantOpenParams(
       hedgerFeeCloseEarlyRate: market.hedgerFeeCloseEarlyRate,
       hedgerFeeCloseEarlyThreshold: market.hedgerFeeCloseEarlyThreshold,
       hedgerFeeCloseStandardThreshold: market.hedgerFeeCloseStandardThreshold,
+      staticSolverFeeOpen: staticFees.staticSolverFeeOpen,
+      staticSolverFeeClose: staticFees.staticSolverFeeClose,
       constraints: {
         minAcceptablePortionLf: market.minAcceptablePortionLf,
         minAcceptableQuoteValue: market.minAcceptableQuoteValue,

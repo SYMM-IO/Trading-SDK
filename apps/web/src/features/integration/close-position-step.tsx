@@ -13,6 +13,7 @@ import {
   useLimitCloseAuto,
   useMarkets,
   usePriceByName,
+  useSolverInfo,
   useSupportsLimitOrder,
   useSymmioConfig,
   validateInstantCloseAgainstMarket,
@@ -22,6 +23,7 @@ import { Badge } from "@symmio/ui/components/badge";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
 import { cn } from "@symmio/ui/lib/utils";
 import { formatWithCommas } from "@symmio/utils";
 import { useMemo, useState } from "react";
@@ -108,6 +110,13 @@ export function ClosePositionStep({
     user: partyA,
     symbolId: position.symbolId,
     query: { enabled: true, staleTime: 30_000 },
+  });
+  // Flat static close fee from the solver's /info config — Enigma-only, so the
+  // query stays idle on other kinds (it would fail fast with
+  // UNSUPPORTED_BY_SOLVER anyway).
+  const solverInfoQuery = useSolverInfo({
+    solverId: resolvedSolverId,
+    query: { enabled: market?.kind === "enigma" },
   });
 
   const [quantity, setQuantity] = useState("");
@@ -350,6 +359,7 @@ export function ClosePositionStep({
           feeRates={feeQuery.data}
           market={market}
           openedAtSeconds={position.createTimestamp}
+          staticSolverFeeClose={solverInfoQuery.data?.staticSolverFeeClose}
           idPrefix={idPrefix}
         />
       ) : null}
@@ -433,6 +443,7 @@ function ClosePreview({
   feeRates,
   market,
   openedAtSeconds,
+  staticSolverFeeClose,
   idPrefix,
 }: {
   closePrice: string;
@@ -443,6 +454,8 @@ function ClosePreview({
   market: Market | undefined;
   /** When the position opened (unix seconds); holding time = now − this. */
   openedAtSeconds: bigint | undefined;
+  /** Flat static close fee from the solver's `/info` config (USD decimal string). Enigma-only; undefined while loading or on other kinds. */
+  staticSolverFeeClose: string | undefined;
   idPrefix: string;
 }) {
   const notional = useMemo(() => {
@@ -487,15 +500,52 @@ function ClosePreview({
           testId={`${idPrefix}-preview-close-fee`}
         />
         {solverCloseFee !== undefined ? (
-          <PreviewRow
-            label="Solver close fee"
-            hint="(at current holding time)"
-            value={formatDecimalUsd(solverCloseFee)}
-            testId={`${idPrefix}-preview-solver-close-fee`}
-          />
+          <SolverCloseFeeRow rateFee={solverCloseFee} staticFee={staticSolverFeeClose ?? "0"} idPrefix={idPrefix} />
         ) : null}
       </dl>
     </div>
+  );
+}
+
+/**
+ * "Solver close fee" preview row: shows the **total** the solver charges at
+ * close — the holding-time rate fee plus the flat static close fee — with the
+ * per-leg breakdown on hover.
+ */
+function SolverCloseFeeRow({ rateFee, staticFee, idPrefix }: { rateFee: string; staticFee: string; idPrefix: string }) {
+  const total = String(Number(rateFee) + Number(staticFee));
+  return (
+    <>
+      <dt className="text-muted-foreground inline-flex items-baseline gap-1.5">
+        <span>Solver close fee</span>
+        <span className="text-muted-foreground/70 text-[0.65rem]">(rate + static)</span>
+      </dt>
+      <dd className="text-foreground justify-self-end font-mono" data-testid={`${idPrefix}-preview-solver-close-fee`}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-help underline decoration-dotted underline-offset-2">
+              {formatDecimalUsd(total)}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="w-60 p-3" sideOffset={6}>
+            <div className="grid gap-1.5 text-xs" data-testid={`${idPrefix}-preview-solver-close-fee-tooltip`}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-muted-foreground">
+                  Rate fee <span className="text-[0.65rem] opacity-70">at current holding time</span>
+                </span>
+                <span className="font-mono">{formatDecimalUsd(rateFee)}</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-muted-foreground">
+                  Static fee <span className="text-[0.65rem] opacity-70">flat</span>
+                </span>
+                <span className="font-mono">{formatDecimalUsd(staticFee)}</span>
+              </div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </dd>
+    </>
   );
 }
 

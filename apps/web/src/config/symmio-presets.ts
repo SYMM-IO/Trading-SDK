@@ -24,7 +24,7 @@ export const STAGING_CHAIN_OVERRIDES = {
     contractsVersion: "0.8.6",
     addresses: {
       symmioAddress: "0x573310dB6d160B26026B8706EBe9831c7dEF1D09",
-      instantLayerAddress: "0x2C9e944cB71329fC659Da50A10a79a508Dd49ba5",
+      instantLayerAddress: "0x38AaBc7A73523Cd47c710FcdEb3b20ae02310180",
       accountLayerAddress: "0x5733107211B2801Acd39933a54d482FE303c4907",
       affiliatesAddress: "0xe99c18CF3C62B9229f9251fd2562077a33e7600a",
       collateralAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",

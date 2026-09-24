@@ -67,10 +67,12 @@ describe("calculateTradeParams", () => {
 });
 
 describe("calculateSolverFees", () => {
-  it("charges both legs on the leveraged notional", () => {
+  it("charges both rate legs on the leveraged notional", () => {
     expect(calculateSolverFees({ notional: "1000", hedgerFeeOpen: "0.0004", hedgerFeeClose: "0.001" })).toEqual({
       openSolverFee: "0.4",
       closeSolverFee: "1",
+      staticSolverFeeOpen: "0",
+      staticSolverFeeClose: "0",
     });
   });
 
@@ -78,6 +80,8 @@ describe("calculateSolverFees", () => {
     expect(calculateSolverFees({ notional: "1000", hedgerFeeOpen: undefined, hedgerFeeClose: "-0.1" })).toEqual({
       openSolverFee: "0",
       closeSolverFee: "0",
+      staticSolverFeeOpen: "0",
+      staticSolverFeeClose: "0",
     });
   });
 
@@ -95,6 +99,42 @@ describe("calculateSolverFees", () => {
       openSolverFee: "0.4",
       // hedgerFeeCloseEarlyRate × notional (0.0024 × 1000), not the flat 0.0006 × 1000.
       closeSolverFee: "2.4",
+      staticSolverFeeOpen: "0",
+      staticSolverFeeClose: "0",
+    });
+  });
+
+  it("passes the flat static legs through without scaling them by the notional", () => {
+    expect(
+      calculateSolverFees({
+        notional: "1000",
+        hedgerFeeOpen: "0.0004",
+        hedgerFeeClose: "0.001",
+        staticSolverFeeOpen: "0.5",
+        staticSolverFeeClose: "0.25",
+      }),
+    ).toEqual({
+      openSolverFee: "0.4",
+      closeSolverFee: "1",
+      staticSolverFeeOpen: "0.5",
+      staticSolverFeeClose: "0.25",
+    });
+  });
+
+  it("treats NaN or negative statics as zero", () => {
+    expect(
+      calculateSolverFees({
+        notional: "1000",
+        hedgerFeeOpen: "0.0004",
+        hedgerFeeClose: "0.001",
+        staticSolverFeeOpen: "NaN",
+        staticSolverFeeClose: "-1",
+      }),
+    ).toEqual({
+      openSolverFee: "0.4",
+      closeSolverFee: "1",
+      staticSolverFeeOpen: "0",
+      staticSolverFeeClose: "0",
     });
   });
 });

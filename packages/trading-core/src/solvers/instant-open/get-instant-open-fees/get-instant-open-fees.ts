@@ -4,6 +4,7 @@ import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, ReadSolverParameter } from "../../../shared/types/properties";
 import type { FeeForUser } from "../../../symmio-contracts/symmio/actions/get-fee-for-user";
+import type { EnigmaSolverInfo } from "../../get-solver-info";
 import type { ApiLockedParamsBySymbolIdResponse } from "../../types/generated/enigma-solver";
 import type { FullBalanceFunding } from "../prepare-instant-open-params";
 import {
@@ -11,6 +12,7 @@ import {
   resolveLockedParams,
   resolveMarket,
   resolveMarkPrice,
+  resolveSolverInfo,
 } from "../prepare-instant-open-params/resolvers";
 import { sizeFullBalanceInstantOpen } from "../shared/full-balance-sizing";
 import { assertValidSlippage, deriveAutoSlippage, fetchOpenEstimatePrice } from "../shared/open-estimate-guard";
@@ -58,6 +60,13 @@ type BaseGetInstantOpenFeesParameters = ReadSolverParameter & {
    * percents; when omitted there, fetched via `getLockedParams`.
    */
   lockedParamPercent?: ApiLockedParamsBySymbolIdResponse;
+  /**
+   * Pre-fetched solver static fees (matches `getSolverInfo` return) —
+   * **lowcap/Enigma only**; ignored on any other solver kind. When omitted on
+   * a lowcap solver, fetched via `getSolverInfo` (fail-soft: an unreachable
+   * `/info` prices both static legs at `"0"`).
+   */
+  solverInfo?: EnigmaSolverInfo;
 };
 
 /**
@@ -128,6 +137,18 @@ export interface EnigmaInstantOpenFees extends BaseInstantOpenFees {
    * no usable estimate exists.
    */
   expectedSettlementLoss: string;
+  /**
+   * Static solver fee charged per instant open — a flat USD amount from the
+   * solver's `/info` config, independent of the notional (decimal string).
+   * `"0"` when the solver publishes none.
+   */
+  staticSolverFeeOpen: string;
+  /**
+   * Static solver close fee provisioned at open — a flat USD amount from the
+   * solver's `/info` config, independent of the notional (decimal string).
+   * `"0"` when the solver publishes none.
+   */
+  staticSolverFeeClose: string;
 }
 
 /**
@@ -155,7 +176,9 @@ export type GetInstantOpenFeesReturnType = EnigmaInstantOpenFees | RasaInstantOp
  *   (on-chain `getFeeForUser` rates × leveraged notional).
  * - **Lowcap (Enigma) only**: `openSolverFee` (`hedgerFeeOpen × notional`) +
  *   `closeSolverFee` (the worst-case close rate × notional — see
- *   {@link EnigmaInstantOpenFees.closeSolverFee}) and
+ *   {@link EnigmaInstantOpenFees.closeSolverFee}),
+ *   `staticSolverFeeOpen` + `staticSolverFeeClose` (flat USD amounts from the
+ *   solver's `/info` config, size-independent) and
  *   `expectedSettlementLoss` (dry-run estimate vs mark) — the legs the solver
  *   charges from the VA balance.
  *
@@ -254,7 +277,7 @@ export async function getInstantOpenFees(
     maxQuantity: parameters.market.maxQuantity,
     lotSize: parameters.market.lotSize,
   });
-  const [markPrice, feeRates, lockedParams] = await Promise.all([
+  const [markPrice, feeRates, lockedParams, staticFees] = await Promise.all([
     resolveMarkPrice(config, {
       chainId: parameters.chainId,
       solverId: parameters.solverId,
@@ -278,6 +301,14 @@ export async function getInstantOpenFees(
           lockedParamPercent: parameters.lockedParamPercent,
         })
       : Promise.resolve(undefined),
+    // Static solver fees are a lowcap leg — majors previews never fetch them.
+    isLowcap
+      ? resolveSolverInfo(config, {
+          chainId: parameters.chainId,
+          solverId: parameters.solverId,
+          solverInfo: parameters.solverInfo,
+        })
+      : Promise.resolve({ staticSolverFeeOpen: "0", staticSolverFeeClose: "0" }),
   ]);
 
   const calculationInput = {
@@ -356,6 +387,8 @@ export async function getInstantOpenFees(
       hedgerFeeCloseEarlyRate: market.hedgerFeeCloseEarlyRate,
       hedgerFeeCloseEarlyThreshold: market.hedgerFeeCloseEarlyThreshold,
       hedgerFeeCloseStandardThreshold: market.hedgerFeeCloseStandardThreshold,
+      staticSolverFeeOpen: staticFees.staticSolverFeeOpen,
+      staticSolverFeeClose: staticFees.staticSolverFeeClose,
       constraints: {
         minAcceptablePortionLf: market.minAcceptablePortionLf,
         minAcceptableQuoteValue: market.minAcceptableQuoteValue,
@@ -373,11 +406,15 @@ export async function getInstantOpenFees(
       quantity: trade.quantity,
       openSolverFee: costs.openSolverFee,
       closeSolverFee: costs.closeSolverFee,
+      staticSolverFeeOpen: costs.staticSolverFeeOpen,
+      staticSolverFeeClose: costs.staticSolverFeeClose,
       expectedSettlementLoss: costs.expectedSettlementLoss,
       totalFee: toDecimal(costs.platformOpenFee)
         .plus(costs.platformCloseFee)
         .plus(costs.openSolverFee)
         .plus(costs.closeSolverFee)
+        .plus(costs.staticSolverFeeOpen)
+        .plus(costs.staticSolverFeeClose)
         .plus(costs.expectedSettlementLoss)
         .toString(),
     };
@@ -400,13 +437,15 @@ export async function getInstantOpenFees(
     };
   }
 
-  const { openSolverFee, closeSolverFee } = calculateSolverFees({
+  const { openSolverFee, closeSolverFee, staticSolverFeeOpen, staticSolverFeeClose } = calculateSolverFees({
     notional: tradeCalc.notional,
     hedgerFeeOpen: market.hedgerFeeOpen,
     hedgerFeeClose: market.hedgerFeeClose,
     hedgerFeeCloseEarlyRate: market.hedgerFeeCloseEarlyRate,
     hedgerFeeCloseEarlyThreshold: market.hedgerFeeCloseEarlyThreshold,
     hedgerFeeCloseStandardThreshold: market.hedgerFeeCloseStandardThreshold,
+    staticSolverFeeOpen: staticFees.staticSolverFeeOpen,
+    staticSolverFeeClose: staticFees.staticSolverFeeClose,
   });
   const expectedSettlementLoss = calculateExpectedSettlementLoss({
     positionType: parameters.positionType,
@@ -423,11 +462,15 @@ export async function getInstantOpenFees(
     quantity: tradeCalc.quantity,
     openSolverFee,
     closeSolverFee,
+    staticSolverFeeOpen,
+    staticSolverFeeClose,
     expectedSettlementLoss,
     totalFee: toDecimal(platformOpenFee)
       .plus(platformCloseFee)
       .plus(openSolverFee)
       .plus(closeSolverFee)
+      .plus(staticSolverFeeOpen)
+      .plus(staticSolverFeeClose)
       .plus(expectedSettlementLoss)
       .toString(),
   };

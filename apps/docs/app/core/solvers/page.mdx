@@ -222,6 +222,8 @@ info.staticSolverFeeClose; // "0.25" — USD per instant close (incl. partial cl
 
 A rasa-kind solver has no `/info` endpoint, so the read fails before the wire with `UNSUPPORTED_BY_SOLVER` rather than a vendor 404. A request that goes out and fails throws `SymmApiError` with code `FETCH_SOLVER_INFO_FAILED`. Ships the matching `getSolverInfoQueryOptions` / `getSolverInfoQueryKey` factories; the React binding is [`useSolverInfo`](/react/solvers#usesolverinfo).
 
+The instant-open cost model consumes these legs: [`getInstantOpenFees`](/core/solvers/instant-open#fee-preview--getinstantopenfees) reports them as `staticSolverFeeOpen` / `staticSolverFeeClose`, and `prepareInstantOpenParams` funds both through the `addMargin` amount (full-balance sizing carves them off the balance before the linear solve). Pass a pre-fetched result as `solverInfo` to skip the fetch there.
+
 ## Locked Params
 
 ### `getLockedParams`

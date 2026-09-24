@@ -8,6 +8,7 @@ const resolveMarket = vi.hoisted(() => vi.fn());
 const resolveMarkPrice = vi.hoisted(() => vi.fn());
 const resolveLockedParams = vi.hoisted(() => vi.fn());
 const resolveFeeRates = vi.hoisted(() => vi.fn());
+const resolveSolverInfo = vi.hoisted(() => vi.fn());
 const assertValidSlippage = vi.hoisted(() => vi.fn());
 const assertOpenEstimateWithinSlippage = vi.hoisted(() => vi.fn());
 const fetchOpenEstimatePrice = vi.hoisted(() => vi.fn());
@@ -18,6 +19,7 @@ vi.mock("./resolvers", () => ({
   resolveMarkPrice,
   resolveLockedParams,
   resolveFeeRates,
+  resolveSolverInfo,
 }));
 vi.mock("../shared/open-estimate-guard", () => ({
   assertValidSlippage,
@@ -79,6 +81,7 @@ describe("prepareInstantOpenParams", () => {
     resolveMarkPrice.mockReset().mockResolvedValue("64790.2");
     resolveLockedParams.mockReset().mockResolvedValue({ cva: "7", lf: "3", partyAmm: "90", partyBmm: "0" });
     resolveFeeRates.mockReset().mockResolvedValue({ openFee: 0n, closeFee: 0n });
+    resolveSolverInfo.mockReset().mockResolvedValue({ staticSolverFeeOpen: "0", staticSolverFeeClose: "0" });
     assertValidSlippage.mockReset();
     assertOpenEstimateWithinSlippage.mockReset().mockResolvedValue(undefined);
     fetchOpenEstimatePrice.mockReset().mockResolvedValue(undefined);
@@ -225,6 +228,23 @@ describe("prepareInstantOpenParams", () => {
       prepareInstantOpenParams(config, { ...PARAMS, solverId: "rasa", slippage: undefined }),
     ).rejects.toThrow(/SLIPPAGE_REQUIRED|slippage is required/);
     expect(deriveAutoSlippage).not.toHaveBeenCalled();
+  });
+
+  it("funds the flat static solver fees through the addMargin amount on lowcap", async () => {
+    resolveSolverInfo.mockResolvedValue({ staticSolverFeeOpen: "0.5", staticSolverFeeClose: "0.25" });
+
+    const result = await prepareInstantOpenParams(config, PARAMS);
+
+    // LONG locks at requested 65438.10 (percents sum 100%, price floored to
+    // 2dp precision) = 65.4381, zero platform/solver rate fees → margin =
+    // 65.4381 + 0.5 + 0.25.
+    expect(result.margin?.amount).toBe(66_188_100_000_000_000_000n);
+  });
+
+  it("skips the solver-info resolution on a non-lowcap solver", async () => {
+    await prepareInstantOpenParams(config, { ...PARAMS, solverId: "rasa" });
+
+    expect(resolveSolverInfo).not.toHaveBeenCalled();
   });
 
   it("funds a lowcap SHORT with the 1% funding buffer on the margin basis", async () => {

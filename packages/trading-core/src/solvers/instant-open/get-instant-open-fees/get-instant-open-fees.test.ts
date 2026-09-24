@@ -8,6 +8,7 @@ const resolveMarket = vi.hoisted(() => vi.fn());
 const resolveMarkPrice = vi.hoisted(() => vi.fn());
 const resolveFeeRates = vi.hoisted(() => vi.fn());
 const resolveLockedParams = vi.hoisted(() => vi.fn());
+const resolveSolverInfo = vi.hoisted(() => vi.fn());
 const fetchOpenEstimatePrice = vi.hoisted(() => vi.fn());
 
 vi.mock("../prepare-instant-open-params/resolvers", () => ({
@@ -15,6 +16,7 @@ vi.mock("../prepare-instant-open-params/resolvers", () => ({
   resolveMarkPrice,
   resolveFeeRates,
   resolveLockedParams,
+  resolveSolverInfo,
 }));
 vi.mock("../shared/open-estimate-guard", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -69,6 +71,7 @@ describe("getInstantOpenFees", () => {
     // 0.1% open / 0.05% close in 18-decimal fixed point.
     resolveFeeRates.mockReset().mockResolvedValue({ openFee: 10n ** 15n, closeFee: 5n * 10n ** 14n });
     resolveLockedParams.mockReset().mockResolvedValue({ cva: "7", lf: "3", partyAmm: "90", partyBmm: "0" });
+    resolveSolverInfo.mockReset().mockResolvedValue({ staticSolverFeeOpen: "0", staticSolverFeeClose: "0" });
     fetchOpenEstimatePrice.mockReset().mockResolvedValue("101.5");
   });
 
@@ -84,9 +87,27 @@ describe("getInstantOpenFees", () => {
       platformCloseFee: "0.101", // 202 × 0.0005
       openSolverFee: "0.202", // 202 × 0.001
       closeSolverFee: "0.404", // 202 × 0.002
+      staticSolverFeeOpen: "0",
+      staticSolverFeeClose: "0",
       expectedSettlementLoss: "3", // (101.5 − 100) × 2
       totalFee: "3.909",
     });
+  });
+
+  it("adds the flat static solver legs to the breakdown and the total", async () => {
+    resolveSolverInfo.mockResolvedValue({ staticSolverFeeOpen: "0.5", staticSolverFeeClose: "0.25" });
+
+    const fees = await getInstantOpenFees(config, { ...PARAMS, solverInfo: { staticSolverFeeOpen: "0.5" } });
+
+    // Same rate legs as the base case + flat 0.5 + 0.25 → 3.909 + 0.75.
+    expect(fees.kind === "enigma" && fees.staticSolverFeeOpen).toBe("0.5");
+    expect(fees.kind === "enigma" && fees.staticSolverFeeClose).toBe("0.25");
+    expect(fees.totalFee).toBe("4.659");
+    // The pre-fetched solverInfo is forwarded so the resolver can skip its fetch.
+    expect(resolveSolverInfo).toHaveBeenCalledWith(
+      config,
+      expect.objectContaining({ solverInfo: { staticSolverFeeOpen: "0.5" } }),
+    );
   });
 
   it("returns platform legs only on a majors solver — no estimate call", async () => {
@@ -102,6 +123,8 @@ describe("getInstantOpenFees", () => {
     });
     expect(fetchOpenEstimatePrice).not.toHaveBeenCalled();
     expect(resolveMarket).toHaveBeenCalledWith(config, expect.objectContaining({ includeHedgerFees: false }));
+    // Static solver fees are a lowcap leg — the majors path never resolves them.
+    expect(resolveSolverInfo).not.toHaveBeenCalled();
   });
 
   it("uses a caller-supplied estimatedOpenPrice without fetching", async () => {
@@ -164,6 +187,8 @@ describe("getInstantOpenFees", () => {
         platformCloseFee: "0.096152",
         openSolverFee: "0.192304",
         closeSolverFee: "0.384608",
+        staticSolverFeeOpen: "0",
+        staticSolverFeeClose: "0",
         expectedSettlementLoss: "2.856", // (101.5 − 100) × 1.904
         totalFee: "3.721368",
       });
@@ -172,6 +197,23 @@ describe("getInstantOpenFees", () => {
         expect.objectContaining({ marketName: "TEST", leverage: 2 }),
       );
       expect(resolveMarket).toHaveBeenCalledWith(config, expect.objectContaining({ includeQuoteConstraints: true }));
+    });
+
+    it("carves the static solver fees off the balance and reports them in the legs", async () => {
+      // First preview prices the statics; the second falls back to the
+      // beforeEach zero-leg default for the comparison baseline.
+      resolveSolverInfo.mockResolvedValueOnce({ staticSolverFeeOpen: "5", staticSolverFeeClose: "5" });
+
+      const withStatics = await getInstantOpenFees(config, FUND_PARAMS);
+      const withoutStatics = await getInstantOpenFees(config, FUND_PARAMS);
+
+      if (withStatics.kind !== "enigma" || withoutStatics.kind !== "enigma") throw new Error("expected enigma fees");
+      expect(withStatics.staticSolverFeeOpen).toBe("5");
+      expect(withStatics.staticSolverFeeClose).toBe("5");
+      // The flat legs shrink the sizing budget, so the position gets smaller.
+      expect(Number(withStatics.quantity)).toBeLessThan(Number(withoutStatics.quantity));
+      // And the total carries the statics on top of the rate legs.
+      expect(Number(withStatics.totalFee)).toBeGreaterThan(Number(withoutStatics.totalFee));
     });
 
     it("does not resolve locked params for a typed-margin preview", async () => {

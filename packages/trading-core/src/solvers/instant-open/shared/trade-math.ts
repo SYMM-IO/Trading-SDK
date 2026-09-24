@@ -176,18 +176,33 @@ export interface SolverFees {
    * `hedgerFeeClose × notional`.
    */
   closeSolverFee: string;
+  /**
+   * Static solver fee charged per instant open, decimal string — a flat USD
+   * amount from the solver's `/info` config, **not** scaled by the notional.
+   * `"0"` when the solver publishes none.
+   */
+  staticSolverFeeOpen: string;
+  /**
+   * Static solver close fee provisioned at open, decimal string — a flat USD
+   * amount from the solver's `/info` config, **not** scaled by the notional.
+   * `"0"` when the solver publishes none.
+   */
+  staticSolverFeeClose: string;
 }
 
 /**
- * Compute the solver's open and close fees on the leveraged notional.
+ * Compute every fee the solver charges on an instant open: the rate legs on
+ * the leveraged notional plus the flat static legs.
  *
- * The solver charges its fees from the **VA balance**, so both legs must ride
+ * The solver charges its fees from the **VA balance**, so every leg must ride
  * the `addMargin` transfer from the SubAccount into the VA. The open leg is
  * `hedgerFeeOpen × notional`. The close leg is provisioned for the **worst
  * case**, because the holding time is unknown at open and an early close costs
  * more: when `hedgerFeeCloseEarlyRate` is supplied it uses the peak rate (the
  * rate at holding time 0); without it it falls back to the flat
- * `hedgerFeeClose`. An absent, NaN, or negative rate contributes `"0"`.
+ * `hedgerFeeClose`. The static legs pass through as-is — flat USD amounts,
+ * size-independent. An absent, NaN, or negative rate or static contributes
+ * `"0"`.
  */
 export function calculateSolverFees({
   notional,
@@ -196,6 +211,8 @@ export function calculateSolverFees({
   hedgerFeeCloseEarlyRate,
   hedgerFeeCloseEarlyThreshold,
   hedgerFeeCloseStandardThreshold,
+  staticSolverFeeOpen,
+  staticSolverFeeClose,
 }: {
   /** Leveraged notional (decimal string). */
   notional: string;
@@ -209,12 +226,21 @@ export function calculateSolverFees({
   hedgerFeeCloseEarlyThreshold?: number;
   /** Standard-rate threshold in seconds (paired with `hedgerFeeCloseEarlyRate`). */
   hedgerFeeCloseStandardThreshold?: number;
+  /** Static solver open fee — flat USD decimal string (solver `/info`). Defaults to `"0"`. */
+  staticSolverFeeOpen?: string;
+  /** Static solver close fee provisioned at open — flat USD decimal string (solver `/info`). Defaults to `"0"`. */
+  staticSolverFeeClose?: string;
 }): SolverFees {
   const notionalDec = toDecimal(notional);
   const toFee = (rate: string | undefined) => {
     const rateDec = toDecimal(rate);
     if (rateDec.isNaN() || rateDec.isNegative() || notionalDec.isNaN()) return "0";
     return notionalDec.times(rateDec).toString();
+  };
+  /** Flat USD leg: passed through, not multiplied by the notional. */
+  const toStaticFee = (value: string | undefined) => {
+    const valueDec = toDecimal(value);
+    return valueDec.isNaN() || valueDec.isNegative() ? "0" : valueDec.toString();
   };
   const closeSolverFee =
     hedgerFeeCloseEarlyRate !== undefined
@@ -228,7 +254,12 @@ export function calculateSolverFees({
           { notional, holdingSeconds: 0 },
         )
       : toFee(hedgerFeeClose);
-  return { openSolverFee: toFee(hedgerFeeOpen), closeSolverFee };
+  return {
+    openSolverFee: toFee(hedgerFeeOpen),
+    closeSolverFee,
+    staticSolverFeeOpen: toStaticFee(staticSolverFeeOpen),
+    staticSolverFeeClose: toStaticFee(staticSolverFeeClose),
+  };
 }
 
 /**
@@ -296,6 +327,10 @@ export interface CalculateMarginParameters {
   closeSolverFee?: string;
   /** Expected settlement loss vs the estimated fill (from {@link calculateExpectedSettlementLoss}). Defaults to `"0"`. */
   expectedSettlementLoss?: string;
+  /** Static solver open fee — flat USD, not rate × notional (from {@link calculateSolverFees}). Defaults to `"0"`. */
+  staticSolverFeeOpen?: string;
+  /** Static solver close fee provisioned at open — flat USD (from {@link calculateSolverFees}). Defaults to `"0"`. */
+  staticSolverFeeClose?: string;
   /**
    * Extra funding headroom percent applied to a SHORT's margin basis
    * (`markPrice × (1 + percent/100)`). A SHORT's `requestedOpenPrice` is a
@@ -321,9 +356,11 @@ export const SHORT_FUNDING_BUFFER_PERCENT = 1;
  *   buffer covers lock growth when the fill lands above the SHORT's floor.
  *
  * `fees = platformFee + openSolverFee + closeSolverFee +
- * expectedSettlementLoss` — the solver charges its fees and the open-price
- * settlement from the **VA balance**, so every leg must ride this SubAccount →
- * VA transfer or the position opens underfunded.
+ * staticSolverFeeOpen + staticSolverFeeClose + expectedSettlementLoss` — the
+ * solver charges its fees and the open-price settlement from the **VA
+ * balance**, so every leg must ride this SubAccount → VA transfer or the
+ * position opens underfunded. The static legs are flat USD amounts and do not
+ * scale with the notional.
  *
  * @returns Margin as decimal string.
  */
@@ -342,10 +379,17 @@ export function calculateMargin(parameters: CalculateMarginParameters): string {
     openSolverFee = "0",
     closeSolverFee = "0",
     expectedSettlementLoss = "0",
+    staticSolverFeeOpen = "0",
+    staticSolverFeeClose = "0",
     shortFundingBufferPercent = 0,
   } = parameters;
 
-  const fees = toDecimal(platformFee).plus(openSolverFee).plus(closeSolverFee).plus(expectedSettlementLoss);
+  const fees = toDecimal(platformFee)
+    .plus(openSolverFee)
+    .plus(closeSolverFee)
+    .plus(staticSolverFeeOpen)
+    .plus(staticSolverFeeClose)
+    .plus(expectedSettlementLoss);
 
   if (positionType === PositionType.LONG) {
     return toDecimal(cva).plus(lf).plus(partyAmm).plus(fees).toString();

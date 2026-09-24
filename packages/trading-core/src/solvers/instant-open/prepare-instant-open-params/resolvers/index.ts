@@ -4,4 +4,5 @@
 export * from "../../../shared/resolvers";
 export * from "./resolve-fee-rates";
 export * from "./resolve-locked-params";
+export * from "./resolve-solver-info";
 export * from "./types";
