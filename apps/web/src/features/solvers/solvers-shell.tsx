@@ -12,6 +12,7 @@ import { QuotesCard } from "../quotes/quotes-card";
 import { EnigmaEstimatedPriceCard } from "./enigma-estimated-price-card";
 import { EnigmaInstantCloseCard } from "./enigma-instant-close-card";
 import { EnigmaInstantOpenCard } from "./enigma-instant-open-card";
+import { EnigmaSolverInfoCard } from "./enigma-solver-info-card";
 import { NotificationSearchCard } from "./notification-search-card";
 import { NotificationsConsole } from "./notifications-console";
 import { RasaBalanceInfoCard } from "./rasa-balance-info-card";
@@ -98,12 +99,13 @@ export function SolversShell() {
       {/* Solver-exclusive reads: always shown, but each card only fires its
           query when its solver's chain is active (endpoints 404 on the other).
           Gating lives in the cards via `useSolverKindActive`. */}
-      <MethodGroup label="Enigma-only reads" count={5} fullWidth>
+      <MethodGroup label="Enigma-only reads" count={6} fullWidth>
         <ReadNotionalCapTotals />
         <EnigmaEstimatedPriceCard />
         <ReadSymbolsCard />
         <ReadTradeVolumeCard />
         <ReadRevenueRecordsCard />
+        <EnigmaSolverInfoCard />
       </MethodGroup>
 
       <MethodGroup label="Rasa-only reads" count={6} fullWidth>

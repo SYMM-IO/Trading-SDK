@@ -982,6 +982,18 @@ export {
   type GetSolverBalanceInfoReturnType,
 } from "./solvers/get-solver-balance-info";
 export {
+  getSolverInfo,
+  getSolverInfoQueryKey,
+  getSolverInfoQueryOptions,
+  type EnigmaSolverInfo,
+  type GetSolverInfoData,
+  type GetSolverInfoOptions,
+  type GetSolverInfoParameters,
+  type GetSolverInfoQueryKey,
+  type GetSolverInfoQueryOptions,
+  type GetSolverInfoReturnType,
+} from "./solvers/get-solver-info";
+export {
   getSolverOpenInterest,
   getSolverOpenInterestQueryKey,
   getSolverOpenInterestQueryOptions,

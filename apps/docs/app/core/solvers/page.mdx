@@ -206,6 +206,22 @@ const { records, count } = await getRevenueRecords(config, { limit: 100 });
 const nextCursor = records.at(-1)?.id; // pass back as `id` for the next page
 ```
 
+## Solver info (Enigma)
+
+### `getSolverInfo`
+
+The solver's general information from the **Enigma-only** `/info` endpoint — today its static fee configuration: the configured USD amount charged per instant open and per instant close (including each partial close), before signed fee-cap adjustments. Returns an `EnigmaSolverInfo` — a flat camelCase mirror of the wire shape, amounts as USD decimal strings exactly as the solver reports them, `undefined` where the solver omits a field.
+
+```ts
+import { getSolverInfo } from "@symmio/trading-core";
+
+const info = await getSolverInfo(config);
+info.staticSolverFeeOpen; // "0.5"  — USD per instant open
+info.staticSolverFeeClose; // "0.25" — USD per instant close (incl. partial closes)
+```
+
+A rasa-kind solver has no `/info` endpoint, so the read fails before the wire with `UNSUPPORTED_BY_SOLVER` rather than a vendor 404. A request that goes out and fails throws `SymmApiError` with code `FETCH_SOLVER_INFO_FAILED`. Ships the matching `getSolverInfoQueryOptions` / `getSolverInfoQueryKey` factories; the React binding is [`useSolverInfo`](/react/solvers#usesolverinfo).
+
 ## Locked Params
 
 ### `getLockedParams`

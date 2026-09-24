@@ -36,10 +36,10 @@ export const STAGING_CHAIN_OVERRIDES = {
         address: "0x9be79D4977D86D440F9e1Ea0d468A58104B9b932",
         url: "https://arb-staging.enigma.bz/api",
         tpsl: {
-          url: "https://conditional-orders-handler-lowcap85.rasa.capital",
-          wsUrl: "wss://notification.rasa.capital/ws/v1/subscribe",
-          appName: "Arbitrum_COH_Production",
-          cohWalletAddress: "0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31",
+          url: "https://tpsl-stage.enigma.bz",
+          wsUrl: "wss://notification-stage.rasa.capital/api/v1",
+          appName: "ARB_COH_Low-Cap_Stage",
+          cohWalletAddress: "0x5Cf3fC3722e1780220Ca94C04a6dc7Dfd7615661",
         },
         notifications: {
           url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",

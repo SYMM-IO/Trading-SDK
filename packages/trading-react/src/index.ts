@@ -621,18 +621,21 @@ export { useTradeVolume, type UseTradeVolumeParameters, type UseTradeVolumeRetur
 export { useMarketInfo, type UseMarketInfoParameters, type UseMarketInfoReturnType } from "./market-info";
 
 /**
- * Solver capabilities & revenue
- * -----------------------------
- * Gate flows/UI on what the resolved solver supports (e.g. group close), and
- * read its revenue totals — protocol-wide by default, or one market via
- * `symbolId`.
+ * Solver capabilities, info & revenue
+ * -----------------------------------
+ * Gate flows/UI on what the resolved solver supports (e.g. group close), read
+ * its static fee configuration (Enigma-only `/info`), and read its revenue
+ * totals — protocol-wide by default, or one market via `symbolId`.
  */
 export {
   useSolverCapabilities,
+  useSolverInfo,
   useSolverRevenue,
   useSupportsGroupClose,
   useSupportsLimitOrder,
   type UseSolverCapabilitiesParameters,
+  type UseSolverInfoParameters,
+  type UseSolverInfoReturnType,
   type UseSolverRevenueParameters,
   type UseSolverRevenueReturnType,
 } from "./solvers";
