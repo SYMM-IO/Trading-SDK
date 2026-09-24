@@ -18,7 +18,7 @@ vi.mock("../types/generated/enigma-price-service", async (importOriginal) => {
 
 import { getEnigmaPriceServiceHealthQueryKey, getEnigmaPriceServiceHealthQueryOptions } from "./query";
 
-const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).priceService.url;
+const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).priceService.url;
 
 describe("getEnigmaPriceServiceHealthQueryOptions", () => {
   beforeEach(() => {
@@ -43,7 +43,7 @@ describe("getEnigmaPriceServiceHealthQueryOptions", () => {
     healthCheckHealthGet.mockResolvedValue({ data });
 
     const { config } = mockConfig();
-    const options = getEnigmaPriceServiceHealthQueryOptions(config, { chainId: SymmioSupportedChainId.HYPER_EVM });
+    const options = getEnigmaPriceServiceHealthQueryOptions(config, { chainId: SymmioSupportedChainId.ARBITRUM });
 
     await expect(options.queryFn()).resolves.toBe(data);
     expect(healthCheckHealthGet).toHaveBeenCalledTimes(1);
@@ -67,23 +67,23 @@ describe("getEnigmaPriceServiceHealthQueryOptions", () => {
   });
 
   it("builds a stable key from the chain id", () => {
-    expect(getEnigmaPriceServiceHealthQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM })).toEqual([
+    expect(getEnigmaPriceServiceHealthQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM })).toEqual([
       "getEnigmaPriceServiceHealth",
-      { chainId: SymmioSupportedChainId.HYPER_EVM },
+      { chainId: SymmioSupportedChainId.ARBITRUM },
     ]);
   });
 
   it("keeps TanStack-only fields out of the key while still forwarding them", () => {
     const { config } = mockConfig();
     const options = getEnigmaPriceServiceHealthQueryOptions(config, {
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       query: { staleTime: 5_000 },
     });
 
     expect(options.staleTime).toBe(5_000);
     expect(options.queryKey[1]).toEqual({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
-      configKey: config.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM),
+      chainId: SymmioSupportedChainId.ARBITRUM,
+      configKey: config.getChainConfigKey(SymmioSupportedChainId.ARBITRUM),
     });
   });
 
@@ -102,7 +102,7 @@ describe("getEnigmaPriceServiceHealthQueryOptions", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
           priceService: { url: overriddenUrl },
         },

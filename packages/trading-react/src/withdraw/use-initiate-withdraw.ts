@@ -41,7 +41,7 @@ export type UseInitiateWithdrawReturnType = UseMutationResult<
  * ```tsx
  * import { createClassicWithdrawPart } from "@symmio/trading-core";
  * const { mutate } = useInitiateWithdraw();
- * mutate({ account: "0xsub…", parts: [createClassicWithdrawPart({ id: 0n, amount, receiver, chainId: 999n })] });
+ * mutate({ account: "0xsub…", parts: [createClassicWithdrawPart({ id: 0n, amount, receiver, chainId: 42161n })] });
  * ```
  */
 export function useInitiateWithdraw(parameters: UseInitiateWithdrawParameters = {}): UseInitiateWithdrawReturnType {
@@ -56,14 +56,7 @@ export function useInitiateWithdraw(parameters: UseInitiateWithdrawParameters = 
     mutationFn: async (variables) => {
       try {
         const resolvedChainId = variables.chainId ?? chainId;
-        const hash = await base.mutationFn({
-          account: variables.account,
-          parts: variables.parts,
-          speedUp: variables.speedUp,
-          providerData: variables.providerData,
-          simulateBeforeWrite: variables.simulateBeforeWrite,
-          chainId: resolvedChainId,
-        });
+        const hash = await base.mutationFn({ ...variables, chainId: resolvedChainId });
         return resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,

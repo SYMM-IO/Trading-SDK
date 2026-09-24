@@ -23,7 +23,7 @@ describe("getMarketInfoQueryOptions", () => {
   });
 
   it("builds a stable key including the chain id", () => {
-    const key = getMarketInfoQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM });
-    expect(key).toEqual(["getMarketInfo", { chainId: SymmioSupportedChainId.HYPER_EVM }]);
+    const key = getMarketInfoQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM });
+    expect(key).toEqual(["getMarketInfo", { chainId: SymmioSupportedChainId.ARBITRUM }]);
   });
 });

@@ -1,6 +1,6 @@
 import type { ListingAuthToken } from "@symmio/trading-core";
 import { act, waitFor } from "@testing-library/react";
-import { arbitrum, hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
@@ -41,7 +41,7 @@ describe("useAuthenticateListing", () => {
     expect(mutationFn).toHaveBeenCalledWith({
       domain: window.location.host,
       uri: window.location.origin,
-      chainId: hyperEvm.id,
+      chainId: arbitrum.id,
     });
   });
 

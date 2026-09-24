@@ -4,6 +4,8 @@ import { AddressTag } from "@/components/address-tag";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { encodeSubAccountHookMetadata } from "@/lib/subaccount-metadata";
 import { SubAccountIsolationType, type SubAccountCreationData } from "@symmio/trading-core";
 import {
   useCreateSubAccounts,
@@ -54,7 +56,9 @@ function isSingleVaAllowed(isolation: SubAccountIsolationType): boolean {
 
 export function WriteCreateSubAccounts() {
   const { isConnected, isOnExpectedChain } = useWalletAccount();
-  const { addresses } = useSymmioConfig().getChainConfig();
+  const chainConfig = useSymmioConfig().getChainConfig();
+  const { addresses } = chainConfig;
+  const partyBToBind = chainConfig.solvers[chainConfig.defaultSolverId]?.address;
 
   const [name, setName] = useState<string>("");
   const [isolation, setIsolation] = useState<SubAccountIsolationType>(SubAccountIsolationType.MARKET_DIRECTION);
@@ -70,6 +74,19 @@ export function WriteCreateSubAccounts() {
 
   const mutation = useCreateSubAccounts();
 
+  /**
+   * The relayer bills and signs a relayed operation under an EXISTING
+   * sub-account, which `createSubAccounts` has none of — the accounts it
+   * creates do not exist yet, and the action carries no account of its own, so
+   * the SDK throws `GASLESS_ACCOUNT_UNRESOLVED` unless the caller names one via
+   * `gasless.account`. This card has no way to collect that, so it pins the
+   * call to the wallet path instead of letting a chain config on
+   * `mode: "gasless"` attempt a relay that always fails. Lift this once the
+   * card can offer an existing sub-account to bill.
+   */
+  const gaslessBlockedReason = "the relayer needs an existing sub-account to bill, which this card cannot supply";
+  const write = useGaslessWriteOption("createSubAccounts", { blockedReason: gaslessBlockedReason });
+
   const selectedIsolation = ISOLATION_OPTIONS.find((o) => o.value === isolation) ?? ISOLATION_OPTIONS[0];
   const validAffiliate = isAddress(affiliate) ? (affiliate as Address) : undefined;
   const validSymmioCore = isAddress(symmioCore) ? (symmioCore as Address) : undefined;
@@ -80,7 +97,14 @@ export function WriteCreateSubAccounts() {
 
   /** Build the per-subaccount payload once so Simulate and Send can never drift. */
   const buildAccountsData = (core: Address): readonly SubAccountCreationData[] => [
-    { name: name.trim(), metadata: "0x", symmioCore: core, isolationType: isolation, singleVAMode: effectiveSingleVA },
+    {
+      name: name.trim(),
+      /** The affiliate's `onAccountCreation` hook decodes this; `0x` reverts as `HookFailed`. */
+      metadata: encodeSubAccountHookMetadata({ partyBToBind }),
+      symmioCore: core,
+      isolationType: isolation,
+      singleVAMode: effectiveSingleVA,
+    },
   ];
 
   /** Dry-run the call (`simulateContract`) so the user sees pass/revert before sending. */
@@ -91,6 +115,8 @@ export function WriteCreateSubAccounts() {
       testId="method-createSubAccounts"
       name="createSubAccounts"
       mutability="nonpayable"
+      gaslessRelayable
+      gaslessBlockedReason={gaslessBlockedReason}
       description="Create a subaccount for the connected wallet under the app's affiliate and Symmio core."
       wide
     >
@@ -189,7 +215,7 @@ export function WriteCreateSubAccounts() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!canSubmit || !validAffiliate || !validSymmioCore) return;
-            mutation.mutate({ affiliate: validAffiliate, accountsData: buildAccountsData(validSymmioCore) });
+            mutation.mutate({ affiliate: validAffiliate, accountsData: buildAccountsData(validSymmioCore), ...write });
           }}
           data-testid="button-send-create"
         >

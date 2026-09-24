@@ -18,7 +18,7 @@ vi.mock("../types/generated/listing-backend", async (importOriginal) => {
 
 import { getPoolTransactions } from "./get-pool-transactions";
 
-const LISTING_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).listing?.url;
+const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url;
 const MARKET_ADDRESS = "0x800822d361335b4d5F352Dac293cA4128b5B605f";
 const WALLET = "0xf55534BBf9011ca7Ad84b804fdA9E7f4bE18Fe8A";
 

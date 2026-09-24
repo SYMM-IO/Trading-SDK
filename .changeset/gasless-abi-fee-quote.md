@@ -1,0 +1,21 @@
+---
+"@symmio/trading-core": minor
+"@symmio/trading-react": minor
+---
+
+Pin the complete multi-wallet GaslessLayer and GaslessWallet ABIs, and rebuild the gasless fee quote on `previewFeeQuote`.
+
+The SDK's gasless ABI was a hand-trimmed fragment older than the current contracts. Its fee quote called `getAccountOperationalFee`, which the latest perps-core GaslessLayer no longer has. The gasless slice has not been released yet, so the breaking changes below ship as a minor bump. Each one is listed.
+
+**`@symmio/trading-core`**
+
+- **`gaslessLayerAbi` and `gaslessWalletAbi` are now the complete ABIs**, copied verbatim from perps-core commit `b63ee55e` with every constructor, error, event and function. The export names are unchanged, but the inferred types now cover the whole contract. For example, `GaslessWallet.execute` is `payable` and returns `bytes[]`. Both are also exported from the `symmio-contracts/abi` barrel. They require a GaslessLayer on the multi-wallet interface. The production proxy `0x8347953D80037b8d82827246f37EC7442AD188B4` has not been upgraded yet, so it is unsupported until the vendor upgrades it.
+- `GASLESS_WALLET_EXECUTE_SELECTOR` and `GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR` keep their names and values. They moved into the gasless slice's constants module, and the package root still exports them.
+- **Breaking: `getGaslessOperationalFeeQuote` is removed.** So are `getGaslessOperationalFeeQuoteQueryKey`, `getGaslessOperationalFeeQuoteQueryOptions` and their `GetGaslessOperationalFeeQuote*` types. Use the new **`getGaslessFeeQuote(config, { operations })`** instead (plus `getGaslessFeeQuoteQueryKey` / `getGaslessFeeQuoteQueryOptions`). Each entry of `operations` is `{ operation, walletId? }`, with one wallet id per operation and a default of `0n`. The action no longer takes `account`, because the contract bills each operation's own `signerAccount`. It encodes the exact `relayInstantBatch` call the relayer submits, with placeholder signatures so no prompt is needed, and reads `previewFeeQuote`.
+- The result is a `GaslessFeeQuote`: `collateralToken`, `collateralDecimals`, `blockNumber`, `timestamp`, `exact`, `payments` (one `GaslessFeePayment` per operation, with its `account`, `payer`, `GaslessFeeSource` and 18-decimal fee components), `totalFee18`, `totalDebit18`, `freeOpsApplied` and `nativeSponsored`. **Breaking:** `amountDue` and `wouldBlockOnQuota` are gone. `exact` is always `false` from a preview, because only the relayer's simulation is exact.
+- **Breaking: an exhausted daily free quota is now an error, not a flag.** The contract reverts with `DailyFreeOpsLimitExceeded`, and the SDK throws `GASLESS_FREE_QUOTA_EXHAUSTED`. Test for it with the new `isGaslessFreeQuotaExhaustedError`. Any other revert throws `GASLESS_FEE_QUOTE_REVERTED`. A GaslessLayer without the multi-wallet interface throws `GASLESS_LAYER_INTERFACE_UNSUPPORTED`. Its quote reverts with empty data, but so does an upgraded GaslessLayer's quote for a batch it cannot decode. On an empty-data revert the SDK therefore makes one more read that quotes empty calldata: revert data there throws `GASLESS_FEE_QUOTE_REVERTED`, another empty revert throws `GASLESS_LAYER_INTERFACE_UNSUPPORTED`, and a transport failure rethrows the original viem error unchanged. An empty batch throws `GASLESS_EMPTY_BATCH`, and a wallet id outside the `uint256` range (or a JavaScript `number`) throws `GASLESS_WALLET_ID_INVALID`, both before any RPC call.
+- **Breaking: the transparent dispatcher's fee pre-flight (`preflightFee`) uses the new quote**, still before any signature prompt. `GASLESS_FEE_UNAFFORDABLE` is removed. An exhausted free quota throws `GASLESS_FREE_QUOTA_EXHAUSTED`, or takes the wallet path under `fallback: "wallet"`. A reverted quote and an unsupported GaslessLayer throw with no fallback. A quote read that fails for transport reasons no longer blocks the write: signing proceeds, and the relayer's own simulation decides.
+
+**`@symmio/trading-react`**
+
+- **Breaking: `useGaslessFeeQuote` takes `{ operations: { operation, walletId? }[] }` and returns `GaslessFeeQuote`.** `UseGaslessFeeQuoteParameters` now derives from `GetGaslessFeeQuoteOptions`. An exhausted free quota surfaces as a query error with code `GASLESS_FREE_QUOTA_EXHAUSTED`.

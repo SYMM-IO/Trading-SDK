@@ -1,0 +1,137 @@
+import { Callout } from "nextra/components";
+
+# relayInstantOperations
+
+Submit pre-signed InstantLayer operations to the GaslessQ relayer — the explicit primitive underneath the [transparent execution mode](/core/gasless/relayable-writes). Use it when you build and sign `SignedOperation` structs yourself (with `buildSignedOperation` + `signSignedOperation`) and want full control over batching and labels.
+
+```ts
+import { relayInstantOperations, waitForGaslessRequest } from "@symmio/trading-core";
+
+const receipt = await relayInstantOperations(config, {
+  userAddress: owner,
+  operationType: "initiateWithdraw",
+  operations: [{ operation, signature }],
+});
+const record = await waitForGaslessRequest(config, { requestId: receipt.requestId });
+```
+
+One `POST {operationBase}/gateway/relay-instant`. The service validates and simulates the batch, returns `202` with a `request_id`, and broadcasts asynchronously. The **batch is atomic** — one revert rolls back every operation and every fee — so only bundle operations that must share fate, and give them strictly sequential replay nonces (`current + 1`, `current + 2`, … from [`getInstantLayerNonce`](/core/instant-layer/get-instant-layer-nonce)).
+
+Every batch carries an explicit `walletIds` array — one decimal id per operation, taken from each entry's `walletId` (default `0n`). The service would zero-fill an omitted array for legacy clients, but the SDK never relies on that: a dropped id would then be indistinguishable from a deliberate wallet `0`. Ordinary InstantLayer operations and delegation grants always relay from wallet `0`; only a [gasless-wallet `execute`](/core/gasless/gasless-wallet-execute) names a positive id, and that id must match the wallet the operation was signed against.
+
+Transport failures are dispositioned before they reach you. A `429` or a gateway `503` is resent under the same key — the gateway dropped it, so nothing can have executed. An ambiguous failure (no response, a timeout, a `502`/`504`) is resent **once** and then thrown as `GASLESS_SUBMIT_UNCONFIRMED` with the exact bytes to replay through [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request). A definitive `4xx` is thrown as-is; inspect it with [`parseGaslessErrorDetail`](/core/gasless/errors-and-fallback) or [`classifyGaslessFailure`](/core/gasless/errors-and-fallback#classifying-a-failure).
+
+<Callout type="warning">
+  A `202` is the **point of no return**: the workflow exists server-side and the transaction may execute even if polling
+  later fails. Never re-submit the same intent through the wallet afterwards — see the [fallback safety
+  rules](/core/gasless/errors-and-fallback).
+</Callout>
+
+<Callout type="info">
+  This action is a **submit**: it resolves with the `202` acceptance. React consumers do not need to follow it by hand —
+  the matching hook in `@symmio/trading-react` confirms the request before it resolves and invalidates the reads this
+  action changes. See the [React gasless guide](/react/gasless).
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="operations" type="readonly GaslessSignedOperationInput[]" required>
+    The signed operations in execution order — each `{ operation, signature }`, with an optional `walletId` (default
+    `0n`) and optional `fills` / `flexFillerSignatures` for flex-field flows. An empty array throws
+    `GASLESS_EMPTY_BATCH`.
+  </Property>
+  <Property name="operationType" type="string" required>
+    Workflow label stored with the request (display, metrics, idempotency). Free-form, 1–128 chars — fees derive from
+    the calldata selectors, never from this. Keep it stable per action.
+  </Property>
+  <Property name="userAddress" type="Address" required>
+    Wallet the workflow is tracked under (not necessarily the raw signer).
+  </Property>
+  <Property name="accountId" type="string" optional>
+    Client accounting id stored with the request.
+  </Property>
+  <Property name="templateId" type="number" optional>
+    Registered result-chained template id; omit for independent batches. Must be a non-negative safe integer — an
+    unguarded `NaN` would serialize to JSON `null`, which the service reads as “no template” and relays as a plain
+    batch. The contract's `relayInstantTemplate` takes no wallet ids, so every operation in a template batch must stay
+    on wallet `0`.
+  </Property>
+  <Property name="idempotencyKey" type="string" optional>
+    Stable retry key (max 128 chars); defaults to a random UUID. **One key per signature**: reuse it only to replay the
+    byte-identical request, and mint a fresh one for any payload change — re-signing, adding an operation, moving a
+    wallet id — or the service answers `409 IDEMPOTENCY_KEY_CONFLICT`. See [idempotency
+    keys](/core/gasless/errors-and-fallback#idempotency-keys).
+  </Property>
+  <Property name="metadata" type="Record<string, unknown>" optional>
+    Non-secret client correlation data stored with the request.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessSubmitReceipt>">
+  <Property name="requestId" type="string">
+    Stable tracking id — persist it immediately.
+  </Property>
+  <Property name="status" type="GaslessRequestStatus">
+    Status at acceptance, normally `queued`.
+  </Property>
+  <Property name="paidFee" type="bigint | null">
+    The fee the service quoted when it accepted the request, as reported by the service. A quote, **not proof that a fee
+    was collected**. `null` when the acceptance reported none.
+  </Property>
+  <Property name="remainingFeeAllowance" type="bigint | null">
+    The service's acceptance-time view of the payer's remaining allowance, as reported by the service. Not a
+    post-execution balance or an authorization guarantee, and it can read `2^256 − 1`. `null` when the acceptance
+    reported none.
+  </Property>
+  <Property name="idempotencyKey" type="string">
+    The key the request was submitted with — minted here when the caller passed none. Persist it: resending the
+    byte-identical request under this key is what makes a lost response recoverable.
+  </Property>
+  <Property name="protocolInstance" type="string | null">
+    The instance the request was accepted on, or `null` for a proxy base that names none.
+  </Property>
+  <Property name="owner" type="Address">
+    The owner the request is tracked under — the submitted `userAddress`.
+  </Property>
+  <Property name="walletIds" type="readonly bigint[]">
+    The wallet ids the batch relayed under, in `signedOps` order.
+  </Property>
+</Returns>
+
+<Callout type="info">
+  **Persist the whole receipt, not just the id.** A bare request id is not enough context to reconcile a workflow after
+  a reload: store it under `(environment, protocolInstance, service, requestId)` together with `owner`, `walletIds` and
+  `idempotencyKey`. Only `requestId` is guaranteed on the wire — the parser keeps the acceptance even when its status is
+  unfamiliar (read as `queued`) or its amounts are missing (read as `null`), because losing the id to a strict parse
+  would strand a workflow that is already executing.
+</Callout>
+
+<Callout type="warning">
+  **The receipt's fee fields are acceptance-time figures, not results.** The GaslessLayer collects the operational fee
+  only when the batch executes, from the payer resolved at that moment, so the charge can differ from `paidFee`, and a
+  reverted relay charges nothing. `remainingFeeAllowance` has read `2^256 − 1` on staging while the payer's Core
+  approval was bounded, so never display it as spendable or unlimited funds. Read the payer's allowance with
+  [`getOperationalFeeAllowance`](/core/gasless/get-operational-fee-allowance) and its Core balance with
+  [`getAccountBalanceOf`](/core/account-layer/get-account-balance-of), both in 18-decimal Core units, and reconcile the
+  actual charge from the transaction receipt's `OperationalFeeRouted` events. Treat both fields as informational: the
+  SDK passes them through as reported by the service.
+</Callout>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmApiError` with code `GASLESS_RELAY_SUBMIT_FAILED` — HTTP failure; the vendor's `detail.code` (`FEE_POLICY_WOULD_REVERT`, `INSUFFICIENT_ALLOWANCE`, `SIMULATION_REVERTED`, …) rides in `responseData`.
+- `SymmError("api", "GASLESS_INSTANCE_MISMATCH")` — routing cross-wire detected.
+- `SymmError("validation", "GASLESS_VALUE_UNSAFE")` — a uint256 field exceeded the JSON safe-integer range.
+- `SymmError("validation", "GASLESS_EMPTY_BATCH")` — `operations` was empty.
+- `SymmError("validation", "GASLESS_WALLET_ID_INVALID")` — a `walletId` outside `0 … 2^256 − 1`, or a JavaScript `number`.
+- `SymmError("validation", "GASLESS_TEMPLATE_ID_INVALID")` — `templateId` was not a non-negative safe integer.
+- `SymmError("validation", "GASLESS_TEMPLATE_WALLET_ID_UNSUPPORTED")` — a template batch named a non-zero wallet id.
+- `SymmApiError` with code `GASLESS_SUBMIT_UNCONFIRMED` — the outcome could not be established, including a `202` that carried no `request_id`. `responseData` is the replayable [`GaslessUnconfirmedSubmit`](/core/gasless/resubmit-gasless-request); never re-run the intent through the wallet.
+- `SymmApiError` with code `GASLESS_INSTANCE_MISMATCH` on a `2xx` — another protocol instance accepted it; the parsed body, `request_id` included, stays in `responseData`.

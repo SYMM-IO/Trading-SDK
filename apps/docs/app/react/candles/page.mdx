@@ -1,0 +1,172 @@
+import { Callout } from "nextra/components";
+
+# Candles hooks
+
+React bindings over the [candles slice](../../core/candles). The hooks own the source's memoization, the subscription lifecycle, and error normalization; everything about how bars are fetched, paged, and streamed lives in `core`.
+
+**All reads.**
+
+## Import
+
+```ts
+import {
+  useBinanceCandleSource,
+  useCandles,
+  useCandleStream,
+  useTradingViewDatafeed,
+  type UseBinanceCandleSourceParameters,
+  type UseCandlesParameters,
+  type UseCandlesReturnType,
+  type UseCandleStreamParameters,
+  type UseCandleStreamReturnType,
+  type UseTradingViewDatafeedParameters,
+} from "@symmio/trading-react";
+```
+
+The same hooks are also available from the `@symmio/trading-react/candles` subpath. Value types (`Candle`, `CandleSource`, `CandleResolution`, `CandleSymbol`, `TradingViewDatafeed`) come from `@symmio/trading-core`.
+
+## Choosing a hook
+
+| You want                                                        | Use                      |
+| --------------------------------------------------------------- | ------------------------ |
+| Historical bars through TanStack Query                          | `useCandles`             |
+| The live bar — a price header, a sparkline, an imperative chart | `useCandleStream`        |
+| A full TradingView Charting Library widget                      | `useTradingViewDatafeed` |
+
+All three need a source. Build it once with `useBinanceCandleSource`.
+
+## `useBinanceCandleSource`
+
+Creates a memoized Binance [`CandleSource`](../../core/candles/candle-source-type).
+
+A source caches the venue's `exchangeInfo` for its lifetime, so recreating it on every render would refetch that on every symbol resolve — and a new source identity tears down any live subscription built on it.
+
+```tsx
+const source = useBinanceCandleSource();
+```
+
+### Parameters
+
+Takes the same options as [`createBinanceCandleSource`](../../core/candles/create-source).
+
+| Name                    | Type                                          | Default                | Notes                                                                      |
+| ----------------------- | --------------------------------------------- | ---------------------- | -------------------------------------------------------------------------- |
+| `market?`               | `"usd-m-futures" \| "spot"`                   | `"usd-m-futures"`      | Futures symbols are perpetual contracts, matching what a SYMMIO market is. |
+| `restUrl?`              | `string`                                      | venue default          | A regional mirror or your own caching proxy.                               |
+| `wsUrl?`                | `string`                                      | venue default          | Keep the futures `/market/` route — see the core page's routing note.      |
+| `resolveSymbol?`        | `(marketName: string) => string \| undefined` | upper-case identity    | Pass a **stable** reference — it participates in the memo.                 |
+| `webSocketConstructor?` | `WebSocketConstructor`                        | `globalThis.WebSocket` | Pass the `ws` package in Node.                                             |
+
+### Return type
+
+A `CandleSource`, stable for as long as its options are unchanged.
+
+## `useCandles`
+
+Historical bars through TanStack Query.
+
+```tsx
+const source = useBinanceCandleSource();
+
+const { data, isLoading, error } = useCandles({
+  source,
+  marketName: "BTCUSDT",
+  resolution: "1m",
+  from: rangeStart,
+  to: rangeEnd,
+});
+```
+
+### Parameters
+
+| Name         | Type               | Default | Notes                                                                   |
+| ------------ | ------------------ | ------- | ----------------------------------------------------------------------- |
+| `source`     | `CandleSource`     | —       | Its `id` is part of the query key, so venues never share a cache entry. |
+| `marketName` | `string`           | —       | Market name as SYMMIO names it.                                         |
+| `resolution` | `CandleResolution` | —       | Must be listed in `source.supportedResolutions`.                        |
+| `from`       | `number`           | —       | Range start, unix **ms**, inclusive.                                    |
+| `to`         | `number`           | —       | Range end, unix **ms**, exclusive.                                      |
+| `limit?`     | `number`           | —       | Max bars; the source pages internally to satisfy it.                    |
+| `query?`     | `QueryParameter`   | —       | TanStack overrides.                                                     |
+
+### Return type
+
+`UseQueryResult<GetCandlesReturnType, SymmioRequestError>` — `data.candles` in ascending time order plus `data.noMoreData`, which tells a chart paging backwards to stop.
+
+<Callout type="warning">
+  `from`/`to` are part of the query key. Passing a live `Date.now()` mints a new cache entry on every render — derive
+  the range from state that only changes when the user actually pans or changes resolution.
+</Callout>
+
+## `useCandleStream`
+
+Subscribe to live bar updates for one market and resolution.
+
+```tsx
+const { candle, closed, status, error } = useCandleStream({
+  source,
+  marketName: "BTCUSDT",
+  resolution: "1m",
+  onCandle: (candle) => series.update(candle),
+  onReset: () => refetchHistory(),
+});
+```
+
+### Parameters
+
+| Name         | Type                                               | Default | Notes                                                                                           |
+| ------------ | -------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------- |
+| `source`     | `CandleSource`                                     | —       | Must implement `watchCandles`; the hook stays `closed` otherwise.                               |
+| `marketName` | `string`                                           | —       | Changing it tears down the old subscription.                                                    |
+| `resolution` | `CandleResolution`                                 | —       | Bar size to stream.                                                                             |
+| `enabled?`   | `boolean`                                          | `true`  | Subscribe only when `true`.                                                                     |
+| `onCandle?`  | `(candle: Candle, meta: CandleUpdateMeta) => void` | —       | Called ahead of the state update. Read through a ref, so an inline arrow does not re-subscribe. |
+| `onReset?`   | `() => void`                                       | —       | Bars were missed during a reconnect — refetch history. Also read through a ref.                 |
+
+### Return type
+
+| Field    | Type                         | Notes                                               |
+| -------- | ---------------------------- | --------------------------------------------------- |
+| `candle` | `Candle \| null`             | The most recent bar, `null` until the first update. |
+| `closed` | `boolean`                    | `true` when `candle` has finalized.                 |
+| `status` | `SocketStatus`               | Live socket status.                                 |
+| `error`  | `SymmioRequestError \| null` | Last transport or parse error, normalized.          |
+
+Returns the latest bar as state for simple cases (a price header, a sparkline). For a full chart, prefer the `onCandle` callback and let the charting library own the series — re-rendering a React tree on every tick is wasted work when the chart mutates its own canvas.
+
+## `useTradingViewDatafeed`
+
+Create a memoized TradingView datafeed over a `CandleSource`.
+
+```tsx
+const source = useBinanceCandleSource();
+const datafeed = useTradingViewDatafeed({ source, exchange: "Binance" });
+
+useEffect(() => {
+  const widget = new TradingView.widget({ datafeed, symbol: "BTCUSDT", interval: "60" });
+  return () => widget.remove();
+}, [datafeed]);
+```
+
+### Parameters
+
+`source` plus the presentation options of [`toTradingViewDatafeed`](../../core/candles/tradingview-datafeed) (`exchange?`, `session?`, `timezone?`).
+
+### Return type
+
+A `TradingViewDatafeed` to pass straight to `widget({ datafeed })`.
+
+<Callout type="info">
+  The datafeed owns its live subscriptions, so it must outlive a render — a new instance would orphan the sockets the
+  chart is already holding. Keep the `source` stable (see `useBinanceCandleSource`) and this stays stable too.
+</Callout>
+
+## Know which price you are drawing
+
+Every source declares a `priceBasis`. Binance's is `reference-exchange` — a third-party venue's perp price, not the SYMMIO solver's mark a trade settles against. Trade math (margin, PnL, liquidation, TP/SL) must read the [Price Service](../price-service), never the chart's series.
+
+## Related
+
+- [Candles](../../core/candles) — the framework-agnostic slice.
+- [Majors chart guide](../../guides/charts/majors) — building a chart end to end.
+- [Orderbook hooks](../orderbook) — the same source pattern for market depth.

@@ -36,13 +36,13 @@ export const metadata: Metadata = {
     template: "%s · Symmio Trading-SDK",
   },
   description:
-    "The SYMMIO SDK surface for builders — connect a wallet, inspect contract state, and trade on HyperEVM without re-implementing the plumbing.",
+    "The SYMMIO SDK surface for builders — connect a wallet, inspect contract state, and trade on Arbitrum without re-implementing the plumbing.",
 };
 
 const banner = (
   <Banner storageKey="symmio-banner">
     <span className="symm-banner-dot" aria-hidden />
-    Symmio Trading-SDK — the SDK surface for builders on HyperEVM
+    Symmio Trading-SDK — the SDK surface for builders on Arbitrum
   </Banner>
 );
 
@@ -81,7 +81,7 @@ const footer = (
     <div className="symm-footer">
       <SymmioLogo />
       <span className="symm-footer__tag">
-        The SYMMIO SDK surface for builders — connect a wallet, inspect contract state, and trade on HyperEVM.
+        The SYMMIO SDK surface for builders — connect a wallet, inspect contract state, and trade on Arbitrum.
       </span>
       <span className="symm-footer__meta">
         © {new Date().getFullYear()} Symmio Trading-SDK · built with <strong>@symmio</strong>

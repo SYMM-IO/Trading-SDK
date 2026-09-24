@@ -14,6 +14,7 @@ import { ListingConfigCard } from "./listing-config-card";
 import { ListingStatusCard } from "./listing-status-card";
 import { MarketConfigCard } from "./market-config-card";
 import { PoolDetailCard } from "./pool-detail-card";
+import { PoolRevenueCard } from "./pool-revenue-card";
 import { PoolRewardsCard } from "./pool-rewards-card";
 import { PoolScopeBar, PoolScopeProvider } from "./pool-scope";
 import { PoolTvlHistoryCard } from "./pool-tvl-history-card";
@@ -21,9 +22,10 @@ import { PoolVolumeCard } from "./pool-volume-card";
 import { PoolsChainNotice } from "./pools-chain-notice";
 import { PoolsConsole } from "./pools-console";
 import { PoolsOpenInterestCard } from "./pools-open-interest-card";
-import { PoolsRevenueCard } from "./pools-revenue-card";
 import { PoolsTvlCard } from "./pools-tvl-card";
 import { PoolsVolumeCard } from "./pools-volume-card";
+import { RefundCard } from "./refund-card";
+import { RetryListingCard } from "./retry-listing-card";
 import { UserProfitCard } from "./user-profit-card";
 import { UserRewardsCard } from "./user-rewards-card";
 import { UserTransactionsCard } from "./user-transactions-card";
@@ -59,28 +61,31 @@ export function PoolsShell() {
 
       <PoolsChainNotice />
 
-      <MethodGroup label="Protocol aggregates" count={4}>
+      <MethodGroup label="Protocol aggregates" count={3}>
         <PoolsTvlCard />
         <PoolsVolumeCard />
         <PoolsOpenInterestCard />
-        <PoolsRevenueCard />
       </MethodGroup>
 
       <MethodGroup label="Listing catalog" count={1} columns={1}>
         <PoolsConsole />
       </MethodGroup>
 
-      {/* One pool, four reads across three backends. The bar picks it once. */}
+      {/* One pool, five reads across three backends. The bar picks it once. */}
       <PoolScopeProvider>
         <MethodGroup
           label="Pool detail"
-          count={4}
+          count={5}
           lead={
-            <PoolScopeBar idPrefix="pool-detail" hint="Pick a pool — its TVL, volume, rewards and tables load below." />
+            <PoolScopeBar
+              idPrefix="pool-detail"
+              hint="Pick a pool — its TVL, volume, revenue, rewards and tables load below."
+            />
           }
         >
           <PoolTvlHistoryCard />
           <PoolVolumeCard />
+          <PoolRevenueCard />
           <PoolRewardsCard />
           <PoolDetailCard />
         </MethodGroup>
@@ -107,11 +112,11 @@ export function PoolsShell() {
         <PoolScopeProvider>
           <MethodGroup
             label="Your position in a pool"
-            count={7}
+            count={8}
             lead={
               <PoolScopeBar
                 idPrefix="position-pool"
-                hint="Pick a pool — your balance, deposit address, config, withdrawal, claim and claim history below are for it."
+                hint="Pick a pool — your balance, deposit address, withdrawal, claim, claim history and (if rejected) refund or retry below are for it."
                 enabled={enigmaActive}
               />
             }
@@ -123,6 +128,8 @@ export function PoolsShell() {
             <CancelWithdrawCard />
             <ClaimCard />
             <ClaimHistoryCard />
+            <RefundCard />
+            <RetryListingCard />
           </MethodGroup>
         </PoolScopeProvider>
       </ListingAuthProvider>

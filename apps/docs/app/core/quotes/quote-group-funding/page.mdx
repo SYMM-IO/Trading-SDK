@@ -6,7 +6,7 @@ Every amount is 18-decimal wei `bigint`, matching [`UnifiedQuote`](/core/quotes/
 
 **Sign convention** — `netReceived = received − paid`, the P&L perspective. A **positive** `netReceived` means the group has **earned** funding; a negative one means it has **paid** for it. This matches `QuoteFundingData.netReceived` and [`QuoteGroupUpnl.upnl`](/core/quotes/quote-group-upnl), so a "green = income" UI renders it directly. It is the inverse of the on-chain `int256`, which is cost-positive.
 
-**Settled to date only** — these totals cover funding the protocol has already charged and the analytics subgraph has indexed. Funding accrued since the last charge is **not** included: it is not indexed anywhere, so it cannot be part of this sum.
+**Settled to date only** — these totals cover funding the protocol has already charged and the analytics subgraph has indexed. Funding accrued since the last charge is **not** included: the subgraph does not index it. Read it on-chain with [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding) and show it as a separate figure — see [Funding](/core/concepts/funding) for why the two are not added together.
 
 ## Properties
 

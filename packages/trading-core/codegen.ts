@@ -15,7 +15,7 @@ import { SymmioSupportedChainId } from "./src/core/chains/supported-chains";
  *
  * The endpoint is read straight from the chain registry (the SSOT for all
  * deployment URLs) rather than duplicated here. The analytics schema is shared
- * across deployments, so any supported chain types the same operations; HyperEVM
+ * across deployments, so any supported chain types the same operations; Arbitrum
  * is the canonical one to introspect against. The registry's only runtime
  * dependency is the `SymmioSupportedChainId` enum — its `SymmioChainConfig`
  * imports are `import type` (erased), so this stays free of viem.
@@ -24,13 +24,13 @@ import { SymmioSupportedChainId } from "./src/core/chains/supported-chains";
  * `TypedDocumentString` whose `.toString()` is the raw query text, so it POSTs
  * directly over the SDK's axios transport with zero GraphQL runtime dependency.
  */
-const ANALYTICS_SUBGRAPH_URL = CHAIN_CONFIGS[SymmioSupportedChainId.HYPER_EVM].subgraphs.analytics;
+const ANALYTICS_SUBGRAPH_URL = CHAIN_CONFIGS[SymmioSupportedChainId.ARBITRUM].subgraphs.analytics;
 /**
  * The events subgraph (raw on-chain events, e.g. `internalTransfers`). A separate
  * deployed schema from analytics, so it gets its own codegen target + output dir
  * and its operations are scoped to `src/transfers/**` (the only events consumer).
  */
-const EVENTS_SUBGRAPH_URL = CHAIN_CONFIGS[SymmioSupportedChainId.HYPER_EVM].subgraphs.events;
+const EVENTS_SUBGRAPH_URL = CHAIN_CONFIGS[SymmioSupportedChainId.ARBITRUM].subgraphs.events;
 
 /**
  * Shared client-preset output config — identical for both schemas. See the

@@ -41,7 +41,7 @@ function toTpSlError(event: unknown): SymmError {
  * enigma-protocol subscribe-frame builder and the SDK's socket pool, so
  * many watchers across the app share one underlying connection per
  * `(wsUrl, appName, account)` triple. Scoped by `tpsl.appName` (e.g.
- * `Hyper-EVM_COH-Low-Cap_Production`), distinct from the quote-state
+ * `Arbitrum_COH_Production`), distinct from the quote-state
  * notifications stream.
  *
  * @throws {SymmError} synchronously when the chain has no `tpsl` config or no

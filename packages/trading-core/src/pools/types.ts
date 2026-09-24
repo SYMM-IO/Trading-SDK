@@ -287,6 +287,42 @@ export interface PoolCancelWithdrawResult {
 }
 
 /**
+ * The receipt returned by `refundMarket` — the outcome of refunding a deposit on
+ * a rejected market.
+ */
+export interface PoolRefundResult {
+  /** On-chain hash of the refund transfer. */
+  transactionHash: string;
+}
+
+/**
+ * The signed-in user's **retry allowance** for one rejected market
+ * (`getRetryListingInfo`) — how many listing retries remain and the cooldown
+ * before the next.
+ */
+export interface RetryListingInfo {
+  /** Maximum retries allowed per market. */
+  retryLimit: number;
+  /** Retries the user has left for this market. */
+  remainingRetries: number;
+  /** Seconds until the next retry is allowed, or `null` when no cooldown is in effect. */
+  remainingCooldownSeconds: number | null;
+}
+
+/**
+ * The result of `retryListing` — the retry allowance left after re-submitting a
+ * rejected market.
+ */
+export interface RetryListingResult {
+  /** Maximum retries allowed per market. */
+  retryLimit: number;
+  /** Retries left after this one. */
+  remainingRetries: number;
+  /** Seconds before the next retry is allowed. */
+  cooldownSeconds: number;
+}
+
+/**
  * The signed-in user's deposit wallet for one market — the get-or-create result
  * of the authed `/v2/market/deposit-address` endpoint. This is the address the
  * user sends funds to in order to deposit into the market's pool.

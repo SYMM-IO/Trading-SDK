@@ -1,5 +1,5 @@
 import { act, waitFor } from "@testing-library/react";
-import { hyperEvm, mainnet } from "viem/chains";
+import { arbitrum, mainnet } from "viem/chains";
 import { describe, expect, it } from "vitest";
 import { SymmioRequestError } from "../errors/symmio-request-error";
 import { createTestWagmiConfig, renderHookWithProviders } from "../test/test-utils";
@@ -9,7 +9,7 @@ import { useWalletAccount } from "./use-wallet-account";
 describe("useSwitchToSymmioChain", () => {
   it("switches the connected wallet to the SDK default chain", async () => {
     const wagmiConfig = createTestWagmiConfig({
-      chains: [mainnet, hyperEvm],
+      chains: [mainnet, arbitrum],
       features: { defaultConnected: true, reconnect: true },
     });
     const { result } = renderHookWithProviders(
@@ -25,14 +25,14 @@ describe("useSwitchToSymmioChain", () => {
       await result.current.switchToSymmio.switchChain();
     });
 
-    await waitFor(() => expect(result.current.account.chainId).toBe(hyperEvm.id));
+    await waitFor(() => expect(result.current.account.chainId).toBe(arbitrum.id));
     expect(result.current.switchToSymmio.status).toBe("success");
     expect(result.current.account.isOnExpectedChain).toBe(true);
   });
 
   it("throws a normalized SymmioRequestError and surfaces it when the switch is rejected", async () => {
     const wagmiConfig = createTestWagmiConfig({
-      chains: [mainnet, hyperEvm],
+      chains: [mainnet, arbitrum],
       features: { defaultConnected: true, reconnect: true, switchChainError: true },
     });
     const { result } = renderHookWithProviders(

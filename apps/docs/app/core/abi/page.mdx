@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # ABI fragments
 
 Raw viem-style `Abi` arrays for the SYMMIO contracts, for consumers who call viem directly (bypassing the SDK's typed actions). Use these as an **escape hatch** — the typed actions are recommended for everything the SDK already covers.
@@ -5,16 +7,23 @@ Raw viem-style `Abi` arrays for the SYMMIO contracts, for consumers who call vie
 ## Import
 
 ```ts
-import { accountLayerAbi, instantLayerAbi, symmioAbi } from "@symmio/trading-core";
+import { accountLayerAbi, gaslessLayerAbi, gaslessWalletAbi, instantLayerAbi, symmioAbi } from "@symmio/trading-core";
 ```
 
-Each is a `readonly Abi` array exported straight from the versioned `src/symmio-contracts/abi/v0.8.5/` files.
+Each is a `readonly Abi` array exported straight from the versioned `src/symmio-contracts/abi/v0.8.6/` files.
 
 ## Available fragments
 
 <MethodIndex kind="type">
   <MethodEntry name="accountLayerAbi" href="/core/account-layer">
     AccountLayer contract — SubAccount / Virtual Account creation, deposits, margin.
+  </MethodEntry>
+  <MethodEntry name="gaslessLayerAbi" href="/core/gasless">
+    GaslessLayer gateway proxy — wallet addresses and nonces, fee quotes, relay tuples, settlement events and gateway
+    errors.
+  </MethodEntry>
+  <MethodEntry name="gaslessWalletAbi" href="/core/gasless/gasless-wallet-execute">
+    GaslessWallet — encode `execute(Call[])` for a wallet operation and decode wallet errors.
   </MethodEntry>
   <MethodEntry name="instantLayerAbi" href="/core/instant-layer">
     InstantLayer contract — delegated instant-open / instant-close.
@@ -24,16 +33,38 @@ Each is a `readonly Abi` array exported straight from the versioned `src/symmio-
   </MethodEntry>
 </MethodIndex>
 
-The current version is `v0.8.5` — sourced from [`@symm-io/perps-core`](https://github.com/SYMM-IO/perps-core/tree/version_0.8.5). When the SDK ships a second version, ABIs will route through a version-aware registry; today they are directly re-exported.
+The current version is `v0.8.6` — sourced from [`@symm-io/perps-core`](https://github.com/SYMM-IO/perps-core/tree/version_0.8.6). Each SDK release supports exactly one contracts version; upgrading contracts means a new SDK release that swaps the ABIs in place, so you pick your contracts version by pinning the SDK version.
+
+Every array is the **complete** source ABI (constructor, errors, events and functions), never a subset trimmed to what the SDK wraps, so viem can decode any revert or event these contracts emit.
+
+### GaslessLayer and GaslessWallet provenance
+
+The gasless ABIs changed within the `version_0.8.6` branch, so they are pinned to perps-core commit [`b63ee55e`](https://github.com/SYMM-IO/perps-core/tree/b63ee55e4cfbbc6a9757d23212102d5572e5d829/abis) instead of the moving branch. That commit is the **multi-wallet** generation: wallets are identified by `(owner, walletId)`, the old single-wallet overloads are gone, and the fee quote is `previewFeeQuote`.
+
+<Callout type="warning">
+  Use these ABIs only against a GaslessLayer that runs the multi-wallet interface. They were verified by read-only calls
+  against the staging proxy `0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca`. The production proxy
+  `0x8347953D80037b8d82827246f37EC7442AD188B4` has not been upgraded yet: every multi-wallet signature reverts there
+  with empty data, so it is unsupported until the vendor upgrades it.
+</Callout>
+
+Decode gasless settlement events with `gaslessLayerAbi`. `gaslessWalletAbi` holds no gateway events.
+
+```ts
+import { parseEventLogs } from "viem";
+import { gaslessLayerAbi } from "@symmio/trading-core";
+
+const events = parseEventLogs({ abi: gaslessLayerAbi, logs: receipt.logs });
+```
 
 ## Usage — viem `readContract`
 
 ```ts
 import { createPublicClient, http } from "viem";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { accountLayerAbi } from "@symmio/trading-core";
 
-const client = createPublicClient({ chain: hyperEvm, transport: http() });
+const client = createPublicClient({ chain: arbitrum, transport: http() });
 
 const result = await client.readContract({
   address: "0x…",

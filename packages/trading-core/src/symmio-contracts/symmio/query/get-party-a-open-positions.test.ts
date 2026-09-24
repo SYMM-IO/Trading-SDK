@@ -36,14 +36,14 @@ describe("getPartyAOpenPositionsQueryOptions", () => {
 
   it("builds a stable, bigint-safe key", () => {
     const key = getPartyAOpenPositionsQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       partyA: TEST_USER,
       start: 0n,
       size: 200n,
     });
     expect(key).toEqual([
       "getPartyAOpenPositions",
-      { chainId: SymmioSupportedChainId.HYPER_EVM, partyA: TEST_USER, start: "0", size: "200" },
+      { chainId: SymmioSupportedChainId.ARBITRUM, partyA: TEST_USER, start: "0", size: "200" },
     ]);
   });
 });

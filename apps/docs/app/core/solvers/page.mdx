@@ -56,14 +56,15 @@ const rasa = await getMarkets(config, { solverId: "rasa" }); // RasaMarket[]
 
 Important market fields (all on `Market`):
 
-| Field              | Type     | Notes                                                                                                            |
-| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| `kind`             | `string` | Discriminant: `"enigma"` or `"rasa"`.                                                                            |
-| `symbolId`         | `number` | Contract symbol id.                                                                                              |
-| `name`             | `string` | Solver market name, often the value to pass as `symbol`.                                                         |
-| `symbol`           | `string` | Display symbol.                                                                                                  |
-| `maxLeverage`      | `number` | Maximum leverage accepted for this market.                                                                       |
-| `state` _(Enigma)_ | `number` | Enigma only — `0` disabled, `1` close only, `2` open only, `3` enabled. Narrow on `kind === "enigma"` to access. |
+| Field                                | Type     | Notes                                                                                                                                                                 |
+| ------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`                               | `string` | Discriminant: `"enigma"` or `"rasa"`.                                                                                                                                 |
+| `symbolId`                           | `number` | Contract symbol id.                                                                                                                                                   |
+| `name`                               | `string` | Solver market name, often the value to pass as `symbol`.                                                                                                              |
+| `symbol`                             | `string` | Display symbol.                                                                                                                                                       |
+| `maxLeverage`                        | `number` | Maximum leverage accepted for this market.                                                                                                                            |
+| `state` _(Enigma)_                   | `number` | Enigma only — `0` disabled, `1` close only, `2` open only, `3` enabled. Narrow on `kind === "enigma"` to access.                                                      |
+| `hedgerFeeCloseEarlyRate` _(Enigma)_ | `string` | Enigma only — early (peak) close-fee rate; see [Solver close fee](#solver-close-fee). Paired with `hedgerFeeCloseEarlyThreshold` / `hedgerFeeCloseStandardThreshold`. |
 
 ### `getMarketsQueryOptions`
 
@@ -118,15 +119,39 @@ const page = await getSymbols(config, {
 
 **Returns** — `SolverSymbol[]`. Same camelCase, gap-filled shape as an `EnigmaMarket`, except `/symbols` reports trading state **per side** (`stateLong` / `stateShort`) instead of the single `state` on `getMarkets`.
 
-| Field         | Type      | Notes                                                                      |
-| ------------- | --------- | -------------------------------------------------------------------------- |
-| `symbolId`    | `number`  | Contract symbol id.                                                        |
-| `name`        | `string`  | Solver market name (e.g. `"BTCUSDT"`).                                     |
-| `symbol`      | `string`  | Display ticker.                                                            |
-| `maxLeverage` | `number`  | Maximum leverage (coerced to a number).                                    |
-| `stateLong`   | `number`  | Long-side state: `0` disabled, `1` close only, `2` open only, `3` enabled. |
-| `stateShort`  | `number`  | Short-side state (same encoding).                                          |
-| `isValid`     | `boolean` | Whether the symbol is currently valid.                                     |
+| Field                             | Type      | Notes                                                                         |
+| --------------------------------- | --------- | ----------------------------------------------------------------------------- |
+| `symbolId`                        | `number`  | Contract symbol id.                                                           |
+| `name`                            | `string`  | Solver market name (e.g. `"BTCUSDT"`).                                        |
+| `symbol`                          | `string`  | Display ticker.                                                               |
+| `maxLeverage`                     | `number`  | Maximum leverage (coerced to a number).                                       |
+| `stateLong`                       | `number`  | Long-side state: `0` disabled, `1` close only, `2` open only, `3` enabled.    |
+| `stateShort`                      | `number`  | Short-side state (same encoding).                                             |
+| `isValid`                         | `boolean` | Whether the symbol is currently valid.                                        |
+| `hedgerFeeClose`                  | `string`  | **Standard** (floor) close-fee rate.                                          |
+| `hedgerFeeCloseEarlyRate`         | `string`  | Early (peak) close-fee rate — see [Solver close fee](#solver-close-fee).      |
+| `hedgerFeeCloseEarlyThreshold`    | `number`  | Seconds the early rate applies flat.                                          |
+| `hedgerFeeCloseStandardThreshold` | `number`  | Seconds after which the standard rate applies (linear decay between the two). |
+
+### Solver close fee
+
+The solver charges **more to close a freshly opened position** than an aged one. The close-fee rate starts at `hedgerFeeCloseEarlyRate`, holds flat until `hedgerFeeCloseEarlyThreshold` seconds, then decays linearly to the standard `hedgerFeeClose` by `hedgerFeeCloseStandardThreshold`. These are flat fields on both `EnigmaMarket` (from [`getMarkets`](#getmarkets)) and `SolverSymbol` (from [`getSymbols`](#getsymbols)), so either satisfies `SolverCloseFeeRates` — pass a market or a symbol straight in:
+
+```ts
+import { calculateSolverCloseFee, getSolverCloseFeeRate } from "@symmio/trading-core";
+
+const market = markets.find((m) => m.kind === "enigma" && m.symbolId === id);
+getSolverCloseFeeRate(market, 30); // "0.0024" — still in the early window
+getSolverCloseFeeRate(market, 105); // "0.0015" — halfway through the decay
+getSolverCloseFeeRate(market, 180); // "0.0006" — standard rate
+
+// Price a real close: holding time = now − the position's createTimestamp (seconds).
+const holdingSeconds = Number(nowSeconds - createTimestamp);
+const fee = calculateSolverCloseFee(market, { notional: "1000", holdingSeconds });
+// Pass holdingSeconds: 0 for the worst case (a just-opened position) — what an open must provision.
+```
+
+A market with no decay — a non-Enigma solver, or one that omits the early fields — has `hedgerFeeCloseEarlyRate === hedgerFeeClose` and both thresholds `0`, so `getSolverCloseFeeRate` returns the standard rate for every holding time.
 
 ### `getSymbolsQueryOptions`
 
@@ -145,15 +170,15 @@ Three **Enigma-only** reads (each throws `UNSUPPORTED_BY_SOLVER` off Enigma, and
 
 ### `getSolverRevenue`
 
-Revenue totals for a trailing window — **protocol-wide by default**, or one market's share when `symbolId` is passed. Splits into a hedger-fee share and a funding share whose sum is `totalRevenue`, all as plain dollar `number`s (no decimal scaling). Full reference: **[Revenue](/core/solvers/revenue)**.
+One market's revenue totals for a trailing window — `symbolId` is required; the current solver generation serves no protocol-wide aggregate. Splits into a hedger-fee share and a funding share whose sum is `totalRevenue`, all as plain dollar `number`s (no decimal scaling). Full reference: **[Revenue](/core/solvers/revenue)**.
 
 ```ts
 import { getSolverRevenue } from "@symmio/trading-core";
 
-// Every market, since listing — the headline figure.
-const lifetime = await getSolverRevenue(config);
+// One market, since listing.
+const lifetime = await getSolverRevenue(config, { symbolId: 1 });
 
-// One market, trailing 24 hours. Always smaller than the protocol-wide total.
+// The same market, trailing 24 hours.
 const day = await getSolverRevenue(config, { symbolId: 1, timeRange: "24h" });
 ```
 
@@ -335,14 +360,13 @@ const impact = calculatePriceImpact({ estimatedPrice, referencePrice: markPrice 
 
 The **rasa** solver (majors, on Base) exposes reads the enigma solver does not. Each is a normal `getX` action with a `…QueryOptions` / `…QueryKey` factory; calling one against a non-rasa solver throws `UNSUPPORTED_BY_SOLVER`. In React these are the [Rasa Solver hooks](/react/rasa-solver). See [Solvers & Chains](/core/concepts/solvers-and-chains) for the kind model.
 
-| Action                  | Purpose                                                                                   |
-| ----------------------- | ----------------------------------------------------------------------------------------- |
-| `getSolverReadiness`    | Whether the solver is up and accepting trades.                                            |
-| `addSolverWhitelist`    | Add a partyA to the solver whitelist (a write, with `addSolverWhitelistMutationOptions`). |
-| `getSolverBalanceInfo`  | Solver-side balance for an account.                                                       |
-| `getPartyAUpnl`         | PartyA uPnL as computed by the solver.                                                    |
-| `getSolverOpenInterest` | Global open interest.                                                                     |
-| `getSolverPriceRange`   | Accepted price range for a symbol.                                                        |
+| Action                  | Purpose                                        |
+| ----------------------- | ---------------------------------------------- |
+| `getSolverReadiness`    | Whether the solver is up and accepting trades. |
+| `getSolverBalanceInfo`  | Solver-side balance for an account.            |
+| `getPartyAUpnl`         | PartyA uPnL as computed by the solver.         |
+| `getSolverOpenInterest` | Global open interest.                          |
+| `getSolverPriceRange`   | Accepted price range for a symbol.             |
 
 Notification history search is **not** listed here: it is the unified [`searchNotifications`](/core/notifications), which dispatches to the rasa solver's position-state endpoint (`POST /position-state/{start}/{size}`) for a rasa solver and returns the rasa result variant. See [Notifications](/core/notifications/search-notifications).
 

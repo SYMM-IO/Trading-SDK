@@ -1,6 +1,6 @@
 # SYMMIO Trading-SDK
 
-> SDK for building perps trading UIs on SYMMIO. Two layers: @symmio/trading-core (framework-agnostic actions, query-option factories, typed errors) and @symmio/trading-react (hooks + SymmioProvider on wagmi + TanStack Query). Chain: HyperEVM (chainId 999) only.
+> SDK for building perps trading UIs on SYMMIO. Two layers: @symmio/trading-core (framework-agnostic actions, query-option factories, typed errors) and @symmio/trading-react (hooks + SymmioProvider on wagmi + TanStack Query). Supported trading chains: Arbitrum (42161) and Base (8453).
 
 ## Read these first
 

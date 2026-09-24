@@ -57,6 +57,27 @@ Mutations layer three responsibilities on top of the core factory:
 - **Cache invalidation** — on success, invalidates every query key touched by the write via `predicateMatch`. See [Invalidation](../invalidation).
 - **Transactions store bookkeeping** — writes that produce a tx hash push to `useTransactionsStore` (see [Stores](../stores)) so the UI can render a "tx pending" surface without threading state through props.
 
+### Write result
+
+A write hook that waits for a receipt resolves with a `WriteResult`:
+
+```ts
+interface WriteResult {
+  hash: Hash;
+  receipt?: TransactionReceipt;
+  gasless?: { requestId: string; broadcastHash: Hash };
+}
+```
+
+`gasless` is present only when the write was relayed through GaslessQ instead of the wallet — see [relayable writes](/core/gasless/relayable-writes). It matters because a relayed write's first broadcast is not durable: the relayer replaces a stuck or under-priced transaction, so the hook follows the **request** rather than the hash it first saw, and `hash` is the transaction that actually mined. `broadcastHash` is the first attempt, kept so a UI that already showed it can reconcile, and `requestId` is the workflow's stable handle — persist that one; it is what survives a replaced transaction and a reload.
+
+```ts
+const { hash, gasless } = await mutateAsync(variables);
+if (gasless) persist(gasless.requestId);
+```
+
+A relayed write that ends `reverted` / `failed` / `rejected` rejects with the relayer's own verdict (`GASLESS_RELAY_REVERTED` and friends), which names the cause, instead of a receipt-revert error for a hash that may never have mined.
+
 ## Parameters convention
 
 Every hook accepts a single **`parameters`** object with:

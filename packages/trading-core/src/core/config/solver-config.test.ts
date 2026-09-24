@@ -5,10 +5,10 @@ import { getMarketsQueryOptions } from "../../solvers/markets/query";
 import { SymmioSupportedChainId } from "../chains";
 import { createConfig, type CreateConfigParameters } from "./create-config";
 
-const CHAIN = SymmioSupportedChainId.HYPER_EVM;
+const CHAIN = SymmioSupportedChainId.ARBITRUM;
 const noopClient = () => ({}) as unknown as PublicClient;
 
-/** A config whose HyperEVM `enigma` solver has an overridden url. */
+/** A config whose Arbitrum `enigma` solver has an overridden URL. */
 function enigmaUrlOverride(url: string) {
   return createConfig({
     symmioConfig: {

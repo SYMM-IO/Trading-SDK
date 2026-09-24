@@ -24,16 +24,16 @@ Every action and query-options factory receives a `Config` as its first argument
 ```ts
 import { createConfig, SymmioSupportedChainId } from "@symmio/trading-core";
 import { createPublicClient, http, zeroAddress } from "viem";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 
-const publicClient = createPublicClient({ chain: hyperEvm, transport: http() });
+const publicClient = createPublicClient({ chain: arbitrum, transport: http() });
 
 const config = createConfig({
   getClient: () => publicClient,
   symmioConfig: {
     // `affiliatesAddress` is required per chain. `zeroAddress` is fine for testing —
     // trades open, but you earn no fee share. Register to collect fees (see below).
-    [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } },
+    [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: zeroAddress } },
   },
 });
 ```
@@ -67,13 +67,13 @@ Writes sign through the wallet client your config resolves. Add `getWalletClient
 ```ts
 import { createConfig, editAccountName, SymmioSupportedChainId } from "@symmio/trading-core";
 import { createPublicClient, createWalletClient, http, zeroAddress } from "viem";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 
 const config = createConfig({
-  getClient: () => createPublicClient({ chain: hyperEvm, transport: http() }),
-  getWalletClient: async () => createWalletClient({ account, chain: hyperEvm, transport: http() }),
+  getClient: () => createPublicClient({ chain: arbitrum, transport: http() }),
+  getWalletClient: async () => createWalletClient({ account, chain: arbitrum, transport: http() }),
   // required per chain — zeroAddress for testing, a registered affiliate to earn fees
-  symmioConfig: { [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: zeroAddress } } },
+  symmioConfig: { [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: zeroAddress } } },
 });
 
 const hash = await editAccountName(config, {

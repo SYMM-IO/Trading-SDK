@@ -1,75 +1,86 @@
 import { LinkCard, type LinkCardProps } from "@/components/link-card";
 import { StatusDot } from "@/components/status-dot";
+import type { NavHref } from "@/features/layout/nav";
 import { Button } from "@symmio/ui/components/button";
 import Link from "next/link";
 
-const cards: Omit<LinkCardProps, "index">[] = [
-  {
-    href: "/contracts",
+/**
+ * One tile per header destination, in grid order. Keyed by route so adding a page to
+ * the nav without a tile here fails the type check instead of silently leaving it off.
+ */
+const cards: Record<Exclude<NavHref, "/">, Omit<LinkCardProps, "href" | "index">> = {
+  "/integration": {
+    eyebrow: "End to end",
+    title: "Integration flow",
+    description: "A production-grade deposit and withdraw console composed entirely from @symmio/trading-react hooks.",
+    icon: <FlowIcon />,
+    className: "sm:col-span-2",
+  },
+  "/contracts": {
     eyebrow: "Contracts",
     title: "Contract methods",
     description:
       "Run live reads and writes against every method the SDK implements — browse by contract ABI or by flow.",
     icon: <LayersIcon />,
   },
-  {
-    href: "/solvers",
+  "/solvers": {
     eyebrow: "Solvers",
     title: "Solver markets",
     description: "Fetch tradable markets — symbols, leverage, fees, and state — straight from the chain's solver.",
     icon: <ChartIcon />,
   },
-  {
-    href: "/integration",
-    eyebrow: "End to end",
-    title: "Integration flow",
-    description: "A production-grade deposit and withdraw console composed entirely from @symmio/trading-react hooks.",
-    icon: <FlowIcon />,
+  "/pools": {
+    eyebrow: "Listings",
+    title: "Pools",
+    description:
+      "Browse the permissionless-listing catalog with TVL, volume and open interest, then create, fund, and claim from a pool.",
+    icon: <PoolsIcon />,
   },
-  {
-    href: "/price-service",
+  "/price-service": {
     eyebrow: "Price Service",
     title: "Mark prices",
     description:
       "Stream and read mark prices from the Enigma or Binance provider, plus Enigma metadata, symbols and health.",
     icon: <PriceIcon />,
   },
-  {
-    href: "/candles",
+  "/candles": {
     eyebrow: "Market data",
     title: "Candles",
     description: "Load historical OHLCV bars and keep the latest one live from a pluggable CandleSource.",
     icon: <CandlesIcon />,
   },
-  {
-    href: "/orderbook",
+  "/orderbook": {
     eyebrow: "Market data",
     title: "Orderbook",
     description: "Stream a synchronized book — snapshot, buffered diffs, and a resync on every dropped update.",
     icon: <OrderbookIcon />,
   },
-  {
-    href: "/muon",
+  "/muon": {
     eyebrow: "Oracle",
     title: "Muon signatures",
     description: "Fetch signed uPnL, price, and settlement attestations the contracts require alongside a write.",
     icon: <MuonIcon />,
   },
-  {
-    href: "/session-keys",
+  "/gasless": {
+    eyebrow: "Relayer",
+    title: "Gasless actions",
+    description:
+      "Sign an EIP-712 operation and let the relayer broadcast it — the fee comes out of SYMMIO collateral, not native gas.",
+    icon: <GaslessIcon />,
+  },
+  "/session-keys": {
     eyebrow: "Local signing",
     title: "Session keys",
     description: "Create an encrypted browser-local signing key for delegated flows and later device transfer.",
     icon: <KeyIcon />,
   },
-  {
-    href: "/config",
+  "/config": {
     eyebrow: "Runtime",
     title: "Resolved config",
     description: "Inspect the chain config the app resolves from @symmio/trading-react — addresses, solver, subgraphs.",
     icon: <SlidersIcon />,
   },
-];
+};
 
 export function HomePanel() {
   return (
@@ -77,7 +88,7 @@ export function HomePanel() {
       <div className="animate-enter-up flex max-w-3xl flex-col gap-6">
         <span className="border-border/70 bg-muted/40 text-muted-foreground inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium tracking-wide">
           <StatusDot tone="positive" pulse />
-          SYMMIO SDK Console · HyperEVM
+          SYMMIO SDK Console · Arbitrum
         </span>
 
         <h1 className="font-display text-foreground text-4xl font-semibold tracking-tight text-balance sm:text-6xl sm:leading-[1.04]">
@@ -104,8 +115,8 @@ export function HomePanel() {
       </div>
 
       <div className="mt-16 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map((card, index) => (
-          <LinkCard key={card.href} {...card} index={index} />
+        {Object.entries(cards).map(([href, card], index) => (
+          <LinkCard key={href} href={href} {...card} index={index} />
         ))}
       </div>
     </section>
@@ -212,6 +223,29 @@ function MuonIcon() {
         strokeWidth="1.75"
         opacity="0.7"
       />
+    </svg>
+  );
+}
+
+function PoolsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      <path
+        d="M4 7c0-1.66 3.58-3 8-3s8 1.34 8 3-3.58 3-8 3-8-1.34-8-3Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" stroke="currentColor" strokeWidth="1.75" opacity="0.55" />
+      <path d="M4 7v10c0 1.66 3.58 3 8 3s8-1.34 8-3V7" stroke="currentColor" strokeWidth="1.75" />
+    </svg>
+  );
+}
+
+function GaslessIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -1,4 +1,26 @@
-# Transactions store
+# Transactions
+
+## What a write hook does with your variables
+
+Every write hook forwards its mutation variables to the core action **verbatim**. It defaults only
+`chainId` (to the connected chain) and injects the values its own docs name — `useDeallocate`'s
+`upnlSig` when you omit it, `useWithdraw`'s `account` and `isolationType`. Anything a hook takes over
+is removed from its variables type with `Omit<>`.
+
+That is the contract, and it is what makes the type honest: **a field that type-checks is a field that
+is honored.** So an optional parameter on the core action — `gasless`, `from`, `simulateBeforeWrite` —
+reaches the action just by being passed to `mutate`.
+
+`from` is worth calling out because it plays three roles depending on the path:
+
+- on a **simulation**, it is the dry-run `msg.sender` (the `useSimulate*` hooks default it to the connected address);
+- on a **write**, it is a hint handed to `config.getWalletClient({ chainId, from })` — write hooks forward
+  it but never default it, so a custom multi-signer resolver keeps whatever default it chose;
+- on a [**relayed write**](/core/gasless/relayable-writes), the wallet that resolver returns signs the
+  InstantLayer operation, so `from` selects the EIP-712 signer. That is separate from the billing
+  sub-account, which comes from the action itself or from `gasless.account`.
+
+## Transactions store
 
 A small, opt-in [zustand](https://github.com/pmndrs/zustand) store for tracking in-flight tx hashes in the UI — the data backing pending-tx badges, post-confirmation toasts, and "view in explorer" links.
 

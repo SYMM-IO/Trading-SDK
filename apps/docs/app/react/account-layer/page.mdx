@@ -161,6 +161,12 @@ The query is **disabled until `subAccount`, `isolationType`, and `symbolId` are 
 
 ## Writes
 
+<Callout type="info">
+  `useAllocate` and `useDeallocate` are [relayable](/core/gasless/relayable-writes): pass `gasless: true` in the
+  mutation variables to sign the write as an InstantLayer operation and let the relayer pay the gas.
+  `useEditAccountName` is not — it always takes the wallet path. See [Gasless hooks](/react/gasless).
+</Callout>
+
 Every hook below returns react-query's `UseMutationResult` — call `mutate(inputs)` (or `mutateAsync`), watch `isPending` / `data` / `error`, and the hook invalidates the reads it affected on your behalf.
 
 <Callout type="warning">

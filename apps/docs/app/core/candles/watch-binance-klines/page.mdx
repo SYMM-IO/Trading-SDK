@@ -1,0 +1,63 @@
+# watchBinanceKlines
+
+Stream live bar updates for one Binance symbol and interval. This is the low-level stream in **Binance's own vocabulary** — most consumers call [`CandleSource.watchCandles`](/core/candles/candle-source-type) (or the [`useCandleStream`](/react/candles) hook) and never touch it; it is exported for anyone assembling their own source.
+
+```ts
+import { watchBinanceKlines } from "@symmio/trading-core";
+
+const unwatch = watchBinanceKlines({
+  wsUrl: "wss://fstream.binance.com/market/stream",
+  symbol: "BTCUSDT",
+  interval: "1m",
+  webSocketConstructor: WebSocket,
+  onCandle: (candle, { closed }) => console.log(candle.close, closed),
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="wsUrl" type="string">
+    Combined-stream WebSocket endpoint (`…/stream`). For futures this must be the `/market/` route — see the routing
+    note on [`createBinanceCandleSource`](/core/candles/create-source).
+  </Property>
+  <Property name="symbol" type="string">
+    Binance symbol, upper-case (e.g. `"BTCUSDT"`).
+  </Property>
+  <Property name="interval" type="string">
+    Binance interval string (e.g. `"1m"`), not an SDK resolution. Translate with `toBinanceInterval`.
+  </Property>
+  <Property name="webSocketConstructor" type="WebSocketConstructor">
+    WebSocket implementation to dial with.
+  </Property>
+  <Property name="onCandle" type="(candle: Candle, meta: CandleUpdateMeta) => void">
+    Called for each update to the bar, and once more with `closed: true` when it closes.
+  </Property>
+  <Property name="onReset" type="() => void" optional>
+    Called after a reconnect, when bars may have been missed. Refetch history rather than splicing a live bar onto a
+    stale series.
+  </Property>
+  <Property name="onStatusChange" type="(status: SocketStatus) => void" optional>
+    Called whenever the connection status changes.
+  </Property>
+  <Property name="onError" type="(error: SymmError) => void" optional>
+    Called on a transport or parse error (`BINANCE_KLINES_SOCKET_ERROR`); does not stop the subscription.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Unwatch">An unwatch function that closes the connection.</Returns>
+
+## Guarantees
+
+- **One connection per call.** Deliberate at this scale — a chart holds exactly one subscription — and it keeps the reconnect and unsubscribe paths trivially correct.
+- **Reconnects re-subscribe themselves.** Binance drops idle connections after 24 hours; the reconnecting socket re-dials, re-sends the SUBSCRIBE frame, and fires `onReset` so the consumer refetches the bars missed in the gap.
+- **Frames are matched on symbol _and_ interval.** Matching on symbol alone lets two charts on different intervals feed each other's series.
+- Both combined-stream (`{ stream, data }`) and raw frame shapes are parsed, so the same code works against either endpoint form.
+
+## Related
+
+- [`createBinanceCandleSource`](/core/candles/create-source) — the full source this stream powers.
+- [`useCandleStream`](/react/candles) — the React hook over `watchCandles`.
+- [`Candle`](/core/candles/candle-type) — the bar shape delivered to `onCandle`.

@@ -1,0 +1,103 @@
+import { Callout } from "nextra/components";
+
+# getGaslessDepositPolicy
+
+Read the gasless **deposit policy** for one of an owner's GaslessWallets — the deterministic deposit address plus the collateral and fee terms — directly from the GaslessLayer.
+
+```ts
+import { getGaslessDepositPolicy } from "@symmio/trading-core";
+import { formatUnits } from "viem";
+
+const policy = await getGaslessDepositPolicy(config, { owner });
+showDepositAddress(policy.depositAddress);
+showMinimum(formatUnits(policy.settlementMinimum, policy.collateralDecimals));
+```
+
+Six RPC reads (the service exposes no read endpoints): `getGaslessWalletAddress(owner, walletId)`, `collateralToken()` and that token's `decimals()`, `depositFee()`, `minimumDeposit()` and [`getWalletCreationFee(owner, walletId)`](/core/gasless/get-gasless-wallet-creation-fee). `walletId` defaults to `0n`, the original wallet; pass another id to read that wallet's address and creation fee. The deposit address is a pure `CREATE2` view — safe to display before any transaction — and collateral sent there can only ever reach a sub-account owned by `owner`.
+
+Every amount is in the collateral token's own units; format them with `collateralDecimals`. Watch the address's balance with the existing collateral-balance read, [`getCollateralBalance`](/core/symmio-contract/get-collateral-balance), and enable settlement once it reaches `settlementMinimum`:
+
+```ts
+import { getCollateralBalance } from "@symmio/trading-core";
+
+const observed = await getCollateralBalance(config, { owner: policy.depositAddress });
+const canSettle = observed >= policy.settlementMinimum;
+```
+
+`settlementMinimum` is `max(minimumDeposit, depositFee + walletCreationFee + 1n)`. The GaslessLayer rejects a settlement unless the swept balance both reaches `minimumDeposit` and exceeds the deposit fee plus the creation fee, and the creation fee applies only while the wallet is not deployed yet.
+
+<Callout type="warning">
+  Send **only** the configured collateral token to the address — nothing else is swept, and the settlement consumes the
+  wallet's **entire observed balance** (additional funds arriving before settlement settle together, with the fees off
+  the top). Wallets of the same owner never share balances, so give funding flows that must not be swept together their
+  own wallet ids.
+</Callout>
+
+<Callout type="warning">
+  While `walletCreationFee` is non-zero, the service's acceptance estimate overstates the credited amount, because it
+  subtracts only the deposit fee. See [`getGaslessWalletCreationFee`](/core/gasless/get-gasless-wallet-creation-fee)
+  before offering that flow.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="owner" type="Address" required>
+    The owner onboarding through gasless deposit. Pass the owner's address, never a GaslessWallet address.
+  </Property>
+  <Property name="walletId" type="bigint" optional default="0n">
+    Which of the owner's wallets receives the deposit, from `0n` through `2^256 - 1`. `0n` is the original wallet.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GetGaslessDepositPolicyReturnType>">
+  <Property name="walletId" type="bigint">
+    The wallet id the policy was read for — `0n` when the parameter was omitted.
+  </Property>
+  <Property name="depositAddress" type="Address">
+    The deterministic deposit address: the GaslessWallet of `(owner, walletId)`.
+  </Property>
+  <Property name="collateralTokenAddress" type="Address">
+    The only token the settlement sweeps.
+  </Property>
+  <Property name="collateralDecimals" type="number">
+    The collateral token's ERC-20 `decimals()` — the scale of every amount in this policy.
+  </Property>
+  <Property name="depositFee" type="bigint">
+    Flat fee deducted from the observed balance at settlement (collateral token units).
+  </Property>
+  <Property name="minimumDeposit" type="bigint">
+    Minimum observed balance the service will settle (collateral token units).
+  </Property>
+  <Property name="walletCreationFee" type="bigint">
+    One-time fee the settlement also deducts when it deploys the wallet (collateral token units). `0n` once the wallet
+    is deployed.
+  </Property>
+  <Property name="settlementMinimum" type="bigint">
+    `max(minimumDeposit, depositFee + walletCreationFee + 1n)` — the smallest balance that settles: it must both reach
+    the minimum and exceed the deposit and creation fees. Gate the settlement UI on this.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getGaslessDepositPolicyQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getGaslessDepositPolicyQueryOptions(config, { owner, walletId: 1n }));
+```
+
+An omitted `walletId` keys the same as `0n`. The creation fee drops to `0n` once any action deploys the wallet, so refetch the policy after a settlement or a wallet operation. [`useGaslessDepositPolicy`](/react/gasless#usegaslessdepositpolicy) and the React relay hooks handle that invalidation.
+
+## Throws
+
+- `SymmError("validation", "GASLESS_WALLET_ID_INVALID")` — `walletId` is not a `bigint` from `0n` through `2^256 - 1` (a JavaScript `number` included). Thrown before any RPC call.
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmError("api", "GASLESS_WALLET_UNAVAILABLE")` — the gateway returned the zero address for the wallet.
+- Viem read errors. A GaslessLayer that has not been upgraded to the multi-wallet interface reverts with empty data.

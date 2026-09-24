@@ -9,6 +9,7 @@ import {
   CONFIG_GROUPS,
   countChainOverrides,
   draftFromOverrides,
+  draftInstantLayerAddress,
   fieldPath,
   isFieldAvailable,
   sameOverrides,
@@ -25,6 +26,13 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@symmio/ui/co
 import { cn } from "@symmio/ui/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import { useSwitchChain } from "wagmi";
+
+/**
+ * The staging preset applied **onto** the app baseline. The preset only models
+ * Arbitrum, so writing it wholesale would drop the baseline's other chains
+ * (Base's affiliate) and silently fall back to their registry values.
+ */
+const STAGING_OVERRIDES = { ...symmioChains, ...STAGING_CHAIN_OVERRIDES };
 
 interface Props {
   open: boolean;
@@ -64,7 +72,7 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
 
   const pending = useMemo(() => buildChainOverrides(draft), [draft]);
   const appliedDraft = useMemo(() => draftFromOverrides(overrides), [overrides]);
-  const isStaging = overrideCount > 0 && sameOverrides(overrides, STAGING_CHAIN_OVERRIDES);
+  const isStaging = overrideCount > 0 && sameOverrides(overrides, STAGING_OVERRIDES);
 
   const invalidCount = useMemo(() => {
     let total = 0;
@@ -125,8 +133,8 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
             </div>
             <SheetTitle>Chain configuration</SheetTitle>
             <SheetDescription>
-              Override the SDK&apos;s built-in addresses, solver, subgraphs, and notifications. Edits apply to every
-              read and write the app makes.
+              Override the SDK&apos;s built-in addresses, solver, subgraphs, notifications, and gasless execution mode.
+              Edits apply to every read and write the app makes.
             </SheetDescription>
             <span className="border-border/70 bg-muted/40 mt-0.5 inline-flex w-fit items-center gap-2 rounded-full border py-1 pr-3 pl-2.5 text-xs font-medium">
               <StatusDot tone={status.tone} pulse={status.pulse} />
@@ -176,7 +184,7 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
                 variant="outline"
                 size="sm"
                 className="flex-1"
-                onClick={() => setOverrides(STAGING_CHAIN_OVERRIDES)}
+                onClick={() => setOverrides(STAGING_OVERRIDES)}
                 disabled={!canApplyStaging}
               >
                 <BeakerIcon className="size-4" />
@@ -203,9 +211,14 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
               /**
                * A field the active chain does not carry (e.g. the enigma-only
                * notifications `channel` on a rasa chain) is hidden, and a group
-               * left with no fields disappears with it.
+               * left with no fields disappears with it. The gasless group
+               * follows the **drafted** InstantLayer, since that is the address
+               * an Apply would write and so the deployment the chain would then
+               * belong to.
                */
-              const fields = group.fields.filter((field) => isFieldAvailable(activeChain, field));
+              const fields = group.fields.filter((field) =>
+                isFieldAvailable(activeChain, field, draftInstantLayerAddress(draft, activeChain)),
+              );
               if (fields.length === 0) return null;
               return (
                 <section key={group.group} className="flex flex-col gap-4">

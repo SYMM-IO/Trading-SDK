@@ -1,0 +1,411 @@
+"use client";
+
+import { AddressTag } from "@/components/address-tag";
+import { DataList, DataRow } from "@/components/data-list";
+import { ResultError } from "@/components/result";
+import { useUserSubAccounts, useWalletAccount } from "@symmio/trading-react";
+import { Badge } from "@symmio/ui/components/badge";
+import { Button } from "@symmio/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symmio/ui/components/card";
+import { Checkbox } from "@symmio/ui/components/checkbox";
+import { Label } from "@symmio/ui/components/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symmio/ui/components/select";
+import { Spinner } from "@symmio/ui/components/spinner";
+import { formatRelativeTimestamp, shortenAddress } from "@symmio/utils";
+import { useEffect, useState } from "react";
+import type { Address, Hex } from "viem";
+import { AlertTriangleIcon, ClockIcon, GasFreeIcon, ShieldCheckIcon } from "./session-key-icons";
+import {
+  describeSelector,
+  describeSelectorPurpose,
+  getSelectorScope,
+  type SessionKeyScopeName,
+} from "./session-key-selector-labels";
+import { useSessionKey } from "./use-session-key";
+import { useSessionKeyDelegation } from "./use-session-key-delegation";
+
+/**
+ * Onboarding and status for the local session key's Instant Layer authority:
+ * grant it, see exactly what it holds, and revoke it.
+ *
+ * The card is deliberately explicit about the asymmetry between the two
+ * directions. Granting is relayed, so it costs no native gas and — because the
+ * contract only accepts `grantDelegation` from the account owner — it is the
+ * one and only wallet prompt the key ever needs. Revoking cannot be relayed: it
+ * is a wallet transaction that costs native gas, and the key keeps working
+ * until the cooldown ETA passes.
+ *
+ * Only the *first* revoke step is load-bearing. Enforcement checks
+ * `pendingRevocationEta` on every operation, so authority ends at the ETA with
+ * no second transaction; finalizing merely deletes the storage, and re-granting
+ * clears the stale schedule by itself. The card therefore offers that step only
+ * while something is actually scheduled, and never calls it "the revoke".
+ */
+/**
+ * Name the authority groups the grant actually covers. The account and withdraw
+ * scopes exist only on perps-core 0.8.6, so on an older chain the grant really
+ * is trade-only and must not claim otherwise.
+ */
+function describeScope(supportsAccountScope: boolean, withdraw: boolean): string {
+  if (!supportsAccountScope) return "trade only (this chain has no gasless account management)";
+  return withdraw ? "trade + account + withdraw" : "trade + account";
+}
+
+export function SessionKeyDelegationCard() {
+  const { address: owner, isConnected, isOnExpectedChain } = useWalletAccount();
+  const { sessionKeyAddress, metadata, state } = useSessionKey();
+  const subAccounts = useUserSubAccounts({ user: owner });
+  const [subAccount, setSubAccount] = useState<Address | undefined>(undefined);
+  const [withdraw, setWithdraw] = useState(false);
+
+  /** Default to the first sub-account once the list arrives, without pinning a stale choice. */
+  useEffect(() => {
+    const first = subAccounts.data?.[0]?.accountAddress;
+    if (!subAccount && first) setSubAccount(first);
+  }, [subAccounts.data, subAccount]);
+
+  /**
+   * The delegation must expire exactly when the session key does. The key's own
+   * `expiresAt` is the source of truth, so a rotated or imported key moves both
+   * together instead of leaving a longer-lived grant behind on-chain.
+   */
+  const sessionKeyExpiresAtMs = metadata?.expiresAt ?? state.expiresAt ?? undefined;
+
+  const delegation = useSessionKeyDelegation({
+    subAccount,
+    sessionKey: sessionKeyAddress ?? undefined,
+    sessionKeyExpiresAtMs,
+    withdraw,
+  });
+
+  const canWrite = Boolean(
+    isConnected && isOnExpectedChain && subAccount && sessionKeyAddress && delegation.expiryTimestamp !== undefined,
+  );
+
+  return (
+    <Card data-testid="card-session-key-delegation">
+      <CardHeader>
+        <CardTitle>Gasless session-key authority</CardTitle>
+        <CardDescription>
+          Delegate trading and account-management authority to the local session key. Granting is relayed, so it costs
+          no native gas — and because only the account owner may grant, this is the one wallet prompt the key ever
+          needs. Every action it signs afterwards is promptless.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="session-key-delegation-subaccount">Sub-account</Label>
+            <Select
+              value={subAccount ?? ""}
+              onValueChange={(value) => setSubAccount(value as Address)}
+              disabled={!owner || (subAccounts.data?.length ?? 0) === 0}
+            >
+              <SelectTrigger id="session-key-delegation-subaccount" data-testid="select-delegation-subaccount">
+                <SelectValue placeholder={owner ? "Select a sub-account" : "Connect wallet"} />
+              </SelectTrigger>
+              <SelectContent>
+                {subAccounts.data?.map((sub) => (
+                  <SelectItem key={sub.accountAddress} value={sub.accountAddress} description={sub.accountAddress}>
+                    {sub.name || shortenAddress(sub.accountAddress)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DataList>
+            <DataRow
+              label="session key"
+              value={sessionKeyAddress ? <AddressTag address={sessionKeyAddress} /> : "Not initialized"}
+            />
+            <DataRow label="status" value={<ReadinessBadge delegation={delegation} />} />
+            <DataRow
+              label="delegation expires"
+              value={
+                delegation.activeExpiryTimestamp !== undefined
+                  ? formatRelativeTimestamp(delegation.activeExpiryTimestamp, {
+                      formatFuture: (duration) => `in ${duration}`,
+                      formatPast: (duration) => `expired ${duration} ago`,
+                    })
+                  : "No live grant"
+              }
+            />
+            <DataRow
+              label="scope"
+              value={`${delegation.requiredSelectors.length} selectors — ${describeScope(delegation.supportsAccountScope, withdraw)}`}
+            />
+            {delegation.revokingSelectorCount > 0 ? (
+              <DataRow label="revocation" value={<RevocationStatus delegation={delegation} />} />
+            ) : null}
+          </DataList>
+
+          {delegation.missingSelectors.length > 0 ? <MissingSelectors selectors={delegation.missingSelectors} /> : null}
+
+          <div className="border-border/70 bg-muted/20 space-y-2 rounded-xl border p-3">
+            <Label className="items-start gap-2.5">
+              <Checkbox
+                checked={withdraw && delegation.supportsAccountScope}
+                disabled={!delegation.supportsAccountScope}
+                onCheckedChange={(value) => setWithdraw(value === true)}
+                data-testid="checkbox-delegation-withdraw"
+              />
+              <span className="flex flex-col gap-1">
+                <span className="text-sm font-medium">Also allow withdrawals (off by default)</span>
+                <span className="text-muted-foreground text-xs font-normal">
+                  Adds <code className="font-mono">initiateWithdraw</code>, which lets this key move the sub-account’s
+                  collateral to any address it chooses. Only tick this for a key that must run withdrawals unattended.
+                </span>
+              </span>
+            </Label>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={!canWrite || delegation.isWriting || delegation.isReady}
+              onClick={() => void delegation.grant()}
+              data-testid="button-grant-session-key-delegation"
+            >
+              {delegation.isWriting ? (
+                <>
+                  <Spinner className="size-4" /> Granting...
+                </>
+              ) : (
+                <>
+                  <GasFreeIcon className="size-4" /> Grant authority — 1 prompt, no gas
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={
+                !canWrite || delegation.isWriting || delegation.activeSelectors.length === 0 || delegation.isRevoking
+              }
+              onClick={() => void delegation.initiateRevoke()}
+              data-testid="button-initiate-revoke-delegation"
+              title={
+                delegation.isRevoking
+                  ? "A revocation is already scheduled — starting another would only push its ETA further out."
+                  : undefined
+              }
+            >
+              Start revoke (costs gas)
+            </Button>
+            {/*
+             * Only offered while something is actually scheduled. Finalizing is
+             * optional cleanup, not the revoke — authority ends on its own at
+             * the ETA — so a permanently visible button implies a step the user
+             * must take and then greys out with no way to explain itself.
+             */}
+            {delegation.revokingSelectorCount > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!canWrite || delegation.isWriting || !delegation.isFinalizable}
+                onClick={() => void delegation.finalizeRevoke()}
+                data-testid="button-finalize-revoke-delegation"
+                title={
+                  delegation.isFinalizable
+                    ? undefined
+                    : "The cooldown is still running. Authority ends by itself when it does — this only clears the stored grant afterwards."
+                }
+              >
+                Clear stored grant (costs gas)
+              </Button>
+            ) : null}
+          </div>
+
+          <RevocationNotice
+            cooldownSeconds={delegation.cooldownSeconds}
+            secondsRemaining={delegation.revocationSecondsRemaining}
+            isRevoking={delegation.isRevoking}
+          />
+
+          {delegation.error ? (
+            <ResultError testId="result-session-key-delegation-error" message={delegation.error.message} />
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Ready / revoking / missing-N summary for the current scope. */
+function ReadinessBadge({ delegation }: { delegation: ReturnType<typeof useSessionKeyDelegation> }) {
+  if (delegation.isLoading)
+    return (
+      <span className="text-muted-foreground flex items-center gap-1.5">
+        <Spinner className="size-3.5" /> Reading delegations...
+      </span>
+    );
+  /**
+   * A key inside the cooldown is both ready and on its way out, and the
+   * revocation is the fact the operator needs — the contract still enforces the
+   * grant, so the readiness read alone would render a reassuring “Ready”.
+   */
+  if (delegation.isRevoking)
+    return (
+      <Badge variant="warning" data-testid="badge-delegation-revoking">
+        <ClockIcon className="size-3" /> Revoking {delegation.revokingSelectorCount} of{" "}
+        {delegation.requiredSelectors.length}
+      </Badge>
+    );
+  if (delegation.isReady)
+    return (
+      <Badge variant="positive" data-testid="badge-delegation-ready">
+        <ShieldCheckIcon className="size-3" /> Ready
+      </Badge>
+    );
+  return (
+    <Badge variant="warning" data-testid="badge-delegation-missing">
+      <AlertTriangleIcon className="size-3" /> Missing {delegation.missingSelectors.length} of{" "}
+      {delegation.requiredSelectors.length}
+    </Badge>
+  );
+}
+
+/**
+ * The scheduled revocation, straight from the contract's `pendingRevocationEta`
+ * — live until the ETA, then finalizable by anyone.
+ */
+function RevocationStatus({ delegation }: { delegation: ReturnType<typeof useSessionKeyDelegation> }) {
+  if (delegation.isFinalizable)
+    return (
+      <span className="text-warning" data-testid="text-revocation-finalizable">
+        Cooldown over — authority already gone, finalize to clear the grant
+      </span>
+    );
+  if (delegation.revocationSecondsRemaining === undefined) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span data-testid="text-revocation-eta">
+      Still live — authority ends in{" "}
+      <span className="font-mono tabular-nums">{formatCountdown(delegation.revocationSecondsRemaining)}</span>
+    </span>
+  );
+}
+
+/** The authority groups a missing-selector list is broken into, in grant order. */
+const SCOPE_ORDER: readonly SessionKeyScopeName[] = ["account", "trade", "withdraw"];
+
+/** The heading each authority group is listed under. */
+const SCOPE_HEADINGS: Readonly<Record<SessionKeyScopeName, string>> = {
+  account: "Account management",
+  trade: "Trade lifecycle",
+  withdraw: "Withdrawal",
+};
+
+/**
+ * The exact selectors the key still lacks, grouped by the authority they carry.
+ *
+ * Each group states its scope once in a heading rather than repeating it on
+ * every entry — a full grant is sixteen selectors, thirteen of them identically
+ * suffixed, and the repetition plus ragged chip widths left nothing to scan
+ * down. The purposes are spelled out instead of hidden behind a hover, because
+ * this block is where an operator decides whether to sign the grant at all.
+ */
+function MissingSelectors({ selectors }: { selectors: readonly Hex[] }) {
+  const groups = SCOPE_ORDER.map((scope) => ({
+    scope,
+    members: selectors.filter((selector) => getSelectorScope(selector) === scope),
+  })).filter((group) => group.members.length > 0);
+
+  return (
+    <div
+      className="border-warning/30 bg-warning/10 @container space-y-3.5 rounded-xl border px-3.5 py-3"
+      data-testid="result-delegation-missing-selectors"
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm font-medium">Not delegated yet</p>
+        <p className="text-muted-foreground text-xs tabular-nums">
+          {selectors.length} {selectors.length === 1 ? "selector" : "selectors"}
+        </p>
+      </div>
+      {groups.map((group) => (
+        <div key={group.scope} className="space-y-2">
+          <p className="text-muted-foreground text-[10px] font-semibold tracking-[0.14em] uppercase">
+            {SCOPE_HEADINGS[group.scope]} · {group.members.length}
+          </p>
+          <ul className="grid gap-x-6 gap-y-2.5 @xl:grid-cols-2 @4xl:grid-cols-3">
+            {group.members.map((selector) => {
+              const purpose = describeSelectorPurpose(selector);
+              return (
+                <li key={selector} className="min-w-0" title={selector}>
+                  <span className="block font-mono text-xs leading-5 wrap-break-word">
+                    {describeSelector(selector)}
+                  </span>
+                  {purpose ? (
+                    <span className="text-muted-foreground block text-[11px] leading-4">{purpose}</span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** States the cost and the timing of revocation without ever implying it can be relayed. */
+function RevocationNotice({
+  cooldownSeconds,
+  secondsRemaining,
+  isRevoking,
+}: {
+  cooldownSeconds?: bigint;
+  secondsRemaining?: number;
+  isRevoking: boolean;
+}) {
+  const countdown = isRevoking && secondsRemaining !== undefined ? formatCountdown(secondsRemaining) : undefined;
+
+  return (
+    <div className="text-muted-foreground flex items-start gap-2 text-xs" data-testid="note-revocation-cost">
+      <ClockIcon className="mt-0.5 size-4 shrink-0" />
+      <p>
+        Revocation cannot be relayed — both steps are wallet transactions that cost native gas. Starting a revoke does
+        not take authority away immediately: the key keeps signing for the full cooldown
+        {cooldownSeconds !== undefined ? ` (${formatCooldown(cooldownSeconds)})` : ""}, and stops by itself when the ETA
+        passes — no second transaction required.
+        {countdown ? (
+          <>
+            {" "}
+            Still live for <span className="font-mono tabular-nums">{countdown}</span>.
+          </>
+        ) : null}{" "}
+        Clearing the stored grant afterwards is optional bookkeeping, permissionless, and unnecessary before re-granting
+        — a new grant wipes the stale schedule on its own.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Render a live countdown in the same compact shape as {@link formatCooldown},
+ * one unit finer: `47s`, `9m 07s`, `1h 09m 07s`.
+ *
+ * Minutes and seconds are zero-padded once a larger unit precedes them, so the
+ * string keeps its width as it ticks and the row does not jitter.
+ */
+function formatCountdown(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const secs = total % 60;
+  const mins = Math.floor(total / 60) % 60;
+  const hours = Math.floor(total / 3_600);
+
+  if (total < 60) return `${secs}s`;
+  if (total < 3_600) return `${mins}m ${String(secs).padStart(2, "0")}s`;
+  return `${hours}h ${String(mins).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s`;
+}
+
+/** Render a cooldown duration in seconds as a compact `10m` / `2h` style string. */
+function formatCooldown(seconds: bigint): string {
+  const total = Number(seconds);
+  if (total < 60) return `${total}s`;
+  if (total < 3_600) return `${Math.round(total / 60)}m`;
+  return `${Math.round(total / 360) / 10}h`;
+}

@@ -43,7 +43,7 @@ Solver selection is therefore a property _of the individual call_ and must be a 
 
 ### 2.1 Release-bound, not config-bound
 
-Each release of `@symmio/trading-core` supports **exactly one** contracts version — today `v0.8.5`, whose ABI fragments live under `src/symmio-contracts/abi/v0.8.5/` and are imported directly by actions. The folder name is a **label** of the shipped version, not a selection axis: there is no version enum, no `protocolVersion` field in config, and no version-pack registry — deliberately.
+Each release of `@symmio/trading-core` supports **exactly one** contracts version — today `v0.8.6`, whose ABI fragments live under `src/symmio-contracts/abi/v0.8.6/` and are imported directly by actions. The folder name is a **label** of the shipped version, not a selection axis: there is no version enum, no `protocolVersion` field in config, and no version-pack registry — deliberately.
 
 Upgrading to a new contracts version is a **new SDK release**:
 
@@ -72,7 +72,7 @@ export const INSTANT_LAYER_EIP712_DOMAIN_NAME = "SymmioInstantLayer" as const;
 export const INSTANT_LAYER_EIP712_DOMAIN_VERSION = "1" as const;
 ```
 
-That `"1"` is the **InstantLayer contract's on-chain EIP-712 domain version**. It is orthogonal to `"v0.8.5"` and moves on its own schedule.
+That `"1"` is the **InstantLayer contract's on-chain EIP-712 domain version**. It is orthogonal to `"v0.8.6"` and moves on its own schedule.
 
 If the domain version were assumed to track the contracts version, a contracts upgrade that legitimately keeps domain version `"1"` would sign against the wrong domain — and **every signature would fail to verify**, with no local error to explain it. The domain name and version are therefore **explicit, independently-reviewed constants**: at a contracts upgrade (§2.1), verify them against the deployed contract instead of bumping them alongside the ABI label.
 
@@ -80,7 +80,17 @@ The same applies to `SIGNED_OPERATION_TYPES` in that file, whose own comment sta
 
 ### 2.4 Known sharp edge
 
-Individual selectors are **derived** from the ABI, so they self-correct when a signature changes. But `INSTANT_TRADE_REQUIRED_SELECTORS` is a **hand-listed array**. A contracts version that adds a required selector will not be caught by the compiler sweep; a contracts upgrade requires a manual review of that set. Flagged here so it is a checklist item, not a surprise.
+Individual selectors are **derived** from the ABI, so they self-correct when a signature changes. But the required-selector sets (`INSTANT_TRADE_REQUIRED_SELECTORS` / `LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS`) are **hand-listed arrays**. A contracts version that adds a required selector will not be caught by the compiler sweep; a contracts upgrade requires a manual review of those sets. Flagged here so it is a checklist item, not a surprise.
+
+### 2.5 Amendment — the one-app-two-versions scenario became real (`contractsVersion`)
+
+§2.2's revisit clause fired: Base runs **v0.8.5** while Arbitrum runs **v0.8.6**, and one app serves both. The response is deliberately **narrower than the rejected registry**: a required per-chain `contractsVersion: SymmioContractsVersion` field ("0.8.5" | "0.8.6") in the chain config — a declared deployment fact, never probed — read at exactly the seams where the generations diverge:
+
+- **Quote-send encoding** (`enigma-instant-open` adapter): v0.8.6 signs `sendQuote` with `SolverFeeCaps`; v0.8.5 signs the legacy `sendQuoteWithAffiliateAndData` (the capped selector does not exist on its diamond, and the v0.8.6 solver rejects the legacy call's zero caps).
+- **Session-key delegation set** (`getInstantTradeRequiredSelectors`): picks the matching open-leg selector.
+- **Withdraw-request decodes** (`getWithdrawRequests` / `getPendingWithdrawRequests`): the output struct grew in v0.8.6 (`advancedAmount`), so v0.8.5 chains decode a statically-pinned v0.8.5 fragment returned as-is — the field is optional on `WithdrawRequest` and `undefined` there (see the version-grown-field rule in `AGENTS.md`).
+
+The rejection's constraints still hold everywhere else: there is **no** version-pack registry and no runtime ABI indirection on write paths — both quote-send encoders are direct `as const` call sites (viem inference intact, per §2.2's hazard), and every other wrapped function is signature-identical across the two generations, so the single shipped v0.8.6 ABI serves both. Adding a third supported version means extending the union, sweeping the three seams above, and re-reviewing §2.4's selector sets.
 
 ---
 

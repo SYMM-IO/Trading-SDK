@@ -42,7 +42,7 @@ function parseLpAmount(value: string): bigint | null {
  *
  * The bearer token comes from the shared {@link useListingAuth} session, so the
  * user signs in **once** and this card reuses it. Enigma-only: the listing backend
- * lives on HyperEVM, so the card is gated on Enigma being the active solver,
+ * lives on Arbitrum, so the card is gated on Enigma being the active solver,
  * mirroring the other Listing-session cards.
  */
 export function WithdrawCard() {
@@ -169,7 +169,7 @@ export function WithdrawCard() {
       </Button>
 
       {!enigmaActive ? (
-        <ResultNote testId="withdraw-gate">Switch to Enigma (HyperEVM) to withdraw from a pool.</ResultNote>
+        <ResultNote testId="withdraw-gate">Switch to Enigma (Arbitrum) to withdraw from a pool.</ResultNote>
       ) : withdraw.error ? (
         <ResultError kind={withdraw.error.kind} message={withdraw.error.message} testId="withdraw-error" />
       ) : withdraw.isSuccess ? (

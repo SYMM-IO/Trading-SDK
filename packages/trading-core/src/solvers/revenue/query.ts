@@ -50,12 +50,12 @@ export type GetSolverRevenueQueryOptions = SymmioQueryOptions<
  *
  * @example
  * ```ts
- * useQuery(getSolverRevenueQueryOptions(config, { timeRange: "24h" }));
+ * useQuery(getSolverRevenueQueryOptions(config, { symbolId: 1, timeRange: "24h" }));
  * ```
  */
 export function getSolverRevenueQueryOptions(
   config: Config,
-  options: GetSolverRevenueOptions = {},
+  options: GetSolverRevenueOptions,
 ): GetSolverRevenueQueryOptions {
   return {
     ...options.query,

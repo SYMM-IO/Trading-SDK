@@ -2,6 +2,8 @@ import {
   ActionStatus,
   getAccountBalanceInfoQueryKey,
   getAccountBalanceOfQueryKey,
+  getPartyAOpenPositionsQueryKey,
+  getQuotePendingFundingQueryKey,
   NotificationType,
   OrderType,
   PositionType,
@@ -13,7 +15,7 @@ import {
 import type { Query, QueryClient, QueryKey } from "@tanstack/react-query";
 import { act, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
-import { hyperEvm } from "viem/chains";
+import { arbitrum } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 import { createTestQueryClient, renderHookWithProviders, TEST_EOA } from "../test/test-utils";
@@ -136,7 +138,7 @@ function renderManaged(queryClient?: QueryClient) {
     () =>
       useManagedQuotes({
         partyA: TEST_EOA,
-        chainId: hyperEvm.id,
+        chainId: arbitrum.id,
         includeVirtualAccounts: false,
         sources: { pendingQuotes: false, instantOpens: false, instantCloses: false },
       }),
@@ -150,7 +152,7 @@ function renderManaged(queryClient?: QueryClient) {
  * function of the config, so it matches the one the hook under test computes.
  */
 function renderConfigKey(): string {
-  const { result } = renderHookWithProviders(() => useSymmioConfig().getChainConfigKey(hyperEvm.id));
+  const { result } = renderHookWithProviders(() => useSymmioConfig().getChainConfigKey(arbitrum.id));
   return result.current;
 }
 
@@ -201,6 +203,31 @@ describe("useManagedQuotes — open-confirm hold", () => {
 
     expect(state.reads).toBe(readsBefore);
     expect(result.current.quotes).toEqual([]);
+  });
+
+  it("invalidates the chain's pending-funding reads together with the on-chain quote reads", async () => {
+    const queryClient = createTestQueryClient();
+    renderManaged(queryClient);
+    await waitFor(() => expect(state.reads).toBeGreaterThan(0));
+
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    act(() => state.onNotification?.(notification()));
+
+    /** Run every predicate handed to `invalidateQueries` since the frame against one key. */
+    const matches = (key: QueryKey) =>
+      invalidate.mock.calls.some(([filters]) => {
+        const { predicate } = filters as { predicate?: (q: Query) => boolean };
+        return predicate?.({ queryKey: key } as Query<unknown, Error, unknown, QueryKey>) ?? false;
+      });
+
+    const configKey = renderConfigKey();
+    /** An open adds a position that accrues funding, so the pending-funding reads move with the positions. */
+    await waitFor(() =>
+      expect(matches(getQuotePendingFundingQueryKey({ configKey, quoteIds: [ANCHORED_QUOTE.id] }))).toBe(true),
+    );
+    expect(matches(getPartyAOpenPositionsQueryKey({ configKey, partyA: TEST_EOA }))).toBe(true);
+    /** Another chain config's pending funding must survive. */
+    expect(matches(getQuotePendingFundingQueryKey({ configKey: "other", quoteIds: [ANCHORED_QUOTE.id] }))).toBe(false);
   });
 });
 

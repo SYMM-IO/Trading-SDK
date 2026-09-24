@@ -5,12 +5,12 @@ import { SymmioSupportedChainId, type CreateConfigParameters } from "@symmio/tra
  * requires a non-zero `addresses.affiliatesAddress` on every supported chain —
  * this page does not trade, so the value only satisfies the provider; the
  * registration flow itself never reads it. Uses the built-in default affiliate
- * for HyperEVM (the same one baked into the chain registry).
+ * for Arbitrum (the same one baked into the chain registry).
  */
 export const symmioChains: CreateConfigParameters["symmioConfig"] = {
-  [SymmioSupportedChainId.HYPER_EVM]: {
+  [SymmioSupportedChainId.ARBITRUM]: {
     addresses: {
-      affiliatesAddress: "0xBcB033C9154401fA000a1Ae60843f79f45741b7c",
+      affiliatesAddress: "0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D",
     },
   },
 };

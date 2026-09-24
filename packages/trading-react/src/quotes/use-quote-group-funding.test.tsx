@@ -121,9 +121,9 @@ describe("useQuoteGroupFunding", () => {
     const group = groupOf([FIRST, SECOND]);
     mockBatch({ rows: [FIRST_ROW, SECOND_ROW] });
 
-    renderHook(() => useQuoteGroupFunding({ group, chainId: 999 }));
+    renderHook(() => useQuoteGroupFunding({ group, chainId: 42161 }));
 
-    expect(useQuotesFundingMock).toHaveBeenCalledWith({ quotes: group.quotes, chainId: 999 });
+    expect(useQuotesFundingMock).toHaveBeenCalledWith({ quotes: group.quotes, chainId: 42161 });
     /** `group` itself is a grouping concern and must not leak into the read. */
     expect(useQuotesFundingMock.mock.calls[0]![0]).not.toHaveProperty("group");
   });

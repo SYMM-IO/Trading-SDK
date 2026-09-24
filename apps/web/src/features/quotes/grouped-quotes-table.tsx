@@ -13,9 +13,9 @@ import type { Address } from "viem";
 import { GroupFundingPanel } from "./group-funding-panel";
 import { GroupMarginRiskSection } from "./group-margin-risk-section";
 import { GroupTpSlCell } from "./group-tpsl-cell";
+import { truncateAddress } from "./quote-format";
 import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
-import { truncateAddress } from "./quote-provenance-panel";
-import { QuotesTable } from "./quotes-table";
+import { QuotesSurface } from "./quotes-surface";
 import { useMarketNameById } from "./use-market-name-by-id";
 
 /** Em dash placeholder for a metric a group cannot populate yet. */
@@ -252,7 +252,7 @@ function buildColumns(
       header: (
         <CalculatedHeader
           label="Leverage"
-          formula="Leverage = Σ (quantity × requestedOpenPrice) ÷ Σ (CVA + LF + partyAMM + partyBMM) — the group's blended opening leverage against its initial locked margin."
+          formula="Leverage = Σ (quantity × (initialOpenedPrice, else openedPrice, else requestedOpenPrice)) ÷ Σ (CVA + LF + partyAMM + partyBMM) — the group's blended opening leverage against its initial locked margin."
         />
       ),
       align: "end",
@@ -354,10 +354,11 @@ export function GroupedQuotesTable({
         label: "Underlying quotes",
         icon: <QuotesIcon />,
         render: (group) => (
-          <QuotesTable
+          <QuotesSurface
             testId={testId ? `${testId}-${group.key}-children` : undefined}
             quotes={group.quotes}
             hidePagination
+            forceCards
             emptyMessage="No quotes in this group."
           />
         ),

@@ -23,6 +23,10 @@ const hash = await editAccountName(config, {
   <Property name="chainId" type="number" optional>
     Optional chain override.
   </Property>
+  <Property name="gasless" type="boolean | GaslessWriteOptions" optional>
+    Relay this write through the [gasless execution mode](/core/gasless/relayable-writes) instead of the wallet. A
+    boolean for the common case, or a per-call `GaslessWriteOptions` bag; omitted, the chain's `execution.mode` decides.
+  </Property>
 </Properties>
 
 ## Returns

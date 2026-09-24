@@ -16,7 +16,7 @@ vi.mock("../types/generated/listing-backend", async (importOriginal) => {
 
 import { claimProfit } from "./claim-profit";
 
-const LISTING_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).listing?.url;
+const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url;
 
 const REQUIRED = {
   accessToken: "TOKEN123",

@@ -2,7 +2,7 @@ import type { Hash } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
-import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
+import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import type { AffiliateRegistration } from "../types";
 import { simulateRequestToRegisterAffiliate } from "./simulate-request-to-register-affiliate";
 

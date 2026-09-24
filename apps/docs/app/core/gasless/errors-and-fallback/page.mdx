@@ -1,0 +1,237 @@
+import { Callout } from "nextra/components";
+
+# Errors & fallback
+
+How gasless failures surface, how to read the vendor's diagnostics out of them, when a wallet-paid retry is safe, and what to do when a submit's outcome is simply unknown.
+
+## The fallback safety rule
+
+<Callout type="warning">
+  A wallet-paid retry of the same intent is safe **only** when the relay definitively refused it *before any broadcast*:
+  a fee/quota rejection, or the gateway dropping the request before any service saw it (`429`, or a `503` carrying the
+  gateway's own envelope). Never on a timeout, a `502`/`504`, a status `0`, an idempotency conflict, or anything after a
+  `202` — the relayed transaction may still execute, and a wallet duplicate would execute the same intent twice.
+</Callout>
+
+Two predicates encode exactly this — use them instead of re-deriving the rule:
+
+```ts
+import { isConfirmedGaslessFeeLimitError, isConfirmedGaslessUnavailableError } from "@symmio/trading-core";
+
+try {
+  await relayInstantOperations(config, parameters);
+} catch (err) {
+  const safeToUseWallet =
+    isConfirmedGaslessFeeLimitError(err) || (!accepted && isConfirmedGaslessUnavailableError(err));
+  if (!safeToUseWallet) throw err;
+  // …fall back to the gas-paid path
+}
+```
+
+Both work on the error a React hook throws too: `SymmioRequestError` keeps the status and the response body, and every gasless predicate reads them structurally rather than through an `instanceof` check.
+
+The [transparent execution mode](/core/gasless/relayable-writes) applies them for you under `fallback: "wallet"`, with the same exclusions hard-coded: an unconfirmed submit, an idempotency conflict and a `2xx` from the wrong protocol instance end the write, whatever `fallback` says.
+
+One more rejection is safe to retry through the wallet, because it happens before anything is signed: the fee pre-flight finding the daily free quota exhausted (`GASLESS_FREE_QUOTA_EXHAUSTED`, matched by `isGaslessFreeQuotaExhaustedError`). The transparent mode falls back on it too. A fee quote that fails for transport reasons is not a rejection: the transparent mode signs and relays anyway, and the relayer's simulation decides.
+
+### The matrix
+
+| Outcome                                                                                                                | SDK behavior                                             | Wallet fallback    |
+| ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------ |
+| `429`, or `503` with the gateway `{ error }` envelope                                                                  | Resent under the same key, up to twice, then thrown      | **Yes**            |
+| Fee code (`FEE_POLICY_WOULD_REVERT` / `INSUFFICIENT_ALLOWANCE`) on any `4xx`                                           | Thrown as-is                                             | **Yes**            |
+| `400 SIMULATION_REVERTED` with a billing revert (`OperationalFee: …`, `DailyFreeOpsLimitExceeded`, `FeeLimitExceeded`) | Thrown as-is                                             | **Yes**            |
+| A stored record that ended `rejected` for a billing reason                                                             | Thrown by the dispatcher / `confirmGaslessRequest`       | **Yes**            |
+| Status `0`, a timeout, `500`, `502`, `504`, `503` without the envelope                                                 | Resent once, then `GASLESS_SUBMIT_UNCONFIRMED`           | **No** — resubmit  |
+| A `2xx` with no `request_id`                                                                                           | `GASLESS_SUBMIT_UNCONFIRMED`                             | **No** — resubmit  |
+| A `2xx` from another protocol instance                                                                                 | `GASLESS_INSTANCE_MISMATCH`, body kept in `responseData` | **No** — reconcile |
+| `409 IDEMPOTENCY_KEY_CONFLICT`                                                                                         | Thrown as-is                                             | **No** — new key   |
+| `404` with the gateway envelope                                                                                        | Thrown as-is                                             | **No** — config    |
+| `401` / `403` / `422`, any other `4xx`                                                                                 | Thrown as-is                                             | **No**             |
+| Anything after a `202` that is not a billing `rejected`                                                                | `GASLESS_RELAY_REJECTED` / `_FAILED` / `_REVERTED`       | **No**             |
+
+`502` and `504` look like outages and are not treated as one on purpose. The gateway returns `502` for an upstream failure **and** for a protocol-instance identity mismatch, and either can happen after the body reached the service — which is exactly the shape that produced a double execution when the SDK treated them as "definitely not accepted".
+
+## When the outcome is unknown
+
+A submit that fails ambiguously is resent **once** by the SDK under the same idempotency key. If that is inconclusive too, it throws `GASLESS_SUBMIT_UNCONFIRMED` carrying the exact bytes that were sent:
+
+```ts
+import { getGaslessUnconfirmedSubmit, resubmitGaslessRequest } from "@symmio/trading-core";
+
+const pending = getGaslessUnconfirmedSubmit(err);
+if (pending) {
+  await store.save(pending); // { chainId, service, path, body, idempotencyKey }
+  await resubmitGaslessRequest(config, pending);
+}
+```
+
+Resending the identical request under the same key either lands it or returns the record the service already created, so it can never double-execute. See [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request) — and keep the record out of third-party logging, because `body` holds the user's signed operations.
+
+### Idempotency keys
+
+One key describes **one payload**. Reuse it only to replay the byte-identical request; change anything — re-sign, add an operation, move a wallet id, settle again after a terminal status — and the key must change too, or the service answers `409 IDEMPOTENCY_KEY_CONFLICT` (`isGaslessIdempotencyConflictError`).
+
+That is why only the actions whose payload **you** build take an `idempotencyKey`:
+
+| Action                                                                                         | `idempotencyKey`                                       |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| [`relayInstantOperations`](/core/gasless/relay-instant-operations)                             | Yours — you signed the operations                      |
+| [`settleGaslessDepositNewAccount`](/core/gasless/settle-gasless-deposit-new-account)           | Yours — the payload is data, not a signature           |
+| [`settleGaslessDepositExistingAccount`](/core/gasless/settle-gasless-deposit-existing-account) | Yours                                                  |
+| [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute)                                 | Minted per call — it signs a fresh operation each time |
+| [`relayGrantDelegation`](/core/gasless/relay-grant-delegation)                                 | Minted per call                                        |
+| [Transparent writes](/core/gasless/relayable-writes) (`gasless: true`)                         | Minted per call                                        |
+
+Every acceptance receipt echoes the key that was used, so a relay you did not key yourself is still reconcilable — persist `requestId`, `owner`, `walletIds` and `idempotencyKey` together.
+
+## Reading the vendor detail
+
+HTTP failures are thrown as `SymmApiError` with the raw response body preserved; `parseGaslessErrorDetail` digs the vendor's `{ code, message, details }` envelope out of any gasless error — including whatever the service decoded of an on-chain revert:
+
+```ts
+import { parseGaslessErrorDetail } from "@symmio/trading-core";
+
+const detail = parseGaslessErrorDetail(err);
+detail?.code; // "SIMULATION_REVERTED", "INSUFFICIENT_ALLOWANCE", …
+detail?.contractRevert?.error; // "InvalidWalletOperationTarget", …
+detail?.revertMessage; // "OperationalFee: Insufficient balance"
+detail?.decodedRevert; // the service's own decoded view, in whatever shape it sent
+detail?.rpcError; // the nested JSON-RPC error, when the failure came from the chain
+detail?.failedOperation; // { index, revertData } of an OperationFailed revert
+detail?.gatewayError; // "Unknown or disabled protocol instance: …" (the gateway's own { error } body)
+detail?.validationErrors; // [{ loc: ["path", "request_id"], msg, type }] (a 422)
+```
+
+`revertMessage`, `decodedRevert`, `rpcError` and `failedOperation` are read from both `detail` and `detail.details`, because deployments differ on which level they use.
+
+`contractRevert.arguments` is `readonly unknown[] | Record<string, unknown>`: the vendor sends a positional array or an object keyed by parameter name depending on how it decoded the revert. Narrow with `Array.isArray` before indexing, or read `contractRevert.decoded`, which is a plain string on the deployments that key their arguments.
+
+### Naming the failing batch entry
+
+A relayed batch is atomic, so the InstantLayer reports an inner failure as `OperationFailed(operationIndex, revertData)` — a position, not a cause. Decode it against the ABI the failing operation targeted:
+
+```ts
+import { accountLayerAbi, decodeGaslessOperationFailure } from "@symmio/trading-core";
+
+const failure = decodeGaslessOperationFailure(err, accountLayerAbi);
+failure?.index; // 1
+failure?.decoded?.errorName; // "InvalidNameLength"
+```
+
+### Classifying a failure
+
+`classifyGaslessFailure` reduces any gasless failure to the one reason a UI should act on, reading the decoded revert ahead of the vendor code and the vendor code ahead of the HTTP status — a `400 SIMULATION_REVERTED` whose revert names an allowance shortfall is an allowance problem, not a bad request:
+
+```ts
+import { classifyGaslessFailure } from "@symmio/trading-core";
+
+switch (classifyGaslessFailure(err)) {
+  case "payer-balance":
+    return showTopUp(); // an allowance approval will not fix this
+  case "fee-allowance":
+    return showApproveOperationalFee();
+  case "submit-unconfirmed":
+    return showReconcilePending(getGaslessUnconfirmedSubmit(err));
+  default:
+    return showDiagnostics(parseGaslessErrorDetail(err));
+}
+```
+
+| Reason                                                                                               | What the user can do                                                                   |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `"payer-balance"`                                                                                    | Top up the billing account's SYMMIO collateral. Approving more allowance does nothing. |
+| `"fee-allowance"`                                                                                    | Approve more with [`approveOperationalFee`](/core/gasless/approve-operational-fee).    |
+| `"free-quota"`                                                                                       | Wait for the UTC reset, or pay from the wallet.                                        |
+| `"fee-limit"`                                                                                        | The fee policy refused it; refresh the policy before rebuilding.                       |
+| `"failed-operation"`                                                                                 | Decode the entry with `decodeGaslessOperationFailure` and fix that call.               |
+| `"nonce-or-deadline"`                                                                                | Refresh the nonce and deadline and ask for a new signature.                            |
+| `"deposit-below-minimum"` / `"deposit-not-above-fees"`                                               | Fund the deposit address further, or wait for finality.                                |
+| `"idempotency-conflict"`                                                                             | Mint a new key; reconcile the workflow the old one created.                            |
+| `"client-schema"`                                                                                    | A client bug — fix the payload, do not retry.                                          |
+| `"rate-limited"` / `"unauthorized"` / `"forbidden"` / `"unknown-instance"` / `"gateway-unavailable"` | Gateway-level; see the status table below.                                             |
+| `"submit-unconfirmed"`                                                                               | Resubmit. Never re-run the intent.                                                     |
+| `"simulation-reverted"`                                                                              | Rebuild, re-sign, new key. Never resend the same signature.                            |
+| `"unknown"`                                                                                          | Show the raw diagnostics.                                                              |
+
+### Diagnostics for a support report
+
+Capture the environment, protocol instance, service, idempotency key, request id and transaction hash if they exist, the HTTP status and vendor code, and the decoded revert — **without credentials**.
+
+The error never carries credentials by construction: a gasless HTTP failure keeps no request headers and no request body. Its `cause` is a sanitized snapshot of the failure (`name`, `message`, `code`, `status`, `method`, `url`), and the URL drops any userinfo and query string.
+
+`responseData` is a different matter. A FastAPI `422` echoes the rejected input in each `detail[].input` and `ctx` — for a missing field that is the whole parent object, which can include the signed operations and their signatures, and a signature the service rejected was never executed, so it stays valid until its deadline. `GASLESS_SUBMIT_UNCONFIRMED`'s `responseData` deliberately holds the signed body too. Before sending a gasless error to third-party logging, drop or redact `responseData`; log a `422` through `parseGaslessErrorDetail(err)?.validationErrors`, which keeps only `loc`, `msg` and `type`.
+
+## Gateway statuses
+
+The gateway answers some failures itself, before any service sees the request, with a `{ "error": "…" }` body instead of the service's `{ "detail": … }` envelope; `parseGaslessErrorDetail(err)?.gatewayError` holds that string. Every HTTP failure is a `SymmApiError` with its `status`:
+
+| Status                    | Meaning                                                                                                                                                                        | What to do                                                                                                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`                       | No response: a network failure, or a submit that ran past `execution.submitTimeoutMs`. In a browser, also a CORS rejection of the app's Origin.                                | Ambiguous for a submit: resend the same bytes under the same key. A CORS rejection persists until the gateway allows the Origin.                                         |
+| `400` with `gatewayError` | The URL and a protocol-instance selector disagree, or the selector is invalid.                                                                                                 | Fix the `url` / `protocolInstance` pairing.                                                                                                                              |
+| `401`                     | Invalid, disabled, conflicting or malformed credentials, or no key at all where the deployment has turned anonymous access off (`gatewayError` then starts `Missing API key`). | With an `apiKey`, fix it: a rejected key never falls back to anonymous access. Without one, the deployment requires a partner key: call it from a server that holds one. |
+| `403`                     | The client or its access profile lacks permission for this service or protocol instance.                                                                                       | Use a key authorized for the instance and service, or none where the anonymous profile is permitted.                                                                     |
+| `404` with `gatewayError` | Unknown or disabled protocol instance or service.                                                                                                                              | A **configuration** error, not an outage: fix `protocolInstance`. A `404` with the service code `NOT_FOUND` instead means the instance stores no such request.           |
+| `422`                     | The service rejected the payload's shape; `validationErrors` lists each issue.                                                                                                 | A client bug: fix the request rather than retrying it.                                                                                                                   |
+| `429`                     | Rate limit reached. Anonymous clients share 10 requests per second per IP and instance.                                                                                        | The SDK resends a submit up to twice, waiting `max(retryAfterMs, 1 s + jitter)`. Exhausted, it is the one transport failure that is provably not accepted.               |
+| `502`                     | Upstream unavailable, **or** a protocol-instance identity mismatch — possibly after the body reached the service.                                                              | Ambiguous, never a rejection. Resend under the same key.                                                                                                                 |
+| `503`                     | With the gateway envelope, its configuration is not ready — the request never left the gateway. Without it, an upstream `503` that may have been seen.                         | The envelope form is retried like a `429` and is fallback-eligible; the bare form is ambiguous.                                                                          |
+
+`retryAfterMs` is the `Retry-After` delay in milliseconds, or `null`. In a browser it is usually `null`: a cross-origin page reads `Retry-After` only when the gateway lists it in `Access-Control-Expose-Headers`, and by default the gateway exposes only `X-GasLessQ-Protocol-Instance`. Treat `null` as unknown, never as "retry now" — the SDK's own retry waits at least a jittered second either way.
+
+## Vendor codes
+
+From the service itself, via `parseGaslessErrorDetail(err)?.code`:
+
+| Code                                             | Meaning / action                                                                                                                                            |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FEE_POLICY_WOULD_REVERT`                        | The fee or free-quota policy blocks the request; refresh the policy before rebuilding. Fallback-eligible.                                                   |
+| `INSUFFICIENT_ALLOWANCE`                         | Raise the billing account's gateway allowance. Fallback-eligible.                                                                                           |
+| `SIMULATION_REVERTED`                            | The relay could not execute in simulation. Inspect the decoded cause, then correct funding, authorization or payload — **never resend the same signature**. |
+| `DEPOSIT_BELOW_MINIMUM`                          | Wait for funding or finality, or add collateral.                                                                                                            |
+| `CHAIN_CONFIGURATION_ERROR`                      | The backend deployment is incompatible; escalate to the operators.                                                                                          |
+| `CHAIN_EXECUTION_ERROR`                          | An RPC or contract call failed; inspect `rpcError` before deciding whether to retry.                                                                        |
+| `IDEMPOTENCY_KEY_CONFLICT`                       | HTTP `409`: the key already belongs to another wallet selection or workflow. Mint a new key for a new action (`isGaslessIdempotencyConflictError`).         |
+| `NOT_FOUND`                                      | The id or hash is not stored in the selected instance. After a `202`, expect this briefly — the accept-vs-record race.                                      |
+| `INVALID_ADDRESS` / `INVALID_OPERATION_SELECTOR` | The payload named something the service will not relay.                                                                                                     |
+
+A FastAPI schema failure returns `422` with no code at all; read `validationErrors`.
+
+## SDK error codes
+
+| Code                                                                                          | Kind       | Meaning                                                                                                                                                                                                                                                                                                                       |
+| --------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GASLESS_NOT_CONFIGURED`                                                                      | config     | The chain has no `gasless` block.                                                                                                                                                                                                                                                                                             |
+| `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`                                                       | config     | The chain runs pre-perps-core contracts.                                                                                                                                                                                                                                                                                      |
+| `GASLESS_URL_INVALID` / `GASLESS_URL_SERVICE_MISMATCH` / `GASLESS_PROTOCOL_INSTANCE_REQUIRED` | config     | The `gasless.url` / `protocolInstance` pairing cannot produce a service base.                                                                                                                                                                                                                                                 |
+| `GASLESS_URL_LEGACY_ROUTE` / `GASLESS_PROTOCOL_INSTANCE_CONFLICT`                             | config     | The `url` is an instance-less `/v1/{service}` compatibility route, or its path pins a different instance than `protocolInstance`. See [URL forms](/core/gasless/resolve-gasless-service#url-forms).                                                                                                                           |
+| `GASLESS_CONFIG_INCOHERENT`                                                                   | config     | The GaslessLayer verifies against a different InstantLayer than the chain config declares — align the addresses before relaying.                                                                                                                                                                                              |
+| `GASLESS_NOT_RELAYABLE`                                                                       | validation | An explicit `gasless: true` on calldata the relay cannot carry.                                                                                                                                                                                                                                                               |
+| `GASLESS_ACCOUNT_UNRESOLVED`                                                                  | validation | A margin relay could not resolve the virtual account's parent — pass `gasless.account`.                                                                                                                                                                                                                                       |
+| `GASLESS_VALUE_UNSAFE`                                                                        | validation | A uint256 wire field exceeded the JSON safe-integer range.                                                                                                                                                                                                                                                                    |
+| `GASLESS_CHARGER_REQUIRED` / `OPERATIONAL_FEE_APPROVAL_MISMATCH`                              | validation | Allowance read/write input problems.                                                                                                                                                                                                                                                                                          |
+| `GASLESS_EMPTY_BATCH`                                                                         | validation | A fee quote or a relay was asked for an empty batch.                                                                                                                                                                                                                                                                          |
+| `GASLESS_TEMPLATE_ID_INVALID`                                                                 | validation | A `templateId` that is not a non-negative safe integer. An unguarded value serializes to JSON `null`, which the service reads as "no template" and relays as a plain batch.                                                                                                                                                   |
+| `GASLESS_TEMPLATE_WALLET_ID_UNSUPPORTED`                                                      | validation | A template batch named a non-zero wallet id. Templates relay through `relayInstantTemplate`, which takes no wallet ids — relay gasless-wallet operations as an ordinary batch.                                                                                                                                                |
+| `GASLESS_WALLET_ID_INVALID`                                                                   | validation | A wallet id is not a `bigint` from `0n` through `2^256 - 1`. Numbers are rejected, not coerced.                                                                                                                                                                                                                               |
+| `GASLESS_WALLET_OWNER_MISMATCH`                                                               | validation | An explicit `owner` does not own the `signerAccount` the wallet is derived from. Thrown before the signature prompt, because the operation would revert with `InvalidWalletOperationTarget` after the user paid for it.                                                                                                       |
+| `GASLESS_RESUBMIT_BODY_INVALID`                                                               | validation | [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request) was handed something other than a recorded submit.                                                                                                                                                                                                         |
+| `GASLESS_FREE_QUOTA_EXHAUSTED`                                                                | api        | The fee quote reverted with `DailyFreeOpsLimitExceeded`: a billing account spent its daily free operations and the deployment refuses paid ones. Thrown before any signature prompt, so under `fallback: "wallet"` the transparent mode takes the wallet path. Test with `isGaslessFreeQuotaExhaustedError`.                  |
+| `GASLESS_FEE_QUOTE_REVERTED`                                                                  | validation | The fee quote reverted with any other contract error, named in the message, or with empty data from a GaslessLayer that has the interface (a batch it cannot decode). The batch itself is invalid, so there is no fallback.                                                                                                   |
+| `GASLESS_LAYER_INTERFACE_UNSUPPORTED`                                                         | config     | The configured GaslessLayer has no `previewFeeQuote`: it predates the multi-wallet interface. An empty-data revert gets this code only when a second read, quoting empty calldata, reverts empty too. No fallback.                                                                                                            |
+| `GASLESS_RELAY_SUBMIT_FAILED` / `GASLESS_SETTLEMENT_SUBMIT_FAILED`                            | api        | An HTTP submit failed with a verdict; the vendor detail rides in `responseData`.                                                                                                                                                                                                                                              |
+| `GASLESS_SUBMIT_UNCONFIRMED`                                                                  | api        | The submit's outcome could not be established — the request may exist server-side. `responseData` is the replayable `GaslessUnconfirmedSubmit`; recover it with `getGaslessUnconfirmedSubmit` and replay it with `resubmitGaslessRequest`, never through the wallet.                                                          |
+| `GASLESS_ACCEPTANCE_INVALID`                                                                  | api        | A parsed acceptance carried no `request_id`. The submit path reports this as `GASLESS_SUBMIT_UNCONFIRMED` instead, because the bytes that produced it can be replayed.                                                                                                                                                        |
+| `GASLESS_DEPOSIT_WALLET_MISMATCH`                                                             | api        | A deposit settlement was accepted for a different wallet id or deposit address than it was submitted for. The parsed receipt, `requestId` included, rides in `responseData`; reconcile it before funding or settling anything else.                                                                                           |
+| `GASLESS_NONCE_STREAM_BUSY`                                                                   | api        | An earlier relay on the same [nonce stream](/core/gasless#nonce-streams) is still unaccounted for, so signing now would collide with it. Wait for that request to reach a terminal status, or for its signature deadline to pass.                                                                                             |
+| `GASLESS_RELAY_REJECTED` / `GASLESS_RELAY_FAILED` / `GASLESS_RELAY_REVERTED`                  | api        | The workflow ended `rejected` / `failed` / `reverted`. Thrown by the transparent dispatcher and by `confirmGaslessRequest` — so by every React relay hook, which confirms by default. The terminal record rides in `responseData`. Only raw `getGaslessRequest` polling surfaces these as statuses instead.                   |
+| `GASLESS_SUCCEEDED_WITHOUT_TX`                                                                | api        | A `succeeded` record carried no transaction hash — a service invariant break.                                                                                                                                                                                                                                                 |
+| `GASLESS_PARTYB_UNSUPPORTED`                                                                  | validation | A PartyB delegation grant cannot be relayed; the signed-operation encoder has no PartyB form. Send it from the wallet.                                                                                                                                                                                                        |
+| `GASLESS_BROADCAST_TIMEOUT` / `GASLESS_TERMINAL_TIMEOUT`                                      | api        | A wait budget ran out; the request keeps running server-side — keep polling its `requestId`.                                                                                                                                                                                                                                  |
+| `GASLESS_WAIT_ABORTED`                                                                        | api        | The wait's `AbortSignal` fired.                                                                                                                                                                                                                                                                                               |
+| `GASLESS_STATUS_FETCH_FAILED` / `GASLESS_TRANSACTIONS_FETCH_FAILED`                           | api        | A status read failed (including the brief post-submit `404` race).                                                                                                                                                                                                                                                            |
+| `GASLESS_STATUS_UNKNOWN`                                                                      | api        | The service returned a status outside the documented lifecycle.                                                                                                                                                                                                                                                               |
+| `GASLESS_ATTEMPT_STATUS_UNKNOWN`                                                              | api        | An attempt row in `getGaslessRequestTransactions` carried a status outside the documented set. The request's own status is unaffected — read the outcome from `getGaslessRequest`; only the attempts list throws, so a mistyped attempt can never render as a confirmed one.                                                  |
+| `GASLESS_INSTANCE_MISMATCH`                                                                   | api        | A response came from a different protocol instance than the config expects — a staging/production cross-wire; fail closed. On a `2xx` the parsed body stays in `responseData`, because its `request_id` is the only handle on a request that was accepted somewhere. Behind a proxy root, only a forwarded header is checked. |
+| `GASLESS_WALLET_UNAVAILABLE`                                                                  | api        | The gateway returned the zero address for an owner's wallet.                                                                                                                                                                                                                                                                  |

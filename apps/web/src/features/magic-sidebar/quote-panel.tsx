@@ -1,7 +1,7 @@
 "use client";
 
 import { Field } from "@/components/field";
-import { useQuote } from "@symmio/trading-react";
+import { calculateQuoteLeverage, useQuote } from "@symmio/trading-react";
 import { Input } from "@symmio/ui/components/input";
 import { LiveResult } from "./live-result";
 import type { MagicMethodPanelProps } from "./magic-types";
@@ -22,6 +22,8 @@ export function QuoteLivePanel({ intervalMs, enabled, initialInput, persistKey, 
     query: { enabled: active, refetchInterval: active ? intervalMs : false, refetchIntervalInBackground: true },
   });
 
+  const leverage = query.data ? calculateQuoteLeverage(query.data) : undefined;
+
   return (
     <div className="flex flex-col gap-3">
       <Field label="quoteId" htmlFor="magic-quote-id">
@@ -34,6 +36,12 @@ export function QuoteLivePanel({ intervalMs, enabled, initialInput, persistKey, 
           aria-invalid={value.length > 0 && quoteId === undefined}
         />
       </Field>
+      {leverage !== undefined ? (
+        <div className="flex items-baseline justify-between gap-3 text-sm" data-testid="magic-quote-leverage">
+          <span className="text-muted-foreground text-xs tracking-wide uppercase">Leverage</span>
+          <span className="text-foreground font-mono font-semibold">{`${parseFloat(Number(leverage).toFixed(2))}x`}</span>
+        </div>
+      ) : null}
       <LiveResult
         query={{
           data: query.data,

@@ -1,6 +1,6 @@
 import type { Address, Hex, SimulateContractReturnType } from "viem";
 import type { Config } from "../../../core/config";
-import { accountLayerAbi } from "../../abi/v0.8.5/account-layer";
+import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 
 /**
  * Return type of {@link simulateCallAsSubAccount}: viem's `{ request, result }`

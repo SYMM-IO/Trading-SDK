@@ -6,7 +6,7 @@ import { createConfig } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import { getMuonPriceRange } from "./get-muon-price-range";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const PARTY_A: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const PARTY_B: Address = "0xdddddddddddddddddddddddddddddddddddddddd";
 const OWNER: Address = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -16,7 +16,11 @@ const T1 = 1_700_000_900n;
 const SYMBOL_ID = 1n;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 const RAW = {

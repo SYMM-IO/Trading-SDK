@@ -35,7 +35,7 @@ describe("getPartyAPendingQuotesQueryOptions", () => {
   });
 
   it("builds a stable, bigint-safe key", () => {
-    const key = getPartyAPendingQuotesQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM, partyA: TEST_USER });
-    expect(key).toEqual(["getPartyAPendingQuotes", { chainId: SymmioSupportedChainId.HYPER_EVM, partyA: TEST_USER }]);
+    const key = getPartyAPendingQuotesQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM, partyA: TEST_USER });
+    expect(key).toEqual(["getPartyAPendingQuotes", { chainId: SymmioSupportedChainId.ARBITRUM, partyA: TEST_USER }]);
   });
 });

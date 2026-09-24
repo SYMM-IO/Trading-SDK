@@ -13,7 +13,7 @@ function ceilDiv(numerator: bigint, denominator: bigint): bigint {
  * Smallest open quantity a quote may keep after a partial close, wei.
  *
  * The contract accepts a partial close only when the remaining position's
- * partyA-locked value stays above the symbol's minimum (perps-core v0.8.5
+ * partyA-locked value stays above the symbol's minimum (perps-core v0.8.6
  * `LibQuoteClose.closeQuote`: `lockedValues.totalForPartyA() == 0 ||
  * lockedValues.totalForPartyA() >= minAcceptableQuoteValue` — "Remaining quote
  * value is low"). Locked values shrink proportionally with the closed amount,

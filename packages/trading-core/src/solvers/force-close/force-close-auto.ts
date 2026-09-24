@@ -4,7 +4,7 @@ import { fetchBinanceKlines } from "../../candles/sources/binance/fetch-binance-
 import type { Config } from "../../core/config";
 import { getForceClosePriceSig } from "../../muon/force-close-price-sig/get-force-close-price-sig";
 import { SymmError } from "../../shared/errors/symm-error";
-import type { Compute, WriteContractParameter } from "../../shared/types/properties";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../shared/types/properties";
 import { getQuote } from "../../symmio-contracts/symmio/actions/get-quote";
 import { getMarkets } from "../markets/get-markets";
 import { checkForceCloseEligibility, checkForceClosePriceReached, findForceCloseWindow } from "./force-close-math";
@@ -20,25 +20,26 @@ const BINANCE_MARKET = "usd-m-futures" as const;
  * Parameters for {@link forceCloseAuto}.
  */
 export type ForceCloseAutoParameters = Compute<
-  WriteContractParameter & {
-    /**
-     * The subaccount (partyA) that owns the position. Routed through the
-     * AccountLayer `_call` proxy; the connected wallet must be its `owner`.
-     */
-    account: Address;
-    /** The `CLOSE_PENDING` limit quote id to force-close. */
-    quoteId: bigint;
-    /** Override the current unix-second clock (testing). Defaults to `Date.now()`. */
-    now?: bigint;
-    /**
-     * **Debug/temporary**: skip the client-side price checks — build and send the
-     * tx even when the market has not reached the price. When no candle in the
-     * window qualifies, the full valid window is used for the Muon sig instead of
-     * bailing. Pair with `simulateBeforeWrite: false` to actually broadcast a tx
-     * that will revert on-chain (so you can inspect it in an explorer).
-     */
-    skipPriceCheck?: boolean;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /**
+       * The subaccount (partyA) that owns the position. Routed through the
+       * AccountLayer `_call` proxy; the connected wallet must be its `owner`.
+       */
+      account: Address;
+      /** The `CLOSE_PENDING` limit quote id to force-close. */
+      quoteId: bigint;
+      /** Override the current unix-second clock (testing). Defaults to `Date.now()`. */
+      now?: bigint;
+      /**
+       * **Debug/temporary**: skip the client-side price checks — build and send the
+       * tx even when the market has not reached the price. When no candle in the
+       * window qualifies, the full valid window is used for the Muon sig instead of
+       * bailing. Pair with `simulateBeforeWrite: false` to actually broadcast a tx
+       * that will revert on-chain (so you can inspect it in an explorer).
+       */
+      skipPriceCheck?: boolean;
+    }
 >;
 
 /** Return type of {@link forceCloseAuto}: the submitted transaction hash. */
@@ -55,6 +56,10 @@ export type ForceCloseAutoReturnType = ForceClosePositionReturnType;
  * 4. fetch the Muon `HighLowPriceSig` for that window;
  * 5. preflight the on-chain gap check against the sig;
  * 6. send `forceClosePosition(quoteId, sig)` through the AccountLayer proxy.
+ *
+ * Relayable: pass `gasless` (or run the chain in `gasless.execution.mode`) to
+ * relay that final write instead of sending a transaction. Only step 6 touches
+ * the chain — the reads, the candles and the Muon attestation never cost gas.
  *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
  * @param parameters - The owning subaccount, the quote id, optional `now` / `from` / pre-flight / chain id.
@@ -178,5 +183,6 @@ export async function forceCloseAuto(
     chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
+    gasless: parameters.gasless,
   });
 }

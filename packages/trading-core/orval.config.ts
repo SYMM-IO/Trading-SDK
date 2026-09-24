@@ -1,8 +1,45 @@
-import { defineConfig } from "orval";
+import { defineConfig, type OpenApiDocument } from "orval";
+
+/**
+ * Protocol-instance key of the GasLessQ staging deployment — the instance the
+ * gasless wire types are generated from. GasLessQ serves one OpenAPI document
+ * per protocol instance and service. Staging runs the multi-wallet gateway
+ * release the SDK targets; production still serves the pre-multi-wallet
+ * schema. The documents are public, so no key is needed to fetch them.
+ * Regenerate both gasless projects on every vendor release handoff.
+ */
+const GASLESSQ_STAGING_PROTOCOL_INSTANCE = "arbitrum-42161-vibe-stage";
+
+/** Instance root the per-service `openapi.json` documents hang off. */
+const GASLESSQ_STAGING_INSTANCE_ROOT = `https://gaslessq-staging.symmio.foundation/v1/instances/${GASLESSQ_STAGING_PROTOCOL_INSTANCE}`;
+
+/**
+ * Strip the protocol-instance key from a fetched GasLessQ spec before orval
+ * derives anything from it.
+ *
+ * The documents name the instance they were served from. Today that happens
+ * only in `servers` (`/v1/instances/<protocol-instance>/<service>`). The key is
+ * a vendor deployment fact that carries app-product branding, and the repo
+ * vocabulary rule keeps that out of `packages/*` source. The SDK also builds
+ * every base URL from config, so the generated files must stay
+ * instance-neutral. `servers` is therefore dropped, and any other occurrence
+ * (a description or example naming the instance) becomes the neutral
+ * `<protocol-instance>` placeholder.
+ */
+function stripGaslessProtocolInstance(spec: OpenApiDocument): OpenApiDocument {
+  delete spec.servers;
+  return JSON.parse(
+    JSON.stringify(spec).replaceAll(GASLESSQ_STAGING_PROTOCOL_INSTANCE, "<protocol-instance>"),
+  ) as OpenApiDocument;
+}
 
 export default defineConfig({
   enigmaSolver: {
     input: {
+      // Arbitrum production solver — the spec of record for the enigma generation
+      // this release targets (perps-core v0.8.6: adds the min open/close
+      // solver-fee-cap symbol fields, drops the protocol-wide `/revenue`,
+      // `/revenue/batch` and `/revenue/per-symbol` endpoints).
       target: "https://solver.enigma.bz/api/swagger/doc.json",
     },
     output: {
@@ -213,6 +250,56 @@ export default defineConfig({
       httpClient: "axios",
       formatter: "prettier",
       target: "./src/inventory/types/generated/inventory-service.ts",
+      override: {
+        enumGenerationType: "enum",
+      },
+    },
+  },
+  gaslessOperations: {
+    input: {
+      /**
+       * GasLessQ operations API: relay submits, request status and broadcast
+       * attempts. The SDK imports only the generated models (`import type` in
+       * `src/gasless/wire-types.ts`). Requests go through `src/gasless/http.ts`,
+       * never through the generated client.
+       */
+      target: `${GASLESSQ_STAGING_INSTANCE_ROOT}/operations/openapi.json`,
+      override: {
+        transformer: stripGaslessProtocolInstance,
+      },
+    },
+    output: {
+      /**
+       * No `clean` here: this file shares `generated/` with
+       * gasless-deposits.ts, and orval's clean wipes the whole output
+       * directory, so it would delete the sibling during generation.
+       */
+      mode: "single",
+      httpClient: "axios",
+      formatter: "prettier",
+      target: "./src/gasless/types/generated/gasless-operations.ts",
+      override: {
+        enumGenerationType: "enum",
+      },
+    },
+  },
+  gaslessDeposits: {
+    input: {
+      /**
+       * GasLessQ deposits API: deposit-settlement submits, settlement status
+       * and broadcast attempts. Types only, like `gaslessOperations`.
+       */
+      target: `${GASLESSQ_STAGING_INSTANCE_ROOT}/deposits/openapi.json`,
+      override: {
+        transformer: stripGaslessProtocolInstance,
+      },
+    },
+    output: {
+      /** No `clean`, for the same shared-directory reason as `gaslessOperations`. */
+      mode: "single",
+      httpClient: "axios",
+      formatter: "prettier",
+      target: "./src/gasless/types/generated/gasless-deposits.ts",
       override: {
         enumGenerationType: "enum",
       },

@@ -1,6 +1,6 @@
 # getQuoteFunding
 
-Funding totals — paid, received, and net — for a batch of quotes, read from the analytics subgraph.
+**Settled** funding totals — paid, received, and net — for a batch of quotes, read from the analytics subgraph.
 
 ```ts
 import { getQuoteFunding } from "@symmio/trading-core";
@@ -9,6 +9,8 @@ const { rows, missingQuoteIds } = await getQuoteFunding(config, {
   quoteIds: [42n, 43n],
 });
 ```
+
+**Settled to date only.** The totals cover funding the protocol has already charged and the subgraph has indexed. Funding accrued since a quote's last settlement is not in the subgraph — read it on-chain with [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding). The two come from different sources at different heights, so show them as separate figures rather than one lifetime total; [Funding](/core/concepts/funding) explains why.
 
 ## Parameters
 
@@ -24,7 +26,7 @@ const { rows, missingQuoteIds } = await getQuoteFunding(config, {
 ## Returns
 
 <Returns type="GetQuoteFundingReturnType">
-  <Property name="rows" type="QuoteFundingData[]">One row per quote id the subgraph returned. Each row is `{ quoteId, paid, received, netReceived }` — all amounts are 18-decimal-wei `bigint`, and `netReceived = received − paid` (positive means the position earned funding over its life; negative means it paid for it).</Property>
+  <Property name="rows" type="QuoteFundingData[]">One row per quote id the subgraph returned. Each row is `{ quoteId, paid, received, netReceived }` — all amounts are 18-decimal-wei `bigint`, and `netReceived = received − paid` (positive means the position has earned funding to date; negative means it has paid for it).</Property>
   <Property name="missingQuoteIds" type="bigint[]">The subset of input ids the subgraph did not return (indexing lag) — so the caller can distinguish "no funding" from "not yet indexed".</Property>
 </Returns>
 

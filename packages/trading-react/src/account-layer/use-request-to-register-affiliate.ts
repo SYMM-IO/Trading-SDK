@@ -71,11 +71,7 @@ export function useRequestToRegisterAffiliate(
     mutationFn: async (variables) => {
       try {
         const resolvedChainId = variables.chainId ?? chainId;
-        const hash = await base.mutationFn({
-          registration: variables.registration,
-          simulateBeforeWrite: variables.simulateBeforeWrite,
-          chainId: resolvedChainId,
-        });
+        const hash = await base.mutationFn({ ...variables, chainId: resolvedChainId });
         return resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,

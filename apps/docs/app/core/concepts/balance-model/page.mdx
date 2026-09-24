@@ -60,7 +60,7 @@ available ── allocate ──▶ allocated (classic pool) ── deallocate (
 
 The SDK exposes both families because the contracts do, but they serve different products:
 
-- **Instant (lowcap) flow — the default on HyperEVM.** Fund with [`depositForAccount`](/core/account-layer/deposit-for-account) (`useDeposit`), trade with the instant open/close actions, withdraw with the [withdraw slice](/react/withdraw). The only balance the user manages is **available**.
+- **Instant (lowcap) flow — the default on Arbitrum.** Fund with [`depositForAccount`](/core/account-layer/deposit-for-account) (`useDeposit`), trade with the instant open/close actions, withdraw with the [withdraw slice](/react/withdraw). The only balance the user manages is **available**.
 - **Classic pool flow.** [`allocate`](/core/account-layer/allocate) / [`deallocate`](/core/account-layer/deallocate) / [`depositAndAllocateForAccount`](/core/account-layer/deposit-and-allocate-for-account) move funds into and out of the allocated pool where the CVA / LF locks of classic (non-instant) positions sit. **Not supported end-to-end in this SDK version — planned for a later release.**
 
 <Callout type="warning">
@@ -69,21 +69,45 @@ The SDK exposes both families because the contracts do, but they serve different
   The symptom is exactly that: "deposited, but can't trade."
 </Callout>
 
-## Two decimal scales
+## Core 18-decimal units
 
-| Value                                                                                       | Units                                                                                   |
-| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Deposit / withdraw **amounts**, wallet collateral balance                                   | `collateralDecimals` (`getChainConfig().addresses.collateralDecimals`, e.g. 6 for USDC) |
-| Account balances (available, allocated, locks), allocate / deallocate amounts, quote values | **18 decimals** (protocol-internal)                                                     |
+SYMMIO Core keeps every balance in **18 decimals**, whatever the collateral token's own decimals are. These are **Core units**. Token amounts stay in the token's decimals, so two scales meet wherever funds cross between a wallet and Core:
+
+| Value                                                                                                           | Units                                                                                   |
+| --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Deposit / withdraw **amounts**, wallet collateral balance                                                       | `collateralDecimals` (`getChainConfig().addresses.collateralDecimals`, e.g. 6 for USDC) |
+| Gasless deposits: a GaslessWallet's collateral balance, `depositFee`, `minimumDeposit`, the wallet creation fee | `collateralDecimals`                                                                    |
+| Account balances (available, allocated, locks), allocate / deallocate amounts, quote values                     | **18 decimals** (Core units)                                                            |
+| Operational-fee allowances and approvals, every `GaslessFeeQuote` amount (`totalFee18`, …)                      | **18 decimals** (Core units)                                                            |
 
 Parse deposit inputs with `parseUnits(input, collateralDecimals)` — not `parseEther`. Format an account balance with `formatUnits(value, 18)`. Mixing the scales balloons or collapses the number by `10^(18 − collateralDecimals)`; the tell is a balance the size of `1e18`.
+
+### Converting between the scales
+
+Convert with [`collateralToCore18`](/core/shared-types#collateraltocore18) and [`core18ToCollateral`](/core/shared-types#core18tocollateral) rather than hand-writing the power of ten. Both are plain `bigint` math, with no floating point:
+
+```ts
+import { collateralToCore18, core18ToCollateral } from "@symmio/trading-core";
+
+const { collateralDecimals } = config.getChainConfig(chainId).addresses;
+
+collateralToCore18(1_000000n, collateralDecimals); // 1_000000000000000000n — 1 USDC in Core units
+core18ToCollateral(quote.totalFee18, collateralDecimals); // the fee in token units, rounded up
+core18ToCollateral(balance18, collateralDecimals, { rounding: "down" }); // a balance, never overstated
+```
+
+`collateralToCore18` is always exact. `core18ToCollateral` rounds **up** by default: a fee or shortfall converted to token units must never come out short, so this is the rounding to fund with. Pass `{ rounding: "down" }` for a value you display or pay out. Both throw `COLLATERAL_DECIMALS_UNSUPPORTED` unless the decimals are an integer from 0 to 18; Core accepts no collateral token with more than 18 decimals.
+
+### Operational fees are Core units too
+
+A [gasless relay](/core/gasless) charges its operational fee in Core units from the payer's Core balance, free balance first and then allocated, **after** the operation executes. The payer's operational-fee allowance caps that charge and is 18-decimal as well. An allowance adds no balance: a payer with a large allowance and too little Core balance still fails with `OperationalFee: Insufficient balance`. When the operation moves funds itself, budget its amount and its fee together. A relayed withdrawal, for example, needs `collateralToCore18(amount, collateralDecimals) + fee18` of Core balance. See [Withdraw hooks](/react/withdraw#gasless-withdrawals).
 
 ## Which number do I show?
 
 - **Account balance / fund gate** — available balance (`useAccountBalanceOf`, pass `live: true` so it refetches on trade settles).
 - **Trade-form `Max`** — **not** the raw available balance. Use [`useAvailableInstantOpenMargin`](/react/margin#useavailableinstantopenmargin), which shaves the balance for fees and worst-case slippage.
 - **Deposit modal** — wallet collateral balance (`useCollateralBalance`) plus the allowance (`useCollateralAllowance`) for the approve step.
-- **Withdraw max** — available balance.
+- **Withdraw max** — available balance. When the withdrawal is relayed, subtract its operational fee first (both in Core units).
 - **Per-position margin** — the quote's own locked values via `useManagedQuotes`, not an account-level read.
 
 ## Related
@@ -92,3 +116,4 @@ Parse deposit inputs with `parseUnits(input, collateralDecimals)` — not `parse
 - [`depositForAccount`](/core/account-layer/deposit-for-account) — the funding write.
 - [AccountLayer](/core/account-layer) — every balance read and write.
 - [Withdraw hooks](/react/withdraw) — the cooldown-gated exit flow.
+- [Value helpers](/core/shared-types#value-helpers) — `collateralToCore18` and `core18ToCollateral`.

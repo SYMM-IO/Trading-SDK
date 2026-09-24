@@ -1,3 +1,4 @@
+export * from "./get-instant-open-fees";
 export * from "./get-instant-open-quote-id";
 export * from "./get-instant-opens";
 export * from "./instant-open";

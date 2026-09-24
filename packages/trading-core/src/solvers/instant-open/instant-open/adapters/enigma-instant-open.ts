@@ -1,6 +1,7 @@
 import { SymmError } from "../../../../shared/errors/symm-error";
 import {
   encodeAddMarginToNextVA,
+  encodeSendQuote,
   encodeSendQuoteWithAffiliateAndData,
   getFakeSendQuoteMuonSignature,
   sendQuoteUpnlSigFlexRange,
@@ -51,7 +52,7 @@ export async function submitEnigmaInstantOpen(
     amount: parameters.margin.amount,
   });
 
-  const sendQuoteCallData = encodeSendQuoteWithAffiliateAndData({
+  const quoteArgs = {
     partyBsWhiteList: [solver.address],
     symbolId,
     positionType: parameters.positionType,
@@ -66,7 +67,17 @@ export async function submitEnigmaInstantOpen(
     affiliate: affiliatesAddress,
     data: metadata,
     upnlSig: getFakeSendQuoteMuonSignature(parameters.order.price),
-  });
+  };
+
+  /**
+   * Which quote-send call to sign is a chain-generation fact: a v0.8.5 diamond
+   * has no capped `sendQuote` selector (the calldata would revert), and a
+   * v0.8.6 solver rejects the legacy call's zero fee caps.
+   */
+  const sendQuoteCallData =
+    chainConfig.contractsVersion === "0.8.5"
+      ? encodeSendQuoteWithAffiliateAndData(quoteArgs)
+      : encodeSendQuote({ ...quoteArgs, solverFeeCaps: parameters.solverFeeCaps });
 
   const addMarginOp = buildSignedOperation({
     signer: signerAddress,

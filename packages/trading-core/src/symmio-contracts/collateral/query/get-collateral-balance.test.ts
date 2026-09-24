@@ -7,14 +7,14 @@ import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig, TEST_AFFILIATE_ADDRESS, TEST_USER } from "../../../shared/test/mock-config";
 import { getCollateralBalanceQueryKey, getCollateralBalanceQueryOptions } from "./get-collateral-balance";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const CUSTOM_COLLATERAL: Address = "0xcccccccccccccccccccccccccccccccccccccccc";
 
 describe("getCollateralBalanceQueryKey", () => {
   it("builds a stable key from the query parameters", () => {
-    expect(getCollateralBalanceQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM, owner: TEST_USER })).toEqual([
+    expect(getCollateralBalanceQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM, owner: TEST_USER })).toEqual([
       "getCollateralBalance",
-      { chainId: SymmioSupportedChainId.HYPER_EVM, owner: TEST_USER },
+      { chainId: SymmioSupportedChainId.ARBITRUM, owner: TEST_USER },
     ]);
   });
 
@@ -67,7 +67,7 @@ describe("getCollateralBalanceQueryOptions", () => {
 
     const options = getCollateralBalanceQueryOptions(config, {
       owner: TEST_USER,
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       query: { staleTime: 15_000 },
     });
 
@@ -76,9 +76,9 @@ describe("getCollateralBalanceQueryOptions", () => {
     expect(options.queryKey).toEqual([
       "getCollateralBalance",
       {
-        chainId: SymmioSupportedChainId.HYPER_EVM,
+        chainId: SymmioSupportedChainId.ARBITRUM,
         owner: TEST_USER,
-        configKey: config.getChainConfigKey(SymmioSupportedChainId.HYPER_EVM),
+        configKey: config.getChainConfigKey(SymmioSupportedChainId.ARBITRUM),
       },
     ]);
   });
@@ -140,7 +140,7 @@ describe("getCollateralBalanceQueryOptions", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS, collateralAddress: CUSTOM_COLLATERAL },
         },
       },

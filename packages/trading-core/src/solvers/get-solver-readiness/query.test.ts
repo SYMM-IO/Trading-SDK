@@ -15,7 +15,11 @@ import { getSolverReadinessQueryKey, getSolverReadinessQueryOptions } from "./qu
 const BASE = SymmioSupportedChainId.BASE;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 describe("getSolverReadinessQueryOptions", () => {

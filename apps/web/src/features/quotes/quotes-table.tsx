@@ -1,86 +1,93 @@
 "use client";
-import { InfoIcon } from "@/components/info-icon";
-import { WEI_DECIMALS } from "@/lib/format";
-import type { UnifiedQuote } from "@symmio/trading-core";
-import { OrderType, PositionType, QuoteStatus } from "@symmio/trading-core";
-import { useQuoteTpSl } from "@symmio/trading-react";
+import { OrderType, PositionType, type UnifiedQuote } from "@symmio/trading-core";
+import { useQuoteTpSl, useQuoteUpnlAndPnl } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
-import { formatRelativeTimestamp, formatTokenAmount } from "@symmio/utils";
+import { cn } from "@symmio/ui/lib/utils";
+import { formatRelativeTimestamp } from "@symmio/utils";
 import { useMemo, type ReactNode } from "react";
-import { QuoteLifecycleBadge } from "./quote-lifecycle-badge";
-import { QuotePriceHistoryButton } from "./quote-price-history-button";
-import { QuoteProvenancePanel, truncateAddress } from "./quote-provenance-panel";
-import { useMarketNameById } from "./use-market-name-by-id";
+import { QuoteDetailPanel } from "./quote-detail-panel";
+import {
+  EMPTY,
+  formatFixedPoint,
+  formatLeverageLabel,
+  formatSigned,
+  quoteCreatedSeconds,
+  quoteIdLabel,
+  quoteIdSort,
+  signedToneClassName,
+  truncateAddress,
+} from "./quote-format";
+import { quoteState, stateDotClassName } from "./quote-state";
+import { useMarketDisplay, type MarketDisplayLookup } from "./use-market-display";
 
-/** Em dash placeholder for a field a source has not populated yet. */
-const EMPTY = "—";
+/**
+ * Floor for a fixed-point figure column.
+ *
+ * The table only renders at `@5xl` and above, so twelve columns have room
+ * without the 28-unit floors the fifteen-column version needed — those summed to
+ * a 1,500px minimum, which is what forced a sideways scrollbar into a 464px
+ * sidebar.
+ */
+const NUMERIC_COLUMN_WIDTH = "min-w-24";
 
-/** Min width that keeps a fixed-point figure column from crowding its header. */
-const NUMERIC_COLUMN_WIDTH = "min-w-28";
-
-/** Format an 18-decimal-wei amount the way the inspector quote reads do. */
-function formatFixedPoint(raw: bigint): string {
-  return formatTokenAmount(raw, WEI_DECIMALS, { maxFractionDigits: 6 });
-}
-
-/** Format an optional wei amount, falling back to {@link EMPTY} when absent. */
-function formatOptionalFixedPoint(raw?: bigint): string {
-  return raw === undefined ? EMPTY : formatFixedPoint(raw);
-}
-
-/** Primary identifier shown for a row: the on-chain quote id, or the temp id with an origin hint. */
-function rowIdLabel(quote: UnifiedQuote): string {
-  if (quote.quoteId !== undefined) return `#${quote.quoteId.toString()}`;
-  if (quote.tempQuoteId !== undefined) return `temp #${quote.tempQuoteId}`;
-  return quote.key;
-}
-
-/** Sort key for the id column — on-chain ids sort above temp ids, both numerically ascending. */
-function rowIdSort(quote: UnifiedQuote): number {
-  if (quote.quoteId !== undefined) return Number(quote.quoteId);
-  if (quote.tempQuoteId !== undefined) return Number(quote.tempQuoteId);
-  return 0;
-}
-
-/** Best-known creation timestamp (seconds) for sorting/displaying the created column. */
-function createdSeconds(quote: UnifiedQuote): bigint | undefined {
-  return quote.createTimestamp ?? quote.statusModifyTimestamp;
+/**
+ * Mark price and unrealized P&L for one row.
+ *
+ * Both come from the same hook, and the price stream behind it is keyed by market
+ * rather than by quote, so a table of rows in the same market shares one
+ * subscription.
+ */
+function useQuoteMark(quote: UnifiedQuote) {
+  const { upnl, upnlPercent, markPrice, leverage, isLoading } = useQuoteUpnlAndPnl({ quote });
+  return { upnl, upnlPercent, markPrice, leverage, priced: !isLoading && markPrice !== null };
 }
 
 /**
- * Header for the open-quantity column: the label plus an info glyph whose tooltip
- * spells out the derivation. The trigger is a non-focusable `<span>` (not a
- * `<button>`) because a sortable header already wraps its content in a `<button>`,
- * and a button must not contain another interactive control.
+ * Entry over mark, or the price a resting order is waiting at.
+ *
+ * Four tracks — entry, mark, requested price, margin — did not fit the widths
+ * this table actually gets. Two of them were the same fact told twice: a filled
+ * quote's requested price is history, and an unfilled one has no entry or mark at
+ * all. Stacking the pair that applies keeps both facts and gives back a column.
  */
-function OpenQuantityHeader() {
+function PriceCell({ quote, precision }: { quote: UnifiedQuote; precision: number }) {
+  const { markPrice, priced } = useQuoteMark(quote);
+  const filled = quote.openedPrice !== undefined && quote.openedPrice > 0n;
   return (
-    <span className="inline-flex items-center gap-1">
-      Open qty
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span
-            className="text-muted-foreground/70 hover:text-foreground inline-flex cursor-help"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <InfoIcon />
-          </span>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-64 text-left font-normal normal-case">
-          Open qty = quantity − closedAmount. A position keeps its original quantity for life; partial closes accrue
-          separately, so this is the live size still on the book.
-        </TooltipContent>
-      </Tooltip>
+    <span className="inline-flex flex-col items-end leading-tight">
+      <span className="text-foreground">
+        {formatFixedPoint(filled ? (quote.openedPrice ?? 0n) : quote.requestedOpenPrice, precision)}
+      </span>
+      <span className="text-muted-foreground text-[0.7rem]">
+        {filled ? (priced ? `mark ${Number(markPrice).toFixed(precision)}` : EMPTY) : "requested"}
+      </span>
     </span>
   );
+}
+
+function UnrealizedCell({ quote }: { quote: UnifiedQuote }) {
+  const { upnl, upnlPercent, priced } = useQuoteMark(quote);
+  if (!priced) return <span className="text-muted-foreground">{EMPTY}</span>;
+  const percent = formatSigned(upnlPercent, 2);
+  return (
+    <span className={cn("inline-flex flex-col items-end leading-tight", signedToneClassName(upnl))}>
+      <span>{formatSigned(upnl)}</span>
+      {percent === EMPTY ? null : <span className="text-[0.7rem] opacity-80">{percent}%</span>}
+    </span>
+  );
+}
+
+function LeverageCell({ quote }: { quote: UnifiedQuote }) {
+  const { leverage } = useQuoteMark(quote);
+  return <>{formatLeverageLabel(leverage)}</>;
 }
 
 /**
  * Compact TP/SL summary rendered inside the id column. Reads the shared TP/SL
  * store via {@link useQuoteTpSl} so the `confirming` overlay ("Processing…")
- * shows immediately after a mutation posts.
+ * shows immediately after a mutation posts. Prices live in the detail panel —
+ * this only flags which side is armed.
  */
 function TpSlIndicator({ quote }: { quote: UnifiedQuote }) {
   const quoteId = quote.quoteId ?? (quote.tempQuoteId !== undefined ? BigInt(quote.tempQuoteId) : undefined);
@@ -95,36 +102,33 @@ function TpSlIndicator({ quote }: { quote: UnifiedQuote }) {
   const hasSl = Boolean(data.sl) || data.slState === "confirming";
   if (!hasTp && !hasSl) return null;
   return (
-    <span className="mt-0.5 flex flex-col gap-0.5 text-[0.65rem] leading-tight">
-      {hasTp ? (
-        <span className="text-muted-foreground/90 font-mono">
-          <span className="text-positive">TP</span> {renderSide(data.tp, data.tpState)}
-        </span>
-      ) : null}
-      {hasSl ? (
-        <span className="text-muted-foreground/90 font-mono">
-          <span className="text-info">SL</span> {renderSide(data.sl, data.slState)}
-        </span>
-      ) : null}
+    <span className="mt-0.5 flex items-center gap-1 font-mono text-[0.65rem] font-semibold">
+      {hasTp ? <span className="text-positive">TP</span> : null}
+      {hasSl ? <span className="text-info">SL</span> : null}
     </span>
   );
 }
 
-function renderSide(price: string, state: string): string {
-  if (state === "confirming") return "processing…";
-  return price || EMPTY;
+/** State dot plus label — the on-chain status when anchored, the lifecycle stage when not. */
+function StateCell({ quote }: { quote: UnifiedQuote }) {
+  const state = quoteState(quote);
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span className={cn("size-1.5 shrink-0 rounded-full", stateDotClassName(state.tone))} aria-hidden />
+      <span className={state.tone === "muted" ? "text-muted-foreground" : "text-foreground"}>{state.label}</span>
+    </span>
+  );
 }
 
-function buildColumns(marketNameById: Map<string, string>): DataTableColumn<UnifiedQuote>[] {
+function buildColumns(marketOf: MarketDisplayLookup): DataTableColumn<UnifiedQuote>[] {
   return [
     {
       id: "id",
       header: "Id",
-      widthClassName: "min-w-36",
+      widthClassName: "min-w-28",
       cell: (quote) => (
         <span className="flex flex-col leading-tight">
-          <span className="text-foreground font-mono whitespace-nowrap">{rowIdLabel(quote)}</span>
-          <span className="text-muted-foreground text-[0.7rem] tracking-wide uppercase">{quote.origin}</span>
+          <span className="text-foreground font-mono whitespace-nowrap">{quoteIdLabel(quote)}</span>
           {quote.vaAddress ? (
             <span className="text-muted-foreground/80 font-mono text-[0.7rem]" title={quote.vaAddress}>
               {truncateAddress(quote.vaAddress)}
@@ -133,20 +137,21 @@ function buildColumns(marketNameById: Map<string, string>): DataTableColumn<Unif
           <TpSlIndicator quote={quote} />
         </span>
       ),
-      sortAccessor: rowIdSort,
-    },
-    {
-      id: "lifecycle",
-      header: "Lifecycle",
-      cell: (quote) => <QuoteLifecycleBadge lifecycle={quote.lifecycle} />,
-      sortAccessor: (quote) => quote.lifecycle,
+      sortAccessor: quoteIdSort,
     },
     {
       id: "symbolId",
       header: "Market",
-      cell: (quote) => marketNameById.get(String(quote.symbolId)) ?? String(quote.symbolId),
-      sortAccessor: (quote) => marketNameById.get(String(quote.symbolId)) ?? String(quote.symbolId),
-      cellClassName: "text-foreground font-mono",
+      widthClassName: "min-w-32",
+      cell: (quote) => (
+        <span className="flex flex-col leading-tight">
+          <span className="font-display text-foreground font-semibold">{marketOf(quote.symbolId).name}</span>
+          <span className="text-muted-foreground text-[0.7rem]">
+            {OrderType[quote.orderType] ?? String(quote.orderType)}
+          </span>
+        </span>
+      ),
+      sortAccessor: (quote) => marketOf(quote.symbolId).name,
     },
     {
       id: "positionType",
@@ -159,104 +164,59 @@ function buildColumns(marketNameById: Map<string, string>): DataTableColumn<Unif
       sortAccessor: (quote) => quote.positionType,
     },
     {
-      id: "orderType",
-      header: "Type",
-      cell: (quote) => <Badge variant="secondary">{OrderType[quote.orderType] ?? String(quote.orderType)}</Badge>,
-      sortAccessor: (quote) => quote.orderType,
-    },
-    {
-      id: "quoteStatus",
-      header: "Status",
-      cell: (quote) =>
-        quote.quoteStatus === undefined ? (
-          <span className="text-muted-foreground">{EMPTY}</span>
-        ) : (
-          <Badge variant="secondary">{QuoteStatus[quote.quoteStatus] ?? String(quote.quoteStatus)}</Badge>
-        ),
-      sortAccessor: (quote) => quote.quoteStatus,
-    },
-    {
-      id: "requestedOpenPrice",
-      header: "Req. price",
-      align: "end",
-      widthClassName: NUMERIC_COLUMN_WIDTH,
-      cell: (quote) => formatFixedPoint(quote.requestedOpenPrice),
-      sortAccessor: (quote) => Number(quote.requestedOpenPrice),
-      cellClassName: "text-foreground font-mono",
-    },
-    {
-      id: "openedPrice",
-      header: "Open price",
-      align: "end",
-      widthClassName: NUMERIC_COLUMN_WIDTH,
-      cell: (quote) => (
-        <span className="inline-flex items-center justify-end gap-1.5">
-          <span>{formatOptionalFixedPoint(quote.openedPrice)}</span>
-          <QuotePriceHistoryButton quoteId={quote.quoteId} symbolId={quote.symbolId} />
-        </span>
-      ),
-      sortAccessor: (quote) => (quote.openedPrice === undefined ? undefined : Number(quote.openedPrice)),
-      cellClassName: "text-foreground font-mono",
-    },
-    {
-      id: "closedPrice",
-      header: "Close price",
-      align: "end",
-      widthClassName: NUMERIC_COLUMN_WIDTH,
-      cell: (quote) => formatOptionalFixedPoint(quote.avgClosedPrice),
-      sortAccessor: (quote) => (quote.avgClosedPrice === undefined ? undefined : Number(quote.avgClosedPrice)),
-      cellClassName: "text-muted-foreground font-mono",
-    },
-    {
-      id: "quantity",
-      header: "Quantity",
-      align: "end",
-      widthClassName: NUMERIC_COLUMN_WIDTH,
-      cell: (quote) => formatFixedPoint(quote.quantity),
-      sortAccessor: (quote) => Number(quote.quantity),
-      cellClassName: "text-muted-foreground font-mono",
+      id: "state",
+      header: "State",
+      widthClassName: "min-w-24",
+      cell: (quote) => <StateCell quote={quote} />,
+      sortAccessor: (quote) => quoteState(quote).label,
     },
     {
       id: "openQuantity",
-      header: <OpenQuantityHeader />,
+      header: "Size",
       align: "end",
       widthClassName: NUMERIC_COLUMN_WIDTH,
-      cell: (quote) => formatFixedPoint(quote.openQuantity),
+      cell: (quote) => formatFixedPoint(quote.openQuantity, marketOf(quote.symbolId).quantityPrecision),
       sortAccessor: (quote) => Number(quote.openQuantity),
       cellClassName: "text-foreground font-mono",
     },
     {
-      id: "quantityToClose",
-      header: "To close",
+      id: "price",
+      header: "Entry",
       align: "end",
       widthClassName: NUMERIC_COLUMN_WIDTH,
-      cell: (quote) => formatOptionalFixedPoint(quote.quantityToClose),
-      sortAccessor: (quote) => (quote.quantityToClose === undefined ? undefined : Number(quote.quantityToClose)),
-      cellClassName: "text-muted-foreground font-mono",
+      cell: (quote) => <PriceCell quote={quote} precision={marketOf(quote.symbolId).pricePrecision} />,
+      sortAccessor: (quote) => Number(quote.openedPrice ?? quote.requestedOpenPrice),
+      cellClassName: "font-mono",
     },
     {
-      id: "margin",
-      header: "Margin (cva+lf)",
+      id: "unrealized",
+      header: "Unrealized",
       align: "end",
       widthClassName: NUMERIC_COLUMN_WIDTH,
-      cell: (quote) => formatFixedPoint(quote.lockedValues.cva + quote.lockedValues.lf),
-      sortAccessor: (quote) => Number(quote.lockedValues.cva + quote.lockedValues.lf),
-      cellClassName: "text-muted-foreground font-mono",
+      cell: (quote) => <UnrealizedCell quote={quote} />,
+      cellClassName: "font-mono",
+    },
+    {
+      id: "leverage",
+      header: "Lev",
+      align: "end",
+      cell: (quote) => <LeverageCell quote={quote} />,
+      cellClassName: "text-foreground font-mono",
     },
     {
       id: "created",
-      header: "Created",
+      header: "Age",
       align: "end",
       cell: (quote) => {
-        const seconds = createdSeconds(quote);
+        const seconds = quoteCreatedSeconds(quote);
         return (
-          <span className="text-muted-foreground">
+          <span className="text-muted-foreground whitespace-nowrap">
             {seconds === undefined ? EMPTY : formatRelativeTimestamp(seconds)}
           </span>
         );
       },
       sortAccessor: (quote) => {
-        const seconds = createdSeconds(quote);
+        const seconds = quoteCreatedSeconds(quote);
         return seconds === undefined ? undefined : Number(seconds);
       },
     },
@@ -269,8 +229,10 @@ interface Props {
   totalCount?: number;
   /** Rows shown per page before pagination kicks in. */
   defaultPageSize?: number;
-  /** Render every row without a pagination footer (compact sidebar mode). */
+  /** Render every row without a pagination footer. */
   hidePagination?: boolean;
+  /** Cap the visible rows and pin the header above the scroll. */
+  maxVisibleRows?: number;
   /** Search/filter controls rendered above the table. */
   toolbar?: ReactNode;
   /** Prefix for the table's `data-testid` hooks. */
@@ -280,22 +242,27 @@ interface Props {
 }
 
 /**
- * Renders one row per {@link UnifiedQuote}. Every column reads from the unified
- * shape, so an on-chain position, a pending instant-open, and a pending
- * instant-close render through the exact same row regardless of origin — the
- * origin only surfaces as a hint under the id and the lifecycle badge.
+ * One row per {@link UnifiedQuote}, for a container wide enough to hold columns.
+ *
+ * Every column reads from the unified shape, so an on-chain position, a pending
+ * instant-open and a pending instant-close render through the same row whatever
+ * their origin — origin surfaces as the VA under the id and as the state cell.
+ *
+ * Render it through {@link QuotesSurface} rather than directly: the table is only
+ * the right shape at `@5xl` and above, and the surface is what decides that.
  */
 export function QuotesTable({
   quotes,
   totalCount,
   defaultPageSize = 10,
   hidePagination = false,
+  maxVisibleRows,
   toolbar,
   testId,
   emptyMessage = "No quotes for this partyA.",
 }: Props) {
-  const marketNameById = useMarketNameById();
-  const columns = useMemo(() => buildColumns(marketNameById), [marketNameById]);
+  const marketOf = useMarketDisplay();
+  const columns = useMemo(() => buildColumns(marketOf), [marketOf]);
   return (
     <DataTable
       testId={testId}
@@ -304,10 +271,11 @@ export function QuotesTable({
       totalCount={totalCount ?? quotes.length}
       getRowId={(quote) => quote.key}
       rowAttributes={(quote) => ({ "data-quote-key": quote.key, "data-quote-origin": quote.origin })}
-      renderExpanded={(quote) => <QuoteProvenancePanel quote={quote} />}
+      renderExpanded={(quote) => <QuoteDetailPanel quote={quote} market={marketOf(quote.symbolId)} variant="inline" />}
       initialSort={{ columnId: "created", direction: "desc" }}
       defaultPageSize={defaultPageSize}
       hidePagination={hidePagination}
+      maxVisibleRows={maxVisibleRows}
       toolbar={toolbar}
       emptyMessage={emptyMessage}
     />

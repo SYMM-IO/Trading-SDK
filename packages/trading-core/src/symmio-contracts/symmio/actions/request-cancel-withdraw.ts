@@ -1,22 +1,23 @@
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import type { Config } from "../../../core/config";
-import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
-import { symmioAbi } from "../../abi/v0.8.5/symmio";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
+import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 
 /**
  * Parameters for {@link requestCancelWithdraw}.
  */
 export type RequestCancelWithdrawParameters = Compute<
-  WriteContractParameter & {
-    /**
-     * The subaccount that owns the request. The call is routed through the
-     * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
-     */
-    account: Address;
-    /** Id of the withdraw request to cancel. */
-    requestId: bigint;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /**
+       * The subaccount that owns the request. The call is routed through the
+       * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
+       */
+      account: Address;
+      /** Id of the withdraw request to cancel. */
+      requestId: bigint;
+    }
 >;
 
 /** Return type of {@link requestCancelWithdraw}: the submitted transaction hash. */
@@ -63,5 +64,6 @@ export async function requestCancelWithdraw(
     chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
+    gasless: parameters.gasless,
   });
 }

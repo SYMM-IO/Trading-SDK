@@ -60,7 +60,7 @@ describe("getDelegationExpiryQueryOptions", () => {
 
   it("builds a stable key", () => {
     const key = getDelegationExpiryQueryKey({
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       account: ACCOUNT,
       delegate: DELEGATE,
       selector: SELECTOR,
@@ -68,7 +68,7 @@ describe("getDelegationExpiryQueryOptions", () => {
 
     expect(key).toEqual([
       "getDelegationExpiry",
-      { chainId: SymmioSupportedChainId.HYPER_EVM, account: ACCOUNT, delegate: DELEGATE, selector: SELECTOR },
+      { chainId: SymmioSupportedChainId.ARBITRUM, account: ACCOUNT, delegate: DELEGATE, selector: SELECTOR },
     ]);
   });
 
@@ -77,7 +77,7 @@ describe("getDelegationExpiryQueryOptions", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: {
             affiliatesAddress: "0x000000000000000000000000000000000000aFF1",
             instantLayerAddress: "0x9999999999999999999999999999999999999999",

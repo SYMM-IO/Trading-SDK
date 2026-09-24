@@ -1,5 +1,6 @@
 "use client";
 
+import { ChainSwitcher } from "@/features/wallet/chain-switcher";
 import { SymmioRequestError, useConnectWallet } from "@symmio/trading-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@symmio/ui/components/dialog";
 import { Spinner } from "@symmio/ui/components/spinner";
@@ -18,6 +19,10 @@ interface WalletConnectDialogProps {
  * Controlled modal that lists every wallet connector registered in the host's
  * wagmi config. Each option shows the wallet's own icon, a connecting spinner,
  * and surfaces connect errors inline. Closes itself on a successful connect.
+ *
+ * A network picker sits in the footer, so the target chain can be set without a
+ * wallet. It retargets reads only: once a wallet connects, the app follows the
+ * wallet's network, which the account menu's picker then switches.
  *
  * Trigger it from any control by owning the `open` state — e.g. a toolbar icon
  * button or the full-width {@link ConnectWalletButton}.
@@ -84,6 +89,11 @@ export function WalletConnectDialog({ open, onOpenChange }: WalletConnectDialogP
             {failure.kind === "user-rejected" ? "Connection request rejected." : failure.message}
           </div>
         ) : null}
+
+        <div className="border-border/60 relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t px-6 py-4">
+          <span className="text-muted-foreground text-[0.7rem] font-medium tracking-[0.18em] uppercase">Network</span>
+          <ChainSwitcher />
+        </div>
       </DialogContent>
     </Dialog>
   );

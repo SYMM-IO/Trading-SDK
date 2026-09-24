@@ -1,7 +1,7 @@
 import type { SimulateContractReturnType } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, FromParameter } from "../../../shared/types/properties";
-import { symmioAbi } from "../../abi/v0.8.5/symmio";
+import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import type { FinalizeWithdrawRequestParameters } from "./finalize-withdraw-request";
 
 /**

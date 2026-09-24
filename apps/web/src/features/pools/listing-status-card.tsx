@@ -6,7 +6,9 @@ import { Stat } from "@/components/stat";
 import { ListingDepositChainId, ListingMarketStatus } from "@symmio/trading-core";
 import { useListingStatus } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
+import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
+import { Spinner } from "@symmio/ui/components/spinner";
 import { cn } from "@symmio/ui/lib/utils";
 import { useState } from "react";
 import { MethodCard } from "../inspector/method-card";
@@ -32,14 +34,14 @@ const SETTLED_STATUSES = new Set<ListingMarketStatus>([
  * (listed / rejected / delisted). Deposit chains come from the listing config
  * through {@link DepositChainSelect}, mirroring the create-pool card.
  *
- * Enigma-only: the listing backend lives on HyperEVM, so the card is gated on
+ * Enigma-only: the listing backend lives on Arbitrum, so the card is gated on
  * Enigma being the active solver, mirroring the other Listing cards.
  */
 export function ListingStatusCard() {
   const enigmaActive = useSolverKindActive("enigma");
 
   const [tokenContractAddress, setTokenContractAddress] = useState("");
-  const [depositChain, setDepositChain] = useState<ListingDepositChainId>(ListingDepositChainId.HYPER_EVM);
+  const [depositChain, setDepositChain] = useState<ListingDepositChainId>(ListingDepositChainId.ARBITRUM_ONE);
 
   const address = tokenContractAddress.trim();
   const status = useListingStatus({
@@ -66,7 +68,7 @@ export function ListingStatusCard() {
     >
       {!enigmaActive ? (
         <ResultNote testId="listing-status-gate">
-          Switch to Enigma (HyperEVM) to read a market&rsquo;s listing status.
+          Switch to Enigma (Arbitrum) to read a market&rsquo;s listing status.
         </ResultNote>
       ) : (
         <div className="flex flex-col gap-4">
@@ -84,6 +86,26 @@ export function ListingStatusCard() {
           <Field label="depositChain" htmlFor="listing-status-chain">
             <DepositChainSelect idPrefix="listing-status-chain" value={depositChain} onValueChange={setDepositChain} />
           </Field>
+
+          {address.length > 0 ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="w-fit"
+              disabled={status.isFetching}
+              onClick={() => void status.refetch()}
+              data-testid="listing-status-refresh"
+            >
+              {status.isFetching ? (
+                <>
+                  <Spinner className="size-4" /> Refreshing…
+                </>
+              ) : (
+                "Refresh"
+              )}
+            </Button>
+          ) : null}
 
           {address.length === 0 ? (
             <ResultNote testId="listing-status-idle">Enter a market address to read its listing status.</ResultNote>

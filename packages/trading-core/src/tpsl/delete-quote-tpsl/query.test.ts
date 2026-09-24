@@ -10,7 +10,7 @@ import type { StatusResponse } from "../types/generated/tpsl-handler";
 import type { DeleteQuoteTpSlParameters } from "./delete-quote-tpsl";
 import { deleteQuoteTpSlMutationOptions } from "./query";
 
-const CHAIN_CONFIG = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const CHAIN_CONFIG = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const TPSL = CHAIN_CONFIG.solvers.enigma!.tpsl!;
 
 /** Local fixtures — handler-issued / test-only values, never real on-chain constants. */
@@ -22,7 +22,7 @@ const SIGNING_SPEC: TpSlSigningSpec = {
   domain: {
     name: "ConditionalOrders",
     version: "1",
-    chainId: SymmioSupportedChainId.HYPER_EVM,
+    chainId: SymmioSupportedChainId.ARBITRUM,
     verifyingContract: TPSL.cohWalletAddress,
   },
   types: {
@@ -37,7 +37,7 @@ const SIGNING_SPEC: TpSlSigningSpec = {
 };
 
 const VARIABLES: DeleteQuoteTpSlParameters = {
-  chainId: SymmioSupportedChainId.HYPER_EVM,
+  chainId: SymmioSupportedChainId.ARBITRUM,
   from: TEST_USER,
   quoteId: 7n,
   virtualAccount: VIRTUAL_ACCOUNT,
@@ -50,13 +50,13 @@ function mockSigningConfig(): Config {
   const account = { address: TEST_USER, type: "json-rpc" } as Account;
   const walletClient = {
     account,
-    chain: { id: SymmioSupportedChainId.HYPER_EVM } as Chain,
+    chain: { id: SymmioSupportedChainId.ARBITRUM } as Chain,
     signTypedData: vi.fn().mockResolvedValue(TEST_SIGNATURE),
   } as unknown as SymmioWalletClient;
 
   return createConfig({
     symmioConfig: {
-      [SymmioSupportedChainId.HYPER_EVM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } },
+      [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS } },
     },
     getClient: () => ({}) as PublicClient,
     getWalletClient: async () => walletClient,

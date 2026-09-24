@@ -15,7 +15,7 @@ import type { SchnorrSign } from "../account-layer/types";
  *
  * Compare {@link SingleUpnlSig}, which is the uPnL-only variant (no `price`).
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/MuonStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/storages/MuonStorage.sol}
  */
 export interface SingleUpnlAndPriceSig {
   /** Muon request id (opaque bytes). */
@@ -46,7 +46,7 @@ export interface SingleUpnlAndPriceSig {
  * **Field-order footgun:** `upnlPartyB` comes **before** `upnlPartyA`. Swapping
  * them type-checks green (both are `bigint`) and silently mis-encodes the call.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/MuonStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/storages/MuonStorage.sol}
  */
 export interface HighLowPriceSig {
   /** Muon request id (opaque bytes). */
@@ -82,10 +82,10 @@ export interface HighLowPriceSig {
  *
  * @remarks
  * Names and ordering mirror the on-chain `enum WithdrawStatus` in
- * `WithdrawStorage.sol` (perps-core v0.8.5) exactly, so the `uint8` returned by
+ * `WithdrawStorage.sol` (perps-core v0.8.6) exactly, so the `uint8` returned by
  * the withdraw read views casts directly to this enum without translation.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/WithdrawStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/storages/WithdrawStorage.sol}
  */
 export enum WithdrawStatus {
   /** Created, awaiting provider acceptance (classic withdrawals stay here until finalized). */
@@ -110,10 +110,10 @@ export enum WithdrawStatus {
  * withdrawal is a single part with both provider fields set to the zero address.
  *
  * Field shapes and ordering mirror the on-chain `WithdrawReceiverPart` struct in
- * `WithdrawStorage.sol` (perps-core v0.8.5) exactly, so the object encodes
+ * `WithdrawStorage.sol` (perps-core v0.8.6) exactly, so the object encodes
  * directly as the contract tuple without translation.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/WithdrawStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/storages/WithdrawStorage.sol}
  */
 export interface WithdrawReceiverPart {
   /** Caller-assigned part id, unique within the request. */
@@ -135,10 +135,13 @@ export interface WithdrawReceiverPart {
  * read views ({@link "getWithdrawRequests"}, {@link "getPendingWithdrawRequests"}).
  *
  * Field shapes and ordering mirror the on-chain `WithdrawRequest` struct in
- * `WithdrawStorage.sol` (perps-core v0.8.5) exactly. `status` is surfaced as the
- * {@link WithdrawStatus} enum rather than a raw `uint8`.
+ * `WithdrawStorage.sol` (perps-core v0.8.6). `status` is surfaced as the
+ * {@link WithdrawStatus} enum rather than a raw `uint8`. Fields a newer
+ * contracts generation added are **optional** and `undefined` on chains whose
+ * deployment predates them (see `contractsVersion` in the chain config) —
+ * today that is {@link WithdrawRequest.advancedAmount}, added in v0.8.6.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/WithdrawStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/storages/WithdrawStorage.sol}
  */
 export interface WithdrawRequest {
   /** Sequential request id (starts at 1 per user). */
@@ -167,6 +170,13 @@ export interface WithdrawRequest {
   totalAmount: bigint;
   /** Total amount delivered via virtual providers. */
   totalVirtualAmount: bigint;
+  /**
+   * Collateral already advanced to the provider before cooldown expiry
+   * (express credit-line flow). Added in perps-core v0.8.6 — **`undefined` on a
+   * `contractsVersion: "0.8.5"` chain**, whose contracts predate withdraw
+   * advances.
+   */
+  advancedAmount?: bigint;
 }
 
 /**
@@ -174,10 +184,10 @@ export interface WithdrawRequest {
  *
  * @remarks
  * Names and ordering mirror the on-chain `enum PositionType` in
- * `QuoteStorage.sol` (perps-core v0.8.5) exactly, so the `uint8` carried on a
+ * `QuoteStorage.sol` (perps-core v0.8.6) exactly, so the `uint8` carried on a
  * {@link Quote} casts directly to this enum without translation.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/QuoteStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/storages/QuoteStorage.sol}
  */
 export enum PositionType {
   /** A long position — profits when the market price rises. */
@@ -191,10 +201,10 @@ export enum PositionType {
  *
  * @remarks
  * Names and ordering mirror the on-chain `enum OrderType` in `QuoteStorage.sol`
- * (perps-core v0.8.5) exactly, so the `uint8` carried on a {@link Quote} casts
+ * (perps-core v0.8.6) exactly, so the `uint8` carried on a {@link Quote} casts
  * directly to this enum without translation.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/QuoteStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/storages/QuoteStorage.sol}
  */
 export enum OrderType {
   /** Fills only at the requested price or better. */
@@ -208,14 +218,14 @@ export enum OrderType {
  *
  * @remarks
  * Names and ordering mirror the on-chain `enum QuoteStatus` in
- * `QuoteStorage.sol` (perps-core v0.8.5) exactly — all 11 members, including
+ * `QuoteStorage.sol` (perps-core v0.8.6) exactly — all 11 members, including
  * `LIQUIDATED_PENDING` (10) — so the `uint8` carried on a {@link Quote} casts
  * directly to this enum without translation. `getPartyAOpenPositions` returns
  * only `OPENED`, `CLOSE_PENDING`, `CANCEL_CLOSE_PENDING`, and `LIQUIDATED_PENDING`
  * quotes; `getPartyAPendingQuotes` returns only `PENDING`, `LOCKED`, and
  * `CANCEL_PENDING`.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/QuoteStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/storages/QuoteStorage.sol}
  */
 export enum QuoteStatus {
   /** Created, awaiting a partyB to lock it. */
@@ -247,10 +257,10 @@ export enum QuoteStatus {
  * smallest unit (raw `uint256`).
  *
  * Field shapes and ordering mirror the on-chain `struct LockedValues` in
- * `QuoteStorage.sol` (perps-core v0.8.5) exactly, so the object decodes directly
+ * `QuoteStorage.sol` (perps-core v0.8.6) exactly, so the object decodes directly
  * from the contract tuple without translation.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/QuoteStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/storages/QuoteStorage.sol}
  */
 export interface LockedValues {
   /** Credit Valuation Adjustment locked by partyA. */
@@ -268,12 +278,12 @@ export interface LockedValues {
  * by the quote read views ({@link "getQuote"}, {@link "getPartyAOpenPositions"}).
  *
  * Field shapes and ordering mirror the on-chain `struct Quote` in
- * `QuoteStorage.sol` (perps-core v0.8.5) exactly — every `uint256`/`int256` is a
+ * `QuoteStorage.sol` (perps-core v0.8.6) exactly — every `uint256`/`int256` is a
  * raw `bigint` (no decimal scaling applied) and the `uint8` enum fields are
  * surfaced as the {@link PositionType}, {@link OrderType}, and {@link QuoteStatus}
  * enums rather than raw numbers. Prices and amounts are 18-decimal fixed point.
  *
- * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.5/contracts/core/storages/QuoteStorage.sol}
+ * @see {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/storages/QuoteStorage.sol}
  */
 export interface Quote {
   /** Sequential quote id (starts at 1; `0n` is the not-found sentinel). */
@@ -331,12 +341,12 @@ export interface Quote {
   /** Affiliate address attributed to the quote, or the zero address. */
   affiliate: Address;
   /**
-   * Cumulative funding-**rate index** already settled on this quote (`int256`,
-   * 18-decimal fixed point) — the position's funding rate multiplied by the
-   * epochs elapsed since the funding fee started. **Not a currency amount**:
-   * the settled fee is only obtained as
-   * `openAmount × (currentFee − accumulatedPaidFunding) / 1e18`, so summing this
-   * field across quotes is meaningless. For real settled funding amounts use
+   * Per-unit cumulative funding-fee **index** recorded at this quote's last
+   * settlement (`int256`, 18-decimal fixed point, cost-positive). **Not a
+   * currency amount**, so summing this field across quotes is meaningless:
+   * `openAmount × (currentFee − accumulatedPaidFunding) / 1e18` is the
+   * **pending**, not-yet-settled fee — read that with
+   * {@link getQuotePendingFunding}. For settled funding amounts use
    * {@link getQuoteFunding} / {@link aggregateGroupFunding}.
    */
   accumulatedPaidFunding: bigint;

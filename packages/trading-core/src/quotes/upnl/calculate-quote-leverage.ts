@@ -10,10 +10,12 @@ const WEI_DECIMALS = 18;
 export interface CalculateQuoteLeverageParameters {
   /** Quote quantity. */
   quantity: bigint;
-  /** Quote's requested open price (used as the notional reference price). */
-  requestedOpenPrice: bigint;
-  /** Settled open price (wei) — fallback reference used only when `requestedOpenPrice` is `0`. */
+  /** Original open price the position first opened at — the preferred reference. */
+  initialOpenedPrice?: bigint;
+  /** Settled open price (wei) — reference used when `initialOpenedPrice` is absent. */
   openedPrice?: bigint;
+  /** Current requested open price (wei) — last-resort reference; may drift after edits. */
+  requestedOpenPrice: bigint;
   /** Locked-margin legs (partyA + partyB) committed when the quote opened. */
   lockedValues: { cva: bigint; lf: bigint; partyAmm: bigint; partyBmm: bigint };
 }
@@ -21,9 +23,9 @@ export interface CalculateQuoteLeverageParameters {
 /**
  * Quote leverage as a decimal string.
  *
- * `leverage = quantity × (requestedOpenPrice ?? openedPrice) / (CVA + LF + partyAMM + partyBMM)`
- * — the requested open price is the reference; the settled `openedPrice` steps in
- * only when the requested price is `0`.
+ * `leverage = quantity × (initialOpenedPrice ?? openedPrice ?? requestedOpenPrice) / (CVA + LF + partyAMM + partyBMM)`
+ * — the original open price is the reference; the settled `openedPrice` then the
+ * current `requestedOpenPrice` step in as it is absent (see {@link leveragePriceOf}).
  *
  * Returns `"0"` when the locked-margin sum is zero (i.e. the quote has no
  * partyA-locked collateral on record yet) or when any input is non-finite.

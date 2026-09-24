@@ -1,0 +1,83 @@
+import { Callout } from "nextra/components";
+
+# refundMarket
+
+Refund a deposit on a **rejected** market — reclaim the funds a user deposited into a market whose listing was rejected.
+
+```ts
+import { refundMarket } from "@symmio/trading-core";
+
+const receipt = await refundMarket(config, {
+  accessToken: token.accessToken,
+  marketAddress: rejectedMarket.contractAddress,
+  depositChain: rejectedMarket.chainId,
+  recipientAddress: account.address,
+});
+```
+
+Use it only for a market whose `marketStatus` is [`REJECTED`](/core/pools/listing-market-type) — the service moves the deposit to `recipientAddress` and returns the transfer's transaction hash.
+
+<Callout type="info">
+  This is a REST write against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
+  [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>` header, and a user may
+  only refund their own deposit. The backend is resolved from the config before the request, so a target without Pools
+  fails immediately and without any network traffic — see [`resolveListingService`](/core/pools/resolve-listing-service).
+</Callout>
+
+## No solver id
+
+Pool listing is **chain-level** — one listing backend is served per chain — so `refundMarket` takes only an optional `chainId` and **no `solverId`**. Pass a `chainId` to target a specific deployment's listing backend; omit it to use the config's default chain. Note `depositChain` is a **separate** field — the chain the deposit was made on (the market's `chainId`), not the chain whose listing backend is used.
+
+## Parameters
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401` (see [Throws](#throws)).
+  </Property>
+  <Property name="marketAddress" type="string" required>
+    The rejected market's token contract address — an EVM `0x…` address, or a Solana base58 address for a
+    Solana-deposited listing.
+  </Property>
+  <Property name="depositChain" type="ListingDepositChainId" required>
+    The chain the deposit was made on — the market's `chainId`. Routes the refund transfer.
+  </Property>
+  <Property name="recipientAddress" type="string" required>
+    Destination the refunded deposit is sent to — an EVM `0x…` address, or a Solana base58 address for a Solana-deposited
+    listing.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used. There is
+    **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<PoolRefundResult>">
+  The refund receipt. `transactionHash` is the on-chain hash of the refund transfer.
+</Returns>
+
+## Mutation options
+
+```ts
+import { refundMarketMutationOptions } from "@symmio/trading-core";
+import { useMutation } from "@tanstack/react-query";
+
+const { mutateAsync } = useMutation(refundMarketMutationOptions(config));
+await mutateAsync({ accessToken, marketAddress, depositChain, recipientAddress });
+```
+
+`refundMarketMutationOptions(config)` returns a `{ mutationKey, mutationFn }` bag for `useMutation`. It is modeled as a mutation, not a query: it moves a deposit back to the user, so it is a one-shot write, not cached data.
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide the refund action instead of erroring.
+- `REFUND_MARKET_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`). A **`401`** means the `accessToken` was missing, malformed, or expired; the service also rejects a market that is not refundable (e.g. not rejected, or already refunded) — each surfaces with the service's message and status as-is.
+
+## Related
+
+- [`getUserListingMarkets`](/core/pools/get-user-listing-markets) — surfaces the user's markets and their `marketStatus`, including `REJECTED`.
+- [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this write requires.
+- [`useRefundMarket`](/react/pools#userefundmarket) — the React hook.
+- [Pools](/core/pools) — the slice overview.

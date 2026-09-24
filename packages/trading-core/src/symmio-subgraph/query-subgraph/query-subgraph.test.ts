@@ -1,15 +1,19 @@
-import axios from "axios";
+import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
 import type { PublicClient } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
 import { createConfig } from "../../core/config";
-import { SymmError } from "../../shared/errors/symm-error";
+import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import { querySubgraph } from "./query-subgraph";
 
-const ANALYTICS_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).subgraphs.analytics;
+const ANALYTICS_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).subgraphs.analytics;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { 999: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: {
+    [SymmioSupportedChainId.ARBITRUM]: {
+      addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+    },
+  },
 });
 
 describe("querySubgraph", () => {
@@ -27,6 +31,38 @@ describe("querySubgraph", () => {
     expect(body.query).toBe("query { ok }");
   });
 
+  it("throws a SymmApiError carrying the axios error and the Retry-After delay on an HTTP failure", async () => {
+    const requestConfig = { url: ANALYTICS_URL, method: "post" } as InternalAxiosRequestConfig;
+    const response = {
+      status: 429,
+      statusText: "Too Many Requests",
+      data: { message: "rate limited" },
+      headers: { "Retry-After": "7" },
+      config: requestConfig,
+    } as unknown as AxiosResponse;
+    const axiosError = new AxiosError(
+      "Request failed with status code 429",
+      AxiosError.ERR_BAD_REQUEST,
+      requestConfig,
+      {},
+      response,
+    );
+    vi.spyOn(axios, "post").mockRejectedValue(axiosError);
+
+    const error = await querySubgraph(config, { document: "query { ok }", variables: {} }).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(SymmApiError);
+    expect(error).toMatchObject({
+      code: "SUBGRAPH_QUERY_FAILED",
+      status: 429,
+      url: ANALYTICS_URL,
+      method: "POST",
+      responseData: { message: "rate limited" },
+      retryAfterMs: 7_000,
+    });
+    expect((error as SymmApiError).cause).toBe(axiosError);
+  });
+
   it("throws a SymmError when the response carries GraphQL errors", async () => {
     vi.spyOn(axios, "post").mockResolvedValue({ data: { errors: [{ message: "boom" }] } });
     await expect(querySubgraph(config, { document: "query { ok }", variables: {} })).rejects.toThrow("boom");
@@ -36,7 +72,7 @@ describe("querySubgraph", () => {
     const unconfigured = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
           subgraphs: { analytics: "" },
         },

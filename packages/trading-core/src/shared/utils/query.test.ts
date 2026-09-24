@@ -4,13 +4,13 @@ import { filterQueryOptions } from "./query";
 describe("filterQueryOptions", () => {
   it("strips TanStack control fields and functions", () => {
     const out = filterQueryOptions({
-      chainId: 999,
+      chainId: 42161,
       user: "0xabc",
       query: { staleTime: 1 },
       enabled: true,
       select: () => 1,
     });
-    expect(out).toEqual({ chainId: 999, user: "0xabc" });
+    expect(out).toEqual({ chainId: 42161, user: "0xabc" });
   });
 
   it("serializes bigints to decimal strings, recursively", () => {
@@ -19,7 +19,7 @@ describe("filterQueryOptions", () => {
   });
 
   it("drops undefined values", () => {
-    const out = filterQueryOptions({ chainId: 999, offset: undefined });
-    expect(out).toEqual({ chainId: 999 });
+    const out = filterQueryOptions({ chainId: 42161, offset: undefined });
+    expect(out).toEqual({ chainId: 42161 });
   });
 });

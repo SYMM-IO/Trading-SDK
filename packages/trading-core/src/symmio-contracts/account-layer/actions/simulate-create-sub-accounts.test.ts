@@ -5,7 +5,7 @@ import { mockConfig } from "../../../shared/test/mock-config";
 import { SubAccountIsolationType, type SubAccountCreationData } from "../types";
 import { simulateCreateSubAccounts } from "./simulate-create-sub-accounts";
 
-const DEFAULT = getChainConfig(SymmioSupportedChainId.HYPER_EVM);
+const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
 const AFFILIATE: Address = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const SYMMIO_CORE: Address = "0xcccccccccccccccccccccccccccccccccccccccc";
 const FROM: Address = "0x1111111111111111111111111111111111111111";

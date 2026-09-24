@@ -13,7 +13,7 @@ import { SolverTargetSelect, useSolverTargetState } from "../solvers/solver-targ
 
 /**
  * Provider-agnostic live price feed. Switching the solver target switches the
- * price source with no code change — Enigma · HyperEVM streams the lowcap price
+ * price source with no code change — Enigma · Arbitrum streams the lowcap price
  * service, Rasa · Base streams Binance USD-M Futures — which is the behaviour
  * this card exists to demonstrate.
  *

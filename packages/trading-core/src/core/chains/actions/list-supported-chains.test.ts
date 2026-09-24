@@ -4,7 +4,7 @@ import { listSupportedChains } from "./list-supported-chains";
 
 describe("listSupportedChains", () => {
   it("includes every built-in supported chain", () => {
-    expect(listSupportedChains()).toContain(SymmioSupportedChainId.HYPER_EVM);
+    expect(listSupportedChains()).toEqual([SymmioSupportedChainId.ARBITRUM, SymmioSupportedChainId.BASE]);
   });
 
   it("returns only numeric chain ids, not the enum's reverse-mapped keys", () => {

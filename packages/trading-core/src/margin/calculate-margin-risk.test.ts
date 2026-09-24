@@ -111,7 +111,7 @@ describe("calculateMarginRisk", () => {
   });
 
   it("keeps isLiquidatable identical to the on-chain solvency predicate", () => {
-    /** `LibAccount.partyAAvailableBalanceForLiquidation` (perps-core v0.8.5). */
+    /** `LibAccount.partyAAvailableBalanceForLiquidation` (perps-core v0.8.6). */
     const cases = [
       makeInputs(),
       makeInputs({ upnl: -949 }),

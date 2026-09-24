@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@symmio/ui/components/card";
+import { cn } from "@symmio/ui/lib/utils";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
@@ -16,17 +17,29 @@ export interface LinkCardProps {
   meta?: ReactNode;
   /** Stagger index for the entrance animation. */
   index?: number;
+  /** Extra classes for the outer link — e.g. a grid span for a featured tile. */
+  className?: string;
 }
 
 /**
  * Linked feature card with a tinted icon badge, hover lift, and an accent glow —
  * the navigation tile used on the home page and the Contracts hub.
  */
-export function LinkCard({ href, eyebrow, title, description, icon, cta = "Open", meta, index = 0 }: LinkCardProps) {
+export function LinkCard({
+  href,
+  eyebrow,
+  title,
+  description,
+  icon,
+  cta = "Open",
+  meta,
+  index = 0,
+  className,
+}: LinkCardProps) {
   return (
     <Link
       href={href}
-      className="group animate-enter-up block focus-visible:outline-none"
+      className={cn("group animate-enter-up block focus-visible:outline-none", className)}
       style={{ "--enter-delay": `${120 + index * 80}ms` } as CSSProperties}
     >
       <Card className="group-focus-visible:ring-ring group-hover:ring-primary/40 relative h-full transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg group-focus-visible:ring-2">

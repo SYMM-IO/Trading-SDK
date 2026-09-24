@@ -12,16 +12,16 @@ vi.mock("../types/generated/enigma-solver", async (importOriginal) => {
 
 import { getMarketsQueryKey, getMarketsQueryOptions } from "./query";
 
-const HYPEREVM = SymmioSupportedChainId.HYPER_EVM;
+const ARBITRUM = SymmioSupportedChainId.ARBITRUM;
 const config = createConfig({
   getClient: () => ({}) as PublicClient,
-  symmioConfig: { [HYPEREVM]: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
+  symmioConfig: { [ARBITRUM]: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" } } },
 });
 
 describe("getMarketsQueryOptions", () => {
   it("separates cache entries by solverId", () => {
-    const a = getMarketsQueryKey({ chainId: HYPEREVM, solverId: "enigma" });
-    const b = getMarketsQueryKey({ chainId: HYPEREVM, solverId: "rasa" });
+    const a = getMarketsQueryKey({ chainId: ARBITRUM, solverId: "enigma" });
+    const b = getMarketsQueryKey({ chainId: ARBITRUM, solverId: "rasa" });
     expect(a).not.toEqual(b);
   });
 
@@ -29,11 +29,11 @@ describe("getMarketsQueryOptions", () => {
     getContractSymbols.mockResolvedValue({ data: { symbols: [] } });
     const spy = vi.spyOn(config, "getSolver");
 
-    const options = getMarketsQueryOptions(config, { chainId: HYPEREVM, solverId: "enigma" });
+    const options = getMarketsQueryOptions(config, { chainId: ARBITRUM, solverId: "enigma" });
     await (options.queryFn as () => Promise<unknown>)();
 
     // If the queryFn dropped solverId, this would be called with `undefined` and
     // every solver would share the default solver's cached data.
-    expect(spy).toHaveBeenCalledWith({ chainId: HYPEREVM, solverId: "enigma" });
+    expect(spy).toHaveBeenCalledWith({ chainId: ARBITRUM, solverId: "enigma" });
   });
 });

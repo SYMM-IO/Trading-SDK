@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 import { WalletPanel } from "../inspector/wallet-panel";
 import { LocalSessionKeyCard } from "./local-session-key-card";
+import { SessionKeyDelegationCard } from "./session-key-delegation-card";
 
 export function SessionKeysPanel() {
   return (
@@ -14,6 +15,8 @@ export function SessionKeysPanel() {
       <WalletPanel />
 
       <LocalSessionKeyCard />
+
+      <SessionKeyDelegationCard />
     </section>
   );
 }

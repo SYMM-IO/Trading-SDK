@@ -13,7 +13,7 @@ export function ContractsPanel() {
       <PageHeader
         eyebrow="React SDK · Contracts"
         title="Contracts"
-        description="Every method the SDK implements, two ways in: by contract ABI, or by the flow it belongs to. Pick a card to run live reads and writes against the HyperEVM deployment."
+        description="Every method the SDK implements, two ways in: by contract ABI, or by the flow it belongs to. Pick a card to run live reads and writes against the Arbitrum deployment."
       />
 
       <CardSection label="By ABI" hint="All implemented methods of one contract" pages={ABI_PAGES} />

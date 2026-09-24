@@ -97,6 +97,19 @@ The low-level single write, for callers that already have the Muon sig (`forceCl
 const hash = await forceClosePosition(config, { account: "0xsub…", quoteId: 42n, sig });
 ```
 
+## Relaying it without gas
+
+Both `forceClosePosition` and `forceCloseAuto` accept `gasless`, so a force close can be relayed rather than paid for:
+
+```ts
+const hash = await forceCloseAuto(config, { account: "0xsub…", quoteId: 42n, gasless: true });
+```
+
+The write already routes through the AccountLayer `_call` proxy, so it relays as one operation targeting the core
+diamond, billed to the same `account` the position belongs to. See
+[relayable writes](/core/gasless/relayable-writes) for the mode, the fallback policy and the per-call options. It is
+deliberately **not** in `GASLESS_SESSION_KEY_SELECTORS` — relayable, but owner-signed.
+
 ## Query / Mutation options
 
 - `getForceCloseParamsQueryOptions(config, { symbolId })` — TanStack query bag.

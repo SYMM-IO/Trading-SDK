@@ -1,0 +1,40 @@
+import { Callout } from "nextra/components";
+
+# getInstantLayerNonce
+
+Read the Instant Layer replay nonce for a signer account — the counter every relayed operation's `replayAttackHeader.nonce` must follow.
+
+```ts
+import { getInstantLayerNonce } from "@symmio/trading-core";
+
+const current = await getInstantLayerNonce(config, { account: subAccount });
+const operation = buildSignedOperation({ ...fields, nonce: current + 1n });
+```
+
+One `nonces(account)` view on the InstantLayer. Nonces are **sequential**: an operation signs with the _next_ nonce (`current + 1n`), and a batch must carry strictly consecutive nonces in signed-op order (`current + 1n`, `current + 2n`, …). Read it immediately before building operations — a stale value produces signatures the relayer's simulation rejects — and never build two operations from one read; concurrent flows on the same account need serialization (the [gasless dispatch](/core/gasless/relayable-writes) does this internally).
+
+<Callout type="info">
+  The query factory exists for display purposes (e.g. showing an account's operation count); a write path must always
+  call the action directly right before signing rather than trusting a cached value. This counter is unrelated to the
+  gasless wallet's [`walletOperationNonces`](/core/gasless/get-gasless-wallet-nonce).
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    InstantLayer signer account (the sub-account the operation runs under).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<bigint>">The current on-chain replay nonce. Sign with `nonce + 1n`.</Returns>
+
+## Throws
+
+- `SymmError` when the chain is unsupported.
+- Viem read errors.

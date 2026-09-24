@@ -69,7 +69,7 @@ export type UseDeallocateAndInitiateWithdrawReturnType = UseMutationResult<
  * mutate({
  *   account: "0xsub…",
  *   amount: 1_000000000000000000n,
- *   parts: [createClassicWithdrawPart({ id: 0n, amount, receiver, chainId: 999n })],
+ *   parts: [createClassicWithdrawPart({ id: 0n, amount, receiver, chainId: 42161n })],
  * });
  * ```
  */
@@ -93,16 +93,7 @@ export function useDeallocateAndInitiateWithdraw(
             virtualAccount: variables.account,
             chainId: resolvedChainId,
           }));
-        const hash = await base.mutationFn({
-          account: variables.account,
-          amount: variables.amount,
-          parts: variables.parts,
-          speedUp: variables.speedUp,
-          providerData: variables.providerData,
-          upnlSig,
-          simulateBeforeWrite: variables.simulateBeforeWrite,
-          chainId: resolvedChainId,
-        });
+        const hash = await base.mutationFn({ ...variables, upnlSig, chainId: resolvedChainId });
         return resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,

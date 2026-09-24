@@ -12,7 +12,7 @@ import type { RegistrationFormApi } from "./use-registration-form";
 /** Copy for the adaptive primary button, keyed on what the next step is. */
 const ACTION_LABEL = {
   connect: "Connect wallet",
-  switch: "Switch to HyperEVM",
+  switch: "Switch to Arbitrum",
   submit: "Submit registration",
 } as const;
 
@@ -49,7 +49,7 @@ export function RegistrationSummary({ api }: SummaryProps) {
               <LiveDot tone={wallet.isOnExpectedChain ? "positive" : "primary"} />
               <span className="text-foreground font-mono">{truncateAddress(wallet.address ?? "")}</span>
               <span className={cn(wallet.isOnExpectedChain ? "text-muted-foreground" : "text-primary")}>
-                · {wallet.isOnExpectedChain ? "HyperEVM" : "Wrong network"}
+                · {wallet.isOnExpectedChain ? "Arbitrum" : "Wrong network"}
               </span>
             </span>
           ) : (

@@ -203,6 +203,42 @@ describe("session key manager", () => {
     expect(manager.getAddress()).toBeNull();
     expect(manager.getSnapshot()).toBeNull();
     expect(manager.getPrivateKey()).toBeNull();
+    expect(manager.getAccount()).toBeNull();
+  });
+
+  it("exposes the loaded session key as a viem account", async () => {
+    const manager = createSessionKeyManager({ storage });
+
+    expect(manager.getAccount()).toBeNull();
+
+    const state = await manager.initialize(OWNER);
+    const account = manager.getAccount();
+
+    expect(account).not.toBeNull();
+    expect(account?.address).toBe(state.publicAddress);
+    expect(account?.address).toBe(manager.getAddress());
+
+    await manager.destroy();
+
+    expect(manager.getAccount()).toBeNull();
+  });
+
+  it("signs typed data through the exposed account exactly as the manager does", async () => {
+    const manager = createSessionKeyManager({ storage });
+    await manager.initialize(OWNER);
+    const account = manager.getAccount();
+    expect(account).not.toBeNull();
+
+    const accountSignature = await account!.signTypedData({ ...TYPED_DATA, primaryType: "Session" });
+    const managerSignature = await manager.signTypedData(TYPED_DATA);
+    const recovered = await recoverTypedDataAddress({
+      ...TYPED_DATA,
+      primaryType: "Session",
+      signature: accountSignature,
+    });
+
+    expect(accountSignature).toBe(managerSignature);
+    expect(recovered).toBe(account!.address);
   });
 
   it("exposes the loaded key through state and snapshot accessors", async () => {

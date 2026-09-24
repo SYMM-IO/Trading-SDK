@@ -20,7 +20,7 @@ vi.mock("../types/generated/enigma-price-service", async (importOriginal) => {
 
 import { getEnigmaPriceServiceMetadata, type EnigmaMetadataByAddress } from "./get-enigma-price-service-metadata";
 
-const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).priceService.url;
+const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).priceService.url;
 
 /** Arbitrary symbol addresses — the price service treats them as opaque strings. */
 const SYMBOL_A = "0x0000000000000000000000000000000000000a11";
@@ -49,12 +49,12 @@ function metadata(name: string, pairAddress: string): MetadataResponse {
   };
 }
 
-/** A config whose HYPER_EVM entry points the price service at a non-default host. */
+/** A config whose Arbitrum entry points the price service at a non-default host. */
 function configWithPriceServiceUrl(url: string) {
   return createConfig({
     getClient: () => ({}) as PublicClient,
     symmioConfig: {
-      [SymmioSupportedChainId.HYPER_EVM]: {
+      [SymmioSupportedChainId.ARBITRUM]: {
         addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
         priceService: { url },
       },
@@ -89,7 +89,7 @@ describe("getEnigmaPriceServiceMetadata", () => {
 
     const { config } = mockConfig();
     const result = await getEnigmaPriceServiceMetadata(config, {
-      chainId: SymmioSupportedChainId.HYPER_EVM,
+      chainId: SymmioSupportedChainId.ARBITRUM,
       addresses: [SYMBOL_A, SYMBOL_B],
     });
 

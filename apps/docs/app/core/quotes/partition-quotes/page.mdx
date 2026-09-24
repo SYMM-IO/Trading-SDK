@@ -11,7 +11,7 @@ const { positions, pending } = partitionQuotes(quotes);
 const groups = groupQuotes(positions, SubAccountIsolationType.MARKET_DIRECTION);
 ```
 
-`isPendingOrder` and `isActivePosition` are exported separately for callers that need the predicate rather than the split.
+`isPendingOrder` and `isActivePosition` are exported separately for callers that need the predicate rather than the split, and [`isActiveQuoteStatus`](#isactivequotestatus) tests a bare on-chain status.
 
 Both classify an anchored row by its on-chain [`QuoteStatus`](/core/quotes/quote-status) — `PENDING` / `LOCKED` / `CANCEL_PENDING` is a resting order, `OPENED` / `CLOSE_PENDING` / `CANCEL_CLOSE_PENDING` / `LIQUIDATED_PENDING` is a position — falling back to lifecycle + order type only for a row that has no status yet. Terminal rows match neither and are dropped.
 
@@ -34,4 +34,35 @@ Both classify an anchored row by its on-chain [`QuoteStatus`](/core/quotes/quote
 
 <Returns type="PartitionedQuotes">
   `{ positions, pending }`, each preserving input order.
+</Returns>
+
+## `isActiveQuoteStatus`
+
+Whether an on-chain [`QuoteStatus`](/core/quotes/quote-status) is an active position: `OPENED`, `CLOSE_PENDING`, `CANCEL_CLOSE_PENDING` or `LIQUIDATED_PENDING` — the same set `isActivePosition` uses for an anchored row. These are the only statuses whose pending funding is meaningful.
+
+Unlike `isActivePosition`, it takes a **known** status and has no lifecycle fallback, so it never counts an optimistic or just-anchored row (`quoteStatus` still `undefined`) as a position. Use it to pick the quotes to pass to [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding), whose view does not check status and returns a meaningless amount for a quote that was locked but never opened.
+
+```ts
+import { getQuotePendingFunding, isActiveQuoteStatus } from "@symmio/trading-core";
+
+const quoteIds = quotes.flatMap((quote) =>
+  quote.quoteId !== undefined && quote.quoteStatus !== undefined && isActiveQuoteStatus(quote.quoteStatus)
+    ? [quote.quoteId]
+    : [],
+);
+const rows = await getQuotePendingFunding(config, { quoteIds });
+```
+
+### Parameters
+
+<Properties>
+  <Property name="status" type="QuoteStatus" typeHref="/core/quotes/quote-status" required>
+    The quote's on-chain status.
+  </Property>
+</Properties>
+
+### Returns
+
+<Returns type="boolean">
+  `true` for an active-position status, `false` for a resting order or a terminal status.
 </Returns>

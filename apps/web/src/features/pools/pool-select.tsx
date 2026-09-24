@@ -1,10 +1,10 @@
 "use client";
 
-import { ListingMarketStatus, type ListingMarket } from "@symmio/trading-core";
+import { type ListingMarket } from "@symmio/trading-core";
 import { useListingMarkets } from "@symmio/trading-react";
 import { MarketSelect, type MarketSelectItem } from "@symmio/ui/components/market-select";
 import { useEffect, useMemo, useState } from "react";
-import { depositChainLabel } from "./format-listing-value";
+import { depositChainLabel, LISTING_STATUS_DISPLAY } from "./format-listing-value";
 import { useDebouncedValue } from "./use-debounced-value";
 
 /** Page size for the pool picker — the listing service's default. */
@@ -48,7 +48,8 @@ export function PoolSelect({ idPrefix, value, onValueChange, onSelectedMarketCha
   }, [debouncedSearch]);
 
   const markets = useListingMarkets({
-    marketStatus: ListingMarketStatus.LISTED,
+    // All statuses — the picker feeds pool-scoped sections that act on any market,
+    // including rejected ones (refund / retry). Each row shows its status.
     search: debouncedSearch === "" ? undefined : debouncedSearch,
     limit: PAGE_SIZE,
     offset,
@@ -101,7 +102,7 @@ export function PoolSelect({ idPrefix, value, onValueChange, onSelectedMarketCha
       disabled={!enabled}
       placeholder={enabled && markets.isPending ? "Loading pools..." : "Select a pool..."}
       searchPlaceholder="Search ticker, name or address..."
-      emptyLabel="No listed pools."
+      emptyLabel="No pools yet."
       emptyResultsLabel="No pools match this search."
       clearLabel="Clear pool"
     />
@@ -110,10 +111,11 @@ export function PoolSelect({ idPrefix, value, onValueChange, onSelectedMarketCha
 
 /** Map a listing row to a combobox item keyed by `contractAddress`. */
 function toMarketSelectItem(market: ListingMarket): MarketSelectItem {
+  const status = LISTING_STATUS_DISPLAY[market.marketStatus]?.label ?? market.marketStatus;
   return {
     id: market.contractAddress,
-    label: `${market.tokenTicker} · ${market.tokenName} (${depositChainLabel(market.chainId)})`,
-    searchText: [market.tokenTicker, market.tokenName, market.contractAddress].join(" "),
+    label: `${market.tokenTicker} · ${market.tokenName} (${depositChainLabel(market.chainId)}) · ${status}`,
+    searchText: [market.tokenTicker, market.tokenName, market.contractAddress, status].join(" "),
   };
 }
 

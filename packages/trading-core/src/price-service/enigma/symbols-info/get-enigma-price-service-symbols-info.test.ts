@@ -20,7 +20,7 @@ vi.mock("../types/generated/enigma-price-service", async (importOriginal) => {
 
 import { getEnigmaPriceServiceSymbolsInfo } from "./get-enigma-price-service-symbols-info";
 
-const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.HYPER_EVM).priceService.url;
+const PRICE_SERVICE_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).priceService.url;
 const SYMBOLS_INFO_PATH = "/api/v1/symbols/info";
 
 /**
@@ -60,7 +60,7 @@ describe("getEnigmaPriceServiceSymbolsInfo", () => {
     getSymbolsInfoApiV1SymbolsInfoGet.mockResolvedValue({ data: SYMBOLS });
 
     const { config } = mockConfig();
-    await getEnigmaPriceServiceSymbolsInfo(config, { chainId: SymmioSupportedChainId.HYPER_EVM });
+    await getEnigmaPriceServiceSymbolsInfo(config, { chainId: SymmioSupportedChainId.ARBITRUM });
 
     expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledTimes(1);
     expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledWith({ baseURL: PRICE_SERVICE_URL });
@@ -107,7 +107,7 @@ describe("getEnigmaPriceServiceSymbolsInfo", () => {
     const overridden = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [SymmioSupportedChainId.HYPER_EVM]: {
+        [SymmioSupportedChainId.ARBITRUM]: {
           addresses: { affiliatesAddress: TEST_AFFILIATE_ADDRESS },
           priceService: { url: overriddenUrl },
         },

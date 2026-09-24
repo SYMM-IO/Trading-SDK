@@ -15,8 +15,10 @@ export default {
   tpsl: "TP/SL",
   "price-service": "Price Service",
   orderbook: "Orderbook",
+  candles: "Candles",
   notifications: "Notifications",
   subgraph: "Subgraph",
   muon: "Muon Oracle",
+  gasless: "Gasless",
   "shared-types": "Shared Types",
 };

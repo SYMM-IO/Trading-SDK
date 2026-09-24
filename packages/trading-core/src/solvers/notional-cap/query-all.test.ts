@@ -23,7 +23,7 @@ describe("getNotionalCapAllQueryOptions", () => {
   });
 
   it("builds a stable key including the chain id", () => {
-    const key = getNotionalCapAllQueryKey({ chainId: SymmioSupportedChainId.HYPER_EVM });
-    expect(key).toEqual(["getNotionalCapAll", { chainId: SymmioSupportedChainId.HYPER_EVM }]);
+    const key = getNotionalCapAllQueryKey({ chainId: SymmioSupportedChainId.ARBITRUM });
+    expect(key).toEqual(["getNotionalCapAll", { chainId: SymmioSupportedChainId.ARBITRUM }]);
   });
 });
