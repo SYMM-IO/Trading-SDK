@@ -56,6 +56,13 @@ React consumers rarely call this directly: every relay hook in `@symmio/trading-
   <Property name="submittedPollMs" type="number" optional default="3_000">
     Poll cadence after `submitted`.
   </Property>
+  <Property name="streamSettleMs" type="number" optional default="1_000">
+    How long to let the status stream settle before the first HTTP read — see
+    [`waitForGaslessRequest`](/core/gasless/wait-for-gasless-request#the-stream-leads-http-is-the-fallback).
+  </Property>
+  <Property name="streamStaleMs" type="number" optional default="15_000">
+    How long a delivering stream may report nothing about the workflow before one HTTP read is taken anyway.
+  </Property>
   <Property name="signal" type="AbortSignal" optional>
     Abort the wait, e.g. on unmount. The request keeps running server-side — an abort means nobody is watching, **not**
     that the action failed.

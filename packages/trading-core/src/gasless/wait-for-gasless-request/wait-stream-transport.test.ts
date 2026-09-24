@@ -62,26 +62,94 @@ describe("waitForGaslessRequest with the status stream", () => {
     vi.useRealTimers();
   });
 
-  it("resolves from a stream delivery without polling again, and releases the subscription", async () => {
+  it("resolves from the stream without reading over HTTP at all, and releases the subscription", async () => {
     const { config } = gaslessTestConfig();
     const stream = captureStream();
-    getGaslessRequest.mockResolvedValueOnce(record(GaslessRequestStatus.QUEUED));
+    getGaslessRequest.mockResolvedValue(record(GaslessRequestStatus.QUEUED));
 
     const promise = waitForGaslessRequest(config, { chainId: GASLESS_TEST_CHAIN, requestId: "req-stream" });
     await vi.advanceTimersByTimeAsync(0);
 
-    /** The first read happens before the stream is live; then polling stands down. */
-    expect(getGaslessRequest).toHaveBeenCalledTimes(1);
+    /** The settle window holds the first read while the subscription lands. */
+    expect(getGaslessRequest).not.toHaveBeenCalled();
     stream.setLive(true);
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(getGaslessRequest).toHaveBeenCalledTimes(1);
+    expect(getGaslessRequest).not.toHaveBeenCalled();
 
     stream.emit(record(GaslessRequestStatus.SUCCEEDED, "0xabc"));
     const result = await promise;
 
     expect(result.status).toBe(GaslessRequestStatus.SUCCEEDED);
-    expect(getGaslessRequest).toHaveBeenCalledTimes(1);
+    expect(getGaslessRequest).not.toHaveBeenCalled();
     expect(stream.unwatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads over HTTP once the settle window expires with nothing delivered", async () => {
+    const { config } = gaslessTestConfig();
+    captureStream();
+    getGaslessRequest.mockResolvedValue(record(GaslessRequestStatus.SUCCEEDED, "0xabc"));
+
+    const promise = waitForGaslessRequest(config, { chainId: GASLESS_TEST_CHAIN, requestId: "req-settle" });
+    await vi.advanceTimersByTimeAsync(900);
+    expect(getGaslessRequest).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(200);
+    const result = await promise;
+
+    expect(result.status).toBe(GaslessRequestStatus.SUCCEEDED);
+    expect(getGaslessRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads at once when the stream reports it cannot deliver, without waiting out the window", async () => {
+    const { config } = gaslessTestConfig();
+    const stream = captureStream();
+    getGaslessRequest.mockResolvedValue(record(GaslessRequestStatus.SUCCEEDED, "0xabc"));
+
+    const promise = waitForGaslessRequest(config, { chainId: GASLESS_TEST_CHAIN, requestId: "req-degraded-early" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getGaslessRequest).not.toHaveBeenCalled();
+
+    /** `connecting -> degraded` is not a change in "live", but it ends the window. */
+    stream.setLive(false);
+    await vi.advanceTimersByTimeAsync(10);
+    const result = await promise;
+
+    expect(result.status).toBe(GaslessRequestStatus.SUCCEEDED);
+    expect(getGaslessRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes one read when a live stream says nothing about the workflow for the stale window", async () => {
+    const { config } = gaslessTestConfig();
+    const stream = captureStream();
+    getGaslessRequest.mockResolvedValue(record(GaslessRequestStatus.SUCCEEDED, "0xabc"));
+
+    const promise = waitForGaslessRequest(config, { chainId: GASLESS_TEST_CHAIN, requestId: "req-stale" });
+    await vi.advanceTimersByTimeAsync(0);
+    stream.setLive(true);
+
+    /** A heartbeat keeps the socket alive without reporting the workflow. */
+    await vi.advanceTimersByTimeAsync(14_000);
+    expect(getGaslessRequest).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    const result = await promise;
+
+    expect(result.status).toBe(GaslessRequestStatus.SUCCEEDED);
+    expect(getGaslessRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes the stream's windows from the deployment's execution config", async () => {
+    const { config } = gaslessTestConfig({ execution: { streamSettleMs: 5_000 } });
+    captureStream();
+    getGaslessRequest.mockResolvedValue(record(GaslessRequestStatus.SUCCEEDED, "0xabc"));
+
+    const promise = waitForGaslessRequest(config, { chainId: GASLESS_TEST_CHAIN, requestId: "req-configured" });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(getGaslessRequest).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(3_500);
+    await promise;
+    expect(getGaslessRequest).toHaveBeenCalledTimes(1);
   });
 
   it("resumes polling when the stream stops delivering", async () => {
@@ -95,7 +163,7 @@ describe("waitForGaslessRequest with the status stream", () => {
     await vi.advanceTimersByTimeAsync(0);
     stream.setLive(true);
     await vi.advanceTimersByTimeAsync(5_000);
-    expect(getGaslessRequest).toHaveBeenCalledTimes(1);
+    expect(getGaslessRequest).not.toHaveBeenCalled();
 
     /** The socket dropped: the loop goes back to HTTP without losing the workflow. */
     stream.setLive(false);

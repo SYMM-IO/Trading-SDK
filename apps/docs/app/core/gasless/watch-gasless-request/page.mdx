@@ -101,6 +101,7 @@ Ask [`supportsGaslessStatusStream`](#supportsgaslessstatusstream) before subscri
 - **Close codes decide the next move**: capacity and not-ready codes reconnect with a jittered 1 s → 30 s backoff (reset only after a snapshot), an unexplained close retries a bounded number of times, and `1008`, `1009`, `4001`, `4003` and `4004` disable the stream for the config.
 - **The accept race**: a `NOT_FOUND` right after a `202` resubscribes a few times before giving up, because the gateway does not retain a `NOT_FOUND` subscription.
 - **A terminal status unsubscribes itself**, and a lost heartbeat (about every 20 s) forces a reconnect.
+- **A subscription outlives its last watcher by about two seconds**, and a watcher that joins one which has already delivered is handed that record at once — the gateway sends its snapshot per _subscribe_, not per listener. Together they make the handoff between two waits on the same workflow free: no unsubscribe/subscribe round trip, and nothing to read over HTTP. The grace is given up immediately when another workflow is over the subscription cap and waiting for the slot.
 
 ## supportsGaslessStatusStream
 

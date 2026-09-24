@@ -58,6 +58,10 @@ export type ConfirmGaslessRequestParameters = Compute<
     queuedPollMs?: number;
     /** Poll cadence after `submitted`. */
     submittedPollMs?: number;
+    /** How long to let the stream settle before the first HTTP read. */
+    streamSettleMs?: number;
+    /** How long a live stream may report nothing before one HTTP read is taken. */
+    streamStaleMs?: number;
     /** Abort the wait (e.g. on unmount). The request keeps running server-side. */
     signal?: AbortSignal;
     /** Observer invoked with every fetched record, including the final one. */
@@ -152,6 +156,8 @@ export async function confirmGaslessRequest(
     timeoutMs: parameters.timeoutMs,
     queuedPollMs: parameters.queuedPollMs,
     submittedPollMs: parameters.submittedPollMs,
+    streamSettleMs: parameters.streamSettleMs,
+    streamStaleMs: parameters.streamStaleMs,
     signal,
     onUpdate,
     onTransportIssue,

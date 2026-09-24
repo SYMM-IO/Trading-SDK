@@ -87,6 +87,20 @@ Only successful responses are checked. An error status surfaces as a plain `Symm
     submit is ambiguous — the gateway may have accepted it — and fails with `status: 0`. Status reads are not bounded
     by it.
   </Property>
+  <Property name="execution.queuedPollMs" type="number" optional default="1_500">
+    Status poll cadence while a request is `queued`. Every status wait falls back to it, including the ones a relayed
+    write runs for you.
+  </Property>
+  <Property name="execution.submittedPollMs" type="number" optional default="3_000">
+    Status poll cadence after a request is `submitted`.
+  </Property>
+  <Property name="execution.streamSettleMs" type="number" optional default="1_000">
+    How long a status wait lets the stream settle before falling back to its first HTTP read — see
+    [`waitForGaslessRequest`](/core/gasless/wait-for-gasless-request#the-stream-leads-http-is-the-fallback).
+  </Property>
+  <Property name="execution.streamStaleMs" type="number" optional default="15_000">
+    How long a delivering stream may report nothing about a workflow before one HTTP read is taken anyway.
+  </Property>
 </Returns>
 
 ## Throws

@@ -17,6 +17,24 @@ if (record.txHash) {
 
 The cadence follows the service recommendation — `GASLESS_QUEUED_POLL_MS` (1 500 ms) while `queued`, `GASLESS_SUBMITTED_POLL_MS` (3 000 ms) after `submitted` — bounded by an overall `timeoutMs` budget (`GASLESS_WAIT_TIMEOUT_MS`, 120 000 ms). Up to three consecutive `404`s are tolerated right after a submit (the accepted record may not be readable yet); a fourth is rethrown.
 
+Every cadence and window below falls back to the deployment's `gasless.execution` block before its constant, so a gateway's own tuning reaches every wait — including the ones you never call directly, like the one a relayed write runs in its receipt tail.
+
+## The stream leads; HTTP is the fallback
+
+Where the deployment serves a [status stream](/core/gasless/watch-gasless-request), the wait subscribes to it and polls only while it is not delivering. A healthy workflow therefore costs **no status reads at all**: the stream carries the same records the reads return, so a caller cannot tell which transport produced one.
+
+| Situation                                                                                                  | What the wait does                                                            |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Subscribing, first record not in yet                                                                       | Waits up to `streamSettleMs` (1 000 ms) before reading — the answer is coming |
+| The stream says it cannot deliver (unreachable, not on this instance, over the subscription cap, disabled) | Reads at once; the settle window does not run out first                       |
+| Delivering                                                                                                 | Polling stands down entirely                                                  |
+| Delivering, but silent about this workflow for `streamStaleMs` (15 000 ms)                                 | Takes one read anyway, then re-arms the window                                |
+| No stream configured, or `transport: "poll"`                                                               | Polls at the cadence above, exactly as before                                 |
+
+The stale window is not redundant with the socket's own liveness check: heartbeats arrive about every 20 s and prove the _socket_ is alive, saying nothing about whether this workflow is still being reported. Without it a live-but-silent stream could blind a wait until the socket's 60 s liveness timer fired.
+
+The settle window is deliberately shorter than the poll cadence it defers, so a stream that never answers costs one _delayed_ read rather than an extra one.
+
 ## A failed read is not a failed request
 
 Once the service has returned a `202` the workflow is running whether or not you can see it, so the loop absorbs every transient transport failure instead of reporting one:
@@ -78,6 +96,17 @@ try {
   </Property>
   <Property name="submittedPollMs" type="number" optional default="3_000">
     Poll cadence after `submitted`.
+  </Property>
+  <Property name="streamSettleMs" type="number" optional default="1_000">
+    How long to let the status stream settle before the first HTTP read. Ends early the moment the stream delivers, or
+    reports that it will not. Ignored under `transport: "poll"`.
+  </Property>
+  <Property name="streamStaleMs" type="number" optional default="15_000">
+    How long a delivering stream may report nothing about the workflow before one HTTP read is taken anyway.
+  </Property>
+  <Property name="transport" type='"auto" | "poll"' optional default='"auto"'>
+    `"auto"` prefers the status stream where the deployment enables it; `"poll"` forces HTTP polling. The outcome is
+    identical either way.
   </Property>
   <Property name="signal" type="AbortSignal" optional>
     Abort the wait (e.g. on unmount). The request itself keeps running server-side.

@@ -1,12 +1,16 @@
+import type { GaslessExecutionConfig } from "../../core/chains/types";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { gaslessSleep } from "../abortable-sleep";
 import { getGaslessRequest } from "../get-gasless-request/get-gasless-request";
 import { createGaslessStatusObserver, type GaslessStatusTransport } from "../observe-gasless-request";
+import { resolveGaslessService } from "../resolve-gasless";
 import { gaslessTransientReadDelay, isTransientGaslessReadError } from "../transient-read";
 import {
   GASLESS_QUEUED_POLL_MS,
+  GASLESS_STREAM_SETTLE_MS,
+  GASLESS_STREAM_STALE_MS,
   GASLESS_SUBMITTED_POLL_MS,
   GaslessRequestStatus,
   isGaslessRequestTerminal,
@@ -44,6 +48,17 @@ export type WaitForGaslessRequestParameters = Compute<
     queuedPollMs?: number;
     /** Poll cadence after `submitted`. Default {@link GASLESS_SUBMITTED_POLL_MS}. */
     submittedPollMs?: number;
+    /**
+     * How long to let the stream settle before the first HTTP read. Ends early
+     * the moment the stream delivers, or reports that it will not. Ignored
+     * under `transport: "poll"`. Default {@link GASLESS_STREAM_SETTLE_MS}.
+     */
+    streamSettleMs?: number;
+    /**
+     * How long a delivering stream may report nothing about the workflow before
+     * one HTTP read is taken anyway. Default {@link GASLESS_STREAM_STALE_MS}.
+     */
+    streamStaleMs?: number;
     /** Abort the wait (e.g. on unmount). The request itself keeps running server-side. */
     signal?: AbortSignal;
     /** Observer invoked with every fetched record, including the final one. */
@@ -79,6 +94,14 @@ export type WaitForGaslessRequestReturnType = GaslessRequest;
  * lifecycle. It resolves with the record — including for `reverted` / `failed`
  * / `rejected` terminals, which are workflow outcomes, not transport failures;
  * branch on `status` (only `succeeded` is success).
+ *
+ * **The stream leads; HTTP is the fallback.** Where the deployment serves a
+ * status stream, the wait subscribes and gives it `streamSettleMs` to deliver
+ * before reading over HTTP at all, so a healthy workflow costs no status reads.
+ * Polling resumes the moment the stream stops delivering, and one read is taken
+ * anyway whenever a live stream has said nothing about the workflow for
+ * `streamStaleMs` — a heartbeat proves the socket is alive, not that this
+ * workflow is being reported.
  *
  * **A failed read is not a failed request.** Once a `202` exists the workflow
  * is running whether or not we can see it, so every transient transport
@@ -122,28 +145,46 @@ export async function waitForGaslessRequest(
     service = "operations",
     until = "terminal",
     timeoutMs = GASLESS_WAIT_TIMEOUT_MS,
-    queuedPollMs = GASLESS_QUEUED_POLL_MS,
-    submittedPollMs = GASLESS_SUBMITTED_POLL_MS,
     signal,
     onUpdate,
     onTransportIssue,
     transport = "auto",
   } = parameters;
 
+  /**
+   * Cadence and stream windows fall back to the deployment's `execution` block
+   * before the constants, so a gateway's own tuning reaches every wait —
+   * including the ones a caller only reaches indirectly, like the write tail's
+   * `confirmGaslessRequest`.
+   */
+  const execution = resolveWaitDefaults(config, chainId);
+  const queuedPollMs = parameters.queuedPollMs ?? execution.queuedPollMs ?? GASLESS_QUEUED_POLL_MS;
+  const submittedPollMs = parameters.submittedPollMs ?? execution.submittedPollMs ?? GASLESS_SUBMITTED_POLL_MS;
+  const streamSettleMs = parameters.streamSettleMs ?? execution.streamSettleMs ?? GASLESS_STREAM_SETTLE_MS;
+  const streamStaleMs = parameters.streamStaleMs ?? execution.streamStaleMs ?? GASLESS_STREAM_STALE_MS;
+
   const deadline = Date.now() + timeoutMs;
   /**
    * The status stream, when this deployment has one. It delivers the same
-   * records the reads return, so the loop below simply prefers them and lets
-   * the polling stand down while the stream is live.
+   * records the reads return, so the loop below prefers it and polls only while
+   * it is not delivering.
    */
   const observer =
     transport === "poll"
       ? null
       : createGaslessStatusObserver(config, { chainId, requestId, service, onTransportIssue });
+  /**
+   * How long the stream has to answer before the first read. Fixed at the
+   * start, so this is a settle window and not a licence to stall: a stream that
+   * drops later sends the loop straight back to polling.
+   */
+  const settleUntil = Date.now() + streamSettleMs;
   let notFoundStreak = 0;
   let transientStreak = 0;
   let lastTransient: SymmError | undefined;
   let latest: GaslessRequest | null = null;
+  /** When the workflow was last seen over either transport — the stale backstop's clock. */
+  let lastRecordAt = Date.now();
 
   try {
     for (;;) {
@@ -151,34 +192,59 @@ export async function waitForGaslessRequest(
         throw new SymmError("api", "GASLESS_WAIT_ABORTED", "Gasless: the status wait was aborted.");
       }
 
+      /**
+       * Take a delivered record before reading the stream's health: one that
+       * landed just before the socket dropped is still the freshest thing we
+       * have, and discarding it would re-read what we were already told.
+       */
+      const streamed = observer?.take() ?? null;
+      if (streamed) {
+        latest = streamed;
+        notFoundStreak = 0;
+        transientStreak = 0;
+        lastRecordAt = Date.now();
+        onUpdate?.(latest);
+        if (until === "broadcast" && latest.txHash !== null) return latest;
+        if (isGaslessRequestTerminal(latest.status)) return latest;
+      }
+
       /** The next poll's delay: the status cadence, or a backoff after a transient failure. */
       let interval = latest?.status === GaslessRequestStatus.SUBMITTED ? submittedPollMs : queuedPollMs;
 
-      /**
-       * While the stream carries this workflow, it is the fresher source and the
-       * poll stands down: take whatever it delivered, and otherwise sleep until
-       * the next delivery or until the stream stops being live.
-       */
-      if (observer?.isLive()) {
-        const streamed = observer.take();
-        if (streamed) {
-          latest = streamed;
-          notFoundStreak = 0;
-          transientStreak = 0;
-          onUpdate?.(latest);
-          if (until === "broadcast" && latest.txHash !== null) return latest;
-          if (isGaslessRequestTerminal(latest.status)) return latest;
+      if (observer) {
+        const state = observer.state();
+        /**
+         * While the stream carries this workflow the poll stands down — unless
+         * it has carried nothing for `streamStaleMs`. Heartbeats keep the socket
+         * alive without saying anything about the workflow, so silence that long
+         * is settled with one read rather than trusted until the socket's own
+         * liveness timer fires.
+         */
+        if (state === "live" && Date.now() - lastRecordAt < streamStaleMs) {
+          const remainingWhileLive = deadline - Date.now();
+          if (remainingWhileLive <= 0) throw timeoutError();
+          await observer.wait(Math.min(interval, remainingWhileLive), signal);
+          continue;
         }
-        const remainingWhileLive = deadline - Date.now();
-        if (remainingWhileLive <= 0) throw timeoutError();
-        await observer.wait(Math.min(interval, remainingWhileLive), signal);
-        continue;
+        /**
+         * Still settling: the subscription's first record is on its way and
+         * carries exactly what the read below would. Waiting for it costs one
+         * request fewer than racing it, and the wait ends the moment the stream
+         * delivers or reports that it cannot.
+         */
+        if (state === "pending" && Date.now() < settleUntil) {
+          const remainingWhileSettling = deadline - Date.now();
+          if (remainingWhileSettling <= 0) throw timeoutError();
+          await observer.wait(Math.min(settleUntil - Date.now(), remainingWhileSettling), signal);
+          continue;
+        }
       }
 
       try {
         latest = await getGaslessRequest(config, { chainId, requestId, service, signal });
         notFoundStreak = 0;
         transientStreak = 0;
+        lastRecordAt = Date.now();
         onUpdate?.(latest);
 
         if (until === "broadcast" && latest.txHash !== null) return latest;
@@ -229,5 +295,21 @@ export async function waitForGaslessRequest(
       `Gasless: request ${requestId} did not reach ${until === "broadcast" ? "broadcast" : "a terminal status"} within ${timeoutMs} ms (last status: ${latest?.status ?? "unknown"}). The request keeps running server-side — keep polling it; never re-submit through the wallet.`,
       { cause: lastTransient },
     );
+  }
+}
+
+/**
+ * The deployment's execution defaults for a wait, or none.
+ *
+ * A wait may run for a chain with no gasless block at all — a caller holding a
+ * request id from another chain, a config whose gasless service was never
+ * declared — and a missing deployment is not a reason to fail a wait that the
+ * constants can serve.
+ */
+function resolveWaitDefaults(config: Config, chainId?: number): GaslessExecutionConfig {
+  try {
+    return resolveGaslessService(config, { chainId }).execution ?? {};
+  } catch {
+    return {};
   }
 }

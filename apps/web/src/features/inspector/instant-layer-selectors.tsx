@@ -1,24 +1,20 @@
-import { describeSelector, getSelectorScope } from "@/features/session-keys/session-key-selector-labels";
+import {
+  describeSelector,
+  describeSelectorPurpose,
+  getSelectorScope,
+} from "@/features/session-keys/session-key-selector-labels";
 import { useSessionKeySelectors, useSupportsGaslessService } from "@symmio/trading-react";
 import type { ComboboxItem } from "@symmio/ui/components/combobox";
-
-/** How each authority group is described under a selector in the picker. */
-const SCOPE_META: Readonly<Record<string, string>> = {
-  trade: "trade lifecycle",
-  account: "account management",
-  withdraw: "withdraw — grants collateral exit",
-};
+import type { Hex } from "viem";
 
 /**
  * Build the selector picker's items from the SDK's chain-resolved session-key
  * set — every selector a key can hold, including the withdraw scope, so a grant
  * can be assembled without hand-typing `bytes4`.
  *
- * Selectors the SDK exports by name show that name; the rest show their raw
- * `bytes4` with their authority group as the subtitle. `apps/web` cannot label
- * them individually because the selector-to-method map is internal to
- * `@symmio/trading-core` and inventing names here would risk mislabelling
- * authority.
+ * Each row shows the contract method the selector stands for and the authority
+ * it carries, so a grant can be reviewed by reading it rather than by decoding
+ * hex. A selector this app cannot name falls back to its raw `bytes4`.
  *
  * Pass the currently-entered selector tokens as `selected` to mark them;
  * matching is case-insensitive and tolerates not-yet-valid sibling tokens, so a
@@ -41,9 +37,20 @@ export function useSelectorComboboxItems(selected: readonly string[]): ComboboxI
   return selectors.map((selector) => ({
     id: selector,
     title: describeSelector(selector),
-    meta: SCOPE_META[getSelectorScope(selector)] ?? selector,
+    meta: describeSelectorMeta(selector),
     selected: normalized.includes(selector.toLowerCase()),
   }));
+}
+
+/**
+ * The subtitle under a selector in the picker: the authority group it belongs
+ * to, and what holding it lets a key do. A selector this app cannot name shows
+ * its group alone rather than a guess.
+ */
+function describeSelectorMeta(selector: Hex): string {
+  const purpose = describeSelectorPurpose(selector);
+  const scope = getSelectorScope(selector);
+  return purpose ? `${scope} — ${purpose}` : scope;
 }
 
 /** Split a free-text selectors field into its raw, trimmed tokens. */

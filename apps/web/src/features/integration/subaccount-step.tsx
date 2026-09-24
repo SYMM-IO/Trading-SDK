@@ -3,6 +3,7 @@
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { ListSkeleton } from "@/components/skeletons";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { formatUsd } from "@/lib/format";
 import { encodeSubAccountHookMetadata } from "@/lib/subaccount-metadata";
 import {
@@ -219,6 +220,17 @@ function CreateSubaccountInline({ owner, onCreated }: { owner: Address; onCreate
   const partyBToBind = chainConfig.solvers[chainConfig.defaultSolverId]?.address;
   const [name, setName] = useState("");
   const mutation = useCreateSubAccounts();
+  /**
+   * This form only renders for a wallet with no sub-accounts, and a relayed
+   * `createSubAccounts` must be billed to an existing one, so under the app's
+   * `mode: "gasless"` default the relay could only fail with
+   * `GASLESS_ACCOUNT_UNRESOLVED`. Pin the call to the wallet path, as the
+   * Contracts page form does. A wallet with no gas bootstraps through the
+   * gasless deposit settlement instead.
+   */
+  const write = useGaslessWriteOption("createSubAccounts", {
+    blockedReason: "the relayer needs an existing sub-account to bill, and this wallet has none yet",
+  });
 
   useEffect(() => {
     if (mutation.isSuccess) onCreated();
@@ -241,6 +253,7 @@ function CreateSubaccountInline({ owner, onCreated }: { owner: Address; onCreate
           singleVAMode: true,
         },
       ],
+      ...write,
     });
   }
 

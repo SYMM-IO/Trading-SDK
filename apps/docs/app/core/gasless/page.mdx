@@ -103,7 +103,7 @@ gasless: {
 
 With that in place, `waitForGaslessRequest` and `confirmGaslessRequest` subscribe automatically (`transport: "auto"`, the default; pass `"poll"` to force HTTP), and React's `useGaslessRequest` stops polling while the stream is live and reports `stream.status` so a UI can show "live" versus "polling". [`watchGaslessRequest`](/core/gasless/watch-gasless-request) is the raw subscription for non-React layers; it opens a socket and never issues HTTP, so pair it with the polling read yourself.
 
-The stream changes nothing about outcomes: it carries the same records the reads return, an unavailable stream is never an error, and the fallback is the behavior you already have.
+The stream changes nothing about outcomes: it carries the same records the reads return, an unavailable stream is never an error, and the fallback is the behavior you already have. What it does change is cost — a healthy relayed write is followed entirely over the socket and issues no status reads at all. Tune the two windows that govern the handover with `execution.streamSettleMs` and `execution.streamStaleMs`.
 
 ## Two EIP-712 domains, three nonce counters
 

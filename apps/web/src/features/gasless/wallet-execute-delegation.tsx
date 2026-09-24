@@ -1,5 +1,6 @@
 "use client";
 import { ResultNote, ResultSuccess, ResultWarning } from "@/components/result";
+import { describeSelector } from "@/features/session-keys/session-key-selector-labels";
 import {
   useAreDelegationsActive,
   useGaslessWalletExecuteSelectors,
@@ -82,7 +83,8 @@ export function WalletExecuteDelegation({
     return (
       <ResultSuccess testId="gasless-execute-delegation-ready">
         The session key holds wallet-execute permission for this batch{" "}
-        <span className="font-mono text-xs">({selectors.join(", ")})</span>. Executing costs no wallet prompt.
+        <span className="font-mono text-xs">({selectors.map(describeSelector).join(", ")})</span>. Executing costs no
+        wallet prompt.
       </ResultSuccess>
     );
   }
@@ -91,9 +93,9 @@ export function WalletExecuteDelegation({
     <>
       <ResultWarning testId="gasless-execute-delegation-missing">
         The session key cannot sign this batch yet. Wallet execution is authorized per selector, so it needs{" "}
-        <span className="font-mono text-xs">{selectors.join(", ")}</span> — the sentinel plus every inner call. The
-        Session Keys page grants the trade and account scope instead, which never covers these. Grant them here, or turn
-        the key off above and sign with your wallet.
+        <span className="font-mono text-xs">{selectors.map(describeSelector).join(", ")}</span> — the sentinel plus
+        every inner call. The Session Keys page grants the trade and account scope instead, which never covers these.
+        Grant them here, or turn the key off above and sign with your wallet.
       </ResultWarning>
       <Button
         type="button"

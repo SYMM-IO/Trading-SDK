@@ -396,6 +396,19 @@ export interface GaslessExecutionConfig {
   /** Status poll cadence after the request is `submitted`. Default `3_000` ms. */
   submittedPollMs?: number;
   /**
+   * How long a status wait lets the gateway's stream settle before falling back
+   * to its first HTTP read. It ends early the moment the stream delivers, or
+   * reports that it will not (unreachable, not-found, at its subscription cap,
+   * disabled). Ignored where the stream is off. Default `1_000` ms.
+   */
+  streamSettleMs?: number;
+  /**
+   * How long a delivering stream may report nothing about a workflow before the
+   * wait takes one HTTP read anyway and re-arms. Heartbeats do not count — only
+   * records for the request do. Default `15_000` ms.
+   */
+  streamStaleMs?: number;
+  /**
    * HTTP timeout for each gasless submit, in ms: every relay and
    * deposit-settlement POST, from the explicit actions as well as the
    * transparent mode. A submit that times out is ambiguous (the gateway may
@@ -417,8 +430,11 @@ export interface GaslessExecutionConfig {
  * the gateway, and each environment enables them separately, so a stream is
  * declared per chain rather than assumed.
  *
- * Currently informational: status reads still poll over HTTP, and HTTP status
- * reads stay available whether or not a stream is declared.
+ * Where it is enabled, the stream is the primary transport for status waits and
+ * HTTP reads become the fallback: a wait subscribes, gives the stream
+ * `execution.streamSettleMs` to deliver, and polls only while the stream is not
+ * delivering. HTTP status reads stay available whether or not a stream is
+ * declared.
  */
 export interface SymmioGaslessStatusStreamConfig {
   /**

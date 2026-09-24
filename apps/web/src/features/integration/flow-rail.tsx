@@ -49,7 +49,15 @@ export function FlowRail({ steps, current, maxReachable, onStepClick }: Props) {
                 />
               ) : null}
             </div>
-            <div className={cn("pb-6 text-left", isLast && "pb-0")}>
+            {/*
+              `min-w-0` is load-bearing, not defensive: a hint carries live chain
+              state, so it can be an address or an unbroken figure, and the `1fr`
+              track's default `min-width: auto` would size to that word and push
+              it out of the rail. `wrap-break-word` alone does not fix it —
+              `overflow-wrap: break-word` does not reduce min-content width — so
+              the two only work as a pair.
+            */}
+            <div className={cn("min-w-0 pb-6 text-left", isLast && "pb-0")}>
               <p
                 className={cn(
                   "text-sm font-medium transition-colors",
@@ -58,7 +66,9 @@ export function FlowRail({ steps, current, maxReachable, onStepClick }: Props) {
               >
                 {step.label}
               </p>
-              {step.hint ? <p className="text-muted-foreground mt-0.5 text-xs leading-5">{step.hint}</p> : null}
+              {step.hint ? (
+                <p className="text-muted-foreground mt-0.5 text-xs leading-5 wrap-break-word">{step.hint}</p>
+              ) : null}
             </div>
           </>
         );

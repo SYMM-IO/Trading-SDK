@@ -57,6 +57,26 @@ export const GASLESS_QUEUED_POLL_MS = 1_500;
 /** Default poll cadence after a request is `submitted` (service-recommended 3–5 s). */
 export const GASLESS_SUBMITTED_POLL_MS = 3_000;
 
+/**
+ * Default window a status wait gives the stream to deliver before its first
+ * HTTP read.
+ *
+ * Deliberately below {@link GASLESS_QUEUED_POLL_MS}: a stream that never
+ * answers costs one *delayed* read, never an extra one, so the fallback is
+ * strictly cheaper than the poll it defers.
+ */
+export const GASLESS_STREAM_SETTLE_MS = 1_000;
+
+/**
+ * Default backstop for a *delivering* stream that reports nothing about the
+ * workflow.
+ *
+ * Heartbeats prove the socket is alive, not that this workflow is being
+ * reported, so a live-but-silent stream would otherwise blind a wait until the
+ * socket's own liveness timer fires. Only records for this request reset it.
+ */
+export const GASLESS_STREAM_STALE_MS = 15_000;
+
 /** The service-recommended poll band for a `queued` request, in ms. */
 const QUEUED_POLL_BAND = { minMs: 1_000, maxMs: 2_000 } as const;
 /** The service-recommended poll band for a `submitted` request, in ms. */

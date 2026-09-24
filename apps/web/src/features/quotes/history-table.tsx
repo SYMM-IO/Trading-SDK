@@ -6,7 +6,7 @@ import { Badge } from "@symmio/ui/components/badge";
 import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
 import { formatRelativeTimestamp, formatTokenAmount } from "@symmio/utils";
 import type { ReactNode } from "react";
-import { truncateAddress } from "./quote-provenance-panel";
+import { truncateAddress } from "./quote-format";
 
 /** Min width that keeps a fixed-point figure column from crowding its header. */
 const NUMERIC_COLUMN_WIDTH = "min-w-24";

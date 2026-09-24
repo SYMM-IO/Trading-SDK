@@ -77,6 +77,8 @@ const request = useGaslessRequest({ requestId, query: { enabled: Boolean(request
 
 `stream.status` is `"idle" | "connecting" | "live" | "degraded" | "disabled"`, and `stream.detail` explains the non-live states. Pass `transport: "poll"` to opt out. A deployment without a stream simply keeps polling — that is not an error state.
 
+The same rule governs the waits you never call directly. A relayed write is followed twice — once to its broadcast, once to its terminal — and where a stream is enabled both are carried by one shared subscription on one socket, so a healthy write issues no status reads at all. Nothing in the hooks' API changes: the fallback, the budgets and the outcomes are the ones documented on [`waitForGaslessRequest`](/core/gasless/wait-for-gasless-request#the-stream-leads-http-is-the-fallback).
+
 ### `useGaslessRequestTransactions`
 
 List the EVM broadcast attempts stored for one request — the companion to `useGaslessRequest`. The record says what the

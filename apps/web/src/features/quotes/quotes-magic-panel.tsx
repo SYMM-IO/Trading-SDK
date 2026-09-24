@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react";
 import { isAddress, type Address } from "viem";
 import type { MagicMethodPanelProps } from "../magic-sidebar/magic-types";
 import { magicInputPersistKey, usePersistentPinState } from "../magic-sidebar/magic-value-store";
-import { QuotesTable } from "./quotes-table";
+import { QuotesSurface } from "./quotes-surface";
 
 /**
  * Live magic-sidebar panel for the managed quotes feed: pick a partyA (seeded
@@ -81,7 +81,7 @@ export function QuotesMagicPanel({ intervalMs, enabled, initialInput, persistKey
       ) : isLoading && snapshot.quotes.length === 0 ? (
         <p className="text-muted-foreground text-xs">Loading quotes…</p>
       ) : (
-        <QuotesTable
+        <QuotesSurface
           testId="magic-managed-quotes-table"
           quotes={displayQuotes}
           hidePagination

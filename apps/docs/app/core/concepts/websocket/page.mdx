@@ -112,7 +112,8 @@ Every stream above is broadcast-only: connect, receive, filter client-side. The 
 - **Nothing is sent before `ready`.** The gateway greets each connection with `{"type":"ready","protocol_instance":…,"max_subscriptions":…}`; commands wait for it, and every later frame is checked against the configured instance.
 - **Commands are paced and single-flight**, because subscribe/unsubscribe share the caller's request quota — unlike a broadcast feed, which costs nothing after the handshake.
 - **Close codes carry policy.** Capacity and not-ready codes reconnect with backoff; `1008`, `1009`, `4001`, `4003` and `4004` stop the stream for the config instead of retrying into a wall.
-- **HTTP polling is the fallback**, and it is always available: the stream never becomes the only way to read a workflow.
+- **HTTP polling is the fallback**, and it is always available: the stream never becomes the only way to read a workflow. Where a stream is enabled it leads and polling stands down — see [the wait's transport rules](../../gasless/wait-for-gasless-request#the-stream-leads-http-is-the-fallback).
+- **Three clocks, three jobs.** A socket with no inbound frame for 60 s is dead and redials (heartbeats arrive about every 20 s, so that tolerates two missed beats); a socket nobody watches closes after 2 s; a subscription nobody watches is given up after 2 s. Only the first is about the connection — the other two are about who is still asking.
 
 ## Related
 

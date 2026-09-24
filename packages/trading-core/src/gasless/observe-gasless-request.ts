@@ -13,24 +13,38 @@ import type { GaslessRequest, GaslessService } from "./types";
 export type GaslessStatusTransport = "auto" | "poll";
 
 /**
+ * What the stream is doing for one workflow, from a status wait's point of view.
+ *
+ * - `"pending"` — dialing, or subscribed and waiting for the first record. The
+ *   wait holds its first HTTP read for a moment, since the answer is coming.
+ * - `"live"` — delivering; polling stands down.
+ * - `"unavailable"` — it will not deliver for now (unreachable, not on this
+ *   instance, over the subscription cap, disabled). Poll, and do not wait.
+ *
+ * @internal
+ */
+export type GaslessObserverState = "pending" | "live" | "unavailable";
+
+/**
  * A live view of one workflow, fed by the status stream.
  *
- * The wait loop owns the HTTP polling; this only tells it when the stream is
- * carrying the workflow (so polling can stand down) and hands over the records
- * the stream delivered. The split keeps one rule intact: a `watch*` never
- * issues HTTP, and a poller never pretends to be a subscription.
+ * The wait loop owns the HTTP polling; this only tells it what the stream is
+ * doing for the workflow and hands over the records it delivered. The split
+ * keeps one rule intact: a `watch*` never issues HTTP, and a poller never
+ * pretends to be a subscription.
  *
  * @internal
  */
 export interface GaslessStatusObserver {
-  /** Whether the stream is currently delivering this workflow. */
-  isLive(): boolean;
+  /** What the stream is doing for this workflow right now. */
+  state(): GaslessObserverState;
   /** Take the newest record the stream delivered since the last call, if any. */
   take(): GaslessRequest | null;
   /**
-   * Resolve on the next stream delivery, on a change in stream health, or after
+   * Resolve on the next stream delivery, on a change in {@link state}, or after
    * `timeoutMs` — whichever comes first. The wait loop uses it instead of a
-   * blind sleep, so a stream update is acted on the moment it lands.
+   * blind sleep, so a stream update is acted on the moment it lands and a
+   * stream that gives up is not waited on for the full window.
    */
   wait(timeoutMs: number, signal?: AbortSignal): Promise<void>;
   /** Release the subscription. */
@@ -59,7 +73,7 @@ export function createGaslessStatusObserver(
   const { chainId, requestId, service, onTransportIssue } = parameters;
   if (!supportsGaslessStatusStream(config, { chainId, service })) return null;
 
-  let live = false;
+  let state: GaslessObserverState = "pending";
   let pending: GaslessRequest | null = null;
   let wake: (() => void) | null = null;
 
@@ -80,9 +94,16 @@ export function createGaslessStatusObserver(
         notify();
       },
       onStatusChange: (status) => {
-        const next = status === "live";
-        if (next !== live) {
-          live = next;
+        /**
+         * Waking on the `live` flag alone would sleep through the one
+         * transition a settling wait most needs: `connecting -> degraded`, the
+         * stream saying it cannot answer. Both are "not live", so a wait would
+         * burn its whole settle window before reading over HTTP.
+         */
+        const next: GaslessObserverState =
+          status === "live" ? "live" : status === "idle" || status === "connecting" ? "pending" : "unavailable";
+        if (next !== state) {
+          state = next;
           notify();
         }
       },
@@ -100,7 +121,7 @@ export function createGaslessStatusObserver(
   }
 
   return {
-    isLive: () => live,
+    state: () => state,
     take: () => {
       const record = pending;
       pending = null;

@@ -316,6 +316,63 @@ describe("gasless stream hub", () => {
     expect(sockets.last().closeCalls).toEqual([]);
   });
 
+  it("sends the first subscribe without waiting out the command interval", () => {
+    const watcher = recorder();
+    subscribe(REQUEST_ID, watcher.listener);
+    const socket = sockets.last();
+    socket.simulateOpen();
+    socket.simulateMessage(readyFrame());
+
+    /** Well under the 250 ms pacing: a socket that has sent nothing owes no wait. */
+    vi.advanceTimersByTime(10);
+    expect(socket.sent).toHaveLength(1);
+  });
+
+  it("hands a watcher that rejoins within the grace the live subscription and its last record", async () => {
+    const first = recorder();
+    const release = subscribe(REQUEST_ID, first.listener);
+    const socket = sockets.last();
+    socket.simulateOpen();
+    socket.simulateMessage(readyFrame());
+    flushCommands();
+    socket.simulateMessage(snapshotFrame(REQUEST_ID));
+    expect(socket.sent).toHaveLength(1);
+
+    release();
+    vi.advanceTimersByTime(500);
+    const second = recorder();
+    subscribe(REQUEST_ID, second.listener);
+    flushCommands();
+    await Promise.resolve();
+
+    /** The subscription never lapsed: no unsubscribe, no second subscribe. */
+    expect(socket.sent).toHaveLength(1);
+    expect(second.statuses.at(-1)).toBe("live");
+    expect(second.updates).toHaveLength(1);
+    expect(second.updates[0]?.request).toMatchObject({ requestId: REQUEST_ID });
+  });
+
+  it("unsubscribes a selector once its grace expires", () => {
+    const first = recorder();
+    const keepAlive = recorder();
+    const release = subscribe(REQUEST_ID, first.listener);
+    subscribe(OTHER_REQUEST_ID, keepAlive.listener);
+    const socket = sockets.last();
+    socket.simulateOpen();
+    socket.simulateMessage(readyFrame());
+    flushCommands();
+    socket.simulateMessage(snapshotFrame(REQUEST_ID));
+    flushCommands();
+    socket.simulateMessage(snapshotFrame(OTHER_REQUEST_ID));
+
+    release();
+    vi.advanceTimersByTime(1_000);
+    expect(socket.sent.some((frame) => frame.includes("unsubscribe"))).toBe(false);
+
+    vi.advanceTimersByTime(1_500);
+    expect(socket.sent.at(-1)).toBe(`{"type":"unsubscribe","request_id":"${REQUEST_ID}"}`);
+  });
+
   it("redials when heartbeats stop", () => {
     const watcher = recorder();
     subscribe(REQUEST_ID, watcher.listener);

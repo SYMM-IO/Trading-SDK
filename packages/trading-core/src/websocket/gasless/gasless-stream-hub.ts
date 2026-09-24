@@ -26,6 +26,17 @@ const THROTTLE_BACKOFF_MS = 1_000;
 const LIVENESS_TIMEOUT_MS = 60_000;
 /** Grace period before the last watcher's departure closes the socket (absorbs StrictMode remounts). */
 const IDLE_CLOSE_MS = 2_000;
+/**
+ * Grace period before an unwatched selector is unsubscribed.
+ *
+ * One relayed write is followed by two waits in sequence — broadcast, then
+ * terminal — and without this the handoff between them costs a full
+ * unsubscribe/subscribe round trip plus the HTTP read the second wait takes
+ * while its new subscription is still pending. Runs alongside
+ * {@link IDLE_CLOSE_MS}, not after it, so an idle socket still closes as
+ * promptly as before.
+ */
+const SELECTOR_IDLE_MS = 2_000;
 /** The `ready` handshake must arrive within this long after the socket opens. */
 const READY_TIMEOUT_MS = 10_000;
 /** Resubscribes tolerated for the accept-vs-record race after a 202. */
@@ -52,6 +63,10 @@ interface SelectorEntry {
   notFoundRetries: number;
   /** Set once a terminal record arrived, so a reconnect does not resubscribe it. */
   done: boolean;
+  /** The last frame delivered for this selector, replayed to a late joiner. */
+  lastUpdate?: GaslessRequestStreamUpdate;
+  /** Pending removal while nobody watches this selector. */
+  idle?: ReturnType<typeof setTimeout>;
 }
 
 interface QueuedCommand {
@@ -73,6 +88,8 @@ interface Hub {
   queue: QueuedCommand[];
   inFlight: QueuedCommand | null;
   attempt: number;
+  /** When the last command was sent, so pacing spans a burst and not an idle socket. */
+  lastCommandAt: number;
   timers: {
     redial?: ReturnType<typeof setTimeout>;
     command?: ReturnType<typeof setTimeout>;
@@ -117,7 +134,70 @@ function notifyError(hub: Hub, key: string | null, error: SymmError): void {
 
 /** Selectors that still want a subscription, capped by what the gateway allows. */
 function wantedSelectors(hub: Hub): SelectorEntry[] {
-  return [...hub.selectors.values()].filter((entry) => !entry.done && entry.state !== "not-found");
+  return [...hub.selectors.values()].filter(
+    (entry) => !entry.done && entry.state !== "not-found" && entry.listeners.size > 0,
+  );
+}
+
+/** Whether anything still watches this hub. Entries inside their idle grace do not count. */
+function hasWatchers(hub: Hub): boolean {
+  for (const entry of hub.selectors.values()) if (entry.listeners.size > 0) return true;
+  return false;
+}
+
+/** Cancel a selector's pending removal — a new watcher arrived in time. */
+function clearSelectorIdle(entry: SelectorEntry): void {
+  if (entry.idle !== undefined) {
+    clearTimeout(entry.idle);
+    entry.idle = undefined;
+  }
+}
+
+/** Whether a watched selector is sitting over the cap, waiting for a slot. */
+function hasOverflowedSelector(hub: Hub): boolean {
+  for (const entry of hub.selectors.values()) {
+    if (entry.state === "overflow" && entry.listeners.size > 0) return true;
+  }
+  return false;
+}
+
+/** Give up a selector nobody watches: unsubscribe it and hand its slot on. */
+function removeSelector(hub: Hub, key: string, entry: SelectorEntry): void {
+  clearSelectorIdle(entry);
+  if (entry.listeners.size > 0) return;
+
+  hub.selectors.delete(key);
+  if (hub.phase === "ready" && !entry.done && entry.state === "live") {
+    enqueue(hub, { key, kind: "unsubscribe", frame: buildGaslessUnsubscribeCommand(entry.selector) });
+  }
+  /** A freed slot may let an overflowed selector subscribe. */
+  if (hub.phase === "ready") subscribeAll(hub);
+}
+
+/** Whether a command for this selector is already queued or in flight. */
+function isCommandPending(hub: Hub, key: string): boolean {
+  return hub.inFlight?.key === key || hub.queue.some((command) => command.key === key);
+}
+
+/**
+ * Subscribe a selector that wants one and has no command out for it yet.
+ *
+ * Shared by a first watcher and by one that rejoined an entry whose grace had
+ * not expired: rejoining a `live` entry needs no command at all, which is the
+ * whole point of the grace.
+ */
+function ensureSubscribed(hub: Hub, key: string, entry: SelectorEntry): void {
+  if (hub.phase !== "ready" || entry.done) return;
+  if (entry.state === "live" || entry.state === "not-found") return;
+  if (isCommandPending(hub, key)) return;
+
+  const live = wantedSelectors(hub).filter((candidate) => candidate.state !== "overflow").length;
+  if (live > hub.maxSubscriptions) {
+    entry.state = "overflow";
+    return;
+  }
+  entry.state = "pending";
+  enqueue(hub, { key, kind: "subscribe", frame: buildGaslessSubscribeCommand(entry.selector) });
 }
 
 function enqueue(hub: Hub, command: QueuedCommand): void {
@@ -130,12 +210,21 @@ function pumpQueue(hub: Hub): void {
   if (hub.phase !== "ready" || hub.inFlight !== null || hub.queue.length === 0) return;
   if (hub.timers.command !== undefined) return;
 
+  /**
+   * Paced from the last command sent, not from now: the interval exists to keep
+   * a burst of commands off the caller's request quota, and a socket that has
+   * been quiet has already served it. The first subscribe after `ready` is what
+   * a status wait is blocked on, so it goes out at once.
+   */
+  const delay = Math.max(0, COMMAND_INTERVAL_MS - (Date.now() - hub.lastCommandAt));
+
   hub.timers.command = setTimeout(() => {
     hub.timers.command = undefined;
     if (hub.phase !== "ready" || hub.inFlight !== null) return;
     const command = hub.queue.shift();
     if (!command) return;
     hub.inFlight = command;
+    hub.lastCommandAt = Date.now();
     hub.socket?.send(command.frame);
     hub.timers.ack = setTimeout(() => {
       hub.timers.ack = undefined;
@@ -145,7 +234,7 @@ function pumpQueue(hub: Hub): void {
       if (pending) hub.queue.unshift(pending);
       pumpQueue(hub);
     }, COMMAND_ACK_TIMEOUT_MS);
-  }, COMMAND_INTERVAL_MS);
+  }, delay);
 }
 
 function completeInFlight(hub: Hub, key: string): void {
@@ -158,6 +247,7 @@ function completeInFlight(hub: Hub, key: string): void {
 function subscribeAll(hub: Hub): void {
   const wanted = wantedSelectors(hub);
   wanted.forEach((entry, index) => {
+    const key = gaslessStreamSelectorKey(entry.selector);
     if (index >= hub.maxSubscriptions) {
       /** Over the cap: this selector stays on HTTP until a slot frees. */
       entry.state = "overflow";
@@ -169,12 +259,9 @@ function subscribeAll(hub: Hub): void {
       }
       return;
     }
+    if (isCommandPending(hub, key)) return;
     entry.state = "pending";
-    enqueue(hub, {
-      key: gaslessStreamSelectorKey(entry.selector),
-      kind: "subscribe",
-      frame: buildGaslessSubscribeCommand(entry.selector),
-    });
+    enqueue(hub, { key, kind: "subscribe", frame: buildGaslessSubscribeCommand(entry.selector) });
   });
 }
 
@@ -361,9 +448,14 @@ function handleMessage(hub: Hub, data: unknown): void {
   entry.state = "live";
   entry.notFoundRetries = 0;
   setStatus(hub, "live", null);
-  for (const listener of entry.listeners) {
-    listener.onUpdate({ kind: message.type, request: message.request, transactions: message.transactions });
-  }
+  const update: GaslessRequestStreamUpdate = {
+    kind: message.type,
+    request: message.request,
+    transactions: message.transactions,
+  };
+  /** Kept so a watcher that joins this subscription later starts from it. */
+  entry.lastUpdate = update;
+  for (const listener of entry.listeners) listener.onUpdate(update);
 }
 
 function handleClose(hub: Hub, code?: number): void {
@@ -462,6 +554,11 @@ export interface AcquireGaslessStreamSelectorParameters {
  * stream is not delivering so they can poll instead — the hub itself never
  * issues HTTP.
  *
+ * A subscription outlives its last watcher by a short grace, and a watcher that
+ * joins one which has already delivered is handed that record. Together they
+ * make the handoff between two waits on the same workflow free: no
+ * unsubscribe/subscribe round trip, and nothing to read over HTTP.
+ *
  * @returns A release function; the socket closes shortly after the last watcher releases.
  *
  * @internal
@@ -491,6 +588,7 @@ export function acquireGaslessStreamSelector(
       queue: [],
       inFlight: null,
       attempt: 0,
+      lastCommandAt: 0,
       timers: {},
       random,
       webSocketConstructor: config.getWebSocketConstructor(),
@@ -506,22 +604,36 @@ export function acquireGaslessStreamSelector(
   if (!entry) {
     entry = { selector, listeners: new Set(), state: "pending", notFoundRetries: 0, done: false };
     currentHub.selectors.set(key, entry);
-    if (currentHub.phase === "ready") {
-      const live = wantedSelectors(currentHub).filter((candidate) => candidate.state !== "overflow").length;
-      if (live > currentHub.maxSubscriptions) {
-        entry.state = "overflow";
-      } else {
-        enqueue(currentHub, { key, kind: "subscribe", frame: buildGaslessSubscribeCommand(selector) });
-      }
-    }
   }
   const currentEntry = entry;
+  /** Rejoined inside its grace: the subscription is still good, so keep it. */
+  clearSelectorIdle(currentEntry);
   currentEntry.listeners.add(listener);
+  ensureSubscribed(currentHub, key, currentEntry);
+
   /** Sync the late joiner to the stream's current health. */
   listener.onStatusChange?.(
     currentHub.status === "live" && currentEntry.state !== "live" ? "degraded" : currentHub.status,
     currentHub.detail,
   );
+
+  /**
+   * A watcher joining a subscription that already delivered starts from what it
+   * delivered: the gateway sends its snapshot once per *subscribe*, not once
+   * per listener, so without this a joiner would wait for a change that may
+   * never come.
+   *
+   * Deferred by a microtask because `watchGaslessRequest` releases its selector
+   * from inside `onUpdate` when the record is terminal — delivering inline
+   * would re-enter the hub in the middle of this acquire.
+   */
+  if (currentEntry.lastUpdate) {
+    queueMicrotask(() => {
+      /** Re-read rather than capture: a frame that landed meanwhile is the one to deliver. */
+      const update = currentEntry.lastUpdate;
+      if (update && currentEntry.listeners.has(listener)) listener.onUpdate(update);
+    });
+  }
 
   if (currentHub.phase === "idle") connect(currentHub);
 
@@ -532,18 +644,29 @@ export function acquireGaslessStreamSelector(
     currentEntry.listeners.delete(listener);
     if (currentEntry.listeners.size > 0) return;
 
-    currentHub.selectors.delete(key);
-    if (currentHub.phase === "ready" && !currentEntry.done && currentEntry.state === "live") {
-      enqueue(currentHub, { key, kind: "unsubscribe", frame: buildGaslessUnsubscribeCommand(selector) });
+    /**
+     * Nobody is watching, but the next wait on this workflow is often moments
+     * away, so the subscription is held briefly before it is given up — unless
+     * another selector is over the cap and waiting for exactly this slot. The
+     * grace saves a round trip; it is never a claim on a scarce resource.
+     */
+    clearSelectorIdle(currentEntry);
+    if (hasOverflowedSelector(currentHub)) {
+      removeSelector(currentHub, key, currentEntry);
+    } else {
+      currentEntry.idle = setTimeout(() => {
+        currentEntry.idle = undefined;
+        removeSelector(currentHub, key, currentEntry);
+      }, SELECTOR_IDLE_MS);
     }
-    /** A freed slot may let an overflowed selector subscribe. */
-    if (currentHub.phase === "ready") subscribeAll(currentHub);
 
-    if (currentHub.selectors.size === 0) {
+    if (!hasWatchers(currentHub)) {
       clearTimer(currentHub, "idle");
       currentHub.timers.idle = setTimeout(() => {
         currentHub.timers.idle = undefined;
-        if (currentHub.selectors.size > 0) return;
+        if (hasWatchers(currentHub)) return;
+        for (const entry of currentHub.selectors.values()) clearSelectorIdle(entry);
+        currentHub.selectors.clear();
         clearAllTimers(currentHub);
         dropSocket(currentHub);
         currentHub.phase = currentHub.phase === "disabled" ? "disabled" : "idle";

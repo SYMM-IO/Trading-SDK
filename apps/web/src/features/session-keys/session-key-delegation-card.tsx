@@ -15,7 +15,12 @@ import { formatRelativeTimestamp, shortenAddress } from "@symmio/utils";
 import { useEffect, useState } from "react";
 import type { Address, Hex } from "viem";
 import { AlertTriangleIcon, ClockIcon, GasFreeIcon, ShieldCheckIcon } from "./session-key-icons";
-import { describeSelector, getSelectorScope } from "./session-key-selector-labels";
+import {
+  describeSelector,
+  describeSelectorPurpose,
+  getSelectorScope,
+  type SessionKeyScopeName,
+} from "./session-key-selector-labels";
 import { useSessionKey } from "./use-session-key";
 import { useSessionKeyDelegation } from "./use-session-key-delegation";
 
@@ -284,24 +289,64 @@ function RevocationStatus({ delegation }: { delegation: ReturnType<typeof useSes
   );
 }
 
-/** The exact selectors the key still lacks, grouped by the authority they carry. */
+/** The authority groups a missing-selector list is broken into, in grant order. */
+const SCOPE_ORDER: readonly SessionKeyScopeName[] = ["account", "trade", "withdraw"];
+
+/** The heading each authority group is listed under. */
+const SCOPE_HEADINGS: Readonly<Record<SessionKeyScopeName, string>> = {
+  account: "Account management",
+  trade: "Trade lifecycle",
+  withdraw: "Withdrawal",
+};
+
+/**
+ * The exact selectors the key still lacks, grouped by the authority they carry.
+ *
+ * Each group states its scope once in a heading rather than repeating it on
+ * every entry — a full grant is sixteen selectors, thirteen of them identically
+ * suffixed, and the repetition plus ragged chip widths left nothing to scan
+ * down. The purposes are spelled out instead of hidden behind a hover, because
+ * this block is where an operator decides whether to sign the grant at all.
+ */
 function MissingSelectors({ selectors }: { selectors: readonly Hex[] }) {
+  const groups = SCOPE_ORDER.map((scope) => ({
+    scope,
+    members: selectors.filter((selector) => getSelectorScope(selector) === scope),
+  })).filter((group) => group.members.length > 0);
+
   return (
     <div
-      className="border-warning/30 bg-warning/10 space-y-2 rounded-xl border px-3 py-2.5"
+      className="border-warning/30 bg-warning/10 @container space-y-3.5 rounded-xl border px-3.5 py-3"
       data-testid="result-delegation-missing-selectors"
     >
-      <p className="text-sm font-medium">Not delegated yet</p>
-      <ul className="flex flex-wrap gap-1.5">
-        {selectors.map((selector) => (
-          <li key={selector}>
-            <Badge variant="outline" className="font-mono" title={selector}>
-              {describeSelector(selector)}
-              <span className="text-muted-foreground">· {getSelectorScope(selector)}</span>
-            </Badge>
-          </li>
-        ))}
-      </ul>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm font-medium">Not delegated yet</p>
+        <p className="text-muted-foreground text-xs tabular-nums">
+          {selectors.length} {selectors.length === 1 ? "selector" : "selectors"}
+        </p>
+      </div>
+      {groups.map((group) => (
+        <div key={group.scope} className="space-y-2">
+          <p className="text-muted-foreground text-[10px] font-semibold tracking-[0.14em] uppercase">
+            {SCOPE_HEADINGS[group.scope]} · {group.members.length}
+          </p>
+          <ul className="grid gap-x-6 gap-y-2.5 @xl:grid-cols-2 @4xl:grid-cols-3">
+            {group.members.map((selector) => {
+              const purpose = describeSelectorPurpose(selector);
+              return (
+                <li key={selector} className="min-w-0" title={selector}>
+                  <span className="block font-mono text-xs leading-5 wrap-break-word">
+                    {describeSelector(selector)}
+                  </span>
+                  {purpose ? (
+                    <span className="text-muted-foreground block text-[11px] leading-4">{purpose}</span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }
