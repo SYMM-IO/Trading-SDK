@@ -86,8 +86,8 @@ export function usePositionFundingHistory(row: PrismQuote): PositionFundingHisto
   const { quote, deployment } = row;
 
   const isAnchored = quote.quoteId !== undefined && quote.quoteId > 0n;
-  /* Base's registry entry is a placeholder that answers with HyperEVM's data,
-     so a majors row would list another chain's charges as its own. */
+  /* Keep the placeholder gate explicit so a future stand-in endpoint cannot
+     list another deployment's charges as if they belonged to this row. */
   const hasIndexer = !hasPlaceholderSubgraph(deployment);
   const enabled = isAnchored && hasIndexer;
 

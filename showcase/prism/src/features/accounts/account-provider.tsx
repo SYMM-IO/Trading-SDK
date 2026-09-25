@@ -58,7 +58,7 @@ const AccountContext = createContext<AccountContextValue | undefined>(undefined)
  * Resolves the connected wallet's funding accounts on every deployment.
  *
  * A SYMMIO sub-account exists per chain, so a wallet has a separate set on Base
- * and on HyperEVM. Prism keeps them grouped: the UI can show one combined
+ * and on Arbitrum. Prism keeps them grouped: the UI can show one combined
  * equity figure, but a deposit or transfer always names its group, because the
  * two settle on different systems and funds cannot cross.
  */

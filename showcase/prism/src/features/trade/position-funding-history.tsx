@@ -27,7 +27,7 @@ export interface PositionFundingHistoryRowProps {
  * ## Why it opens rather than expands
  *
  * A position charged twice a day for three months has ~180 charges, and a real
- * one on HyperEVM already does. Inlining that list — even collapsed behind a
+ * one on Arbitrum already does. Inlining that list — even collapsed behind a
  * "show all" — puts an unbounded scroll in the middle of a sheet whose whole
  * job is to be scannable, and pushes provenance and the action row past the
  * fold. So the details sheet keeps a *summary* line, and the timeline gets the

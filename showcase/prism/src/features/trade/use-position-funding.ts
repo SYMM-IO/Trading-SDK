@@ -6,7 +6,7 @@ import type { PrismMarket } from "@/features/markets/types";
 import { useMarkPrice } from "@/features/prices/price-provider";
 import { fromWei } from "@/lib/format";
 import { PositionType } from "@symmio/trading-core";
-import { useFundingInfo, useQuotesFunding } from "@symmio/trading-react";
+import { useFundingInfo, useQuotePendingFunding, useQuotesFunding } from "@symmio/trading-react";
 import { useMemo } from "react";
 import type { PrismQuote } from "./positions-provider";
 
@@ -36,6 +36,10 @@ export interface PositionFunding {
   paid: bigint;
   /** Cumulative funding taken in, wei. */
   received: bigint;
+  /** Funding accrued on-chain since the latest settlement, income-positive. */
+  pending?: bigint;
+  /** State of the live on-chain accumulated-funding read. */
+  pendingState: "known" | "loading" | "error" | "not-applicable";
   /**
    * Estimated funding for the epoch now running, in collateral units, as an
    * unsigned magnitude — see {@link isUpcomingIncome} for its direction.
@@ -79,8 +83,8 @@ export function usePositionFunding(row: PrismQuote, market?: PrismMarket): Posit
   const { quote, deployment } = row;
 
   const isAnchored = quote.quoteId !== undefined && quote.quoteId > 0n;
-  /* Base's registry entry is a placeholder that answers with HyperEVM's data,
-     so a majors row would report another chain's funding as its own. */
+  /* Keep the placeholder gate explicit so a future stand-in endpoint cannot
+     report another deployment's funding as if it belonged to this row. */
   const hasIndexer = !hasPlaceholderSubgraph(deployment);
 
   /* The batched reader, not the single-quote wrapper: only this one reports
@@ -91,6 +95,11 @@ export function usePositionFunding(row: PrismQuote, market?: PrismMarket): Posit
     [isAnchored, hasIndexer, quote.quoteId],
   );
   const settled = useQuotesFunding({ quotes, chainId: deployment.chainId });
+  const pending = useQuotePendingFunding({
+    quote,
+    chainId: deployment.chainId,
+    query: { refetchInterval: 60_000 },
+  });
 
   /* The filter is the solver's own market key, not the display name: Enigma
      answers `{}` for a decorated name, which reads as "no funding" rather than
@@ -131,12 +140,21 @@ export function usePositionFunding(row: PrismQuote, market?: PrismMarket): Posit
             : row0
               ? "known"
               : "not-indexed";
+    const pendingState: PositionFunding["pendingState"] = pending.error
+      ? "error"
+      : pending.isLoading
+        ? "loading"
+        : pending.data
+          ? "known"
+          : "not-applicable";
 
     return {
       settledState,
       netSettled: row0?.netReceived ?? 0n,
       paid: row0?.paid ?? 0n,
       received: row0?.received ?? 0n,
+      pending: pending.data?.pendingNetReceived,
+      pendingState,
       upcoming,
       isUpcomingIncome: (rate ?? 0) > 0,
       nextFundingTime: info && info.nextFundingTime > 0 ? info.nextFundingTime : undefined,
@@ -148,6 +166,9 @@ export function usePositionFunding(row: PrismQuote, market?: PrismMarket): Posit
     settled.rows,
     settled.isLoading,
     settled.error,
+    pending.data,
+    pending.isLoading,
+    pending.error,
     funding.data,
     funding.isLoading,
     symbol,

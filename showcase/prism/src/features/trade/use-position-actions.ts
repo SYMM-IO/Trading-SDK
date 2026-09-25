@@ -494,7 +494,7 @@ export type PositionIntent =
  *
  * So the two branches carry opposite requirements, and a shared gate in front of
  * both would be wrong for whichever branch it was not written for: it used to
- * block a HyperEVM close from a wallet parked on Base — precisely the case the
+ * block an Arbitrum close from a wallet parked on Base — precisely the case the
  * session key exists to serve — while also demanding a delegation the cancel
  * never uses.
  *

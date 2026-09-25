@@ -19,7 +19,7 @@ export interface IntegrationFile {
 export const INTEGRATION_FILES: readonly IntegrationFile[] = [
   {
     path: "src/config/symmio.ts",
-    role: "Everything Prism tells the SDK. Two affiliate addresses, one per chain.",
+    role: "Everything Prism tells the SDK: Base production plus an Arbitrum staging deployment with gasless execution.",
     code: `import { SymmioSupportedChainId, type CreateConfigParameters } from "@symmio/trading-core";
 
 /* … doc comment elided … */
@@ -27,8 +27,23 @@ export const symmioChains: CreateConfigParameters["symmioConfig"] = {
   [SymmioSupportedChainId.BASE]: {
     addresses: { affiliatesAddress: "0x45Eecd7B4f442388ACD90467E423A5CAAC3a9C3f" },
   },
-  [SymmioSupportedChainId.HYPER_EVM]: {
-    addresses: { affiliatesAddress: "0xBcB033C9154401fA000a1Ae60843f79f45741b7c" },
+  [SymmioSupportedChainId.ARBITRUM]: {
+    contractsVersion: "0.8.6",
+    addresses: {
+      symmioAddress: "0x573310dB6d160B26026B8706EBe9831c7dEF1D09",
+      instantLayerAddress: "0x38AaBc7A73523Cd47c710FcdEb3b20ae02310180",
+      accountLayerAddress: "0x5733107211B2801Acd39933a54d482FE303c4907",
+      affiliatesAddress: "0xe99c18CF3C62B9229f9251fd2562077a33e7600a",
+      collateralAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      collateralDecimals: 6,
+    },
+    /* … solver, subgraph, price, listing and oracle overrides elided … */
+    gasless: {
+      /* … gateway URL and protocol instance elided … */
+      gaslessLayerAddress: "0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca",
+      statusStream: { enabled: true },
+      execution: { mode: "gasless" },
+    },
   },
 };
 `,
@@ -96,13 +111,13 @@ export const DEPLOYMENTS: readonly Deployment[] = [
   },
   {
     family: "lowcaps",
-    chainId: SymmioSupportedChainId.HYPER_EVM,
+    chainId: SymmioSupportedChainId.ARBITRUM,
     solverId: "enigma",
     label: "Lowcaps",
-    solverName: "Enigma",
-    solverTag: "lowcap-v0",
-    chainName: "HyperEVM",
-    chainColorVar: "--chain-hyperevm",
+    solverName: "Enigma (staging)",
+    solverTag: "lowcap-stage",
+    chainName: "Arbitrum staging",
+    chainColorVar: "--chain-arbitrum",
     tone: "lc",
     blurb: "Microcap and memecoin perps with no exchange listing, priced from their own liquidity pools.",
   },

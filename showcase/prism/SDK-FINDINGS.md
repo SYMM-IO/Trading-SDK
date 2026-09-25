@@ -218,10 +218,9 @@ reading adapters:
 - A solver config carries only `name`. Anything user-facing — palette, label,
   blurb, chain display name — has to live in the app. Prism keeps it in
   `src/config/deployments.ts`.
-- Base's subgraph URLs in the built-in registry are **placeholders** pointing at
-  HyperEVM's Goldsky project, so every subgraph-backed read (quote history,
-  transfers, funding) is unreliable for majors. Prism renders an explicit notice
-  rather than an empty table.
+- Both configured deployments now carry their own analytics and events
+  subgraphs. Prism retains an explicit placeholder gate so a future stand-in
+  endpoint cannot silently attribute another deployment's history to a row.
 - Rasa's solver URL is a **staging host** (`stage-archon.rasa.capital`), with an
   inline TODO in the registry.
 

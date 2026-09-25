@@ -11,7 +11,7 @@ import { POOLS_DEPLOYMENT, usePoolsSupported } from "./pools-deployment";
  *
  * Every other screen in Prism merges both deployments and the palette mode
  * narrows what is read. Pools cannot: the listing backend is resolved from the
- * **chain** config, and only HyperEVM carries one — Base has no pool catalog at
+ * **chain** config, and only the Arbitrum low-cap deployment carries one — Base has no pool catalog at
  * all. Rather than render an empty table under a majors palette, the screen
  * keeps reading the lowcaps deployment and names the boundary here.
  */

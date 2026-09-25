@@ -73,7 +73,7 @@ export interface MarketConfigPanelProps {
  * Every read is addressed to `POOLS_CHAIN_ID` explicitly, including the
  * projection's — see the note on that hook below. The write is custodial REST
  * behind a bearer token, not a transaction, so it carries no chain gate: the
- * only wallet-on-HyperEVM requirement in the whole Pools surface is the
+ * only wallet-on-Arbitrum requirement in the whole Pools surface is the
  * signature `ListingSignIn` asks for.
  */
 export function MarketConfigPanel({ address, chainId }: MarketConfigPanelProps) {

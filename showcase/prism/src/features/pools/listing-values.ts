@@ -133,7 +133,7 @@ export function formatResetAt(value: number | null | undefined): string {
  * The chains a pool's collateral can arrive from.
  *
  * A pool's `chainId` is the chain its **token** and deposits live on — Solana,
- * BSC, Base — and is unrelated to HyperEVM, where the perp settles. `SOLANA` is
+ * BSC, Base — and is unrelated to the Arbitrum deployment where the perp settles. `SOLANA` is
  * a `0` sentinel rather than an EVM chain id, and its addresses are base58.
  */
 export const DEPOSIT_CHAIN_LABELS: Record<ListingDepositChainId, string> = {

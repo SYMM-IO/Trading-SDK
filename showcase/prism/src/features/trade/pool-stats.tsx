@@ -79,7 +79,7 @@ export function PoolStats({ market: entry }: PoolStatsProps) {
           <Row label="Updated" value={formatRelativeTime(pool.updated_at)} />
         </div>
 
-        {/* A lowcap perp settles on HyperEVM, but its pool lives on whatever
+        {/* A lowcap perp settles on Arbitrum, but its pool lives on whatever
             chain the token launched on — often a different one entirely. The
             chain pill here is the POOL's chain, coloured by its own brand hex,
             so the two are never confused. */}

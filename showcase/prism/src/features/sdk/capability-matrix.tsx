@@ -76,7 +76,7 @@ interface AnswerProps {
  *
  * A component per cell so `useSolverCapabilities` can be called with this
  * deployment's `{ chainId, solverId }` — a hook cannot be called in a loop, and
- * the answer for Base must not be reused for HyperEVM. The hook resolves
+ * the answer for Base must not be reused for Arbitrum. The hook resolves
  * synchronously from config, so a cell costs a context read, not a request.
  */
 function CapabilityAnswer({ row, deployment }: AnswerProps) {

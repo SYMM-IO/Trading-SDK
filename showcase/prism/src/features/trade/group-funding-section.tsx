@@ -90,6 +90,30 @@ export function GroupFundingSection({ funding, fees, hasClosed, isLong, deployme
       ) : null}
 
       <DetailRow
+        label="Accrued funding"
+        tip={{
+          title: "Accrued funding",
+          body: "Funding accumulated on-chain across the group's active quotes since their latest settlements. Positive means the group will receive funding; negative means it currently owes funding. This is not added to the indexed lifetime total.",
+        }}
+        value={
+          funding.pendingState === "known" && funding.pending !== undefined ? (
+            <Numeric size="sm" signed={fromWei(funding.pending)}>
+              {formatUsd(fromWei(funding.pending), { exact: true, signed: true, maxDecimals: 4 })}
+            </Numeric>
+          ) : (
+            <Numeric size="sm" tone="muted">
+              {funding.pendingState === "loading"
+                ? "…"
+                : funding.pendingState === "error"
+                  ? "read failed"
+                  : "not active"}
+            </Numeric>
+          )
+        }
+        sub="live on-chain · not added to settled funding"
+      />
+
+      <DetailRow
         label="Upcoming funding"
         tip={{
           title: "Upcoming funding",

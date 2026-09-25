@@ -7,30 +7,28 @@ import { formatUsd } from "@/lib/format";
 import type { ReactNode } from "react";
 import { ABSENT } from "./listing-values";
 import { POOLS_DEPLOYMENT } from "./pools-deployment";
-import { usePoolAggregates, type RevenueFigures } from "./use-pool-aggregates";
+import { usePoolAggregates } from "./use-pool-aggregates";
 
 /**
- * What the pool system holds, trades and earns — four figures, four backends.
+ * What the pool system holds and trades — three figures, three backends.
  *
  * The strip is an audit of the same claim the catalog below makes, from outside
  * it: none of these numbers is a column sum. Custodial TVL is the inventory
- * service's view of the whole system, volume and open interest and revenue come
- * from three separate solver endpoints, and the catalog is the listing backend.
+ * service's view of the whole system, volume and open interest come from two
+ * separate solver endpoints, and the catalog is the listing backend.
  * They are shown side by side precisely because they can disagree.
  *
  * A backend that fails costs one column — an em dash and a caption naming who
  * did not answer — never the strip.
  */
 export function PoolsSummary() {
-  const { supported, custody, volume, openInterest, revenue } = usePoolAggregates();
+  const { supported, custody, volume, openInterest } = usePoolAggregates();
 
   /* On a chain with no pools backend every read is idle, and the scope notice
-     directly above already says why. Four dashes would only repeat it. */
+     directly above already says why. Three dashes would only repeat it. */
   if (!supported) return null;
 
   const solver = POOLS_DEPLOYMENT.solverName;
-  const dayRevenue = revenue.data?.day;
-
   return (
     <Panel className="flex flex-wrap items-stretch gap-x-10 gap-y-5 px-5 py-4">
       <AggregateStat
@@ -77,15 +75,6 @@ export function PoolsSummary() {
             `${solver} reported no caps`
           )
         }
-      />
-
-      <AggregateStat
-        label="Revenue · 24h"
-        value={dayRevenue === undefined ? undefined : formatUsd(dayRevenue)}
-        isLoading={revenue.isLoading}
-        source={`${solver} revenue`}
-        error={revenue.error}
-        caption={revenueCaption(revenue.data)}
       />
     </Panel>
   );
@@ -135,35 +124,5 @@ function AggregateStat({ label, value, isLoading, caption, source, error }: Prop
         <span className="max-w-[34ch] text-2xs text-fg-3">{caption}</span>
       )}
     </div>
-  );
-}
-
-/**
- * The split under the 24h revenue figure.
- *
- * A window the solver has no rows for is not a window that earned nothing, so
- * the empty case says which it is instead of printing a fee and a funding share
- * of zero. The lifetime tail is dropped on the same rule.
- */
-function revenueCaption(figures: RevenueFigures | undefined): ReactNode {
-  if (!figures) return `${POOLS_DEPLOYMENT.solverName} reported no revenue`;
-
-  return (
-    <>
-      {figures.day === undefined ? (
-        "no rows in the last 24h"
-      ) : (
-        <>
-          <span className="tnum">{formatUsd(figures.hedgerFee)}</span> hedger fees ·{" "}
-          <span className="tnum">{formatUsd(figures.funding)}</span> funding
-        </>
-      )}
-      {figures.lifetime === undefined ? null : (
-        <>
-          {" · "}
-          <span className="tnum">{formatUsd(figures.lifetime)}</span> lifetime
-        </>
-      )}
-    </>
   );
 }

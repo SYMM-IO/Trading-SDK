@@ -6,7 +6,7 @@ import type { PrismMarket } from "@/features/markets/types";
 import { useMarkPrice } from "@/features/prices/price-provider";
 import { fromWei } from "@/lib/format";
 import { PositionType } from "@symmio/trading-core";
-import { useFundingInfo, useQuoteGroupFunding } from "@symmio/trading-react";
+import { useFundingInfo, useQuoteGroupFunding, useQuotesPendingFunding } from "@symmio/trading-react";
 import { useMemo } from "react";
 import type { PrismGroup } from "./positions-provider";
 import type { SettledFundingState } from "./use-position-funding";
@@ -30,6 +30,10 @@ export interface GroupFunding {
   expectedCount: number;
   /** `true` when every on-chain child resolved, so the total is the group's whole settled funding. */
   isComplete: boolean;
+  /** Accrued, unsettled funding across active children, income-positive. */
+  pending?: bigint;
+  /** State of the batched on-chain accumulated-funding read. */
+  pendingState: "known" | "loading" | "error" | "not-applicable";
   /**
    * Estimated funding for the epoch now running across the whole group, in
    * collateral units, as an unsigned magnitude — see {@link isUpcomingIncome}
@@ -74,8 +78,8 @@ export function useGroupFunding(row: PrismGroup, market?: PrismMarket): GroupFun
   const { group, deployment } = row;
 
   const isAnchored = group.quotes.some((quote) => quote.quoteId !== undefined && quote.quoteId > 0n);
-  /* Base's registry entry is a placeholder that answers with HyperEVM's data,
-     so a majors group would report another chain's funding as its own. */
+  /* Keep the placeholder gate explicit so a future stand-in endpoint cannot
+     report another deployment's funding as if it belonged to this group. */
   const hasIndexer = !hasPlaceholderSubgraph(deployment);
   const isReadable = isAnchored && hasIndexer;
 
@@ -83,6 +87,11 @@ export function useGroupFunding(row: PrismGroup, market?: PrismMarket): GroupFun
     group,
     chainId: deployment.chainId,
     query: { enabled: isReadable },
+  });
+  const pending = useQuotesPendingFunding({
+    quotes: group.quotes,
+    chainId: deployment.chainId,
+    query: { refetchInterval: 60_000 },
   });
 
   /* The filter is the solver's own market key, not the display name: Enigma
@@ -128,6 +137,14 @@ export function useGroupFunding(row: PrismGroup, market?: PrismMarket): GroupFun
             : aggregate.resolvedCount > 0
               ? "known"
               : "not-indexed";
+    const hasPendingRows = pending.rows.some((row) => row !== null);
+    const pendingState: GroupFunding["pendingState"] = pending.error
+      ? "error"
+      : pending.isLoading
+        ? "loading"
+        : hasPendingRows && pending.pendingNetReceived !== undefined
+          ? "known"
+          : "not-applicable";
 
     return {
       settledState,
@@ -137,6 +154,8 @@ export function useGroupFunding(row: PrismGroup, market?: PrismMarket): GroupFun
       resolvedCount: aggregate.resolvedCount,
       expectedCount: aggregate.expectedCount,
       isComplete: aggregate.isComplete,
+      pending: pending.pendingNetReceived,
+      pendingState,
       upcoming,
       isUpcomingIncome: (rate ?? 0) > 0,
       nextFundingTime: info && info.nextFundingTime > 0 ? info.nextFundingTime : undefined,
@@ -148,6 +167,10 @@ export function useGroupFunding(row: PrismGroup, market?: PrismMarket): GroupFun
     settled.funding,
     settled.isLoading,
     settled.error,
+    pending.rows,
+    pending.pendingNetReceived,
+    pending.isLoading,
+    pending.error,
     funding.data,
     funding.isLoading,
     symbol,

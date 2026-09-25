@@ -2,14 +2,8 @@
 
 import type { FundingAccount } from "@/features/accounts/account-provider";
 import { useSessionKey } from "@/features/session-key/use-session-key";
-import {
-  ADD_MARGIN_TO_NEXT_VA_SELECTOR,
-  INSTANT_TRADE_REQUIRED_SELECTORS,
-  REQUEST_TO_CLOSE_POSITION_SELECTOR,
-  SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
-  SubAccountIsolationType,
-} from "@symmio/trading-core";
-import { useDelegationExpiry, useGrantDelegation, useIsDelegationActive } from "@symmio/trading-react";
+import { SubAccountIsolationType } from "@symmio/trading-core";
+import { useAreDelegationsActive, useGrantDelegation, useInstantTradeRequiredSelectors } from "@symmio/trading-react";
 import { useCallback, useMemo } from "react";
 import { zeroAddress, type Address } from "viem";
 
@@ -73,11 +67,12 @@ export interface TradingDelegation {
  *
  * ## Why the required set differs per deployment
  *
- * `INSTANT_TRADE_REQUIRED_SELECTORS` is the lowcap superset. A cross-margin
- * sub-account trades directly and never calls `addMarginToNextVA`, so requiring
- * that selector would deadlock a majors trader whose grant legitimately omits
- * it. The requirement follows the sub-account's isolation type — the same rule
- * the SDK applies to the margin model itself.
+ * The SDK resolves the open selector from the deployment's contracts version.
+ * A cross-margin sub-account trades directly and never calls
+ * `addMarginToNextVA`, so requiring that selector would deadlock a majors
+ * trader whose grant legitimately omits it. The requirement follows the
+ * sub-account's isolation type — the same rule the SDK applies to the margin
+ * model itself.
  *
  * @param account The sub-account a trade would settle against.
  */
@@ -87,31 +82,19 @@ export function useTradingDelegation(account: FundingAccount | undefined): Tradi
   const chainId = account?.deployment.chainId;
   const subAccount = account?.address;
   const isCrossMargin = account?.detail.isolationType === SubAccountIsolationType.CUSTOM;
+  const chainSelectors = useInstantTradeRequiredSelectors({ chainId });
+  const [addMarginSelector, openSelector, closeSelector] = chainSelectors;
+  const requiredSelectors = useMemo(
+    () => (isCrossMargin ? [openSelector, closeSelector] : chainSelectors),
+    [chainSelectors, closeSelector, isCrossMargin, openSelector],
+  );
 
   const enabled = Boolean(subAccount && sessionKey && chainId);
-  const probe = { account: subAccount ?? zeroAddress, delegate: sessionKey ?? zeroAddress, chainId };
-
-  const sendQuote = useIsDelegationActive({
-    ...probe,
-    selector: SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
-    query: { enabled },
-  });
-  const closePosition = useIsDelegationActive({
-    ...probe,
-    selector: REQUEST_TO_CLOSE_POSITION_SELECTOR,
-    query: { enabled },
-  });
-  const addMargin = useIsDelegationActive({
-    ...probe,
-    selector: ADD_MARGIN_TO_NEXT_VA_SELECTOR,
-    query: { enabled: enabled && !isCrossMargin },
-  });
-
-  /* Expiry is read off the open selector: the three are granted in one
-     transaction, so they share a timestamp. */
-  const expiry = useDelegationExpiry({
-    ...probe,
-    selector: SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
+  const probe = useAreDelegationsActive({
+    account: { addr: subAccount ?? zeroAddress, isPartyB: false },
+    delegate: sessionKey ?? zeroAddress,
+    selectors: requiredSelectors,
+    chainId,
     query: { enabled },
   });
 
@@ -122,13 +105,11 @@ export function useTradingDelegation(account: FundingAccount | undefined): Tradi
     return {
       account: { addr: subAccount, isPartyB: false },
       delegatedSigner: sessionKey,
-      /* Granting the full set on a cross-margin account is harmless — the extra
-         selector is simply never called — and it keeps one code path. */
-      selectors: INSTANT_TRADE_REQUIRED_SELECTORS,
+      selectors: requiredSelectors,
       expiryTimestamp: BigInt(Math.floor(Date.now() / 1000) + DELEGATION_TTL_SECONDS),
       chainId,
     };
-  }, [subAccount, sessionKey, chainId]);
+  }, [subAccount, sessionKey, requiredSelectors, chainId]);
 
   const grant = useCallback(() => {
     const variables = grantVariables();
@@ -141,31 +122,32 @@ export function useTradingDelegation(account: FundingAccount | undefined): Tradi
   }, [mutateAsync, grantVariables]);
 
   return useMemo(() => {
+    const activeSet = new Set(probe.activeSelectors.map((selector) => selector.toLowerCase()));
     const selectors: DelegationSelector[] = [
       {
         label: "Open positions",
-        isActive: sendQuote.data,
-        isLoading: sendQuote.isLoading,
+        isActive: activeSet.has(openSelector.toLowerCase()),
+        isLoading: probe.isLoading,
         isRequired: true,
       },
       {
         label: "Close positions",
-        isActive: closePosition.data,
-        isLoading: closePosition.isLoading,
+        isActive: activeSet.has(closeSelector.toLowerCase()),
+        isLoading: probe.isLoading,
         isRequired: true,
       },
       {
         label: "Top up position margin",
-        isActive: addMargin.data,
-        isLoading: addMargin.isLoading,
+        isActive: activeSet.has(addMarginSelector.toLowerCase()),
+        isLoading: probe.isLoading,
         isRequired: !isCrossMargin,
       },
     ];
 
     const required = selectors.filter((selector) => selector.isRequired);
-    const expiresAt = expiry.data && expiry.data > 0n ? expiry.data : undefined;
+    const expiresAt = probe.expiryTimestamp && probe.expiryTimestamp > 0n ? probe.expiryTimestamp : undefined;
     const now = BigInt(Math.floor(Date.now() / 1000));
-    const probeError = sendQuote.error ?? closePosition.error ?? (isCrossMargin ? null : addMargin.error) ?? null;
+    const probeError = probe.error;
 
     return {
       sessionKey,
@@ -182,17 +164,14 @@ export function useTradingDelegation(account: FundingAccount | undefined): Tradi
       error: grantError ?? probeError,
     };
   }, [
-    sendQuote.data,
-    sendQuote.isLoading,
-    sendQuote.error,
-    closePosition.data,
-    closePosition.isLoading,
-    closePosition.error,
-    addMargin.data,
-    addMargin.isLoading,
-    addMargin.error,
+    probe.activeSelectors,
+    probe.isLoading,
+    probe.expiryTimestamp,
+    probe.error,
+    addMarginSelector,
+    openSelector,
+    closeSelector,
     isCrossMargin,
-    expiry.data,
     sessionKey,
     enabled,
     grant,

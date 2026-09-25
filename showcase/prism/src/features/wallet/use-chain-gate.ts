@@ -38,7 +38,7 @@ export interface ChainGate {
  * over HTTP (`usePrismWalletClient` short-circuits to a `privateKeyToAccount`
  * client and never calls wagmi), so no wallet is in a position to object and the
  * SDK's per-method `chainId` is already sufficient to address the right
- * deployment. Gating those blocked a HyperEVM close from a wallet parked on
+ * deployment. Gating those blocked an Arbitrum close from a wallet parked on
  * Base — exactly the case the session key exists to serve.
  *
  * The SDK's own `useSwitchToSymmioChain` always targets `config.defaultChainId`,

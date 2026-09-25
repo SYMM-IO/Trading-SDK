@@ -11,7 +11,7 @@ systems — and presents them as a single trading surface.
 |                 | Majors                                | Lowcaps                                |
 | --------------- | ------------------------------------- | -------------------------------------- |
 | Solver          | `rasa`                                | `enigma`                               |
-| Chain           | Base (8453)                           | HyperEVM (999)                         |
+| Chain           | Base (8453)                           | Arbitrum staging (42161)               |
 | Prices          | Binance USD-M futures                 | Enigma lowcap price service            |
 | Margin          | Cross-margin on the sub-account       | Virtual Accounts, per market + side    |
 | Funded with     | deposit **and allocate**              | plain deposit — allocating breaks it   |
@@ -22,7 +22,7 @@ systems — and presents them as a single trading surface.
 | Group close     | not supported                         | supported                              |
 | Pools           | no listing backend on Base            | catalog, LP position, listing form     |
 | Pre-trade quote | accepted price band                   | estimated fill for a size              |
-| Extra gates     | solver readiness, account whitelist   | per-market `state` and allowed side    |
+| Extra gates     | solver readiness                      | per-market `state` and allowed side    |
 | Palette         | Cyan                                  | Magenta                                |
 
 The interface never changes shape between them — only its palette.
@@ -33,7 +33,7 @@ above is answered at runtime: `useSupportsLimitOrder`, `useTpSlSupported`,
 and — for the margin model — the **sub-account's isolation type**, which is the
 one the SDK is emphatic about. Assuming a Virtual Account on Base because it is
 "the majors chain" is the most common majors-integration bug; Prism reads
-`SubAccountIsolationType.CUSTOM` instead, so a cross-margin account on HyperEVM
+`SubAccountIsolationType.CUSTOM` instead, so a cross-margin account on Arbitrum
 (which the test wallet actually has) is handled correctly too.
 
 ## Running it
@@ -155,7 +155,7 @@ Everything hangs off one table, [`src/config/deployments.ts`](src/config/deploym
 ```ts
 export const DEPLOYMENTS = [
   { family: "majors",  chainId: BASE,      solverId: "rasa",   tone: "mj", … },
-  { family: "lowcaps", chainId: HYPER_EVM, solverId: "enigma", tone: "lc", … },
+  { family: "lowcaps", chainId: ARBITRUM,  solverId: "enigma", tone: "lc", … },
 ];
 ```
 
@@ -222,6 +222,12 @@ wrong:
   position this order would create — not `entry ± entry / leverage`, which
   ignores CVA, LF and the account balance entirely.
 
+The position details sheet keeps three funding layers separate: indexed settled
+funding, live per-quote accrued funding, and the solver's per-`(symbol, partyB)`
+contract state. The last is an expandable diagnostic showing epoch state and
+cost-positive per-unit long/short rates; it is never added to the trader's
+funding amount or PnL.
+
 ### Signing without a popup
 
 Orders are signed by a **session key** held in this browser, not by the wallet.
@@ -246,6 +252,49 @@ calls `addMarginToNextVA` and requiring that selector would deadlock it.
 Portfolio shows the key in its session-key strip and each account's grant on its
 ledger row, where the chip that reads `Authorise` is also the button that fixes it.
 
+### Gasless execution
+
+`/gasless` is the end-to-end GaslessQ integration rather than a feature flag.
+It derives a deterministic deposit address for each `(owner, walletId)`, reads
+the GaslessLayer's collateral policy, watches the token balance, and only enables
+settlement once the service's full minimum — deposit fee and one-time wallet
+creation fee included — is present. Wallet ids are explicit because each one is
+an independent deposit lane with its own address and nonce stream.
+
+The selected sub-account exposes its 18-decimal Core balance beside a bounded
+operational-fee allowance. The allowance is a spending cap, never presented as
+collateral. An advanced panel can relay arbitrary wallet calldata: Prism derives
+the required selectors, grants them to the browser session key, signs locally,
+and submits the call from the deterministic wallet.
+
+One shared wallet-lane control drives the whole screen. Its diagnostics read the
+wallet address, current one-time creation fee, selected signer account and last
+consumed wallet-operation nonce directly from the SDK. The nonce is display-only:
+the execution hook always reads it fresh immediately before signing.
+
+The developer operation lab covers the SDK's low-level escape hatch without
+mixing it into the normal trading UX. It validates a locally prepared operation
+bundle, previews the GaslessLayer's 18-decimal fee breakdown with
+`useGaslessFeeQuote`, cryptographically recovers every declared signer, and only
+then enables `useRelayInstantOperations`. Imported signatures stay in browser
+memory and the source JSON is discarded after parsing.
+
+Every accepted request is persisted immediately. The gateway intentionally has
+no list-by-wallet endpoint, so losing the request id loses the only recovery
+handle. The monitor resumes that id after reload, consumes the status WebSocket
+while it is live, and automatically falls back to polling. A separate recovery
+record handles the more dangerous case where the submit response itself was
+lost: Prism extracts the SDK's exact signed body, stores it only in local
+storage, and permits only a byte-identical idempotent resubmission. It never
+rebuilds or re-signs the original intent.
+
+The same screen probes the SDK's known trade, account-management and explicit
+withdrawal selector scopes. It shows active and missing selectors, the canonical
+delegator and earliest usable-until timestamp, and supports the two-step
+revocation lifecycle. The UI calls this the "Prism selector set" because the
+contract read probes supplied selectors; it cannot enumerate unknown historical
+grants.
+
 ## Pools
 
 Every lowcap market on the Markets screen exists because somebody funded a pool
@@ -254,7 +303,7 @@ that can _create_ a market rather than trade one.
 
 It is also the only screen that does **not** fan out. The listing backend is
 resolved from the **chain** config and takes no `solverId`, and in the shipped
-registry only HyperEVM carries a `listing` block — so `usePoolsSupported()`
+Prism config only the low-cap Arbitrum deployment carries a `listing` block — so `usePoolsSupported()`
 (the SDK's own `useSupportsListingService`) gates the whole surface, every read
 names `POOLS_CHAIN_ID` explicitly rather than following the wallet, and a
 majors palette gets a notice saying so instead of an empty table.
@@ -265,7 +314,7 @@ where two of them disagree that is a fact about the deployment:
 | Figure                                                       | Service            |
 | ------------------------------------------------------------ | ------------------ |
 | Custodial TVL, and one pool's TVL series                     | inventory service  |
-| Volume, open interest, revenue, per-pool daily volume        | Enigma solver      |
+| Volume, open interest, per-market revenue, per-pool volume   | Enigma solver      |
 | Catalog, pool detail, rewards, LP position, listing pipeline | listing backend    |
 | Open quotes and realized trade history                       | analytics subgraph |
 | Trigger-to-open orders                                       | TP/SL handler      |
@@ -273,7 +322,7 @@ where two of them disagree that is a fact about the deployment:
 Headline TVL is deliberately not the sum of the catalog's TVL column: the
 catalog covers listed markets, custody covers the whole system.
 
-**Two routes.** `/pools` is the catalog — four protocol aggregates, a table
+**Two routes.** `/pools` is the catalog — three protocol aggregates, a table
 whose search, chain filter, status filter, sort and paging are **all
 server-side** (a control changes the request, not a fetched array), your own
 pools, your reward history, and the listing form. `/pools/[chain]/[address]` is
@@ -287,7 +336,7 @@ read a signature off a transaction the way a contract can, so it asks for SIWE
 directly. `ListingSessionProvider` mints that token once, persists it per
 `(chainId, address)` — the exact pair SIWE binds — and drops it the moment any
 authed read comes back 401. Signing is the only thing on these screens that
-needs the wallet on HyperEVM (wagmi refuses a client for a chain the wallet is
+needs the wallet on Arbitrum (wagmi refuses a client for a chain the wallet is
 not on); the withdrawal and the listing form are REST calls carrying that
 token, so they are never gated behind a network switch.
 

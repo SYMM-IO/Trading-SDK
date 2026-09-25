@@ -8,7 +8,7 @@ import { useSupportsListingService } from "@symmio/trading-react";
  *
  * A pool is not a solver feature — it is a **chain** feature. The SDK resolves
  * the listing backend from the chain config's `listing` block, takes no
- * `solverId`, and in the shipped registry only HyperEVM carries one. So unlike
+ * `solverId`, and Prism's low-cap Arbitrum staging config carries one. So unlike
  * every other screen in Prism, Pools does not fan out: it names one deployment
  * and reads it wherever the wallet happens to sit.
  */

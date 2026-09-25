@@ -51,7 +51,7 @@ export interface PositionRisk {
  * That is the whole routing rule — the same one the blotter's Margin button
  * uses. Reading it off the deployment instead ("lowcaps are isolated") is the
  * classic majors-integration bug the SDK warns about, and it is wrong in both
- * directions: a cross-margin account on HyperEVM has no VA, and the isolation
+ * directions: a cross-margin account on Arbitrum has no VA, and the isolation
  * type is a per-sub-account setting rather than a per-chain one.
  *
  * The consequence is that a cross-margin position's risk figures are **not

@@ -1,6 +1,6 @@
 import { SymmioSupportedChainId } from "@symmio/trading-core";
 import { createConfig, fallback, http, injected } from "wagmi";
-import { base, hyperEvm } from "wagmi/chains";
+import { arbitrum, base } from "wagmi/chains";
 
 /**
  * wagmi config for Prism.
@@ -9,17 +9,15 @@ import { base, hyperEvm } from "wagmi/chains";
  * lowcaps side by side without ever asking the wallet to switch: the SYMMIO
  * provider bridges `getClient` to `getPublicClient(wagmiConfig, { chainId })`,
  * so a read on either chain resolves regardless of where the wallet sits.
- * Writes still require the wallet on the target chain.
+ * Wallet-paid writes still require the wallet on the target chain; relayed
+ * session-key operations do not.
  */
 export const wagmiConfig = createConfig({
-  chains: [base, hyperEvm],
+  chains: [arbitrum, base],
   connectors: [injected()],
   transports: {
+    [SymmioSupportedChainId.ARBITRUM]: fallback(arbitrum.rpcUrls.default.http.map((url) => http(url))),
     [SymmioSupportedChainId.BASE]: fallback([http("https://mainnet.base.org"), http("https://base.drpc.org")]),
-    [SymmioSupportedChainId.HYPER_EVM]: fallback([
-      http("https://rpc.hyperliquid.xyz/evm"),
-      http("https://hyperliquid.drpc.org"),
-    ]),
   },
   ssr: true,
 });

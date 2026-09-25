@@ -42,7 +42,7 @@ export function buildPoolEmbedUrl(options: BuildPoolEmbedUrlOptions): string {
 /**
  * Brand colour for a pool's own chain.
  *
- * A lowcap perp settles on HyperEVM regardless of where its token trades, so
+ * A lowcap perp settles on Arbitrum regardless of where its token trades, so
  * the pool's chain is a separate fact from the market's chain and needs its own
  * colour. Unknown slugs fall back to a neutral so a new chain degrades quietly
  * rather than borrowing another chain's identity.

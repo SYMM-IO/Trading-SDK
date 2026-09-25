@@ -4,6 +4,7 @@ import { MicroLabel } from "@/components/panel";
 import type { ListingDepositChainId } from "@symmio/trading-core";
 import { useListingMarketDetail } from "@symmio/trading-react";
 import { ClaimHistoryPanel } from "./claim-history-panel";
+import { MarketRevenuePanel } from "./market-revenue-panel";
 import { PoolCharts } from "./pool-charts";
 import { PoolYieldWindows } from "./pool-yield-windows";
 import { POOLS_CHAIN_ID, usePoolsSupported } from "./pools-deployment";
@@ -57,6 +58,7 @@ export function PoolOverview({ address, chainId }: PoolOverviewProps) {
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           <PoolCharts address={address} chainId={chainId} symbolId={symbolId} />
           <PoolYieldWindows detail={detail.data} isLoading={isDetailLoading} />
+          <MarketRevenuePanel symbolId={symbolId} />
 
           {/* The pool-scoped half of the claim ledger, which exists nowhere
               else: the portfolio surface mounts this same panel with no props
@@ -82,7 +84,7 @@ export function PoolOverview({ address, chainId }: PoolOverviewProps) {
         <MicroLabel>Provenance</MicroLabel>
         <p className="max-w-[104ch] text-2xs text-fg-3">
           Inventory, your position, rewards and the claim ledger come from the listing backend; the TVL series from the
-          inventory service; daily volume from the Enigma solver. A pool with no{" "}
+          inventory service; daily volume and per-market revenue from the Enigma solver. A pool with no{" "}
           <span className="font-mono">symbolId</span> has no solver market yet, so nothing has traded against it and its
           volume series is empty.
         </p>

@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { ListingMarketStatus, type ListingDepositChainId, type ListingStatus } from "@symmio/trading-core";
 import { useListingStatus } from "@symmio/trading-react";
 import { ListingStatusPill, WarnGlyph } from "./listing-chips";
+import { ListingRecoveryActions } from "./listing-recovery-actions";
 import { listingStatusStyle } from "./listing-values";
 import { POOLS_CHAIN_ID, usePoolsSupported } from "./pools-deployment";
 
@@ -98,7 +99,7 @@ export function ListingStatusPanel({ address, chainId, marketStatus }: ListingSt
     depositChain: chainId,
     /* Addressed at the pools chain, never the connected one — the listing
        backend is resolved from the chain config, and a wallet sitting on Base
-       must still be able to read a HyperEVM listing. */
+       must still be able to read an Arbitrum listing. */
     chainId: POOLS_CHAIN_ID,
     query: {
       enabled: supported && address.length > 0,
@@ -172,7 +173,16 @@ export function ListingStatusPanel({ address, chainId, marketStatus }: ListingSt
       <div className="flex flex-col gap-4 px-4 py-3.5">
         <p className="max-w-[92ch] text-sm leading-relaxed text-fg-2">{copy.body}</p>
 
-        {pipeline ? <PipelineBody pipeline={pipeline} accent={style?.color ?? "var(--fg-2)"} /> : <PipelineSkeleton />}
+        {pipeline ? (
+          <PipelineBody
+            pipeline={pipeline}
+            accent={style?.color ?? "var(--fg-2)"}
+            address={address}
+            chainId={chainId}
+          />
+        ) : (
+          <PipelineSkeleton />
+        )}
       </div>
     </Panel>
   );
@@ -189,7 +199,17 @@ function PipelineSkeleton() {
 }
 
 /** The steps rail plus the retry counter — everything the service reported. */
-function PipelineBody({ pipeline, accent }: { pipeline: ListingStatus; accent: string }) {
+function PipelineBody({
+  pipeline,
+  accent,
+  address,
+  chainId,
+}: {
+  pipeline: ListingStatus;
+  accent: string;
+  address: string;
+  chainId: ListingDepositChainId;
+}) {
   return (
     <>
       {pipeline.steps.length > 0 ? (
@@ -210,6 +230,10 @@ function PipelineBody({ pipeline, accent }: { pipeline: ListingStatus; accent: s
       <RetryCounter count={pipeline.retryCount} limit={pipeline.retryLimit} />
 
       {pipeline.errorDetail ? <StepErrorBand code={pipeline.errorCode} detail={pipeline.errorDetail} /> : null}
+
+      {pipeline.marketStatus === ListingMarketStatus.REJECTED ? (
+        <ListingRecoveryActions address={address} chainId={chainId} />
+      ) : null}
     </>
   );
 }

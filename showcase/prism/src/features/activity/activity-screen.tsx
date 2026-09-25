@@ -119,7 +119,7 @@ export function ActivityScreen() {
         <h1 className="font-display text-3xl font-bold tracking-[-0.02em] text-fg-0">Activity</h1>
         <p className="max-w-[76ch] text-md text-fg-2">
           Settled history and the live solver event stream, merged across every deployment. Rasa settles on Base, Enigma
-          on HyperEVM — the row tells you which, always.
+          on Arbitrum — the row tells you which, always.
         </p>
       </header>
 

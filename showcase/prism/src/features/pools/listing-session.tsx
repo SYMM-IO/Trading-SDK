@@ -48,6 +48,7 @@ const AUTHED_QUERY_ROOTS = new Set([
   "getClaimHistory",
   "getUserTransactions",
   "getListingMarketConfig",
+  "getRetryListingInfo",
 ]);
 
 export interface ListingSessionValue {

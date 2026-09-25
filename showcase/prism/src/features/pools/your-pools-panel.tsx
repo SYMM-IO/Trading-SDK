@@ -488,7 +488,7 @@ function YourPoolRow({ row, claimable, isClaimableLoading, onOpen, onClaim }: Ro
 
       <div className="min-w-0">
         {/* The pool's chain is where its **token** and deposits live — Solana,
-            BSC, Base — not HyperEVM, where the perp against it settles. */}
+            BSC, Base — not the Arbitrum deployment where the perp settles. */}
         <Pill dot color={depositChainColor(row.chainId)}>
           {depositChainLabel(row.chainId)}
         </Pill>

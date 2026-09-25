@@ -1,6 +1,6 @@
 # SDK coverage audit — what Prism uses, what it skips, and why
 
-Audit date: 2026-08-22. Measured against the SDK build vendored in
+Audit date: 2026-09-24. Measured against the SDK build vendored in
 `node_modules/@symmio/trading-core` and `node_modules/@symmio/trading-react`
 (the repo build, per `pnpm sdk:refresh`).
 
@@ -18,13 +18,20 @@ Same method as the `/sdk` page — parse both package barrels for the
 denominator, parse every `import … from "@symmio/trading-*"` under `src/` for
 the numerator — extended to list the unused symbols by name.
 
-|                         |    used | exported | slices touched |
-| ----------------------- | ------: | -------: | -------------: |
-| `@symmio/trading-core`  |     102 |     1511 |        26 / 56 |
-| `@symmio/trading-react` |      73 |      579 |        24 / 31 |
-| **total**               | **175** | **2090** |    **50 / 87** |
+|                 |    used | exported | slices touched | source files |
+| --------------- | ------: | -------: | -------------: | -----------: |
+| **SDK surface** | **282** | **2951** |   **58 / 104** |      **134** |
 
 Unclassified symbols (imported but not attributable to a barrel module): none.
+
+This refresh adds direct coverage for the gasless slice (deposit policy and
+settlement, fee allowance, deterministic wallet identity/creation state/nonce,
+fee previews, request streaming, multi-wallet arbitrary calls, direct signed
+operation relay, and byte-identical uncertain-submit recovery), pending on-chain
+funding, per-solver market funding state, dynamic solver close fees, per-market
+solver revenue, listing retry/refund, scoped delegation inspection, and
+scheduled delegation revocation. These are product surfaces in Prism, not
+imports added solely to raise the tally.
 
 Two things make the raw ratio look worse than reality:
 
@@ -361,7 +368,6 @@ section does today.
 | `core:solvers/funding-info`                                                                                      |       13 | exercised via `useFundingInfo` (§1)                                                |
 | `core:solvers/get-solver-readiness`                                                                              |        9 | exercised via `useSolverReadiness`                                                 |
 | `core:solvers/get-solver-price-range`                                                                            |        9 | exercised via `useSolverPriceRange`                                                |
-| `core:solvers/add-solver-whitelist`                                                                              |        4 | exercised via `useAddSolverWhitelist`                                              |
 | `core:solvers/error-codes`                                                                                       |        9 | exercised via `useSolverErrorCodes`                                                |
 | `core:solvers/limit-open`                                                                                        |        4 | exercised via `useLimitOpenAuto`                                                   |
 | `core:symmio-contracts/instant-layer`                                                                            |       27 | exercised via `useGrantDelegation`, `useDelegationExpiry`, `useIsDelegationActive` |

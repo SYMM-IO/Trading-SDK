@@ -60,7 +60,7 @@ export interface OrderTicketProps {
  * conditional orders exist, what the spendable ceiling is, whether a fill can be
  * quoted for a size, and what the market's own limits are all come from the SDK
  * for the market's own deployment. Where the deployments genuinely diverge —
- * Rasa publishes an accepted price band and gates on a whitelist, Enigma quotes
+ * Rasa publishes an accepted price band, while Enigma quotes
  * an estimated fill and isolates margin into a Virtual Account — the ticket asks
  * a capability predicate, never a solver id.
  *
@@ -76,7 +76,7 @@ export interface OrderTicketProps {
  * order is signed by the session key and relayed to the solver over HTTP, so it
  * never reaches the browser wallet and does not care which chain that wallet is
  * on; only the one-time `grantDelegation` is a transaction the wallet sends. A
- * chain gate above the ladder made a trader with a live delegation on HyperEVM
+ * chain gate above the ladder made a trader with a live delegation on Arbitrum
  * switch back and forth to place orders the wallet was not involved in.
  */
 export function OrderTicket({ market: entry, seedPrice }: OrderTicketProps) {
@@ -102,7 +102,7 @@ export function OrderTicket({ market: entry, seedPrice }: OrderTicketProps) {
   const [tpslOn, setTpslOn] = useState(false);
   const [tpsl, setTpsl] = useState<TpSlDraft>(EMPTY_TPSL);
 
-  /* Capability probes, not solver ids: Base declares `limitOrder`, HyperEVM
+  /* Capability probes, not solver ids: Base declares `limitOrder`, Arbitrum
      carries a `tpsl` block, and either could change without touching this file. */
   const supportsLimit = useSupportsLimitOrder({ chainId, solverId });
   const tpslSupported = useTpSlSupported({ chainId, solverId });
@@ -176,8 +176,8 @@ export function OrderTicket({ market: entry, seedPrice }: OrderTicketProps) {
     /* The grant is the only wallet transaction on this ladder — the order itself
        is signed by the session key and relayed to the solver over HTTP — so the
        chain rung belongs here and nowhere earlier. Above this line it blocked
-       whitelist registration (a bare HTTP GET), session-key creation (local),
-       and the order itself, none of which the wallet ever sees. */
+       session-key creation (local) and the order itself, neither of which the
+       wallet ever sees. */
     if (!delegation.isActive) return gate.ready ? { kind: "delegation" } : { kind: "chain" };
     if (model.solver.offline) return { kind: "solver-offline" };
     if (model.marketClosed) return { kind: "market-closed", reason: model.marketClosed };
@@ -632,13 +632,40 @@ function Receipt({ market: entry, model, leverage }: ReceiptProps) {
         />
       ) : null}
       <ReceiptRow
-        label="Fees (open + close)"
+        label="Platform fees (open + close)"
         value={
           <Numeric size="sm" tone={model.fee === undefined ? "muted" : "strong"}>
             {model.fee === undefined ? "—" : formatUsd(Number(model.fee), { exact: true })}
           </Numeric>
         }
       />
+      {model.solverFees ? (
+        <>
+          <ReceiptRow
+            label="Solver open fee"
+            value={
+              <Numeric size="sm">{formatUsd(Number(model.solverFees.open), { exact: true, maxDecimals: 4 })}</Numeric>
+            }
+          />
+          <ReceiptRow
+            label="Solver close reserve"
+            value={
+              <Numeric size="sm" tone="warn">
+                {formatUsd(Number(model.solverFees.closeReserve), { exact: true, maxDecimals: 4 })}
+              </Numeric>
+            }
+          />
+          {Number(model.solverFees.closeReserve) > Number(model.solverFees.closeFloor) ? (
+            <p className="pb-1 text-right text-2xs leading-relaxed text-fg-3">
+              Early-close peak; decays after {model.solverFees.earlySeconds}s to{" "}
+              <span className="tnum text-fg-2">
+                {formatUsd(Number(model.solverFees.closeFloor), { exact: true, maxDecimals: 4 })}
+              </span>{" "}
+              by {model.solverFees.standardSeconds}s.
+            </p>
+          ) : null}
+        </>
+      ) : null}
       {model.lockedParams ? (
         <p className="pt-1.5 text-2xs text-fg-3">
           Locks CVA {model.lockedParams.cva ?? "—"}% + LF {model.lockedParams.lf ?? "—"}% at {formatLeverage(leverage)},

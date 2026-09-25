@@ -309,20 +309,20 @@ packages:
     resolution: {integrity: sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g==}
 
   '@symmio/session-key@file:vendor/symmio-session-key.tgz':
-    resolution: {integrity: sha512-BUr0xGwLrLSbkwbsybH8mjIXSAAekEwOzpNbQ82axJu+xipqV4h4faagcpfELocRlZs5vhAQMcPUCaUcRCPWRg==, tarball: file:vendor/symmio-session-key.tgz}
+    resolution: {integrity: sha512-XVLOo+XX5J0x7zdbecB17jhCaREnlJVzqNZvoYw+CqMf0XISQm2/6FieMvp+jW82CLKeW7mfAvoZaQL/Z0ZsvQ==, tarball: file:vendor/symmio-session-key.tgz}
     version: 1.0.0
     peerDependencies:
       viem: ^2.49.0
 
   '@symmio/trading-core@file:vendor/symmio-trading-core.tgz':
-    resolution: {integrity: sha512-KS3XO5XG/Mhk4MW/Ff3/U4q9qzhc67VfoEbLMQVH1d7aMv6Zzva+QCYSyQ+14BVFuw//xE4aobxiBv88Tw0fUg==, tarball: file:vendor/symmio-trading-core.tgz}
-    version: 1.1.0
+    resolution: {integrity: sha512-91GSNudVdn6QXZ8c0j48fEQvBaxrdDVWMLeh56MAunv2DGbm7CPGD+aZ7GMjUtfKXClVeD8uzNljFtD0Fphj9w==, tarball: file:vendor/symmio-trading-core.tgz}
+    version: 3.0.0
     peerDependencies:
       viem: ^2.49.0
 
   '@symmio/trading-react@file:vendor/symmio-trading-react.tgz':
-    resolution: {integrity: sha512-FulRbNFcFGU2ZrYR7itsm8sLfc4x7jlGqMcHyOSrPkmU3edHkJw7l6mm69Y+0u/XkiUbviOjzBoO3rdmXi7AQQ==, tarball: file:vendor/symmio-trading-react.tgz}
-    version: 1.1.0
+    resolution: {integrity: sha512-P9gN4X3EtAb16iDWnTAlX3IVAvsl1eMJjUIpPtKNHJVGZWqL2U8hVfVSYd1buHu0pFMsHSAjomJFKaoG/777ug==, tarball: file:vendor/symmio-trading-react.tgz}
+    version: 3.0.0
     peerDependencies:
       react: ^19.0.0
       react-dom: ^19.0.0

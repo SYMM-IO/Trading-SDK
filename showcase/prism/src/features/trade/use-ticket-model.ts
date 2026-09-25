@@ -7,6 +7,8 @@ import {
   PositionType,
   calculateLiquidationPrice,
   calculatePriceImpact,
+  calculateSolverCloseFee,
+  calculateSolverFees,
   calculateTradeParams,
   computePlatformFee,
   supportsEstimatedPrice,
@@ -90,6 +92,16 @@ export interface TicketModel {
   feeRates: FeeForUser | undefined;
   /** Round-trip platform fee for this order, as a decimal string. */
   fee: string | undefined;
+  /** Solver fees funded with the VA: open now, peak close reserve, and eventual floor. */
+  solverFees:
+    | {
+        open: string;
+        closeReserve: string;
+        closeFloor: string;
+        earlySeconds: number;
+        standardSeconds: number;
+      }
+    | undefined;
   /** Every market/cap constraint this order breaks, named by the SDK. */
   violations: readonly QuoteConstraintViolation[];
   available: AvailableMargin;
@@ -244,6 +256,29 @@ export function useTicketModel(intent: TicketIntent): TicketModel {
     return computePlatformFee(fees.data, trade.notional, trade.notional);
   }, [trade, fees.data]);
 
+  const solverFees = useMemo(() => {
+    /* These are VA-funded fee legs in the lowcap path. Majors still publish
+       hedger-fee fields in their market payload, but the SDK deliberately does
+       not include them in the Rasa instant-open result or funded margin. */
+    if (!trade || market.kind !== "enigma") return undefined;
+    const calculated = calculateSolverFees({
+      notional: trade.notional,
+      hedgerFeeOpen: market.hedgerFeeOpen,
+      hedgerFeeClose: market.hedgerFeeClose,
+      hedgerFeeCloseEarlyRate: market.hedgerFeeCloseEarlyRate,
+      hedgerFeeCloseEarlyThreshold: market.hedgerFeeCloseEarlyThreshold,
+      hedgerFeeCloseStandardThreshold: market.hedgerFeeCloseStandardThreshold,
+    });
+    const standardSeconds = market.hedgerFeeCloseStandardThreshold;
+    return {
+      open: calculated.openSolverFee,
+      closeReserve: calculated.closeSolverFee,
+      closeFloor: calculateSolverCloseFee(market, { notional: trade.notional, holdingSeconds: standardSeconds }),
+      earlySeconds: market.hedgerFeeCloseEarlyThreshold,
+      standardSeconds,
+    };
+  }, [trade, market]);
+
   const violations = useMemo<readonly QuoteConstraintViolation[]>(() => {
     /* Without locked params the cva/lf/partyAmm legs are all "0", which the
        validator reads as "unpublished" and skips — so checking early would
@@ -378,6 +413,7 @@ export function useTicketModel(intent: TicketIntent): TicketModel {
     lockedParams: locked.data,
     feeRates: fees.data,
     fee,
+    solverFees,
     violations,
     available,
     notionalCap: cap.data,

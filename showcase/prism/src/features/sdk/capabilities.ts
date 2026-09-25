@@ -108,7 +108,7 @@ export const CAPABILITY_ROWS: readonly CapabilityRow[] = [
     id: "rasa-only",
     label: "Rasa-only solver reads",
     source: 'assertSolverKind(solver, "rasa")',
-    note: "readyz, balance_info, party-a-upnl, open_interest, price-range, error_codes and the two whitelist calls all throw UNSUPPORTED_BY_SOLVER on a non-Rasa solver.",
+    note: "readyz, balance_info, party-a-upnl, open_interest, price-range and error_codes all throw UNSUPPORTED_BY_SOLVER on a non-Rasa solver.",
     resolve: ({ solverId }) => (solverId === "rasa" ? { kind: "yes" } : { kind: "no" }),
   },
   {

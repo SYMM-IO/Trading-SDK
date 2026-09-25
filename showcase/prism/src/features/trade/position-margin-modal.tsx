@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/button";
 import { Chips } from "@/components/chips";
 import { Field } from "@/components/field";
 import { Modal } from "@/components/modal";
@@ -11,8 +12,15 @@ import type { FundingAccount } from "@/features/accounts/account-provider";
 import { parseAmount, toAmountInput } from "@/features/portfolio/amount";
 import { GatedSubmit } from "@/features/portfolio/gated-submit";
 import { useWriteToast } from "@/features/portfolio/use-write-toast";
+import { usePositionMarginDelegation } from "@/features/wallet/use-position-margin-delegation";
 import { formatUsd, fromWei, shortenAddress } from "@/lib/format";
-import { useAccountBalanceInfo, useAccountBalanceOf, useAddMargin, useRemoveMargin } from "@symmio/trading-react";
+import {
+  useAccountBalanceInfo,
+  useAccountBalanceOf,
+  useAddMargin,
+  useRemoveMargin,
+  useSupportsGaslessService,
+} from "@symmio/trading-react";
 import { useState } from "react";
 import type { Address } from "viem";
 
@@ -68,6 +76,8 @@ export function PositionMarginModal({ deployment, account, virtualAccount, open,
 
   const addMargin = useAddMargin();
   const removeMargin = useRemoveMargin();
+  const supportsGasless = useSupportsGaslessService({ chainId: deployment.chainId });
+  const delegation = usePositionMarginDelegation(account);
 
   /* Adding draws on the parent's spendable balance; removing draws on what the
      VA holds beyond its locked legs. */
@@ -90,8 +100,9 @@ export function PositionMarginModal({ deployment, account, virtualAccount, open,
         ? { pending: "Adding margin…", success: "Margin added" }
         : { pending: "Removing margin…", success: "Margin removed", tone: "warn" },
       async () => {
-        const result =
-          mode === "add"
+        const result = supportsGasless
+          ? await submitGaslessMargin()
+          : mode === "add"
             ? await addMargin.mutateAsync({ virtualAccount, amount, chainId: deployment.chainId })
             : await removeMargin.mutateAsync({ virtualAccount, amount, chainId: deployment.chainId });
         setInput("");
@@ -101,24 +112,81 @@ export function PositionMarginModal({ deployment, account, virtualAccount, open,
     );
   };
 
+  async function submitGaslessMargin() {
+    if (!delegation.sessionKey || !delegation.isActive || amount === undefined) {
+      throw new Error("Authorise the session key before changing position margin.");
+    }
+
+    const common = {
+      virtualAccount,
+      amount,
+      chainId: deployment.chainId,
+      from: delegation.sessionKey,
+      gasless: { enabled: true, account: account.address },
+    } as const;
+
+    return mode === "add" ? addMargin.mutateAsync(common) : removeMargin.mutateAsync(common);
+  }
+
+  const onAuthorize = () => {
+    void runWrite(
+      {
+        pending: "Authorising margin controls…",
+        success: "Promptless margin enabled",
+        body: "This browser key can now add and remove position margin without wallet popups.",
+      },
+      delegation.grant,
+    );
+  };
+
+  const footer = supportsGasless ? (
+    delegation.isActive ? (
+      <Button variant="primary" size="lg" onClick={onSubmit} disabled={!isValid} loading={isPending} className="w-full">
+        {mode === "add" ? "Add margin" : "Remove margin"}
+      </Button>
+    ) : (
+      <Button
+        variant="primary"
+        size="lg"
+        onClick={onAuthorize}
+        disabled={!delegation.sessionKey || delegation.isLoading}
+        loading={delegation.isLoading || delegation.isGranting}
+        className="w-full"
+      >
+        Enable promptless margin
+      </Button>
+    )
+  ) : (
+    <GatedSubmit
+      deployment={deployment}
+      label={mode === "add" ? "Add margin" : "Remove margin"}
+      onSubmit={onSubmit}
+      disabled={!isValid}
+      loading={isPending}
+      size="lg"
+      className="w-full"
+    />
+  );
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       eyebrow={`${deployment.label} · ${account.name}`}
       title="Position margin"
-      footer={
-        <GatedSubmit
-          deployment={deployment}
-          label={mode === "add" ? "Add margin" : "Remove margin"}
-          onSubmit={onSubmit}
-          disabled={!isValid}
-          loading={isPending}
-          size="lg"
-          className="w-full"
-        />
-      }
+      footer={footer}
     >
+      {supportsGasless && !delegation.isActive ? (
+        <div className="rounded-md border border-line bg-bg-2 px-3 py-2.5">
+          <p className="text-sm font-semibold text-fg-0">One-time wallet authorisation</p>
+          <p className="mt-1 text-sm leading-relaxed text-fg-2">
+            Authorise this browser key to add and remove margin. Future margin changes are gasless and will not open
+            your wallet.
+          </p>
+          {delegation.error ? <p className="mt-2 text-sm text-short">{delegation.error.message}</p> : null}
+        </div>
+      ) : null}
+
       <Segmented options={MODES} value={mode} onChange={setMode} size="sm" />
 
       <Field

@@ -73,7 +73,7 @@ export function FanOutPanel() {
           symbol="SymmioProvider → getClient → getPublicClient(wagmiConfig, { chainId })"
         >
           <p>
-            Base and HyperEVM are read side by side on every screen, and the wallet is on at most one of them.{" "}
+            Base and Arbitrum are read side by side on every screen, and the wallet is on at most one of them.{" "}
             <Mono>SymmioProvider</Mono> builds the SDK config with a <Mono>getClient</Mono> that defers to{" "}
             <Mono>getPublicClient(wagmiConfig, {"{ chainId }"})</Mono>, and Prism’s wagmi config carries a transport for
             both chains — so a read names its chain and resolves, wherever the wallet sits.

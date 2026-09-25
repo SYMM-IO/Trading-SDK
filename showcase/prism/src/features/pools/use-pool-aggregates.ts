@@ -1,14 +1,13 @@
 "use client";
 
-import type { SolverRevenue } from "@symmio/trading-core";
-import { useInventoryTvl, useMarketInfo, useNotionalCapAll, useSolverRevenue } from "@symmio/trading-react";
+import { useInventoryTvl, useMarketInfo, useNotionalCapAll } from "@symmio/trading-react";
 import { listingNumber } from "./listing-values";
 import { POOLS_CHAIN_ID, POOLS_DEPLOYMENT, usePoolsSupported } from "./pools-deployment";
 
 /**
  * How long the slow aggregates stay fresh.
  *
- * TVL, traded value and revenue all move on windows measured in hours, so they
+ * TVL and traded value move on windows measured in hours, so they
  * are cached rather than polled. The one genuinely live figure on this strip is
  * the notional-cap read, which keeps the SDK's own 15s poll.
  */
@@ -19,7 +18,7 @@ const AGGREGATE_STALE_MS = 60_000;
  * its own failure.
  *
  * Deliberately not flattened into a single `isLoading` / `error` pair for the
- * whole strip. Four unrelated services answer here, and the inventory service
+ * whole strip. Three unrelated services answer here, and the inventory service
  * going down must dim exactly one column rather than blank the row that also
  * carries the solver's volume.
  */
@@ -28,7 +27,7 @@ export interface AggregateSource<T> {
   data?: T;
   /** True only while this backend's first response is in flight. */
   isLoading: boolean;
-  /** This backend's failure message. The other three columns keep their numbers. */
+  /** This backend's failure message. The other columns keep their numbers. */
   error?: string;
 }
 
@@ -60,23 +59,6 @@ export interface OpenInterestFigures {
   markets: number;
 }
 
-/**
- * Protocol revenue for the trailing day, plus the lifetime total.
- *
- * Every field is optional because a window with no rows is not a window that
- * earned nothing, and the two must not render as the same `$0.00`.
- */
-export interface RevenueFigures {
-  /** Trailing-24h total in dollars, absent when that window has no rows. */
-  day?: number;
-  /** The 24h total's hedger-fee share, in dollars. */
-  hedgerFee?: number;
-  /** The 24h total's funding share, in dollars. */
-  funding?: number;
-  /** Revenue since listing in dollars, absent when that window has no rows. */
-  lifetime?: number;
-}
-
 /** Everything the protocol aggregate strip renders, one entry per backend. */
 export interface PoolAggregates {
   /** False when the pools chain carries no listing backend; every read stays idle. */
@@ -87,17 +69,15 @@ export interface PoolAggregates {
   volume: AggregateSource<VolumeFigures>;
   /** Notional open and the headroom left on each side, from the solver's caps. */
   openInterest: AggregateSource<OpenInterestFigures>;
-  /** Hedger-fee and funding revenue, from the solver's revenue endpoint. */
-  revenue: AggregateSource<RevenueFigures>;
 }
 
 /**
- * The four protocol-wide figures above the pool catalog, read from four
+ * The three protocol-wide figures above the pool catalog, read from three
  * unrelated backends.
  *
  * None of them is a sum of the catalog below: custodial TVL comes from the
  * inventory service and covers the whole custodial system, while volume, open
- * interest and revenue come from three separate solver endpoints. Where two of
+ * interest come from two separate solver endpoints. Where two of
  * these numbers disagree that is a fact about the deployment, not arithmetic to
  * reconcile.
  *
@@ -135,23 +115,6 @@ export function usePoolAggregates(): PoolAggregates {
     query: { enabled: supported },
   });
 
-  /* Two mounts of the same read rather than one: the endpoint answers for a
-     single window at a time, and the strip shows the day against the lifetime.
-     Omitting `timeRange` is what asks for lifetime — it is the solver's own
-     default, not a missing parameter. */
-  const revenueDay = useSolverRevenue({
-    chainId: POOLS_CHAIN_ID,
-    solverId: POOLS_DEPLOYMENT.solverId,
-    timeRange: "24h",
-    query: { enabled: supported, staleTime: AGGREGATE_STALE_MS },
-  });
-
-  const revenueLifetime = useSolverRevenue({
-    chainId: POOLS_CHAIN_ID,
-    solverId: POOLS_DEPLOYMENT.solverId,
-    query: { enabled: supported, staleTime: AGGREGATE_STALE_MS },
-  });
-
   /* Narrowed on `kind`, not cast: `/get_market_info` is one endpoint with two
      shapes and only the enigma shape carries book-wide totals. A rasa solver
      publishes per-market rows and no aggregate at all, so there is genuinely
@@ -181,18 +144,6 @@ export function usePoolAggregates(): PoolAggregates {
       }
     : undefined;
 
-  const day = reportedRevenue(revenueDay.data);
-  const lifetime = reportedRevenue(revenueLifetime.data);
-  const revenue =
-    revenueDay.data || revenueLifetime.data
-      ? {
-          day: day?.totalRevenue,
-          hedgerFee: day?.hedgerFeeRevenue,
-          funding: day?.fundingRevenue,
-          lifetime: lifetime?.totalRevenue,
-        }
-      : undefined;
-
   return {
     supported,
     custody: {
@@ -207,25 +158,5 @@ export function usePoolAggregates(): PoolAggregates {
     },
     volume: { data: volume, isLoading: marketInfo.isLoading, error: marketInfo.error?.message },
     openInterest: { data: openInterest, isLoading: caps.isLoading, error: caps.error?.message },
-    revenue: {
-      data: revenue,
-      isLoading: revenueDay.isLoading || revenueLifetime.isLoading,
-      /* Reported only when neither window answered. The column renders its
-         error caption in place of the split, so a live 24h figure under "the
-         solver did not answer" would contradict the number above it — one
-         window failing is a missing tail, not a failed column. */
-      error: revenue ? undefined : (revenueDay.error?.message ?? revenueLifetime.error?.message),
-    },
   };
-}
-
-/**
- * The window's totals, or `undefined` when the solver reported no rows for it.
- *
- * `recordCount === 0` means "there is no data for this window", not "this window
- * earned nothing". Both would render as `$0.00` and only one of them is true, so
- * the empty window loses its totals here and the caption says which it is.
- */
-function reportedRevenue(revenue: SolverRevenue | undefined): SolverRevenue | undefined {
-  return revenue && revenue.recordCount > 0 ? revenue : undefined;
 }

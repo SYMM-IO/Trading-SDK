@@ -19,6 +19,7 @@ const NAV = [
   { href: "/pools", label: "Pools" },
   { href: "/portfolio", label: "Portfolio" },
   { href: "/activity", label: "Activity" },
+  { href: "/gasless", label: "Gasless" },
   { href: "/sdk", label: "SDK" },
 ] as const;
 
@@ -40,23 +41,23 @@ export function AppShell({ children }: { children: ReactNode }) {
                   style={{ background: "var(--mode-strip)" }}
                 />
 
-                <div className="flex h-14 items-stretch px-4">
+                <div className="flex h-14 items-stretch px-2 sm:px-4">
                   <Link
                     href="/"
                     className="flex items-center gap-2.5 rounded-md pr-1 transition-opacity duration-[var(--dur-fast)] hover:opacity-85 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                   >
                     <PrismMark size={22} />
-                    <span className="font-display text-[17px] leading-none font-bold tracking-[-0.03em] whitespace-nowrap text-fg-0">
+                    <span className="hidden font-display text-[17px] leading-none font-bold tracking-[-0.03em] whitespace-nowrap text-fg-0 sm:inline">
                       Prism
                     </span>
                   </Link>
 
-                  <span aria-hidden className="mx-3 w-px self-center bg-line" style={{ height: 20 }} />
+                  <span aria-hidden className="mx-2 hidden w-px self-center bg-line sm:block" style={{ height: 20 }} />
 
                   {/* Links stretch to the header's full height so the active
                       bar sits on its bottom edge, flush with the border — a
                       tab, not a pill floating in the middle of the bar. */}
-                  <nav aria-label="Primary" className="flex items-stretch gap-0.5">
+                  <nav aria-label="Primary" className="flex min-w-0 flex-1 items-stretch gap-0.5 overflow-x-auto">
                     {NAV.map((item) => {
                       const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
                       return (
@@ -65,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                           href={item.href}
                           aria-current={active ? "page" : undefined}
                           className={cn(
-                            "relative flex items-center px-3 text-md whitespace-nowrap",
+                            "relative flex items-center px-2 text-md whitespace-nowrap lg:px-3",
                             "transition-colors duration-[var(--dur-fast)] ease-[var(--ease-out)]",
                             "focus-visible:text-fg-0 focus-visible:outline-none",
                             "after:absolute after:inset-x-3 after:bottom-0 after:h-[2px] after:rounded-t-sm after:bg-accent after:content-['']",
@@ -81,7 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     })}
                   </nav>
 
-                  <div className="ml-auto flex items-center gap-3">
+                  <div className="ml-2 flex shrink-0 items-center gap-2 sm:gap-3">
                     <ModeSwitch />
                     <span aria-hidden className="w-px bg-line" style={{ height: 20 }} />
                     <AccountBar />

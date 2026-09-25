@@ -408,8 +408,8 @@ function TransferRow({ row }: RowProps) {
       </div>
 
       <div className="min-w-0">
-        {/* The chain a row's **token** lives on — Solana, BSC, Base — not
-            HyperEVM, where the perp against its pool settles. */}
+        {/* The chain a row's **token** lives on — Solana, BSC, Base — not the
+            Arbitrum deployment where the perp against its pool settles. */}
         <Pill dot color={depositChainColor(row.chainId)}>
           {depositChainLabel(row.chainId)}
         </Pill>

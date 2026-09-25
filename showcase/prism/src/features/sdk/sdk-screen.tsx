@@ -85,7 +85,7 @@ function Hero({ resolved }: HeroProps) {
 
         <p className="max-w-[86ch] text-md leading-relaxed text-fg-2">
           Prism merges two independent SYMMIO deployments — a cross-margin majors solver on Base and a Virtual-Account
-          lowcap solver on HyperEVM — into a single book, a single ticket and a single blotter. They run different
+          lowcap solver on Arbitrum — into a single book, a single ticket and a single blotter. They run different
           contracts, different price feeds, different notification protocols and different trade mechanics. The app does
           not branch on any of it. This page shows exactly how much of that the SDK is doing, with the live values
           beside every claim.
