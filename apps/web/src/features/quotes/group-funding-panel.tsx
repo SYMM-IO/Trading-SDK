@@ -2,7 +2,7 @@
 
 import { WEI_DECIMALS } from "@/lib/format";
 import type { QuoteGroup, QuoteGroupFunding } from "@symmio/trading-core";
-import { useQuoteGroupFunding } from "@symmio/trading-react";
+import { useQuoteGroupFunding, useQuotesPendingFunding } from "@symmio/trading-react";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
 import { formatTokenAmount } from "@symmio/utils";
@@ -10,7 +10,7 @@ import { ExpandedRowSection } from "./expanded-row-section";
 import { GroupFundingHistoryButton } from "./group-funding-history-modal";
 
 interface Props {
-  /** The grouped position whose settled funding to summarise. */
+  /** The grouped position whose settled and pending funding to summarise. */
   group: QuoteGroup;
 }
 
@@ -18,6 +18,13 @@ const EMPTY = "—";
 
 /** Funding amounts are collateral, not prices — 4dp reads well and matches the per-quote panel. */
 const FUNDING_PRECISION = 4;
+
+/** Pending funding grows every epoch and no event announces it, so the panel polls it. */
+const PENDING_FUNDING_REFETCH_MS = 60_000;
+
+/** Tooltip on the pending figure: what it is, and why it is not an operand of the equation. */
+const PENDING_FUNDING_TITLE =
+  "Accrued on the open quotes since their last settlement and not yet charged. Not part of Net funding; it settles on the next charge or close.";
 
 function formatAmount(value: bigint): string {
   if (value === 0n) return "0";
@@ -85,7 +92,9 @@ function CompletenessNote({ funding, isLoading }: { funding: QuoteGroupFunding; 
  * full per-tick history one click away in {@link GroupFundingHistoryButton}.
  *
  * The totals come from a single batched subgraph round-trip rather than a
- * per-child fan-out.
+ * per-child fan-out. The funding accrued on the open children but not yet
+ * settled is a separate on-chain read, shown after the equation in
+ * {@link PendingFundingTerm} and never folded into it.
  */
 export function GroupFundingPanel({ group }: Props) {
   const { funding, isLoading, error } = useQuoteGroupFunding({ group });
@@ -95,6 +104,16 @@ export function GroupFundingPanel({ group }: Props) {
 
   /** The SDK already nets income-positive, so the equation on screen is exactly the one behind the figure. */
   const net = funding.netReceived;
+
+  const pending = useQuotesPendingFunding({
+    quotes: group.quotes,
+    query: { refetchInterval: PENDING_FUNDING_REFETCH_MS },
+  });
+  /**
+   * No child is an active on-chain position, so nothing was read: the hook answers
+   * `0n` with every row `null`. A read that resolved to `0n` has rows, so it stays.
+   */
+  const hasPendingFunding = !(pending.pendingNetReceived === 0n && pending.rows.every((row) => row === null));
 
   return (
     <ExpandedRowSection
@@ -133,6 +152,8 @@ export function GroupFundingPanel({ group }: Props) {
         <Operator symbol="−" />
         <Term label="Paid" value={showAmounts ? formatAmount(funding.paid) : EMPTY} />
 
+        {hasPendingFunding ? <PendingFundingTerm pending={pending} /> : null}
+
         <GroupFundingHistoryButton group={group} />
       </div>
     </ExpandedRowSection>
@@ -145,6 +166,29 @@ function Term({ label, value }: { label: string; value: string }) {
     <div className="flex flex-col gap-1">
       <span className="text-muted-foreground/70 text-[0.6rem] font-medium tracking-wider uppercase">{label}</span>
       <span className="text-foreground font-mono text-sm leading-none">{value}</span>
+    </div>
+  );
+}
+
+/**
+ * The group's pending (accrued, unsettled) funding, set after the equation behind
+ * a rule because it is not an operand: settled funding comes from the subgraph and
+ * pending from a contract read at another height, so the two are never summed.
+ */
+function PendingFundingTerm({ pending }: { pending: ReturnType<typeof useQuotesPendingFunding> }) {
+  const value = pending.pendingNetReceived;
+  return (
+    <div className="border-border/70 flex flex-col gap-1 border-l pl-5">
+      <span className="text-muted-foreground/70 text-[0.6rem] font-medium tracking-wider uppercase">
+        Pending (unsettled)
+      </span>
+      <span
+        className={`font-mono text-sm leading-none ${value !== undefined ? netTone(value) : "text-foreground"}`}
+        title={pending.error?.message ?? PENDING_FUNDING_TITLE}
+        data-testid="group-funding-pending"
+      >
+        {value !== undefined ? formatSignedAmount(value) : pending.isLoading ? <Spinner className="size-3" /> : EMPTY}
+      </span>
     </div>
   );
 }

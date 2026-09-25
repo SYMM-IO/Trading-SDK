@@ -70,6 +70,18 @@ Every entry is a `SymmioChainConfig` — the fully-resolved settings for one cha
     per-solver, since several solvers on one chain could share one deployment. Present only on Arbitrum today. See [Pools
     listing service](/core/concepts/solvers-and-chains#pools-listing-service).
   </Property>
+  <Property name="contractsVersion" type='"0.8.5" | "0.8.6"'>
+    Which perps-core contracts generation the deployment runs. A per-chain deployment fact, not a caller choice —
+    Base is `"0.8.5"`, Arbitrum is `"0.8.6"`. Features that exist only on the newer generation (today,
+    [gasless](/core/gasless)) gate on it.
+  </Property>
+  <Property name="gasless" type="SymmioGaslessConfig" optional>
+    The [GaslessQ relayer](/core/gasless) — `url`, `protocolInstance`, `gaslessLayerAddress`, plus the consumer's
+    `execution` policy, an optional `statusStream` declaration, and an optional partner `apiKey` for server-side use
+    (access is anonymous without one, unless the deployment turns anonymous access off). **No chain ships a built-in
+    block** — a consumer supplies the whole block through a `createConfig` override, and a base-less override missing
+    `url` or `gaslessLayerAddress` throws `GASLESS_OVERRIDE_INCOMPLETE`.
+  </Property>
   <Property name="inventory" type="SymmioInventoryConfig" optional>
     The [inventory service](/core/inventory) — the custody backend behind the Pools, and a **different vendor** from
     both the solver and the listing backend. A single `url`, again the **host root**: the generated client's own paths
@@ -158,6 +170,9 @@ Two chains ship in the registry — each runs a different solver kind and produc
 - `priceService.type` — `"enigma"`
 - `listing.url` — `https://listing85.enigma.bz` (the Pools listing backend; host root, no `/v2`)
 - `inventory.url` — `https://inventory85.enigma.bz` (the custody backend behind the Pools; host root, no `/api`)
+
+The only chain on the **perps-core (`"0.8.6"`) contracts generation**, and therefore the only one where
+[gasless](/core/gasless) can run at all — once a `gasless` block is supplied through an override.
 
 ### Base (8453) — rasa / majors
 

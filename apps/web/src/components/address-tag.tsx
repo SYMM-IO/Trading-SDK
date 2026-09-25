@@ -1,4 +1,6 @@
-import { addressExplorerUrl } from "@/lib/explorer";
+"use client";
+
+import { useBlockExplorer } from "@/lib/explorer";
 import { CopyButton } from "@symmio/ui/components/copy-button";
 import { cn } from "@symmio/ui/lib/utils";
 import { shortenAddress } from "@symmio/utils";
@@ -20,7 +22,8 @@ interface Props {
  * the clipboard.
  */
 export function AddressTag({ address, chars = 4, explorer = true, copyLabel = "Copy address", className }: Props) {
-  const href = explorer ? addressExplorerUrl(address) : undefined;
+  const { addressUrl } = useBlockExplorer();
+  const href = explorer ? addressUrl(address) : undefined;
 
   return (
     <span className={cn("inline-flex items-center gap-1 font-mono text-sm", className)}>

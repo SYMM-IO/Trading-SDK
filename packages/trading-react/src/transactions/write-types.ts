@@ -22,8 +22,26 @@ export interface WriteParameters extends ConfigParameter {
  * mined receipt when `waitForReceipt` is enabled.
  */
 export interface WriteResult {
-  /** The submitted transaction hash. */
+  /**
+   * The transaction hash the write landed on. For a relayed (gasless) write
+   * this is the **terminal** hash the request actually mined, which is not
+   * necessarily the relayer's first broadcast — see
+   * {@link WriteResult.gasless}.
+   */
   hash: Hash;
   /** The mined receipt, present when `waitForReceipt` is enabled. */
   receipt?: TransactionReceipt;
+  /**
+   * Present only when the write was relayed through GaslessQ instead of the
+   * wallet. The `requestId` is the workflow's stable handle — persist it, it is
+   * what survives a replaced transaction and a reload — while `broadcastHash`
+   * is the relayer's first attempt, kept so a UI that already showed it can
+   * reconcile.
+   */
+  gasless?: {
+    /** Stable service tracking id of the relay request. */
+    requestId: string;
+    /** The relayer's first broadcast hash, which `hash` may supersede. */
+    broadcastHash: Hash;
+  };
 }

@@ -41,6 +41,25 @@ export function ResultError({ kind, message, testId }: { kind?: ReactNode; messa
   );
 }
 
+/**
+ * Warning panel — a condition the user should act on before continuing, but
+ * not a failure: nothing is broken yet.
+ */
+export function ResultWarning({ children, testId }: { children: ReactNode; testId?: string }) {
+  return (
+    <div
+      data-testid={testId}
+      role="status"
+      className="border-warning/30 bg-warning/10 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm"
+    >
+      <Badge variant="warning" className="mt-0.5 shrink-0 font-mono">
+        warning
+      </Badge>
+      <span className="text-foreground/90">{children}</span>
+    </div>
+  );
+}
+
 /** Success panel — confirmed writes / positive outcomes. */
 export function ResultSuccess({ children, testId }: { children: ReactNode; testId?: string }) {
   return (

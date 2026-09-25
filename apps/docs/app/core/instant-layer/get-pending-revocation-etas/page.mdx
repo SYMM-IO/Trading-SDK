@@ -1,0 +1,99 @@
+import { Callout } from "nextra/components";
+
+# getPendingRevocationEtas
+
+Read the Instant Layer's scheduled revocation ETA for each of a delegate's selectors — the only on-chain signal that a revocation is in flight.
+
+```ts
+import { getPendingRevocationEtas, getSessionKeySelectors } from "@symmio/trading-core";
+
+const selectors = getSessionKeySelectors(config, { chainId });
+
+const etas = await getPendingRevocationEtas(config, {
+  delegator: { addr: subAccount, isPartyB: false },
+  delegate: sessionKeyAddress,
+  selectors,
+});
+
+const now = BigInt(Math.floor(Date.now() / 1000));
+const isRevoking = [...etas.values()].some((eta) => eta > now);
+```
+
+<Callout type="warning">
+  **Nothing else reveals a pending revocation.**
+  [`initiateRevokeDelegation`](/core/instant-layer/initiate-revoke-delegation) does not clear the grant — it stamps
+  `pendingRevocationEta = block.timestamp + revocationCooldown` and the contract keeps enforcing the delegation until
+  that ETA passes. [`getIsDelegationActive`](/core/instant-layer/get-is-delegation-active) and
+  [`getActiveDelegations`](/core/instant-layer/get-active-delegations) therefore keep answering "active" for the whole
+  cooldown — correctly, because the key really can still sign. A UI that renders only those reads shows a reassuring
+  "ready" right through a revocation.
+</Callout>
+
+## Probe the granted selectors, not the active ones
+
+Pass the set the key was **granted** — the output of `getSessionKeySelectors`, the same list handed to `getActiveDelegations`.
+
+It is tempting to feed `getActiveDelegations`' matched selectors back in here, but that list empties out at exactly the wrong moment: enforcement stops the instant the ETA passes, while the schedule survives until someone finalizes. Probe the active set and a finalize button goes dark precisely when finalizing becomes possible.
+
+## A revocation is per selector
+
+`initiateRevokeDelegation` schedules only the selectors it was handed, so a partial revoke leaves the rest untouched and the result covers a subset of what you probed. The reads are bundled into multicalls of `batchSize` (default 10).
+
+## Parameters
+
+<Properties>
+  <Property name="delegator" type="InstantLayerAccount" required>
+    The account the delegation is enforced under. Pass exactly the account that was handed to
+    `initiateRevokeDelegation`.
+  </Property>
+  <Property name="delegate" type="Address" required>
+    The delegated signer whose pending revocations are read.
+  </Property>
+  <Property name="selectors" type="readonly Hex[]" required>
+    Selectors to probe — the granted set.
+  </Property>
+  <Property name="batchSize" type="number" optional>
+    How many `pendingRevocationEta` reads to bundle per multicall. Defaults to `10`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="ReadonlyMap<Hex, bigint>">
+  Scheduled revocations keyed by selector, as Unix timestamps in seconds. A probed selector with no scheduled revocation
+  is **absent** from the map rather than present with `0n`, so `map.size === 0` means nothing is being revoked. Keys are
+  the selectors exactly as they were passed in.
+</Returns>
+
+## Reading the result
+
+Three states, and they are not the same:
+
+| Condition                          | Meaning                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------------- |
+| `map.size === 0`                   | No revocation scheduled.                                                |
+| some `eta > now`                   | Revoking — the key **still signs** until that ETA.                      |
+| `map.size > 0`, every `eta <= now` | Authority already gone; `finalizeRevokeDelegation` will now go through. |
+
+Finalizing while any scheduled ETA is still in the future reverts with `RevocationCooldownNotOver`.
+
+<Callout type="info">
+  **This read does not canonicalize.** It keys the mapping on `delegator.addr` verbatim — exactly what
+  `initiateRevokeDelegation` and `isDelegationActive` do. That is unlike
+  [`getActiveDelegations`](/core/instant-layer/get-active-delegations), which resolves a virtual account to its parent
+  sub-account, so a VA address answers here only if the revocation was scheduled against that VA.
+</Callout>
+
+## Query options
+
+```ts
+import { getPendingRevocationEtasQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getPendingRevocationEtasQueryOptions(config, { delegator, delegate, selectors }));
+```
+
+The React binding is [`usePendingRevocation`](/react/instant-layer), which pairs this read with a ticking clock so "is it over yet?" answers itself.

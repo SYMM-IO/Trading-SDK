@@ -21,6 +21,12 @@
  */
 export {
   ADD_MARGIN_TO_NEXT_VA_SELECTOR,
+  GASLESS_RELAYABLE_FUNCTIONS,
+  GASLESS_RELAYABLE_SELECTORS,
+  GASLESS_SESSION_KEY_SELECTORS,
+  GASLESS_SESSION_KEY_WITHDRAW_SELECTORS,
+  GASLESS_TERMINAL_STATUSES,
+  GaslessRequestStatus,
   INSTANT_TRADE_REQUIRED_SELECTORS,
   LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS,
   NotificationType,
@@ -43,10 +49,17 @@ export {
   calculateSolverCloseFee,
   calculateTradeParams,
   clampClosePrecision,
+  classifyGaslessFailure,
   decimalPriceToWei,
+  decodeGaslessOperationFailure,
+  getGaslessUnconfirmedSubmit,
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
+  getSessionKeySelectors,
+  isGaslessIdempotencyConflictError,
+  isGaslessRequestTerminal,
   isolationTypeForSide,
+  parseGaslessErrorDetail,
   supportsEstimatedPrice,
   validateInstantCloseAgainstMarket,
   validateInstantOpenAgainstMarket,
@@ -56,6 +69,14 @@ export {
   type CalculateTradeParamsReturnType,
   type ClampClosePrecisionParameters,
   type CloseQuoteConstraintViolation,
+  type GaslessDecodedOperationFailure,
+  type GaslessDepositAccountData,
+  type GaslessFailureReason,
+  type GaslessRequest,
+  type GaslessService,
+  type GaslessSubmitReceipt,
+  type GaslessUnconfirmedSubmit,
+  type GaslessWalletCall,
   type GetPartyAOpenPositionsData,
   type GetPartyAOpenPositionsOptions,
   type GetPartyAOpenPositionsParameters,
@@ -88,8 +109,10 @@ export {
 export type { GetWalletClientFn, SymmioWalletClient } from "@symmio/trading-core";
 export {
   SymmioProvider,
+  createSessionKeyWalletClientResolver,
   useSymmioChainId,
   useSymmioConfig,
+  type CreateSessionKeyWalletClientResolverParameters,
   type SymmioProviderProps,
   type UseSymmioConfigParameters,
 } from "./provider";
@@ -259,11 +282,17 @@ export {
  * InstantLayer hooks
  * ------------------
  * Delegated signer access reads and grant writes for the Instant Layer
- * contract.
+ * contract. `usePendingRevocation` covers the pending half of the two-step
+ * revocation — the readiness hooks keep reporting a cooling-down key as active,
+ * because the contract keeps enforcing it until the ETA passes.
  */
 export {
+  useActiveDelegations,
+  useAreDelegationsActive,
   useDelegationExpiry,
+  useFinalizeRevokeDelegation,
   useGrantDelegation,
+  useInitiateRevokeDelegation,
   useInstantClose,
   useInstantCloseAuto,
   useInstantCloseBulk,
@@ -279,12 +308,25 @@ export {
   useIsDelegationActive,
   useLimitCloseAuto,
   useLimitOpenAuto,
+  usePendingRevocation,
+  useRevocationCooldown,
+  useSessionKeySelectors,
   useSimulateGrantDelegation,
+  type FinalizeRevokeDelegationResult,
   type GrantDelegationResult,
+  type InitiateRevokeDelegationResult,
+  type UseActiveDelegationsParameters,
+  type UseActiveDelegationsReturnType,
+  type UseAreDelegationsActiveParameters,
+  type UseAreDelegationsActiveReturnType,
   type UseDelegationExpiryParameters,
   type UseDelegationExpiryReturnType,
+  type UseFinalizeRevokeDelegationParameters,
+  type UseFinalizeRevokeDelegationReturnType,
   type UseGrantDelegationParameters,
   type UseGrantDelegationReturnType,
+  type UseInitiateRevokeDelegationParameters,
+  type UseInitiateRevokeDelegationReturnType,
   type UseInstantCloseAutoParameters,
   type UseInstantCloseAutoReturnType,
   type UseInstantCloseBulkAutoParameters,
@@ -318,6 +360,12 @@ export {
   type UseLimitCloseAutoReturnType,
   type UseLimitOpenAutoParameters,
   type UseLimitOpenAutoReturnType,
+  type UsePendingRevocationParameters,
+  type UsePendingRevocationReturnType,
+  type UseRevocationCooldownParameters,
+  type UseRevocationCooldownReturnType,
+  type UseSessionKeySelectorsParameters,
+  type UseSessionKeySelectorsReturnType,
   type UseSimulateGrantDelegationParameters,
   type UseSimulateGrantDelegationReturnType,
 } from "./instant-layer";
@@ -374,11 +422,15 @@ export {
  * Markets hooks
  * -------------
  * Fetch tradable markets from the solver and on-chain contract markets from
- * SYMMIO core.
+ * SYMMIO core. `useFundingFeesOfPartyB` reads the accumulated-funding state a
+ * solver keeps for one symbol (raw, cost-positive rates and epoch tracking).
  */
 export {
+  useFundingFeesOfPartyB,
   useMarkets,
   useOnchainContractMarkets,
+  type UseFundingFeesOfPartyBParameters,
+  type UseFundingFeesOfPartyBReturnType,
   type UseMarketsParameters,
   type UseMarketsReturnType,
   type UseOnchainContractMarketsParameters,
@@ -411,9 +463,12 @@ export {
  * `useQuoteGroupFunding*` hooks read a whole group's settled-to-date funding —
  * one aggregate total, one merged timeline — where `netReceived = received −
  * paid`, so a **positive** value means the group **earned** funding.
- * `useQuoteGroupMarginRisk` describes a group's margin, equity and distance to
- * liquidation; it withholds `metrics` when the group spans several accounts,
- * since each is liquidated independently.
+ * `useQuotesPendingFunding` / `useQuotePendingFunding` read the funding accrued
+ * on-chain since the last settlement (income-positive `pendingNetReceived`) for
+ * active positions only — a separate figure from the settled totals, never
+ * added to them. `useQuoteGroupMarginRisk` describes a group's margin, equity
+ * and distance to liquidation; it withholds `metrics` when the group spans
+ * several accounts, since each is liquidated independently.
  */
 export {
   useAccountLiquidationPrice,
@@ -438,10 +493,12 @@ export {
   useQuoteGroupFundingHistory,
   useQuoteGroupMarginRisk,
   useQuoteHistory,
+  useQuotePendingFunding,
   useQuotePlatformFee,
   useQuotePriceHistory,
   useQuoteUpnlAndPnl,
   useQuotesFunding,
+  useQuotesPendingFunding,
   useRequestToCancelCloseRequest,
   useRequestToCancelQuote,
   useSubgraphQuery,
@@ -500,6 +557,8 @@ export {
   type UseQuoteHistoryParameters,
   type UseQuoteHistoryReturnType,
   type UseQuoteParameters,
+  type UseQuotePendingFundingParameters,
+  type UseQuotePendingFundingReturnType,
   type UseQuotePlatformFeeParameters,
   type UseQuotePlatformFeeReturnType,
   type UseQuotePriceHistoryParameters,
@@ -508,6 +567,8 @@ export {
   type UseQuoteUpnlAndPnlReturnType,
   type UseQuotesFundingParameters,
   type UseQuotesFundingReturnType,
+  type UseQuotesPendingFundingParameters,
+  type UseQuotesPendingFundingReturnType,
   type UseRequestToCancelCloseRequestParameters,
   type UseRequestToCancelCloseRequestReturnType,
   type UseRequestToCancelQuoteParameters,
@@ -833,8 +894,12 @@ export {
  * ------------
  * Shared shape for write hooks (`WriteParameters` / `WriteResult`), plus an
  * optional zustand store for tracking in-flight tx hashes in the UI.
+ * `TransactionRevertedError` is what every write hook throws when its
+ * transaction mined but reverted — viem resolves such a receipt normally, so
+ * the shared write tail raises it rather than reporting a no-op as success.
  */
 export {
+  TransactionRevertedError,
   useTransactionsStore,
   type TrackedTx,
   type TransactionsStoreState,
@@ -1173,3 +1238,85 @@ export {
   type UseInventoryTvlParameters,
   type UseInventoryTvlReturnType,
 } from "./inventory";
+
+/**
+ * Gasless hooks
+ * -------------
+ * React bindings for the GaslessQ relayer integration. Availability is
+ * chain-level and additionally requires the perps-core (`"0.8.6"`) contracts
+ * generation — gate gasless UI on `useSupportsGaslessService` so features hide
+ * where the relayer is unavailable.
+ */
+export {
+  useApproveOperationalFee,
+  useGaslessBatchFeeQuote,
+  useGaslessDepositPolicy,
+  useGaslessFeeQuote,
+  useGaslessRequest,
+  useGaslessRequestTransactions,
+  useGaslessWalletAddress,
+  useGaslessWalletCreationFee,
+  useGaslessWalletExecute,
+  useGaslessWalletExecuteSelectors,
+  useGaslessWalletNonce,
+  useOperationalFeeAllowance,
+  useRelayGaslessBatch,
+  useRelayInstantOperations,
+  useResubmitGaslessRequest,
+  useSettleGaslessDepositExistingAccount,
+  useSettleGaslessDepositNewAccount,
+  useSupportsGaslessService,
+  type ApproveOperationalFeeResult,
+  type ApproveOperationalFeeVariables,
+  type GaslessRelayParameters,
+  type GaslessRelayProgress,
+  type GaslessRelayResult,
+  type GaslessStreamState,
+  type GaslessWalletExecuteResult,
+  type GaslessWalletExecuteVariables,
+  type RelayGaslessBatchResult,
+  type RelayGaslessBatchVariables,
+  type RelayInstantOperationsResult,
+  type RelayInstantOperationsVariables,
+  type ResubmitGaslessRequestResult,
+  type ResubmitGaslessRequestVariables,
+  type SettleGaslessDepositExistingAccountResult,
+  type SettleGaslessDepositExistingAccountVariables,
+  type SettleGaslessDepositNewAccountResult,
+  type SettleGaslessDepositNewAccountVariables,
+  type UseApproveOperationalFeeParameters,
+  type UseApproveOperationalFeeReturnType,
+  type UseGaslessBatchFeeQuoteParameters,
+  type UseGaslessBatchFeeQuoteReturnType,
+  type UseGaslessDepositPolicyParameters,
+  type UseGaslessDepositPolicyReturnType,
+  type UseGaslessFeeQuoteParameters,
+  type UseGaslessFeeQuoteReturnType,
+  type UseGaslessRequestParameters,
+  type UseGaslessRequestReturnType,
+  type UseGaslessRequestTransactionsParameters,
+  type UseGaslessRequestTransactionsReturnType,
+  type UseGaslessWalletAddressParameters,
+  type UseGaslessWalletAddressReturnType,
+  type UseGaslessWalletCreationFeeParameters,
+  type UseGaslessWalletCreationFeeReturnType,
+  type UseGaslessWalletExecuteParameters,
+  type UseGaslessWalletExecuteReturnType,
+  type UseGaslessWalletExecuteSelectorsParameters,
+  type UseGaslessWalletExecuteSelectorsReturnType,
+  type UseGaslessWalletNonceParameters,
+  type UseGaslessWalletNonceReturnType,
+  type UseOperationalFeeAllowanceParameters,
+  type UseOperationalFeeAllowanceReturnType,
+  type UseRelayGaslessBatchParameters,
+  type UseRelayGaslessBatchReturnType,
+  type UseRelayInstantOperationsParameters,
+  type UseRelayInstantOperationsReturnType,
+  type UseResubmitGaslessRequestParameters,
+  type UseResubmitGaslessRequestReturnType,
+  type UseSettleGaslessDepositExistingAccountParameters,
+  type UseSettleGaslessDepositExistingAccountReturnType,
+  type UseSettleGaslessDepositNewAccountParameters,
+  type UseSettleGaslessDepositNewAccountReturnType,
+  type UseSupportsGaslessServiceParameters,
+} from "./gasless";

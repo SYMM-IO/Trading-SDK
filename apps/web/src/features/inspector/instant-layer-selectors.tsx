@@ -1,44 +1,56 @@
 import {
-  ADD_MARGIN_TO_NEXT_VA_SELECTOR,
-  REQUEST_TO_CLOSE_POSITION_SELECTOR,
-  SEND_QUOTE_SELECTOR,
-  SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
-} from "@symmio/trading-react";
+  describeSelector,
+  describeSelectorPurpose,
+  getSelectorScope,
+} from "@/features/session-keys/session-key-selector-labels";
+import { useSessionKeySelectors, useSupportsGaslessService } from "@symmio/trading-react";
 import type { ComboboxItem } from "@symmio/ui/components/combobox";
 import type { Hex } from "viem";
 
-interface InstantLayerSelectorSuggestion {
-  name: string;
-  selector: Hex;
+/**
+ * Build the selector picker's items from the SDK's chain-resolved session-key
+ * set — every selector a key can hold, including the withdraw scope, so a grant
+ * can be assembled without hand-typing `bytes4`.
+ *
+ * Each row shows the contract method the selector stands for and the authority
+ * it carries, so a grant can be reviewed by reading it rather than by decoding
+ * hex. A selector this app cannot name falls back to its raw `bytes4`.
+ *
+ * Pass the currently-entered selector tokens as `selected` to mark them;
+ * matching is case-insensitive and tolerates not-yet-valid sibling tokens, so a
+ * known selector stays checked while the field is incomplete. Works for both
+ * the single-selector read field and the multi-selector grant.
+ */
+export function useSelectorComboboxItems(selected: readonly string[]): ComboboxItem[] {
+  /**
+   * The account and withdraw scopes exist only on perps-core 0.8.6 and the SDK
+   * throws for them elsewhere, so an older chain offers the trade selectors
+   * alone rather than breaking the card.
+   */
+  const supportsAccountScope = useSupportsGaslessService();
+  const selectors = useSessionKeySelectors({
+    account: supportsAccountScope,
+    withdraw: supportsAccountScope,
+  });
+  const normalized = selected.map((value) => value.toLowerCase());
+
+  return selectors.map((selector) => ({
+    id: selector,
+    title: describeSelector(selector),
+    meta: describeSelectorMeta(selector),
+    selected: normalized.includes(selector.toLowerCase()),
+  }));
 }
 
 /**
- * Function-selector suggestions surfaced by the combobox pickers. The selectors
- * come straight from `@symmio/trading-react`'s re-exports of the SDK's ABI-derived
- * constants — no hardcoded hex here.
+ * The subtitle under a selector in the picker: the authority group it belongs
+ * to, and what holding it lets a key do. A selector this app cannot name shows
+ * its group alone rather than a guess.
  */
-const SELECTOR_SUGGESTIONS: readonly InstantLayerSelectorSuggestion[] = [
-  { name: "addMarginToNextVA", selector: ADD_MARGIN_TO_NEXT_VA_SELECTOR },
-  { name: "sendQuote", selector: SEND_QUOTE_SELECTOR },
-  { name: "sendQuoteWithAffiliateAndData", selector: SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR },
-  { name: "requestToClosePosition", selector: REQUEST_TO_CLOSE_POSITION_SELECTOR },
-] as const;
-
-/**
- * Map the SDK's known selector suggestions to {@link ComboboxItem}s. Pass the
- * currently-entered selector tokens as `selected` to mark them in the picker;
- * matching is case-insensitive and tolerates not-yet-valid sibling tokens, so a
- * known selector stays checked even while the field is incomplete. Works for
- * both the single-selector read field and the multi-selector grant.
- */
-export function toSelectorComboboxItems(selected: readonly string[]): ComboboxItem[] {
-  const normalized = selected.map((value) => value.toLowerCase());
-  return SELECTOR_SUGGESTIONS.map((item) => ({
-    id: item.selector,
-    title: item.name,
-    meta: item.selector,
-    selected: normalized.includes(item.selector.toLowerCase()),
-  }));
+function describeSelectorMeta(selector: Hex): string {
+  const purpose = describeSelectorPurpose(selector);
+  const scope = getSelectorScope(selector);
+  return purpose ? `${scope} — ${purpose}` : scope;
 }
 
 /** Split a free-text selectors field into its raw, trimmed tokens. */

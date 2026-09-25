@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Margin & risk
 
 A position's margin figures answer one question: **how much room is there before the protocol takes it away.** `@symmio/trading-core` exposes that as a single pure fold, [`calculateMarginRisk`](/core/margin/calculate-margin-risk), over an account's on-chain balance and its unrealized PnL.
@@ -12,7 +14,7 @@ Everything a margin panel shows — total, maintenance and initial margin, equit
 allocatedBalance − (lockedCVA + lockedLF) + upnl < 0
 ```
 
-which is the same thing as `equity < maintenanceMargin`. `calculateMarginRisk` returns that comparison directly as `isLiquidatable`.
+which is the same thing as `equity < maintenanceMargin`. `calculateMarginRisk` returns that comparison directly as `isLiquidatable`. In the protocol's own check, `upnl` is the Muon-signed **net** uPnL, which already includes the account's pending accumulated funding — funding accrued but not yet moved into `allocatedBalance`.
 
 Because each account is judged separately, **margin figures must never be summed across accounts.** The totals would add up correctly, but the buffer would not: an account sitting at a 2% cushion averaged with one at 200% reads as comfortable while the first is about to be liquidated. When a grouped position spans several accounts, describe each one, or say that you cannot describe them as one — which is what [`useQuoteGroupMarginRisk`](/react/quotes) does.
 
@@ -20,6 +22,15 @@ Because each account is judged separately, **margin figures must never be summed
 
 - The four balance fields are `balanceInfoOfPartyA(account)` — read them with [`getAccountBalanceInfo`](/core/account-layer/get-account-balance-info). An `AccountBalanceInfo` spreads straight into the inputs.
 - The unrealized PnL is yours to supply. For a grouped position, fold it with [`aggregateGroupUpnl`](/core/quotes/aggregate-group-upnl); for an account-wide figure, a Muon uPnL attestation works too. Pass the uPnL of the **same** account the balance describes.
+
+<Callout type="warning">
+  **Count pending funding exactly once.** A mark-price uPnL such as `aggregateGroupUpnl` excludes pending accumulated
+  funding, so a position that owes funding looks healthier than the protocol sees it. To approximate the protocol's
+  figure, add Σ `pendingNetReceived` from [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding) —
+  it is income-positive, like uPnL. A Muon uPnL attestation already includes it, so never net it in a second time.
+  Legacy funding needs neither: it already sits inside `openedPrice`. See
+  [Funding](/core/concepts/funding#muon-upnl-vs-mark-price-upnl).
+</Callout>
 
 The **price** at which liquidation happens is a separate question with different inputs — see [`calculateLiquidationPrice`](/core/quotes/aggregate-group-upnl#related).
 

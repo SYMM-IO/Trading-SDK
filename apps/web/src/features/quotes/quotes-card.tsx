@@ -9,7 +9,7 @@ import { useManagedQuotes } from "@symmio/trading-react";
 import { SearchInput } from "@symmio/ui/components/search-input";
 import { useMemo, useState } from "react";
 import { isAddress, type Address } from "viem";
-import { QuotesTable } from "./quotes-table";
+import { QuotesSurface } from "./quotes-surface";
 
 /**
  * Solvers-page card for the managed quotes feed: pick a partyA and watch its
@@ -128,11 +128,12 @@ function ResultPanel({
   }
 
   return (
-    <QuotesTable
+    <QuotesSurface
       testId={`${testId}-data`}
       quotes={visible}
       totalCount={quotes.length}
       defaultPageSize={5}
+      maxVisibleRows={8}
       emptyMessage="No quotes match this search."
       toolbar={
         <SearchInput

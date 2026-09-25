@@ -1,4 +1,6 @@
-import { txExplorerUrl } from "@/lib/explorer";
+"use client";
+
+import { useBlockExplorer } from "@/lib/explorer";
 import { CopyButton } from "@symmio/ui/components/copy-button";
 import { minifyHash } from "@symmio/utils";
 
@@ -9,7 +11,7 @@ interface Props {
 
 /** Compact confirmation row for a submitted transaction — hash, copy, explorer link, and receipt summary. */
 export function TxReceipt({ hash, receipt }: Props) {
-  const href = txExplorerUrl(hash);
+  const href = useBlockExplorer().txUrl(hash);
 
   return (
     <div className="flex flex-col gap-1.5">

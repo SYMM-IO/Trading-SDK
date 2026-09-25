@@ -1,6 +1,8 @@
 "use client";
 
 import { ResultError, ResultNote } from "@/components/result";
+import { useFlowWriteOption, type GaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { SessionKeySignerNote } from "@/features/gasless/session-key-signer-note";
 import { PositionType, QuoteStatus, type GetPartyAOpenPositionsReturnType } from "@symmio/trading-core";
 import {
   useCoolDownsOfMA,
@@ -40,8 +42,9 @@ interface Props {
  * Cancel-close wizard (majors / rasa): Connect → Select subaccount → pick a
  * position whose close is pending and cancel the close request. Routes
  * `requestToCancelCloseRequest` (and, once stalled + cooled down,
- * `forceCancelCloseRequest`) through the AccountLayer `_call` proxy. Shown only
- * when the solver supports limit orders (gated by the panel).
+ * `forceCancelCloseRequest`) through the AccountLayer `_call` proxy, signed by
+ * the wallet or — when the wallet menu's default is on — the session key. Shown
+ * only when the solver supports limit orders (gated by the panel).
  */
 export function CancelCloseFlow({ owner, subAccount, subAccountName, onSelectSubAccount, ready }: Props) {
   const [step, setStep] = useState(0);
@@ -97,6 +100,8 @@ function CancelCloseStep({ subAccount }: { subAccount: Address }) {
   const { data, isLoading, isRefetching, error, refetch } = usePartyAOpenPositions({ partyA: subAccount, live: true });
   const cancel = useRequestToCancelCloseRequest();
   const force = useForceCancelCloseRequest();
+  const cancelWrite = useFlowWriteOption("requestToCancelCloseRequest");
+  const forceWrite = useFlowWriteOption("forceCancelCloseRequest");
 
   // Force-cancel-close cooldown is the 3rd `coolDownsOfMA` value (seconds).
   const { data: coolDowns } = useCoolDownsOfMA();
@@ -154,6 +159,8 @@ function CancelCloseStep({ subAccount }: { subAccount: Address }) {
         </Button>
       </div>
 
+      <SessionKeySignerNote signer={cancelWrite.from} />
+
       {cancel.isError ? (
         <ResultError testId="cancel-close-submit-error" kind={cancel.error.kind} message={cancel.error.message} />
       ) : null}
@@ -170,6 +177,8 @@ function CancelCloseStep({ subAccount }: { subAccount: Address }) {
             subAccount={subAccount}
             cancel={cancel}
             force={force}
+            cancelWrite={cancelWrite}
+            forceWrite={forceWrite}
             forceCancelCloseCooldown={forceCancelCloseCooldown}
             nowSec={nowSec}
           />
@@ -185,6 +194,8 @@ interface PendingCloseRowProps {
   subAccount: Address;
   cancel: ReturnType<typeof useRequestToCancelCloseRequest>;
   force: ReturnType<typeof useForceCancelCloseRequest>;
+  cancelWrite: GaslessWriteOption;
+  forceWrite: GaslessWriteOption;
   forceCancelCloseCooldown: bigint | undefined;
   nowSec: number;
 }
@@ -195,6 +206,8 @@ function PendingCloseRow({
   subAccount,
   cancel,
   force,
+  cancelWrite,
+  forceWrite,
   forceCancelCloseCooldown,
   nowSec,
 }: PendingCloseRowProps) {
@@ -204,6 +217,7 @@ function PendingCloseRow({
   // Force **close** (execute the pending close at an oracle price) — its own flow,
   // available on a CLOSE_PENDING LIMIT position once its cooldown passes.
   const forceClose = useForceClose();
+  const forceCloseWrite = useFlowWriteOption("forceClosePosition");
   const forceCloseElig = useForceCloseEligibility({ quote });
   const forceClosing = forceClose.isPending;
 
@@ -254,7 +268,7 @@ function PendingCloseRow({
           size="sm"
           variant="destructive"
           disabled={force.isPending || !forceEligible}
-          onClick={() => force.mutate({ account: subAccount, quoteId: quote.id })}
+          onClick={() => force.mutate({ account: subAccount, quoteId: quote.id, ...forceWrite })}
           data-testid={`cancel-close-force-${quote.id.toString()}`}
         >
           {forcing ? <Spinner className="size-3" /> : null}
@@ -276,6 +290,7 @@ function PendingCloseRow({
                 quoteId: quote.id,
                 skipPriceCheck: true,
                 simulateBeforeWrite: false,
+                ...forceCloseWrite,
               })
             }
             title={
@@ -291,7 +306,7 @@ function PendingCloseRow({
             size="sm"
             variant="destructive"
             disabled={cancel.isPending || !cancellable}
-            onClick={() => cancel.mutate({ account: subAccount, quoteId: quote.id })}
+            onClick={() => cancel.mutate({ account: subAccount, quoteId: quote.id, ...cancelWrite })}
             data-testid={`cancel-close-cancel-${quote.id.toString()}`}
           >
             {cancelling ? <Spinner className="size-3" /> : null}

@@ -341,12 +341,12 @@ export interface Quote {
   /** Affiliate address attributed to the quote, or the zero address. */
   affiliate: Address;
   /**
-   * Cumulative funding-**rate index** already settled on this quote (`int256`,
-   * 18-decimal fixed point) — the position's funding rate multiplied by the
-   * epochs elapsed since the funding fee started. **Not a currency amount**:
-   * the settled fee is only obtained as
-   * `openAmount × (currentFee − accumulatedPaidFunding) / 1e18`, so summing this
-   * field across quotes is meaningless. For real settled funding amounts use
+   * Per-unit cumulative funding-fee **index** recorded at this quote's last
+   * settlement (`int256`, 18-decimal fixed point, cost-positive). **Not a
+   * currency amount**, so summing this field across quotes is meaningless:
+   * `openAmount × (currentFee − accumulatedPaidFunding) / 1e18` is the
+   * **pending**, not-yet-settled fee — read that with
+   * {@link getQuotePendingFunding}. For settled funding amounts use
    * {@link getQuoteFunding} / {@link aggregateGroupFunding}.
    */
   accumulatedPaidFunding: bigint;

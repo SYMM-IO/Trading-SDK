@@ -1,6 +1,8 @@
 "use client";
 
 import { ResultError, ResultNote } from "@/components/result";
+import { useFlowWriteOption, type GaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { SessionKeySignerNote } from "@/features/gasless/session-key-signer-note";
 import { PositionType, QuoteStatus, type UnifiedQuote } from "@symmio/trading-core";
 import {
   useCoolDownsOfMA,
@@ -36,8 +38,9 @@ interface Props {
 /**
  * Cancel-limit wizard (majors / rasa): Connect → Select subaccount → pick a
  * resting LIMIT order and cancel it. Cancel routes `requestToCancelQuote` through
- * the AccountLayer `_call` proxy (the owner's wallet, no session key). Shown only
- * when the solver supports limit orders (gated by the panel).
+ * the AccountLayer `_call` proxy, signed by the wallet or — when the wallet
+ * menu's default is on — the session key. Shown only when the solver supports
+ * limit orders (gated by the panel).
  */
 export function CancelLimitFlow({ owner, subAccount, subAccountName, onSelectSubAccount, ready }: Props) {
   const [step, setStep] = useState(0);
@@ -93,6 +96,8 @@ function CancelLimitStep({ subAccount }: { subAccount: Address }) {
   const { quotes, isLoading, error, refetch, socketStatus } = useLimitOrders({ partyA: subAccount, live: true });
   const cancel = useRequestToCancelQuote();
   const force = useForceCancelQuote();
+  const cancelWrite = useFlowWriteOption("requestToCancelQuote");
+  const forceWrite = useFlowWriteOption("forceCancelQuote");
 
   // Force-cancel cooldown is the 2nd `coolDownsOfMA` value (seconds).
   const { data: coolDowns } = useCoolDownsOfMA();
@@ -140,6 +145,8 @@ function CancelLimitStep({ subAccount }: { subAccount: Address }) {
         </Button>
       </div>
 
+      <SessionKeySignerNote signer={cancelWrite.from} />
+
       {cancel.isError ? (
         <ResultError testId="cancel-limit-submit-error" kind={cancel.error.kind} message={cancel.error.message} />
       ) : null}
@@ -156,6 +163,8 @@ function CancelLimitStep({ subAccount }: { subAccount: Address }) {
             subAccount={subAccount}
             cancel={cancel}
             force={force}
+            cancelWrite={cancelWrite}
+            forceWrite={forceWrite}
             forceCancelCooldown={forceCancelCooldown}
             nowSec={nowSec}
           />
@@ -171,11 +180,23 @@ interface LimitOrderRowProps {
   subAccount: Address;
   cancel: ReturnType<typeof useRequestToCancelQuote>;
   force: ReturnType<typeof useForceCancelQuote>;
+  cancelWrite: GaslessWriteOption;
+  forceWrite: GaslessWriteOption;
   forceCancelCooldown: bigint | undefined;
   nowSec: number;
 }
 
-function LimitOrderRow({ quote, market, subAccount, cancel, force, forceCancelCooldown, nowSec }: LimitOrderRowProps) {
+function LimitOrderRow({
+  quote,
+  market,
+  subAccount,
+  cancel,
+  force,
+  cancelWrite,
+  forceWrite,
+  forceCancelCooldown,
+  nowSec,
+}: LimitOrderRowProps) {
   // Actions need a real on-chain quote id; an off-chain row is still writing on-chain.
   const onchainId = quote.origin === "onchain" ? quote.quoteId : undefined;
   const testKey = onchainId !== undefined ? onchainId.toString() : quote.key;
@@ -220,7 +241,7 @@ function LimitOrderRow({ quote, market, subAccount, cancel, force, forceCancelCo
           size="sm"
           variant="destructive"
           disabled={force.isPending || !forceEligible}
-          onClick={() => force.mutate({ account: subAccount, quoteId: onchainId! })}
+          onClick={() => force.mutate({ account: subAccount, quoteId: onchainId!, ...forceWrite })}
           data-testid={`cancel-limit-force-${testKey}`}
         >
           {forcing ? <Spinner className="size-3" /> : null}
@@ -232,7 +253,7 @@ function LimitOrderRow({ quote, market, subAccount, cancel, force, forceCancelCo
           size="sm"
           variant="destructive"
           disabled={cancel.isPending || !cancellable}
-          onClick={() => cancel.mutate({ account: subAccount, quoteId: onchainId! })}
+          onClick={() => cancel.mutate({ account: subAccount, quoteId: onchainId!, ...cancelWrite })}
           data-testid={`cancel-limit-cancel-${testKey}`}
         >
           {cancelling ? <Spinner className="size-3" /> : null}

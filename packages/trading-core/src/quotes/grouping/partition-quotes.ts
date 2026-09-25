@@ -19,6 +19,38 @@ const ACTIVE_STATUSES = new Set<QuoteStatus>([
 ]);
 
 /**
+ * Whether an on-chain status is an active position (`OPENED`, `CLOSE_PENDING`,
+ * `CANCEL_CLOSE_PENDING`, `LIQUIDATED_PENDING`) — the only statuses whose pending
+ * funding is meaningful. Same set as {@link isActivePosition}.
+ *
+ * Unlike {@link isActivePosition}, it takes a **known** status and has no
+ * lifecycle fallback: a row whose `quoteStatus` is still `undefined` (an
+ * optimistic or just-anchored row) is not something to call it with. Use it to
+ * pick which quotes to pass to {@link getQuotePendingFunding}, whose view does not
+ * check status and returns a meaningless amount for a locked-but-never-opened
+ * quote.
+ *
+ * @param status - The quote's on-chain status.
+ * @returns `true` for an active-position status.
+ *
+ * @example
+ * ```ts
+ * isActiveQuoteStatus(QuoteStatus.OPENED); // true
+ * isActiveQuoteStatus(QuoteStatus.LOCKED); // false
+ *
+ * const quoteIds = quotes.flatMap((quote) =>
+ *   quote.quoteId !== undefined && quote.quoteStatus !== undefined && isActiveQuoteStatus(quote.quoteStatus)
+ *     ? [quote.quoteId]
+ *     : [],
+ * );
+ * const rows = await getQuotePendingFunding(config, { quoteIds });
+ * ```
+ */
+export function isActiveQuoteStatus(status: QuoteStatus): boolean {
+  return ACTIVE_STATUSES.has(status);
+}
+
+/**
  * Whether a quote is a **resting/pending order** — submitted but not yet an open
  * position.
  *
@@ -68,7 +100,7 @@ export function isPendingOrder(quote: UnifiedQuote): boolean {
  * @returns `true` for an active position.
  */
 export function isActivePosition(quote: UnifiedQuote): boolean {
-  if (quote.quoteStatus !== undefined) return ACTIVE_STATUSES.has(quote.quoteStatus);
+  if (quote.quoteStatus !== undefined) return isActiveQuoteStatus(quote.quoteStatus);
   switch (quote.lifecycle) {
     case QuoteLifecycle.OPTIMISTIC:
     case QuoteLifecycle.PRICE_FILLED:

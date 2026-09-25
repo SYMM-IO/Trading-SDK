@@ -303,7 +303,6 @@ function VirtualAccountOption({
           {detail.data ? `symbol ${detail.data.symbolId.toString()}` : "Loading…"}
         </span>
       </span>
-      {active ? <Badge variant="positive">Selected</Badge> : null}
     </button>
   );
 }

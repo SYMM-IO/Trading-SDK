@@ -46,15 +46,33 @@ These route through the session-key manager when `from` is the session-key addre
 - **TP/SL** — [`useSetQuoteTpSl`](/react/tpsl), `useDeleteQuoteTpSl` (EIP-712 conditional-order message).
 - **Instant Open** — [`useInstantOpen`](/react/solvers/instant-open), `useInstantOpenAuto`, `useInstantOpenWithTpSl` (EIP-712 open + optional TP/SL leg).
 - **Instant Close** — [`useInstantClose`](/react/solvers/instant-close), `useInstantCloseAuto`, and their bulk variants.
-- **Delegated instant withdraw** — after [`useGrantDelegation`](/react/instant-layer) authorizes the session key on-chain for the withdraw selector.
+- **Relayable account management** — allocate, deallocate, add/remove margin, the quote and close cancels, withdraw
+  completion and cancellation, and the operational-fee approval. Pass `from` alongside `gasless` and the write is signed
+  by the key and relayed, with no wallet prompt and no native gas. These need the account scope of
+  [`getSessionKeySelectors`](/core/gasless/get-session-key-selectors), which exists only on perps-core 0.8.6 chains.
+- **Withdrawal initiation** — only when the key was granted the opt-in `withdraw` scope.
 
 ## Which actions stay on the connected wallet
 
 These always route to the owner wallet, regardless of session-key configuration:
 
 - **Wallet connect / disconnect / chain switch** — not signing, just wagmi calls.
-- **Grant delegation** — the very act of authorizing the session key; it must be signed by the owner wallet.
-- **Deposit / classic withdraw** — non-instant on-chain writes routed through the owner wallet.
+- **Grant delegation** — the act of authorizing the key. The contract enforces it: `_verifyOperation` routes any
+  operation targeting the Instant Layer to `_verifyGrantOperation`, which rejects a signer that is not the account
+  owner. This is the floor — one prompt, and no SDK change removes it.
+- **Revoking a delegation** — [`initiateRevokeDelegation`](/core/instant-layer/initiate-revoke-delegation) and
+  [`finalizeRevokeDelegation`](/core/instant-layer/finalize-revoke-delegation) also target the Instant Layer, so they
+  cannot be relayed and always cost native gas — including when the key revokes itself.
+- **Deposits** — `depositForAccount` and `depositAndAllocateForAccount` pull the **owner's** ERC-20 collateral, which
+  the key holds no allowance for.
+- **Account creation, deletion and renaming** — `createSubAccounts` carries no `onlyAccountOwner` guard, so the Instant
+  Layer's scope cannot confine it; the other two stay owner-signed by product decision.
+
+<Callout type="warning">
+  A session key that is *not* the account owner cannot take the wallet path as a fallback. `CoreFacet._call` is
+  `onlyAccountOwner`, and the key holds no native gas, so a write sent with `from: sessionKeyAddress` and `gasless:
+  false` reverts `NotOwner`. Pair `from` with the relay, or send from the owner.
+</Callout>
 
 <Callout type="info">
   The imports above (`useCallback`, `getWalletClient` from `wagmi/actions`, `wagmiConfig`) come from your app.

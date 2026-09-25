@@ -19,5 +19,6 @@ export default {
   notifications: "Notifications",
   subgraph: "Subgraph",
   muon: "Muon Oracle",
+  gasless: "Gasless",
   "shared-types": "Shared Types",
 };

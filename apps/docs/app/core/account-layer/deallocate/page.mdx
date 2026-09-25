@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # deallocate
 
 Move a subaccount's **classic-pool** allocated balance back into its available balance — the reverse of [`allocate`](/core/account-layer/allocate). (The instant flow never allocates in the first place — see [Balance Model](/core/concepts/balance-model).) Routed through the AccountLayer `_call` proxy; the connected wallet must be the subaccount's on-chain `owner`. Requires a fresh Muon uPnL attestation so the contract can verify the subaccount stays solvent, and is subject to the on-chain **deallocate debounce**.
@@ -31,8 +33,20 @@ const hash = await deallocate(config, {
   <Property name="simulateBeforeWrite" type="boolean" optional>
     Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default).
   </Property>
+  <Property name="gasless" type="boolean | GaslessWriteOptions" optional>
+    Relay this write through the [gasless execution mode](/core/gasless/relayable-writes) instead of the wallet. A
+    boolean for the common case, or a per-call `GaslessWriteOptions` bag; omitted, the chain's `execution.mode` decides.
+  </Property>
 </Properties>
 
 ## Returns
 
 <Returns type="Hash">The broadcast tx hash. Dry-run without sending via `simulateDeallocate(config, params)`.</Returns>
+
+## Gasless execution
+
+<Callout type="info">
+  `deallocate` is relayable through the [gasless execution mode](/core/gasless/relayable-writes) — pass `gasless: true`
+  (or set the chain's `execution.mode` to `"gasless"`) and the SDK signs the same calldata as an InstantLayer operation,
+  relays it, and returns the relayer’s broadcast hash; the return type and receipt behavior are unchanged.
+</Callout>

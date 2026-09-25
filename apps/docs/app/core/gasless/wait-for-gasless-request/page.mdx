@@ -1,0 +1,137 @@
+import { Callout } from "nextra/components";
+
+# waitForGaslessRequest
+
+Poll one gasless request until it broadcasts or reaches a terminal status — the framework-agnostic awaited form of the [`getGaslessRequest`](/core/gasless/get-gasless-request) poll loop.
+
+This is the raw driver: it reports whatever terminal it reaches. To assert an outcome — resolve only on `succeeded`, optionally after the receipt lands on your own client — use [`confirmGaslessRequest`](/core/gasless/confirm-gasless-request) instead. Reach for this one when you want `until: "broadcast"`, or when a non-succeeded terminal is a normal branch rather than an error.
+
+```ts
+import { waitForGaslessRequest, GaslessRequestStatus } from "@symmio/trading-core";
+
+const record = await waitForGaslessRequest(config, { requestId, until: "broadcast" });
+if (record.txHash) {
+  await config.getClient().waitForTransactionReceipt({ hash: record.txHash });
+}
+```
+
+The cadence follows the service recommendation — `GASLESS_QUEUED_POLL_MS` (1 500 ms) while `queued`, `GASLESS_SUBMITTED_POLL_MS` (3 000 ms) after `submitted` — bounded by an overall `timeoutMs` budget (`GASLESS_WAIT_TIMEOUT_MS`, 120 000 ms). Up to three consecutive `404`s are tolerated right after a submit (the accepted record may not be readable yet); a fourth is rethrown.
+
+Every cadence and window below falls back to the deployment's `gasless.execution` block before its constant, so a gateway's own tuning reaches every wait — including the ones you never call directly, like the one a relayed write runs in its receipt tail.
+
+## The stream leads; HTTP is the fallback
+
+Where the deployment serves a [status stream](/core/gasless/watch-gasless-request), the wait subscribes to it and polls only while it is not delivering. A healthy workflow therefore costs **no status reads at all**: the stream carries the same records the reads return, so a caller cannot tell which transport produced one.
+
+| Situation                                                                                                  | What the wait does                                                            |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Subscribing, first record not in yet                                                                       | Waits up to `streamSettleMs` (1 000 ms) before reading — the answer is coming |
+| The stream says it cannot deliver (unreachable, not on this instance, over the subscription cap, disabled) | Reads at once; the settle window does not run out first                       |
+| Delivering                                                                                                 | Polling stands down entirely                                                  |
+| Delivering, but silent about this workflow for `streamStaleMs` (15 000 ms)                                 | Takes one read anyway, then re-arms the window                                |
+| No stream configured, or `transport: "poll"`                                                               | Polls at the cadence above, exactly as before                                 |
+
+The stale window is not redundant with the socket's own liveness check: heartbeats arrive about every 20 s and prove the _socket_ is alive, saying nothing about whether this workflow is still being reported. Without it a live-but-silent stream could blind a wait until the socket's 60 s liveness timer fired.
+
+The settle window is deliberately shorter than the poll cadence it defers, so a stream that never answers costs one _delayed_ read rather than an extra one.
+
+## A failed read is not a failed request
+
+Once the service has returned a `202` the workflow is running whether or not you can see it, so the loop absorbs every transient transport failure instead of reporting one:
+
+| Failure                                               | What the loop does                                                                                        |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| No response, `408`, `429`, `500`, `502`, `503`, `504` | Reports it through `onTransportIssue`, then retries after `max(Retry-After, jittered 1 s → 30 s backoff)` |
+| `404`, up to three in a row right after a submit      | Retries — the accepted record may not be readable yet                                                     |
+| A fourth consecutive `404`                            | Throws: the id is not a request this service knows                                                        |
+| `401`, `403`, `422`, a service error code             | Throws: the service gave a definitive answer                                                              |
+
+Every retry is capped by whatever is left of `timeoutMs`, so a 30-second backoff can never hide a 5-second budget. Use `onTransportIssue` to render "status unavailable, still running" — never a failure, and never a reason to re-submit an intent that is already executing.
+
+```ts
+const record = await waitForGaslessRequest(config, {
+  requestId,
+  onTransportIssue: () => setDegraded(true),
+  onUpdate: () => setDegraded(false),
+});
+```
+
+When the budget does run out, the thrown timeout carries the last transient failure as its `cause`, which is how you tell "the relayer is slow" from "we went blind":
+
+```ts
+try {
+  await waitForGaslessRequest(config, { requestId });
+} catch (err) {
+  if (err instanceof SymmError && err.code === "GASLESS_TERMINAL_TIMEOUT") {
+    const wentBlind = err.cause !== undefined;
+  }
+}
+```
+
+<Callout type="warning">
+  The wait **resolves** with the record for `reverted` / `failed` / `rejected` terminals — those are workflow outcomes,
+  not transport failures. Branch on `status`; only `succeeded` is success. It **throws** only for transport-level
+  problems: an exhausted budget, an abort, or a persistent fetch failure. On a timeout the request keeps running
+  server-side — keep the `requestId` and keep watching; never re-submit the same intent through the wallet.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="requestId" type="string" required>
+    Stable service tracking id returned by a gasless submit.
+  </Property>
+  <Property name="until" type='"broadcast" | "terminal"' optional default='"terminal"'>
+    `"broadcast"` resolves as soon as a transaction hash exists; `"terminal"` waits for `succeeded | reverted | failed |
+    rejected`.
+  </Property>
+  <Property name="service" type='"operations" | "deposits"' optional default='"operations"'>
+    Which sub-service stores the request.
+  </Property>
+  <Property name="timeoutMs" type="number" optional default="120_000">
+    Overall wait budget.
+  </Property>
+  <Property name="queuedPollMs" type="number" optional default="1_500">
+    Poll cadence while `queued`.
+  </Property>
+  <Property name="submittedPollMs" type="number" optional default="3_000">
+    Poll cadence after `submitted`.
+  </Property>
+  <Property name="streamSettleMs" type="number" optional default="1_000">
+    How long to let the status stream settle before the first HTTP read. Ends early the moment the stream delivers, or
+    reports that it will not. Ignored under `transport: "poll"`.
+  </Property>
+  <Property name="streamStaleMs" type="number" optional default="15_000">
+    How long a delivering stream may report nothing about the workflow before one HTTP read is taken anyway.
+  </Property>
+  <Property name="transport" type='"auto" | "poll"' optional default='"auto"'>
+    `"auto"` prefers the status stream where the deployment enables it; `"poll"` forces HTTP polling. The outcome is
+    identical either way.
+  </Property>
+  <Property name="signal" type="AbortSignal" optional>
+    Abort the wait (e.g. on unmount). The request itself keeps running server-side.
+  </Property>
+  <Property name="onUpdate" type="(request: GaslessRequest) => void" optional>
+    Observer invoked with every fetched record, including the final one.
+  </Property>
+  <Property name="onTransportIssue" type="(error: SymmError) => void" optional>
+    Observer invoked for every transient read failure the loop absorbed. Nothing is wrong with the workflow when it
+    fires — only your view of it is stale.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessRequest>">
+  The record at broadcast (`until: "broadcast"`) or at the terminal status — the same shape
+  [`getGaslessRequest`](/core/gasless/get-gasless-request) returns.
+</Returns>
+
+## Throws
+
+- `SymmError("api", "GASLESS_BROADCAST_TIMEOUT" | "GASLESS_TERMINAL_TIMEOUT")` — the budget ran out before the wait target. `cause` is the last transient read failure, when the budget was spent going blind rather than waiting.
+- `SymmError("api", "GASLESS_WAIT_ABORTED")` — `signal` aborted.
+- Everything [`getGaslessRequest`](/core/gasless/get-gasless-request) throws for a definitive answer, and after the `404` tolerance is exhausted. Transient transport failures are absorbed rather than thrown.

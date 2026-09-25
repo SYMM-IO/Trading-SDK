@@ -190,6 +190,19 @@ Today only **Arbitrum** has it (`listing: { url: "https://listing85.enigma.bz" }
 
 In React, gate with [`useSupportsListingService`](/react/solvers#usesupportslistingservice), then read the catalog with [`useListingMarkets`](/react/pools).
 
+## Gasless relayer service
+
+The [gasless slice](/core/gasless) is the third chain-level optional service: `SymmioChainConfig.gasless` (a `SymmioGaslessConfig`) carries the GaslessQ service base (`url` + `protocolInstance` — the instance key selects the deployment at the vendor gateway, since staging and production can share a chain id), the **GaslessLayer** contract address (`gaslessLayerAddress` — the operational-fee charger and the source of every gasless contract read; a deployment constant with no runtime discovery), an optional partner `apiKey` for server-side consumers, the optional `statusStream` availability, and the transparent execution-mode defaults (`execution: { mode, fallback, … }`).
+
+Gasless resolution is stricter than listing's: beyond the block being present, the chain's [`contractsVersion`](#contracts-version-is-a-chain-axis) must be `"0.8.6"` — the relayer supports only perps-core deployments. `resolveGaslessService` throws `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`; `supportsGaslessService` is the non-throwing twin for `enabled` / UI gates. **No chain ships a built-in block**; consumers supply the complete block — `url`, `protocolInstance`, `gaslessLayerAddress`, plus the execution policy — with a `createConfig` override on Arbitrum, the one `"0.8.6"` chain (a full example lives on the [gasless overview](/core/gasless)).
+
+<Callout type="info">
+  The gateway serves anonymous clients by default, so a browser app whose Origin the deployment allows points
+  `gasless.url` at the gateway origin and configures no `apiKey`. Where anonymous access is on, a partner `apiKey` only
+  raises rate limits; a deployment that turns anonymous access off requires one. A key belongs on a server, never in a
+  browser bundle.
+</Callout>
+
 ## Configuring chains and solvers
 
 Each registry entry carries a `solvers` map keyed by solver id plus a `defaultSolverId`. You override any of it per chain through `createConfig`'s `symmioConfig` — including a solver's `capabilities` — see [Config](/core/concepts/config) and [Addresses](/core/addresses).

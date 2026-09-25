@@ -20,9 +20,13 @@
  * ABI fragments
  * -------------
  * Raw viem-style `Abi` arrays for SYMMIO contracts, for consumers who call viem
- * directly (e.g. `readContract({ abi: accountLayerAbi })`).
+ * directly (e.g. `readContract({ abi: accountLayerAbi })`). The GaslessLayer and
+ * GaslessWallet ABIs are the multi-wallet generation, pinned to a perps-core
+ * commit.
  */
 export { accountLayerAbi } from "./symmio-contracts/abi/v0.8.6/account-layer";
+export { gaslessLayerAbi } from "./symmio-contracts/abi/v0.8.6/gasless-layer";
+export { gaslessWalletAbi } from "./symmio-contracts/abi/v0.8.6/gasless-wallet";
 export { instantLayerAbi } from "./symmio-contracts/abi/v0.8.6/instant-layer";
 export { symmioAbi } from "./symmio-contracts/abi/v0.8.6/symmio";
 
@@ -285,39 +289,287 @@ export {
 /**
  * InstantLayer slice
  * ------------------
- * Delegated signer access on the Instant Layer contract. Reads expose both the
- * raw mapping expiry and the contract's active status; writes submit
- * `grantDelegation`.
+ * Delegated signer access on the Instant Layer contract. Reads expose the raw
+ * mapping expiry, the contract's active status, and — via
+ * `getActiveDelegations` — the canonicalizing multi-selector probe that
+ * resolves a virtual account to its parent the way enforcement does. Writes
+ * cover the full grant lifecycle: `grantDelegation` (relayable, so onboarding a
+ * session key costs no gas) and the two-step `initiateRevokeDelegation` /
+ * `finalizeRevokeDelegation`, which are wallet-only because the contract
+ * accepts a self-targeted operation solely as a delegation grant. A revocation
+ * in flight is visible only through `getPendingRevocationEtas` — the active
+ * reads keep reporting the key as live for the whole cooldown, because it is.
  */
 export {
+  finalizeRevokeDelegation,
+  finalizeRevokeDelegationMutationOptions,
+  getActiveDelegations,
+  getActiveDelegationsQueryKey,
+  getActiveDelegationsQueryOptions,
   getDelegationExpiry,
   getDelegationExpiryQueryKey,
   getDelegationExpiryQueryOptions,
+  getInstantLayerNonce,
+  getInstantLayerNonceQueryKey,
+  getInstantLayerNonceQueryOptions,
   getIsDelegationActive,
   getIsDelegationActiveQueryKey,
   getIsDelegationActiveQueryOptions,
+  getPendingRevocationEtas,
+  getPendingRevocationEtasQueryKey,
+  getPendingRevocationEtasQueryOptions,
+  getRevocationCooldown,
+  getRevocationCooldownQueryKey,
+  getRevocationCooldownQueryOptions,
   grantDelegation,
   grantDelegationMutationOptions,
+  initiateRevokeDelegation,
+  initiateRevokeDelegationMutationOptions,
   simulateGrantDelegation,
   simulateGrantDelegationMutationOptions,
+  type ActiveDelegationInfo,
+  type FinalizeRevokeDelegationParameters,
+  type FinalizeRevokeDelegationReturnType,
+  type GetActiveDelegationsData,
+  type GetActiveDelegationsOptions,
+  type GetActiveDelegationsParameters,
+  type GetActiveDelegationsQueryKey,
+  type GetActiveDelegationsQueryOptions,
+  type GetActiveDelegationsReturnType,
   type GetDelegationExpiryData,
   type GetDelegationExpiryOptions,
   type GetDelegationExpiryParameters,
   type GetDelegationExpiryQueryKey,
   type GetDelegationExpiryQueryOptions,
   type GetDelegationExpiryReturnType,
+  type GetInstantLayerNonceData,
+  type GetInstantLayerNonceOptions,
+  type GetInstantLayerNonceParameters,
+  type GetInstantLayerNonceQueryKey,
+  type GetInstantLayerNonceQueryOptions,
+  type GetInstantLayerNonceReturnType,
   type GetIsDelegationActiveData,
   type GetIsDelegationActiveOptions,
   type GetIsDelegationActiveParameters,
   type GetIsDelegationActiveQueryKey,
   type GetIsDelegationActiveQueryOptions,
   type GetIsDelegationActiveReturnType,
+  type GetPendingRevocationEtasData,
+  type GetPendingRevocationEtasOptions,
+  type GetPendingRevocationEtasParameters,
+  type GetPendingRevocationEtasQueryKey,
+  type GetPendingRevocationEtasQueryOptions,
+  type GetPendingRevocationEtasReturnType,
+  type GetRevocationCooldownData,
+  type GetRevocationCooldownOptions,
+  type GetRevocationCooldownParameters,
+  type GetRevocationCooldownQueryKey,
+  type GetRevocationCooldownQueryOptions,
+  type GetRevocationCooldownReturnType,
   type GrantDelegationParameters,
   type GrantDelegationReturnType,
+  type InitiateRevokeDelegationParameters,
+  type InitiateRevokeDelegationReturnType,
   type InstantLayerAccount,
   type SimulateGrantDelegationParameters,
   type SimulateGrantDelegationReturnType,
 } from "./symmio-contracts/instant-layer";
+
+/**
+ * Gasless slice
+ * -------------
+ * Integration with the GaslessQ relayer: user-signed InstantLayer operations
+ * are broadcast by a relayer that pays the gas, while the **GaslessLayer**
+ * contract charges an operational fee from SYMMIO collateral in the same atomic
+ * transaction. Chain-level and optional, like Pools: `resolveGaslessService`
+ * returns the chain's `gasless` block (throws `GASLESS_NOT_CONFIGURED` /
+ * `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`); `supportsGaslessService` is its
+ * non-throwing boolean twin for `enabled` / UI gates. Request-lifecycle types
+ * (`GaslessRequestStatus`, terminal-set helpers) are shared by every gasless
+ * workflow. `submitted` is not success — only `succeeded` is.
+ */
+export {
+  GASLESS_GATEWAY_EIP712_DOMAIN_NAME,
+  GASLESS_GATEWAY_EIP712_DOMAIN_VERSION,
+  GASLESS_QUEUED_POLL_MS,
+  GASLESS_RECEIPT_TIMEOUT_MS,
+  GASLESS_RELAYABLE_FUNCTIONS,
+  GASLESS_RELAYABLE_SELECTORS,
+  GASLESS_SESSION_KEY_SELECTORS,
+  GASLESS_SESSION_KEY_WITHDRAW_SELECTORS,
+  GASLESS_STREAM_SETTLE_MS,
+  GASLESS_STREAM_STALE_MS,
+  GASLESS_SUBMITTED_POLL_MS,
+  GASLESS_TERMINAL_STATUSES,
+  GASLESS_WAIT_TIMEOUT_MS,
+  GASLESS_WALLET_EXECUTE_SELECTOR,
+  GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR,
+  GASLESS_WALLET_OPERATION_TYPES,
+  GaslessFeeSource,
+  GaslessRequestStatus,
+  GaslessTransactionAttemptStatus,
+  classifyGaslessFailure,
+  confirmGaslessRequest,
+  decodeGaslessOperationFailure,
+  gaslessPollDelay,
+  gaslessWalletExecute,
+  gaslessWalletExecuteMutationOptions,
+  getGaslessBatchFeeQuote,
+  getGaslessBatchFeeQuoteQueryKey,
+  getGaslessBatchFeeQuoteQueryOptions,
+  getGaslessBatchSelectors,
+  getGaslessDepositPolicy,
+  getGaslessDepositPolicyQueryKey,
+  getGaslessDepositPolicyQueryOptions,
+  getGaslessFeeQuote,
+  getGaslessFeeQuoteQueryKey,
+  getGaslessFeeQuoteQueryOptions,
+  getGaslessGatewayEip712Domain,
+  getGaslessRequest,
+  getGaslessRequestQueryKey,
+  getGaslessRequestQueryOptions,
+  getGaslessRequestTransactions,
+  getGaslessRequestTransactionsQueryKey,
+  getGaslessRequestTransactionsQueryOptions,
+  getGaslessUnconfirmedSubmit,
+  getGaslessWalletAddress,
+  getGaslessWalletAddressQueryKey,
+  getGaslessWalletAddressQueryOptions,
+  getGaslessWalletCreationFee,
+  getGaslessWalletCreationFeeQueryKey,
+  getGaslessWalletCreationFeeQueryOptions,
+  getGaslessWalletExecuteSelectors,
+  getGaslessWalletNonce,
+  getGaslessWalletNonceQueryKey,
+  getGaslessWalletNonceQueryOptions,
+  getGaslessWriteRequest,
+  getSessionKeySelectors,
+  isConfirmedGaslessFeeLimitError,
+  isConfirmedGaslessUnavailableError,
+  isGaslessFreeQuotaExhaustedError,
+  isGaslessIdempotencyConflictError,
+  isGaslessRelayableSelector,
+  isGaslessRequestTerminal,
+  isNewerGaslessRequest,
+  parseGaslessErrorDetail,
+  relayGaslessBatch,
+  relayGaslessBatchMutationOptions,
+  relayGrantDelegation,
+  relayGrantDelegationMutationOptions,
+  relayInstantOperations,
+  relayInstantOperationsMutationOptions,
+  resolveGaslessService,
+  resubmitGaslessRequest,
+  resubmitGaslessRequestMutationOptions,
+  settleGaslessDepositExistingAccount,
+  settleGaslessDepositExistingAccountMutationOptions,
+  settleGaslessDepositNewAccount,
+  settleGaslessDepositNewAccountMutationOptions,
+  supportsGaslessService,
+  waitForGaslessRequest,
+  type ConfirmGaslessRequestParameters,
+  type ConfirmGaslessRequestReturnType,
+  type GaslessAcceptedRequest,
+  type GaslessBatchCall,
+  type GaslessBatchContractCall,
+  type GaslessBatchRawCall,
+  type GaslessBatchWalletExecute,
+  type GaslessConfirmation,
+  type GaslessConfirmedRequest,
+  type GaslessContractRevert,
+  type GaslessDecodedOperationFailure,
+  type GaslessDepositAccountData,
+  type GaslessDepositRequest,
+  type GaslessDepositSubmitReceipt,
+  type GaslessErrorDetail,
+  type GaslessFailedOperation,
+  type GaslessFailureReason,
+  type GaslessFeePayment,
+  type GaslessFeeQuote,
+  type GaslessFeeQuoteOperation,
+  type GaslessOperationRequest,
+  type GaslessRelayEvent,
+  type GaslessRequest,
+  type GaslessRequestBase,
+  type GaslessRequestTransaction,
+  type GaslessService,
+  type GaslessSignedOperationInput,
+  type GaslessSubmitPath,
+  type GaslessSubmitReceipt,
+  type GaslessUnconfirmedSubmit,
+  type GaslessValidationIssue,
+  type GaslessWalletCall,
+  type GaslessWalletContractCall,
+  type GaslessWalletExecuteParameters,
+  type GaslessWalletExecuteReturnType,
+  type GaslessWalletRawCall,
+  type GaslessWriteRequest,
+  type GetGaslessBatchFeeQuoteData,
+  type GetGaslessBatchFeeQuoteOptions,
+  type GetGaslessBatchFeeQuoteParameters,
+  type GetGaslessBatchFeeQuoteQueryKey,
+  type GetGaslessBatchFeeQuoteQueryOptions,
+  type GetGaslessBatchFeeQuoteReturnType,
+  type GetGaslessDepositPolicyData,
+  type GetGaslessDepositPolicyOptions,
+  type GetGaslessDepositPolicyParameters,
+  type GetGaslessDepositPolicyQueryKey,
+  type GetGaslessDepositPolicyQueryOptions,
+  type GetGaslessDepositPolicyReturnType,
+  type GetGaslessFeeQuoteData,
+  type GetGaslessFeeQuoteOptions,
+  type GetGaslessFeeQuoteParameters,
+  type GetGaslessFeeQuoteQueryKey,
+  type GetGaslessFeeQuoteQueryOptions,
+  type GetGaslessFeeQuoteReturnType,
+  type GetGaslessRequestData,
+  type GetGaslessRequestOptions,
+  type GetGaslessRequestParameters,
+  type GetGaslessRequestQueryKey,
+  type GetGaslessRequestQueryOptions,
+  type GetGaslessRequestReturnType,
+  type GetGaslessRequestTransactionsData,
+  type GetGaslessRequestTransactionsOptions,
+  type GetGaslessRequestTransactionsParameters,
+  type GetGaslessRequestTransactionsQueryKey,
+  type GetGaslessRequestTransactionsQueryOptions,
+  type GetGaslessRequestTransactionsReturnType,
+  type GetGaslessWalletAddressData,
+  type GetGaslessWalletAddressOptions,
+  type GetGaslessWalletAddressParameters,
+  type GetGaslessWalletAddressQueryKey,
+  type GetGaslessWalletAddressQueryOptions,
+  type GetGaslessWalletAddressReturnType,
+  type GetGaslessWalletCreationFeeData,
+  type GetGaslessWalletCreationFeeOptions,
+  type GetGaslessWalletCreationFeeParameters,
+  type GetGaslessWalletCreationFeeQueryKey,
+  type GetGaslessWalletCreationFeeQueryOptions,
+  type GetGaslessWalletCreationFeeReturnType,
+  type GetGaslessWalletNonceData,
+  type GetGaslessWalletNonceOptions,
+  type GetGaslessWalletNonceParameters,
+  type GetGaslessWalletNonceQueryKey,
+  type GetGaslessWalletNonceQueryOptions,
+  type GetGaslessWalletNonceReturnType,
+  type GetSessionKeySelectorsParameters,
+  type RelayGaslessBatchParameters,
+  type RelayGaslessBatchReturnType,
+  type RelayGrantDelegationParameters,
+  type RelayGrantDelegationReturnType,
+  type RelayInstantOperationsParameters,
+  type RelayInstantOperationsReturnType,
+  type ResolveGaslessServiceParameters,
+  type ResubmitGaslessRequestParameters,
+  type ResubmitGaslessRequestReturnType,
+  type SessionKeySelectorScope,
+  type SettleGaslessDepositExistingAccountParameters,
+  type SettleGaslessDepositExistingAccountReturnType,
+  type SettleGaslessDepositNewAccountParameters,
+  type SettleGaslessDepositNewAccountReturnType,
+  type WaitForGaslessRequestParameters,
+  type WaitForGaslessRequestReturnType,
+} from "./gasless";
 
 /**
  * SYMMIO Core market reads
@@ -335,6 +587,27 @@ export {
   type GetOnchainContractMarketsQueryOptions,
   type GetOnchainContractMarketsReturnType,
   type OnchainContractMarket,
+} from "./symmio-contracts/symmio";
+
+/**
+ * SYMMIO Core funding reads
+ * -------------------------
+ * Direct on-chain reads of a solver's accumulated-funding state from the SYMMIO
+ * core diamond. `getFundingFeesOfPartyB` returns the (symbol, partyB)
+ * {@link FundingFee} struct verbatim — rates are raw and cost-positive. Per-quote
+ * pending funding is `getQuotePendingFunding`.
+ */
+export {
+  getFundingFeesOfPartyB,
+  getFundingFeesOfPartyBQueryKey,
+  getFundingFeesOfPartyBQueryOptions,
+  type FundingFee,
+  type GetFundingFeesOfPartyBData,
+  type GetFundingFeesOfPartyBOptions,
+  type GetFundingFeesOfPartyBParameters,
+  type GetFundingFeesOfPartyBQueryKey,
+  type GetFundingFeesOfPartyBQueryOptions,
+  type GetFundingFeesOfPartyBReturnType,
 } from "./symmio-contracts/symmio";
 
 /**
@@ -433,7 +706,10 @@ export {
  * `finalizeWithdrawRequest` is permissionless and calls the core directly.
  */
 export {
+  OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER,
   WithdrawStatus,
+  approveOperationalFee,
+  approveOperationalFeeMutationOptions,
   createClassicWithdrawPart,
   deallocateAndInitiateWithdraw,
   deallocateAndInitiateWithdrawMutationOptions,
@@ -449,6 +725,9 @@ export {
   getLastWithdrawRequestId,
   getLastWithdrawRequestIdQueryKey,
   getLastWithdrawRequestIdQueryOptions,
+  getOperationalFeeAllowance,
+  getOperationalFeeAllowanceQueryKey,
+  getOperationalFeeAllowanceQueryOptions,
   getPendingWithdrawRequests,
   getPendingWithdrawRequestsQueryKey,
   getPendingWithdrawRequestsQueryOptions,
@@ -478,6 +757,8 @@ export {
   withdrawAuto,
   withdrawAutoMutationOptions,
   withdrawMutationOptions,
+  type ApproveOperationalFeeParameters,
+  type ApproveOperationalFeeReturnType,
   type DeallocateAndInitiateWithdrawParameters,
   type DeallocateAndInitiateWithdrawReturnType,
   type FeeForUser,
@@ -499,6 +780,12 @@ export {
   type GetLastWithdrawRequestIdQueryKey,
   type GetLastWithdrawRequestIdQueryOptions,
   type GetLastWithdrawRequestIdReturnType,
+  type GetOperationalFeeAllowanceData,
+  type GetOperationalFeeAllowanceOptions,
+  type GetOperationalFeeAllowanceParameters,
+  type GetOperationalFeeAllowanceQueryKey,
+  type GetOperationalFeeAllowanceQueryOptions,
+  type GetOperationalFeeAllowanceReturnType,
   type GetPendingWithdrawRequestsData,
   type GetPendingWithdrawRequestsOptions,
   type GetPendingWithdrawRequestsParameters,
@@ -553,11 +840,15 @@ export {
   getDefaultSolver,
   isChainSupported,
   listSupportedChains,
+  type GaslessExecutionConfig,
+  type GaslessFallback,
   type SolverId,
   type SymmioChainConfig,
   type SymmioContractAddresses,
   type SymmioContractsVersion,
   type SymmioEnigmaNotificationsConfig,
+  type SymmioGaslessConfig,
+  type SymmioGaslessStatusStreamConfig,
   type SymmioInventoryConfig,
   type SymmioListingConfig,
   type SymmioMuonConfig,
@@ -674,6 +965,29 @@ export type { SocketStatus } from "./websocket/socket";
  * message; watchers sharing the same `wsUrl` share one socket, and a per-watcher
  * `names` filter is applied after parsing so filters never starve siblings.
  */
+/**
+ * GasLessQ status stream
+ *
+ * `watchGaslessRequest` subscribes to one relayer workflow over the gateway's
+ * status WebSocket: the subscribe snapshot, then every stored change, each
+ * carrying complete state. It opens a socket and nothing else — the stream is
+ * optional and off unless a deployment sets `gasless.statusStream.enabled`, so
+ * pair it with the polling read (`getGaslessRequestQueryOptions`) and poll
+ * whenever `onStatusChange` reports anything but `"live"`. Ask
+ * `supportsGaslessStatusStream` first to skip the attempt entirely on a
+ * deployment that cannot stream.
+ */
+export { type GaslessStatusTransport } from "./gasless/observe-gasless-request";
+export {
+  supportsGaslessStatusStream,
+  watchGaslessRequest,
+  type GaslessRequestStreamUpdate,
+  type GaslessStreamStatus,
+  type GaslessStreamStatusDetail,
+  type UnwatchGaslessRequest,
+  type WatchGaslessRequestParameters,
+} from "./websocket/gasless";
+
 export {
   parseBinancePriceFrame,
   parsePriceFrame,
@@ -1281,8 +1595,9 @@ export {
 /**
  * Shared types & query helpers
  * ----------------------------
- * Parameter-helper types (mirroring wagmi's conventions) and the query-key
- * filter used by the options factories.
+ * Parameter-helper types (mirroring wagmi's conventions), the query-key filter
+ * used by the options factories, and value helpers for prices, percents and
+ * collateral ↔ 18-decimal Core unit conversion.
  */
 export type {
   ChainIdParameter,
@@ -1291,6 +1606,8 @@ export type {
   DeepPartial,
   ExactPartial,
   FromParameter,
+  GaslessWriteOptions,
+  GaslessWriteParameter,
   ReadSolverParameter,
   SimulateBeforeWriteParameter,
   SolverIdParameter,
@@ -1298,6 +1615,7 @@ export type {
   WriteSolverParameter,
 } from "./shared/types/properties";
 export type { QueryParameter, SymmioQueryOptions } from "./shared/types/query";
+export { collateralToCore18, core18ToCollateral, type Core18ToCollateralOptions } from "./shared/utils/core-units";
 export { sharePercent } from "./shared/utils/percent";
 export { decimalPriceToWei } from "./shared/utils/price";
 export { filterQueryOptions } from "./shared/utils/query";
@@ -1592,6 +1910,7 @@ export {
   getSubAccountQuotesQueryOptions,
   groupQuotes,
   isActivePosition,
+  isActiveQuoteStatus,
   isCancelAction,
   isCloseFillAction,
   isOpenAnchorAction,
@@ -1752,9 +2071,10 @@ export {
  * `skip` paging the merged stream rather than each id. Pair it with
  * {@link FUNDING_HISTORY_EVENT_TYPES} for a group-wide funding timeline — those
  * are the charges **settled to date** (what the analytics subgraph indexed);
- * funding accrued since the last on-chain charge is not indexed and is absent.
- * Netting a row is `net = fundingPaid - fundingReceived`, so a **positive** net
- * means the user net-**paid**.
+ * funding accrued since the last on-chain charge is not indexed by the subgraph
+ * — read it with {@link getQuotePendingFunding}. Netting a row is
+ * `net = fundingReceived − fundingPaid`, so a **positive** net means the
+ * position **earned** funding on that tick, matching `QuoteFundingData.netReceived`.
  */
 export {
   getQuotesEventsByType,
@@ -1776,7 +2096,9 @@ export {
  * {@link QUOTES_FUNDING_MAX_IDS_PER_REQUEST} ids per request. Filters by the
  * protocol `quoteId` scalar so callers never need the diamond address. The rows
  * are funding **settled to date**; `netReceived = received − paid`, so a
- * **positive** value means the position **earned** funding.
+ * **positive** value means the position **earned** funding. Funding accrued
+ * since the last charge is not indexed by the subgraph — read it with
+ * {@link getQuotePendingFunding}.
  */
 export {
   QUOTES_FUNDING_MAX_IDS_PER_REQUEST,
@@ -1792,6 +2114,30 @@ export {
   type GetQuoteFundingReturnType,
   type QuoteFundingData,
   type RawQuoteFundingRow,
+} from "./quotes";
+
+/**
+ * Quote pending funding (on-chain)
+ * --------------------------------
+ * `getQuotePendingFunding` reads the accumulated funding a batch of quotes has
+ * accrued but not yet settled, from the SYMMIO core diamond's
+ * `getQuoteFundingDebts` view. `pendingNetReceived` is income-positive like every
+ * SDK funding amount — the negation of the cost-positive contract value. Pass
+ * active positions only ({@link isActiveQuoteStatus}): the view does not check
+ * quote status. Settled (subgraph) and pending (RPC) funding come from different
+ * sources at different heights — do not add them into a lifetime total.
+ */
+export {
+  getQuotePendingFunding,
+  getQuotePendingFundingQueryKey,
+  getQuotePendingFundingQueryOptions,
+  type GetQuotePendingFundingData,
+  type GetQuotePendingFundingOptions,
+  type GetQuotePendingFundingParameters,
+  type GetQuotePendingFundingQueryKey,
+  type GetQuotePendingFundingQueryOptions,
+  type GetQuotePendingFundingReturnType,
+  type QuotePendingFunding,
 } from "./quotes";
 
 /**

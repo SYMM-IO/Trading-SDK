@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # grantDelegation
 
 Grant a delegated signer access to one or more selectors until an expiry timestamp.
@@ -36,12 +38,31 @@ const hash = await grantDelegation(config, {
     Optional chain override.
   </Property>
   <Property name="simulateBeforeWrite" type="boolean" optional>
-    Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default).
+    Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default). Ignored on the
+    relayed path — there is no transaction to dry-run, and the relayer simulates its own bundle.
+  </Property>
+  <Property name="gasless" type="boolean | GaslessWriteOptions" optional>
+    Relay the grant instead of sending a transaction. Omitted, the chain's `gasless.execution.mode` decides. See
+    [relayable writes](/core/gasless/relayable-writes).
   </Property>
 </Properties>
 
 ## Returns
 
 <Returns type="Hash">
-  The submitted transaction hash. Dry-run without sending via `simulateGrantDelegation(config, params)`.
+  The submitted transaction hash. A relayed grant returns the relayer's broadcast hash, which behaves exactly like a
+  wallet-submitted one — so the transport never leaks into the type. Dry-run without sending via
+  `simulateGrantDelegation(config, params)`.
 </Returns>
+
+<Callout type="info">
+  **This grant costs no native gas under [gasless](/core/gasless) execution.** The grant is itself a relayable write, so
+  a wallet with an empty balance can still onboard a session key. Pass
+  [`GASLESS_SESSION_KEY_SELECTORS`](/core/gasless/relayable-writes) as `selectors` — never
+  `GASLESS_RELAYABLE_SELECTORS`, which includes `grantDelegation` itself and would let the key re-delegate.
+</Callout>
+
+<Callout type="warning">
+  A `isPartyB: true` account cannot be relayed — the signed-operation encoder has no PartyB form. Such a grant takes the
+  wallet path, and throws `GASLESS_PARTYB_UNSUPPORTED` if gasless was demanded explicitly with `gasless: true`.
+</Callout>

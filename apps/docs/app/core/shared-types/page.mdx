@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Shared types
 
 Cross-cutting parameter and utility types used across every slice of the SDK. They are public because consumers composing their own higher-level actions need to reference the same building blocks. Most are single-property _mixins_ combined into an action's parameter type via `Compute<A & B>`, mirroring the `@wagmi/core` convention.
@@ -60,13 +62,23 @@ Folded into query keys so a runtime config override yields a fresh key instead o
 
 ### FromParameter
 
-Optional sender for write simulations. Named `from` (not `account`) so it never collides with an action's own `account` / `user` field.
+Optional **signer selector**, not merely a simulation detail. Named `from` (not `account`) so it never collides with an action's own `account` / `user` field.
+
+`from` is handed to the config's `getWalletClient` resolver, which decides which wallet client to return. The SDK does no address matching of its own — passing `from` is a hint your resolver interprets. That makes it the mechanism by which a **session key** signs: a resolver that returns a session-key client when `from` matches the loaded key turns any relayable write into a promptless, gas-free one.
+
+On a relayed write the resolved client's address becomes the Instant Layer operation's EIP-712 `signer`, while the billing account stays the sub-account. On the wallet path it is the sender, and the address a simulation runs as.
 
 <Properties>
   <Property name="from" type="Address" optional>
-    The address the simulation runs as (becomes `msg.sender`). Defaults to the connected wallet in the React layer.
+    The signer to resolve the wallet client with, and the address a simulation runs as (`msg.sender`). Defaults to the
+    connected wallet in the React layer.
   </Property>
 </Properties>
+
+<Callout type="warning">
+  A `from` that is not the account owner only works on the relay. `CoreFacet._call` is `onlyAccountOwner`, so a
+  session-key `from` on the wallet path reverts `NotOwner` — and the key holds no native gas to send it with anyway.
+</Callout>
 
 ### SimulateBeforeWriteParameter
 
@@ -212,10 +224,10 @@ Concrete action-parameter types (e.g. `DepositForAccountParameters`, `InstantClo
 
 ## Value helpers
 
-Two pure functions shared across slices. They are values, not types, so they import without `type`:
+Pure functions shared across slices. They are values, not types, so they import without `type`:
 
 ```ts
-import { decimalPriceToWei, sharePercent } from "@symmio/trading-core";
+import { collateralToCore18, core18ToCollateral, decimalPriceToWei, sharePercent } from "@symmio/trading-core";
 ```
 
 ### decimalPriceToWei
@@ -241,9 +253,67 @@ sharePercent(1n, 0n); // undefined
 
 It is the percent convention behind [`QuoteGroupTpSlSummary`](../tpsl/quote-group-tpsl-summary) coverage and [`MarginRiskMetrics.liquidationBufferPercent`](../margin/margin-risk-metrics).
 
+### collateralToCore18
+
+Scale a collateral-token amount up to SYMMIO Core's 18-decimal units. Token transfers, deposit and withdrawal amounts, and a GaslessLayer's `depositFee`, `minimumDeposit` and wallet creation fee use the collateral token's decimals. Core balances, operational-fee allowances and every `GaslessFeeQuote` amount use 18 decimals. Convert before you compare or add values across the two; the [Balance Model](../concepts/balance-model#core-18-decimal-units) has the full table.
+
+```ts
+collateralToCore18(1_000000n, 6); // 1_000000000000000000n — 1 USDC in Core units
+collateralToCore18(5n, 18); // 5n — an 18-decimal collateral is already in Core units
+
+// A relayed withdrawal draws its amount and its fee from the same Core balance.
+const required18 = collateralToCore18(amount, collateralDecimals) + fee18;
+```
+
+<Properties>
+  <Property name="amount" type="bigint" required>
+    Amount in the collateral token's base units, e.g. `1_000000n` for 1 USDC.
+  </Property>
+  <Property name="collateralDecimals" type="number" required>
+    The collateral token's decimals, an integer from 0 to 18:
+    `config.getChainConfig(chainId).addresses.collateralDecimals`, or `GaslessFeeQuote.collateralDecimals`.
+  </Property>
+</Properties>
+
+<Returns type="bigint">
+  The same amount in 18-decimal Core units: `amount × 10^(18 − collateralDecimals)`. The conversion is always exact.
+</Returns>
+
+Throws `SymmError("validation", "COLLATERAL_DECIMALS_UNSUPPORTED")` when `collateralDecimals` is not an integer from 0 to 18. Core accepts no collateral token with more than 18 decimals, so no real deployment hits it.
+
+### core18ToCollateral
+
+Scale an 18-decimal Core amount down to the collateral token's base units, rounding a remainder the token cannot hold. It rounds **up** by default, the rule for funding: a fee converted into the tokens that must be sent to cover it is never short. For a non-negative amount that is the familiar `(fee18 + scale - 1n) / scale`. Pass `rounding: "down"` for an amount that must not be overstated, such as a balance you display or pay out.
+
+```ts
+core18ToCollateral(50_000_000_000_000_000n, 6); // 50_000n — 0.05 USDC, exact
+core18ToCollateral(1_000000000000000001n, 6); // 1_000001n — rounded up
+core18ToCollateral(1_000000000000000001n, 6, { rounding: "down" }); // 1_000000n
+
+const feeInTokenUnits = core18ToCollateral(quote.totalFee18, quote.collateralDecimals);
+```
+
+<Properties>
+  <Property name="amount18" type="bigint" required>
+    Amount in 18-decimal Core units.
+  </Property>
+  <Property name="collateralDecimals" type="number" required>
+    The collateral token's decimals, an integer from 0 to 18.
+  </Property>
+  <Property name="options.rounding" type='"up" | "down"' optional default='"up"'>
+    `"up"` rounds toward positive infinity, `"down"` toward negative infinity. Fees, allowances and balances are never
+    negative, so for them this means rounding up or truncating. Both agree whenever the amount converts exactly.
+  </Property>
+</Properties>
+
+<Returns type="bigint">The amount in the collateral token's base units.</Returns>
+
+Throws `SymmError("validation", "COLLATERAL_DECIMALS_UNSUPPORTED")` on the same inputs as `collateralToCore18`. The options bag is exported as the `Core18ToCollateralOptions` type.
+
 ## Related
 
 - [Config](../concepts/config) — the runtime object every action uses.
 - [Query options](../concepts/query-options) — how the query types plug in.
 - [WebSocket](../concepts/websocket) — where `WebSocketLike` / `WebSocketConstructor` are wired in.
 - [Errors](../concepts/errors) — validation errors reference the field names in these mixins.
+- [Balance Model](../concepts/balance-model) — which values are 18-decimal Core units and which use the collateral token's decimals.

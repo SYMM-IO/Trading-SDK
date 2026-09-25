@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import {
   useDepositAndAllocate,
   useSimulateDepositAndAllocate,
@@ -33,6 +34,8 @@ export function WriteDepositAndAllocate() {
 
   const mutation = useDepositAndAllocate();
 
+  const write = useGaslessWriteOption("depositAndAllocateForAccount");
+
   /** Dry-run `depositAndAllocateForAccount` before sending. */
   const simulate = useSimulateDepositAndAllocate();
 
@@ -41,6 +44,8 @@ export function WriteDepositAndAllocate() {
       testId="method-depositAndAllocateForAccount"
       name="depositAndAllocateForAccount"
       mutability="nonpayable"
+      gaslessRelayable
+      gaslessFee={{ account: validAccount, args: validAccount ? [validAccount, validAmount ?? 0n] : undefined }}
       description="Deposit collateral and allocate it into trading margin in one transaction."
     >
       <SubAccountField
@@ -98,7 +103,7 @@ export function WriteDepositAndAllocate() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            mutation.mutate({ account: validAccount, amount: validAmount });
+            mutation.mutate({ account: validAccount, amount: validAmount, ...write });
           }}
           data-testid="button-send-deposit-allocate"
         >

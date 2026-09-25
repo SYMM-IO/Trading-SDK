@@ -28,6 +28,18 @@ export function WriteApproveCollateral() {
     amount.length > 0 && Number(amount) > 0 ? parseUnits(amount, addresses.collateralDecimals) : undefined;
   const canSubmit = isConnected && isOnExpectedChain && validAmount !== undefined;
 
+  /**
+   * The one write on this page the relayer can never carry. It is a plain ERC20
+   * `approve` on the collateral token, and an allowance is recorded against
+   * whoever sent the call — so a relayed approve would raise the relayer's
+   * allowance, not the wallet's, and the deposit that needs it would still
+   * revert. The selector is not in `GASLESS_RELAYABLE_WRITES` for that reason,
+   * and `ApproveCollateralParameters` carries no `gasless` field to forward:
+   * the card states the block for the header alone.
+   */
+  const gaslessBlockedReason =
+    "an ERC20 allowance belongs to whoever sends the approve, so a relayed one would approve from the relayer, not your wallet";
+
   const mutation = useApproveCollateral();
 
   /** Dry-run the ERC20 approve before sending. */
@@ -38,6 +50,7 @@ export function WriteApproveCollateral() {
       testId="method-approveCollateral"
       name="approveCollateral"
       mutability="nonpayable"
+      gaslessBlockedReason={gaslessBlockedReason}
       description="Approve the collateral token (USDC) for the SYMMIO core — the deposit prerequisite."
     >
       <Field

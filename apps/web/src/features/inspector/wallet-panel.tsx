@@ -51,7 +51,7 @@ export function WalletPanel() {
           </div>
         </div>
 
-        <div className="flex min-w-0 flex-wrap gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           {!isConnected && <ConnectWalletButton />}
 
           {isConnected && !isOnExpectedChain && (

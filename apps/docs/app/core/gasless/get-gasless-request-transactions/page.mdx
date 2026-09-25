@@ -1,0 +1,105 @@
+import { Callout } from "nextra/components";
+
+# getGaslessRequestTransactions
+
+List the EVM broadcast attempts stored for one gasless request, with each attempt's receipt outcome.
+
+```ts
+import { getGaslessRequestTransactions } from "@symmio/trading-core";
+
+const attempts = await getGaslessRequestTransactions(config, { requestId });
+const latest = attempts.at(-1);
+```
+
+A transaction hash is **mutable across replacement attempts** — the relayer may re-broadcast a stuck transaction with a new hash. The `requestId` is the stable identifier; fetch this list when a hash appears (to show an explorer link) or when a request ends `failed` (to diagnose which attempts were made and why they failed).
+
+<Callout type="warning">
+  An attempt's `status` is **not** the request's status. A request whose first attempt is `reverted` can still end
+  `succeeded` on a later attempt. Read the outcome from [`getGaslessRequest`](/core/gasless/get-gasless-request); read
+  the attempts to link to an explorer or to explain a failure.
+</Callout>
+
+**The query factory polls only when you hand it the record's `status`.** The attempts list has no terminal of its own to stop on — an attempt that `reverted` may be followed by another one, and a request with no attempt yet looks exactly like one that will never get any — so a self-driven poll here would keep billing the service after the workflow ended. Pass the status you are already reading and the list follows the record's jittered cadence (1–2 s while `queued`, 3–5 s after `submitted`) and stops with it; leave it out and the query fetches once, with `query.refetchInterval` yours to set. `status` never enters the query key, so a status change refreshes the cadence instead of forking the cache entry.
+
+```ts
+import { getGaslessRequestQueryOptions, getGaslessRequestTransactionsQueryOptions } from "@symmio/trading-core";
+
+const request = useQuery(getGaslessRequestQueryOptions(config, { requestId }));
+/** Same cadence as the record, and it stops when the record does. */
+const attempts = useQuery(
+  getGaslessRequestTransactionsQueryOptions(config, { requestId, status: request.data?.status }),
+);
+```
+
+It shares the record's transient-failure handling (`429`, `503` and dropped connections are retried with the gateway's `Retry-After` when it sent one, a jittered backoff otherwise), its `AbortSignal` forwarding, and the per-deployment pacing described under [polling helpers](/core/gasless/get-gasless-request#polling-helpers).
+
+## Parameters
+
+<Properties>
+  <Property name="requestId" type="string" required>
+    Stable service tracking id returned by a gasless submit.
+  </Property>
+  <Property name="service" type='"operations" | "deposits"' optional default='"operations"'>
+    Which sub-service stores the request. It is folded into the query key with the same default the action applies, so a
+    key built without it addresses the same cache entry.
+  </Property>
+  <Property name="signal" type="AbortSignal" optional>
+    Cancel the read in flight. The React hook passes TanStack's own query signal.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="status" type="GaslessRequestStatus" optional>
+    Query factory only, and never part of the query key: the record's last known status, which drives the poll cadence
+    and stops the list once the record is terminal. Without it the query does not poll.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<readonly GaslessRequestTransaction[]>">
+  <Property name="id" type="string">
+    Attempt row id.
+  </Property>
+  <Property name="txHash" type="Hash | null">
+    Transaction hash of this attempt.
+  </Property>
+  <Property name="attemptNumber" type="number">
+    1-based attempt number.
+  </Property>
+  <Property name="status" type="GaslessTransactionAttemptStatus">
+    `SUBMITTED` (broadcast, receipt pending), `CONFIRMED` (receipt status 1), `REVERTED` (receipt status 0), or `FAILED`
+    (never mined — dropped, replaced, or rejected by the node). An attempt status outside this set throws rather than
+    normalizing, so a silently mistyped attempt never renders as a confirmed one.
+  </Property>
+  <Property name="requestId" type="string">
+    The request this attempt belongs to (the service's `entity_id`) — the same id you poll with.
+  </Property>
+  <Property name="workflow" type="string">
+    The service-side workflow that produced the attempt, e.g. `relay_instant`.
+  </Property>
+  <Property name="receipt" type="Record<string, unknown> | null">
+    The raw receipt the service stored, as reported, or `null` while none was observed. Untyped on purpose: it is the
+    relayer's node's JSON, not a viem `TransactionReceipt`, and its shape is the service's to change. Read the
+    authoritative receipt from your own client with the attempt's `txHash`.
+  </Property>
+  <Property name="errorCode" type="string | null">
+    Stored error code for a failed attempt, when present.
+  </Property>
+  <Property name="errorMessage" type="string | null">
+    Stored error message, when present.
+  </Property>
+  <Property name="createdAt" type="string | null">
+    When the service stored the attempt (ISO-8601).
+  </Property>
+  <Property name="updatedAt" type="string | null">
+    When the service last updated the attempt (ISO-8601).
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmApiError` with code `GASLESS_TRANSACTIONS_FETCH_FAILED` on HTTP failure.
+- `SymmError("api", "GASLESS_ATTEMPT_STATUS_UNKNOWN")` — the service reported an attempt status outside `GaslessTransactionAttemptStatus`.
+- `SymmError("api", "GASLESS_INSTANCE_MISMATCH")` — a successful response came from a different protocol instance than the config expects (`protocolInstance`, or the instance the url path pins): a staging/production cross-wire. A gateway `url` also fails when the `X-GasLessQ-Protocol-Instance` header is missing; behind a proxy root, only a forwarded header is checked. See [URL forms](/core/gasless/resolve-gasless-service#url-forms).

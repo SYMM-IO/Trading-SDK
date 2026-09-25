@@ -7,6 +7,7 @@ import {
   type Config,
   type CreateConfigParameters,
   type GetWalletClientFn,
+  type SymmioWalletClient,
 } from "@symmio/trading-core";
 import { useMemo, type ReactNode } from "react";
 import type { PublicClient } from "viem";
@@ -46,9 +47,14 @@ export interface SymmioProviderProps {
    * Custom wallet-client resolver. Receives `{ chainId, from? }` from the SDK
    * and returns the wallet client to sign with. Use this to plug in
    * session-key, multi-signer, or any non-wagmi flow — the resolver decides.
+   * {@link createSessionKeyWalletClientResolver} builds the session-key one.
    *
-   * When omitted, the provider falls back to wagmi's connected wallet (ignores
-   * `from`).
+   * When omitted, the provider signs with wagmi's connected wallet. That default
+   * can only honor a `from` that *is* the connected account: any other `from`
+   * (a session key, another signer) throws `SESSION_SIGNER_UNAVAILABLE` rather
+   * than silently prompting the connected wallet instead — the owner is also
+   * authorized on-chain, so such a write would otherwise succeed with the wrong
+   * signer and no way to notice.
    */
   getWalletClient?: GetWalletClientFn;
 }
@@ -113,9 +119,11 @@ export function SymmioProvider({
         },
         getWalletClient:
           getWalletClientProp ??
-          (async ({ chainId }) => {
+          (async ({ chainId, from }) => {
+            let walletClient: SymmioWalletClient;
+
             try {
-              return await getWalletClient(wagmiConfig, { chainId });
+              walletClient = await getWalletClient(wagmiConfig, { chainId });
             } catch (err) {
               throw new SymmError(
                 "config",
@@ -124,6 +132,24 @@ export function SymmioProvider({
                 { cause: err instanceof Error ? err : undefined },
               );
             }
+
+            /**
+             * `from` is never forwarded to wagmi as `account` — a session key is
+             * not a wagmi-connected account, so wagmi would reject it or
+             * mis-resolve it. Instead the resolved signer is checked against the
+             * request. Dropping a `from` it cannot honor would be silent: the
+             * account owner is authorized on-chain for the same calls, so the
+             * write succeeds after an unexpected wallet prompt and nothing looks
+             * broken.
+             */
+            if (from && from.toLowerCase() !== walletClient.account.address.toLowerCase())
+              throw new SymmError(
+                "config",
+                "SESSION_SIGNER_UNAVAILABLE",
+                `This action asked to sign as ${from}, but the default wallet-client resolver can only sign with the wagmi-connected wallet (${walletClient.account.address}). Pass SymmioProvider a \`getWalletClient\` built by \`createSessionKeyWalletClientResolver\` to route session-key signers.`,
+              );
+
+            return walletClient;
           }),
       }),
     [symmioConfig, effectiveDefaultChainId, getWalletClientProp, wagmiConfig],

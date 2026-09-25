@@ -34,15 +34,20 @@ Every HTTP failure surfaces as `SymmApiError` with `kind === "api"`:
 
 ```ts
 class SymmApiError extends SymmError {
-  readonly status: number; // HTTP status
+  readonly status: number; // HTTP status (0 when there was no response: network failure or timeout)
   readonly statusText: string;
   readonly responseData: unknown; // raw response body (solver / hedger error payload)
   readonly url: string;
   readonly method: string;
+  readonly retryAfterMs: number | null; // Retry-After delay in ms, when the response carried one
 }
 ```
 
 `SymmApiError.fromAxios(err, { code, baseURL })` builds one from an axios error, preserving the original as `cause` and composing a single-line message: `"<code>: <axios message> (<METHOD> <URL> → <status> <statusText>)"`.
+
+- **`retryAfterMs`** is parsed from a `Retry-After` response header, in either delay-seconds or HTTP-date form. It is `null` when there is no usable header. A cross-origin browser reads the header only when the server lists it in `Access-Control-Expose-Headers`, so `null` means "unknown": still back off before retrying a `429` or `503`.
+- **`cause` keeps the axios request config**, request headers and body included (a Pools action's `Authorization: Bearer` access token, for example). Redact it before forwarding the error to third-party logging.
+- **Gasless HTTP failures are the exception:** their `cause` is a sanitized snapshot (`name`, `message`, `code`, `status`, `method`, `url`) with no request headers or body. Their `responseData` is still the raw response body, and it can echo request fields — see [Reading the vendor detail](/core/gasless/errors-and-fallback#reading-the-vendor-detail).
 
 ## Handling
 
@@ -96,13 +101,14 @@ Codes are stable strings. Group per kind. New codes may appear at any minor vers
 
 ### `kind: "validation"`
 
-| Code               | Thrown by                                                                        | Meaning                       |
-| ------------------ | -------------------------------------------------------------------------------- | ----------------------------- |
-| `MISSING_USER`     | `getUserSubAccounts`, `getUserSubAccountsAddresses`, `getSubAccountsCountOfUser` | `user` parameter required.    |
-| `MISSING_ACCOUNT`  | Several read/write actions                                                       | `account` parameter required. |
-| `MISSING_OWNER`    | Ownership-scoped reads                                                           | `owner` parameter required.   |
-| `MISSING_PARTY_A`  | Party-A-scoped reads                                                             | `partyA` parameter required.  |
-| `MISSING_QUOTE_ID` | Quote-scoped reads                                                               | `quoteId` parameter required. |
+| Code                              | Thrown by                                                                        | Meaning                                              |
+| --------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `MISSING_USER`                    | `getUserSubAccounts`, `getUserSubAccountsAddresses`, `getSubAccountsCountOfUser` | `user` parameter required.                           |
+| `MISSING_ACCOUNT`                 | Several read/write actions                                                       | `account` parameter required.                        |
+| `MISSING_OWNER`                   | Ownership-scoped reads                                                           | `owner` parameter required.                          |
+| `MISSING_PARTY_A`                 | Party-A-scoped reads                                                             | `partyA` parameter required.                         |
+| `MISSING_QUOTE_ID`                | Quote-scoped reads                                                               | `quoteId` parameter required.                        |
+| `COLLATERAL_DECIMALS_UNSUPPORTED` | `collateralToCore18`, `core18ToCollateral`, `withdrawAuto`                       | Collateral decimals are not an integer from 0 to 18. |
 
 ### `kind: "api"`
 
