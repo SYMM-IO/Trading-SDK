@@ -41,6 +41,7 @@ export function WriteRequestCancelWithdraw() {
       name="requestCancelWithdraw"
       mutability="nonpayable"
       gaslessRelayable
+      gaslessFee={{ account: validAccount, args: [validRequestId ?? 0n] }}
       description="Cancel a pending withdraw request for a subaccount (routed via AccountLayer _call)."
     >
       <SubAccountField

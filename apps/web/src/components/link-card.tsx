@@ -56,9 +56,10 @@ export function LinkCard({
           </div>
           <CardTitle className="font-display mt-4 text-lg tracking-tight">{title}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-1 flex-col">
           <p className="text-muted-foreground text-sm leading-6">{description}</p>
-          <div className="mt-5 flex items-center justify-between">
+          {/* `mt-auto` pins the footer to the card's bottom so CTAs line up across a grid row. */}
+          <div className="mt-auto flex items-center justify-between pt-5">
             <span className="text-primary inline-flex items-center gap-1.5 text-sm font-medium">
               {cta}
               <ArrowIcon className="transition-transform duration-300 group-hover:translate-x-1" />
@@ -73,7 +74,7 @@ export function LinkCard({
 
 function ArrowIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 16 16" fill="none" className={className ?? "size-4"} aria-hidden>
+    <svg viewBox="0 0 16 16" fill="none" className={cn("size-4", className)} aria-hidden>
       <path
         d="M3 8h10M9 4l4 4-4 4"
         stroke="currentColor"

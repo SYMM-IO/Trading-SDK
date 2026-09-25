@@ -4,7 +4,14 @@ import { DataList, DataRow } from "@/components/data-list";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { formatUsd, isUnlimitedAllowance, WEI_DECIMALS } from "@/lib/format";
-import { useAccountBalanceOf, useApproveOperationalFee, useOperationalFeeAllowance } from "@symmio/trading-react";
+import { OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER } from "@symmio/trading-core";
+import {
+  useAccountBalanceOf,
+  useApproveOperationalFee,
+  useOperationalFeeAllowance,
+  useSymmioChainId,
+  useSymmioConfig,
+} from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
@@ -12,7 +19,8 @@ import { useState } from "react";
 import { parseUnits, zeroAddress, type Address } from "viem";
 import { SubAccountPicker } from "../inspector/subaccount-picker";
 import { GaslessCard } from "./gasless-card";
-import { useGaslessWriteOption } from "./gasless-write-mode-store";
+import { GaslessFeePreview } from "./gasless-fee-preview";
+import { useGaslessWriteMode, useGaslessWriteOption } from "./gasless-write-mode-store";
 
 /** The write this card sends — its key into the per-card session-key store. */
 const APPROVE_METHOD = "approveOperationalFee";
@@ -72,9 +80,27 @@ export function GaslessAllowanceCard() {
   const approve = useApproveOperationalFee();
   /** No relay toggle here, so this only changes the call while the key toggle is on. */
   const write = useGaslessWriteOption(APPROVE_METHOD);
+  /** Whether the approval will relay — the key toggle, or the chain config's execution mode. */
+  const relayed = useGaslessWriteMode(APPROVE_METHOD).enabled;
+  const chainId = useSymmioChainId();
+  const gaslessLayerAddress = useSymmioConfig().getChainConfig(chainId).gasless?.gaslessLayerAddress;
 
   /** `null` while the box cannot describe an approval. */
   const approvalAmount = parseApproval(amount);
+
+  /**
+   * The exact approval the button sends, which the GaslessLayer prices from its
+   * own calldata: an approval-only batch is charged at the multiplier it sets.
+   */
+  const approvalCall =
+    gaslessLayerAddress && approvalAmount !== null
+      ? [
+          {
+            functionName: "approveOperationalFeeWithMultiplier",
+            args: [[gaslessLayerAddress], [approvalAmount], [OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER]],
+          },
+        ]
+      : undefined;
 
   function parseApproval(text: string): bigint | null {
     if (text.trim().length === 0) return null;
@@ -175,6 +201,15 @@ export function GaslessAllowanceCard() {
           allowance is not immediate: the reduction lands at the ETA above, and the current allowance keeps applying
           until then.
         </ResultSuccess>
+      ) : null}
+
+      {relayed ? (
+        <GaslessFeePreview
+          account={payer}
+          calls={approvalCall}
+          labels={[APPROVE_METHOD]}
+          testId="gasless-allowance-fee"
+        />
       ) : null}
     </GaslessCard>
   );

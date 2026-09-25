@@ -67,6 +67,21 @@ execution: {
 
 `owner` is the **billing sub-account's owner**, which is also the `userAddress` the request is tracked under — not the signing key, since a session key owns nothing. `walletIds` is one id per operation, always `0n` here: transparent writes are ordinary InstantLayer operations. Store the row under `(environment, protocolInstance, service, requestId)`; a bare request id is not enough context to reconcile it later.
 
+## Batch calls
+
+Every write in the table above can also join a [gasless batch](/core/gasless/relay-gasless-batch), several of them in one atomic request, by **name** — the SDK already holds each one's ABI, so `{ functionName: "editAccountName", args: [account, name] }` is a complete call. `GASLESS_RELAYABLE_FUNCTIONS` maps each name to its ABI item, which is also the list to offer in a UI:
+
+```ts
+import { GASLESS_RELAYABLE_FUNCTIONS } from "@symmio/trading-core";
+import { formatAbiItem } from "viem/utils";
+
+for (const item of GASLESS_RELAYABLE_FUNCTIONS.values()) {
+  console.log(formatAbiItem(item, { includeName: true })); // "allocate(uint256 amount)", …
+}
+```
+
+A batch names the contract functions, not the SDK actions that wrap them — `forceCloseAuto` relays `forceClosePosition`, for example — and the batch's `account` is each call's billing account: the virtual account's parent for `addMargin` and `removeMargin`.
+
 ## Session keys
 
 Two lists, deliberately not the same one.

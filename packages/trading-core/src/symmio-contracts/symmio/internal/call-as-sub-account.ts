@@ -132,9 +132,9 @@ async function assertWalletPathSigner(
    * TODO(session-key): replace this uncached `getSubAccount` read with the
    * shared owner accessor once it is lifted into
    * `symmio-contracts/account-layer/actions/get-account-owner`. The gasless
-   * dispatcher already owns an equivalent cache — `getCachedAccountOwner`, still
-   * private to `gasless/dispatch/maybe-relay-as-gasless.ts` — and this guard must
-   * reuse that one helper rather than start a competing cache here.
+   * dispatcher already owns an equivalent cache — `getCachedGaslessAccountOwner`,
+   * internal to `gasless/delegation-preflight.ts` — and this guard must reuse
+   * that one helper rather than start a competing cache here.
    */
   const detail = await getSubAccount(config, { chainId, account });
   /**

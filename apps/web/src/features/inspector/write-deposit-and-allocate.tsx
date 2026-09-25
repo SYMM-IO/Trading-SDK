@@ -45,6 +45,7 @@ export function WriteDepositAndAllocate() {
       name="depositAndAllocateForAccount"
       mutability="nonpayable"
       gaslessRelayable
+      gaslessFee={{ account: validAccount, args: validAccount ? [validAccount, validAmount ?? 0n] : undefined }}
       description="Deposit collateral and allocate it into trading margin in one transaction."
     >
       <SubAccountField

@@ -41,6 +41,20 @@ export const GASLESS_METHODS: readonly GaslessMethodMeta[] = [
     aliases: ["approveOperationalFee", "useApproveOperationalFee", "operational fee", "allowance"],
   },
   {
+    id: "gasless-batch",
+    method: "relayGaslessBatch",
+    action: "useRelayGaslessBatch",
+    kind: "write",
+    aliases: [
+      "useGaslessBatchFeeQuote",
+      "getGaslessBatchFeeQuote",
+      "previewFeeQuote",
+      "fee preview",
+      "batch",
+      "multiple actions",
+    ],
+  },
+  {
     id: "gasless-request",
     method: "useGaslessRequest",
     action: "getGaslessRequest",

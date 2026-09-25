@@ -1,11 +1,9 @@
-import { encodeFunctionData, isAddressEqual, zeroAddress, type Address } from "viem";
+import { encodeFunctionData, isAddressEqual, type Address } from "viem";
 import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute, FromParameter } from "../../shared/types/properties";
 import { generateSalt } from "../../solvers/instant-open/shared/operations";
 import { gaslessWalletAbi } from "../../symmio-contracts/abi/v0.8.6/gasless-wallet";
-import { getSubAccount } from "../../symmio-contracts/account-layer/actions/get-sub-account";
-import { getVirtualAccount } from "../../symmio-contracts/account-layer/actions/get-virtual-account";
 import { getIsDelegationActive } from "../../symmio-contracts/instant-layer/actions/get-is-delegation-active";
 import { GASLESS_WALLET_OPERATION_TYPES, getGaslessGatewayEip712Domain } from "../eip712";
 import { toGaslessSafeNumber } from "../format-gasless-operation";
@@ -19,6 +17,7 @@ import {
   submitOnGaslessNonceStream,
   withGaslessNonceLock,
 } from "../nonce-lock";
+import { resolveGaslessWalletIdentities } from "../resolve-wallet-identities";
 import { toGaslessSubmitReceipt } from "../to-gasless-submit-receipt";
 import type { GaslessSubmitReceipt } from "../types";
 import { assertGaslessWalletId, toGaslessWalletIdWire } from "../wallet-id";
@@ -29,33 +28,12 @@ import { getGaslessWalletExecuteSelectors } from "./selectors";
 /** How long a wallet-operation signature stays valid. */
 const GASLESS_WALLET_OPERATION_DEADLINE_SECONDS = 10 * 60;
 
-/** Default workflow label stored with a wallet-execute request. */
-const GASLESS_WALLET_EXECUTE_OPERATION_TYPE = "gaslessqWalletExecute";
-
 /**
- * The identities the GaslessLayer derives from a wallet operation, mirroring
- * `GaslessWalletExecutionLib._walletOwnerForOperation`.
+ * Default workflow label stored with a wallet-execute request.
  *
- * A **live** virtual account rolls up to its parent (a deleted one stays
- * itself, so a historical VA cannot widen authority); the wallet then belongs
- * to `ownerOf(canonicalAccount)`, falling back to the account itself when the
- * AccountLayer knows no owner — which is exactly what makes a bare EOA resolve
- * to its own wallet.
+ * @internal
  */
-async function resolveWalletIdentities(
-  config: Config,
-  parameters: { chainId?: number; account: Address },
-): Promise<{ canonicalAccount: Address; ownerWallet: Address }> {
-  const { chainId, account } = parameters;
-
-  const virtualAccount = await getVirtualAccount(config, { chainId, account });
-  const canonicalAccount = virtualAccount.isExists ? virtualAccount.parentAccount : account;
-
-  const detail = await getSubAccount(config, { chainId, account: canonicalAccount });
-  const ownerWallet = detail.isExists && !isAddressEqual(detail.owner, zeroAddress) ? detail.owner : canonicalAccount;
-
-  return { canonicalAccount, ownerWallet };
-}
+export const GASLESS_WALLET_EXECUTE_OPERATION_TYPE = "gaslessqWalletExecute";
 
 /**
  * Parameters for {@link gaslessWalletExecute}.
@@ -224,7 +202,7 @@ export async function gaslessWalletExecute(
   const { canonicalAccount, ownerWallet } =
     parameters.signerAccount === undefined
       ? { canonicalAccount: account, ownerWallet: parameters.owner ?? account }
-      : await resolveWalletIdentities(config, { chainId, account });
+      : await resolveGaslessWalletIdentities(config, { chainId, account });
 
   /**
    * An explicit `owner` that is not the one the GaslessLayer resolves for

@@ -4,6 +4,12 @@ import { Callout } from "nextra/components";
 
 Quote what the GaslessLayer would charge to relay a batch — **before** asking the user to sign anything.
 
+<Callout type="info">
+  **Quoting SDK actions? Prefer [`getGaslessBatchFeeQuote`](/core/gasless/get-gasless-batch-fee-quote).** It takes the
+  same calls `relayGaslessBatch` does — relayable writes by name, GaslessWallet calls — and builds the operations for
+  you, with a cache key that does not change on every render. This page is for operations you build yourself.
+</Callout>
+
 ```ts
 import { getGaslessFeeQuote, isGaslessFreeQuotaExhaustedError } from "@symmio/trading-core";
 
@@ -61,6 +67,10 @@ Ids are `bigint` from `0n` through `2^256 - 1`. Anything else, including a JavaS
 ### An exhausted free quota is a revert
 
 When a billing account has spent its daily free operations and the deployment refuses paid operations after that, `previewFeeQuote` reverts with `DailyFreeOpsLimitExceeded`. The SDK throws `GASLESS_FREE_QUOTA_EXHAUSTED`. Test for it with `isGaslessFreeQuotaExhaustedError(err)`, which also matches the error after React re-wraps it and a raw viem revert from a direct GaslessLayer call. The quota resets at 00:00 UTC.
+
+### Exact quotes and signed fee limits
+
+The GaslessLayer also exposes `simulateFeeQuote`, which runs the completed request through `eth_call` for an exact quote, and signed fee limits that cap an operation's fee inside its replay salt. The SDK wraps neither yet. The simulation executes the real relay as its caller, so it needs the relayer's own address and real signatures; the relayer already simulates every request before accepting it. The fee-limit check is not deployed on the staging GaslessLayer yet.
 
 ### Empty revert data
 

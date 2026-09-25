@@ -50,6 +50,16 @@ export function WriteInitiateWithdraw() {
       ? [createClassicWithdrawPart({ id: 0n, amount: validAmount, receiver: validReceiver, chainId: BigInt(chainId) })]
       : undefined;
 
+  /**
+   * The fee preview prices the call by its selector, so until a receiver and an
+   * amount are entered it stands in a zero-amount part back to the account.
+   */
+  const feeParts =
+    validParts ??
+    (validAccount && chainId !== undefined
+      ? [createClassicWithdrawPart({ id: 0n, amount: 0n, receiver: validAccount, chainId: BigInt(chainId) })]
+      : undefined);
+
   /** Dry-run the AccountLayer `_call` wrapping the core `initiateWithdraw`. */
   const simulate = useSimulateInitiateWithdraw();
 
@@ -59,6 +69,7 @@ export function WriteInitiateWithdraw() {
       name="initiateWithdraw"
       mutability="nonpayable"
       gaslessRelayable
+      gaslessFee={{ account: validAccount, args: feeParts ? [feeParts, false, "0x"] : undefined }}
       description="Open a classic same-chain withdraw request for a subaccount (routed via AccountLayer _call)."
     >
       <SubAccountField

@@ -51,7 +51,13 @@ function SelectTrigger({ className, children, ...props }: React.ComponentProps<t
   );
 }
 
-/** The floating panel listing the {@link SelectItem}s. Portaled to the body. */
+/**
+ * The floating panel listing the {@link SelectItem}s. Portaled to the body.
+ *
+ * In the default `popper` position it is at least as wide as its trigger and
+ * never wider than the space Radix reports beside it, so a long option wraps
+ * inside the viewport instead of running off-screen.
+ */
 function SelectContent({
   className,
   children,
@@ -65,7 +71,8 @@ function SelectContent({
         data-slot="select-content"
         className={cn(
           "bg-popover/85 text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 border-border relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-lg border shadow-lg backdrop-blur-xl",
-          position === "popper" && "data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1",
+          position === "popper" &&
+            "max-w-(--radix-select-content-available-width) data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1",
           className,
         )}
         position={position}
@@ -104,6 +111,8 @@ interface SelectItemProps extends React.ComponentProps<typeof SelectPrimitive.It
    * Optional secondary line rendered under the label inside the dropdown to
    * explain what the option does. It lives outside Radix's `ItemText`, so it
    * shows only in the open list — the trigger still reflects the label alone.
+   * It wraps anywhere once the list reaches its width limit, so a long address
+   * or signature never widens the list past the viewport.
    */
   description?: React.ReactNode;
 }
@@ -126,9 +135,9 @@ function SelectItem({ className, children, description, ...props }: SelectItemPr
         </SelectPrimitive.ItemIndicator>
       </span>
       {description ? (
-        <span className="flex flex-col gap-0.5">
+        <span className="flex min-w-0 flex-col gap-0.5">
           <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-          <span className="text-muted-foreground text-xs leading-snug font-normal">{description}</span>
+          <span className="text-muted-foreground text-xs leading-snug font-normal wrap-anywhere">{description}</span>
         </span>
       ) : (
         <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>

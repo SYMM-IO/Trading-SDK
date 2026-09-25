@@ -14,7 +14,9 @@ import {
   gaslessWalletNonceStreamKey,
   readGaslessStreamNonce,
   submitOnGaslessNonceStream,
+  submitOnGaslessNonceStreams,
   withGaslessNonceLock,
+  withGaslessNonceLocks,
 } from "./nonce-lock";
 import { GASLESS_TEST_CHAIN, gaslessTestConfig } from "./test/config";
 import { operationRequestFixture } from "./test/records";
@@ -182,6 +184,74 @@ describe("withGaslessNonceLock", () => {
   });
 });
 
+describe("withGaslessNonceLocks", () => {
+  const WALLET_STREAM = gaslessWalletNonceStreamKey(GASLESS_TEST_CHAIN, 2n, OWNER, ACCOUNT);
+
+  it("holds every listed stream for the whole task", async () => {
+    const { config } = gaslessTestConfig();
+    const blocker = deferred();
+    const started: string[] = [];
+
+    const batch = withGaslessNonceLocks(config, [WALLET_STREAM, STREAM], async () => {
+      started.push("batch");
+      await blocker.promise;
+    });
+    const instant = withGaslessNonceLock(config, STREAM, async () => {
+      started.push("instant");
+    });
+    const wallet = withGaslessNonceLock(config, WALLET_STREAM, async () => {
+      started.push("wallet");
+    });
+    const unrelated = withGaslessNonceLock(
+      config,
+      gaslessInstantNonceStreamKey(GASLESS_TEST_CHAIN, OTHER_ACCOUNT),
+      async () => {
+        started.push("unrelated");
+      },
+    );
+
+    await flush();
+    /** The batch signs on both streams, so neither single-stream relay may read a nonce it is about to consume. */
+    expect([...started].sort()).toEqual(["batch", "unrelated"]);
+
+    blocker.resolve();
+    await Promise.all([batch, instant, wallet, unrelated]);
+    expect(started.slice(2).sort()).toEqual(["instant", "wallet"]);
+  });
+
+  it("cannot deadlock two batches that list shared streams in opposite orders", async () => {
+    const { config } = gaslessTestConfig();
+    const blocker = deferred();
+    const started: string[] = [];
+
+    const first = withGaslessNonceLocks(config, [STREAM, WALLET_STREAM], async () => {
+      started.push("first");
+      await blocker.promise;
+    });
+    /**
+     * Taken one stream at a time in the listed order, this batch could hold the
+     * wallet stream while the first held the InstantLayer one, each waiting on
+     * the other forever. Joining every queue at once, it only waits on the
+     * batch queued before it.
+     */
+    const second = withGaslessNonceLocks(config, [WALLET_STREAM, STREAM], async () => {
+      started.push("second");
+    });
+
+    await flush();
+    expect(started).toEqual(["first"]);
+
+    blocker.resolve();
+    await Promise.all([first, second]);
+    expect(started).toEqual(["first", "second"]);
+  });
+
+  it("takes a stream listed twice only once", async () => {
+    const { config } = gaslessTestConfig();
+    await expect(withGaslessNonceLocks(config, [STREAM, STREAM], async () => "ran")).resolves.toBe("ran");
+  });
+});
+
 describe("gasless pending-nonce guard", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -297,6 +367,62 @@ describe("gasless pending-nonce guard", () => {
     expect(waitForGaslessRequest).not.toHaveBeenCalled();
 
     clearGaslessPendingNonce(config, STREAM);
+  });
+
+  it("records one request on every stream a batch signed on, each with its own nonce", async () => {
+    const { config } = gaslessTestConfig();
+    const walletStream = gaslessWalletNonceStreamKey(GASLESS_TEST_CHAIN, 2n, OWNER, ACCOUNT);
+    await submitOnGaslessNonceStreams(
+      config,
+      [
+        { key: STREAM, signedNonce: 7n },
+        { key: walletStream, signedNonce: 3n },
+      ],
+      { service: "operations", chainId: GASLESS_TEST_CHAIN, deadline: deadlineIn(600) },
+      async () => ({ requestId: "req-batch" }),
+      () => true,
+    );
+    waitForGaslessRequest.mockResolvedValue(operationRequestFixture({ status: GaslessRequestStatus.SUCCEEDED }));
+
+    /** The InstantLayer stream already consumed its signed nonce, so it reads straight through. */
+    await expect(readGaslessStreamNonce(config, STREAM, async () => 7n)).resolves.toBe(7n);
+    expect(waitForGaslessRequest).not.toHaveBeenCalled();
+
+    /** The wallet stream has not, so it waits for the batch's one request before re-reading. */
+    const walletReads = [2n, 3n];
+    await expect(readGaslessStreamNonce(config, walletStream, async () => walletReads.shift() ?? 3n)).resolves.toBe(3n);
+    expect(waitForGaslessRequest).toHaveBeenCalledWith(config, expect.objectContaining({ requestId: "req-batch" }));
+  });
+
+  it("blocks every stream a batch signed on when its outcome is unknown", async () => {
+    vi.useFakeTimers();
+    const { config } = gaslessTestConfig();
+    const walletStream = gaslessWalletNonceStreamKey(GASLESS_TEST_CHAIN, 2n, OWNER, ACCOUNT);
+    const rejection = new Error("socket hang up");
+
+    await expect(
+      submitOnGaslessNonceStreams(
+        config,
+        [
+          { key: STREAM, signedNonce: 7n },
+          { key: walletStream, signedNonce: 3n },
+        ],
+        { service: "operations", chainId: GASLESS_TEST_CHAIN, deadline: deadlineIn(3) },
+        () => Promise.reject(rejection),
+        () => true,
+      ),
+    ).rejects.toBe(rejection);
+
+    const pending = Promise.all([
+      readGaslessStreamNonce(config, STREAM, async () => 6n),
+      readGaslessStreamNonce(config, walletStream, async () => 2n),
+    ]);
+    const assertion = expect(pending).rejects.toMatchObject({ code: "GASLESS_NONCE_STREAM_BUSY" });
+    await vi.advanceTimersByTimeAsync(5_000);
+    await assertion;
+
+    clearGaslessPendingNonce(config, STREAM);
+    clearGaslessPendingNonce(config, walletStream);
   });
 
   it("throws GASLESS_NONCE_STREAM_BUSY when an unconfirmed submit never lands", async () => {

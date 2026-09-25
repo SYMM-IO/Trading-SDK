@@ -21,6 +21,7 @@
  */
 export {
   ADD_MARGIN_TO_NEXT_VA_SELECTOR,
+  GASLESS_RELAYABLE_FUNCTIONS,
   GASLESS_RELAYABLE_SELECTORS,
   GASLESS_SESSION_KEY_SELECTORS,
   GASLESS_SESSION_KEY_WITHDRAW_SELECTORS,
@@ -1248,6 +1249,7 @@ export {
  */
 export {
   useApproveOperationalFee,
+  useGaslessBatchFeeQuote,
   useGaslessDepositPolicy,
   useGaslessFeeQuote,
   useGaslessRequest,
@@ -1258,6 +1260,7 @@ export {
   useGaslessWalletExecuteSelectors,
   useGaslessWalletNonce,
   useOperationalFeeAllowance,
+  useRelayGaslessBatch,
   useRelayInstantOperations,
   useResubmitGaslessRequest,
   useSettleGaslessDepositExistingAccount,
@@ -1271,6 +1274,8 @@ export {
   type GaslessStreamState,
   type GaslessWalletExecuteResult,
   type GaslessWalletExecuteVariables,
+  type RelayGaslessBatchResult,
+  type RelayGaslessBatchVariables,
   type RelayInstantOperationsResult,
   type RelayInstantOperationsVariables,
   type ResubmitGaslessRequestResult,
@@ -1281,6 +1286,8 @@ export {
   type SettleGaslessDepositNewAccountVariables,
   type UseApproveOperationalFeeParameters,
   type UseApproveOperationalFeeReturnType,
+  type UseGaslessBatchFeeQuoteParameters,
+  type UseGaslessBatchFeeQuoteReturnType,
   type UseGaslessDepositPolicyParameters,
   type UseGaslessDepositPolicyReturnType,
   type UseGaslessFeeQuoteParameters,
@@ -1301,6 +1308,8 @@ export {
   type UseGaslessWalletNonceReturnType,
   type UseOperationalFeeAllowanceParameters,
   type UseOperationalFeeAllowanceReturnType,
+  type UseRelayGaslessBatchParameters,
+  type UseRelayGaslessBatchReturnType,
   type UseRelayInstantOperationsParameters,
   type UseRelayInstantOperationsReturnType,
   type UseResubmitGaslessRequestParameters,

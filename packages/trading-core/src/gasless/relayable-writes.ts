@@ -14,8 +14,10 @@ function selectorFromAbi(abi: Abi, name: string): Hex {
 /**
  * Which contract a relayable write targets.
  *
- * Documentation only — the seam that builds the call supplies the concrete
- * address, and the dispatcher passes it through untouched.
+ * The transparent dispatcher does not read it — the seam that builds the call
+ * supplies the concrete address — but a gasless batch resolves each call's
+ * target from it (`relayGaslessBatch`), which is why it must name the contract
+ * that actually declares the function.
  */
 export type GaslessRelayableTarget = "symmio" | "accountLayer" | "instantLayer";
 
@@ -104,6 +106,35 @@ export const GASLESS_RELAYABLE_WRITES: ReadonlyMap<Hex, GaslessRelayableWrite> =
     { target: "instantLayer", operationType: "grantDelegation" },
   ],
 ]);
+
+/**
+ * Every relayable write's ABI item, keyed by function name — the names a
+ * gasless batch call may use without passing an ABI
+ * (`{ functionName: "allocate", args }`), and each one's exact inputs.
+ *
+ * Derived from the same shipped ABIs as {@link GASLESS_RELAYABLE_SELECTORS}, so
+ * it holds exactly the relayable functions and can never name one the relayer
+ * would refuse. Use it to list the writes a batch can carry, or to show a
+ * call's signature.
+ *
+ * @example
+ * ```ts
+ * import { formatAbiItem } from "viem/utils";
+ *
+ * for (const item of GASLESS_RELAYABLE_FUNCTIONS.values()) console.log(formatAbiItem(item, { includeName: true }));
+ * // "allocate(uint256 amount)", …
+ * ```
+ */
+export const GASLESS_RELAYABLE_FUNCTIONS: ReadonlyMap<string, AbiFunction> = new Map(
+  [symmioAbi, accountLayerAbi, instantLayerAbi].flatMap((abi) =>
+    (abi as Abi)
+      .filter(
+        (item): item is AbiFunction =>
+          item.type === "function" && GASLESS_RELAYABLE_WRITES.has(toFunctionSelector(item)),
+      )
+      .map((item) => [item.name, item] as const),
+  ),
+);
 
 /**
  * Every selector the transparent gasless mode can relay.

@@ -7,7 +7,7 @@ Integration with the **GaslessQ relayer**: the user signs an EIP-712 InstantLaye
 Two ways to use it:
 
 - **Transparent execution mode** — existing write actions (`initiateWithdraw`, `addMargin`, `requestToCancelQuote`, …) gain an optional `gasless` parameter and a config-level default. When active, the SDK signs the same calldata as an InstantLayer operation, relays it, waits for the relayer's broadcast, and returns the transaction hash — the action's signature, return type, receipt-waiting and cache invalidation are **unchanged**. Consumers opt in per call (`gasless: true`) or globally (`execution: { mode: "gasless" }`).
-- **Explicit primitives** — the pages in this module: relay pre-signed operations, poll request status, grant delegations, execute from the gasless wallet, and settle onboarding deposits.
+- **Explicit primitives** — the pages in this module: relay several actions as one batch, relay pre-signed operations, poll request status, grant delegations, execute from the gasless wallet, and settle onboarding deposits.
 
 ```ts
 // Transparent: same call, no gas — the hash behaves like any wallet-submitted hash.
@@ -140,12 +140,29 @@ A submit that _fails_ is remembered the same way whenever it leaves the nonce sp
 
 `fee = base(selector) × feeMultiplier / 10000`, with a per-account daily free quota (UTC reset) and a one-time creation fee when a relayed operation first deploys a GaslessWallet, whatever its id (wallet `0` included). Two reads on two contracts:
 
-- [`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote) — the GaslessLayer's `previewFeeQuote` for the exact batch, with one 18-decimal payment per operation. It is a preview (`exact` is always `false`); the relayer's simulation is authoritative. An exhausted daily free quota is a revert, surfaced as `GASLESS_FREE_QUOTA_EXHAUSTED`. The transparent mode runs it before every signature prompt (`preflightFee`).
+- [`getGaslessBatchFeeQuote`](/core/gasless/get-gasless-batch-fee-quote) — the GaslessLayer's `previewFeeQuote` for a batch described by name, exactly as `relayGaslessBatch` would relay it: one 18-decimal payment per call, before any signature. The way to show a fee next to any action.
+- [`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote) — the same preview for operations you built yourself. It is a preview (`exact` is always `false`); the relayer's simulation is authoritative. An exhausted daily free quota is a revert, surfaced as `GASLESS_FREE_QUOTA_EXHAUSTED`. The transparent mode runs it before every signature prompt (`preflightFee`).
 - [`getOperationalFeeAllowance`](/core/gasless/get-operational-fee-allowance) — the payer's allowance for the charger, on the **core diamond**. Grant it with [`approveOperationalFee`](/core/gasless/approve-operational-fee) **before** relying on gasless execution.
 
 Fees, allowances and the payer's Core balance are all **18-decimal Core units**. Token transfers and the GaslessLayer's deposit terms use the collateral token's decimals. Convert between the two with [`collateralToCore18`](/core/shared-types#collateraltocore18) and [`core18ToCollateral`](/core/shared-types#core18tocollateral); see [Core 18-decimal units](/core/concepts/balance-model#core-18-decimal-units). An allowance only permits a charge and adds no balance. The fee is collected when the batch executes, so a relay's acceptance receipt reports the service's acceptance-time figures, not the charge.
 
 [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) is priced the same way, from its **inner** call selectors rather than the `execute` wrapper — and it bills its `signerAccount`, never the collateral sitting at the wallet it executes from. That defaults to the owner EOA, which holds no collateral, so pass a funded sub-account to make the fee chargeable.
+
+## Batching
+
+[`relayGaslessBatch`](/core/gasless/relay-gasless-batch) relays several actions as **one request** — one atomic transaction, one fee charge per payer. Name each relayable write (`{ functionName, args }`, no ABI needed) and mix in GaslessWallet calls (`{ walletCalls, walletId }`); the SDK resolves each contract, sequences the nonces on every stream, prices the batch and asks for the signatures:
+
+```ts
+await relayGaslessBatch(config, {
+  account: subAccount,
+  calls: [
+    { functionName: "approveOperationalFeeWithMultiplier", args: [[gaslessLayerAddress], [budget18], [10_000n]] },
+    { functionName: "allocate", args: [amount] },
+  ],
+});
+```
+
+The protocol has **no batch signature** — the InstantLayer verifies each operation's signature against that operation alone — so a browser wallet prompts once per call, and a session key signs them all silently. What a batch buys is shared fate (one revert rolls back every call and fee) and fee timing: fees are collected after the whole batch runs, so an approval early in the batch covers the calls after it. Price the same calls first with [`getGaslessBatchFeeQuote`](/core/gasless/get-gasless-batch-fee-quote), and grant a session key [`getGaslessBatchSelectors(calls)`](/core/gasless/get-gasless-batch-selectors).
 
 ## Reads are RPC, not endpoints
 
@@ -172,8 +189,11 @@ The service exposes no read endpoints: wallet addresses, deposit policy, fee quo
   <MethodEntry name="getGaslessWriteRequest" href="/core/gasless/get-gasless-write-request">
     Resolve a transparently relayed write’s hash back to the request behind it.
   </MethodEntry>
+  <MethodEntry name="getGaslessBatchFeeQuote" href="/core/gasless/get-gasless-batch-fee-quote">
+    Preview what relaying named calls would cost — any write, any batch — before any signature.
+  </MethodEntry>
   <MethodEntry name="getGaslessFeeQuote" href="/core/gasless/get-gasless-fee-quote">
-    Preview the fees for a batch (`previewFeeQuote`) before prompting for a signature.
+    Preview the fees for operations you built yourself (`previewFeeQuote`).
   </MethodEntry>
   <MethodEntry name="getOperationalFeeAllowance" href="/core/gasless/get-operational-fee-allowance">
     Read the payer's fee allowance for the charger from the diamond.
@@ -193,6 +213,9 @@ The service exposes no read endpoints: wallet addresses, deposit policy, fee quo
 </MethodIndex>
 
 <MethodIndex kind="write">
+  <MethodEntry name="relayGaslessBatch" href="/core/gasless/relay-gasless-batch">
+    Relay several gasless actions — relayable writes and wallet calls — as one atomic request.
+  </MethodEntry>
   <MethodEntry name="relayInstantOperations" href="/core/gasless/relay-instant-operations">
     Submit pre-signed InstantLayer operations to the relayer.
   </MethodEntry>
@@ -217,6 +240,9 @@ The service exposes no read endpoints: wallet addresses, deposit policy, fee quo
 </MethodIndex>
 
 <MethodIndex kind="type">
+  <MethodEntry name="getGaslessBatchSelectors" href="/core/gasless/get-gasless-batch-selectors">
+    The selector set a session key needs to relay a gasless batch.
+  </MethodEntry>
   <MethodEntry name="getGaslessWalletExecuteSelectors" href="/core/gasless/get-gasless-wallet-execute-selectors">
     The selector set a session key needs to run a batch from the gasless wallet.
   </MethodEntry>

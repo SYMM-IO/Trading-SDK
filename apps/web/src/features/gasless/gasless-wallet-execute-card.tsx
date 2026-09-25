@@ -25,6 +25,7 @@ import { erc20Abi, isAddress, parseUnits, zeroAddress, type Address, type Hex } 
 import { SubAccountPicker } from "../inspector/subaccount-picker";
 import { GaslessCard } from "./gasless-card";
 import { GaslessFailureNote } from "./gasless-failure-note";
+import { GaslessFeePreview } from "./gasless-fee-preview";
 import { storeGaslessRequest } from "./gasless-request-storage";
 import { useGaslessWalletAssignments, useGaslessWalletAssignmentScope } from "./gasless-wallet-assignments";
 import { useSessionKeyWriteMode } from "./gasless-write-mode-store";
@@ -417,6 +418,14 @@ export function GaslessWalletExecuteCard() {
                   payer’s Core balance and the receipt’s fee events. The hook waited for the relayer to land it.
                 </ResultSuccess>
               ) : null}
+
+              <GaslessFeePreview
+                account={nonceAccount}
+                calls={calls !== null && walletId !== null ? [{ walletId, walletCalls: calls }] : undefined}
+                labels={[METHOD]}
+                idleHint="build a call to estimate"
+                testId="gasless-wallet-execute-fee"
+              />
             </>
           ) : null}
         </>

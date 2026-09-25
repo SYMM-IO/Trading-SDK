@@ -201,12 +201,31 @@ is safe, because nothing was accepted. Two fields exist for the paths that are n
 Every relayed action charges the operational fee from SYMMIO collateral, so all of them invalidate account balances and
 the payer's allowance — that is a property of the transport, not of the operation.
 
-| Hook                                     | Additionally invalidates                                                                                                                                                                                                         |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `useRelayInstantOperations`              | the InstantLayer nonce per signer account — nothing more: `operationType` is a free-form label, so the SDK cannot know which domain reads a batch touched. Pass your own `onSuccess` to `mutate`; it now runs after confirmation |
-| `useGaslessWalletExecute`                | the wallet-operation nonce of the signer account on the selected `walletId`, the wallet's collateral balance, and that wallet's deposit policy and creation fee — a first operation deploys the wallet                           |
-| `useSettleGaslessDepositExistingAccount` | the swept deposit address's collateral balance, and the owner's deposit policy and wallet creation fee — a first settlement deploys the wallet                                                                                   |
-| `useSettleGaslessDepositNewAccount`      | the above plus the owner's sub-account list, addresses, and count                                                                                                                                                                |
+| Hook                                     | Additionally invalidates                                                                                                                                                                                                                        |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useRelayGaslessBatch`                   | the account's InstantLayer nonce, plus the reads of the domains its calls touched — withdrawal requests, quotes and open positions, sub-account lists, collateral, delegations — and each wallet entry's nonce, collateral and deployment reads |
+| `useRelayInstantOperations`              | the InstantLayer nonce per signer account — nothing more: `operationType` is a free-form label, so the SDK cannot know which domain reads a batch touched. Pass your own `onSuccess` to `mutate`; it now runs after confirmation                |
+| `useGaslessWalletExecute`                | the wallet-operation nonce of the signer account on the selected `walletId`, the wallet's collateral balance, and that wallet's deposit policy and creation fee — a first operation deploys the wallet                                          |
+| `useSettleGaslessDepositExistingAccount` | the swept deposit address's collateral balance, and the owner's deposit policy and wallet creation fee — a first settlement deploys the wallet                                                                                                  |
+| `useSettleGaslessDepositNewAccount`      | the above plus the owner's sub-account list, addresses, and count                                                                                                                                                                               |
+
+### `useRelayGaslessBatch`
+
+Relay **several gasless actions as one request** — relayable writes by name and GaslessWallet calls, freely mixed, in one atomic transaction. Variables are [`relayGaslessBatch`](/core/gasless/relay-gasless-batch)' parameters.
+
+```tsx
+const batch = useRelayGaslessBatch();
+
+await batch.mutateAsync({
+  account: subAccount,
+  calls: [
+    { functionName: "approveOperationalFeeWithMultiplier", args: [[gaslessLayerAddress], [budget18], [10_000n]] },
+    { functionName: "allocate", args: [amount] },
+  ],
+});
+```
+
+Each call is signed on its own — the protocol has no batch signature — so a browser wallet prompts once per call, while a session key passed as `from` signs silently once it holds [`getGaslessBatchSelectors(calls)`](/core/gasless/get-gasless-batch-selectors). Every call is a known relayable write, so unlike `useRelayInstantOperations` the hook knows which reads the batch changed and refreshes them. Show the price first with [`useGaslessBatchFeeQuote`](#usegaslessbatchfeequote).
 
 ### `useRelayInstantOperations`
 
@@ -335,9 +354,30 @@ if (!delegation.allActive) {
 
 ## Fees & allowance
 
+### `useGaslessBatchFeeQuote`
+
+Preview what relaying named calls would cost — the same `account` and `calls` you would hand to [`useRelayGaslessBatch`](#userelaygaslessbatch) — before any signature. Wraps [`getGaslessBatchFeeQuote`](/core/gasless/get-gasless-batch-fee-quote). It is the hook for a fee line next to any gasless action, one write or a whole batch.
+
+```tsx
+import { formatUnits } from "viem";
+
+const quote = useGaslessBatchFeeQuote({
+  account: subAccount,
+  calls: [{ functionName: "allocate", args: [amount] }],
+});
+
+const fee = quote.data ? `${formatUnits(quote.data.totalFee18, 18)} USDC` : undefined;
+```
+
+- Pass a form's live inputs straight in: a changed batch is **debounced internally** (`debounceMs`, default `500`), so typing an amount reads the GaslessLayer once the user pauses, not once per keystroke, and the last settled quote stays in `data` meanwhile. Changes are detected by content, so a `calls` array rebuilt on every render never restarts the wait. The first batch is quoted at once; pass `debounceMs: 0` to quote every change immediately.
+- The quote depends only on the account and the calls, never on nonces or signatures, so it caches per batch. A call given by `functionName`, by `abi` or as raw `data` shares one cache entry, and the key holds encoded calldata, not the ABI.
+- `payments` has one row per call — show each entry's share, and group rows by `payer` for who pays. Every amount is 18-decimal.
+- `account` and `calls` are required, so mount the hook once they exist. The GaslessLayer prices a write by its selector and payer, not its argument values, so a placeholder amount — or a zeroed signature that is only fetched at send time — shows the fee while a form is still being filled in. A call whose arguments do not encode fails the query with viem's encoding error.
+- An exhausted daily free quota is an error with code `GASLESS_FREE_QUOTA_EXHAUSTED`, and a batch the contract refuses fails with `GASLESS_FEE_QUOTE_REVERTED` — the relay would fail the same way.
+
 ### `useGaslessFeeQuote`
 
-Preview what the GaslessLayer would charge to relay a batch (`previewFeeQuote`) before prompting for a signature. Wraps [`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote).
+Preview what the GaslessLayer would charge to relay operations you built yourself (`previewFeeQuote`) before prompting for a signature. Wraps [`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote). For SDK actions, prefer [`useGaslessBatchFeeQuote`](#usegaslessbatchfeequote).
 
 ```tsx
 import { isGaslessFreeQuotaExhaustedError } from "@symmio/trading-core";

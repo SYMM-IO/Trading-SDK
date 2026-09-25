@@ -5,6 +5,7 @@ import { Badge } from "@symmio/ui/components/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symmio/ui/components/card";
 import { cn } from "@symmio/ui/lib/utils";
 import type { ReactNode } from "react";
+import { MethodCardFeePreview, type MethodCardGaslessFee } from "./method-card-fee-preview";
 
 interface Props {
   testId: string;
@@ -38,6 +39,12 @@ interface Props {
    */
   gaslessBlockedReason?: string;
   /**
+   * The inputs of a `gaslessRelayable` card's fee preview. Whenever the card's
+   * next write will relay, a gasless fee line closes the card, priced on-chain
+   * for exactly this call — the method is the card's `name`.
+   */
+  gaslessFee?: MethodCardGaslessFee;
+  /**
    * Catalog id of the magic-sidebar method this card reads. When set, renders a
    * pin toggle in the header that adds the method to the live board.
    */
@@ -70,6 +77,7 @@ export function MethodCard({
   size = "default",
   gaslessRelayable = false,
   gaslessBlockedReason,
+  gaslessFee,
   magicMethodId,
   magicMethodInput,
 }: Props) {
@@ -108,7 +116,17 @@ export function MethodCard({
         </div>
         <CardDescription className="leading-6">{description}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">{children}</CardContent>
+      <CardContent className="space-y-4">
+        {children}
+        {gaslessRelayable && gaslessFee ? (
+          <MethodCardFeePreview
+            method={name}
+            blockedReason={gaslessBlockedReason}
+            fee={gaslessFee}
+            testId={`${testId}-gasless-fee`}
+          />
+        ) : null}
+      </CardContent>
     </Card>
   );
 }

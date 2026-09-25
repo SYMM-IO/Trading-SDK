@@ -2,11 +2,13 @@
 
 import { DataList, DataRow } from "@/components/data-list";
 import { Field } from "@/components/field";
+import { InfoIcon } from "@/components/info-icon";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { GaslessRequestStatus, useGaslessRequest, useSymmioChainId } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { GaslessCard } from "./gasless-card";
 import {
@@ -160,7 +162,7 @@ export function GaslessRequestCard() {
               mono
             />
             {request.data.walletIds.length > 0 ? (
-              <DataRow label="Wallet ids" value={request.data.walletIds.join(", ")} mono />
+              <DataRow label={<WalletIdsLabel />} value={request.data.walletIds.join(", ")} mono />
             ) : null}
             {request.data.owner ? (
               <DataRow label="Owner" value={request.data.owner} mono copyValue={request.data.owner} />
@@ -179,5 +181,33 @@ export function GaslessRequestCard() {
         <ResultError kind={request.error.kind} message={request.error.message} testId="gasless-request-error" />
       ) : null}
     </GaslessCard>
+  );
+}
+
+/**
+ * The wallet-id row's label. The service stores one id per operation, and `0`
+ * reads like "wallet 0 was used" when it mostly means "not a wallet call" — so
+ * the label says what the list is, and the tooltip what each value means.
+ */
+function WalletIdsLabel() {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      Wallet id per operation
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="What the wallet ids mean"
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/30 inline-flex items-center justify-center rounded-full outline-none focus-visible:ring-2"
+          >
+            <InfoIcon />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">
+          One id per operation, in batch order. 0 is an ordinary write — or a call from the original wallet; a positive
+          id is a call from that GaslessWallet. A batch can mix them.
+        </TooltipContent>
+      </Tooltip>
+    </span>
   );
 }

@@ -79,22 +79,51 @@ export function withGaslessNonceLock<result>(
   key: string,
   task: () => Promise<result>,
 ): Promise<result> {
+  return withGaslessNonceLocks(config, [key], task);
+}
+
+/**
+ * Run `task` exclusively for **several** nonce streams at once — a batch that
+ * signs on more than one stream (an account's InstantLayer stream plus one
+ * stream per GaslessWallet id). The single-stream {@link withGaslessNonceLock}
+ * is the one-key case.
+ *
+ * The task joins every stream's queue in the same synchronous step and starts
+ * once all of their earlier tasks have settled. A task therefore only ever
+ * waits on tasks queued before it, so two batches that share streams — in any
+ * order — can never each hold one stream while waiting for the other's.
+ *
+ * @param config - The SDK config the locks belong to.
+ * @param keys - The stream keys the task signs on; duplicates are ignored.
+ * @param task - The read-sign-submit critical section.
+ *
+ * @internal
+ */
+export function withGaslessNonceLocks<result>(
+  config: Config,
+  keys: readonly string[],
+  task: () => Promise<result>,
+): Promise<result> {
   let byKey = locks.get(config);
   if (!byKey) {
     byKey = new Map();
     locks.set(config, byKey);
   }
+  const queues = byKey;
+  const streams = [...new Set(keys)];
 
-  const previous = byKey.get(key) ?? Promise.resolve();
+  const previous = Promise.all(streams.map((key) => queues.get(key) ?? Promise.resolve()));
   const run = previous.then(task, task);
 
   const settled = run.then(
     () => undefined,
     () => undefined,
   );
-  byKey.set(key, settled);
+  for (const key of streams) queues.set(key, settled);
   void settled.then(() => {
-    if (byKey.get(key) === settled) byKey.delete(key);
+    for (const key of streams) {
+      if (queues.get(key) === settled) queues.delete(key);
+    }
   });
 
   return run;
@@ -200,37 +229,67 @@ export function blocksGaslessNonceStream(err: unknown): boolean {
  *
  * @internal
  */
-export async function submitOnGaslessNonceStream<result extends { requestId: string }>(
+export function submitOnGaslessNonceStream<result extends { requestId: string }>(
   config: Config,
   key: string,
   pending: { signedNonce: bigint; service: GaslessService; chainId: number; deadline: bigint },
   submit: () => Promise<result>,
   blocksStream: (err: unknown) => boolean,
 ): Promise<result> {
+  return submitOnGaslessNonceStreams(
+    config,
+    [{ key, signedNonce: pending.signedNonce }],
+    pending,
+    submit,
+    blocksStream,
+  );
+}
+
+/**
+ * {@link submitOnGaslessNonceStream} for a submit that signed on **several**
+ * streams — one relay request carrying an InstantLayer operation and a
+ * GaslessWallet operation, say. Every stream records the same request, because
+ * one request consumes all of them or none; each keeps its own highest signed
+ * nonce.
+ *
+ * @param config - The SDK config.
+ * @param streams - Each stream the submit signed on, with the highest nonce it signed there.
+ * @param pending - The service, the chain and the signature deadline (seconds), shared by every stream.
+ * @param submit - Performs the POST and returns the acceptance receipt.
+ * @param blocksStream - Whether a thrown error leaves the signed nonces possibly or certainly consumed; pass {@link blocksGaslessNonceStream}.
+ * @returns Whatever `submit` resolved with.
+ *
+ * @internal
+ */
+export async function submitOnGaslessNonceStreams<result extends { requestId: string }>(
+  config: Config,
+  streams: readonly { key: string; signedNonce: bigint }[],
+  pending: { service: GaslessService; chainId: number; deadline: bigint },
+  submit: () => Promise<result>,
+  blocksStream: (err: unknown) => boolean,
+): Promise<result> {
   const expiresAtMs = Number(pending.deadline) * 1_000;
-  let receipt: result;
-  try {
-    receipt = await submit();
-  } catch (err) {
-    if (blocksStream(err)) {
-      pendingFor(config).set(key, {
-        signedNonce: pending.signedNonce,
-        requestId: null,
+  const record = (requestId: string | null) => {
+    for (const stream of streams) {
+      pendingFor(config).set(stream.key, {
+        signedNonce: stream.signedNonce,
+        requestId,
         service: pending.service,
         chainId: pending.chainId,
         expiresAtMs,
       });
     }
+  };
+
+  let receipt: result;
+  try {
+    receipt = await submit();
+  } catch (err) {
+    if (blocksStream(err)) record(null);
     throw err;
   }
 
-  pendingFor(config).set(key, {
-    signedNonce: pending.signedNonce,
-    requestId: receipt.requestId,
-    service: pending.service,
-    chainId: pending.chainId,
-    expiresAtMs,
-  });
+  record(receipt.requestId);
   return receipt;
 }
 

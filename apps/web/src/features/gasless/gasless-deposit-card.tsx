@@ -19,6 +19,7 @@ import { Spinner } from "@symmio/ui/components/spinner";
 import { zeroAddress } from "viem";
 import { GaslessCard } from "./gasless-card";
 import { GaslessFailureNote } from "./gasless-failure-note";
+import { GaslessFeeLine } from "./gasless-fee-line";
 import { storeGaslessRequest } from "./gasless-request-storage";
 import { useGaslessWalletAssignments, useGaslessWalletAssignmentScope } from "./gasless-wallet-assignments";
 import { useGaslessTokenBalance } from "./use-gasless-token-balance";
@@ -270,6 +271,21 @@ export function GaslessDepositCard() {
                   differ. The hook waited for the relayer to land it, so the sub-account is readable now.
                 </ResultSuccess>
               ) : null}
+
+              {/*
+               * A settlement goes through the deposits service, not an operation
+               * relay, so its fee is the policy's own: the flat deposit fee plus a
+               * first deployment's creation fee, both swept off the deposit itself.
+               */}
+              <GaslessFeeLine
+                testId="gasless-deposit-fee"
+                state={{
+                  status: "ready",
+                  fee: policy.data.depositFee + policy.data.walletCreationFee,
+                  decimals: policy.data.collateralDecimals,
+                  note: "taken from the deposit before it is credited",
+                }}
+              />
             </>
           ) : null}
         </>

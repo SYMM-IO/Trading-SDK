@@ -4,6 +4,13 @@ import { Callout } from "nextra/components";
 
 Submit pre-signed InstantLayer operations to the GaslessQ relayer — the explicit primitive underneath the [transparent execution mode](/core/gasless/relayable-writes). Use it when you build and sign `SignedOperation` structs yourself (with `buildSignedOperation` + `signSignedOperation`) and want full control over batching and labels.
 
+<Callout type="info">
+  **Relaying SDK actions? Prefer [`relayGaslessBatch`](/core/gasless/relay-gasless-batch).** It takes the relayable
+  writes by name, mixes in GaslessWallet calls, and does the encoding, nonce sequencing, fee preview and signing this
+  primitive leaves to you. Reach for `relayInstantOperations` for operations the SDK does not describe — flex-field
+  flows or registered templates.
+</Callout>
+
 ```ts
 import { relayInstantOperations, waitForGaslessRequest } from "@symmio/trading-core";
 

@@ -4,6 +4,7 @@ import { toFunctionSelector, type AbiFunction } from "viem";
 import { describe, expect, it } from "vitest";
 import { instantLayerAbi } from "../symmio-contracts/abi/v0.8.6/instant-layer";
 import {
+  GASLESS_RELAYABLE_FUNCTIONS,
   GASLESS_RELAYABLE_SELECTORS,
   GASLESS_RELAYABLE_WRITES,
   GASLESS_SESSION_KEY_SELECTORS,
@@ -132,6 +133,15 @@ describe("gasless selector sets", () => {
  * through a seam — `finalizeWithdrawRequest` was registered here (and listed in
  * the docs) for a while with neither, so the selector was unreachable.
  */
+describe("GASLESS_RELAYABLE_FUNCTIONS", () => {
+  it("names exactly the relayable writes, one ABI item per selector", () => {
+    const selectors = [...GASLESS_RELAYABLE_FUNCTIONS.values()].map((item) => toFunctionSelector(item));
+
+    expect([...selectors].sort()).toEqual([...GASLESS_RELAYABLE_SELECTORS].sort());
+    for (const [name, item] of GASLESS_RELAYABLE_FUNCTIONS) expect(item.name).toBe(name);
+  });
+});
+
 describe("every relayable write has a real seam", () => {
   const ACTION_DIRECTORY: Record<GaslessRelayableTarget, string> = {
     symmio: "symmio-contracts/symmio/actions",

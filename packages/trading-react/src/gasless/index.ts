@@ -1,5 +1,6 @@
 export * from "./gasless-relay-types";
 export * from "./use-approve-operational-fee";
+export * from "./use-gasless-batch-fee-quote";
 export * from "./use-gasless-deposit-policy";
 export * from "./use-gasless-fee-quote";
 export * from "./use-gasless-request";
@@ -11,6 +12,7 @@ export * from "./use-gasless-wallet-execute";
 export * from "./use-gasless-wallet-execute-selectors";
 export * from "./use-gasless-wallet-nonce";
 export * from "./use-operational-fee-allowance";
+export * from "./use-relay-gasless-batch";
 export * from "./use-relay-instant-operations";
 export * from "./use-resubmit-gasless-request";
 export * from "./use-settle-gasless-deposit-existing-account";

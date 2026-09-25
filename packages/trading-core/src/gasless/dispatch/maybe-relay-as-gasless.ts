@@ -1,15 +1,14 @@
-import { isAddressEqual, type Address, type Hash, type Hex } from "viem";
+import type { Address, Hash, Hex } from "viem";
 import type { GaslessExecutionConfig, SymmioGaslessConfig } from "../../core/chains/types";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { GaslessWriteOptions } from "../../shared/types/properties";
 import { getInstantLayerEip712Domain, signSignedOperation } from "../../solvers/instant-open/shared/eip712";
 import { buildSignedOperation } from "../../solvers/instant-open/shared/operations";
-import { gaslessLayerAbi } from "../../symmio-contracts/abi/v0.8.6/gasless-layer";
-import { getSubAccount } from "../../symmio-contracts/account-layer/actions/get-sub-account";
 import { getVirtualAccount } from "../../symmio-contracts/account-layer/actions/get-virtual-account";
 import { getInstantLayerNonce } from "../../symmio-contracts/instant-layer/actions/get-instant-layer-nonce";
-import { getIsDelegationActive } from "../../symmio-contracts/instant-layer/actions/get-is-delegation-active";
+import { assertGaslessGatewayCoherence } from "../assert-gateway-coherence";
+import { findUndelegatedGaslessSelectors, getCachedGaslessAccountOwner } from "../delegation-preflight";
 import { fireGaslessEvent, toGaslessRecordBody } from "../events";
 import { isConfirmedGaslessFeeLimitError, isConfirmedGaslessUnavailableError } from "../fallback";
 import { isGaslessFreeQuotaExhaustedError } from "../get-gasless-fee-quote/fee-quote-errors";
@@ -107,132 +106,6 @@ function resolveDispatch(
   };
 }
 
-/** One coherence probe per (config, chainId) — the gateway address is a config constant. */
-const coherenceChecks = new WeakMap<Config, Map<number, Promise<void>>>();
-
-function assertGatewayCoherence(config: Config, chainId: number, gasless: SymmioGaslessConfig): Promise<void> {
-  let byChain = coherenceChecks.get(config);
-  if (!byChain) {
-    byChain = new Map();
-    coherenceChecks.set(config, byChain);
-  }
-  const cached = byChain.get(chainId);
-  if (cached) return cached;
-
-  const probe = (async () => {
-    const { addresses } = config.getChainConfig(chainId);
-    const client = config.getClient({ chainId });
-    const gatewayInstantLayer = await client.readContract({
-      address: gasless.gaslessLayerAddress,
-      abi: gaslessLayerAbi,
-      functionName: "instantLayer",
-    });
-    if (!isAddressEqual(gatewayInstantLayer, addresses.instantLayerAddress)) {
-      throw new SymmError(
-        "config",
-        "GASLESS_CONFIG_INCOHERENT",
-        `Gasless: the configured GaslessLayer (${gasless.gaslessLayerAddress}) verifies operations against InstantLayer ${gatewayInstantLayer}, but chain ${chainId} is configured with instantLayerAddress ${addresses.instantLayerAddress}. Relayed signatures would be rejected — align the two addresses (createConfig override) before using gasless execution.`,
-      );
-    }
-  })();
-  /**
-   * Cache the real probe, not a swallowed copy. A pre-swallowed promise would
-   * resolve for every caller that arrived while the first probe was still in
-   * flight, so a concurrent write would sail past the guard on a misconfigured
-   * chain and sign against an InstantLayer the gateway does not verify.
-   *
-   * The entry is dropped on rejection so a transient RPC failure cannot poison
-   * the config — the next write probes again.
-   */
-  byChain.set(chainId, probe);
-  probe.catch(() => {
-    if (byChain.get(chainId) === probe) byChain.delete(chainId);
-  });
-  return probe;
-}
-
-/**
- * One owner read per (config, chainId, sub-account).
- *
- * Cached for the config's lifetime, which is a deliberate trade: the AccountLayer
- * does expose `transferSubAccountOwnership`, so an owner is not strictly
- * immutable, but a transfer mid-session is rare and the alternative is an extra
- * RPC read on every relayed write. A stale entry costs a spurious delegation
- * probe, never a wrong authorization — the contract re-checks both the owner and
- * the delegation on execution.
- */
-const accountOwners = new WeakMap<Config, Map<string, Promise<Address | null>>>();
-
-/**
- * The owning EOA of a sub-account, read once per config lifetime.
- *
- * Mirrors {@link assertGatewayCoherence}'s caching discipline: the real promise
- * is cached (so concurrent writes share the single in-flight read instead of
- * each issuing their own), and the entry is dropped on rejection so a transient
- * RPC failure cannot poison the config.
- */
-function getCachedAccountOwner(config: Config, chainId: number, account: Address): Promise<Address | null> {
-  let byAccount = accountOwners.get(config);
-  if (!byAccount) {
-    byAccount = new Map();
-    accountOwners.set(config, byAccount);
-  }
-  const cache = byAccount;
-  const key = `${chainId}:${account.toLowerCase()}`;
-  const cached = cache.get(key);
-  if (cached) return cached;
-
-  const read = getSubAccount(config, { chainId, account }).then((detail) =>
-    /**
-     * An unknown or deleted sub-account reports `isExists: false` with a zero
-     * `owner`. Returning that zero address would make every signer compare
-     * unequal to the owner, so the dispatcher would classify even the real owner
-     * as a delegate and reject the write with a misleading
-     * `GASLESS_SIGNER_NOT_DELEGATED`. `null` instead means "cannot establish an
-     * owner" and skips the pre-flight, leaving the contract to give the accurate
-     * error.
-     */
-    detail.isExists ? detail.owner : null,
-  );
-  cache.set(key, read);
-  read.catch(() => {
-    if (cache.get(key) === read) cache.delete(key);
-  });
-  return read;
-}
-
-/**
- * Selectors the signing key may not relay under `signerAccount`.
- *
- * The owner needs no delegation, so an owner signer short-circuits after the
- * (cached) owner read with zero extra calls. Any other signer is a delegate — a
- * session key — and every distinct selector is checked against
- * `isDelegationActive` concurrently.
- *
- * @returns The selectors with no active delegation; empty when the signer may
- *   relay every call.
- */
-async function findUndelegatedSelectors(
-  config: Config,
-  parameters: { chainId: number; signer: Address; signerAccount: Address; selectors: readonly Hex[] },
-): Promise<Hex[]> {
-  const owner = await getCachedAccountOwner(config, parameters.chainId, parameters.signerAccount);
-  if (owner === null || isAddressEqual(parameters.signer, owner)) return [];
-
-  const selectors = [...new Set(parameters.selectors)];
-  const active = await Promise.all(
-    selectors.map((selector) =>
-      getIsDelegationActive(config, {
-        chainId: parameters.chainId,
-        account: parameters.signerAccount,
-        delegate: parameters.signer,
-        selector,
-      }),
-    ),
-  );
-  return selectors.filter((_, index) => !active[index]);
-}
-
 /**
  * The transparent gasless dispatcher. Called by relayable write actions before
  * their wallet path: returns the relayer's broadcast transaction hash when the
@@ -301,7 +174,7 @@ export async function maybeRelayAsGasless(
   const chain = config.getChainConfig(parameters.chainId);
   const chainId = chain.chainId;
 
-  await assertGatewayCoherence(config, chainId, gasless);
+  await assertGaslessGatewayCoherence(config, chainId, gasless);
 
   /** Billing/authority account: explicit override → seam-provided sub-account → VA parent. */
   let signerAccount = options.account ?? parameters.signerAccount;
@@ -338,7 +211,7 @@ export async function maybeRelayAsGasless(
    * that could never land.
    */
   if (execution.preflightDelegation ?? true) {
-    const missing = await findUndelegatedSelectors(config, {
+    const missing = await findUndelegatedGaslessSelectors(config, {
       chainId,
       signer: walletClient.account.address,
       signerAccount: resolvedSignerAccount,
@@ -428,7 +301,7 @@ export async function maybeRelayAsGasless(
      * a write over a tracking label.
      */
     const owner =
-      (await getCachedAccountOwner(config, chainId, resolvedSignerAccount).catch(() => null)) ??
+      (await getCachedGaslessAccountOwner(config, chainId, resolvedSignerAccount).catch(() => null)) ??
       walletClient.account.address;
 
     try {

@@ -3,6 +3,7 @@
 import { AddressTag } from "@/components/address-tag";
 import { DataList, DataRow } from "@/components/data-list";
 import { ResultError } from "@/components/result";
+import { GaslessFeePreview } from "@/features/gasless/gasless-fee-preview";
 import { useUserSubAccounts, useWalletAccount } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { Button } from "@symmio/ui/components/button";
@@ -81,6 +82,24 @@ export function SessionKeyDelegationCard() {
   const canWrite = Boolean(
     isConnected && isOnExpectedChain && subAccount && sessionKeyAddress && delegation.expiryTimestamp !== undefined,
   );
+
+  /** The grant the button relays, priced before its one prompt. */
+  const grantCall =
+    subAccount && sessionKeyAddress && delegation.expiryTimestamp !== undefined
+      ? [
+          {
+            functionName: "grantDelegation",
+            args: [
+              {
+                account: { addr: subAccount, isPartyB: false },
+                delegatedSigner: sessionKeyAddress,
+                selectors: delegation.requiredSelectors,
+                expiryTimestamp: delegation.expiryTimestamp,
+              },
+            ],
+          },
+        ]
+      : undefined;
 
   return (
     <Card data-testid="card-session-key-delegation">
@@ -229,6 +248,16 @@ export function SessionKeyDelegationCard() {
           {delegation.error ? (
             <ResultError testId="result-session-key-delegation-error" message={delegation.error.message} />
           ) : null}
+
+          {/* The grant always relays; once the key holds its authority there is nothing left to price. */}
+          {delegation.isReady ? null : (
+            <GaslessFeePreview
+              account={subAccount}
+              calls={grantCall}
+              labels={["grantDelegation"]}
+              testId="session-key-delegation-fee"
+            />
+          )}
         </div>
       </CardContent>
     </Card>

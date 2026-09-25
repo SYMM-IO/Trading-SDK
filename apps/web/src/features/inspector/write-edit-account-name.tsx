@@ -36,6 +36,7 @@ export function WriteEditAccountName() {
       name="editAccountName"
       mutability="nonpayable"
       gaslessRelayable
+      gaslessFee={{ account: validAccount, args: validAccount ? [validAccount, name] : undefined }}
       description="Rename one of the connected user's subaccounts."
     >
       <SubAccountField

@@ -3,12 +3,20 @@ import {
   getGaslessDepositPolicyQueryKey,
   getGaslessWalletCreationFeeQueryKey,
   getGaslessWalletNonceQueryKey,
+  getInstantLayerNonceQueryKey,
+  getIsDelegationActiveQueryKey,
+  getPartyAPendingQuotesQueryKey,
+  getPendingWithdrawRequestsQueryKey,
   getUserSubAccountsQueryKey,
 } from "@symmio/trading-core";
 import { QueryClient, type QueryKey } from "@tanstack/react-query";
 import { arbitrum } from "viem/chains";
 import { describe, expect, it } from "vitest";
-import { invalidateDepositSettlementReads, invalidateGaslessWalletExecuteReads } from "./invalidate-relay-reads";
+import {
+  invalidateDepositSettlementReads,
+  invalidateGaslessBatchReads,
+  invalidateGaslessWalletExecuteReads,
+} from "./invalidate-relay-reads";
 
 const CHAIN = arbitrum.id;
 const CONFIG_KEY = "config-key";
@@ -177,5 +185,93 @@ describe("invalidateDepositSettlementReads", () => {
 
     expect(isInvalidated(queryClient, swept)).toBe(true);
     expect(isInvalidated(queryClient, elsewhere)).toBe(true);
+  });
+});
+
+describe("invalidateGaslessBatchReads", () => {
+  const VIRTUAL_ACCOUNT = "0x4444444444444444444444444444444444444444" as const;
+  const SESSION_KEY = "0x6666666666666666666666666666666666666666" as const;
+  const nonce = getInstantLayerNonceQueryKey({ chainId: CHAIN, account: SUB_ACCOUNT, configKey: CONFIG_KEY });
+  const withdrawals = getPendingWithdrawRequestsQueryKey({ chainId: CHAIN, user: SUB_ACCOUNT, configKey: CONFIG_KEY });
+  const pendingQuotes = getPartyAPendingQuotesQueryKey({
+    chainId: CHAIN,
+    partyA: VIRTUAL_ACCOUNT,
+    configKey: CONFIG_KEY,
+  });
+  const subAccounts = getUserSubAccountsQueryKey({ chainId: CHAIN, user: OWNER, configKey: CONFIG_KEY });
+  const delegation = getIsDelegationActiveQueryKey({
+    chainId: CHAIN,
+    account: SUB_ACCOUNT,
+    delegate: SESSION_KEY,
+    selector: "0x12345678",
+    configKey: CONFIG_KEY,
+  });
+  const walletNonce = getGaslessWalletNonceQueryKey({
+    chainId: CHAIN,
+    owner: OWNER,
+    walletId: 2n,
+    account: SUB_ACCOUNT,
+    configKey: CONFIG_KEY,
+  });
+  const ALL = [nonce, withdrawals, pendingQuotes, subAccounts, delegation, walletNonce];
+
+  it("refreshes the account's nonce and the domains its calls touched — and only those", () => {
+    const queryClient = seeded(ALL);
+
+    invalidateGaslessBatchReads(queryClient, SCOPE, {
+      account: SUB_ACCOUNT,
+      calls: [
+        { functionName: "allocate", args: [5n] },
+        { functionName: "requestCancelWithdraw", args: [1n] },
+      ],
+    });
+
+    expect(isInvalidated(queryClient, nonce)).toBe(true);
+    expect(isInvalidated(queryClient, withdrawals)).toBe(true);
+    expect(isInvalidated(queryClient, pendingQuotes)).toBe(false);
+    expect(isInvalidated(queryClient, subAccounts)).toBe(false);
+    expect(isInvalidated(queryClient, delegation)).toBe(false);
+    expect(isInvalidated(queryClient, walletNonce)).toBe(false);
+  });
+
+  it("refreshes quote, sub-account and delegation reads when the batch carries those writes", () => {
+    const queryClient = seeded(ALL);
+
+    invalidateGaslessBatchReads(queryClient, SCOPE, {
+      account: SUB_ACCOUNT,
+      calls: [
+        { functionName: "requestToCancelQuote", args: [7n] },
+        { functionName: "editAccountName", args: [SUB_ACCOUNT, "Main"] },
+        {
+          functionName: "grantDelegation",
+          args: [
+            {
+              account: { addr: SUB_ACCOUNT, isPartyB: false },
+              delegatedSigner: SESSION_KEY,
+              selectors: ["0x12345678"],
+              expiryTimestamp: 1n,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(isInvalidated(queryClient, pendingQuotes)).toBe(true);
+    expect(isInvalidated(queryClient, subAccounts)).toBe(true);
+    /** One grant covers every selector it lists, so every delegation read is refreshed. */
+    expect(isInvalidated(queryClient, delegation)).toBe(true);
+    expect(isInvalidated(queryClient, withdrawals)).toBe(false);
+  });
+
+  it("refreshes a GaslessWallet entry's nonce under the batch's account", () => {
+    const queryClient = seeded(ALL);
+
+    invalidateGaslessBatchReads(queryClient, SCOPE, {
+      account: SUB_ACCOUNT,
+      calls: [{ walletId: 2n, walletCalls: [{ target: DEPOSIT_ADDRESS, data: "0xa9059cbb" }] }],
+    });
+
+    expect(isInvalidated(queryClient, walletNonce)).toBe(true);
+    expect(isInvalidated(queryClient, withdrawals)).toBe(false);
   });
 });
