@@ -1,0 +1,6 @@
+# This app is a standalone SYMMIO SDK example, intentionally detached from the
+# SYMM Frontier monorepo workspace. Its presence marks this directory as its own
+# pnpm root, so installs do not join the monorepo. `pnpm sdk:refresh` builds and
+# packs the current SDK packages into local vendor tarballs, then installs them
+# across the same package boundary a third-party consumer sees.
+packages: []

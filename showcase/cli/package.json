@@ -1,0 +1,53 @@
+{
+  "name": "@symmio/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SYMMIO Frontier — a full perps DEX for the Linux terminal, built on the SDK.",
+  "type": "module",
+  "bin": {
+    "symmio": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.tsx",
+    "start": "tsx src/index.tsx",
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "sdk:refresh": "pnpm --dir ../.. --filter @symmio/utils --filter @symmio/trading-core --filter @symmio/session-key build && mkdir -p vendor && for p in trading-core utils session-key; do (cd ../../packages/$p && pnpm pack --out ../../showcase/cli/vendor/%s.tgz); done && pnpm install"
+  },
+  "dependencies": {
+    "@symmio/session-key": "file:./vendor/symmio-session-key.tgz",
+    "@symmio/trading-core": "file:./vendor/symmio-trading-core.tgz",
+    "@symmio/utils": "file:./vendor/symmio-utils.tgz",
+    "@tanstack/react-query": "^5.100.0",
+    "@walletconnect/ethereum-provider": "^2.23.10",
+    "ink": "^7.1.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "ink-use-mouse": "1.0.0",
+    "qrcode-terminal": "^0.12.0",
+    "react": "19.2.7",
+    "viem": "^2.49.0"
+  },
+  "devDependencies": {
+    "@symmio/eslint-config": "^0.1.1",
+    "@symmio/typescript-config": "^0.1.1",
+    "@types/node": "^25.6.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "@types/react": "^19.2.17",
+    "eslint": "^9.39.4",
+    "globals": "^16.0.0",
+    "tsx": "^4.23.0",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "pnpm": {
+    "overrides": {
+      "@symmio/session-key": "file:./vendor/symmio-session-key.tgz",
+      "@symmio/trading-core": "file:./vendor/symmio-trading-core.tgz",
+      "@symmio/utils": "file:./vendor/symmio-utils.tgz"
+    }
+  }
+}

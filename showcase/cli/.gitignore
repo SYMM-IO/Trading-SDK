@@ -1,0 +1,16 @@
+# dependencies
+node_modules
+
+# build output
+dist
+
+# local env + secrets — NEVER commit a real key
+.env
+.env.local
+.env.*.local
+
+# session-key keystore (holds an unencrypted hot-signer private key)
+.symmio
+
+# logs
+*.log
