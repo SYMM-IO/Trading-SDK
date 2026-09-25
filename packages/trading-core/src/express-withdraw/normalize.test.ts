@@ -16,6 +16,19 @@ describe("Express Withdraw response normalization", () => {
     expect(result.requestDbIds).toEqual({ SAME_TX: 42 });
   });
 
+  it("normalizes omitted sponsor coverage to zero", () => {
+    const option = { ...createExpressOptionWire() };
+    delete option.sponsorCoverage;
+
+    const result = normalizeExpressWithdrawOptions({
+      options: [option],
+      requestDbId: 42,
+      requestDbIds: { SAME_TX: 42 },
+    });
+
+    expect(result.options[0]?.sponsorCoverage).toBe(0n);
+  });
+
   it("rejects malformed booleans and mismatched option identifiers", () => {
     expect(() =>
       normalizeExpressWithdrawOptions({

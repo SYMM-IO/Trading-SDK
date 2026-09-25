@@ -23,7 +23,7 @@ export interface ExpressWithdrawOptionWire {
   fee: string;
   operatorFee: string;
   maxUserFee: string;
-  sponsorCoverage: string;
+  sponsorCoverage?: string;
   parts: ExpressWithdrawPartWire[];
   partsHash: Hex;
   signature: Hex;

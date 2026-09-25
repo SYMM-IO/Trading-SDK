@@ -2,7 +2,6 @@
 
 import {
   getExpressWithdrawStatusQueryOptions,
-  isExpressWithdrawPayoutComplete,
   type ConfigParameter,
   type ExpressWithdrawStatus,
   type GetExpressWithdrawStatusOptions,
@@ -12,6 +11,7 @@ import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
+import { getExpressWithdrawStatusRefetchInterval } from "./express-withdraw-status-polling";
 
 /** Parameters for {@link useExpressWithdrawStatus}. */
 export type UseExpressWithdrawStatusParameters = GetExpressWithdrawStatusOptions & ConfigParameter;
@@ -41,23 +41,7 @@ export function useExpressWithdrawStatus(
 
   return useQuery({
     ...options,
-    refetchInterval:
-      parameters.query?.refetchInterval ??
-      ((query) => {
-        const status = query.state.data;
-        if (!status) return 3_000;
-        if (isExpressWithdrawPayoutComplete(status)) return false;
-        if (
-          status.onChain.status === "CANCELLED" ||
-          status.onChain.status === "SUSPENDED" ||
-          status.local.status === "FAILED" ||
-          status.local.status === "CANCELLED" ||
-          status.local.status === "SUSPENDED"
-        ) {
-          return false;
-        }
-        return 3_000;
-      }),
+    refetchInterval: parameters.query?.refetchInterval ?? getExpressWithdrawStatusRefetchInterval,
     queryFn: async () => {
       try {
         return await options.queryFn();

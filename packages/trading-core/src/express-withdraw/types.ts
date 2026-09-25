@@ -151,6 +151,19 @@ export type WithdrawRoute =
     }
   | { kind: "express"; option: ExpressWithdrawOption };
 
+/** A route exposed for explicit user selection without changing {@link WithdrawRoute}. */
+export type WithdrawRouteChoice =
+  | { kind: "classic"; finalize: "immediate" | "after-cooldown" }
+  | { kind: "express"; option: ExpressWithdrawOption };
+
+/** Automatic recommendation together with every route available for explicit selection. */
+export interface WithdrawRouteChoices {
+  /** Route selected by the existing automatic policy. */
+  recommended: WithdrawRoute;
+  /** Classic plus every valid Express offer returned by the service. */
+  available: readonly WithdrawRouteChoice[];
+}
+
 /** Parameters for requesting signed Express withdrawal options. */
 export interface GetExpressWithdrawOptionsParameters {
   /** Subaccount that owns the available collateral. */
@@ -186,6 +199,9 @@ export interface GetWithdrawRouteParameters extends GetExpressWithdrawOptionsPar
   /** Option ordering and failure behavior. */
   policy?: ExpressWithdrawRoutePolicy;
 }
+
+/** Parameters for preparing automatic and user-selectable withdrawal routes. */
+export type GetWithdrawRouteChoicesParameters = GetWithdrawRouteParameters;
 
 /** Parameters for directly submitting a signed Express option. */
 export type SubmitExpressWithdrawOptionParameters = WriteContractParameter &

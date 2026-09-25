@@ -119,6 +119,38 @@ const route = await getWithdrawRoute(config, {
 
 `WINDOWED` is supported but deliberately absent from the default ordering. `fallback: "error"` surfaces service failures instead of selecting classic withdrawal.
 
+## User-selectable routes
+
+`getWithdrawRoute` remains the automatic-only API. Use `getWithdrawRouteChoices` when a UI should default to Auto but
+also let the user explicitly select Classic or one of the service's current Express offers:
+
+```ts
+const routes = await getWithdrawRouteChoices(config, {
+  user: subAccount,
+  amount,
+  receiver,
+});
+
+routes.recommended; // Existing automatic policy, unchanged.
+routes.available; // Classic plus every valid Express offer returned by the service.
+```
+
+This action performs at most one `POST /options` request. It may request Express alternatives even when immediate
+Classic is recommended, because the caller explicitly asked for the selectable list. The automatic recommendation still
+uses the same Classic → `SAME_TX` → `STANDARD` policy as `getWithdrawRoute`; `WINDOWED` can appear in `available`
+without becoming the automatic recommendation.
+
+`WithdrawRouteChoice` intentionally differs from `WithdrawRoute`: its Classic member contains only `kind` and
+`finalize`, with no automatic-routing `reason`. Submit an explicitly selected Classic choice through `withdrawAuto` (or
+React's `useWithdraw`) and an Express choice through `submitExpressWithdrawOption` or as an Express `preparedRoute`.
+An explicit choice must not silently fall back to another route.
+
+The corresponding cache APIs are:
+
+- `getWithdrawRouteChoicesQueryKey(options?)`
+- `getWithdrawRouteChoicesQueryOptions(config, options)`
+- `GetWithdrawRouteChoicesParameters`, `GetWithdrawRouteChoicesOptions`, and `GetWithdrawRouteChoicesData`
+
 ## Submit a prepared route
 
 Prepare once, display the exact fee/timing to the user, and submit that same object:
@@ -207,7 +239,20 @@ type WithdrawRoute =
   | { kind: "express"; option: ExpressWithdrawOption };
 ```
 
-`ExpressWithdrawStatus` contains `onChain` provider state and `local` service/indexing state. Unknown additive wire fields are ignored, while missing or malformed required fields fail with `EXPRESS_WITHDRAW_INVALID_RESPONSE`.
+`WithdrawRouteChoices` preserves that automatic route and exposes separate selection descriptors:
+
+```ts
+interface WithdrawRouteChoices {
+  recommended: WithdrawRoute;
+  available: readonly WithdrawRouteChoice[];
+}
+
+type WithdrawRouteChoice =
+  | { kind: "classic"; finalize: "immediate" | "after-cooldown" }
+  | { kind: "express"; option: ExpressWithdrawOption };
+```
+
+`ExpressWithdrawStatus` contains `onChain` provider state and `local` service/indexing state. Unknown additive wire fields are ignored, while missing or malformed required fields fail with `EXPRESS_WITHDRAW_INVALID_RESPONSE`. The options decoder treats an omitted `sponsorCoverage` as zero sponsorship and keeps the normalized `ExpressWithdrawOption.sponsorCoverage` value as a `bigint`.
 
 ## Errors
 
@@ -217,15 +262,16 @@ type WithdrawRoute =
 
 ## Public API inventory
 
-| Area                | Exports                                                                                                                                                                                                                                                                                                          |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Constants and types | `EXPRESS_WITHDRAW_OPTION_TYPE`, `ExpressWithdrawOptionName`, `ExpressWithdrawOptionType`, `ExpressWithdrawOption`, `ExpressWithdrawOptions`, `ExpressWithdrawStatus`, `ExpressWithdrawOnChainStatus`, `ExpressWithdrawLocalStatus`, `ExpressWithdrawRoutePolicy`, `WithdrawRoute`, `SymmioExpressWithdrawConfig` |
-| Configuration       | `resolveExpressWithdrawService`, `supportsExpressWithdrawService`                                                                                                                                                                                                                                                |
-| Options read        | `getExpressWithdrawOptions`, `getExpressWithdrawOptionsQueryKey`, `getExpressWithdrawOptionsQueryOptions`, and the `GetExpressWithdrawOptions*` parameter/data/query aliases                                                                                                                                     |
-| Status read         | `getExpressWithdrawStatus`, `getExpressWithdrawStatusQueryKey`, `getExpressWithdrawStatusQueryOptions`, and the `GetExpressWithdrawStatus*` parameter/data/query aliases                                                                                                                                         |
-| Route read          | `getWithdrawRoute`, `getWithdrawRouteQueryKey`, `getWithdrawRouteQueryOptions`, and the `GetWithdrawRoute*` parameter/data/query aliases                                                                                                                                                                         |
-| Writes              | `submitExpressWithdrawOption`, `submitExpressWithdrawOptionMutationOptions`, `withdrawWithExpress`, `withdrawWithExpressMutationOptions`, `SubmitExpressWithdrawOptionParameters`, `WithdrawWithExpressParameters`, `WithdrawWithExpressReturnType`                                                              |
-| Pure helpers        | `getWithdrawRequestIdFromReceipt`, `isExpressWithdrawOptionExpired`, `isExpressWithdrawPayoutComplete`                                                                                                                                                                                                           |
+| Area                | Exports                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Constants and types | `EXPRESS_WITHDRAW_OPTION_TYPE`, `ExpressWithdrawOptionName`, `ExpressWithdrawOptionType`, `ExpressWithdrawOption`, `ExpressWithdrawOptions`, `ExpressWithdrawStatus`, `ExpressWithdrawOnChainStatus`, `ExpressWithdrawLocalStatus`, `ExpressWithdrawRoutePolicy`, `WithdrawRoute`, `WithdrawRouteChoice`, `WithdrawRouteChoices`, `SymmioExpressWithdrawConfig` |
+| Configuration       | `resolveExpressWithdrawService`, `supportsExpressWithdrawService`                                                                                                                                                                                                                                                                                               |
+| Options read        | `getExpressWithdrawOptions`, `getExpressWithdrawOptionsQueryKey`, `getExpressWithdrawOptionsQueryOptions`, and the `GetExpressWithdrawOptions*` parameter/data/query aliases                                                                                                                                                                                    |
+| Status read         | `getExpressWithdrawStatus`, `getExpressWithdrawStatusQueryKey`, `getExpressWithdrawStatusQueryOptions`, and the `GetExpressWithdrawStatus*` parameter/data/query aliases                                                                                                                                                                                        |
+| Route read          | `getWithdrawRoute`, `getWithdrawRouteQueryKey`, `getWithdrawRouteQueryOptions`, and the `GetWithdrawRoute*` parameter/data/query aliases                                                                                                                                                                                                                        |
+| Route choices       | `getWithdrawRouteChoices`, `getWithdrawRouteChoicesQueryKey`, `getWithdrawRouteChoicesQueryOptions`, and the `GetWithdrawRouteChoices*` parameter/data/query aliases                                                                                                                                                                                            |
+| Writes              | `submitExpressWithdrawOption`, `submitExpressWithdrawOptionMutationOptions`, `withdrawWithExpress`, `withdrawWithExpressMutationOptions`, `SubmitExpressWithdrawOptionParameters`, `WithdrawWithExpressParameters`, `WithdrawWithExpressReturnType`                                                                                                             |
+| Pure helpers        | `getWithdrawRequestIdFromReceipt`, `isExpressWithdrawOptionExpired`, `isExpressWithdrawPayoutComplete`                                                                                                                                                                                                                                                          |
 
 ## Related
 

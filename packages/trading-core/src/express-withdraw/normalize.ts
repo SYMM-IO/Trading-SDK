@@ -109,7 +109,7 @@ function normalizeOption(option: ExpressWithdrawOptionWire): ExpressWithdrawOpti
     fee: asBigInt(option.fee, "fee"),
     operatorFee: asBigInt(option.operatorFee, "operatorFee"),
     maxUserFee: asBigInt(option.maxUserFee, "maxUserFee"),
-    sponsorCoverage: asBigInt(option.sponsorCoverage, "sponsorCoverage"),
+    sponsorCoverage: asBigInt(option.sponsorCoverage ?? "0", "sponsorCoverage"),
     parts: option.parts.map((part, index) => ({
       id: asBigInt(part.id, `parts[${index}].id`),
       amount: asBigInt(part.amount, `parts[${index}].amount`),

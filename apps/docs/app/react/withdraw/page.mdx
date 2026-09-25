@@ -20,9 +20,11 @@ import {
   // Reads
   useExpressWithdrawOptions,
   useExpressWithdrawStatus,
+  useExpressWithdrawStatuses,
   useLastWithdrawRequestId,
   usePendingWithdrawRequests,
   useWithdrawRoute,
+  useWithdrawRouteChoices,
   useWithdrawRequest,
   useWithdrawableTime,
   // Writes
@@ -76,6 +78,46 @@ function WithdrawPanel({ account, amount, receiver }) {
 }
 ```
 
+### User-selectable Auto, Classic, and Express routes
+
+Use `useWithdrawRouteChoices` when the interface should default to the SDK recommendation but allow an explicit choice.
+It performs at most one Express options request for the exact account, amount, and receiver. `recommended` preserves the
+existing automatic behavior; `available` contains Classic plus every valid offer returned by the service.
+
+```tsx
+const routes = useWithdrawRouteChoices({
+  user: account,
+  amount,
+  receiver,
+  query: { enabled: amount > 0n },
+});
+const automaticWithdraw = useWithdrawWithExpress({ account });
+const classicWithdraw = useWithdraw({ account });
+
+function submit(method: "auto" | "classic" | "standard") {
+  if (!routes.data) return;
+
+  if (method === "classic") {
+    classicWithdraw.mutate({ amount, receiver });
+    return;
+  }
+
+  const route =
+    method === "auto"
+      ? routes.data.recommended
+      : routes.data.available.find(
+          (candidate) => candidate.kind === "express" && candidate.option.optionTypeName === "STANDARD",
+        );
+
+  if (!route || (method !== "auto" && route.kind !== "express")) return;
+  automaticWithdraw.mutate({ amount, receiver, preparedRoute: route });
+}
+```
+
+Reset an explicit selection when the account, amount, receiver, or chain changes. Display only Express choices actually
+returned by `available`; if a selected signed offer disappears or expires, disable submission instead of silently using
+another route. `useWithdrawRoute` remains the smaller API for automatic-only interfaces.
+
 The default router chooses classic immediate withdrawal when the account holds at least the requested available balance and its cooldown is already satisfied. Otherwise it
 prefers `SAME_TX`, then `STANDARD`, and falls back to classic cooldown withdrawal if the service is disabled or cannot
 return a usable option. `CUSTOM` accounts retain the classic deallocate-and-initiate path. Opt into `WINDOWED` or strict
@@ -105,21 +147,28 @@ useWithdrawRoute({
   affiliate. It never retries automatically because `POST /options` creates service records.
 - `useExpressWithdrawStatus` polls every three seconds by default. It continues through `NOT_FOUND` while indexing and
   through `STANDARD` + `FINALIZED`; it stops after proven payout or cancellation, suspension, or local failure.
+- `useExpressWithdrawStatuses` accepts active on-chain `WithdrawRequest` values, keeps only requests belonging to the
+  configured Express provider, and polls each status independently. Use it with `usePendingWithdrawRequests` to restore
+  provider progress after a page refresh.
 - `useWithdrawRoute` owns safe automatic ordering and classic fallback. Its returned `WithdrawRoute` is the preview
   object accepted by the mutation.
+- `useWithdrawRouteChoices` returns the unchanged automatic recommendation plus Classic and all current Express choices
+  for interfaces that expose route selection.
 - `useWithdrawWithExpress` waits for the mined receipt, decodes the exact `WithdrawInitiated` request id, and returns
   `{ hash, receipt, requestId, route }`.
 
 Each hook exports its matching parameter and return aliases:
 `UseExpressWithdrawOptionsParameters` / `UseExpressWithdrawOptionsReturnType`,
 `UseWithdrawRouteParameters` / `UseWithdrawRouteReturnType`,
+`UseWithdrawRouteChoicesParameters` / `UseWithdrawRouteChoicesReturnType`,
 `UseExpressWithdrawStatusParameters` / `UseExpressWithdrawStatusReturnType`, and
+`UseExpressWithdrawStatusesParameters` / `UseExpressWithdrawStatusesReturnType`,
 `UseWithdrawWithExpressParameters` / `UseWithdrawWithExpressReturnType`. The mutation additionally exports
 `WithdrawWithExpressVariables` and `WithdrawWithExpressResult`.
 
 After success, `useWithdrawWithExpress` invalidates account balance info, balance-of, withdrawable time, pending requests,
-all withdrawal requests, and last request id. It removes every cached Express offer and prepared route for that account so
-a signed offer cannot be accidentally reused.
+all withdrawal requests, and last request id. It removes every cached Express offer, prepared route, and route-choice list
+for that account so a signed offer cannot be accidentally reused.
 
 ## `useWithdraw` — high-level withdraw
 
@@ -153,9 +202,10 @@ const { mutate } = useWithdraw({ account });
 mutate({ amount: 1_000000n, receiver });
 ```
 
-On success it invalidates the subaccount's balance reads (`balanceInfo`,
-`balanceOf`) plus its pending-requests and withdrawable-time reads. On the `CUSTOM`
-path the SDK fetches a fresh Muon uPnL signature for the deallocate leg unless you
+On success it invalidates the subaccount's balance reads (`balanceInfo`, `balanceOf`), pending and complete withdrawal
+reads, last request id, and withdrawable time. It also removes cached Express offers and route preparations because the
+submitted Classic request makes those signed choices stale. On the `CUSTOM` path the SDK fetches a fresh Muon uPnL
+signature for the deallocate leg unless you
 pass one as `upnlSig`. Backed by the core [`withdrawAuto`](../symmio-contract#withdrawauto--high-level-entry-point)
 action; reach for `useInitiateWithdraw` / the deallocate-and-initiate variant when
 you already know the isolation or need custom withdraw parts.
@@ -186,6 +236,25 @@ Every queued (not yet claimable) request for an account.
 ```ts
 const pending = usePendingWithdrawRequests({ account });
 ```
+
+Pair the pending contract read with `useExpressWithdrawStatuses` to recover active
+Express progress after remounting or refreshing the page:
+
+```tsx
+const pending = usePendingWithdrawRequests({ user: subAccount });
+const express = useExpressWithdrawStatuses({
+  requests: pending.data ?? [],
+  enabled: pending.data !== undefined,
+});
+
+for (const entry of express.entries) {
+  // entry.request is the on-chain request; entry.status is service progress.
+}
+```
+
+Classic requests and requests for a different provider are excluded. The hook
+uses the same payout-aware polling policy as `useExpressWithdrawStatus`, including
+continuing through `STANDARD` + `FINALIZED` until provider `PROCESSED`.
 
 ### `useWithdrawRequest`
 

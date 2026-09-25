@@ -9,6 +9,7 @@ import {
   getWithdrawableTimeQueryKey,
   getWithdrawRequestIdFromReceipt,
   getWithdrawRequestsQueryKey,
+  getWithdrawRouteChoicesQueryKey,
   getWithdrawRouteQueryKey,
   SymmError,
   withdrawWithExpressMutationOptions,
@@ -131,6 +132,7 @@ export function useWithdrawWithExpress(
 
       queryClient.removeQueries({ predicate: predicateMatch(getExpressWithdrawOptionsQueryKey, withdrawPartial) });
       queryClient.removeQueries({ predicate: predicateMatch(getWithdrawRouteQueryKey, withdrawPartial) });
+      queryClient.removeQueries({ predicate: predicateMatch(getWithdrawRouteChoicesQueryKey, withdrawPartial) });
     },
   });
 }
