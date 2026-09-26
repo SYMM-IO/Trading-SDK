@@ -98,8 +98,21 @@ bulk.mutate({
 
 The solver may partially accept — inspect per-quote success flags in `mutation.data`.
 
+## Fees at close
+
+Instant Open **defers close fees** — the open funds only its open-side legs, so the close fees are charged **here**, at close, by the contract collecting them from the position. Three legs:
+
+- **Platform close fee** — taken from the position's allocated balance **after** PnL settlement.
+- **Solver close fee** — priced by the position's real **holding time** (the [time-decaying rate](../../core/solvers#solver-close-fee) that starts at the early rate and decays to the standard rate), and **capped** by the `closeRateCap` the quote signed at open. A longer hold pays less.
+- **Static close fee** — the flat USD close amount from the solver's [`useSolverInfo`](../#usesolverinfo) (charged on each partial close too).
+
+**Liquidation charges no fees** — these close fees are collected only on a user-initiated close, not on liquidation.
+
+Preview these legs with **[`useInstantCloseFees`](../../instant-layer#useinstantclosefees)** — it prices the platform leg, the holding-time solver leg, and the static leg from cached reads (markets, `useFeeForUser`, `useSolverInfo`, the shared price stream), re-stamping the holding time on every refetch so the decaying rate stays honest. Feed it the position's `createTimestamp` as `openedAt`; omit it for the worst case. The low-level pieces it composes (`calculateSolverCloseFee`, `useSolverInfo`) stay available, but the hook is the intended surface. Core detail: [`getInstantCloseFees`](../../../core/solvers/instant-close#fee-preview--getinstantclosefees). The open-side preview ([`useInstantOpenFees`](../../instant-layer#useinstantopenfees)) deliberately covers only the legs the open funds.
+
 ## Related
 
 - [Core Instant Close](../../../core/solvers/instant-close) — three-function split.
+- [`useInstantCloseFees`](../../instant-layer#useinstantclosefees) — preview the close-fee legs before submitting.
 - [Instant Open](../instant-open) — the open-side analog.
 - [Unified Quotes](../../quotes) — close-side lifecycle transitions live in `applyNotificationToQuotes`.

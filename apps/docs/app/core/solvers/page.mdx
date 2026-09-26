@@ -148,10 +148,12 @@ getSolverCloseFeeRate(market, 180); // "0.0006" — standard rate
 // Price a real close: holding time = now − the position's createTimestamp (seconds).
 const holdingSeconds = Number(nowSeconds - createTimestamp);
 const fee = calculateSolverCloseFee(market, { notional: "1000", holdingSeconds });
-// Pass holdingSeconds: 0 for the worst case (a just-opened position) — what an open must provision.
+// Pass holdingSeconds: 0 for the worst case (a just-opened position) — the peak price for closing now.
 ```
 
 A market with no decay — a non-Enigma solver, or one that omits the early fields — has `hedgerFeeCloseEarlyRate === hedgerFeeClose` and both thresholds `0`, so `getSolverCloseFeeRate` returns the standard rate for every holding time.
+
+These are the low-level pieces; for a full close-fee preview (this leg plus the platform and static legs, with the market and rates resolved for you) use [`getInstantCloseFees`](/core/solvers/instant-close#fee-preview--getinstantclosefees).
 
 ### `getSymbolsQueryOptions`
 
@@ -222,7 +224,7 @@ info.staticSolverFeeClose; // "0.25" — USD per instant close (incl. partial cl
 
 A rasa-kind solver has no `/info` endpoint, so the read fails before the wire with `UNSUPPORTED_BY_SOLVER` rather than a vendor 404. A request that goes out and fails throws `SymmApiError` with code `FETCH_SOLVER_INFO_FAILED`. Ships the matching `getSolverInfoQueryOptions` / `getSolverInfoQueryKey` factories; the React binding is [`useSolverInfo`](/react/solvers#usesolverinfo).
 
-The instant-open cost model consumes these legs: [`getInstantOpenFees`](/core/solvers/instant-open#fee-preview--getinstantopenfees) reports them as `staticSolverFeeOpen` / `staticSolverFeeClose`, and `prepareInstantOpenParams` funds both through the `addMargin` amount (full-balance sizing carves them off the balance before the linear solve). Pass a pre-fetched result as `solverInfo` to skip the fetch there.
+The instant fee previews consume these legs: [`getInstantOpenFees`](/core/solvers/instant-open#fee-preview--getinstantopenfees) reports the open leg as `staticSolverFeeOpen`, and `prepareInstantOpenParams` funds it through the `addMargin` amount (full-balance sizing carves it off the balance before the linear solve). The static **close** leg is not funded at open — the contract charges it at close from the position, and [`getInstantCloseFees`](/core/solvers/instant-close#fee-preview--getinstantclosefees) reports it as `staticSolverFeeClose` (see [Fees at close](/core/solvers/instant-close#fees-at-close)). Pass a pre-fetched result as `solverInfo` to skip the fetch in either preview.
 
 ## Locked Params
 

@@ -14,8 +14,8 @@ import {
   resolveMarkPrice,
   resolveSolverInfo,
 } from "../prepare-instant-open-params/resolvers";
-import { sizeFullBalanceInstantOpen } from "../shared/full-balance-sizing";
 import { assertValidSlippage, deriveAutoSlippage, fetchOpenEstimatePrice } from "../shared/open-estimate-guard";
+import { resolveInstantOpenSizing, validateInstantOpenBalanceFunding } from "../shared/resolve-instant-open-sizing";
 import {
   calculateExpectedSettlementLoss,
   calculateSolverFees,
@@ -44,6 +44,13 @@ type BaseGetInstantOpenFeesParameters = ReadSolverParameter & {
    * actually charge.
    */
   slippage?: number;
+  /**
+   * Whether `totalFee` includes the `expectedSettlementLoss` provision.
+   * Defaults to `true` — the provision is part of what the open funds, even
+   * though it is a provision rather than a fee the solver keeps. Pass `false`
+   * to report fee legs only; the provision stays available as its own field.
+   */
+  includeSettlementInTotalFee?: boolean;
   /** Pre-fetched mark price as decimal string. When omitted, fetched via the price service. */
   markPrice?: string;
   /** Pre-fetched on-chain fee rates (matches `getFeeForUser` return). When omitted, fetched. */
@@ -51,20 +58,21 @@ type BaseGetInstantOpenFeesParameters = ReadSolverParameter & {
   /**
    * Pre-fetched solver estimated open (fill) price as decimal string —
    * **lowcap/Enigma only**; ignored on any other solver kind. When omitted
-   * on a lowcap solver, fetched via `GET /estimated-price`.
+   * on a lowcap solver, fetched via `GET /estimated-price`. Pass `null` when
+   * an estimate was attempted but unavailable to skip fetching and use the fallback.
    */
-  estimatedOpenPrice?: string;
+  estimatedOpenPrice?: string | null;
   /**
    * Pre-fetched solver locked params (matches `getLockedParams` return).
-   * Only consulted in full-balance mode — the sizing needs the locked-param
-   * percents; when omitted there, fetched via `getLockedParams`.
+   * Consulted for explicit or automatic full-balance sizing, which needs the
+   * locked-param percents; when omitted there, fetched via `getLockedParams`.
    */
   lockedParamPercent?: ApiLockedParamsBySymbolIdResponse;
   /**
    * Pre-fetched solver static fees (matches `getSolverInfo` return) —
    * **lowcap/Enigma only**; ignored on any other solver kind. When omitted on
    * a lowcap solver, fetched via `getSolverInfo` (fail-soft: an unreachable
-   * `/info` prices both static legs at `"0"`).
+   * `/info` prices the static open leg at `"0"`).
    */
   solverInfo?: EnigmaSolverInfo;
 };
@@ -79,11 +87,20 @@ type BaseGetInstantOpenFeesParameters = ReadSolverParameter & {
  * preview a full-balance open — the preview then runs the same
  * probe-and-rescale sizing as the open, so its legs and `quantity` equal what
  * the open charges. Provide exactly one; passing both, or neither, throws.
+ * With `initialMargin`, `availableBalance` opts into automatic full-balance sizing
+ * only when the typed position's required funding exceeds the raw balance.
+ * The typed initialMargin itself must not exceed availableBalance.
  */
 export type GetInstantOpenFeesParameters = Compute<
   BaseGetInstantOpenFeesParameters & {
     /** Collateral (USD) the user enters as initial margin. Decimal string. Provide this **or** `fund`. */
     initialMargin?: string;
+    /**
+     * Raw available collateral (USD decimal string). With initialMargin, previews the
+     * same automatic full-balance fallback as prepareInstantOpenParams. Lowcap only;
+     * must be positive and finite. initialMargin above this balance throws. Cannot accompany fund.
+     */
+    availableBalance?: string;
     /**
      * Preview a full-balance open — lowcap (Enigma) only. Provide this **or**
      * `initialMargin`. See {@link FullBalanceFunding}.
@@ -93,13 +110,15 @@ export type GetInstantOpenFeesParameters = Compute<
 >;
 
 /**
- * Fee legs every solver kind charges on an instant open.
+ * Fee legs every solver kind charges **at open**. Close fees are charged at
+ * close from the position — preview them in the close flow with
+ * `getInstantCloseFees`, where the notional and holding time are real.
  */
 export interface BaseInstantOpenFees {
+  /** Effective sizing mode, including automatic fallback from a typed initial margin. */
+  fundingMode: "initial-margin" | "full-balance";
   /** Platform open fee: `getFeeForUser.openFee × notional / 1e18` (decimal string). */
   platformOpenFee: string;
-  /** Platform close fee, provisioned at open: `getFeeForUser.closeFee × notional / 1e18` (decimal string). */
-  platformCloseFee: string;
   /** Leveraged notional the fee rates were applied to (decimal string). */
   notional: string;
   /**
@@ -109,28 +128,24 @@ export interface BaseInstantOpenFees {
    * re-deriving from the typed margin.
    */
   quantity: string;
-  /** Sum of every fee leg on this quote (decimal string). */
+  /**
+   * Sum of every leg the open charges now (decimal string). Includes the
+   * settlement provision by default; pass `includeSettlementInTotalFee: false`
+   * to sum the fee legs only.
+   */
   totalFee: string;
 }
 
 /**
  * Fee breakdown for a **lowcap (Enigma)** instant open. Extends the platform
- * legs with the solver fees and the settlement provision the solver charges
- * from the VA balance.
+ * leg with the solver open legs and the settlement provision the solver
+ * charges from the VA balance.
  */
 export interface EnigmaInstantOpenFees extends BaseInstantOpenFees {
   /** Discriminant: these fees were priced for an Enigma (lowcap) solver. */
   kind: "enigma";
   /** Solver open fee: `hedgerFeeOpen × notional` (decimal string). */
   openSolverFee: string;
-  /**
-   * Solver close fee provisioned at open (decimal string). Because the holding
-   * time is unknown at open and an early close costs more, this is the
-   * worst-case `earlyRate × notional` from the market's close-fee schedule
-   * (falling back to the flat `hedgerFeeClose × notional` when no schedule is
-   * available).
-   */
-  closeSolverFee: string;
   /**
    * Expected settlement loss vs the dry-run estimate: side-aware
    * `max(0, adverse fill deviation × quantity)` (decimal string). `"0"` when
@@ -143,16 +158,11 @@ export interface EnigmaInstantOpenFees extends BaseInstantOpenFees {
    * `"0"` when the solver publishes none.
    */
   staticSolverFeeOpen: string;
-  /**
-   * Static solver close fee provisioned at open — a flat USD amount from the
-   * solver's `/info` config, independent of the notional (decimal string).
-   * `"0"` when the solver publishes none.
-   */
-  staticSolverFeeClose: string;
 }
 
 /**
- * Fee breakdown for a **majors (Rasa)** instant open — platform legs only.
+ * Fee breakdown for a **majors (Rasa)** instant open — the platform open leg
+ * only.
  */
 export interface RasaInstantOpenFees extends BaseInstantOpenFees {
   /** Discriminant: these fees were priced for a Rasa (majors) solver. */
@@ -166,25 +176,28 @@ export interface RasaInstantOpenFees extends BaseInstantOpenFees {
 export type GetInstantOpenFeesReturnType = EnigmaInstantOpenFees | RasaInstantOpenFees;
 
 /**
- * Preview every fee a new instant-open quote pays, separated by leg plus the
- * total — without signing or submitting anything.
+ * Preview every fee a new instant-open quote pays **at open**, separated by leg
+ * plus the total — without signing or submitting anything.
  *
  * Mirrors the exact resolution and math `prepareInstantOpenParams` uses, so
  * the preview equals what the open charges for the same inputs:
  *
- * - **Both kinds**: `platformOpenFee` + `platformCloseFee`
- *   (on-chain `getFeeForUser` rates × leveraged notional).
- * - **Lowcap (Enigma) only**: `openSolverFee` (`hedgerFeeOpen × notional`) +
- *   `closeSolverFee` (the worst-case close rate × notional — see
- *   {@link EnigmaInstantOpenFees.closeSolverFee}),
- *   `staticSolverFeeOpen` + `staticSolverFeeClose` (flat USD amounts from the
- *   solver's `/info` config, size-independent) and
- *   `expectedSettlementLoss` (dry-run estimate vs mark) — the legs the solver
- *   charges from the VA balance.
+ * - **Both kinds**: `platformOpenFee` (on-chain `getFeeForUser.openFee` ×
+ *   leveraged notional).
+ * - **Lowcap (Enigma) only**: `openSolverFee` (`hedgerFeeOpen × notional`),
+ *   `staticSolverFeeOpen` (flat USD from the solver's `/info` config,
+ *   size-independent) and `expectedSettlementLoss` (dry-run estimate vs mark)
+ *   — the legs the solver charges from the VA balance.
  *
- * `totalFee` sums every leg, including the settlement provision — it is the
- * amount the user must fund even though the settlement leg is a provision
- * rather than a fee the solver keeps.
+ * Close fees (platform close, solver close, static close) are **not** part of
+ * this preview: they are charged at close from the position, priced by
+ * `getInstantCloseFees` in the close flow from the then-current notional and
+ * the position's real holding time.
+ *
+ * `totalFee` sums every open leg. It includes the settlement provision by
+ * default — the amount the user must fund even though the settlement leg is a
+ * provision rather than a fee the solver keeps; pass
+ * `includeSettlementInTotalFee: false` to sum the fee legs only.
  *
  * With `fund` ({@link FullBalanceFunding}) instead of `initialMargin`, the
  * preview runs the same probe-and-rescale sizing as the open — lot snap, cost
@@ -219,7 +232,7 @@ export async function getInstantOpenFees(
 ): Promise<GetInstantOpenFeesReturnType> {
   if (parameters.slippage !== undefined) assertValidSlippage(parameters.slippage);
 
-  /** Estimate-driven legs exist only on lowcap (Enigma) solvers — a majors preview is platform legs only. */
+  /** Estimate-driven legs exist only on lowcap (Enigma) solvers — a majors preview is the platform leg only. */
   const isLowcap = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId }).id === "enigma";
   if (parameters.slippage === undefined && !isLowcap) {
     throw new SymmError(
@@ -232,6 +245,8 @@ export async function getInstantOpenFees(
   // Same one-of funding contract as `prepareInstantOpenParams`, so a preview
   // can always be expressed for the exact open it mirrors.
   const isFullBalance = parameters.fund !== undefined;
+  validateInstantOpenBalanceFunding({ ...parameters, isLowcap });
+  const canSizeFullBalance = isFullBalance || parameters.availableBalance !== undefined;
   if (isFullBalance && parameters.initialMargin !== undefined) {
     throw new SymmError(
       "validation",
@@ -254,6 +269,7 @@ export async function getInstantOpenFees(
     );
   }
   const initialMargin = isFullBalance ? parameters.fund!.balance : parameters.initialMargin!;
+  const includeSettlementInTotalFee = parameters.includeSettlementInTotalFee ?? true;
 
   const market = await resolveMarket(config, {
     chainId: parameters.chainId,
@@ -262,14 +278,17 @@ export async function getInstantOpenFees(
     marketName: parameters.market.name,
     pricePrecision: parameters.market.pricePrecision,
     quantityPrecision: parameters.market.quantityPrecision,
+    // The close-side prefills only serve the resolver's short-circuit (skip the
+    // markets fetch when the caller pre-fetched the row) — the open cost model
+    // uses `hedgerFeeOpen` alone; close fees are priced by `getInstantCloseFees`.
     hedgerFeeOpen: parameters.market.hedgerFeeOpen,
     hedgerFeeClose: parameters.market.hedgerFeeClose,
     hedgerFeeCloseEarlyRate: parameters.market.hedgerFeeCloseEarlyRate,
     hedgerFeeCloseEarlyThreshold: parameters.market.hedgerFeeCloseEarlyThreshold,
     hedgerFeeCloseStandardThreshold: parameters.market.hedgerFeeCloseStandardThreshold,
     includeHedgerFees: isLowcap,
-    /** Full-balance only: the sizing snaps to the lot grid and validates the published floors. */
-    includeQuoteConstraints: isFullBalance,
+    /** Explicit or automatic full-balance sizing needs the lot grid and published floors. */
+    includeQuoteConstraints: canSizeFullBalance,
     minAcceptablePortionLf: parameters.market.minAcceptablePortionLf,
     minAcceptableQuoteValue: parameters.market.minAcceptableQuoteValue,
     maxNotionalValue: parameters.market.maxNotionalValue,
@@ -291,8 +310,8 @@ export async function getInstantOpenFees(
       feeRates: parameters.feeRates,
     }),
     // Full-balance sizing needs the locked-param percents — the locks dominate
-    // the margin the balance must cover. A typed-margin preview does not.
-    isFullBalance
+    // the margin the balance must cover, including the automatic fallback check.
+    canSizeFullBalance
       ? resolveLockedParams(config, {
           chainId: parameters.chainId,
           solverId: parameters.solverId,
@@ -301,7 +320,7 @@ export async function getInstantOpenFees(
           lockedParamPercent: parameters.lockedParamPercent,
         })
       : Promise.resolve(undefined),
-    // Static solver fees are a lowcap leg — majors previews never fetch them.
+    // The static open fee is a lowcap leg — majors previews never fetch it.
     isLowcap
       ? resolveSolverInfo(config, {
           chainId: parameters.chainId,
@@ -330,7 +349,8 @@ export async function getInstantOpenFees(
   };
 
   let slippage = parameters.slippage;
-  let expectedFillPrice = isLowcap ? parameters.estimatedOpenPrice : undefined;
+  let expectedFillPrice = isLowcap ? (parameters.estimatedOpenPrice ?? undefined) : undefined;
+  let needsEstimate = isLowcap && parameters.estimatedOpenPrice === undefined;
   if (slippage === undefined) {
     const sized = calculateTradeParams({ ...calculationInput, slippage: 0 });
     if (!sized) {
@@ -340,7 +360,8 @@ export async function getInstantOpenFees(
         "Invalid trade parameters: markPrice or initialMargin is zero/NaN.",
       );
     }
-    if (isLowcap && expectedFillPrice === undefined) {
+    if (needsEstimate) {
+      needsEstimate = false;
       expectedFillPrice = await fetchOpenEstimatePrice(config, {
         chainId: parameters.chainId,
         solverId: parameters.solverId,
@@ -362,7 +383,7 @@ export async function getInstantOpenFees(
     );
   }
 
-  if (isLowcap && expectedFillPrice === undefined) {
+  if (needsEstimate) {
     expectedFillPrice = await fetchOpenEstimatePrice(config, {
       chainId: parameters.chainId,
       solverId: parameters.solverId,
@@ -376,19 +397,19 @@ export async function getInstantOpenFees(
   // Full-balance preview: run the exact sizing the open runs — probe, linear
   // rescale, lot snap, cost invariant — and report the legs of the trade that
   // will actually be submitted.
-  if (isFullBalance) {
-    const { trade, costs } = sizeFullBalanceInstantOpen({
-      balance: initialMargin,
+  if (canSizeFullBalance) {
+    const { trade, costs, fundingMode } = resolveInstantOpenSizing({
+      trade: tradeCalc,
+      isLowcap,
+      fund: parameters.fund,
+      availableBalance: parameters.availableBalance,
       calculationInput: { ...calculationInput, slippage },
-      expectedFillPrice,
+      // Preserve the legacy zero sentinel for callers; prefer null for unavailable estimates.
+      // Full-balance sizing provisions settlement at the price bound when no estimate exists.
+      expectedFillPrice: expectedFillPrice === "0" ? undefined : expectedFillPrice,
       feeRates,
       hedgerFeeOpen: market.hedgerFeeOpen,
-      hedgerFeeClose: market.hedgerFeeClose,
-      hedgerFeeCloseEarlyRate: market.hedgerFeeCloseEarlyRate,
-      hedgerFeeCloseEarlyThreshold: market.hedgerFeeCloseEarlyThreshold,
-      hedgerFeeCloseStandardThreshold: market.hedgerFeeCloseStandardThreshold,
       staticSolverFeeOpen: staticFees.staticSolverFeeOpen,
-      staticSolverFeeClose: staticFees.staticSolverFeeClose,
       constraints: {
         minAcceptablePortionLf: market.minAcceptablePortionLf,
         minAcceptableQuoteValue: market.minAcceptableQuoteValue,
@@ -399,53 +420,40 @@ export async function getInstantOpenFees(
       },
     });
     return {
+      fundingMode,
       kind: "enigma",
       platformOpenFee: costs.platformOpenFee,
-      platformCloseFee: costs.platformCloseFee,
       notional: trade.notional,
       quantity: trade.quantity,
       openSolverFee: costs.openSolverFee,
-      closeSolverFee: costs.closeSolverFee,
       staticSolverFeeOpen: costs.staticSolverFeeOpen,
-      staticSolverFeeClose: costs.staticSolverFeeClose,
       expectedSettlementLoss: costs.expectedSettlementLoss,
       totalFee: toDecimal(costs.platformOpenFee)
-        .plus(costs.platformCloseFee)
         .plus(costs.openSolverFee)
-        .plus(costs.closeSolverFee)
         .plus(costs.staticSolverFeeOpen)
-        .plus(costs.staticSolverFeeClose)
-        .plus(costs.expectedSettlementLoss)
+        .plus(includeSettlementInTotalFee ? costs.expectedSettlementLoss : "0")
         .toString(),
     };
   }
 
-  const { platformOpenFee, platformCloseFee } = computePlatformFeeLegs(
-    feeRates,
-    tradeCalc.notional,
-    tradeCalc.notional,
-  );
+  const { platformOpenFee } = computePlatformFeeLegs(feeRates, tradeCalc.notional, tradeCalc.notional);
 
   if (!isLowcap) {
     return {
+      fundingMode: "initial-margin",
       kind: "rasa",
       platformOpenFee,
-      platformCloseFee,
       notional: tradeCalc.notional,
       quantity: tradeCalc.quantity,
-      totalFee: toDecimal(platformOpenFee).plus(platformCloseFee).toString(),
+      totalFee: platformOpenFee,
     };
   }
 
-  const { openSolverFee, closeSolverFee, staticSolverFeeOpen, staticSolverFeeClose } = calculateSolverFees({
+  const { openSolverFee, staticSolverFeeOpen } = calculateSolverFees({
     notional: tradeCalc.notional,
     hedgerFeeOpen: market.hedgerFeeOpen,
-    hedgerFeeClose: market.hedgerFeeClose,
-    hedgerFeeCloseEarlyRate: market.hedgerFeeCloseEarlyRate,
-    hedgerFeeCloseEarlyThreshold: market.hedgerFeeCloseEarlyThreshold,
-    hedgerFeeCloseStandardThreshold: market.hedgerFeeCloseStandardThreshold,
+    hedgerFeeClose: undefined,
     staticSolverFeeOpen: staticFees.staticSolverFeeOpen,
-    staticSolverFeeClose: staticFees.staticSolverFeeClose,
   });
   const expectedSettlementLoss = calculateExpectedSettlementLoss({
     positionType: parameters.positionType,
@@ -455,23 +463,18 @@ export async function getInstantOpenFees(
   });
 
   return {
+    fundingMode: "initial-margin",
     kind: "enigma",
     platformOpenFee,
-    platformCloseFee,
     notional: tradeCalc.notional,
     quantity: tradeCalc.quantity,
     openSolverFee,
-    closeSolverFee,
     staticSolverFeeOpen,
-    staticSolverFeeClose,
     expectedSettlementLoss,
     totalFee: toDecimal(platformOpenFee)
-      .plus(platformCloseFee)
       .plus(openSolverFee)
-      .plus(closeSolverFee)
       .plus(staticSolverFeeOpen)
-      .plus(staticSolverFeeClose)
-      .plus(expectedSettlementLoss)
+      .plus(includeSettlementInTotalFee ? expectedSettlementLoss : "0")
       .toString(),
   };
 }

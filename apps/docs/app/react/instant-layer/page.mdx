@@ -4,7 +4,7 @@ React-query wrappers over `@symmio/trading-core`'s InstantLayer slice.
 
 The page is split into two groups:
 
-- **[Reads](#reads)** — `useDelegationExpiry`, `useIsDelegationActive`, `useInstantTradeRequiredSelectors`.
+- **[Reads](#reads)** — `useDelegationExpiry`, `useIsDelegationActive`, `useInstantTradeRequiredSelectors`, `useInstantOpenFees`, `useInstantCloseFees`.
 - **[Writes](#writes)** — `useGrantDelegation`.
 
 Delegation reads are intentionally split into two hooks. `useDelegationExpiry` reads the raw `delegations` mapping value, and `useIsDelegationActive` reads the contract's computed active status.
@@ -118,14 +118,19 @@ Use it (instead of hardcoding `INSTANT_TRADE_REQUIRED_SELECTORS` / `LEGACY_INSTA
 
 ### `useInstantOpenFees`
 
-Preview every fee a new instant-open quote pays — separated by leg plus the total — before the user submits. Read-only; nothing is signed. Wraps [`getInstantOpenFees`](../../core/solvers/instant-open#fee-preview--getinstantopenfees), which mirrors the exact resolution and math `prepareInstantOpenParams` charges, so the preview equals the real open for the same inputs.
+Preview every fee a new instant-open quote pays **at open** — separated by leg plus the total — before the user submits. Read-only; nothing is signed. Wraps [`getInstantOpenFees`](../../core/solvers/instant-open#fee-preview--getinstantopenfees), which mirrors the exact resolution and math `prepareInstantOpenParams` charges, so the preview equals the real open for the same inputs.
 
-The result is a `kind`-discriminated union. Both kinds carry `platformOpenFee`, `platformCloseFee`, `notional`, the sized `quantity`, and `totalFee`; an `"enigma"` (lowcap) result adds `openSolverFee`, `closeSolverFee`, `staticSolverFeeOpen`, `staticSolverFeeClose`, and `expectedSettlementLoss`. `closeSolverFee` is the worst-case (early) close fee — the hook reads the [time-decaying close-fee rates](../../core/solvers#solver-close-fee) from the same `useMarkets` data (they are Enigma-only fields on `EnigmaMarket`) so the preview matches what the open provisions. The static legs are **flat USD amounts** from the solver's `/info` config ([`useSolverInfo`](../solvers#usesolverinfo)) — size-independent, both provisioned at open, `"0"` when the solver publishes none; pass a cached `useSolverInfo().data` as `solverInfo` to skip the SDK's own fetch on every preview.
+The result is a `kind`-discriminated union of the **open-side legs only**. Both kinds carry `platformOpenFee`, `notional`, the sized `quantity`, and `totalFee`; an `"enigma"` (lowcap) result adds `openSolverFee`, `staticSolverFeeOpen`, and `expectedSettlementLoss`. `totalFee` sums the open legs and **includes the settlement provision by default** — pass `includeSettlementInTotalFee: false` to sum the fee legs only (the provision stays available as its own field); on majors it is just `platformOpenFee`. `staticSolverFeeOpen` is a **flat USD amount** from the solver's `/info` config ([`useSolverInfo`](../solvers#usesolverinfo)) — size-independent, `"0"` when the solver publishes none; the hook caches this read internally. Pass `solverInfo` to override it with already-resolved data. An unavailable `/info` keeps the existing zero-static-fee fallback. Close fees are **charged at close**, not funded at open — preview them in the close flow with [`useInstantCloseFees`](#useinstantclosefees), where the close notional and the holding-time solver rate are real (see [Fees at close](../solvers/instant-close#fees-at-close)).
 
 With `fund: { mode: "full-balance", balance }` instead of `initialMargin` (lowcap only), the hook previews a [full-balance open](../../core/solvers/instant-open#full-balance-funding-lowcap): it runs the exact probe-and-rescale sizing the open runs, so the legs and `quantity` equal what the open will charge and submit. The extra inputs the sizing needs — the solver's locked-param percents (`useLockedParams`) and the market's quote constraints (from the same `useMarkets` read) — are prefetched through cached queries like every other input, so the query function stays pure math. In this mode `data.quantity` is the rescaled, lot-snapped size — feed it to TP/SL (see [`useInstantOpenWithTpSl`](../solvers/instant-open#useinstantopenwithtpsl)) instead of re-deriving it from a typed figure.
 
 ```tsx
-const { data: fees } = useInstantOpenFees({
+const {
+  data: fees,
+  validationError,
+  error,
+  isReady,
+} = useInstantOpenFees({
   subAccountAddress,
   market: { id: symbolId },
   positionType,
@@ -134,13 +139,41 @@ const { data: fees } = useInstantOpenFees({
   // slippage — required on majors; omit on lowcap to auto-derive
 });
 
-// fees?.totalFee — every leg summed
+// Display validationError ?? error first.
+// isReady means fees describe the current inputs.
+// fees?.totalFee — the open legs summed (settlement provision included)
 if (fees?.kind === "enigma") {
-  // fees.openSolverFee, fees.closeSolverFee, fees.expectedSettlementLoss
+  // fees.openSolverFee, fees.staticSolverFeeOpen, fees.expectedSettlementLoss
 }
 ```
 
-The query is disabled until a funding source exists — a non-empty `initialMargin` or a `fund` with a balance — and the funding value is part of the query key, so debounce the value you pass in if refetch-per-keystroke matters. Errors are normalized to `SymmioRequestError` (`SLIPPAGE_REQUIRED` on majors without a slippage, `INVALID_SLIPPAGE` on a malformed one, and in full-balance mode `QUOTE_CONSTRAINT_VIOLATED` when the sized quantity violates a published market constraint).
+With `initialMargin` and `availableBalance`, the hook previews [automatic full-balance fallback](../../core/solvers/instant-open#automatic-fallback-from-typed-margin). Core compares required funding against the raw balance and returns `data.fundingMode` alongside the final `data.quantity`. Locked parameters and market constraints are prefetched for this mode too. Pass the same balance and estimate to preparation, fee preview, and submission; keep the typed input editable. Prefer the resolved mode and quantity over a local typed-margin cap check.
+
+A typed `initialMargin` above `availableBalance` produces a synchronous `validationError`, including while offline, before requesting a price estimate or other prefills. Display `validationError ?? error`: `error` and `isError` describe the calculation query, while `validationError` describes invalid input. Invalid balance funding disables dependent queries; correcting the input clears `validationError` and resumes preparation. Explicitly disabled hooks and empty inputs stay idle without validation. Automatic fallback applies only when the typed amount fits but its required funding exceeds the balance.
+
+`isReady` is true when validation passes, required inputs and the debounced estimate have settled, and the current calculation succeeds. Previous data may remain visible during recalculation; use it for the current order only when `isReady` is true. Pass `estimatedOpenPrice: null` for an estimate already attempted but unavailable, or omit it to let the hook request one. Both preparation and fees use the same unavailable-estimate fallback.
+
+The query is disabled until a funding source exists — a non-empty `initialMargin` or a `fund` with a balance — and the funding value is part of the query key. Pass the raw input so validation stays immediate; estimate requests are debounced internally. Errors are normalized to `SymmioRequestError` (`SLIPPAGE_REQUIRED` on majors without a slippage, `INVALID_SLIPPAGE` on a malformed one, and in full-balance mode `QUOTE_CONSTRAINT_VIOLATED` when the sized quantity violates a published market constraint).
+
+### `useInstantCloseFees`
+
+Preview every fee closing a position pays **right now** — the platform close fee plus, on lowcap (Enigma), the holding-time solver close fee and the flat static close leg. Read-only; nothing is signed. The close-flow counterpart of [`useInstantOpenFees`](#useinstantopenfees), which deliberately previews only the open-side legs: the honest close cost exists only in the close flow, where the notional and the decaying solver rate are real. Wraps [`getInstantCloseFees`](../../core/solvers/instant-close#fee-preview--getinstantclosefees).
+
+The hook **prefetches every input through its own cached queries and passes them in as prefills**, so the query function is pure math with zero network hops: market metadata and the close-fee schedule (`useMarkets`), the on-chain platform fee rates (`useFeeForUser`), and the solver's static fees ([`useSolverInfo`](../solvers#usesolverinfo), fail-soft) are slow-moving and cached for minutes; the mark price rides the shared price stream. Previous data is kept while inputs move, so a mark-price tick updates the numbers in place instead of flashing a loader.
+
+The holding time is stamped each time the query function runs, so a **refetch re-prices the decaying solver close fee** as the position ages; pass `now` (unix seconds) for a deterministic preview. `openedAt` is typically the position's `createTimestamp`; omit it and the schedule prices the worst case (holding `0`, the peak rate).
+
+```tsx
+const { data: fees } = useInstantCloseFees({
+  subAccountAddress: partyA,
+  market: { id: symbolId },
+  quantity: quantityToClose,
+  openedAt: position.createTimestamp,
+});
+// fees?.totalFee; fees?.kind === "enigma" && fees.closeSolverFee
+```
+
+Parameters mirror the core action — `subAccountAddress`, `market: { id, … }` (optional pre-fetched metadata + schedule fields), the leveraged base-asset `quantity` to close, `openedAt?`, `now?`, the prefills `markPrice?` / `feeRates?` / `solverInfo?`, plus `chainId` / `solverId`, TanStack `query` overrides, and an optional `config`. The result is the same `kind`-discriminated union: both kinds carry `platformCloseFee`, `notional`, and `totalFee`; narrow on `kind === "enigma"` to reach `closeSolverFee`, `closeSolverFeeRate`, `holdingSeconds`, and `staticSolverFeeClose`. The query is disabled until a non-empty `quantity` exists; errors are normalized to `SymmioRequestError` (`INVALID_TRADE_PARAMETERS` on a non-positive quantity or unusable mark price).
 
 ## Writes
 

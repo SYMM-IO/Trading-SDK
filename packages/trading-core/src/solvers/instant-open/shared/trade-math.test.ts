@@ -11,13 +11,13 @@ import { PositionType } from "./types";
 const E18 = 10n ** 18n;
 
 /**
- * Fixture: 1000 collateral, 0.1% open + 0.1% close fee, 10x, 5% slippage.
- * LONG shaves fees only; SHORT also caps at (1 − slippage).
+ * Fixture: 1000 collateral, 0.1% open fee, 10x, 5% slippage. LONG shaves the
+ * open fee only; SHORT also caps at (1 − slippage). The close fee is not shaved
+ * — it is charged at close from the position, not reserved from the open budget.
  */
 const BASE = {
   balance: 1000n * E18,
   openFee: E18 / 1000n, // 0.1%
-  closeFee: E18 / 1000n, // 0.1%
   slippageFractionWei: 5n * 10n ** 16n, // 5%
   leverage: 10,
 };
@@ -85,7 +85,7 @@ describe("calculateSolverFees", () => {
     });
   });
 
-  it("provisions the worst-case (early) close fee, ignoring the flat rate", () => {
+  it("estimates the close fee at the standard (floor) rate, not the early rate", () => {
     expect(
       calculateSolverFees({
         notional: "1000",
@@ -97,8 +97,10 @@ describe("calculateSolverFees", () => {
       }),
     ).toEqual({
       openSolverFee: "0.4",
-      // hedgerFeeCloseEarlyRate × notional (0.0024 × 1000), not the flat 0.0006 × 1000.
-      closeSolverFee: "2.4",
+      // Standard rate: schedule read at the standard threshold → hedgerFeeClose
+      // (0.0006 × 1000), not the worst-case early 0.0024. The close fee is an
+      // estimate charged at close, not funded at open.
+      closeSolverFee: "0.6",
       staticSolverFeeOpen: "0",
       staticSolverFeeClose: "0",
     });
@@ -206,14 +208,14 @@ describe("calculateMargin", () => {
 });
 
 describe("calculateAvailableInstantOpenMargin", () => {
-  it("LONG shaves fees only, ignores slippage", () => {
-    // feeMultiplier = 1 − 10 × (0.001 + 0.001) = 0.98 ; slippage ignored -> 980
-    expect(calculateAvailableInstantOpenMargin({ ...BASE, positionType: PositionType.LONG })).toBe(980n * E18);
+  it("LONG shaves the open fee only, ignores slippage", () => {
+    // feeMultiplier = 1 − 10 × 0.001 = 0.99 ; slippage ignored -> 990
+    expect(calculateAvailableInstantOpenMargin({ ...BASE, positionType: PositionType.LONG })).toBe(990n * E18);
   });
 
   it("SHORT also applies the slippage cap", () => {
-    // 1000 × (1 − 0.05) × 0.98 = 931
-    expect(calculateAvailableInstantOpenMargin({ ...BASE, positionType: PositionType.SHORT })).toBe(931n * E18);
+    // 1000 × (1 − 0.05) × 0.99 = 940.5
+    expect(calculateAvailableInstantOpenMargin({ ...BASE, positionType: PositionType.SHORT })).toBe(9405n * 10n ** 17n);
   });
 
   it("returns 0n when slippage ≥ 100% on SHORT", () => {
@@ -222,9 +224,20 @@ describe("calculateAvailableInstantOpenMargin", () => {
     ).toBe(0n);
   });
 
-  it("returns 0n when leverage × total fee ≥ 100%", () => {
-    // 500 × (0.001 + 0.001) = 1.0
-    expect(calculateAvailableInstantOpenMargin({ ...BASE, leverage: 500, positionType: PositionType.LONG })).toBe(0n);
+  it("returns 0n when leverage × open fee ≥ 100%", () => {
+    // 1000 × 0.001 = 1.0
+    expect(calculateAvailableInstantOpenMargin({ ...BASE, leverage: 1000, positionType: PositionType.LONG })).toBe(0n);
+  });
+
+  it("ignores a deprecated closeFee — it is charged at close, not reserved at open", () => {
+    // A caller still passing the old closeFee gets the same result as one that omits it.
+    const withClose = calculateAvailableInstantOpenMargin({
+      ...BASE,
+      closeFee: 50n * E18,
+      positionType: PositionType.LONG,
+    });
+    expect(withClose).toBe(990n * E18);
+    expect(withClose).toBe(calculateAvailableInstantOpenMargin({ ...BASE, positionType: PositionType.LONG }));
   });
 
   it("returns the full balance with no fees and no slippage (LONG)", () => {
@@ -232,7 +245,6 @@ describe("calculateAvailableInstantOpenMargin", () => {
       calculateAvailableInstantOpenMargin({
         balance: 1000n * E18,
         openFee: 0n,
-        closeFee: 0n,
         slippageFractionWei: 0n,
         leverage: 10,
         positionType: PositionType.LONG,

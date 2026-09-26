@@ -1,13 +1,7 @@
 "use client";
 
 import type { FullBalanceFunding, SolverId } from "@symmio/trading-core";
-import {
-  calculateSolverCloseFee,
-  useInstantOpenFees,
-  useMarkets,
-  useSolverInfo,
-  type PositionType,
-} from "@symmio/trading-react";
+import { useInstantOpenFees, type PositionType } from "@symmio/trading-react";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
 import { cn } from "@symmio/ui/lib/utils";
@@ -29,6 +23,12 @@ interface Props {
    * so the legs and sized quantity equal what the open will actually submit.
    */
   fund?: FullBalanceFunding;
+  /** Raw collateral budget enabling the same automatic fallback as the prepared order. */
+  availableBalance?: string;
+  /** Reuse the preparation's estimate for the fee calculation. */
+  estimatedOpenPrice?: string | null;
+  /** Avoid showing fees for an order that is still being prepared. */
+  preparationReady: boolean;
   leverage: number;
   /** Percent. Required on majors; on lowcap the SDK auto-derives when omitted. */
   slippage?: number;
@@ -38,10 +38,12 @@ interface Props {
 }
 
 /**
- * SDK fee preview for the instant-open form: the total fee the quote pays,
- * with the full per-leg breakdown on hover — platform open/close on both
- * kinds, plus the solver fees and expected settlement provision on lowcap
- * (Enigma). Driven by `useInstantOpenFees`, which mirrors the exact math
+ * SDK fee preview for the instant-open form — the open-side legs only: what
+ * the open charges now (platform open + solver open + static open + the
+ * settlement provision, funded from the Virtual Account). Close fees are
+ * charged at close from the position and are previewed in the close form
+ * (`useInstantCloseFees`), where the notional and holding time are real.
+ * Driven by `useInstantOpenFees`, which mirrors the exact math
  * `prepareInstantOpenParams` charges. With `fund` set the breakdown adds the
  * SDK-sized quantity row so the user sees the size the balance can carry.
  */
@@ -52,6 +54,9 @@ export function InstantOpenFeesPreview({
   positionType,
   initialMargin,
   fund,
+  availableBalance,
+  estimatedOpenPrice,
+  preparationReady,
   leverage,
   slippage,
   markPrice,
@@ -60,11 +65,6 @@ export function InstantOpenFeesPreview({
   const isFullBalance = fund !== undefined;
   const fundingAmount = isFullBalance ? fund.balance : initialMargin;
   const enabled = marketId !== undefined && Number(fundingAmount) > 0 && leverage > 0;
-  // TanStack-cached static fees: passed through as `solverInfo` so per-input
-  // preview refetches skip the SDK's own `/info` round-trip. On a non-enigma
-  // solver the hook fails fast (UNSUPPORTED_BY_SOLVER) and `data` stays
-  // undefined — the SDK then ignores the field on that kind anyway.
-  const solverInfoQuery = useSolverInfo({ solverId, query: { enabled } });
   const feesQuery = useInstantOpenFees({
     subAccountAddress: subAccount,
     solverId,
@@ -73,41 +73,15 @@ export function InstantOpenFeesPreview({
     // The SDK enforces the funding one-of — never pass both.
     initialMargin: isFullBalance ? undefined : initialMargin,
     fund,
+    availableBalance,
+    estimatedOpenPrice,
     leverage,
     slippage,
     markPrice,
-    solverInfo: solverInfoQuery.data,
     query: { enabled },
   });
   const fees = feesQuery.data;
-
-  // The SDK provisions the worst-case (early) close fee — other consumers rely on
-  // that. This app instead previews the **minimum** (standard-rate) close fee: the
-  // solver close-fee rate once the position is held past its early-close window.
-  const marketsQuery = useMarkets({ solverId, query: { enabled } });
-  const resolvedMarket = marketsQuery.data?.find((entry) => entry.symbolId === marketId);
-  const enigmaMarket = resolvedMarket?.kind === "enigma" ? resolvedMarket : undefined;
-  const minCloseSolverFee =
-    fees?.kind === "enigma" && enigmaMarket !== undefined
-      ? calculateSolverCloseFee(enigmaMarket, {
-          notional: fees.notional,
-          holdingSeconds: enigmaMarket.hedgerFeeCloseStandardThreshold,
-        })
-      : undefined;
-  // Fall back to the SDK's (max) value only until the market loads.
-  const displayCloseSolverFee = fees?.kind === "enigma" ? (minCloseSolverFee ?? fees.closeSolverFee) : undefined;
-  const displayTotalFee =
-    fees?.kind === "enigma" && displayCloseSolverFee !== undefined
-      ? String(
-          Number(fees.platformOpenFee) +
-            Number(fees.platformCloseFee) +
-            Number(fees.openSolverFee) +
-            Number(displayCloseSolverFee) +
-            Number(fees.staticSolverFeeOpen) +
-            Number(fees.staticSolverFeeClose) +
-            Number(fees.expectedSettlementLoss),
-        )
-      : fees?.totalFee;
+  const error = feesQuery.validationError ?? feesQuery.error;
 
   return (
     <div
@@ -120,11 +94,11 @@ export function InstantOpenFeesPreview({
         <span className="text-muted-foreground text-xs">
           {isFullBalance ? "Select a market — the full balance funds the open." : "Select a market and enter a margin."}
         </span>
-      ) : feesQuery.isError ? (
+      ) : error ? (
         <span className="text-destructive text-xs" data-testid={`${idPrefix}-fees-preview-error`}>
-          {feesQuery.error?.message ?? "Fee preview unavailable."}
+          {error.message}
         </span>
-      ) : !fees ? (
+      ) : !preparationReady || !feesQuery.isReady || !fees ? (
         <span className="text-muted-foreground inline-flex items-center gap-2 text-xs">
           <Spinner className="size-3" /> computing…
         </span>
@@ -138,25 +112,17 @@ export function InstantOpenFeesPreview({
               <span className="text-muted-foreground text-[0.65rem] tracking-wide uppercase">
                 {fees.kind === "enigma" ? "lowcap" : "majors"}
               </span>
-              <span className="text-foreground font-mono font-semibold">
-                {formatFeeUsd(displayTotalFee ?? fees.totalFee)}
-              </span>
+              <span className="text-foreground font-mono font-semibold">{formatFeeUsd(fees.totalFee)}</span>
+              <span className="text-muted-foreground text-[0.6rem] tracking-wide uppercase">charged now</span>
             </span>
           </TooltipTrigger>
           <TooltipContent className="w-72 p-3" sideOffset={6}>
             <div className="grid gap-1.5 text-xs" data-testid={`${idPrefix}-fees-preview-tooltip`}>
               <FeeRow label="Platform open fee" value={formatFeeUsd(fees.platformOpenFee)} />
-              <FeeRow label="Platform close fee" value={formatFeeUsd(fees.platformCloseFee)} sub="provisioned" />
               {fees.kind === "enigma" ? (
                 <>
                   <FeeRow label="Solver open fee" value={formatFeeUsd(fees.openSolverFee)} />
-                  <FeeRow
-                    label="Solver close fee"
-                    value={formatFeeUsd(displayCloseSolverFee ?? fees.closeSolverFee)}
-                    sub="min (standard rate)"
-                  />
                   <FeeRow label="Solver static open fee" value={formatFeeUsd(fees.staticSolverFeeOpen)} sub="flat" />
-                  <FeeRow label="Solver static close fee" value={formatFeeUsd(fees.staticSolverFeeClose)} sub="flat" />
                   <FeeRow
                     label="Expected settlement"
                     value={formatFeeUsd(fees.expectedSettlementLoss)}
@@ -165,17 +131,17 @@ export function InstantOpenFeesPreview({
                 </>
               ) : null}
               <div className="border-border/60 mt-1 border-t pt-1.5">
-                <FeeRow label="Total" value={formatFeeUsd(displayTotalFee ?? fees.totalFee)} bold />
+                <FeeRow label="Charged at open" value={formatFeeUsd(fees.totalFee)} bold />
               </div>
               <FeeRow label="On notional" value={formatFeeUsd(fees.notional)} sub="qty × request price" />
-              {isFullBalance ? (
-                // The SDK rescaled the quantity down so locks + fees + settlement fit the balance.
+              {fees.fundingMode === "full-balance" ? (
+                // The SDK rescaled the quantity down so locks + open fees + settlement fit the balance.
                 <FeeRow label="Sized quantity" value={formatQuantityAmount(fees.quantity)} sub="fits the balance" />
               ) : null}
               <p className="text-muted-foreground text-[0.7rem] leading-snug">
                 {fees.kind === "enigma"
-                  ? "Lowcap: platform + solver fees and the settlement provision are charged from the Virtual Account — the addMargin transfer funds every leg."
-                  : "Majors: platform fees only — no solver fees, no settlement provision."}
+                  ? "Lowcap: the open funds these legs from the Virtual Account. Close fees are charged at close from the position — see the close form for their live preview."
+                  : "Majors: the platform open fee is charged now; the platform close fee is charged at close."}
               </p>
             </div>
           </TooltipContent>

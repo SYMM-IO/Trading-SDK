@@ -1,12 +1,12 @@
 import type { PublicClient } from "viem";
 import { describe, expect, it, vi } from "vitest";
-import { SymmioSupportedChainId } from "../../../../core/chains";
-import { createConfig } from "../../../../core/config";
+import { SymmioSupportedChainId } from "../../../core/chains";
+import { createConfig } from "../../../core/config";
 
 const getSolverInfo = vi.hoisted(() => vi.fn());
 
-vi.mock("../../../get-solver-info", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../../get-solver-info")>();
+vi.mock("../../get-solver-info", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../get-solver-info")>();
   return { ...actual, getSolverInfo };
 });
 

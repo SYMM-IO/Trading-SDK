@@ -1,6 +1,6 @@
-import type { SolverId } from "../../../../core/chains/types";
-import type { Config } from "../../../../core/config";
-import { getSolverInfo, type EnigmaSolverInfo } from "../../../get-solver-info";
+import type { SolverId } from "../../../core/chains/types";
+import type { Config } from "../../../core/config";
+import { getSolverInfo, type EnigmaSolverInfo } from "../../get-solver-info";
 
 /** Parameters for {@link resolveSolverInfo}. */
 export interface ResolveSolverInfoParameters {

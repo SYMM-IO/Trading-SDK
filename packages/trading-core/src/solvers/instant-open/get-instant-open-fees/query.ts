@@ -56,30 +56,16 @@ export function getInstantOpenFeesQueryOptions(
   config: Config,
   options: GetInstantOpenFeesOptions,
 ): GetInstantOpenFeesQueryOptions {
+  const { query, ...parameters } = options;
   const hasFunding =
     options.fund !== undefined ? options.fund.balance.length > 0 : (options.initialMargin?.length ?? 0) > 0;
   return {
-    ...options.query,
+    ...query,
     queryKey: getInstantOpenFeesQueryKey({
       ...options,
       configKey: config.getChainConfigKey(options.chainId),
     }),
     enabled: (options.query?.enabled ?? true) && hasFunding,
-    queryFn: () =>
-      getInstantOpenFees(config, {
-        chainId: options.chainId,
-        solverId: options.solverId,
-        subAccountAddress: options.subAccountAddress,
-        market: options.market,
-        positionType: options.positionType,
-        initialMargin: options.initialMargin,
-        fund: options.fund,
-        leverage: options.leverage,
-        slippage: options.slippage,
-        markPrice: options.markPrice,
-        feeRates: options.feeRates,
-        estimatedOpenPrice: options.estimatedOpenPrice,
-        lockedParamPercent: options.lockedParamPercent,
-      }),
+    queryFn: () => getInstantOpenFees(config, parameters),
   };
 }

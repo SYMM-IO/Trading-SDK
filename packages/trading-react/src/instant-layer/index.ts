@@ -4,6 +4,7 @@ export * from "./use-instant-close";
 export * from "./use-instant-close-auto";
 export * from "./use-instant-close-bulk";
 export * from "./use-instant-close-bulk-auto";
+export * from "./use-instant-close-fees";
 export * from "./use-instant-closes";
 export * from "./use-instant-open";
 export * from "./use-instant-open-auto";

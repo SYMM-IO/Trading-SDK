@@ -5,15 +5,13 @@ import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import type { SolverId } from "@symmio/trading-core";
 import {
   calculateClosePrice,
-  calculateSolverCloseFee,
   PositionType,
   SymmioRequestError,
-  useFeeForUser,
   useInstantCloseAuto,
+  useInstantCloseFees,
   useLimitCloseAuto,
   useMarkets,
   usePriceByName,
-  useSolverInfo,
   useSupportsLimitOrder,
   useSymmioConfig,
   validateInstantCloseAgainstMarket,
@@ -106,19 +104,6 @@ export function ClosePositionStep({
     solverId: resolvedSolverId,
     enabled: Boolean(marketName),
   });
-  const feeQuery = useFeeForUser({
-    user: partyA,
-    symbolId: position.symbolId,
-    query: { enabled: true, staleTime: 30_000 },
-  });
-  // Flat static close fee from the solver's /info config — Enigma-only, so the
-  // query stays idle on other kinds (it would fail fast with
-  // UNSUPPORTED_BY_SOLVER anyway).
-  const solverInfoQuery = useSolverInfo({
-    solverId: resolvedSolverId,
-    query: { enabled: market?.kind === "enigma" },
-  });
-
   const [quantity, setQuantity] = useState("");
   const [slippage, setSlippage] = useState("5");
 
@@ -134,6 +119,18 @@ export function ClosePositionStep({
   const validLimitPrice = parsePositiveNumber(limitPrice);
 
   const cachedMarkPrice = priceQuery.markPrice ?? undefined;
+
+  // SDK close-fee preview: platform close fee + (Enigma) the holding-time
+  // solver close fee and the flat static leg — priced at close time, the
+  // instant open did not pre-fund any of it.
+  const closeFeesQuery = useInstantCloseFees({
+    subAccountAddress: partyA,
+    solverId: resolvedSolverId,
+    market: { id: Number(position.symbolId) },
+    quantity: validQuantity !== undefined ? String(validQuantity) : "",
+    openedAt: position.createTimestamp,
+    markPrice: cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined,
+  });
   const remainingQuantityDecimal = useMemo(() => {
     const remainingWei = position.quantity - position.closedAmount;
     return formatUnits(remainingWei, WEI_DECIMALS);
@@ -194,13 +191,14 @@ export function ClosePositionStep({
   );
 
   // The mark price streams off a live socket (no manual refetch); refresh the
-  // query-backed reads only.
-  const isRefreshing = isRefreshingPosition || marketsQuery.isRefetching || feeQuery.isRefetching;
+  // query-backed reads only. Refetching the fee preview also re-stamps the
+  // holding time, so the decaying solver close fee re-prices.
+  const isRefreshing = isRefreshingPosition || marketsQuery.isRefetching || closeFeesQuery.isRefetching;
 
   function handleRefresh() {
     onRefreshPosition?.();
     void marketsQuery.refetch();
-    void feeQuery.refetch();
+    void closeFeesQuery.refetch();
   }
 
   async function handleSubmit() {
@@ -356,10 +354,7 @@ export function ClosePositionStep({
           closePrice={previewClosePrice}
           markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
           quantity={validQuantity !== undefined ? String(validQuantity) : undefined}
-          feeRates={feeQuery.data}
-          market={market}
-          openedAtSeconds={position.createTimestamp}
-          staticSolverFeeClose={solverInfoQuery.data?.staticSolverFeeClose}
+          fees={closeFeesQuery.data}
           idPrefix={idPrefix}
         />
       ) : null}
@@ -440,41 +435,22 @@ function ClosePreview({
   closePrice,
   markPrice,
   quantity,
-  feeRates,
-  market,
-  openedAtSeconds,
-  staticSolverFeeClose,
+  fees,
   idPrefix,
 }: {
   closePrice: string;
   markPrice: string | undefined;
   quantity: string | undefined;
-  feeRates: { openFee: bigint; closeFee: bigint } | undefined;
-  /** Resolved market — its Enigma close-fee rates drive the time-based solver close fee. */
-  market: Market | undefined;
-  /** When the position opened (unix seconds); holding time = now − this. */
-  openedAtSeconds: bigint | undefined;
-  /** Flat static close fee from the solver's `/info` config (USD decimal string). Enigma-only; undefined while loading or on other kinds. */
-  staticSolverFeeClose: string | undefined;
+  /** SDK close-fee preview (`useInstantCloseFees`); undefined while its inputs load. */
+  fees: ReturnType<typeof useInstantCloseFees>["data"];
   idPrefix: string;
 }) {
-  const notional = useMemo(() => {
+  // Local fallback so the notional row renders before the fee query settles.
+  const localNotional = useMemo(() => {
     if (markPrice === undefined || quantity === undefined) return undefined;
     return String(Number(markPrice) * Number(quantity));
   }, [markPrice, quantity]);
-
-  const closeFeeAmount = feeRates && notional ? computeFeeAmount(feeRates.closeFee, notional) : undefined;
-
-  // Solver close fee at the position's *current* holding time — the fee decays
-  // from the early (peak) rate to the standard rate, so an aged position pays
-  // less. Enigma-only; Rasa markets carry no solver close fee.
-  const solverCloseFee =
-    market?.kind === "enigma" && notional !== undefined && openedAtSeconds !== undefined
-      ? calculateSolverCloseFee(market, {
-          notional,
-          holdingSeconds: Math.max(0, Math.floor(Date.now() / 1000) - Number(openedAtSeconds)),
-        })
-      : undefined;
+  const notional = fees?.notional ?? localNotional;
 
   return (
     <div
@@ -496,13 +472,23 @@ function ClosePreview({
         />
         <PreviewRow
           label="Platform close fee"
-          value={closeFeeAmount !== undefined ? formatDecimalUsd(closeFeeAmount) : "—"}
+          value={fees !== undefined ? formatDecimalUsd(fees.platformCloseFee) : "—"}
           testId={`${idPrefix}-preview-close-fee`}
         />
-        {solverCloseFee !== undefined ? (
-          <SolverCloseFeeRow rateFee={solverCloseFee} staticFee={staticSolverFeeClose ?? "0"} idPrefix={idPrefix} />
+        {fees?.kind === "enigma" ? (
+          <SolverCloseFeeRow rateFee={fees.closeSolverFee} staticFee={fees.staticSolverFeeClose} idPrefix={idPrefix} />
+        ) : null}
+        {fees !== undefined ? (
+          <PreviewRow
+            label="Total close fee"
+            value={formatDecimalUsd(fees.totalFee)}
+            testId={`${idPrefix}-preview-total-close-fee`}
+          />
         ) : null}
       </dl>
+      <p className="text-muted-foreground text-[0.7rem] leading-snug">
+        Close fees are charged now from the position — the instant open did not pre-fund them.
+      </p>
     </div>
   );
 }
@@ -666,13 +652,6 @@ function formatPriceAt(value: string, pricePrecision: number): string {
 function formatQuantityAt(value: string, quantityPrecision: number): string {
   if (!Number.isFinite(Number(value))) return value;
   return formatWithCommas(value, { fixedDecimals: quantityPrecision });
-}
-
-function computeFeeAmount(feeRate: bigint, notional: string): string {
-  const rate = Number(feeRate) / 1e18;
-  const notionalNum = Number(notional);
-  if (!Number.isFinite(rate) || !Number.isFinite(notionalNum)) return "0";
-  return String(rate * notionalNum);
 }
 
 function capitalize(value: string): string {

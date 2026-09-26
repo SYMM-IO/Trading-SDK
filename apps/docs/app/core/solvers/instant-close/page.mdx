@@ -14,6 +14,21 @@ Latency implication: `instantCloseAuto` runs the prepare fetches inline, so tota
 
 Bulk close (`instantCloseBulk` / `instantCloseBulkAuto`) mirrors the pair: one atomic solver call across multiple quotes, with the same prepare-first / submit-second split.
 
+## Fees at close
+
+Instant Open **defers close fees** — the open funds only its open-side legs, so the close fees are charged **here**, at close, by the contract collecting them from the position. Three legs:
+
+- **Platform close fee** — taken from the position's allocated balance **after** PnL settlement.
+- **Solver close fee** — priced by the position's real **holding time** (the [time-decaying rate](/core/solvers#solver-close-fee) that starts at the early rate and decays to the standard rate), and **capped** by the `closeRateCap` the quote signed at open. A longer hold pays less.
+- **Static close fee** — the flat USD close amount from the solver's [`getSolverInfo`](/core/solvers#getsolverinfo) (charged on each partial close too).
+
+<Callout type="info">
+  **Liquidation charges no fees.** These close fees are collected only on a user-initiated close, not when a position is
+  liquidated.
+</Callout>
+
+Deferral is safe precisely because the contract already collects close fees at close — pre-funding them at open only stranded collateral. Preview these legs with [`getInstantCloseFees`](#fee-preview--getinstantclosefees), which prices them from the current mark price and the position's real holding time. The open-side preview ([`getInstantOpenFees`](/core/solvers/instant-open#fee-preview--getinstantopenfees)) deliberately covers only the legs the open funds.
+
 ## Import
 
 ```ts
@@ -25,7 +40,9 @@ import {
   instantCloseBulk,
   instantCloseBulkAuto,
   prepareInstantCloseParams,
+  getInstantCloseFees,
   getInstantCloses,
+  type GetInstantCloseFeesReturnType,
   type PrepareInstantCloseParameters,
   type PrepareLimitCloseParameters,
   type InstantCloseParameters,
@@ -227,12 +244,75 @@ const page = await getInstantCloses(config, {
 
 Consumed by the reconciler ([`reconcileQuotes`](../../quotes#reconcilequotes)), so callers rarely need it directly.
 
+## Fee preview — `getInstantCloseFees`
+
+Preview every fee closing a position pays **right now** — priced from the current mark price and the position's real holding time, without signing or submitting anything. This is where the [Fees at close](#fees-at-close) legs get their honest numbers: at open the close notional and the holding-time solver rate are unknown ([`getInstantOpenFees`](../instant-open#fee-preview--getinstantopenfees) is open-side only), so the preview lives in the close flow. The result is a `kind`-discriminated union:
+
+- **Both kinds** — `platformCloseFee` (`getFeeForUser.closeFee × close notional`): the contract charges it on-chain from the allocated balance **after** PnL settlement.
+- **Enigma (lowcap) adds** — `closeSolverFee`: the [time-decaying close-fee schedule](/core/solvers#solver-close-fee) (early → standard) evaluated at the position's **real holding time**, capped on-chain by the `closeRateCap` the open signed; plus `staticSolverFeeClose`: the flat USD close amount from the solver's [`getSolverInfo`](/core/solvers#getsolverinfo) (fail-soft — an unreachable `/info` prices it `"0"` instead of failing the preview).
+
+`totalFee` sums the close legs the kind charges — on majors it is just `platformCloseFee`. Remember [liquidation charges no fees](#fees-at-close): these are the legs of a user-initiated close only.
+
+**Holding time** is `now − openedAt` in seconds, stamped when the function runs. Omit `openedAt` and the schedule is priced at holding time `0` — the early-rate **worst case**, the conservative default for a position of unknown age. Pass `now` to pin the clock for deterministic previews and tests.
+
+```ts
+const fees = await getInstantCloseFees(config, {
+  subAccountAddress,
+  market: { id: 1 },
+  quantity: "2.5", // leveraged base-asset amount being closed
+  openedAt: position.createTimestamp, // unix seconds — omit for the worst case
+});
+
+console.log(fees.totalFee, fees.platformCloseFee);
+if (fees.kind === "enigma") console.log(fees.closeSolverFee, fees.closeSolverFeeRate, fees.holdingSeconds);
+```
+
+### Parameters
+
+Required = the close intent only. Every optional field you pre-fill skips its network fetch — pass `markPrice`, `feeRates`, `solverInfo`, and full market metadata and the function is pure math with zero network hops.
+
+| Name                | Type                         | Required | Notes                                                                                                                                                                                                                        |
+| ------------------- | ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `subAccountAddress` | `Address`                    | ✔        | PartyA the platform close-fee rate is read for (`getFeeForUser`).                                                                                                                                                            |
+| `market`            | `InstantCloseFeesMarketData` | ✔        | `{ id }`, plus optional pre-fetched `name`, precisions, and the close-fee schedule fields (`hedgerFeeClose`, `hedgerFeeCloseEarlyRate`, `hedgerFeeCloseEarlyThreshold`, `hedgerFeeCloseStandardThreshold`, `hedgerFeeOpen`). |
+| `quantity`          | `string`                     | ✔        | Leveraged base-asset amount being closed (decimal string) — partial or full.                                                                                                                                                 |
+| `openedAt`          | `bigint \| number?`          |          | When the position opened, unix seconds — holding time is `now − openedAt`. Omit ⇒ worst case (holding `0`, the peak rate).                                                                                                   |
+| `now`               | `number?`                    |          | Unix-seconds override for "now". Defaults to the current clock; pass a fixed value for deterministic previews/tests.                                                                                                         |
+| `markPrice`         | `string?`                    |          | Pre-fetched mark price (decimal). Omit to fetch via the price service.                                                                                                                                                       |
+| `feeRates`          | `FeeForUser?`                |          | Pre-fetched on-chain fee rates. Omit to fetch via `getFeeForUser`.                                                                                                                                                           |
+| `solverInfo`        | `EnigmaSolverInfo?`          |          | Pre-fetched solver static fees. Lowcap/Enigma only — ignored elsewhere. Omit to fetch via `getSolverInfo` (fail-soft).                                                                                                       |
+| `chainId`           | `number?`                    |          | Optional chain override.                                                                                                                                                                                                     |
+| `solverId`          | `string?`                    |          | Optional solver override.                                                                                                                                                                                                    |
+
+### Returns
+
+`GetInstantCloseFeesReturnType` — `EnigmaInstantCloseFees | RasaInstantCloseFees`, discriminated on `kind`. Every kind carries `platformCloseFee`, `notional` (the close notional `quantity × markPrice` the rates were applied to), and `totalFee`; narrow on `kind` to reach the lowcap-only legs:
+
+| Field                  | Kind     | Notes                                                                                      |
+| ---------------------- | -------- | ------------------------------------------------------------------------------------------ |
+| `platformCloseFee`     | both     | Platform close leg, charged on-chain after PnL settlement.                                 |
+| `notional`             | both     | Close notional the rates were applied to (decimal string).                                 |
+| `totalFee`             | both     | Sum of every close leg this kind charges.                                                  |
+| `closeSolverFee`       | `enigma` | Solver close leg at the priced holding time, capped on-chain by the signed `closeRateCap`. |
+| `closeSolverFeeRate`   | `enigma` | The rate the leg was priced at (decimal fraction string) — for rate displays.              |
+| `holdingSeconds`       | `enigma` | Holding time the schedule was evaluated at, in seconds.                                    |
+| `staticSolverFeeClose` | `enigma` | Flat USD static close leg from `/info` — size-independent, `"0"` when the solver omits it. |
+
+### Errors
+
+- `INVALID_TRADE_PARAMETERS` — `quantity` is not a positive decimal, or the resolved mark price is zero/NaN.
+- `RESOLVE_MARKET_NOT_FOUND` — solver has no market for that id.
+- `RESOLVE_MARK_PRICE_NOT_FOUND` — price service returned no tick for the symbol.
+
+`getInstantCloseFeesQueryOptions` / `getInstantCloseFeesQueryKey` ship alongside for TanStack Query consumers — the query is disabled until a non-empty `quantity` exists, and the holding time is re-stamped on every fetch, so a refetch re-prices the decaying solver leg as the position ages. The React layer wraps them as [`useInstantCloseFees`](../../../react/instant-layer#useinstantclosefees).
+
 ## Query / Mutation options
 
 - `instantCloseMutationOptions(config)` — TanStack mutation bag for the primitive.
 - `instantCloseAutoMutationOptions(config)` — TanStack mutation bag for the wrapper.
 - `instantCloseBulkMutationOptions(config)` / `instantCloseBulkAutoMutationOptions(config)` — bulk variants.
 - `getInstantClosesQueryOptions(config, options)` — TanStack query bag for the pending list.
+- `getInstantCloseFeesQueryOptions(config, options)` — TanStack query bag for the [close-fee preview](#fee-preview--getinstantclosefees).
 
 ## Related
 

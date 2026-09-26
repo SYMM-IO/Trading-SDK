@@ -67,7 +67,7 @@ const open = useInstantOpenAuto();
 
 **Latency**: prepare fetches run inline, so click → sign gap includes the network hop. Fine for most flows; see `useInstantOpen` below for the low-latency variant.
 
-**Full-balance variant (lowcap only)** — replace `initialMargin` with `fund: { mode: "full-balance", balance }` to deploy the wallet's entire selected collateral into the position's VA; the SDK sizes the quantity so its locks + fees + settlement fit inside the balance. Funding is a one-of: pass exactly one of the two. See [Full-balance funding](../../../core/solvers/instant-open#full-balance-funding-lowcap) for the sizing semantics.
+**Full-balance variant (lowcap only)** — replace `initialMargin` with `fund: { mode: "full-balance", balance }` to deploy the wallet's entire selected collateral into the position's VA; the SDK sizes the quantity so its locks + open-side fees + settlement fit inside the balance (close fees are charged at close from the position, not funded here). Funding is a one-of: pass exactly one of the two. See [Full-balance funding](../../../core/solvers/instant-open#full-balance-funding-lowcap) for the sizing semantics.
 
 ```tsx
 open.mutate({
@@ -105,9 +105,15 @@ On success it invalidates the hedger's instant-open feed, so the order surfaces 
 
 Live-preview the exact `InstantOpenParameters` a submit will sign — `order` (price + quantity), `lockedParam`, `margin.amount`, `solverFeeCaps` — by running [`prepareInstantOpenParams`](../../../core/solvers/instant-open#quote-preview--prepareinstantopenparamsqueryoptions) as a read. `prepareInstantOpenParams` neither signs nor submits, so this is safe to run on every input change; drive a "quote preview" from it and what the user sees is **bit-for-bit** what `sendQuote` receives — no separate local recomputation to drift, and the full-balance rescale + lot snap come for free.
 
-Like [`useInstantOpenFees`](../../instant-layer#useinstantopenfees), it pre-fetches every input through its own cached queries (market metadata, mark price, locked params, on-chain fee rates, and the lowcap dry-run estimate) and passes them in as prefills, so the query function is pure. It also returns `estimatedOpenPrice` — the estimate the params were built with.
+Like [`useInstantOpenFees`](../../instant-layer#useinstantopenfees), it pre-fetches every input through its own cached queries (market metadata, mark price, locked params, on-chain fee rates, solver info, and the lowcap dry-run estimate) and passes them in as prefills, so the query function is pure. It also returns `estimatedOpenPrice` — the estimate the params were built with.
 
-`order` and `lockedParam` do not depend on the estimate, so they match the send with no extra work. For bit-for-bit parity on `margin.amount` (whose settlement leg tracks the estimate), forward `estimatedOpenPrice` to the submit call so both provision settlement at the same fill.
+The returned `estimatedOpenPrice` is a decimal string when available, `null` when the estimate settled but was unavailable, and `undefined` while pending or on a non-lowcap solver. Forward it unchanged to submission, including `null`, so core does not fetch an unavailable estimate again. With automatic or explicit full-balance sizing, the estimate affects the final quantity and funding decision as well as `margin.amount`.
+
+For automatic fallback, pass the raw available balance as `availableBalance` alongside `initialMargin`. The hook returns `data.fundingMode` (`"initial-margin"` or `"full-balance"`) from core. Keep the typed input editable and show an adjustment message when the effective mode is `"full-balance"`. Prefer this resolved funding check to comparing the typed amount against a fee-adjusted allowance. See [automatic fallback](../../../core/solvers/instant-open#automatic-fallback-from-typed-margin) for the exact rules.
+
+A typed `initialMargin` above `availableBalance` produces a synchronous `validationError`, including while offline, before requesting a price estimate or other prefills. Display `validationError ?? error`: `error` and `isError` describe the calculation query, while `validationError` describes invalid input. Invalid balance funding disables dependent queries; correcting the input clears `validationError` and resumes preparation. Explicitly disabled hooks and empty inputs stay idle without validation. Automatic fallback applies only when the typed amount fits but its required funding exceeds the balance.
+
+The hook also returns `isReady`: it is true only when required inputs, the debounced estimate, and the current preparation have settled successfully. Gate submission on `isReady`; previous data may remain visible while it is false. Pass the same `availableBalance` to the fee preview and `useInstantOpenAuto` / `useInstantOpenWithTpSl` submission. Take TP/SL quantity from the prepared order, including when fallback activates automatically.
 
 ```tsx
 const preview = usePrepareInstantOpenParams({
@@ -115,16 +121,22 @@ const preview = usePrepareInstantOpenParams({
   from: sessionKey,
   market: { id: symbolId },
   positionType,
-  initialMargin, // or fund: { mode: "full-balance", balance }
+  initialMargin,
+  availableBalance, // raw collateral decimal string; lowcap automatic fallback
   leverage,
   slippage,
 });
+
+// Display this error before rendering the preview.
+const error = preview.validationError ?? preview.error;
 
 // render preview.data — the exact params the send signs
 // preview.data?.order.quantity, preview.data?.lockedParam.cva, preview.data?.margin.amount
 
 const open = useInstantOpenWithTpSl();
-open.mutate({ ...variables, estimatedOpenPrice: preview.estimatedOpenPrice }); // freeze → margin matches
+if (preview.isReady) {
+  open.mutate({ ...variables, initialMargin, availableBalance, estimatedOpenPrice: preview.estimatedOpenPrice });
+}
 ```
 
 ## `useInstantOpen`
@@ -136,7 +148,7 @@ const prepare = usePrepareInstantOpenParams(uiInputs);
 const open = useInstantOpen();
 
 // user clicks Open — no fetches on the critical path
-if (prepare.data) open.mutate(prepare.data);
+if (prepare.isReady && prepare.data) open.mutate(prepare.data);
 ```
 
 ## `useInstantOpenWithTpSl`

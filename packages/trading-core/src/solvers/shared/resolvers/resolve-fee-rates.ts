@@ -1,7 +1,7 @@
 import type { Address } from "viem";
-import type { Config } from "../../../../core/config";
-import { getFeeForUser, type FeeForUser } from "../../../../symmio-contracts/symmio/actions/get-fee-for-user";
-import type { ComputePlatformFeeRates } from "../../shared/trade-math";
+import type { Config } from "../../../core/config";
+import { getFeeForUser, type FeeForUser } from "../../../symmio-contracts/symmio/actions/get-fee-for-user";
+import type { ComputePlatformFeeRates } from "../../instant-open/shared/trade-math";
 
 /**
  * Parameters for {@link resolveFeeRates}.

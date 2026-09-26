@@ -81,7 +81,7 @@ Parse deposit inputs with `parseUnits(input, collateralDecimals)` — not `parse
 ## Which number do I show?
 
 - **Account balance / fund gate** — available balance (`useAccountBalanceOf`, pass `live: true` so it refetches on trade settles).
-- **Trade-form `Max`** — **not** the raw available balance. Use [`useAvailableInstantOpenMargin`](/react/margin#useavailableinstantopenmargin), which shaves the balance for fees and worst-case slippage.
+- **Trade-form `Max`** — **not** the raw available balance. Use [`useAvailableInstantOpenMargin`](/react/margin#useavailableinstantopenmargin), which shaves the balance for the open fee and worst-case slippage (the close fee is charged at close from the position, not shaved here).
 - **Deposit modal** — wallet collateral balance (`useCollateralBalance`) plus the allowance (`useCollateralAllowance`) for the approve step.
 - **Withdraw max** — available balance.
 - **Per-position margin** — the quote's own locked values via `useManagedQuotes`, not an account-level read.

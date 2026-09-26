@@ -28,7 +28,6 @@ function size(overrides: {
   expectedFillPrice?: string;
   constraints?: Parameters<typeof sizeFullBalanceInstantOpen>[0]["constraints"];
   staticSolverFeeOpen?: string;
-  staticSolverFeeClose?: string;
 }) {
   return sizeFullBalanceInstantOpen({
     balance: overrides.balance ?? "100",
@@ -36,7 +35,6 @@ function size(overrides: {
     expectedFillPrice: overrides.expectedFillPrice,
     feeRates: ZERO_FEES,
     staticSolverFeeOpen: overrides.staticSolverFeeOpen,
-    staticSolverFeeClose: overrides.staticSolverFeeClose,
     constraints: overrides.constraints ?? {},
   });
 }
@@ -158,21 +156,20 @@ describe("sizeFullBalanceInstantOpen", () => {
     ).toThrow(/QUOTE_CONSTRAINT_VIOLATED|NOTIONAL_TOO_LOW/);
   });
 
-  it("carves the flat static solver fees off the balance before the linear solve", () => {
-    // Statics 5 + 5 shrink the sizing budget to 90: locks-only market → the
-    // quantity sizes off 90 × 0.999 / 100 = 0.899, and the reported margin
-    // re-adds the flat legs while staying inside the full balance.
-    const { trade, costs } = size({ staticSolverFeeOpen: "5", staticSolverFeeClose: "5" });
+  it("carves the flat static open fee off the balance before the linear solve", () => {
+    // The static open fee (5) shrinks the sizing budget to 95: locks-only
+    // market → the quantity sizes off 95 × 0.999 / 100 = 0.949, and the
+    // reported margin re-adds the flat leg while staying inside the balance.
+    const { trade, costs } = size({ staticSolverFeeOpen: "5" });
 
-    expect(trade.quantity).toBe("0.899");
+    expect(trade.quantity).toBe("0.949");
     expect(costs.staticSolverFeeOpen).toBe("5");
-    expect(costs.staticSolverFeeClose).toBe("5");
-    expect(toDecimal(costs.marginAmount).gt("90")).toBe(true); // statics ride the reported margin
+    expect(toDecimal(costs.marginAmount).gt("94")).toBe(true); // the static leg rides the reported margin
     expect(toDecimal(costs.marginAmount).lte("100")).toBe(true);
   });
 
-  it("throws INVALID_TRADE_PARAMETERS when the balance cannot cover the static fees", () => {
-    expect(() => size({ balance: "5", staticSolverFeeOpen: "3", staticSolverFeeClose: "3" })).toThrow(/static fees/);
+  it("throws INVALID_TRADE_PARAMETERS when the balance cannot cover the static open fee", () => {
+    expect(() => size({ balance: "5", staticSolverFeeOpen: "5" })).toThrow(/static open fee/);
   });
 
   it("throws INVALID_TRADE_PARAMETERS instead of dividing by a zero probe margin", () => {
@@ -211,7 +208,6 @@ describe("computeInstantOpenCosts", () => {
     });
 
     expect(costs.openSolverFee).toBe("0");
-    expect(costs.closeSolverFee).toBe("0");
     // Unbuffered SHORT basis: locks recomputed at raw mark → exactly 100.
     expect(costs.marginAmount).toBe("100");
   });
@@ -237,21 +233,20 @@ describe("computeInstantOpenCosts", () => {
       feeRates: ZERO_FEES,
       isLowcap: true,
       hedgerFeeOpen: "0.001",
-      hedgerFeeClose: "0.002",
       cvaPercent: "7",
       lfPercent: "3",
       partyAmmPercent: "90",
     });
 
-    // open 0.001 × 200 = 0.2; close 0.002 × 200 = 0.4; settlement (101−100) × 2 = 2.
+    // open 0.001 × 200 = 0.2; settlement (101−100) × 2 = 2.
     expect(costs.openSolverFee).toBe("0.2");
-    expect(costs.closeSolverFee).toBe("0.4");
     expect(costs.expectedSettlementLoss).toBe("2");
-    // locks 100 + 0.2 + 0.4 + 2 = 102.6.
-    expect(costs.marginAmount).toBe("102.6");
+    // marginAmount = locks 100 + open 0.2 + settlement 2 (close fees are
+    // charged at close and never priced here).
+    expect(costs.marginAmount).toBe("102.2");
   });
 
-  it("adds the flat static solver legs on lowcap and zeroes them on majors", () => {
+  it("adds the flat static open leg on lowcap and zeroes it on majors", () => {
     const trade = {
       requestedOpenPrice: "100",
       quantityBasic: "1",
@@ -270,21 +265,18 @@ describe("computeInstantOpenCosts", () => {
       expectedFillPrice: undefined,
       feeRates: ZERO_FEES,
       staticSolverFeeOpen: "0.5",
-      staticSolverFeeClose: "0.25",
       cvaPercent: "7",
       lfPercent: "3",
       partyAmmPercent: "90",
     } as const;
 
     const lowcap = computeInstantOpenCosts({ ...shared, isLowcap: true });
-    // Flat legs, no notional scaling: locks 100 + 0.5 + 0.25.
+    // Flat leg, no notional scaling: locks 100 + 0.5.
     expect(lowcap.staticSolverFeeOpen).toBe("0.5");
-    expect(lowcap.staticSolverFeeClose).toBe("0.25");
-    expect(lowcap.marginAmount).toBe("100.75");
+    expect(lowcap.marginAmount).toBe("100.5");
 
     const majors = computeInstantOpenCosts({ ...shared, isLowcap: false });
     expect(majors.staticSolverFeeOpen).toBe("0");
-    expect(majors.staticSolverFeeClose).toBe("0");
     expect(majors.marginAmount).toBe("100");
   });
 });

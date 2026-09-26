@@ -230,15 +230,16 @@ describe("prepareInstantOpenParams", () => {
     expect(deriveAutoSlippage).not.toHaveBeenCalled();
   });
 
-  it("funds the flat static solver fees through the addMargin amount on lowcap", async () => {
+  it("funds the flat static OPEN solver fee through the addMargin amount on lowcap", async () => {
     resolveSolverInfo.mockResolvedValue({ staticSolverFeeOpen: "0.5", staticSolverFeeClose: "0.25" });
 
     const result = await prepareInstantOpenParams(config, PARAMS);
 
     // LONG locks at requested 65438.10 (percents sum 100%, price floored to
     // 2dp precision) = 65.4381, zero platform/solver rate fees → margin =
-    // 65.4381 + 0.5 + 0.25.
-    expect(result.margin?.amount).toBe(66_188_100_000_000_000_000n);
+    // 65.4381 + 0.5 (static OPEN only). The static CLOSE fee (0.25) is charged
+    // at close from the position, not funded here.
+    expect(result.margin?.amount).toBe(65_938_100_000_000_000_000n);
   });
 
   it("skips the solver-info resolution on a non-lowcap solver", async () => {
@@ -502,9 +503,10 @@ describe("prepareInstantOpenParams", () => {
 
     expect(resolveMarket).toHaveBeenCalledWith(config, expect.objectContaining({ includeHedgerFees: true }));
     // locks: notionalBasic = 0.001 × 65438.10 = 65.4381 → cva+lf+partyAmm = 65.4381
-    // solver fees on notional 130.8762: open 0.1308762 + close 0.2617524
+    // solver OPEN fee on notional 130.8762: 0.1308762 (the close fee 0.2617524 is
+    // charged at close, not funded here)
     // settlement loss (LONG): (65000 − 64790.2) × 0.002 = 0.4196
-    // margin = 65.4381 + 0.1308762 + 0.2617524 + 0.4196 = 66.2503286
-    expect(result.margin?.amount).toBe(66_250_328_600_000_000_000n);
+    // margin = 65.4381 + 0.1308762 + 0.4196 = 65.9885762
+    expect(result.margin?.amount).toBe(65_988_576_200_000_000_000n);
   });
 });

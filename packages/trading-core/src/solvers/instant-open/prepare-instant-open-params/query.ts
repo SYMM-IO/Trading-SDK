@@ -2,11 +2,14 @@ import type { Config } from "../../../core/config";
 import type { Compute, ConfigKeyParameter } from "../../../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../../../shared/types/query";
 import { filterQueryOptions } from "../../../shared/utils/query";
-import type { InstantOpenParameters } from "../instant-open/types";
-import { prepareInstantOpenParams, type PrepareInstantOpenParameters } from "./prepare-instant-open-params";
+import {
+  prepareInstantOpenParams,
+  type PrepareInstantOpenParameters,
+  type PrepareInstantOpenParamsReturnType,
+} from "./prepare-instant-open-params";
 
 /** Data resolved by the {@link prepareInstantOpenParamsQueryOptions} query — the exact params a send will sign. */
-export type PrepareInstantOpenParamsData = InstantOpenParameters;
+export type PrepareInstantOpenParamsData = PrepareInstantOpenParamsReturnType;
 
 /** Build the TanStack Query key for {@link prepareInstantOpenParamsQueryOptions}. */
 export function getPrepareInstantOpenParamsQueryKey(
@@ -69,7 +72,11 @@ export function prepareInstantOpenParamsQueryOptions(
   config: Config,
   options: PrepareInstantOpenParamsOptions,
 ): PrepareInstantOpenParamsQueryOptions {
-  const { ...parameters } = options;
+  // Strip the TanStack `query` bag before the SDK call — spreading it into
+  // `prepareInstantOpenParams` would leak UI options into the wizard. A copy +
+  // delete (instead of naming every field) keeps future params flowing through.
+  const parameters: PrepareInstantOpenParamsOptions = { ...options };
+  delete parameters.query;
   const hasFunding =
     parameters.fund !== undefined ? parameters.fund.balance.length > 0 : (parameters.initialMargin?.length ?? 0) > 0;
   return {

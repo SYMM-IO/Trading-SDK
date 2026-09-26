@@ -167,6 +167,11 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     return { mode: "full-balance", balance: formatUnits(rawBalanceWei, WEI_DECIMALS) };
   }, [isFullBalance, rawBalanceWei]);
 
+  const availableBalance =
+    canUseFullBalance && !isFullBalance && rawBalanceWei !== undefined
+      ? formatUnits(rawBalanceWei, WEI_DECIMALS)
+      : undefined;
+
   // One hook for both margin models: the fee/slippage-shaved available balance
   // (VA isolations), or the cross-margin availableForOrder (allocated − locked −
   // pending ± live SDK-computed uPnL) — the hook dispatches on the sub-account's
@@ -187,9 +192,10 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
 
   const availableMarginDecimal =
     availableMarginWei !== undefined ? Number(formatUnits(availableMarginWei, WEI_DECIMALS)) : undefined;
-  // The typed-margin cap check; inert in full-balance mode, where the typed
-  // input (possibly stale text) is disabled and the raw balance funds the open.
+  // Lowcap market orders use the SDK funding check and automatic fallback.
+  // Other order types retain the existing typed-margin cap.
   const exceedsAvailable =
+    !canUseFullBalance &&
     !isFullBalance &&
     validInitialMargin !== undefined &&
     availableMarginDecimal !== undefined &&
@@ -213,11 +219,16 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     positionType: positionTypeForSide,
     initialMargin: isFullBalance ? undefined : validInitialMargin !== undefined ? initialMargin : undefined,
     fund,
+    availableBalance,
     leverage,
     slippage: validSlippage,
     markPrice: cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined,
-    query: { enabled: !isLimit && selectedMarket !== undefined },
+    query: { enabled: !isLimit && selectedMarket !== undefined && (!canUseFullBalance || rawBalanceWei !== undefined) },
   });
+
+  const prepareError = prepareQuery.validationError ?? prepareQuery.error;
+  const automaticallyAdjusted =
+    !isFullBalance && prepareQuery.isReady && prepareQuery.data?.fundingMode === "full-balance";
 
   // Reshape the prepared wei params into the decimal shape the preview + the
   // constraint check consume — identical fields to `calculateTradeParams`.
@@ -325,7 +336,7 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
   const fundingReady = isFullBalance
     ? rawBalanceWei !== undefined && rawBalanceWei > 0n
     : validInitialMargin !== undefined;
-  const quoteReady = isLimit ? limitTradeParams !== null : marketTradeParams !== null;
+  const quoteReady = isLimit ? limitTradeParams !== null : prepareQuery.isReady;
   const canSubmit = Boolean(
     selectedMarket &&
     marketName &&
@@ -395,6 +406,7 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
       // The funding one-of: the whole balance (`fund`) or the typed margin.
       initialMargin: isFullBalance ? undefined : initialMargin,
       fund,
+      availableBalance,
       leverage,
       slippage: validSlippage!,
       lockedParamPercent: lockedParamsQuery.data,
@@ -471,9 +483,11 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
         hint={
           isFullBalance
             ? "Deploys the entire balance — the SDK sizes the quantity down so locks + fees fit inside it."
-            : exceedsAvailable
-              ? "Exceeds available margin after fees."
-              : "Collateral committed to the position. Fees scale with leverage."
+            : automaticallyAdjusted
+              ? "Position adjusted to fit available balance, including fees."
+              : exceedsAvailable
+                ? "Exceeds available margin after fees."
+                : "Collateral committed to the position. Fees scale with leverage."
         }
       >
         <Input
@@ -658,12 +672,17 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
           positionType={positionTypeForSide}
           initialMargin={initialMargin}
           fund={fund}
+          availableBalance={availableBalance}
+          estimatedOpenPrice={prepareQuery.estimatedOpenPrice}
+          preparationReady={prepareQuery.isReady}
           leverage={leverage}
           slippage={validSlippage}
           markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
           idPrefix={idPrefix}
         />
       ) : null}
+
+      {!isLimit && prepareError ? <ResultError kind={prepareError.kind} message={prepareError.message} /> : null}
 
       {quoteViolations.length > 0 ? <QuoteViolationsPanel violations={quoteViolations} idPrefix={idPrefix} /> : null}
 
