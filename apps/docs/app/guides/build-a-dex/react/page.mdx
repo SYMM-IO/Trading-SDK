@@ -486,7 +486,7 @@ Debounce the `quantity` / `price` inputs so it doesn't refetch on every keystrok
 
 ### Available margin (the Max chip)
 
-`Max` is not the raw balance — the request must survive fees and, for SHORT, a worst-case slippage fill. The SDK does the shave for you with [`useAvailableInstantOpenMargin`](/react/margin#useavailableinstantopenmargin):
+`Max` is not the raw balance — the request must survive the open fee and, for SHORT, a worst-case slippage fill. (The close fee is not shaved — the contract charges it at close from the position, not at open.) The SDK does the shave for you with [`useAvailableInstantOpenMargin`](/react/margin#useavailableinstantopenmargin):
 
 ```tsx
 const { availableMargin, availableMarginWei } = useAvailableInstantOpenMargin({
@@ -499,7 +499,7 @@ const { availableMargin, availableMarginWei } = useAvailableInstantOpenMargin({
 // wire `availableMargin` to the Max chip; block submit when the typed margin exceeds it.
 ```
 
-It applies `available = balance × max(0, 1 − slippageFactor) × max(0, 1 − leverage × (openFee + closeFee))` — `slippageFactor = slippage` on SHORT and `0` on LONG (fees are charged on the leveraged notional; SHORT also caps for the worst-case fill). Because it reads the balance with `live: true`, the `Max` **refetches automatically when the open/close settles on-chain** — no manual refresh.
+It applies `available = balance × max(0, 1 − slippageFactor) × max(0, 1 − leverage × openFee)` — `slippageFactor = slippage` on SHORT and `0` on LONG (the open fee is charged on the leveraged notional; SHORT also caps for the worst-case fill; the close fee is charged at close, not shaved here). Because it reads the balance with `live: true`, the `Max` **refetches automatically when the open/close settles on-chain** — no manual refresh.
 
 <Callout type="info">
   Want to own the pieces? Call the pure `calculateAvailableInstantOpenMargin` from `@symmio/trading-core` with your own
@@ -536,6 +536,8 @@ Pattern: on every input change run `calculateTradeParams` → if non-null run `v
 Per-row: **[`useQuoteUpnlAndPnl`](/react/quotes#usequoteupnlandpnl)** → `{ upnl, upnlPercent, markPrice }`; **[`useInstantCloseAuto`](/react/solvers/instant-close#useinstantcloseauto)** to close; **[`useQuotePlatformFee`](/react/quotes#usequoteplatformfee)** for a fee estimate.
 
 The close ticket carries its own **slippage** control — a chip row like the open form (default **5%**). It shaves the request price via `calculateClosePrice({ markPrice, slippage, positionType, pricePrecision })` and is passed straight through to `useInstantCloseAuto`, so surface it to the user rather than hardcoding it.
+
+To show what the close will cost, preview the close-fee legs with **[`useInstantCloseFees`](/react/instant-layer#useinstantclosefees)** — `({ subAccountAddress: partyA, market: { id }, quantity, openedAt: quote.createTimestamp })` prices the platform close fee plus, on lowcap, the holding-time solver fee and the flat static leg, all from cached reads.
 
 <Callout type="warning">
   **Before you show a Close button, confirm 1-click trading is enabled.** Closing is session-key-signed, so it lives

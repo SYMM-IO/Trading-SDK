@@ -76,9 +76,10 @@ export interface UseAvailableInstantOpenMarginReturnType {
  * type:
  *
  * - **VA isolations** (`POSITION` / `MARKET` / `MARKET_DIRECTION`): the
- *   sub-account's available balance shaved for fees and — SHORT only — a
+ *   sub-account's available balance shaved for the open fee and — SHORT only — a
  *   worst-case slippage fill (`calculateAvailableInstantOpenMargin` over
- *   {@link useAccountBalanceOf} + {@link useFeeForUser}).
+ *   {@link useAccountBalanceOf} + {@link useFeeForUser}). The close fee is
+ *   charged at close, so it is not reserved here.
  * - **`CUSTOM` (cross-margin)** — trades execute on the sub-account directly:
  *   `calculateAvailableForOrder` over the live `balanceInfoOfPartyA` snapshot
  *   and the account's SDK-computed uPnL ({@link useAccountUpnl} — Σ
@@ -195,7 +196,8 @@ export function useAvailableInstantOpenMargin(
     const availableMarginWei = calculateAvailableInstantOpenMargin({
       balance,
       openFee: fees.openFee,
-      closeFee: fees.closeFee,
+      // Close fee is charged at close from the position, not reserved from the
+      // open budget, so it is not shaved here.
       slippageFractionWei: slippagePercentToFractionWei(slippage),
       leverage,
       positionType,

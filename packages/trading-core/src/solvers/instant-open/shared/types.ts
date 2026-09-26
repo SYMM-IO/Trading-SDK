@@ -197,6 +197,23 @@ export interface InstantOpenMarketData {
   hedgerFeeCloseEarlyThreshold?: number;
   /** Pre-fetched standard-rate threshold in seconds (paired with `hedgerFeeCloseEarlyRate`). */
   hedgerFeeCloseStandardThreshold?: number;
+  /**
+   * Pre-fetched minimum `lf / (cva + lf + partyAmm)` portion (decimal
+   * fraction). Only consulted by full-balance funding, which validates the
+   * SDK-sized quantity against the market's quote constraints; when omitted
+   * there, resolved from solver markets.
+   */
+  minAcceptablePortionLf?: string;
+  /** Pre-fetched minimum locked-margin sum (decimal string). Full-balance funding only; see `minAcceptablePortionLf`. */
+  minAcceptableQuoteValue?: string;
+  /** Pre-fetched maximum notional position value; `0` ⇒ unpublished. Full-balance funding only. */
+  maxNotionalValue?: number;
+  /** Pre-fetched minimum notional position value (decimal string). Full-balance funding only. */
+  minNotionalValue?: string;
+  /** Pre-fetched maximum order quantity (decimal string); `"0"` ⇒ unpublished. Full-balance funding only. */
+  maxQuantity?: string;
+  /** Pre-fetched minimum tradable increment / lot size (decimal string). Full-balance funding only. */
+  lotSize?: string;
 }
 
 /**

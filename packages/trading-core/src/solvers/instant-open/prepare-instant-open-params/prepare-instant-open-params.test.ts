@@ -8,6 +8,7 @@ const resolveMarket = vi.hoisted(() => vi.fn());
 const resolveMarkPrice = vi.hoisted(() => vi.fn());
 const resolveLockedParams = vi.hoisted(() => vi.fn());
 const resolveFeeRates = vi.hoisted(() => vi.fn());
+const resolveSolverInfo = vi.hoisted(() => vi.fn());
 const assertValidSlippage = vi.hoisted(() => vi.fn());
 const assertOpenEstimateWithinSlippage = vi.hoisted(() => vi.fn());
 const fetchOpenEstimatePrice = vi.hoisted(() => vi.fn());
@@ -18,6 +19,7 @@ vi.mock("./resolvers", () => ({
   resolveMarkPrice,
   resolveLockedParams,
   resolveFeeRates,
+  resolveSolverInfo,
 }));
 vi.mock("../shared/open-estimate-guard", () => ({
   assertValidSlippage,
@@ -79,6 +81,7 @@ describe("prepareInstantOpenParams", () => {
     resolveMarkPrice.mockReset().mockResolvedValue("64790.2");
     resolveLockedParams.mockReset().mockResolvedValue({ cva: "7", lf: "3", partyAmm: "90", partyBmm: "0" });
     resolveFeeRates.mockReset().mockResolvedValue({ openFee: 0n, closeFee: 0n });
+    resolveSolverInfo.mockReset().mockResolvedValue({ staticSolverFeeOpen: "0", staticSolverFeeClose: "0" });
     assertValidSlippage.mockReset();
     assertOpenEstimateWithinSlippage.mockReset().mockResolvedValue(undefined);
     fetchOpenEstimatePrice.mockReset().mockResolvedValue(undefined);
@@ -227,6 +230,24 @@ describe("prepareInstantOpenParams", () => {
     expect(deriveAutoSlippage).not.toHaveBeenCalled();
   });
 
+  it("funds the flat static OPEN solver fee through the addMargin amount on lowcap", async () => {
+    resolveSolverInfo.mockResolvedValue({ staticSolverFeeOpen: "0.5", staticSolverFeeClose: "0.25" });
+
+    const result = await prepareInstantOpenParams(config, PARAMS);
+
+    // LONG locks at requested 65438.10 (percents sum 100%, price floored to
+    // 2dp precision) = 65.4381, zero platform/solver rate fees → margin =
+    // 65.4381 + 0.5 (static OPEN only). The static CLOSE fee (0.25) is charged
+    // at close from the position, not funded here.
+    expect(result.margin?.amount).toBe(65_938_100_000_000_000_000n);
+  });
+
+  it("skips the solver-info resolution on a non-lowcap solver", async () => {
+    await prepareInstantOpenParams(config, { ...PARAMS, solverId: "rasa" });
+
+    expect(resolveSolverInfo).not.toHaveBeenCalled();
+  });
+
   it("funds a lowcap SHORT with the 1% funding buffer on the margin basis", async () => {
     const result = await prepareInstantOpenParams(config, { ...PARAMS, positionType: PositionType.SHORT });
 
@@ -314,6 +335,160 @@ describe("prepareInstantOpenParams", () => {
     expect(assertValidSlippage).toHaveBeenCalledWith(1);
   });
 
+  describe("full-balance funding", () => {
+    const PARAMS_NO_MARGIN = {
+      chainId: PARAMS.chainId,
+      from: PARAMS.from,
+      subAccountAddress: PARAMS.subAccountAddress,
+      market: PARAMS.market,
+      positionType: PARAMS.positionType,
+      leverage: PARAMS.leverage,
+    } as const;
+
+    it("moves the whole balance into the VA and shaves only the safety epsilon when there are no fees or settlement", async () => {
+      resolveMarkPrice.mockResolvedValue("100");
+
+      const result = await prepareInstantOpenParams(config, {
+        ...PARAMS_NO_MARGIN,
+        leverage: 1,
+        slippage: 0,
+        fund: { mode: "full-balance", balance: "100" },
+      });
+
+      // addMargin = the whole selected balance.
+      expect(result.margin?.amount).toBe(100_000_000_000_000_000_000n);
+      // No fees/settlement → sizing factor is just (1 − 0.1%): quantity 1 → 0.999.
+      expect(result.order.quantity).toBe(999_000_000_000_000_000n);
+    });
+
+    it("still funds the whole balance but sizes the quantity down to make room for settlement", async () => {
+      resolveMarkPrice.mockResolvedValue("100");
+      // LONG fill 2% above mark → a settlement leg that scales with leverage.
+      fetchOpenEstimatePrice.mockResolvedValue("102");
+
+      const result = await prepareInstantOpenParams(config, {
+        ...PARAMS_NO_MARGIN,
+        leverage: 10,
+        slippage: 4,
+        fund: { mode: "full-balance", balance: "100" },
+      });
+
+      // addMargin is still the whole balance.
+      expect(result.margin?.amount).toBe(100_000_000_000_000_000_000n);
+      // Probe margin = locks 104 + settlement (2 × 10) 20 = 124, so the position
+      // is rescaled by ~100/124 → quantity well below the naive 10 units.
+      expect(result.order.quantity).toBeLessThan(10_000_000_000_000_000_000n);
+      expect(result.order.quantity).toBeGreaterThan(8_000_000_000_000_000_000n);
+    });
+
+    it("asks resolveMarket for the quote constraints only in full-balance mode", async () => {
+      resolveMarkPrice.mockResolvedValue("100");
+
+      await prepareInstantOpenParams(config, {
+        ...PARAMS_NO_MARGIN,
+        leverage: 1,
+        slippage: 0,
+        fund: { mode: "full-balance", balance: "100" },
+      });
+      expect(resolveMarket).toHaveBeenCalledWith(config, expect.objectContaining({ includeQuoteConstraints: true }));
+
+      await prepareInstantOpenParams(config, PARAMS);
+      expect(resolveMarket).toHaveBeenLastCalledWith(
+        config,
+        expect.objectContaining({ includeQuoteConstraints: false }),
+      );
+    });
+
+    it("provisions settlement at the slippage bound when the estimate is unavailable", async () => {
+      resolveMarkPrice.mockResolvedValue("100");
+      fetchOpenEstimatePrice.mockResolvedValue(undefined);
+
+      const result = await prepareInstantOpenParams(config, {
+        ...PARAMS_NO_MARGIN,
+        leverage: 10,
+        slippage: 4,
+        fund: { mode: "full-balance", balance: "100" },
+      });
+
+      // Worst allowed fill = requested 104 → probe margin = locks 104 +
+      // settlement 40 = 144; factor 100/144 × 0.999 → quantity 6.93, well
+      // below the estimate-present sizing (~8.05).
+      expect(result.margin?.amount).toBe(100_000_000_000_000_000_000n);
+      expect(result.order.quantity).toBe(6_930_000_000_000_000_000n);
+    });
+
+    it("steps the quantity down when a coarse quantity grid makes the linear factor overshoot", async () => {
+      resolveMarket.mockResolvedValue({ name: "BTCUSDT", pricePrecision: 2, quantityPrecision: 0 });
+      resolveMarkPrice.mockResolvedValue("100");
+
+      const result = await prepareInstantOpenParams(config, {
+        ...PARAMS_NO_MARGIN,
+        leverage: 1,
+        slippage: 0,
+        fund: { mode: "full-balance", balance: "199" },
+      });
+
+      // Probe floors 1.99 units to 1 → naive factor would sign 3 units whose
+      // locks (300) exceed the 199 balance; the invariant walks it back to 1.
+      expect(result.margin?.amount).toBe(199_000_000_000_000_000_000n);
+      expect(result.order.quantity).toBe(1_000_000_000_000_000_000n);
+    });
+
+    it("snaps the sized quantity down to the market's lot grid", async () => {
+      resolveMarket.mockResolvedValue({ name: "BTCUSDT", pricePrecision: 2, quantityPrecision: 3, lotSize: "0.2" });
+      resolveMarkPrice.mockResolvedValue("100");
+
+      const result = await prepareInstantOpenParams(config, {
+        ...PARAMS_NO_MARGIN,
+        leverage: 10,
+        slippage: 0,
+        fund: { mode: "full-balance", balance: "100" },
+      });
+
+      // Unsnapped sizing would sign 9.99; the 0.2 lot grid floors it to 9.8.
+      expect(result.order.quantity).toBe(9_800_000_000_000_000_000n);
+    });
+
+    it("rejects with QUOTE_CONSTRAINT_VIOLATED when the sized quantity misses a published floor", async () => {
+      resolveMarket.mockResolvedValue({
+        name: "BTCUSDT",
+        pricePrecision: 2,
+        quantityPrecision: 3,
+        minNotionalValue: "2000",
+      });
+      resolveMarkPrice.mockResolvedValue("100");
+
+      await expect(
+        prepareInstantOpenParams(config, {
+          ...PARAMS_NO_MARGIN,
+          leverage: 10,
+          slippage: 0,
+          fund: { mode: "full-balance", balance: "100" },
+        }),
+      ).rejects.toThrow(/QUOTE_CONSTRAINT_VIOLATED|NOTIONAL_TOO_LOW/);
+    });
+
+    it("rejects passing both initialMargin and fund", async () => {
+      await expect(
+        prepareInstantOpenParams(config, {
+          ...PARAMS,
+          fund: { mode: "full-balance", balance: "100" },
+        }),
+      ).rejects.toThrow(/AMBIGUOUS_FUNDING|exactly one/);
+    });
+
+    it("rejects full-balance funding on a non-lowcap solver", async () => {
+      await expect(
+        prepareInstantOpenParams(config, {
+          ...PARAMS_NO_MARGIN,
+          solverId: "rasa",
+          slippage: 1,
+          fund: { mode: "full-balance", balance: "100" },
+        }),
+      ).rejects.toThrow(/FULL_BALANCE_UNSUPPORTED|lowcap/);
+    });
+  });
+
   it("funds solver fees and expected settlement loss through the addMargin amount", async () => {
     resolveMarket.mockResolvedValue({
       name: "BTCUSDT",
@@ -328,9 +503,10 @@ describe("prepareInstantOpenParams", () => {
 
     expect(resolveMarket).toHaveBeenCalledWith(config, expect.objectContaining({ includeHedgerFees: true }));
     // locks: notionalBasic = 0.001 × 65438.10 = 65.4381 → cva+lf+partyAmm = 65.4381
-    // solver fees on notional 130.8762: open 0.1308762 + close 0.2617524
+    // solver OPEN fee on notional 130.8762: 0.1308762 (the close fee 0.2617524 is
+    // charged at close, not funded here)
     // settlement loss (LONG): (65000 − 64790.2) × 0.002 = 0.4196
-    // margin = 65.4381 + 0.1308762 + 0.2617524 + 0.4196 = 66.2503286
-    expect(result.margin?.amount).toBe(66_250_328_600_000_000_000n);
+    // margin = 65.4381 + 0.1308762 + 0.4196 = 65.9885762
+    expect(result.margin?.amount).toBe(65_988_576_200_000_000_000n);
   });
 });
