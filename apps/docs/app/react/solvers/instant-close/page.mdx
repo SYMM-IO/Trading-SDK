@@ -2,6 +2,8 @@
 
 React hooks over the core [Instant Close](../../../core/solvers/instant-close) flow. Same three-function split as Instant Open, plus bulk variants.
 
+Single and bulk market-close hooks inherit core's [solver-specific order types](/core/solvers/instant-close#close-order-types): Enigma signs `MARKET_BEST_EFFORT` (`2`), Rasa signs `MARKET` (`1`), and limit closes retain `LIMIT` (`0`). Callers keep the same hook parameters.
+
 The page is split into two groups:
 
 - **[Reads](#reads)** — pending queue reads (`useInstantCloses`).

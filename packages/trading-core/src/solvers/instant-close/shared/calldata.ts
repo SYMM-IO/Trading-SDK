@@ -11,7 +11,7 @@ export interface EncodeRequestToClosePositionParameters {
   closePrice: bigint;
   /** Quantity to close (wei, 1e18 fixed-point). */
   quantityToClose: bigint;
-  /** Order type contract value (1 = MARKET). */
+  /** Order type contract value: 0 = LIMIT, 1 = MARKET, 2 = MARKET_BEST_EFFORT (close-only). */
   orderType: number;
   /** Unix-seconds deadline. */
   deadline: bigint;

@@ -211,6 +211,8 @@ export enum OrderType {
   LIMIT = 0,
   /** Fills at the prevailing market price. */
   MARKET = 1,
+  /** Close-only market order that permits a close-to-liquidation fill and cancels the unfilled request remainder. */
+  MARKET_BEST_EFFORT = 2,
 }
 
 /**
