@@ -42,6 +42,11 @@ function formatOptionalFixedPoint(raw: bigint | undefined, precision: number): s
   return raw === undefined ? EMPTY : formatFixedPoint(raw, precision);
 }
 
+/** Format an 18-decimal-wei amount at full precision (every fraction digit, trailing zeros trimmed). */
+function formatFullPrecision(raw: bigint): string {
+  return formatTokenAmount(raw, WEI_DECIMALS);
+}
+
 /** A single node on the provenance rail. */
 interface JourneyStage {
   key: string;
@@ -295,6 +300,10 @@ export function QuoteProvenancePanel({ quote }: Props) {
         <DetailSection title="Prices">
           <DetailRow label="Requested" value={formatFixedPoint(quote.requestedOpenPrice, pricePrecision)} />
           <DetailRow label="Opened" value={formatOptionalFixedPoint(quote.openedPrice, pricePrecision)} />
+          <DetailRow
+            label="Initial opened"
+            value={formatOptionalFixedPoint(quote.initialOpenedPrice, pricePrecision)}
+          />
           <DetailRow label="Closed" value={formatOptionalFixedPoint(quote.avgClosedPrice, pricePrecision)} />
           <DetailRow
             label="Liquidation"
@@ -314,8 +323,14 @@ export function QuoteProvenancePanel({ quote }: Props) {
         </DetailSection>
 
         <DetailSection title="Margin · Side">
-          <DetailRow label="CVA" value={formatFixedPoint(quote.lockedValues.cva, pricePrecision)} />
-          <DetailRow label="LF" value={formatFixedPoint(quote.lockedValues.lf, pricePrecision)} />
+          <DetailRow
+            label="Total locked"
+            value={formatFullPrecision(quote.lockedValues.cva + quote.lockedValues.lf + quote.lockedValues.partyAmm)}
+            title="cva + lf + partyAmm (full precision)"
+          />
+          <DetailRow label="CVA" value={formatFullPrecision(quote.lockedValues.cva)} />
+          <DetailRow label="LF" value={formatFullPrecision(quote.lockedValues.lf)} />
+          <DetailRow label="PartyAmm" value={formatFullPrecision(quote.lockedValues.partyAmm)} />
           <DetailRow label="Side" value={PositionType[quote.positionType] ?? String(quote.positionType)} />
           <DetailRow label="Order" value={OrderType[quote.orderType] ?? String(quote.orderType)} />
         </DetailSection>

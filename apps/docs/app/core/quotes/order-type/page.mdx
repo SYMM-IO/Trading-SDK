@@ -1,0 +1,43 @@
+# OrderType
+
+`OrderType` identifies how a contract order is executed. Its numeric values match `enum OrderType` in perps-core v0.8.6.
+
+```ts
+import { OrderType } from "@symmio/trading-core";
+
+OrderType.LIMIT; // 0
+OrderType.MARKET; // 1
+OrderType.MARKET_BEST_EFFORT; // 2 — close-only
+```
+
+## Members
+
+| Member               | Value | Behavior                                                                                                                             |
+| -------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `LIMIT`              | `0`   | Executes at the requested price or better. A partial close-to-liquidation fill leaves the unfilled close request pending.            |
+| `MARKET`             | `1`   | Market execution. A live close request requires a full fill of the requested quantity and cannot use close-to-liquidation execution. |
+| `MARKET_BEST_EFFORT` | `2`   | Close-only market execution. Allows a close-to-liquidation fill and cancels any unfilled request remainder after that partial fill.  |
+
+## Best-effort close behavior
+
+`MARKET_BEST_EFFORT` is valid for `requestToClosePosition`. An ordinary fill still fills the entire requested close quantity. If a full fill would cross PartyA's permitted solvency boundary, the solver can use `fillCloseRequestToLiquidation` to fill the executable portion instead. The contract then clears the remainder of that close request; any remaining position stays open. This operation is a close, not a liquidation.
+
+The protocol chooses the executable quantity. If no positive valid amount exists, the transaction reverts. Opening a quote with order type `2` also reverts. See the [perps-core close-to-liquidation documentation](https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/docs/v0.8.6/pages/close-to-liquidation.html) for the execution rules.
+
+## SDK close requests
+
+[`instantClose` and its single and bulk variants](/core/solvers/instant-close#close-order-types) select the encoded order type from the resolved solver:
+
+- Enigma market closes use `MARKET_BEST_EFFORT` (`2`).
+- Rasa market closes use `MARKET` (`1`).
+- Limit closes retain `LIMIT` (`0`).
+
+The `instantClose` input `orderType` continues to accept the market/limit values `1 | 0`. Omit it or pass `ORDER_TYPE_MARKET` for a market close; the SDK selects Enigma's best-effort value before signing. `OrderType.MARKET_BEST_EFFORT` describes the contract value and is also available when constructing raw close calldata.
+
+Opening orders continue to use `LIMIT` or `MARKET`.
+
+## Related
+
+- [Instant Close](/core/solvers/instant-close) — preparing, signing, and submitting close requests.
+- [Instant Close hooks](/react/solvers/instant-close) — React wrappers over the same behavior.
+- [QuoteStatus](/core/quotes/quote-status) — the position's on-chain lifecycle.

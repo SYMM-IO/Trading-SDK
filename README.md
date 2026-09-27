@@ -47,6 +47,8 @@ Not part of the SDK surface — SDK consumers never need these:
 
 ## Development
 
+For working on this repository, see the [development and release guide](development.md), including [when to use staging releases](development.md#when-to-release-a-staging-version), versioning, npm authentication, publication, and production releases.
+
 If you want to build a product on top of the SDK, read the [documentation](https://doc.trading-sdk.symm.io/) — and especially the [Build a Perps DEX guide](https://doc.trading-sdk.symm.io/guides/build-a-dex/) — to learn the flow of building a trading product: how to deposit, open a trade, set TP/SL, withdraw, and more.
 
 The three integration facts humans and AI agents most often get wrong — affiliate defaults, the available-balance model, and the two decimal scales — are called out at the top of that guide: **[Three facts integrators get wrong most often](https://doc.trading-sdk.symm.io/guides/build-a-dex/#three-facts-integrators-get-wrong-most-often)**.
@@ -80,7 +82,9 @@ Lefthook runs Prettier, ESLint, and type-checks pre-commit, and commitlint on th
 
 ### Releasing
 
-Versioning is [Changesets](https://github.com/changesets/changesets)-driven. Add one with `pnpm changeset` in any PR that changes a published package; merging to `main` opens or refreshes the "Version Packages" PR, and merging _that_ publishes to npm.
+Versioning is [Changesets](https://github.com/changesets/changesets)-driven. Add one with `pnpm changeset` in any PR that changes a published package; merging to `main` opens or refreshes the "Version Packages" PR. Merging that PR starts publication, gated by approval of the GitHub `release` environment and valid npm publishing credentials.
+
+For changes that need testing before production, follow the [staging release procedure](development.md#prepare-a-staging-release). It covers prerelease versions, the `staging` dist-tag, and npm's separate staged-upload approval flow.
 
 ## Contributing
 

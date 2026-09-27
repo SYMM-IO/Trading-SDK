@@ -24,7 +24,21 @@ Each is a `readonly Abi` array exported straight from the versioned `src/symmio-
   </MethodEntry>
 </MethodIndex>
 
-The current version is `v0.8.6` — sourced from [`@symm-io/perps-core`](https://github.com/SYMM-IO/perps-core/tree/version_0.8.6). Each SDK release supports exactly one contracts version; upgrading contracts means a new SDK release that swaps the ABIs in place, so you pick your contracts version by pinning the SDK version.
+The shipped ABIs target `v0.8.6`, sourced from [`perps-core` at revision `3e25e6e`](https://github.com/SYMM-IO/perps-core/tree/3e25e6e2130702e92668aeb2dec68395ac25129f/abis). `symmioAbi` and `accountLayerAbi` contain the complete source arrays. `instantLayerAbi` contains the three delegation methods used by the SDK: `delegations`, `grantDelegation`, and `isDelegationActive`; these entries also match that revision.
+
+## Compatibility changes
+
+Direct ABI consumers should account for these changes from the previous SDK snapshot:
+
+| Contract     | Change                                                                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SYMMIO       | `startRestatement` now requires `symbolId` and `expectedLiquidationStartNonce`. Use this two-argument signature in place of the old one-argument call. |
+| SYMMIO       | `RestatementPreparationCompleted` adds a `phase` (`uint8`) event argument.                                                                             |
+| SYMMIO       | `getSymbolAdjustment` adds `pendingQuoteIdCutoff` and `fundingSettlementRequired` to its returned tuple.                                               |
+| SYMMIO       | Use `pausePartyBOpenPositionsFor(partyB)` or `unpausePartyBOpenPositionsFor(partyB)` in place of `setPartyBOpenPositionsPaused(partyB, status)`.       |
+| AccountLayer | The ABI includes timelock setup, approval, scheduling, execution, and read methods, plus their events and errors.                                      |
+
+For contract behavior, see the matching [symbol-adjustment documentation](https://github.com/SYMM-IO/perps-core/blob/3e25e6e2130702e92668aeb2dec68395ac25129f/docs/v0.8.6/pages/symbol-adjustment.html), [admin-role changes](https://github.com/SYMM-IO/perps-core/blob/3e25e6e2130702e92668aeb2dec68395ac25129f/docs/v0.8.6/pages/narrower-admin-roles.html), and [AccountLayer timelocks](https://github.com/SYMM-IO/perps-core/blob/3e25e6e2130702e92668aeb2dec68395ac25129f/docs/v0.8.6/pages/accountlayer-timelock.html). A raw ABI entry does not imply an SDK action or React hook exists for that method.
 
 ## Usage — viem `readContract`
 

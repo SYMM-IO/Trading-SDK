@@ -24,7 +24,7 @@ export const STAGING_CHAIN_OVERRIDES = {
     contractsVersion: "0.8.6",
     addresses: {
       symmioAddress: "0x573310dB6d160B26026B8706EBe9831c7dEF1D09",
-      instantLayerAddress: "0x2C9e944cB71329fC659Da50A10a79a508Dd49ba5",
+      instantLayerAddress: "0x38AaBc7A73523Cd47c710FcdEb3b20ae02310180",
       accountLayerAddress: "0x5733107211B2801Acd39933a54d482FE303c4907",
       affiliatesAddress: "0xe99c18CF3C62B9229f9251fd2562077a33e7600a",
       collateralAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
@@ -36,10 +36,10 @@ export const STAGING_CHAIN_OVERRIDES = {
         address: "0x9be79D4977D86D440F9e1Ea0d468A58104B9b932",
         url: "https://arb-staging.enigma.bz/api",
         tpsl: {
-          url: "https://conditional-orders-handler-lowcap85.rasa.capital",
-          wsUrl: "wss://notification.rasa.capital/ws/v1/subscribe",
-          appName: "Arbitrum_COH_Production",
-          cohWalletAddress: "0xf2afbb3f13Ca72bfb69749f3bC5EbD6528b1fc31",
+          url: "https://tpsl-stage.enigma.bz",
+          wsUrl: "wss://notification-stage.rasa.capital/api/v1",
+          appName: "ARB_COH_Low-Cap_Stage",
+          cohWalletAddress: "0x5Cf3fC3722e1780220Ca94C04a6dc7Dfd7615661",
         },
         notifications: {
           url: "wss://notification-stage.rasa.capital/ws/v1/subscribe",
