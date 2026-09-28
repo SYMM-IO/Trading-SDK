@@ -19,7 +19,7 @@ try {
 }
 ```
 
-A submit that fails ambiguously — no response, a timeout, a `502`/`504`, or a `202` with no `request_id` — may still have been accepted. The SDK resends it once itself, and if that is inconclusive too it throws [`GASLESS_SUBMIT_UNCONFIRMED`](/core/gasless/errors-and-fallback#the-fallback-safety-rule) carrying the exact bytes it sent. This action replays them.
+A submit that fails ambiguously — no response, a timeout, a `502`/`504`, or a `202` with no `request_id` — may still have been accepted. The SDK resends it once itself after a short backoff, and if that does not land either — however the resend is answered, a `429` included — it throws [`GASLESS_SUBMIT_UNCONFIRMED`](/core/gasless/errors-and-fallback#the-fallback-safety-rule) carrying the exact bytes it sent. This action replays them.
 
 The vendor's contract makes that safe: the same key with the same payload either lands the request or returns the record the service already created. Rebuilding the payload does not — the signatures inside it cover specific nonces and deadlines, and a regenerated body under a bound key is answered with `409 IDEMPOTENCY_KEY_CONFLICT`.
 

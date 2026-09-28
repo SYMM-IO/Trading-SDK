@@ -3,6 +3,7 @@ import { inspect } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SymmApiError, SymmError } from "../shared/errors/symm-error";
 import { parseGaslessErrorDetail } from "./errors";
+import { isConfirmedGaslessFeeLimitError, isConfirmedGaslessUnavailableError } from "./fallback";
 import {
   GASLESS_PROTOCOL_INSTANCE_HEADER,
   GASLESS_SUBMIT_THROTTLE_RETRIES,
@@ -79,6 +80,7 @@ function rejectLikeAxios(status: number, data: unknown) {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("buildGaslessHttpContext", () => {
@@ -283,7 +285,8 @@ describe("gaslessGet / postGaslessSubmit", () => {
     expect(get.mock.calls[0]?.[1]).not.toHaveProperty("timeout");
   });
 
-  it("retries a submit timeout once with the same body, then reports it unconfirmed", async () => {
+  it("retries a submit timeout once with the same body after a backoff, then reports it unconfirmed", async () => {
+    vi.useFakeTimers();
     const post = vi.spyOn(axios, "post").mockRejectedValue(
       new AxiosError("timeout of 30000ms exceeded", AxiosError.ECONNABORTED, {
         url: "/gateway/relay-instant",
@@ -292,9 +295,12 @@ describe("gaslessGet / postGaslessSubmit", () => {
     );
     const body = { idempotencyKey: "key-1", signatures: ["0xdeadbeef"] };
 
-    const error = await postGaslessSubmit(anonymous, "/gateway/relay-instant", body, "key-1").catch(
-      (err: unknown) => err,
-    );
+    const pending = postGaslessSubmit(anonymous, "/gateway/relay-instant", body, "key-1").catch((err: unknown) => err);
+    /** The resend waits at least a jittered second, so it cannot race the first attempt's insert. */
+    await vi.advanceTimersByTimeAsync(999);
+    expect(post).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const error = await pending;
 
     expect(post).toHaveBeenCalledTimes(2);
     expect(post.mock.calls[1]?.[1]).toBe(body);
@@ -521,10 +527,6 @@ describe("postGaslessSubmit retries", () => {
     };
   }
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it("resends a 429 under the same key after the Retry-After delay, and succeeds", async () => {
     vi.useFakeTimers();
     const post = vi
@@ -575,15 +577,85 @@ describe("postGaslessSubmit retries", () => {
   });
 
   it("treats a 5xx without the gateway envelope as ambiguous, never as unavailable", async () => {
+    vi.useFakeTimers();
     const post = vi.spyOn(axios, "post").mockImplementation(rejectWith(502, "error code: 502") as typeof axios.post);
 
-    const error = await postGaslessSubmit(anonymous, "/gateway/relay-instant", {}, "key-1").catch(
-      (err: unknown) => err,
-    );
+    const pending = postGaslessSubmit(anonymous, "/gateway/relay-instant", {}, "key-1").catch((err: unknown) => err);
+    await vi.advanceTimersByTimeAsync(2_000);
+    const error = await pending;
 
     expect(post).toHaveBeenCalledTimes(2);
     expect(error).toMatchObject({ code: "GASLESS_SUBMIT_UNCONFIRMED", status: 502 });
     expect(getGaslessUnconfirmedSubmit(error)?.idempotencyKey).toBe("key-1");
+  });
+
+  it.each([
+    { label: "a 429", status: 429, data: { error: "Rate limit exceeded" } },
+    { label: "a gateway 503", status: 503, data: { error: "Gateway configuration not ready" } },
+  ])(
+    "reports $label on the resend of a timed-out submit as unconfirmed, never as unavailable",
+    async ({ status, data }) => {
+      vi.useFakeTimers();
+      /** A spent budget, as after a real 30 s timeout, so the refusal is final at once. */
+      const context = buildGaslessHttpContext(
+        CHAIN,
+        { ...ANONYMOUS, execution: { submitTimeoutMs: 500 } },
+        "operations",
+      );
+      const post = vi
+        .spyOn(axios, "post")
+        .mockRejectedValueOnce(
+          new AxiosError("timeout of 500ms exceeded", AxiosError.ECONNABORTED, {
+            url: "/gateway/relay-instant",
+            method: "post",
+          } as InternalAxiosRequestConfig),
+        )
+        .mockImplementation(rejectWith(status, data) as typeof axios.post);
+
+      const pending = postGaslessSubmit(context, "/gateway/relay-instant", {}, "key-1").catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(2_000);
+      const error = await pending;
+
+      /** The refusal speaks for the resend only: the timed-out attempt may be executing. */
+      expect(post).toHaveBeenCalledTimes(2);
+      expect(error).toMatchObject({ code: "GASLESS_SUBMIT_UNCONFIRMED", status });
+      expect((error as SymmApiError).cause).toMatchObject({ code: "GASLESS_RELAY_SUBMIT_FAILED", status });
+      expect(getGaslessUnconfirmedSubmit(error)?.idempotencyKey).toBe("key-1");
+      expect(isConfirmedGaslessUnavailableError(error)).toBe(false);
+    },
+  );
+
+  it("keeps resending a refused resend under the same key while the budget lasts, and lands it", async () => {
+    vi.useFakeTimers();
+    const post = vi
+      .spyOn(axios, "post")
+      .mockImplementationOnce(rejectWith(502, "error code: 502") as typeof axios.post)
+      .mockImplementationOnce(rejectWith(429, { error: "Rate limit exceeded" }) as typeof axios.post)
+      .mockResolvedValueOnce(accepted());
+    const body = { idempotencyKey: "key-1" };
+
+    const pending = postGaslessSubmit(anonymous, "/gateway/relay-instant", body, "key-1");
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    await expect(pending).resolves.toEqual({ request_id: "req-1" });
+    expect(post).toHaveBeenCalledTimes(3);
+    expect(post.mock.calls[2]?.[1]).toBe(body);
+  });
+
+  it("reports a service verdict on the resend as unconfirmed too, even a fallback-eligible fee code", async () => {
+    vi.useFakeTimers();
+    const post = vi
+      .spyOn(axios, "post")
+      .mockImplementationOnce(rejectWith(502, "error code: 502") as typeof axios.post)
+      .mockImplementation(rejectWith(409, { detail: { code: "INSUFFICIENT_ALLOWANCE" } }) as typeof axios.post);
+
+    const pending = postGaslessSubmit(anonymous, "/gateway/relay-instant", {}, "key-1").catch((err: unknown) => err);
+    await vi.advanceTimersByTimeAsync(2_000);
+    const error = await pending;
+
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(error).toMatchObject({ code: "GASLESS_SUBMIT_UNCONFIRMED", status: 409 });
+    expect(isConfirmedGaslessFeeLimitError(error)).toBe(false);
   });
 
   it("stops at a definitive 4xx without resending anything", async () => {

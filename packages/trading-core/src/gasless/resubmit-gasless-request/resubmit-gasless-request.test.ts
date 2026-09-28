@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS, gaslessTestConfig } from "../test/config";
 import { GaslessRequestStatus } from "../types";
 import type { GaslessUnconfirmedSubmit } from "../unconfirmed-submit";
@@ -45,6 +45,10 @@ const DEPOSIT_SUBMIT: GaslessUnconfirmedSubmit = {
 describe("resubmitGaslessRequest", () => {
   beforeEach(() => {
     post.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("resends the recorded bytes, unchanged, under the recorded key", async () => {
@@ -108,6 +112,7 @@ describe("resubmitGaslessRequest", () => {
   });
 
   it("reports a replay that is itself inconclusive as unconfirmed again", async () => {
+    vi.useFakeTimers();
     const { config } = gaslessTestConfig();
     post.mockRejectedValue({
       isAxiosError: true,
@@ -115,9 +120,10 @@ describe("resubmitGaslessRequest", () => {
       config: { url: "/gateway/relay-instant" },
     });
 
-    await expect(resubmitGaslessRequest(config, RELAY_SUBMIT)).rejects.toMatchObject({
-      code: "GASLESS_SUBMIT_UNCONFIRMED",
-    });
+    const replay = resubmitGaslessRequest(config, RELAY_SUBMIT).catch((err: unknown) => err);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(await replay).toMatchObject({ code: "GASLESS_SUBMIT_UNCONFIRMED" });
     expect(post).toHaveBeenCalledTimes(2);
   });
 });

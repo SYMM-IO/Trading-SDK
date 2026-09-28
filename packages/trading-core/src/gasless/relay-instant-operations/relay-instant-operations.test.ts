@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmApiError } from "../../shared/errors/symm-error";
 import type { SignedOperation } from "../../solvers/instant-open/shared/types";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS, gaslessTestConfig } from "../test/config";
@@ -32,6 +32,10 @@ const ACCEPTED = {
 describe("relayInstantOperations", () => {
   beforeEach(() => {
     post.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("posts the wire body with numeric uint256 fields and parses the receipt", async () => {
@@ -195,6 +199,7 @@ describe("relayInstantOperations", () => {
   });
 
   it("retries once with the same idempotency key on a network-level failure", async () => {
+    vi.useFakeTimers();
     const { config } = gaslessTestConfig();
     /** Snapshot each body as sent: both attempts share one object, so `mock.calls` would compare it with itself. */
     const sent: { idempotencyKey?: unknown }[] = [];
@@ -205,12 +210,14 @@ describe("relayInstantOperations", () => {
         : Promise.resolve(ACCEPTED);
     });
 
-    const receipt = await relayInstantOperations(config, {
+    const relay = relayInstantOperations(config, {
       chainId: GASLESS_TEST_CHAIN,
       userAddress: OPERATION.signer,
       operationType: "addMargin",
       operations: [{ operation: OPERATION, signature: `0x${"ab".repeat(65)}` }],
     });
+    await vi.advanceTimersByTimeAsync(2_000);
+    const receipt = await relay;
 
     expect(receipt.requestId).toBe("req-1");
     expect(sent).toHaveLength(2);

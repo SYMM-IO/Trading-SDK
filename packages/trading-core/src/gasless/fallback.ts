@@ -93,7 +93,9 @@ export function isConfirmedGaslessFeeLimitError(err: unknown): boolean {
  * Exactly two statuses qualify: `429` (rate limited, dropped at the gateway)
  * and a `503` carrying the gateway's own `{ error }` envelope (its
  * configuration is not ready). Both are reported only after the SDK's own
- * same-key retries are exhausted.
+ * same-key retries are exhausted, and only when no attempt of that submit was
+ * ambiguous: a refusal of the resend says nothing about the attempt before it,
+ * so the SDK reports that submit as `GASLESS_SUBMIT_UNCONFIRMED` instead.
  *
  * **`0`, `502`, `504`, a timeout and a bare `503` never qualify**, however much
  * they look like an outage: the request may have reached the service and been

@@ -1,5 +1,5 @@
 import { decodeFunctionData, encodeFunctionData, erc20Abi, type Address, type Hex } from "viem";
-import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { gaslessWalletAbi } from "../../symmio-contracts/abi/v0.8.6/gasless-wallet";
 import { GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR } from "../constants";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS, TEST_GASLESS_SIGNER, gaslessWriteTestConfig } from "../test/config";
@@ -438,7 +438,12 @@ describe("gaslessWalletExecute submit retries", () => {
     post.mockReset();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("retries once after a network-level failure, resending the signed body verbatim", async () => {
+    vi.useFakeTimers();
     const { config, signTypedData } = walletExecuteRig();
     /** Snapshot each body as sent: both attempts share one object, so `mock.calls` would compare it with itself. */
     const sent: unknown[] = [];
@@ -449,10 +454,12 @@ describe("gaslessWalletExecute submit retries", () => {
         : Promise.resolve(ACCEPTED);
     });
 
-    const receipt = await gaslessWalletExecute(config, {
+    const execution = gaslessWalletExecute(config, {
       chainId: GASLESS_TEST_CHAIN,
       calls: [{ target: USDC, data: "0xa9059cbb" }],
     });
+    await vi.advanceTimersByTimeAsync(2_000);
+    const receipt = await execution;
 
     expect(receipt.requestId).toBe("req-w1");
     expect(sent).toHaveLength(2);

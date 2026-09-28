@@ -2,7 +2,7 @@ import type { Config } from "../core/config";
 import { SymmError } from "../shared/errors/symm-error";
 import { isGaslessAcceptedInstanceMismatchError } from "./http";
 import { isGaslessAcceptanceInvalidError } from "./to-gasless-submit-receipt";
-import type { GaslessService } from "./types";
+import { GaslessRequestStatus, type GaslessRequest, type GaslessService } from "./types";
 import { getGaslessUnconfirmedSubmit } from "./unconfirmed-submit";
 import { waitForGaslessRequest } from "./wait-for-gasless-request/wait-for-gasless-request";
 
@@ -151,6 +151,18 @@ interface GaslessPendingNonce {
 /** The pending signature per stream, per config. @internal */
 const pendingNonces = new WeakMap<Config, Map<string, GaslessPendingNonce>>();
 
+/**
+ * The highest nonce a `succeeded` relay consumed, per stream, per config.
+ *
+ * `succeeded` is the relayer's node's view, and a public RPC can trail it by a
+ * few blocks — long enough for the next write to read the old nonce and sign
+ * it again. A consumed nonce stays consumed, so every read on the stream is
+ * raised to this floor for as long as the config lives.
+ *
+ * @internal
+ */
+const consumedFloors = new WeakMap<Config, Map<string, bigint>>();
+
 /** How long a new caller may wait for a pending signature to resolve, whatever its deadline says. */
 const GASLESS_NONCE_STREAM_WAIT_MS = 120_000;
 /** Cadence of the on-chain nonce re-read while waiting for an unconfirmed submit. */
@@ -168,6 +180,17 @@ function pendingFor(config: Config): Map<string, GaslessPendingNonce> {
 /** Forget a stream's pending signature. @internal */
 export function clearGaslessPendingNonce(config: Config, key: string): void {
   pendingNonces.get(config)?.delete(key);
+}
+
+/** Record that a stream has consumed at least `nonce`, whatever this config's RPC still reports. */
+function raiseConsumedFloor(config: Config, key: string, nonce: bigint): void {
+  let byKey = consumedFloors.get(config);
+  if (!byKey) {
+    byKey = new Map();
+    consumedFloors.set(config, byKey);
+  }
+  const floor = byKey.get(key);
+  if (floor === undefined || nonce > floor) byKey.set(key, nonce);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -310,6 +333,12 @@ export async function submitOnGaslessNonceStreams<result extends { requestId: st
  * `min(signature deadline, 120 s)`: past the deadline the signature can never
  * land, so the nonce is free.
  *
+ * A successful terminal advances the stream without waiting for this RPC to
+ * see the block. `succeeded` is the relayer's node's view and a public RPC can
+ * trail it, so the signed nonce becomes a floor under every later read on the
+ * stream; the relayer simulates the next submit against its own node, which
+ * already has the block.
+ *
  * @param config - The SDK config.
  * @param key - The stream key.
  * @param readConsumedNonce - Reads the stream's consumed nonce on-chain.
@@ -324,7 +353,14 @@ export async function readGaslessStreamNonce(
   key: string,
   readConsumedNonce: () => Promise<bigint>,
 ): Promise<bigint> {
-  const consumed = await readConsumedNonce();
+  /** Every read is raised to the nonce a `succeeded` relay on this stream is known to have consumed. */
+  const readFloored = async () => {
+    const read = await readConsumedNonce();
+    const floor = consumedFloors.get(config)?.get(key);
+    return floor !== undefined && floor > read ? floor : read;
+  };
+
+  const consumed = await readFloored();
   const pending = pendingFor(config).get(key);
   if (!pending) return consumed;
 
@@ -336,16 +372,15 @@ export async function readGaslessStreamNonce(
   }
 
   if (pending.requestId !== null) {
+    let terminal: GaslessRequest | null = null;
     try {
-      await waitForGaslessRequest(config, {
+      terminal = await waitForGaslessRequest(config, {
         chainId: pending.chainId,
         requestId: pending.requestId,
         service: pending.service,
         until: "terminal",
         timeoutMs: budgetEndsAt - Date.now(),
       });
-      clearGaslessPendingNonce(config, key);
-      return await readConsumedNonce();
     } catch {
       /**
        * The wait timed out or the status read kept failing. The signature is
@@ -353,11 +388,25 @@ export async function readGaslessStreamNonce(
        * the one fact that settles it without the service.
        */
     }
+
+    if (terminal !== null) {
+      /**
+       * `succeeded` proves every signed nonce consumed — a relay that fails any
+       * operation reverts whole — even while this RPC still reports the old one.
+       * Any other terminal frees the nonce: `reverted` and `rejected` consumed
+       * nothing, and since two signatures on one nonce never both execute, even
+       * a `failed` transaction that mines late costs one rejection, never a
+       * double run.
+       */
+      if (terminal.status === GaslessRequestStatus.SUCCEEDED) raiseConsumedFloor(config, key, pending.signedNonce);
+      clearGaslessPendingNonce(config, key);
+      return await readFloored();
+    }
   }
 
   while (Date.now() < budgetEndsAt) {
     await sleep(GASLESS_NONCE_STREAM_POLL_MS);
-    const latest = await readConsumedNonce();
+    const latest = await readFloored();
     if (latest >= pending.signedNonce) {
       clearGaslessPendingNonce(config, key);
       return latest;

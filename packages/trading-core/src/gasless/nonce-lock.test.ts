@@ -298,16 +298,66 @@ describe("gasless pending-nonce guard", () => {
     );
   });
 
-  it("clears the stream after a failed terminal, so the next relay signs the same nonce again", async () => {
+  it("signs past a succeeded request while the RPC still reports the older nonce", async () => {
     const { config } = gaslessTestConfig();
     await submitAccepted(config, { signedNonce: 6n, deadline: deadlineIn(600) });
-    waitForGaslessRequest.mockResolvedValue(operationRequestFixture({ status: GaslessRequestStatus.REJECTED }));
+    waitForGaslessRequest.mockResolvedValue(operationRequestFixture({ status: GaslessRequestStatus.SUCCEEDED }));
 
-    /** A rejected request consumed nothing on-chain, so the nonce is still 5. */
-    await expect(readGaslessStreamNonce(config, STREAM, async () => 5n)).resolves.toBe(5n);
-    await expect(readGaslessStreamNonce(config, STREAM, async () => 5n)).resolves.toBe(5n);
+    /** The relayer's node saw nonce 6 mine; this RPC has not caught up yet. */
+    const reads = [5n, 5n, 6n];
+    await expect(readGaslessStreamNonce(config, STREAM, async () => reads.shift() ?? 6n)).resolves.toBe(6n);
+  });
+
+  it("keeps a succeeded nonce as the stream's floor after a later submit records nothing", async () => {
+    const { config } = gaslessTestConfig();
+    await submitAccepted(config, { signedNonce: 6n, deadline: deadlineIn(600) });
+    waitForGaslessRequest.mockResolvedValue(operationRequestFixture({ status: GaslessRequestStatus.SUCCEEDED }));
+    await expect(readGaslessStreamNonce(config, STREAM, async () => 5n)).resolves.toBe(6n);
+
+    /** The next relay signs 7 and is refused outright, so nothing is pending any more. */
+    const rejection = new Error("422 schema");
+    await expect(
+      submitOnGaslessNonceStream(
+        config,
+        STREAM,
+        { signedNonce: 7n, service: "operations", chainId: GASLESS_TEST_CHAIN, deadline: deadlineIn(600) },
+        () => Promise.reject(rejection),
+        () => false,
+      ),
+    ).rejects.toBe(rejection);
+
+    /** The RPC still trails the relayer, but nonce 6 stays spent. */
+    await expect(readGaslessStreamNonce(config, STREAM, async () => 5n)).resolves.toBe(6n);
     expect(waitForGaslessRequest).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps a succeeded nonce as the stream's floor when a later request fails", async () => {
+    const { config } = gaslessTestConfig();
+    await submitAccepted(config, { signedNonce: 6n, deadline: deadlineIn(600), requestId: "req-1" });
+    waitForGaslessRequest.mockResolvedValueOnce(operationRequestFixture({ status: GaslessRequestStatus.SUCCEEDED }));
+    await expect(readGaslessStreamNonce(config, STREAM, async () => 5n)).resolves.toBe(6n);
+
+    await submitAccepted(config, { signedNonce: 7n, deadline: deadlineIn(600), requestId: "req-2" });
+    waitForGaslessRequest.mockResolvedValueOnce(operationRequestFixture({ status: GaslessRequestStatus.REJECTED }));
+
+    /** Request 2 consumed nothing, so 7 is free again — and 6 is still spent. */
+    await expect(readGaslessStreamNonce(config, STREAM, async () => 5n)).resolves.toBe(6n);
+    expect(waitForGaslessRequest).toHaveBeenLastCalledWith(config, expect.objectContaining({ requestId: "req-2" }));
+  });
+
+  it.each([GaslessRequestStatus.REJECTED, GaslessRequestStatus.REVERTED, GaslessRequestStatus.FAILED])(
+    "clears the stream after a %s terminal, so the next relay signs the same nonce again",
+    async (status) => {
+      const { config } = gaslessTestConfig();
+      await submitAccepted(config, { signedNonce: 6n, deadline: deadlineIn(600) });
+      waitForGaslessRequest.mockResolvedValue(operationRequestFixture({ status }));
+
+      /** No receipt says nonce 6 was consumed, and the RPC still reads 5. */
+      await expect(readGaslessStreamNonce(config, STREAM, async () => 5n)).resolves.toBe(5n);
+      await expect(readGaslessStreamNonce(config, STREAM, async () => 5n)).resolves.toBe(5n);
+      expect(waitForGaslessRequest).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("does not wait when the pending nonce is already consumed on-chain", async () => {
     const { config } = gaslessTestConfig();

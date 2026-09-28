@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmApiError } from "../../shared/errors/symm-error";
 import { buildGaslessHttpContext } from "../http";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS, gaslessTestConfig } from "../test/config";
@@ -47,6 +47,10 @@ function settleTestConfig() {
 describe("settleGaslessDepositExistingAccount", () => {
   beforeEach(() => {
     post.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("posts the strict existing-account body to the deposits service and parses the receipt", async () => {
@@ -120,6 +124,7 @@ describe("settleGaslessDepositExistingAccount", () => {
     { label: "a network-level failure", failure: NETWORK_FAILURE },
     { label: "a 5xx", failure: SERVER_FAILURE },
   ])("retries once after $label with the byte-identical body and key", async ({ failure }) => {
+    vi.useFakeTimers();
     const { config } = settleTestConfig();
     /** Snapshot each body as sent: both attempts share one object, so `mock.calls` would compare it with itself. */
     const sent: unknown[] = [];
@@ -128,12 +133,14 @@ describe("settleGaslessDepositExistingAccount", () => {
       return sent.length === 1 ? Promise.reject(failure) : Promise.resolve(ACCEPTED);
     });
 
-    const receipt = await settleGaslessDepositExistingAccount(config, {
+    const settlement = settleGaslessDepositExistingAccount(config, {
       chainId: GASLESS_TEST_CHAIN,
       owner: OWNER,
       walletId: 1n,
       subAccount: SUB_ACCOUNT,
     });
+    await vi.advanceTimersByTimeAsync(2_000);
+    const receipt = await settlement;
 
     expect(receipt.requestId).toBe("dep-2");
     expect(sent).toHaveLength(2);
@@ -142,6 +149,7 @@ describe("settleGaslessDepositExistingAccount", () => {
   });
 
   it("gives up after the single retry", async () => {
+    vi.useFakeTimers();
     const { config } = settleTestConfig();
     post.mockRejectedValue(NETWORK_FAILURE);
 
@@ -150,9 +158,10 @@ describe("settleGaslessDepositExistingAccount", () => {
       owner: OWNER,
       walletId: 1n,
       subAccount: SUB_ACCOUNT,
-    });
+    }).catch((err: unknown) => err);
+    await vi.advanceTimersByTimeAsync(2_000);
 
-    await expect(settlement).rejects.toMatchObject({ code: "GASLESS_SUBMIT_UNCONFIRMED", status: 0 });
+    expect(await settlement).toMatchObject({ code: "GASLESS_SUBMIT_UNCONFIRMED", status: 0 });
     expect(post).toHaveBeenCalledTimes(2);
   });
 

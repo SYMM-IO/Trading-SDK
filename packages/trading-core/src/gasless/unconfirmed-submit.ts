@@ -96,11 +96,12 @@ export function readGaslessErrorCode(err: unknown): string | undefined {
  * Recover the replayable submit from a `GASLESS_SUBMIT_UNCONFIRMED` error.
  *
  * That error means the SDK could not establish whether the service accepted the
- * request: the transport failed ambiguously and the same-key retry failed too,
- * or a `202` came back without a `request_id`. The relayed transaction may
- * still execute, so the only safe recovery is to **resend the same bytes under
- * the same key** with {@link resubmitGaslessRequest} — never to re-run the
- * intent through the wallet.
+ * request: the transport failed ambiguously and the same-key resend did not land
+ * either, however it was answered, or a `202` came back without a `request_id`.
+ * The relayed transaction may still execute, so the only safe recovery is to
+ * **resend the same bytes under the same key** with
+ * {@link resubmitGaslessRequest} — never to re-run the intent through the
+ * wallet.
  *
  * @param err - Anything caught from a gasless submit, including an error a
  *   framework layer re-wrapped.

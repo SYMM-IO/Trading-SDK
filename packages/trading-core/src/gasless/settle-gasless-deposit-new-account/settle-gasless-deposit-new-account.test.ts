@@ -1,5 +1,5 @@
 import { zeroAddress } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmApiError } from "../../shared/errors/symm-error";
 import { SubAccountIsolationType } from "../../symmio-contracts/account-layer/types";
 import { buildGaslessHttpContext } from "../http";
@@ -42,6 +42,10 @@ function settleTestConfig() {
 describe("settleGaslessDepositNewAccount", () => {
   beforeEach(() => {
     post.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("posts the new-account body to the deposits service and parses the rich receipt", async () => {
@@ -184,6 +188,7 @@ describe("settleGaslessDepositNewAccount", () => {
   });
 
   it("retries once after a network-level failure with the byte-identical body and minted key", async () => {
+    vi.useFakeTimers();
     const { config } = settleTestConfig();
     /** Snapshot each body as sent: both attempts share one object, so `mock.calls` would compare it with itself. */
     const sent: { idempotencyKey?: unknown }[] = [];
@@ -194,12 +199,14 @@ describe("settleGaslessDepositNewAccount", () => {
         : Promise.resolve(ACCEPTED);
     });
 
-    const receipt = await settleGaslessDepositNewAccount(config, {
+    const settlement = settleGaslessDepositNewAccount(config, {
       chainId: GASLESS_TEST_CHAIN,
       owner: OWNER,
       affiliate: zeroAddress,
       accountData: ACCOUNT_DATA,
     });
+    await vi.advanceTimersByTimeAsync(2_000);
+    const receipt = await settlement;
 
     expect(receipt.requestId).toBe("dep-1");
     expect(sent).toHaveLength(2);

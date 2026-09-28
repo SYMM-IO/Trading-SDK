@@ -209,7 +209,8 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * How long to wait before resending a submit the gateway refused.
+ * How long to wait before resending a submit, whether the gateway refused it or
+ * its outcome is unknown.
  *
  * `Retry-After` is honored when the gateway sent one and the browser was
  * allowed to read it, but never trusted as a floor of zero: a cross-origin page
@@ -263,16 +264,25 @@ async function postGaslessOnce<data>(
  *   a wallet-paid retry may follow.
  * - **Ambiguous** (no response, a timeout, or a `5xx` without the gateway
  *   envelope): the service may or may not have accepted it. Resent **once**,
- *   then thrown as `GASLESS_SUBMIT_UNCONFIRMED` carrying the exact bytes that
- *   were sent, so the caller can persist them and replay them later with
- *   `resubmitGaslessRequest`. Never a rejection, and never grounds for a wallet
- *   retry.
+ *   after a {@link gaslessSubmitRetryDelay} backoff, then thrown as
+ *   `GASLESS_SUBMIT_UNCONFIRMED` carrying the exact bytes that were sent, so the
+ *   caller can persist them and replay them later with `resubmitGaslessRequest`.
+ *   Never a rejection, and never grounds for a wallet retry. The backoff is the
+ *   vendor's: a resend that races the first attempt's insert can be answered with
+ *   a `5xx` instead of the record that insert created.
  * - **Answered** (any other status, or a `2xx`): thrown as-is, or returned. A
  *   `2xx` without a `request_id` is unconfirmed too — the workflow exists and
  *   nothing identifies it. A `2xx` from the wrong protocol instance throws
  *   `GASLESS_INSTANCE_MISMATCH` with the parsed body kept in `responseData`,
  *   because the `request_id` in it is the only handle on a request that was
  *   accepted somewhere.
+ *
+ * An ambiguous attempt decides every failure after it. A gateway refusal of the
+ * resend, or a service verdict on it, describes only the resend — the first
+ * attempt may already be executing — so it is thrown as
+ * `GASLESS_SUBMIT_UNCONFIRMED` with that failure as its `cause`. Thrown as-is,
+ * a `429` would read as provably not accepted, and a wallet-paid retry would
+ * execute the intent twice.
  *
  * @param context - The resolved HTTP context for the submit's service.
  * @param path - The submit route (see {@link GASLESS_SUBMIT_ROUTES}).
@@ -291,7 +301,8 @@ export async function postGaslessSubmit<data extends { request_id?: string | nul
   const { service, code } = GASLESS_SUBMIT_ROUTES[path];
   const retriesEndAt = Date.now() + context.submitTimeoutMs;
   let throttleRetries = 0;
-  let ambiguousRetries = 0;
+  /** Set once an attempt failed ambiguously: the service may hold that attempt. */
+  let mayBeAccepted = false;
 
   for (;;) {
     let response: AxiosResponse<data>;
@@ -307,21 +318,24 @@ export async function postGaslessSubmit<data extends { request_id?: string | nul
           await sleep(delay);
           continue;
         }
-        throw err;
       }
 
+      /**
+       * An answer speaks only for the attempt it came back for. Once an
+       * earlier attempt was ambiguous, that attempt may be executing whatever
+       * this one was told, so the failure is unconfirmed, never a rejection.
+       */
+      if (mayBeAccepted) throw unconfirmedGaslessSubmitError(context, { service, path, body, idempotencyKey }, err);
       if (failure !== "ambiguous") throw err;
 
       /**
        * The vendor's prescribed recovery for a lost response: resend the
-       * identical request under the same key, which either lands it or returns
-       * the record it already created.
+       * identical request under the same key, after a backoff, which either
+       * lands it or returns the record it already created.
        */
-      if (ambiguousRetries < 1) {
-        ambiguousRetries += 1;
-        continue;
-      }
-      throw unconfirmedGaslessSubmitError(context, { service, path, body, idempotencyKey }, err);
+      mayBeAccepted = true;
+      await sleep(gaslessSubmitRetryDelay(null));
+      continue;
     }
 
     const mismatch = readGaslessInstanceMismatch(context, response);

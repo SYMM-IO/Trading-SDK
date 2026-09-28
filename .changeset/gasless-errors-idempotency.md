@@ -11,7 +11,7 @@ A relay submit that failed with a timeout, a `502` or a status `0` used to look 
 
 - Every submit (`relayInstantOperations`, `gaslessWalletExecute`, `relayGrantDelegation`, both deposit settlements) now goes through one internal disposition:
   - a `429`, or a `503` carrying the gateway's `{ error }` envelope, is resent under the **same key** after `max(retryAfterMs, 1 s + jitter)`, at most twice and only while the wait fits inside `execution.submitTimeoutMs`. The gateway dropped the request, so nothing can have executed;
-  - an ambiguous failure (status `0`, a timeout, a `5xx` without that envelope) is resent **once**, then thrown as `GASLESS_SUBMIT_UNCONFIRMED`;
+  - an ambiguous failure (status `0`, a timeout, a `5xx` without that envelope) is resent **once**, after a jittered 1–2 s backoff, then thrown as `GASLESS_SUBMIT_UNCONFIRMED`. Once an attempt was ambiguous, every later failure — a gateway `429`/`503` refusing the resend, or a service verdict on it — is thrown as `GASLESS_SUBMIT_UNCONFIRMED` too, with that failure as its `cause`: it speaks for the resend only, while the first attempt may be executing, so it must never read as a fallback-eligible rejection;
   - a `2xx` with no `request_id` is unconfirmed too;
   - a `2xx` from the wrong protocol instance throws `GASLESS_INSTANCE_MISMATCH` with the parsed body — its `request_id` — kept in `responseData`.
 - New `getGaslessUnconfirmedSubmit(err)` returns the replayable `GaslessUnconfirmedSubmit` (`{ chainId, service, path, body, idempotencyKey }`), and `resubmitGaslessRequest(config, submit)` (with `resubmitGaslessRequestMutationOptions`) POSTs those bytes unchanged. A deposit replay re-reads the wallet's deterministic address before the POST, exactly as the original settlement did.

@@ -8,7 +8,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmioSupportedChainId, getChainConfig } from "../../core/chains";
 import { SymmApiError } from "../../shared/errors/symm-error";
 import { gaslessLayerAbi } from "../../symmio-contracts/abi/v0.8.6/gasless-layer";
@@ -194,6 +194,10 @@ describe("transparent gasless dispatch", () => {
     post.mockReset();
     get.mockReset();
     consumedNonce = 5n;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("stays on the wallet path when gasless is off (the default)", async () => {
@@ -439,17 +443,48 @@ describe("transparent gasless dispatch", () => {
       },
     },
   ])("never falls back to the wallet after $label — the relay may already have accepted it", async ({ failure }) => {
+    vi.useFakeTimers();
     const { config, readContract, writeContract } = gaslessWriteTestConfig({
       execution: { mode: "gasless", fallback: "wallet" },
     });
     programReads(readContract);
     post.mockRejectedValue(failure);
 
-    await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS })).rejects.toMatchObject({
-      code: "GASLESS_SUBMIT_UNCONFIRMED",
-    });
+    const pending = initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS }).catch((err: unknown) => err);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(await pending).toMatchObject({ code: "GASLESS_SUBMIT_UNCONFIRMED" });
     expect(writeContract).not.toHaveBeenCalled();
     /** One same-key retry, then the unconfirmed verdict — never a second execution path. */
+    expect(post).toHaveBeenCalledTimes(2);
+  });
+
+  it("never falls back to the wallet when the gateway refuses the resend of an ambiguous submit", async () => {
+    vi.useFakeTimers();
+    /** A spent submit budget, as after a real timeout, so the gateway's refusal is final at once. */
+    const { config, readContract, writeContract } = gaslessWriteTestConfig({
+      execution: { mode: "gasless", fallback: "wallet", submitTimeoutMs: 500 },
+    });
+    programReads(readContract);
+    post
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        message: "socket hang up",
+        config: { url: "/gateway/relay-instant" },
+      })
+      .mockRejectedValue({
+        isAxiosError: true,
+        message: "too many requests",
+        response: { status: 429, statusText: "Too Many Requests", data: { error: "Rate limit exceeded" } },
+        config: { url: "/gateway/relay-instant", method: "post" },
+      });
+
+    const pending = initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS }).catch((err: unknown) => err);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    /** The 429 answered the resend only; the first attempt may be executing, so paying again would run it twice. */
+    expect(await pending).toMatchObject({ code: "GASLESS_SUBMIT_UNCONFIRMED", status: 429 });
+    expect(writeContract).not.toHaveBeenCalled();
     expect(post).toHaveBeenCalledTimes(2);
   });
 
