@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@symmio/ui/components/card";
+import { cn } from "@symmio/ui/lib/utils";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
@@ -16,17 +17,29 @@ export interface LinkCardProps {
   meta?: ReactNode;
   /** Stagger index for the entrance animation. */
   index?: number;
+  /** Extra classes for the outer link — e.g. a grid span for a featured tile. */
+  className?: string;
 }
 
 /**
  * Linked feature card with a tinted icon badge, hover lift, and an accent glow —
  * the navigation tile used on the home page and the Contracts hub.
  */
-export function LinkCard({ href, eyebrow, title, description, icon, cta = "Open", meta, index = 0 }: LinkCardProps) {
+export function LinkCard({
+  href,
+  eyebrow,
+  title,
+  description,
+  icon,
+  cta = "Open",
+  meta,
+  index = 0,
+  className,
+}: LinkCardProps) {
   return (
     <Link
       href={href}
-      className="group animate-enter-up block focus-visible:outline-none"
+      className={cn("group animate-enter-up block focus-visible:outline-none", className)}
       style={{ "--enter-delay": `${120 + index * 80}ms` } as CSSProperties}
     >
       <Card className="group-focus-visible:ring-ring group-hover:ring-primary/40 relative h-full transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg group-focus-visible:ring-2">
@@ -43,9 +56,10 @@ export function LinkCard({ href, eyebrow, title, description, icon, cta = "Open"
           </div>
           <CardTitle className="font-display mt-4 text-lg tracking-tight">{title}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-1 flex-col">
           <p className="text-muted-foreground text-sm leading-6">{description}</p>
-          <div className="mt-5 flex items-center justify-between">
+          {/* `mt-auto` pins the footer to the card's bottom so CTAs line up across a grid row. */}
+          <div className="mt-auto flex items-center justify-between pt-5">
             <span className="text-primary inline-flex items-center gap-1.5 text-sm font-medium">
               {cta}
               <ArrowIcon className="transition-transform duration-300 group-hover:translate-x-1" />
@@ -60,7 +74,7 @@ export function LinkCard({ href, eyebrow, title, description, icon, cta = "Open"
 
 function ArrowIcon({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 16 16" fill="none" className={className ?? "size-4"} aria-hidden>
+    <svg viewBox="0 0 16 16" fill="none" className={cn("size-4", className)} aria-hidden>
       <path
         d="M3 8h10M9 4l4 4-4 4"
         stroke="currentColor"

@@ -25,7 +25,7 @@ export type GetAccountBalanceInfoReturnType = AccountBalanceInfo;
  *
  * @param config - The SDK config.
  * @param parameters - Account address and optional chain id.
- * @returns Raw allocated/locked/pending balance fields in collateral token units.
+ * @returns Raw allocated/locked/pending balance fields, in 18-decimal Core units.
  * @throws {SymmError} when the chain is not supported.
  * @throws Viem's `ContractFunctionExecutionError` and friends for on-chain failures.
  *

@@ -1,6 +1,6 @@
 "use client";
 
-import { txExplorerUrl } from "@/lib/explorer";
+import { type BlockExplorer, useBlockExplorer } from "@/lib/explorer";
 import { formatUsd } from "@/lib/format";
 import { BalanceChangeType, type BalanceHistoryRow } from "@symmio/trading-core";
 import { Badge } from "@symmio/ui/components/badge";
@@ -26,8 +26,11 @@ function formatTimestamp(seconds: number): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-/** Build the column set; `decimals` scales the raw collateral amount for display. */
-function buildColumns(decimals: number): DataTableColumn<BalanceHistoryRow>[] {
+/**
+ * Build the column set; `decimals` scales the raw collateral amount for display
+ * and `txUrl` links each row's hash to the active chain's explorer.
+ */
+function buildColumns(decimals: number, txUrl: BlockExplorer["txUrl"]): DataTableColumn<BalanceHistoryRow>[] {
   return [
     {
       id: "type",
@@ -71,7 +74,7 @@ function buildColumns(decimals: number): DataTableColumn<BalanceHistoryRow>[] {
       header: "Tx",
       align: "end",
       cell: (row) => {
-        const href = txExplorerUrl(row.transaction);
+        const href = txUrl(row.transaction);
         const label = shortenHash(row.transaction);
         return href ? (
           <a
@@ -119,10 +122,12 @@ export function BalanceHistoryTable({
   testId,
   emptyMessage,
 }: Props) {
+  const { txUrl } = useBlockExplorer();
+
   return (
     <DataTable
       testId={testId}
-      columns={buildColumns(decimals)}
+      columns={buildColumns(decimals, txUrl)}
       data={rows}
       totalCount={rows.length}
       getRowId={(row) => row.id}

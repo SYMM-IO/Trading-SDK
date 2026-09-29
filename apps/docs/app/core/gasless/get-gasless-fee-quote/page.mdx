@@ -1,0 +1,180 @@
+import { Callout } from "nextra/components";
+
+# getGaslessFeeQuote
+
+Quote what the GaslessLayer would charge to relay a batch — **before** asking the user to sign anything.
+
+<Callout type="info">
+  **Quoting SDK actions? Prefer [`getGaslessBatchFeeQuote`](/core/gasless/get-gasless-batch-fee-quote).** It takes the
+  same calls `relayGaslessBatch` does — relayable writes by name, GaslessWallet calls — and builds the operations for
+  you, with a cache key that does not change on every render. This page is for operations you build yourself.
+</Callout>
+
+```ts
+import { getGaslessFeeQuote, isGaslessFreeQuotaExhaustedError } from "@symmio/trading-core";
+
+try {
+  const quote = await getGaslessFeeQuote(config, {
+    operations: [{ operation }, { operation: walletOperation, walletId: 2n }],
+  });
+  showFee(quote.totalFee18, quote.collateralDecimals); // 18-decimal amount
+} catch (err) {
+  if (isGaslessFreeQuotaExhaustedError(err)) showQuotaResetNotice();
+  else throw err;
+}
+```
+
+The SDK encodes the batch as the exact `relayInstantBatch(signedOps, signatures, fills, flexFillerSignatures, walletIds)` call the relayer submits and reads the GaslessLayer's `previewFeeQuote(callData, 0)` view. The quote applies per-selector base fees, the payer's fee multiplier, the billing account's daily free quota, and the one-time creation fee of every undeployed GaslessWallet the batch executes from, whatever its id (wallet `0` included). A wallet operation is priced by the selectors of its **inner** calls, not by the `execute` wrapper.
+
+<Callout type="info">
+  **No signature prompt.** The quote carries placeholder signatures (65 zero bytes) and no flex fills. `previewFeeQuote`
+  never verifies signatures, nonces or deadlines, so an unsigned operation with its final calldata and replay header
+  quotes exactly like the signed one.
+</Callout>
+
+The [transparent execution mode](/core/gasless/relayable-writes) runs this as its pre-flight (`preflightFee`, on by default). React consumers use [`useGaslessFeeQuote`](/react/gasless#usegaslessfeequote); plain TanStack Query consumers use `getGaslessFeeQuoteQueryOptions(config, { operations })`. Its key covers every operation field and wallet id, and an omitted `walletId` keys the same as `0n`.
+
+## Reading the quote
+
+**Every amount is 18-decimal**, including fees paid from wallet collateral. Rescale to the collateral token with [`core18ToCollateral`](/core/shared-types#core18tocollateral) before comparing against a raw token balance. It rounds up by default, which is what you want when you fund a fee:
+
+```ts
+import { core18ToCollateral } from "@symmio/trading-core";
+
+const feeInTokenUnits = core18ToCollateral(quote.totalFee18, quote.collateralDecimals); // (fee18 + scale - 1n) / scale
+```
+
+- **`payments`** has one entry per operation, in order. `account` is the operation's `signerAccount.addr`, and it stays the virtual account even when its parent pays. `payer` is the account the contract would charge, resolved from current balances and allowances. A virtual account's operation bills its parent sub-account while the parent's operational-fee allowance and Core balance (free plus allocated) cover its running total in the batch. When they do not, and the live virtual account covers the fee at its own fee multiplier, the quote already names the virtual account as `payer`. A single approval-only operation always names the parent. Show funding and allowance needs per `payer`, not per `account`. Relayed operations are always paid from the payer's SYMMIO balance (`GaslessFeeSource.SYMMIO_ACCOUNT`). `GaslessFeeSource.WALLET_COLLATERAL` marks fees taken from a GaslessWallet's own collateral, such as deposit settlement.
+- **`totalFee18`** is the sum of every fee. **`totalDebit18`** adds native gas collateral, which is `0n` for relayed operations.
+- **`freeOpsApplied`** counts the operations the daily free quota covers. Selecting another wallet id does not create a separate quota.
+
+<Callout type="warning">
+  **A preview, not a guarantee.** `exact` is always `false` from `previewFeeQuote`: only the relayer's own simulation
+  runs the real fee-collection path. Fees are collected after the batch executes, so an operational-fee approval or a
+  transfer inside the same batch can change the charge or move it to another payer, and so can any state change before
+  execution. The quote does not check that the payer can afford it. Refresh it when the action, payer or state changes,
+  and treat the service's simulation as authoritative.
+</Callout>
+
+### Wallet ids
+
+Pass one `walletId` per operation, aligned with the batch. Omit it (or pass `0n`) for ordinary InstantLayer operations, delegation grants and wallet-zero operations. Pass the wallet's id for an operation that executes from a positive-id GaslessWallet; its `target` must be that wallet's address, or the quote reverts with `InvalidWalletOperationTarget`.
+
+The first operation that executes from an undeployed GaslessWallet carries `walletCreationFee18` in its payment, whatever the wallet's id: wallet `0` pays it too, on its first deployment. It is charged once per wallet, to the payer's SYMMIO balance, and neither the free quota nor the fee multiplier reduces it. `totalFee18` already includes it.
+
+Ids are `bigint` from `0n` through `2^256 - 1`. Anything else, including a JavaScript `number`, throws `GASLESS_WALLET_ID_INVALID` before any RPC call.
+
+### An exhausted free quota is a revert
+
+When a billing account has spent its daily free operations and the deployment refuses paid operations after that, `previewFeeQuote` reverts with `DailyFreeOpsLimitExceeded`. The SDK throws `GASLESS_FREE_QUOTA_EXHAUSTED`. Test for it with `isGaslessFreeQuotaExhaustedError(err)`, which also matches the error after React re-wraps it and a raw viem revert from a direct GaslessLayer call. The quota resets at 00:00 UTC.
+
+### Exact quotes and signed fee limits
+
+The GaslessLayer also exposes `simulateFeeQuote`, which runs the completed request through `eth_call` for an exact quote, and signed fee limits that cap an operation's fee inside its replay salt. The SDK wraps neither yet. The simulation executes the real relay as its caller, so it needs the relayer's own address and real signatures; the relayer already simulates every request before accepting it. The fee-limit check is not deployed on the staging GaslessLayer yet.
+
+### Empty revert data
+
+<Callout type="warning">
+  **Multi-wallet GaslessLayer only.** A GaslessLayer proxy that has not been upgraded to the multi-wallet interface has
+  no `previewFeeQuote`, so every quote against it reverts with empty data and throws
+  `GASLESS_LAYER_INTERFACE_UNSUPPORTED`. The production proxy `0x8347953D80037b8d82827246f37EC7442AD188B4` is in that
+  state until the vendor upgrades it.
+</Callout>
+
+An upgraded GaslessLayer also reverts with empty data when it cannot decode the batch, for example malformed wallet `execute` calldata. So on an empty revert the SDK makes one more read on the same address, quoting empty calldata. An upgraded GaslessLayer rejects that with `UnsupportedFeeQuoteCall`, which means the batch is at fault, and the SDK throws `GASLESS_FEE_QUOTE_REVERTED`. Another empty revert means the interface is missing, and the SDK throws `GASLESS_LAYER_INTERFACE_UNSUPPORTED`. If that second read fails for transport reasons, the SDK rethrows the original viem error unchanged.
+
+## Parameters
+
+<Properties>
+  <Property name="operations" type="readonly GaslessFeeQuoteOperation[]" required>
+    The full batch, in relay order. Quote the whole batch at once, because free-quota slots and first-use creation fees
+    are allocated across it. An empty batch throws `GASLESS_EMPTY_BATCH`.
+  </Property>
+  <Property name="operations[].operation" type="SignedOperation" required>
+    The exact operation about to be relayed, with its final calldata, signer account and replay header. No signature is
+    needed.
+  </Property>
+  <Property name="operations[].walletId" type="bigint" optional default="0n">
+    The GaslessWallet id the operation relays with. Use `0n` for ordinary InstantLayer operations and for operations
+    that execute from wallet `0`, and the wallet's id for an operation that executes from a positive-id wallet.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessFeeQuote>">
+  <Property name="collateralToken" type="Address">
+    The collateral token fees are denominated in.
+  </Property>
+  <Property name="collateralDecimals" type="number">
+    The collateral token's decimals, for rescaling the 18-decimal amounts.
+  </Property>
+  <Property name="blockNumber" type="bigint">
+    The contract's `block.number` when the quote was computed. On Arbitrum this is the L1 block estimate, not the L2
+    block number a receipt reports.
+  </Property>
+  <Property name="timestamp" type="bigint">
+    Timestamp of that block, in seconds.
+  </Property>
+  <Property name="exact" type="boolean">
+    Always `false` from `previewFeeQuote`. Only the relayer's simulation is exact.
+  </Property>
+  <Property name="payments" type="readonly GaslessFeePayment[]">
+    One entry per quoted operation, in order.
+  </Property>
+  <Property name="payments[].account" type="Address">
+    The billed identity: the operation's `signerAccount.addr` (a virtual account stays here even when its parent pays),
+    or the GaslessWallet for a wallet-collateral payment.
+  </Property>
+  <Property name="payments[].payer" type="Address">
+    The account the contract would charge, resolved from current state. A virtual account's operation bills its parent
+    sub-account, or the virtual account itself when the parent cannot cover the fee and the live virtual account can.
+    Other accounts pay as themselves, and a wallet-collateral payment names the GaslessWallet. State changes inside the
+    batch can still move the charge; the service's simulation is authoritative.
+  </Property>
+  <Property name="payments[].source" type="GaslessFeeSource">
+    `SYMMIO_ACCOUNT` (`0`): the payer's SYMMIO balance, drawn through its operational-fee allowance. `WALLET_COLLATERAL`
+    (`1`): collateral held at a GaslessWallet.
+  </Property>
+  <Property name="payments[].operationalFee18" type="bigint">
+    Operational fee after multipliers and the free quota (18-decimal).
+  </Property>
+  <Property name="payments[].depositFee18" type="bigint">
+    Deposit-settlement fee (18-decimal). `0n` for relayed operations.
+  </Property>
+  <Property name="payments[].walletCreationFee18" type="bigint">
+    One-time fee for deploying a GaslessWallet of any id, wallet `0` included (18-decimal). A relayed batch charges it
+    once per undeployed wallet, on the first operation that executes from it.
+  </Property>
+  <Property name="payments[].nativeTopUpFee18" type="bigint">
+    Native gas top-up fee (18-decimal). `0n` for relayed operations.
+  </Property>
+  <Property name="payments[].nativeGasCollateral18" type="bigint">
+    Collateral debited to fund a native gas top-up (18-decimal). This is a debit, not a fee.
+  </Property>
+  <Property name="totalFee18" type="bigint">
+    Sum of every payment's fees (18-decimal).
+  </Property>
+  <Property name="totalDebit18" type="bigint">
+    `totalFee18` plus native gas collateral (18-decimal).
+  </Property>
+  <Property name="freeOpsApplied" type="bigint">
+    How many operations the billing accounts' daily free quota covers.
+  </Property>
+  <Property name="nativeSponsored" type="boolean">
+    Whether a native gas top-up would be sponsored. `false` for relayed operations.
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("validation", "GASLESS_EMPTY_BATCH")`: `operations` is empty. Thrown before any RPC call.
+- `SymmError("validation", "GASLESS_WALLET_ID_INVALID")`: a `walletId` is not a `bigint` from `0n` through `2^256 - 1`. Thrown before any RPC call.
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmError("api", "GASLESS_FREE_QUOTA_EXHAUSTED")`: a billing account's daily free quota is spent and the deployment refuses paid operations.
+- `SymmError("validation", "GASLESS_FEE_QUOTE_REVERTED")`: the contract rejected the batch, for example a wallet operation whose target is not the wallet of its id, or could not decode it, which reverts with empty data. The message names the decoded error when there is one, and the viem error is the `cause`. The relay would revert the same way.
+- `SymmError("config", "GASLESS_LAYER_INTERFACE_UNSUPPORTED")`: the configured `gaslessLayerAddress` has no `previewFeeQuote`. An empty-data revert gets this code only when a second read, quoting empty calldata, reverts empty too.
+- Viem transport errors, unchanged. An empty-data revert is also rethrown unchanged when that second read fails for transport reasons.

@@ -74,7 +74,7 @@ import {
 } from "@symmio/trading-react";
 ```
 
-Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `UserListingMarket`, `UserListingMarketPage`, `UserPoolProfit`, `CreatedPool`, `ListingConfig`, `ListingDepositChain`, `ListingRateLimits`, `WeeklyListingLimit`, `ListingMarketStatus`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, `PoolRewardPoint`, `UserPoolRewardChart`, `ListingMarketConfig`, `ListingMarketConfigProjection`, `LISTING_MARKET_CONFIG_BOUNDS` — the client-side range for the two configuration knobs — and `LISTING_VALUE_DECIMALS`, the fixed-point scale every money and rate field on a row uses.
+Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `UserListingMarket`, `UserListingMarketPage`, `UserPoolProfit`, `CreatedPool`, `ListingConfig`, `ListingDepositChain`, `ListingRateLimits`, `WeeklyListingLimit`, `ListingMarketStatus`, `MarketLockReason`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, `PoolRewardPoint`, `UserPoolRewardChart`, `ListingMarketConfig`, `ListingMarketConfigProjection`, `LISTING_MARKET_CONFIG_BOUNDS` — the client-side range for the two configuration knobs — and `LISTING_VALUE_DECIMALS`, the fixed-point scale every money and rate field on a row uses.
 
 ## Gate the feature first
 
@@ -230,12 +230,13 @@ function rate(raw: bigint | null) {
 }
 ```
 
-Four row-level facts worth wiring into the UI rather than discovering later:
+Five row-level facts worth wiring into the UI rather than discovering later:
 
 - **`null` is not `0`.** It means the service reported no value for that column — a market younger than 30 days has no `d30` window. Render it as a dash, never as `$0` or `0%`.
 - **`chainId` is the token's deposit chain**, a `ListingDepositChainId` — not the chain the market trades on. `ListingDepositChainId.SOLANA` is `0`, a non-EVM sentinel, and those rows carry a **base58** `contractAddress`. Check `chainId` before handing an address to any EVM helper.
 - **`symbolId` is `null` until the market is `LISTED`.** Everything downstream — prices, notional caps, quotes, subgraph rows — keys off it, so a `null` here means the row is not tradable yet.
 - **`listingTime` is Unix seconds** (`null` before listing), while the trailing-window metrics (`aprByWindow`, `tvlDrivenApy`, `priceDrivenApy`) are objects keyed `h1` / `h6` / `h24` / `d30`, with the two APY series adding `lifetime`.
+- **`isLocked` blocks deposits only.** The inventory service's lock flag, independent of `marketStatus` — a `LISTED` market can be locked. Hide or disable the deposit flow while it is `true`; trading, withdrawals and claims are unaffected. The row carries only the flag — the reasons are on [`useListingMarketDetail`](#the-detail-tables) as `lockReasons` (see [`MarketLockReason`](/core/pools/listing-market-type#marketlockreason)).
 
 ### Every control is server-side
 
@@ -589,6 +590,14 @@ const { data, isPending, error } = useDepositAddress({
 // where the user sends funds to deposit into this market:
 data?.depositAddress;
 ```
+
+<Callout type="warning">
+  Check the market's lock before offering the address. While `isLocked` is `true` — on the
+  [`useListingMarkets`](#uselistingmarkets) row or on `useListingMarketDetail` — the pool accepts **no new deposits**,
+  so hide or disable the deposit flow instead of showing the wallet. Deposits are the only thing a lock blocks: trading,
+  withdrawals and claims stay available. See [`MarketLockReason`](/core/pools/listing-market-type#marketlockreason) for
+  the reasons.
+</Callout>
 
 ### It needs a token and a market, and stays idle without either
 
@@ -1520,6 +1529,8 @@ function PoolPositions({ tokenContractAddress, depositChain }) {
 ```
 
 Sides the backend reported nothing for are omitted, so an empty array means no inventory at all. A side reporting a genuine zero size is kept — a different state, and worth rendering as one.
+
+The same response carries the pool's **lock**: `isLocked` and `lockReasons` (a `MarketLockReason[]`). A lock pauses deposits only — trading, withdrawals and claims stay available — so surface it next to the status badge rather than as a lifecycle state, and gate the deposit flow on it. A reason this SDK release does not know arrives as `MarketLockReason.UNKNOWN`; it is still a lock. The catalogue row from `useListingMarkets` has the flag but not the reasons, so this is the read to explain a lock with.
 
 ### Fetch only the visible tab
 

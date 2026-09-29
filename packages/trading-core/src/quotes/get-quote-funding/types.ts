@@ -3,8 +3,10 @@
  *
  * All amount fields are 18-decimal-wei `bigint`. `netReceived = received − paid`
  * — the P&L perspective every trading venue presents — so a positive value means
- * the position has **earned** funding over its life and a negative value means it
- * has **paid** for it.
+ * the position has **earned** funding **to date** and a negative value means it
+ * has **paid** for it. These are the amounts the subgraph has indexed: funding
+ * accrued since the last charge is read on-chain with
+ * {@link getQuotePendingFunding} and is not part of these totals.
  *
  * Note this is the inverse of the on-chain `int256`, which is cost-positive. The
  * SDK nets it the way it is read, so consumers never negate.

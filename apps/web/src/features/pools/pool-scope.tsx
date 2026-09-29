@@ -13,6 +13,7 @@ import {
   rateTone,
   truncateContractAddress,
 } from "./format-listing-value";
+import { PoolLockBadge } from "./pool-lock";
 import { PoolSelect } from "./pool-select";
 
 interface PoolScopeValue {
@@ -119,6 +120,7 @@ function PoolSummary({ market, testId }: { market: ListingMarket; testId: string
         </span>
         <Badge variant="outline">{depositChainLabel(market.chainId)}</Badge>
         <Badge variant={status.variant}>{status.label}</Badge>
+        {market.isLocked ? <PoolLockBadge testId={`${testId}-locked`} /> : null}
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-3 @xl:grid-cols-4">
         <Stat size="sm" label="TVL" value={formatListingUsd(market.tvl)} />

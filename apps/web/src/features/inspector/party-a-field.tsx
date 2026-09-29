@@ -44,9 +44,9 @@ type PartyAKind = "sub" | "va";
 /**
  * Address field for a SYMMIO `partyA` — a subaccount or one of its virtual
  * accounts (lowcap). The picker lists the owner's subaccounts as expandable
- * groups; expanding a subaccount lazily loads its VA addresses so the user can
- * select the subaccount itself or any of its VAs. A pasted/typed address is
- * still accepted directly. Pass `selectable="va"` to restrict selection to
+ * groups, each row showing how many VAs it holds; expanding one reveals them so
+ * the user can select the subaccount itself or any of its VAs. A pasted/typed
+ * address is still accepted directly. Pass `selectable="va"` to restrict selection to
  * virtual accounts only (see {@link VirtualAccountField}).
  */
 export function PartyAField({
@@ -234,7 +234,12 @@ function SubAccountGroup({
   const subSelected = subAccount.toLowerCase() === normalizedValue;
   const subSelectable = selectable === "both";
 
-  const vaQuery = useVirtualAccountsAddressesOfSubAccount({ subAccount, query: { enabled: expanded } });
+  /**
+   * Loaded for every visible row, not just the expanded one, so the row can
+   * show its VA count before the user opens it. The transports batch JSON-RPC
+   * calls, so the whole list costs one request, and expanding reuses the cache.
+   */
+  const vaQuery = useVirtualAccountsAddressesOfSubAccount({ subAccount });
   const vas = useMemo(() => vaQuery.data ?? [], [vaQuery.data]);
   const visibleVas = useMemo(
     () => (search ? vas.filter((va) => va.toLowerCase().includes(search)) : vas),
@@ -259,7 +264,10 @@ function SubAccountGroup({
               <span className="text-muted-foreground mt-0.5 block font-mono text-xs">{shortenAddress(subAccount)}</span>
             </span>
           </span>
-          {subSelectable && subSelected ? <CheckIcon className="text-primary size-4 shrink-0" /> : null}
+          <span className="flex shrink-0 items-center gap-2">
+            <VaCount testId={`${idPrefix}-sub-va-count`} count={vaQuery.data?.length} loading={vaQuery.isLoading} />
+            {subSelectable && subSelected ? <CheckIcon className="text-primary size-4 shrink-0" /> : null}
+          </span>
         </button>
 
         <button
@@ -308,6 +316,29 @@ function SubAccountGroup({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * VA-count badge on a subaccount row: answers "does this subaccount have
+ * virtual accounts?" without expanding it. Tinted when the subaccount has VAs,
+ * muted at zero, and a skeleton while the list is in flight; renders nothing
+ * when the read failed (the expanded row surfaces the error).
+ */
+function VaCount({ testId, count, loading }: { testId: string; count?: number; loading: boolean }) {
+  if (loading) return <Skeleton className="bg-muted-foreground/15 h-4 w-9 rounded" />;
+  if (count === undefined) return null;
+  return (
+    <span
+      data-testid={testId}
+      data-va-count={count}
+      className={cn(
+        "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wider uppercase",
+        count > 0 ? "bg-info/10 text-info" : "text-muted-foreground/60",
+      )}
+    >
+      {count} VA
+    </span>
   );
 }
 

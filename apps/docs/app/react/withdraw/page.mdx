@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Withdraw hooks
 
 Withdraw request lifecycle — initiate, cancel, finalize, plus reads for the pending queue.
@@ -115,6 +117,13 @@ const { withdrawableAt, isReady } = useWithdrawableTime({ requestId });
 
 ## Writes
 
+<Callout type="info">
+  Every write on this page is [relayable](/core/gasless/relayable-writes): pass `gasless: true` in the mutation
+  variables to sign it as an InstantLayer operation and let the relayer pay the gas. See [Gasless
+  hooks](/react/gasless). A relayed write still pays an operational fee from the Core balance — budget it first, as
+  [Gasless withdrawals](#gasless-withdrawals) describes.
+</Callout>
+
 ### `useInitiateWithdraw` / `useSimulateInitiateWithdraw`
 
 Submit a withdraw request directly, without the isolation dispatch. This is the
@@ -146,6 +155,48 @@ Claim funds after the delay expires.
 const mutation = useFinalizeWithdrawRequest();
 mutation.mutate({ account, requestId });
 ```
+
+## Gasless withdrawals
+
+Relaying a withdrawal removes the gas, not the cost. The GaslessLayer charges an operational fee **after** the operation executes, from the Core balance of the account that pays — for a plain withdrawal, the sub-account itself. The withdrawal and its fee draw on the same balance, so budget both, in Core units:
+
+```text
+required Core balance = withdrawal amount in Core units + operational fee in Core units
+```
+
+The withdrawal `amount` is in the collateral token's decimals, while the Core balance and the fee are 18-decimal. Convert the amount with [`collateralToCore18`](/core/shared-types#collateraltocore18) before you compare. A `MARKET` / `MARKET_DIRECTION` sub-account withdraws from its available balance:
+
+```tsx
+import { collateralToCore18 } from "@symmio/trading-core";
+import { useAccountBalanceOf, useSymmioChainId, useSymmioConfig, useWithdraw } from "@symmio/trading-react";
+
+const config = useSymmioConfig();
+const chainId = useSymmioChainId();
+const { collateralDecimals } = config.getChainConfig(chainId).addresses;
+const balance18 = useAccountBalanceOf({ account }).data; // 18-decimal Core units
+
+const required18 = collateralToCore18(amount, collateralDecimals) + fee18;
+const affordable = balance18 !== undefined && balance18 >= required18;
+
+const { mutate } = useWithdraw({ account });
+mutate({ amount, receiver, gasless: true }); // amount stays in collateral decimals
+```
+
+A `CUSTOM` sub-account holds its funds in the allocated balance and deallocates the amount first, so budget the same total against its `allocatedBalance` from [`useAccountBalanceInfo`](/react/account-layer#useaccountbalanceinfo). The fee is drawn from the free balance first, then from the allocated balance.
+
+`fee18` is the operation's quoted fee — `totalFee18` from [`useGaslessFeeQuote`](/react/gasless#usegaslessfeequote) for the batch you relay. The quote is a preview, so keep a margin, and reserve the budgets of any other relayed operations still pending. Neither the quote nor the transparent mode's fee pre-flight checks that the payer can afford the fee. A shortfall is refused before acceptance with `SIMULATION_REVERTED` and the Core revert `OperationalFee: Insufficient balance`, which approving more allowance does not fix. Read current fees rather than hard-coding them; they are deployment configuration.
+
+<Callout type="warning">
+  **A relayed withdrawal that succeeds is _initiated_, not received.** A `succeeded` relay, and the mutation that
+  resolves with it, means the withdraw request exists on-chain and its amount has left the Core balance. The funds reach
+  the receiver only after the cooldown and a separate finalize. Show "withdrawal initiated" until then, and follow the
+  request with `useWithdrawableTime` and `usePendingWithdrawRequests`.
+</Callout>
+
+**Finalizing and cancelling cost a fee too when relayed.** Each is its own relayed operation, charged in Core units to the request's sub-account unless the daily free quota covers it:
+
+- A relayed **finalize** adds nothing to the Core balance, so the fee must still be there when it runs. Withdrawing the whole balance leaves nothing to pay it with. Keep the fee back, or finalize from the wallet (`gasless: false`), which costs native gas but no operational fee.
+- A relayed **cancel** of a pending request refunds the amount before the fee is collected, so the refund can cover the fee. A cancel that only asks the request's withdraw provider to cancel refunds nothing yet, so it needs the reserve as well.
 
 ## Related
 

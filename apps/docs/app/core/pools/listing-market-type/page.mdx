@@ -74,6 +74,12 @@ Money and rate fields are `bigint` at `LISTING_VALUE_DECIMALS` (18), independent
   <Property name="marketStatus" type="ListingMarketStatus">
     Where the market sits in the listing lifecycle. See [`ListingMarketStatus`](#listingmarketstatus).
   </Property>
+  <Property name="isLocked" type="boolean">
+    Whether the inventory service currently has this market's pool locked against new deposits. Only deposits are
+    blocked — trading, withdrawals and every other flow stay available. Independent of `marketStatus` — a `LISTED`
+    market can be locked. The row carries only the flag; the reasons are on
+    [`getListingMarketDetail`](/core/pools/market-detail) as `lockReasons`. See [`MarketLockReason`](#marketlockreason).
+  </Property>
 </Properties>
 
 <Callout type="warning">
@@ -163,6 +169,48 @@ import { ListingMarketStatus } from "@symmio/trading-core";
 
 const tradable = market.marketStatus === ListingMarketStatus.LISTED;
 ```
+
+## MarketLockReason
+
+Why the inventory service has locked a market's pool against new deposits. A lock blocks **deposits only** — trading,
+withdrawals, claims and every other flow stay available. It is also **orthogonal** to
+[`ListingMarketStatus`](#listingmarketstatus): a `LISTED` market can be locked, and the lock lifts without the lifecycle
+status moving. The catalogue row exposes only the boolean `isLocked`; the reasons come back on
+[`getListingMarketDetail`](/core/pools/market-detail) as `lockReasons`.
+
+<Properties>
+  <Property name="LIQUIDITY_EXPOSURE" type='"LIQUIDITY_EXPOSURE"'>
+    Locked on the service's liquidity-exposure limit.
+  </Property>
+  <Property name="LOW_TVL" type='"LOW_TVL"'>
+    The pool's TVL is below the service's threshold.
+  </Property>
+  <Property name="PRICE_UNAVAILABLE" type='"PRICE_UNAVAILABLE"'>
+    The service has no price for the token.
+  </Property>
+  <Property name="SHORT_CIRCUIT" type='"SHORT_CIRCUIT"'>
+    The service's short-circuit guard tripped.
+  </Property>
+  <Property name="MANUAL" type='"MANUAL"'>
+    An operator locked the market by hand.
+  </Property>
+  <Property name="UNKNOWN" type='"UNKNOWN"'>
+    A reason this SDK release does not recognize. The mapper folds every unrecognized wire value here rather than
+    throwing, so a reason added by a newer backend never breaks the read.
+  </Property>
+</Properties>
+
+```ts
+import { MarketLockReason } from "@symmio/trading-core";
+
+const lockedForTvl = detail.isLocked && detail.lockReasons.includes(MarketLockReason.LOW_TVL);
+```
+
+<Callout type="info">
+  Gate the **deposit** action on `isLocked`, not on the reasons: `UNKNOWN` is still a lock. Leave trading, withdrawals
+  and claims enabled — a lock does not touch them. Use `lockReasons` to explain the lock to the user, and treat
+  `UNKNOWN` as "locked for a reason this version cannot name".
+</Callout>
 
 ## ListingDepositChainId
 

@@ -1,4 +1,8 @@
-import { getMarketsQueryKey, getUserSubAccountsQueryKey } from "@symmio/trading-core";
+import {
+  getGaslessWalletCreationFeeQueryKey,
+  getMarketsQueryKey,
+  getUserSubAccountsQueryKey,
+} from "@symmio/trading-core";
 import type { Query, QueryKey } from "@tanstack/react-query";
 import { arbitrum, mainnet } from "viem/chains";
 import { describe, expect, it } from "vitest";
@@ -44,5 +48,19 @@ describe("predicateMatch", () => {
   it("rejects when the trailing segment is not a plain object", () => {
     const predicate = predicateMatch(getUserSubAccountsQueryKey, { user: USER });
     expect(predicate(queryWith(["getUserSubAccounts", "not-an-object"]))).toBe(false);
+  });
+
+  it("ignores a default the key factory fills in for a field the partial omits", () => {
+    /** The factory keys an omitted `walletId` as `0n`; the partial asked for no wallet id at all. */
+    const predicate = predicateMatch(getGaslessWalletCreationFeeQueryKey, { owner: USER });
+    expect(predicate(queryWith(getGaslessWalletCreationFeeQueryKey({ owner: USER })))).toBe(true);
+    expect(predicate(queryWith(getGaslessWalletCreationFeeQueryKey({ owner: USER, walletId: 2n })))).toBe(true);
+    expect(predicate(queryWith(getGaslessWalletCreationFeeQueryKey({ owner: OTHER, walletId: 2n })))).toBe(false);
+  });
+
+  it("compares a defaulted field once the partial sets it, in the factory's serialized form", () => {
+    const predicate = predicateMatch(getGaslessWalletCreationFeeQueryKey, { owner: USER, walletId: 0n });
+    expect(predicate(queryWith(getGaslessWalletCreationFeeQueryKey({ owner: USER })))).toBe(true);
+    expect(predicate(queryWith(getGaslessWalletCreationFeeQueryKey({ owner: USER, walletId: 2n })))).toBe(false);
   });
 });

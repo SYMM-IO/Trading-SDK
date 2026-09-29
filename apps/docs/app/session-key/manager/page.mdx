@@ -45,6 +45,12 @@ const { signature } = await manager.sign("hello");
   <Property name="rotate(owner, options?)" type="Promise<SessionKeyState>">
     Generate a new key, persist it (replacing any existing key for `owner`), and load it.
   </Property>
+  <Property name="getAccount()" type="LocalAccount | null">
+    The loaded key as a viem `LocalAccount`, or `null` when none is in memory. **This is the seam for wiring a session
+    key into the SDK** — hand it to [`createSessionKeyWalletClientResolver`](/react/provider) so relayable writes can be
+    signed by the key. Prefer it over `getPrivateKey()` everywhere except explicit device transfer: the raw key never
+    leaves the manager.
+  </Property>
   <Property name="sign(message)" type="Promise<SessionKeySignature>">
     Sign a UTF-8 string as an EIP-191 personal message. Returns the signature, the signing address, and the client-side
     `durationMs`. Throws if no key is loaded.

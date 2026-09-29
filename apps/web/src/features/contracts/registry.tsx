@@ -6,6 +6,7 @@ import { ReadCollateralBalance } from "../inspector/read-collateral-balance";
 import { ReadDeallocateUpnlSig } from "../inspector/read-deallocate-upnl-sig";
 import { ReadDelegationReads } from "../inspector/read-delegation-reads";
 import { ReadFeeForUser } from "../inspector/read-fee-for-user";
+import { ReadGetFundingFeesOfPartyB } from "../inspector/read-get-funding-fees-of-party-b";
 import { ReadGetPartyAOpenPositions } from "../inspector/read-get-party-a-open-positions";
 import { ReadGetPartyAPendingQuotes } from "../inspector/read-get-party-a-pending-quotes";
 import { ReadGetQuote } from "../inspector/read-get-quote";
@@ -156,6 +157,13 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     abi: "symmio-core",
     groups: ["positions"],
     Component: ReadGetQuote,
+  },
+  {
+    id: "getFundingFeesOfPartyB",
+    kind: "read",
+    abi: "symmio-core",
+    groups: ["positions"],
+    Component: ReadGetFundingFeesOfPartyB,
   },
   {
     id: "quotePriceHistory",

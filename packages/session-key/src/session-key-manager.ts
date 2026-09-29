@@ -1,4 +1,4 @@
-import type { Address, Hex } from "viem";
+import type { Address, Hex, LocalAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { SESSION_KEY_EXPIRY_MS } from "./constants";
 import type {
@@ -194,6 +194,27 @@ class DefaultSessionKeyManager implements SessionKeyManager {
     return this.account?.address ?? null;
   }
 
+  /**
+   * Return the loaded session key as a viem account.
+   *
+   * Hand this to viem's `createWalletClient` or to an SDK wallet-client resolver.
+   * Strictly preferred over {@link DefaultSessionKeyManager.getPrivateKey}: only
+   * the signing capability leaves the manager, never the raw private key.
+   *
+   * @returns The session key account, or `null` when no key is loaded.
+   */
+  getAccount(): LocalAccount | null {
+    return this.account;
+  }
+
+  /**
+   * Return the current raw private key, if loaded.
+   *
+   * Device-transfer/export flows only. For signing use
+   * {@link DefaultSessionKeyManager.getAccount}.
+   *
+   * @returns The raw private key, or `null` when no key is loaded.
+   */
   getPrivateKey(): Hex | null {
     return this.rawPrivateKey;
   }

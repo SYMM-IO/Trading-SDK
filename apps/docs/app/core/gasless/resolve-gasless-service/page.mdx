@@ -1,0 +1,121 @@
+import { Callout } from "nextra/components";
+
+# resolveGaslessService
+
+Resolve the chain's GaslessQ relayer configuration — the config-level gate every gasless action runs first, so a chain without the service fails immediately, with a typed error and no network traffic.
+
+```ts
+import { resolveGaslessService } from "@symmio/trading-core";
+
+const { url, gaslessLayerAddress } = resolveGaslessService(config, { chainId });
+```
+
+Two conditions must hold: the chain carries a `gasless` block (`SymmioGaslessConfig`), and its `contractsVersion` is `"0.8.6"` — the relayer supports only perps-core deployments, and backward compatibility with older contracts is intentionally unsupported. No chain ships a built-in block, so this is `false` until an override supplies one — Arbitrum (42161) is the only `"0.8.6"` chain; Base runs `"0.8.5"` contracts and resolves `GASLESS_UNSUPPORTED_CONTRACTS_VERSION` even with a block forced onto it. Consumers add the deployment and execution policy with a `createConfig` override (a full example lives on the [gasless overview](/core/gasless)).
+
+<Callout type="info">
+  The gateway serves anonymous clients by default, so a browser app whose Origin the deployment allows configures no
+  `apiKey` and calls the gateway origin directly. Where anonymous access is on, an `apiKey` is a partner key that only
+  raises rate limits; a deployment that turns anonymous access off requires one. Keep a key on a server, and never ship
+  it in a browser bundle. See [Connection model & authentication](/core/gasless#connection-model--authentication).
+</Callout>
+
+## URL forms
+
+The SDK classifies `url` once and derives each service's base from it. Every form except the origin may be relative (a same-origin path).
+
+| `url` form                   | Example                                                    | Service base the SDK calls                        | Instance check                                                                                               |
+| ---------------------------- | ---------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Gateway origin (recommended) | `https://gateway.example`                                  | `{url}/v1/instances/{protocolInstance}/{service}` | Every successful (2xx) response must carry `X-GasLessQ-Protocol-Instance` equal to `protocolInstance`.       |
+| Instance root                | `https://gateway.example/v1/instances/<protocol-instance>` | `{url}/{service}`                                 | Every successful (2xx) response must carry the header, equal to the instance the path pins.                  |
+| Instance-pinned service base | `…/v1/instances/<protocol-instance>/operations`            | `{url}`, for that service only                    | Every successful (2xx) response must carry the header, equal to the instance the path pins.                  |
+| Proxy root (any other path)  | `/api/gasless`                                             | `{url}/{service}`                                 | Checked only when a successful response carries the header, against `protocolInstance` (skipped without it). |
+
+Only successful responses are checked. An error status surfaces as a plain `SymmApiError` (for example a `404` `NOT_FOUND`), whichever instance answered. A proxy may not forward the gateway's instance header, so a proxy root only fails on a header that is present and names another instance. Every call that builds a service base throws a `config` error for a `url` it cannot use:
+
+- `GASLESS_URL_LEGACY_ROUTE` — an instance-less `/v1/operations` or `/v1/deposits` base. The gateway is retiring those compatibility routes, and they pin no instance to verify responses against; use the origin with `protocolInstance`.
+- `GASLESS_PROTOCOL_INSTANCE_REQUIRED` — an origin without `protocolInstance`.
+- `GASLESS_PROTOCOL_INSTANCE_CONFLICT` — an instance root or service base whose path pins a different instance than `protocolInstance`.
+- `GASLESS_URL_SERVICE_MISMATCH` — a service base used for the other service.
+- `GASLESS_URL_INVALID` — an empty or unparseable `url`, a scheme other than `https` / `http`, a query string or fragment (the SDK appends paths to `url`), or credentials (`user:password@`) in the URL. Pass a partner key as `apiKey` instead, so it never rides into logs or errors.
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="SymmioGaslessConfig">
+  <Property name="url" type="string">
+    Where the SDK reaches the gateway: the gateway origin (recommended), an instance root, an instance-pinned service
+    base, or a proxy root — see [URL forms](#url-forms).
+  </Property>
+  <Property name="protocolInstance" type="string" optional>
+    Instance key selecting the deployment at the gateway (`"<protocol-instance>"`, from the deployment handoff).
+    Required with an origin `url`; must match the instance an instance-root or service-base path pins; with a proxy
+    root, the instance a forwarded response header is checked against.
+  </Property>
+  <Property name="gaslessLayerAddress" type="Address">
+    The GaslessLayer proxy — the operational-fee charger and the source of every gasless contract read. A deployment
+    constant with no runtime discovery; update it on a gateway redeploy.
+  </Property>
+  <Property name="apiKey" type="string" optional>
+    Partner key, sent as `Authorization: Bearer <key>`. Omitted (the default), requests are anonymous and carry no
+    `Authorization` header; a deployment that turns anonymous access off answers them with `401`. Server-side only; an
+    invalid key is rejected, never downgraded to anonymous.
+  </Property>
+  <Property name="statusStream" type="SymmioGaslessStatusStreamConfig" optional>
+    Whether this deployment serves the status WebSocket. Streams are optional and disabled by default at the gateway,
+    and each environment enables them separately, so declare the block only once the operators confirm it. Currently
+    informational: status reads still poll over HTTP, which stays available either way.
+  </Property>
+  <Property name="statusStream.enabled" type="boolean">
+    `true` once streams are confirmed for this environment and protocol instance.
+  </Property>
+  <Property name="statusStream.origin" type="string" optional>
+    The gateway's `https://` origin, needed only when `url` is a proxy root — a proxy that forwards HTTP is not assumed
+    to forward WebSockets. Omit it for every gateway `url` form.
+  </Property>
+  <Property name="execution" type="GaslessExecutionConfig" optional>
+    Transparent execution-mode defaults — see [Relayable writes](/core/gasless/relayable-writes).
+  </Property>
+  <Property name="execution.submitTimeoutMs" type="number" optional default="30_000">
+    HTTP timeout for every gasless submit (relay and deposit-settlement POSTs, explicit or transparent). A timed-out
+    submit is ambiguous — the gateway may have accepted it — and fails with `status: 0`. Status reads are not bounded
+    by it.
+  </Property>
+  <Property name="execution.queuedPollMs" type="number" optional default="1_500">
+    Status poll cadence while a request is `queued`. Every status wait falls back to it, including the ones a relayed
+    write runs for you.
+  </Property>
+  <Property name="execution.submittedPollMs" type="number" optional default="3_000">
+    Status poll cadence after a request is `submitted`.
+  </Property>
+  <Property name="execution.streamSettleMs" type="number" optional default="1_000">
+    How long a status wait lets the stream settle before falling back to its first HTTP read — see
+    [`waitForGaslessRequest`](/core/gasless/wait-for-gasless-request#the-stream-leads-http-is-the-fallback).
+  </Property>
+  <Property name="execution.streamStaleMs" type="number" optional default="15_000">
+    How long a delivering stream may report nothing about a workflow before one HTTP read is taken anyway.
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` — the chain has no `gasless` block.
+- `SymmError("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")` — the chain runs pre-perps-core contracts.
+
+## supportsGaslessService
+
+The non-throwing boolean twin, for `enabled` gates and UI — a chain without the service (or an unknown chain) reads `false` instead of throwing, so gasless features hide rather than error.
+
+```ts
+import { supportsGaslessService } from "@symmio/trading-core";
+
+if (supportsGaslessService(config, { chainId })) showGaslessToggle();
+```
+
+In React, use [`useSupportsGaslessService`](/react/gasless#usesupportsgaslessservice).

@@ -7,7 +7,7 @@
  * (two calls that differ only by a refreshed token still hit the same entry) and
  * must never leak into a devtools-visible key.
  */
-const NON_KEY_FIELDS = new Set(["query", "enabled", "config", "accessToken"]);
+const NON_KEY_FIELDS = new Set(["query", "enabled", "config", "accessToken", "signal"]);
 
 /**
  * Turn an options object into the plain, hashable payload that trails a query

@@ -1,7 +1,7 @@
 import { encodeFunctionData, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "../../../core/config";
 import { getDeallocateUpnlSig } from "../../../muon/deallocate-upnl-sig/get-deallocate-upnl-sig";
-import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import type { SingleUpnlSig } from "../../account-layer/types";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
@@ -11,47 +11,48 @@ import type { WithdrawReceiverPart } from "../types";
  * Parameters for {@link deallocateAndInitiateWithdraw}.
  */
 export type DeallocateAndInitiateWithdrawParameters = Compute<
-  WriteContractParameter & {
-    /**
-     * The subaccount to deallocate from and initiate the withdrawal for. Both
-     * inner calls are routed through the AccountLayer `_call` proxy so the core
-     * attributes them to this subaccount; the connected wallet must be its
-     * on-chain `owner`.
-     */
-    account: Address;
-    /**
-     * Amount to move from the allocated balance back into the available balance,
-     * in **18 decimals** (not the collateral token's decimals). This is the
-     * `deallocate` leg; the freed collateral is what the withdrawal then requests.
-     */
-    amount: bigint;
-    /**
-     * The receiver parts the withdrawal is split into. A plain same-chain
-     * withdrawal is a single part with both provider fields set to the zero
-     * address — see `createClassicWithdrawPart`.
-     */
-    parts: readonly WithdrawReceiverPart[];
-    /**
-     * Opt into the cooldown speed-up flow. Only effective for speed-up-eligible
-     * users; ignored otherwise.
-     * @default false
-     */
-    speedUp?: boolean;
-    /**
-     * Opaque provider data forwarded to express/virtual providers (e.g. a signed
-     * option). Pass `0x` for a classic withdrawal.
-     * @default "0x"
-     */
-    providerData?: Hex;
-    /**
-     * A fresh Muon uPnL (`uPnl_A`) attestation for `account`, required by the
-     * `deallocate` leg to prove the subaccount stays solvent. It is timestamped
-     * and short-lived, so **omit it** to have the action fetch a fresh one (via
-     * {@link getDeallocateUpnlSig}) immediately before submitting; pass one only
-     * to reuse a signature you already fetched.
-     */
-    upnlSig?: SingleUpnlSig;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /**
+       * The subaccount to deallocate from and initiate the withdrawal for. Both
+       * inner calls are routed through the AccountLayer `_call` proxy so the core
+       * attributes them to this subaccount; the connected wallet must be its
+       * on-chain `owner`.
+       */
+      account: Address;
+      /**
+       * Amount to move from the allocated balance back into the available balance,
+       * in **18 decimals** (not the collateral token's decimals). This is the
+       * `deallocate` leg; the freed collateral is what the withdrawal then requests.
+       */
+      amount: bigint;
+      /**
+       * The receiver parts the withdrawal is split into. A plain same-chain
+       * withdrawal is a single part with both provider fields set to the zero
+       * address — see `createClassicWithdrawPart`.
+       */
+      parts: readonly WithdrawReceiverPart[];
+      /**
+       * Opt into the cooldown speed-up flow. Only effective for speed-up-eligible
+       * users; ignored otherwise.
+       * @default false
+       */
+      speedUp?: boolean;
+      /**
+       * Opaque provider data forwarded to express/virtual providers (e.g. a signed
+       * option). Pass `0x` for a classic withdrawal.
+       * @default "0x"
+       */
+      providerData?: Hex;
+      /**
+       * A fresh Muon uPnL (`uPnl_A`) attestation for `account`, required by the
+       * `deallocate` leg to prove the subaccount stays solvent. It is timestamped
+       * and short-lived, so **omit it** to have the action fetch a fresh one (via
+       * {@link getDeallocateUpnlSig}) immediately before submitting; pass one only
+       * to reuse a signature you already fetched.
+       */
+      upnlSig?: SingleUpnlSig;
+    }
 >;
 
 /** Return type of {@link deallocateAndInitiateWithdraw}: the submitted transaction hash. */
@@ -126,5 +127,6 @@ export async function deallocateAndInitiateWithdraw(
     chainId,
     from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
+    gasless: parameters.gasless,
   });
 }

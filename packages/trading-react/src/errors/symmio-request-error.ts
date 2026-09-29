@@ -17,6 +17,11 @@ export interface SymmioRequestErrorOptions {
    * server's structured error fields without unwrapping `cause`.
    */
   responseData?: unknown;
+  /**
+   * Retry delay the server asked for, in ms, from `SymmApiError.retryAfterMs`.
+   * Only meaningful when `kind === "api"`. Defaults to `null`.
+   */
+  retryAfterMs?: number | null;
   /** Solidity revert reason. Only meaningful when `kind === "contract-revert"`. */
   reason?: string;
   /** viem's human-readable short message. Only meaningful when `kind === "rpc"`. */
@@ -47,6 +52,20 @@ export class SymmioRequestError extends Error {
   readonly status?: number;
   /** Raw response body returned by the server when `kind === "api"`. */
   readonly responseData?: unknown;
+  /**
+   * How long the server asked the client to wait before retrying, in ms,
+   * parsed from its `Retry-After` header. `normalizeSymmError` sets it only for
+   * `kind === "api"`, and even then it is `null` when the response carried no
+   * usable header. A cross-origin browser sees the header only when the server
+   * exposes it, so treat `null` as "unknown" and still back off, e.g. at least
+   * one second plus jitter.
+   *
+   * @example
+   * if (error?.kind === "api" && error.status === 429) {
+   *   retryIn(error.retryAfterMs ?? 1_000 + Math.random() * 500);
+   * }
+   */
+  readonly retryAfterMs: number | null;
   /** Solidity revert reason when `kind === "contract-revert"`. */
   readonly reason?: string;
   /** viem's short message when `kind === "rpc"`. */
@@ -58,6 +77,7 @@ export class SymmioRequestError extends Error {
     this.code = options.code;
     this.status = options.status;
     this.responseData = options.responseData;
+    this.retryAfterMs = options.retryAfterMs ?? null;
     this.reason = options.reason;
     this.shortMessage = options.shortMessage;
   }

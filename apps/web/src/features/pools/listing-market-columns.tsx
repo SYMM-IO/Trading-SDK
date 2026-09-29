@@ -5,6 +5,7 @@ import { Badge } from "@symmio/ui/components/badge";
 import type { DataTableColumn } from "@symmio/ui/components/data-table";
 import { cn } from "@symmio/ui/lib/utils";
 import {
+  ABSENT,
   depositChainLabel,
   formatListingDate,
   formatListingRate,
@@ -13,6 +14,7 @@ import {
   rateTone,
   truncateContractAddress,
 } from "./format-listing-value";
+import { PoolLockBadge } from "./pool-lock";
 
 /** Min width that keeps a compact currency figure from crowding its header. */
 const NUMERIC_COLUMN_WIDTH = "min-w-24";
@@ -117,6 +119,17 @@ export function listingMarketColumns({
         const display = LISTING_STATUS_DISPLAY[row.marketStatus];
         return <Badge variant={display?.variant ?? "outline"}>{display?.label ?? row.marketStatus}</Badge>;
       },
+    },
+    {
+      /**
+       * The inventory lock is orthogonal to the lifecycle status — a live pool
+       * can be locked — so it gets its own column rather than a suffix on the
+       * status badge. The row carries only the flag; the reasons are on the
+       * pool's detail.
+       */
+      id: "lock",
+      header: "Lock",
+      cell: (row) => (row.isLocked ? <PoolLockBadge /> : <span className="text-muted-foreground">{ABSENT}</span>),
     },
     {
       id: "marketCap",

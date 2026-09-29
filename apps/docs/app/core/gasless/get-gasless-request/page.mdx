@@ -1,0 +1,201 @@
+import { Callout } from "nextra/components";
+
+# getGaslessRequest
+
+Fetch one stored GaslessQ relayer request — the poll target of every gasless workflow. A relay submit returns `202` immediately; this record is the only source of truth afterwards.
+
+```ts
+import { getGaslessRequest, GaslessRequestStatus, isGaslessRequestTerminal } from "@symmio/trading-core";
+
+const request = await getGaslessRequest(config, { requestId });
+
+if (request.status === GaslessRequestStatus.SUBMITTED && request.txHash) {
+  showExplorerLink(request.txHash);
+}
+if (isGaslessRequestTerminal(request.status)) stopPolling();
+```
+
+One `GET {base}/{request_id}` against the chain's gasless service. Operation relays live on the `"operations"` sub-service (the default); deposit settlements on `"deposits"` — the two are separate databases, so a request id polled against the wrong one is `NOT_FOUND`.
+
+<Callout type="warning">
+  `submitted` is **not** success — it only means a transaction hash exists. Only `succeeded` is success; `reverted`,
+  `failed` and `rejected` are failures the record carries `errorCode` / `errorMessage` for. Right after a `202` the
+  record may briefly `404` (the accept-vs-record race) — retry a few times before treating it as unknown, and never
+  treat a post-accept `404` as "the relay is unavailable".
+</Callout>
+
+**The query factory polls on its own.** A relay request is a workflow, not a value: fetching it once answers `queued` and freezes there, which reads as a stalled UI even though the relayer finished seconds later. So the factory ships the service-recommended cadence — a jittered 1–2 s while `queued`, 3–5 s after `submitted`, and **stop** once terminal, because a terminal record is immutable and polling one forever bills the service for an answer that cannot change.
+
+```ts
+// Polls to a terminal status, then stops. No cadence to hand-write.
+const request = useQuery(getGaslessRequestQueryOptions(config, { requestId }));
+```
+
+It also absorbs the two failures that are not answers — the accept-vs-record `404` right after a `202` (up to three), and transient transport failures (`429`, `503`, a dropped connection) which are retried with the gateway's `Retry-After` when it sent one and a jittered 1 s → 30 s backoff otherwise. A definitive answer (`401`, `403`, `422`, a service error code) is surfaced immediately, and a terminal record is treated as permanently fresh so a remount does not refetch it. Every default applies only where you supplied nothing, so `query.refetchInterval`, `query.retry` and `query.staleTime` still win.
+
+The factory's `queryFn` also forwards TanStack's own `AbortSignal`, so a query that unmounts or is cancelled stops its poll in flight instead of finishing into a discarded result. Pass `signal` yourself outside React.
+
+## Polling helpers
+
+### `gaslessPollDelay(status, random?)`
+
+The cadence the query factory uses, exported so a hand-rolled loop can share it: a jittered delay inside the service's recommended band (1–2 s while `queued`, 3–5 s after `submitted`), or `false` once the status is terminal. The jitter is load-bearing on the anonymous gateway — every workflow a page opened at the same moment would otherwise poll in lockstep and spend the shared per-IP budget in bursts.
+
+```ts
+import { gaslessPollDelay } from "@symmio/trading-core";
+
+const delay = gaslessPollDelay(request.status);
+if (delay !== false) setTimeout(poll, delay);
+```
+
+<Callout type="warning">
+  It draws a new number on every call, which is what a sleeping loop wants and what a TanStack `refetchInterval`
+  callback must not do: TanStack recomputes that callback on every render and restarts the countdown whenever the value
+  changed, so a re-drawn delay in a component that re-renders faster than the band never fires — the request freezes at
+  `queued`. Let `getGaslessRequestQueryOptions` supply the interval; it seeds the draw from the query's own fetch
+  timestamps, so the value is stable between renders and fresh after every poll.
+</Callout>
+
+### `isNewerGaslessRequest(prev, next)`
+
+The stale-response guard for anything that writes a polled record somewhere shared — a query cache, a progress state, a stored row. Status reads are concurrent by construction: a poll, a retry after a transient failure and a relay's own wait can all be in flight at once, and they do not answer in the order they were sent. Without this guard a slow `queued` response that lands after the `succeeded` one repaints a finished workflow as pending, which is exactly the "it looks stuck, submit it again" bug the lifecycle contract forbids.
+
+The order is the lifecycle first — `queued` < `submitted` < terminal, with **terminal sticky**, because a terminal record is immutable — then `updatedAt` within one rank. When either record carries no usable timestamp the newer fetch wins, since a record with no timestamp cannot be proven stale.
+
+```ts
+import { isNewerGaslessRequest } from "@symmio/trading-core";
+
+queryClient.setQueryData<GaslessRequest>(key, (previous) =>
+  isNewerGaslessRequest(previous, incoming) ? incoming : previous,
+);
+```
+
+<Callout type="info">
+  Status reads are also paced internally, at about four requests per second per deployment (origin + protocol instance),
+  with a burst of four. The anonymous gateway allows ten requests per second per IP and instance, and status polling is
+  the one gasless call that runs unattended and in parallel — the pacing keeps a submit, a fee quote or a deposit-policy
+  read from being the call that earns the `429`.
+</Callout>
+
+<Callout type="info">
+  Polling a request by hand is the low-level path. To simply wait for an outcome, use
+  [`confirmGaslessRequest`](/core/gasless/confirm-gasless-request) — or, in React, nothing at all: the relay hooks
+  confirm before they resolve.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="requestId" type="string" required>
+    Stable service tracking id returned by a gasless submit. Persist it — there is no list-by-wallet endpoint to recover
+    lost ids from.
+  </Property>
+  <Property name="service" type='"operations" | "deposits"' optional default='"operations"'>
+    Which sub-service stores the request. Operation relays and delegation grants live on `"operations"`; deposit
+    settlements on `"deposits"`.
+  </Property>
+  <Property name="signal" type="AbortSignal" optional>
+    Cancel the read in flight. The React hook passes TanStack's own query signal, so an unmounted poll stops spending
+    the deployment's shared request budget.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's gasless service is polled, and is
+    folded into the query key.
+  </Property>
+</Properties>
+
+## Returns
+
+`GaslessRequest` is a **per-service union**: the two services are separate databases with different columns, so the shared fields live on the base shape and each service's own fields on its variant. Narrow on `service` before reading a variant field.
+
+```ts
+const request = await getGaslessRequest(config, { requestId, service: "deposits" });
+if (request.service === "deposits") {
+  showSweep(request.depositAddress, request.walletId, request.creditedRaw);
+}
+```
+
+<Returns type="Promise<GaslessRequest>">
+  <Property name="service" type='"operations" | "deposits"'>
+    Which service stores the record — the union's discriminant.
+  </Property>
+  <Property name="requestId" type="string">
+    The stable tracking id, echoed back.
+  </Property>
+  <Property name="status" type="GaslessRequestStatus">
+    `queued → submitted → succeeded | reverted | failed`, or `queued → rejected` (the worker refused it before any
+    broadcast).
+  </Property>
+  <Property name="txHash" type="Hash | null">
+    Broadcast transaction hash once the worker has submitted one. A hash is mutable across replacement attempts — the
+    request id is the stable identifier.
+  </Property>
+  <Property name="errorCode" type="string | null">
+    Vendor error code on a failed terminal (`FEE_POLICY_WOULD_REVERT`, `SIMULATION_REVERTED`, …), when stored.
+  </Property>
+  <Property name="errorMessage" type="string | null">
+    Human-readable vendor message, when stored.
+  </Property>
+  <Property name="idempotencyKey" type="string | null">
+    The retry key the request was submitted with, when stored.
+  </Property>
+  <Property name="owner" type="Address | null">
+    The owner the request is tracked under — `user_address` for an operation relay, `wallet_address` for a deposit
+    settlement (which means the **owner**, not a GaslessWallet address).
+  </Property>
+  <Property name="walletIds" type="readonly bigint[]">
+    The wallet ids the request selected, in `signedOps` order. Records written before multiple wallets existed carry
+    none and normalize to one `0n` per stored operation, because an omitted id means wallet `0`.
+  </Property>
+  <Property name="createdAt" type="string | null">
+    When the service stored the request (ISO-8601), when recorded.
+  </Property>
+  <Property name="updatedAt" type="string | null">
+    When the service last updated it (ISO-8601), when recorded.
+  </Property>
+</Returns>
+
+### `service: "operations"`
+
+<Returns type="GaslessOperationRequest">
+  <Property name="operationType" type="string | null">
+    The workflow label the submitter attached.
+  </Property>
+  <Property name="accountId" type="string | null">
+    The client accounting id the submitter attached, when stored.
+  </Property>
+  <Property name="feeAmountRaw" type="bigint | null">
+    The fee the service recorded, in the unit the service reports it in — a vendor figure, not an authoritative on-chain
+    charge.
+  </Property>
+</Returns>
+
+### `service: "deposits"`
+
+<Returns type="GaslessDepositRequest">
+  <Property name="depositAddress" type="Address | null">
+    The deterministic deposit address being swept, when stored.
+  </Property>
+  <Property name="walletId" type="bigint">
+    The settled wallet's id. A record without one means wallet `0`.
+  </Property>
+  <Property name="accountName" type="string | null">
+    Name of the sub-account a new-account settlement creates.
+  </Property>
+  <Property name="amountRaw" type="bigint | null">
+    Collateral the service observed at the deposit address (token base units).
+  </Property>
+  <Property name="feeRaw" type="bigint | null">
+    The deposit fee the service recorded (token base units).
+  </Property>
+  <Property name="creditedRaw" type="bigint | null">
+    The net credit the service recorded (token base units) — an estimate, not the final credit.
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")` — the chain has no usable gasless service.
+- `SymmApiError` with code `GASLESS_STATUS_FETCH_FAILED` — HTTP failure, including the post-submit `404` race.
+- `SymmError("api", "GASLESS_INSTANCE_MISMATCH")` — a successful response came from a different protocol instance than the config expects (`protocolInstance`, or the instance the url path pins): a staging/production cross-wire. A gateway `url` also fails when the `X-GasLessQ-Protocol-Instance` header is missing; behind a proxy root, only a forwarded header is checked. See [URL forms](/core/gasless/resolve-gasless-service#url-forms).
+- `SymmError("api", "GASLESS_STATUS_UNKNOWN")` — the service returned a status outside the documented lifecycle.

@@ -65,7 +65,8 @@ export interface GetQuotesEventsByTypeReturnType {
  *
  * - These are the funding charges **settled to date** — what the analytics
  *   subgraph has indexed. Funding that has accrued since the last on-chain charge
- *   is not indexed and therefore not included here.
+ *   is not indexed by the subgraph and therefore not included here — read it
+ *   with {@link getQuotePendingFunding}.
  * - The metadata carries the raw on-chain amounts. Net a row the way the rest of
  *   the SDK does — `fundingReceived − fundingPaid`, so a **positive** net means
  *   the position **earned** funding on that tick, matching

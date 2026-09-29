@@ -59,8 +59,9 @@ function chunkQuoteIds(quoteIds: readonly bigint[]): bigint[][] {
  * completeness rendered a wrong total.)
  *
  * The returned funding is what the analytics subgraph has **settled to date**:
- * funding accrued since the quote's last funding charge is not indexed and is
- * therefore not included.
+ * funding accrued since the quote's last funding charge is not indexed by the
+ * subgraph and is therefore not included — read it with
+ * {@link getQuotePendingFunding}.
  *
  * Returns both the resolved rows and any input ids the subgraph did not yet
  * surface — callers (typically the React layer) decide whether to refetch on

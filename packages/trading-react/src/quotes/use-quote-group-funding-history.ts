@@ -61,13 +61,16 @@ export type UseQuoteGroupFundingHistoryReturnType = UseQueryResult<GetQuotesEven
  *
  * @remarks
  * This is funding **settled to date** — what the analytics subgraph has indexed.
- * Funding that has accrued since the last on-chain charge is not indexed and is
- * therefore absent from this timeline.
+ * Funding that has accrued since the last on-chain charge is not in the subgraph
+ * and is therefore absent from this timeline; read it on-chain with
+ * {@link useQuotesPendingFunding}, and keep the two apart rather than adding them
+ * into a lifetime total (different sources, different heights).
  *
  * @remarks
- * On current deployments effectively every row is `CHARGE_FUNDING_RATE`.
- * `CHARGE_ACCUMULATED_FUNDING_FEE` is part of {@link FUNDING_HISTORY_EVENT_TYPES}
- * for completeness but is not yet emitted, so do not rely on seeing it.
+ * `CHARGE_FUNDING_RATE` rows are legacy funding charges.
+ * `CHARGE_ACCUMULATED_FUNDING_FEE` rows only appear for pairs on accumulated
+ * funding (a solver has configured and started it for the symbol), so a pair
+ * without it only ever shows `CHARGE_FUNDING_RATE` — do not rely on seeing both.
  *
  * @param parameters - The group, optional paging/sort/chain id, TanStack `query`
  *   overrides, and an optional `config`.
@@ -78,8 +81,8 @@ export type UseQuoteGroupFundingHistoryReturnType = UseQueryResult<GetQuotesEven
  * const { data, isLoading } = useQuoteGroupFundingHistory({ group, first: 100 });
  *
  * for (const row of data?.rows ?? []) {
- *   const net = (row.fundingPaid ?? 0n) - (row.fundingReceived ?? 0n);
- *   // net > 0n → the user paid funding on this tick.
+ *   const net = (row.fundingReceived ?? 0n) - (row.fundingPaid ?? 0n);
+ *   // net > 0n → the position earned funding on this tick.
  * }
  * ```
  */

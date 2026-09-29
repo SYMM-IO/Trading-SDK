@@ -42,6 +42,7 @@ See [Config](/core/concepts/config) and [Query options](/core/concepts/query-opt
 Cross-cutting mental model referenced by every slice.
 
 - **[Config](/core/concepts/config)** — `createConfig`, injected client resolvers, chain overrides, WebSocket constructor.
+- **[Funding](/core/concepts/funding)** — settled vs pending funding, pair states, sign conventions, Muon vs mark-price uPnL.
 - **[Query Options](/core/concepts/query-options)** — the `getXyzQueryOptions` / `xyzMutationOptions` factory pattern.
 - **[Query Keys](/core/concepts/query-keys)** — key shape, `filterQueryOptions`, `predicateMatch` invalidation.
 - **[WebSocket Streams](/core/concepts/websocket)** — `SocketStatus`, reconnect, connection pool.
@@ -57,7 +58,7 @@ Every domain slice, one page. Each page follows the same anatomy — purpose →
 - **[Addresses](/core/addresses)** — per-chain contract address registry.
 - **[AccountLayer](/core/account-layer)** — SubAccount / Virtual Account creation, deposits, margin management.
 - **[InstantLayer](/core/instant-layer)** — delegation reads + `grantDelegation`.
-- **[SYMMIO Contract](/core/symmio-contract)** — markets, quotes, collateral, allocation, withdraw against the `Symmio` contract.
+- **[SYMMIO Contract](/core/symmio-contract)** — markets, quotes, pending funding, collateral, allocation, withdraw against the `Symmio` contract.
 
 ### Trading
 

@@ -26,6 +26,7 @@ const specs = [
   "@symmio/trading-react/orderbook",
   "@symmio/trading-react/inventory",
   "@symmio/trading-react/pools",
+  "@symmio/trading-react/gasless",
 ];
 
 let failures = 0;

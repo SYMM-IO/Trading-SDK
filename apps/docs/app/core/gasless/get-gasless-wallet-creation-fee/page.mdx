@@ -1,0 +1,69 @@
+import { Callout } from "nextra/components";
+
+# getGaslessWalletCreationFee
+
+Read the one-time fee for deploying one of an owner's GaslessWallets — `getWalletCreationFee(owner, walletId)` on the GaslessLayer — in **collateral token units**.
+
+```ts
+import { getGaslessWalletCreationFee } from "@symmio/trading-core";
+
+const fee = await getGaslessWalletCreationFee(config, { owner, walletId: 1n });
+```
+
+GaslessWallets deploy lazily, on first use. While the wallet derived from `(owner, walletId)` has no code, the read returns the GaslessLayer's configured `walletCreationFee`. Once the wallet is deployed it returns `0n`. That holds for **every** wallet id, wallet `0` included: an original wallet that was never deployed pays the fee once too. A `0n` result therefore means either that the wallet is already deployed or that the deployment charges no creation fee.
+
+## Who pays it
+
+The action that deploys the wallet pays the fee, once:
+
+- **A deposit settlement** ([new account](/core/gasless/settle-gasless-deposit-new-account) or [existing account](/core/gasless/settle-gasless-deposit-existing-account)) deducts it from the swept balance, on top of the deposit fee, in collateral token units.
+- **A relayed wallet operation** ([`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute)) charges it to the payer's SYMMIO balance, through its operational-fee allowance, after the batch executes, rescaled to 18 decimals: it is that operation's `walletCreationFee18` in [`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote). Neither the daily free quota nor the payer's fee multiplier reduces it.
+- **An owner's direct withdrawal** from a wallet that is not deployed yet takes it from the wallet's own collateral.
+
+<Callout type="warning">
+  **A non-zero fee changes the deposit flow.** A settlement that deploys the wallet reverts unless the swept balance
+  exceeds the deposit fee plus the creation fee, and
+  [`getGaslessDepositPolicy`](/core/gasless/get-gasless-deposit-policy) already folds the fee into `settlementMinimum`.
+  The service's acceptance estimate subtracts only the deposit fee, though, so a settlement receipt's `creditedAmount`
+  overstates the net while the fee applies. Offer the gasless deposit flow only while this read is `0n`, unless the
+  deployment's operator confirms a compatible way to quote the fee.
+</Callout>
+
+The value is a snapshot: it drops to `0n` as soon as any action deploys the wallet. The React settlement hooks and `useGaslessWalletExecute` invalidate it once their action lands, and [`useGaslessWalletCreationFee`](/react/gasless#usegaslesswalletcreationfee) is the React binding.
+
+## Parameters
+
+<Properties>
+  <Property name="owner" type="Address" required>
+    The owner the wallet belongs to. Pass the owner's address, never a GaslessWallet address.
+  </Property>
+  <Property name="walletId" type="bigint" optional default="0n">
+    Which of the owner's wallets to quote, from `0n` through `2^256 - 1`. `0n` is the original wallet.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<bigint>">
+  The creation fee in the collateral token's own units (its `decimals()`, not 18 decimals). `0n` for a deployed wallet.
+</Returns>
+
+## Query options
+
+```ts
+import { getGaslessWalletCreationFeeQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getGaslessWalletCreationFeeQueryOptions(config, { owner, walletId: 1n }));
+```
+
+An omitted `walletId` keys the same as `0n`, so `{ owner }` and `{ owner, walletId: 0n }` share one cache entry.
+
+## Throws
+
+- `SymmError("validation", "GASLESS_WALLET_ID_INVALID")` — `walletId` is not a `bigint` from `0n` through `2^256 - 1` (a JavaScript `number` included). Thrown before any RPC call.
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- Viem read errors. A GaslessLayer that has not been upgraded to the multi-wallet interface reverts with empty data.

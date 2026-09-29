@@ -9,6 +9,7 @@ import {
   getPartyAPendingQuotesQueryKey,
   getPartyAPendingQuotesQueryOptions,
   getPredictedNextVirtualAccountQueryOptions,
+  getQuotePendingFundingQueryKey,
   getQuoteQueryKey,
   getQuoteQueryOptions,
   isCancelAction,
@@ -107,13 +108,16 @@ const NO_RETAINED_VAS: readonly Address[] = [];
 
 /**
  * Invalidate the authoritative on-chain quote reads for one chain scope — the open
- * positions and the pending-quote ids, fanned out across every account. Scoped by
- * `configKey`, so another chain's cache is untouched; React Query dedups concurrent
- * refetches of the same query.
+ * positions and the pending-quote ids, fanned out across every account — plus the
+ * pending-funding reads (`useQuotesPendingFunding`), since the same events move
+ * them: an open adds a position that accrues funding, and a close fill settles
+ * what the position had accrued. Scoped by `configKey`, so another chain's cache is
+ * untouched; React Query dedups concurrent refetches of the same query.
  */
 function invalidateOnchainQuoteReads(client: QueryClient, scope: { configKey: string }): void {
   void client.invalidateQueries({ predicate: predicateMatch(getPartyAOpenPositionsQueryKey, scope) });
   void client.invalidateQueries({ predicate: predicateMatch(getPartyAPendingQuotesQueryKey, scope) });
+  void client.invalidateQueries({ predicate: predicateMatch(getQuotePendingFundingQueryKey, scope) });
 }
 
 /** Debounce (ms) for coalescing a burst of notifications into one set of read invalidations. */

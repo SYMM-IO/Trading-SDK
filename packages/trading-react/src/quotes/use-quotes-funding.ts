@@ -88,8 +88,10 @@ export interface UseQuotesFundingReturnType {
  *
  * **Settled to date only** — the totals cover funding the protocol has already
  * charged and the analytics subgraph has indexed. Funding accrued since a
- * quote's last funding charge is not indexed anywhere and is therefore not
- * included.
+ * quote's last funding charge is not in the subgraph and is therefore not
+ * included — read it on-chain with {@link useQuotesPendingFunding}. The two
+ * come from different sources at different heights, so do not add them into a
+ * lifetime total.
  *
  * @param parameters - The quotes to read funding for, plus optional chain/config overrides.
  * @returns Per-quote rows aligned with `quotes`, the aggregate sums, and query state.

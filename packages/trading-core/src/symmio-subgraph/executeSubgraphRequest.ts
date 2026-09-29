@@ -1,5 +1,7 @@
 import axios, { isAxiosError } from "axios";
+import { parseRetryAfterMs } from "../shared/errors/retry-after";
 import { SymmApiError, SymmError } from "../shared/errors/symm-error";
+import { readHttpHeader } from "../shared/utils/http-header";
 
 /** Shape of a GraphQL-over-HTTP response body. */
 interface GraphQLResponse<TResult> {
@@ -22,7 +24,8 @@ interface GraphQLResponse<TResult> {
  * @param variables - The operation variables.
  * @param errorCode - Stable `SymmError`/`SymmApiError` code for the caller's domain.
  * @returns The operation's `data`.
- * @throws {SymmApiError} on HTTP failure (non-2xx, network error).
+ * @throws {SymmApiError} on HTTP failure (non-2xx, network error), with the
+ *   axios error as `cause` and any `Retry-After` delay as `retryAfterMs`.
  * @throws {SymmError} (`kind: "api"`) when the response carries GraphQL `errors`
  *   or omits `data`.
  */
@@ -50,6 +53,7 @@ export async function executeSubgraphRequest<TResult>(
         responseData: err.response?.data,
         url,
         method: "POST",
+        retryAfterMs: parseRetryAfterMs(readHttpHeader(err.response?.headers, "retry-after")),
         cause: err,
       });
     }

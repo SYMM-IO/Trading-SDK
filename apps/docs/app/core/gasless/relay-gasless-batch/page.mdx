@@ -1,0 +1,144 @@
+import { Callout } from "nextra/components";
+
+# relayGaslessBatch
+
+Relay **several gasless actions as one request**: one `relay-instant` submit, one atomic transaction the relayer broadcasts and pays gas for. Describe each action by name — the SDK encodes it, resolves its contract, sequences the nonces, prices the batch and asks for the signatures.
+
+```ts
+import { relayGaslessBatch, waitForGaslessRequest } from "@symmio/trading-core";
+import { parseUnits } from "viem";
+
+// Approve the gateway's fee budget and use it in the same request.
+const receipt = await relayGaslessBatch(config, {
+  account: subAccount,
+  calls: [
+    {
+      functionName: "approveOperationalFeeWithMultiplier",
+      args: [[gaslessLayerAddress], [parseUnits("5", 18)], [10_000n]],
+    },
+    { functionName: "allocate", args: [parseUnits("100", 18)] },
+  ],
+});
+const record = await waitForGaslessRequest(config, { requestId: receipt.requestId });
+```
+
+Each entry is one of three forms, freely mixed:
+
+- **A relayable write by name** — `{ functionName, args }`. The SDK already knows every [relayable write](/core/gasless/relayable-writes), so no ABI is needed; pass `abi` (the SDK's `symmioAbi`, `accountLayerAbi` or `instantLayerAbi`) only if you hold it anyway. [`GASLESS_RELAYABLE_FUNCTIONS`](/core/gasless/relayable-writes#batch-calls) lists the names and their inputs.
+- **Raw calldata of a relayable write** — `{ data }`, for arguments you encoded yourself with compile-time checks.
+- **A GaslessWallet call list** — `{ walletCalls, walletId }`: calls the owner's [gasless wallet](/core/gasless/gasless-wallet-execute) makes, as one operation. They run as the wallet contract, not as the SYMMIO account.
+
+The target contract of a write is never passed: it is resolved from the encoded selector — the core diamond, the AccountLayer or the InstantLayer. A call whose selector is not a relayable write throws `GASLESS_NOT_RELAYABLE` before any network call; run anything else as a `walletCalls` entry.
+
+## What happens
+
+1. Every call is encoded and checked — nothing touches the network or the wallet yet.
+2. A session key's delegations are checked before any prompt (`execution.preflightDelegation`, on by default). A missing selector throws `GASLESS_SIGNER_NOT_DELEGATED`, naming what to grant.
+3. Fresh nonces are read and sequenced **per stream**: the account's InstantLayer nonces for the writes, each wallet id's own nonces for its wallet entries.
+4. The batch is priced on-chain (`execution.preflightFee`, on by default) — the same preview [`getGaslessBatchFeeQuote`](/core/gasless/get-gasless-batch-fee-quote) returns. A quote the contract refuses throws before any prompt; a quote that fails for transport reasons does not block, because the relayer simulates the full transaction anyway.
+5. Each operation is signed, in order.
+6. One request carries them all, with one wallet id per operation — `0` for every write.
+
+<Callout type="info">
+  **One signature per call.** The protocol has no batch signature: the InstantLayer verifies each operation's signature
+  against that operation alone. A browser wallet therefore shows one prompt per call, in order; a session key passed as
+  `from` signs them silently. Nothing is submitted until every prompt is signed, so rejecting one abandons the batch and
+  consumes no nonce.
+</Callout>
+
+What a batch buys is **shared fate** — one revert rolls back every call and every fee — and one request to track. It also changes when the fee is due: the GaslessLayer collects fees after the whole batch executes, so an operational-fee approval early in the batch already covers the calls after it.
+
+## The account
+
+`account` is the sub-account every operation runs under. It is each write's `signerAccount` — whose InstantLayer nonces the batch consumes and whose delegations authorize a session key — and the billing account: a virtual account bills its parent. For a wallet entry it also selects the wallet: the GaslessLayer derives it from `ownerOf(account)`, so a sub-account resolves to its owner's wallets.
+
+Margin writes run under the virtual account's **parent**: pass the parent as `account` and the virtual account as the call's argument, exactly as the [transparent mode](/core/gasless/relayable-writes#which-writes-relay) does.
+
+## Session keys
+
+A session key signs a batch when it holds a delegation for every selector the batch runs, granted on `account`. [`getGaslessBatchSelectors`](/core/gasless/get-gasless-batch-selectors) builds that set from the calls — for a wallet entry it includes the wallet-execution sentinel.
+
+```ts
+await grantDelegation(config, {
+  account: { addr: subAccount, isPartyB: false },
+  delegatedSigner: sessionKey,
+  selectors: getGaslessBatchSelectors(calls),
+  expiryTimestamp,
+});
+
+await relayGaslessBatch(config, { account: subAccount, calls, from: sessionKey });
+```
+
+<Callout type="warning">
+  A batch that contains `grantDelegation` must be signed by the account's owner. The InstantLayer rejects a
+  delegate-signed grant, so no delegation makes it relayable by a session key.
+</Callout>
+
+## Nonces and concurrency
+
+The batch takes every nonce stream it signs on at once, so a concurrent relay on any of them — a transparent write, a `gaslessWalletExecute`, another batch — waits for it instead of signing the same nonce. As with every relay, the streams are released at the `202`, and the next caller waits for the signed nonces lazily. See [nonce streams](/core/gasless#nonce-streams).
+
+The idempotency key is minted per call, because every call signs fresh operations. Replay a submit whose response was lost with [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request), never by signing the batch again.
+
+<Callout type="warning">
+  A `202` is the **point of no return**: the workflow exists server-side and may execute even if polling later fails.
+  Persist the receipt's `requestId`, `owner`, `walletIds` and `idempotencyKey` immediately. React consumers use
+  [`useRelayGaslessBatch`](/react/gasless#userelaygaslessbatch), which confirms the batch before it resolves and
+  refreshes what its calls changed.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The sub-account every operation runs under and is billed to. For margin writes, the virtual account's parent.
+  </Property>
+  <Property name="calls" type="readonly GaslessBatchCall[]" required>
+    The calls, in execution order. An empty list throws `GASLESS_EMPTY_BATCH`.
+  </Property>
+  <Property name="calls[].functionName" type="string">
+    A relayable write's name, with `args` and an optional `abi`.
+  </Property>
+  <Property name="calls[].data" type="Hex">
+    A relayable write as raw calldata.
+  </Property>
+  <Property name="calls[].walletCalls" type="readonly GaslessWalletCall[]">
+    Calls the owner's GaslessWallet makes, each raw `{ target, data }` or `{ target, abi, functionName, args }`.
+  </Property>
+  <Property name="calls[].walletId" type="bigint" optional default="0n">
+    Which of the owner's GaslessWallets runs a `walletCalls` entry. Range `0n` through `2^256 - 1`.
+  </Property>
+  <Property name="operationType" type="string" optional>
+    Free-form label (1–128 characters) stored with the request. Defaults to the calls' own names joined with `+`
+    (`"approveOperationalFee+allocate"`), or `"gaslessBatch"` when that is too long. Fees are not keyed from it.
+  </Property>
+  <Property name="metadata" type="Record<string, unknown>" optional>
+    Non-secret client correlation data stored with the request.
+  </Property>
+  <Property name="from" type="Address" optional>
+    The signer to resolve the wallet client with — a session key, for example.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessSubmitReceipt>">
+  The `202` acceptance, with `walletIds` holding one id per operation (`0n` for every write). The fields are the same as
+  [`relayInstantOperations`](/core/gasless/relay-instant-operations#returns)' — persist `requestId`, `owner`,
+  `walletIds` and `idempotencyKey` together.
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmError("validation", "GASLESS_EMPTY_BATCH")`, `("validation", "GASLESS_NOT_RELAYABLE")` or `("validation", "GASLESS_WALLET_ID_INVALID")`: thrown before any network call.
+- Viem's encoding error when an ABI-level call's arguments do not encode.
+- `SymmError("config", "GASLESS_CONFIG_INCOHERENT")`: the GaslessLayer verifies another InstantLayer than the chain config signs for.
+- `SymmError("validation", "GASLESS_SIGNER_NOT_DELEGATED")`: a session key is missing a selector. Grant `getGaslessBatchSelectors(calls)` on `account`.
+- `SymmError("api", "GASLESS_FREE_QUOTA_EXHAUSTED")`, `("validation", "GASLESS_FEE_QUOTE_REVERTED")` or `("config", "GASLESS_LAYER_INTERFACE_UNSUPPORTED")` from the fee pre-flight, before any prompt.
+- `SymmError("api", "GASLESS_NONCE_STREAM_BUSY")`: an earlier relay on one of the batch's nonce streams is still unaccounted for.
+- `SymmApiError` with code `GASLESS_RELAY_SUBMIT_FAILED` on HTTP failure, and `GASLESS_SUBMIT_UNCONFIRMED` when the outcome could not be established — replay it with `resubmitGaslessRequest`.
+- The wallet's own error when the user rejects a prompt. Nothing is submitted.

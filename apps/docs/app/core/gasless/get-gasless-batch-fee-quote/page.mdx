@@ -1,0 +1,72 @@
+import { Callout } from "nextra/components";
+
+# getGaslessBatchFeeQuote
+
+Preview what [`relayGaslessBatch`](/core/gasless/relay-gasless-batch) would charge for the same calls — before any signature prompt, and without building a single operation by hand. It is the way to show a gasless fee next to any action, from one relayable write to a mixed batch.
+
+```ts
+import { getGaslessBatchFeeQuote } from "@symmio/trading-core";
+import { formatUnits } from "viem";
+
+const quote = await getGaslessBatchFeeQuote(config, {
+  account: subAccount,
+  calls: [
+    { functionName: "allocate", args: [amount] },
+    { walletId: 1n, walletCalls: [{ target: usdc, abi: erc20Abi, functionName: "transfer", args: [to, value] }] },
+  ],
+});
+
+formatUnits(quote.totalFee18, 18); // the batch total, e.g. "0.1"
+quote.payments[1]; // the wallet entry's own row
+```
+
+The calls are resolved exactly as the relay resolves them, encoded as the `relayInstantBatch` call the relayer submits, and priced by the GaslessLayer's `previewFeeQuote`. The preview never checks nonces, deadlines, salts or signatures, so they are fixed placeholders: **the result depends only on the account and the calls**, and it caches cleanly — a call given by `functionName`, by `abi` or as raw `data` shares one cache entry.
+
+Only a batch with GaslessWallet entries pays for extra reads: the preview rejects a wallet operation whose target is not the real wallet, so the SDK resolves the account's owner and the wallet address first.
+
+## Reading the quote
+
+The quote is the same `GaslessFeeQuote` [`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote#reading-the-quote) returns — every amount 18-decimal:
+
+- **`payments`** has one row per call, in order. A GaslessWallet entry is one row, priced by its **inner** call selectors, and it carries `walletCreationFee18` when it is the first to execute from an undeployed wallet.
+- **`totalFee18`** is the batch total. Group `payments` by `payer` and `source` to tell the user which balance pays: a relayed batch is charged to the SYMMIO account's Core balance, bounded by its [operational-fee allowance](/core/gasless/get-operational-fee-allowance) — never to the wallet.
+- **`freeOpsApplied`** counts the calls the daily free quota covers. Quote the whole batch at once: free-quota slots and first-use creation fees are allocated across it.
+
+<Callout type="warning">
+  **A preview, not a guarantee.** `exact` is always `false`. An approval or a transfer inside the batch can change the
+  final fee or its payer, and so can any state change before execution. The quote does not check that the payer can
+  afford it — the relayer's own simulation is authoritative. An exhausted daily free quota on a deployment that refuses
+  paid operations is an error, `GASLESS_FREE_QUOTA_EXHAUSTED`, not a zero fee.
+</Callout>
+
+React consumers use [`useGaslessBatchFeeQuote`](/react/gasless#usegaslessbatchfeequote). Plain TanStack Query consumers use `getGaslessBatchFeeQuoteQueryOptions(config, { account, calls })`; its key holds each call's encoded calldata rather than its ABI, and a call whose arguments do not encode yet keys deterministically instead of throwing, so the key is safe to build while a form is still being filled in.
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The sub-account every operation runs under — the account `relayGaslessBatch` would relay with. It decides the
+    billing account (a virtual account bills its parent) and, for wallet entries, which owner's wallets execute.
+  </Property>
+  <Property name="calls" type="readonly GaslessBatchCall[]" required>
+    The batch, in relay order, in any of the [call forms](/core/gasless/relay-gasless-batch). An empty list throws
+    `GASLESS_EMPTY_BATCH`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessFeeQuote>">
+  The preview — see [`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote#returns) for every field.
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmError("validation", "GASLESS_EMPTY_BATCH")`, `("validation", "GASLESS_NOT_RELAYABLE")` or `("validation", "GASLESS_WALLET_ID_INVALID")`: thrown before any RPC call.
+- Viem's encoding error when an ABI-level call's arguments do not encode.
+- `SymmError("api", "GASLESS_FREE_QUOTA_EXHAUSTED")`, `("validation", "GASLESS_FEE_QUOTE_REVERTED")` or `("config", "GASLESS_LAYER_INTERFACE_UNSUPPORTED")`, exactly as [`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote#throws) throws them.
+- Viem transport errors, unchanged.

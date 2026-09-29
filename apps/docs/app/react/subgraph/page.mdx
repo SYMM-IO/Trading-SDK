@@ -94,7 +94,7 @@ const { data } = useQuoteEventsByType({
 
 ### `useQuoteFunding`
 
-Funding totals — paid, received, netReceived — for one quote across its lifetime. Disabled while `quoteId` is `undefined` (an off-chain row).
+Settled funding totals — paid, received, netReceived — for one quote, to date. Disabled while `quoteId` is `undefined` (an off-chain row). Funding accrued since the quote's last settlement is a separate on-chain read: [`useQuotePendingFunding`](../symmio-contract#usequotependingfunding).
 
 ```ts
 const { data, isLoading } = useQuoteFunding({ quoteId: 42n });
@@ -104,7 +104,7 @@ const netReceived = data?.netReceived ?? 0n;
 
 ### `useQuotesFunding`
 
-Batch variant — funding for many quotes in one request, plus the running sums. Feeds "sum of funding across open positions" UI.
+Batch variant — settled funding for many quotes in one request, plus the running sums. Feeds a "settled funding across open positions" figure; pair it with [`useQuotesPendingFunding`](../symmio-contract#usequotespendingfunding) for the unsettled part, shown separately.
 
 It takes **quote-shaped rows**, not bare ids: anything with an optional `quoteId` (a `UnifiedQuote` works as-is). Off-chain rows (`quoteId === undefined`) are skipped silently and duplicate ids are fetched — and summed — exactly once.
 
@@ -118,9 +118,9 @@ const { rows, netReceived, missingQuoteIds, isLoading } = useQuotesFunding({ quo
 
 Both hooks take a [`QuoteGroup`](../../core/quotes/quote-group) and derive the child quote ids themselves: optimistic children (no `quoteId`) are dropped and duplicates collapsed, so one grouped position costs one subgraph round-trip.
 
-**Sign convention** — shared with `useQuoteFunding` and `useQuotesFunding` above: `netReceived = received − paid`, the P&L perspective, so a **positive** value means the position **earned** funding. This matches `QuoteFundingData.netReceived` and the uPnL folds, and is the inverse of the cost-positive on-chain `int256`. A UI that colors "money in" green renders it as-is — no negation anywhere.
+**Sign convention** — shared with `useQuoteFunding` and `useQuotesFunding` above: `netReceived = received − paid`, the P&L perspective, so a **positive** value means the position **earned** funding. This matches `QuoteFundingData.netReceived` and the uPnL folds, and is the inverse of the cost-positive on-chain `int256`. A UI that colors "money in" green renders it as-is — no negation anywhere. Every surface is listed in the core [sign table](../../core/concepts/funding#sign-conventions).
 
-**Settled to date only.** These are funding charges the protocol has already applied and the analytics subgraph has indexed. Funding accrued since a quote's last charge is not indexed anywhere and is therefore not included.
+**Settled to date only.** These are funding charges the protocol has already applied and the analytics subgraph has indexed. Funding accrued since a quote's last charge is not in the subgraph and is therefore not included — read it on-chain with [`useQuotesPendingFunding`](../symmio-contract#usequotespendingfunding) and show it as its own figure, never added into this total.
 
 ### `useQuoteGroupFunding`
 
@@ -156,7 +156,7 @@ for (const row of data?.rows ?? []) {
 
 Returns a TanStack `UseQueryResult<{ rows: QuoteEventRow[]; hasMore: boolean }, SymmioRequestError>`. Paging is over the **merged** stream, not per quote id: pass `first` / `skip` and keep going while `data.hasMore` is `true`. Omitting `first` asks for the 1000-row ceiling the subgraph enforces, so an un-paged call loads the whole timeline unless the group has more ticks than one request can return. Pass `orderDirection: "asc"` for an oldest-first timeline. The query stays disabled while the group has no on-chain children.
 
-On current deployments effectively every row is `CHARGE_FUNDING_RATE`; `CHARGE_ACCUMULATED_FUNDING_FEE` is part of the preset for completeness but is not yet emitted, so do not rely on seeing it.
+`CHARGE_ACCUMULATED_FUNDING_FEE` rows appear only for pairs on accumulated funding, and legacy pairs produce `CHARGE_FUNDING_RATE` rows — see [Funding › Pair states](../../core/concepts/funding#pair-states). Do not assume every row is one type.
 
 ## Related
 

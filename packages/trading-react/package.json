@@ -72,6 +72,10 @@
       "types": "./dist/inventory/index.d.ts",
       "import": "./dist/inventory/index.js"
     },
+    "./gasless": {
+      "types": "./dist/gasless/index.d.ts",
+      "import": "./dist/gasless/index.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"

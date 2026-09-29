@@ -47,8 +47,8 @@ Pagination is path-based (`/{start}/{size}`), not query-based.
 `PoolTransactionPage`:
 
 <Properties>
-  <Property name="marketAddress" type="string">
-    The pool's token contract address, echoed by the backend.
+  <Property name="marketAddress" type="string | null">
+    The pool's token contract address, echoed by the backend, or `null` when the history was not scoped to one pool.
   </Property>
   <Property name="count" type="number">
     Total rows matching the query **across all pages** — so this is what a pager divides, not `items.length`.

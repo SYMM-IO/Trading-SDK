@@ -39,6 +39,12 @@ Each method has its own page with the full signature, parameters, return shape, 
   <MethodEntry name="deallocate" href="/core/account-layer/deallocate">
     Move allocated balance back to available (needs a Muon uPnL sig).
   </MethodEntry>
+  <MethodEntry name="createSubAccounts" href="/core/account-layer/create-sub-accounts">
+    Create subaccounts under an affiliate. Relayable, but the call has to be signed under an existing account.
+  </MethodEntry>
+  <MethodEntry name="deleteSubAccount" href="/core/account-layer/delete-sub-account">
+    Delete a wound-down subaccount — empty balance, no virtual accounts, no positions, no pending quotes.
+  </MethodEntry>
   <MethodEntry name="editAccountName" href="/core/account-layer/edit-account-name">
     Rename a subaccount.
   </MethodEntry>

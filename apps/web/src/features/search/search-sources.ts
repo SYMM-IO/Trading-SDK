@@ -1,6 +1,7 @@
 import type { useEnigmaPriceServiceSymbolsInfo, useMarkets } from "@symmio/trading-react";
 import { ALL_PAGES } from "../contracts/pages";
 import { METHOD_REGISTRY, type AbiKey } from "../contracts/registry";
+import { GASLESS_METHODS } from "../gasless/gasless-methods";
 import { navLinks } from "../layout/nav";
 import { MUON_METHODS } from "../muon/muon-registry";
 import { SOLVER_METHODS } from "../solvers/solver-methods";
@@ -69,7 +70,7 @@ function muonMethodEntries(): SearchEntry[] {
     title: method.method,
     subtitle: "Muon API",
     kind: "read",
-    keywords: [method.action, "muon", "oracle", "off-chain api"],
+    keywords: [method.action, "read", "muon", "oracle", "off-chain api"],
     href: `/muon#${method.id}`,
   }));
 }
@@ -82,8 +83,21 @@ function solverMethodEntries(): SearchEntry[] {
     title: method.method,
     subtitle: "Solver API",
     kind: method.kind,
-    keywords: [method.action, "solver", "off-chain api"],
+    keywords: [method.action, method.kind, "solver", "off-chain api"],
     href: `/solvers#${method.id}`,
+  }));
+}
+
+/** Each Gasless-page card, deep-linked to its anchor on the Gasless page. */
+function gaslessMethodEntries(): SearchEntry[] {
+  return GASLESS_METHODS.map((method) => ({
+    id: `gasless:${method.id}`,
+    type: "method",
+    title: method.method,
+    subtitle: "Gasless relayer",
+    kind: method.kind,
+    keywords: [method.action, method.kind, ...(method.aliases ?? []), "gasless", "relayer", "off-chain api"],
+    href: `/gasless#${method.id}`,
   }));
 }
 
@@ -94,6 +108,7 @@ export const STATIC_ENTRIES: readonly SearchEntry[] = [
   ...methodEntries(),
   ...muonMethodEntries(),
   ...solverMethodEntries(),
+  ...gaslessMethodEntries(),
 ];
 
 /** Solver markets, fetched lazily when the palette opens. Routes to the Solvers page. */
