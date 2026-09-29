@@ -5,6 +5,9 @@ import { ReadCollateralAllowance } from "../inspector/read-collateral-allowance"
 import { ReadCollateralBalance } from "../inspector/read-collateral-balance";
 import { ReadDeallocateUpnlSig } from "../inspector/read-deallocate-upnl-sig";
 import { ReadDelegationReads } from "../inspector/read-delegation-reads";
+import { ReadExpressWithdrawOptions } from "../inspector/read-express-withdraw-options";
+import { ReadExpressWithdrawStatus } from "../inspector/read-express-withdraw-status";
+import { ReadExpressWithdrawStatuses } from "../inspector/read-express-withdraw-statuses";
 import { ReadFeeForUser } from "../inspector/read-fee-for-user";
 import { ReadGetFundingFeesOfPartyB } from "../inspector/read-get-funding-fees-of-party-b";
 import { ReadGetPartyAOpenPositions } from "../inspector/read-get-party-a-open-positions";
@@ -22,6 +25,8 @@ import { ReadLastWithdrawRequestId } from "../inspector/read-last-withdraw-reque
 import { ReadOnchainContractMarkets } from "../inspector/read-onchain-contract-markets";
 import { ReadPendingWithdrawRequests } from "../inspector/read-pending-withdraw-requests";
 import { ReadQuotePriceHistory } from "../inspector/read-quote-price-history";
+import { ReadWithdrawRoute } from "../inspector/read-withdraw-route";
+import { ReadWithdrawRouteChoices } from "../inspector/read-withdraw-route-choices";
 import { ReadWithdrawableTime } from "../inspector/read-withdrawable-time";
 import { WriteAddMargin } from "../inspector/write-add-margin";
 import { WriteAllocate } from "../inspector/write-allocate";
@@ -37,6 +42,7 @@ import { WriteGrantDelegation } from "../inspector/write-grant-delegation";
 import { WriteInitiateWithdraw } from "../inspector/write-initiate-withdraw";
 import { WriteRemoveMargin } from "../inspector/write-remove-margin";
 import { WriteRequestCancelWithdraw } from "../inspector/write-request-cancel-withdraw";
+import { WriteWithdrawWithExpress } from "../inspector/write-withdraw-with-express";
 import { BalanceHistoryCard } from "../transactions/balance-history-card";
 import { TransfersCard } from "../transactions/transfers-card";
 
@@ -287,4 +293,11 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     groups: ["withdraw"],
     Component: ReadWithdrawableTime,
   },
+  // Express Withdraw (off-chain service + provider-routed initiateWithdraw) — no single ABI
+  { id: "getWithdrawRoute", kind: "read", groups: ["withdraw"], Component: ReadWithdrawRoute },
+  { id: "getWithdrawRouteChoices", kind: "read", groups: ["withdraw"], Component: ReadWithdrawRouteChoices },
+  { id: "getExpressWithdrawOptions", kind: "read", groups: ["withdraw"], Component: ReadExpressWithdrawOptions },
+  { id: "getExpressWithdrawStatus", kind: "read", groups: ["withdraw"], Component: ReadExpressWithdrawStatus },
+  { id: "useExpressWithdrawStatuses", kind: "read", groups: ["withdraw"], Component: ReadExpressWithdrawStatuses },
+  { id: "withdrawWithExpress", kind: "write", groups: ["withdraw"], Component: WriteWithdrawWithExpress },
 ];
