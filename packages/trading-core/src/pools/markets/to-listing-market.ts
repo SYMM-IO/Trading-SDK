@@ -145,6 +145,7 @@ export function toListingMarket(raw: MarketSearchItem): ListingMarket {
     priceDrivenApy: toApyWindows(raw, "price_driven_apy"),
     listingTime: raw.listing_time ?? null,
     marketStatus: raw.market_status as unknown as ListingMarketStatus,
+    isLocked: raw.is_locked,
   };
 }
 

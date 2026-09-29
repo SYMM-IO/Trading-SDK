@@ -215,6 +215,12 @@ The timestamp key (`ListingTimeRange`, `min` / `max` as `number` in Unix **secon
   </Property>
 </Returns>
 
+Each row carries `isLocked`, the inventory service's lock flag. A locked market accepts **no new deposits**; trading,
+withdrawals and every other flow stay available. It is independent of `marketStatus` — a `LISTED` market can be
+locked — and the row has **only** the flag; the reasons come back on
+[`getListingMarketDetail`](/core/pools/market-detail) as `lockReasons`. See
+[`MarketLockReason`](/core/pools/listing-market-type#marketlockreason).
+
 Every envelope field is defaulted on the way through — counts to `0`, `items` to an empty array — because the backend declares them as defaulted rather than required.
 
 ## Examples

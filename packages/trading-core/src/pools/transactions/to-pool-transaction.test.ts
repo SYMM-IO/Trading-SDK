@@ -11,6 +11,8 @@ import { toPoolTransaction, toPoolTransactionPage } from "./to-pool-transaction"
 function makeRow(overrides: Partial<MarketTransaction> = {}): MarketTransaction {
   return {
     transaction_id: "3f0c7c1e-0f7a-4c02-9d5d-9d3d2a6f1a11",
+    token_address: "0x800822d361335b4d5F352Dac293cA4128b5B605f",
+    chain_id: 8453,
     wallet_address: "0xf55534BBf9011ca7Ad84b804fdA9E7f4bE18Fe8A",
     amount: "14340638353162345849846",
     usdc_amount: "14340638353162345849846",

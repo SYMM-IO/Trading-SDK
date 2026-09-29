@@ -91,6 +91,10 @@ What the mapping does:
 
 `chain_id` and `market_status` are carried across as [`ListingDepositChainId`](/core/pools/listing-market-type#listingdepositchainid) and [`ListingMarketStatus`](/core/pools/listing-market-type#listingmarketstatus). Both enums mirror the backend's own values, so this is a naming of what arrived, not a validation of it — an unrecognized value from a newer backend passes through unchanged.
 
+`is_locked` is carried across as `isLocked`. The row has no lock reasons; those arrive only on
+[`getListingMarketDetail`](/core/pools/market-detail), where an unrecognized reason becomes
+[`MarketLockReason.UNKNOWN`](/core/pools/listing-market-type#marketlockreason).
+
 ## toListingMarketPage
 
 Map the backend's paginated envelope into a [`ListingMarketPage`](/core/pools/listing-market-type#listingmarketpage), mapping each row through `toListingMarket` on the way.

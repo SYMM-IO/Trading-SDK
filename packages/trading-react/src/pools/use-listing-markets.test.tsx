@@ -36,6 +36,7 @@ const PAGE: GetListingMarketsReturnType = {
       priceDrivenApy: { h1: 0n, h6: 0n, h24: 0n, d30: null, lifetime: 0n },
       listingTime: 1772715579,
       marketStatus: ListingMarketStatus.LISTED,
+      isLocked: false,
     },
   ],
 };

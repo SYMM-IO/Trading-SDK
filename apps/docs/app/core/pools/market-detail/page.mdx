@@ -64,6 +64,16 @@ A pool is addressed by its token **and** its deposit chain. Neither identifies a
   <Property name="marketStatus" type="ListingMarketStatus">
     Where the pool sits in the listing lifecycle.
   </Property>
+  <Property name="isLocked" type="boolean">
+    Whether the inventory service currently has this pool locked against new deposits. Only deposits are blocked —
+    trading, withdrawals and every other flow stay available. Independent of `marketStatus` — a `LISTED` pool can be
+    locked. `false` when the backend reports no lock state, as it does for a delisted pool.
+  </Property>
+  <Property name="lockReasons" type="MarketLockReason[]">
+    Why the pool is locked, one entry per active reason; empty when it is not locked. A reason this SDK release does not
+    recognize arrives as `MarketLockReason.UNKNOWN` rather than throwing. See
+    [`MarketLockReason`](/core/pools/listing-market-type#marketlockreason).
+  </Property>
   <Property name="maxLeverage" type="number">
     Maximum leverage, as a whole multiplier.
   </Property>
@@ -113,6 +123,13 @@ A pool is addressed by its token **and** its deposit chain. Neither identifies a
     The pool's aggregate short side, or `null` when the backend reported none.
   </Property>
 </Properties>
+
+<Callout type="info">
+  A lock is not a lifecycle state. `marketStatus` still says `LISTED` while `isLocked` is `true`. A lock blocks
+  **deposits only** — gate the deposit action on the flag, leave trading, withdrawals and claims enabled, and use
+  `lockReasons` to tell the user why. This is the only read that returns the reasons — the catalogue row from
+  [`getListingMarkets`](/core/pools/get-listing-markets) carries `isLocked` alone.
+</Callout>
 
 ## toPoolPositions
 

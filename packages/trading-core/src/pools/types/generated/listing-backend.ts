@@ -11,15 +11,18 @@ import axios from "axios";
 export enum SupportedDepositChains {
   NUMBER_0 = 0,
   NUMBER_56 = 56,
+  NUMBER_4663 = 4663,
+  NUMBER_5042 = 5042,
   NUMBER_8453 = 8453,
   NUMBER_42161 = 42161,
   NUMBER_146 = 146,
-  NUMBER_999 = 999,
 }
 export enum AllKnownChains {
   NUMBER_0 = 0,
   NUMBER_1 = 1,
   NUMBER_56 = 56,
+  NUMBER_4663 = 4663,
+  NUMBER_5042 = 5042,
   NUMBER_8453 = 8453,
   NUMBER_42161 = 42161,
   NUMBER_43114 = 43114,
@@ -133,6 +136,21 @@ export interface BalanceChangesMetrics {
   pending_withdraw_lp_amount?: string;
 }
 
+export enum CalculateSymbolPriceRequestChain {
+  BASE = "BASE",
+  SOLANA = "SOLANA",
+  BSC = "BSC",
+  ARBITRUM_ONE = "ARBITRUM_ONE",
+  SONIC = "SONIC",
+  ROBINHOOD = "ROBINHOOD",
+  ARC = "ARC",
+}
+export interface CalculateSymbolPriceRequest {
+  chain: CalculateSymbolPriceRequestChain;
+  /** EVM or Solana blockchain address */
+  token_address: string;
+}
+
 export enum TransactionStatus {
   canceled = "canceled",
   rejected = "rejected",
@@ -185,17 +203,24 @@ export interface ClientRateLimits {
   profit_claims_per_day: number;
 }
 
+export interface IntegerBounds {
+  /** Inclusive minimum accepted value. */
+  minimum: number;
+  /** Inclusive maximum accepted value. */
+  maximum: number;
+}
+
 export interface ClientConfigResponse {
   /**
-   * Recommended USDC value of the initial token deposit used to start market listing, scaled by 1e18 and returned as a decimal string.
+   * Recommended USDC value for a detected deposit, scaled by 1e18 and returned as a decimal string.
    * @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
    */
-  recommended_initial_deposit_usdc: string;
+  recommended_deposit_usdc: string;
   /**
-   * Minimum accepted USDC value of the initial token deposit after applying the configured price-slippage tolerance, scaled by 1e18 and returned as a decimal string.
+   * Inclusive minimum USDC value enforced for every detected deposit, after applying the configured price-slippage tolerance and the $1 floor. Scaled by 1e18 and returned as a decimal string.
    * @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
    */
-  minimum_initial_deposit_usdc: string;
+  minimum_deposit_usdc: string;
   /**
    * Listing fee denominated in USDC and converted to token units when the listing is processed, scaled by 1e18 and returned as a decimal string.
    * @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
@@ -205,7 +230,9 @@ export interface ClientConfigResponse {
   supported_deposit_chains: SupportedDepositChainConfig[];
   /** Client mutation limits enforced over rolling 24-hour windows. */
   rate_limits: ClientRateLimits;
-  /** Whole percentage of market revenue allocated to the protocol before buyback and LP reward distribution. */
+  /** Inclusive bounds accepted for market configuration max_leverage. */
+  max_leverage_bounds: IntegerBounds;
+  /** Whole percentage of market revenue allocated to the VIBE treasury, read from config.vibe_profit_ratio. */
   protocol_reward_share_percent: number;
 }
 
@@ -243,6 +270,18 @@ export interface CustomSiweMessage {
   statement?: string | null;
   /** ISO 8601 datetime string that, if present, indicates when the signed authentication message is no longer valid. */
   expirationTime?: string | null;
+}
+
+export interface DailyUserFinancialValueSchema {
+  time: string;
+  token_contract_address: string;
+  chain_id: number;
+  tvl: string | null;
+  reward: string | null;
+  token_amount: string | null;
+  usdc_amount: string | null;
+  token_price_usd: string | null;
+  user_share: string | null;
 }
 
 export interface DepositRequestSchemaV2 {
@@ -357,6 +396,8 @@ export interface GetMarketResponseSchema {
   short_position_value: string | null;
   short_position_avg_open_price: string | null;
   short_position_upnl: string | null;
+  is_locked?: boolean | null;
+  lock_reasons?: string[] | null;
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown };
@@ -431,7 +472,10 @@ export interface ProfitMetrics {
 }
 
 export interface RevenueDistributionMetrics {
-  /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
+  /**
+   * Cumulative VIBE treasury allocation, scaled by 1e18.
+   * @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+   */
   enigma_share?: string;
   /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
   buyback_amount?: string;
@@ -474,6 +518,8 @@ export interface MarketSearchItem {
   open_interest?: string | null;
   listing_time?: number | null;
   market_status: MarketStatus;
+  /** Cached Inventory lock state; false until first refresh */
+  is_locked: boolean;
 }
 
 export enum TransactionType {
@@ -489,6 +535,8 @@ export enum UserReadableTransactionStatus {
 }
 export interface MarketTransaction {
   transaction_id: string;
+  token_address: string;
+  chain_id: number;
   wallet_address: string;
   amount: string;
   usdc_amount: string;
@@ -506,7 +554,7 @@ export interface MarketTransaction {
 }
 
 export interface MarketTransactionsHistory {
-  market_address: string;
+  market_address: string | null;
   count: number;
   data: MarketTransaction[];
 }
@@ -545,6 +593,8 @@ export interface UserMarketSearchItem {
   tvl?: string | null;
   listing_time?: number | null;
   market_status: MarketStatus;
+  /** Cached Inventory lock state; false until first refresh */
+  is_locked: boolean;
   max_leverage: number;
   token_ticker: string;
   token_name: string;
@@ -674,6 +724,14 @@ export interface SignInMessageResponseSchema {
   params: SignInMessageParams;
 }
 
+export interface SymbolPriceResponse {
+  /**
+   * USD price per token
+   * @exclusiveMinimum 0
+   */
+  price: number;
+}
+
 export interface Token {
   accessToken: string;
   tokenType: string;
@@ -709,6 +767,19 @@ export interface UpdateMarketConfigResponseSchema {
   user_buyback_ratio?: number | null;
   max_leverage: number;
   buyback_ratio: number;
+}
+
+export interface UserFinancialHistorySchema {
+  items: DailyUserFinancialValueSchema[];
+  total: number;
+}
+
+export interface UserFinancialSummarySchema {
+  user_address: string;
+  total_tvl: string;
+  total_reward: string;
+  latest_tvl: string | null;
+  latest_reward: string | null;
 }
 
 export interface UserMarketMetrics {
@@ -753,6 +824,7 @@ export interface WithdrawRequest {
 }
 
 export enum UtilsPaginationDependenciesSortField1 {
+  is_locked = "is_locked",
   liquidity = "liquidity",
   tvl = "tvl",
   market_cap = "market_cap",
@@ -779,6 +851,7 @@ export enum UtilsPaginationDependenciesSortField1 {
   user_revenue = "user_revenue",
 }
 export enum UtilsPaginationDependenciesSortField2 {
+  is_locked = "is_locked",
   liquidity = "liquidity",
   tvl = "tvl",
   market_cap = "market_cap",
@@ -932,6 +1005,10 @@ export type MarketUserSearchV2MarketSearchUserGetParams = {
    */
   market_status?: MarketStatus | null;
   /**
+   * Filter by cached Inventory lock state
+   */
+  is_locked?: boolean | null;
+  /**
    * @minimum 1
    * @maximum 100
    */
@@ -1006,6 +1083,10 @@ export type MarketSearchV2MarketSearchGetParams = {
    */
   market_status?: MarketStatus | null;
   /**
+   * Filter by cached Inventory lock state
+   */
+  is_locked?: boolean | null;
+  /**
    * @minimum 1
    * @maximum 100
    */
@@ -1068,9 +1149,18 @@ export enum MarketSearchV2MarketSearchGetOrderBy {
 }
 export type GetTransactionHistoryV2MarketTransactionHistoryStartSizeGetParams = {
   /**
-   * EVM or Solana blockchain address
+   * Optional token address; omit for all markets
    */
-  market_address: string;
+  token_address?: string | null;
+  /**
+   * Deprecated alias for token_address
+   * @deprecated
+   */
+  market_address?: string | null;
+  /**
+   * Optional deposit chain ID
+   */
+  chain_id?: SupportedDepositChains | null;
   /**
    * The wallet address used to retrieve its transaction history
    */
@@ -1204,6 +1294,53 @@ export type GetUserTotalRewardV2ProfitTotalRewardGetParams = {
    * @maximum 30
    */
   days: number;
+};
+
+export type GetUserFinancialSummaryV2UserReportsUserAddressSummaryGetParams = {
+  /**
+   * Inclusive UTC start date (YYYY-MM-DD)
+   */
+  date_from: string;
+  /**
+   * Optional inclusive UTC end date (YYYY-MM-DD)
+   */
+  date_to?: string | null;
+  /**
+   * Filter by market token address
+   */
+  token_contract_address?: string | null;
+  /**
+   * Filter by market deposit chain
+   */
+  chain_id?: SupportedDepositChains | null;
+};
+
+export type GetUserFinancialHistoryV2UserReportsUserAddressDailyGetParams = {
+  /**
+   * Inclusive UTC start date (YYYY-MM-DD)
+   */
+  date_from: string;
+  /**
+   * Inclusive UTC end date (YYYY-MM-DD)
+   */
+  date_to: string;
+  /**
+   * Filter by market token address
+   */
+  token_contract_address?: string | null;
+  /**
+   * Filter by market deposit chain
+   */
+  chain_id?: SupportedDepositChains | null;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
 };
 
 /**
@@ -1449,13 +1586,24 @@ export const cancelWithdrawV2MarketWithdrawWithdrawIdDelete = (
 };
 
 /**
- * Returns deposit and withdraw transaction rows, including refunded deposits, ordered by creation time descending.
- * @summary List market transaction history
+ * Accepts unlisted tokens. Limited to 10 requests per minute per authenticated wallet and 30 globally, including cached responses.
+ * @summary Calculate a token price (cached for 5 minutes)
+ */
+export const calculateSymbolPriceV2MarketTokenPricePost = (
+  calculateSymbolPriceRequest: CalculateSymbolPriceRequest,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<SymbolPriceResponse>> => {
+  return axios.post(`/v2/market/token-price`, calculateSymbolPriceRequest, options);
+};
+
+/**
+ * Returns paginated transactions across markets, newest first.
+ * @summary List transaction history across markets
  */
 export const getTransactionHistoryV2MarketTransactionHistoryStartSizeGet = (
   start: number,
   size: number,
-  params: GetTransactionHistoryV2MarketTransactionHistoryStartSizeGetParams,
+  params?: GetTransactionHistoryV2MarketTransactionHistoryStartSizeGetParams,
   options?: AxiosRequestConfig,
 ): Promise<AxiosResponse<MarketTransactionsHistory>> => {
   return axios.get(`/v2/market/transaction-history/${start}/${size}`, {
@@ -1475,7 +1623,7 @@ export const getUserSharesV2MarketUserSharesTokenContractAddressGet = (
 };
 
 /**
- * Returns deposit and withdraw transaction rows, including refunded deposits, ordered by creation time descending.
+ * Returns the user's paginated transactions across markets, newest first.
  * @summary List the authenticated user's transactions
  */
 export const searchUserTransactionsV2MarketUserTransactionsStartSizeGet = (
@@ -1491,7 +1639,7 @@ export const searchUserTransactionsV2MarketUserTransactionsStartSizeGet = (
 };
 
 /**
- * Returns market metadata plus aggregate TVL, APY, pool amounts, lifetime reward, and inventory positions for the token on the given deposit chain. Listed markets use live Inventory balances. Delisted markets return cached remaining token and USDC balances with TVL fixed at zero.
+ * Returns market metadata plus aggregate TVL, APY, pool amounts, lifetime reward, Inventory positions, lock state, and lock reasons for the token on the given deposit chain. Listed markets use Inventory's consolidated market info. Delisted markets return cached remaining token and USDC balances with TVL fixed at zero and a null lock state.
  * @summary Get public market and pool stats
  */
 export const getMarketV2MarketGet = (
@@ -1635,6 +1783,36 @@ export const getProfitByTokenV2ProfitTokenContractAddressGet = (
   return axios.get(`/v2/profit/${tokenContractAddress}`, options);
 };
 
+/**
+ * Report values are valid only for dates after 2026-09-17 (UTC). Returns total TVL, total allocated rewards, and the latest matching snapshot's TVL and reward for the filtered UTC date range. If date_to is omitted, stored records are not upper-bounded. Claims do not reduce rewards. This internal endpoint is protected by X-API-Key and the service connection limit.
+ * @summary Get a user financial summary
+ */
+export const getUserFinancialSummaryV2UserReportsUserAddressSummaryGet = (
+  userAddress: string,
+  params: GetUserFinancialSummaryV2UserReportsUserAddressSummaryGetParams,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<UserFinancialSummarySchema>> => {
+  return axios.get(`/v2/user-reports/${userAddress}/summary`, {
+    ...options,
+    params: { ...params, ...options?.params },
+  });
+};
+
+/**
+ * Report values are valid only for dates after 2026-09-17 (UTC). Returns per-market-wallet TVL and allocated rewards for an inclusive UTC date range. Results are sorted by time descending. Claims do not affect this report. This internal endpoint is protected by X-API-Key and the service connection limit.
+ * @summary List a user's daily financial history
+ */
+export const getUserFinancialHistoryV2UserReportsUserAddressDailyGet = (
+  userAddress: string,
+  params: GetUserFinancialHistoryV2UserReportsUserAddressDailyGetParams,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<UserFinancialHistorySchema>> => {
+  return axios.get(`/v2/user-reports/${userAddress}/daily`, {
+    ...options,
+    params: { ...params, ...options?.params },
+  });
+};
+
 export type RequestNonceV2AuthNoncePostResult = AxiosResponse<NonceResponseSchema>;
 export type GetSignInMessageV2AuthSignInMessageGetResult = AxiosResponse<SignInMessageResponseSchema>;
 export type LoginV2AuthLoginPostResult = AxiosResponse<Token>;
@@ -1657,6 +1835,7 @@ export type MarketUserSearchV2MarketSearchUserGetResult = AxiosResponse<Paginati
 export type MarketSearchV2MarketSearchGetResult = AxiosResponse<PaginationResponseMarketSearchItem>;
 export type WithdrawV2MarketWithdrawPostResult = AxiosResponse<unknown>;
 export type CancelWithdrawV2MarketWithdrawWithdrawIdDeleteResult = AxiosResponse<CancelWithdrawResponse>;
+export type CalculateSymbolPriceV2MarketTokenPricePostResult = AxiosResponse<SymbolPriceResponse>;
 export type GetTransactionHistoryV2MarketTransactionHistoryStartSizeGetResult =
   AxiosResponse<MarketTransactionsHistory>;
 export type GetUserSharesV2MarketUserSharesTokenContractAddressGetResult = AxiosResponse<UserShareResponse>;
@@ -1674,3 +1853,5 @@ export type GetClientConfigV2ConfigsGetResult = AxiosResponse<ClientConfigRespon
 export type GetUserRewardChartV2ProfitChartRewardsGetResult = AxiosResponse<UserMarketRewardChartSchema[]>;
 export type GetUserTotalRewardV2ProfitTotalRewardGetResult = AxiosResponse<TotalRewardSchema>;
 export type GetProfitByTokenV2ProfitTokenContractAddressGetResult = AxiosResponse<LPTokenProfitSchema>;
+export type GetUserFinancialSummaryV2UserReportsUserAddressSummaryGetResult = AxiosResponse<UserFinancialSummarySchema>;
+export type GetUserFinancialHistoryV2UserReportsUserAddressDailyGetResult = AxiosResponse<UserFinancialHistorySchema>;

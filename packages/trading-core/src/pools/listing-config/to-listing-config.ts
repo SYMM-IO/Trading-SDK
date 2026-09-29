@@ -35,8 +35,8 @@ export function toListingConfig(raw: ClientConfigResponse): ListingConfig {
   };
 
   return {
-    recommendedInitialDepositUsdc: toListingValue(raw.recommended_initial_deposit_usdc) ?? 0n,
-    minimumInitialDepositUsdc: toListingValue(raw.minimum_initial_deposit_usdc) ?? 0n,
+    recommendedInitialDepositUsdc: toListingValue(raw.recommended_deposit_usdc) ?? 0n,
+    minimumInitialDepositUsdc: toListingValue(raw.minimum_deposit_usdc) ?? 0n,
     listingFeeUsdc: toListingValue(raw.listing_fee_usdc) ?? 0n,
     supportedDepositChains: raw.supported_deposit_chains.map(toListingDepositChain),
     rateLimits,

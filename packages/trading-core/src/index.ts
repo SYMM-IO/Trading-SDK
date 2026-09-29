@@ -2501,6 +2501,7 @@ export {
   LISTING_VALUE_DECIMALS,
   ListingDepositChainId,
   ListingMarketStatus,
+  MarketLockReason,
   addMarket,
   addMarketMutationOptions,
   authenticateListing,
