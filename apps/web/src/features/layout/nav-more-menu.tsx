@@ -1,14 +1,20 @@
 "use client";
 
-import { isActivePath, isAnyActive, secondaryNavLinks } from "@/features/layout/nav";
+import {
+  isActivePath,
+  isAnyActive,
+  secondaryNavGroups,
+  secondaryNavLinks,
+  type SecondaryNavHref,
+} from "@/features/layout/nav";
 import { Popover, PopoverContent, PopoverTrigger } from "@symmio/ui/components/popover";
 import { cn } from "@symmio/ui/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactElement, type SVGProps } from "react";
+import { useId, useState, type ReactElement, type SVGProps } from "react";
 
 /** Per-route glyphs for the secondary destinations, keyed by href. */
-const ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElement> = {
+const ICONS: Record<SecondaryNavHref, (props: SVGProps<SVGSVGElement>) => ReactElement> = {
   "/contracts": LayersIcon,
   "/solvers": SolverIcon,
   "/price-service": PriceIcon,
@@ -23,13 +29,15 @@ const ICONS: Record<string, (props: SVGProps<SVGSVGElement>) => ReactElement> = 
 
 /**
  * The desktop header "More" control: a nav-styled trigger that opens an anchored
- * popover listing the {@link secondaryNavLinks}. Each row pairs an icon tile with
- * a label and a one-line description, mirroring a modern site's overflow menu. The
- * trigger keeps the active underline when one of its routes is current.
+ * popover listing the {@link secondaryNavGroups}. Groups flow into two balanced
+ * columns so the panel stays short; if the viewport is shorter still, the panel is
+ * capped to the space below the header and scrolls instead of running off-screen.
+ * The trigger keeps the active underline when one of its routes is current.
  */
 export function NavMoreMenu() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const idPrefix = useId();
   const anyActive = isAnyActive(pathname, secondaryNavLinks);
 
   return (
@@ -39,7 +47,7 @@ export function NavMoreMenu() {
           type="button"
           aria-label="More pages"
           className={cn(
-            "relative inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors outline-none",
+            "focus-visible:ring-ring/40 relative inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors outline-none focus-visible:ring-3",
             anyActive || open ? "text-foreground" : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -51,44 +59,60 @@ export function NavMoreMenu() {
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="start" sideOffset={14} className="w-72 p-1.5">
-        <ul className="flex flex-col gap-0.5">
-          {secondaryNavLinks.map((link) => {
-            const active = isActivePath(pathname, link.href);
-            const Icon = ICONS[link.href];
-            return (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  onClick={() => setOpen(false)}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "group flex items-center gap-3 rounded-lg px-2.5 py-2.5 transition-colors",
-                    active ? "bg-muted" : "hover:bg-muted",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex size-9 shrink-0 items-center justify-center rounded-lg border transition-colors",
-                      active
-                        ? "border-primary/30 bg-primary/10 text-primary"
-                        : "border-border/70 bg-muted/40 text-muted-foreground group-hover:text-foreground",
-                    )}
-                  >
-                    {Icon ? <Icon className="size-[18px]" /> : null}
-                  </span>
-                  <span className="flex min-w-0 flex-col">
-                    <span className="text-foreground text-sm font-medium">{link.label}</span>
-                    {link.description ? (
-                      <span className="text-muted-foreground truncate text-xs">{link.description}</span>
-                    ) : null}
-                  </span>
-                  <ArrowIcon className="text-muted-foreground/0 group-hover:text-muted-foreground ml-auto size-4 shrink-0 -translate-x-1 transition-all group-hover:translate-x-0" />
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+      <PopoverContent
+        align="start"
+        sideOffset={14}
+        collisionPadding={12}
+        className="flex max-h-(--radix-popover-content-available-height) w-xl max-w-(--radix-popover-content-available-width) flex-col p-0"
+      >
+        <div className="overflow-y-auto overscroll-contain px-2 pt-2">
+          <div className="columns-2 gap-2">
+            {secondaryNavGroups.map((group, index) => {
+              const headingId = `${idPrefix}-group-${index}`;
+              return (
+                <div key={group.label} className="break-inside-avoid pb-2">
+                  <p id={headingId} className="text-muted-foreground px-2.5 pt-1.5 pb-1.5 text-xs font-medium">
+                    {group.label}
+                  </p>
+                  <ul aria-labelledby={headingId} className="flex flex-col gap-0.5">
+                    {group.links.map((link) => {
+                      const active = isActivePath(pathname, link.href);
+                      const Icon = ICONS[link.href];
+                      return (
+                        <li key={link.href}>
+                          <Link
+                            href={link.href}
+                            onClick={() => setOpen(false)}
+                            aria-current={active ? "page" : undefined}
+                            className={cn(
+                              "group focus-visible:bg-muted focus-visible:ring-ring/40 flex items-center gap-3 rounded-lg px-2.5 py-2 transition-colors outline-none focus-visible:ring-3",
+                              active ? "bg-muted" : "hover:bg-muted",
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "flex size-9 shrink-0 items-center justify-center rounded-lg border transition-colors",
+                                active
+                                  ? "border-primary/30 bg-primary/10 text-primary"
+                                  : "border-border/70 bg-muted/40 text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground",
+                              )}
+                            >
+                              <Icon className="size-4.5" />
+                            </span>
+                            <span className="flex min-w-0 flex-col">
+                              <span className="text-foreground text-sm font-medium">{link.label}</span>
+                              <span className="text-muted-foreground truncate text-xs">{link.description}</span>
+                            </span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </PopoverContent>
     </Popover>
   );
@@ -107,23 +131,6 @@ function ChevronIcon(props: SVGProps<SVGSVGElement>) {
       {...props}
     >
       <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
-}
-
-function ArrowIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-      {...props}
-    >
-      <path d="M5 12h13M12 6l6 6-6 6" />
     </svg>
   );
 }

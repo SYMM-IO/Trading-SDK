@@ -5,11 +5,16 @@ import type { SymmioGaslessConfig } from "../../core/chains/types";
 import { createConfig, type Config } from "../../core/config";
 import type { DeepPartial } from "../../shared/types/properties";
 
-/** Deterministic gasless block used across gasless tests (production values). */
+/**
+ * Deterministic gasless block used across gasless tests: the staging gateway
+ * origin and its multi-wallet GaslessLayer, under a neutral test instance key.
+ * The partner `apiKey` exercises the keyed path; anonymous access is covered by
+ * tests that drop it.
+ */
 export const TEST_GASLESS: SymmioGaslessConfig = {
-  url: "https://gaslessq.symmio.foundation",
-  protocolInstance: "arbitrum-42161-vibe",
-  gaslessLayerAddress: "0x8347953D80037b8d82827246f37EC7442AD188B4",
+  url: "https://gaslessq-staging.symmio.foundation",
+  protocolInstance: "arbitrum-42161-test",
+  gaslessLayerAddress: "0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca",
   apiKey: "test-key",
 };
 

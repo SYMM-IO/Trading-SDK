@@ -19,9 +19,18 @@ export type UseGaslessDepositPolicyParameters = GetGaslessDepositPolicyOptions &
 export type UseGaslessDepositPolicyReturnType = UseQueryResult<GetGaslessDepositPolicyReturnType, SymmioRequestError>;
 
 /**
- * Read the gasless deposit policy for an owner - the deterministic deposit
- * address plus fee/minimum terms - via RPC contract reads on the GaslessLayer.
- * Gate the settlement UI on the observed balance reaching `settlementMinimum`.
+ * Read the gasless deposit policy for one of an owner's GaslessWallets - the
+ * deterministic deposit address, the collateral token and its decimals, and
+ * the deposit fee, minimum and wallet creation fee - via RPC contract reads on
+ * the GaslessLayer. `walletId` defaults to `0n`. Gate the settlement UI on the
+ * observed balance reaching `settlementMinimum`, which already covers the
+ * creation fee.
+ *
+ * The settlement hooks and `useGaslessWalletExecute` invalidate it, since
+ * either may deploy the wallet and zero its creation fee.
+ *
+ * @param parameters - Owner, optional `walletId` (default `0n`), optional chain id, config and query overrides.
+ * @returns The TanStack query result, with failures normalized to {@link SymmioRequestError}.
  *
  * @example
  * ```tsx

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  classifyGaslessFailure,
   parseGaslessErrorDetail,
   useAreDelegationsActive,
   useFinalizeRevokeDelegation,
@@ -94,8 +95,8 @@ export interface UseSessionKeyDelegationResult {
  * revert, sits in the response body. `parseGaslessErrorDetail` digs it out.
  *
  * The revert text is read from `decoded`, not `arguments`: the vendor returns
- * the arguments keyed by name while the SDK types that field as a positional
- * array, so `decoded` is the field that reliably carries the message.
+ * the arguments keyed by name on this deployment, and `decoded` is the field
+ * that carries the message as a plain string either way.
  */
 function toActionableError(reason: unknown): Error {
   const detail = parseGaslessErrorDetail(reason);
@@ -103,8 +104,21 @@ function toActionableError(reason: unknown): Error {
   const decoded = typeof revert?.decoded === "string" ? revert.decoded : undefined;
   const text = decoded ?? revert?.error;
 
-  /** The first wall every new sub-account hits, and the fix is a different screen. */
-  if (text?.includes("OperationalFee")) {
+  /**
+   * The first wall every new sub-account hits — and it is two different walls
+   * with one prefix. `OperationalFee: Insufficient balance` means the payer has
+   * no collateral to be charged, which no approval fixes; `Allowance exceeded`
+   * means the cap is too low. The classifier reads the decoded revert (and the
+   * vendor's own code when the gateway sends one instead), so each one points
+   * at the screen that can actually fix it.
+   */
+  const failure = classifyGaslessFailure(reason);
+  if (failure === "payer-balance") {
+    return new Error(
+      "OperationalFee: Insufficient balance — the relayer is paid from this sub-account's SYMMIO collateral, and it has too little to cover the grant. Deposit into the sub-account, then grant again; raising the allowance does nothing here.",
+    );
+  }
+  if (failure === "fee-allowance") {
     return new Error(
       "OperationalFee: Allowance exceeded — the relayer is paid from this sub-account's operational-fee allowance, and it is not high enough to cover the grant. Approve more on the Gasless page, then grant again.",
     );

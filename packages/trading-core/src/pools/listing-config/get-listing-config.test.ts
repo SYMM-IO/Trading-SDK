@@ -27,8 +27,8 @@ describe("getListingConfig", () => {
     const { config } = mockConfig();
     getClientConfigV2ConfigsGet.mockResolvedValue({
       data: {
-        recommended_initial_deposit_usdc: "500000000000000000000",
-        minimum_initial_deposit_usdc: "450000000000000000000",
+        recommended_deposit_usdc: "500000000000000000000",
+        minimum_deposit_usdc: "450000000000000000000",
         listing_fee_usdc: "25000000000000000000",
         supported_deposit_chains: [{ chain_id: ListingDepositChainId.HYPER_EVM, chain_name: "HyperEVM" }],
         rate_limits: { market_config_updates_per_day: 5, profit_claims_per_day: 3 },

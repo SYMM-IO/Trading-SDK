@@ -40,6 +40,7 @@ export function WriteDeposit() {
       name="depositForAccount"
       mutability="nonpayable"
       gaslessRelayable
+      gaslessFee={{ account: validAccount, args: validAccount ? [validAccount, validAmount ?? 0n] : undefined }}
       description="Deposit collateral into a subaccount's available balance. Requires a prior approveCollateral."
     >
       <SubAccountField

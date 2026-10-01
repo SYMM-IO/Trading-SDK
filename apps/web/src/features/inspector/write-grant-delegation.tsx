@@ -60,6 +60,10 @@ export function WriteGrantDelegation() {
 
   const simulate = useSimulateGrantDelegation();
 
+  /** The grant's `DelegationInfo`, exactly as the write signs it. */
+  const grantVariables = getVariables();
+  const grantArgs = grantVariables ? [grantVariables] : undefined;
+
   function getVariables(): WriteVariables | undefined {
     if (!validAccount || !validDelegatedSigner || !selectors || !expiry) return undefined;
     return {
@@ -77,6 +81,7 @@ export function WriteGrantDelegation() {
       mutability="nonpayable"
       gaslessRelayable
       gaslessBlockedReason={gaslessBlockedReason}
+      gaslessFee={{ account: validAccount, args: grantArgs }}
       description="Grant one delegated signer access to selected Instant Layer function selectors."
     >
       <SubAccountPicker

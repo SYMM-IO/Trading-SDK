@@ -9,6 +9,7 @@ import {
   CONFIG_GROUPS,
   countChainOverrides,
   draftFromOverrides,
+  draftInstantLayerAddress,
   fieldPath,
   isFieldAvailable,
   sameOverrides,
@@ -210,9 +211,14 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
               /**
                * A field the active chain does not carry (e.g. the enigma-only
                * notifications `channel` on a rasa chain) is hidden, and a group
-               * left with no fields disappears with it.
+               * left with no fields disappears with it. The gasless group
+               * follows the **drafted** InstantLayer, since that is the address
+               * an Apply would write and so the deployment the chain would then
+               * belong to.
                */
-              const fields = group.fields.filter((field) => isFieldAvailable(activeChain, field));
+              const fields = group.fields.filter((field) =>
+                isFieldAvailable(activeChain, field, draftInstantLayerAddress(draft, activeChain)),
+              );
               if (fields.length === 0) return null;
               return (
                 <section key={group.group} className="flex flex-col gap-4">

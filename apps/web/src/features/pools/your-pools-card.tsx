@@ -11,8 +11,9 @@ import { Spinner } from "@symmio/ui/components/spinner";
 import { useMemo, useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 import { useSolverKindActive } from "../solvers/solver-target";
-import { formatListingUsd, formatSharePercentage, LISTING_STATUS_DISPLAY } from "./format-listing-value";
+import { ABSENT, formatListingUsd, formatSharePercentage, LISTING_STATUS_DISPLAY } from "./format-listing-value";
 import { useListingAuth } from "./listing-auth-context";
+import { PoolLockBadge } from "./pool-lock";
 import { SignInNote } from "./sign-in-note";
 
 /** Sentinel for the "all statuses" option — Radix Select cannot hold an empty value. */
@@ -47,6 +48,12 @@ function userPoolColumns(): DataTableColumn<UserListingMarket>[] {
         const display = LISTING_STATUS_DISPLAY[row.marketStatus];
         return <Badge variant={display?.variant ?? "outline"}>{display?.label ?? row.marketStatus}</Badge>;
       },
+    },
+    {
+      /** Deposits into a locked pool are paused; the user's existing position, withdrawals and claims are not. */
+      id: "lock",
+      header: "Lock",
+      cell: (row) => (row.isLocked ? <PoolLockBadge /> : <span className="text-muted-foreground">{ABSENT}</span>),
     },
     {
       id: "tvl",

@@ -1,5 +1,6 @@
 import { toListingValue } from "../markets/to-listing-market";
 import {
+  MarketLockReason,
   PoolPositionSide,
   type ListingApyWindows,
   type ListingDepositChainId,
@@ -12,6 +13,18 @@ import type { GetMarketResponseSchema } from "../types/generated/listing-backend
 /** Parse a required 18-decimal figure, defaulting an absent one to `0n`. */
 function toRequiredValue(raw: string | null | undefined): bigint {
   return toListingValue(raw) ?? 0n;
+}
+
+/** Every lock reason this release knows, keyed by its wire value. */
+const KNOWN_LOCK_REASONS = new Set<string>(Object.values(MarketLockReason));
+
+/**
+ * Name a wire lock reason, folding anything unrecognized into
+ * {@link MarketLockReason.UNKNOWN} so a reason added by a newer backend cannot
+ * break the read.
+ */
+function toMarketLockReason(raw: string): MarketLockReason {
+  return KNOWN_LOCK_REASONS.has(raw) ? (raw as MarketLockReason) : MarketLockReason.UNKNOWN;
 }
 
 /**
@@ -74,6 +87,8 @@ export function toListingMarketDetail(raw: GetMarketResponseSchema): ListingMark
     tokenDecimal: raw.token_decimal,
     symbolId: raw.symbol_id ?? null,
     marketStatus: raw.market_status as unknown as ListingMarketStatus,
+    isLocked: raw.is_locked ?? false,
+    lockReasons: (raw.lock_reasons ?? []).map(toMarketLockReason),
     maxLeverage: raw.max_leverage,
     buybackRatio: raw.buyback_ratio,
     listingTime: raw.listing_time ?? null,

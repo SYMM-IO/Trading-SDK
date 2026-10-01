@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmApiError } from "../../shared/errors/symm-error";
-import { GASLESS_TEST_CHAIN, gaslessTestConfig } from "../test/config";
+import { GASLESS_TEST_CHAIN, TEST_GASLESS, gaslessTestConfig } from "../test/config";
 import { GaslessRequestStatus } from "../types";
 
 const get = vi.hoisted(() => vi.fn());
@@ -12,7 +12,7 @@ vi.mock("axios", () => ({
 
 import { getGaslessRequest } from "./get-gasless-request";
 
-const HEADERS = { "x-gaslessq-protocol-instance": "arbitrum-42161-vibe" };
+const HEADERS = { "x-gaslessq-protocol-instance": TEST_GASLESS.protocolInstance };
 
 describe("getGaslessRequest", () => {
   beforeEach(() => {
@@ -43,19 +43,61 @@ describe("getGaslessRequest", () => {
     expect(get).toHaveBeenCalledWith(
       "/req-1",
       expect.objectContaining({
-        baseURL: "https://gaslessq.symmio.foundation/v1/instances/arbitrum-42161-vibe/operations",
-        headers: expect.objectContaining({ Authorization: "Bearer test-key" }),
+        baseURL: `${TEST_GASLESS.url}/v1/instances/${TEST_GASLESS.protocolInstance}/operations`,
+        headers: expect.objectContaining({ Authorization: `Bearer ${TEST_GASLESS.apiKey}` }),
       }),
     );
     expect(request).toEqual({
+      service: "operations",
       requestId: "req-1",
       status: GaslessRequestStatus.SUBMITTED,
       txHash: "0xabc",
       errorCode: null,
       errorMessage: null,
       operationType: "initiateWithdraw",
+      accountId: null,
+      feeAmountRaw: null,
       idempotencyKey: "key-1",
+      owner: "0xuser",
+      walletIds: [],
+      createdAt: "2026-09-04T00:00:00Z",
+      updatedAt: "2026-09-04T00:00:01Z",
     });
+  });
+
+  it("maps a stored batch's wallet ids, and a historical row without them to zeros", async () => {
+    const { config } = gaslessTestConfig();
+    get.mockResolvedValue({
+      headers: HEADERS,
+      data: {
+        id: "req-2",
+        user_address: "0xuser",
+        operation_type: "gaslessqWalletExecute",
+        account_id: "0xaccount",
+        fee_amount_raw: "1500",
+        payload: { wallet_ids: ["0", "2"] },
+        status: "queued",
+      },
+    });
+
+    const selected = await getGaslessRequest(config, { chainId: GASLESS_TEST_CHAIN, requestId: "req-2" });
+    expect(selected.walletIds).toEqual([0n, 2n]);
+    expect(selected.service === "operations" && selected.accountId).toBe("0xaccount");
+    expect(selected.service === "operations" && selected.feeAmountRaw).toBe(1_500n);
+
+    get.mockResolvedValue({
+      headers: HEADERS,
+      data: {
+        id: "req-3",
+        user_address: "0xuser",
+        operation_type: "addMargin",
+        payload: { signed_ops: [{}, {}] },
+        status: "queued",
+      },
+    });
+
+    const historical = await getGaslessRequest(config, { chainId: GASLESS_TEST_CHAIN, requestId: "req-3" });
+    expect(historical.walletIds).toEqual([0n, 0n]);
   });
 
   it("normalizes a deposits record (request_id key) when service is deposits", async () => {
@@ -82,13 +124,50 @@ describe("getGaslessRequest", () => {
     expect(get).toHaveBeenCalledWith(
       "/dep-1",
       expect.objectContaining({
-        baseURL: "https://gaslessq.symmio.foundation/v1/instances/arbitrum-42161-vibe/deposits",
+        baseURL: `${TEST_GASLESS.url}/v1/instances/${TEST_GASLESS.protocolInstance}/deposits`,
       }),
     );
     expect(request.requestId).toBe("dep-1");
     expect(request.status).toBe(GaslessRequestStatus.REJECTED);
     expect(request.errorCode).toBe("DEPOSIT_BELOW_MINIMUM");
-    expect(request.operationType).toBeNull();
+    expect(request.service).toBe("deposits");
+    expect(request.service === "deposits" && request.depositAddress).toBe("0xvault");
+    /** `wallet_address` is the owner, and a record without `wallet_id` means wallet 0. */
+    expect(request.owner).toBe("0xwallet");
+    expect(request.service === "deposits" && request.walletId).toBe(0n);
+    expect(request.walletIds).toEqual([0n]);
+  });
+
+  it("reads a deposits record's wallet id and raw amounts", async () => {
+    const { config } = gaslessTestConfig();
+    get.mockResolvedValue({
+      headers: HEADERS,
+      data: {
+        request_id: "dep-2",
+        wallet_id: "3",
+        wallet_address: "0xwallet",
+        deposit_address: "0xvault",
+        account_name: "Main",
+        amount_raw: "50000",
+        fee_raw: "30000",
+        credited_raw: "20000",
+        payload: {},
+        status: "succeeded",
+      },
+    });
+
+    const request = await getGaslessRequest(config, {
+      chainId: GASLESS_TEST_CHAIN,
+      requestId: "dep-2",
+      service: "deposits",
+    });
+
+    expect(request.service === "deposits" && request.walletId).toBe(3n);
+    expect(request.walletIds).toEqual([3n]);
+    expect(request.service === "deposits" && request.accountName).toBe("Main");
+    expect(request.service === "deposits" && request.amountRaw).toBe(50_000n);
+    expect(request.service === "deposits" && request.feeRaw).toBe(30_000n);
+    expect(request.service === "deposits" && request.creditedRaw).toBe(20_000n);
   });
 
   it("throws on an unknown status value instead of polling forever", async () => {
@@ -106,13 +185,13 @@ describe("getGaslessRequest", () => {
   it("fails closed when the response reports a different protocol instance", async () => {
     const { config } = gaslessTestConfig();
     get.mockResolvedValue({
-      headers: { "x-gaslessq-protocol-instance": "arbitrum-42161-vibe-stage" },
+      headers: { "x-gaslessq-protocol-instance": "arbitrum-42161-other" },
       data: { id: "req-1", user_address: "0x", operation_type: "x", payload: {}, status: "queued" },
     });
 
-    await expect(getGaslessRequest(config, { chainId: GASLESS_TEST_CHAIN, requestId: "req-1" })).rejects.toThrowError(
-      /GASLESS_INSTANCE_MISMATCH|pins/,
-    );
+    await expect(getGaslessRequest(config, { chainId: GASLESS_TEST_CHAIN, requestId: "req-1" })).rejects.toMatchObject({
+      code: "GASLESS_INSTANCE_MISMATCH",
+    });
   });
 
   it("normalizes HTTP failures into SymmApiError with the status preserved", async () => {

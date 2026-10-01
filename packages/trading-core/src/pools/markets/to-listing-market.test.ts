@@ -35,6 +35,7 @@ function makeRow(overrides: Partial<MarketSearchItem> = {}): MarketSearchItem {
     open_interest: "52811628682812151810",
     listing_time: 1772715579,
     market_status: MarketStatus.listed,
+    is_locked: false,
     ...overrides,
   };
 }
@@ -108,6 +109,16 @@ describe("parseListingValue", () => {
 });
 
 describe("toListingMarket", () => {
+  it("carries the lock flag across without touching market_status, and adds no reasons", () => {
+    const locked = toListingMarket(makeRow({ is_locked: true }));
+
+    expect(locked.isLocked).toBe(true);
+    expect(locked.marketStatus).toBe(ListingMarketStatus.LISTED);
+    /** Reasons live on the detail read only; the catalogue row has no such column. */
+    expect(locked).not.toHaveProperty("lockReasons");
+    expect(toListingMarket(makeRow()).isLocked).toBe(false);
+  });
+
   it("maps identity, status, and scalar value fields", () => {
     const market = toListingMarket(makeRow());
 

@@ -2,13 +2,14 @@
 
 import { ResultError, ResultNote } from "@/components/result";
 import { ListingDepositChainId } from "@symmio/trading-core";
-import { useDepositAddress } from "@symmio/trading-react";
+import { useDepositAddress, useListingMarketDetail } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { CopyButton } from "@symmio/ui/components/copy-button";
 import { MethodCard } from "../inspector/method-card";
 import { useSolverKindActive } from "../solvers/solver-target";
 import { LISTING_STATUS_DISPLAY, truncateContractAddress } from "./format-listing-value";
 import { useListingAuth } from "./listing-auth-context";
+import { PoolLockNotice } from "./pool-lock";
 import { usePoolScope } from "./pool-scope";
 import { SignInNote } from "./sign-in-note";
 
@@ -21,6 +22,11 @@ import { SignInNote } from "./sign-in-note";
  * wallet for. Both the bearer token (from the shared {@link useListingAuth}
  * session) and a selected market gate the read, so it stays idle until the user
  * has signed in *and* picked a market.
+ *
+ * A **locked** pool takes no new deposits, so the card shows a notice instead
+ * of the wallet while the lock holds. The catalog row carries only the flag;
+ * the detail read (shared with the Pool detail card's query) adds the reasons.
+ * Trading, withdrawals and claims are unaffected by a lock.
  *
  * Enigma-only: the listing backend lives on Arbitrum, so the card is gated on
  * Enigma being the active solver, mirroring the other Listing-session cards.
@@ -38,7 +44,14 @@ export function DepositAddressCard() {
     depositChain: selectedMarket?.chainId ?? ListingDepositChainId.ARBITRUM_ONE,
   });
 
+  const detail = useListingMarketDetail({
+    tokenContractAddress: contractAddress,
+    depositChain: selectedMarket?.chainId ?? ListingDepositChainId.ARBITRUM_ONE,
+    query: { enabled: selectedMarket !== null },
+  });
+
   const signedIn = accessToken !== null;
+  const locked = selectedMarket?.isLocked === true || detail.data?.isLocked === true;
   const statusDisplay = deposit.data ? LISTING_STATUS_DISPLAY[deposit.data.marketStatus] : undefined;
 
   return (
@@ -60,6 +73,8 @@ export function DepositAddressCard() {
             </SignInNote>
           ) : selectedMarket === null ? (
             <ResultNote testId="deposit-address-idle-market">Pick a pool above to get its deposit address.</ResultNote>
+          ) : locked ? (
+            <PoolLockNotice reasons={detail.data?.lockReasons} testId="deposit-address-locked" />
           ) : deposit.error ? (
             <ResultError kind={deposit.error.kind} message={deposit.error.message} testId="deposit-address-error" />
           ) : deposit.isPending || deposit.data === undefined ? (

@@ -23,8 +23,12 @@ export type UseOperationalFeeAllowanceReturnType = UseQueryResult<
 
 /**
  * Read a payer's operational-fee allowance for the gasless charger from the
- * SYMMIO core diamond. Allowance reductions are delayed on-chain - surface
+ * SYMMIO core diamond. Allowance reductions can be delayed on-chain - surface
  * `pendingAllowance` and `reductionReadyAt` in any revoke UX.
+ *
+ * The amounts are **18-decimal Core units**, like the Core balance the fee is
+ * drawn from. The allowance only caps the charge and adds no balance, so show
+ * it next to the payer's Core balance, never as spendable funds.
  *
  * @example
  * ```tsx

@@ -37,12 +37,21 @@ export type UseApproveOperationalFeeReturnType = UseMutationResult<
  * Grant the allowance **before** relying on gasless execution. This is a
  * normal on-chain write — pass `gasless: true` in the variables to relay the
  * approval itself once gasless execution is active. On success the allowance
- * read is invalidated after the receipt.
+ * read is invalidated after the receipt, so `useOperationalFeeAllowance` reads
+ * the new value back.
+ *
+ * `amounts` are **18-decimal Core units**, not the collateral token's decimals,
+ * and each one replaces the current allowance. Approve a bounded budget rather
+ * than `maxUint256`. Approving does not add balance: the fee is still drawn
+ * from the payer's Core balance.
  *
  * @example
  * ```tsx
+ * import { parseUnits } from "viem";
+ *
  * const approve = useApproveOperationalFee();
- * approve.mutate({ account: subAccount, amounts: [maxUint256] });
+ * // A bounded fee budget of 5 collateral tokens, in 18-decimal Core units.
+ * approve.mutate({ account: subAccount, amounts: [parseUnits("5", 18)] });
  * ```
  */
 export function useApproveOperationalFee(

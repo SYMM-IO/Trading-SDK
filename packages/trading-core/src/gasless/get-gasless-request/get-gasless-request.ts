@@ -1,6 +1,7 @@
 import type { Config } from "../../core/config";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { gaslessGet, resolveGaslessHttp } from "../http";
+import { acquireGaslessStatusRead } from "../status-read-limiter";
 import type { GaslessRequest, GaslessService } from "../types";
 import type { GaslessWireRequestRecord } from "../wire-types";
 import { toGaslessRequest } from "./to-gasless-request";
@@ -19,6 +20,12 @@ export type GetGaslessRequestParameters = Compute<
      * wrong one is `NOT_FOUND`.
      */
     service?: GaslessService;
+    /**
+     * Cancel the read in flight. In React the query factory passes TanStack's
+     * own signal, so an unmounted poll stops spending the deployment's shared
+     * request budget instead of finishing into a discarded result.
+     */
+    signal?: AbortSignal;
   }
 >;
 
@@ -53,13 +60,17 @@ export async function getGaslessRequest(
   config: Config,
   parameters: GetGaslessRequestParameters,
 ): Promise<GetGaslessRequestReturnType> {
-  const { chainId, requestId, service = "operations" } = parameters;
+  const { chainId, requestId, service = "operations", signal } = parameters;
   const context = resolveGaslessHttp(config, { chainId, service });
+
+  /** Status polling is unattended and parallel; pace it inside the shared per-deployment budget. */
+  await acquireGaslessStatusRead(config, context, { signal });
 
   const raw = await gaslessGet<GaslessWireRequestRecord>(
     context,
     `/${encodeURIComponent(requestId)}`,
     "GASLESS_STATUS_FETCH_FAILED",
+    { signal },
   );
   return toGaslessRequest(raw);
 }

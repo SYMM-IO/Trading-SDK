@@ -9,13 +9,31 @@ import { settleGaslessDepositNewAccount, SubAccountIsolationType } from "@symmio
 import { zeroAddress } from "viem";
 
 const receipt = await settleGaslessDepositNewAccount(config, {
-  wallet: owner,
+  owner,
+  walletId: 1n,
   affiliate: zeroAddress,
   accountData: { name: "Main", isolationType: SubAccountIsolationType.MARKET_DIRECTION, singleVAMode: true },
 });
 ```
 
-One `POST {depositBase}/deposit-settlements/new-account`. The **entire observed collateral balance** at the deposit address settles, minus the flat fee. The worker re-checks balance, fee, and minimum before broadcasting, so an accepted settlement can still turn `rejected` — funds not yet visible, or moved. Poll the receipt's `requestId` with `service: "deposits"`.
+One `POST {depositBase}/deposit-settlements/new-account`, carrying `owner` and an explicit decimal `walletId`. The settlement sweeps the **entire collateral balance** at the selected wallet's deposit address **when the transaction executes**, including anything that arrived after acceptance. It deducts the deposit fee, plus the wallet creation fee when this settlement is what first deploys the wallet. The worker re-checks balance, fee, and minimum before broadcasting, so an accepted settlement can still turn `rejected` — funds not yet visible, or moved. Poll the receipt's `requestId` with `service: "deposits"`.
+
+<Callout type="info">
+  **The receipt's amounts are acceptance-time estimates** in the collateral token's base units, not the settlement
+  result. `observedAmount` is the balance the service saw when it accepted the request, and `creditedAmount` deducts
+  only the deposit fee from it. It leaves out a wallet creation fee (the GaslessLayer's `getWalletCreationFee(owner,
+  walletId)`) and anything that arrives before execution. Label it as an estimate, and take the final credit from the
+  settlement transaction's `WalletDepositSettled` event or the new sub-account's balance.
+</Callout>
+
+<Callout type="warning">
+  **Each wallet id is a separate balance, and a settlement sweeps all of it.** The action reads
+  `getGaslessWalletAddress(owner, walletId)` **before** the submit and checks the acceptance's `wallet_id` and
+  `deposit_address` against it, throwing `GASLESS_DEPOSIT_WALLET_MISMATCH` (with the parsed receipt, request id
+  included, in `responseData`) when they disagree — the vendor requires this check, because sweeping the wrong wallet
+  moves funds the user never meant to move. Give a funding flow its own id when it must not share a balance with
+  another, and read that id's address again before every transfer.
+</Callout>
 
 <Callout type="warning">
   `succeeded` does **not** mean the account is instantly usable — wait until the sub-account and its credited balance
@@ -33,11 +51,20 @@ One `POST {depositBase}/deposit-settlements/new-account`. The **entire observed 
 ## Parameters
 
 <Properties>
-  <Property name="wallet" type="Address" required>
-    Owner wallet whose deterministic deposit address is being settled.
+  <Property name="owner" type="Address" required>
+    Owner of the GaslessWallet being settled — an owner address, never a GaslessWallet address. The new sub-account is
+    created for this owner. (Renamed from `wallet`, which the service still accepts as a legacy alias but the SDK no
+    longer sends.)
+  </Property>
+  <Property name="walletId" type="bigint" optional>
+    Which of the owner's GaslessWallets to sweep. Defaults to `0n`, the original wallet. Ids are an application
+    convention — the contract registers none — so persist your assignment under `(environment, protocolInstance, owner,
+    walletId)`.
   </Property>
   <Property name="affiliate" type="Address" required>
-    Affiliate passed to the settlement; the zero address disables attribution.
+    Affiliate passed to the settlement; the zero address disables attribution. Use the zero address unless the
+    deployment has an active affiliate to attribute to — an affiliate the deployment does not know reverts the
+    settlement on-chain, after acceptance.
   </Property>
   <Property name="accountData" type="GaslessDepositAccountData" required>
     Creation data for the new sub-account: `name` (1–64 chars), `isolationType`, `singleVAMode`, optional `metadata`
@@ -46,7 +73,10 @@ One `POST {depositBase}/deposit-settlements/new-account`. The **entire observed 
     wrong for either product. There is no `symmioCore` field — the gateway overwrites it with its configured core.
   </Property>
   <Property name="idempotencyKey" type="string" optional>
-    Stable retry key; defaults to a random UUID.
+    Stable retry key; defaults to a random UUID. **One key per settlement attempt**: reuse it only to replay a submit
+    whose response was lost, and mint a fresh one after any terminal status or any change to the wallet selection — or
+    the service answers `409 IDEMPOTENCY_KEY_CONFLICT`. See [idempotency
+    keys](/core/gasless/errors-and-fallback#idempotency-keys).
   </Property>
   <Property name="metadata" type="Record<string, unknown>" optional>
     Non-secret client correlation data stored with the request.
@@ -66,16 +96,29 @@ One `POST {depositBase}/deposit-settlements/new-account`. The **entire observed 
     Status at acceptance, normally `queued`.
   </Property>
   <Property name="depositAddress" type="Address">
-    The deterministic deposit address being swept.
+    The deterministic deposit address being swept, as the service echoed it — verified against the requested wallet.
   </Property>
-  <Property name="observedAmount" type="bigint">
-    Collateral balance the service observed at the address (raw units).
+  <Property name="walletId" type="bigint">
+    The wallet id the service settled. An acceptance that omits it means wallet `0`.
   </Property>
-  <Property name="paidFee" type="bigint">
-    Flat fee deducted (raw units).
+  <Property name="owner" type="Address">
+    The owner the settlement was submitted for.
   </Property>
-  <Property name="creditedAmount" type="bigint">
-    Net amount credited to the new sub-account (raw units).
+  <Property name="observedAmount" type="bigint | null">
+    Collateral balance the service observed at the address on acceptance (token base units). The sweep takes whatever is
+    there at execution. `null` when the acceptance reported none.
+  </Property>
+  <Property name="paidFee" type="bigint | null">
+    The deposit fee in the acceptance-time estimate (token base units). Excludes a wallet creation fee.
+  </Property>
+  <Property name="creditedAmount" type="bigint | null">
+    The estimated net credit at acceptance (token base units), with only the deposit fee deducted. Not the final credit.
+  </Property>
+  <Property name="idempotencyKey" type="string">
+    The key the settlement was submitted with — minted here when the caller passed none.
+  </Property>
+  <Property name="protocolInstance" type="string | null">
+    The instance the settlement was accepted on, or `null` for a proxy base that names none.
   </Property>
 </Returns>
 
@@ -83,3 +126,6 @@ One `POST {depositBase}/deposit-settlements/new-account`. The **entire observed 
 
 - `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
 - `SymmApiError` with code `GASLESS_SETTLEMENT_SUBMIT_FAILED` — HTTP failure; `DEPOSIT_BELOW_MINIMUM` in the vendor detail means the address has not reached the settlement minimum yet.
+- `SymmApiError` with code `GASLESS_SUBMIT_UNCONFIRMED` — the outcome could not be established. The settlement may already be sweeping: replay the recorded bytes with [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request) instead of submitting a new settlement.
+- `SymmApiError` with code `GASLESS_DEPOSIT_WALLET_MISMATCH` — the acceptance named another wallet id or deposit address. The settlement is already accepted, so the parsed receipt (with its `requestId`) rides in `responseData`: reconcile it before funding or settling anything else.
+- `SymmError("validation", "GASLESS_WALLET_ID_INVALID")` — a `walletId` outside `0 … 2^256 − 1`, or a JavaScript `number`.

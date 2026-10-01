@@ -48,13 +48,14 @@ export type UseSettleGaslessDepositExistingAccountReturnType = UseMutationResult
  * polling and the invalidation. A non-succeeded terminal rejects with the
  * record attached to the error's `responseData`.
  *
- * On success the swept deposit address's collateral balance and the credited
- * sub-account's balances are invalidated.
+ * On success the swept deposit address's collateral balance, the credited
+ * sub-account's balances, and the owner's deposit policy and wallet creation
+ * fee (the settlement deploys the wallet on first use) are invalidated.
  *
  * @example
  * ```tsx
  * const relay = useSettleGaslessDepositExistingAccount();
- * const receipt = await relay.mutateAsync({ wallet, subAccount });
+ * const receipt = await relay.mutateAsync({ owner, walletId: 1n, subAccount });
  * ```
  */
 export function useSettleGaslessDepositExistingAccount(
@@ -73,7 +74,9 @@ export function useSettleGaslessDepositExistingAccount(
     ): Promise<SettleGaslessDepositExistingAccountResult> => {
       const resolvedChainId = variables.chainId ?? chainId;
       try {
-        const accepted = await options.mutationFn({ ...variables, chainId: resolvedChainId });
+        const accepted = await confirmation.submit(() =>
+          options.mutationFn({ ...variables, chainId: resolvedChainId }),
+        );
         const confirmed = await confirmation.confirm(accepted, {
           chainId: resolvedChainId,
           service: "deposits",
@@ -81,7 +84,7 @@ export function useSettleGaslessDepositExistingAccount(
             invalidateDepositSettlementReads(
               queryClient,
               { configKey: config.getChainConfigKey(resolvedChainId) },
-              { depositAddress: accepted.depositAddress },
+              { depositAddress: accepted.depositAddress, owner: variables.owner, walletId: accepted.walletId },
             ),
         });
         return { accepted, confirmed };

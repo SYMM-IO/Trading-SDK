@@ -81,6 +81,14 @@ Three inputs are required — the endpoint returns nothing without any of them. 
   sending funds to a missing address. It is the only field that is nullable here.
 </Callout>
 
+<Callout type="warning">
+  Check the market's lock before offering the address. While `isLocked` is `true` — on the catalogue row from
+  [`getListingMarkets`](/core/pools/get-listing-markets) or on [`getListingMarketDetail`](/core/pools/market-detail) —
+  the pool accepts **no new deposits**, so hide or disable the deposit flow instead of showing the wallet. Deposits are
+  the only thing a lock blocks: trading, withdrawals and claims stay available. See
+  [`MarketLockReason`](/core/pools/listing-market-type#marketlockreason) for the reasons.
+</Callout>
+
 ## Query options
 
 ```ts

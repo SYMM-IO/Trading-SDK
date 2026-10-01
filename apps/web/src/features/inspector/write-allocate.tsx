@@ -40,6 +40,7 @@ export function WriteAllocate() {
       name="allocate"
       mutability="nonpayable"
       gaslessRelayable
+      gaslessFee={{ account: validAccount, args: [validAmount ?? 0n] }}
       description="Move a subaccount's available balance into allocated (tradeable) margin (routed via AccountLayer _call)."
     >
       <SubAccountField

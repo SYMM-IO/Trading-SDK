@@ -2,7 +2,7 @@ import { Callout, Steps } from "nextra/components";
 
 # Run any contract call gaslessly
 
-Every wallet that touches GaslessQ gets a **deterministic wallet of its own** — a per-owner `CREATE2` contract deployed by the GaslessLayer. It is the address users fund during onboarding, and it is also a general-purpose executor: you can make it call any contract, with any calldata, and the relayer pays the native gas.
+Every wallet that touches GaslessQ gets **deterministic wallets of its own** — `CREATE2` contracts the GaslessLayer derives per `(owner, walletId)` and deploys on first use. Each is an address users can fund during onboarding, and each is also a general-purpose executor: you can make it call any contract, with any calldata, and the relayer pays the native gas.
 
 This guide covers the whole loop: finding the address, funding it, understanding who pays the fee, building a batch, and following it to a terminal status.
 
@@ -13,7 +13,7 @@ This guide covers the whole loop: finding the address, funding it, understanding
 
 ## One address, two jobs
 
-[`getGaslessWalletAddress(owner)`](/core/gasless/get-gasless-wallet-address) is a pure view — safe to render before any transaction exists, and stable forever for a given owner.
+[`getGaslessWalletAddress(owner, walletId)`](/core/gasless/get-gasless-wallet-address) is a pure view — safe to render before any transaction exists, and stable forever for a given `(owner, walletId)`. Each wallet id is an independent wallet with its own address and balance. This guide uses the original wallet, id `0`, which is what an omitted `walletId` selects.
 
 ```ts
 import { getGaslessDepositPolicy, getGaslessWalletAddress } from "@symmio/trading-core";
@@ -30,7 +30,7 @@ That single address plays two roles:
 1. **The deposit address** for [cold-start onboarding](/core/gasless/settle-gasless-deposit-new-account) — send collateral to it and the relayer sweeps it into a new sub-account, paying every step's gas.
 2. **The executor** for [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) — anything still sitting at the address can be moved by calling contracts from it.
 
-Custody is bound by construction: the address is derived from `owner`, so only that owner can ever move what is at it.
+Custody is bound by construction: the address is derived from `(owner, walletId)`, so only that owner can ever move what is at it. Balances are per wallet, not per owner — track funds under the wallet id that holds them.
 
 ## Who pays for what
 
@@ -41,6 +41,9 @@ Two different fees, from two different places. Getting this wrong is the most co
 | Native gas  | Relayer pays                                       | Relayer pays                                                                 |
 | Service fee | Flat `depositFee`, deducted from the swept balance | Priced from the **inner call selectors**                                     |
 | Charged to  | The deposit itself                                 | The **`signerAccount`** collateral, bounded by its operational-fee allowance |
+| First use   | Also deducts the one-time creation fee             | Adds the one-time creation fee, rescaled to 18 decimals                      |
+
+Whichever action first deploys a wallet — wallet `0` included — pays its one-time creation fee. Read it before the first use with [`getGaslessWalletCreationFee`](/core/gasless/get-gasless-wallet-creation-fee); it is `0n` once the wallet is deployed.
 
 **The wallet's own balance never pays for a wallet execute.** Collateral parked at the address is cargo, not fuel. An account with no collateral and no allowance cannot run wallet calls even when the wallet is full — so grant the allowance during onboarding, while the relayer is already covering gas:
 
@@ -83,10 +86,19 @@ A cross-chain withdrawal is exactly this shape: approve a bridge, then call it w
 ```ts
 import { gaslessWalletExecute } from "@symmio/trading-core";
 
-const receipt = await gaslessWalletExecute(config, { calls, operationType: "bridgeWithdraw" });
+const receipt = await gaslessWalletExecute(config, {
+  calls,
+  walletId: 1n,
+  signerAccount: subAccount,
+  operationType: "bridgeWithdraw",
+});
 ```
 
 The user signs one EIP-712 payload for the whole batch. `operationType` is a free-form label for metrics and vendor support — fees are not keyed from it.
+
+`walletId` picks which of the owner's wallets runs the calls; omit it for the original wallet `0`. The id flows through the signed `target`, the nonce stream and the relayed `walletIds`, so the three can never disagree. Because each id is its own balance, run the batch from the id that actually holds the funds — and an id you have never used adds its one-time creation fee to this first operation.
+
+The receipt carries more than the id: persist `requestId` together with `owner`, `walletIds` and `idempotencyKey`.
 
 ### Follow it to a terminal status
 
@@ -161,3 +173,4 @@ The SDK checks the grants before prompting and throws `GASLESS_SIGNER_NOT_DELEGA
 - **`value` is `0n` in practice.** The wallet holds no native token, so forwarding native value reverts the batch.
 - **Inner calls are unrestricted for the owner, scoped for a delegate.** Neither the SDK nor the relayer keeps an allow-list — but a session key can only run selectors it was granted.
 - **PartyB accounts cannot run wallet operations** (`WalletOperationForPartyBUnsupported`).
+- **One relay at a time per `(walletId, signerAccount)` stream.** The service forwards signed nonces and never repairs them, so the SDK serializes each stream and makes a later call wait for the pending one; when it cannot account for it within the signature's deadline it throws `GASLESS_NONCE_STREAM_BUSY`. That bookkeeping is per `Config`, so coordinate other tabs or devices yourself — see [nonce streams](/core/gasless#nonce-streams).

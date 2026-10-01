@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/page-header";
 import { WalletPanel } from "@/features/inspector/wallet-panel";
 import type { ComponentType } from "react";
 import { GaslessAllowanceCard } from "./gasless-allowance-card";
+import { GaslessBatchCard } from "./gasless-batch-card";
 import { GaslessDepositCard } from "./gasless-deposit-card";
 import { GASLESS_METHODS } from "./gasless-methods";
 import { GaslessRequestCard } from "./gasless-request-card";
@@ -12,6 +13,7 @@ import { GaslessWalletExecuteCard } from "./gasless-wallet-execute-card";
 const CARDS: Record<string, ComponentType> = {
   "gasless-service": GaslessServiceCard,
   "gasless-allowance": GaslessAllowanceCard,
+  "gasless-batch": GaslessBatchCard,
   "gasless-request": GaslessRequestCard,
   "gasless-deposit": GaslessDepositCard,
   "gasless-wallet-execute": GaslessWalletExecuteCard,
@@ -19,8 +21,9 @@ const CARDS: Record<string, ComponentType> = {
 
 /**
  * Gasless page: the GaslessQ relayer integration end to end — availability,
- * request-status polling, operational-fee allowance, deposit onboarding, and
- * arbitrary contract calls from the deterministic gasless wallet.
+ * operational-fee allowance, batches of several actions in one request,
+ * request-status polling, deposit onboarding, and arbitrary contract calls from
+ * the deterministic gasless wallet.
  * The transparent execution mode itself needs no page: any relayable write on
  * the Contracts page relays once the chain's gasless block sets
  * `execution.mode: "gasless"` (or a call passes `gasless: true`).

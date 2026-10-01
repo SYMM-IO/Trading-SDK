@@ -2,7 +2,7 @@ import { decodeFunctionData } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig } from "../../core/chains";
 import { instantLayerAbi } from "../../symmio-contracts/abi/v0.8.6/instant-layer";
-import { GASLESS_TEST_CHAIN, TEST_GASLESS_SIGNER, gaslessWriteTestConfig } from "../test/config";
+import { GASLESS_TEST_CHAIN, TEST_GASLESS, TEST_GASLESS_SIGNER, gaslessWriteTestConfig } from "../test/config";
 
 const post = vi.hoisted(() => vi.fn());
 
@@ -15,7 +15,7 @@ import { relayGrantDelegation } from "./relay-grant-delegation";
 
 const SUB_ACCOUNT = "0x3333333333333333333333333333333333333333" as const;
 const SESSION_KEY = "0x6666666666666666666666666666666666666666" as const;
-const HEADERS = { "x-gaslessq-protocol-instance": "arbitrum-42161-vibe" };
+const HEADERS = { "x-gaslessq-protocol-instance": TEST_GASLESS.protocolInstance };
 
 describe("relayGrantDelegation", () => {
   beforeEach(() => {

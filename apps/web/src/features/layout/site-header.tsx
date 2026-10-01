@@ -2,7 +2,7 @@
 
 import { ConfigLauncher } from "@/features/config/config-launcher";
 import { LogoMark } from "@/features/layout/logo";
-import { isActivePath, primaryNavLinks, secondaryNavLinks, type NavLink } from "@/features/layout/nav";
+import { isActivePath, primaryNavLinks, secondaryNavGroups, type NavLink } from "@/features/layout/nav";
 import { NavMoreMenu } from "@/features/layout/nav-more-menu";
 import { ThemeToggle } from "@/features/layout/theme-toggle";
 import { MagicSidebarLauncher } from "@/features/magic-sidebar/magic-sidebar-launcher";
@@ -95,17 +95,28 @@ export function SiteHeader() {
       </div>
 
       {open ? (
-        <nav className="border-border/60 bg-background/95 animate-enter-fade border-t backdrop-blur-xl @min-[960px]/header:hidden">
-          <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3 @xl/header:px-6">
-            {primaryNavLinks.map((link) => (
-              <MobileNavLink key={link.href} link={link} pathname={pathname} onNavigate={() => setOpen(false)} />
-            ))}
-            <span className="text-muted-foreground px-3 pt-4 pb-1 text-[0.7rem] font-medium tracking-[0.18em] uppercase">
-              More
-            </span>
-            {secondaryNavLinks.map((link) => (
-              <MobileNavLink key={link.href} link={link} pathname={pathname} onNavigate={() => setOpen(false)} />
-            ))}
+        /*
+         * The drawer lives inside the fixed header, so it can't scroll with the page — cap it
+         * to the viewport below the 4rem bar and let it scroll on its own, or the last groups
+         * are unreachable on a short phone or in landscape.
+         */
+        <nav className="border-border/60 bg-background/95 animate-enter-fade max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-t backdrop-blur-xl @min-[960px]/header:hidden">
+          <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-3 @xl/header:px-6">
+            <div className="flex flex-col gap-1">
+              {primaryNavLinks.map((link) => (
+                <MobileNavLink key={link.href} link={link} pathname={pathname} onNavigate={() => setOpen(false)} />
+              ))}
+            </div>
+            <div className="gap-4 @xl/header:columns-2">
+              {secondaryNavGroups.map((group) => (
+                <div key={group.label} className="flex break-inside-avoid flex-col gap-1 pb-4 last:pb-0">
+                  <span className="text-muted-foreground px-3 pb-1 text-xs font-medium">{group.label}</span>
+                  {group.links.map((link) => (
+                    <MobileNavLink key={link.href} link={link} pathname={pathname} onNavigate={() => setOpen(false)} />
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         </nav>
       ) : null}

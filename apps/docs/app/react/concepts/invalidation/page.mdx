@@ -20,6 +20,8 @@ The predicate matches when:
 
 Fields you omit match anything. The partial and the stored keys are run through the same factory, so `bigint` values compare in the decimal-string form — no manual coercion.
 
+That holds even for a field the factory fills in with a default. The gasless wallet reads key an omitted `walletId` as `0n`, yet `predicateMatch(getGaslessDepositPolicyQueryKey, { owner })` still matches every wallet id of the owner; pass `walletId` to narrow it to one wallet.
+
 This closes a gap TanStack's built-in leading-prefix match can't express: "every entry for user X, across every pagination window, across every chain".
 
 ## Mutation pattern

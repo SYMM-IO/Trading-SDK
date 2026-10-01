@@ -1,0 +1,70 @@
+import { Callout } from "nextra/components";
+
+# getGaslessWriteRequest
+
+Resolve the transaction hash a transparently relayed write returned back to the GaslessQ request behind it.
+
+```ts
+import { getGaslessWriteRequest, confirmGaslessRequest } from "@symmio/trading-core";
+
+const hash = await quote(config, { ...parameters });
+const relayed = getGaslessWriteRequest(config, { hash });
+
+if (relayed) {
+  const { txHash } = await confirmGaslessRequest(config, {
+    chainId: relayed.chainId,
+    requestId: relayed.requestId,
+    until: "receipt",
+  });
+}
+```
+
+When [`execution.mode`](/core/gasless/relayable-writes) sends a write through the relayer, the action still returns an ordinary-looking `Hash` so every consumer keeps working unchanged. That hash is the relayer's **first** broadcast, and it is not durable: a gas bump or a stuck nonce makes the service replace it, and the replacement is the transaction that actually lands. Waiting for a receipt on a replaced hash waits forever.
+
+This is the side channel that makes the hash recoverable. The dispatcher registers each relayed write the moment the relayer reports a broadcast, keyed by that hash; this reads the registration back. `null` means the write went through the wallet, which is what makes it usable as a branch — treat every write the same way, and follow the relay only when there is one.
+
+<Callout type="info">
+  React consumers do not call this: `resolveWriteResult` already does, so every relayed write hook resolves on the
+  request's terminal hash and reports `gasless: { requestId, broadcastHash }` on its
+  [`WriteResult`](/react/concepts/hook-pattern#write-result).
+</Callout>
+
+<Callout type="warning">
+  This is an in-memory hand-off, not a history. Registrations live per `Config` and only the most recent relayed writes
+  are kept, so read it right after the write — and persist the `requestId` if you need it to survive a reload. There is
+  no list-by-wallet endpoint to recover a lost id from.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="hash" type="Hash" required>
+    The transaction hash the write returned.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GaslessWriteRequest | null">
+  <Property name="requestId" type="string">
+    Stable service tracking id — poll it with [`getGaslessRequest`](/core/gasless/get-gasless-request).
+  </Property>
+  <Property name="service" type='"operations"'>
+    Which sub-service stores the request. A relayed write is always an operation relay.
+  </Property>
+  <Property name="chainId" type="number">
+    The chain the relay was accepted on.
+  </Property>
+  <Property name="protocolInstance" type="string | null">
+    Protocol instance the relay was accepted on, or `null` for a proxy base that names none.
+  </Property>
+  <Property name="broadcastHash" type="Hash">
+    The relayer's first broadcast — the hash the write returned, and the lookup key.
+  </Property>
+</Returns>
+
+`null` when the hash was submitted by the wallet, or when the relay is no longer remembered.
+
+## Throws
+
+Nothing. A lookup that finds no relay returns `null`.

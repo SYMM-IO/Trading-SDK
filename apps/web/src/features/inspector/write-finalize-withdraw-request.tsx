@@ -46,6 +46,7 @@ export function WriteFinalizeWithdrawRequest() {
       name="finalizeWithdrawRequest"
       mutability="nonpayable"
       gaslessRelayable
+      gaslessFee={{ account: validUser, args: validUser ? [validUser, validRequestId ?? 0n] : undefined }}
       description="Finalize a matured withdraw request, paying out to its receivers. Permissionless after cooldown."
     >
       <SubAccountField

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SignedOperation } from "../../solvers/instant-open/shared/types";
-import { GASLESS_TEST_CHAIN, TEST_GASLESS_SIGNATURE, gaslessTestConfig } from "../test/config";
+import { GASLESS_TEST_CHAIN, TEST_GASLESS, TEST_GASLESS_SIGNATURE, gaslessTestConfig } from "../test/config";
 import { GaslessRequestStatus, type GaslessSubmitReceipt } from "../types";
 import type { RelayInstantOperationsParameters } from "./relay-instant-operations";
 
@@ -25,6 +25,10 @@ const RECEIPT: GaslessSubmitReceipt = {
   status: GaslessRequestStatus.QUEUED,
   paidFee: 1_000_000n,
   remainingFeeAllowance: 5_000_000n,
+  idempotencyKey: "idem-1",
+  protocolInstance: TEST_GASLESS.protocolInstance ?? null,
+  owner: "0x1111111111111111111111111111111111111111",
+  walletIds: [0n],
 };
 
 /** Every optional field set, so a variable the factory dropped would fail the equality below. */

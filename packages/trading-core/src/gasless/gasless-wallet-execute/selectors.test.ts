@@ -1,6 +1,6 @@
 import { encodeFunctionData, erc20Abi, slice } from "viem";
 import { describe, expect, it } from "vitest";
-import { GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR } from "../gateway/gasless-layer-abi";
+import { GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR } from "../constants";
 import { getGaslessWalletExecuteSelectors } from "./selectors";
 
 const USDC = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" as const;

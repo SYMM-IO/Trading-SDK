@@ -19,13 +19,18 @@ export type UseGaslessWalletAddressParameters = GetGaslessWalletAddressOptions &
 export type UseGaslessWalletAddressReturnType = UseQueryResult<GetGaslessWalletAddressReturnType, SymmioRequestError>;
 
 /**
- * Read the owner's deterministic gasless-wallet address (a pure CREATE2 view
- * on the GaslessLayer) - the deposit address for gasless onboarding and the
- * target of gasless-wallet exit operations.
+ * Read the deterministic address of one of an owner's GaslessWallets (a pure
+ * CREATE2 view on the GaslessLayer) - the deposit address for gasless
+ * onboarding and the target of gasless-wallet operations. A wallet is
+ * identified by `(owner, walletId)`; `walletId` defaults to `0n`, the original
+ * wallet, and each positive id has its own address.
+ *
+ * @param parameters - Owner, optional `walletId` (default `0n`), optional chain id, config and query overrides.
+ * @returns The TanStack query result, with failures normalized to {@link SymmioRequestError}.
  *
  * @example
  * ```tsx
- * const query = useGaslessWalletAddress({ owner });
+ * const query = useGaslessWalletAddress({ owner, walletId: 1n });
  * ```
  */
 export function useGaslessWalletAddress(

@@ -1,4 +1,9 @@
-import type { Config } from "@symmio/trading-core";
+import {
+  confirmGaslessRequest,
+  getGaslessWriteRequest,
+  type Config,
+  type GaslessWriteRequest,
+} from "@symmio/trading-core";
 import type { Hash, TransactionReceipt } from "viem";
 import { SymmioRequestError } from "../errors/symmio-request-error";
 import type { WriteResult } from "./write-types";
@@ -70,11 +75,24 @@ export class TransactionRevertedError extends SymmioRequestError {
  * `onSuccess` (and its cache invalidation) never runs for a write that applied
  * nothing.
  *
+ * **A relayed write waits on its request, not on its first hash.** When the
+ * dispatcher relayed the write, the hash it returned is only the relayer's
+ * first broadcast: a gas bump or a stuck nonce makes the service replace it,
+ * and waiting on a replaced hash waits forever. So a relayed write is followed
+ * through `confirmGaslessRequest`, which resolves on the terminal record, and
+ * the result reports that record's hash plus `gasless: { requestId,
+ * broadcastHash }`. A relay that ends `reverted` / `failed` / `rejected` throws
+ * the typed gasless error carrying the record, instead of
+ * {@link TransactionRevertedError}, because the relayer's verdict names the
+ * cause and a receipt for the replaced hash may not exist at all.
+ *
  * @param config - The SDK config (its `getClient` resolves the polling client).
  * @param hash - The submitted transaction hash.
  * @param options - Chain id and receipt-wait behavior.
- * @returns The hash, plus the receipt when `waitForReceipt` is enabled.
+ * @returns The hash, plus the receipt when `waitForReceipt` is enabled, plus `gasless` for a relayed write.
  * @throws {TransactionRevertedError} when the mined receipt's `status` is `"reverted"`.
+ * @throws {SymmApiError} `GASLESS_RELAY_REVERTED` / `GASLESS_RELAY_FAILED` /
+ *   `GASLESS_RELAY_REJECTED` when a relayed write's request ends non-succeeded.
  *
  * @example
  * ```ts
@@ -88,7 +106,12 @@ export async function resolveWriteResult(
   options: ResolveWriteResultOptions = {},
 ): Promise<WriteResult> {
   const { chainId, waitForReceipt = true, confirmations = 1 } = options;
-  if (!waitForReceipt) return { hash };
+  const relayed = getGaslessWriteRequest(config, { hash });
+
+  if (!waitForReceipt) {
+    return relayed ? { hash, gasless: relayedHandle(relayed) } : { hash };
+  }
+  if (relayed) return resolveRelayedWriteResult(config, relayed, confirmations);
   const receipt = await config.getClient({ chainId }).waitForTransactionReceipt({ hash, confirmations });
   /**
    * Load-bearing, do not "simplify" away: viem does **not** throw for a reverted
@@ -100,4 +123,29 @@ export async function resolveWriteResult(
    */
   if (receipt?.status === "reverted") throw new TransactionRevertedError({ hash, receipt });
   return { hash, receipt };
+}
+
+/** The part of a relay a write result carries: the durable id, and the hash that was shown. */
+function relayedHandle(relayed: GaslessWriteRequest): NonNullable<WriteResult["gasless"]> {
+  return { requestId: relayed.requestId, broadcastHash: relayed.broadcastHash };
+}
+
+/**
+ * Follow a relayed write to its terminal record and report the hash that
+ * actually mined. The receipt comes from *this config's* client, so the
+ * invalidation that follows re-reads a node that has seen the block.
+ */
+async function resolveRelayedWriteResult(
+  config: Config,
+  relayed: GaslessWriteRequest,
+  confirmations: number,
+): Promise<WriteResult> {
+  const confirmed = await confirmGaslessRequest(config, {
+    chainId: relayed.chainId,
+    requestId: relayed.requestId,
+    service: relayed.service,
+    until: "receipt",
+    receiptConfirmations: confirmations,
+  });
+  return { hash: confirmed.txHash, receipt: confirmed.receipt, gasless: relayedHandle(relayed) };
 }

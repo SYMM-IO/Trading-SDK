@@ -73,10 +73,13 @@ export function useRelayInstantOperations(
     mutationFn: async (variables: RelayInstantOperationsVariables): Promise<RelayInstantOperationsResult> => {
       const resolvedChainId = variables.chainId ?? chainId;
       try {
-        const accepted = await options.mutationFn({ ...variables, chainId: resolvedChainId });
+        const accepted = await confirmation.submit(() =>
+          options.mutationFn({ ...variables, chainId: resolvedChainId }),
+        );
         const confirmed = await confirmation.confirm(accepted, {
           chainId: resolvedChainId,
           service: "operations",
+          operationType: variables.operationType,
           invalidate: (queryClient) =>
             invalidateRelayInstantOperationsReads(
               queryClient,

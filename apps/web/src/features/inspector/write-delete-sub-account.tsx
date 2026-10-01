@@ -41,6 +41,7 @@ export function WriteDeleteSubAccount() {
       name="deleteSubAccount"
       mutability="nonpayable"
       gaslessRelayable
+      gaslessFee={{ account: validAccount, args: validAccount ? [validAccount] : undefined }}
       description="Permanently delete one of the connected wallet's subaccounts. Irreversible."
       wide
     >

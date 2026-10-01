@@ -33,16 +33,34 @@ export function fireGaslessEvent(onEvent: GaslessExecutionConfig["onEvent"], eve
  * carry it — so the record travels in the error body instead, and consumers
  * read the real cause off `responseData` rather than parsing a message.
  *
+ * Wallet ids are rendered as the decimal strings the service uses on the wire,
+ * so the body stays JSON-serializable — a `bigint` would throw in
+ * `JSON.stringify` the moment a consumer logged the error.
+ *
  * @param record - The terminal request record.
  * @returns The snake_case body shape the service itself would return.
  *
  * @internal
  */
 export function toGaslessRecordBody(record: GaslessRequest): Record<string, unknown> {
-  return {
+  const body: Record<string, unknown> = {
     request_id: record.requestId,
     status: record.status,
     error_code: record.errorCode,
     error_message: record.errorMessage,
+    idempotency_key: record.idempotencyKey,
+    tx_hash: record.txHash,
+    wallet_ids: record.walletIds.map((walletId) => walletId.toString()),
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
   };
+
+  return record.service === "deposits"
+    ? {
+        ...body,
+        wallet_address: record.owner,
+        wallet_id: record.walletId.toString(),
+        deposit_address: record.depositAddress,
+      }
+    : { ...body, user_address: record.owner, operation_type: record.operationType, account_id: record.accountId };
 }

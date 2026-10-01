@@ -9,6 +9,7 @@ import {
 } from "@symmio/trading-core";
 import { getAddress, isAddress, type Address } from "viem";
 import { symmioChains } from "./symmio";
+import { findGaslessDeployment } from "./symmio-presets";
 
 /**
  * Group a config field belongs to. `addresses`, `subgraphs` and `gasless` are
@@ -63,6 +64,22 @@ export const GASLESS_MODE_FIELD: ConfigFieldDef = {
   toggle: { on: "gasless", off: "wallet" },
 };
 
+/**
+ * The chain's InstantLayer — the contract the gasless gateway verifies relayed
+ * operations against.
+ *
+ * Exported because it doubles as a deployment identity: which GaslessQ
+ * deployment (and so which gateway) a chain config belongs to follows from this
+ * address, which is what {@link isFieldAvailable} resolves the gasless group
+ * against. See `GASLESS_DEPLOYMENTS` in `src/config/symmio-presets.ts`.
+ */
+export const INSTANT_LAYER_FIELD: ConfigFieldDef = {
+  group: "addresses",
+  key: "instantLayerAddress",
+  label: "Instant Layer",
+  kind: "address",
+};
+
 /** A labelled section of related fields in the editor. */
 export interface ConfigGroupDef {
   group: ConfigFieldGroup;
@@ -94,7 +111,7 @@ export const CONFIG_GROUPS: ConfigGroupDef[] = [
         hint: "Core protocol diamond",
       },
       { group: "addresses", key: "accountLayerAddress", label: "Account Layer", kind: "address" },
-      { group: "addresses", key: "instantLayerAddress", label: "Instant Layer", kind: "address" },
+      INSTANT_LAYER_FIELD,
       { group: "addresses", key: "affiliatesAddress", label: "Affiliates", kind: "address" },
       { group: "addresses", key: "collateralAddress", label: "Collateral token", kind: "address" },
       { group: "addresses", key: "collateralDecimals", label: "Collateral decimals", kind: "decimals" },
@@ -181,22 +198,20 @@ function readField(chainId: number, field: ConfigFieldDef): unknown {
     return (solver?.notifications as Record<string, unknown> | undefined)?.[field.key];
   }
   if (field.group === "gasless") {
-    if (!hasGaslessBlock(chainId)) return undefined;
     /**
      * Read the APP BASELINE first, then the registry. Every other field's
      * baseline value equals its registry value, so "default" is unambiguous for
-     * them — this is the one field the app ships an opinion on (`mode:
-     * "gasless"` on Arbitrum, where the registry deliberately ships no
-     * `execution` block at all).
+     * them — this is the one field the app could ship an opinion on, and
+     * measuring such an opinion against the registry would invert the panel's
+     * override count: an untouched config would read as one override, and —
+     * worse — turning the relay OFF would read as zero, which is exactly the
+     * state "Reset to default" needs to be enabled in, since Reset restores the
+     * baseline rather than the registry.
      *
-     * Measuring it against the registry inverts the panel's override count:
-     * an untouched config would read as one override, and — worse — turning the
-     * relay OFF would read as zero, which is exactly the state "Reset to
-     * default" needs to be enabled in, since Reset restores the baseline rather
-     * than the registry.
-     *
-     * `execution` is optional on both, and a chain that carries a relayer but
-     * no `execution` defaults to the wallet path.
+     * Neither ships an `execution` block today, so the default is the toggle's
+     * off value: a chain that carries a relayer but no `execution` leaves the
+     * dispatcher disabled and every write on the connected wallet. A preset's
+     * `"gasless"` then reads as the override it is.
      */
     return (
       symmioChains?.[chainId]?.gasless?.execution?.mode ??
@@ -238,20 +253,50 @@ function overrideFieldValue(
  * Whether a field exists on a given chain. Protocol-exclusive notifications
  * fields (today the enigma `channel`) do not exist on a chain whose solver
  * speaks another protocol, so the editor neither shows nor writes them there.
- * The gasless group needs a relayer to configure: it is available only where
- * the SDK registry or the app baseline carries a `gasless` block, since the
- * editor can switch the mode but cannot invent an endpoint.
+ * The gasless group needs a relayer to configure — the editor switches the mode
+ * but never invents an endpoint — so it is available exactly where one
+ * resolves: from the SDK registry, from the app baseline, or from the GaslessQ
+ * deployment the config's InstantLayer names.
+ *
+ * @param chainId - Chain the field would be edited on.
+ * @param field - The field to test.
+ * @param instantLayerAddress - The InstantLayer that config currently names,
+ *   from a draft ({@link draftInstantLayerAddress}) or from an override. It is
+ *   what pairs a chain with a deployment, so the gasless group appears only
+ *   where it resolves to one; omitting it falls back to the registry and
+ *   baseline blocks alone.
  */
-export function isFieldAvailable(chainId: number, field: ConfigFieldDef): boolean {
-  if (field.group === "gasless") return hasGaslessBlock(chainId);
+export function isFieldAvailable(chainId: number, field: ConfigFieldDef, instantLayerAddress?: string): boolean {
+  if (field.group === "gasless") return hasGaslessRelayer(chainId, instantLayerAddress);
   if (!field.protocols) return true;
   const protocol = defaultSolver(chainId)?.notifications.protocol;
   return protocol !== undefined && field.protocols.includes(protocol);
 }
 
-/** Whether the chain carries a gasless relayer, built-in or from the app baseline. */
-function hasGaslessBlock(chainId: number): boolean {
-  return getChainConfig(chainId).gasless !== undefined || symmioChains?.[chainId]?.gasless !== undefined;
+/**
+ * Whether the chain can resolve a gasless relayer: built into the SDK registry,
+ * shipped by the app baseline, or carried by the deployment `instantLayerAddress`
+ * belongs to.
+ */
+function hasGaslessRelayer(chainId: number, instantLayerAddress?: string): boolean {
+  if (getChainConfig(chainId).gasless !== undefined) return true;
+  if (symmioChains?.[chainId]?.gasless !== undefined) return true;
+  return findGaslessDeployment(chainId, instantLayerAddress) !== undefined;
+}
+
+/**
+ * The InstantLayer a chain's draft currently names, or `undefined` when the
+ * field is empty.
+ *
+ * The editor reads it back out of the draft rather than off the applied config
+ * because an Apply writes the draft: the deployment a chain is about to belong
+ * to is the one its drafted InstantLayer names. The raw string is returned as
+ * typed — an address that matches no deployment and a half-typed one are the
+ * same answer, "no relayer here".
+ */
+export function draftInstantLayerAddress(draft: ConfigDraft, chainId: number): string | undefined {
+  const raw = (draft[chainId]?.[fieldPath(INSTANT_LAYER_FIELD)] ?? "").trim();
+  return raw === "" ? undefined : raw;
 }
 
 /**
@@ -319,6 +364,7 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
 
   for (const chainId of SUPPORTED_CHAIN_IDS) {
     const chainDraft = draft[chainId] ?? {};
+    const instantLayerAddress = draftInstantLayerAddress(draft, chainId);
     const groups: Record<ConfigFieldGroup, Record<string, unknown>> = {
       addresses: {},
       solver: {},
@@ -329,7 +375,7 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
 
     for (const field of CONFIG_FIELDS) {
       const raw = chainDraft[fieldPath(field)] ?? "";
-      if (!isFieldAvailable(chainId, field)) continue;
+      if (!isFieldAvailable(chainId, field, instantLayerAddress)) continue;
       if (validateFieldValue(field, raw) !== null) continue;
       if (!isFieldOverridden(field, raw, chainId)) continue;
       groups[field.group][field.key] = coerceField(field, raw.trim());
@@ -345,11 +391,12 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
 
     /**
      * Seed from the app baseline so the blocks this editor does not model —
-     * `listing`, `inventory`, `priceService`, `muon`, `contractsVersion`, and
-     * the gasless endpoint itself (only its `execution.mode` is editable) —
-     * survive an Apply instead of being dropped. Losing `gasless` would leave
-     * the resolved config holding one deployment's addresses beside the other
-     * deployment's gateway.
+     * `listing`, `inventory`, `priceService`, `muon`, `contractsVersion` —
+     * survive an Apply instead of being dropped. The gasless endpoint is not
+     * modelled either (only its `execution.mode` is editable), but it does not
+     * come from the baseline: it is re-applied from the chain's deployment
+     * below, so the resolved config can never hold one deployment's addresses
+     * beside another deployment's gateway.
      */
     const baseline = symmioChains?.[chainId];
     const chainOverride: Record<string, unknown> = {
@@ -367,19 +414,23 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
     }
     if (Object.keys(groups.subgraphs).length) chainOverride.subgraphs = groups.subgraphs;
     /**
-     * Gasless mode is emitted whenever the chain carries a relayer, even when
-     * the draft matches the SDK default — the app baseline turns the relay ON
-     * for its own chains, and that block was just spread onto `chainOverride`
-     * above. An unemitted `"wallet"` draft would lose to it and the switch
-     * would not stick.
+     * The whole gasless block is emitted whenever the chain resolves a relayer,
+     * even when the draft matches the SDK default. The editor models the mode
+     * alone, so an unemitted block would drop the endpoint the chain's
+     * InstantLayer entitles it to — nothing else in an Apply carries it — and
+     * every gasless surface would switch off until the preset was re-applied.
+     * The endpoint facts come from the deployment, never from the draft: the
+     * editor can point a chain at another deployment, but it cannot move a
+     * gateway or invent one.
      */
-    if (isFieldAvailable(chainId, GASLESS_MODE_FIELD)) {
+    if (isFieldAvailable(chainId, GASLESS_MODE_FIELD, instantLayerAddress)) {
       const mode =
         (groups.gasless[GASLESS_MODE_FIELD.key] as string | undefined) ??
         defaultFieldValue(chainId, GASLESS_MODE_FIELD);
       if (mode) {
         chainOverride.gasless = {
           ...baseline?.gasless,
+          ...findGaslessDeployment(chainId, instantLayerAddress)?.gasless,
           execution: { ...baseline?.gasless?.execution, mode },
         };
       }
@@ -402,7 +453,7 @@ export function draftFromOverrides(overrides: CreateConfigParameters["symmioConf
     const entries: Record<string, string> = {};
 
     for (const field of CONFIG_FIELDS) {
-      if (!isFieldAvailable(chainId, field)) {
+      if (!isFieldAvailable(chainId, field, chainOverride?.addresses?.instantLayerAddress)) {
         entries[fieldPath(field)] = "";
         continue;
       }
