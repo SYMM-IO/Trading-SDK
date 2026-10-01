@@ -1,0 +1,71 @@
+import { Callout } from "nextra/components";
+
+# Preview Releases
+
+Test an SDK change in your own app before it reaches npm. After a pull request passes CI, [pkg.pr.new](https://github.com/stackblitz-labs/pkg.pr.new) publishes installable packages and adds their installation commands to a comment on the PR. New commits update that comment after their checks pass.
+
+## Install a preview
+
+Find the pkg.pr.new comment on the pull request and copy the pnpm command for the package your app uses. Run it in your app's directory. For example, replace `123` with the pull request number:
+
+```sh
+pnpm add https://pkg.pr.new/SYMM-IO/SYMM-Frontier/@symmio/trading-react@123
+```
+
+For a framework-agnostic app:
+
+```sh
+pnpm add https://pkg.pr.new/SYMM-IO/SYMM-Frontier/@symmio/trading-core@123
+```
+
+Keep the peer dependencies from [Getting Started with Core](/core/getting-started) or [Getting Started with React](/react/getting-started) installed. Your existing imports stay the same.
+
+The React preview depends on the same commit's Core preview, which depends on that commit's Utils preview. If your app also declares Core or Utils directly, install their matching preview URLs in the same command to keep the dependency tree consistent:
+
+```sh
+pnpm add \
+  https://pkg.pr.new/SYMM-IO/SYMM-Frontier/@symmio/trading-react@123 \
+  https://pkg.pr.new/SYMM-IO/SYMM-Frontier/@symmio/trading-core@123 \
+  https://pkg.pr.new/SYMM-IO/SYMM-Frontier/@symmio/utils@123
+```
+
+Available previews cover `@symmio/trading-core`, `@symmio/trading-react`, `@symmio/utils`, `@symmio/session-key`, `@symmio/eslint-config`, and `@symmio/typescript-config`. Install only the packages your app uses; the two config packages are development tools.
+
+<Callout type="info">
+  Each preview keeps the version from that package's `package.json` and adds `-preview-` plus the first seven characters
+  of the commit SHA. For example, Core at `3.1.0` becomes `3.1.0-preview-a832a55`, while Utils at `1.0.0` becomes
+  `1.0.0-preview-a832a55`. These development builds can include breaking changes. Use the published npm versions for
+  production.
+</Callout>
+
+If a package already has a prerelease version, the preview marker is appended to it: `3.2.0-rc.1` becomes
+`3.2.0-rc.1.preview-a832a55`. Existing build metadata is preserved. The workflow changes versions only in its CI
+checkout; committed package versions stay unchanged. Installation URLs still use the PR number or commit SHA.
+
+## Test a specific commit or update a preview
+
+A PR-number URL follows the latest published preview for that PR. Your lockfile can keep an earlier tarball even after the PR receives another commit. To test the new code reliably, wait for **Publish package previews** to pass, then install a URL containing that commit's full SHA instead of the PR number.
+
+Copy the full SHA from the PR's latest successful preview run and replace `COMMIT_SHA` below:
+
+```sh
+pnpm add https://pkg.pr.new/SYMM-IO/SYMM-Frontier/@symmio/trading-react@COMMIT_SHA
+```
+
+Update any other directly installed SDK previews to the same SHA. Commit-specific URLs also make bug reports reproducible; include the SHA when reporting a problem. A failing CI run does not publish a new preview, so check the successful run before assuming a PR-number URL contains the latest code.
+
+## Return to an npm release
+
+Replace each directly installed preview with the npm version you want to use. For example, to return React to the latest npm release:
+
+```sh
+pnpm add @symmio/trading-react@latest
+```
+
+If you also installed Core and Utils previews directly, replace all three together:
+
+```sh
+pnpm add @symmio/trading-react@latest @symmio/trading-core@latest @symmio/utils@latest
+```
+
+Use `pnpm add -D` when restoring the ESLint or TypeScript config packages. Check the updated `package.json` and lockfile into your app so teammates use the same dependencies.

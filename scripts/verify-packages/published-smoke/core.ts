@@ -6,5 +6,3 @@
 import * as core from "@symmio/trading-core";
 
 void core;
-
-void [expressOptionType, core.getWithdrawRoute, core.getWithdrawRequestIdFromReceipt];
