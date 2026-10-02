@@ -1,0 +1,88 @@
+import { Callout } from "nextra/components";
+
+# getWithdrawRequestActions
+
+Decide which writes SYMMIO Core accepts on a withdraw request — `finalizeWithdrawRequest`, `requestCancelWithdraw`, both, or neither — from the request's `provider` and `status` alone. It is a pure helper: it takes **no `config`** and makes no network call.
+
+Use it to render **every** request that [`getPendingWithdrawRequests`](/core/symmio-contract/get-pending-withdraw-requests) returns, classic and provider-backed alike, and offer only the actions whose status check passes. Hiding a request instead leaves the user looking at a debited balance with nothing to act on.
+
+```ts
+import { getPendingWithdrawRequests, getWithdrawRequestActions } from "@symmio/trading-core";
+
+const requests = await getPendingWithdrawRequests(config, { user: subAccount });
+const { timestamp } = await config.getClient().getBlock();
+
+for (const request of requests) {
+  const actions = getWithdrawRequestActions(request);
+  const canFinalizeNow = actions.finalize && timestamp >= request.cooldownEndTime;
+  const canCancel = actions.cancel;
+}
+```
+
+## Parameters
+
+Pass a whole `WithdrawRequest`; the helper reads only these two fields (`Pick<WithdrawRequest, "provider" | "status">`).
+
+<Properties>
+  <Property name="provider" type="Address" required>
+    The provider bound to the request, or the zero address for a classic withdrawal. Compared case-insensitively.
+  </Property>
+  <Property name="status" type="WithdrawStatus" required>
+    Current lifecycle status.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="WithdrawRequestActions">
+  <Property name="finalize" type="boolean">
+    Whether `finalizeWithdrawRequest` accepts the request's status. The call still reverts until `block.timestamp`
+    reaches the request's `cooldownEndTime`.
+  </Property>
+  <Property name="cancel" type="boolean">
+    Whether the owner's `requestCancelWithdraw` accepts the request's status.
+  </Property>
+</Returns>
+
+## Status rules
+
+The helper mirrors the status checks of `finalizeWithdrawRequest` and `requestCancelWithdraw` in [`WithdrawFacetImpl.sol`](https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/contracts/core/facets/Withdraw/WithdrawFacetImpl.sol) (perps-core v0.8.6):
+
+| Request                                                    | `finalize` | `cancel` |
+| ---------------------------------------------------------- | ---------- | -------- |
+| classic (`provider` is the zero address), `PENDING`        | yes        | yes      |
+| provider-backed, `PENDING`                                 | no         | yes      |
+| provider-backed, `PROVIDER_ACCEPTED`                       | yes        | yes      |
+| provider-backed, `CANCEL_REQUESTED`                        | yes        | no       |
+| `SUSPENDED`, `COMPLETED`, `CANCELLED`, `PROVIDER_REJECTED` | no         | no       |
+
+- A classic request only moves from `PENDING` to `COMPLETED`, `CANCELLED`, or `SUSPENDED`. The provider statuses belong to Express and virtual-provider requests.
+- An Express provider accepts inside the initiating transaction, so a provider-backed `PENDING` request is in practice a virtual-provider request waiting for acceptance.
+- `getPendingWithdrawRequests` still returns `SUSPENDED` requests, but Core refunded them on suspension, so no action is left. Show them without buttons.
+
+## Cooldown
+
+Both flags are time-free. `finalizeWithdrawRequest` also requires `block.timestamp >= cooldownEndTime`, so show Finalize disabled with a countdown until the request's `cooldownEndTime`. Judge it against chain time, such as the latest block's `timestamp` in the example above, rather than the browser clock: a clock that runs behind the chain keeps the button disabled too long, and one that runs ahead enables a write that reverts.
+
+## Who may send each write
+
+- **Finalize is permissionless**, so any wallet may send it. It pays each classic part to the receiver baked into that part. On an Express request it releases the express parts' remaining (not yet advanced) amount to the **provider**, not the receiver: the provider pays the receiver on its side, and its service normally sends this finalize itself. Do not offer Finalize on requests the configured Express service tracks.
+- **Cancel is owner-only.** Core looks the request up under the calling account, so `requestCancelWithdraw` routes through the AccountLayer `_call` proxy as the subaccount, and the connected wallet must be the subaccount's owner. An Express request also needs the provider to approve the cancel: combine this flag with [`isExpressWithdrawCancellable`](/core/express-withdraw#cancel-an-express-request).
+
+## Reverts a valid status can still hit
+
+The result is a status check, not a promise that the write succeeds:
+
+- Both writes revert while the request's subaccount is suspended, or when a provider callback rejects the transition. For example, finalizing a `WINDOWED` Express request the provider has not processed yet reverts in the provider's `onWithdrawComplete`.
+- Finalize also reverts while Core is globally paused or accounting-paused.
+- When Core sets a `pureVirtualCancelBlackout`, cancel on a pure-virtual request reverts from that many seconds before `cooldownEndTime` onward.
+
+<Callout type="info">
+  The SDK writes simulate first by default (`simulateBeforeWrite`), so on the wallet path these reverts surface before
+  the wallet prompt. A gasless relay skips the SDK's simulation, so the failure comes back from the relayer instead.
+  Show a failed finalize or cancel next to its request.
+</Callout>
+
+## React
+
+`@symmio/trading-react` re-exports `getWithdrawRequestActions`. See [`usePendingWithdrawRequests`](/react/withdraw#usependingwithdrawrequests) for a pending list that gates each row's Finalize and Cancel with it.

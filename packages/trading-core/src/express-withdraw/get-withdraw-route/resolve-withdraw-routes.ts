@@ -1,8 +1,8 @@
 import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
-import { getAccountBalanceOf, getSubAccount, SubAccountIsolationType } from "../../symmio-contracts/account-layer";
-import { getWithdrawableTime } from "../../symmio-contracts/symmio";
+import { getSubAccount, SubAccountIsolationType } from "../../symmio-contracts/account-layer";
 import { getExpressWithdrawOptions } from "../get-express-withdraw-options";
+import { resolveAvailableWithdrawState } from "../resolve-available-withdraw-state";
 import { supportsExpressWithdrawService } from "../resolve-express-withdraw";
 import type {
   ExpressWithdrawOption,
@@ -53,12 +53,24 @@ export async function resolveWithdrawRoutes(
     return choices(recommended, [{ kind: "classic", finalize: "after-cooldown" }]);
   }
 
-  const [withdrawableTime, availableBalance] = await Promise.all([
-    getWithdrawableTime(config, { user: parameters.user, chainId }),
-    getAccountBalanceOf(config, { account: parameters.user, chainId }),
-  ]);
-  const classicImmediate =
-    availableBalance >= parameters.amount && withdrawableTime <= BigInt(Math.floor(Date.now() / 1000));
+  const { sufficientBalance, cooldownReady } = await resolveAvailableWithdrawState(config, {
+    user: parameters.user,
+    amount: parameters.amount,
+    chainId,
+  });
+  /**
+   * Classic, immediate, and every Express option all debit this balance in
+   * `initiateWithdraw`, so no fallback could succeed: reject before contacting
+   * the service, whatever `policy.fallback` says.
+   */
+  if (!sufficientBalance) {
+    throw new SymmError(
+      "validation",
+      "WITHDRAW_INSUFFICIENT_BALANCE",
+      "The withdrawal amount exceeds the account's available balance; every withdrawal route debits that balance.",
+    );
+  }
+  const classicImmediate = cooldownReady;
   const classicChoice = {
     kind: "classic",
     finalize: classicImmediate ? "immediate" : "after-cooldown",

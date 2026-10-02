@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getWithdrawableTime = vi.hoisted(() => vi.fn());
 const getAccountBalanceOf = vi.hoisted(() => vi.fn());
@@ -14,8 +14,17 @@ vi.mock("../../symmio-contracts/symmio", async (importOriginal) => ({
 }));
 vi.mock("../get-express-withdraw-options", () => ({ getExpressWithdrawOptions }));
 
+import { SymmError } from "../../shared/errors/symm-error";
 import { SubAccountIsolationType } from "../../symmio-contracts/account-layer";
-import { createExpressConfig, createExpressOption, TEST_ACCOUNT, TEST_AMOUNT, TEST_RECEIVER } from "../test-fixtures";
+import {
+  createExpressConfig,
+  createExpressOption,
+  TEST_ACCOUNT,
+  TEST_AMOUNT,
+  TEST_AMOUNT_18,
+  TEST_BLOCK_TIMESTAMP,
+  TEST_RECEIVER,
+} from "../test-fixtures";
 import { getWithdrawRouteChoices } from "./get-withdraw-route-choices";
 
 const BASE_PARAMETERS = {
@@ -27,22 +36,18 @@ const BASE_PARAMETERS = {
 
 describe("getWithdrawRouteChoices", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
     getWithdrawableTime.mockReset();
     getAccountBalanceOf.mockReset();
     getExpressWithdrawOptions.mockReset();
-    getWithdrawableTime.mockResolvedValue(BigInt(Math.floor(Date.now() / 1000) + 100));
-    getAccountBalanceOf.mockResolvedValue(TEST_AMOUNT);
+    getWithdrawableTime.mockResolvedValue(TEST_BLOCK_TIMESTAMP + 100n);
+    getAccountBalanceOf.mockResolvedValue(TEST_AMOUNT_18);
   });
-
-  afterEach(() => vi.useRealTimers());
 
   it("keeps immediate Classic recommended while discovering every Express alternative once", async () => {
     const sameTx = createExpressOption();
     const windowed = createExpressOption({ optionType: 1, optionTypeName: "WINDOWED" });
     const standard = createExpressOption({ optionType: 2, optionTypeName: "STANDARD" });
-    getWithdrawableTime.mockResolvedValue(BigInt(Math.floor(Date.now() / 1000)));
+    getWithdrawableTime.mockResolvedValue(TEST_BLOCK_TIMESTAMP);
     getExpressWithdrawOptions.mockResolvedValue({
       options: [sameTx, windowed, standard],
       requestDbId: 1,
@@ -87,6 +92,19 @@ describe("getWithdrawRouteChoices", () => {
       recommended: { kind: "classic", finalize: "after-cooldown", reason: "service-error" },
       available: [{ kind: "classic", finalize: "after-cooldown" }],
     });
+  });
+
+  it("rejects an over-balance amount without requesting Express options", async () => {
+    getWithdrawableTime.mockResolvedValue(TEST_BLOCK_TIMESTAMP);
+    getAccountBalanceOf.mockResolvedValue(TEST_AMOUNT);
+
+    const rejection = await getWithdrawRouteChoices(createExpressConfig(), BASE_PARAMETERS).catch(
+      (error: unknown) => error,
+    );
+
+    expect(rejection).toBeInstanceOf(SymmError);
+    expect(rejection).toMatchObject({ kind: "validation", code: "WITHDRAW_INSUFFICIENT_BALANCE" });
+    expect(getExpressWithdrawOptions).not.toHaveBeenCalled();
   });
 
   it("keeps CUSTOM accounts Classic-only without reading balances or requesting options", async () => {

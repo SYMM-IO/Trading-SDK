@@ -56,17 +56,30 @@ function belongsToProvider(request: WithdrawRequest, providerAddress: Address): 
 /**
  * Reconcile active on-chain requests with the configured Express service.
  *
- * Requests for classic withdrawals or another provider are ignored. Matching
- * requests are polled independently until payout or a terminal failure, so a
- * consumer can rebuild active Express progress after a page refresh.
+ * Only requests for the configured Express provider are polled and returned in
+ * `entries`, each independently until payout or a terminal failure, so a
+ * consumer can rebuild active Express progress after a page refresh. Classic
+ * requests and requests for another provider are still active on-chain and are
+ * simply not in `entries`: render every pending request, use an entry only to
+ * add its service status, and gate each request's actions with
+ * `getWithdrawRequestActions`. Before offering Cancel on a configured-provider
+ * request, also require `isExpressWithdrawCancellable(entry.status)`.
  *
  * @param parameters - Active requests, optional chain/config, and enable flag.
- * @returns Matching requests paired with their service status query state.
+ * @returns Configured-provider requests paired with their service status query state.
  *
  * @example
  * ```tsx
  * const pending = usePendingWithdrawRequests({ user: subAccount });
  * const express = useExpressWithdrawStatuses({ requests: pending.data ?? [] });
+ * const entries = new Map(express.entries.map((entry) => [entry.request.id, entry]));
+ *
+ * return (pending.data ?? []).map((request) => {
+ *   const entry = entries.get(request.id);
+ *   if (entry?.status && isExpressWithdrawPayoutComplete(entry.status)) return null;
+ *   const actions = getWithdrawRequestActions(request);
+ *   return <RequestRow key={String(request.id)} request={request} status={entry?.status} actions={actions} />;
+ * });
  * ```
  */
 export function useExpressWithdrawStatuses(

@@ -610,6 +610,7 @@ export {
   getWithdrawRouteChoicesQueryOptions,
   getWithdrawRouteQueryKey,
   getWithdrawRouteQueryOptions,
+  isExpressWithdrawCancellable,
   isExpressWithdrawOptionExpired,
   isExpressWithdrawPayoutComplete,
   resolveExpressWithdrawService,
@@ -769,6 +770,7 @@ export {
  * the AccountLayer `_call` proxying where the core attributes the call to the
  * subaccount (`initiateWithdraw`, `requestCancelWithdraw`);
  * `finalizeWithdrawRequest` is permissionless and calls the core directly.
+ * `getWithdrawRequestActions` reads whether a request's status allows finalize and cancel.
  */
 export {
   OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER,
@@ -796,6 +798,7 @@ export {
   getPendingWithdrawRequests,
   getPendingWithdrawRequestsQueryKey,
   getPendingWithdrawRequestsQueryOptions,
+  getWithdrawRequestActions,
   getWithdrawRequests,
   getWithdrawRequestsQueryKey,
   getWithdrawRequestsQueryOptions,
@@ -890,6 +893,7 @@ export {
   type WithdrawParameters,
   type WithdrawReceiverPart,
   type WithdrawRequest,
+  type WithdrawRequestActions,
   type WithdrawReturnType,
 } from "./symmio-contracts/symmio";
 

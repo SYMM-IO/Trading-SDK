@@ -3,6 +3,7 @@ export * from "./get-express-withdraw-status";
 export * from "./get-withdraw-request-id-from-receipt";
 export * from "./get-withdraw-route";
 export * from "./get-withdraw-route-choices";
+export * from "./is-express-withdraw-cancellable";
 export * from "./is-express-withdraw-option-expired";
 export * from "./is-express-withdraw-payout-complete";
 export * from "./resolve-express-withdraw";

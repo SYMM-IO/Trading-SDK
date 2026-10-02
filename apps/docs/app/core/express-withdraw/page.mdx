@@ -95,13 +95,15 @@ const route = await getWithdrawRoute(config, {
 });
 ```
 
-The default order is:
+For every isolation type except `CUSTOM`, the router first checks that the account's available balance covers the amount. `getAccountBalanceOf(user)` reports SYMMIO's 18-decimal internal balance while `amount` is in collateral base units, so the router scales the amount the way the contract does, `amount × 10^(18 − collateralDecimals)`, before comparing. With 6-decimal USDC, `1_000000n` (1 USDC) needs an available balance of at least `1_000000000000000000n`.
 
-1. If `getAccountBalanceOf(user) >= amount` and `getWithdrawableTime(user) <= now`, return classic `finalize: "immediate"`.
+If the balance does not cover the amount, the router throws `WITHDRAW_INSUFFICIENT_BALANCE` instead of returning a route. Every route debits that same balance in `initiateWithdraw`, so none could succeed: the router throws whatever `policy.fallback` says, before it contacts the Express service. Otherwise the default order is:
+
+1. If `getWithdrawableTime(user)` is at or before the latest block's timestamp, return classic `finalize: "immediate"`. The check uses chain time, not the local clock: once the cooldown is over, `getWithdrawableTime` returns the block's own timestamp, which a browser clock running behind or ahead of the chain would misjudge.
 2. Otherwise request service options and prefer `SAME_TX`, then `STANDARD`.
 3. If the service is disabled, fails, or returns no preferred option, return classic `finalize: "after-cooldown"`.
 
-`CUSTOM` accounts always use classic withdrawal because their collateral must first be deallocated, which resets the cooldown. Express v1 accepts same-chain, non-virtual parts only.
+`CUSTOM` accounts always use classic withdrawal because their collateral must first be deallocated, which resets the cooldown. The router reads neither their balance nor their cooldown, so they never get `WITHDRAW_INSUFFICIENT_BALANCE` from it. Express v1 accepts same-chain, non-virtual parts only.
 
 Override option ordering or failure behavior through `policy`:
 
@@ -137,8 +139,9 @@ routes.available; // Classic plus every valid Express offer returned by the serv
 
 This action performs at most one `POST /options` request. It may request Express alternatives even when immediate
 Classic is recommended, because the caller explicitly asked for the selectable list. The automatic recommendation still
-uses the same Classic → `SAME_TX` → `STANDARD` policy as `getWithdrawRoute`; `WINDOWED` can appear in `available`
-without becoming the automatic recommendation.
+uses the same balance check and the same Classic → `SAME_TX` → `STANDARD` policy as `getWithdrawRoute`, so an amount
+above the available balance throws `WITHDRAW_INSUFFICIENT_BALANCE` here too, with no options request. `WINDOWED` can
+appear in `available` without becoming the automatic recommendation.
 
 `WithdrawRouteChoice` intentionally differs from `WithdrawRoute`: its Classic member contains only `kind` and
 `finalize`, with no automatic-routing `reason`. Submit an explicitly selected Classic choice through `withdrawAuto` (or
@@ -166,7 +169,21 @@ const { hash, route: submittedRoute } = await withdrawWithExpress(config, {
 });
 ```
 
-Without `preparedRoute`, `withdrawWithExpress` prepares the default route immediately before writing. A classic immediate route rechecks available balance and cooldown, then atomically batches `initiateWithdraw` and `finalizeWithdrawRequest`; a classic cooldown route delegates to `withdrawAuto`; an Express route validates and submits the signed option with `speedUp: false`.
+Without `preparedRoute`, `withdrawWithExpress` prepares the default route immediately before writing, so an amount above the available balance fails with `WITHDRAW_INSUFFICIENT_BALANCE` before any wallet request. Each route then writes as follows:
+
+- **Classic immediate** rechecks the available balance and the cooldown against the latest block and throws `WITHDRAW_ROUTE_STALE` when either no longer holds; prepare a fresh route. Otherwise it batches `initiateWithdraw` and `finalizeWithdrawRequest` into one atomic transaction.
+- **Classic after-cooldown** delegates to `withdrawAuto`.
+- **Express** validates and submits the signed option with `speedUp: false`.
+
+<Callout type="warning">
+  **Check the immediate route's receipt.** Neither the AccountLayer `_call` nor the gasless InstantLayer batch can pass
+  the id `initiateWithdraw` returns on to `finalizeWithdrawRequest`, so the batch finalizes a guessed id: the
+  subaccount's last request id plus one. Request ids are counted per subaccount. If another request for the same
+  subaccount lands between that read and inclusion (a second tab, a session key, a parallel call), the batch either
+  reverts with no state change, or finalizes that other request while the new one stays pending with its amount debited.
+  The hash alone cannot tell these apart, so verify the mined receipt with `requireFinalized` (see [Status
+  API](#status-api)). React's `useWithdrawWithExpress` does this for you.
+</Callout>
 
 For advanced callers, `submitExpressWithdrawOption(config, { account, amount, receiver, option })` submits a selected option directly. It rejects expired options, mismatched provider/receiver/type/amount, virtual or cross-chain parts, and a mismatched ABI-encoded parts hash before opening a wallet request.
 
@@ -195,27 +212,33 @@ The corresponding cache APIs are:
 - `getExpressWithdrawOptionsQueryOptions(config, options)`
 - `GetExpressWithdrawOptionsParameters`, `GetExpressWithdrawOptionsOptions`, and `GetExpressWithdrawOptionsData`
 
+`getExpressWithdrawOptionsQueryOptions`, `getWithdrawRouteQueryOptions`, and `getWithdrawRouteChoicesQueryOptions` default `retry`, `refetchOnWindowFocus`, and `refetchOnReconnect` to `false`, because each refetch may send another recorded `POST /options`. Set them under `query` to opt back in.
+
 `ExpressWithdrawOption` exposes the signed option fields, fee components, estimated time, normalized parts, `providerData`, validator data, and service request id. Token values are `bigint`; timestamps remain Unix-second `number` values.
 
 ## Status API
 
-After the initiation receipt, extract the exact request id from its event instead of reading the account's mutable “last id”:
+After the initiation receipt, extract the exact request id from its event instead of reading the account's mutable “last id”. For a classic immediate route, also pass `requireFinalized` so the helper proves that the same transaction finalized that request:
 
 ```ts
+const { hash, route } = await withdrawWithExpress(config, { account: subAccount, amount, receiver, preparedRoute });
+const receipt = await config.getClient({ chainId }).waitForTransactionReceipt({ hash });
+
 const requestId = getWithdrawRequestIdFromReceipt(receipt, {
   user: subAccount,
   symmioAddress: config.getChainConfig(chainId).addresses.symmioAddress,
+  requireFinalized: route.kind === "classic" && route.finalize === "immediate",
 });
 
-const status = await getExpressWithdrawStatus(config, {
-  user: subAccount,
-  requestId,
-});
-
-if (isExpressWithdrawPayoutComplete(status)) {
-  // Receiver payment is now proven for this option type.
+if (route.kind === "express") {
+  const status = await getExpressWithdrawStatus(config, { user: subAccount, requestId });
+  if (isExpressWithdrawPayoutComplete(status)) {
+    // Receiver payment is now proven for this option type.
+  }
 }
 ```
+
+`requireFinalized` looks for a `WithdrawFinalized` event from the SYMMIO Diamond carrying the initiated request id and `user`. That event records the account that sent the finalize, which inside the immediate batch is the subaccount itself. Without the flag (the default) the helper only decodes `WithdrawInitiated`.
 
 The corresponding cache APIs are `getExpressWithdrawStatusQueryKey` and `getExpressWithdrawStatusQueryOptions`. A local `NOT_FOUND` immediately after submission is expected while the service indexes the event.
 
@@ -224,6 +247,44 @@ The corresponding cache APIs are `getExpressWithdrawStatusQueryKey` and `getExpr
 | `SAME_TX` / `WINDOWED` | `PROCESSED` or later `FINALIZED`                                  |
 | `STANDARD`             | `PROCESSED` only; continue polling through `FINALIZED`            |
 | Any option             | `CANCELLED`, `SUSPENDED`, or local `FAILED` is a terminal failure |
+
+### Recover a request left pending
+
+With `requireFinalized`, a receipt that finalized another request, or none, throws `WITHDRAW_REQUEST_NOT_FINALIZED`. The transaction still mined: the new request exists, its amount is debited, and it stays pending until it is finalized or cancelled. Call the helper again without the flag to read its id, then offer the user `finalizeWithdrawRequest` (the request was created after the cooldown, so it can normally be finalized at once) or `requestCancelWithdraw`:
+
+```ts
+import { getWithdrawRequestIdFromReceipt, SymmError } from "@symmio/trading-core";
+
+const { symmioAddress } = config.getChainConfig(chainId).addresses;
+
+try {
+  getWithdrawRequestIdFromReceipt(receipt, { user: subAccount, symmioAddress, requireFinalized: true });
+} catch (err) {
+  if (!(err instanceof SymmError) || err.code !== "WITHDRAW_REQUEST_NOT_FINALIZED") throw err;
+  const pendingId = getWithdrawRequestIdFromReceipt(receipt, { user: subAccount, symmioAddress });
+  // Offer finalizeWithdrawRequest(config, { user: subAccount, requestId: pendingId })
+  // or requestCancelWithdraw(config, { account: subAccount, requestId: pendingId }).
+}
+```
+
+Refresh the pending-request and balance reads once the transaction mines, even when this check throws, so the stranded request appears in the pending list.
+
+### Cancel an Express request
+
+The provider approves a user cancel only while it still holds the request as `ACCEPTED`:
+
+| Option                  | User cancel                                                                                                 |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `SAME_TX`               | Never: the provider pays inside the initiating transaction, so the request skips `ACCEPTED`                 |
+| `WINDOWED` / `STANDARD` | Only while the provider status is `ACCEPTED`; from `LOCKED`, `PROCESSED`, or `FINALIZED` the cancel reverts |
+
+`isExpressWithdrawCancellable(status)` applies the provider's rule. Combine it with Core's own status rule, [`getWithdrawRequestActions(request).cancel`](/core/symmio-contract/get-withdraw-request-actions), before offering Cancel:
+
+```ts
+const canCancel = getWithdrawRequestActions(request).cancel && isExpressWithdrawCancellable(status);
+```
+
+The cancel completes in one transaction: inside `requestCancelWithdraw` the provider approves, Core refunds the amount to the available balance, and the request ends `CANCELLED`; otherwise the whole transaction reverts. Offer no Finalize on Express requests. Core's `finalizeWithdrawRequest` releases the remaining express amount to the provider, not the receiver, and the provider's service sends it.
 
 ## Route and status types
 
@@ -260,6 +321,16 @@ type WithdrawRouteChoice =
 - HTTP failures are `SymmApiError` with code `GET_EXPRESS_WITHDRAW_OPTIONS_FAILED` or `GET_EXPRESS_WITHDRAW_STATUS_FAILED` and include status/body/request coordinates.
 - Contract simulation/write failures remain native viem errors.
 
+The balance, route, and receipt checks described above throw these `SymmError` codes, all with `kind: "validation"`:
+
+| Code                             | Thrown by                                                                                        | Meaning and next step                                                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WITHDRAW_INSUFFICIENT_BALANCE`  | `getWithdrawRoute`, `getWithdrawRouteChoices`, and `withdrawWithExpress` without `preparedRoute` | The amount, scaled to 18 decimals, exceeds a non-`CUSTOM` account's available balance. Every route debits that balance, so ask for a smaller amount. |
+| `WITHDRAW_ROUTE_STALE`           | `withdrawWithExpress` submitting a classic immediate route                                       | The available balance no longer covers the amount, or the cooldown is not over at the latest block. Prepare a fresh route.                           |
+| `WITHDRAW_REQUEST_NOT_FINALIZED` | `getWithdrawRequestIdFromReceipt` with `requireFinalized: true`                                  | The transaction finalized another request, or none, and the new one stays pending. [Recover it](#recover-a-request-left-pending).                    |
+
+React hooks surface each one as a `SymmioRequestError` with `kind: "sdk"` and the same `code`.
+
 ## Public API inventory
 
 | Area                | Exports                                                                                                                                                                                                                                                                                                                                                         |
@@ -271,11 +342,12 @@ type WithdrawRouteChoice =
 | Route read          | `getWithdrawRoute`, `getWithdrawRouteQueryKey`, `getWithdrawRouteQueryOptions`, and the `GetWithdrawRoute*` parameter/data/query aliases                                                                                                                                                                                                                        |
 | Route choices       | `getWithdrawRouteChoices`, `getWithdrawRouteChoicesQueryKey`, `getWithdrawRouteChoicesQueryOptions`, and the `GetWithdrawRouteChoices*` parameter/data/query aliases                                                                                                                                                                                            |
 | Writes              | `submitExpressWithdrawOption`, `submitExpressWithdrawOptionMutationOptions`, `withdrawWithExpress`, `withdrawWithExpressMutationOptions`, `SubmitExpressWithdrawOptionParameters`, `WithdrawWithExpressParameters`, `WithdrawWithExpressReturnType`                                                                                                             |
-| Pure helpers        | `getWithdrawRequestIdFromReceipt`, `isExpressWithdrawOptionExpired`, `isExpressWithdrawPayoutComplete`                                                                                                                                                                                                                                                          |
+| Pure helpers        | `getWithdrawRequestIdFromReceipt`, `isExpressWithdrawCancellable`, `isExpressWithdrawOptionExpired`, `isExpressWithdrawPayoutComplete`; pair `isExpressWithdrawCancellable` with the withdraw slice's [`getWithdrawRequestActions`](/core/symmio-contract/get-withdraw-request-actions)                                                                         |
 
 ## Related
 
 - [Withdraw hooks](/react/withdraw)
 - [SYMMIO Contract withdrawal primitives](/core/symmio-contract)
+- [`getWithdrawRequestActions`](/core/symmio-contract/get-withdraw-request-actions) — which writes Core allows on a pending request
 - [Config](/core/concepts/config)
 - [Gasless writes](/core/gasless/relayable-writes)

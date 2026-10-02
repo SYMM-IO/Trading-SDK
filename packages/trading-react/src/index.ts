@@ -56,6 +56,8 @@ export {
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
   getSessionKeySelectors,
+  getWithdrawRequestActions,
+  isExpressWithdrawCancellable,
   isExpressWithdrawPayoutComplete,
   isGaslessIdempotencyConflictError,
   isGaslessRequestTerminal,

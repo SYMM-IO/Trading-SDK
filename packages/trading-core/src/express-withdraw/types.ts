@@ -138,7 +138,13 @@ export interface ExpressWithdrawStatus {
 export interface ExpressWithdrawRoutePolicy {
   /** Ordered acceptable options. Defaults to `SAME_TX`, then `STANDARD`. */
   optionPriority?: readonly ExpressWithdrawOptionName[];
-  /** Behavior when the service cannot supply an option. Defaults to `classic`. */
+  /**
+   * Behavior when the service cannot supply an option. Defaults to `classic`.
+   *
+   * It never covers an amount above a non-CUSTOM account's available balance:
+   * every route debits that balance, so route preparation rejects such an amount
+   * with `WITHDRAW_INSUFFICIENT_BALANCE` under either value.
+   */
   fallback?: "classic" | "error";
 }
 

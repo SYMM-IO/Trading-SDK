@@ -9,6 +9,8 @@ export const TEST_RECEIVER: Address = "0x222222222222222222222222222222222222222
 export const TEST_AFFILIATE: Address = "0x3333333333333333333333333333333333333333";
 export const TEST_PROVIDER: Address = "0x573310D7b04fF21BB8628C69eE103dDF4922294A";
 export const TEST_AMOUNT = 1_000_000n;
+/** Chain time, in seconds, of the latest block the fixture client reports (2026-01-01T00:00:00Z). */
+export const TEST_BLOCK_TIMESTAMP = 1_767_225_600n;
 
 const WITHDRAW_PARTS_PARAMETER = [
   {
@@ -24,19 +26,40 @@ const WITHDRAW_PARTS_PARAMETER = [
   },
 ] as const;
 
-export function createExpressConfig(options?: { contractsVersion?: "0.8.5" | "0.8.6" }) {
+/**
+ * Arbitrum config with Express Withdraw enabled. Contract reads are mocked at the
+ * action barrels, so the default public client only answers `getBlock`, with the
+ * latest block at {@link TEST_BLOCK_TIMESTAMP}; pass `client` to replace it.
+ */
+export function createExpressConfig(options?: {
+  contractsVersion?: "0.8.5" | "0.8.6";
+  collateralDecimals?: number;
+  client?: PublicClient;
+}) {
+  const client =
+    options?.client ?? ({ getBlock: async () => ({ timestamp: TEST_BLOCK_TIMESTAMP }) } as unknown as PublicClient);
   return createConfig({
     defaultChainId: SymmioSupportedChainId.ARBITRUM,
-    getClient: () => ({}) as PublicClient,
+    getClient: () => client,
     symmioConfig: {
       [SymmioSupportedChainId.ARBITRUM]: {
-        addresses: { affiliatesAddress: TEST_AFFILIATE },
+        addresses: {
+          affiliatesAddress: TEST_AFFILIATE,
+          ...(options?.collateralDecimals === undefined ? {} : { collateralDecimals: options.collateralDecimals }),
+        },
         contractsVersion: options?.contractsVersion ?? "0.8.6",
         expressWithdraw: { url: "https://express.test/v1/", providerAddress: TEST_PROVIDER },
       },
     },
   });
 }
+
+/**
+ * {@link TEST_AMOUNT} in the 18-decimal units `balanceOf` reports, scaled up from
+ * the fixture chain's collateral decimals (6-decimal USDC on Arbitrum).
+ */
+export const TEST_AMOUNT_18 =
+  TEST_AMOUNT * 10n ** BigInt(18 - createExpressConfig().getChainConfig().addresses.collateralDecimals);
 
 export function createExpressOption(overrides: Partial<ExpressWithdrawOption> = {}): ExpressWithdrawOption {
   const parts = overrides.parts ?? [

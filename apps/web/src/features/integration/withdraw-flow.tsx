@@ -10,12 +10,15 @@ import { formatRemaining, useCountdown } from "@/lib/use-countdown";
 import {
   SubAccountIsolationType,
   WithdrawStatus,
+  type ExpressWithdrawStatus,
   type WithdrawRequest,
   type WithdrawRoute,
   type WithdrawRouteChoice,
   type WithdrawRouteChoices,
 } from "@symmio/trading-core";
 import {
+  getWithdrawRequestActions,
+  isExpressWithdrawCancellable,
   isExpressWithdrawPayoutComplete,
   useAccountBalanceInfo,
   useAccountBalanceOf,
@@ -30,6 +33,7 @@ import {
   useWithdrawWithExpress,
   useWithdrawableTime,
   type ExpressWithdrawStatusEntry,
+  type SymmioRequestError,
 } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { Button } from "@symmio/ui/components/button";
@@ -56,6 +60,11 @@ const PENDING_RELAY_CODES = [
   "GASLESS_BROADCAST_TIMEOUT",
 ] as const;
 
+/** The pending-relay code in a withdraw error, if the relay's status was lost rather than failed. */
+function getPendingRelayCode(error: SymmioRequestError | null): (typeof PENDING_RELAY_CODES)[number] | undefined {
+  return PENDING_RELAY_CODES.find((code) => error?.message.includes(code));
+}
+
 interface Props {
   owner?: Address;
   subAccount?: Address;
@@ -70,8 +79,10 @@ interface Props {
 /**
  * Withdraw wizard: Connect → Select subaccount → Withdraw. Navigable via the rail.
  * The withdraw step previews and submits the SDK-selected classic or Express
- * route, shows provider/cooldown progress, and keeps classic pending requests
- * available for inline finalize / cancel actions.
+ * route (Classic stays selectable while the preview loads or fails), shows
+ * provider/cooldown progress, and lists every active withdraw request (classic,
+ * Express, or any other provider) with the finalize / cancel actions Core and
+ * the provider still accept.
  */
 export function WithdrawFlow({
   owner,
@@ -94,12 +105,27 @@ export function WithdrawFlow({
   const withdrawableTime = useWithdrawableTime({ user: subAccount, chainId });
   const withdraw = useWithdrawWithExpress({ account: subAccount, chainId });
   const classicWithdraw = useWithdraw({ account: subAccount, chainId });
+  /**
+   * A relay whose status was lost may still be executing, so it counts as
+   * submitted: no fresh preview and no resubmit until the user edits the form.
+   */
+  const relayPending = getPendingRelayCode(withdraw.error) !== undefined;
+  const submitting = withdraw.isPending || classicWithdraw.isPending;
+  /**
+   * Preview only while no submission is pending, possibly still relaying, or
+   * has succeeded. A failed or rejected submission re-enables the stale preview,
+   * which then refetches, so a retry submits a fresh offer instead of an expired
+   * or consumed one. The gate never reads the preview's own state, so a preview
+   * error cannot re-trigger it.
+   */
   const routeChoices = useWithdrawRouteChoices({
     user: subAccount ?? zeroAddress,
     amount: parsed ?? 0n,
     receiver: validReceiver ?? zeroAddress,
     chainId,
-    query: { enabled: canInitiate && withdraw.isIdle && classicWithdraw.isIdle },
+    query: {
+      enabled: canInitiate && !submitting && !relayPending && !withdraw.isSuccess && !classicWithdraw.isSuccess,
+    },
   });
   /** The session key when the wallet menu's default is on; the CUSTOM path's deallocate leg rides along. */
   const initiateWrite = useFlowWriteOption("initiateWithdraw");
@@ -120,7 +146,15 @@ export function WithdrawFlow({
   });
 
   const selectedRoute = getSelectedRoute(routeChoices.data, withdrawMethod);
-  const hasSelectedRoute = withdrawMethod === "auto" ? routeChoices.data !== undefined : selectedRoute !== undefined;
+  /**
+   * Classic submits through `useWithdraw`, which needs no preview, so it stays
+   * submittable while the preview loads or fails. Auto and Express submit the
+   * exact previewed route, so they wait for a settled preview.
+   */
+  const classicSelected = withdrawMethod === "classic";
+  const methodReady = classicSelected || (selectedRoute !== undefined && !routeChoices.isFetching);
+  /** Every route debits the same available balance, so an over-balance amount blocks Classic too. */
+  const insufficientBalance = routeChoices.error?.code === "WITHDRAW_INSUFFICIENT_BALANCE";
 
   const expressRequestId = withdraw.data?.route.kind === "express" ? withdraw.data.requestId : undefined;
   const expressStatus = useExpressWithdrawStatus({
@@ -152,7 +186,7 @@ export function WithdrawFlow({
   }
 
   function onInitiate() {
-    if (!subAccount || parsed === undefined || !validReceiver || chainId === undefined || !routeChoices.data) return;
+    if (!subAccount || parsed === undefined || !validReceiver || chainId === undefined) return;
     // `account`/`chainId` are bound on the hook (which resolves the subaccount's
     // isolation via useSubAccount); `parsed` is in the collateral token's decimals
     // and the hook builds the part + scales the deallocate amount.
@@ -162,6 +196,8 @@ export function WithdrawFlow({
       return;
     }
 
+    /** Auto and Express submit the exact previewed route. */
+    if (!routeChoices.data) return;
     classicWithdraw.reset();
     if (withdrawMethod === "auto") {
       withdraw.mutate({
@@ -196,7 +232,15 @@ export function WithdrawFlow({
   ];
 
   return (
-    <FlowLayout steps={steps} current={current} maxReachable={maxStep} onStepClick={setStep}>
+    <FlowLayout
+      steps={steps}
+      current={current}
+      maxReachable={maxStep}
+      onStepClick={(next) => {
+        /** Picking a subaccount mid-write would reset the pending write and detach it from this view. */
+        if (!submitting) setStep(next);
+      }}
+    >
       {current === 0 ? (
         <WalletPanel />
       ) : current === 1 ? (
@@ -213,6 +257,11 @@ export function WithdrawFlow({
         <>
           <WithdrawableReadout query={withdrawableTime} />
 
+          {/**
+           * Inputs lock while a write is in flight: editing one calls
+           * `resetSubmission`, which would detach the pending write from this
+           * view and re-enable submit for a duplicate request.
+           */}
           <AmountField
             id="integration-withdraw-amount"
             testId="integration-withdraw-amount"
@@ -224,6 +273,7 @@ export function WithdrawFlow({
             }}
             decimals={decimals}
             invalid={amount.length > 0 && parsed === undefined}
+            disabled={submitting}
           />
 
           <Field
@@ -235,6 +285,7 @@ export function WithdrawFlow({
                   type="button"
                   size="xs"
                   variant="ghost"
+                  disabled={submitting}
                   onClick={() => {
                     setReceiver(owner);
                     resetSubmission();
@@ -256,6 +307,7 @@ export function WithdrawFlow({
               placeholder="0x…"
               className="font-mono"
               aria-invalid={receiver.length > 0 && !validReceiver}
+              disabled={submitting}
             />
           </Field>
 
@@ -267,6 +319,7 @@ export function WithdrawFlow({
                 setWithdrawMethod(value);
                 resetSubmission();
               }}
+              disabled={submitting}
               amount={parsed}
               decimals={decimals}
             />
@@ -275,20 +328,12 @@ export function WithdrawFlow({
           <Button
             type="button"
             size="lg"
-            disabled={
-              !canInitiate ||
-              routeChoices.isFetching ||
-              !hasSelectedRoute ||
-              withdraw.isPending ||
-              classicWithdraw.isPending
-            }
+            disabled={!canInitiate || !methodReady || insufficientBalance || submitting || relayPending}
             onClick={onInitiate}
             data-testid="button-initiate-withdraw"
             className="w-full"
           >
-            {withdraw.isPending || classicWithdraw.isPending || routeChoices.isFetching ? (
-              <Spinner className="size-4" />
-            ) : null}
+            {submitting || (!classicSelected && routeChoices.isFetching) ? <Spinner className="size-4" /> : null}
             {parsed === undefined
               ? "Enter an amount"
               : withdrawMethod === "classic"
@@ -304,7 +349,7 @@ export function WithdrawFlow({
             <WithdrawRouteReadout
               query={routeChoices}
               route={selectedRoute}
-              automatic={withdrawMethod === "auto"}
+              method={withdrawMethod}
               amount={parsed}
               decimals={decimals}
             />
@@ -368,16 +413,25 @@ function getExpressChoiceDescription(
   return `Receive about ${formatUsd(estimatedPayout, decimals)} USDC · fee ${formatUsd(userFee, decimals)} USDC · ${formatRemaining(choice.option.estimatedTimeSeconds * 1000)}`;
 }
 
+/**
+ * Auto, Classic, and every previewed Express offer. Classic needs no preview, so
+ * it is always offered (its timing is only known once the preview settles), and
+ * the choice is never blocked on the preview. Express offers come only from a
+ * settled preview, so they are disabled while it refetches.
+ */
 function WithdrawalMethodSelect({
   query,
   value,
   onValueChange,
+  disabled,
   amount,
   decimals,
 }: {
   query: ReturnType<typeof useWithdrawRouteChoices>;
   value: string;
   onValueChange: (value: string) => void;
+  /** Locks the choice while a submission is in flight. */
+  disabled: boolean;
   amount: bigint;
   decimals: number;
 }) {
@@ -394,7 +448,7 @@ function WithdrawalMethodSelect({
 
   return (
     <Field label="Withdrawal method" htmlFor="integration-withdraw-method">
-      <Select value={value} onValueChange={onValueChange} disabled={!query.data || query.isFetching}>
+      <Select value={value} onValueChange={onValueChange} disabled={disabled}>
         <SelectTrigger id="integration-withdraw-method" data-testid="integration-withdraw-method">
           <SelectValue placeholder="Choose a withdrawal method" />
         </SelectTrigger>
@@ -402,23 +456,22 @@ function WithdrawalMethodSelect({
           <SelectItem value="auto" description={autoDescription}>
             Auto (recommended)
           </SelectItem>
-          {classic ? (
-            <SelectItem
-              value="classic"
-              description={
-                classic.finalize === "immediate"
-                  ? "Classic protocol route; the request can be finalized immediately"
-                  : "Classic protocol route; finalize after the cooldown"
-              }
-            >
-              Classic
-            </SelectItem>
-          ) : null}
+          <SelectItem
+            value="classic"
+            description={
+              classic?.finalize === "immediate"
+                ? "Classic protocol route; the request can be finalized immediately"
+                : "Classic protocol route; finalize after the cooldown"
+            }
+          >
+            Classic
+          </SelectItem>
           {express.map((choice) => (
             <SelectItem
               key={getExpressMethodValue(choice)}
               value={getExpressMethodValue(choice)}
               description={getExpressChoiceDescription(choice, amount, decimals)}
+              disabled={query.isFetching}
             >
               {choice.option.optionTypeName}
             </SelectItem>
@@ -432,27 +485,58 @@ function WithdrawalMethodSelect({
 function WithdrawRouteReadout({
   query,
   route,
-  automatic,
+  method,
   amount,
   decimals,
 }: {
   query: ReturnType<typeof useWithdrawRouteChoices>;
   route: WithdrawRoute | WithdrawRouteChoice | undefined;
-  automatic: boolean;
+  /** Selected method: `auto`, `classic`, or an Express choice value. */
+  method: string;
   amount: bigint;
   decimals: number;
 }) {
-  if (query.isFetching) {
-    return <ResultNote loading>Checking available withdrawal routes…</ResultNote>;
+  const automatic = method === "auto";
+  /**
+   * Classic submits without the preview, so the preview's loading and error
+   * states only concern Auto and Express. An over-balance amount is the
+   * exception: every route debits the same available balance, so that error
+   * applies to Classic as well.
+   */
+  const previewApplies = method !== "classic" || query.error?.code === "WITHDRAW_INSUFFICIENT_BALANCE";
+  if (previewApplies) {
+    if (query.isFetching) {
+      return <ResultNote loading>Checking available withdrawal routes…</ResultNote>;
+    }
+    if (query.error) {
+      return (
+        <div className="flex flex-col gap-2">
+          <ResultError
+            testId="integration-withdraw-route-error"
+            kind={query.error.kind}
+            message={query.error.message}
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="self-start"
+            onClick={() => void query.refetch()}
+            data-testid="integration-withdraw-route-retry"
+          >
+            Retry route preview
+          </Button>
+        </div>
+      );
+    }
+    /** No preview and no error: the query is disabled, e.g. after a successful withdrawal cleared it. */
+    if (!query.data) return null;
+    if (!route) return <ResultNote>The selected withdrawal method is no longer available.</ResultNote>;
   }
-  if (query.error) {
-    return <ResultError kind={query.error.kind} message={query.error.message} />;
-  }
-  if (!route) return <ResultNote>The selected withdrawal method is no longer available.</ResultNote>;
 
-  if (route.kind === "classic") {
+  if (!route || route.kind === "classic") {
     const fallbackDescription =
-      automatic && "reason" in route
+      route && automatic && "reason" in route
         ? {
             "service-disabled": "Express is disabled on this chain; the classic cooldown path will be used.",
             "service-error": "The Express service is unavailable; the classic cooldown path will be used.",
@@ -460,7 +544,7 @@ function WithdrawRouteReadout({
             "unsupported-account": "This account requires deallocation, so the classic cooldown path will be used.",
             "cooldown-ready": "The cooldown is already satisfied; initiation and finalization will be atomic.",
           }[route.reason]
-        : route.finalize === "immediate"
+        : route?.finalize === "immediate"
           ? "The Classic request can be finalized immediately after initiation."
           : "The Classic protocol path will be initiated and can be finalized after the cooldown.";
     return (
@@ -490,6 +574,24 @@ function WithdrawRouteReadout({
   );
 }
 
+/**
+ * How an Express request ended without a payout, if it did. The provider's
+ * on-chain status is canonical, so it wins: the service's own status can lag
+ * it, and polling stops at the on-chain terminal state, so it may never catch up.
+ */
+function getExpressStop(
+  progress: ExpressWithdrawStatus,
+):
+  | { source: "provider"; status: "CANCELLED" | "SUSPENDED" }
+  | { source: "service"; status: "FAILED" | "CANCELLED" | "SUSPENDED" }
+  | undefined {
+  const onChain = progress.onChain.status;
+  if (onChain === "CANCELLED" || onChain === "SUSPENDED") return { source: "provider", status: onChain };
+  const local = progress.local.status;
+  if (local === "FAILED" || local === "CANCELLED" || local === "SUSPENDED") return { source: "service", status: local };
+  return undefined;
+}
+
 function InitiateStatus({
   withdraw,
   status,
@@ -515,7 +617,7 @@ function InitiateStatus({
      * be executing right now. Rendering it as an error is what invites a second
      * signature for an intent that already went through.
      */
-    const pendingCode = PENDING_RELAY_CODES.find((code) => withdraw.error?.message.includes(code));
+    const pendingCode = getPendingRelayCode(withdraw.error);
     if (pendingCode) {
       return (
         <ResultNote testId="integration-withdraw-status">
@@ -531,23 +633,30 @@ function InitiateStatus({
   if (withdraw.isSuccess) {
     if (withdraw.data.route.kind === "express") {
       const progress = status.data;
-      const failed =
-        progress?.onChain.status === "CANCELLED" ||
-        progress?.onChain.status === "SUSPENDED" ||
-        progress?.local.status === "FAILED" ||
-        progress?.local.status === "CANCELLED" ||
-        progress?.local.status === "SUSPENDED";
       if (status.error) {
         return (
           <ResultError testId="integration-withdraw-status" kind={status.error.kind} message={status.error.message} />
         );
       }
-      if (failed) {
+      const stop = progress ? getExpressStop(progress) : undefined;
+      /**
+       * A provider-side cancel refunds Core in the same transaction, so it is an
+       * outcome, not a failure.
+       */
+      if (stop?.source === "provider" && stop.status === "CANCELLED") {
+        return (
+          <ResultNote testId="integration-withdraw-status">
+            Express request #{String(withdraw.data.requestId)} was cancelled. Its amount is back in the subaccount’s
+            available balance.
+          </ResultNote>
+        );
+      }
+      if (stop) {
         return (
           <ResultError
             testId="integration-withdraw-status"
             kind="unknown"
-            message={`Express withdrawal stopped (${progress?.local.status ?? progress?.onChain.status}).`}
+            message={`Express withdrawal stopped (${stop.source} ${stop.status}).`}
           />
         );
       }
@@ -688,52 +797,116 @@ function PendingRequests({
     ...(chainId === undefined ? {} : { chainId }),
     enabled: query.data !== undefined,
   });
-  const activeExpressEntries = express.entries.filter(
-    (entry) => entry.status === undefined || !isExpressWithdrawPayoutComplete(entry.status),
-  );
-  const expressRequestIds = new Set(express.entries.map((entry) => entry.request.id));
-  const classicItems = (query.data ?? []).filter(
-    (request) => isAddressEqual(request.provider, zeroAddress) && !expressRequestIds.has(request.id),
-  );
-  const itemCount = classicItems.length + activeExpressEntries.length;
+  /**
+   * One row per active request, built in a single pass; Express service status
+   * only adds detail to its request's row. The one exclusion is an Express
+   * request whose receiver payout is proven. Classic requests and requests for
+   * any other provider always keep a row, so a request still holding the
+   * subaccount's collateral never drops out of the list.
+   */
+  const expressEntries = new Map(express.entries.map((entry) => [entry.request.id, entry]));
+  const rows = (query.data ?? []).flatMap((request) => {
+    const entry = expressEntries.get(request.id);
+    return entry?.status && isExpressWithdrawPayoutComplete(entry.status) ? [] : [{ request, entry }];
+  });
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
         <h3 className="text-muted-foreground text-xs font-medium tracking-[0.18em] uppercase">Pending withdrawals</h3>
         <span className="bg-border/80 h-px flex-1" aria-hidden />
-        <span className="text-muted-foreground font-mono text-xs">{itemCount}</span>
+        <span className="text-muted-foreground font-mono text-xs">{rows.length}</span>
       </div>
 
       {query.isLoading ? (
         <ResultNote loading>Loading active withdrawals…</ResultNote>
-      ) : itemCount === 0 ? (
-        <ResultNote testId="integration-pending-empty">No active withdrawals for this subaccount.</ResultNote>
       ) : (
-        <ul className="divide-border/60 border-border/70 divide-y overflow-hidden rounded-xl border">
-          {classicItems.map((request) => (
-            <RequestRow
-              key={`classic-${request.id}`}
-              request={request}
-              subAccount={subAccount}
-              decimals={decimals}
-              finalize={finalize}
-              cancel={cancel}
-              finalizeWrite={finalizeWrite}
-              cancelWrite={cancelWrite}
-            />
-          ))}
-          {activeExpressEntries.map((entry) => (
-            <ExpressRequestRow key={`express-${entry.request.id}`} entry={entry} decimals={decimals} />
-          ))}
-        </ul>
+        <>
+          {query.error ? (
+            <ResultError testId="integration-pending-error" kind={query.error.kind} message={query.error.message} />
+          ) : null}
+          {rows.length > 0 ? (
+            <ul className="divide-border/60 border-border/70 divide-y overflow-hidden rounded-xl border">
+              {rows.map(({ request, entry }) =>
+                entry ? (
+                  <ExpressRequestRow
+                    key={String(request.id)}
+                    entry={entry}
+                    subAccount={subAccount}
+                    decimals={decimals}
+                    cancel={cancel}
+                    cancelWrite={cancelWrite}
+                  />
+                ) : (
+                  <RequestRow
+                    key={String(request.id)}
+                    request={request}
+                    subAccount={subAccount}
+                    decimals={decimals}
+                    finalize={finalize}
+                    cancel={cancel}
+                    finalizeWrite={finalizeWrite}
+                    cancelWrite={cancelWrite}
+                  />
+                ),
+              )}
+            </ul>
+          ) : query.error ? null : (
+            <ResultNote testId="integration-pending-empty">No active withdrawals for this subaccount.</ResultNote>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-function ExpressRequestRow({ entry, decimals }: { entry: ExpressWithdrawStatusEntry; decimals: number }) {
+/**
+ * Whether a finalize/cancel mutation last targeted `request`. Request ids are
+ * counted per subaccount, so the subaccount has to match as well.
+ */
+function targetsRequest(
+  request: WithdrawRequest,
+  account: Address | undefined,
+  requestId: bigint | undefined,
+): boolean {
+  return account !== undefined && requestId === request.id && isAddressEqual(account, request.user);
+}
+
+/** A row's last failed finalize or cancel, on its own line under the row. */
+function RowWriteError({ error, testId }: { error: SymmioRequestError | null; testId: string }) {
+  if (!error) return null;
+  return (
+    <div className="basis-full">
+      <ResultError testId={testId} kind={error.kind} message={error.message} />
+    </div>
+  );
+}
+
+function ExpressRequestRow({
+  entry,
+  subAccount,
+  decimals,
+  cancel,
+  cancelWrite,
+}: {
+  entry: ExpressWithdrawStatusEntry;
+  subAccount: Address;
+  decimals: number;
+  cancel: ReturnType<typeof useRequestCancelWithdraw>;
+  cancelWrite: GaslessWriteOption;
+}) {
   const { request, status, error, isFetching } = entry;
+  /**
+   * Core must accept the cancel, and the provider approves it only while its
+   * status is ACCEPTED. While the service status cannot be read, Cancel stays
+   * offered: Core still accepts it, and a provider refusal shows as this row's
+   * error. There is no Finalize: on an Express request it releases the funds to
+   * the provider rather than the receiver, and the service drives that step.
+   */
+  const cancellable =
+    getWithdrawRequestActions(request).cancel && (status ? isExpressWithdrawCancellable(status) : error !== null);
+  const cancelTargetsRow = targetsRequest(request, cancel.variables?.account, cancel.variables?.requestId);
+  const cancellingThis = cancel.isPending && cancelTargetsRow;
   const detail = error
     ? error.message
     : !status
@@ -760,10 +933,31 @@ function ExpressRequestRow({ entry, decimals }: { entry: ExpressWithdrawStatusEn
           {formatUsd(request.totalAmount, decimals)} USDC · {detail}
         </span>
       </div>
+
+      {cancellable ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={cancellingThis}
+          onClick={() => cancel.mutate({ account: subAccount, requestId: request.id, ...cancelWrite })}
+          data-testid={`cancel-${request.id}`}
+        >
+          {cancellingThis ? <Spinner className="size-4" /> : null}
+          Cancel
+        </Button>
+      ) : null}
+
+      <RowWriteError error={cancelTargetsRow ? cancel.error : null} testId={`cancel-error-${request.id}`} />
     </li>
   );
 }
 
+/**
+ * A classic request, or a request for a provider other than the configured
+ * Express one. Its actions follow Core's status rules; Finalize also waits for
+ * the cooldown.
+ */
 function RequestRow({
   request,
   subAccount,
@@ -781,47 +975,72 @@ function RequestRow({
   finalizeWrite: GaslessWriteOption;
   cancelWrite: GaslessWriteOption;
 }) {
+  const actions = getWithdrawRequestActions(request);
+  const providerBacked = !isAddressEqual(request.provider, zeroAddress);
   const cooldownAt = Number(request.cooldownEndTime) * 1000;
-  const { remainingMs, ready: finalizable } = useCountdown(cooldownAt);
-  const finalizingThis = finalize.isPending && finalize.variables?.requestId === request.id;
-  const cancellingThis = cancel.isPending && cancel.variables?.requestId === request.id;
+  const { remainingMs, ready: cooldownOver } = useCountdown(cooldownAt);
+  const finalizeTargetsRow = targetsRequest(request, finalize.variables?.user, finalize.variables?.requestId);
+  const cancelTargetsRow = targetsRequest(request, cancel.variables?.account, cancel.variables?.requestId);
+  const finalizingThis = finalize.isPending && finalizeTargetsRow;
+  const cancellingThis = cancel.isPending && cancelTargetsRow;
+  const detail =
+    !actions.finalize && !actions.cancel
+      ? "no action available"
+      : providerBacked && request.status === WithdrawStatus.PENDING
+        ? "awaiting provider acceptance"
+        : cooldownOver
+          ? "ready to finalize"
+          : `cooldown ends in ${formatRemaining(remainingMs)}`;
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" data-request-id={String(request.id)}>
       <div className="flex flex-col gap-0.5">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-foreground font-mono text-sm">#{String(request.id)}</span>
           <Badge variant="secondary">{WithdrawStatus[request.status] ?? String(request.status)}</Badge>
+          {providerBacked ? (
+            <Badge variant="outline" title={request.provider}>
+              {request.isPureVirtual ? "Virtual provider" : "Provider"} {shortenAddress(request.provider)}
+            </Badge>
+          ) : null}
         </div>
         <span className="text-muted-foreground text-xs">
-          {formatUsd(request.totalAmount, decimals)} USDC ·{" "}
-          {finalizable ? "ready to finalize" : `cooldown ends in ${formatRemaining(remainingMs)}`}
+          {formatUsd(request.totalAmount, decimals)} USDC · {detail}
         </span>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          disabled={!finalizable || finalizingThis}
-          onClick={() => finalize.mutate({ user: subAccount, requestId: request.id, ...finalizeWrite })}
-          data-testid={`finalize-${request.id}`}
-        >
-          {finalizingThis ? <Spinner className="size-4" /> : null}
-          Finalize
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={cancellingThis}
-          onClick={() => cancel.mutate({ account: subAccount, requestId: request.id, ...cancelWrite })}
-          data-testid={`cancel-${request.id}`}
-        >
-          {cancellingThis ? <Spinner className="size-4" /> : null}
-          Cancel
-        </Button>
-      </div>
+      {actions.finalize || actions.cancel ? (
+        <div className="flex items-center gap-2">
+          {actions.finalize ? (
+            <Button
+              type="button"
+              size="sm"
+              disabled={!cooldownOver || finalizingThis}
+              onClick={() => finalize.mutate({ user: subAccount, requestId: request.id, ...finalizeWrite })}
+              data-testid={`finalize-${request.id}`}
+            >
+              {finalizingThis ? <Spinner className="size-4" /> : null}
+              Finalize
+            </Button>
+          ) : null}
+          {actions.cancel ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={cancellingThis}
+              onClick={() => cancel.mutate({ account: subAccount, requestId: request.id, ...cancelWrite })}
+              data-testid={`cancel-${request.id}`}
+            >
+              {cancellingThis ? <Spinner className="size-4" /> : null}
+              Cancel
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      <RowWriteError error={finalizeTargetsRow ? finalize.error : null} testId={`finalize-error-${request.id}`} />
+      <RowWriteError error={cancelTargetsRow ? cancel.error : null} testId={`cancel-error-${request.id}`} />
     </li>
   );
 }

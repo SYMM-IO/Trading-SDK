@@ -12,6 +12,9 @@ import type { GetWithdrawRouteChoicesParameters, WithdrawRouteChoices } from "..
  * @param config - SDK configuration.
  * @param parameters - Withdrawal intent and optional automatic-route policy.
  * @returns The automatic recommendation plus Classic and valid Express choices.
+ * @throws {SymmError} `WITHDRAW_INSUFFICIENT_BALANCE` when `amount` (collateral base
+ *   units, scaled to 18 decimals) exceeds a non-CUSTOM account's available balance.
+ *   Every route debits that balance, so none is offered and no options request is made.
  */
 export async function getWithdrawRouteChoices(
   config: Config,

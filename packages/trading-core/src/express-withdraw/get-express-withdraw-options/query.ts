@@ -31,7 +31,11 @@ export type GetExpressWithdrawOptionsQueryOptions = SymmioQueryOptions<
 >;
 
 /**
- * Build a non-retrying query for `POST /options`.
+ * Build a query for the stateful Express `POST /options` endpoint.
+ *
+ * No automatic retries or focus/reconnect refetches by default, because the
+ * service records every options request. Set `query.retry`,
+ * `query.refetchOnWindowFocus`, or `query.refetchOnReconnect` to opt back in.
  *
  * @param config - SDK configuration.
  * @param options - Required request inputs and optional TanStack overrides.
@@ -53,5 +57,8 @@ export function getExpressWithdrawOptionsQueryOptions(
         chainId: options.chainId,
         signal: options.signal,
       }),
+    retry: options.query?.retry ?? false,
+    refetchOnWindowFocus: options.query?.refetchOnWindowFocus ?? false,
+    refetchOnReconnect: options.query?.refetchOnReconnect ?? false,
   };
 }

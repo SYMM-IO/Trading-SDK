@@ -33,7 +33,10 @@ export type GetWithdrawRouteQueryOptions = SymmioQueryOptions<
 /**
  * Build query options for preparing an Express-aware withdrawal route.
  *
- * Automatic retries are disabled because preparation may call `POST /options`.
+ * No automatic retries or focus/reconnect refetches by default, because
+ * preparation may call the stateful Express `POST /options` endpoint, which the
+ * service records. Set `query.retry`, `query.refetchOnWindowFocus`, or
+ * `query.refetchOnReconnect` to opt back in.
  *
  * @param config - SDK configuration.
  * @param options - Required withdrawal intent and optional query overrides.
@@ -57,5 +60,8 @@ export function getWithdrawRouteQueryOptions(
         isolationType: options.isolationType,
         policy: options.policy,
       }),
+    retry: options.query?.retry ?? false,
+    refetchOnWindowFocus: options.query?.refetchOnWindowFocus ?? false,
+    refetchOnReconnect: options.query?.refetchOnReconnect ?? false,
   };
 }

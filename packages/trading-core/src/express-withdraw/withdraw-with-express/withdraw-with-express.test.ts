@@ -7,6 +7,7 @@ const getAccountBalanceOf = vi.hoisted(() => vi.fn());
 const withdrawAuto = vi.hoisted(() => vi.fn());
 const callAsSubAccount = vi.hoisted(() => vi.fn());
 const submitExpressWithdrawOption = vi.hoisted(() => vi.fn());
+const getExpressWithdrawOptions = vi.hoisted(() => vi.fn());
 
 vi.mock("../../symmio-contracts/symmio", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../symmio-contracts/symmio")>()),
@@ -20,12 +21,21 @@ vi.mock("../../symmio-contracts/account-layer", async (importOriginal) => ({
 }));
 vi.mock("../../symmio-contracts/symmio/internal/call-as-sub-account", () => ({ callAsSubAccount }));
 vi.mock("../submit-express-withdraw-option", () => ({ submitExpressWithdrawOption }));
+vi.mock("../get-express-withdraw-options", () => ({ getExpressWithdrawOptions }));
 
 import { SymmError } from "../../shared/errors/symm-error";
 import { TEST_TX_HASH } from "../../shared/test/mock-config";
 import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
 import { SubAccountIsolationType } from "../../symmio-contracts/account-layer";
-import { createExpressConfig, createExpressOption, TEST_ACCOUNT, TEST_AMOUNT, TEST_RECEIVER } from "../test-fixtures";
+import {
+  createExpressConfig,
+  createExpressOption,
+  TEST_ACCOUNT,
+  TEST_AMOUNT,
+  TEST_AMOUNT_18,
+  TEST_BLOCK_TIMESTAMP,
+  TEST_RECEIVER,
+} from "../test-fixtures";
 import { withdrawWithExpress } from "./withdraw-with-express";
 
 describe("withdrawWithExpress", () => {
@@ -33,15 +43,19 @@ describe("withdrawWithExpress", () => {
     getLastWithdrawRequestId.mockReset();
     getWithdrawableTime.mockReset();
     getAccountBalanceOf.mockReset();
-    getAccountBalanceOf.mockResolvedValue(TEST_AMOUNT);
+    getAccountBalanceOf.mockResolvedValue(TEST_AMOUNT_18);
     withdrawAuto.mockReset();
     callAsSubAccount.mockReset();
     submitExpressWithdrawOption.mockReset();
+    getExpressWithdrawOptions.mockReset();
   });
 
-  it("rejects a prepared immediate route when its available balance became insufficient", async () => {
+  it.each([
+    ["is one unit short of the scaled amount", TEST_AMOUNT_18 - 1n],
+    ["only matches the amount in collateral units", TEST_AMOUNT],
+  ])("rejects a prepared immediate route whose 18-decimal available balance %s", async (_, balance) => {
     getWithdrawableTime.mockResolvedValue(0n);
-    getAccountBalanceOf.mockResolvedValue(TEST_AMOUNT - 1n);
+    getAccountBalanceOf.mockResolvedValue(balance);
 
     const rejection = (await withdrawWithExpress(createExpressConfig(), {
       account: TEST_ACCOUNT,
@@ -54,6 +68,41 @@ describe("withdrawWithExpress", () => {
     expect(rejection).toBeInstanceOf(SymmError);
     expect(rejection.code).toBe("WITHDRAW_ROUTE_STALE");
     expect(callAsSubAccount).not.toHaveBeenCalled();
+  });
+
+  it("rejects a prepared immediate route whose cooldown ends after the latest block", async () => {
+    getWithdrawableTime.mockResolvedValue(TEST_BLOCK_TIMESTAMP + 1n);
+
+    const rejection = (await withdrawWithExpress(createExpressConfig(), {
+      account: TEST_ACCOUNT,
+      amount: TEST_AMOUNT,
+      receiver: TEST_RECEIVER,
+      isolationType: SubAccountIsolationType.MARKET,
+      preparedRoute: { kind: "classic", finalize: "immediate", reason: "cooldown-ready" },
+    }).catch((error: unknown) => error)) as SymmError;
+
+    expect(rejection).toBeInstanceOf(SymmError);
+    expect(rejection.code).toBe("WITHDRAW_ROUTE_STALE");
+    expect(callAsSubAccount).not.toHaveBeenCalled();
+  });
+
+  it("rejects an over-balance amount before any options request or write when no route is prepared", async () => {
+    getWithdrawableTime.mockResolvedValue(0n);
+    getAccountBalanceOf.mockResolvedValue(TEST_AMOUNT);
+
+    const rejection = (await withdrawWithExpress(createExpressConfig(), {
+      account: TEST_ACCOUNT,
+      amount: TEST_AMOUNT,
+      receiver: TEST_RECEIVER,
+      isolationType: SubAccountIsolationType.MARKET,
+    }).catch((error: unknown) => error)) as SymmError;
+
+    expect(rejection).toBeInstanceOf(SymmError);
+    expect(rejection.code).toBe("WITHDRAW_INSUFFICIENT_BALANCE");
+    expect(getExpressWithdrawOptions).not.toHaveBeenCalled();
+    expect(callAsSubAccount).not.toHaveBeenCalled();
+    expect(withdrawAuto).not.toHaveBeenCalled();
+    expect(submitExpressWithdrawOption).not.toHaveBeenCalled();
   });
 
   it("submits the exact prepared Express option", async () => {

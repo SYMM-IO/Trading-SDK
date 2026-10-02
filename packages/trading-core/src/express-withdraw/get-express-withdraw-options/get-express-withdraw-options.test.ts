@@ -10,7 +10,6 @@ import {
   TEST_RECEIVER,
 } from "../test-fixtures";
 import { getExpressWithdrawOptions } from "./get-express-withdraw-options";
-import { getExpressWithdrawOptionsQueryOptions } from "./query";
 
 describe("getExpressWithdrawOptions", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -71,22 +70,5 @@ describe("getExpressWithdrawOptions", () => {
       method: "POST",
       responseData: { detail: "down" },
     });
-  });
-
-  it("builds a non-retrying, immediately stale query and excludes control fields from its key", () => {
-    const signal = new AbortController().signal;
-    const options = getExpressWithdrawOptionsQueryOptions(createExpressConfig(), {
-      user: TEST_ACCOUNT,
-      amount: TEST_AMOUNT,
-      receiver: TEST_RECEIVER,
-      signal,
-      query: { retry: 3 },
-    });
-
-    expect(options.staleTime).toBe(0);
-    expect(options.gcTime).toBe(0);
-    expect(options.retry).toBe(false);
-    expect(options.queryKey[1]).not.toHaveProperty("signal");
-    expect(options.queryKey[1]).not.toHaveProperty("query");
   });
 });

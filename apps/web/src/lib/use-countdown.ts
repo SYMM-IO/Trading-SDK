@@ -5,21 +5,29 @@ import { useEffect, useState } from "react";
 /**
  * Live "time remaining" until `targetMs`, re-rendering as it counts down — every
  * second inside the final hour, every 30 s before that. `ready` flips true at 0.
+ * Every new `targetMs` re-reads the clock right away, so a refetched target that
+ * is already in the past reads as ready instead of keeping a stale remainder.
  * The withdraw cooldown is a protocol-configured on-chain value, so this handles
  * a longer-than-a-day cooldown too (see {@link formatRemaining}).
  */
 export function useCountdown(targetMs: number): { remainingMs: number; ready: boolean } {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (targetMs - Date.now() <= 0) return; // already ready — no ticker
     let timeout: number;
+    /** Refresh `now`, then keep ticking only while time remains. */
     const tick = () => {
-      setNow(Date.now());
-      const remaining = targetMs - Date.now();
+      const current = Date.now();
+      setNow(current);
+      const remaining = targetMs - current;
       if (remaining <= 0) return;
       timeout = window.setTimeout(tick, remaining < 3_600_000 ? 1000 : 30_000);
     };
-    timeout = window.setTimeout(tick, targetMs - Date.now() < 3_600_000 ? 1000 : 30_000);
+    /**
+     * The first tick is scheduled rather than run inline, so the effect never
+     * sets state synchronously; it still fires immediately, even for a target
+     * that is already in the past.
+     */
+    timeout = window.setTimeout(tick, 0);
     return () => window.clearTimeout(timeout);
   }, [targetMs]);
   const remainingMs = targetMs - now;

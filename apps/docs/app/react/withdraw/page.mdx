@@ -93,24 +93,30 @@ const routes = useWithdrawRouteChoices({
 });
 const automaticWithdraw = useWithdrawWithExpress({ account });
 const classicWithdraw = useWithdraw({ account });
+// Every route debits the same available balance, so this blocks Classic too.
+const overBalance = routes.error?.code === "WITHDRAW_INSUFFICIENT_BALANCE";
 
 function submit(method: "auto" | "classic" | "standard") {
-  if (!routes.data) return;
+  if (overBalance) return;
 
+  // Classic needs no preview: useWithdraw resolves the account's isolation itself.
   if (method === "classic") {
     classicWithdraw.mutate({ amount, receiver });
     return;
   }
 
-  const route =
-    method === "auto"
-      ? routes.data.recommended
-      : routes.data.available.find(
-          (candidate) => candidate.kind === "express" && candidate.option.optionTypeName === "STANDARD",
-        );
+  // Auto and Express submit the exact previewed route.
+  if (!routes.data) return;
+  if (method === "auto") {
+    automaticWithdraw.mutate({ amount, receiver, preparedRoute: routes.data.recommended });
+    return;
+  }
 
-  if (!route || (method !== "auto" && route.kind !== "express")) return;
-  automaticWithdraw.mutate({ amount, receiver, preparedRoute: route });
+  const standard = routes.data.available.find(
+    (candidate) => candidate.kind === "express" && candidate.option.optionTypeName === "STANDARD",
+  );
+  if (standard?.kind !== "express") return;
+  automaticWithdraw.mutate({ amount, receiver, preparedRoute: standard });
 }
 ```
 
@@ -118,10 +124,19 @@ Reset an explicit selection when the account, amount, receiver, or chain changes
 returned by `available`; if a selected signed offer disappears or expires, disable submission instead of silently using
 another route. `useWithdrawRoute` remains the smaller API for automatic-only interfaces.
 
-The default router chooses classic immediate withdrawal when the account holds at least the requested available balance and its cooldown is already satisfied. Otherwise it
-prefers `SAME_TX`, then `STANDARD`, and falls back to classic cooldown withdrawal if the service is disabled or cannot
-return a usable option. `CUSTOM` accounts retain the classic deallocate-and-initiate path. Opt into `WINDOWED` or strict
-service failure explicitly:
+Classic does not depend on `routes`. Keep it selectable and submittable while the preview loads or fails, and gate only
+Auto and Express on `routes.data`. The one exception is `WITHDRAW_INSUFFICIENT_BALANCE`: Classic debits the same
+balance, so it would revert too. Route preparation does not retry and does not refetch on window focus or reconnect,
+because each attempt may send another recorded `POST /options`. Pair `routes.error` with an explicit retry action that
+calls `routes.refetch()`.
+
+The default router first checks that the account's available balance covers the amount, scaled to SYMMIO's 18-decimal
+balance units. If it does not, `useWithdrawRoute` and `useWithdrawRouteChoices` (and `useWithdrawWithExpress` without a
+`preparedRoute`) fail with `error.kind === "sdk"` and `error.code === "WITHDRAW_INSUFFICIENT_BALANCE"` instead of
+returning a route, whatever `policy.fallback` says. Otherwise the router chooses classic immediate withdrawal when the
+cooldown is over at the latest block, then prefers `SAME_TX`, then `STANDARD`, and falls back to classic cooldown
+withdrawal if the service is disabled or cannot return a usable option. `CUSTOM` accounts retain the classic
+deallocate-and-initiate path. Opt into `WINDOWED` or strict service failure explicitly:
 
 ```ts
 useWithdrawRoute({
@@ -147,15 +162,17 @@ useWithdrawRoute({
   affiliate. It never retries automatically because `POST /options` creates service records.
 - `useExpressWithdrawStatus` polls every three seconds by default. It continues through `NOT_FOUND` while indexing and
   through `STANDARD` + `FINALIZED`; it stops after proven payout or cancellation, suspension, or local failure.
-- `useExpressWithdrawStatuses` accepts active on-chain `WithdrawRequest` values, keeps only requests belonging to the
-  configured Express provider, and polls each status independently. Use it with `usePendingWithdrawRequests` to restore
-  provider progress after a page refresh.
+- `useExpressWithdrawStatuses` accepts active on-chain `WithdrawRequest` values and polls the service status of each
+  one that belongs to the configured Express provider. Its `entries` only add service status to those requests: classic
+  requests and other providers' requests are still active on-chain, so render every request from
+  [`usePendingWithdrawRequests`](#usependingwithdrawrequests) and look up an entry for each.
 - `useWithdrawRoute` owns safe automatic ordering and classic fallback. Its returned `WithdrawRoute` is the preview
   object accepted by the mutation.
 - `useWithdrawRouteChoices` returns the unchanged automatic recommendation plus Classic and all current Express choices
   for interfaces that expose route selection.
 - `useWithdrawWithExpress` waits for the mined receipt, decodes the exact `WithdrawInitiated` request id, and returns
-  `{ hash, receipt, requestId, route }`.
+  `{ hash, receipt, requestId, route }`. For a classic immediate route it also requires the receipt to finalize that
+  same request, and otherwise rejects with `error.code === "WITHDRAW_REQUEST_NOT_FINALIZED"` (see below).
 
 Each hook exports its matching parameter and return aliases:
 `UseExpressWithdrawOptionsParameters` / `UseExpressWithdrawOptionsReturnType`,
@@ -168,7 +185,18 @@ Each hook exports its matching parameter and return aliases:
 
 After success, `useWithdrawWithExpress` invalidates account balance info, balance-of, withdrawable time, pending requests,
 all withdrawal requests, and last request id. It removes every cached Express offer, prepared route, and route-choice list
-for that account so a signed offer cannot be accidentally reused.
+for that account so a signed offer cannot be accidentally reused. It refreshes the same caches when the transaction mined
+but a later receipt check rejected, because the request was still created and its amount debited.
+
+<Callout type="warning">
+  **The immediate route can leave a request pending.** It batches `initiateWithdraw` and `finalizeWithdrawRequest` into
+  one transaction and has to guess the new request's id. If another request for the same subaccount lands first (a
+  second tab, a session key), the batch either reverts or finalizes that other request, leaving the new one pending with
+  its amount debited. The hook then rejects with `{ kind: "sdk", code: "WITHDRAW_REQUEST_NOT_FINALIZED" }` instead of
+  reporting success. The refreshed [`usePendingWithdrawRequests`](#usependingwithdrawrequests) list shows the request;
+  offer [`useFinalizeWithdrawRequest`](#usefinalizewithdrawrequest--usesimulatefinalizewithdrawrequest) or
+  [`useRequestCancelWithdraw`](#userequestcancelwithdraw--usesimulaterequestcancelwithdraw) for it.
+</Callout>
 
 ## `useWithdraw` — high-level withdraw
 
@@ -231,30 +259,60 @@ const lastId = useLastWithdrawRequestId({ account });
 
 ### `usePendingWithdrawRequests`
 
-Every queued (not yet claimable) request for an account.
+A subaccount's active (non-terminal) withdraw requests, classic and provider-backed alike, from the id range the core
+[`getPendingWithdrawRequests`](/core/symmio-contract/get-pending-withdraw-requests) scans (`start` / `size`, ids 1–200
+by default).
 
 ```ts
-const pending = usePendingWithdrawRequests({ account });
+const pending = usePendingWithdrawRequests({ user: subAccount });
 ```
 
-Pair the pending contract read with `useExpressWithdrawStatuses` to recover active
-Express progress after remounting or refreshing the page:
+Render **every** request it returns. Pair it with `useExpressWithdrawStatuses` to add service progress to the requests
+of the configured Express provider, which also recovers that progress after remounting or refreshing the page. Its
+`entries` only add status: classic requests and other providers' requests have no entry but are still active on-chain,
+so dropping them would hide a debited balance. Gate each row's buttons with `getWithdrawRequestActions`, and an Express
+row's Cancel also with `isExpressWithdrawCancellable`:
 
 ```tsx
+import {
+  getWithdrawRequestActions,
+  isExpressWithdrawCancellable,
+  isExpressWithdrawPayoutComplete,
+  useExpressWithdrawStatuses,
+  usePendingWithdrawRequests,
+} from "@symmio/trading-react";
+
 const pending = usePendingWithdrawRequests({ user: subAccount });
 const express = useExpressWithdrawStatuses({
   requests: pending.data ?? [],
   enabled: pending.data !== undefined,
 });
+const entries = new Map(express.entries.map((entry) => [entry.request.id, entry]));
 
-for (const entry of express.entries) {
-  // entry.request is the on-chain request; entry.status is service progress.
+for (const request of pending.data ?? []) {
+  const entry = entries.get(request.id);
+  // The receiver is already paid, so nothing is left to do.
+  if (entry?.status && isExpressWithdrawPayoutComplete(entry.status)) continue;
+
+  const actions = getWithdrawRequestActions(request);
+  if (!entry) {
+    // Classic or another provider: offer Finalize (from request.cooldownEndTime on) and Cancel per `actions`.
+  } else {
+    // Configured Express provider: show entry.status and no Finalize; the service drives payout.
+    const canCancel =
+      actions.cancel && (entry.status ? isExpressWithdrawCancellable(entry.status) : entry.error !== null);
+  }
 }
 ```
 
-Classic requests and requests for a different provider are excluded. The hook
-uses the same payout-aware polling policy as `useExpressWithdrawStatus`, including
-continuing through `STANDARD` + `FINALIZED` until provider `PROCESSED`.
+Show `pending.error` before an empty state, so a failed read never reads as "no withdrawals". An Express entry with
+neither `status` nor `error` is still loading its first status, so hold its Cancel until that read settles. When the
+service is unreachable (`entry.error`), Core's cancel is still valid and the write simulates first by default.
+
+`useExpressWithdrawStatuses` polls each entry with the same payout-aware policy as `useExpressWithdrawStatus`. A
+`STANDARD` request leaves the pending list once Core finalizes it (provider `FINALIZED`), which can be before the
+provider pays the receiver; to show that last step, keep polling it by id with `useExpressWithdrawStatus` until provider
+`PROCESSED`.
 
 ### `useWithdrawRequest`
 
@@ -287,7 +345,7 @@ Submit a withdraw request directly, without the isolation dispatch. This is the
 **initiate-only** leg — the right call for a `MARKET` / `MARKET_DIRECTION` (VA)
 subaccount whose funds are already in the available balance, or when you drive the
 `deallocateAndInitiateWithdraw` variant yourself for a `CUSTOM` subaccount. Prefer
-[`useWithdraw`](#usewithdraw--isolation-aware-withdraw) when you don't want to
+[`useWithdraw`](#usewithdraw--high-level-withdraw) when you don't want to
 branch on isolation.
 
 ```ts
@@ -297,7 +355,9 @@ const mutation = useInitiateWithdraw();
 
 ### `useRequestCancelWithdraw` / `useSimulateRequestCancelWithdraw`
 
-Cancel a pending request.
+Cancel a pending request. The call routes through the AccountLayer `_call` proxy, so the connected wallet must own the
+subaccount. Offer it only when [`getWithdrawRequestActions(request).cancel`](/core/symmio-contract/get-withdraw-request-actions)
+is `true`, and for a configured Express request only while `isExpressWithdrawCancellable(status)` is too.
 
 ```ts
 const mutation = useRequestCancelWithdraw();
@@ -306,11 +366,14 @@ mutation.mutate({ account, requestId });
 
 ### `useFinalizeWithdrawRequest` / `useSimulateFinalizeWithdrawRequest`
 
-Claim funds after the delay expires.
+Claim funds after the delay expires. The call is permissionless and keyed by the request's owner as `user`. Offer it only
+when [`getWithdrawRequestActions(request).finalize`](/core/symmio-contract/get-withdraw-request-actions) is `true`, keep
+it disabled until the request's `cooldownEndTime`, and leave it off configured Express requests, where it would pay the
+provider rather than the receiver.
 
 ```ts
 const mutation = useFinalizeWithdrawRequest();
-mutation.mutate({ account, requestId });
+mutation.mutate({ user: account, requestId });
 ```
 
 ## Gasless withdrawals
