@@ -7,6 +7,7 @@ export default {
   "account-layer": "AccountLayer",
   "instant-layer": "InstantLayer",
   "symmio-contract": "SYMMIO Contract",
+  "express-withdraw": "Express Withdraw",
   quotes: "Unified Quotes",
   margin: "Margin & Risk",
   solvers: "Solvers",

@@ -2,6 +2,7 @@
 
 import { ResultError, ResultNote } from "@/components/result";
 import { Stat } from "@/components/stat";
+import { formatRemaining, useCountdown } from "@/lib/use-countdown";
 import { useWithdrawableTime } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Spinner } from "@symmio/ui/components/spinner";
@@ -66,15 +67,26 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
   if (query.data === undefined) {
     return <ResultNote testId={`${testId}-idle`}>Run the read to see the withdrawable time.</ResultNote>;
   }
-  const seconds = Number(query.data);
-  const when = new Date(seconds * 1000);
-  const isPast = Date.now() >= when.getTime();
+  return <WithdrawableResult testId={testId} seconds={query.data} />;
+}
+
+/**
+ * The finalizable timestamp plus a live cooldown countdown to it. Split out of
+ * {@link ResultPanel} so the ticking hook is not called behind its early returns.
+ */
+function WithdrawableResult({ testId, seconds }: { testId: string; seconds: bigint }) {
+  const when = new Date(Number(seconds) * 1000);
+  const { remainingMs, ready } = useCountdown(when.getTime());
   return (
-    <div data-testid={`${testId}-data`}>
+    <div data-testid={`${testId}-data`} className="flex flex-col gap-4">
+      <Stat label="Withdrawable at" value={when.toLocaleString()} hint={`Unix ${String(seconds)}`} />
       <Stat
-        label="Withdrawable at"
-        value={when.toLocaleString()}
-        hint={isPast ? "Cooldown elapsed — a new withdrawal can finalize immediately." : `Unix ${String(query.data)}`}
+        size="sm"
+        label="Cooldown"
+        value={ready ? "Elapsed" : `${formatRemaining(remainingMs)} left`}
+        tone={ready ? "positive" : "neutral"}
+        hint={ready ? "A withdrawal initiated now can finalize immediately." : undefined}
+        testId={`${testId}-cooldown`}
       />
     </div>
   );

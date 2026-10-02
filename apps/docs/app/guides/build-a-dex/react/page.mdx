@@ -244,7 +244,42 @@ The user-facing collateral flow for a lowcap DEX is just **deposit** and **withd
 
 ### Withdraw
 
-Withdrawing returns funds to the wallet from the **available** balance in a two-step, cooldown-gated flow:
+Prefer the Express-aware hooks when the selected chain config includes an Express service. Prepare and display the route,
+then submit the exact route the user approved:
+
+```tsx
+import { useExpressWithdrawStatus, useWithdrawRoute, useWithdrawWithExpress } from "@symmio/trading-react";
+
+const route = useWithdrawRoute({
+  user: subAccount,
+  amount,
+  receiver: walletAddress,
+  query: { enabled: amount > 0n },
+});
+const withdraw = useWithdrawWithExpress({ account: subAccount });
+
+function submit() {
+  if (!route.data) return;
+  withdraw.mutate({ amount, receiver: walletAddress, preparedRoute: route.data });
+}
+
+const status = useExpressWithdrawStatus({
+  user: subAccount,
+  requestId: withdraw.data?.requestId ?? 0n,
+  query: { enabled: withdraw.data?.route.kind === "express" },
+});
+```
+
+The default route is classic immediate only when the account holds enough available balance and its cooldown is already
+satisfied; otherwise it prefers `SAME_TX`, then `STANDARD`, then classic cooldown fallback. `WINDOWED` must be explicitly
+added to `policy.optionPriority`. Express v1 is same-chain only. For `STANDARD`, keep the UI pending through Core
+`FINALIZED`; only provider `PROCESSED` proves receiver payment. The hook implements that polling rule.
+
+See [Withdraw hooks](/react/withdraw) for a complete component, configuration, cache invalidation, and failure behavior.
+Use the restricted [browser proxy implementation](/core/express-withdraw#configuration) and configure its local root as
+the chain's `expressWithdraw.url`; never expose a generic upstream pass-through.
+
+The classic low-level flow remains available and is what the router selects when Express is unavailable:
 
 1. **Initiate** — [`useInitiateWithdraw`](/react/withdraw#useinitiatewithdraw--usesimulateinitiatewithdraw). Build a part with `createClassicWithdrawPart({ id: 0n, amount, receiver, chainId: BigInt(chainId) })` (`amount` in collateral decimals, `receiver` = the connected wallet), then `mutate({ account: subAccount, parts: [part] })`. This queues a request and starts the cooldown.
 2. **Cooldown** — a **protocol-configured** on-chain value (`max(lastDeallocation + cooldownPeriod, now)`), read per request as `request.cooldownEndTime`, or via [`useWithdrawableTime`](/react/withdraw#usewithdrawabletime) for an "if you withdrew now" estimate. It's usually short (hours) but not fixed — render a countdown that **adds a day segment only when remaining ≥ 24 h**, so it never shows a bare clock time if the protocol ever raises it.

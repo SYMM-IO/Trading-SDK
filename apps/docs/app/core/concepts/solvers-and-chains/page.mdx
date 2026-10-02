@@ -25,6 +25,8 @@ The two are not tiers of the same thing — they are different counterparties wi
 
 Chains do not all run the same perps-core generation: Base runs **v0.8.5**, while Arbitrum runs **v0.8.6**. Each registry entry declares it as `contractsVersion` (a `SymmioContractsVersion`, override-able per chain through `createConfig`'s `symmioConfig`), and the SDK branches on it exactly where the generations diverge: which quote-send call the instant-open flow signs (`sendQuote` with solver-fee caps on v0.8.6, the legacy `sendQuoteWithAffiliateAndData` on v0.8.5), which selector set a session key needs (`getInstantTradeRequiredSelectors` / `useInstantTradeRequiredSelectors`), and which output shape the withdraw-request reads decode (`advancedAmount` is `undefined` on a v0.8.5 chain). It is a **declared deployment fact** — the diamond exposes no version view, so nothing is probed at runtime.
 
+Optional services that belong to a deployment rather than a counterparty also live at chain level. Express Withdraw is one example: `chain.expressWithdraw` binds a service URL to its authorized provider contract and is deliberately independent of `solverId`. See [Express Withdraw](/core/express-withdraw).
+
 ## Targeting a solver
 
 Every solver-aware action and hook takes an optional `solverId`. Omit it and the SDK resolves the chain's **default solver** (`defaultSolverId` in the registry — `enigma` on Arbitrum, `rasa` on Base). Pass a literal kind to target a specific solver and, where the return is a normalized union, **narrow the return type to that kind**.
