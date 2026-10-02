@@ -17,6 +17,8 @@ pnpm add @symmio/trading-core viem
 
 `viem` is the only peer dependency — bring your own copy.
 
+To test an unreleased fix from a pull request, follow [Preview Releases](/guides/preview-releases).
+
 ## 2. Create a config
 
 Every action and query-options factory receives a `Config` as its first argument. Create it once with [`createConfig`](/core/concepts/config) and share it. The config never owns viem clients itself — you inject them through resolver callbacks, so you stay in control of the RPC and the wallet.

@@ -82,6 +82,14 @@ Lefthook runs Prettier, ESLint, and type-checks pre-commit, and commitlint on th
 
 Versioning is [Changesets](https://github.com/changesets/changesets)-driven. Add one with `pnpm changeset` in any PR that changes a published package; merging to `main` opens or refreshes the "Version Packages" PR, and merging _that_ publishes to npm.
 
+### PR package previews
+
+Opening, reopening, or pushing commits to a PR runs the CI checks, then publishes the PR head's six public packages through [pkg.pr.new](https://github.com/stackblitz-labs/pkg.pr.new). Its bot updates one PR comment with pnpm installation commands. Each preview uses its own `package.json` version with a `-preview-<sha>` suffix: for example, `3.1.0` becomes `3.1.0-preview-a832a55`, while `1.0.0` becomes `1.0.0-preview-a832a55`. Internal dependencies resolve to matching previews. Version changes happen only in the CI checkout; no changeset or npm release is needed to try them.
+
+Copy the install command for the package you need from the PR comment. See [Preview Releases](https://doc.trading-sdk.symm.io/guides/preview-releases) for installation, updating a preview, and switching back to npm releases.
+
+One-time setup: a repository admin must install the [pkg.pr.new GitHub App](https://github.com/apps/pkg-pr-new) for `SYMM-IO/SYMM-Frontier`. Preview publishing needs no npm token or release-environment approval. The CLI is a pinned root dev dependency, executed from the lockfile in [CI](.github/workflows/ci.yml). Fork PRs may need a maintainer to approve the Actions run under the repository's existing policy.
+
 ## Contributing
 
 Read [`AGENTS.md`](AGENTS.md) first — it is the contract for this repo, for humans and AI coding agents alike, and it covers the hard rules (pnpm only, TypeScript only, `core` stays framework-agnostic), the file and naming conventions, and the **Design Proposal Gate**: non-trivial changes to `trading-core` or `trading-react` get a written design proposal and explicit approval before any implementation code is written. Several packages add their own `AGENTS.md` that applies on top of the root one.
