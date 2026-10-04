@@ -1,0 +1,135 @@
+import { Callout } from "nextra/components";
+
+# Funding
+
+Funding is the periodic payment that flows between the two sides of a position — the trader (partyA) and the solver (partyB). In SYMMIO, "funding" can mean four different numbers, read from three different sources, with more than one sign convention. Showing the wrong one, or adding two that do not add, is how funding bugs ship. This page fixes the model: what each number is, where it lives, which read returns it, and how it is signed.
+
+## Four funding numbers
+
+| Number                       | What it is                                                                                        | Source                                                         | Read (core / react)                                                                                                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Settled**                  | Funding already charged on a quote: paid, received, and net                                       | Analytics subgraph                                             | [`getQuoteFunding`](/core/subgraph/get-quote-funding) / [`useQuoteFunding`](/react/subgraph#usequotefunding); per group [`aggregateGroupFunding`](/core/quotes/aggregate-group-funding) / [`useQuoteGroupFunding`](/react/subgraph#usequotegroupfunding) |
+| **Pending**                  | Accumulated funding accrued since the quote's last settlement and not charged yet                 | SYMMIO diamond view `getQuoteFundingDebts`                     | [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding) / [`useQuotesPendingFunding`](/react/symmio-contract#usequotespendingfunding), [`useQuotePendingFunding`](/react/symmio-contract#usequotependingfunding)                     |
+| **Next-epoch market rate**   | The per-epoch rate the solver will apply next, per market side                                    | Solver REST `/get_funding_info`                                | `getFundingInfo` / [`useFundingInfo`](/react/solvers#usefundinginfo)                                                                                                                                                                                     |
+| **`accumulatedPaidFunding`** | A per-unit cumulative funding-rate **index** on the quote, set at its last settlement — not money | The on-chain [`Quote`](/core/symmio-contract/get-quote) struct | [`getQuote`](/core/symmio-contract/get-quote), [`UnifiedQuote.accumulatedPaidFunding`](/core/quotes/unified-quote)                                                                                                                                       |
+
+Behind the pending number sits the state the solver keeps for each (symbol, partyB) pair: its per-epoch rates, the epoch length, and whether accumulated funding runs on the pair at all. Read it with [`getFundingFeesOfPartyB`](/core/symmio-contract/get-funding-fees-of-party-b) / [`useFundingFeesOfPartyB`](/react/markets#usefundingfeesofpartyb). It holds rates, not amounts — see [Pair states](#pair-states).
+
+### Settled and pending are not one lifetime total
+
+Settled funding comes from the subgraph, which lags the chain. Pending funding comes from an RPC call against the latest block. Right after a charge or a close fill, pending drops to about zero at once while the subgraph has not indexed the settlement yet, so the sum of the two briefly misses the amount just settled — too high for a position that owed funding (its negative pending disappears before the charge is indexed), too low for one that was receiving it. Show them as two figures — "settled" and "pending" — never as one total.
+
+### `accumulatedPaidFunding` is a baseline, not money
+
+The contract computes a quote's pending funding (cost-positive, before the SDK's negation) as
+
+```
+pending = openAmount × (cumulativeFee − accumulatedPaidFunding) / 1e18
+```
+
+where `openAmount = quantity − closedAmount` and `cumulativeFee` is the pair's per-unit cumulative fee for the quote's side. On a pair with accumulated funding configured, opening the quote and every settlement set `accumulatedPaidFunding` to the cumulative fee at that moment, so the field is the index the next charge is measured from. Summing it across quotes is meaningless. For money, read settled or pending funding.
+
+## Where funding lives
+
+Two funding mechanisms coexist in the protocol, and they settle into different places:
+
+| Mechanism                                | How it settles                                                                                     | Inside a mark-price uPnL?            | Pending amount                                                                                                                  |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Legacy funding** (`chargeFundingRate`) | Shifts the quote's `openedPrice` on each charge                                                    | Yes — it is already in `openedPrice` | None — the pending read returns `0n`                                                                                            |
+| **Accumulated funding**                  | Moves `allocatedBalance` between partyA and partyB when the quote is charged or (partially) closed | No                                   | Yes — pending until charged or closed; read it with [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding) |
+
+Which mechanism applies is decided per (symbol, partyB) pair, not per chain.
+
+## Pair states
+
+[`getFundingFeesOfPartyB`](/core/symmio-contract/get-funding-fees-of-party-b) returns the pair's `FundingFee` struct, and three of its fields put the pair in one of three states:
+
+| State                       | Condition                                                               | What accrues                                                                                                    |
+| --------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Not configured**          | `epochDuration === 0n`                                                  | No accumulated funding. Legacy funding may still apply (it moves `openedPrice`). The pending read returns `0n`. |
+| **Configured, not started** | `epochDuration > 0n && startEpoch === 0n && startEpochTimeStamp === 0n` | Nothing — a duration is set, but the solver has not posted a rate yet. The pending read returns `0n`.           |
+| **Accruing**                | anything else                                                           | Every open quote on the pair accrues funding each epoch until it is charged or closed.                          |
+
+```ts
+import { getFundingFeesOfPartyB } from "@symmio/trading-core";
+
+const fee = await getFundingFeesOfPartyB(config, { symbolId: 1n, partyB });
+const accruing = fee.epochDuration > 0n && (fee.startEpoch !== 0n || fee.startEpochTimeStamp !== 0n);
+```
+
+<Callout type="info">
+  **Which chains accrue accumulated funding is a deployment fact.** It is configured per (symbol, partyB) pair, and the
+  SDK does not encode which chains or markets have it. Check the pair's `epochDuration` (and the start fields) with
+  `getFundingFeesOfPartyB` instead of hard-coding a chain list. The pending read is safe to call either way: it returns
+  `0n` wherever nothing accrues.
+</Callout>
+
+## Sign conventions
+
+| Surface                                                                                                                             | Convention           | A positive value means                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------- |
+| SDK funding **amounts** — `QuoteFundingData.netReceived`, `QuoteGroupFunding.netReceived`, `QuotePendingFunding.pendingNetReceived` | Income-positive      | The position received, or will receive, funding                |
+| Raw contract views and struct fields — `getQuoteFundingDebts`, the `FundingFee` rates and fees, `Quote.accumulatedPaidFunding`      | Cost-positive        | The trader pays — for a per-side rate, the trader on that side |
+| The v0.8.6 event `QuoteFundingSettled.funding`                                                                                      | partyB's perspective | partyB receives, so partyA pays                                |
+
+The SDK re-signs in exactly one place: `getQuotePendingFunding` returns the negation of `getQuoteFundingDebts`, so a pending amount sits next to a settled `netReceived` with no sign flip, and a UI that renders "green = income" uses every SDK amount as-is. The `FundingFee` rates are per-unit rates, not amounts, and are passed through exactly as the contract stores them. The SDK does not read `QuoteFundingSettled`; the row is there for consumers who index contract logs themselves.
+
+The solver's next-epoch rate (`MarketFundingInfo`) is passed through as the solver reports it; its documented sign is on [`useFundingInfo`](/react/solvers#usefundinginfo). It is a different source from the on-chain `FundingFee` rates, so do not assume the two share a sign.
+
+## Only active positions have pending funding
+
+<Callout type="warning">
+  **`getQuoteFundingDebts` does not check quote status.** A new quote starts with `accumulatedPaidFunding = 0` and no
+  partyB. Once a solver locks it, the view returns its quantity times the pair's **whole** cumulative fee since accrual
+  started — a meaningless number that grows every epoch. That covers `LOCKED`, `CANCEL_PENDING`, and `CANCELED` /
+  `EXPIRED` quotes that were locked first. Read only quotes whose **known** on-chain status is an active position —
+  `OPENED`, `CLOSE_PENDING`, `CANCEL_CLOSE_PENDING`, `LIQUIDATED_PENDING` — which is what
+  [`isActiveQuoteStatus`](/core/quotes/partition-quotes#isactivequotestatus) tests. The React hooks apply this filter
+  for you; the core action does not.
+</Callout>
+
+The view returns `0n` on its own for a `PENDING` quote (no partyB yet), a fully closed or `LIQUIDATED` quote (nothing left open), an unknown id, and any quote on a pair that is not accruing.
+
+## What the pending number tracks
+
+- **Exact, for one block.** It is what the contract would settle if the quote were charged in the block the RPC ran the call against (its `latest`). The SDK does not return that block.
+- **Whole-epoch steps.** It moves when a new epoch begins — `currentEpoch = floor(block.timestamp / epochDuration)` — not continuously within an epoch.
+- **It moves with the position.** A solver rate update changes the rate it accrues at; a charge, a partial close, or a liquidation settles it. Each close fill settles funding on the pre-fill open amount and resets the baseline. So the amount eventually settled can differ from the one you read, and for a `LIQUIDATED_PENDING` quote it is an estimate only.
+- **Units.** 18-decimal collateral — SYMMIO's internal scale, the same as `allocatedBalance`, whatever the collateral token's decimals — truncated toward zero per quote.
+
+## Muon uPnL vs mark-price uPnL
+
+<Callout type="warning">
+  **A Muon uPnL already includes pending accumulated funding — never net it in again.** The SDK's mark-price uPnL
+  excludes it. Adding pending funding to a Muon uPnL, or subtracting a funding debt from it, counts the same money
+  twice.
+</Callout>
+
+The protocol's solvency and liquidation checks run on a Muon-signed **net** uPnL, and that figure already includes each quote's pending accumulated funding. The SDK's mark-price uPnL — [`aggregateGroupUpnl`](/core/quotes/aggregate-group-upnl), [`useQuoteUpnlAndPnl`](/react/quotes#usequoteupnlandpnl), and [`useQuoteGroupMarginRisk`](/react/quotes#usequotegroupmarginrisk) on top of it — values each quote from `openedPrice` against the mark and **excludes** it.
+
+- Next to a mark-price uPnL, show pending funding as its own line. Adding Σ `pendingNetReceived` approximates the protocol's net figure (both are income-positive).
+- Next to a Muon uPnL, leave pending funding out of the arithmetic — it is already in there.
+
+Legacy funding needs neither: it is already inside `openedPrice`, so both uPnL figures carry it. [Margin & risk](/core/margin) shows how the uPnL feeds the liquidation test.
+
+## v0.8.5 and v0.8.6
+
+Both reads work unchanged on every supported chain. `getQuoteFundingDebts` and `getFundingFeesOfPartyB` have identical inputs and outputs in the v0.8.5 and v0.8.6 contracts, so the SDK reads them with one ABI and **no version gate** — unlike, for example, a withdraw request's `advancedAmount` (see [Solvers & Chains](/core/concepts/solvers-and-chains#contracts-version-is-a-chain-axis)).
+
+What differs between the generations is how the contract keeps the pair's state:
+
+- **v0.8.5 rolls the pair state on every trade.** Each quote operation on a pair — open, charge, close, liquidation — re-folds the shared `FundingFee` (`accumulated*Rate`, `lastUpdatedEpoch`, `lastUpdatedTimeStamp`). On v0.8.5, `lastUpdated*` therefore marks the last time anyone touched the pair, not the last rate update.
+- **v0.8.6 evaluates it lazily.** The per-unit cumulative fee is computed on demand from the stored state (the snapshot, the weighted history, and the current rate carried forward), without rolling the shared pair state. That state is written only when the solver changes its configuration or a symbol is restated, and each such write emits the new `AccumulatedFundingStateUpdated` event.
+- **Dust-level differences.** Because the two generations fold differently, the exact integers can differ by rounding dust. Treat both as the same quantity.
+- **One v0.8.5-only revert.** With accumulated funding active on a v0.8.5 chain, a quote whose legacy funding was prepaid into a later epoch makes `getQuoteFundingDebts` revert. That fails the batch, and so the whole `getQuotePendingFunding` call. The SDK does not work around it; the viem error passes through.
+
+## Related
+
+- [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding) — pending funding for a batch of quotes.
+- [`getFundingFeesOfPartyB`](/core/symmio-contract/get-funding-fees-of-party-b) — a pair's raw `FundingFee` state.
+- [`getQuoteFunding`](/core/subgraph/get-quote-funding) — settled funding totals from the subgraph.
+- [`aggregateGroupFunding`](/core/quotes/aggregate-group-funding) — settled funding folded over a grouped position.
+- [`getQuotesEventsByType`](/core/subgraph/get-quotes-events-by-type) — the per-charge settled timeline.
+- [React funding hooks](/react/symmio-contract#funding) — `useQuotesPendingFunding` / `useQuotePendingFunding`.
+- [Margin & risk](/core/margin) — where uPnL, and so funding, meets the liquidation test.
+- [Balance Model](/core/concepts/balance-model) — where `allocatedBalance` sits among the account balances.

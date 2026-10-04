@@ -1,13 +1,19 @@
 # Markets hooks
 
-Thin wrappers over the solver and on-chain market catalogs.
+Thin wrappers over the solver and on-chain market catalogs, plus the on-chain funding state a solver keeps per market.
 
 **Every hook on this page is a [read](../concepts/hook-pattern#reads).**
 
 ## Import
 
 ```ts
-import { useMarkets, useSymbols, useMarketInfo, useOnchainContractMarkets } from "@symmio/trading-react";
+import {
+  useMarkets,
+  useSymbols,
+  useMarketInfo,
+  useOnchainContractMarkets,
+  useFundingFeesOfPartyB,
+} from "@symmio/trading-react";
 ```
 
 ## `useMarkets`
@@ -59,7 +65,24 @@ Raw on-chain `getSymbol()` — authoritative but stripped of solver metadata.
 const contractMarkets = useOnchainContractMarkets();
 ```
 
+## `useFundingFeesOfPartyB`
+
+The accumulated-funding state a solver (partyB) keeps for one symbol — core's [`getFundingFeesOfPartyB`](../../core/symmio-contract/get-funding-fees-of-party-b) as a hook, returning the raw `FundingFee` struct. Use it to tell whether a market accrues accumulated funding at all — `epochDuration`, `startEpoch` and `startEpochTimeStamp` decide the three [pair states](../../core/concepts/funding#pair-states) — or to show the per-epoch rates the solver has posted.
+
+```ts
+const { data: fee } = useFundingFeesOfPartyB({ symbolId: 1n, partyB });
+const accruing =
+  fee !== undefined && fee.epochDuration > 0n && (fee.startEpoch !== 0n || fee.startEpochTimeStamp !== 0n);
+```
+
+The rates are raw, **cost-positive** contract values (positive = that side pays) — the opposite convention from the SDK's income-positive funding amounts; see the [sign table](../../core/concepts/funding#sign-conventions). They are per-unit rates, not amounts: for what a position owes or will receive, use [`useQuotePendingFunding`](../symmio-contract#usequotependingfunding). For the solver's advertised next-epoch rate, use [`useFundingInfo`](../solvers#usefundinginfo).
+
+Both `symbolId` and `partyB` are required. A quote has no `partyB` until a solver locks it, so pass a placeholder address and gate the read with `query: { enabled: quote.partyB !== undefined }`. `chainId` defaults to the connected chain, and nothing polls by default — pass `query.refetchInterval`.
+
+**Returns** — `UseQueryResult<FundingFee, SymmioRequestError>`.
+
 ## Related
 
 - [Solvers](../solvers) — `useMarkets` also documented under the solvers slice.
-- [SYMMIO Contract](../symmio-contract) — on-chain contract reads.
+- [SYMMIO Contract](../symmio-contract) — on-chain contract reads, including pending funding per quote.
+- [Funding](../../core/concepts/funding) — the funding numbers, pair states, and sign conventions.

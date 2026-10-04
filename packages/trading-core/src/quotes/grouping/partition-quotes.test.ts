@@ -2,7 +2,43 @@ import { describe, expect, it } from "vitest";
 import { OrderType, QuoteStatus } from "../../symmio-contracts/symmio/types";
 import { QuoteLifecycle } from "../unified-quote";
 import { makeOptimisticQuote, makeUnifiedQuote } from "../unified-quote.test";
-import { isActivePosition, isPendingOrder, partitionQuotes } from "./partition-quotes";
+import { isActivePosition, isActiveQuoteStatus, isPendingOrder, partitionQuotes } from "./partition-quotes";
+
+/** Every numeric `QuoteStatus` member, read from the enum itself. */
+const QUOTE_STATUS_MEMBERS = Object.values(QuoteStatus).filter(
+  (value): value is QuoteStatus => typeof value === "number",
+);
+
+/** Expected {@link isActiveQuoteStatus} answer for every `QuoteStatus` member. */
+const EXPECTED_ACTIVE: readonly [QuoteStatus, boolean][] = [
+  [QuoteStatus.PENDING, false],
+  [QuoteStatus.LOCKED, false],
+  [QuoteStatus.CANCEL_PENDING, false],
+  [QuoteStatus.CANCELED, false],
+  [QuoteStatus.OPENED, true],
+  [QuoteStatus.CLOSE_PENDING, true],
+  [QuoteStatus.CANCEL_CLOSE_PENDING, true],
+  [QuoteStatus.CLOSED, false],
+  [QuoteStatus.LIQUIDATED, false],
+  [QuoteStatus.EXPIRED, false],
+  [QuoteStatus.LIQUIDATED_PENDING, true],
+];
+
+describe("isActiveQuoteStatus", () => {
+  it.each(EXPECTED_ACTIVE)("classifies status %s as active = %s", (status, expected) => {
+    expect(isActiveQuoteStatus(status)).toBe(expected);
+  });
+
+  it("has an expectation for every QuoteStatus member", () => {
+    expect(EXPECTED_ACTIVE.map(([status]) => status)).toEqual(QUOTE_STATUS_MEMBERS);
+  });
+
+  it("agrees with isActivePosition for every anchored status", () => {
+    for (const quoteStatus of QUOTE_STATUS_MEMBERS) {
+      expect(isActivePosition(makeUnifiedQuote({ quoteStatus }))).toBe(isActiveQuoteStatus(quoteStatus));
+    }
+  });
+});
 
 describe("isPendingOrder / isActivePosition (on-chain)", () => {
   it.each([QuoteStatus.PENDING, QuoteStatus.LOCKED, QuoteStatus.CANCEL_PENDING])(

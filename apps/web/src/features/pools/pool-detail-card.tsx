@@ -17,6 +17,7 @@ import { PoolPositionsTable } from "./detail-tables/pool-positions-table";
 import { PoolQuotesTable } from "./detail-tables/pool-quotes-table";
 import { PoolTradeHistoryTable } from "./detail-tables/pool-trade-history-table";
 import { PoolTransactionsTable } from "./detail-tables/pool-transactions-table";
+import { PoolLockNotice } from "./pool-lock";
 import { usePoolScope } from "./pool-scope";
 
 /** The tabs of a pool's detail section, each backed by a different SDK read. */
@@ -119,6 +120,10 @@ export function PoolDetailCard() {
                 {TAB_SOURCE[tab]}
               </p>
             </div>
+
+            {detail.data?.isLocked ? (
+              <PoolLockNotice reasons={detail.data.lockReasons} testId="pool-detail-locked" />
+            ) : null}
 
             {symbolId === null && tab !== "transactions" ? (
               <ResultNote testId="pool-detail-unlisted">

@@ -3,7 +3,8 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
-import { useAddMargin, useSimulateAddMargin, useWalletAccount } from "@symmio/trading-react";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { useAddMargin, useSimulateAddMargin, useVirtualAccount, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
@@ -28,6 +29,11 @@ export function WriteAddMargin() {
 
   const mutation = useAddMargin();
 
+  const write = useGaslessWriteOption("addMargin");
+  /** A relayed margin write runs under — and is billed to — the virtual account's parent sub-account. */
+  const va = useVirtualAccount({ account: validVa, query: { enabled: validVa !== undefined } });
+  const parentAccount = va.data?.isExists ? va.data.parentAccount : undefined;
+
   /** Dry-run `addMargin` before sending. */
   const simulate = useSimulateAddMargin();
 
@@ -36,6 +42,8 @@ export function WriteAddMargin() {
       testId="method-addMargin"
       name="addMargin"
       mutability="nonpayable"
+      gaslessRelayable
+      gaslessFee={{ account: parentAccount, args: validVa ? [validVa, validAmount ?? 0n] : undefined }}
       description="Add margin to a virtual account — move collateral from the parent subaccount's available balance into the VA. No signature required."
     >
       <VirtualAccountField
@@ -90,7 +98,7 @@ export function WriteAddMargin() {
           disabled={!canSubmit || mutation.isPending}
           onClick={() => {
             if (!validVa || validAmount === undefined) return;
-            mutation.mutate({ virtualAccount: validVa, amount: validAmount });
+            mutation.mutate({ virtualAccount: validVa, amount: validAmount, ...write });
           }}
           data-testid="button-send-add-margin"
         >

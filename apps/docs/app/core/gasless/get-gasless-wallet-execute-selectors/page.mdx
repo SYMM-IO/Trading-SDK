@@ -1,0 +1,61 @@
+import { Callout } from "nextra/components";
+
+# getGaslessWalletExecuteSelectors
+
+Build the exact selector set a session key must hold to run a batch from the gasless wallet — the wallet-execution sentinel plus every inner call's selector.
+
+```ts
+import { getGaslessWalletExecuteSelectors, grantDelegation, gaslessWalletExecute } from "@symmio/trading-core";
+
+const calls = [{ target: usdcAddress, abi: erc20Abi, functionName: "transfer", args: [to, amount] }];
+
+await grantDelegation(config, {
+  account: { addr: subAccount, isPartyB: false },
+  delegatedSigner: sessionKey,
+  selectors: getGaslessWalletExecuteSelectors(calls),
+  expiryTimestamp,
+});
+
+await gaslessWalletExecute(config, { calls, signerAccount: subAccount, from: sessionKey });
+```
+
+## Why every inner selector
+
+The GaslessLayer checks each inner call **individually**, on top of the sentinel:
+
+```solidity
+if (signedOp.signer == ownerWallet) return;                 // owner-signed: no delegation at all
+_assertInstantDelegation(instantLayer, canonicalAccount, signedOp.signer, WALLET_EXECUTION_SENTINEL_SELECTOR);
+for (uint256 i = 0; i < calls.length; i++)
+    _assertInstantDelegation(instantLayer, canonicalAccount, signedOp.signer, selectorOf(calls[i]));
+```
+
+Granting only the sentinel is not enough, and granting the `execute` wrapper selector (`0x3f707e6b`) does nothing — it is never checked. A missing grant reverts `WalletDelegationMissing(delegator, delegate, selector)`.
+
+Selectors are derived from the **encoded** calldata, not from `functionName`, so an overloaded ABI resolves to the selector the wallet will actually run. Calldata shorter than four bytes yields `0x00000000`, matching the contract's own reading of it.
+
+<Callout type="warning">
+  The delegation must be granted on a **sub-account**, never on the owner EOA. `grantDelegation` is `onlyAccountOwner`,
+  and the AccountLayer reports no owner for a bare EOA — so an EOA delegator can never be authorized. Pass that same
+  sub-account to [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) as `signerAccount`.
+</Callout>
+
+## Scope it deliberately
+
+The returned set is scoped to one batch. A key granted `transfer` can move the wallet's whole balance to any recipient, because the recipient is a call argument and delegations bind selectors, not arguments. Grant the narrowest batch you can, and set a short `expiryTimestamp`.
+
+The result is de-duplicated and lowercased — `grantDelegation` rejects an array containing duplicates, which repeats easily produce (two `approve` calls on different tokens share one selector).
+
+## Parameters
+
+<Properties>
+  <Property name="calls" type="readonly GaslessWalletCall[]" required>
+    The batch the session key must be able to run. Both call forms are accepted.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly Hex[]">
+  The selector set to grant, sentinel first, then each inner selector in call order.
+</Returns>

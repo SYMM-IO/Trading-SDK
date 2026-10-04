@@ -6,9 +6,10 @@ import { toListingConfig } from "./to-listing-config";
 /** A representative `/v2/configs` response, trimmed to the fields under test. */
 function makeConfig(overrides: Partial<ClientConfigResponse> = {}): ClientConfigResponse {
   return {
-    recommended_initial_deposit_usdc: "500000000000000000000",
-    minimum_initial_deposit_usdc: "450000000000000000000",
+    recommended_deposit_usdc: "500000000000000000000",
+    minimum_deposit_usdc: "450000000000000000000",
     listing_fee_usdc: "25000000000000000000",
+    max_leverage_bounds: { minimum: 1, maximum: 100 },
     supported_deposit_chains: [
       { chain_id: ListingDepositChainId.HYPER_EVM, chain_name: "HyperEVM" },
       { chain_id: ListingDepositChainId.BASE, chain_name: "Base" },

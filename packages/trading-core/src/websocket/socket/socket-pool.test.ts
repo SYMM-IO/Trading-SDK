@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createFakeWebSocket } from "../../shared/test/fake-web-socket";
 import { createReconnectingSocket } from "./create-reconnecting-socket";
 import { createSocketPool, type PooledSocketHandlers } from "./socket-pool";
@@ -16,6 +16,10 @@ function makeFactory(WebSocket: ReturnType<typeof createFakeWebSocket>["WebSocke
       onError: handlers.onError,
     });
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("createSocketPool", () => {
   it("shares one socket across listeners and fans out messages", () => {
@@ -64,5 +68,22 @@ describe("createSocketPool", () => {
     const seen: string[] = [];
     pool.acquire("k", factory, { onStatusChange: (s) => seen.push(s) });
     expect(seen).toContain("open");
+  });
+
+  it("does not redial when the last listener releases from its own status callback during a reconnect", () => {
+    vi.useFakeTimers();
+    const fake = createFakeWebSocket();
+    const pool = createSocketPool();
+
+    const release = pool.acquire("k", makeFactory(fake.WebSocket), {
+      onStatusChange: (status) => {
+        if (status === "reconnecting") release();
+      },
+    });
+    fake.last().simulateOpen();
+    fake.last().simulateClose(1006);
+    vi.runAllTimers();
+
+    expect(fake.instances).toHaveLength(1);
   });
 });

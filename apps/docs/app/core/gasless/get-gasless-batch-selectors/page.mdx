@@ -1,0 +1,50 @@
+import { Callout } from "nextra/components";
+
+# getGaslessBatchSelectors
+
+Build the selector set a session key must hold to relay a [gasless batch](/core/gasless/relay-gasless-batch) — each relayable write's selector, plus the wallet-execution sentinel and every inner call's selector for each GaslessWallet entry.
+
+```ts
+import { getGaslessBatchSelectors, grantDelegation, relayGaslessBatch } from "@symmio/trading-core";
+
+const calls = [
+  { functionName: "allocate", args: [amount] },
+  { walletCalls: [{ target: usdc, abi: erc20Abi, functionName: "transfer", args: [to, value] }] },
+];
+
+await grantDelegation(config, {
+  account: { addr: subAccount, isPartyB: false },
+  delegatedSigner: sessionKey,
+  selectors: getGaslessBatchSelectors(calls),
+  expiryTimestamp,
+});
+
+await relayGaslessBatch(config, { account: subAccount, calls, from: sessionKey });
+```
+
+Grant the set on the batch's `account`: the InstantLayer checks a write's selector there, and the GaslessLayer checks a wallet entry's sentinel and inner selectors on the same account (a virtual account's parent). The result is lowercased and de-duplicated in first-seen order, because `grantDelegation` rejects a duplicate-bearing array.
+
+Selectors come from the **encoded** calldata, so an overloaded ABI resolves to the function that will actually run — and a named call is encoded against the SDK's own ABI for the relayable write of that name.
+
+<Callout type="warning">
+  A batch containing `grantDelegation` must be owner-signed whatever this returns: the InstantLayer rejects a
+  delegate-signed grant. And the set is scoped to the batch — a key granted `transfer` can send the wallet's whole
+  balance to any recipient, because delegations bind selectors, not arguments. Grant the narrowest batch you can.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="calls" type="readonly GaslessBatchCall[]" required>
+    The batch, in any order and any of the call forms.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly Hex[]">The selector set to grant, as `bytes4` hex.</Returns>
+
+## Throws
+
+- `SymmError("validation", "GASLESS_NOT_RELAYABLE")` when a call without an `abi` names no relayable write.
+- Viem's encoding error when an ABI-level call's arguments do not encode.

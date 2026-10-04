@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { createClassicWithdrawPart } from "@symmio/trading-core";
 import {
   useInitiateWithdraw,
@@ -42,10 +43,22 @@ export function WriteInitiateWithdraw() {
 
   const mutation = useInitiateWithdraw();
 
+  const write = useGaslessWriteOption("initiateWithdraw");
+
   const validParts =
     validReceiver && validAmount !== undefined && chainId !== undefined
       ? [createClassicWithdrawPart({ id: 0n, amount: validAmount, receiver: validReceiver, chainId: BigInt(chainId) })]
       : undefined;
+
+  /**
+   * The fee preview prices the call by its selector, so until a receiver and an
+   * amount are entered it stands in a zero-amount part back to the account.
+   */
+  const feeParts =
+    validParts ??
+    (validAccount && chainId !== undefined
+      ? [createClassicWithdrawPart({ id: 0n, amount: 0n, receiver: validAccount, chainId: BigInt(chainId) })]
+      : undefined);
 
   /** Dry-run the AccountLayer `_call` wrapping the core `initiateWithdraw`. */
   const simulate = useSimulateInitiateWithdraw();
@@ -55,6 +68,8 @@ export function WriteInitiateWithdraw() {
       testId="method-initiateWithdraw"
       name="initiateWithdraw"
       mutability="nonpayable"
+      gaslessRelayable
+      gaslessFee={{ account: validAccount, args: feeParts ? [feeParts, false, "0x"] : undefined }}
       description="Open a classic same-chain withdraw request for a subaccount (routed via AccountLayer _call)."
     >
       <SubAccountField
@@ -143,7 +158,7 @@ export function WriteInitiateWithdraw() {
               receiver: validReceiver,
               chainId: BigInt(chainId!),
             });
-            mutation.mutate({ account: validAccount, parts: [part] });
+            mutation.mutate({ account: validAccount, parts: [part], ...write });
           }}
           data-testid="button-send-initiate-withdraw"
         >

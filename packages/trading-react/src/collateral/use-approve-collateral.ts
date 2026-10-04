@@ -55,11 +55,7 @@ export function useApproveCollateral(parameters: UseApproveCollateralParameters 
     mutationFn: async (variables) => {
       try {
         const resolvedChainId = variables.chainId ?? chainId;
-        const hash = await base.mutationFn({
-          amount: variables.amount,
-          simulateBeforeWrite: variables.simulateBeforeWrite,
-          chainId: resolvedChainId,
-        });
+        const hash = await base.mutationFn({ ...variables, chainId: resolvedChainId });
         return resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,

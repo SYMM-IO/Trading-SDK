@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # SymmioProvider
 
 The single React context every other SDK hook consumes. Builds the `core` `Config`, bridges wagmi's viem clients into it, and exposes the config + connected chain via `useSymmioConfig` / `useSymmioChainId`.
@@ -91,7 +93,47 @@ function useAppGetWalletClient() {
 </SymmioProvider>;
 ```
 
-When omitted, the provider falls back to `wagmi/actions#getWalletClient` — the SDK signs with whatever wallet wagmi has connected, ignoring `from`.
+### `createSessionKeyWalletClientResolver`
+
+You rarely need to hand-roll the router above. The SDK ships it:
+
+```tsx
+import { createSessionKeyWalletClientResolver, SymmioProvider } from "@symmio/trading-react";
+
+const getWalletClient = useMemo(
+  () =>
+    createSessionKeyWalletClientResolver({
+      getSessionAccount: () => manager.getAccount(),
+      wagmiConfig,
+    }),
+  [],
+);
+```
+
+<Properties>
+  <Property name="getSessionAccount" type="() => Account | null" required>
+    Returns the session-key account to sign with, or `null` when no key is loaded. Takes a callback rather than a
+    manager so `@symmio/trading-react` gains no dependency on `@symmio/session-key` — any key source works.
+  </Property>
+  <Property name="wagmiConfig" type="WagmiConfig" required>
+    Used to resolve the connected wallet and the target chain.
+  </Property>
+  <Property name="transport" type="(chainId: number) => Transport" optional>
+    Per-chain transport override for the session-key client. Defaults to wagmi's transport for that chain, so the key
+    signs against the same RPCs as the rest of your app.
+  </Property>
+</Properties>
+
+Pair it with [`SessionKeyManager.getAccount()`](/session-key/manager), which hands out a viem `LocalAccount` without
+materializing the private key.
+
+<Callout type="warning">
+  **The default resolver ignores `from`.** When `getWalletClient` is omitted the provider falls back to
+  `wagmi/actions#getWalletClient` and signs with whatever wallet wagmi has connected. That is a quiet failure for
+  session keys: the write still *succeeds*, because the owner is authorized and the contract only checks delegation when
+  the signer is not the owner — you simply get a wallet prompt on every write you expected to be promptless. If you pass
+  `from` anywhere, supply a resolver that honors it.
+</Callout>
 
 ## What the provider does
 

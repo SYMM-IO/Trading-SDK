@@ -4,4 +4,6 @@ export default {
   charts: "Charts",
   orderbook: "Orderbook",
   "affiliate-registration": "Register an Affiliate",
+  "gasless-wallet-calls": "Gasless Wallet Calls",
+  "preview-releases": "Preview Releases",
 };

@@ -79,13 +79,7 @@ export function useRemoveMargin(parameters: UseRemoveMarginParameters = {}): Use
             virtualAccount: variables.virtualAccount,
             chainId: resolvedChainId,
           }));
-        const hash = await base.mutationFn({
-          virtualAccount: variables.virtualAccount,
-          amount: variables.amount,
-          upnlSig,
-          simulateBeforeWrite: variables.simulateBeforeWrite,
-          chainId: resolvedChainId,
-        });
+        const hash = await base.mutationFn({ ...variables, upnlSig, chainId: resolvedChainId });
         return resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,

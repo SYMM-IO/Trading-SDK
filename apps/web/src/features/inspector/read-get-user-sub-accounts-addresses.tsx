@@ -63,6 +63,12 @@ export function ReadGetUserSubAccountsAddresses() {
   );
 }
 
+/**
+ * Caps the result list at five rows: five 38px rows plus the four 6px gaps
+ * between them. Anything beyond that scrolls.
+ */
+const MAX_ROWS_HEIGHT = "max-h-[214px]";
+
 function ResultPanel({ testId, query }: { testId: string; query: ReturnType<typeof useUserSubAccountsAddresses> }) {
   if (query.isLoading) {
     return <ListSkeleton rows={4} testId={`${testId}-loading`} />;
@@ -77,7 +83,7 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
     return <ResultNote testId={`${testId}-empty`}>No subaccounts found for this address.</ResultNote>;
   }
   return (
-    <ul data-testid={`${testId}-data`} className="flex flex-col gap-1.5">
+    <ul data-testid={`${testId}-data`} className={`${MAX_ROWS_HEIGHT} flex flex-col gap-1.5 overflow-y-auto`}>
       {query.data.map((addr) => (
         <li
           key={addr}

@@ -69,11 +69,14 @@ jobs:
       # all` lists every source file — including 0%-covered ones — so untested
       # files surface. No `vite-config-path`: there are no thresholds to read, and
       # pointing paths from the repo root avoids the action loading a build config.
+      # Fork and Dependabot PRs have read-only tokens: keep their job summaries,
+      # but skip comments so reporting cannot block package previews.
       - name: Coverage report — trading-core
         if: ${{ !cancelled() }}
         uses: davelosert/vitest-coverage-report-action@v2
         with:
           name: trading-core
+          comment-on: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && 'pr' || 'none' }}
           json-summary-path: packages/trading-core/coverage/coverage-summary.json
           json-final-path: packages/trading-core/coverage/coverage-final.json
           file-coverage-mode: all
@@ -83,6 +86,7 @@ jobs:
         uses: davelosert/vitest-coverage-report-action@v2
         with:
           name: trading-react
+          comment-on: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && 'pr' || 'none' }}
           json-summary-path: packages/trading-react/coverage/coverage-summary.json
           json-final-path: packages/trading-react/coverage/coverage-final.json
           file-coverage-mode: all
@@ -92,6 +96,7 @@ jobs:
         uses: davelosert/vitest-coverage-report-action@v2
         with:
           name: utils
+          comment-on: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && 'pr' || 'none' }}
           json-summary-path: packages/utils/coverage/coverage-summary.json
           json-final-path: packages/utils/coverage/coverage-final.json
           file-coverage-mode: all
@@ -101,6 +106,7 @@ jobs:
         uses: davelosert/vitest-coverage-report-action@v2
         with:
           name: session-key
+          comment-on: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && 'pr' || 'none' }}
           json-summary-path: packages/session-key/coverage/coverage-summary.json
           json-final-path: packages/session-key/coverage/coverage-final.json
           file-coverage-mode: all
@@ -140,3 +146,88 @@ jobs:
 
       - name: Verify packages
         run: pnpm verify-packages
+
+  preview:
+    name: Publish package previews
+    needs: [verify, packages]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # pkg.pr.new identifies PR previews by the head SHA. Build that commit,
+      # rather than GitHub's temporary merge commit used by the checks above.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      # Recheck the head commit's packed output before publishing. Turbo reuses
+      # unchanged builds from the preceding jobs.
+      - name: Verify PR head packages
+        run: pnpm verify-packages
+
+      # Publish directories together so sibling dependencies use the same
+      # commit's preview URLs. The GitHub App handles the PR comment.
+      # Full URLs avoid the older Trading-SDK repository metadata on npm.
+      - name: Publish previews
+        env:
+          PREVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          packages=(
+            ./packages/trading-core
+            ./packages/trading-react
+            ./packages/utils
+            ./packages/session-key
+            ./packages/eslint-config
+            ./packages/typescript-config
+          )
+
+          # Keep each package's own version, adding a prerelease suffix only in
+          # this disposable CI checkout. Install/build/verification are done.
+          node --input-type=module - "${packages[@]}" <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          import { join } from "node:path";
+
+          const sha = process.env.PREVIEW_SHA;
+          if (!sha || !/^[0-9a-f]{40}$/i.test(sha)) {
+            throw new Error("PREVIEW_SHA must be the full PR head commit SHA.");
+          }
+
+          for (const directory of process.argv.slice(2)) {
+            const path = join(directory, "package.json");
+            const pkg = JSON.parse(readFileSync(path, "utf8"));
+            const [version, metadata] = pkg.version.split("+");
+            const separator = version.includes("-") ? "." : "-";
+            pkg.version = `${version}${separator}preview-${sha.slice(0, 7)}${metadata ? `+${metadata}` : ""}`;
+            writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);
+            console.log(`${pkg.name}: ${pkg.version}`);
+          }
+          NODE
+
+          pnpm exec pkg-pr-new publish \
+            --pnpm \
+            --no-compact \
+            --comment=update \
+            --packageManager=pnpm \
+            --no-template \
+            "${packages[@]}"

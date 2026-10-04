@@ -211,7 +211,8 @@ export function LocalSessionKeyCard() {
             <ResultError testId="result-localSessionKey-error" message={error.message} />
           ) : (
             <ResultNote testId="result-localSessionKey-note">
-              Delegate this session key address in `grantDelegation` before using it to sign Instant Layer operations.
+              This key cannot sign Instant Layer operations until it is delegated. Grant it below — one wallet prompt,
+              relayed, no native gas.
             </ResultNote>
           )}
         </div>

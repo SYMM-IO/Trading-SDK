@@ -38,6 +38,13 @@ const hash = await depositAndAllocateForAccount(config, {
   <Property name="simulateBeforeWrite" type="boolean" optional>
     Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default).
   </Property>
+  <Property name="gasless" type="boolean | GaslessWriteOptions" optional>
+    Relay this write through the [gasless execution mode](/core/gasless/relayable-writes) instead of the wallet. A
+    boolean for the common case, or a per-call `GaslessWriteOptions` bag; omitted, the chain's `execution.mode` decides.
+    Relaying removes the gas, not the approval — the collateral is still pulled from the owner's wallet, so the ERC20
+    allowance must already exist. A wallet holding no native gas at all should deposit through
+    [`settleGaslessDepositNewAccount`](/core/gasless/settle-gasless-deposit-new-account) instead.
+  </Property>
 </Properties>
 
 ## Returns

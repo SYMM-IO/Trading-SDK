@@ -42,6 +42,34 @@ export enum ListingMarketStatus {
 }
 
 /**
+ * Why the inventory service has locked a market's pool against new deposits.
+ *
+ * A lock blocks deposits only: trading, withdrawals, claims and every other
+ * flow stay available. It is also orthogonal to {@link ListingMarketStatus}: a
+ * `LISTED` market can be locked, and the lock lifts without the lifecycle
+ * status moving. The catalogue
+ * row carries only the flag ({@link ListingMarket.isLocked}); the reasons are on
+ * the detail read ({@link ListingMarketDetail.lockReasons}).
+ *
+ * - `LIQUIDITY_EXPOSURE` — locked on the service's liquidity-exposure limit.
+ * - `LOW_TVL` — the pool's TVL is below the service's threshold.
+ * - `PRICE_UNAVAILABLE` — the service has no price for the token.
+ * - `SHORT_CIRCUIT` — the service's short-circuit guard tripped.
+ * - `MANUAL` — an operator locked the market by hand.
+ * - `UNKNOWN` — a reason this SDK release does not recognize. The mapper folds
+ *   every unrecognized wire value here rather than throwing, so a newer backend
+ *   cannot break the read.
+ */
+export enum MarketLockReason {
+  LIQUIDITY_EXPOSURE = "LIQUIDITY_EXPOSURE",
+  LOW_TVL = "LOW_TVL",
+  PRICE_UNAVAILABLE = "PRICE_UNAVAILABLE",
+  SHORT_CIRCUIT = "SHORT_CIRCUIT",
+  MANUAL = "MANUAL",
+  UNKNOWN = "UNKNOWN",
+}
+
+/**
  * Chains the listing service accepts a listing deposit on.
  *
  * This is the chain the **token** lives on and where its listing collateral was
@@ -151,6 +179,15 @@ export interface ListingMarket {
   listingTime: number | null;
   /** Where the market sits in the listing lifecycle. */
   marketStatus: ListingMarketStatus;
+  /**
+   * Whether the inventory service currently has this market's pool locked
+   * against new deposits. Only deposits are blocked; trading, withdrawals and
+   * every other flow stay available. Independent of
+   * {@link ListingMarket.marketStatus}: a `LISTED` market can be locked. The row
+   * carries only the flag; the reasons are on
+   * {@link ListingMarketDetail.lockReasons}.
+   */
+  isLocked: boolean;
 }
 
 /** One page of {@link ListingMarket} rows, with the totals needed to paginate. */
@@ -561,6 +598,20 @@ export interface ListingMarketDetail {
   symbolId: number | null;
   /** Where the pool sits in the listing lifecycle. */
   marketStatus: ListingMarketStatus;
+  /**
+   * Whether the inventory service currently has this pool locked against new
+   * deposits. Only deposits are blocked; trading, withdrawals and every other
+   * flow stay available. Independent of {@link ListingMarketDetail.marketStatus}.
+   * `false` when the backend reports no lock state, as it does for a delisted
+   * pool.
+   */
+  isLocked: boolean;
+  /**
+   * Why the pool is locked, one entry per active reason; empty when it is not
+   * locked. A reason this SDK release does not recognize arrives as
+   * {@link MarketLockReason.UNKNOWN}.
+   */
+  lockReasons: MarketLockReason[];
   /** Maximum leverage the market allows, as a whole multiplier. */
   maxLeverage: number;
   /** Share of revenue routed to token buybacks, as a percentage (`50` = 50%). */
@@ -649,8 +700,8 @@ export interface PoolTransaction {
 
 /** One page of {@link PoolTransaction} rows for a pool. */
 export interface PoolTransactionPage {
-  /** The pool's token contract address, echoed by the backend. */
-  marketAddress: string;
+  /** The pool's token contract address, echoed by the backend, or `null` when the history was not scoped to one pool. */
+  marketAddress: string | null;
   /** Total rows matching the query across all pages. */
   count: number;
   /** The rows themselves. */

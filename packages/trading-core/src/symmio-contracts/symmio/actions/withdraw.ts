@@ -1,7 +1,7 @@
 import type { Address, Hash, Hex } from "viem";
 import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
-import type { Compute, WriteContractParameter } from "../../../shared/types/properties";
+import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { SubAccountIsolationType, type SingleUpnlSig } from "../../account-layer/types";
 import type { WithdrawReceiverPart } from "../types";
 import { deallocateAndInitiateWithdraw } from "./deallocate-and-initiate-withdraw";
@@ -11,53 +11,54 @@ import { initiateWithdraw } from "./initiate-withdraw";
  * Parameters for {@link withdraw}.
  */
 export type WithdrawParameters = Compute<
-  WriteContractParameter & {
-    /**
-     * The subaccount to withdraw from. Both underlying actions route the call
-     * through the AccountLayer `_call` proxy so the core attributes it to this
-     * subaccount; the connected wallet must be its on-chain `owner`.
-     */
-    account: Address;
-    /**
-     * The subaccount's isolation strategy, which selects the withdraw path:
-     * `CUSTOM` (cross-margin) deallocates then initiates; `MARKET` /
-     * `MARKET_DIRECTION` (VA / lowcap) initiate only. Read it from the
-     * subaccount detail (`getSubAccount` → `isolationType`).
-     */
-    isolationType: SubAccountIsolationType;
-    /**
-     * The receiver parts the withdrawal is split into. A plain same-chain
-     * withdrawal is a single part with both provider fields set to the zero
-     * address — see `createClassicWithdrawPart`.
-     */
-    parts: readonly WithdrawReceiverPart[];
-    /**
-     * Amount to move from the allocated balance back into the available balance,
-     * in **18 decimals** (not the collateral token's decimals). Consumed only by
-     * the `deallocate` leg, so it is **required when `isolationType` is `CUSTOM`**
-     * and ignored otherwise.
-     */
-    amount?: bigint;
-    /**
-     * Opt into the cooldown speed-up flow. Only effective for speed-up-eligible
-     * users; ignored otherwise.
-     * @default false
-     */
-    speedUp?: boolean;
-    /**
-     * Opaque provider data forwarded to express/virtual providers (e.g. a signed
-     * option). Pass `0x` for a classic withdrawal.
-     * @default "0x"
-     */
-    providerData?: Hex;
-    /**
-     * A fresh Muon uPnL (`uPnl_A`) attestation for `account`, used only by the
-     * `CUSTOM` (deallocate) path. Omit it to have the action fetch a fresh one;
-     * pass one only to reuse a signature you already fetched. Ignored on the
-     * `MARKET` / `MARKET_DIRECTION` path.
-     */
-    upnlSig?: SingleUpnlSig;
-  }
+  WriteContractParameter &
+    GaslessWriteParameter & {
+      /**
+       * The subaccount to withdraw from. Both underlying actions route the call
+       * through the AccountLayer `_call` proxy so the core attributes it to this
+       * subaccount; the connected wallet must be its on-chain `owner`.
+       */
+      account: Address;
+      /**
+       * The subaccount's isolation strategy, which selects the withdraw path:
+       * `CUSTOM` (cross-margin) deallocates then initiates; `MARKET` /
+       * `MARKET_DIRECTION` (VA / lowcap) initiate only. Read it from the
+       * subaccount detail (`getSubAccount` → `isolationType`).
+       */
+      isolationType: SubAccountIsolationType;
+      /**
+       * The receiver parts the withdrawal is split into. A plain same-chain
+       * withdrawal is a single part with both provider fields set to the zero
+       * address — see `createClassicWithdrawPart`.
+       */
+      parts: readonly WithdrawReceiverPart[];
+      /**
+       * Amount to move from the allocated balance back into the available balance,
+       * in **18 decimals** (not the collateral token's decimals). Consumed only by
+       * the `deallocate` leg, so it is **required when `isolationType` is `CUSTOM`**
+       * and ignored otherwise.
+       */
+      amount?: bigint;
+      /**
+       * Opt into the cooldown speed-up flow. Only effective for speed-up-eligible
+       * users; ignored otherwise.
+       * @default false
+       */
+      speedUp?: boolean;
+      /**
+       * Opaque provider data forwarded to express/virtual providers (e.g. a signed
+       * option). Pass `0x` for a classic withdrawal.
+       * @default "0x"
+       */
+      providerData?: Hex;
+      /**
+       * A fresh Muon uPnL (`uPnl_A`) attestation for `account`, used only by the
+       * `CUSTOM` (deallocate) path. Omit it to have the action fetch a fresh one;
+       * pass one only to reuse a signature you already fetched. Ignored on the
+       * `MARKET` / `MARKET_DIRECTION` path.
+       */
+      upnlSig?: SingleUpnlSig;
+    }
 >;
 
 /** Return type of {@link withdraw}: the submitted transaction hash. */
@@ -132,6 +133,7 @@ export async function withdraw(config: Config, parameters: WithdrawParameters): 
       chainId: parameters.chainId,
       from: parameters.from,
       simulateBeforeWrite: parameters.simulateBeforeWrite,
+      gasless: parameters.gasless,
     });
   }
 
@@ -143,5 +145,6 @@ export async function withdraw(config: Config, parameters: WithdrawParameters): 
     chainId: parameters.chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
+    gasless: parameters.gasless,
   });
 }

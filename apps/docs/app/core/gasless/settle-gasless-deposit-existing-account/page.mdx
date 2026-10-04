@@ -1,0 +1,69 @@
+import { Callout } from "nextra/components";
+
+# settleGaslessDepositExistingAccount
+
+Queue the sweep of an owner's deposit address into an **existing** wallet-owned sub-account — a gasless top-up.
+
+```ts
+import { settleGaslessDepositExistingAccount } from "@symmio/trading-core";
+
+const receipt = await settleGaslessDepositExistingAccount(config, {
+  owner,
+  walletId: 1n,
+  subAccount,
+});
+```
+
+Same lifecycle as the [new-account settlement](/core/gasless/settle-gasless-deposit-new-account): the sweep takes the entire balance at the deposit address when the transaction executes, the deposit fee (and a wallet creation fee, if this settlement first deploys the wallet) comes off the top, the worker's pre-broadcast re-check can still turn an accepted settlement `rejected`, and a completed settlement's idempotency key must never be reused. The gateway verifies on-chain that `subAccount` is owned by `owner`. Note the request body is strict — beyond the retry key it carries only `owner`, `walletId` and `subAccount` (no metadata slot).
+
+Like the new-account settlement, this reads `getGaslessWalletAddress(owner, walletId)` before the submit and checks the acceptance's `wallet_id` and `deposit_address` against it, throwing `GASLESS_DEPOSIT_WALLET_MISMATCH` (with the parsed receipt in `responseData`) when they disagree.
+
+<Callout type="info">
+  This action is a **submit**: it resolves with the `202` acceptance. React consumers do not need to follow it by hand —
+  the matching hook in `@symmio/trading-react` confirms the request before it resolves and invalidates the reads this
+  action changes. See the [React gasless guide](/react/gasless).
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="owner" type="Address" required>
+    Owner of the GaslessWallet being settled — an owner address, never a GaslessWallet address. (Renamed from `wallet`,
+    which the service still accepts as a legacy alias but the SDK no longer sends.)
+  </Property>
+  <Property name="walletId" type="bigint" optional>
+    Which of the owner's GaslessWallets to sweep. Defaults to `0n`, the original wallet. Each id has its own deposit
+    address and its own balance.
+  </Property>
+  <Property name="subAccount" type="Address" required>
+    The existing wallet-owned sub-account to credit; ownership is verified by the gateway.
+  </Property>
+  <Property name="idempotencyKey" type="string" optional>
+    Stable retry key; defaults to a random UUID. **One key per settlement attempt**: reuse it only to replay a submit
+    whose response was lost, and mint a fresh one after any terminal status or any change to the wallet selection — or
+    the service answers `409 IDEMPOTENCY_KEY_CONFLICT`. See [idempotency
+    keys](/core/gasless/errors-and-fallback#idempotency-keys).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GaslessDepositSubmitReceipt>">
+  The same rich acceptance receipt the new-account settlement returns — `requestId`, `status`, `depositAddress`,
+  `walletId`, `owner`, `observedAmount`, `paidFee`, `creditedAmount`, `idempotencyKey`, `protocolInstance`. Poll
+  `requestId` with `service: "deposits"`. The three amounts are acceptance-time **estimates** in token base units and
+  each reads `null` when the acceptance reported none: `creditedAmount` deducts only the deposit fee, and the sweep uses
+  the balance present at execution. Take the final credit from the `WalletDepositSettled` event or the sub-account's
+  balance.
+</Returns>
+
+## Throws
+
+- `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
+- `SymmApiError` with code `GASLESS_SETTLEMENT_SUBMIT_FAILED` — HTTP failure, including `DEPOSIT_BELOW_MINIMUM`.
+- `SymmApiError` with code `GASLESS_SUBMIT_UNCONFIRMED` — the outcome could not be established. The settlement may already be sweeping: replay the recorded bytes with [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request) instead of submitting a new settlement.
+- `SymmApiError` with code `GASLESS_DEPOSIT_WALLET_MISMATCH` — the acceptance named another wallet id or deposit address; the parsed receipt rides in `responseData`.
+- `SymmError("validation", "GASLESS_WALLET_ID_INVALID")` — a `walletId` outside `0 … 2^256 − 1`, or a JavaScript `number`.

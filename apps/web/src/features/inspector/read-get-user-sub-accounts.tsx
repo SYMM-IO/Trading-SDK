@@ -74,6 +74,12 @@ export function ReadGetUserSubAccounts() {
   );
 }
 
+/**
+ * Caps the result table at five rows: the uppercase header (36px) plus five
+ * 41px rows. Anything beyond that scrolls under the sticky header.
+ */
+const MAX_ROWS_HEIGHT = "max-h-[241px]";
+
 function ResultPanel({ testId, query }: { testId: string; query: ReturnType<typeof useUserSubAccounts> }) {
   if (query.isLoading) {
     return <TableSkeleton rows={4} columns={4} alignEndFrom={3} testId={`${testId}-loading`} />;
@@ -89,9 +95,9 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
   }
   return (
     <div data-testid={`${testId}-data`} className="border-border/70 overflow-hidden rounded-xl border">
-      <div className="overflow-x-auto">
+      <div className={`${MAX_ROWS_HEIGHT} overflow-auto`}>
         <table className="w-full border-collapse text-sm">
-          <thead>
+          <thead className="bg-card sticky top-0 z-10">
             <tr className="bg-muted/40 text-muted-foreground text-left text-xs font-medium tracking-wide uppercase">
               <th className="px-3 py-2.5">Account</th>
               <th className="px-3 py-2.5">Name</th>

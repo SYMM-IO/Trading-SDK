@@ -1,0 +1,73 @@
+import { Callout } from "nextra/components";
+
+# getOperationalFeeAllowance
+
+Read a payer's operational-fee allowance for a charger from the **SYMMIO core diamond** — the ceiling the gasless gateway can charge against.
+
+```ts
+import { getOperationalFeeAllowance } from "@symmio/trading-core";
+
+const { allowance, pendingAllowance, reductionReadyAt, feeMultiplier } = await getOperationalFeeAllowance(config, {
+  payer: subAccount,
+});
+```
+
+The GaslessLayer collects a relayed batch's operational fee **after** the batch executes, in the same transaction, and each payer's charge must fit its allowance. Every charge decrements the allowance. There is no "unlimited" value: `maxUint256` is decremented like any other amount. A never-approved pair reads `0n`. `charger` defaults to the chain's `gasless.gaslessLayerAddress` (the GaslessLayer **proxy**, never the relayer's executor), so on a gasless-configured chain only the `payer` is needed.
+
+<Callout type="info">
+  **Every amount is in 18-decimal Core units**, the scale of the Core balance the fee is drawn from, not the collateral
+  token's decimals. Compare it directly with 18-decimal fees from
+  [`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote); convert a token amount with
+  [`collateralToCore18`](/core/shared-types#collateraltocore18) first. See [Core 18-decimal
+  units](/core/concepts/balance-model#core-18-decimal-units).
+</Callout>
+
+The allowance only **permits** the charge. It adds no balance: the fee comes out of the payer's Core balance, free balance first and then allocated. So show it next to that balance, never as spendable funds. A payer with plenty of allowance and too little balance still fails with `OperationalFee: Insufficient balance`.
+
+Read it for the account that actually pays, which is the `payer` of the matching [fee-quote payment](/core/gasless/get-gasless-fee-quote#reading-the-quote). A virtual account's operations bill its parent sub-account, and fall back to the virtual account only when the parent cannot cover them. Read the allowance back after approving, before you submit a relay.
+
+<Callout type="warning">
+  Allowance **reductions can be timelocked** on-chain. When the diamond has a reduction delay configured, a lowering
+  approval keeps the current `allowance` in force until `reductionReadyAt`, and charges keep consuming it meanwhile.
+  `pendingAllowance` shows what it will drop to, and the lower of the two applies once the delay passes. Any revoke UX
+  must surface both.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="payer" type="Address" required>
+    The fee payer — the account whose Core balance the charger draws from. Use the fee quote's `payer`.
+  </Property>
+  <Property name="charger" type="Address" optional>
+    The registered fee charger: the GaslessLayer proxy. Defaults to the chain's `gasless.gaslessLayerAddress`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<GetOperationalFeeAllowanceReturnType>">
+  <Property name="allowance" type="bigint">
+    What the charger may still draw from the payer, in 18-decimal Core units. Every charge decrements it.
+  </Property>
+  <Property name="pendingAllowance" type="bigint">
+    The value a scheduled reduction will lower to, in 18-decimal Core units. Only meaningful while `reductionReadyAt` is
+    non-zero.
+  </Property>
+  <Property name="reductionReadyAt" type="bigint">
+    Unix timestamp (seconds) when the scheduled reduction takes effect. `0n` when none is pending, including once its
+    time has passed, because `allowance` then already reports the reduced value.
+  </Property>
+  <Property name="feeMultiplier" type="bigint">
+    Fee multiplier for the pair in basis points. The GaslessLayer scales this payer's selector fees by `feeMultiplier /
+    10000`: `10000n` is list price (reported when unset). It does not scale a wallet creation fee.
+  </Property>
+</Returns>
+
+## Throws
+
+- `SymmError("validation", "GASLESS_CHARGER_REQUIRED")` — no `charger` given and the chain has no gasless block to default from.
+- Viem read errors.

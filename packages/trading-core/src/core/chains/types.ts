@@ -1,4 +1,5 @@
 import type { Address } from "viem";
+import type { GaslessRelayEvent } from "../../gasless/types";
 
 /**
  * Contract addresses for a SYMMIO chain deployment.
@@ -343,6 +344,200 @@ export interface SymmioInventoryConfig {
 }
 
 /**
+ * Failure policy for the transparent gasless execution mode, applied when the
+ * relay definitively rejects a request **before** it is accepted (a 4xx, or a
+ * pre-broadcast `rejected`).
+ *
+ * - `"error"` (default): surface a typed error; the consumer decides what to do.
+ * - `"wallet"`: silently fall back to the normal gas-paid wallet path.
+ *
+ * After the service accepts a request (HTTP 202) no fallback ever happens — the
+ * relayed transaction may still execute, and a wallet retry would duplicate it.
+ */
+export type GaslessFallback = "error" | "wallet";
+
+/**
+ * Defaults governing how existing contract writes dispatch when the transparent
+ * gasless execution mode is active. Every field can be overridden per call via
+ * the `gasless` write parameter.
+ */
+export interface GaslessExecutionConfig {
+  /**
+   * `"wallet"` (default): writes go through the connected wallet as always.
+   * `"gasless"`: relayable writes are signed as InstantLayer operations and
+   * relayed through GaslessQ; non-relayable writes keep the wallet path.
+   */
+  mode?: "wallet" | "gasless";
+  /** Pre-acceptance failure policy. Default `"error"`. */
+  fallback?: GaslessFallback;
+  /**
+   * Quote the batch on-chain (the GaslessLayer's `previewFeeQuote`) before
+   * prompting the user for a signature, and fail fast when the quote refuses
+   * it: `GASLESS_FREE_QUOTA_EXHAUSTED` when the daily free quota is spent (the
+   * one case `fallback: "wallet"` recovers from), `GASLESS_FEE_QUOTE_REVERTED`
+   * when the contract rejects the batch, and `GASLESS_LAYER_INTERFACE_UNSUPPORTED`
+   * when the GaslessLayer predates the multi-wallet interface. A quote that
+   * fails for transport reasons does not block, and the quote never checks
+   * affordability — the relayer's simulation is authoritative. Default `true`.
+   */
+  preflightFee?: boolean;
+  /**
+   * Verify on-chain (`isDelegationActive`) that the signing key is authorized
+   * for every selector a relayed write carries before prompting the user for a
+   * signature, and fail fast when a session key is missing a delegation.
+   * Skipped for the sub-account's own owner, who needs no delegation.
+   * Default `true`.
+   */
+  preflightDelegation?: boolean;
+  /** Max wait for the relayer to broadcast before timing out. Default `120_000` ms. */
+  broadcastTimeoutMs?: number;
+  /** Status poll cadence while the request is `queued`. Default `1_500` ms. */
+  queuedPollMs?: number;
+  /** Status poll cadence after the request is `submitted`. Default `3_000` ms. */
+  submittedPollMs?: number;
+  /**
+   * How long a status wait lets the gateway's stream settle before falling back
+   * to its first HTTP read. It ends early the moment the stream delivers, or
+   * reports that it will not (unreachable, not-found, at its subscription cap,
+   * disabled). Ignored where the stream is off. Default `1_000` ms.
+   */
+  streamSettleMs?: number;
+  /**
+   * How long a delivering stream may report nothing about a workflow before the
+   * wait takes one HTTP read anyway and re-arms. Heartbeats do not count — only
+   * records for the request do. Default `15_000` ms.
+   */
+  streamStaleMs?: number;
+  /**
+   * HTTP timeout for each gasless submit, in ms: every relay and
+   * deposit-settlement POST, from the explicit actions as well as the
+   * transparent mode. A submit that times out is ambiguous (the gateway may
+   * already have accepted it) and fails like a network error, with status `0`.
+   * Status reads are not bounded by it. Default `30_000`.
+   */
+  submitTimeoutMs?: number;
+  /**
+   * Lifecycle observer for relayed writes — fires at `accepted`, `broadcast`,
+   * and `terminal`. Persist request ids in the `accepted` event so in-flight
+   * workflows survive reloads.
+   */
+  onEvent?: (event: GaslessRelayEvent) => void;
+}
+
+/**
+ * Status-stream availability for one GaslessQ deployment. It is a deployment
+ * fact, like the URL. Status WebSockets are optional and disabled by default at
+ * the gateway, and each environment enables them separately, so a stream is
+ * declared per chain rather than assumed.
+ *
+ * Where it is enabled, the stream is the primary transport for status waits and
+ * HTTP reads become the fallback: a wait subscribes, gives the stream
+ * `execution.streamSettleMs` to deliver, and polls only while the stream is not
+ * delivering. HTTP status reads stay available whether or not a stream is
+ * declared.
+ */
+export interface SymmioGaslessStatusStreamConfig {
+  /**
+   * Whether this deployment serves the status WebSocket. Set it to `true` only
+   * once the operators confirm streams for this environment and protocol
+   * instance. A staging confirmation does not cover production.
+   */
+  enabled: boolean;
+  /**
+   * The gateway's `https://` origin, used to locate the stream when `url` is a
+   * proxy root, because a proxy that forwards HTTP cannot be assumed to forward
+   * WebSockets. Omit it for the gateway `url` forms, whose stream endpoint
+   * derives from `url` itself.
+   */
+  origin?: string;
+}
+
+/**
+ * Chain-level configuration for the GaslessQ relayer service.
+ *
+ * GaslessQ relays user-signed InstantLayer operations so account actions need
+ * no native gas: the relayer broadcasts and pays, and the **GaslessLayer**
+ * contract charges an operational fee from the user's SYMMIO collateral in the
+ * same atomic transaction. Optional and chain-level, like `listing`: present
+ * only on perps-core (`"0.8.6"`) chains with a GaslessLayer deployment.
+ * Resolve it with `resolveGaslessService` / gate on `supportsGaslessService`.
+ *
+ * The gateway serves anonymous clients by default, so a browser app can call it
+ * directly with no `apiKey`, as long as the deployment allows the app's Origin
+ * and has not disabled anonymous access.
+ */
+export interface SymmioGaslessConfig {
+  /**
+   * Where the SDK reaches the GaslessQ gateway. One of:
+   *
+   * - the gateway **origin** (`https://host`, no path) with `protocolInstance`,
+   *   the recommended form. The SDK derives
+   *   `/v1/instances/{protocolInstance}/{operations|deposits}`.
+   * - an **instance root** (`…/v1/instances/<protocol-instance>`). The SDK
+   *   appends `/{service}`.
+   * - an **instance-pinned service base**
+   *   (`…/v1/instances/<protocol-instance>/operations` or `…/deposits`), used
+   *   as-is and for that one service only.
+   * - any other path, absolute or relative, is a **proxy root** (for example a
+   *   server-side proxy at `/api/gasless`). The SDK appends `/{service}`.
+   *
+   * The instance-less `/v1/operations` and `/v1/deposits` compatibility routes
+   * are rejected with `GASLESS_URL_LEGACY_ROUTE`: the gateway is retiring them,
+   * and they pin no instance to verify responses against. A query string, a
+   * fragment, credentials (`user:password@`) or a non-HTTP(S) scheme is
+   * rejected with `GASLESS_URL_INVALID`.
+   */
+  url: string;
+  /**
+   * Protocol-instance key selecting the deployment at the gateway
+   * (`"<protocol-instance>"`, from the deployment handoff). Staging and
+   * production can share a chain id, so the key, not the chain, picks the
+   * contracts.
+   *
+   * Required with an origin `url` (`GASLESS_PROTOCOL_INSTANCE_REQUIRED`). With
+   * an instance root or service base it may be omitted, but when given it must
+   * equal the instance the path pins (`GASLESS_PROTOCOL_INSTANCE_CONFLICT`).
+   * With a proxy root it is the instance successful responses are checked
+   * against, whenever the proxy forwards the `X-GasLessQ-Protocol-Instance`
+   * header.
+   */
+  protocolInstance?: string;
+  /**
+   * The GaslessLayer proxy address — the operational-fee charger and the
+   * source of every gasless read (wallet addresses, deposit policy, fee
+   * quotes, nonces). A deployment fact with **no runtime discovery**: update it
+   * on every gateway redeploy. It must run the multi-wallet GaslessLayer
+   * interface (`walletId`-scoped reads, `previewFeeQuote`); a proxy that has not
+   * been upgraded to it is unsupported, and its fee quote throws
+   * `GASLESS_LAYER_INTERFACE_UNSUPPORTED`.
+   */
+  gaslessLayerAddress: Address;
+  /**
+   * Optional partner key, sent as `Authorization: Bearer <key>`. Omit it to use
+   * the gateway's anonymous profile, which is on by default: 10 requests per
+   * second per caller IP and protocol instance, shared across operations and
+   * deposits, with no `Authorization` header sent at all. Where anonymous access
+   * is on, a key only raises the gateway limits. A deployment can turn it off,
+   * and then answers keyless requests with `401`, so a key is required there. A
+   * key must be authorized for the protocol instance and service it calls, and
+   * it changes neither fees, wallet selection nor signatures.
+   *
+   * Meant for servers and backend-for-frontend proxies. **Never ship a key in a
+   * browser bundle**, where anyone can read it. An invalid, disabled or
+   * unauthorized key is rejected (`401` / `403`) and never falls back to
+   * anonymous access. Errors the SDK throws never carry the key.
+   */
+  apiKey?: string;
+  /**
+   * Status-stream availability for this deployment. Omitted, the deployment is
+   * treated as serving no stream.
+   */
+  statusStream?: SymmioGaslessStatusStreamConfig;
+  /** Transparent execution-mode defaults for existing contract writes. */
+  execution?: GaslessExecutionConfig;
+}
+
+/**
  * The perps-core contracts generation a chain's deployment runs.
  *
  * A **deployment fact, declared per chain** — it is not probed at runtime (the
@@ -392,4 +587,10 @@ export interface SymmioChainConfig {
    * resolve it with `resolveInventoryService`.
    */
   inventory?: SymmioInventoryConfig;
+  /**
+   * Optional GaslessQ relayer service. Set on perps-core (`"0.8.6"`) chains
+   * with a GaslessLayer deployment; omitted elsewhere. Resolve it with
+   * `resolveGaslessService` / gate on `supportsGaslessService`.
+   */
+  gasless?: SymmioGaslessConfig;
 }

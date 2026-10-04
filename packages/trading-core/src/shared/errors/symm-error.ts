@@ -1,3 +1,7 @@
+import type { AxiosError } from "axios";
+import { readHttpHeader } from "../utils/http-header";
+import { parseRetryAfterMs } from "./retry-after";
+
 /**
  * Broad classification of SDK errors.
  *
@@ -32,8 +36,6 @@ export class SymmError extends Error {
   }
 }
 
-import type { AxiosError } from "axios";
-
 /**
  * Error class for HTTP/API failures from solver or other REST endpoints.
  *
@@ -63,6 +65,18 @@ export class SymmApiError extends SymmError {
   /** HTTP method (e.g., "GET", "POST"). */
   readonly method: string;
 
+  /**
+   * How long the server asked the client to wait before retrying, in
+   * milliseconds, parsed from a `Retry-After` response header (delay-seconds or
+   * an HTTP-date). `null` when the response carried no usable header, or when
+   * there was no response at all.
+   *
+   * A cross-origin browser only sees `Retry-After` when the server lists it in
+   * `Access-Control-Expose-Headers`, so `null` means "unknown", not "retry
+   * immediately". Back off anyway, e.g. at least one second plus jitter.
+   */
+  readonly retryAfterMs: number | null;
+
   constructor(options: {
     code: string;
     message: string;
@@ -71,6 +85,8 @@ export class SymmApiError extends SymmError {
     responseData?: unknown;
     url: string;
     method: string;
+    /** Retry delay in ms from `Retry-After`. Defaults to `null`. */
+    retryAfterMs?: number | null;
     cause?: Error;
   }) {
     super("api", options.code, options.message, { cause: options.cause });
@@ -79,16 +95,22 @@ export class SymmApiError extends SymmError {
     this.responseData = options.responseData;
     this.url = options.url;
     this.method = options.method;
+    this.retryAfterMs = options.retryAfterMs ?? null;
   }
 
   /**
    * Build a `SymmApiError` from an axios error.
    *
-   * Pulls `status`, `statusText`, `url`, `method`, and `responseData` off the
-   * axios error and keeps the original axios error as `cause`. The composed
-   * message is `"<code>: <axios message> (<METHOD> <URL> → <status> <statusText>)"`
-   * so a single log line carries the code, original message, and request
+   * Pulls `status`, `statusText`, `url`, `method`, `responseData` and
+   * `retryAfterMs` off the axios error and keeps the original axios error as
+   * `cause`. The composed message is
+   * `"<code>: <axios message> (<METHOD> <URL> → <status> <statusText>)"` so a
+   * single log line carries the code, original message, and request
    * coordinates.
+   *
+   * The axios error keeps its request config, headers and body included, so
+   * redact `cause` before forwarding it to third-party logging when the request
+   * carried a credential.
    *
    * Use inside an action's `catch` after re-throwing any pre-existing
    * `SymmError`:
@@ -123,13 +145,34 @@ export class SymmApiError extends SymmError {
 
     return new SymmApiError({
       code: options.code,
-      message: `${options.code}: ${err.message} (${method} ${url} → ${status} ${statusText})`,
+      message: formatApiErrorMessage({ code: options.code, message: err.message, method, url, status, statusText }),
       status,
       statusText,
       responseData: err.response?.data,
       url,
       method,
+      retryAfterMs: parseRetryAfterMs(readHttpHeader(err.response?.headers, "retry-after")),
       cause: err,
     });
   }
+}
+
+/**
+ * Compose the one-line message {@link SymmApiError.fromAxios} gives an HTTP
+ * failure: `"<code>: <message> (<METHOD> <URL> → <status> <statusText>)"`.
+ *
+ * @param parts - The SDK code, the transport's own message and the request coordinates.
+ * @returns The composed message.
+ *
+ * @internal
+ */
+export function formatApiErrorMessage(parts: {
+  code: string;
+  message: string;
+  method: string;
+  url: string;
+  status: number;
+  statusText: string;
+}): string {
+  return `${parts.code}: ${parts.message} (${parts.method} ${parts.url} → ${parts.status} ${parts.statusText})`;
 }

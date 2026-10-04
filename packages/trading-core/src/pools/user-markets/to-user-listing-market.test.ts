@@ -34,6 +34,7 @@ function makeRow(overrides: Partial<UserMarketSearchItem> = {}): UserMarketSearc
     open_interest: "52811628682812151810",
     listing_time: 1772715579,
     market_status: MarketStatus.listed,
+    is_locked: false,
     user_deposit: "5000000000000000000",
     user_share_percentage: 12.5,
     user_revenue: "250000000000000000",

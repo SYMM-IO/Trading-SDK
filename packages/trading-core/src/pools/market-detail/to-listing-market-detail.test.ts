@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ListingDepositChainId, ListingMarketStatus, PoolPositionSide } from "../types";
+import { ListingDepositChainId, ListingMarketStatus, MarketLockReason, PoolPositionSide } from "../types";
 import { MarketStatus, type GetMarketResponseSchema } from "../types/generated/listing-backend";
 import { toListingMarketDetail } from "./to-listing-market-detail";
 
@@ -96,5 +96,37 @@ describe("toListingMarketDetail", () => {
   it("keeps a delisted pool's zero tvl distinct from an absent one", () => {
     expect(toListingMarketDetail(makeRow({ tvl: "0" })).tvl).toBe(0n);
     expect(toListingMarketDetail(makeRow({ tvl: null })).tvl).toBeNull();
+  });
+
+  it("reports a locked pool's flag and reasons next to an unchanged market_status", () => {
+    const detail = toListingMarketDetail(makeRow({ is_locked: true, lock_reasons: ["LOW_TVL"] }));
+
+    expect(detail.isLocked).toBe(true);
+    expect(detail.lockReasons).toEqual([MarketLockReason.LOW_TVL]);
+    expect(detail.marketStatus).toBe(ListingMarketStatus.LISTED);
+  });
+
+  it("reports an unlocked pool as false with no reasons", () => {
+    const detail = toListingMarketDetail(makeRow({ is_locked: false, lock_reasons: [] }));
+
+    expect(detail.isLocked).toBe(false);
+    expect(detail.lockReasons).toEqual([]);
+  });
+
+  it("treats an absent or null lock state as unlocked", () => {
+    /** A delisted pool returns a null lock state, per the backend's endpoint docs. */
+    const nulled = toListingMarketDetail(makeRow({ is_locked: null, lock_reasons: null }));
+    expect(nulled.isLocked).toBe(false);
+    expect(nulled.lockReasons).toEqual([]);
+
+    const omitted = toListingMarketDetail(makeRow());
+    expect(omitted.isLocked).toBe(false);
+    expect(omitted.lockReasons).toEqual([]);
+  });
+
+  it("folds a reason this release does not know into UNKNOWN instead of throwing", () => {
+    const detail = toListingMarketDetail(makeRow({ is_locked: true, lock_reasons: ["MANUAL", "SOLAR_FLARE"] }));
+
+    expect(detail.lockReasons).toEqual([MarketLockReason.MANUAL, MarketLockReason.UNKNOWN]);
   });
 });

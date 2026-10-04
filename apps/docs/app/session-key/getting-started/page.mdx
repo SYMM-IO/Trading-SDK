@@ -44,10 +44,23 @@ const { signature } = await manager.sign("hello");
 A fresh session key can sign, but the protocol won't honor its signatures until the owner **delegates** to it once — a single wallet popup via `grantDelegation` (on the InstantLayer). After that, trades sign silently until the delegation expires or is revoked.
 
 ```ts
-import { grantDelegation } from "@symmio/trading-core";
+import { getSessionKeySelectors, grantDelegation } from "@symmio/trading-core";
 
-await grantDelegation(config, { sessionKey: state.address });
+await grantDelegation(config, {
+  account: { addr: subAccount, isPartyB: false },
+  delegatedSigner: state.publicAddress,
+  selectors: getSessionKeySelectors(config, { chainId }),
+  expiryTimestamp: BigInt(Math.floor(expiresAtMs / 1000)),
+  gasless: true,
+});
 ```
+
+`gasless: true` relays the grant, so onboarding costs no native gas. Derive `expiryTimestamp` from the key's own
+`expiresAt` — a delegation that outlives the key leaves stale authority on-chain, and one that expires first breaks the
+key silently.
+
+Because the contract enforces that `grantDelegation` is owner-only, this is the **only** wallet prompt the key ever
+costs. Every write covered by those selectors is promptless afterwards.
 
 See [How it works](/session-key/how-it-works) for the full delegation flow and key lifecycle.
 

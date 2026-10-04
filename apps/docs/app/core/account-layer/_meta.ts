@@ -9,6 +9,8 @@ export default {
   "deposit-and-allocate-for-account": "depositAndAllocateForAccount",
   allocate: "allocate",
   deallocate: "deallocate",
+  "create-sub-accounts": "createSubAccounts",
+  "delete-sub-account": "deleteSubAccount",
   "edit-account-name": "editAccountName",
   "-- types": { type: "separator", title: "Types" },
   "sub-account-isolation-type": "SubAccountIsolationType",

@@ -9,6 +9,7 @@ import * as accountLayer from "@symmio/trading-react/account-layer";
 import * as candles from "@symmio/trading-react/candles";
 import * as errors from "@symmio/trading-react/errors";
 import * as fees from "@symmio/trading-react/fees";
+import * as gasless from "@symmio/trading-react/gasless";
 import * as instantLayer from "@symmio/trading-react/instant-layer";
 import * as inventory from "@symmio/trading-react/inventory";
 import * as markets from "@symmio/trading-react/markets";
@@ -34,4 +35,5 @@ void [
   orderbook,
   inventory,
   pools,
+  gasless,
 ];

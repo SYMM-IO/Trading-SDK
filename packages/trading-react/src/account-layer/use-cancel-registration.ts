@@ -56,11 +56,7 @@ export function useCancelRegistration(
     mutationFn: async (variables) => {
       try {
         const resolvedChainId = variables.chainId ?? chainId;
-        const hash = await base.mutationFn({
-          affiliate: variables.affiliate,
-          simulateBeforeWrite: variables.simulateBeforeWrite,
-          chainId: resolvedChainId,
-        });
+        const hash = await base.mutationFn({ ...variables, chainId: resolvedChainId });
         return resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,

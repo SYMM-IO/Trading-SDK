@@ -1,4 +1,9 @@
-import { LISTING_VALUE_DECIMALS, ListingDepositChainId, ListingMarketStatus } from "@symmio/trading-core";
+import {
+  LISTING_VALUE_DECIMALS,
+  ListingDepositChainId,
+  ListingMarketStatus,
+  MarketLockReason,
+} from "@symmio/trading-core";
 import { formatCompact, formatCompactCurrency, formatPercentage } from "@symmio/utils";
 import { formatUnits } from "@symmio/utils/decimal";
 
@@ -135,6 +140,22 @@ export const LISTING_STATUS_DISPLAY: Record<
   [ListingMarketStatus.REJECTED]: { label: "Rejected", variant: "destructive" },
   [ListingMarketStatus.DELISTED]: { label: "Delisted", variant: "outline" },
 };
+
+/** Human label for each reason the inventory service can lock a pool for. */
+export const MARKET_LOCK_REASON_LABELS: Record<MarketLockReason, string> = {
+  [MarketLockReason.LIQUIDITY_EXPOSURE]: "Liquidity exposure",
+  [MarketLockReason.LOW_TVL]: "Low TVL",
+  [MarketLockReason.PRICE_UNAVAILABLE]: "Price unavailable",
+  [MarketLockReason.SHORT_CIRCUIT]: "Short circuit",
+  [MarketLockReason.MANUAL]: "Locked by operator",
+  [MarketLockReason.UNKNOWN]: "Unknown reason",
+};
+
+/** Comma-joined labels for a pool's lock reasons, or {@link ABSENT} when it reported none. */
+export function formatLockReasons(reasons: readonly MarketLockReason[]): string {
+  if (reasons.length === 0) return ABSENT;
+  return reasons.map((reason) => MARKET_LOCK_REASON_LABELS[reason]).join(", ");
+}
 
 /**
  * Shorten a contract address for display. Handles both 0x EVM addresses and the
