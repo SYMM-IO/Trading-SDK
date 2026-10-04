@@ -48,7 +48,7 @@ That makes summing the rows correct, and makes reading a single row as "the quot
 
 ## Returns
 
-`{ rows: QuoteHistoryRow[] }` — the same row type as [`getQuoteHistory`](/core/quotes/get-quote-history), decoded by the same mapper, so a history table can render either read without branching.
+`{ rows: QuoteHistoryRow[] }` — the same row type as [`getQuoteHistory`](/core/quotes/get-quote-history), decoded by the same mapper, so a history table can render either read without branching. That includes the per-event [solver fees](/core/subgraph/get-quote-history#solver-fees) (`solverFee`, `staticSolverFee`, `totalSolverFee`).
 
 ## Throws
 

@@ -126,4 +126,36 @@ describe("toQuoteHistoryRow", () => {
     expect(row.partyB).toBeNull();
     expect(row.subAccount).toBeNull();
   });
+
+  it("decodes the event's solver fees off the metadata snapshot", () => {
+    const row = toQuoteHistoryRow(
+      makeRow({
+        type: "FILL_CLOSE",
+        metadata: JSON.stringify({
+          amount: "300970508000000000000",
+          closePrice: "7299745129845081",
+          solverFees: [
+            ["SOLVER_FEE", "659102399999999"],
+            ["STATIC_SOLVER_FEE", "100000000000000000"],
+          ],
+        }),
+      }),
+    );
+
+    expect(row.solverFee).toBe(659102399999999n);
+    expect(row.staticSolverFee).toBe(100000000000000000n);
+    expect(row.totalSolverFee).toBe(100659102399999999n);
+  });
+
+  it("leaves the solver fees null on an event that records none", () => {
+    // Liquidation and ADL events, and deployments indexed before the fee was
+    // recorded, carry no `solverFees` key at all.
+    const row = toQuoteHistoryRow(
+      makeRow({ type: "LIQUIDATE_PARTY_A", metadata: JSON.stringify({ amount: "1", closePrice: "2" }) }),
+    );
+
+    expect(row.solverFee).toBeNull();
+    expect(row.staticSolverFee).toBeNull();
+    expect(row.totalSolverFee).toBeNull();
+  });
 });
