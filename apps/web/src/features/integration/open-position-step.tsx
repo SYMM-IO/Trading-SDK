@@ -3,7 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { formatUsd, WEI_DECIMALS } from "@/lib/format";
-import type { MarketNotionalCap, SolverId } from "@symmio/trading-core";
+import type { FullBalanceFunding, MarketNotionalCap, SolverId } from "@symmio/trading-core";
 import {
   calculateTradeParams,
   isolationTypeForSide,
@@ -13,7 +13,6 @@ import {
   TpSlPriceType,
   useAccountBalanceInfo,
   useAccountBalanceOf,
-  useAccountUpnl,
   useAvailableInstantOpenMargin,
   useFeeForUser,
   useInstantOpenWithTpSl,
@@ -23,6 +22,7 @@ import {
   useMarkets,
   useNotionalCapBySymbolId,
   usePredictedNextVirtualAccount,
+  usePrepareInstantOpenParams,
   usePriceByName,
   useSubAccount,
   useSupportsLimitOrder,
@@ -35,9 +35,9 @@ import { Input } from "@symmio/ui/components/input";
 import { MarketSelect, type MarketSelectItem } from "@symmio/ui/components/market-select";
 import { Slider } from "@symmio/ui/components/slider";
 import { Spinner } from "@symmio/ui/components/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
 import { cn } from "@symmio/ui/lib/utils";
 import { formatCompact, formatWithCommas, shortenAddress } from "@symmio/utils";
+import { toDecimal } from "@symmio/utils/decimal";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits, type Address } from "viem";
 import { EstimatedPricePreview } from "./estimated-price-preview";
@@ -76,6 +76,8 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
   // the available balance into per-market Virtual Accounts.
   const subAccountQuery = useSubAccount({ account: subAccount, query: { staleTime: Infinity } });
   const isCrossMargin = subAccountQuery.data?.isolationType === SubAccountIsolationType.CUSTOM;
+  // Full-balance funding is lowcap (Enigma) only — it rides the per-position VA.
+  const isEnigmaSolver = config.getSolver({ solverId: resolvedSolverId }).id === "enigma";
 
   const marketsQuery = useMarkets({ solverId: resolvedSolverId });
 
@@ -96,6 +98,13 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
   const [orderType, setOrderType] = useState<"market" | "limit">("market");
   const [limitPrice, setLimitPrice] = useState("");
   const isLimit = supportsLimit && orderType === "limit";
+  // Full-balance mode: deploy the ENTIRE sub-account balance into the VA and
+  // let the SDK size the quantity down to fit it. Only meaningful on the
+  // lowcap (Enigma) VA path with a MARKET order; the toggle state survives a
+  // temporary switch to limit/cross but stays inert until eligible again.
+  const [fullBalanceOn, setFullBalanceOn] = useState(false);
+  const canUseFullBalance = !isCrossMargin && isEnigmaSolver && !isLimit;
+  const isFullBalance = fullBalanceOn && canUseFullBalance;
 
   const selectedMarket = useMemo(
     () => markets.find((market) => String(market.symbolId) === marketId),
@@ -108,6 +117,7 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
   // Market needs a valid slippage; limit needs a valid resting price instead.
   const inputsReady = isLimit ? validLimitPrice !== undefined : validSlippage !== undefined;
   const marketName = selectedMarket?.name;
+  const positionTypeForSide = side === "long" ? PositionType.LONG : PositionType.SHORT;
 
   /** Keep `leverage` (and its inline draft) within the selected market's max. */
   useEffect(() => {
@@ -128,9 +138,6 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     live: true,
     query: { enabled: isCrossMargin },
   });
-  // Same instance the margin hook composes internally — the query cache and
-  // price socket dedupe it; here it feeds the hover breakdown's uPnL row.
-  const accountUpnl = useAccountUpnl({ account: subAccount, solverId: resolvedSolverId, enabled: isCrossMargin });
   // Provider-agnostic mark price: Enigma's service on lowcap chains, Binance on majors.
   const priceQuery = usePriceByName({
     name: marketName,
@@ -151,40 +158,19 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     symbolId: Number(selectedMarket?.symbolId ?? 0),
   });
 
-  /**
-   * Available margin for an instant open.
-   *
-   * Formula:
-   *   available = balance
-   *             × max(0, 1 − slippageFactor)
-   *             × max(0, 1 − leverage × (openFee + closeFee))
-   * where `slippageFactor = slippage` on SHORT and `0` on LONG.
-   *
-   * Two reasons the raw balance is shaved:
-   *
-   * 1. **Fees.** Open + close fees are charged on the leveraged notional.
-   *    Deduct `leverage × (openFee + closeFee)` of the balance so the request
-   *    still fits inside the deposit after fees clear.
-   *
-   * 2. **Slippage buffer (SHORT only).** Quantity is sized off
-   *    `requestOpenPrice = markPrice × (1 ± slippage)`, but the solver may
-   *    fill at a price closer to (or worse than) `markPrice`. For SHORT,
-   *    `requestOpenPrice = markPrice × (1 − s)` is *below* mark, so any fill
-   *    at a higher price inflates the actual notional by up to
-   *    `markPrice / requestOpenPrice = 1 / (1 − s)`. To guarantee the user
-   *    has enough deposit to cover the worst-case fill, cap the usable
-   *    balance at `balance × (1 − s)`. LONG sets the request *above* mark, so
-   *    any fill at the request price or below deflates notional — the user
-   *    naturally has a buffer; no extra cap needed.
-   *
-   * Numeric notes: account-layer balance is 1e18-scaled regardless of
-   * collateral token decimals; fee rates are 18-decimal fixed-point. All math
-   * stays in BigInt for exactness.
-   */
-  const slippageFractionWei = useMemo<bigint | undefined>(() => {
-    if (validSlippage === undefined) return undefined;
-    return BigInt(Math.round(validSlippage * 1e16));
-  }, [validSlippage]);
+  // Full-balance mode deploys the RAW sub-account balance — NOT the
+  // fee/slippage-shaved `availableMarginWei` — because the SDK sizes the
+  // quantity down so locks + fees + settlement fit inside the whole balance.
+  const rawBalanceWei = balanceQuery.data;
+  const fund = useMemo<FullBalanceFunding | undefined>(() => {
+    if (!isFullBalance || rawBalanceWei === undefined) return undefined;
+    return { mode: "full-balance", balance: formatUnits(rawBalanceWei, WEI_DECIMALS) };
+  }, [isFullBalance, rawBalanceWei]);
+
+  const availableBalance =
+    canUseFullBalance && !isFullBalance && rawBalanceWei !== undefined
+      ? formatUnits(rawBalanceWei, WEI_DECIMALS)
+      : undefined;
 
   // One hook for both margin models: the fee/slippage-shaved available balance
   // (VA isolations), or the cross-margin availableForOrder (allocated − locked −
@@ -206,7 +192,11 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
 
   const availableMarginDecimal =
     availableMarginWei !== undefined ? Number(formatUnits(availableMarginWei, WEI_DECIMALS)) : undefined;
+  // Lowcap market orders use the SDK funding check and automatic fallback.
+  // Other order types retain the existing typed-margin cap.
   const exceedsAvailable =
+    !canUseFullBalance &&
+    !isFullBalance &&
     validInitialMargin !== undefined &&
     availableMarginDecimal !== undefined &&
     validInitialMargin > availableMarginDecimal;
@@ -215,23 +205,69 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
   // the market and preview the locked-margin breakdown to the user. Returns
   // `null` when any required input is missing or invalid.
   const cachedMarkPrice = priceQuery.markPrice ?? undefined;
-  // A limit order sizes off its resting price with no slippage; a market order
-  // sizes off the mark price with the slippage band.
-  const sizingPrice = isLimit ? limitPrice : cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined;
-  const tradeParams = useMemo(() => {
+
+  // Market (instant-open) quote preview: run the SDK's `prepareInstantOpenParams`
+  // as a read, so the previewed order/lockedParam are bit-for-bit the params the
+  // submit signs — no local recomputation to drift, and the full-balance rescale
+  // + lot snap come for free. `estimatedOpenPrice` is fed back to the submit so
+  // `margin.amount` (its settlement leg tracks the estimate) matches too.
+  const prepareQuery = usePrepareInstantOpenParams({
+    subAccountAddress: subAccount,
+    from: sessionKey,
+    solverId: resolvedSolverId,
+    market: { id: selectedMarket ? Number(selectedMarket.symbolId ?? 0) : 0 },
+    positionType: positionTypeForSide,
+    initialMargin: isFullBalance ? undefined : validInitialMargin !== undefined ? initialMargin : undefined,
+    fund,
+    availableBalance,
+    leverage,
+    slippage: validSlippage,
+    markPrice: cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined,
+    query: { enabled: !isLimit && selectedMarket !== undefined && (!canUseFullBalance || rawBalanceWei !== undefined) },
+  });
+
+  const prepareError = prepareQuery.validationError ?? prepareQuery.error;
+  const automaticallyAdjusted =
+    !isFullBalance && prepareQuery.isReady && prepareQuery.data?.fundingMode === "full-balance";
+
+  // Reshape the prepared wei params into the decimal shape the preview + the
+  // constraint check consume — identical fields to `calculateTradeParams`.
+  const marketTradeParams = useMemo(() => {
+    const prepared = prepareQuery.data;
+    if (prepared === undefined) return null;
+    const requestedOpenPrice = formatUnits(prepared.order.price, WEI_DECIMALS);
+    const quantity = formatUnits(prepared.order.quantity, WEI_DECIMALS);
+    const notional = toDecimal(quantity).times(requestedOpenPrice).toString();
+    return {
+      requestedOpenPrice,
+      quantity,
+      quantityBasic: toDecimal(quantity).div(leverage).toString(),
+      notional,
+      notionalBasic: toDecimal(notional).div(leverage).toString(),
+      cva: formatUnits(prepared.lockedParam.cva, WEI_DECIMALS),
+      lf: formatUnits(prepared.lockedParam.lf, WEI_DECIMALS),
+      partyAmm: formatUnits(prepared.lockedParam.partyAmm, WEI_DECIMALS),
+      partyBmm: formatUnits(prepared.lockedParam.partyBmm, WEI_DECIMALS),
+    };
+  }, [prepareQuery.data, leverage]);
+
+  // Limit orders take a different SDK path (`prepareLimitOpenParams`, majors
+  // only, typed margin), so their preview is computed locally off the resting
+  // price with no slippage band.
+  const limitTradeParams = useMemo(() => {
     if (
+      !isLimit ||
       selectedMarket === undefined ||
-      sizingPrice === undefined ||
+      limitPrice === "" ||
       lockedParamsQuery.data === undefined ||
-      validInitialMargin === undefined ||
-      !inputsReady
+      validInitialMargin === undefined
     ) {
       return null;
     }
     return calculateTradeParams({
-      markPrice: sizingPrice,
-      slippage: isLimit ? 0 : validSlippage!,
-      positionType: side === "long" ? PositionType.LONG : PositionType.SHORT,
+      markPrice: limitPrice,
+      slippage: 0,
+      positionType: positionTypeForSide,
       userInput: initialMargin,
       inputField: "PRICE",
       leverage,
@@ -243,17 +279,17 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
       partyBmmPercent: lockedParamsQuery.data.partyBmm,
     });
   }, [
+    isLimit,
     selectedMarket,
-    sizingPrice,
+    limitPrice,
     lockedParamsQuery.data,
     validInitialMargin,
-    inputsReady,
-    isLimit,
-    validSlippage,
-    side,
     initialMargin,
     leverage,
+    positionTypeForSide,
   ]);
+
+  const tradeParams = isLimit ? limitTradeParams : marketTradeParams;
 
   // Pre-submit quote validation: check the candidate quote against the
   // market's published constraints. Empty when validation can't run yet;
@@ -284,7 +320,6 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
   const [tpPriceType, setTpPriceType] = useState<TpSlPriceType>("markPrice");
   const [slPriceType, setSlPriceType] = useState<TpSlPriceType>("markPrice");
 
-  const positionTypeForSide = side === "long" ? PositionType.LONG : PositionType.SHORT;
   const marketSymbolId = selectedMarket ? BigInt(selectedMarket.symbolId ?? 0) : undefined;
   // Virtual accounts are an Enigma concept — Rasa opens directly on the sub-account.
   const predictedVaQuery = usePredictedNextVirtualAccount({
@@ -294,10 +329,19 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     query: { enabled: !isCrossMargin && marketSymbolId !== undefined && marketSymbolId > 0n },
   });
 
+  // Full-balance mode gates on the raw balance; the typed margin field is
+  // disabled and does not gate. The quote itself must also be prepared before a
+  // market submit — so the TP/SL leg rides the SDK-sized quantity and the sent
+  // quote equals the preview the user is looking at.
+  const fundingReady = isFullBalance
+    ? rawBalanceWei !== undefined && rawBalanceWei > 0n
+    : validInitialMargin !== undefined;
+  const quoteReady = isLimit ? limitTradeParams !== null : prepareQuery.isReady;
   const canSubmit = Boolean(
     selectedMarket &&
     marketName &&
-    validInitialMargin !== undefined &&
+    fundingReady &&
+    quoteReady &&
     inputsReady &&
     !exceedsAvailable &&
     quoteViolations.length === 0 &&
@@ -331,15 +375,18 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     const hasSl = slPrice.length > 0;
     const wantsTpSl = hasTp || hasSl;
     const virtualAccount = predictedVaQuery.data;
+    // The TP/SL leg rides the exact prepared quantity (`canSubmit` guarantees the
+    // quote is loaded) — the same SDK-sized value the open submits, both modes.
+    const tpslQuantity = tradeParams?.quantity;
     const tpsl =
-      wantsTpSl && virtualAccount && tradeParams
+      wantsTpSl && virtualAccount && tpslQuantity !== undefined
         ? {
             from: sessionKey,
             virtualAccount,
             subAccount,
             symbolId: BigInt(selectedMarket.symbolId ?? 0),
             positionType: positionTypeForSide,
-            quantity: tradeParams.quantity,
+            quantity: tpslQuantity,
             pricePrecision: Number(selectedMarket.pricePrecision ?? 4),
             tp: hasTp ? { triggerPrice: tpPrice, priceType: tpPriceType } : undefined,
             sl: hasSl ? { triggerPrice: slPrice, priceType: slPriceType } : undefined,
@@ -356,12 +403,18 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
         quantityPrecision: Number(selectedMarket.quantityPrecision ?? 0),
       },
       positionType: positionTypeForSide,
-      initialMargin,
+      // The funding one-of: the whole balance (`fund`) or the typed margin.
+      initialMargin: isFullBalance ? undefined : initialMargin,
+      fund,
+      availableBalance,
       leverage,
       slippage: validSlippage!,
       lockedParamPercent: lockedParamsQuery.data,
       markPrice: cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined,
       feeRates: feeQuery.data,
+      // Freeze the preview's estimate so the send provisions settlement at the
+      // same fill — makes `margin.amount` match the preview bit-for-bit.
+      estimatedOpenPrice: prepareQuery.estimatedOpenPrice,
       tpsl,
     });
   }
@@ -415,32 +468,11 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
             balanceLoading={isCrossMargin ? balanceInfoQuery.isLoading : balanceQuery.isLoading}
             balanceError={isCrossMargin ? balanceInfoQuery.error : balanceQuery.error}
             balanceWei={isCrossMargin ? balanceInfoQuery.data?.allocatedBalance : balanceQuery.data}
-            isCrossMargin={isCrossMargin}
-            showSpendBuffer={isCrossMargin && config.getSolver({ solverId: resolvedSolverId }).id === "rasa"}
-            lockedWei={
-              balanceInfoQuery.data
-                ? balanceInfoQuery.data.lockedCVA +
-                  balanceInfoQuery.data.lockedLF +
-                  balanceInfoQuery.data.lockedPartyAMM
-                : undefined
-            }
-            pendingLockedWei={
-              balanceInfoQuery.data
-                ? balanceInfoQuery.data.pendingLockedCVA +
-                  balanceInfoQuery.data.pendingLockedLF +
-                  balanceInfoQuery.data.pendingLockedPartyAMM +
-                  balanceInfoQuery.data.pendingLockedPartyBMM
-                : undefined
-            }
-            upnlWei={accountUpnl.upnl}
-            openFeeRate={feeQuery.data?.openFee}
-            closeFeeRate={feeQuery.data?.closeFee}
-            leverage={leverage}
-            side={side}
-            slippagePct={validSlippage}
-            slippageFractionWei={slippageFractionWei}
             availableMarginWei={availableMarginWei}
-            availableDecimal={availableMarginDecimal}
+            isCrossMargin={isCrossMargin}
+            showFullBalance={canUseFullBalance}
+            fullBalanceOn={isFullBalance}
+            onToggleFullBalance={() => setFullBalanceOn((on) => !on)}
             idPrefix={idPrefix}
             onMax={() => {
               if (availableMarginWei === undefined || availableMarginWei === 0n) return;
@@ -449,18 +481,25 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
           />
         }
         hint={
-          exceedsAvailable
-            ? "Exceeds available margin after fees."
-            : "Collateral committed to the position. Fees scale with leverage."
+          isFullBalance
+            ? "Deploys the entire balance — the SDK sizes the quantity down so locks + fees fit inside it."
+            : automaticallyAdjusted
+              ? "Position adjusted to fit available balance, including fees."
+              : exceedsAvailable
+                ? "Exceeds available margin after fees."
+                : "Collateral committed to the position. Fees scale with leverage."
         }
       >
         <Input
           id={`${idPrefix}-margin`}
-          value={initialMargin}
+          value={isFullBalance ? (rawBalanceWei !== undefined ? formatUsd(rawBalanceWei) : "") : initialMargin}
           onChange={(event) => setInitialMargin(event.target.value)}
           placeholder="0.00"
           inputMode="decimal"
-          aria-invalid={(initialMargin.length > 0 && validInitialMargin === undefined) || exceedsAvailable}
+          disabled={isFullBalance}
+          aria-invalid={
+            !isFullBalance && ((initialMargin.length > 0 && validInitialMargin === undefined) || exceedsAvailable)
+          }
           data-testid={`${idPrefix}-margin`}
         />
       </Field>
@@ -632,12 +671,18 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
           marketId={selectedMarket ? Number(selectedMarket.symbolId ?? 0) : undefined}
           positionType={positionTypeForSide}
           initialMargin={initialMargin}
+          fund={fund}
+          availableBalance={availableBalance}
+          estimatedOpenPrice={prepareQuery.estimatedOpenPrice}
+          preparationReady={prepareQuery.isReady}
           leverage={leverage}
           slippage={validSlippage}
           markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
           idPrefix={idPrefix}
         />
       ) : null}
+
+      {!isLimit && prepareError ? <ResultError kind={prepareError.kind} message={prepareError.message} /> : null}
 
       {quoteViolations.length > 0 ? <QuoteViolationsPanel violations={quoteViolations} idPrefix={idPrefix} /> : null}
 
@@ -1074,45 +1119,28 @@ function AvailableMarginLabel({
   balanceLoading,
   balanceError,
   balanceWei,
-  openFeeRate,
-  closeFeeRate,
-  leverage,
-  side,
-  slippagePct,
-  slippageFractionWei,
   availableMarginWei,
-  availableDecimal,
   isCrossMargin,
-  showSpendBuffer,
-  lockedWei,
-  pendingLockedWei,
-  upnlWei,
-  idPrefix,
+  showFullBalance,
+  fullBalanceOn,
+  onToggleFullBalance,
   onMax,
+  idPrefix,
 }: {
   balanceLoading: boolean;
   balanceError: unknown;
+  /** Raw sub-account balance (VA path) — the whole deployable amount. */
   balanceWei: bigint | undefined;
-  openFeeRate: bigint | undefined;
-  closeFeeRate: bigint | undefined;
-  leverage: number;
-  side: TradeSide;
-  slippagePct: number | undefined;
-  slippageFractionWei: bigint | undefined;
+  /** availableForOrder (cross-margin) — the spendable there. */
   availableMarginWei: bigint | undefined;
-  availableDecimal: number | undefined;
-  /** Cross-margin shows the availableForOrder breakdown instead of the fee/slippage shave. */
+  /** Cross-margin shows availableForOrder; the VA path shows the full balance. */
   isCrossMargin: boolean;
-  /** Rasa-only: the 10% spend buffer applies, so the breakdown shows it. */
-  showSpendBuffer: boolean;
-  /** Cross-margin: Σ locked legs (`cva + lf + partyAmm`) from the balance snapshot, wei. */
-  lockedWei: bigint | undefined;
-  /** Cross-margin: Σ pending locked legs (all four) from the balance snapshot, wei. */
-  pendingLockedWei: bigint | undefined;
-  /** Cross-margin: the account's live SDK-computed uPnL, signed wei. */
-  upnlWei: bigint | undefined;
-  idPrefix: string;
+  /** Lowcap (Enigma) VA market orders only: the one-click full-balance deploy is available. */
+  showFullBalance: boolean;
+  fullBalanceOn: boolean;
+  onToggleFullBalance: () => void;
   onMax: () => void;
+  idPrefix: string;
 }) {
   if (balanceLoading) {
     return (
@@ -1124,7 +1152,10 @@ function AvailableMarginLabel({
   if (balanceError) {
     return <span className="text-destructive text-xs">available: unavailable</span>;
   }
-  if (availableMarginWei === undefined || availableDecimal === undefined) {
+  // VA path shows the whole balance (the full-balance deploy sizes the position
+  // to fit it); cross-margin shows its availableForOrder.
+  const displayWei = isCrossMargin ? availableMarginWei : balanceWei;
+  if (displayWei === undefined) {
     return (
       <span className="text-muted-foreground text-xs" data-testid={`${idPrefix}-available-empty`}>
         available: select a market
@@ -1132,143 +1163,48 @@ function AvailableMarginLabel({
     );
   }
 
-  // Fee impact per side in 1e18 wei: balance × leverage × rate / 1e18.
-  const ONE_E18 = 10n ** 18n;
-  const leverageBig = BigInt(leverage);
-  const openFeeImpactWei =
-    balanceWei !== undefined && openFeeRate !== undefined
-      ? (balanceWei * leverageBig * openFeeRate) / ONE_E18
-      : undefined;
-  const closeFeeImpactWei =
-    balanceWei !== undefined && closeFeeRate !== undefined
-      ? (balanceWei * leverageBig * closeFeeRate) / ONE_E18
-      : undefined;
-
-  // Slippage shaves the cap on SHORT only (see availableMarginWei comment in OpenPositionStep).
-  const showSlippageRow = side === "short" && balanceWei !== undefined && slippageFractionWei !== undefined;
-  const slippageImpactWei = showSlippageRow ? (balanceWei * slippageFractionWei) / ONE_E18 : undefined;
-
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className="text-muted-foreground inline-flex cursor-help items-center gap-2 text-xs"
-          data-testid={`${idPrefix}-available`}
+    <span
+      className="text-muted-foreground inline-flex items-center gap-2 text-xs"
+      data-testid={`${idPrefix}-available`}
+    >
+      available: <span className="text-foreground font-mono">{formatUsd(displayWei)}</span>
+      {showFullBalance ? (
+        <button
+          type="button"
+          aria-pressed={fullBalanceOn}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onToggleFullBalance();
+          }}
+          data-testid={`${idPrefix}-full-balance`}
+          className={cn(
+            "rounded px-1.5 py-0.5 text-[0.65rem] font-medium tracking-wide uppercase ring-1 transition-colors",
+            fullBalanceOn
+              ? "bg-primary/10 text-primary ring-primary/40"
+              : "text-foreground hover:bg-muted/60 ring-border/60",
+          )}
         >
-          available: <span className="text-foreground font-mono">{formatUsd(availableMarginWei)}</span>
-          <button
-            type="button"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onMax();
-            }}
-            disabled={availableMarginWei === 0n}
-            data-testid={`${idPrefix}-max`}
-            className="text-foreground hover:bg-muted/60 disabled:text-muted-foreground ring-border/60 rounded px-1.5 py-0.5 text-[0.65rem] font-medium tracking-wide uppercase ring-1 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Max
-          </button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent className="w-64 p-3" sideOffset={6}>
-        {isCrossMargin ? (
-          // Cross-margin: availableForOrder over the allocated balance. The 10%
-          // spend buffer is Rasa-specific — other cross-margin solvers spend 100%.
-          <div className="grid gap-1.5 text-xs" data-testid={`${idPrefix}-available-tooltip`}>
-            <BreakdownRow label="Allocated balance" value={balanceWei !== undefined ? formatUsd(balanceWei) : "—"} />
-            <BreakdownRow label="Locked" value={lockedWei !== undefined ? `−${formatUsd(lockedWei)}` : "—"} />
-            <BreakdownRow
-              label="Pending locked"
-              value={pendingLockedWei !== undefined ? `−${formatUsd(pendingLockedWei)}` : "—"}
-            />
-            <BreakdownRow
-              label="uPnL"
-              value={
-                upnlWei !== undefined
-                  ? `${upnlWei >= 0n ? "+" : "−"}${formatUsd(upnlWei >= 0n ? upnlWei : -upnlWei)}`
-                  : "—"
-              }
-              sub="live"
-            />
-            {showSpendBuffer ? (
-              <BreakdownRow
-                label="Rasa buffer (10%)"
-                value={`−${formatUsd(availableMarginWei / 9n)}`}
-                sub="kept unspendable"
-              />
-            ) : null}
-            <div className="border-border/60 mt-1 border-t pt-1.5">
-              <BreakdownRow label="Available" value={formatUsd(availableMarginWei)} bold />
-            </div>
-            <p className="text-muted-foreground text-[0.7rem] leading-snug">
-              available = {showSpendBuffer ? "90% × " : ""}(allocated − locked − pending ± live uPnL)
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-1.5 text-xs" data-testid={`${idPrefix}-available-tooltip`}>
-            <BreakdownRow label="Balance" value={balanceWei !== undefined ? formatUsd(balanceWei) : "—"} />
-            {showSlippageRow ? (
-              <BreakdownRow
-                label="Slippage (short)"
-                value={slippageImpactWei !== undefined ? `−${formatUsd(slippageImpactWei)}` : "—"}
-                sub={slippagePct !== undefined ? `${formatSlippagePct(slippagePct)}` : undefined}
-              />
-            ) : null}
-            <BreakdownRow
-              label={`Open fee (×${leverage})`}
-              value={openFeeImpactWei !== undefined ? `−${formatUsd(openFeeImpactWei)}` : "—"}
-              sub={openFeeRate !== undefined ? formatRatePercent(openFeeRate) : undefined}
-            />
-            <BreakdownRow
-              label={`Close fee (×${leverage})`}
-              value={closeFeeImpactWei !== undefined ? `−${formatUsd(closeFeeImpactWei)}` : "—"}
-              sub={closeFeeRate !== undefined ? formatRatePercent(closeFeeRate) : undefined}
-            />
-            <div className="border-border/60 mt-1 border-t pt-1.5">
-              <BreakdownRow label="Available" value={formatUsd(availableMarginWei)} bold />
-            </div>
-          </div>
-        )}
-      </TooltipContent>
-    </Tooltip>
+          {fullBalanceOn ? "Using full" : "Use"}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onMax();
+          }}
+          disabled={displayWei === 0n}
+          data-testid={`${idPrefix}-max`}
+          className="text-foreground hover:bg-muted/60 disabled:text-muted-foreground ring-border/60 rounded px-1.5 py-0.5 text-[0.65rem] font-medium tracking-wide uppercase ring-1 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Max
+        </button>
+      )}
+    </span>
   );
-}
-
-function BreakdownRow({
-  label,
-  value,
-  sub,
-  bold = false,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  bold?: boolean;
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="text-muted-foreground inline-flex items-baseline gap-1.5">
-        <span>{label}</span>
-        {sub ? <span className="text-[0.65rem] opacity-70">{sub}</span> : null}
-      </span>
-      <span className={cn("font-mono", bold ? "text-foreground font-medium" : "text-foreground")}>{value}</span>
-    </div>
-  );
-}
-
-/** Format an 18-decimal fixed-point rate (e.g. `5_000000000000000` = 0.5%) as a percent string. */
-function formatRatePercent(rateWei: bigint): string {
-  const percent = Number(rateWei) / 1e16; // /1e18 × 100
-  if (!Number.isFinite(percent)) return "—";
-  return `${percent.toFixed(percent < 0.01 ? 4 : 2)}%`;
-}
-
-/** Format the user's slippage input (already in percent) — caps trailing zeros. */
-function formatSlippagePct(pct: number): string {
-  if (!Number.isFinite(pct)) return "—";
-  const rounded = Math.round(pct * 100) / 100;
-  return `${rounded}%`;
 }
 
 function TradeSideControl({

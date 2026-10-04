@@ -23,6 +23,7 @@ import { QuoteEventsList } from "./quote-events-list";
 import {
   EMPTY,
   formatFixedPoint,
+  formatFullPrecision,
   formatLeverageLabel,
   formatOptionalFixedPoint,
   formatSigned,
@@ -321,6 +322,10 @@ export function QuoteDetailPanel({ quote, market, variant = "inline", onBack, te
             <DetailRow label="Closed" value={formatOptionalFixedPoint(quote.closedAmount, quantityPrecision)} />
             <DetailRow label="To close" value={formatOptionalFixedPoint(quote.quantityToClose, quantityPrecision)} />
             <DetailRow label="Entry" value={formatOptionalFixedPoint(quote.openedPrice, pricePrecision)} />
+            <DetailRow
+              label="Initial opened"
+              value={formatOptionalFixedPoint(quote.initialOpenedPrice, pricePrecision)}
+            />
             <DetailRow label="Mark" value={priced ? Number(markPrice).toFixed(pricePrecision) : EMPTY} />
             <DetailRow label="Requested at" value={formatFixedPoint(quote.requestedOpenPrice, pricePrecision)} />
             <DetailRow label="Avg close" value={formatOptionalFixedPoint(quote.avgClosedPrice, pricePrecision)} />
@@ -345,10 +350,15 @@ export function QuoteDetailPanel({ quote, market, variant = "inline", onBack, te
             collapsible={drillIn}
             summary={`cva ${formatFixedPoint(quote.lockedValues.cva, 2)} · lf ${formatFixedPoint(quote.lockedValues.lf, 2)}`}
           >
-            <DetailRow label="CVA" value={formatFixedPoint(quote.lockedValues.cva, pricePrecision)} />
-            <DetailRow label="Liquidation fee" value={formatFixedPoint(quote.lockedValues.lf, pricePrecision)} />
-            <DetailRow label="PartyA MM" value={formatFixedPoint(quote.lockedValues.partyAmm, pricePrecision)} />
-            <DetailRow label="PartyB MM" value={formatFixedPoint(quote.lockedValues.partyBmm, pricePrecision)} />
+            <DetailRow
+              label="Total locked"
+              value={formatFullPrecision(quote.lockedValues.cva + quote.lockedValues.lf + quote.lockedValues.partyAmm)}
+              title="cva + lf + partyAmm (full precision)"
+            />
+            <DetailRow label="CVA" value={formatFullPrecision(quote.lockedValues.cva)} />
+            <DetailRow label="Liquidation fee" value={formatFullPrecision(quote.lockedValues.lf)} />
+            <DetailRow label="PartyA MM" value={formatFullPrecision(quote.lockedValues.partyAmm)} />
+            <DetailRow label="PartyB MM" value={formatFullPrecision(quote.lockedValues.partyBmm)} />
             <DetailRow label="Leverage" value={formatLeverageLabel(leverage)} />
             <DetailRow
               label="Unrealized"

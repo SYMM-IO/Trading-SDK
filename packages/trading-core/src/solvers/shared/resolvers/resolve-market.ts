@@ -49,6 +49,27 @@ export interface ResolveMarketParameters {
   hedgerFeeCloseEarlyThreshold?: number;
   /** Pre-fetched standard-rate threshold in seconds. */
   hedgerFeeCloseStandardThreshold?: number;
+  /**
+   * Also resolve the market's quote-constraint fields (lot size, notional
+   * bounds, quote-value floors). Same short-circuit contract as the other
+   * include flags: pre-filled metadata skips the fetch only when **all six**
+   * constraint fields are pre-filled too. The full-balance open sizing sets
+   * this — the SDK-computed quantity must land on the lot grid and clear the
+   * published floors before it is signed.
+   */
+  includeQuoteConstraints?: boolean;
+  /** Pre-fetched minimum `lf / (cva + lf + partyAmm)` portion (decimal fraction). */
+  minAcceptablePortionLf?: string;
+  /** Pre-fetched minimum locked-margin sum (decimal string). */
+  minAcceptableQuoteValue?: string;
+  /** Pre-fetched maximum notional position value; `0` ⇒ unpublished. */
+  maxNotionalValue?: number;
+  /** Pre-fetched minimum notional position value (decimal string). */
+  minNotionalValue?: string;
+  /** Pre-fetched maximum order quantity (decimal string); `"0"` ⇒ unpublished. */
+  maxQuantity?: string;
+  /** Pre-fetched minimum tradable increment / lot size (decimal string). */
+  lotSize?: string;
 }
 
 /**
@@ -67,17 +88,28 @@ export async function resolveMarket(config: Config, parameters: ResolveMarketPar
   const { marketName, pricePrecision, quantityPrecision, minOpenSolverFeeCap, minCloseSolverFeeCap } = parameters;
   const { hedgerFeeOpen, hedgerFeeClose } = parameters;
   const { hedgerFeeCloseEarlyRate, hedgerFeeCloseEarlyThreshold, hedgerFeeCloseStandardThreshold } = parameters;
+  const { minAcceptablePortionLf, minAcceptableQuoteValue, maxNotionalValue } = parameters;
+  const { minNotionalValue, maxQuantity, lotSize } = parameters;
   const needCaps = parameters.includeSolverFeeCaps === true;
   const capsPrefilled = minOpenSolverFeeCap !== undefined && minCloseSolverFeeCap !== undefined;
   const needFees = parameters.includeHedgerFees === true;
   const feesPrefilled = hedgerFeeOpen !== undefined && hedgerFeeClose !== undefined;
+  const needConstraints = parameters.includeQuoteConstraints === true;
+  const constraintsPrefilled =
+    minAcceptablePortionLf !== undefined &&
+    minAcceptableQuoteValue !== undefined &&
+    maxNotionalValue !== undefined &&
+    minNotionalValue !== undefined &&
+    maxQuantity !== undefined &&
+    lotSize !== undefined;
 
   if (
     marketName !== undefined &&
     pricePrecision !== undefined &&
     quantityPrecision !== undefined &&
     (!needCaps || capsPrefilled) &&
-    (!needFees || feesPrefilled)
+    (!needFees || feesPrefilled) &&
+    (!needConstraints || constraintsPrefilled)
   ) {
     return {
       name: marketName,
@@ -92,6 +124,9 @@ export async function resolveMarket(config: Config, parameters: ResolveMarketPar
             hedgerFeeCloseEarlyThreshold,
             hedgerFeeCloseStandardThreshold,
           }
+        : {}),
+      ...(needConstraints
+        ? { minAcceptablePortionLf, minAcceptableQuoteValue, maxNotionalValue, minNotionalValue, maxQuantity, lotSize }
         : {}),
     };
   }
@@ -128,6 +163,16 @@ export async function resolveMarket(config: Config, parameters: ResolveMarketPar
           hedgerFeeCloseStandardThreshold:
             hedgerFeeCloseStandardThreshold ??
             (match.kind === "enigma" ? match.hedgerFeeCloseStandardThreshold : undefined),
+        }
+      : {}),
+    ...(needConstraints
+      ? {
+          minAcceptablePortionLf: minAcceptablePortionLf ?? match.minAcceptablePortionLf,
+          minAcceptableQuoteValue: minAcceptableQuoteValue ?? match.minAcceptableQuoteValue,
+          maxNotionalValue: maxNotionalValue ?? match.maxNotionalValue,
+          minNotionalValue: minNotionalValue ?? match.minNotionalValue,
+          maxQuantity: maxQuantity ?? match.maxQuantity,
+          lotSize: lotSize ?? match.lotSize,
         }
       : {}),
   };

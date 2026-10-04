@@ -6,6 +6,7 @@ import { buildSignedOperation, signAndFormatInstantOperation } from "../../insta
 import { getMarketOrderDeadline } from "../../instant-open/shared/trade-math";
 import { encodeRequestToClosePosition } from "../shared/calldata";
 import { sendInstantClose } from "../shared/hedger-api";
+import { resolveCloseOrderType } from "../shared/resolve-close-order-type";
 import { ORDER_TYPE_MARKET, type InstantCloseOrder } from "../shared/types";
 
 /** Maximum orders per {@link instantCloseBulk} call (matches the hedger's `1–100` window). */
@@ -62,6 +63,8 @@ export interface InstantCloseBulkReturnType {
  *
  * Pure primitive — every domain value is already final wei. Use
  * `instantCloseBulkAuto` to derive these inputs from UI-shape parameters.
+ * Enigma market closes encode `OrderType.MARKET_BEST_EFFORT` (2) before
+ * signing; Rasa market closes encode MARKET (1).
  *
  * @throws {SymmError} `INSTANT_CLOSE_BULK_INVALID_ORDERS` when the batch is
  *   empty or exceeds {@link MAX_INSTANT_CLOSE_BULK_ORDERS}.
@@ -100,6 +103,8 @@ export async function instantCloseBulk(
 
   const chainConfig = config.getChainConfig(parameters.chainId);
   const { symmioAddress } = chainConfig.addresses;
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
+  const orderType = resolveCloseOrderType(solver.id, ORDER_TYPE_MARKET);
 
   const walletClient = await config.getWalletClient({ chainId: parameters.chainId, from: parameters.from });
   const signerAddress = walletClient.account.address;
@@ -112,7 +117,7 @@ export async function instantCloseBulk(
       quoteId: entry.order.quoteId,
       closePrice: entry.order.closePrice,
       quantityToClose: entry.order.quantityToClose,
-      orderType: ORDER_TYPE_MARKET,
+      orderType,
       deadline,
     });
 
@@ -135,9 +140,7 @@ export async function instantCloseBulk(
 
   await sendInstantClose(config, {
     chainId: parameters.chainId,
-    // Forward the resolved solver so a bulk close on a rasa chain hits its own
-    // endpoint instead of falling back to the chain default.
-    solverId: parameters.solverId,
+    solverId: solver.id,
     operations: signedOperations,
   });
 

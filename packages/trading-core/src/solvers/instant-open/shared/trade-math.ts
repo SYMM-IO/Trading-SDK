@@ -169,25 +169,44 @@ export interface SolverFees {
   /** `hedgerFeeOpen × notional`, decimal string. */
   openSolverFee: string;
   /**
-   * Close fee provisioned at open, decimal string. The solver charges more to
-   * close a freshly opened position, so — since the holding time is unknown at
-   * open — this provisions the **worst case**: `hedgerFeeCloseEarlyRate ×
-   * notional` when the early-rate field is supplied, else the flat
-   * `hedgerFeeClose × notional`.
+   * Close-fee **estimate**, decimal string — the solver charges this at close
+   * from the position, **not** funded by the open's `addMargin`. Reported at the
+   * representative **standard** (floor) rate: `hedgerFeeClose × notional` (the
+   * decay schedule evaluated at its standard threshold when the early fields are
+   * supplied). It is an estimate, not the exact charge: the actual close fee is
+   * priced from the real holding time at close and capped by the signed
+   * `closeRateCap`.
    */
   closeSolverFee: string;
+  /**
+   * Static solver fee charged per instant open, decimal string — a flat USD
+   * amount from the solver's `/info` config, **not** scaled by the notional.
+   * `"0"` when the solver publishes none.
+   */
+  staticSolverFeeOpen: string;
+  /**
+   * Static solver close fee provisioned at open, decimal string — a flat USD
+   * amount from the solver's `/info` config, **not** scaled by the notional.
+   * `"0"` when the solver publishes none.
+   */
+  staticSolverFeeClose: string;
 }
 
 /**
- * Compute the solver's open and close fees on the leveraged notional.
+ * Compute every fee the solver charges on an instant open: the rate legs on
+ * the leveraged notional plus the flat static legs.
  *
- * The solver charges its fees from the **VA balance**, so both legs must ride
- * the `addMargin` transfer from the SubAccount into the VA. The open leg is
- * `hedgerFeeOpen × notional`. The close leg is provisioned for the **worst
- * case**, because the holding time is unknown at open and an early close costs
- * more: when `hedgerFeeCloseEarlyRate` is supplied it uses the peak rate (the
- * rate at holding time 0); without it it falls back to the flat
- * `hedgerFeeClose`. An absent, NaN, or negative rate contributes `"0"`.
+ * The **open** legs (`openSolverFee`, `staticSolverFeeOpen`) are charged from
+ * the VA at open, so they ride the `addMargin` transfer. The **close** legs
+ * (`closeSolverFee`, `staticSolverFeeClose`) are charged at close from the
+ * position — the contract collects them at close execution, not at open — so
+ * they are returned as **estimates** for previews, not amounts the open funds.
+ * The close-fee estimate uses the **standard** (floor) rate: when
+ * `hedgerFeeCloseEarlyRate` is supplied the decay schedule is evaluated at its
+ * standard threshold (which yields `hedgerFeeClose`), else it is the flat
+ * `hedgerFeeClose × notional`. The static legs pass through as-is — flat USD
+ * amounts, size-independent. An absent, NaN, or negative rate or static
+ * contributes `"0"`.
  */
 export function calculateSolverFees({
   notional,
@@ -196,19 +215,25 @@ export function calculateSolverFees({
   hedgerFeeCloseEarlyRate,
   hedgerFeeCloseEarlyThreshold,
   hedgerFeeCloseStandardThreshold,
+  staticSolverFeeOpen,
+  staticSolverFeeClose,
 }: {
   /** Leveraged notional (decimal string). */
   notional: string;
   /** Solver open-fee rate as a decimal fraction string (e.g. `"0.0004"`). */
   hedgerFeeOpen: string | undefined;
-  /** Solver standard close-fee rate as a decimal fraction string. Used when no early rate is given. */
+  /** Solver standard (floor) close-fee rate as a decimal fraction string — the close-fee estimate is priced at this rate. */
   hedgerFeeClose: string | undefined;
-  /** Early (peak) close-fee rate; when given, the close leg provisions this worst-case rate. */
+  /** Early (peak) close-fee rate; parametrizes the decay schedule the standard-rate estimate is read from. */
   hedgerFeeCloseEarlyRate?: string;
   /** Early-window length in seconds (paired with `hedgerFeeCloseEarlyRate`). */
   hedgerFeeCloseEarlyThreshold?: number;
-  /** Standard-rate threshold in seconds (paired with `hedgerFeeCloseEarlyRate`). */
+  /** Standard-rate threshold in seconds (paired with `hedgerFeeCloseEarlyRate`) — the close-fee estimate is evaluated here. */
   hedgerFeeCloseStandardThreshold?: number;
+  /** Static solver open fee — flat USD decimal string (solver `/info`). Defaults to `"0"`. */
+  staticSolverFeeOpen?: string;
+  /** Static solver close fee — flat USD decimal string (solver `/info`); an estimate charged at close, not funded at open. Defaults to `"0"`. */
+  staticSolverFeeClose?: string;
 }): SolverFees {
   const notionalDec = toDecimal(notional);
   const toFee = (rate: string | undefined) => {
@@ -216,6 +241,15 @@ export function calculateSolverFees({
     if (rateDec.isNaN() || rateDec.isNegative() || notionalDec.isNaN()) return "0";
     return notionalDec.times(rateDec).toString();
   };
+  /** Flat USD leg: passed through, not multiplied by the notional. */
+  const toStaticFee = (value: string | undefined) => {
+    const valueDec = toDecimal(value);
+    return valueDec.isNaN() || valueDec.isNegative() ? "0" : valueDec.toString();
+  };
+  // Close-fee ESTIMATE at the STANDARD (floor) rate. The close fee is charged at
+  // close from the position — not funded by the open's addMargin — so the
+  // estimate reports the representative standard rate (the decay schedule read
+  // at its standard threshold) rather than the worst-case early rate.
   const closeSolverFee =
     hedgerFeeCloseEarlyRate !== undefined
       ? calculateSolverCloseFee(
@@ -225,10 +259,15 @@ export function calculateSolverFees({
             hedgerFeeCloseEarlyThreshold: hedgerFeeCloseEarlyThreshold ?? 0,
             hedgerFeeCloseStandardThreshold: hedgerFeeCloseStandardThreshold ?? 0,
           },
-          { notional, holdingSeconds: 0 },
+          { notional, holdingSeconds: hedgerFeeCloseStandardThreshold ?? 0 },
         )
       : toFee(hedgerFeeClose);
-  return { openSolverFee: toFee(hedgerFeeOpen), closeSolverFee };
+  return {
+    openSolverFee: toFee(hedgerFeeOpen),
+    closeSolverFee,
+    staticSolverFeeOpen: toStaticFee(staticSolverFeeOpen),
+    staticSolverFeeClose: toStaticFee(staticSolverFeeClose),
+  };
 }
 
 /**
@@ -292,10 +331,23 @@ export interface CalculateMarginParameters {
   platformFee: string;
   /** Solver open fee funded from the VA (from {@link calculateSolverFees}). Defaults to `"0"`. */
   openSolverFee?: string;
-  /** Solver close fee provisioned at open (from {@link calculateSolverFees}). Defaults to `"0"`. */
+  /**
+   * Solver close fee (from {@link calculateSolverFees}). Defaults to `"0"`. The
+   * instant-open flow leaves this at `0` — the close fee is charged at close
+   * from the position, not funded here — and includes it only if a caller
+   * deliberately chooses to reserve it.
+   */
   closeSolverFee?: string;
   /** Expected settlement loss vs the estimated fill (from {@link calculateExpectedSettlementLoss}). Defaults to `"0"`. */
   expectedSettlementLoss?: string;
+  /** Static solver open fee — flat USD, not rate × notional (from {@link calculateSolverFees}). Defaults to `"0"`. */
+  staticSolverFeeOpen?: string;
+  /**
+   * Static solver close fee — flat USD (from {@link calculateSolverFees}).
+   * Defaults to `"0"`. Like {@link CalculateMarginParameters.closeSolverFee},
+   * the instant-open flow leaves this at `0`; it is charged at close.
+   */
+  staticSolverFeeClose?: string;
   /**
    * Extra funding headroom percent applied to a SHORT's margin basis
    * (`markPrice × (1 + percent/100)`). A SHORT's `requestedOpenPrice` is a
@@ -321,9 +373,14 @@ export const SHORT_FUNDING_BUFFER_PERCENT = 1;
  *   buffer covers lock growth when the fill lands above the SHORT's floor.
  *
  * `fees = platformFee + openSolverFee + closeSolverFee +
- * expectedSettlementLoss` — the solver charges its fees and the open-price
- * settlement from the **VA balance**, so every leg must ride this SubAccount →
- * VA transfer or the position opens underfunded.
+ * staticSolverFeeOpen + staticSolverFeeClose + expectedSettlementLoss` — the
+ * sum of whatever legs the caller passes, funded from the **VA balance** via
+ * the SubAccount → VA transfer. The instant-open flow passes only the
+ * **open-side** legs plus the settlement provision (`platformFee` = the open
+ * leg, `openSolverFee`, `staticSolverFeeOpen`, `expectedSettlementLoss`) and
+ * leaves the close legs at `0`: close fees are charged at close from the
+ * position, so pre-funding them would strand collateral. The static legs are
+ * flat USD amounts and do not scale with the notional.
  *
  * @returns Margin as decimal string.
  */
@@ -342,10 +399,17 @@ export function calculateMargin(parameters: CalculateMarginParameters): string {
     openSolverFee = "0",
     closeSolverFee = "0",
     expectedSettlementLoss = "0",
+    staticSolverFeeOpen = "0",
+    staticSolverFeeClose = "0",
     shortFundingBufferPercent = 0,
   } = parameters;
 
-  const fees = toDecimal(platformFee).plus(openSolverFee).plus(closeSolverFee).plus(expectedSettlementLoss);
+  const fees = toDecimal(platformFee)
+    .plus(openSolverFee)
+    .plus(closeSolverFee)
+    .plus(staticSolverFeeOpen)
+    .plus(staticSolverFeeClose)
+    .plus(expectedSettlementLoss);
 
   if (positionType === PositionType.LONG) {
     return toDecimal(cva).plus(lf).plus(partyAmm).plus(fees).toString();
@@ -438,8 +502,12 @@ export interface CalculateAvailableInstantOpenMarginParameters {
   balance: bigint;
   /** Open fee rate (18-decimal fixed-point) from `getFeeForUser`. */
   openFee: bigint;
-  /** Close fee rate (18-decimal fixed-point) from `getFeeForUser`. */
-  closeFee: bigint;
+  /**
+   * @deprecated No longer used and ignored. Close fees are charged at close from
+   * the position, not reserved from the open budget, so the shave applies the
+   * open fee only. Kept as an optional field so existing callers still compile.
+   */
+  closeFee?: bigint;
   /** Slippage as an 18-decimal fraction (5% → `5n * 10n ** 16n`). */
   slippageFractionWei: bigint;
   /** Requested leverage (integer ≥ 1). */
@@ -450,14 +518,17 @@ export interface CalculateAvailableInstantOpenMarginParameters {
 
 /**
  * Maximum initial margin an instant open can spend. Shaves the raw available
- * balance for fees (both sides, charged on the leveraged notional) and — for
+ * balance for the **open** fee (charged on the leveraged notional) and — for
  * SHORT only — a worst-case slippage-fill buffer. Pure `bigint`; clamps to `0n`.
  *
  * ```text
  * available = balance
  *           × max(0, 1 − slippageFactor)                 // SHORT: slippage, LONG: 0
- *           × max(0, 1 − leverage × (openFee + closeFee))
+ *           × max(0, 1 − leverage × openFee)
  * ```
+ *
+ * The close fee is **not** shaved: it is charged at close from the position, not
+ * reserved from the open budget, so reserving it here would understate the max.
  *
  * A SHORT's `requestOpenPrice = markPrice × (1 − s)` is a contract FLOOR: a fill
  * above it rescales the signed locks by up to `1 / (1 − s)`, so capping usable
@@ -470,7 +541,6 @@ export interface CalculateAvailableInstantOpenMarginParameters {
  * const max = calculateAvailableInstantOpenMargin({
  *   balance,
  *   openFee,
- *   closeFee,
  *   slippageFractionWei: 5n * 10n ** 16n, // 5%
  *   leverage: 10,
  *   positionType: PositionType.SHORT,
@@ -478,7 +548,7 @@ export interface CalculateAvailableInstantOpenMarginParameters {
  * ```
  */
 export function calculateAvailableInstantOpenMargin(parameters: CalculateAvailableInstantOpenMarginParameters): bigint {
-  const { balance, openFee, closeFee, slippageFractionWei, leverage, positionType } = parameters;
+  const { balance, openFee, slippageFractionWei, leverage, positionType } = parameters;
   const ONE_E18 = 10n ** 18n;
 
   const slippageMultiplier =
@@ -488,7 +558,7 @@ export function calculateAvailableInstantOpenMargin(parameters: CalculateAvailab
         : ONE_E18 - slippageFractionWei
       : ONE_E18;
 
-  const leverageScaled = BigInt(leverage) * (openFee + closeFee);
+  const leverageScaled = BigInt(leverage) * openFee;
   const feeMultiplier = leverageScaled >= ONE_E18 ? 0n : ONE_E18 - leverageScaled;
 
   const afterSlippage = (balance * slippageMultiplier) / ONE_E18;

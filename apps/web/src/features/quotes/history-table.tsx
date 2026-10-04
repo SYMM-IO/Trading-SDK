@@ -16,6 +16,16 @@ function formatFixedPoint(raw: bigint): string {
   return formatTokenAmount(raw, WEI_DECIMALS, { maxFractionDigits: 6 });
 }
 
+/**
+ * Format a solver-fee field, which is `null` rather than `0n` when the event
+ * recorded no fee at all — liquidation and ADL rows, and deployments indexed
+ * before the fee existed. An em dash reads as "not recorded"; a formatted `0`
+ * would claim the solver charged nothing.
+ */
+function formatSolverFee(raw: bigint | null): string {
+  return raw === null ? "—" : formatFixedPoint(raw);
+}
+
 /** Human label for each close/liquidation event type. */
 const CLOSE_EVENT_LABELS: Record<QuoteCloseEventType, string> = {
   [QuoteCloseEventType.FillClose]: "Closed",
@@ -104,6 +114,33 @@ const COLUMNS: DataTableColumn<QuoteHistoryRow>[] = [
     cell: (row) => formatFixedPoint(row.avgClosedPrice),
     sortAccessor: (row) => Number(row.avgClosedPrice),
     cellClassName: "text-muted-foreground font-mono",
+  },
+  {
+    id: "solverFee",
+    header: "Solver fee",
+    align: "end",
+    widthClassName: NUMERIC_COLUMN_WIDTH,
+    cell: (row) => formatSolverFee(row.solverFee),
+    sortAccessor: (row) => row.solverFee,
+    cellClassName: "text-muted-foreground font-mono",
+  },
+  {
+    id: "staticSolverFee",
+    header: "Static fee",
+    align: "end",
+    widthClassName: NUMERIC_COLUMN_WIDTH,
+    cell: (row) => formatSolverFee(row.staticSolverFee),
+    sortAccessor: (row) => row.staticSolverFee,
+    cellClassName: "text-muted-foreground font-mono",
+  },
+  {
+    id: "totalSolverFee",
+    header: "Total fee",
+    align: "end",
+    widthClassName: NUMERIC_COLUMN_WIDTH,
+    cell: (row) => formatSolverFee(row.totalSolverFee),
+    sortAccessor: (row) => row.totalSolverFee,
+    cellClassName: "text-foreground font-mono",
   },
   {
     id: "closedAt",

@@ -8,9 +8,9 @@ import type { Hex } from "viem";
 export { PositionType } from "../../../symmio-contracts/symmio/types";
 
 /**
- * Re-export the canonical order-type constants + union from the open slice.
- * Single source of truth — both instant-open and instant-close encode the
- * same on-chain enum values (`MARKET = 1`, `LIMIT = 0`).
+ * Re-export the requested order-type constants + union from the open slice.
+ * Callers request MARKET (1) or LIMIT (0). Before signing, Enigma market
+ * closes resolve to MARKET_BEST_EFFORT (2); opening orders retain MARKET (1).
  */
 export { ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET, type SolverOrderType } from "../../instant-open/shared/types";
 

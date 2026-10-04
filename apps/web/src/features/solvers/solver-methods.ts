@@ -41,6 +41,7 @@ export const SOLVER_METHODS: readonly SolverMethodMeta[] = [
   { id: "method-getSymbols", method: "getSymbols", action: "useSymbols", kind: "read" },
   { id: "method-getTradeVolume", method: "getTradeVolume", action: "useTradeVolume", kind: "read" },
   { id: "method-getRevenueRecords", method: "getRevenueRecords", action: "useRevenueRecords", kind: "read" },
+  { id: "method-getSolverInfo", method: "getSolverInfo", action: "useSolverInfo", kind: "read" },
   { id: "method-getInstantOpens", method: "getInstantOpens", action: "useInstantOpens", kind: "read" },
   { id: "method-getSolverErrorCodes", method: "getSolverErrorCodes", action: "useSolverErrorCodes", kind: "read" },
   { id: "method-managedQuotes", method: "useManagedQuotes", action: "useManagedQuotes", kind: "read" },

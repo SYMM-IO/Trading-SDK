@@ -50,6 +50,34 @@ const history = await getQuoteHistory(config, {
   rows decorate.
 </Returns>
 
+## Solver fees
+
+Each row carries the solver fees the event charged, decoded from the `metadata` snapshot's `solverFees` list. All three are 18-decimal wei of collateral.
+
+<Properties>
+  <Property name="solverFee" type="bigint | null">
+    The rate-based fee (`SOLVER_FEE` on the wire) — `notional × rate`, so it scales with the size this event settled.
+    `null` when the event carried no such entry.
+  </Property>
+  <Property name="staticSolverFee" type="bigint | null">
+    The flat fee (`STATIC_SOLVER_FEE` on the wire) — a fixed per-event charge, independent of the settled size. `null`
+    when the event carried no such entry.
+  </Property>
+  <Property name="totalSolverFee" type="bigint | null">
+    Sum of **every** entry in the list, including tags a future contracts release may add that have no named field here,
+    so the total never under-reports. `null` when the event recorded no `solverFees` at all.
+  </Property>
+</Properties>
+
+**Availability.** Only `FILL_CLOSE` events record solver fees. Liquidation and ADL rows read `null` on all three fields, as do deployments indexed before the fee was recorded (Base analytics today). Treat `null` as "not recorded" and render it as such — a `0` would claim the solver charged nothing.
+
+The untruncated list stays on `rawMetadata`, so a tag the SDK does not name individually is still reachable:
+
+```ts
+const { solverFees } = JSON.parse(row.rawMetadata ?? "{}");
+// [["SOLVER_FEE", "659102399999999"], ["STATIC_SOLVER_FEE", "100000000000000000"]]
+```
+
 ## Query options
 
 ```ts
