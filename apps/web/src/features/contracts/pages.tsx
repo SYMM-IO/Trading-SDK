@@ -104,7 +104,8 @@ export const FLOW_PAGES: readonly ContractPage[] = [
     group: "withdraw",
     eyebrow: "Flow",
     title: "Withdraw",
-    description: "Open, finalize, and cancel withdraw requests, and read pending requests and cooldown timing.",
+    description:
+      "Open, finalize, and cancel withdraw requests, read pending requests and cooldown timing, and route withdrawals through Express Withdraw — options, route choices, and provider status.",
     icon: <WithdrawIcon />,
   },
   {

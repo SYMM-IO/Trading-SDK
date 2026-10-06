@@ -3,8 +3,13 @@
 import {
   getAccountBalanceInfoQueryKey,
   getAccountBalanceOfQueryKey,
+  getExpressWithdrawOptionsQueryKey,
+  getLastWithdrawRequestIdQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getWithdrawableTimeQueryKey,
+  getWithdrawRequestsQueryKey,
+  getWithdrawRouteChoicesQueryKey,
+  getWithdrawRouteQueryKey,
   SymmError,
   withdrawAutoMutationOptions,
   type WithdrawAutoParameters,
@@ -131,9 +136,17 @@ export function useWithdraw(parameters: UseWithdrawParameters = {}): UseWithdraw
       void queryClient.invalidateQueries({
         predicate: predicateMatch(getPendingWithdrawRequestsQueryKey, withdrawPartial),
       });
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getWithdrawRequestsQueryKey, withdrawPartial) });
+      void queryClient.invalidateQueries({
+        predicate: predicateMatch(getLastWithdrawRequestIdQueryKey, withdrawPartial),
+      });
       void queryClient.invalidateQueries({
         predicate: predicateMatch(getWithdrawableTimeQueryKey, withdrawPartial),
       });
+
+      queryClient.removeQueries({ predicate: predicateMatch(getExpressWithdrawOptionsQueryKey, withdrawPartial) });
+      queryClient.removeQueries({ predicate: predicateMatch(getWithdrawRouteQueryKey, withdrawPartial) });
+      queryClient.removeQueries({ predicate: predicateMatch(getWithdrawRouteChoicesQueryKey, withdrawPartial) });
     },
   });
 }

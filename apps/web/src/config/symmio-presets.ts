@@ -170,6 +170,10 @@ export const STAGING_CHAIN_OVERRIDES = {
     inventory: {
       url: "https://inventory85.enigma.bz",
     },
+    expressWithdraw: {
+      url: "/api/express-withdraw",
+      providerAddress: "0x573310D7b04fF21BB8628C69eE103dDF4922294A",
+    },
     /**
      * The staging GaslessQ relayer, paired with the staging InstantLayer above.
      * The built-in registry ships no gasless block, so every field is stated —

@@ -590,6 +590,72 @@ export {
 } from "./symmio-contracts/symmio";
 
 /**
+ * Express Withdraw
+ * ----------------
+ * Signed service options, option-aware status reads, route preparation, and a
+ * high-level withdrawal action that safely falls back to the classic flow.
+ */
+export {
+  EXPRESS_WITHDRAW_OPTION_TYPE,
+  getExpressWithdrawOptions,
+  getExpressWithdrawOptionsQueryKey,
+  getExpressWithdrawOptionsQueryOptions,
+  getExpressWithdrawStatus,
+  getExpressWithdrawStatusQueryKey,
+  getExpressWithdrawStatusQueryOptions,
+  getWithdrawRequestIdFromReceipt,
+  getWithdrawRoute,
+  getWithdrawRouteChoices,
+  getWithdrawRouteChoicesQueryKey,
+  getWithdrawRouteChoicesQueryOptions,
+  getWithdrawRouteQueryKey,
+  getWithdrawRouteQueryOptions,
+  isExpressWithdrawCancellable,
+  isExpressWithdrawOptionExpired,
+  isExpressWithdrawPayoutComplete,
+  resolveExpressWithdrawService,
+  submitExpressWithdrawOption,
+  submitExpressWithdrawOptionMutationOptions,
+  supportsExpressWithdrawService,
+  withdrawWithExpress,
+  withdrawWithExpressMutationOptions,
+  type ExpressWithdrawLocalStatus,
+  type ExpressWithdrawOnChainStatus,
+  type ExpressWithdrawOption,
+  type ExpressWithdrawOptionName,
+  type ExpressWithdrawOptionType,
+  type ExpressWithdrawOptions,
+  type ExpressWithdrawRoutePolicy,
+  type ExpressWithdrawStatus,
+  type GetExpressWithdrawOptionsData,
+  type GetExpressWithdrawOptionsOptions,
+  type GetExpressWithdrawOptionsParameters,
+  type GetExpressWithdrawOptionsQueryKey,
+  type GetExpressWithdrawOptionsQueryOptions,
+  type GetExpressWithdrawStatusData,
+  type GetExpressWithdrawStatusOptions,
+  type GetExpressWithdrawStatusParameters,
+  type GetExpressWithdrawStatusQueryKey,
+  type GetExpressWithdrawStatusQueryOptions,
+  type GetWithdrawRouteChoicesData,
+  type GetWithdrawRouteChoicesOptions,
+  type GetWithdrawRouteChoicesParameters,
+  type GetWithdrawRouteChoicesQueryKey,
+  type GetWithdrawRouteChoicesQueryOptions,
+  type GetWithdrawRouteData,
+  type GetWithdrawRouteOptions,
+  type GetWithdrawRouteParameters,
+  type GetWithdrawRouteQueryKey,
+  type GetWithdrawRouteQueryOptions,
+  type SubmitExpressWithdrawOptionParameters,
+  type WithdrawRoute,
+  type WithdrawRouteChoice,
+  type WithdrawRouteChoices,
+  type WithdrawWithExpressParameters,
+  type WithdrawWithExpressReturnType,
+} from "./express-withdraw";
+
+/**
  * SYMMIO Core funding reads
  * -------------------------
  * Direct on-chain reads of a solver's accumulated-funding state from the SYMMIO
@@ -704,6 +770,7 @@ export {
  * the AccountLayer `_call` proxying where the core attributes the call to the
  * subaccount (`initiateWithdraw`, `requestCancelWithdraw`);
  * `finalizeWithdrawRequest` is permissionless and calls the core directly.
+ * `getWithdrawRequestActions` reads whether a request's status allows finalize and cancel.
  */
 export {
   OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER,
@@ -731,6 +798,7 @@ export {
   getPendingWithdrawRequests,
   getPendingWithdrawRequestsQueryKey,
   getPendingWithdrawRequestsQueryOptions,
+  getWithdrawRequestActions,
   getWithdrawRequests,
   getWithdrawRequestsQueryKey,
   getWithdrawRequestsQueryOptions,
@@ -825,6 +893,7 @@ export {
   type WithdrawParameters,
   type WithdrawReceiverPart,
   type WithdrawRequest,
+  type WithdrawRequestActions,
   type WithdrawReturnType,
 } from "./symmio-contracts/symmio";
 
@@ -847,6 +916,7 @@ export {
   type SymmioContractAddresses,
   type SymmioContractsVersion,
   type SymmioEnigmaNotificationsConfig,
+  type SymmioExpressWithdrawConfig,
   type SymmioGaslessConfig,
   type SymmioGaslessStatusStreamConfig,
   type SymmioInventoryConfig,

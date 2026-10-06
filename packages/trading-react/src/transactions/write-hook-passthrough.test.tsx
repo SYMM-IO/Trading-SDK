@@ -87,6 +87,7 @@ import { useFinalizeWithdrawRequest } from "../withdraw/use-finalize-withdraw-re
 import { useInitiateWithdraw } from "../withdraw/use-initiate-withdraw";
 import { useRequestCancelWithdraw } from "../withdraw/use-request-cancel-withdraw";
 import { useWithdraw } from "../withdraw/use-withdraw";
+import { useWithdrawWithExpress } from "../withdraw/use-withdraw-with-express";
 
 const ACCOUNT: Address = "0xBabAD9AAA1a617886c272CEC2Ce7A132Fe2ECf29";
 const VIRTUAL_ACCOUNT: Address = "0xdbe2Cd3ED29bb7bd26F25044C08E9F3Ad0a94B5B";
@@ -369,6 +370,30 @@ const PROBES: Probe<never>[] = [
     acceptsGasless: true,
     useWrite: (config) => useWithdraw({ config, account: ACCOUNT, waitForReceipt: false }),
     variables: { amount: 1n, receiver: ACCOUNT, upnlSig: UPNL_SIG },
+  }),
+  probe({
+    file: "withdraw/use-withdraw-with-express.ts",
+    name: "useWithdrawWithExpress",
+    acceptsGasless: true,
+    useWrite: (config) =>
+      useWithdrawWithExpress({ config, account: ACCOUNT }) as unknown as UseMutationResult<
+        WriteResult,
+        SymmioRequestError,
+        {
+          amount: bigint;
+          receiver: Address;
+          preparedRoute: {
+            kind: "classic";
+            finalize: "after-cooldown";
+            reason: "service-disabled";
+          };
+        }
+      >,
+    variables: {
+      amount: 1n,
+      receiver: ACCOUNT,
+      preparedRoute: { kind: "classic", finalize: "after-cooldown", reason: "service-disabled" } as const,
+    },
   }),
 ];
 

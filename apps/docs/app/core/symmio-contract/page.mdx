@@ -1,4 +1,11 @@
+import { Callout } from "nextra/components";
+
 # SYMMIO Contract
+
+<Callout type="info">
+  Building a provider-assisted withdrawal flow? Keep these primitives for custom request handling, or use the [Express
+  Withdraw orchestrator](/core/express-withdraw) to prepare and execute the default classic/Express route.
+</Callout>
 
 Reads and writes against the on-chain SYMMIO diamond contract — quotes, funding, collateral, allocation, withdraw, and the on-chain market list. This slice targets the `Symmio` contract directly via viem clients.
 
@@ -109,6 +116,9 @@ Mirrors the quote-cancel lifecycle, but keyed on the close: `requestToCancelClos
   </MethodEntry>
   <MethodEntry name="getPendingWithdrawRequests" href="/core/symmio-contract/get-pending-withdraw-requests">
     The active (non-terminal) withdraw requests for a subaccount.
+  </MethodEntry>
+  <MethodEntry name="getWithdrawRequestActions" href="/core/symmio-contract/get-withdraw-request-actions">
+    Whether Core's status rules allow finalizing or cancelling a withdraw request — gate each row's buttons with it.
   </MethodEntry>
 </MethodIndex>
 
