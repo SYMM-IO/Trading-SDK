@@ -182,7 +182,7 @@ export function NotificationSearchCard() {
   };
 
   return (
-    <Card className="animate-enter-up">
+    <Card id="method-searchNotifications" className="animate-enter-up scroll-mt-24">
       <CardHeader>
         <CardTitle>Search notifications</CardTitle>
         <CardDescription>

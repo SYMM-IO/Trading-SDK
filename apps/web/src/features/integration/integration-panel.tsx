@@ -9,7 +9,8 @@ import {
   useWalletAccount,
 } from "@symmio/trading-react";
 import { Card } from "@symmio/ui/components/card";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { Address } from "viem";
 import { CancelCloseFlow } from "./cancel-close-flow";
 import { CancelLimitFlow } from "./cancel-limit-flow";
@@ -17,46 +18,43 @@ import { CloseAllFlow } from "./close-all-flow";
 import { DepositFlow } from "./deposit-flow";
 import { InstantCloseFlow } from "./instant-close-flow";
 import { InstantOpenFlow } from "./instant-open-flow";
+import {
+  flowSearchEntryId,
+  INTEGRATION_CONSOLE_ID,
+  INTEGRATION_FLOW_GROUPS,
+  toIntegrationFlowId,
+  type IntegrationFlowId,
+  type IntegrationFlowMeta,
+} from "./integration-flows";
 import { Segmented, type SegmentedOption } from "./segmented";
 import { SetupFlow } from "./setup-flow";
 import { TpSlFlow } from "./tpsl-flow";
 import { WithdrawFlow } from "./withdraw-flow";
 
-type Tab =
-  | "setup"
-  | "deposit"
-  | "withdraw"
-  | "instant-open"
-  | "instant-close"
-  | "close-all"
-  | "tpsl"
-  | "cancel-limit"
-  | "cancel-close";
+/** A flow group as switcher options. Grouping and labels live in {@link INTEGRATION_FLOW_GROUPS}, which search reads too. */
+function toOptions(flows: readonly IntegrationFlowMeta[]): readonly SegmentedOption<IntegrationFlowId>[] {
+  return flows.map((flow) => ({ value: flow.id, label: flow.label }));
+}
+
+const SETUP_FLOWS = toOptions(INTEGRATION_FLOW_GROUPS.setup);
+const COLLATERAL_FLOWS = toOptions(INTEGRATION_FLOW_GROUPS.collateral);
+const POSITION_FLOWS = toOptions(INTEGRATION_FLOW_GROUPS.position);
+const CANCEL_FLOWS = toOptions(INTEGRATION_FLOW_GROUPS.cancel);
 
 /**
- * Flows grouped by what they act on: setup gets the account into a state where
- * anything else can run, collateral moves in and out of a subaccount, position
- * flows act on an open position, and cancel flows retract a request that has
- * not settled yet. The split is the only grouping cue the switcher needs.
+ * Follows the `?flow=` query, so a link or a search hit can open the console on a
+ * given flow. Its own Suspense boundary keeps `useSearchParams` from opting the
+ * rest of the page out of static rendering.
  */
-const SETUP_FLOWS: readonly SegmentedOption<Tab>[] = [{ value: "setup", label: "Setup" }];
+function FlowFromUrl({ onFlow }: { onFlow: (flow: IntegrationFlowId) => void }) {
+  const flow = toIntegrationFlowId(useSearchParams().get("flow"));
 
-const COLLATERAL_FLOWS: readonly SegmentedOption<Tab>[] = [
-  { value: "deposit", label: "Deposit" },
-  { value: "withdraw", label: "Withdraw" },
-];
+  useEffect(() => {
+    if (flow) onFlow(flow);
+  }, [flow, onFlow]);
 
-const POSITION_FLOWS: readonly SegmentedOption<Tab>[] = [
-  { value: "instant-open", label: "Instant Open" },
-  { value: "instant-close", label: "Instant Close" },
-  { value: "close-all", label: "Close All" },
-  { value: "tpsl", label: "TP/SL" },
-];
-
-const CANCEL_FLOWS: readonly SegmentedOption<Tab>[] = [
-  { value: "cancel-limit", label: "Cancel Limit" },
-  { value: "cancel-close", label: "Cancel Close" },
-];
+  return null;
+}
 
 /**
  * Integration console for the SYMMIO React SDK: setup, then product-grade flows
@@ -75,8 +73,21 @@ export function IntegrationPanel() {
   const balance = useCollateralBalance({ owner: address });
   const subAccountsQuery = useUserSubAccounts({ user: address });
 
-  const [tab, setTab] = useState<Tab>("setup");
+  const [tab, setTab] = useState<IntegrationFlowId>("setup");
   const [subAccount, setSubAccount] = useState<Address>();
+
+  /**
+   * Switch flows and keep `?flow=` in step, so the address bar always names the
+   * open flow — and a search hit for the flow already showing is never a no-op
+   * against a stale query. `replaceState` updates `useSearchParams` without a
+   * navigation.
+   */
+  const selectFlow = useCallback((flow: IntegrationFlowId) => {
+    setTab(flow);
+    const url = new URL(window.location.href);
+    url.searchParams.set("flow", flow);
+    window.history.replaceState(null, "", url);
+  }, []);
 
   const subAccountName = useMemo(
     () => subAccountsQuery.data?.find((sub) => sub.accountAddress === subAccount)?.name || undefined,
@@ -94,6 +105,8 @@ export function IntegrationPanel() {
         : [SETUP_FLOWS, COLLATERAL_FLOWS, POSITION_FLOWS],
     [supportsLimit],
   );
+  /** A flow this solver does not offer (a cancel flow named in a link, say) falls back to Setup. */
+  const activeTab = flowGroups.some((group) => group.some((option) => option.value === tab)) ? tab : "setup";
 
   return (
     /**
@@ -112,19 +125,27 @@ export function IntegrationPanel() {
           description="Start at Setup to get an account ready — with a gasless relayer, with a session key, or with neither — then run the production flows: fund a subaccount, open and close instantly, set TP/SL, cancel a resting request, exit everything at once. All composed from @symmio/trading-react hooks, on the same surface a third-party integrator builds on."
         />
 
+        <Suspense fallback={null}>
+          <FlowFromUrl onFlow={setTab} />
+        </Suspense>
+
         <Card
-          className="animate-enter-up gap-6 p-4 @xl/console:p-6 @3xl/console:p-8"
+          id={INTEGRATION_CONSOLE_ID}
+          data-search-entries={flowGroups
+            .flatMap((group) => group.map((option) => flowSearchEntryId(option.value)))
+            .join(" ")}
+          className="animate-enter-up scroll-mt-24 gap-6 p-4 @xl/console:p-6 @3xl/console:p-8"
           style={{ "--enter-delay": "80ms" } as CSSProperties}
         >
           <Segmented
             aria-label="Set up an account, move collateral, or open, close, and cancel positions"
             groups={flowGroups}
-            value={tab}
-            onChange={setTab}
+            value={activeTab}
+            onChange={selectFlow}
           />
 
           <div className="min-h-96">
-            {tab === "setup" ? (
+            {activeTab === "setup" ? (
               <SetupFlow
                 owner={address}
                 subAccount={subAccount}
@@ -133,9 +154,9 @@ export function IntegrationPanel() {
                 decimals={addresses.collateralDecimals}
                 balance={balance}
                 ready={ready}
-                onStartTrading={() => setTab("instant-open")}
+                onStartTrading={() => selectFlow("instant-open")}
               />
-            ) : tab === "deposit" ? (
+            ) : activeTab === "deposit" ? (
               <DepositFlow
                 owner={address}
                 subAccount={subAccount}
@@ -145,7 +166,7 @@ export function IntegrationPanel() {
                 balance={balance}
                 ready={ready}
               />
-            ) : tab === "withdraw" ? (
+            ) : activeTab === "withdraw" ? (
               <WithdrawFlow
                 owner={address}
                 subAccount={subAccount}
@@ -155,7 +176,7 @@ export function IntegrationPanel() {
                 chainId={chainId}
                 ready={ready}
               />
-            ) : tab === "instant-open" ? (
+            ) : activeTab === "instant-open" ? (
               <InstantOpenFlow
                 owner={address}
                 subAccount={subAccount}
@@ -163,7 +184,7 @@ export function IntegrationPanel() {
                 onSelectSubAccount={setSubAccount}
                 ready={ready}
               />
-            ) : tab === "instant-close" ? (
+            ) : activeTab === "instant-close" ? (
               <InstantCloseFlow
                 owner={address}
                 subAccount={subAccount}
@@ -171,7 +192,7 @@ export function IntegrationPanel() {
                 onSelectSubAccount={setSubAccount}
                 ready={ready}
               />
-            ) : tab === "close-all" ? (
+            ) : activeTab === "close-all" ? (
               <CloseAllFlow
                 owner={address}
                 subAccount={subAccount}
@@ -179,7 +200,7 @@ export function IntegrationPanel() {
                 onSelectSubAccount={setSubAccount}
                 ready={ready}
               />
-            ) : tab === "tpsl" ? (
+            ) : activeTab === "tpsl" ? (
               <TpSlFlow
                 owner={address}
                 subAccount={subAccount}
@@ -187,7 +208,7 @@ export function IntegrationPanel() {
                 onSelectSubAccount={setSubAccount}
                 ready={ready}
               />
-            ) : tab === "cancel-limit" ? (
+            ) : activeTab === "cancel-limit" ? (
               <CancelLimitFlow
                 owner={address}
                 subAccount={subAccount}

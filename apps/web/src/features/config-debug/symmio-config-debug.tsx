@@ -11,9 +11,10 @@ import { Button } from "@symmio/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@symmio/ui/components/card";
 import { useState, type ReactNode } from "react";
 
-function ConfigGroup({ title, children }: { title: string; children: ReactNode }) {
+/** One resolved-config section. `id` is its anchor, which search lands on (see `config-cards.ts`). */
+function ConfigGroup({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <Card size="sm" className="animate-enter-up">
+    <Card id={id} size="sm" className="animate-enter-up scroll-mt-24">
       <CardHeader>
         <CardTitle className="text-muted-foreground text-xs font-medium tracking-[0.18em] uppercase">{title}</CardTitle>
       </CardHeader>
@@ -79,7 +80,7 @@ export function SymmioConfigDebug() {
       ) : (
         <>
           <div className="grid gap-4 lg:grid-cols-2">
-            <ConfigGroup title="Runtime">
+            <ConfigGroup id="config-runtime" title="Runtime">
               <DataRow label="Chain ID" value={<Badge variant="info">{chainConfig.chainId}</Badge>} />
               <DataRow label="Solver" value={solver ? solver.name : "Not configured"} />
               <DataRow
@@ -88,7 +89,7 @@ export function SymmioConfigDebug() {
               />
             </ConfigGroup>
 
-            <ConfigGroup title="Addresses">
+            <ConfigGroup id="config-addresses" title="Addresses">
               <DataRow label="Symmio" value={<AddressTag address={chainConfig.addresses.symmioAddress} chars={6} />} />
               <DataRow
                 label="Instant Layer"
@@ -110,7 +111,7 @@ export function SymmioConfigDebug() {
             </ConfigGroup>
           </div>
 
-          <ConfigGroup title="Subgraphs">
+          <ConfigGroup id="config-subgraphs" title="Subgraphs">
             <DataRow
               label="Analytics"
               mono
@@ -119,7 +120,7 @@ export function SymmioConfigDebug() {
             />
           </ConfigGroup>
 
-          <ConfigGroup title="Notifications (default solver)">
+          <ConfigGroup id="config-notifications" title="Notifications (default solver)">
             {(() => {
               // Notifications are per-solver; show the chain's default solver's block.
               const notifications = chainConfig.solvers[chainConfig.defaultSolverId]?.notifications;

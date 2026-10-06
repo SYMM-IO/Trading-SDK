@@ -38,6 +38,12 @@ export interface CommandPaletteProps {
   groups: CommandPaletteGroup[];
   /** Called with an item id when a row is chosen by click or Enter. */
   onSelect: (id: string) => void;
+  /**
+   * Called with the active row's id whenever it changes — by arrow keys, pointer,
+   * or a result set that no longer holds it — and with `undefined` when nothing is
+   * active. Lets the caller tailor a footer hint to what Enter will do.
+   */
+  onActiveChange?: (id: string | undefined) => void;
   /** Accessible dialog title, visually hidden. Defaults to `"Search"`. */
   label?: string;
   /** Placeholder for the search field. */
@@ -73,6 +79,7 @@ export function CommandPalette({
   onQueryChange,
   groups,
   onSelect,
+  onActiveChange,
   label = "Search",
   placeholder = "Search…",
   emptyState,
@@ -81,11 +88,35 @@ export function CommandPalette({
   const flat = React.useMemo(() => groups.flatMap((group) => group.items.filter((item) => !item.disabled)), [groups]);
   const [activeId, setActiveId] = React.useState<string | undefined>(flat[0]?.id);
   const listRef = React.useRef<HTMLDivElement>(null);
+  /** Held in a ref so an inline callback does not re-fire the effect on every render. */
+  const onActiveChangeRef = React.useRef(onActiveChange);
+
+  React.useEffect(() => {
+    onActiveChangeRef.current = onActiveChange;
+  });
+
+  /** The latest rows, for the reset below — which must not re-run on every refreshed result set. */
+  const flatRef = React.useRef(flat);
+  flatRef.current = flat;
 
   /** Keep the active row valid as results change while typing. */
   React.useEffect(() => {
     setActiveId((current) => (current && flat.some((item) => item.id === current) ? current : flat[0]?.id));
   }, [flat]);
+
+  /**
+   * Each opening and each new query start from the top result, so Enter always
+   * acts on the row the reader sees first — not on one kept from a previous
+   * search, possibly scrolled out of view. Results that refresh under an
+   * unchanged query keep the reader's place (above).
+   */
+  React.useEffect(() => {
+    setActiveId(flatRef.current[0]?.id);
+  }, [open, query]);
+
+  React.useEffect(() => {
+    onActiveChangeRef.current?.(activeId);
+  }, [activeId]);
 
   /** Scroll the active row into view as it moves. */
   React.useEffect(() => {
@@ -193,8 +224,11 @@ export function CommandPalette({
                           onPointerMove={() => !item.disabled && setActiveId(item.id)}
                           onClick={() => !item.disabled && onSelect(item.id)}
                           className={cn(
-                            "flex cursor-pointer items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors",
-                            active ? "bg-muted text-foreground" : "text-muted-foreground",
+                            "relative flex cursor-pointer items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors",
+                            /** The active row carries a primary edge, not just a fill: a fill alone all but vanishes on a light surface. */
+                            active
+                              ? "bg-muted text-foreground before:bg-primary before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:content-['']"
+                              : "text-muted-foreground",
                             item.disabled && "pointer-events-none opacity-50",
                           )}
                         >
