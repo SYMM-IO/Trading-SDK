@@ -5,6 +5,7 @@ import "nextra-theme-docs/style.css";
 import { Banner, Head, Search } from "nextra/components";
 import { getPageMap } from "nextra/page-map";
 import type { ReactNode } from "react";
+import { siteLinks, siteName, siteUrl, twitterSite } from "../lib/site";
 import "./globals.css";
 import { LibrarySwitcher } from "./library-switcher";
 import { SymmioLogo } from "./logo";
@@ -30,13 +31,27 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
+/**
+ * Site-wide metadata. `canonical` and `og:url` are "./", which Next resolves against
+ * each page's own pathname (with the `trailingSlash` slash), so every page declares
+ * itself canonical. `openGraph` deliberately omits `title`/`description`: Next fills
+ * both, and the Twitter card, from each page's own title and description (the
+ * per-page descriptions come from the remark plugin in `next.config.mjs`). Never
+ * export `openGraph` or `alternates` from a child segment — the shallow merge would
+ * drop the url, site name, and image set here.
+ */
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+  applicationName: siteName,
   title: {
-    default: "Symmio Trading-SDK — SDK reference",
-    template: "%s · Symmio Trading-SDK",
+    default: siteName,
+    template: `%s · ${siteName}`,
   },
   description:
-    "The SYMMIO SDK surface for builders — connect a wallet, inspect contract state, and trade on Arbitrum without re-implementing the plumbing.",
+    "Documentation for the SYMMIO SDK: guides and API reference for @symmio/trading-core, @symmio/trading-react, @symmio/utils and @symmio/session-key.",
+  alternates: { canonical: "./" },
+  openGraph: { type: "website", siteName, locale: "en_US", url: "./" },
+  twitter: { card: "summary_large_image", site: twitterSite },
 };
 
 const banner = (
@@ -59,7 +74,7 @@ const search = (
 );
 
 const navbar = (
-  <Navbar logo={<SymmioLogo />} logoLink="/" projectLink="https://github.com/SYMM-IO">
+  <Navbar logo={<SymmioLogo />} logoLink="/" projectLink={siteLinks.github}>
     <ThemeSwitch lite />
   </Navbar>
 );
@@ -83,6 +98,13 @@ const footer = (
       <span className="symm-footer__tag">
         The SYMMIO SDK surface for builders — connect a wallet, inspect contract state, and trade on Arbitrum.
       </span>
+      {/* Crawlable links to the sibling sites — the footer renders on every page,
+          including mobile, where navbar children are hidden. */}
+      <nav className="symm-footer__links" aria-label="SYMMIO Trading-SDK sites">
+        <a href={siteLinks.landing}>Website</a>
+        <a href={siteLinks.console}>SDK console</a>
+        <a href={siteLinks.github}>GitHub</a>
+      </nav>
       <span className="symm-footer__meta">
         © {new Date().getFullYear()} Symmio Trading-SDK · built with <strong>@symmio</strong>
       </span>

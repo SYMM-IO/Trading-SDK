@@ -4,14 +4,14 @@
 
 ## Read these first
 
-- Getting started (React): https://doc.trading-sdk.symm.io/react/getting-started
-- Build a Perps DEX (the end-to-end guide): https://doc.trading-sdk.symm.io/guides/build-a-dex/react
-- Balance Model: https://doc.trading-sdk.symm.io/core/concepts/balance-model
-- Config: https://doc.trading-sdk.symm.io/core/concepts/config
+- Getting started (React): https://doc.trading-sdk.symm.io/react/getting-started/
+- Build a Perps DEX (the end-to-end guide): https://doc.trading-sdk.symm.io/guides/build-a-dex/react/
+- Balance Model: https://doc.trading-sdk.symm.io/core/concepts/balance-model/
+- Config: https://doc.trading-sdk.symm.io/core/concepts/config/
 
 ## Facts agents most often get wrong
 
-1. **Affiliate is optional for trading.** `addresses.affiliatesAddress` must be *present* per chain, but the **zero address is a valid default** — every flow works, you just earn no fee share. Do NOT require users to register an affiliate before trading. Register only to earn fees / go to production: https://doc.trading-sdk.symm.io/guides/affiliate-registration
+1. **Affiliate is optional for trading.** `addresses.affiliatesAddress` must be *present* per chain, but the **zero address is a valid default** — every flow works, you just earn no fee share. Do NOT require users to register an affiliate before trading. Register only to earn fees / go to production: https://doc.trading-sdk.symm.io/guides/affiliate-registration/
 2. **Instant trading spends the AVAILABLE balance.** Fund with deposit alone (`useDeposit` / `depositForAccount`) and trade — there is **no allocate step**. `allocate` / `deallocate` / `depositAndAllocateForAccount` belong to the classic pool, which instant opens do NOT consume; allocating *reduces* instant margin. Balance to display: `useAccountBalanceOf` (available), not `allocatedBalance`.
 3. **Two decimal scales.** Deposit/withdraw amounts + wallet collateral balance: collateral token decimals (e.g. 6 for USDC). Account balances, allocate/deallocate amounts, quote values: 18 decimals. Parse deposit inputs with `parseUnits(input, collateralDecimals)`, never `parseEther`.
 4. **Trade-form Max is not the raw balance.** Use `useAvailableInstantOpenMargin` (shaves fees + slippage).
@@ -22,8 +22,8 @@
 
 ## Reference
 
-- Core catalog: https://doc.trading-sdk.symm.io/core
-- React hook catalog: https://doc.trading-sdk.symm.io/react
-- Core-only DEX guide (no React): https://doc.trading-sdk.symm.io/guides/build-a-dex/core
-- Errors: https://doc.trading-sdk.symm.io/core/concepts/errors
-- Session keys: https://doc.trading-sdk.symm.io/session-key
+- Core catalog: https://doc.trading-sdk.symm.io/core/
+- React hook catalog: https://doc.trading-sdk.symm.io/react/
+- Core-only DEX guide (no React): https://doc.trading-sdk.symm.io/guides/build-a-dex/core/
+- Errors: https://doc.trading-sdk.symm.io/core/concepts/errors/
+- Session keys: https://doc.trading-sdk.symm.io/session-key/

@@ -1,7 +1,7 @@
 import { SessionKeysPanel } from "@/features/session-keys/session-keys-panel";
 
 export const metadata = {
-  title: "Session Keys · Symmio",
+  title: "Session Keys",
   description: "Create and manage a browser-local signing key for delegated SYMMIO flows.",
 };
 

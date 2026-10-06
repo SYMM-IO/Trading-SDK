@@ -2,8 +2,8 @@
 
 The marketing landing page for the SYMMIO Trading-SDK workspace — the front door that
 introduces the SDK (`@symmio/trading-core`, `@symmio/trading-react`, and the
-supporting libraries) and the apps built on it (the web console, the docs site,
-and Storybook).
+supporting libraries) and the apps built on it (the web console and the docs
+site).
 
 It is a purely presentational Next.js app: no wallet, no SDK runtime, no data
 client. The hero's trading panel is a live-_looking_ mock; every outbound link
@@ -28,5 +28,5 @@ pnpm --filter @symmio/landing dev
 
 - Base colors, fonts, and the atmosphere are inherited from `@symmio/ui` — the
   palette is identical to the console by construction, not by duplication.
-- Update `src/lib/site.ts` if the deployed hosts for the console, docs, or
-  Storybook change.
+- Update `src/lib/site.ts` if the deployed hosts for the console or docs
+  change.

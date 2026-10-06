@@ -26,6 +26,8 @@ The bar is "a third-party developer can integrate the SDK without reading the so
 
 - Plain, direct prose. Prefer present tense and active voice.
 - Lead each page with what the API is and when to reach for it. Reference docs come after the prose, not before.
+- The paragraph under the H1 becomes the page's search-result description (a remark plugin in `next.config.mjs` clips it to ~160 characters), so make it a self-contained summary. If it is not one, set a front-matter `description:` instead.
+- Link between docs pages with absolute paths (`/core/...`), not relative ones: with `trailingSlash: true`, a relative link resolves one level deeper than it looks.
 - Keep code blocks tight: enough to demonstrate the API, no setup boilerplate that distracts from the point.
 - Use MDX features (callouts, tabs) when they improve scannability — not as decoration.
 

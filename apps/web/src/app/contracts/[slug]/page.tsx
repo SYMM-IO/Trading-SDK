@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const page = getContractPage(slug);
   if (!page) return {};
-  return { title: `${page.title} · Symmio Contracts`, description: page.description };
+  return { title: `${page.title} ${page.kind === "abi" ? "ABI" : "flow"}`, description: page.description };
 }
 
 export default async function ContractMethodsPage({ params }: { params: Promise<{ slug: string }> }) {

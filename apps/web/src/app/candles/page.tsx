@@ -1,7 +1,7 @@
 import { CandlesShell } from "@/features/candles/candles-shell";
 
 export const metadata = {
-  title: "Candles · Symmio",
+  title: "Candles",
   description: "Load historical and live OHLCV bars from a pluggable CandleSource via the React SDK.",
 };
 

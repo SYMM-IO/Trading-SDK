@@ -1,5 +1,6 @@
 import { SiteFooter } from "@/features/layout/site-footer";
 import { SiteHeader } from "@/features/layout/site-header";
+import { siteDescription, siteName, siteUrl, twitterSite } from "@/lib/site";
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import "./globals.css";
@@ -26,13 +27,26 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
+/**
+ * Site-wide metadata. `canonical` and `og:url` are "./", which Next resolves
+ * against each page's own pathname, so every page declares itself canonical (this
+ * also points search engines away from the `*.vercel.app` copies). `openGraph`
+ * deliberately omits `title`/`description`: Next fills both, and the Twitter card,
+ * from each page's own title and description. Never export `openGraph` or
+ * `alternates` from a child segment — the shallow merge would drop the url, site
+ * name, and image set here.
+ */
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+  applicationName: siteName,
   title: {
-    default: "Symmio Trading-SDK — the SYMMIO SDK for builders",
-    template: "%s · Symmio Trading-SDK",
+    default: `${siteName} — the SYMMIO SDK for TypeScript & React`,
+    template: `%s · ${siteName}`,
   },
-  description:
-    "One SDK for the entire SYMMIO surface. @symmio/trading-core and trading-react wrap contracts, solvers, prices, and Muon behind a simple, correct, reliable API.",
+  description: siteDescription,
+  alternates: { canonical: "./" },
+  openGraph: { type: "website", siteName, locale: "en_US", url: "./" },
+  twitter: { card: "summary_large_image", site: twitterSite },
 };
 
 export default function RootLayout({

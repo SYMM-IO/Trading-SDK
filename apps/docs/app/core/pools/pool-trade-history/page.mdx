@@ -12,7 +12,7 @@ const { rows } = await getPoolTradeHistory(config, { symbolId: 1, first: 25 });
 
 <Callout type="warning">
   Pool-wide, not account-scoped: no `partyA` filter, so these are every trader's closes on the market. The
-  account-scoped counterpart is [`getQuoteHistory`](/core/quotes/get-quote-history), which filters by the accounts you
+  account-scoped counterpart is [`getQuoteHistory`](/core/subgraph/get-quote-history), which filters by the accounts you
   pass. Reaching for the wrong one gives an empty table or someone else's trades.
 </Callout>
 
@@ -48,7 +48,7 @@ That makes summing the rows correct, and makes reading a single row as "the quot
 
 ## Returns
 
-`{ rows: QuoteHistoryRow[] }` — the same row type as [`getQuoteHistory`](/core/quotes/get-quote-history), decoded by the same mapper, so a history table can render either read without branching. That includes the per-event [solver fees](/core/subgraph/get-quote-history#solver-fees) (`solverFee`, `staticSolverFee`, `totalSolverFee`).
+`{ rows: QuoteHistoryRow[] }` — the same row type as [`getQuoteHistory`](/core/subgraph/get-quote-history), decoded by the same mapper, so a history table can render either read without branching. That includes the per-event [solver fees](/core/subgraph/get-quote-history#solver-fees) (`solverFee`, `staticSolverFee`, `totalSolverFee`).
 
 ## Throws
 

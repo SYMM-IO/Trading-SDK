@@ -218,7 +218,7 @@ console.log(fees.totalFee); // open legs summed (settlement provision included) 
 if (fees.kind === "enigma") console.log(fees.openSolverFee, fees.expectedSettlementLoss);
 ```
 
-`getInstantOpenFeesQueryOptions` / `getInstantOpenFeesQueryKey` ship alongside for TanStack Query consumers; the React layer wraps them as [`useInstantOpenFees`](../../react/instant-layer#useinstantopenfees). Pass the preview's `markPrice` / `estimatedOpenPrice` / `feeRates` into the subsequent `prepareInstantOpenParams` call to make the actual open zero-fetch and guarantee the charged fees match the previewed ones.
+`getInstantOpenFeesQueryOptions` / `getInstantOpenFeesQueryKey` ship alongside for TanStack Query consumers; the React layer wraps them as [`useInstantOpenFees`](/react/instant-layer#useinstantopenfees). Pass the preview's `markPrice` / `estimatedOpenPrice` / `feeRates` into the subsequent `prepareInstantOpenParams` call to make the actual open zero-fetch and guarantee the charged fees match the previewed ones.
 
 ### Parameters
 

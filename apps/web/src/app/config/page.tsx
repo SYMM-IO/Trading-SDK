@@ -1,7 +1,7 @@
 import { SymmioConfigDebug } from "@/features/config-debug/symmio-config-debug";
 
 export const metadata = {
-  title: "Resolved Config · Symmio",
+  title: "Resolved Config",
   description: "Resolved SYMMIO chain config wired through @symmio/trading-react.",
 };
 

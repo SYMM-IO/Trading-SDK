@@ -1,7 +1,7 @@
 import { MuonShell } from "@/features/muon/muon-shell";
 
 export const metadata = {
-  title: "Muon API · Symmio",
+  title: "Muon API",
   description: "Fetch SYMMIO Muon oracle attestations — uPnL, price, and settlement signatures — via the React SDK.",
 };
 

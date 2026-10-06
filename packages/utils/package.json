@@ -2,8 +2,17 @@
   "name": "@symmio/utils",
   "version": "1.0.0",
   "description": "Framework-agnostic utility helpers for SYMMIO SDK consumers: amount formatting, address helpers, Decimal.js bridge.",
+  "keywords": [
+    "symmio",
+    "symmio-sdk",
+    "utils",
+    "formatting",
+    "decimal",
+    "bigint",
+    "defi"
+  ],
   "license": "MIT",
-  "homepage": "https://github.com/SYMM-IO/Trading-SDK/tree/main/packages/utils#readme",
+  "homepage": "https://doc.trading-sdk.symm.io/utils/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SYMM-IO/Trading-SDK.git",

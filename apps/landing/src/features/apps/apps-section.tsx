@@ -9,8 +9,8 @@ interface AppEntry {
   kind: string;
   description: string;
   href: string;
-  /** Accent token used for the preview wash — keeps the trio visually distinct. */
-  accent: "primary" | "chart-5" | "chart-2";
+  /** Accent token used for the preview wash — keeps the cards visually distinct. */
+  accent: "primary" | "chart-5";
   /**
    * The card's identity glyph. Rendered twice: small in the badge, and blown up
    * as a faint watermark that fills the preview panel. Takes `className` so the
@@ -38,23 +38,14 @@ const apps: AppEntry[] = [
     accent: "chart-5",
     Glyph: BookGlyph,
   },
-  {
-    name: "Storybook",
-    kind: "apps/storybook",
-    description: "Browse @symmio/ui in isolation — every primitive, every state, fully interactive.",
-    href: siteLinks.storybook,
-    accent: "chart-2",
-    Glyph: BlocksGlyph,
-  },
 ];
 
 const accentClasses: Record<AppEntry["accent"], { wash: string; text: string; ring: string }> = {
   primary: { wash: "from-primary/20", text: "text-primary", ring: "ring-primary/20" },
   "chart-5": { wash: "from-chart-5/20", text: "text-chart-5", ring: "ring-chart-5/20" },
-  "chart-2": { wash: "from-chart-2/20", text: "text-chart-2", ring: "ring-chart-2/20" },
 };
 
-/** The apps built on the SDK — the console, the docs, and the component explorer. */
+/** The apps built on the SDK — the console and the docs. */
 export function AppsSection() {
   return (
     <section id="apps" className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
@@ -66,7 +57,7 @@ export function AppsSection() {
         />
       </Reveal>
 
-      <Stagger className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-3">
+      <Stagger className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-2">
         {apps.map((app) => {
           const accent = accentClasses[app.accent];
           return (
@@ -177,17 +168,6 @@ function BookGlyph({ className = "size-5" }: { className?: string }) {
         strokeLinejoin="round"
         opacity="0.55"
       />
-    </svg>
-  );
-}
-
-function BlocksGlyph({ className = "size-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
-      <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" opacity="0.6" />
-      <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" opacity="0.6" />
-      <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
     </svg>
   );
 }

@@ -17,7 +17,7 @@ const { quotes } = await getPoolQuotes(config, {
 <Callout type="warning">
   This is **pool-wide, not account-scoped**. The query carries no `partyA` or `partyB` filter, so it returns every
   trader's quotes on the market and `partyA` differs row to row. If you want one account's quotes, this is the wrong
-  read — use [`getSubAccountQuotes`](/core/quotes/get-sub-account-quotes).
+  read — use [`getSubAccountQuotes`](/core/symmio-contract/get-sub-account-quotes).
 </Callout>
 
 Rows are scoped by the pool's `symbolId` **and** by `source` — the SYMMIO diamond the quotes were opened against, which the SDK resolves from the chain's `symmioAddress`. Nothing extra to configure.

@@ -5,7 +5,7 @@ import { heroExamples } from "@/features/hero/hero-examples";
 import { easeOut } from "@/lib/motion";
 import { cn } from "@symmio/ui/lib/utils";
 import { motion, useReducedMotion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 const AUTO_ADVANCE_MS = 5200;
 
@@ -17,7 +17,8 @@ const AUTO_ADVANCE_MS = 5200;
  * content and switches transition *in place* (opacity + a faint scale/blur
  * morph), never sliding off-screen. The order ticket assembles and tucks over
  * the snippet's lower-right corner. Auto-advances, pauses on hover, and holds
- * still under `prefers-reduced-motion`.
+ * still under `prefers-reduced-motion`. The reel's own entrance is the CSS
+ * `animate-enter-up` (not a `motion` reveal), so it paints from the server HTML.
  */
 export function HeroShowcase() {
   const reduce = useReducedMotion();
@@ -32,11 +33,9 @@ export function HeroShowcase() {
   }, [paused, reduce, count]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.9, ease: easeOut, delay: 0.1 }}
-      className="flex flex-col gap-6"
+    <div
+      className="animate-enter-up flex flex-col gap-6"
+      style={{ "--enter-delay": "120ms" } as CSSProperties}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocusCapture={() => setPaused(true)}
@@ -97,6 +96,6 @@ export function HeroShowcase() {
         </div>
         <span className="text-muted-foreground font-mono text-xs">{heroExamples[active]?.label}</span>
       </div>
-    </motion.div>
+    </div>
   );
 }

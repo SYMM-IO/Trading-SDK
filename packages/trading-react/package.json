@@ -2,8 +2,21 @@
   "name": "@symmio/trading-react",
   "version": "3.2.0",
   "description": "React adapter for the SYMMIO SDK. Hooks, providers, and React-bound ergonomics on top of @symmio/trading-core.",
+  "keywords": [
+    "symmio",
+    "symmio-sdk",
+    "sdk",
+    "react",
+    "hooks",
+    "wagmi",
+    "tanstack-query",
+    "trading",
+    "perpetuals",
+    "perps",
+    "defi"
+  ],
   "license": "MIT",
-  "homepage": "https://github.com/SYMM-IO/Trading-SDK/tree/main/packages/trading-react#readme",
+  "homepage": "https://doc.trading-sdk.symm.io/react/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SYMM-IO/Trading-SDK.git",

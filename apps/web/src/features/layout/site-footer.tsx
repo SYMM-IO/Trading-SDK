@@ -1,7 +1,15 @@
 import { StatusDot } from "@/components/status-dot";
 import { LogoMark } from "@/features/layout/logo";
 import { navLinks } from "@/features/layout/nav";
+import { siteLinks } from "@/lib/site";
 import Link from "next/link";
+
+/** The sibling SYMMIO Trading-SDK surfaces — the crawlable links that tie the console, docs, and website together. */
+const resourceLinks = [
+  { label: "Documentation", href: siteLinks.docs },
+  { label: "Website", href: siteLinks.landing },
+  { label: "GitHub", href: siteLinks.github },
+] as const;
 
 export function SiteFooter() {
   const year = new Date().getFullYear();
@@ -26,20 +34,39 @@ export function SiteFooter() {
             </span>
           </div>
 
-          <nav className="flex flex-col gap-3">
-            <span className="text-muted-foreground text-xs font-medium tracking-[0.18em] uppercase">Navigate</span>
-            <div className="flex flex-col gap-2">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="text-muted-foreground hover:text-foreground w-fit text-sm transition-colors"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-          </nav>
+          <div className="flex flex-wrap gap-x-12 gap-y-8">
+            <nav className="flex flex-col gap-3">
+              <span className="text-muted-foreground text-xs font-medium tracking-[0.18em] uppercase">Navigate</span>
+              <div className="flex flex-col gap-2">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="text-muted-foreground hover:text-foreground w-fit text-sm transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </nav>
+
+            <nav className="flex flex-col gap-3" aria-label="Resources">
+              <span className="text-muted-foreground text-xs font-medium tracking-[0.18em] uppercase">Resources</span>
+              <div className="flex flex-col gap-2">
+                {resourceLinks.map((link) => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-muted-foreground hover:text-foreground w-fit text-sm transition-colors"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            </nav>
+          </div>
         </div>
 
         <div className="border-border/60 text-muted-foreground mt-10 flex flex-col gap-2 border-t pt-6 text-xs sm:flex-row sm:items-center sm:justify-between">

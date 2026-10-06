@@ -1,5 +1,6 @@
 import { useMDXComponents as getThemeComponents } from "nextra-theme-docs";
 import type { ReactNode } from "react";
+import { siteLinks } from "../lib/site";
 
 /**
  * Canonical URL of the hosted affiliate-registration page.
@@ -7,7 +8,7 @@ import type { ReactNode } from "react";
  * Single source of truth — reference this constant (or {@link AffiliateLink})
  * instead of hardcoding the URL, so changing it is a one-line edit.
  */
-export const AFFILIATE_REGISTRATION_URL = "https://trading-sdk.symm.io/affiliate";
+export const AFFILIATE_REGISTRATION_URL = `${siteLinks.landing}/affiliate`;
 
 interface Props {
   children?: ReactNode;

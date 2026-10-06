@@ -62,7 +62,7 @@ export const libraries: LibraryEntry[] = [
     description:
       "The design system behind our own apps — accessible, Radix-based primitives on Tailwind. Used by our surfaces; not required to consume the SDK.",
     tags: ["Radix", "Tailwind"],
-    href: siteLinks.storybook,
+    href: siteLinks.uiSource,
     icon: <SwatchIcon />,
   },
 ];

@@ -461,6 +461,22 @@ footer:has(.symm-footer) {
   line-height: 1.5;
 }
 
+.symm-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  font-size: 0.85rem;
+}
+
+.symm-footer__links a {
+  color: var(--muted-foreground);
+  transition: color 150ms ease;
+}
+
+.symm-footer__links a:hover {
+  color: var(--foreground);
+}
+
 .symm-footer__meta {
   font-family: var(--x-font-mono);
   font-size: 0.75rem;

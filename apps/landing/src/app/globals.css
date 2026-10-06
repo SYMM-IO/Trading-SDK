@@ -86,10 +86,11 @@
 }
 
 /**
- * Motion vocabulary. Most reveals are orchestrated in JS with `motion`; the
- * keyframes below drive the ambient, always-on effects that would be wasteful
+ * Motion vocabulary. Below-the-fold reveals are orchestrated in JS with `motion`;
+ * the keyframes below drive the ambient, always-on effects that would be wasteful
  * to run off a render loop — the ticker marquee, the accent sweep on the hero
- * wordmark, and the soft breathing of the atmosphere.
+ * wordmark, and the soft breathing of the atmosphere — plus the hero's entrance
+ * (`enter-up` / `enter-fade`, shared with apps/web).
  */
 @keyframes marquee {
   from {
@@ -128,6 +129,42 @@
   to {
     background-position: 0 -60px;
   }
+}
+
+/**
+ * Above-the-fold entrance, mirrored from apps/web. Unlike a `motion` reveal it runs
+ * from first paint: the server HTML carries the hero copy with no inline
+ * `opacity: 0`, so crawlers read it as-is and the headline (the LCP element) never
+ * waits for hydration. Stagger by setting `--enter-delay`.
+ */
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes enter-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-enter-up {
+  animation: enter-up 0.62s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--enter-delay, 0ms);
+}
+
+.animate-enter-fade {
+  animation: enter-fade 0.5s ease both;
+  animation-delay: var(--enter-delay, 0ms);
 }
 
 .animate-marquee {
@@ -216,8 +253,16 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-marquee,
   .text-sheen,
-  .animate-float-slow {
+  .animate-float-slow,
+  .animate-enter-up,
+  .animate-enter-fade {
     animation: none !important;
+  }
+
+  .animate-enter-up,
+  .animate-enter-fade {
+    opacity: 1 !important;
+    transform: none !important;
   }
 
   /* Freeze the featured card to a full, static cobalt→violet edge. */

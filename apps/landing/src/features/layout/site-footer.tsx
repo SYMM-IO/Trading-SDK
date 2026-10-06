@@ -24,7 +24,6 @@ const columns: { title: string; links: FooterLink[] }[] = [
     links: [
       { label: "Web console", href: siteLinks.console, external: true },
       { label: "Docs site", href: siteLinks.docs, external: true },
-      { label: "Storybook", href: siteLinks.storybook, external: true },
     ],
   },
   {

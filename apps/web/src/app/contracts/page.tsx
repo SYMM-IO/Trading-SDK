@@ -1,7 +1,7 @@
 import { ContractsPanel } from "@/features/contracts/contracts-panel";
 
 export const metadata = {
-  title: "Contracts · Symmio",
+  title: "Contract methods",
   description: "Browse the SYMMIO React SDK's contract methods by ABI or by flow.",
 };
 

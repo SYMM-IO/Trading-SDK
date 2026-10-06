@@ -2,8 +2,22 @@
   "name": "@symmio/trading-core",
   "version": "3.2.0",
   "description": "Framework-agnostic SYMMIO SDK. Contract calls, calculations, and transformations with no framework assumptions.",
+  "keywords": [
+    "symmio",
+    "symmio-sdk",
+    "sdk",
+    "trading",
+    "perpetuals",
+    "perps",
+    "derivatives",
+    "defi",
+    "typescript",
+    "viem",
+    "arbitrum",
+    "base"
+  ],
   "license": "MIT",
-  "homepage": "https://github.com/SYMM-IO/Trading-SDK/tree/main/packages/trading-core#readme",
+  "homepage": "https://doc.trading-sdk.symm.io/core/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SYMM-IO/Trading-SDK.git",

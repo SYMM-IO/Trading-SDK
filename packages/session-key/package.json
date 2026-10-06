@@ -2,8 +2,18 @@
   "name": "@symmio/session-key",
   "version": "1.0.0",
   "description": "Framework-agnostic local EVM session-key helpers for SYMMIO SDK consumers.",
+  "keywords": [
+    "symmio",
+    "symmio-sdk",
+    "session-key",
+    "evm",
+    "eip-712",
+    "signing",
+    "viem",
+    "defi"
+  ],
   "license": "MIT",
-  "homepage": "https://github.com/SYMM-IO/Trading-SDK/tree/main/packages/session-key#readme",
+  "homepage": "https://doc.trading-sdk.symm.io/session-key/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SYMM-IO/Trading-SDK.git",

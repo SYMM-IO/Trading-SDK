@@ -1,7 +1,7 @@
 import { OrderbookShell } from "@/features/orderbook/orderbook-shell";
 
 export const metadata = {
-  title: "Orderbook · Symmio",
+  title: "Orderbook",
   description: "Stream a synchronized order book from a pluggable OrderbookSource via the React SDK.",
 };
 
