@@ -107,7 +107,7 @@ function userPoolColumns(): DataTableColumn<UserListingMarket>[] {
  */
 export function YourPoolsCard() {
   const enigmaActive = useSolverKindActive("enigma");
-  const { accessToken, error: authError } = useListingAuth();
+  const { accessToken } = useListingAuth();
   const [status, setStatus] = useState<string>(ANY);
 
   const pools = useUserListingMarkets({
@@ -129,8 +129,6 @@ export function YourPoolsCard() {
     >
       {!enigmaActive ? (
         <ResultNote testId="your-pools-gate">Switch to Enigma (Arbitrum) to sign in and load your pools.</ResultNote>
-      ) : authError ? (
-        <ResultError kind={authError.kind} message={authError.message} testId="your-pools-auth-error" />
       ) : !accessToken ? (
         <SignInNote testId="your-pools-idle" buttonTestId="your-pools-sign-in">
           Sign in to load the pools that hold a deposit address for your wallet.

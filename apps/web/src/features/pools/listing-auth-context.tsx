@@ -10,6 +10,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
@@ -25,20 +26,35 @@ import {
 
 type SignInError = ReturnType<typeof useAuthenticateListing>["error"];
 
+/**
+ * Whether the connected wallet can sign the SIWE message. `"disconnected"` and
+ * `"unsupported-chain"` would both fail inside the SDK's wallet resolver, so a
+ * card shows the matching prompt instead of a sign-in button.
+ */
+export type ListingWalletState = "ready" | "disconnected" | "unsupported-chain";
+
 /** The shared listing session every authed Pools card on the page reads. */
 interface ListingAuthValue {
   /** The current bearer token, or `null` when signed out. */
   token: ListingAuthToken | null;
   /** Convenience accessor for `token?.accessToken` — the bearer string authed reads need. */
   accessToken: string | null;
-  /** Run the SIWE sign-in once and store the returned token for the whole page. */
-  signIn: () => void;
+  /** Whether the connected wallet can sign in right now. */
+  wallet: ListingWalletState;
+  /**
+   * Run the SIWE sign-in once and store the returned token for the whole page.
+   * `source` names the control that started it, so only that control reports a
+   * failure (see {@link ListingAuthValue.signInSource}).
+   */
+  signIn: (source?: string) => void;
   /** Drop the stored token (sign out). */
   signOut: () => void;
   /** `true` while the SIWE exchange is in flight. */
   isSigningIn: boolean;
   /** The last sign-in error, or `null`. */
   error: SignInError;
+  /** The `source` the last sign-in was started from, or `null` when it was started without one. */
+  signInSource: string | null;
 }
 
 const ListingAuthContext = createContext<ListingAuthValue | null>(null);
@@ -103,23 +119,29 @@ export function ListingAuthProvider({ children }: { children: ReactNode }) {
   const { mutate, isPending, error } = useAuthenticateListing();
   const queryClient = useQueryClient();
   const chainId = useChainId();
-  const { address } = useWalletAccount();
+  const { address, isConnected, isOnExpectedChain } = useWalletAccount();
   const slot = address ? listingTokenStorageKey(chainId, address) : null;
+  const wallet: ListingWalletState = !isConnected ? "disconnected" : !isOnExpectedChain ? "unsupported-chain" : "ready";
+  const [signInSource, setSignInSource] = useState<string | null>(null);
 
   const getSnapshot = useCallback(() => (slot ? readListingTokenRaw(slot) : null), [slot]);
   const raw = useSyncExternalStore(subscribeListingTokens, getSnapshot, getServerSnapshot);
   const token = useMemo(() => parseListingToken(raw), [raw]);
 
-  const signIn = useCallback(() => {
-    mutate(
-      {},
-      {
-        onSuccess: (next) => {
-          if (slot) writeListingToken(slot, next);
+  const signIn = useCallback(
+    (source?: string) => {
+      setSignInSource(source ?? null);
+      mutate(
+        {},
+        {
+          onSuccess: (next) => {
+            if (slot) writeListingToken(slot, next);
+          },
         },
-      },
-    );
-  }, [mutate, slot]);
+      );
+    },
+    [mutate, slot],
+  );
 
   const signOut = useCallback(() => {
     if (slot) clearListingToken(slot);
@@ -194,12 +216,14 @@ export function ListingAuthProvider({ children }: { children: ReactNode }) {
     () => ({
       token,
       accessToken: token?.accessToken ?? null,
+      wallet,
       signIn,
       signOut,
       isSigningIn: isPending,
       error,
+      signInSource,
     }),
-    [token, signIn, signOut, isPending, error],
+    [token, wallet, signIn, signOut, isPending, error, signInSource],
   );
 
   return <ListingAuthContext.Provider value={value}>{children}</ListingAuthContext.Provider>;

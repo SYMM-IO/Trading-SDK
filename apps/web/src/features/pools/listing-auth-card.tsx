@@ -7,6 +7,7 @@ import { Spinner } from "@symmio/ui/components/spinner";
 import { MethodCard } from "../inspector/method-card";
 import { useSolverKindActive } from "../solvers/solver-target";
 import { useListingAuth } from "./listing-auth-context";
+import { WALLET_PROMPTS } from "./sign-in-note";
 
 /**
  * SIWE login to the listing backend, the prerequisite for authenticated Pools
@@ -24,7 +25,7 @@ import { useListingAuth } from "./listing-auth-context";
  */
 export function ListingAuthCard() {
   const enigmaActive = useSolverKindActive("enigma");
-  const { token, signIn, signOut, isSigningIn, error } = useListingAuth();
+  const { token, wallet, signIn, signOut, isSigningIn, error } = useListingAuth();
 
   return (
     <MethodCard
@@ -41,6 +42,8 @@ export function ListingAuthCard() {
               <ResultNote testId="listing-auth-gate">
                 Switch to Enigma (Arbitrum) to sign in to the listing backend.
               </ResultNote>
+            ) : wallet !== "ready" ? (
+              <ResultNote testId="listing-auth-wallet">{WALLET_PROMPTS[wallet]}</ResultNote>
             ) : error ? (
               <ResultError kind={error.kind} message={error.message} testId="listing-auth-error" />
             ) : token ? (
@@ -70,7 +73,7 @@ export function ListingAuthCard() {
               type="button"
               size="sm"
               variant={token ? "outline" : "default"}
-              disabled={!enigmaActive || isSigningIn}
+              disabled={!enigmaActive || wallet !== "ready" || isSigningIn}
               onClick={() => signIn()}
               data-testid="listing-auth-sign-in"
             >
