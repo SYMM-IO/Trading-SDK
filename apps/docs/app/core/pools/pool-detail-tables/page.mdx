@@ -31,7 +31,7 @@ That is deliberate: a pool page shows the pool's book, not the visitor's. It has
 
 A pool that has not reached `LISTED` has no `symbolId`, and without one there is no solver market to query. `getPoolQuotes` and `getPoolTradeHistory` short-circuit to an empty result rather than issuing a request, and their query factories stay `enabled: false`.
 
-`getPoolTransactions` is the exception: deposits and withdrawals exist from the moment a listing is applied for, so that table has rows well before the pool is tradable.
+`getPoolTransactions` is the exception: deposits and withdrawals exist from the moment a listing is applied for, so that table has rows well before the pool is tradable. It keys on the pool's token address rather than a `symbolId` — pass `tokenAddress` to scope it to this pool, since with no filter it spans **every** pool.
 
 ## Limit orders are not protocol LIMIT orders
 
@@ -52,7 +52,7 @@ The distinction is load-bearing: the lowcap solver declares `limitOrder: false`,
     The pool's realized closes and liquidations, one row per event.
   </MethodEntry>
   <MethodEntry name="getPoolTransactions" href="/core/pools/pool-transactions">
-    The pool's deposits and withdrawals, refunds included.
+    Deposits and withdrawals, refunds included — one pool's, or every pool's newest first.
   </MethodEntry>
 </MethodIndex>
 

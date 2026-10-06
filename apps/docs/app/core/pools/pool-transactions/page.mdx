@@ -2,67 +2,122 @@ import { Callout } from "nextra/components";
 
 # getPoolTransactions
 
-Fetch a pool's deposit and withdrawal history, newest first — refunded deposits included.
+Fetch pool deposit and withdrawal history, newest first — refunded deposits included — for one pool or across **every** pool.
 
 ```ts
-import { getPoolTransactions } from "@symmio/trading-core";
+import { getPoolTransactions, PoolTransactionStatus, PoolTransactionType } from "@symmio/trading-core";
 
-const page = await getPoolTransactions(config, {
-  marketAddress: "0x800822d361335b4d5F352Dac293cA4128b5B605f",
-  size: 50,
+// The latest activity across every pool — no filters.
+const latest = await getPoolTransactions(config);
+
+// One pool's pending withdrawals.
+const pending = await getPoolTransactions(config, {
+  tokenAddress: "0x800822d361335b4d5F352Dac293cA4128b5B605f",
+  transactionType: PoolTransactionType.WITHDRAW,
+  transactionStatus: PoolTransactionStatus.PENDING,
 });
 ```
 
-Public and pool-wide by default: every LP's rows, not just the caller's. Pass `walletAddress` to narrow it to one wallet.
+Public and unscoped by default: every LP's rows on every pool, in one newest-first sequence. Every filter is optional and they combine — narrow by pool (`tokenAddress`), by the chain the pool's token lives on (`marketChainId`), by wallet, by type, or by status. Each row names its own pool (`tokenAddress`, `chainId`), so an all-pools page stays attributable row by row.
 
 <Callout type="info">
   Unlike the other pool tables, this one has rows **before** the pool is tradable — deposits exist from the moment a
   listing is applied for, while the quote and history tables need a `symbolId`.
 </Callout>
 
+## Ordering and pagination
+
+- **Newest first, fixed.** The service orders every page by `time`, newest first, across all pools. There is **no sort parameter** — the order is the same whatever the filters.
+- **Path-based paging.** `start` and `size` travel in the path (`/{start}/{size}`), not the query string. `start` counts **rows**, not pages: page `n` (0-based) is `start: n * size`, and `/2/50` is the first page shifted by two rows, not page 3. `count` is the total matching the filters **across all pages**, so it is what a pager divides — not `items.length`. A `start` past `count` returns an empty page with `count` intact.
+- **Capped page size.** The backend caps `size` at **50** and rejects a larger value with a `422`. The default is that cap.
+
 ## Parameters
 
 <Properties>
   <Property name="chainId" type="number" optional>
-    Target chain id. Defaults to the config's `defaultChainId`.
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which deployment's listing backend is asked — it
+    is **not** a filter; `marketChainId` is.
   </Property>
-  <Property name="marketAddress" type="string" required>
-    The pool's token contract address.
+  <Property name="tokenAddress" type="string" optional>
+    Narrow to one pool by its token contract address (`ListingMarket.contractAddress`). Omit for every pool. EVM
+    addresses match case-insensitively; Solana base58 addresses are case-sensitive. An address with no listed market
+    fails with a `400` (`Market not found`) rather than returning an empty page.
+  </Property>
+  <Property name="marketAddress" type="string" optional>
+    **Deprecated — prefer `tokenAddress`.** The same filter under its old name. It keeps working: the SDK sends it as
+    `token_address` too, so it is unaffected if the service retires its own `market_address` alias. When both are set,
+    `tokenAddress` wins.
+  </Property>
+  <Property
+    name="marketChainId"
+    type="ListingDepositChainId"
+    typeHref="/core/pools/listing-market-type#listingdepositchainid"
+    optional
+  >
+    Narrow to pools whose token lives on this chain (`ListingMarket.chainId`). The service rejects a chain outside its
+    supported deposit chains ([`getListingConfig`](/core/pools/listing-config)) with a `422`.
   </Property>
   <Property name="walletAddress" type="string" optional>
-    Narrow the page to one wallet's rows. Omit for the pool's whole history across every LP.
+    Narrow to one wallet's rows. Omit for every LP's.
+  </Property>
+  <Property name="transactionType" type="PoolTransactionType" optional>
+    Narrow to deposits or withdrawals only. Omit for both.
+  </Property>
+  <Property name="transactionStatus" type="PoolTransactionStatus" optional>
+    Narrow to one status (e.g. only `REFUND`). Omit for all statuses.
   </Property>
   <Property name="start" type="number" optional>
     Row offset. Defaults to `0`.
   </Property>
   <Property name="size" type="number" optional>
-    Page size. Defaults to `150`.
+    Page size. Defaults to `50`, which is also the backend's cap.
   </Property>
 </Properties>
 
-Pagination is path-based (`/{start}/{size}`), not query-based.
+### Migrating from `marketAddress`
+
+Rename the parameter — the result is the same:
+
+```ts
+// Before
+await getPoolTransactions(config, { marketAddress: address });
+
+// After
+await getPoolTransactions(config, { tokenAddress: address });
+```
+
+`marketAddress` was required before; with every filter optional, omitting both reads every pool.
 
 ## Returns
 
-`PoolTransactionPage`:
-
-<Properties>
+<Returns type="Promise<PoolTransactionPage>">
   <Property name="marketAddress" type="string | null">
-    The pool's token contract address, echoed by the backend, or `null` when the history was not scoped to one pool.
+    The token address the page was narrowed to, echoed by the backend in its canonical form, or `null` when the page
+    spans every pool. Each row carries its own `tokenAddress` either way.
   </Property>
   <Property name="count" type="number">
     Total rows matching the query **across all pages** — so this is what a pager divides, not `items.length`.
   </Property>
   <Property name="items" type="PoolTransaction[]">
-    The rows themselves.
+    The rows themselves, newest first.
   </Property>
-</Properties>
+</Returns>
 
 Each `PoolTransaction`:
 
 <Properties>
   <Property name="transactionId" type="string">
     Backend id for the transaction.
+  </Property>
+  <Property name="tokenAddress" type="string">
+    The pool's token contract address (EVM `0x…` or Solana base58) — the pool this row belongs to.
+  </Property>
+  <Property
+    name="chainId"
+    type="ListingDepositChainId"
+    typeHref="/core/pools/listing-market-type#listingdepositchainid"
+  >
+    The chain the pool's token lives on — not the chain the market trades on.
   </Property>
   <Property name="walletAddress" type="string">
     The wallet that made it. **Varies row to row.**
@@ -99,13 +154,30 @@ Each `PoolTransaction`:
   </Property>
 </Properties>
 
+A row carries the pool's identity but not its display metadata. To label an all-pools page with names and tickers, join each row to its [`ListingMarket`](/core/pools/listing-market-type) from [`getListingMarkets`](/core/pools/get-listing-markets) on `tokenAddress` + `chainId` (`contractAddress` + `chainId` on the market).
+
+## Query options
+
+```ts
+import { getPoolTransactionsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getPoolTransactionsQueryOptions(config, { tokenAddress, size: 25, start: page * 25 }));
+```
+
+`getPoolTransactionsQueryOptions(config, options)` returns a TanStack options bag with a stable `queryKey`, the `queryFn`, and `enabled`. Every filter and the paging are part of the key, so differently filtered pages never share a cache entry. The deprecated `marketAddress` folds into `tokenAddress` in the key, so both spellings of one filter do share one. The pools write hooks (withdraw, cancel withdraw, refund) invalidate every key under the `"getPoolTransactions"` prefix.
+
 ## Throws
 
 - `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no listing backend.
 - `UNSUPPORTED_CHAIN` — a `SymmError` (`kind: "config"`) for an unknown chain id.
-- `FETCH_POOL_TRANSACTIONS_FAILED` — an axios failure becomes a `SymmApiError`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`).
+- `FETCH_POOL_TRANSACTIONS_FAILED` — an axios failure becomes a `SymmApiError` carrying `status`, `statusText` and `responseData`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`). Notable statuses:
+  - **`400`** with `responseData.error_message` `"Market not found"` — the `tokenAddress` (or `marketAddress`) has no listed market. An unlisted pool is an error, not an empty page.
+  - **`422`** — a filter value the service rejects (a malformed address, a `marketChainId` outside its supported deposit chains) or a `size` above 50.
 
 ## Related
 
-- [Pool detail tables](/core/pools/pool-detail-tables) — the other four reads.
+- [`getUserTransactions`](/core/pools/user-transactions) — the authed, per-user counterpart, with token display metadata on each row.
+- [`getListingMarkets`](/core/pools/get-listing-markets) — the catalogue to join an all-pools page against for names and tickers.
+- [Pool detail tables](/core/pools/pool-detail-tables) — the other pool-page reads.
 - [React: `usePoolTransactions`](/react/pools#usepooltransactions).

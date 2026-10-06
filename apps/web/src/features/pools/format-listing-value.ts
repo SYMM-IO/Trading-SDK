@@ -121,6 +121,8 @@ export const DEPOSIT_CHAIN_LABELS: Record<ListingDepositChainId, string> = {
   [ListingDepositChainId.BASE]: "Base",
   [ListingDepositChainId.SONIC]: "Sonic",
   [ListingDepositChainId.ARBITRUM_ONE]: "Arbitrum",
+  [ListingDepositChainId.ROBINHOOD]: "Robinhood",
+  [ListingDepositChainId.ARC]: "Arc",
   [ListingDepositChainId.HYPER_EVM]: "HyperEVM",
 };
 

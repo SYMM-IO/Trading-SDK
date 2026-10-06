@@ -5,11 +5,14 @@ import { PoolTransactionStatus, PoolTransactionType, type UserTransaction } from
 import { useUserTransactions } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
+import { Pagination } from "@symmio/ui/components/pagination";
+import { cn } from "@symmio/ui/lib/utils";
 import { MethodCard } from "../inspector/method-card";
 import { useSolverKindActive } from "../solvers/solver-target";
 import { quantity, shortAddress, timestamp } from "./detail-tables/shared";
 import { useListingAuth } from "./listing-auth-context";
 import { SignInNote } from "./sign-in-note";
+import { useServerPage } from "./use-server-page";
 
 /** Badge tone per transaction status. */
 const STATUS_VARIANT: Record<PoolTransactionStatus, "positive" | "warning" | "destructive" | "outline"> = {
@@ -79,12 +82,6 @@ export function UserTransactionsCard() {
   const enigmaActive = useSolverKindActive("enigma");
   const { accessToken } = useListingAuth();
 
-  const signedIn = accessToken !== null;
-  const history = useUserTransactions({
-    accessToken: accessToken ?? "",
-    query: { enabled: signedIn },
-  });
-
   return (
     <MethodCard
       testId="method-getUserTransactions"
@@ -95,22 +92,67 @@ export function UserTransactionsCard() {
     >
       {!enigmaActive ? (
         <ResultNote testId="user-transactions-gate">Switch to Enigma (Arbitrum) to read your transactions.</ResultNote>
-      ) : !signedIn ? (
+      ) : accessToken === null ? (
         <SignInNote testId="user-transactions-idle" buttonTestId="user-transactions-sign-in">
           Sign in to read your transactions.
         </SignInNote>
-      ) : history.error ? (
-        <ResultError kind={history.error.kind} message={history.error.message} testId="user-transactions-error" />
       ) : (
-        <DataTable
-          testId="user-transactions-table"
-          columns={COLUMNS}
-          data={history.data?.items ?? []}
-          getRowId={(row) => row.transactionId}
-          defaultPageSize={10}
-          emptyMessage={history.isPending ? "Loading your transactions…" : "No transactions yet."}
-        />
+        <UserTransactionsTable key={accessToken} accessToken={accessToken} />
       )}
     </MethodCard>
+  );
+}
+
+interface Props {
+  /** The listing session's bearer token. */
+  accessToken: string;
+}
+
+/**
+ * The signed-in user's transactions, paged on the server: each page is its own
+ * request, and the footer counts the backend's `count` — every transaction the
+ * user has — not the rows loaded. The backend caps a page at 150 rows, above
+ * every size the footer offers. Keyed on the session, so a new sign-in opens on
+ * page 1.
+ */
+function UserTransactionsTable({ accessToken }: Props) {
+  const pager = useServerPage(10);
+  const history = useUserTransactions({
+    accessToken,
+    start: pager.start,
+    size: pager.pageSize,
+    /** Keep the current page on screen, dimmed, while the next one loads. */
+    query: { placeholderData: (previous) => previous },
+  });
+
+  if (history.error) {
+    return <ResultError kind={history.error.kind} message={history.error.message} testId="user-transactions-error" />;
+  }
+
+  const total = history.data?.count ?? 0;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <DataTable
+        testId="user-transactions-table"
+        columns={COLUMNS}
+        data={history.data?.items ?? []}
+        getRowId={(row) => row.transactionId}
+        hidePagination
+        className={cn("transition-opacity", history.isPlaceholderData && "opacity-50")}
+        emptyMessage={history.isPending ? "Loading your transactions…" : "No transactions yet."}
+      />
+      {total > 0 ? (
+        <Pagination
+          page={pager.page}
+          pageCount={pager.pageCount(total)}
+          pageSize={pager.pageSize}
+          total={total}
+          onPageChange={pager.setPage}
+          onPageSizeChange={pager.setPageSize}
+          testId="user-transactions-table-pagination"
+        />
+      ) : null}
+    </div>
   );
 }

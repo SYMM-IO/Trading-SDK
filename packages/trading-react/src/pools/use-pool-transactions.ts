@@ -19,20 +19,28 @@ export type UsePoolTransactionsParameters = GetPoolTransactionsOptions & ConfigP
 export type UsePoolTransactionsReturnType = UseQueryResult<GetPoolTransactionsReturnType, SymmioRequestError>;
 
 /**
- * Read a pool's deposit and withdrawal history — refunded deposits included.
+ * Read pool deposit and withdrawal history — refunded deposits included —
+ * newest first.
  *
- * Pool-wide by default: every LP's rows, not just the connected wallet's. Pass
- * `walletAddress` to narrow it to one wallet.
+ * Public and unscoped by default: every LP's rows on **every** pool, not just
+ * the connected wallet's. Narrow it with `tokenAddress` (one pool),
+ * `marketChainId`, `walletAddress`, `transactionType` and `transactionStatus`;
+ * each row names its own pool (`tokenAddress`, `chainId`). The service fixes the
+ * order newest first and takes no sort parameter.
  *
  * `count` is the total across all pages, so it is what a pager should divide —
  * not `items.length`. Errors are normalized to {@link SymmioRequestError}.
  *
  * @example
  * ```tsx
- * const { data } = usePoolTransactions({ marketAddress, size: 25, start: page * 25 });
+ * // One pool, 25 rows a page.
+ * const { data } = usePoolTransactions({ tokenAddress, size: 25, start: page * 25 });
+ *
+ * // The latest activity across every pool.
+ * const { data: latest } = usePoolTransactions();
  * ```
  */
-export function usePoolTransactions(parameters: UsePoolTransactionsParameters): UsePoolTransactionsReturnType {
+export function usePoolTransactions(parameters: UsePoolTransactionsParameters = {}): UsePoolTransactionsReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const options = getPoolTransactionsQueryOptions(config, {

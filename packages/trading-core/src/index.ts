@@ -2789,7 +2789,8 @@ export {
  * - `getPoolQuotes` / `getPoolTradeHistory` (analytics subgraph) — the pool's
  *   **whole** book and realized history. Unlike the account-scoped quote reads,
  *   these carry no `partyA` filter: every trader's rows on that market.
- * - `getPoolTransactions` (listing backend) — deposits and withdrawals.
+ * - `getPoolTransactions` (listing backend) — deposits and withdrawals, one
+ *   pool's or every pool's, newest first.
  *
  * A pool's limit orders are not here: they come from the TP/SL handler via
  * `searchTpSlOrders({ symbolId, conditionalOrderType: "send_quote" })`.

@@ -4,6 +4,8 @@ import { ResultError, ResultNote } from "@/components/result";
 import type { PoolClaim } from "@symmio/trading-core";
 import { useClaimHistory } from "@symmio/trading-react";
 import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
+import { Pagination } from "@symmio/ui/components/pagination";
+import { cn } from "@symmio/ui/lib/utils";
 import { MethodCard } from "../inspector/method-card";
 import { useSolverKindActive } from "../solvers/solver-target";
 import { shortAddress, timestamp } from "./detail-tables/shared";
@@ -11,6 +13,7 @@ import { formatListingRewardAmount } from "./format-listing-value";
 import { useListingAuth } from "./listing-auth-context";
 import { usePoolScope } from "./pool-scope";
 import { SignInNote } from "./sign-in-note";
+import { useServerPage } from "./use-server-page";
 
 const COLUMNS: DataTableColumn<PoolClaim>[] = [
   {
@@ -67,13 +70,6 @@ export function ClaimHistoryCard() {
   const { accessToken } = useListingAuth();
   const { contractAddress } = usePoolScope();
 
-  const signedIn = accessToken !== null;
-  const history = useClaimHistory({
-    accessToken: accessToken ?? "",
-    tokenContractAddress: contractAddress.length > 0 ? contractAddress : undefined,
-    query: { enabled: signedIn },
-  });
-
   return (
     <MethodCard
       testId="method-getClaimHistory"
@@ -84,22 +80,74 @@ export function ClaimHistoryCard() {
     >
       {!enigmaActive ? (
         <ResultNote testId="claim-history-gate">Switch to Enigma (Arbitrum) to read your claim history.</ResultNote>
-      ) : !signedIn ? (
+      ) : accessToken === null ? (
         <SignInNote testId="claim-history-idle" buttonTestId="claim-history-sign-in">
           Sign in to read your claim history.
         </SignInNote>
-      ) : history.error ? (
-        <ResultError kind={history.error.kind} message={history.error.message} testId="claim-history-error" />
       ) : (
-        <DataTable
-          testId="claim-history-table"
-          columns={COLUMNS}
-          data={history.data?.items ?? []}
-          getRowId={(row) => row.claimRequestId}
-          defaultPageSize={10}
-          emptyMessage={history.isPending ? "Loading your claims…" : "No claims yet."}
+        <ClaimHistoryTable
+          key={`${accessToken}:${contractAddress}`}
+          accessToken={accessToken}
+          tokenContractAddress={contractAddress.length > 0 ? contractAddress : undefined}
         />
       )}
     </MethodCard>
+  );
+}
+
+interface Props {
+  /** The listing session's bearer token. */
+  accessToken: string;
+  /** The picked pool's token contract address, or `undefined` for every pool. */
+  tokenContractAddress?: string;
+}
+
+/**
+ * The signed-in user's claims, paged on the server: each page is its own
+ * request, and the footer counts the backend's `count` — every matching claim —
+ * not the rows loaded. The backend caps a page at 150 rows, above every size the
+ * footer offers. Keyed on the session and the pool, so either change opens on
+ * page 1.
+ */
+function ClaimHistoryTable({ accessToken, tokenContractAddress }: Props) {
+  const pager = useServerPage(10);
+  const history = useClaimHistory({
+    accessToken,
+    tokenContractAddress,
+    start: pager.start,
+    size: pager.pageSize,
+    /** Keep the current page on screen, dimmed, while the next one loads. */
+    query: { placeholderData: (previous) => previous },
+  });
+
+  if (history.error) {
+    return <ResultError kind={history.error.kind} message={history.error.message} testId="claim-history-error" />;
+  }
+
+  const total = history.data?.count ?? 0;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <DataTable
+        testId="claim-history-table"
+        columns={COLUMNS}
+        data={history.data?.items ?? []}
+        getRowId={(row) => row.claimRequestId}
+        hidePagination
+        className={cn("transition-opacity", history.isPlaceholderData && "opacity-50")}
+        emptyMessage={history.isPending ? "Loading your claims…" : "No claims yet."}
+      />
+      {total > 0 ? (
+        <Pagination
+          page={pager.page}
+          pageCount={pager.pageCount(total)}
+          pageSize={pager.pageSize}
+          total={total}
+          onPageChange={pager.setPage}
+          onPageSizeChange={pager.setPageSize}
+          testId="claim-history-table-pagination"
+        />
+      ) : null}
+    </div>
   );
 }

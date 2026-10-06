@@ -4,7 +4,7 @@ import { Callout } from "nextra/components";
 
 React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
 
-Twenty-six hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; `useCancelWithdraw` cancels a pending withdrawal before it settles; `useClaimProfit` claims a pool's accrued LP rewards as USDC to a sub-account; `useClaimHistory` reads the authed, per-user list of past claims; `useUserTransactions` reads the authed, per-user list of pool deposits and withdrawals across every pool; `useListingStatus` reads where a market sits in the listing pipeline (public); `useListingMarketConfig` reads the signed-in user's own max-leverage and buyback **opinion** for one pool alongside the pool values in force; `useUpdateListingMarketConfig` submits one; and `useListingMarketConfigProjection` estimates where the pool lands before that write. Four more fill a pool's detail tables — `useListingMarketDetail`, `usePoolQuotes`, `usePoolTradeHistory` and `usePoolTransactions`, covered under [the detail tables](#the-detail-tables) — and four read its rewards over time, covered under [rewards](#rewards-over-time).
+Twenty-six hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; `useCancelWithdraw` cancels a pending withdrawal before it settles; `useClaimProfit` claims a pool's accrued LP rewards as USDC to a sub-account; `useClaimHistory` reads the authed, per-user list of past claims; `useUserTransactions` reads the authed, per-user list of pool deposits and withdrawals across every pool; `useListingStatus` reads where a market sits in the listing pipeline (public); `useListingMarketConfig` reads the signed-in user's own max-leverage and buyback **opinion** for one pool alongside the pool values in force; `useUpdateListingMarketConfig` submits one; and `useListingMarketConfigProjection` estimates where the pool lands before that write. Four more fill a pool's detail tables — `useListingMarketDetail`, `usePoolQuotes`, `usePoolTradeHistory` and `usePoolTransactions`, covered under [the detail tables](#the-detail-tables); `usePoolTransactions` also reads every pool's activity at once, so it has [its own section](#usepooltransactions) — and four read its rewards over time, covered under [rewards](#rewards-over-time).
 
 Twenty of them are reads. `useAuthenticateListing`, `useAddMarket`, `useWithdrawLp`, `useCancelWithdraw`, `useClaimProfit` and `useUpdateListingMarketConfig` are **mutations** — the first prompts a wallet signature, the other five submit authed writes (a create-pool, an LP withdrawal, a withdrawal cancel, a rewards claim, and a pool-configuration opinion).
 
@@ -946,7 +946,7 @@ cancel.mutate({
 });
 ```
 
-The `withdrawId` is the `transactionId` of a still-`PENDING` `withdraw` row from [`usePoolTransactions`](#the-detail-tables) (filter by the connected wallet and `status`). On success the shares return to the user's available balance, so refetch [`useUserProfit`](#useuserprofit) to see `availableLpAmount` rise and `pendingWithdrawLpAmount` fall.
+The `withdrawId` is the `transactionId` of a still-`PENDING` `withdraw` row from [`usePoolTransactions`](#usepooltransactions) — fetch exactly those with `walletAddress`, `transactionType: PoolTransactionType.WITHDRAW` and `transactionStatus: PoolTransactionStatus.PENDING`, filtered server-side. On success the shares return to the user's available balance, so refetch [`useUserProfit`](#useuserprofit) to see `availableLpAmount` rise and `pendingWithdrawLpAmount` fall.
 
 ### Variables
 
@@ -1034,7 +1034,7 @@ const { data } = useClaimHistory({
 
 ## `useUserTransactions`
 
-Read the signed-in user's **transaction history** — their pool deposits and withdrawals across **every** pool, newest first. The authed, per-user counterpart to [`usePoolTransactions`](#the-detail-tables) (which is one pool, every LP), and unlike it, **not** tied to any pool picker — each row carries its own token identity.
+Read the signed-in user's **transaction history** — their pool deposits and withdrawals across **every** pool, newest first. The authed, per-user counterpart to [`usePoolTransactions`](#usepooltransactions) (which is public: every LP, one pool or every pool), and **not** tied to any pool picker — each row carries the token's identity and its display metadata (name, ticker, decimals).
 
 ```tsx
 const { data } = useUserTransactions({
@@ -1053,6 +1053,46 @@ Optionally narrow by `transactionType`, `transactionStatus`, or `tokenAddress`. 
   **Enigma-only**, like the rest of Pools. The query rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
   backend, and a bad or expired token comes back as a `FETCH_USER_TRANSACTIONS_FAILED` `401`. Gate the entry point with
   [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
+</Callout>
+
+## `usePoolTransactions`
+
+Read pool **deposits and withdrawals** — public, every LP's rows, newest first, refunded deposits included. Scope it to one pool with `tokenAddress`, or leave it unscoped for the latest activity across **every** pool. The React binding over [`getPoolTransactions`](../../core/pools/pool-transactions).
+
+```tsx
+// One pool's table, 25 rows a page.
+const { data } = usePoolTransactions({ tokenAddress, size: 25, start: page * 25 });
+
+// The latest activity across every pool.
+const { data: latest } = usePoolTransactions();
+```
+
+Every filter is optional and they combine. The service fixes the order — newest first — and takes no sort parameter. `count` is the total across all pages, so it is what a pager should divide — not `items.length`. Each row is a `PoolTransaction` that names its own pool (`tokenAddress`, `chainId`), so an all-pools page stays attributable; join it to [`useListingMarkets`](#uselistingmarkets) rows on `contractAddress` + `chainId` for names and tickers.
+
+### Parameters
+
+Every field is optional. The hook takes the core query options plus `config`.
+
+| Name                 | Type                    | Default         | Notes                                                                                                              |
+| -------------------- | ----------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `tokenAddress?`      | `string`                | —               | One pool, by its token contract address. Omit for every pool. An address with no listed market fails with a `400`. |
+| `marketAddress?`     | `string`                | —               | **Deprecated — prefer `tokenAddress`.** The same filter under its old name; `tokenAddress` wins when both are set. |
+| `marketChainId?`     | `ListingDepositChainId` | —               | Pools whose token lives on this chain — not the SDK's `chainId`.                                                   |
+| `walletAddress?`     | `string`                | —               | One wallet's rows. Omit for every LP's.                                                                            |
+| `transactionType?`   | `PoolTransactionType`   | —               | Deposits or withdrawals only.                                                                                      |
+| `transactionStatus?` | `PoolTransactionStatus` | —               | One status, e.g. `PENDING`.                                                                                        |
+| `start?`             | `number`                | `0`             | Row offset.                                                                                                        |
+| `size?`              | `number`                | `50`            | Page size; also the backend's cap.                                                                                 |
+| `chainId?`           | `number`                | connected chain | Which deployment's listing backend to read.                                                                        |
+
+### Return type
+
+`UseQueryResult<PoolTransactionPage, SymmioRequestError>`. `data.marketAddress` echoes the token the page was narrowed to, or is `null` on an all-pools page. It refetches automatically after [`useWithdrawLp`](#usewithdrawlp), [`useCancelWithdraw`](#usecancelwithdraw) and [`useRefundMarket`](#userefundmarket), which invalidate every `getPoolTransactions` query.
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. The query rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
+  backend. A `tokenAddress` with no listed market comes back as a `FETCH_POOL_TRANSACTIONS_FAILED` `400`, and a `size`
+  above 50 as a `422`. Gate the entry point with [`useSupportsListingService`](#gate-the-feature-first).
 </Callout>
 
 ## `useRefundMarket`
@@ -1507,7 +1547,7 @@ This is the thing to internalise before wiring any of them up. None of these rea
 
 `usePoolQuotes` and `usePoolTradeHistory` need the pool's `symbolId`. A pool that has not reached `LISTED` has none, so both stay idle (`enabled: false`) rather than firing a request that cannot match anything.
 
-`usePoolTransactions` is the exception — deposits exist from the moment a listing is applied for, so that tab has rows well before the pool is tradable. Render the other four as "not tradable yet" rather than "no data".
+`usePoolTransactions` is the exception — deposits exist from the moment a listing is applied for, so that tab has rows well before the pool is tradable. Render the other four as "not tradable yet" rather than "no data". It keys on the pool's token address instead of a `symbolId`: pass `tokenAddress`, since with no filter it reads **every** pool.
 
 ### One request feeds two tables
 

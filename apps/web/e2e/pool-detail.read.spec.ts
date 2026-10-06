@@ -84,3 +84,31 @@ test("trade history and transactions carry real rows for an active pool", async 
   const cashRows = page.getByTestId("pool-transactions-table").locator("tbody tr");
   await expect(cashRows.first()).toBeVisible({ timeout: 45_000 });
 });
+
+test("deposits & withdrawals page through the backend's whole history", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto(POOLS_URL);
+  await pickPool(page, ACTIVE_POOL, ACTIVE_POOL_LABEL);
+
+  /**
+   * The footer must count the backend's `count` — the pool's whole history — not
+   * the rows one request returned. The table once fetched a single page and paged
+   * through it on the client, so a pool with hundreds of transactions read
+   * "of 50" and everything older was unreachable.
+   */
+  const firstPage = page.waitForResponse((response) => response.url().includes("/transaction-history/0/10?"), {
+    timeout: 45_000,
+  });
+  await page.getByRole("tab", { name: "Deposits & withdrawals" }).click();
+  const { count } = (await (await firstPage).json()) as { count: number };
+  expect(count).toBeGreaterThan(10);
+
+  const pagination = page.getByTestId("pool-transactions-table-pagination");
+  await expect(page.getByTestId("pool-transactions-table-pagination-range")).toContainText(`of ${count}`);
+
+  /** `start` counts rows, not pages: page 2 at 10 a page asks for row 10 onwards. */
+  const secondPage = page.waitForRequest((request) => request.url().includes("/transaction-history/10/10?"));
+  await pagination.getByRole("button", { name: "Next page" }).click();
+  await secondPage;
+  await expect(page.getByTestId("pool-transactions-table-pagination-page-indicator")).toContainText("Page 2");
+});

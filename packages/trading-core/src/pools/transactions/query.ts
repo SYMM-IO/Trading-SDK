@@ -14,11 +14,19 @@ export type GetPoolTransactionsData = GetPoolTransactionsReturnType;
 /**
  * Build the TanStack Query key for {@link getPoolTransactionsQueryOptions}.
  *
+ * Every filter is part of the key, so differently filtered pages never share a
+ * cache entry. The deprecated `marketAddress` folds into `tokenAddress`, so the
+ * old and the new spelling of one filter do share one.
+ *
  * @param options - Query parameters plus the resolved config key.
  * @returns A stable, hashable query key.
  */
 export function getPoolTransactionsQueryKey(options: Compute<GetPoolTransactionsParameters & ConfigKeyParameter>) {
-  return ["getPoolTransactions", filterQueryOptions(options)] as const;
+  const { marketAddress, ...parameters } = options;
+  return [
+    "getPoolTransactions",
+    filterQueryOptions({ ...parameters, tokenAddress: parameters.tokenAddress ?? marketAddress }),
+  ] as const;
 }
 
 /** Query-key type produced by {@link getPoolTransactionsQueryKey}. */
@@ -45,27 +53,22 @@ export type GetPoolTransactionsQueryOptions = SymmioQueryOptions<
  * Build TanStack Query options for {@link getPoolTransactions}.
  *
  * @param config - The SDK config.
- * @param options - Query parameters and TanStack overrides.
+ * @param options - Query parameters and TanStack overrides. Omit for every pool's latest page.
  * @returns Options to pass to `useQuery` / `queryClient.fetchQuery`.
  */
 export function getPoolTransactionsQueryOptions(
   config: Config,
-  options: GetPoolTransactionsOptions,
+  options: GetPoolTransactionsOptions = {},
 ): GetPoolTransactionsQueryOptions {
+  /** Every parameter reaches the action: a hand-listed subset would silently drop a new filter. */
+  const { query, ...parameters } = options;
   return {
-    ...options.query,
+    ...query,
     queryKey: getPoolTransactionsQueryKey({
-      ...options,
-      configKey: config.getChainConfigKey(options.chainId),
+      ...parameters,
+      configKey: config.getChainConfigKey(parameters.chainId),
     }),
-    enabled: options.query?.enabled ?? true,
-    queryFn: () =>
-      getPoolTransactions(config, {
-        chainId: options.chainId,
-        marketAddress: options.marketAddress,
-        walletAddress: options.walletAddress,
-        start: options.start,
-        size: options.size,
-      }),
+    enabled: query?.enabled ?? true,
+    queryFn: () => getPoolTransactions(config, parameters),
   };
 }

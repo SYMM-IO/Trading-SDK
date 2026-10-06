@@ -88,6 +88,8 @@ export enum ListingDepositChainId {
   BASE = 8453,
   SONIC = 146,
   ARBITRUM_ONE = 42161,
+  ROBINHOOD = 4663,
+  ARC = 5042,
   HYPER_EVM = 999,
 }
 
@@ -667,13 +669,18 @@ export enum PoolTransactionStatus {
 /**
  * One deposit or withdrawal against a pool.
  *
- * `amount`, `usdcAmount` and `tokenAmount` are `bigint` at
- * {@link LISTING_VALUE_DECIMALS}. The refund fields are populated only for a
- * refunded row.
+ * Each row names its own pool (`tokenAddress`, `chainId`), so a page read across
+ * every pool stays attributable row by row. `amount`, `usdcAmount` and
+ * `tokenAmount` are `bigint` at {@link LISTING_VALUE_DECIMALS}. The refund fields
+ * are populated only for a refunded row.
  */
 export interface PoolTransaction {
   /** Backend id for the transaction. */
   transactionId: string;
+  /** The pool's token contract address (EVM `0x…` or Solana base58) — the pool this row belongs to. */
+  tokenAddress: string;
+  /** The chain the pool's token lives on — not the chain the market trades on. */
+  chainId: ListingDepositChainId;
   /** The wallet that made it. */
   walletAddress: string;
   /** Amount moved, in the transaction's own denomination. */
@@ -698,13 +705,16 @@ export interface PoolTransaction {
   time: number;
 }
 
-/** One page of {@link PoolTransaction} rows for a pool. */
+/** One page of {@link PoolTransaction} rows — one pool's, or every pool's when the read is not narrowed to a token. */
 export interface PoolTransactionPage {
-  /** The pool's token contract address, echoed by the backend, or `null` when the history was not scoped to one pool. */
+  /**
+   * The token address the page was narrowed to, echoed by the backend in its canonical form, or `null` when the page
+   * spans every pool. Each row carries its own `tokenAddress` either way.
+   */
   marketAddress: string | null;
-  /** Total rows matching the query across all pages. */
+  /** Total rows matching the query across all pages — what a pager divides, not `items.length`. */
   count: number;
-  /** The rows themselves. */
+  /** The rows themselves, newest first. */
   items: PoolTransaction[];
 }
 
@@ -712,9 +722,10 @@ export interface PoolTransactionPage {
  * One row of the signed-in user's transaction history (`getUserTransactions`) —
  * a deposit or withdrawal they made, on any pool.
  *
- * Unlike {@link PoolTransaction} (one pool, every LP), this is one user, every
- * pool — so each row carries its own token identity (`tokenAddress`,
- * `tokenName`, `tokenTicker`, `tokenDecimals`, `chainId`).
+ * Unlike {@link PoolTransaction} (public, every LP), this is authed and scoped to
+ * one user, every pool — and each row carries the token's display metadata
+ * (`tokenName`, `tokenTicker`, `tokenDecimals`), not just its identity
+ * (`tokenAddress`, `chainId`).
  */
 export interface UserTransaction {
   /** Backend id for the transaction. */
