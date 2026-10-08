@@ -16,6 +16,7 @@ export * from "./resolve-listing";
 export * from "./resolve-pool-source";
 export * from "./retry-listing";
 export * from "./rewards";
+export * from "./token-price";
 export * from "./trade-history";
 export * from "./transactions";
 export * from "./types";

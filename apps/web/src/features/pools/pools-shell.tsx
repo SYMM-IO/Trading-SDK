@@ -26,6 +26,7 @@ import { PoolsTvlCard } from "./pools-tvl-card";
 import { PoolsVolumeCard } from "./pools-volume-card";
 import { RefundCard } from "./refund-card";
 import { RetryListingCard } from "./retry-listing-card";
+import { TokenPriceCard } from "./token-price-card";
 import { UserProfitCard } from "./user-profit-card";
 import { UserRewardsCard } from "./user-rewards-card";
 import { UserTransactionsCard } from "./user-transactions-card";
@@ -94,11 +95,12 @@ export function PoolsShell() {
       {/* One shared bearer token for every authed card: sign in once, reuse it
           across cards, re-reads and page reloads instead of re-signing on every read. */}
       <ListingAuthProvider>
-        <MethodGroup label="Listing service" count={5}>
+        <MethodGroup label="Listing service" count={6}>
           <ListingAuthCard />
           <ListingConfigCard />
           <WeeklyLimitCard />
           <ListingStatusCard />
+          <TokenPriceCard />
           <CreatePoolCard />
         </MethodGroup>
 

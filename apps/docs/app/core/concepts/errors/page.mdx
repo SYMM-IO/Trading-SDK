@@ -113,6 +113,8 @@ Codes are stable strings. Group per kind. New codes may appear at any minor vers
 | `INITIAL_MARGIN_REQUIRED`         | `prepareInstantOpenParams`, `getInstantOpenFees`                                 | Neither `initialMargin` nor `fund` was passed.                                       |
 | `FULL_BALANCE_UNSUPPORTED`        | `prepareInstantOpenParams`, `getInstantOpenFees`                                 | `fund` or automatic-fallback `availableBalance` was used on a non-lowcap solver.     |
 | `QUOTE_CONSTRAINT_VIOLATED`       | Full-balance sizing in `prepareInstantOpenParams` / `getInstantOpenFees`         | The full-balance-sized quantity violates a published market constraint.              |
+| `MISSING_ACCESS_TOKEN`            | `getTokenPrice`                                                                  | `accessToken` is empty; the endpoint is authed.                                      |
+| `UNSUPPORTED_TOKEN_PRICE_CHAIN`   | `getTokenPrice`                                                                  | `chain` is not a `TokenPriceChain` member.                                           |
 
 ### `kind: "api"`
 
@@ -145,6 +147,7 @@ Selected — many more surface as `SymmApiError` with a `_FAILED` code per actio
 | `FETCH_INVENTORY_TVL_FAILED`                            | `getInventoryTvl`                            |
 | `FETCH_LISTING_MARKET_DETAIL_FAILED`                    | `getListingMarketDetail`                     | The pool-detail request failed.              |
 | `FETCH_POOL_TRANSACTIONS_FAILED`                        | `getPoolTransactions`                        | The pool transaction-history request failed. |
+| `FETCH_TOKEN_PRICE_FAILED`                              | `getTokenPrice`                              | The pre-listing token-price request failed.  |
 | `PRICES_SOCKET_ERROR`                                   | `watchEnigmaPrices`                          |
 
 ## viem errors (on-chain / transport)

@@ -4,9 +4,9 @@ import { Callout } from "nextra/components";
 
 React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
 
-Twenty-six hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; `useCancelWithdraw` cancels a pending withdrawal before it settles; `useClaimProfit` claims a pool's accrued LP rewards as USDC to a sub-account; `useClaimHistory` reads the authed, per-user list of past claims; `useUserTransactions` reads the authed, per-user list of pool deposits and withdrawals across every pool; `useListingStatus` reads where a market sits in the listing pipeline (public); `useListingMarketConfig` reads the signed-in user's own max-leverage and buyback **opinion** for one pool alongside the pool values in force; `useUpdateListingMarketConfig` submits one; and `useListingMarketConfigProjection` estimates where the pool lands before that write. Four more fill a pool's detail tables — `useListingMarketDetail`, `usePoolQuotes`, `usePoolTradeHistory` and `usePoolTransactions`, covered under [the detail tables](#the-detail-tables) — and four read its rewards over time, covered under [rewards](#rewards-over-time).
+Twenty-seven hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useTokenPrice` reads the authed, pre-listing **price estimate** for a token by chain name and address; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; `useCancelWithdraw` cancels a pending withdrawal before it settles; `useClaimProfit` claims a pool's accrued LP rewards as USDC to a sub-account; `useClaimHistory` reads the authed, per-user list of past claims; `useUserTransactions` reads the authed, per-user list of pool deposits and withdrawals across every pool; `useListingStatus` reads where a market sits in the listing pipeline (public); `useListingMarketConfig` reads the signed-in user's own max-leverage and buyback **opinion** for one pool alongside the pool values in force; `useUpdateListingMarketConfig` submits one; and `useListingMarketConfigProjection` estimates where the pool lands before that write. Four more fill a pool's detail tables — `useListingMarketDetail`, `usePoolQuotes`, `usePoolTradeHistory` and `usePoolTransactions`, covered under [the detail tables](#the-detail-tables) — and four read its rewards over time, covered under [rewards](#rewards-over-time).
 
-Twenty of them are reads. `useAuthenticateListing`, `useAddMarket`, `useWithdrawLp`, `useCancelWithdraw`, `useClaimProfit` and `useUpdateListingMarketConfig` are **mutations** — the first prompts a wallet signature, the other five submit authed writes (a create-pool, an LP withdrawal, a withdrawal cancel, a rewards claim, and a pool-configuration opinion).
+Twenty-one of them are reads. `useAuthenticateListing`, `useAddMarket`, `useWithdrawLp`, `useCancelWithdraw`, `useClaimProfit` and `useUpdateListingMarketConfig` are **mutations** — the first prompts a wallet signature, the other five submit authed writes (a create-pool, an LP withdrawal, a withdrawal cancel, a rewards claim, and a pool-configuration opinion).
 
 ## Import
 
@@ -33,6 +33,7 @@ import {
   useRetryListing,
   useRetryListingInfo,
   useSupportsListingService,
+  useTokenPrice,
   useUpdateListingMarketConfig,
   useUserListingMarkets,
   useUserProfit,
@@ -55,6 +56,8 @@ import {
   type UseListingMarketConfigReturnType,
   type UseListingMarketsParameters,
   type UseListingMarketsReturnType,
+  type UseTokenPriceParameters,
+  type UseTokenPriceReturnType,
   type UseUpdateListingMarketConfigParameters,
   type UseUpdateListingMarketConfigReturnType,
   type UseUserListingMarketsParameters,
@@ -74,7 +77,7 @@ import {
 } from "@symmio/trading-react";
 ```
 
-Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `UserListingMarket`, `UserListingMarketPage`, `UserPoolProfit`, `CreatedPool`, `ListingConfig`, `ListingDepositChain`, `ListingRateLimits`, `WeeklyListingLimit`, `ListingMarketStatus`, `MarketLockReason`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, `PoolRewardPoint`, `UserPoolRewardChart`, `ListingMarketConfig`, `ListingMarketConfigProjection`, `LISTING_MARKET_CONFIG_BOUNDS` — the client-side range for the two configuration knobs — and `LISTING_VALUE_DECIMALS`, the fixed-point scale every money and rate field on a row uses.
+Value types and enums come from `@symmio/trading-core`: `ListingMarket`, `ListingMarketPage`, `UserListingMarket`, `UserListingMarketPage`, `UserPoolProfit`, `CreatedPool`, `ListingConfig`, `ListingDepositChain`, `ListingRateLimits`, `WeeklyListingLimit`, `ListingMarketStatus`, `MarketLockReason`, `ListingDepositChainId`, `ListingMarketSortField`, `ListingMarketFilters`, `PoolRewardPoint`, `UserPoolRewardChart`, `ListingMarketConfig`, `ListingMarketConfigProjection`, `TokenPrice` and `TokenPriceChain` — the pre-listing price estimate and the chain-name enum it is keyed by — `LISTING_MARKET_CONFIG_BOUNDS` — the client-side range for the two configuration knobs — and `LISTING_VALUE_DECIMALS`, the fixed-point scale every money and rate field on a row uses.
 
 ## Gate the feature first
 
@@ -696,6 +699,110 @@ The `accessToken` is deliberately **not** part of the query key, so refreshing a
   `LISTING_NOT_CONFIGURED`; a bad or expired token comes back as a `401` (`FETCH_DEPOSIT_ADDRESS_FAILED`) on
   `getDepositAddress`. Gate the sign-in entry point with [`useSupportsListingService`](#gate-the-feature-first), and
   re-run [`useAuthenticateListing`](#useauthenticatelisting) on a `401`.
+</Callout>
+
+## `useTokenPrice`
+
+The authed, **pre-listing price estimate** for one token — what the Price Service thinks one unit is worth in USD, before (or regardless of whether) the token is listed as a pool. It is the figure a create-pool form shows next to the address the user just pasted. React binding over [`getTokenPrice`](../../core/pools/token-price).
+
+```tsx
+const { data, isPending, error } = useTokenPrice({
+  accessToken, // from useAuthenticateListing
+  chain: TokenPriceChain.ARC,
+  tokenAddress: "0x648A…620a",
+});
+
+// USD per token — an estimate:
+data?.price;
+```
+
+<Callout type="warning">
+  **This is an estimate — render it with a `~`.** The backend caches the figure for about five minutes and may have no
+  liquid market to price an unlisted token from, so never treat it as a mark or trade price and never size an order from
+  it. The endpoint is **rate-limited** (ten requests a minute per wallet, thirty globally, cached responses included),
+  so the hook defaults to a five-minute `staleTime` / `gcTime`: the same inputs inside that window are served from the
+  cache with no refetch. **Do not poll.** Pass `query.staleTime` only if you really need it fresher.
+</Callout>
+
+### It needs a token and an address, and stays idle without either
+
+Both `accessToken` (the Bearer token from [`useAuthenticateListing`](#useauthenticatelisting)) and `tokenAddress` are required, alongside `chain` — a [`TokenPriceChain`](../../core/pools/token-price#tokenpricechain) member, the chain by vendor **name**, not a numeric id and not a `ListingDepositChainId`. The hook gates itself on the token **and** the address: while either is an empty string it stays **idle** (`enabled: false`) rather than firing an incomplete or unauthenticated request, so you can mount it before sign-in and before the user has typed an address, and let it come alive the moment both land. There is **no `solverId`** — listing is resolved at chain level; pass `chainId` only to target a specific deployment.
+
+A pre-listing price UI is a **pick a chain → paste an address → show the estimate** flow. Debounce the address so a half-typed value does not spend the rate limit.
+
+```tsx
+import { useAuthenticateListing, useTokenPrice } from "@symmio/trading-react";
+import { TokenPriceChain } from "@symmio/trading-core";
+import { useState } from "react";
+
+export function TokenPriceEstimate() {
+  const login = useAuthenticateListing();
+  const [accessToken, setAccessToken] = useState("");
+  const [chain, setChain] = useState<TokenPriceChain>(TokenPriceChain.BASE);
+  const [address, setAddress] = useState("");
+
+  /** Your own debounce hook: one request per settled input, not one per keystroke. */
+  const debouncedAddress = useDebouncedValue(address, 400);
+
+  const { data, isPending, error } = useTokenPrice({
+    accessToken,
+    chain,
+    tokenAddress: debouncedAddress,
+  });
+
+  if (!accessToken) {
+    return (
+      <button
+        onClick={() => login.mutate({}, { onSuccess: (token) => setAccessToken(token.accessToken) })}
+        disabled={login.isPending}
+      >
+        {login.isPending ? "Sign in your wallet…" : "Sign in to estimate a price"}
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <select value={chain} onChange={(event) => setChain(event.target.value as TokenPriceChain)}>
+        {Object.values(TokenPriceChain).map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </select>
+      <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Token address" />
+
+      {debouncedAddress === "" ? null : error ? (
+        <p role="alert">{error.status === 429 ? "Too many lookups — try again in a minute." : error.message}</p>
+      ) : isPending || !data ? (
+        <p>Estimating…</p>
+      ) : (
+        <p>
+          ~${data.price} <small>estimate</small>
+        </p>
+      )}
+    </>
+  );
+}
+```
+
+The `accessToken` is deliberately **not** part of the query key, so refreshing an expired token reuses the cache rather than refetching (and the secret never lands in a devtools-visible key).
+
+### Return type
+
+`UseQueryResult<TokenPrice, SymmioRequestError>`. `data` is the [`TokenPrice`](../../core/pools/token-price#returns):
+
+| Field   | Type     | Notes                                                                                                                    |
+| ------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `price` | `number` | USD per token, as the service reports it — a plain float, not an 18-decimal `bigint`. An estimate; render it with a `~`. |
+
+<Callout type="info">
+  **Enigma-only**, like the rest of Pools. A read off a Pools target fails before the network with
+  `LISTING_NOT_CONFIGURED`; an empty token or a chain outside `TokenPriceChain` fails before the network too
+  (`MISSING_ACCESS_TOKEN` / `UNSUPPORTED_TOKEN_PRICE_CHAIN`, `kind: "sdk"` on the normalized error); a bad or expired
+  token comes back as a `401` (`FETCH_TOKEN_PRICE_FAILED`, `kind: "api"`) and an exhausted rate limit as a `429` with
+  `retryAfterMs`. Gate the sign-in entry point with [`useSupportsListingService`](#gate-the-feature-first), and re-run
+  [`useAuthenticateListing`](#useauthenticatelisting) on a `401`.
 </Callout>
 
 ## `useAuthenticateListing`

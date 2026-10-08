@@ -3,6 +3,7 @@ import {
   ListingDepositChainId,
   ListingMarketStatus,
   MarketLockReason,
+  TokenPriceChain,
 } from "@symmio/trading-core";
 import { formatCompact, formatCompactCurrency, formatPercentage } from "@symmio/utils";
 import { formatUnits } from "@symmio/utils/decimal";
@@ -128,6 +129,21 @@ export const DEPOSIT_CHAIN_LABELS: Record<ListingDepositChainId, string> = {
 export function depositChainLabel(chainId: ListingDepositChainId): string {
   return DEPOSIT_CHAIN_LABELS[chainId] ?? `Chain ${chainId}`;
 }
+
+/**
+ * Display names for the chains the token-price endpoint accepts. Keyed by the
+ * vendor's chain **name** (`TokenPriceChain`), a different key space from the
+ * numeric {@link DEPOSIT_CHAIN_LABELS} — two of these have no deposit twin.
+ */
+export const TOKEN_PRICE_CHAIN_LABELS: Record<TokenPriceChain, string> = {
+  [TokenPriceChain.BASE]: "Base",
+  [TokenPriceChain.SOLANA]: "Solana",
+  [TokenPriceChain.BSC]: "BSC",
+  [TokenPriceChain.ARBITRUM_ONE]: "Arbitrum",
+  [TokenPriceChain.SONIC]: "Sonic",
+  [TokenPriceChain.ROBINHOOD]: "Robinhood",
+  [TokenPriceChain.ARC]: "Arc",
+};
 
 /** Human label and badge tone for each point in the listing lifecycle. */
 export const LISTING_STATUS_DISPLAY: Record<

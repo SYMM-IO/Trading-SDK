@@ -1,0 +1,151 @@
+import { Callout } from "nextra/components";
+
+# getTokenPrice
+
+Fetch a **pre-listing price estimate** for a token — what the Price Service thinks one unit is worth in USD, before (or regardless of whether) the token is listed as a pool. It is the number a create-pool form shows next to the address the user just pasted, so they can sanity-check the token before committing a listing deposit.
+
+```ts
+import { getTokenPrice, TokenPriceChain } from "@symmio/trading-core";
+
+const estimate = await getTokenPrice(config, {
+  accessToken: token.accessToken,
+  chain: TokenPriceChain.ARC,
+  tokenAddress: "0x648A…620a",
+});
+
+// USD per token — an estimate:
+estimate.price;
+```
+
+The result is a [`TokenPrice`](#returns) — a single `price`. The endpoint is a POST, but the SDK models it as a **query**: the read is idempotent, the UI fetches it when a token is picked, and re-reads are safe.
+
+<Callout type="info">
+  This is a REST call against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
+  [`authenticateListing`](/core/pools/listing-auth) is sent as an `Authorization: Bearer <token>` header. The backend is
+  resolved from the config before the request, so a target without Pools fails immediately and without any network
+  traffic — see [`resolveListingService`](/core/pools/resolve-listing-service).
+</Callout>
+
+<Callout type="warning">
+  **This is an estimate — render it with a `~`.** The backend caches the figure for about five minutes and the Price
+  Service may not have a liquid market to price an unlisted token from, so never treat it as a mark or trade price, and
+  never size an order from it. The endpoint is also **rate-limited** — ten requests a minute per authenticated wallet
+  and thirty globally, and cached responses count — so serve repeat reads from the cache and **do not poll**.
+</Callout>
+
+## No solver id
+
+Pool listing is **chain-level** — one listing backend is served per chain — so `getTokenPrice` takes only an optional `chainId` and **no `solverId`**. Pass a `chainId` to read a specific deployment's listing backend; omit it to use the config's default chain.
+
+## Parameters
+
+Three inputs are required. The chain and the address together name the token; the token is a credential.
+
+<Properties>
+  <Property name="accessToken" type="string" required>
+    Bearer token from [`authenticateListing`](/core/pools/listing-auth). Sent as `Authorization: Bearer <token>`. A bad
+    or expired token yields a `401` (see [Throws](#throws)); an empty string is rejected before any request with
+    `MISSING_ACCESS_TOKEN`. Mint it once, hold it, and pass it on every call.
+  </Property>
+  <Property name="chain" type="TokenPriceChain" typeHref="#tokenpricechain" required>
+    The chain the token lives on, by vendor chain **name** — not a numeric chain id and not a `ListingDepositChainId`.
+    A value outside the enum is rejected before any request with `UNSUPPORTED_TOKEN_PRICE_CHAIN`.
+  </Property>
+  <Property name="tokenAddress" type="string" required>
+    The token's contract address on `chain`: an EVM `0x…` address, or a Solana base58 address when `chain` is `SOLANA`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Target chain id. Defaults to the config's `defaultChainId`. Selects which chain's listing backend is used, and is
+    folded into the query key. There is **no `solverId`** — listing is resolved at chain level.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Promise<TokenPrice>">
+  <Property name="price" type="number">
+    USD per token, as the service reports it — a plain float, always `> 0`. An estimate, cached server-side for about
+    five minutes.
+  </Property>
+</Returns>
+
+<Callout type="info">
+  Unlike the catalog's money fields, `price` is **not** an 18-decimal `bigint` — it is the service's float, passed
+  through unchanged. It is a display figure, not an input to any SDK arithmetic, so there is nothing to descale.
+</Callout>
+
+## TokenPriceChain
+
+The chains the token-price endpoint accepts, keyed by the vendor's chain **name**. This is the `chain` input above.
+
+```ts
+import { TokenPriceChain } from "@symmio/trading-core";
+
+TokenPriceChain.ARC; // "ARC"
+```
+
+<Properties>
+  <Property name="BASE" type='"BASE"'>
+    Base.
+  </Property>
+  <Property name="SOLANA" type='"SOLANA"'>
+    Solana — the one non-EVM member. `tokenAddress` is base58 here.
+  </Property>
+  <Property name="BSC" type='"BSC"'>
+    BNB Smart Chain.
+  </Property>
+  <Property name="ARBITRUM_ONE" type='"ARBITRUM_ONE"'>
+    Arbitrum One.
+  </Property>
+  <Property name="SONIC" type='"SONIC"'>
+    Sonic.
+  </Property>
+  <Property name="ROBINHOOD" type='"ROBINHOOD"'>
+    Robinhood Chain. No `ListingDepositChainId` twin.
+  </Property>
+  <Property name="ARC" type='"ARC"'>
+    Arc. No `ListingDepositChainId` twin.
+  </Property>
+</Properties>
+
+<Callout type="warning">
+  `TokenPriceChain` and [`ListingDepositChainId`](/core/pools/listing-market-type#listingdepositchainid) are **different
+  key spaces**. The deposit enum is numeric (an EVM chain id, or the `0` sentinel for Solana) and names where a listing
+  deposit lands; this enum is a string name the price endpoint understands, and two of its members have no numeric twin
+  at all. Do not cast between them — pick the member explicitly from the chain the user chose.
+</Callout>
+
+## Query options
+
+```ts
+import { getTokenPriceQueryOptions, TokenPriceChain } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(
+  getTokenPriceQueryOptions(config, {
+    accessToken,
+    chain: TokenPriceChain.ARC,
+    tokenAddress: "0x648A…620a",
+  }),
+);
+```
+
+`GetTokenPriceOptions` is the action's parameters (including the required `accessToken`, `chain`, and `tokenAddress`) plus a `query` bag of TanStack overrides. The factory defaults **both `staleTime` and `gcTime` to five minutes** to match the backend's own cache and spare its rate limit: the same inputs inside that window are served from the cache with no refetch, and a `query.staleTime` / `query.gcTime` override wins. It folds `config.getChainConfigKey(chainId)` into the key but leaves `accessToken` out of it, so a refreshed token reuses the cache rather than refetching (and the secret never lands in a devtools-visible key). `getTokenPriceQueryKey` builds the same key for cache matching and invalidation.
+
+The rest of the factory's types are exported too: `GetTokenPriceData` is what the query resolves to (the same `TokenPrice`), `GetTokenPriceReturnType` is the action's return alias, `GetTokenPriceQueryKey` is the key the factory builds, and `GetTokenPriceQueryOptions` is the options bag it produces. `toTokenPrice` is the mapper from the raw endpoint response to the normalized shape.
+
+## Throws
+
+- `LISTING_NOT_CONFIGURED` — a `SymmError` (`kind: "config"`) when the chain has no `listing` backend configured. Gate with `supportsListingService` to hide Pools instead of erroring. Only chains with a listing backend have Pools.
+- `MISSING_ACCESS_TOKEN` — a `SymmError` (`kind: "validation"`), thrown client-side before any request when `accessToken` is empty. Sign the user in with [`authenticateListing`](/core/pools/listing-auth) first.
+- `UNSUPPORTED_TOKEN_PRICE_CHAIN` — a `SymmError` (`kind: "validation"`), thrown client-side before any request when `chain` is not a [`TokenPriceChain`](#tokenpricechain) member.
+- `FETCH_TOKEN_PRICE_FAILED` — the request itself failed. Any axios failure becomes a `SymmApiError` carrying `status`, `statusText`, `responseData`, `url` and `method`; a non-axios throw becomes a plain `SymmError` (`kind: "api"`) with the original error as its `cause`. A **`401`** here means the `accessToken` was malformed or expired — re-run `authenticateListing` and retry. A **`422`** means the service could not resolve the address on that chain. A **`429`** means the rate limit is exhausted; `retryAfterMs` carries the wait when the service sends one, so back off rather than retrying at once.
+
+## Related
+
+- [`addMarket`](/core/pools/add-market) — the create-pool write this estimate sits in front of.
+- [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this read requires.
+- [`ListingDepositChainId`](/core/pools/listing-market-type#listingdepositchainid) — the **numeric** deposit-chain enum, which this read does not take.
+- [`useTokenPrice`](/react/pools#usetokenprice) — the React hook.
+- [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.
+- [Pools](/core/pools) — the slice overview.
