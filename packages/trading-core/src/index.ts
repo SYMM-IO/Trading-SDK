@@ -73,6 +73,7 @@ export {
   depositForAccountMutationOptions,
   editAccountName,
   editAccountNameMutationOptions,
+  encodeSubAccountHookMetadata,
   generateAccountManagerAddress,
   generateAccountManagerAddressQueryKey,
   generateAccountManagerAddressQueryOptions,
@@ -82,6 +83,9 @@ export {
   getAccountBalanceOf,
   getAccountBalanceOfQueryKey,
   getAccountBalanceOfQueryOptions,
+  getActiveVirtualAccountByKey,
+  getActiveVirtualAccountByKeyQueryKey,
+  getActiveVirtualAccountByKeyQueryOptions,
   getAffiliateState,
   getAffiliateStateQueryKey,
   getAffiliateStateQueryOptions,
@@ -109,6 +113,12 @@ export {
   getVirtualAccountsAddressesOfSubAccount,
   getVirtualAccountsAddressesOfSubAccountQueryKey,
   getVirtualAccountsAddressesOfSubAccountQueryOptions,
+  getVirtualAccountsCountOfSubAccount,
+  getVirtualAccountsCountOfSubAccountQueryKey,
+  getVirtualAccountsCountOfSubAccountQueryOptions,
+  getVirtualAccountsOfSubAccount,
+  getVirtualAccountsOfSubAccountQueryKey,
+  getVirtualAccountsOfSubAccountQueryOptions,
   removeMargin,
   removeMarginMutationOptions,
   requestToRegisterAffiliate,
@@ -166,6 +176,12 @@ export {
   type GetAccountBalanceOfQueryKey,
   type GetAccountBalanceOfQueryOptions,
   type GetAccountBalanceOfReturnType,
+  type GetActiveVirtualAccountByKeyData,
+  type GetActiveVirtualAccountByKeyOptions,
+  type GetActiveVirtualAccountByKeyParameters,
+  type GetActiveVirtualAccountByKeyQueryKey,
+  type GetActiveVirtualAccountByKeyQueryOptions,
+  type GetActiveVirtualAccountByKeyReturnType,
   type GetAffiliateStateData,
   type GetAffiliateStateOptions,
   type GetAffiliateStateParameters,
@@ -220,6 +236,18 @@ export {
   type GetVirtualAccountsAddressesOfSubAccountQueryKey,
   type GetVirtualAccountsAddressesOfSubAccountQueryOptions,
   type GetVirtualAccountsAddressesOfSubAccountReturnType,
+  type GetVirtualAccountsCountOfSubAccountData,
+  type GetVirtualAccountsCountOfSubAccountOptions,
+  type GetVirtualAccountsCountOfSubAccountParameters,
+  type GetVirtualAccountsCountOfSubAccountQueryKey,
+  type GetVirtualAccountsCountOfSubAccountQueryOptions,
+  type GetVirtualAccountsCountOfSubAccountReturnType,
+  type GetVirtualAccountsOfSubAccountData,
+  type GetVirtualAccountsOfSubAccountOptions,
+  type GetVirtualAccountsOfSubAccountParameters,
+  type GetVirtualAccountsOfSubAccountQueryKey,
+  type GetVirtualAccountsOfSubAccountQueryOptions,
+  type GetVirtualAccountsOfSubAccountReturnType,
   type RemoveMarginParameters,
   type RemoveMarginReturnType,
   type RequestToRegisterAffiliateParameters,
@@ -247,6 +275,7 @@ export {
   type Stakeholder,
   type SubAccountCreationData,
   type SubAccountDetail,
+  type SubAccountHookMetadataInput,
   type VirtualAccountDetail,
 } from "./symmio-contracts/account-layer";
 
@@ -293,8 +322,10 @@ export {
  * mapping expiry, the contract's active status, and — via
  * `getActiveDelegations` — the canonicalizing multi-selector probe that
  * resolves a virtual account to its parent the way enforcement does. Writes
- * cover the full grant lifecycle: `grantDelegation` (relayable, so onboarding a
- * session key costs no gas) and the two-step `initiateRevokeDelegation` /
+ * cover the full grant lifecycle: `grantDelegation` and the multi-delegate
+ * `grantDelegations` (both relayable, so onboarding a session key costs no gas,
+ * and one signature can authorize several delegates) and the two-step
+ * `initiateRevokeDelegation` /
  * `finalizeRevokeDelegation`, which are wallet-only because the contract
  * accepts a self-targeted operation solely as a delegation grant. A revocation
  * in flight is visible only through `getPendingRevocationEtas` — the active
@@ -323,10 +354,14 @@ export {
   getRevocationCooldownQueryOptions,
   grantDelegation,
   grantDelegationMutationOptions,
+  grantDelegations,
+  grantDelegationsMutationOptions,
   initiateRevokeDelegation,
   initiateRevokeDelegationMutationOptions,
   simulateGrantDelegation,
   simulateGrantDelegationMutationOptions,
+  simulateGrantDelegations,
+  simulateGrantDelegationsMutationOptions,
   type ActiveDelegationInfo,
   type FinalizeRevokeDelegationParameters,
   type FinalizeRevokeDelegationReturnType,
@@ -368,11 +403,16 @@ export {
   type GetRevocationCooldownReturnType,
   type GrantDelegationParameters,
   type GrantDelegationReturnType,
+  type GrantDelegationsEntry,
+  type GrantDelegationsParameters,
+  type GrantDelegationsReturnType,
   type InitiateRevokeDelegationParameters,
   type InitiateRevokeDelegationReturnType,
   type InstantLayerAccount,
   type SimulateGrantDelegationParameters,
   type SimulateGrantDelegationReturnType,
+  type SimulateGrantDelegationsParameters,
+  type SimulateGrantDelegationsReturnType,
 } from "./symmio-contracts/instant-layer";
 
 /**
@@ -709,6 +749,8 @@ export {
   OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER,
   WithdrawStatus,
   approveOperationalFee,
+  approveOperationalFeeAllowance,
+  approveOperationalFeeAllowanceMutationOptions,
   approveOperationalFeeMutationOptions,
   createClassicWithdrawPart,
   deallocateAndInitiateWithdraw,
@@ -757,6 +799,8 @@ export {
   withdrawAuto,
   withdrawAutoMutationOptions,
   withdrawMutationOptions,
+  type ApproveOperationalFeeAllowanceParameters,
+  type ApproveOperationalFeeAllowanceReturnType,
   type ApproveOperationalFeeParameters,
   type ApproveOperationalFeeReturnType,
   type DeallocateAndInitiateWithdrawParameters,

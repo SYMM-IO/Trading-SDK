@@ -1,0 +1,71 @@
+import { Callout } from "nextra/components";
+
+# approveOperationalFeeAllowance
+
+Set the gasless fee charger's allowance, as the paying sub-account, **without touching the fee multiplier** — the
+diamond's two-argument `approveOperationalFee(chargers, amounts)`.
+
+```ts
+import { approveOperationalFeeAllowance } from "@symmio/trading-core";
+import { parseUnits } from "viem";
+
+const hash = await approveOperationalFeeAllowance(config, {
+  account: subAccount,
+  amounts: [parseUnits("5", 18)],
+  from: sessionKey,
+  gasless: true,
+});
+```
+
+[`approveOperationalFee`](/core/gasless/approve-operational-fee) is the default: it calls
+`approveOperationalFeeWithMultiplier`, which also sets the charger's fee multiplier and resets it to list price when
+you omit one. Reach for this action instead when:
+
+- a multiplier set elsewhere must survive the approval; or
+- the signer is a **session key whose delegation holds only this function's selector**. A relayed write is checked
+  per selector, and the two functions have different ones, so a key granted the two-argument selector cannot sign the
+  multiplier variant.
+
+The call is routed through the AccountLayer `_call` proxy, like every account write, and it is
+[relayable](/core/gasless/relayable-writes).
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The sub-account that pays operational fees; the allowance is keyed by payer. The signer must be its owner, or a
+    session key delegated this function's selector when relayed.
+  </Property>
+  <Property name="chargers" type="readonly Address[]" optional>
+    The fee chargers to approve. Defaults to the chain's `gasless.gaslessLayerAddress`. Without a gasless block to
+    default from, the call throws `GASLESS_CHARGER_REQUIRED`.
+  </Property>
+  <Property name="amounts" type="readonly bigint[]" required>
+    Allowance per charger, parallel to `chargers`, in **18-decimal Core units**. Each value replaces the current
+    allowance. A length mismatch throws `OPERATIONAL_FEE_APPROVAL_MISMATCH`.
+  </Property>
+  <Property name="from" type="Address" optional>
+    The signer. Defaults to the connected wallet; pass a session key's address together with `gasless` to sign with it.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+  <Property name="simulateBeforeWrite" type="boolean" optional>
+    Dry-run via `simulateContract` first on the wallet path.
+  </Property>
+  <Property name="gasless" type="boolean | GaslessWriteOptions" optional>
+    Relay the approval instead of sending a transaction. Omitted, the chain's `gasless.execution.mode` decides.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hash">
+  The submitted transaction hash. Read the allowance back with
+  [`getOperationalFeeAllowance`](/core/gasless/get-operational-fee-allowance).
+</Returns>
+
+<Callout type="info">
+  In a [gasless batch](/core/gasless/relay-gasless-batch) the two variants are named by their contract functions:
+  `approveOperationalFee` is this one, `approveOperationalFeeWithMultiplier` the default.
+</Callout>

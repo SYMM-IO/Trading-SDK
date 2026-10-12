@@ -57,7 +57,7 @@ The **zero address is accepted** as a no-affiliate test placeholder: trades stil
 - Type: `(parameters?: { chainId?: number }) => PublicClient`
 - **Required**
 
-Resolves the viem `PublicClient` used for read actions. Called fresh on every read. Framework layers inject a chain-aware resolver — `@symmio/trading-react` bridges this to `wagmi/actions#getPublicClient`; a plain Node script returns its own viem client.
+Resolves the viem `PublicClient` used for read actions. Called fresh on every read. Framework layers inject a chain-aware resolver. `@symmio/trading-react` bridges it to `wagmi/actions#getPublicClient`, or to [`SymmioProvider`'s `getClient` prop](/react/provider#getclient) when the app passes one; a plain Node script returns its own viem client.
 
 ### `getWalletClient`
 

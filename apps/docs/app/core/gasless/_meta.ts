@@ -20,6 +20,7 @@ export default {
   "get-gasless-fee-quote": "getGaslessFeeQuote",
   "get-operational-fee-allowance": "getOperationalFeeAllowance",
   "approve-operational-fee": "approveOperationalFee",
+  "approve-operational-fee-allowance": "approveOperationalFeeAllowance",
   "-- wallet": { type: "separator", title: "Gasless wallet" },
   "get-gasless-wallet-address": "getGaslessWalletAddress",
   "get-gasless-wallet-nonce": "getGaslessWalletNonce",

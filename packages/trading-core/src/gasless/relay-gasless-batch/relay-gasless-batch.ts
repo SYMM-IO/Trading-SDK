@@ -1,8 +1,9 @@
-import { isAddressEqual, type Address, type Hex } from "viem";
-import type { Config } from "../../core/config";
+import { decodeFunctionData, isAddressEqual, toFunctionSelector, type Address, type Hex } from "viem";
+import type { Config, SymmioWalletClient } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute, FromParameter } from "../../shared/types/properties";
 import { generateSalt } from "../../solvers/instant-open/shared/operations";
+import { instantLayerAbi } from "../../symmio-contracts/abi/v0.8.6/instant-layer";
 import { getInstantLayerNonce } from "../../symmio-contracts/instant-layer/actions/get-instant-layer-nonce";
 import { getIsDelegationActive } from "../../symmio-contracts/instant-layer/actions/get-is-delegation-active";
 import { assertGaslessGatewayCoherence } from "../assert-gateway-coherence";
@@ -91,14 +92,17 @@ export type RelayGaslessBatchReturnType = GaslessSubmitReceipt;
  *
  * 1. every call is encoded and checked before any network call — a write the
  *    relayer cannot carry throws `GASLESS_NOT_RELAYABLE`;
- * 2. a session key's delegations are checked before any prompt
- *    (`execution.preflightDelegation`, default on);
+ * 2. each signer's delegations are checked before any prompt
+ *    (`execution.preflightDelegation`, default on) — a delegation that an
+ *    owner-signed grant earlier in the same batch hands a signer already counts;
  * 3. fresh nonces are read and sequenced per stream — the account's InstantLayer
  *    nonces for the writes, each wallet id's own nonces for its entries;
  * 4. the batch is priced on-chain before any prompt (`execution.preflightFee`,
  *    default on) — a quote the contract refuses throws, a quote that fails for
  *    transport reasons does not block;
- * 5. each operation is signed — one EIP-712 prompt per call, in order;
+ * 5. each operation is signed by its call's `from` (the batch's signer by
+ *    default) — in-memory signers such as a session key first, then one
+ *    wallet prompt per remaining call, in order;
  * 6. one `relay-instant` request carries them all, with one wallet id per
  *    operation (`0` for every write).
  *
@@ -166,6 +170,8 @@ export async function relayGaslessBatch(
 
   const walletClient = await config.getWalletClient({ chainId, from });
   const signer = walletClient.account.address;
+  const entryClients = await resolveEntryWalletClients(config, { chainId, entries, walletClient });
+  const entrySigners = entryClients.map((client) => client.account.address);
 
   const identities = walletIds.length > 0 ? await resolveGaslessWalletIdentities(config, { chainId, account }) : null;
 
@@ -175,22 +181,26 @@ export async function relayGaslessBatch(
    * would reject the batch after the user paid for the prompts.
    */
   if (execution.preflightDelegation ?? true) {
-    const missing = [
-      ...(instantSelectors.length > 0
-        ? await findUndelegatedGaslessSelectors(config, {
-            chainId,
-            signer,
-            signerAccount: account,
-            selectors: instantSelectors,
-          })
-        : []),
-      ...(identities ? await findUndelegatedWalletSelectors(config, { chainId, signer, identities, entries }) : []),
-    ];
+    const missing = await findUndelegatedInstantSelectors(config, { chainId, account, entries, entrySigners });
+    const walletMissing = identities
+      ? await findUndelegatedWalletSelectors(config, { chainId, signer, identities, entries })
+      : [];
+    if (walletMissing.length > 0) {
+      const own = missing.find((group) => isAddressEqual(group.signer, signer));
+      if (own) own.selectors.push(...walletMissing);
+      else missing.push({ signer, selectors: walletMissing });
+    }
     if (missing.length > 0) {
+      const details = missing
+        .map(
+          (group) =>
+            `signer ${group.signer} holds no active InstantLayer delegation from ${account} for selector(s) ${[...new Set(group.selectors)].join(", ")}`,
+        )
+        .join("; ");
       throw new SymmError(
         "validation",
         "GASLESS_SIGNER_NOT_DELEGATED",
-        `Gasless: signer ${signer} holds no active InstantLayer delegation from ${account} for selector(s) ${[...new Set(missing)].join(", ")}. Grant getGaslessBatchSelectors(calls) to the session key on ${account}, or sign the batch with the account's owner.`,
+        `Gasless: ${details}. Grant getGaslessBatchSelectors(calls) to the session key on ${account}, or sign the batch with the account's owner.`,
       );
     }
   }
@@ -229,6 +239,7 @@ export async function relayGaslessBatch(
     const deadline = BigInt(Math.floor(Date.now() / 1000) + GASLESS_BATCH_DEADLINE_SECONDS);
     const built = buildGaslessBatchOperations(entries, {
       signer,
+      entrySigners,
       account,
       deadline,
       instantNonce,
@@ -261,7 +272,7 @@ export async function relayGaslessBatch(
 
     const signatures = await signGaslessBatchOperations(config, {
       chainId,
-      walletClient,
+      walletClients: entryClients,
       entries,
       operations: built.operations,
     });
@@ -316,6 +327,103 @@ export async function relayGaslessBatch(
       blocksGaslessNonceStream,
     );
   });
+}
+
+/** The InstantLayer's grant selectors, lowercased — the calls that can authorize a later signer in the same batch. */
+const GRANT_SELECTORS: ReadonlySet<Hex> = new Set(
+  instantLayerAbi
+    .filter((item) => item.type === "function" && (item.name === "grantDelegation" || item.name === "grantDelegations"))
+    .map((item) => toFunctionSelector(item).toLowerCase() as Hex),
+);
+
+/**
+ * One wallet client per entry: the batch's own client, or the one a call asked
+ * for with `from` — resolved once per distinct signer.
+ */
+async function resolveEntryWalletClients(
+  config: Config,
+  parameters: { chainId: number; entries: readonly ResolvedGaslessBatchEntry[]; walletClient: SymmioWalletClient },
+): Promise<SymmioWalletClient[]> {
+  const { chainId, entries, walletClient } = parameters;
+  const byFrom = new Map<string, Promise<SymmioWalletClient>>();
+
+  return Promise.all(
+    entries.map((entry) => {
+      const from = entry.type === "instant" ? entry.from : undefined;
+      if (from === undefined || isAddressEqual(from, walletClient.account.address)) return walletClient;
+      const key = from.toLowerCase();
+      const client = byFrom.get(key) ?? config.getWalletClient({ chainId, from });
+      byFrom.set(key, client);
+      return client;
+    }),
+  );
+}
+
+/**
+ * The relayable-write selectors each non-owner signer may not relay under
+ * `account`. A delegation an owner-signed grant earlier in the same batch hands
+ * the signer counts as active: the batch executes in order, so the grant lands
+ * before the call that needs it.
+ */
+async function findUndelegatedInstantSelectors(
+  config: Config,
+  parameters: {
+    chainId: number;
+    account: Address;
+    entries: readonly ResolvedGaslessBatchEntry[];
+    entrySigners: readonly Address[];
+  },
+): Promise<{ signer: Address; selectors: Hex[] }[]> {
+  const { chainId, account, entries, entrySigners } = parameters;
+  const required = new Map<string, { signer: Address; selectors: Set<Hex> }>();
+
+  for (const [index, entry] of entries.entries()) {
+    if (entry.type !== "instant") continue;
+    const signer = entrySigners[index]!;
+    if (grantedEarlierInBatch(entries, index, { account, signer }).has(entry.selector)) continue;
+    const key = signer.toLowerCase();
+    const group = required.get(key) ?? { signer, selectors: new Set<Hex>() };
+    group.selectors.add(entry.selector);
+    required.set(key, group);
+  }
+
+  const results = await Promise.all(
+    [...required.values()].map(async ({ signer, selectors }) => ({
+      signer,
+      selectors: await findUndelegatedGaslessSelectors(config, {
+        chainId,
+        signer,
+        signerAccount: account,
+        selectors: [...selectors],
+      }),
+    })),
+  );
+  return results.filter((result) => result.selectors.length > 0);
+}
+
+/** The selectors, lowercased, that grants before `index` in the batch hand `signer` on `account`. */
+function grantedEarlierInBatch(
+  entries: readonly ResolvedGaslessBatchEntry[],
+  index: number,
+  parameters: { account: Address; signer: Address },
+): Set<Hex> {
+  const granted = new Set<Hex>();
+  for (const entry of entries.slice(0, index)) {
+    if (entry.type !== "instant" || !GRANT_SELECTORS.has(entry.selector)) continue;
+    const decoded = decodeFunctionData({ abi: instantLayerAbi, data: entry.callData });
+    const infos =
+      decoded.functionName === "grantDelegation"
+        ? [decoded.args[0]]
+        : decoded.functionName === "grantDelegations"
+          ? decoded.args[0]
+          : [];
+    for (const info of infos) {
+      if (!isAddressEqual(info.account.addr, parameters.account)) continue;
+      if (!isAddressEqual(info.delegatedSigner, parameters.signer)) continue;
+      for (const selector of info.selectors) granted.add(selector.toLowerCase() as Hex);
+    }
+  }
+  return granted;
 }
 
 /**

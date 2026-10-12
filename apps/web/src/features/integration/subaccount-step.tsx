@@ -5,7 +5,7 @@ import { ListSkeleton } from "@/components/skeletons";
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { formatUsd } from "@/lib/format";
-import { encodeSubAccountHookMetadata } from "@/lib/subaccount-metadata";
+import { encodeSubAccountHookMetadata } from "@symmio/trading-core";
 import {
   SubAccountIsolationType,
   useAccountBalanceInfo,

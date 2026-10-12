@@ -11,6 +11,7 @@ import { formatRelativeTimestamp } from "@symmio/utils";
 import { useState } from "react";
 import type { Hex } from "viem";
 import { isHex } from "viem";
+import { describeSessionKeyError } from "./session-key-errors";
 import { useSessionKey } from "./use-session-key";
 
 interface SignResult {
@@ -139,7 +140,10 @@ export function LocalSessionKeyCard() {
                 disabled={!owner || !validImportPrivateKey || isLoading}
                 onClick={() => {
                   if (!validImportPrivateKey) return;
-                  void importPrivateKey(validImportPrivateKey).then(() => setImportValue(""));
+                  /** A superseded import resolves with no key: keep the field so it can be retried. */
+                  void importPrivateKey(validImportPrivateKey).then((next) => {
+                    if (next) setImportValue("");
+                  });
                 }}
                 data-testid="button-import-session-key"
               >
@@ -208,7 +212,7 @@ export function LocalSessionKeyCard() {
           </div>
 
           {error ? (
-            <ResultError testId="result-localSessionKey-error" message={error.message} />
+            <ResultError testId="result-localSessionKey-error" message={describeSessionKeyError(error)} />
           ) : (
             <ResultNote testId="result-localSessionKey-note">
               This key cannot sign Instant Layer operations until it is delegated. Grant it below — one wallet prompt,

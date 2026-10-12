@@ -1,0 +1,57 @@
+# getVirtualAccountsAddressesOfSubAccount
+
+List a subaccount's Virtual Account (VA) addresses. In lowcap trading the VA, not the subaccount, is the on-chain `partyA` of each isolated position, so these are the accounts to pass to the position and quote reads. Prefer [`getVirtualAccountsOfSubAccount`](/core/account-layer/get-virtual-accounts-of-sub-account) when you also need each VA's market or side.
+
+```ts
+import { getVirtualAccountsAddressesOfSubAccount } from "@symmio/trading-core";
+
+const vas = await getVirtualAccountsAddressesOfSubAccount(config, { subAccount });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="subAccount" type="Address" required>
+    The subaccount whose VA addresses to list.
+  </Property>
+  <Property name="offset" type="bigint" default="0n">
+    Pagination offset.
+  </Property>
+  <Property name="limit" type="bigint" default="200n">
+    Maximum number of entries to return; clamped on-chain to the number remaining.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly Address[]">
+  The VA addresses in range. The list is backed by an `EnumerableSet`, so its order is insertion order only until a
+  removal occurs.
+</Returns>
+
+## Query options
+
+```ts
+import { getVirtualAccountsAddressesOfSubAccountQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getVirtualAccountsAddressesOfSubAccountQueryOptions(config, { subAccount }));
+```
+
+## Raw ABI
+
+For consumers that want to call viem directly:
+
+```ts
+import { accountLayerAbi } from "@symmio/trading-core";
+
+await publicClient.readContract({
+  abi: accountLayerAbi,
+  address: accountLayerAddress,
+  functionName: "getVirtualAccountsAddressesOfSubAccount",
+  args: [subAccount, 0n, 200n],
+});
+```

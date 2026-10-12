@@ -142,6 +142,7 @@ export {
 export {
   useAccountBalanceInfo,
   useAccountBalanceOf,
+  useActiveVirtualAccountByKey,
   useAddMargin,
   useAffiliateState,
   useAllocate,
@@ -173,6 +174,8 @@ export {
   useUserSubAccountsAddresses,
   useVirtualAccount,
   useVirtualAccountsAddressesOfSubAccount,
+  useVirtualAccountsCountOfSubAccount,
+  useVirtualAccountsOfSubAccount,
   type AddMarginResult,
   type AllocateResult,
   type CancelRegistrationResult,
@@ -192,6 +195,8 @@ export {
   type UseAccountBalanceInfoReturnType,
   type UseAccountBalanceOfParameters,
   type UseAccountBalanceOfReturnType,
+  type UseActiveVirtualAccountByKeyParameters,
+  type UseActiveVirtualAccountByKeyReturnType,
   type UseAddMarginParameters,
   type UseAddMarginReturnType,
   type UseAffiliateStateParameters,
@@ -254,6 +259,10 @@ export {
   type UseVirtualAccountReturnType,
   type UseVirtualAccountsAddressesOfSubAccountParameters,
   type UseVirtualAccountsAddressesOfSubAccountReturnType,
+  type UseVirtualAccountsCountOfSubAccountParameters,
+  type UseVirtualAccountsCountOfSubAccountReturnType,
+  type UseVirtualAccountsOfSubAccountParameters,
+  type UseVirtualAccountsOfSubAccountReturnType,
 } from "./account-layer";
 
 /**
@@ -292,6 +301,7 @@ export {
   useDelegationExpiry,
   useFinalizeRevokeDelegation,
   useGrantDelegation,
+  useGrantDelegations,
   useInitiateRevokeDelegation,
   useInstantClose,
   useInstantCloseAuto,
@@ -314,8 +324,10 @@ export {
   useRevocationCooldown,
   useSessionKeySelectors,
   useSimulateGrantDelegation,
+  useSimulateGrantDelegations,
   type FinalizeRevokeDelegationResult,
   type GrantDelegationResult,
+  type GrantDelegationsResult,
   type InitiateRevokeDelegationResult,
   type UseActiveDelegationsParameters,
   type UseActiveDelegationsReturnType,
@@ -327,6 +339,8 @@ export {
   type UseFinalizeRevokeDelegationReturnType,
   type UseGrantDelegationParameters,
   type UseGrantDelegationReturnType,
+  type UseGrantDelegationsParameters,
+  type UseGrantDelegationsReturnType,
   type UseInitiateRevokeDelegationParameters,
   type UseInitiateRevokeDelegationReturnType,
   type UseInstantCloseAutoParameters,
@@ -374,6 +388,8 @@ export {
   type UseSessionKeySelectorsReturnType,
   type UseSimulateGrantDelegationParameters,
   type UseSimulateGrantDelegationReturnType,
+  type UseSimulateGrantDelegationsParameters,
+  type UseSimulateGrantDelegationsReturnType,
 } from "./instant-layer";
 
 /**
@@ -1258,6 +1274,7 @@ export {
  */
 export {
   useApproveOperationalFee,
+  useApproveOperationalFeeAllowance,
   useGaslessBatchFeeQuote,
   useGaslessDepositPolicy,
   useGaslessFeeQuote,
@@ -1275,6 +1292,8 @@ export {
   useSettleGaslessDepositExistingAccount,
   useSettleGaslessDepositNewAccount,
   useSupportsGaslessService,
+  type ApproveOperationalFeeAllowanceResult,
+  type ApproveOperationalFeeAllowanceVariables,
   type ApproveOperationalFeeResult,
   type ApproveOperationalFeeVariables,
   type GaslessRelayParameters,
@@ -1293,6 +1312,8 @@ export {
   type SettleGaslessDepositExistingAccountVariables,
   type SettleGaslessDepositNewAccountResult,
   type SettleGaslessDepositNewAccountVariables,
+  type UseApproveOperationalFeeAllowanceParameters,
+  type UseApproveOperationalFeeAllowanceReturnType,
   type UseApproveOperationalFeeParameters,
   type UseApproveOperationalFeeReturnType,
   type UseGaslessBatchFeeQuoteParameters,

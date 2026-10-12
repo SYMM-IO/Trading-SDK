@@ -56,7 +56,7 @@ describe("Arbitrum chain", () => {
         url: "wss://notification.rasa.capital/ws/v1/subscribe",
         channel: "Arbitrum_Solver-Low-Cap_Production",
         protocol: "enigma",
-        searchUrl: "https://notification.rasa.capital/notification",
+        searchUrl: "https://notification.rasa.capital",
       },
     });
   });
@@ -69,7 +69,7 @@ describe("Arbitrum chain", () => {
       url: "https://lowcap-price.enigma.bz",
       wsUrl: "wss://lowcap-price.enigma.bz/ws",
     });
-    expect(arbitrum.muon.urls).toHaveLength(4);
+    expect(arbitrum.muon.urls).toHaveLength(3);
     expect(arbitrum.listing).toEqual({ url: "https://listing85.enigma.bz" });
     expect(arbitrum.inventory).toEqual({ url: "https://inventory85.enigma.bz" });
     expect(arbitrum.solvers.enigma?.capabilities).toEqual({ groupClose: true, listingService: true });

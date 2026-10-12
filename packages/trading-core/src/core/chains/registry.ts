@@ -80,7 +80,6 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
         "https://muon-oracle1.rasa.capital/v1/",
         "https://muon-oracle2.rasa.capital/v1/",
         "https://muon-oracle3.rasa.capital/v1/",
-        "https://muon-oracle4.rasa.capital/v1/",
       ],
     },
   },
@@ -117,7 +116,12 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
           url: "wss://notification.rasa.capital/ws/v1/subscribe",
           channel: "Arbitrum_Solver-Low-Cap_Production",
           protocol: "enigma",
-          searchUrl: "https://notification.rasa.capital/notification",
+          /**
+           * The host root, not the service's documented `/notification` prefix:
+           * Cloudflare answers programmatic requests to that prefix with a 403
+           * block page, while the host root serves the same API with CORS headers.
+           */
+          searchUrl: "https://notification.rasa.capital",
         },
         capabilities: { groupClose: true, listingService: true },
       },
@@ -133,7 +137,6 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
         "https://muon-oracle1.rasa.capital/v1/",
         "https://muon-oracle2.rasa.capital/v1/",
         "https://muon-oracle3.rasa.capital/v1/",
-        "https://muon-oracle4.rasa.capital/v1/",
       ],
     },
     listing: {

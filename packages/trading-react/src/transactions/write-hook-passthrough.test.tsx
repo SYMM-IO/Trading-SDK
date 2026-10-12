@@ -26,6 +26,7 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "addMarginMutationOptions",
     "allocateMutationOptions",
     "approveCollateralMutationOptions",
+    "approveOperationalFeeAllowanceMutationOptions",
     "approveOperationalFeeMutationOptions",
     "cancelRegistrationMutationOptions",
     "createSubAccountsMutationOptions",
@@ -41,6 +42,7 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "forceCancelQuoteMutationOptions",
     "forceCloseAutoMutationOptions",
     "grantDelegationMutationOptions",
+    "grantDelegationsMutationOptions",
     "initiateRevokeDelegationMutationOptions",
     "initiateWithdrawMutationOptions",
     "removeMarginMutationOptions",
@@ -75,8 +77,10 @@ import { useRemoveMargin } from "../account-layer/use-remove-margin";
 import { useRequestToRegisterAffiliate } from "../account-layer/use-request-to-register-affiliate";
 import { useApproveCollateral } from "../collateral/use-approve-collateral";
 import { useApproveOperationalFee } from "../gasless/use-approve-operational-fee";
+import { useApproveOperationalFeeAllowance } from "../gasless/use-approve-operational-fee-allowance";
 import { useFinalizeRevokeDelegation } from "../instant-layer/use-finalize-revoke-delegation";
 import { useGrantDelegation } from "../instant-layer/use-grant-delegation";
+import { useGrantDelegations } from "../instant-layer/use-grant-delegations";
 import { useInitiateRevokeDelegation } from "../instant-layer/use-initiate-revoke-delegation";
 import { useForceCancelCloseRequest } from "../quotes/use-force-cancel-close-request";
 import { useForceCancelQuote } from "../quotes/use-force-cancel-quote";
@@ -268,6 +272,13 @@ const PROBES: Probe<never>[] = [
     variables: { account: ACCOUNT, amounts: [1n] },
   }),
   probe({
+    file: "gasless/use-approve-operational-fee-allowance.ts",
+    name: "useApproveOperationalFeeAllowance",
+    acceptsGasless: true,
+    useWrite: (config) => useApproveOperationalFeeAllowance({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, amounts: [1n] },
+  }),
+  probe({
     file: "instant-layer/use-grant-delegation.ts",
     name: "useGrantDelegation",
     acceptsGasless: true,
@@ -277,6 +288,16 @@ const PROBES: Probe<never>[] = [
       delegatedSigner: VIRTUAL_ACCOUNT,
       selectors: ["0xa6d66852" as Hex],
       expiryTimestamp: 1n,
+    },
+  }),
+  probe({
+    file: "instant-layer/use-grant-delegations.ts",
+    name: "useGrantDelegations",
+    acceptsGasless: true,
+    useWrite: (config) => useGrantDelegations({ config, waitForReceipt: false }),
+    variables: {
+      account: { addr: ACCOUNT, isPartyB: false },
+      delegations: [{ delegatedSigner: VIRTUAL_ACCOUNT, selectors: ["0xa6d66852" as Hex], expiryTimestamp: 1n }],
     },
   }),
   probe({

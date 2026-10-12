@@ -6,6 +6,7 @@ import { ReadCollateralBalance } from "../inspector/read-collateral-balance";
 import { ReadDeallocateUpnlSig } from "../inspector/read-deallocate-upnl-sig";
 import { ReadDelegationReads } from "../inspector/read-delegation-reads";
 import { ReadFeeForUser } from "../inspector/read-fee-for-user";
+import { ReadGetActiveVirtualAccountByKey } from "../inspector/read-get-active-virtual-account-by-key";
 import { ReadGetFundingFeesOfPartyB } from "../inspector/read-get-funding-fees-of-party-b";
 import { ReadGetPartyAOpenPositions } from "../inspector/read-get-party-a-open-positions";
 import { ReadGetPartyAPendingQuotes } from "../inspector/read-get-party-a-pending-quotes";
@@ -17,6 +18,8 @@ import { ReadGetUserSubAccounts } from "../inspector/read-get-user-sub-accounts"
 import { ReadGetUserSubAccountsAddresses } from "../inspector/read-get-user-sub-accounts-addresses";
 import { ReadGetVirtualAccount } from "../inspector/read-get-virtual-account";
 import { ReadGetVirtualAccountsAddressesOfSubAccount } from "../inspector/read-get-virtual-accounts-addresses-of-sub-account";
+import { ReadGetVirtualAccountsCountOfSubAccount } from "../inspector/read-get-virtual-accounts-count-of-sub-account";
+import { ReadGetVirtualAccountsOfSubAccount } from "../inspector/read-get-virtual-accounts-of-sub-account";
 import { ReadGetWithdrawRequest } from "../inspector/read-get-withdraw-request";
 import { ReadLastWithdrawRequestId } from "../inspector/read-last-withdraw-request-id";
 import { ReadOnchainContractMarkets } from "../inspector/read-onchain-contract-markets";
@@ -34,6 +37,7 @@ import { WriteDepositAndAllocate } from "../inspector/write-deposit-and-allocate
 import { WriteEditAccountName } from "../inspector/write-edit-account-name";
 import { WriteFinalizeWithdrawRequest } from "../inspector/write-finalize-withdraw-request";
 import { WriteGrantDelegation } from "../inspector/write-grant-delegation";
+import { WriteGrantDelegations } from "../inspector/write-grant-delegations";
 import { WriteInitiateWithdraw } from "../inspector/write-initiate-withdraw";
 import { WriteRemoveMargin } from "../inspector/write-remove-margin";
 import { WriteRequestCancelWithdraw } from "../inspector/write-request-cancel-withdraw";
@@ -107,6 +111,27 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     abi: "account-layer",
     groups: ["subaccounts", "positions"],
     Component: ReadGetVirtualAccountsAddressesOfSubAccount,
+  },
+  {
+    id: "getVirtualAccountsOfSubAccount",
+    kind: "read",
+    abi: "account-layer",
+    groups: ["subaccounts", "positions"],
+    Component: ReadGetVirtualAccountsOfSubAccount,
+  },
+  {
+    id: "getVirtualAccountsCountOfSubAccount",
+    kind: "read",
+    abi: "account-layer",
+    groups: ["subaccounts", "positions"],
+    Component: ReadGetVirtualAccountsCountOfSubAccount,
+  },
+  {
+    id: "getActiveVirtualAccountByKey",
+    kind: "read",
+    abi: "account-layer",
+    groups: ["positions"],
+    Component: ReadGetActiveVirtualAccountByKey,
   },
   {
     id: "getAccountBalanceOf",
@@ -206,6 +231,13 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     abi: "instant-layer",
     groups: ["delegation"],
     Component: WriteGrantDelegation,
+  },
+  {
+    id: "grantDelegations",
+    kind: "write",
+    abi: "instant-layer",
+    groups: ["delegation"],
+    Component: WriteGrantDelegations,
   },
   // AccountLayer — deposits
   { id: "depositForAccount", kind: "write", abi: "account-layer", groups: ["deposit"], Component: WriteDeposit },

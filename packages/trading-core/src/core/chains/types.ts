@@ -239,7 +239,7 @@ interface SymmioNotificationsConfigBase {
   url: string;
   /**
    * Base URL of the notification REST service that backs `searchNotifications`
-   * (`POST /api/v1/search`), e.g. `https://notification.rasa.capital/notification`.
+   * (`POST /api/v1/search`), e.g. `https://notification.rasa.capital`.
    * Optional — when unset, `searchNotifications` requires a per-call `baseUrl`.
    */
   searchUrl?: string;

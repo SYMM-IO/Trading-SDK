@@ -415,6 +415,21 @@ approve.mutate({ account: subAccount, amounts: [parseUnits("5", 18)] });
 
 A relay's acceptance receipt (`accepted.paidFee`, `accepted.remainingFeeAllowance`, each `bigint | null` — the parser keeps an acceptance whose amounts are missing rather than losing its request id) holds the service's acceptance-time figures, not the charge. `remainingFeeAllowance` can read `2^256 − 1` while the Core approval is bounded, so show the allowance from `useOperationalFeeAllowance` instead. See [`relayInstantOperations`](/core/gasless/relay-instant-operations#returns) and the [units reference](/core/concepts/balance-model#core-18-decimal-units).
 
+### `useApproveOperationalFeeAllowance`
+
+The same approval without touching the charger's fee multiplier: the diamond's two-argument `approveOperationalFee`.
+Use it when a multiplier set elsewhere must survive, or when the signer is a session key whose delegation holds only
+this function's selector. Pass `from` and `gasless: true` to have the key sign and the relayer submit it. Invalidates
+the allowance read after the receipt, like `useApproveOperationalFee`. Wraps
+[`approveOperationalFeeAllowance`](/core/gasless/approve-operational-fee-allowance).
+
+```tsx
+import { parseUnits } from "viem";
+
+const approve = useApproveOperationalFeeAllowance();
+approve.mutate({ account: subAccount, amounts: [parseUnits("5", 18)], from: sessionKey, gasless: true });
+```
+
 ## Gasless wallet & deposits
 
 A gasless wallet is identified by `(owner, walletId)`. The read hooks in this section take an optional `walletId` (`bigint`, default `0n`, the original wallet); each positive id is an independent wallet with its own address, balance and nonce streams. Wallet ids are an application convention the contract does not allocate or list — see [`getGaslessWalletAddress`](/core/gasless/get-gasless-wallet-address).

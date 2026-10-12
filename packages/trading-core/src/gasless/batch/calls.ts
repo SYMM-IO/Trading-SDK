@@ -1,4 +1,4 @@
-import { encodeFunctionData, size, slice, type Abi, type AbiFunction, type Hex } from "viem";
+import { encodeFunctionData, size, slice, type Abi, type AbiFunction, type Address, type Hex } from "viem";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { GaslessWalletCall } from "../gasless-wallet-execute/calls";
 import { getGaslessWalletExecuteSelectors } from "../gasless-wallet-execute/selectors";
@@ -27,12 +27,21 @@ export interface GaslessBatchContractCall {
   functionName: string;
   /** Arguments for `functionName`, in order. Omit for a no-argument function. */
   args?: readonly unknown[];
+  /**
+   * Who signs this call. Defaults to the batch's `from` (or the connected
+   * wallet). Give it to mix signers in one batch, for example a session key
+   * signing a call that an owner-signed grant earlier in the same batch
+   * authorizes.
+   */
+  from?: Address;
 }
 
 /** A relayable write given as raw calldata; its selector decides the target contract. */
 export interface GaslessBatchRawCall {
   /** Calldata of a relayable write. */
   data: Hex;
+  /** Who signs this call. Defaults to the batch's `from` (or the connected wallet). */
+  from?: Address;
 }
 
 /**

@@ -34,6 +34,8 @@ export interface ResolvedGaslessInstantEntry {
   selector: Hex;
   /** The write's stable workflow label (`"allocate"`, `"initiateWithdraw"`, …). */
   operationType: string;
+  /** The signer the call asked for with `from`; the batch's own signer when absent. */
+  from?: Address;
 }
 
 /** A GaslessWallet `execute` entry, encoded. @internal */
@@ -115,6 +117,7 @@ export function resolveGaslessBatchEntries(
       callData,
       selector,
       operationType: write.operationType,
+      ...(call.from !== undefined ? { from: call.from } : {}),
     };
   });
 }
@@ -165,8 +168,13 @@ export async function readGaslessBatchWalletTargets(
 
 /** Everything a batch's operations are built from, besides its entries. @internal */
 export interface GaslessBatchBuildContext {
-  /** The EIP-712 signer written into every operation. */
+  /** The EIP-712 signer written into every operation without its own entry in `entrySigners`. */
   signer: Address;
+  /**
+   * Per-entry signer, aligned with the entries — for a batch that mixes signers.
+   * An entry without one is signed by `signer`.
+   */
+  entrySigners?: readonly (Address | undefined)[];
   /** The batch's account — every operation's `signerAccount.addr`. */
   account: Address;
   /** The signature deadline shared by every operation (unix seconds). */
@@ -214,7 +222,7 @@ export function buildGaslessBatchOperations(
   let lastInstantNonce: bigint | null = null;
   const lastWalletNonces = new Map<bigint, bigint>();
 
-  for (const entry of entries) {
+  for (const [index, entry] of entries.entries()) {
     let target: Address;
     let nonce: bigint;
     if (entry.type === "instant") {
@@ -235,7 +243,7 @@ export function buildGaslessBatchOperations(
 
     operations.push(
       buildSignedOperation({
-        signer: context.signer,
+        signer: context.entrySigners?.[index] ?? context.signer,
         target,
         callData: entry.callData,
         signerAccount: context.account,

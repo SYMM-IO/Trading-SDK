@@ -338,4 +338,128 @@ describe("relayGaslessBatch", () => {
     ).rejects.toMatchObject({ code: "GASLESS_NOT_CONFIGURED" });
     expect(signTypedData).not.toHaveBeenCalled();
   });
+  describe("mixed signers", () => {
+    const GATEWAY = TEST_GASLESS.gaslessLayerAddress;
+    const KEY_SIGNATURE = `0x${"ab".repeat(65)}` as Hex;
+
+    /** The address each EIP-712 prompt was signed by, in the order the prompts ran. */
+    function promptSigners(signTypedData: ReturnType<typeof gaslessWriteTestConfig>["signTypedData"]): string[] {
+      return signTypedData.mock.calls.map(([call]) => (call as { account: { address: string } }).account.address);
+    }
+
+    /** The one-signature onboarding shape: the owner grants the key, which spends the grant later in the batch. */
+    function onboardingCalls(grantedSelectors: readonly Hex[]) {
+      return [
+        {
+          functionName: "grantDelegations",
+          args: [
+            [
+              {
+                account: { addr: SUB_ACCOUNT, isPartyB: false },
+                delegatedSigner: SESSION_KEY,
+                selectors: grantedSelectors,
+                expiryTimestamp: 4_000_000_000n,
+              },
+            ],
+          ],
+        },
+        { functionName: "approveOperationalFee", args: [[GATEWAY], [1n]], from: SESSION_KEY },
+      ] as const;
+    }
+
+    it("signs each call with its own `from` and writes that signer into its operation", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig(undefined, {
+        signersByFrom: { [SESSION_KEY]: SESSION_KEY },
+      });
+      programReads(readContract);
+
+      await relayGaslessBatch(config, {
+        chainId: GASLESS_TEST_CHAIN,
+        account: SUB_ACCOUNT,
+        calls: [
+          { functionName: "allocate", args: [5n] },
+          { functionName: "approveOperationalFee", args: [[GATEWAY], [1n]], from: SESSION_KEY },
+        ],
+      });
+
+      expect(promptSigners(signTypedData)).toEqual([TEST_GASLESS_SIGNER, SESSION_KEY]);
+      const operations = postedBody().signedOps as unknown as {
+        signer: string;
+        replayAttackHeader: { nonce: number };
+      }[];
+      expect(operations.map((operation) => operation.signer)).toEqual([TEST_GASLESS_SIGNER, SESSION_KEY]);
+      /** Both run under the one account, so they share its InstantLayer nonce stream. */
+      expect(operations.map((operation) => operation.replayAttackHeader.nonce)).toEqual([6, 7]);
+    });
+
+    it("lets a key sign a call that an owner-signed grant earlier in the batch authorizes", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig(undefined, {
+        signersByFrom: { [SESSION_KEY]: SESSION_KEY },
+      });
+      /** Nothing is delegated on-chain yet: only the in-batch grant can authorize the key. */
+      programReads(readContract, { isDelegationActive: false });
+
+      await relayGaslessBatch(config, {
+        chainId: GASLESS_TEST_CHAIN,
+        account: SUB_ACCOUNT,
+        calls: onboardingCalls([relayableSelector("approveOperationalFeeAllowance")]),
+      });
+
+      expect(signTypedData).toHaveBeenCalledTimes(2);
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(postedBody().operationType).toBe("grantDelegations+approveOperationalFeeAllowance");
+    });
+
+    it("still stops a key whose call the in-batch grant does not cover, naming that key", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig(undefined, {
+        signersByFrom: { [SESSION_KEY]: SESSION_KEY },
+      });
+      programReads(readContract, { isDelegationActive: false });
+      const approve = relayableSelector("approveOperationalFeeAllowance");
+
+      const failure = relayGaslessBatch(config, {
+        chainId: GASLESS_TEST_CHAIN,
+        account: SUB_ACCOUNT,
+        calls: onboardingCalls([relayableSelector("allocate")]),
+      });
+
+      await expect(failure).rejects.toMatchObject({ code: "GASLESS_SIGNER_NOT_DELEGATED" });
+      await expect(failure).rejects.toThrow(new RegExp(`${SESSION_KEY}.*${approve}`));
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it("does not count a grant that comes after the call it would authorize", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig(undefined, {
+        signersByFrom: { [SESSION_KEY]: SESSION_KEY },
+      });
+      programReads(readContract, { isDelegationActive: false });
+      const [grant, approve] = onboardingCalls([relayableSelector("approveOperationalFeeAllowance")]);
+
+      await expect(
+        relayGaslessBatch(config, { chainId: GASLESS_TEST_CHAIN, account: SUB_ACCOUNT, calls: [approve, grant] }),
+      ).rejects.toMatchObject({ code: "GASLESS_SIGNER_NOT_DELEGATED" });
+      expect(signTypedData).not.toHaveBeenCalled();
+    });
+
+    it("signs in-memory keys before the wallet prompt, keeping signatures in relay order", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig(undefined, {
+        signersByFrom: { [SESSION_KEY]: SESSION_KEY },
+        localSigners: [SESSION_KEY],
+      });
+      programReads(readContract, { isDelegationActive: false });
+      signTypedData.mockImplementation(async (call: { account: { address: string } }) =>
+        call.account.address === SESSION_KEY ? KEY_SIGNATURE : TEST_GASLESS_SIGNATURE,
+      );
+
+      await relayGaslessBatch(config, {
+        chainId: GASLESS_TEST_CHAIN,
+        account: SUB_ACCOUNT,
+        calls: onboardingCalls([relayableSelector("approveOperationalFeeAllowance")]),
+      });
+
+      expect(promptSigners(signTypedData)).toEqual([SESSION_KEY, TEST_GASLESS_SIGNER]);
+      expect(postedBody().signatures).toEqual([TEST_GASLESS_SIGNATURE, KEY_SIGNATURE]);
+    });
+  });
 });

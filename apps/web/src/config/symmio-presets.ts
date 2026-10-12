@@ -161,7 +161,6 @@ export const STAGING_CHAIN_OVERRIDES = {
         "https://muon-oracle1.rasa.capital/v1/",
         "https://muon-oracle2.rasa.capital/v1/",
         "https://muon-oracle3.rasa.capital/v1/",
-        "https://muon-oracle4.rasa.capital/v1/",
       ],
     },
     listing: {

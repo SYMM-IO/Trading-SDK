@@ -61,6 +61,36 @@ Its one mandatory field is **`addresses.affiliatesAddress`** for every supported
 
 Chain used when an action or hook omits `chainId`. Set to pin the SDK in single-chain apps; wagmi's active chain still overrides for the connected wallet.
 
+### `getClient`
+
+- Type: `(parameters?: { chainId?: number }) => PublicClient`
+- Default: wagmi's public client for the requested chain
+
+Custom read-client resolver. Every on-chain SDK read runs on the client it returns, and so does every write's dry-run and receipt wait. Reach for it when your app reads through its own viem client rather than wagmi's transport, for example a dedicated RPC URL, request batching, or an instrumented transport.
+
+```tsx
+import { SymmioProvider } from "@symmio/trading-react";
+import { useCallback, type ReactNode } from "react";
+
+function AppSymmioProvider({ children }: { children: ReactNode }) {
+  const getClient = useCallback(() => appPublicClient, []);
+
+  return (
+    <SymmioProvider symmioConfig={symmioConfig} getClient={getClient}>
+      {children}
+    </SymmioProvider>
+  );
+}
+```
+
+<Callout type="warning">
+  Return a client bound to the requested `chainId`, or throw for a chain your app does not serve. A client for another
+  chain reads the wrong contracts, and nothing fails to tell you.
+</Callout>
+
+Memoize the resolver. A new function identity rebuilds the SDK config, which resets every per-config cache: nonce
+locks, the relay request registry, and stream connections.
+
 ### `getWalletClient`
 
 - Type: `(parameters: { chainId: number; from?: Address }) => Promise<SymmioWalletClient>`
@@ -138,11 +168,13 @@ materializing the private key.
 ## What the provider does
 
 1. Reads the host wagmi config via `useConfig()`.
-2. Calls `createConfig(...)` once, memoized against the wagmi config reference.
-3. Wires `getClient` to `wagmi/actions#getPublicClient` and `getWalletClient` to the prop (or wagmi's default).
+2. Calls `createConfig(...)`, memoized: the config is rebuilt only when `symmioConfig`, either resolver prop, the wagmi
+   config, or the effective default chain changes. Memoize the props you pass, or every render rebuilds it.
+3. Wires `getClient` to the prop (or `wagmi/actions#getPublicClient`) and `getWalletClient` to the prop (or wagmi's
+   default).
 4. Exposes the `Config` via context.
 
-The wagmi bridge is **the only place the SDK touches wagmi** — that's why `core` stays wagmi-free and non-React consumers can pass their own viem clients.
+The wagmi bridge is **the only place the SDK touches wagmi**. That's why `core` stays wagmi-free and non-React consumers can pass their own viem clients.
 
 ## Reading the config in a hook
 

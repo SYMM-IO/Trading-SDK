@@ -11,7 +11,7 @@ import {
 import { useGaslessTokenBalance } from "@/features/gasless/use-gasless-token-balance";
 import { parseGaslessWalletIdText, WalletIdField } from "@/features/gasless/wallet-id-field";
 import { formatUsd } from "@/lib/format";
-import { encodeSubAccountHookMetadata } from "@/lib/subaccount-metadata";
+import { encodeSubAccountHookMetadata } from "@symmio/trading-core";
 import {
   SubAccountIsolationType,
   useGaslessDepositPolicy,

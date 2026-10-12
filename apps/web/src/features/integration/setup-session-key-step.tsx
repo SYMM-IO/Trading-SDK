@@ -3,6 +3,7 @@
 import { AddressTag } from "@/components/address-tag";
 import { DataList, DataRow } from "@/components/data-list";
 import { ResultError, ResultNote } from "@/components/result";
+import { describeSessionKeyError } from "@/features/session-keys/session-key-errors";
 import { useSessionKey } from "@/features/session-keys/use-session-key";
 import { Button } from "@symmio/ui/components/button";
 import { Spinner } from "@symmio/ui/components/spinner";
@@ -20,9 +21,14 @@ import { formatRelativeTimestamp } from "@symmio/utils";
  * Rotating **after** granting leaves the old delegation on-chain pointing at a
  * key that no longer exists, and the new key holds nothing until it is granted
  * again — so the step says so rather than presenting rotation as free.
+ *
+ * A stored key that fails to load is left untouched rather than replaced, since
+ * it may still hold that delegation; the step then offers loading it again or
+ * rotating, instead of claiming no key was ever created.
  */
 export function SetupSessionKeyStep() {
-  const { owner, sessionKeyAddress, state, metadata, isLoading, error, initialize, rotate } = useSessionKey();
+  const { owner, sessionKeyAddress, state, metadata, isLoading, error, loadFailed, initialize, rotate } =
+    useSessionKey();
   const isReady = Boolean(sessionKeyAddress && state.isReady);
   const expiresAt = metadata?.expiresAt ?? state.expiresAt ?? undefined;
 
@@ -52,7 +58,7 @@ export function SetupSessionKeyStep() {
           This key was created for the connected wallet and never leaves this browser. The next step grants it authority
           on-chain, scoped to your sub-account and expiring with the key itself.
         </ResultNote>
-      ) : (
+      ) : loadFailed ? null : (
         <ResultNote testId="setup-session-key-missing">
           No usable key in this browser — it was never created, was cleared, or has expired. Create one to continue.
         </ResultNote>
@@ -66,7 +72,7 @@ export function SetupSessionKeyStep() {
           data-testid="button-setup-session-key-initialize"
         >
           {isLoading && !isReady ? <Spinner className="size-4" /> : null}
-          {isReady ? "Reload key" : "Create session key"}
+          {isReady ? "Reload key" : loadFailed ? "Load again" : "Create session key"}
         </Button>
         <Button
           type="button"
@@ -87,7 +93,7 @@ export function SetupSessionKeyStep() {
         </p>
       ) : null}
 
-      {error ? <ResultError testId="setup-session-key-error" message={error.message} /> : null}
+      {error ? <ResultError testId="setup-session-key-error" message={describeSessionKeyError(error)} /> : null}
     </div>
   );
 }

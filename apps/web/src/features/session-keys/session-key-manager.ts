@@ -10,6 +10,7 @@ export function getAppSessionKeyManager(): SessionKeyManager {
   if (manager) return manager;
 
   manager = createSessionKeyManager({
+    onLoadError: "throw",
     storage: createBrowserSessionKeyStorage({
       storagePrefix: STORAGE_PREFIX,
     }),

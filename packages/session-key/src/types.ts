@@ -104,29 +104,50 @@ export interface SessionKeyMetadata {
  * Session-key manager options.
  */
 export interface CreateSessionKeyManagerOptions {
+  /** Optional clock, useful for tests. */
+  now?: () => number;
   /** Persistence implementation used to load/save session-key records. */
   storage: SessionKeyStorage;
   /** Default lifetime for newly generated/imported keys. Defaults to one year. */
   defaultTtlMs?: number;
-  /** Optional clock, useful for tests. */
-  now?: () => number;
+  /**
+   * What `initialize` does when the storage adapter's `load` throws — a
+   * decryption failure, for example.
+   *
+   * - `"rotate"` (default): remove the stored record and generate a new key.
+   *   The new key holds no on-chain delegation, so the user has to authorize
+   *   it again.
+   * - `"throw"`: leave the stored record untouched, clear the in-memory key, and
+   *   reject with `SessionKeyLoadError`, so the app can retry or ask the user
+   *   before replacing a key that may still be delegated.
+   */
+  onLoadError?: "rotate" | "throw";
 }
 
 /**
  * Session-key manager for loading, generating, signing, and destroying local keys.
  */
 export interface SessionKeyManager {
-  /** Load an existing non-expired key for `owner`, or generate and persist a new one. */
+  /**
+   * Load an existing non-expired key for `owner`, or generate and persist a new
+   * one. Concurrent calls for the same owner share one run, and every lifecycle
+   * call (`initialize`, `importPrivateKey`, `rotate`, `destroy`) runs after the
+   * previous one settles. Starting a different lifecycle call immediately
+   * revokes the in-memory signer; a still-running older call rejects with
+   * `SessionKeyOperationSupersededError` instead of publishing stale key
+   * material. After saving, the manager makes a best-effort check for a competing
+   * storage writer. A failing `load` follows the manager's `onLoadError`.
+   */
   initialize(owner: Address, options?: { ttlMs?: number }): Promise<SessionKeyState>;
-  /** Import an existing private key and persist it for `owner`. */
+  /** Import an existing private key and persist it for `owner`, revoking the current in-memory signer immediately. */
   importPrivateKey(owner: Address, privateKey: Hex, options?: { ttlMs?: number }): Promise<SessionKeyState>;
-  /** Replace any existing key for `owner` with a newly generated key. */
+  /** Replace any existing key for `owner` with a newly generated key, revoking the current signer immediately. */
   rotate(owner: Address, options?: { ttlMs?: number }): Promise<SessionKeyState>;
   /** Sign an arbitrary message with the loaded session key. */
   sign(message: string): Promise<SessionKeySignature>;
   /** Sign EIP-712 typed data with the loaded session key. */
   signTypedData(parameters: SessionKeyTypedDataParameters): Promise<Hex>;
-  /** Clear the in-memory key. When `owner` is passed, also remove its stored key. */
+  /** Immediately clear the in-memory key. When `owner` is passed, also remove its stored key asynchronously. */
   destroy(owner?: Address): Promise<void>;
   /** Return the current runtime state. */
   getState(): SessionKeyState;
