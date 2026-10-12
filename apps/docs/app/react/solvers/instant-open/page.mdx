@@ -42,7 +42,7 @@ const quoteId = useInstantOpenQuoteId({ tempQuoteId: -1001 });
 
 ### `useInstantOpenAuto`
 
-The default — one-line orchestrator. Runs `prepareInstantOpenParams` inline (fetches market metadata, mark price, locked params, fee rates) then signs and POSTs.
+The default — one-line orchestrator. Runs `prepareInstantOpenParams` inline (fetches market metadata, mark price, locked params, fee rates), then signs and POSTs. It does not add an account-balance read or balance check before signing; the frontend decides whether to check the balance before requesting submission.
 
 ```tsx
 const open = useInstantOpenAuto();
@@ -67,7 +67,7 @@ const open = useInstantOpenAuto();
 
 **Latency**: prepare fetches run inline, so click → sign gap includes the network hop. Fine for most flows; see `useInstantOpen` below for the low-latency variant.
 
-**Full-balance variant (lowcap only)** — replace `initialMargin` with `fund: { mode: "full-balance", balance }` to deploy the wallet's entire selected collateral into the position's VA; the SDK sizes the quantity so its locks + open-side fees + settlement fit inside the balance (close fees are charged at close from the position, not funded here). Funding is a one-of: pass exactly one of the two. See [Full-balance funding](../../../core/solvers/instant-open#full-balance-funding-lowcap) for the sizing semantics.
+**Fee-inclusive funding (lowcap only)** — replace `initialMargin` with `fund: { mode: "full-balance", balance }` to deploy the selected funding amount into the position's VA; the SDK sizes the quantity so its locks + open-side fees + settlement fit inside the balance (close fees are charged at close from the position, not funded here). Funding is a one-of: pass exactly one of the two. See [Full-balance funding](../../../core/solvers/instant-open#full-balance-funding-lowcap) for the sizing semantics.
 
 ```tsx
 open.mutate({
@@ -80,6 +80,20 @@ open.mutate({
   // slippage optional on lowcap — auto-derived from the dry-run estimate
 });
 ```
+
+The amount includes opening fees whether it is a partial balance or Max. Display the raw
+[`useAccountBalanceOf`](../../account-layer#useaccountbalanceof) value as Available.
+Do not deduct fees or slippage from it before passing a funding budget. A failed balance
+read stays unknown; keep the last successful value or show a loading/error state.
+
+Acceptance is not a fill. Keep optimistic rows pending until the live open confirmation.
+The hook invalidates SDK balance and pending-open queries on acceptance. If the app owns
+separate query keys, refresh its displayed balance after every attempt and again on open
+or failure notifications. Refresh positions, virtual accounts and market capacity on the
+corresponding live events; preserve polling as a fallback.
+
+`operationDeadline` and `deadline` are forwarded unchanged. Rejection bodies and missing
+IDs surface as normalized hook errors, retaining solver details in `error.responseData`.
 
 ### `useLimitOpenAuto`
 
@@ -105,7 +119,9 @@ On success it invalidates the hedger's instant-open feed, so the order surfaces 
 
 Live-preview the exact `InstantOpenParameters` a submit will sign — `order` (price + quantity), `lockedParam`, `margin.amount`, `solverFeeCaps` — by running [`prepareInstantOpenParams`](../../../core/solvers/instant-open#quote-preview--prepareinstantopenparamsqueryoptions) as a read. `prepareInstantOpenParams` neither signs nor submits, so this is safe to run on every input change; drive a "quote preview" from it and what the user sees is **bit-for-bit** what `sendQuote` receives — no separate local recomputation to drift, and the full-balance rescale + lot snap come for free.
 
-Like [`useInstantOpenFees`](../../instant-layer#useinstantopenfees), it pre-fetches every input through its own cached queries (market metadata, mark price, locked params, on-chain fee rates, solver info, and the lowcap dry-run estimate) and passes them in as prefills, so the query function is pure. It also returns `estimatedOpenPrice` — the estimate the params were built with.
+Like [`useInstantOpenFees`](../../instant-layer#useinstantopenfees), it pre-fetches every input through its own cached queries (market metadata, mark price, locked params, on-chain fee rates, solver info, and the lowcap dry-run estimate) and passes them in as prefills, so the query function is pure. It also returns `estimatedOpenPrice` and `estimatedOpenPriceTimestamp` (epoch milliseconds). Forward the estimate to submission. The timestamp is available for frontend refresh or expiry decisions; core does not enforce an estimate age limit.
+
+The hook has no fixed estimate polling interval. Call `refetchEstimatedPrice(options?)` when your frontend wants a fresh SDK-managed estimate. It forwards the estimate query's existing refetch function and returns its query result; its promise finishes when the estimate request finishes. A changed estimate triggers the existing preview recalculation, so continue to gate submission on `isReady`. The existing `refetch()` reruns the calculation using cached inputs. If you supply `estimatedOpenPrice`, refresh that value yourself: supplied estimates continue to take precedence.
 
 The returned `estimatedOpenPrice` is a decimal string when available, `null` when the estimate settled but was unavailable, and `undefined` while pending or on a non-lowcap solver. Forward it unchanged to submission, including `null`, so core does not fetch an unavailable estimate again. With automatic or explicit full-balance sizing, the estimate affects the final quantity and funding decision as well as `margin.amount`.
 
@@ -135,8 +151,21 @@ const error = preview.validationError ?? preview.error;
 
 const open = useInstantOpenWithTpSl();
 if (preview.isReady) {
-  open.mutate({ ...variables, initialMargin, availableBalance, estimatedOpenPrice: preview.estimatedOpenPrice });
+  open.mutate({
+    ...variables,
+    initialMargin,
+    availableBalance,
+    estimatedOpenPrice: preview.estimatedOpenPrice,
+  });
 }
+```
+
+Bind estimate refresh to a frontend action, for example:
+
+```tsx
+<button type="button" onClick={() => void preview.refetchEstimatedPrice()}>
+  Refresh estimate
+</button>
 ```
 
 ## `useInstantOpen`

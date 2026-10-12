@@ -6,6 +6,8 @@ Subprojects under `apps/*` and `packages/*` may add their own `AGENTS.md`. Those
 
 @AGENTS.local.md
 
+When asked to write a task, ticket, or Jira issue, follow the workflow in [`.claude/skills/write-jira-task/SKILL.md`](./.claude/skills/write-jira-task/SKILL.md).
+
 ## Mission
 
 SYMMIO Trading-SDK is an **SDK-first** workspace for SYMMIO. The underlying product is built by many vendors with different architectures and tools. Building UIs against that raw surface is complex, so we ship an SDK that hides the complexity behind a **simple, correct, reliable** API.

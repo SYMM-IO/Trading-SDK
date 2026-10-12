@@ -58,7 +58,11 @@ interface UseAccountMarginRiskReturnType {
 
 ## `useAvailableInstantOpenMargin`
 
-The maximum **initial margin** an instant open can spend for an account on a market — the raw available balance shaved for the **open fee** (on the leveraged notional) and, for SHORT, a worst-case slippage fill. The close fee is **not** shaved — the contract charges it at close from the position (see [Fees at close](../solvers/instant-close#fees-at-close)), not at open. Wire the result to the trade form's `Max` chip and gate submit on it.
+The maximum **initial margin** an instant open can spend for an account on a market — the raw available balance shaved for the **open fee** (on the leveraged notional) and, for SHORT, a worst-case slippage fill. The close fee is **not** shaved — the contract charges it at close from the position (see [Fees at close](../solvers/instant-close#fees-at-close)), not at open. Use this only for an initial-margin input. For a fee-inclusive funding amount, use
+[`useAccountBalanceOf`](../account-layer#useaccountbalanceof) for the full Available balance
+and pass that raw value as `fund.balance` to
+[`useInstantOpenAuto`](../solvers/instant-open#useinstantopenauto). The SDK sizes the position
+inside that budget. This adjusted-margin helper must not replace the full balance display.
 
 Under the hood it composes [`useAccountBalanceOf`](../account-layer#useaccountbalanceof) (with `live: true`) + [`useFeeForUser`](../fees#usefeeforuser) and feeds them to the pure core function [`calculateAvailableInstantOpenMargin`](../../core/solvers/instant-open#calculateavailableinstantopenmargin). Because the balance read is live, the result **refetches automatically when an open/close settles on-chain** — the `Max` chip stays fresh with no extra wiring.
 

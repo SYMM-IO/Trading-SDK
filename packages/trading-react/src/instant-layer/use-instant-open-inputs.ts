@@ -214,6 +214,8 @@ export function useInstantOpenInputs(
     config,
     validationError,
     ready,
+    refetchEstimatedPrice: estimateQuery.refetch,
+    estimatedOpenPriceTimestamp: estimateQuery.isPlaceholderData ? undefined : estimateQuery.dataUpdatedAt || undefined,
     prefills: {
       chainId,
       market: {

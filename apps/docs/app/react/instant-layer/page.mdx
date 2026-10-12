@@ -132,6 +132,7 @@ const {
   validationError,
   error,
   isReady,
+  refetchEstimatedPrice,
 } = useInstantOpenFees({
   subAccountAddress,
   market: { id: symbolId },
@@ -154,6 +155,14 @@ With `initialMargin` and `availableBalance`, the hook previews [automatic full-b
 A typed `initialMargin` above `availableBalance` produces a synchronous `validationError`, including while offline, before requesting a price estimate or other prefills. Display `validationError ?? error`: `error` and `isError` describe the calculation query, while `validationError` describes invalid input. Invalid balance funding disables dependent queries; correcting the input clears `validationError` and resumes preparation. Explicitly disabled hooks and empty inputs stay idle without validation. Automatic fallback applies only when the typed amount fits but its required funding exceeds the balance.
 
 `isReady` is true when validation passes, required inputs and the debounced estimate have settled, and the current calculation succeeds. Previous data may remain visible during recalculation; use it for the current order only when `isReady` is true. Pass `estimatedOpenPrice: null` for an estimate already attempted but unavailable, or omit it to let the hook request one. Both preparation and fees use the same unavailable-estimate fallback.
+
+There is no fixed estimate polling interval. `refetchEstimatedPrice(options?)` forwards the estimate query's existing refetch function, so the frontend chooses when to refresh. Its promise returns the estimate query result; fee recalculation follows through normal query updates. Use `isReady` before relying on the recalculated fees. The existing `refetch()` recalculates fees from cached inputs. Caller-supplied estimates remain caller-owned and take precedence over fetched data.
+
+```tsx
+<button type="button" onClick={() => void refetchEstimatedPrice()}>
+  Refresh estimate
+</button>
+```
 
 The query is disabled until a funding source exists — a non-empty `initialMargin` or a `fund` with a balance — and the funding value is part of the query key. Pass the raw input so validation stays immediate; estimate requests are debounced internally. Errors are normalized to `SymmioRequestError` (`SLIPPAGE_REQUIRED` on majors without a slippage, `INVALID_SLIPPAGE` on a malformed one, and in full-balance mode `QUOTE_CONSTRAINT_VIOLATED` when the sized quantity violates a published market constraint).
 
