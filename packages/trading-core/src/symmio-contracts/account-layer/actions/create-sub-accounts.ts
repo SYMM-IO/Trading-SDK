@@ -69,10 +69,10 @@ export type CreateSubAccountsReturnType = Hash;
  *   accountsData: [
  *     {
  *       name: "Main",
- *       metadata: "0x",
+ *       singleVAMode: true,
  *       symmioCore: "0xcore…",
  *       isolationType: SubAccountIsolationType.MARKET,
- *       singleVAMode: true,
+ *       metadata: encodeSubAccountHookMetadata({ partyBToBind: solverAddress }),
  *     },
  *   ],
  * });

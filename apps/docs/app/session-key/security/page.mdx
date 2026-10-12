@@ -36,20 +36,26 @@ interface SessionKeyStorage {
 <Properties>
   <Property name="load" type="(owner) => Promise<SessionKeyRecord | null>" required>
     Return the stored record for `owner`, or `null` if none. **Decrypt here** if you encrypted on `save`. If `load`
-    throws, the manager treats it as "no key" — it removes the record and generates a fresh one.
+    throws, the manager follows its [`onLoadError`](/session-key/manager) option: by default it removes the record and
+    generates a fresh key; with `"throw"` it keeps the record and rejects with `SessionKeyLoadError`.
   </Property>
   <Property name="save" type="(owner, record) => Promise<void>" required>
     Persist the record for `owner`. **Encrypt `record.privateKey` here** before it touches disk.
   </Property>
   <Property name="remove" type="(owner) => Promise<void>" required>
-    Delete the stored key for `owner`. Called on expiry, on `destroy(owner)`, and when `load` throws. Rotation does
-    **not** call `remove` — it overwrites the record via `save`.
+    Delete the stored key for `owner`. Called on expiry, on `destroy(owner)`, and when `load` throws under the default
+    `onLoadError: "rotate"`. Rotation does **not** call `remove` — it overwrites the record via `save`.
   </Property>
   <Property name="getMetadata" type="(owner) => Promise<SessionKeyMetadata | null>" required>
     Return the non-secret metadata (address, timestamps) for `owner` **without** loading the private key into memory —
     used to show "session active until…" without a decrypt.
   </Property>
 </Properties>
+
+The manager serializes lifecycle calls made through one manager instance. Its post-save metadata check can notice and
+adopt a competing writer, but it cannot make separate tabs or processes atomic: another writer can always land after the
+last read. If several contexts may create or rotate the same owner's key, serialize them in this adapter (for example
+with a storage transaction or a cross-context lock) and propagate external replacements to live managers.
 
 ## The record
 

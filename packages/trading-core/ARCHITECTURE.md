@@ -167,7 +167,7 @@ Where a `kind` genuinely cannot serve an action, it throws a typed `SymmError` (
 
 ### 3.4 Satellite infrastructure — per-solver override, chain-level fallback
 
-`notifications`, `muon`, and `priceService` sit on `SymmioChainConfig` today, but physically they are **solver infrastructure** — the defaults point at `notification.rasa.capital`, `muon-oracle{1..4}.rasa.capital`, and Enigma's price service. With two solvers on one chain, a single chain-level value cannot be right for both.
+`notifications`, `muon`, and `priceService` sit on `SymmioChainConfig` today, but physically they are **solver infrastructure** — the defaults point at `notification.rasa.capital`, `muon-oracle{1..3}.rasa.capital`, and Enigma's price service. With two solvers on one chain, a single chain-level value cannot be right for both.
 
 The precedent already exists in the codebase: **`tpsl` is already nested under the solver** ([`chains/types.ts`](./src/core/chains/types.ts)). This design generalises that.
 

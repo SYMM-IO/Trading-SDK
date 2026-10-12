@@ -5,14 +5,14 @@ import { Callout } from "nextra/components";
 Create one or more subaccounts under an affiliate. The signing wallet becomes the `owner` of every subaccount created.
 
 ```ts
-import { createSubAccounts, SubAccountIsolationType } from "@symmio/trading-core";
+import { createSubAccounts, encodeSubAccountHookMetadata, SubAccountIsolationType } from "@symmio/trading-core";
 
 const hash = await createSubAccounts(config, {
   affiliate: "0xaff...",
   accountsData: [
     {
       name: "Main",
-      metadata: "0x",
+      metadata: encodeSubAccountHookMetadata({ partyBToBind: solverAddress }),
       symmioCore: "0xcore...",
       isolationType: SubAccountIsolationType.MARKET,
       singleVAMode: true,
@@ -24,6 +24,13 @@ const hash = await createSubAccounts(config, {
 The created addresses are deterministic and returned by the contract call, but they are only readable once the
 transaction is mined — take them from the `SubAccountCreated` events on the receipt, or refetch
 [`getUserSubAccounts`](/core/account-layer/get-user-sub-accounts).
+
+## Hook metadata
+
+The affiliate's `onAccountCreation` hook receives each entry's `metadata` and decides its encoding. A hooked affiliate
+rejects a blob it cannot decode, the empty `"0x"` included, and the whole call reverts with `HookFailed`. Build the blob
+with [`encodeSubAccountHookMetadata`](/core/account-layer/encode-sub-account-hook-metadata), passing the chain's solver
+as `partyBToBind`. Its referral code is global and single-use, so never reuse a fixed one.
 
 ## Relaying it without gas
 

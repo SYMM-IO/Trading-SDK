@@ -9,8 +9,8 @@ import { GASLESS_WALLET_OPERATION_TYPES, getGaslessGatewayEip712Domain } from ".
 export interface SignGaslessBatchOperationsParameters {
   /** The chain the batch relays on. */
   chainId: number;
-  /** The wallet client that signs every operation. */
-  walletClient: SymmioWalletClient;
+  /** The wallet client that signs each operation, aligned with `operations`. */
+  walletClients: readonly SymmioWalletClient[];
   /** The resolved entries, in relay order — they decide each operation's signing domain. */
   entries: readonly ResolvedGaslessBatchEntry[];
   /** The operations to sign, aligned with `entries`. */
@@ -18,7 +18,7 @@ export interface SignGaslessBatchOperationsParameters {
 }
 
 /**
- * Sign every operation of a batch, one EIP-712 prompt each, in relay order.
+ * Sign every operation of a batch, one EIP-712 signature each.
  *
  * The protocol has no batch signature: the InstantLayer verifies each
  * operation's signature against that operation alone. Two domains are in play:
@@ -29,8 +29,11 @@ export interface SignGaslessBatchOperationsParameters {
  *   `flexFields`, no `maxUses`) under the `GaslessGateway` domain, whose
  *   verifying contract is the GaslessLayer.
  *
- * The prompts run one after the other, so a rejected prompt stops the batch
- * before anything is submitted.
+ * Signers held in memory (a session key: a viem `local` account) sign first,
+ * then each wallet prompt runs, both in relay order. A local signature cannot
+ * be refused, so a failing one surfaces before the user spends a prompt. The
+ * prompts run one after the other, so a rejected prompt stops the batch before
+ * anything is submitted.
  *
  * @returns One signature per operation, aligned with `operations`.
  *
@@ -40,33 +43,43 @@ export async function signGaslessBatchOperations(
   config: Config,
   parameters: SignGaslessBatchOperationsParameters,
 ): Promise<Hex[]> {
-  const { chainId, walletClient, entries, operations } = parameters;
+  const { chainId, walletClients, entries, operations } = parameters;
   let instantDomain: TypedDataDomain | undefined;
   let gatewayDomain: TypedDataDomain | undefined;
 
-  const signatures: Hex[] = [];
-  for (const [index, operation] of operations.entries()) {
+  /** `sort` is stable, so each group keeps relay order. */
+  const signingOrder = operations
+    .map((_, index) => index)
+    .sort((a, b) => Number(isLocalSigner(walletClients[b]!)) - Number(isLocalSigner(walletClients[a]!)));
+
+  const signatures: Hex[] = new Array(operations.length);
+  for (const index of signingOrder) {
+    const operation = operations[index]!;
+    const walletClient = walletClients[index]!;
     if (entries[index]?.type === "wallet") {
       gatewayDomain ??= getGaslessGatewayEip712Domain(config, { chainId });
-      signatures.push(
-        await walletClient.signTypedData({
-          account: walletClient.account,
-          domain: gatewayDomain,
-          types: GASLESS_WALLET_OPERATION_TYPES,
-          primaryType: "SignedOperation",
-          message: {
-            signer: operation.signer,
-            target: operation.target,
-            callData: operation.callData,
-            signerAccount: operation.signerAccount,
-            replayAttackHeader: operation.replayAttackHeader,
-          },
-        }),
-      );
+      signatures[index] = await walletClient.signTypedData({
+        account: walletClient.account,
+        domain: gatewayDomain,
+        types: GASLESS_WALLET_OPERATION_TYPES,
+        primaryType: "SignedOperation",
+        message: {
+          signer: operation.signer,
+          target: operation.target,
+          callData: operation.callData,
+          signerAccount: operation.signerAccount,
+          replayAttackHeader: operation.replayAttackHeader,
+        },
+      });
     } else {
       instantDomain ??= getInstantLayerEip712Domain(config, { chainId });
-      signatures.push(await signSignedOperation(operation, instantDomain, walletClient));
+      signatures[index] = await signSignedOperation(operation, instantDomain, walletClient);
     }
   }
   return signatures;
+}
+
+/** Whether a client signs in memory — no prompt, so it cannot be refused. */
+function isLocalSigner(walletClient: SymmioWalletClient): boolean {
+  return walletClient.account.type === "local";
 }

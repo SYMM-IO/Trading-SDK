@@ -1,8 +1,8 @@
-import type { Config, SymmioWalletClient } from "@symmio/trading-core";
+import type { Config, GetClientFn, SymmioWalletClient } from "@symmio/trading-core";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
-import { createWalletClient, http, type Account } from "viem";
+import { createPublicClient, createWalletClient, http, type Account, type PublicClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrum } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
@@ -29,11 +29,13 @@ const TEST_SYMMIO_CONFIG = {
  * config's `getWalletClient` — the seam the default resolver lives behind.
  *
  * @param options.connected - `false` renders with no wallet available.
+ * @param options.getClient - Read-client resolver prop to pass through; omitted
+ *   for the wagmi-backed default.
  * @param options.getWalletClient - Resolver prop to pass through; omitted for
  *   the default-resolver cases.
  */
 async function renderSymmioConfig(
-  options: { connected?: boolean; getWalletClient?: Config["getWalletClient"] } = {},
+  options: { connected?: boolean; getClient?: GetClientFn; getWalletClient?: Config["getWalletClient"] } = {},
 ): Promise<Config> {
   const wagmiConfig: WagmiConfig = createTestWagmiConfig({ connected: options.connected });
   if (options.connected !== false) await connect(wagmiConfig, { connector: wagmiConfig.connectors[0]! });
@@ -43,7 +45,11 @@ async function renderSymmioConfig(
     wrapper: ({ children }: PropsWithChildren) => (
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          <SymmioProvider symmioConfig={TEST_SYMMIO_CONFIG} getWalletClient={options.getWalletClient}>
+          <SymmioProvider
+            symmioConfig={TEST_SYMMIO_CONFIG}
+            getClient={options.getClient}
+            getWalletClient={options.getWalletClient}
+          >
             {children}
           </SymmioProvider>
         </QueryClientProvider>
@@ -115,5 +121,34 @@ describe("SymmioProvider default wallet-client resolver", () => {
 
     expect(client).toBe(sessionClient);
     expect(getWalletClient).toHaveBeenCalledWith({ chainId: arbitrum.id, from: sessionAccount.address });
+  });
+});
+
+describe("SymmioProvider read-client resolver", () => {
+  /** An app-owned client; creating it makes no RPC call. */
+  const appClient: PublicClient = createPublicClient({ chain: arbitrum, transport: http() });
+
+  it("reads through the `getClient` prop instead of wagmi's public client", async () => {
+    const getClient = vi.fn(() => appClient);
+
+    const config = await renderSymmioConfig({ getClient });
+
+    expect(config.getClient({ chainId: arbitrum.id })).toBe(appClient);
+    expect(getClient).toHaveBeenCalledWith({ chainId: arbitrum.id });
+  });
+
+  it("hands the `getClient` prop the resolved default chain when the caller omits `chainId`", async () => {
+    const getClient = vi.fn(() => appClient);
+
+    const config = await renderSymmioConfig({ getClient });
+    config.getClient();
+
+    expect(getClient).toHaveBeenCalledWith({ chainId: config.defaultChainId });
+  });
+
+  it("falls back to wagmi's public client for the requested chain when the prop is omitted", async () => {
+    const config = await renderSymmioConfig();
+
+    expect(config.getClient({ chainId: arbitrum.id }).chain?.id).toBe(arbitrum.id);
   });
 });

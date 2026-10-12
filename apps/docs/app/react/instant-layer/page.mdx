@@ -226,12 +226,44 @@ interface UseGrantDelegationParameters {
 
 #### Cache invalidation
 
-On success, `useGrantDelegation` invalidates both read caches for the account and delegated signer:
+On success, `useGrantDelegation` invalidates the reads a grant moves:
 
-- `getDelegationExpiryQueryKey`
-- `getIsDelegationActiveQueryKey`
+- `getDelegationExpiryQueryKey` and `getIsDelegationActiveQueryKey`, for the account and delegated signer;
+- `getActiveDelegationsQueryKey` and `getPendingRevocationEtasQueryKey` on the chain, since a grant turns selectors
+  active and clears any pending revocation for them;
+- the account's InstantLayer nonce, operational-fee allowance and balances, which a relayed grant also moves.
 
-Mounted `useDelegationExpiry` and `useIsDelegationActive` hooks refetch independently.
+The keys are taken for the chain the write went to: an omitted `chainId` is the config's default chain, even when the
+wallet sits on another chain.
+
+### `useGrantDelegations`
+
+Grant several delegates of one account in a single call, for example a session key and a TP/SL executor at once.
+Relayed, the whole grant is one owner signature; from the wallet, one transaction. Wraps
+[`grantDelegations`](/core/instant-layer/grant-delegations).
+
+```tsx
+import { useGrantDelegations } from "@symmio/trading-react";
+
+const { mutate, isPending } = useGrantDelegations();
+
+mutate({
+  account: { addr: subAccount, isPartyB: false },
+  delegations: [
+    { delegatedSigner: sessionKey, selectors: sessionKeySelectors, expiryTimestamp },
+    { delegatedSigner: tpslExecutor, selectors: tradingSelectors, expiryTimestamp },
+  ],
+});
+```
+
+An empty `delegations` list or a PartyB account fails before any prompt, normalized to a `SymmioRequestError` with
+`code` `GRANT_DELEGATIONS_EMPTY` or `GRANT_DELEGATIONS_PARTYB_UNSUPPORTED`. On success it invalidates the same reads as
+`useGrantDelegation`, for every granted delegate. `useSimulateGrantDelegations()` dry-runs the call without sending it.
+
+<Callout type="warning">
+  The InstantLayer must have `grantDelegations`; deployments older than perps-core v0.8.6 of 2026-09-04 revert. Gate the
+  UI on your knowledge of the deployment.
+</Callout>
 
 ### `useSessionKeySelectors`
 

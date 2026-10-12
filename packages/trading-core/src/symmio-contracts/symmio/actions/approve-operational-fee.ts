@@ -1,10 +1,10 @@
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import type { Config } from "../../../core/config";
-import { resolveGaslessService } from "../../../gasless/resolve-gasless";
 import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
+import { resolveDefaultOperationalFeeCharger } from "../internal/resolve-default-operational-fee-charger";
 
 /**
  * Fee multiplier meaning "list price" (basis points). The default the diamond
@@ -100,7 +100,9 @@ export async function approveOperationalFee(
 ): Promise<ApproveOperationalFeeReturnType> {
   const { chainId, account, amounts } = parameters;
 
-  const chargers = parameters.chargers ?? [resolveDefaultCharger(config, chainId)];
+  const chargers = parameters.chargers ?? [
+    resolveDefaultOperationalFeeCharger(config, { chainId, action: "approveOperationalFee" }),
+  ];
   const feeMultipliers = parameters.feeMultipliers ?? chargers.map(() => OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER);
 
   if (chargers.length !== amounts.length || chargers.length !== feeMultipliers.length) {
@@ -125,16 +127,4 @@ export async function approveOperationalFee(
     simulateBeforeWrite: parameters.simulateBeforeWrite,
     gasless: parameters.gasless,
   });
-}
-
-function resolveDefaultCharger(config: Config, chainId: number | undefined): Address {
-  try {
-    return resolveGaslessService(config, { chainId }).gaslessLayerAddress;
-  } catch {
-    throw new SymmError(
-      "validation",
-      "GASLESS_CHARGER_REQUIRED",
-      "approveOperationalFee: pass `chargers` explicitly — the chain has no gasless block to default them from.",
-    );
-  }
 }

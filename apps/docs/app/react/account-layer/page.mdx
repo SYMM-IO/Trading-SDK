@@ -159,6 +159,32 @@ The query is **disabled until `subAccount`, `isolationType`, and `symbolId` are 
 
 `UseQueryResult<Address, SymmioRequestError>` — the predicted VA address.
 
+### Virtual-account reads
+
+In lowcap trading every isolated position lives in its own Virtual Account (VA), the on-chain `partyA` of its quotes.
+These hooks read a subaccount's VAs. Each is disabled until its required inputs are set, `chainId` defaults to the
+connected chain, and errors are normalized to `SymmioRequestError`. Pass `chainId` explicitly in an app whose wallet may
+sit on another chain.
+
+| Hook                                      | Reads                                                                                                                                              | Disabled until                            |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `useVirtualAccountsOfSubAccount`          | The VAs with their market, parent and isolation type — [`getVirtualAccountsOfSubAccount`](/core/account-layer/get-virtual-accounts-of-sub-account) | `subAccount`                              |
+| `useVirtualAccountsAddressesOfSubAccount` | The VA addresses — [`getVirtualAccountsAddressesOfSubAccount`](/core/account-layer/get-virtual-accounts-addresses-of-sub-account)                  | `subAccount`                              |
+| `useVirtualAccountsCountOfSubAccount`     | How many VAs, to page past 200 — [`getVirtualAccountsCountOfSubAccount`](/core/account-layer/get-virtual-accounts-count-of-sub-account)            | `subAccount`                              |
+| `useVirtualAccount`                       | One VA's detail, cached indefinitely — [`getVirtualAccount`](/core/account-layer/get-virtual-account)                                              | `account`                                 |
+| `useActiveVirtualAccountByKey`            | The VA active for a market and side, or `null` — [`getActiveVirtualAccountByKey`](/core/account-layer/get-active-virtual-account-by-key)           | `subAccount`, `isolationType`, `symbolId` |
+| `useSubAccountVirtualNonce`               | The nonce the next VA derives from — [`getSubAccountVirtualNonce`](/core/account-layer/get-sub-account-virtual-nonce)                              | `subAccount`                              |
+
+```tsx
+import { useVirtualAccountsOfSubAccount, VIRTUAL_ACCOUNT_ISOLATION_TYPE } from "@symmio/trading-react";
+
+const { data: vas } = useVirtualAccountsOfSubAccount({ subAccount, chainId });
+const longs = vas?.filter((va) => va.isolationType === VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_LONG);
+```
+
+Each returns react-query's `UseQueryResult` with the core action's return type. Pagination (`offset`, `limit`) and
+TanStack `query` overrides pass through.
+
 ## Writes
 
 <Callout type="info">

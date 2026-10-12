@@ -1,5 +1,6 @@
 export * from "./actions/allocate";
 export * from "./actions/approve-operational-fee";
+export * from "./actions/approve-operational-fee-allowance";
 export * from "./actions/deallocate";
 export * from "./actions/deallocate-and-initiate-withdraw";
 export * from "./actions/finalize-withdraw-request";
@@ -35,6 +36,7 @@ export * from "./is-party-a-liquidated";
 export * from "./parts";
 export * from "./query/allocate";
 export * from "./query/approve-operational-fee";
+export * from "./query/approve-operational-fee-allowance";
 export * from "./query/deallocate";
 export * from "./query/deallocate-and-initiate-withdraw";
 export * from "./query/finalize-withdraw-request";
