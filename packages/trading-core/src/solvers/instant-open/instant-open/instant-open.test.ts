@@ -1,8 +1,9 @@
-import type { Address } from "viem";
+import { decodeFunctionData, parseUnits, type Address } from "viem";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { SymmioSupportedChainId } from "../../../core/chains";
 import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig } from "../../../shared/test/mock-config";
+import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.6/symmio";
 import { PositionType } from "../../../symmio-contracts/symmio/types";
 import { SEND_QUOTE_SELECTOR, SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR } from "../shared/selectors";
 import { instantOpen } from "./instant-open";
@@ -129,6 +130,44 @@ describe("instantOpen — kind dispatch", () => {
     );
     const [cappedRequest] = postInstantTradeInstantOpen.mock.calls[1]!;
     expect(cappedRequest.sendQuote.signedOperation.callData.startsWith(SEND_QUOTE_SELECTOR)).toBe(true);
+  });
+
+  it("keeps quote expiry, operation expiry and mark price distinct in signed calldata", async () => {
+    const { config } = mockConfig();
+    postInstantTradeInstantOpen.mockResolvedValue({ data: { temp_quote_id: 7 } });
+    await instantOpen(
+      config,
+      params({ deadline: 1_900_000_300n, operationDeadline: 1_900_000_060n, markPrice: parseUnits("49", 18) }),
+    );
+    const [request] = postInstantTradeInstantOpen.mock.calls[0]!;
+    expect(request.addMargin.signedOperation.replayAttackHeader.deadline).toBe(1900000060);
+    expect(request.sendQuote.signedOperation.replayAttackHeader.deadline).toBe(1900000060);
+    const decoded = decodeFunctionData({ abi: symmioAbi, data: request.sendQuote.signedOperation.callData });
+    expect(decoded.functionName).toBe("sendQuote");
+    if (decoded.functionName !== "sendQuote") throw new Error("Unexpected call");
+    expect(decoded.args[10]).toBe(1_900_000_300n);
+    expect(decoded.args[12].price).toBe(parseUnits("49", 18));
+  });
+
+  it("accepts negative temporary quote ids used before an on-chain quote exists", async () => {
+    const { config } = mockConfig();
+    postInstantTradeInstantOpen.mockResolvedValue({ data: { temp_quote_id: -1765 } });
+    await expect(instantOpen(config, params())).resolves.toMatchObject({ success: true, tempQuoteId: "-1765" });
+  });
+
+  it.each([
+    { successful: false, temp_quote_id: 7 },
+    { successful: "false", temp_quote_id: 7 },
+    { error_code: 3111, error_message: "Insufficient balance", temp_quote_id: 7 },
+    {},
+    { temp_quote_id: null },
+    { temp_quote_id: 0 },
+    { temp_quote_id: "invalid" },
+  ])("does not accept an unsuccessful HTTP 200 body: %j", async (data) => {
+    const { config } = mockConfig();
+    postInstantTradeInstantOpen.mockResolvedValue({ data, status: 200, statusText: "OK" });
+    await expect(instantOpen(config, params())).rejects.toMatchObject({ kind: "api", responseData: data });
+    expect(postInstantTradeInstantOpen).toHaveBeenCalledTimes(1);
   });
 
   it("throws a typed error when the Enigma flow is missing its margin", async () => {

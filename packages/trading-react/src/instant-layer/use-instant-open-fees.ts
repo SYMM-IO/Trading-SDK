@@ -9,6 +9,7 @@ import {
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
+import type { UseEstimatedPriceReturnType } from "../estimated-price/use-estimated-price";
 import { useInstantOpenInputs } from "./use-instant-open-inputs";
 
 /**
@@ -21,6 +22,12 @@ export type UseInstantOpenFeesParameters = GetInstantOpenFeesOptions & ConfigPar
 
 /** Return type of {@link useInstantOpenFees}. */
 export type UseInstantOpenFeesReturnType = UseQueryResult<GetInstantOpenFeesReturnType, SymmioRequestError> & {
+  /**
+   * Refetch the SDK-managed estimate on the frontend's schedule. Resolves when
+   * the estimate request finishes; use isReady to await fee calculation. A supplied
+   * estimatedOpenPrice still takes precedence over the fetched value.
+   */
+  refetchEstimatedPrice: UseEstimatedPriceReturnType["refetch"];
   /** Synchronous input error. Display before query.error; dependent queries stay disabled. */
   validationError: SymmioRequestError | undefined;
   /** True when all inputs and the current fee preview have settled successfully. */
@@ -98,6 +105,7 @@ export function useInstantOpenFees(parameters: UseInstantOpenFeesParameters): Us
 
   return {
     ...query,
+    refetchEstimatedPrice: inputs.refetchEstimatedPrice,
     validationError: inputs.validationError,
     isReady: inputs.ready && query.isSuccess && !query.isFetching && !query.isPlaceholderData,
   };

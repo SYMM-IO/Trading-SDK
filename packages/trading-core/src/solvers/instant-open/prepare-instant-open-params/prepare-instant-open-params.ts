@@ -73,7 +73,7 @@ function solverFeeCapToWei(field: "minOpenSolverFeeCap" | "minCloseSolverFeeCap"
 export interface FullBalanceFunding {
   /** Discriminant selecting the full-balance sizing path. */
   mode: "full-balance";
-  /** The entire collateral to move into the VA, as a USD decimal string. */
+  /** Fee-inclusive funding budget to move into the VA, in USD. */
   balance: string;
 }
 
@@ -108,6 +108,8 @@ type PrepareInstantOpenBaseParameters = WriteSolverParameter & {
    * omitted) the auto-slippage derivation.
    */
   estimatedOpenPrice?: string | null;
+  /** Optional estimate arrival time in epoch milliseconds. Accepted for compatibility; core does not use it. */
+  estimatedOpenPriceTimestamp?: number;
   /**
    * Pre-fetched solver locked params (matches `getLockedParams` return —
    * `ApiLockedParamsBySymbolIdResponse`). When supplied with all four
@@ -135,6 +137,8 @@ type PrepareInstantOpenBaseParameters = WriteSolverParameter & {
   sendQuoteSalt?: Hex;
   /** Forwarded to {@link InstantOpenParameters}. */
   deadline?: bigint;
+  /** Lowcap operation expiry, separate from quote expiry. Forwarded to instantOpen. */
+  operationDeadline?: bigint;
 };
 
 /**
@@ -487,6 +491,7 @@ export async function prepareInstantOpenParams(
     subAccountAddress: parameters.subAccountAddress,
     marketId: parameters.market.id,
     positionType: parameters.positionType,
+    markPrice: toWeiBigInt(markPrice),
     order: {
       price: toWeiBigInt(finalTrade.requestedOpenPrice),
       quantity: toWeiBigInt(finalTrade.quantity),
@@ -515,5 +520,6 @@ export async function prepareInstantOpenParams(
     addMarginSalt: parameters.addMarginSalt,
     sendQuoteSalt: parameters.sendQuoteSalt,
     deadline: parameters.deadline,
+    operationDeadline: parameters.operationDeadline,
   };
 }

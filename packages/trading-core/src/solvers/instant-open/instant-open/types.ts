@@ -40,6 +40,8 @@ export type InstantOpenParameters<K extends SymmioSolverKind = SymmioSolverKind>
       orderType?: SolverOrderType;
       /** Order-side values (`price`, `quantity`) — both 18-decimal-wei `bigint`. */
       order: InstantOpenOrder;
+      /** Mark price for the lowcap Muon placeholder, in 18-decimal wei. Defaults to order.price. */
+      markPrice?: bigint;
       /** Locked-margin breakdown (`cva`, `lf`, `partyAmm`, `partyBmm`) — all 18-decimal-wei `bigint`. */
       lockedParam: InstantOpenLockedParams;
       /**
@@ -69,6 +71,8 @@ export type InstantOpenParameters<K extends SymmioSolverKind = SymmioSolverKind>
       sendQuoteSalt?: Hex;
       /** Override the unix-seconds deadline (defaults to `now + 300s`). */
       deadline?: bigint;
+      /** Lowcap signed-operation expiry in unix seconds. Defaults to the quote deadline. */
+      operationDeadline?: bigint;
     }
 >;
 
