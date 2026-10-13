@@ -26,19 +26,9 @@ describe("resolveGaslessService", () => {
   it("throws GASLESS_NOT_CONFIGURED when the chain has no gasless block", () => {
     const config = buildConfig();
 
-    /**
-     * The registry ships no built-in gasless block, so a 0.8.6 chain without an
-     * override lands here too. The block check runs before the contracts-version
-     * gate, so a 0.8.5 chain does as well.
-     */
-    for (const chainId of [SymmioSupportedChainId.ARBITRUM, SymmioSupportedChainId.BASE]) {
-      expect(() => resolveGaslessService(config, { chainId })).toThrowError(SymmError);
-      try {
-        resolveGaslessService(config, { chainId });
-      } catch (err) {
-        expect((err as SymmError).code).toBe("GASLESS_NOT_CONFIGURED");
-      }
-    }
+    expect(() => resolveGaslessService(config, { chainId: SymmioSupportedChainId.BASE })).toThrowError(
+      expect.objectContaining({ code: "GASLESS_NOT_CONFIGURED" }),
+    );
   });
 
   it("returns the chain's gasless block on a perps-core chain", () => {
@@ -70,8 +60,7 @@ describe("supportsGaslessService", () => {
     const bare = buildConfig();
     expect(supportsGaslessService(bare, { chainId: SymmioSupportedChainId.BASE })).toBe(false);
 
-    /** The registry ships no built-in block, so Arbitrum needs an override too. */
-    expect(supportsGaslessService(bare, { chainId: SymmioSupportedChainId.ARBITRUM })).toBe(false);
+    expect(supportsGaslessService(bare, { chainId: SymmioSupportedChainId.ARBITRUM })).toBe(true);
 
     const configured = buildConfig({
       [SymmioSupportedChainId.ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { ...GASLESS } },

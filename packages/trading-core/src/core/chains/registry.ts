@@ -88,6 +88,12 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
   [SymmioSupportedChainId.ARBITRUM]: {
     chainId: SymmioSupportedChainId.ARBITRUM,
     contractsVersion: "0.8.6",
+    gasless: {
+      url: "https://gaslessq.symmio.foundation",
+      protocolInstance: "arbitrum-42161-vibe",
+      gaslessLayerAddress: "0x8347953D80037b8d82827246f37EC7442AD188B4",
+      statusStream: { enabled: true },
+    },
     addresses: {
       symmioAddress: "0x57331027091994FCb9c5Aec48ea92cEf0a93CF6A",
       instantLayerAddress: "0x54c27E4bf1125391aA76e1D6497B069d91e179f6",

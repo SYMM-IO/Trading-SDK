@@ -45,8 +45,12 @@ describe("approveOperationalFee", () => {
   it("requires explicit chargers when the chain has no gasless block to default from", async () => {
     const { config } = mockConfig({ simulateBeforeWrite: false });
 
-    await expect(approveOperationalFee(config, { account: ACCOUNT, amounts: [maxUint256] })).rejects.toThrowError(
-      /GASLESS_CHARGER_REQUIRED|chargers/,
-    );
+    await expect(
+      approveOperationalFee(config, {
+        chainId: SymmioSupportedChainId.BASE,
+        account: ACCOUNT,
+        amounts: [maxUint256],
+      }),
+    ).rejects.toThrowError(/GASLESS_CHARGER_REQUIRED|chargers/);
   });
 });

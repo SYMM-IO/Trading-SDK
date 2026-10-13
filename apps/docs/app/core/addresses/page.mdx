@@ -78,9 +78,10 @@ Every entry is a `SymmioChainConfig` — the fully-resolved settings for one cha
   <Property name="gasless" type="SymmioGaslessConfig" optional>
     The [GaslessQ relayer](/core/gasless) — `url`, `protocolInstance`, `gaslessLayerAddress`, plus the consumer's
     `execution` policy, an optional `statusStream` declaration, and an optional partner `apiKey` for server-side use
-    (access is anonymous without one, unless the deployment turns anonymous access off). **No chain ships a built-in
-    block** — a consumer supplies the whole block through a `createConfig` override, and a base-less override missing
-    `url` or `gaslessLayerAddress` throws `GASLESS_OVERRIDE_INCOMPLETE`.
+    (access is anonymous without one, unless the deployment turns anonymous access off). **Arbitrum ships the production
+    deployment**; execution remains opt-in. Base has no built-in block. On a chain without defaults, an override missing
+    `url` or `gaslessLayerAddress` throws `GASLESS_OVERRIDE_INCOMPLETE`. When switching to staging, override all deployment
+    fields and matching contract addresses together.
   </Property>
   <Property name="inventory" type="SymmioInventoryConfig" optional>
     The [inventory service](/core/inventory) — the custody backend behind the Pools, and a **different vendor** from

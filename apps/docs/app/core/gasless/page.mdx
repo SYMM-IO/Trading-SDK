@@ -22,23 +22,20 @@ Chain-level and optional, like Pools: a chain either carries a `gasless` config 
   **Multi-wallet GaslessLayer only.** The SDK targets the GaslessLayer interface where a gasless wallet is identified by
   `(owner, walletId)` and fees are quoted with `previewFeeQuote` — the [pinned ABI](/core/abi). A GaslessLayer proxy
   that has not been upgraded to it is unsupported: its multi-wallet reads revert with empty data, and the fee quote
-  throws `GASLESS_LAYER_INTERFACE_UNSUPPORTED`. The production proxy `0x8347953D80037b8d82827246f37EC7442AD188B4` is in
-  that state until the vendor upgrades it. The staging proxy `0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca` runs the
-  supported interface.
+  throws `GASLESS_LAYER_INTERFACE_UNSUPPORTED`.
 </Callout>
 
-**No chain ships a built-in `gasless` block**, so `supportsGaslessService` is `false` everywhere until a consumer supplies one. Arbitrum (42161) is the only chain on the perps-core generation, so it is where a block goes — the complete block (`url`, `protocolInstance`, `gaslessLayerAddress`), plus the execution policy and, only on a server that holds a partner key, an `apiKey`:
+**Arbitrum (42161) ships the production `gasless` deployment in core's chain registry.** `supportsGaslessService` returns `true` there without an override; Base has no gasless deployment. Production defaults include the gateway origin, protocol instance, GaslessLayer address, and an enabled status stream. Writes still use the connected wallet unless you opt in per call or configure `execution.mode`. A production consumer can override only the execution policy:
 
 ```ts
+import { createConfig, SymmioSupportedChainId } from "@symmio/trading-core";
+
 const config = createConfig({
   getClient,
   symmioConfig: {
     [SymmioSupportedChainId.ARBITRUM]: {
-      addresses: { affiliatesAddress: "0x…" },
+      addresses: { affiliatesAddress: affiliateAddress },
       gasless: {
-        url: "https://gaslessq-staging.symmio.foundation",
-        protocolInstance: "<protocol-instance>",
-        gaslessLayerAddress: "0x…", // a multi-wallet GaslessLayer — see the callout above
         // apiKey: process.env.GASLESSQ_API_KEY, // optional partner key, server-side only — see below
         execution: { mode: "gasless", fallback: "wallet" },
       },
@@ -48,8 +45,9 @@ const config = createConfig({
 ```
 
 <Callout type="warning">
-  With no built-in block to inherit from, an override missing `url` or `gaslessLayerAddress` throws
-  `GASLESS_OVERRIDE_INCOMPLETE` at `createConfig`. `url`, `protocolInstance` and `gaslessLayerAddress` must all come from
+  On a chain with no built-in block, an override missing `url` or `gaslessLayerAddress` throws
+  `GASLESS_OVERRIDE_INCOMPLETE` at `createConfig`. When switching deployments, override `url`, `protocolInstance` and
+  `gaslessLayerAddress` together. They must all come from
   the same deployment, and `addresses.instantLayerAddress` must match it too, since the gateway verifies signatures
   against its own InstantLayer (`GASLESS_CONFIG_INCOHERENT`). Staging and production share chain id 42161, so a
   staging relayer also needs the staging contract addresses.
@@ -90,7 +88,7 @@ There is no list-by-wallet endpoint: persist each `requestId` (with its service 
 
 ### Streaming instead of polling
 
-Where a deployment enables the gateway's status WebSocket, the SDK follows a workflow over it and polls only while the stream is not delivering. Declare the opt-in per deployment — a staging confirmation does not cover production:
+Where a deployment enables the gateway's status WebSocket, the SDK follows a workflow over it and polls only while the stream is not delivering. Arbitrum's built-in production deployment already declares it. Any other deployment declares the opt-in itself — a staging confirmation does not cover production:
 
 ```ts
 gasless: {
