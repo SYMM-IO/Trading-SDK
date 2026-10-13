@@ -225,6 +225,7 @@ describe("mergeChainConfig — contractsVersion", () => {
 
 describe("mergeChainConfig — expressWithdraw", () => {
   const providerAddress = "0x573310D7b04fF21BB8628C69eE103dDF4922294A" as const;
+  const url = "https://express-withdraw-staging.symmio.foundation/v1";
 
   it("keeps Express Withdraw absent from built-in production chains", () => {
     const config = createConfig({
@@ -241,15 +242,12 @@ describe("mergeChainConfig — expressWithdraw", () => {
       symmioConfig: {
         [CHAIN]: {
           addresses: { affiliatesAddress: AFFILIATE },
-          expressWithdraw: { url: "/api/express-withdraw", providerAddress },
+          expressWithdraw: { url, providerAddress },
         },
       },
     });
 
-    expect(config.getChainConfig(CHAIN).expressWithdraw).toEqual({
-      url: "/api/express-withdraw",
-      providerAddress,
-    });
+    expect(config.getChainConfig(CHAIN).expressWithdraw).toEqual({ url, providerAddress });
   });
 
   it("rejects a partial base-less service override", () => {
@@ -259,7 +257,7 @@ describe("mergeChainConfig — expressWithdraw", () => {
         symmioConfig: {
           [CHAIN]: {
             addresses: { affiliatesAddress: AFFILIATE },
-            expressWithdraw: { url: "/api/express-withdraw" },
+            expressWithdraw: { url },
           },
         },
       }),

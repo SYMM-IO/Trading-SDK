@@ -668,9 +668,9 @@ new request then stays pending with its amount debited: refresh the pending and 
 mine), call `getWithdrawRequestIdFromReceipt` again without `requireFinalized` to get its id, and offer
 `finalizeWithdrawRequest` or `requestCancelWithdraw` for it. See [Status API](/core/express-withdraw#status-api).
 
-Configure the browser-facing API as a same-origin proxy and allow only `POST /options` and
-`GET /status/{user}/{requestId}`. See [Express Withdraw](/core/express-withdraw) for the proxy contract, configuration,
-status polling, complete [Next.js proxy implementation](/core/express-withdraw#configuration), and public API.
+Point the chain's `expressWithdraw.url` at the service's `/v1` root: the service allows cross-origin requests, so the
+browser calls it directly, with no proxy. See [Express Withdraw](/core/express-withdraw) for
+[configuration](/core/express-withdraw#configuration), status polling, and the public API.
 
 <Callout type="warning">
   Express v1 is same-chain only, and `WINDOWED` is opt-in. A `STANDARD` request is not receiver-paid at Core

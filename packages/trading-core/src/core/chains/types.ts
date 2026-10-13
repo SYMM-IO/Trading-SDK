@@ -347,12 +347,12 @@ export interface SymmioInventoryConfig {
  * Chain-level configuration for the SYMMIO Express Withdraw service.
  *
  * The service is optional and deployment-specific: omit this block when a
- * chain has no verified service/provider pairing. Browser applications may
- * point {@link url} at a same-origin proxy when the vendor endpoint does not
- * allow browser CORS.
+ * chain has no verified service/provider pairing. The service allows
+ * cross-origin requests, so a browser application points {@link url} straight
+ * at it, with no same-origin proxy.
  */
 export interface SymmioExpressWithdrawConfig {
-  /** Service API root ending at `/v1`, or an equivalent proxy root. */
+  /** Service API root ending at `/v1`, e.g. `https://express-withdraw-staging.symmio.foundation/v1`. */
   url: string;
   /** ExpressProvider contract authorized for this deployment. */
   providerAddress: Address;

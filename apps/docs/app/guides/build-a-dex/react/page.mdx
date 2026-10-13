@@ -276,8 +276,8 @@ added to `policy.optionPriority`. Express v1 is same-chain only. For `STANDARD`,
 `FINALIZED`; only provider `PROCESSED` proves receiver payment. The hook implements that polling rule.
 
 See [Withdraw hooks](/react/withdraw) for a complete component, configuration, cache invalidation, and failure behavior.
-Use the restricted [browser proxy implementation](/core/express-withdraw#configuration) and configure its local root as
-the chain's `expressWithdraw.url`; never expose a generic upstream pass-through.
+Set the chain's `expressWithdraw.url` to the service's `/v1` root. The service allows cross-origin requests, so the
+browser calls it directly, with no proxy; see [configuration](/core/express-withdraw#configuration).
 
 The classic low-level flow remains available and is what the router selects when Express is unavailable:
 
