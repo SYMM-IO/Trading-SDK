@@ -151,6 +151,26 @@ describe("useCloseQuoteGroup", () => {
     expect(result.current.status).toBe("success");
   });
 
+  it.each([false, undefined])("forwards preflightDelegation %s to the bulk close", async (preflightDelegation) => {
+    const { config } = createMockSymmioConfig();
+    const mutationFn = vi.fn().mockResolvedValue({ success: true });
+    instantCloseBulkAutoMutationOptions.mockReturnValue({ mutationKey: ["instantCloseBulkAuto"], mutationFn });
+    const { result } = renderHookWithProviders(() => useCloseQuoteGroup({ config }));
+
+    await act(async () => {
+      await result.current.close({
+        group: makeGroup([makeChild({ key: "onchain:1", quoteId: 1n, quantity: 3n * ONE })]),
+        targetQuantity: ONE,
+        minAcceptableQuoteValue: MAQV,
+        slippage: 5,
+        preflightDelegation,
+      });
+    });
+
+    expect(mutationFn).toHaveBeenCalledTimes(1);
+    expect(mutationFn.mock.calls[0]![0]).toHaveProperty("preflightDelegation", preflightDelegation);
+  });
+
   it("reports an infeasible plan without submitting any close", async () => {
     const { config } = createMockSymmioConfig();
     const mutationFn = vi.fn();

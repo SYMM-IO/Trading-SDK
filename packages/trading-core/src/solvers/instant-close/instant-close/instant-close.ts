@@ -3,6 +3,10 @@ import type { Config } from "../../../core/config";
 import type { Compute, WriteSolverParameter } from "../../../shared/types/properties";
 import { buildSignedOperation, signAndFormatInstantOperation } from "../../instant-open/shared/operations";
 import { getLimitOrderDeadline, getMarketOrderDeadline } from "../../instant-open/shared/trade-math";
+import {
+  assertInstantSignerDelegated,
+  type InstantDelegationPreflightParameter,
+} from "../../shared/instant-delegation-preflight";
 import { encodeRequestToClosePosition } from "../shared/calldata";
 import { sendInstantClose } from "../shared/hedger-api";
 import { resolveCloseOrderType } from "../shared/resolve-close-order-type";
@@ -22,30 +26,31 @@ import {
  * wizard) is responsible for trade math.
  */
 export type InstantCloseParameters = Compute<
-  WriteSolverParameter & {
-    /**
-     * PartyA — the account that owns the position and signs the close
-     * (EIP-712 `signerAccount`). The VA address on Enigma (lowcap); the
-     * sub-account itself on Rasa (cross-margin, no VA).
-     */
-    partyA: Address;
-    /** Order-side values (`quoteId`, `closePrice`, `quantityToClose`). */
-    order: InstantCloseOrder;
-    /**
-     * Requested close order type: `ORDER_TYPE_MARKET` (default) or
-     * `ORDER_TYPE_LIMIT` (majors / rasa only — writes a **pending close**
-     * that rests at `closePrice`). Enigma market closes encode
-     * `OrderType.MARKET_BEST_EFFORT` (2) before signing; Rasa encodes MARKET (1).
-     */
-    orderType?: SolverOrderType;
-    /** Override the EIP-712 salt. Defaults to a random 32-byte salt. */
-    salt?: Hex;
-    /**
-     * Override the unix-seconds deadline. Defaults to `now + 300s` for a market
-     * close, `now + 900s` (15 min) for a limit close.
-     */
-    deadline?: bigint;
-  }
+  WriteSolverParameter &
+    InstantDelegationPreflightParameter & {
+      /**
+       * PartyA — the account that owns the position and signs the close
+       * (EIP-712 `signerAccount`). The VA address on Enigma (lowcap); the
+       * sub-account itself on Rasa (cross-margin, no VA).
+       */
+      partyA: Address;
+      /** Order-side values (`quoteId`, `closePrice`, `quantityToClose`). */
+      order: InstantCloseOrder;
+      /**
+       * Requested close order type: `ORDER_TYPE_MARKET` (default) or
+       * `ORDER_TYPE_LIMIT` (majors / rasa only — writes a **pending close**
+       * that rests at `closePrice`). Enigma market closes encode
+       * `OrderType.MARKET_BEST_EFFORT` (2) before signing; Rasa encodes MARKET (1).
+       */
+      orderType?: SolverOrderType;
+      /** Override the EIP-712 salt. Defaults to a random 32-byte salt. */
+      salt?: Hex;
+      /**
+       * Override the unix-seconds deadline. Defaults to `now + 300s` for a market
+       * close, `now + 900s` (15 min) for a limit close.
+       */
+      deadline?: bigint;
+    }
 >;
 
 /**
@@ -60,6 +65,12 @@ export type InstantCloseParameters = Compute<
  * Use `prepareInstantCloseParams` to derive this shape from UI-shape inputs,
  * or `instantCloseAuto` for the combined convenience.
  *
+ * Before signing, it checks that the signer holds the `requestToClosePosition`
+ * delegation — on the VA's parent sub-account when `partyA` is a VA (skip it
+ * with `preflightDelegation: false`). The sub-account's owner needs none.
+ *
+ * @throws {SymmError} `INSTANT_SIGNER_NOT_DELEGATED` when the signer lacks the
+ *   delegation, before anything is signed.
  * @throws {SymmApiError} when the hedger request fails.
  *
  * @example
@@ -104,6 +115,13 @@ export async function instantClose(
     signerAccount: parameters.partyA,
     deadline,
     salt: parameters.salt,
+  });
+
+  await assertInstantSignerDelegated(config, {
+    chainId: parameters.chainId,
+    action: "instantClose",
+    operations: [operation],
+    enabled: parameters.preflightDelegation,
   });
 
   const signed = await signAndFormatInstantOperation(config, {

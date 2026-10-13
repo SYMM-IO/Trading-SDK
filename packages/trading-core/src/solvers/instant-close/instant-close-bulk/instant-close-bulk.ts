@@ -4,6 +4,10 @@ import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, WriteSolverParameter } from "../../../shared/types/properties";
 import { buildSignedOperation, signAndFormatInstantOperation } from "../../instant-open/shared/operations";
 import { getMarketOrderDeadline } from "../../instant-open/shared/trade-math";
+import {
+  assertInstantSignerDelegated,
+  type InstantDelegationPreflightParameter,
+} from "../../shared/instant-delegation-preflight";
 import { encodeRequestToClosePosition } from "../shared/calldata";
 import { sendInstantClose } from "../shared/hedger-api";
 import { resolveCloseOrderType } from "../shared/resolve-close-order-type";
@@ -37,10 +41,11 @@ export interface InstantCloseBulkOrder {
  * delegation lives on the subaccount and is inherited by every owned VA.
  */
 export type InstantCloseBulkParameters = Compute<
-  WriteSolverParameter & {
-    /** Orders to submit. Length must be in `[1, MAX_INSTANT_CLOSE_BULK_ORDERS]`. */
-    orders: readonly InstantCloseBulkOrder[];
-  }
+  WriteSolverParameter &
+    InstantDelegationPreflightParameter & {
+      /** Orders to submit. Length must be in `[1, MAX_INSTANT_CLOSE_BULK_ORDERS]`. */
+      orders: readonly InstantCloseBulkOrder[];
+    }
 >;
 
 /** Return type of {@link instantCloseBulk}. */
@@ -60,6 +65,9 @@ export interface InstantCloseBulkReturnType {
  * `from`), so the caller must hold a `requestToClosePosition` delegation on
  * the owning subaccount. The delegation is inherited by every owned VA, so
  * orders across different VAs in the same subaccount sign with one key.
+ * Every order is built first and that delegation is checked once per
+ * sub-account before any order is signed (skip it with
+ * `preflightDelegation: false`); the sub-account's owner needs none.
  *
  * Pure primitive — every domain value is already final wei. Use
  * `instantCloseBulkAuto` to derive these inputs from UI-shape parameters.
@@ -68,6 +76,8 @@ export interface InstantCloseBulkReturnType {
  *
  * @throws {SymmError} `INSTANT_CLOSE_BULK_INVALID_ORDERS` when the batch is
  *   empty or exceeds {@link MAX_INSTANT_CLOSE_BULK_ORDERS}.
+ * @throws {SymmError} `INSTANT_SIGNER_NOT_DELEGATED` when the signer lacks the
+ *   delegation for any order, before anything is signed.
  * @throws {SymmApiError} when the hedger request fails — the whole batch is
  *   rejected; the caller should retry with fewer orders.
  *
@@ -109,8 +119,7 @@ export async function instantCloseBulk(
   const walletClient = await config.getWalletClient({ chainId: parameters.chainId, from: parameters.from });
   const signerAddress = walletClient.account.address;
 
-  const signedOperations = [] as Awaited<ReturnType<typeof signAndFormatInstantOperation>>[];
-  for (const entry of parameters.orders) {
+  const operations = parameters.orders.map((entry) => {
     const deadline = entry.deadline ?? getMarketOrderDeadline();
 
     const callData = encodeRequestToClosePosition({
@@ -121,7 +130,7 @@ export async function instantCloseBulk(
       deadline,
     });
 
-    const operation = buildSignedOperation({
+    return buildSignedOperation({
       signer: signerAddress,
       target: symmioAddress,
       callData,
@@ -129,13 +138,25 @@ export async function instantCloseBulk(
       deadline,
       salt: entry.salt,
     });
+  });
 
-    const signed = await signAndFormatInstantOperation(config, {
-      operation,
-      chainId: parameters.chainId,
-      walletClient,
-    });
-    signedOperations.push(signed);
+  await assertInstantSignerDelegated(config, {
+    chainId: parameters.chainId,
+    action: "instantCloseBulk",
+    operations,
+    enabled: parameters.preflightDelegation,
+  });
+
+  /** One at a time, so a wallet signer sees its prompts in order. */
+  const signedOperations = [] as Awaited<ReturnType<typeof signAndFormatInstantOperation>>[];
+  for (const operation of operations) {
+    signedOperations.push(
+      await signAndFormatInstantOperation(config, {
+        operation,
+        chainId: parameters.chainId,
+        walletClient,
+      }),
+    );
   }
 
   await sendInstantClose(config, {
