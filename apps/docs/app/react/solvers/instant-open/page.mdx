@@ -81,11 +81,6 @@ open.mutate({
 });
 ```
 
-The amount includes opening fees whether it is a partial balance or Max. Display the raw
-[`useAccountBalanceOf`](../../account-layer#useaccountbalanceof) value as Available.
-Do not deduct fees or slippage from it before passing a funding budget. A failed balance
-read stays unknown; keep the last successful value or show a loading/error state.
-
 Acceptance is not a fill. Keep optimistic rows pending until the live open confirmation.
 The hook invalidates SDK balance and pending-open queries on acceptance. If the app owns
 separate query keys, refresh its displayed balance after every attempt and again on open

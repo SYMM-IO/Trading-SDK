@@ -78,13 +78,6 @@ console.log(resolved.order.quantity, resolved.order.price, resolved.margin?.amou
 
 ### Full-balance funding (lowcap)
 
-**Use this mode for every fee-inclusive amount, including partial-balance orders.**
-`fund: { mode: "full-balance", balance: "100" }` means a $100 total funding budget,
-including opening costs. It does not require the account balance to equal $100.
-With $250 available, this still funds only $100. For Max, pass the full raw
-unallocated account balance without subtracting fees or slippage in the UI.
-Keep that displayed balance separate from estimated position collateral and size.
-
 Fund with a typed `initialMargin` **or** with `fund` — never both. `fund` deploys the user's **entire** selected collateral into the position's Virtual Account and sizes the quantity to fit it. It is **lowcap (Enigma) only**.
 
 With a typed `initialMargin`, the SubAccount keeps back whatever the position did not consume (locks + open-side fees + settlement). A user who deposited `$100` and pressed "Max" therefore saw a smaller spendable figure and left dust behind. In full-balance mode the whole `$100` moves to the VA, and the SDK shrinks the quantity instead so its locks + open-side fees + worst-case settlement fit inside it — nothing is stranded, and the figure deployed is the figure picked. Close fees are not sized into the budget; the contract charges them at close from the position (see [Fees at close](/core/solvers/instant-close#fees-at-close)), so the same balance sizes a slightly larger position than it did when close fees were pre-funded. Any tiny remainder rides as free VA margin.
@@ -435,7 +428,7 @@ The reconciler and notification handlers use this to link temp ↔ on-chain rows
 
 ## `calculateAvailableInstantOpenMargin`
 
-Pure function — the maximum **initial margin** an instant open can spend, shaving the raw available balance for the **open fee** (on the leveraged notional) and, for SHORT, a worst-case slippage fill. The close fee is **not** shaved — the contract charges it at close from the position (see [Fees at close](/core/solvers/instant-close#fees-at-close)), not at open. All BigInt; clamps to `0n`; returns 18-decimal wei. This estimates initial-margin capacity; for fee-inclusive input or Max, prefer `fund` with the raw unallocated balance.
+Pure function — the maximum **initial margin** an instant open can spend, shaving the raw available balance for the **open fee** (on the leveraged notional) and, for SHORT, a worst-case slippage fill. The close fee is **not** shaved — the contract charges it at close from the position (see [Fees at close](/core/solvers/instant-close#fees-at-close)), not at open. All BigInt; clamps to `0n`; returns 18-decimal wei. This estimates initial-margin capacity.
 
 ```ts
 import { calculateAvailableInstantOpenMargin, PositionType } from "@symmio/trading-core";

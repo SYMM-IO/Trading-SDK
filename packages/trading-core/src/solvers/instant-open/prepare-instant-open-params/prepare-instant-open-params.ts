@@ -73,7 +73,7 @@ function solverFeeCapToWei(field: "minOpenSolverFeeCap" | "minCloseSolverFeeCap"
 export interface FullBalanceFunding {
   /** Discriminant selecting the full-balance sizing path. */
   mode: "full-balance";
-  /** Fee-inclusive funding budget to move into the VA, in USD. May be less than the account balance. */
+  /** Fee-inclusive funding budget to move into the VA, in USD. */
   balance: string;
 }
 
