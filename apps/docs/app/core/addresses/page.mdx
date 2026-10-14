@@ -171,9 +171,14 @@ Two chains ship in the registry — each runs a different solver kind and produc
 - `priceService.type` — `"enigma"`
 - `listing.url` — `https://listing85.enigma.bz` (the Pools listing backend; host root, no `/v2`)
 - `inventory.url` — `https://inventory85.enigma.bz` (the custody backend behind the Pools; host root, no `/api`)
+- `gasless.url` — `https://gaslessq.symmio.foundation` (the production GaslessQ gateway origin; the SDK appends `/v1/instances/{protocolInstance}/{service}`)
+- `gasless.protocolInstance` — the production instance key the gateway routes on
+- `gasless.gaslessLayerAddress` — `0x8347953D80037b8d82827246f37EC7442AD188B4`
+- `gasless.statusStream` — `{ enabled: true }` (status reads poll over HTTP whenever the stream is unavailable)
 
 The only chain on the **perps-core (`"0.8.6"`) contracts generation**, and therefore the only one where
-[gasless](/core/gasless) can run at all — once a `gasless` block is supplied through an override.
+[gasless](/core/gasless) can run. It ships the production GaslessQ deployment, so `supportsGaslessService` is `true`
+here without an override; writes still go through the connected wallet until you opt in.
 
 ### Base (8453) — rasa / majors
 
