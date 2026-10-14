@@ -1,5 +1,11 @@
 # @symmio/trading-core
 
+## 3.4.1
+
+### Patch Changes
+
+- fdb34ce: Update the built-in Arbitrum (42161) production `instantLayerAddress` to `0xf4e8b150fdc756aca578f5a05811c1998c65c829`, replacing `0x54c27E4bf1125391aA76e1D6497B069d91e179f6`. Update the address reference and mark the GaslessQ integration proposal's deployment data as historical.
+
 ## 3.4.0
 
 ### Minor Changes
