@@ -31,7 +31,7 @@ describe("Arbitrum chain", () => {
 
     expect(arbitrum.addresses).toEqual({
       symmioAddress: "0x57331027091994FCb9c5Aec48ea92cEf0a93CF6A",
-      instantLayerAddress: "0x54c27E4bf1125391aA76e1D6497B069d91e179f6",
+      instantLayerAddress: "0xf4e8b150fdc756aca578f5a05811c1998c65c829",
       accountLayerAddress: "0x573310d1D6ec18cB21E1aB949414470D9bf5c24E",
       affiliatesAddress: "0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D",
       collateralAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
