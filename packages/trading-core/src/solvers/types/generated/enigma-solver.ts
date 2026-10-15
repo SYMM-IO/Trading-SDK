@@ -81,82 +81,6 @@ export interface ApiFundingInfoResponse {
   [key: string]: ApiFundingInfoItem;
 }
 
-export enum ApiGaslessAction {
-  GaslessActionAddMargin = "add_margin",
-  GaslessActionRemoveMargin = "remove_margin",
-  GaslessActionDelegate = "delegate_access_for_session_key",
-}
-export enum ApiGaslessRequestAction {
-  add_margin = "add_margin",
-  remove_margin = "remove_margin",
-  delegate_access_for_session_key = "delegate_access_for_session_key",
-}
-export interface Eip712AccountJSON {
-  addr: string;
-  isPartyB?: boolean;
-}
-
-export interface Eip712DelegationInfoJSON {
-  account: Eip712AccountJSON;
-  delegatedSigner: string;
-  expiryTimestamp: number;
-  /** @minItems 1 */
-  selectors: string[];
-}
-
-export interface Eip712ReplayHeaderJSON {
-  deadline: number;
-  nonce?: number;
-  salt: string;
-}
-
-export interface Eip712SignedDelegationJSON {
-  delegationInfo: Eip712DelegationInfoJSON;
-  replayAttackHeader: Eip712ReplayHeaderJSON;
-}
-
-export interface Eip712DelegationWithSigJSON {
-  signature: string;
-  signedDelegation: Eip712SignedDelegationJSON;
-}
-
-export interface Eip712FlexFieldJSON {
-  authorizedFlexFiller?: string;
-  length?: number;
-  offset?: number;
-}
-
-export interface Eip712SignedOperationJSON {
-  callData: string;
-  flexFields?: Eip712FlexFieldJSON[];
-  maxUses?: number;
-  replayAttackHeader: Eip712ReplayHeaderJSON;
-  signer: string;
-  signerAccount: Eip712AccountJSON;
-  target: string;
-}
-
-export interface Eip712OperationWithSigJSON {
-  signature: string;
-  signedOperation: Eip712SignedOperationJSON;
-}
-
-export interface ApiGaslessRequest {
-  action: ApiGaslessRequestAction;
-  delegation?: Eip712DelegationWithSigJSON;
-  operation?: Eip712OperationWithSigJSON;
-}
-
-export interface ApiGaslessResponse {
-  action?: ApiGaslessAction;
-  blockHash?: string;
-  blockNumber?: number;
-  dailyRemaining?: number;
-  gasUsed?: number;
-  partyA?: string;
-  transactionHash?: string;
-}
-
 export interface ApiGetEstimatedPriceResponse {
   price?: string;
 }
@@ -226,6 +150,13 @@ export interface ApiQuoteInfo {
 export interface ApiGetQuotesResponse {
   count?: number;
   quotes?: ApiQuoteInfo[];
+}
+
+export interface ApiGetSolverInfoResponse {
+  /** Configured USD amount per instant close, including each partial close, before signed fee-cap adjustments. */
+  static_solver_fee_close?: string;
+  /** Configured USD amount per instant open, before signed fee-cap adjustments. */
+  static_solver_fee_open?: string;
 }
 
 export interface ApiPeriodStats {
@@ -367,6 +298,38 @@ export interface ApiSymbolResponse {
 export interface ApiSymbolsResponse {
   count?: number;
   symbols?: ApiSymbolResponse[];
+}
+
+export interface Eip712FlexFieldJSON {
+  authorizedFlexFiller?: string;
+  length?: number;
+  offset?: number;
+}
+
+export interface Eip712ReplayHeaderJSON {
+  deadline: number;
+  nonce?: number;
+  salt: string;
+}
+
+export interface Eip712AccountJSON {
+  addr: string;
+  isPartyB?: boolean;
+}
+
+export interface Eip712SignedOperationJSON {
+  callData: string;
+  flexFields?: Eip712FlexFieldJSON[];
+  maxUses?: number;
+  replayAttackHeader: Eip712ReplayHeaderJSON;
+  signer: string;
+  signerAccount: Eip712AccountJSON;
+  target: string;
+}
+
+export interface Eip712OperationWithSigJSON {
+  signature: string;
+  signedOperation: Eip712SignedOperationJSON;
 }
 
 export interface ApiV2InstantCloseRequest {
@@ -674,6 +637,15 @@ export const getGetMarketInfo = (options?: AxiosRequestConfig): Promise<AxiosRes
 };
 
 /**
+ * Returns configured static solver fees as exact USD decimal strings; zero disables a fee.
+ * The close amount applies to each partial close. Actual charges remain subject to signed fee caps.
+ * @summary Get solver general information
+ */
+export const getInfo = (options?: AxiosRequestConfig): Promise<AxiosResponse<ApiGetSolverInfoResponse>> => {
+  return axios.get(`/info`, options);
+};
+
+/**
  * Returns all pending instant close orders for a given SubAccount address.
  * @summary Get pending instant close orders
  */
@@ -716,27 +688,7 @@ export const getInstantTradeEip712Config = (
 };
 
 /**
- * Relay a single user-signed EIP-712 operation so the solver wallet executes it on-chain. The user pays no native gas. Identity is proven by EIP-712 signature recovery; no JWT required. Synchronous — returns the on-chain tx hash on success or a clear error on failure.
- *
- * **Supported actions** (set via the `action` field):
- * - `add_margin` — top up the allocated balance of an existing VirtualAccount via AccountLayer.addMargin. The signer must own the VA (its parent SubAccount must equal the signer's SubAccount). Requires `operation`.
- * - `remove_margin` — withdraw allocated margin from an existing VirtualAccount via AccountLayer.removeMargin. Requires `operation`.
- * - `delegate_access_for_session_key` — grant a delegate signer access for one or more allowlisted selectors via InstantLayer.grantBatchDelegationBySig. Requires `delegation`.
- *
- * Exactly one of `operation` or `delegation` must be present per request. Delegation selectors are restricted to: `sendQuote`, `requestToClosePosition`, `addMarginToNextVA`, `addMargin`, `removeMargin`, `allocate`, `deallocate`, `safeDeallocate`, `initiateWithdraw`, `finalizeWithdrawRequest`, `requestCancelWithdraw`.
- *
- * Each PartyA is limited to `GASLESS_DAILY_MAX` accepted attempts per UTC day (default 5). The counter is consumed on every attempt past basic validation, regardless of downstream success or failure; the `dailyRemaining` field in the response reports the user's remaining quota.
- * @summary Submit a gasless operation
- */
-export const postInstantTradeExecuteOperation = (
-  apiGaslessRequest: ApiGaslessRequest,
-  options?: AxiosRequestConfig,
-): Promise<AxiosResponse<ApiGaslessResponse>> => {
-  return axios.post(`/instant_trade/execute-operation`, apiGaslessRequest, options);
-};
-
-/**
- * Submit one or more V2 close operations (requestToClosePosition), one per quote. No JWT required — identity is proven by EIP-712 signature recovery. On any failure the whole request is rejected. Processing happens asynchronously.
+ * Submit one or more V2 close operations (requestToClosePosition), one per quote. No JWT required — identity is proven by EIP-712 signature recovery. Each signedOperation.maxUses must explicitly equal 1. A previously submitted signature is rejected in every record state (case and optional 0x prefix are ignored), including concurrent replays. Operations commit individually; earlier operations remain accepted if a later operation fails. Processing happens asynchronously.
  * @summary Submit V2 instant close
  */
 export const postInstantTradeInstantClose = (
@@ -748,6 +700,7 @@ export const postInstantTradeInstantClose = (
 
 /**
  * Submit a V2 instant open request with pre-signed EIP-712 PartyA operations (addMargin + sendQuote). No JWT required — identity is proven by EIP-712 signature recovery. Processing (hedge, muon sigs, symmio-api call) happens asynchronously.
+ * PartyBsWhiteList must contain exactly the configured PartyB proxy. The signed open cap must cover the complete dynamic plus static solver fee at the fresh market price. Admission requires collateral for both solver fees while preserving margin and the protocol trading fee, using local VA balances with RPC fallback only for missing account rows.
  * @summary Submit V2 instant open
  */
 export const postInstantTradeInstantOpen = (
@@ -766,6 +719,7 @@ export const getMarketInfo = (options?: AxiosRequestConfig): Promise<AxiosRespon
 };
 
 /**
+ * Fetches all inventory availability pages without caching notional-cap results. Missing markets have per-symbol errors; inventory fetch failures return 503.
  * @summary Get notional caps for all symbols
  */
 export const getNotionalCap = (
@@ -901,11 +855,11 @@ export type GetFundingInfoResult = AxiosResponse<ApiFundingInfoResponse>;
 export type GetGetFundingInfoResult = AxiosResponse<ApiFundingInfoBySymbolsResponse>;
 export type GetGetLockedParamsSymbolResult = AxiosResponse<ApiLockedParamsBySymbolIdResponse>;
 export type GetGetMarketInfoResult = AxiosResponse<GetGetMarketInfo200>;
+export type GetInfoResult = AxiosResponse<ApiGetSolverInfoResponse>;
 export type GetInstantCloseAccountAddressResult = AxiosResponse<ApiGetInstantCloseResponse[]>;
 export type GetInstantOpenAccountAddressResult = AxiosResponse<ApiGetInstantOpenResponse[]>;
 export type GetInstantQuoteIdTempQuoteIdResult = AxiosResponse<ApiGetQuoteIdResponse>;
 export type GetInstantTradeEip712ConfigResult = AxiosResponse<GetInstantTradeEip712Config200>;
-export type PostInstantTradeExecuteOperationResult = AxiosResponse<ApiGaslessResponse>;
 export type PostInstantTradeInstantCloseResult = AxiosResponse<void>;
 export type PostInstantTradeInstantOpenResult = AxiosResponse<ApiPostInstantOpenResponse>;
 export type GetMarketInfoResult = AxiosResponse<GetMarketInfo200>;

@@ -1366,6 +1366,18 @@ export {
   type GetSolverBalanceInfoReturnType,
 } from "./solvers/get-solver-balance-info";
 export {
+  getSolverInfo,
+  getSolverInfoQueryKey,
+  getSolverInfoQueryOptions,
+  type EnigmaSolverInfo,
+  type GetSolverInfoData,
+  type GetSolverInfoOptions,
+  type GetSolverInfoParameters,
+  type GetSolverInfoQueryKey,
+  type GetSolverInfoQueryOptions,
+  type GetSolverInfoReturnType,
+} from "./solvers/get-solver-info";
+export {
   getSolverOpenInterest,
   getSolverOpenInterestQueryKey,
   getSolverOpenInterestQueryOptions,
@@ -1759,14 +1771,16 @@ export {
   getInstantOpensQueryOptions,
   getInstantTradeRequiredSelectors,
   getMarketOrderDeadline,
+  // instantOpen — wizard (auto-fetches missing inputs)
+  getPrepareInstantOpenParamsQueryKey,
   // instantOpen — primitive (all inputs required, no fetching)
   instantOpen,
   instantOpenAuto,
   instantOpenAutoMutationOptions,
   instantOpenMutationOptions,
   isolationTypeForSide,
-  // instantOpen — wizard (auto-fetches missing inputs)
   prepareInstantOpenParams,
+  prepareInstantOpenParamsQueryOptions,
   // resolvers (sub-units used by the wizard)
   resolveFeeRates,
   resolveLockedParams,
@@ -1796,6 +1810,7 @@ export {
   type EnigmaInstantOpenFees,
   type EnigmaInstantOpenResult,
   type FlexField,
+  type FullBalanceFunding,
   type GetInstantOpenFeesData,
   type GetInstantOpenFeesOptions,
   type GetInstantOpenFeesParameters,
@@ -1828,6 +1843,11 @@ export {
   type PendingInstantOpen,
   type PlatformFeeLegs,
   type PrepareInstantOpenParameters,
+  type PrepareInstantOpenParamsData,
+  type PrepareInstantOpenParamsOptions,
+  type PrepareInstantOpenParamsQueryKey,
+  type PrepareInstantOpenParamsQueryOptions,
+  type PrepareInstantOpenParamsReturnType,
   type QuoteConstraintViolation,
   type RasaInstantOpen,
   type RasaInstantOpenFees,
@@ -1891,6 +1911,10 @@ export {
   calculateClosePrice,
   clampClosePrecision,
   encodeRequestToClosePosition,
+  // close-fee preview — priced at close time from live notional + holding time
+  getInstantCloseFees,
+  getInstantCloseFeesQueryKey,
+  getInstantCloseFeesQueryOptions,
   // instant-close reads (off-chain hedger)
   getInstantCloses,
   getInstantClosesQueryKey,
@@ -1907,10 +1931,19 @@ export {
   sendInstantClose,
   toPendingInstantClose,
   validateInstantCloseAgainstMarket,
+  type BaseInstantCloseFees,
   type CalculateClosePriceParameters,
   type ClampClosePrecisionParameters,
   type CloseQuoteConstraintViolation,
   type EncodeRequestToClosePositionParameters,
+  type EnigmaInstantCloseFees,
+  // close-fee preview types
+  type GetInstantCloseFeesData,
+  type GetInstantCloseFeesOptions,
+  type GetInstantCloseFeesParameters,
+  type GetInstantCloseFeesQueryKey,
+  type GetInstantCloseFeesQueryOptions,
+  type GetInstantCloseFeesReturnType,
   // instant-close read types
   type GetInstantClosesData,
   type GetInstantClosesOptions,
@@ -1924,12 +1957,14 @@ export {
   type InstantCloseBulkParameters,
   type InstantCloseBulkReturnType,
   type InstantCloseConstraintFields,
+  type InstantCloseFeesMarketData,
   type InstantCloseMarketData,
   type InstantCloseOrder,
   type InstantCloseParameters,
   type InstantCloseReturnType,
   type PendingInstantClose,
   type PrepareInstantCloseParameters,
+  type RasaInstantCloseFees,
   type SendInstantCloseParameters,
   type SendInstantCloseReturnType,
   type ValidateInstantCloseAgainstMarketParameters,
@@ -2983,3 +3018,5 @@ export {
   type PoolRewardPoint,
   type UserPoolRewardChart,
 } from "./pools";
+
+export { validateInstantOpenBalanceFunding } from "./solvers/instant-open/shared/resolve-instant-open-sizing";

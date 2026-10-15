@@ -33,7 +33,21 @@ Each is a `readonly Abi` array exported straight from the versioned `src/symmio-
   </MethodEntry>
 </MethodIndex>
 
-The current version is `v0.8.6` — sourced from [`@symm-io/perps-core`](https://github.com/SYMM-IO/perps-core/tree/version_0.8.6). Each SDK release supports exactly one contracts version; upgrading contracts means a new SDK release that swaps the ABIs in place, so you pick your contracts version by pinning the SDK version.
+The shipped ABIs target `v0.8.6`, sourced from [`perps-core` at revision `3e25e6e`](https://github.com/SYMM-IO/perps-core/tree/3e25e6e2130702e92668aeb2dec68395ac25129f/abis). `symmioAbi` and `accountLayerAbi` contain the complete source arrays. `instantLayerAbi` contains the three delegation methods used by the SDK: `delegations`, `grantDelegation`, and `isDelegationActive`; these entries also match that revision.
+
+## Compatibility changes
+
+Direct ABI consumers should account for these changes from the previous SDK snapshot:
+
+| Contract     | Change                                                                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SYMMIO       | `startRestatement` now requires `symbolId` and `expectedLiquidationStartNonce`. Use this two-argument signature in place of the old one-argument call. |
+| SYMMIO       | `RestatementPreparationCompleted` adds a `phase` (`uint8`) event argument.                                                                             |
+| SYMMIO       | `getSymbolAdjustment` adds `pendingQuoteIdCutoff` and `fundingSettlementRequired` to its returned tuple.                                               |
+| SYMMIO       | Use `pausePartyBOpenPositionsFor(partyB)` or `unpausePartyBOpenPositionsFor(partyB)` in place of `setPartyBOpenPositionsPaused(partyB, status)`.       |
+| AccountLayer | The ABI includes timelock setup, approval, scheduling, execution, and read methods, plus their events and errors.                                      |
+
+For contract behavior, see the matching [symbol-adjustment documentation](https://github.com/SYMM-IO/perps-core/blob/3e25e6e2130702e92668aeb2dec68395ac25129f/docs/v0.8.6/pages/symbol-adjustment.html), [admin-role changes](https://github.com/SYMM-IO/perps-core/blob/3e25e6e2130702e92668aeb2dec68395ac25129f/docs/v0.8.6/pages/narrower-admin-roles.html), and [AccountLayer timelocks](https://github.com/SYMM-IO/perps-core/blob/3e25e6e2130702e92668aeb2dec68395ac25129f/docs/v0.8.6/pages/accountlayer-timelock.html). A raw ABI entry does not imply an SDK action or React hook exists for that method.
 
 Every array is the **complete** source ABI (constructor, errors, events and functions), never a subset trimmed to what the SDK wraps, so viem can decode any revert or event these contracts emit.
 
@@ -42,10 +56,10 @@ Every array is the **complete** source ABI (constructor, errors, events and func
 The gasless ABIs changed within the `version_0.8.6` branch, so they are pinned to perps-core commit [`b63ee55e`](https://github.com/SYMM-IO/perps-core/tree/b63ee55e4cfbbc6a9757d23212102d5572e5d829/abis) instead of the moving branch. That commit is the **multi-wallet** generation: wallets are identified by `(owner, walletId)`, the old single-wallet overloads are gone, and the fee quote is `previewFeeQuote`.
 
 <Callout type="warning">
-  Use these ABIs only against a GaslessLayer that runs the multi-wallet interface. They were verified by read-only calls
-  against the staging proxy `0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca`. The production proxy
-  `0x8347953D80037b8d82827246f37EC7442AD188B4` has not been upgraded yet: every multi-wallet signature reverts there
-  with empty data, so it is unsupported until the vendor upgrades it.
+  Use these ABIs only against a GaslessLayer that runs the multi-wallet interface. Both Arbitrum proxies run it: the
+  production proxy `0x8347953D80037b8d82827246f37EC7442AD188B4` (the [built-in default](/core/gasless)) and the staging
+  proxy `0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca`. A proxy that has not been upgraded reverts every multi-wallet
+  signature with empty data.
 </Callout>
 
 Decode gasless settlement events with `gaslessLayerAbi`. `gaslessWalletAbi` holds no gateway events.

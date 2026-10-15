@@ -78,6 +78,8 @@ const { data } = useQuoteHistory({ subAccounts: [subAccount], first: 100 });
 const rows = data?.rows ?? [];
 ```
 
+Each row also carries the solver fees that close charged — `solverFee`, `staticSolverFee`, and `totalSolverFee`, all `bigint | null`. They are `null` on liquidation and ADL rows and on deployments indexed before the fee was recorded; see [solver fees](/core/subgraph/get-quote-history#solver-fees).
+
 ### `useQuoteEventsByType`
 
 Non-terminal events for **one** quote, filtered to the `QuoteEventType`s you ask for → `{ rows, hasMore }`. The indexed types are `SettleUpnl` (open-price recompute), `ChargeFundingRate`, and `ChargeAccumulatedFundingFee`; two presets ship with the SDK — `PRICE_HISTORY_EVENT_TYPES` (all three, the open-price timeline) and `FUNDING_HISTORY_EVENT_TYPES` (the two funding charges only).

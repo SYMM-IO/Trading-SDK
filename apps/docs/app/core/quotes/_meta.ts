@@ -5,6 +5,7 @@ export default {
   "quote-origin": "QuoteOrigin",
   "quote-lifecycle": "QuoteLifecycle",
   "quote-status": "QuoteStatus",
+  "order-type": "OrderType",
   "quote-notification-action-kind": "QuoteNotificationActionKind",
   "-- reconciliation": { type: "separator", title: "Reconciliation" },
   "reconcile-quotes": "reconcileQuotes",

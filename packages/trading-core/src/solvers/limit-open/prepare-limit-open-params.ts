@@ -18,7 +18,13 @@ import { ORDER_TYPE_LIMIT } from "../instant-open/shared/types";
  * band — a limit order rests at exactly that price.
  */
 export type PrepareLimitOpenParameters = Compute<
-  Omit<PrepareInstantOpenParameters, "markPrice" | "slippage"> & {
+  // Limit orders are majors-only; full-balance funding is lowcap-only, so a limit
+  // open always funds with a typed `initialMargin`. Drop `fund` and re-require
+  // `initialMargin` so a limit caller cannot pass either the wrong funding mode
+  // or no margin.
+  Omit<PrepareInstantOpenParameters, "markPrice" | "slippage" | "initialMargin" | "fund"> & {
+    /** Collateral (USD) the user enters as initial margin. Decimal string. */
+    initialMargin: string;
     /** Limit price (decimal string) the order rests at. Set by the user; no slippage is applied. */
     price: string;
   }

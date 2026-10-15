@@ -2,6 +2,7 @@ import { getAddress, type Hex } from "viem";
 import type { OrderType, PositionType, QuoteStatus } from "../../symmio-contracts/symmio/types";
 import type { QuoteEventsForHistoryQuery } from "../../symmio-subgraph/types/generated/analytics/graphql";
 import { eventTypeToQuoteStatus, LIQUIDATION_EVENT_TYPES } from "./close-type";
+import { parseSolverFees } from "./solver-fees";
 import { QuoteCloseEventType, type QuoteHistoryRow } from "./types";
 
 /** A single `quoteEvents` row as returned by the history query. */
@@ -61,6 +62,7 @@ export function toQuoteHistoryRow(row: RawQuoteEventRow): QuoteHistoryRow {
   const snapshotAmount = metadata ? positiveWei(metadata.amount) : null;
   const snapshotClosePrice = metadata ? positiveWei(metadata.closePrice) : null;
   const snapshotOpenedPrice = metadata ? positiveWei(metadata.openedPrice) : null;
+  const solverFees = parseSolverFees(metadata?.solverFees);
 
   // Overlay the immutable per-event snapshot over the mutable quote values. The
   // snapshot `amount` is this event's settled size — it drives both the closed
@@ -94,6 +96,9 @@ export function toQuoteHistoryRow(row: RawQuoteEventRow): QuoteHistoryRow {
     quantityToClose,
     liquidateAmount,
     liquidatePrice,
+    solverFee: solverFees.solverFee,
+    staticSolverFee: solverFees.staticSolverFee,
+    totalSolverFee: solverFees.totalSolverFee,
     partyA: getAddress(quote.partyA),
     partyB: quote.partyB ? getAddress(quote.partyB) : null,
     subAccount: quote.subAccount ? getAddress(quote.subAccount.id) : null,

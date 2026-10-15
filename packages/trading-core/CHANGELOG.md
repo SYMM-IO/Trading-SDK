@@ -1,5 +1,62 @@
 # @symmio/trading-core
 
+## 3.5.0
+
+### Minor Changes
+
+- d5944f8: **Arbitrum ships the production GaslessQ deployment.** The built-in Arbitrum chain config now carries a `gasless` block: gateway origin `https://gaslessq.symmio.foundation`, the production protocol instance, GaslessLayer `0x8347953D80037b8d82827246f37EC7442AD188B4`, and `statusStream: { enabled: true }`. The production GaslessLayer now runs the multi-wallet interface this release targets, so it is no longer unsupported.
+  - **Gasless is available on Arbitrum without an override.** `supportsGaslessService(config, { chainId: 42161 })` and `useSupportsGaslessService` now return `true`, so gasless reads and UI gates switch on by default.
+  - **Write routing is unchanged.** The block declares no `execution`, so relayable writes still go through the connected wallet until a call passes `gasless` or the config sets `execution.mode: "gasless"`.
+  - **An Arbitrum `gasless` override now merges onto this block** field by field. An override that used to throw `GASLESS_OVERRIDE_INCOMPLETE` now inherits the production values instead. To target another deployment (staging shares chain id 42161), state `url`, `protocolInstance` and `gaslessLayerAddress` together, with the matching `addresses.instantLayerAddress`; a relayed write rejects a mismatched pair with `GASLESS_CONFIG_INCOHERENT` before any signature prompt.
+  - **Status follows the stream, with HTTP polling as the fallback.** While the production gateway does not yet accept the status WebSocket, a status wait stops dialing after a few failed handshakes and polls over HTTP; streaming starts with no SDK change once it does.
+
+## 3.4.1
+
+### Patch Changes
+
+- fdb34ce: Update the built-in Arbitrum (42161) production `instantLayerAddress` to `0xf4e8b150fdc756aca578f5a05811c1998c65c829`, replacing `0x54c27E4bf1125391aA76e1D6497B069d91e179f6`. Update the address reference and mark the GaslessQ integration proposal's deployment data as historical.
+
+## 3.4.0
+
+### Minor Changes
+
+- 13d7886: Add optional `operationDeadline` to lowcap instant opens: the expiry for both signed operations, separate from the quote `deadline` and defaulting to it. Accepted by `prepareInstantOpenParams`, `instantOpenAuto`, and `instantOpen`. `instantOpen` also accepts `markPrice` (18-decimal wei) for the Muon placeholder, defaulting to `order.price`; preparation now supplies the resolved mark price. `prepareInstantOpenParams` accepts `estimatedOpenPriceTimestamp` for compatibility; core does not use it or expire estimates.
+
+  Enigma submission no longer reports a rejected or malformed response as accepted. A rejection body returned with HTTP 200 throws `INSTANT_OPEN_REJECTED`, and a missing or invalid temporary ID throws `INSTANT_OPEN_INVALID_RESPONSE`, both as `SymmApiError` with the solver response on `responseData`. Submission is not retried.
+
+  `usePrepareInstantOpenParams` returns `estimatedOpenPriceTimestamp`, and both it and `useInstantOpenFees` expose `refetchEstimatedPrice` so the frontend controls when the SDK-managed estimate refreshes.
+
+## 3.3.0
+
+### Minor Changes
+
+- ab2599c: **Arbitrum InstantLayer repointed to its redeployed production contract.** The built-in Arbitrum (42161) config now carries `instantLayerAddress: 0x54c27E4bf1125391aA76e1D6497B069d91e179f6`, replacing `0xCB8F789d6f7e59B3D266490e1Aa8e35cFb755132`.
+
+  Every InstantLayer read and write follows the registry value, so delegation state is read from the new contract: a wallet that granted a delegation on the old InstantLayer reads back as un-delegated (`getIsDelegationActive` / `useIsDelegationActive` return `false`, `getActiveDelegations` omits it) and must grant again before instant trading. EIP-712 signatures are bound to the new `verifyingContract`, and `getInstantLayerNonce` counts from the new deployment.
+
+  Integrators running gasless execution on Arbitrum must confirm their configured GaslessLayer verifies against the same address — `assertGaslessGatewayCoherence` throws `GASLESS_CONFIG_INCOHERENT` on a write when the gateway's `instantLayer()` getter disagrees. Anyone pinned to the previous deployment can keep it with a `createConfig` override on `symmioConfig[42161].addresses.instantLayerAddress`.
+
+## 3.2.0
+
+### Minor Changes
+
+- c01cf23: Add optional `availableBalance` to instant-open preparation and fee previews. Lowcap typed-margin orders reject inputs above the supplied balance; inputs within the balance automatically use existing full-balance sizing when required funding exceeds it, and results expose `fundingMode`. React previews forward the balance and expose preparation readiness so consumers can wait for current sizing before submitting.
+
+  Expose synchronous balance validation so React can reject invalid funding before requesting estimates. Forward the balance through the fee query to keep its sizing and validation aligned with preparation.
+
+  Share cached input loading between React preparation and fee previews, including solver info. Return synchronous `validationError` separately from query errors, and expose `isReady` on both hooks. Consumers should display `validationError ?? error` and gate current-order usage on `isReady`. Accept `estimatedOpenPrice: null` in core and React to represent an unavailable estimate without fetching again; preparation returns this value for forwarding to fee preview and submission.
+
+- c01cf23: Split fee previews by when fees are charged: the open flow prices only what the open charges, and a new close-fee preview prices close fees at close time — where the notional, the decaying solver rate, and the holding time are real.
+
+  **Deferred close fees.** The instant-open `addMargin` transfer now funds only the open-side legs (locks + platform open fee + solver open fee + static open fee + settlement provision). Close fees are charged at close from the position by the contract — never pre-funded — so opening a position no longer moves the round-trip fee up front.
+  - **New `getInstantCloseFees` / `useInstantCloseFees`** — close-fee preview: `platformCloseFee` plus, on lowcap (Enigma), the holding-time `closeSolverFee` (early → standard decay, priced at `now − openedAt`, capped by the `closeRateCap` the open signed), `closeSolverFeeRate`, `holdingSeconds`, and the flat `staticSolverFeeClose`. Kind-discriminated union with query options; the react hook prefetches every input so the query function is pure math.
+  - **`getInstantOpenFees` / `useInstantOpenFees` slimmed to open-side legs**: `platformOpenFee`, (lowcap) `openSolverFee` + `staticSolverFeeOpen` + `expectedSettlementLoss`, `notional`, `quantity`, `totalFee`. The close-side fields (`platformCloseFee`, `closeSolverFee`, `staticSolverFeeClose`) are gone — preview them with `getInstantCloseFees`. New `includeSettlementInTotalFee` parameter (default `true`) controls whether `totalFee` includes the settlement provision.
+  - **`calculateAvailableInstantOpenMargin`** no longer shaves the close fee (shave is now `1 − leverage × openFee`); its `closeFee` parameter is deprecated, optional, and ignored.
+  - **Full-balance sizing** budgets open-side costs only and carves just the static open fee off the balance — the same balance sizes a slightly larger position.
+  - Fixed: `prepareInstantOpenParamsQueryOptions` and `getInstantOpenFeesQueryOptions` leaked/dropped fields between the options bag and the SDK call (`query` leaked into the wizard; `solverInfo` prefill was dropped).
+
+- ea961e7: **Solver fees on quote-history rows.** `QuoteHistoryRow` now decodes the `solverFees` list off each event's immutable `metadata` snapshot into three 18-decimal-wei fields: `solverFee` (the rate-based `SOLVER_FEE` entry), `staticSolverFee` (the flat `STATIC_SOLVER_FEE` entry), and `totalSolverFee` (the sum of every entry, including tags a future contracts release may add, so the total never under-reports). All three are `bigint | null` and read `null` when the event recorded no fees at all — liquidation and ADL rows, and deployments indexed before the fee was recorded. The untruncated list stays available on `rawMetadata`. `getPoolTradeHistory` shares the mapper, so its rows carry the fields too.
+
 ## 3.1.0
 
 ### Minor Changes

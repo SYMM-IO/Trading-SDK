@@ -15,6 +15,16 @@ export function formatFixedPoint(raw: bigint, precision: number): string {
   return formatTokenAmount(raw, WEI_DECIMALS, { maxFractionDigits: precision });
 }
 
+/**
+ * Format an 18-decimal-wei amount at full precision — every fraction digit the
+ * value carries, trailing zeros trimmed. For figures a reader reconciles against
+ * the chain (locked margin legs), where a rounded display hides the dust that
+ * makes the sum not add up.
+ */
+export function formatFullPrecision(raw: bigint): string {
+  return formatTokenAmount(raw, WEI_DECIMALS);
+}
+
 /** Format an optional wei amount, falling back to {@link EMPTY} when absent. */
 export function formatOptionalFixedPoint(raw: bigint | undefined, precision: number): string {
   return raw === undefined ? EMPTY : formatFixedPoint(raw, precision);

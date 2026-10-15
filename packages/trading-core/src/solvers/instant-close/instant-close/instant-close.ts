@@ -5,6 +5,7 @@ import { buildSignedOperation, signAndFormatInstantOperation } from "../../insta
 import { getLimitOrderDeadline, getMarketOrderDeadline } from "../../instant-open/shared/trade-math";
 import { encodeRequestToClosePosition } from "../shared/calldata";
 import { sendInstantClose } from "../shared/hedger-api";
+import { resolveCloseOrderType } from "../shared/resolve-close-order-type";
 import {
   ORDER_TYPE_LIMIT,
   ORDER_TYPE_MARKET,
@@ -31,9 +32,10 @@ export type InstantCloseParameters = Compute<
     /** Order-side values (`quoteId`, `closePrice`, `quantityToClose`). */
     order: InstantCloseOrder;
     /**
-     * Close order type: `ORDER_TYPE_MARKET` (default, instant fill at
-     * `closePrice`) or `ORDER_TYPE_LIMIT` (majors / rasa only — writes a
-     * **pending close** that rests at `closePrice`). Defaults to MARKET.
+     * Requested close order type: `ORDER_TYPE_MARKET` (default) or
+     * `ORDER_TYPE_LIMIT` (majors / rasa only — writes a **pending close**
+     * that rests at `closePrice`). Enigma market closes encode
+     * `OrderType.MARKET_BEST_EFFORT` (2) before signing; Rasa encodes MARKET (1).
      */
     orderType?: SolverOrderType;
     /** Override the EIP-712 salt. Defaults to a random 32-byte salt. */
@@ -78,11 +80,12 @@ export async function instantClose(
 ): Promise<InstantCloseReturnType> {
   const chainConfig = config.getChainConfig(parameters.chainId);
   const { symmioAddress } = chainConfig.addresses;
+  const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
 
   const walletClient = await config.getWalletClient({ chainId: parameters.chainId, from: parameters.from });
   const signerAddress = walletClient.account.address;
 
-  const orderType = parameters.orderType ?? ORDER_TYPE_MARKET;
+  const orderType = resolveCloseOrderType(solver.id, parameters.orderType ?? ORDER_TYPE_MARKET);
   const deadline =
     parameters.deadline ?? (orderType === ORDER_TYPE_LIMIT ? getLimitOrderDeadline() : getMarketOrderDeadline());
 
@@ -111,7 +114,7 @@ export async function instantClose(
 
   await sendInstantClose(config, {
     chainId: parameters.chainId,
-    solverId: parameters.solverId,
+    solverId: solver.id,
     operations: [signed],
   });
 

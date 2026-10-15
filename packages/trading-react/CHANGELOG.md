@@ -1,5 +1,46 @@
 # @symmio/trading-react
 
+## 3.3.0
+
+### Minor Changes
+
+- 13d7886: Add optional `operationDeadline` to lowcap instant opens: the expiry for both signed operations, separate from the quote `deadline` and defaulting to it. Accepted by `prepareInstantOpenParams`, `instantOpenAuto`, and `instantOpen`. `instantOpen` also accepts `markPrice` (18-decimal wei) for the Muon placeholder, defaulting to `order.price`; preparation now supplies the resolved mark price. `prepareInstantOpenParams` accepts `estimatedOpenPriceTimestamp` for compatibility; core does not use it or expire estimates.
+
+  Enigma submission no longer reports a rejected or malformed response as accepted. A rejection body returned with HTTP 200 throws `INSTANT_OPEN_REJECTED`, and a missing or invalid temporary ID throws `INSTANT_OPEN_INVALID_RESPONSE`, both as `SymmApiError` with the solver response on `responseData`. Submission is not retried.
+
+  `usePrepareInstantOpenParams` returns `estimatedOpenPriceTimestamp`, and both it and `useInstantOpenFees` expose `refetchEstimatedPrice` so the frontend controls when the SDK-managed estimate refreshes.
+
+### Patch Changes
+
+- Updated dependencies [13d7886]
+  - @symmio/trading-core@3.4.0
+
+## 3.2.0
+
+### Minor Changes
+
+- c01cf23: Add optional `availableBalance` to instant-open preparation and fee previews. Lowcap typed-margin orders reject inputs above the supplied balance; inputs within the balance automatically use existing full-balance sizing when required funding exceeds it, and results expose `fundingMode`. React previews forward the balance and expose preparation readiness so consumers can wait for current sizing before submitting.
+
+  Expose synchronous balance validation so React can reject invalid funding before requesting estimates. Forward the balance through the fee query to keep its sizing and validation aligned with preparation.
+
+  Share cached input loading between React preparation and fee previews, including solver info. Return synchronous `validationError` separately from query errors, and expose `isReady` on both hooks. Consumers should display `validationError ?? error` and gate current-order usage on `isReady`. Accept `estimatedOpenPrice: null` in core and React to represent an unavailable estimate without fetching again; preparation returns this value for forwarding to fee preview and submission.
+
+- c01cf23: Split fee previews by when fees are charged: the open flow prices only what the open charges, and a new close-fee preview prices close fees at close time — where the notional, the decaying solver rate, and the holding time are real.
+
+  **Deferred close fees.** The instant-open `addMargin` transfer now funds only the open-side legs (locks + platform open fee + solver open fee + static open fee + settlement provision). Close fees are charged at close from the position by the contract — never pre-funded — so opening a position no longer moves the round-trip fee up front.
+  - **New `getInstantCloseFees` / `useInstantCloseFees`** — close-fee preview: `platformCloseFee` plus, on lowcap (Enigma), the holding-time `closeSolverFee` (early → standard decay, priced at `now − openedAt`, capped by the `closeRateCap` the open signed), `closeSolverFeeRate`, `holdingSeconds`, and the flat `staticSolverFeeClose`. Kind-discriminated union with query options; the react hook prefetches every input so the query function is pure math.
+  - **`getInstantOpenFees` / `useInstantOpenFees` slimmed to open-side legs**: `platformOpenFee`, (lowcap) `openSolverFee` + `staticSolverFeeOpen` + `expectedSettlementLoss`, `notional`, `quantity`, `totalFee`. The close-side fields (`platformCloseFee`, `closeSolverFee`, `staticSolverFeeClose`) are gone — preview them with `getInstantCloseFees`. New `includeSettlementInTotalFee` parameter (default `true`) controls whether `totalFee` includes the settlement provision.
+  - **`calculateAvailableInstantOpenMargin`** no longer shaves the close fee (shave is now `1 − leverage × openFee`); its `closeFee` parameter is deprecated, optional, and ignored.
+  - **Full-balance sizing** budgets open-side costs only and carves just the static open fee off the balance — the same balance sizes a slightly larger position.
+  - Fixed: `prepareInstantOpenParamsQueryOptions` and `getInstantOpenFeesQueryOptions` leaked/dropped fields between the options bag and the SDK call (`query` leaked into the wizard; `solverInfo` prefill was dropped).
+
+### Patch Changes
+
+- Updated dependencies [c01cf23]
+- Updated dependencies [c01cf23]
+- Updated dependencies [ea961e7]
+  - @symmio/trading-core@3.2.0
+
 ## 3.1.0
 
 ### Minor Changes

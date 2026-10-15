@@ -66,6 +66,12 @@ export type UseInstantOpenWithTpSlReturnType = UseMutationResult<
  * `tempQuoteId`. Web layer just wires inputs; all mutation logic (both legs +
  * cache invalidation + confirming-slot write) lives in the SDK.
  *
+ * Funding follows the `PrepareInstantOpenParameters` one-of: a typed
+ * `initialMargin`, or `fund: { mode: "full-balance", balance }` (lowcap only)
+ * to deploy the whole balance. In full-balance mode the submitted quantity is
+ * the SDK-rescaled one — take the TP/SL `quantity` from `useInstantOpenFees`
+ * (its `quantity` field) rather than re-deriving it from the typed margin.
+ *
  * @example
  * ```tsx
  * const open = useInstantOpenWithTpSl();

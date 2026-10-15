@@ -1,4 +1,10 @@
-import { SymmioSupportedChainId, type CreateConfigParameters, type SymmioGaslessConfig } from "@symmio/trading-core";
+import {
+  getChainConfig,
+  listSupportedChains,
+  SymmioSupportedChainId,
+  type CreateConfigParameters,
+  type SymmioGaslessConfig,
+} from "@symmio/trading-core";
 import type { Address } from "viem";
 
 /**
@@ -47,17 +53,13 @@ export interface GaslessDeployment {
  * key-injecting `/api/gasless` proxy this app used to carry is gone with it.
  * Server-side consumers that do hold a key still have `gasless.apiKey`.
  *
- * Only **staging** is listed. The production gateway (protocol instance
- * `arbitrum-42161-vibe`, GaslessLayer `0x8347953D80037b8d82827246f37EC7442AD188B4`)
- * still runs the legacy pre-multi-wallet contract and the matching old gateway
- * schema, and refuses anonymous callers. It is unsupported until the vendor
- * upgrades it, and listing it would only let a persisted config point at a
- * deployment no call in this SDK generation can complete.
+ * Production comes from the SDK's chain registry. Only staging deployment
+ * overrides live here.
  */
 export const GASLESS_DEPLOYMENTS = {
   staging: {
     chainId: SymmioSupportedChainId.ARBITRUM,
-    instantLayerAddress: "0x38AaBc7A73523Cd47c710FcdEb3b20ae02310180",
+    instantLayerAddress: "0x89d1e2a9d2429722f756edffad149d7947b672ff",
     gasless: {
       url: "https://gaslessq-staging.symmio.foundation",
       protocolInstance: "arbitrum-42161-vibe-stage",
@@ -88,10 +90,10 @@ export type GaslessDeploymentKey = keyof typeof GASLESS_DEPLOYMENTS;
  * @param chainId - Chain the config belongs to. An InstantLayer only names a
  *   deployment on its own chain: the same address on another chain is another
  *   contract, and pairing it with this gateway would be a guess.
- * @param instantLayerAddress - The InstantLayer a chain config names, if any.
+ * @param instantLayerAddress - The InstantLayer a chain config names, or the
+ *   SDK registry's address when omitted.
  * @returns The matching deployment, or `undefined` when the address belongs to
- *   none of {@link GASLESS_DEPLOYMENTS} — a chain with no relayer, a retired
- *   gateway, or a config that simply does not name an InstantLayer.
+ *   neither {@link GASLESS_DEPLOYMENTS} nor a gasless-enabled SDK registry entry.
  *
  * @example
  * ```ts
@@ -101,11 +103,18 @@ export type GaslessDeploymentKey = keyof typeof GASLESS_DEPLOYMENTS;
  * ```
  */
 export function findGaslessDeployment(chainId: number, instantLayerAddress?: string): GaslessDeployment | undefined {
-  if (!instantLayerAddress) return undefined;
-  const needle = instantLayerAddress.toLowerCase();
-  return Object.values(GASLESS_DEPLOYMENTS).find(
-    (deployment) => deployment.chainId === chainId && deployment.instantLayerAddress.toLowerCase() === needle,
+  const override = Object.values(GASLESS_DEPLOYMENTS).find(
+    (deployment) =>
+      deployment.chainId === chainId &&
+      deployment.instantLayerAddress.toLowerCase() === instantLayerAddress?.toLowerCase(),
   );
+  if (override) return override;
+  if (!listSupportedChains().includes(chainId)) return undefined;
+  const chain = getChainConfig(chainId);
+  if (!chain.gasless) return undefined;
+  const address = instantLayerAddress ?? chain.addresses.instantLayerAddress;
+  if (address.toLowerCase() !== chain.addresses.instantLayerAddress.toLowerCase()) return undefined;
+  return { chainId, instantLayerAddress: chain.addresses.instantLayerAddress, gasless: chain.gasless };
 }
 
 /**
@@ -180,7 +189,7 @@ export const STAGING_CHAIN_OVERRIDES = {
     },
     /**
      * The staging GaslessQ relayer, paired with the staging InstantLayer above.
-     * The built-in registry ships no gasless block, so every field is stated —
+     * Override every production deployment field together —
      * the endpoint facts come from {@link GASLESS_DEPLOYMENTS} so that this
      * preset and the persisted-config rebase can never name different gateways.
      *

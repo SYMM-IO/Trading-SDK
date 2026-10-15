@@ -3,10 +3,11 @@ import { defineConfig, type OpenApiDocument } from "orval";
 /**
  * Protocol-instance key of the GasLessQ staging deployment — the instance the
  * gasless wire types are generated from. GasLessQ serves one OpenAPI document
- * per protocol instance and service. Staging runs the multi-wallet gateway
- * release the SDK targets; production still serves the pre-multi-wallet
- * schema. The documents are public, so no key is needed to fetch them.
- * Regenerate both gasless projects on every vendor release handoff.
+ * per protocol instance and service. Staging and production run the same
+ * multi-wallet gateway release (their documents matched, apart from the
+ * instance key, on 2026-10-14), so the staging documents type both. The
+ * documents are public, so no key is needed to fetch them. Regenerate both
+ * gasless projects on every vendor release handoff.
  */
 const GASLESSQ_STAGING_PROTOCOL_INSTANCE = "arbitrum-42161-vibe-stage";
 
@@ -36,10 +37,10 @@ function stripGaslessProtocolInstance(spec: OpenApiDocument): OpenApiDocument {
 export default defineConfig({
   enigmaSolver: {
     input: {
-      // Arbitrum production solver — the spec of record for the enigma generation
-      // this release targets (perps-core v0.8.6: adds the min open/close
-      // solver-fee-cap symbol fields, drops the protocol-wide `/revenue`,
-      // `/revenue/batch` and `/revenue/per-symbol` endpoints).
+      // Arbitrum staging solver — the spec of record for the enigma generation
+      // this release targets (perps-core v0.8.6). Staging because it carries
+      // endpoints production has not shipped yet; swap back to
+      // https://solver.enigma.bz/api/swagger/doc.json once production catches up.
       target: "https://solver.enigma.bz/api/swagger/doc.json",
     },
     output: {

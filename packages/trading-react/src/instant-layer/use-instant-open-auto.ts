@@ -36,13 +36,18 @@ export type UseInstantOpenAutoReturnType = UseMutationResult<
  * submit — use {@link useInstantOpen} after calling
  * `prepareInstantOpenParams(config, …)` directly.
  *
+ * Funding is a one-of on the variables: a typed `initialMargin`, or
+ * `fund: { mode: "full-balance", balance }` (lowcap only) to deploy the whole
+ * balance into the position's VA with the quantity sized down to fit it —
+ * see `FullBalanceFunding` in `@symmio/trading-core`.
+ *
  * @example
  * ```tsx
  * const { mutateAsync } = useInstantOpenAuto();
  * await mutateAsync({
- *   walletAddress, sessionKeyAddress, signTypedData,
- *   marketId: 1, positionType: "LONG",
- *   userInput: "100", leverage: 5, slippage: 1,
+ *   subAccountAddress, from: sessionKeyAddress,
+ *   market: { id: 1 }, positionType: PositionType.LONG,
+ *   fund: { mode: "full-balance", balance: "100" }, leverage: 5, slippage: 1,
  * });
  * ```
  */

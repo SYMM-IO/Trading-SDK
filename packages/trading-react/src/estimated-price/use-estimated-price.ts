@@ -26,13 +26,16 @@ export type UseEstimatedPriceParameters = GetEstimatedPriceOptions &
     /**
      * Debounce (ms) applied to `quantity` and `price` so one request fires once
      * the user stops typing — not one per keystroke. Defaults to
-     * {@link DEFAULT_DEBOUNCE_MS} (350); set `0` to disable.
+     * {@link DEFAULT_DEBOUNCE_MS} (500); set `0` to disable.
      */
     debounceMs?: number;
   };
 
 /** Return type of {@link useEstimatedPrice}. */
-export type UseEstimatedPriceReturnType = UseQueryResult<GetEstimatedPriceReturnType, SymmioRequestError>;
+export type UseEstimatedPriceReturnType = UseQueryResult<GetEstimatedPriceReturnType, SymmioRequestError> & {
+  /** True while quantity or price is waiting for the debounce interval; cached data describes previous inputs. */
+  isDebouncing: boolean;
+};
 
 /**
  * Ask the solver what price an open or close would **fill at** — a read-only
@@ -44,7 +47,7 @@ export type UseEstimatedPriceReturnType = UseQueryResult<GetEstimatedPriceReturn
  * `price` is the **slippage-adjusted request price** the caller computed (not the
  * raw mark). The query is disabled until `quantity` and `price` are non-empty, so
  * it doesn't fire on partial input. `quantity` and `price` are **debounced
- * internally** (`debounceMs`, default 350) so typing an amount fires a single
+ * internally** (`debounceMs`, default 500) so typing an amount fires a single
  * request once the user settles — the caller passes the raw input, no external
  * debounce needed. Errors are normalized to {@link SymmioRequestError}.
  *
@@ -79,7 +82,7 @@ export function useEstimatedPrice(parameters: UseEstimatedPriceParameters): UseE
     chainId: parameters.chainId ?? chainId,
   });
 
-  return useQuery({
+  const query = useQuery({
     ...options,
     queryFn: async () => {
       try {
@@ -88,5 +91,6 @@ export function useEstimatedPrice(parameters: UseEstimatedPriceParameters): UseE
         throw normalizeSymmError(err);
       }
     },
-  }) as UseEstimatedPriceReturnType;
+  }) as UseQueryResult<GetEstimatedPriceReturnType, SymmioRequestError>;
+  return { ...query, isDebouncing: quantity !== parameters.quantity || price !== parameters.price };
 }

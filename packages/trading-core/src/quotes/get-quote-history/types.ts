@@ -95,6 +95,26 @@ export interface QuoteHistoryRow {
   liquidateAmount: bigint;
   /** Liquidation price (set only for liquidation rows). */
   liquidatePrice: bigint;
+  /**
+   * Rate-based solver fee charged by this event (`SOLVER_FEE`), or `null` when
+   * the event carried none.
+   */
+  solverFee: bigint | null;
+  /**
+   * Flat solver fee charged by this event (`STATIC_SOLVER_FEE`), or `null` when
+   * the event carried none.
+   */
+  staticSolverFee: bigint | null;
+  /**
+   * Sum of every solver fee on the event — including tags this version does not
+   * name individually — or `null` when the event recorded none at all.
+   *
+   * @remarks
+   * Only fill-close events carry solver fees: liquidation and ADL rows, and
+   * deployments indexed before the fee was recorded, read `null` on all three
+   * fee fields. The untruncated list stays on {@link QuoteHistoryRow.rawMetadata}.
+   */
+  totalSolverFee: bigint | null;
   /** PartyA (the SubAccount or Virtual Account that owns the quote). */
   partyA: Address;
   /** PartyB (the hedger/solver), or `null` when absent. */

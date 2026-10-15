@@ -10,8 +10,8 @@
  *   (e.g. `ContractFunctionExecutionError` formatting a revert reason),
  * - support new wrapper helpers without having to amend this file each time.
  *
- * @see Source of truth — the SYMMIO `perps-core` repo, pinned to the matching
- * version tag: {@link https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/abis/accountLayer.json}.
+ * @see Source of truth — SYMMIO `perps-core`, branch `version_0.8.6`, commit
+ * `3e25e6e`: {@link https://github.com/SYMM-IO/perps-core/blob/3e25e6e2130702e92668aeb2dec68395ac25129f/abis/accountLayer.json}.
  * Upgrading to a new contracts version means swapping the fragments in this
  * folder in place as part of a new SDK release — see `ARCHITECTURE.md` §2.
  */
@@ -59,7 +59,27 @@ export const accountLayerAbi = [
   },
   {
     inputs: [],
+    name: "ApprovalExpired",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "ApprovalUsed",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "CoreNotFound",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "DelayAboveMaximum",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "DelayBelowMinimum",
     type: "error",
   },
   {
@@ -79,17 +99,17 @@ export const accountLayerAbi = [
   },
   {
     inputs: [],
+    name: "ExecuteForAccountNotAllowedDuringSubAccountDeletion",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "ExpectedPause",
     type: "error",
   },
   {
     inputs: [],
     name: "ExternalCallFailed",
-    type: "error",
-  },
-  {
-    inputs: [],
-    name: "ExternalCallSignerWasModified",
     type: "error",
   },
   {
@@ -117,6 +137,11 @@ export const accountLayerAbi = [
       },
     ],
     name: "HookFailed",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "InvalidApprovalSignature",
     type: "error",
   },
   {
@@ -157,6 +182,11 @@ export const accountLayerAbi = [
   {
     inputs: [],
     name: "InvalidState",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "LegacyAccountCannotBeTimelocked",
     type: "error",
   },
   {
@@ -221,6 +251,11 @@ export const accountLayerAbi = [
   },
   {
     inputs: [],
+    name: "NotRootSubAccount",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "NotSymmioCore",
     type: "error",
   },
@@ -252,6 +287,53 @@ export const accountLayerAbi = [
   {
     inputs: [],
     name: "ReentrancyGuardReentrantCall",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        internalType: "bytes32",
+        name: "callDataHash",
+        type: "bytes32",
+      },
+      {
+        internalType: "uint64",
+        name: "expiredAt",
+        type: "uint64",
+      },
+    ],
+    name: "ScheduleExpired",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "ScheduleGracePeriodAboveMaximum",
+    type: "error",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        internalType: "bytes32",
+        name: "callDataHash",
+        type: "bytes32",
+      },
+      {
+        internalType: "uint64",
+        name: "readyAt",
+        type: "uint64",
+      },
+    ],
+    name: "ScheduleNotReady",
     type: "error",
   },
   {
@@ -291,6 +373,22 @@ export const accountLayerAbi = [
     type: "error",
   },
   {
+    inputs: [
+      {
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        internalType: "bytes32",
+        name: "callDataHash",
+        type: "bytes32",
+      },
+    ],
+    name: "TimelockOpNotApprovedOrScheduled",
+    type: "error",
+  },
+  {
     inputs: [],
     name: "Unauthorized",
     type: "error",
@@ -302,12 +400,361 @@ export const accountLayerAbi = [
   },
   {
     inputs: [],
+    name: "UnusedTimelockApproval",
+    type: "error",
+  },
+  {
+    inputs: [],
     name: "ZeroAddress",
     type: "error",
   },
   {
     inputs: [],
     name: "ZeroAmount",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "ZeroUnlocker",
+    type: "error",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+    ],
+    name: "Paused",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint32",
+        name: "nonce",
+        type: "uint32",
+      },
+    ],
+    name: "TimelockNonceAdvanced",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "bytes32",
+        name: "callDataHash",
+        type: "bytes32",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "unlocker",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "bytes32",
+        name: "approvalHash",
+        type: "bytes32",
+      },
+    ],
+    name: "TimelockOpApproved",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "bytes32",
+        name: "callDataHash",
+        type: "bytes32",
+      },
+    ],
+    name: "TimelockOpCancelled",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "bytes32",
+        name: "callDataHash",
+        type: "bytes32",
+      },
+    ],
+    name: "TimelockOpExecuted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "bytes32",
+        name: "callDataHash",
+        type: "bytes32",
+      },
+      {
+        indexed: false,
+        internalType: "uint64",
+        name: "scheduledAt",
+        type: "uint64",
+      },
+    ],
+    name: "TimelockOpScheduled",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "bytes4[]",
+        name: "selectors",
+        type: "bytes4[]",
+      },
+    ],
+    name: "TimelocksCleared",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "unlocker",
+        type: "address",
+      },
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "delay",
+        type: "uint256",
+      },
+      {
+        indexed: false,
+        internalType: "bytes4[]",
+        name: "selectors",
+        type: "bytes4[]",
+      },
+    ],
+    name: "TimelocksSetup",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+    ],
+    name: "Unpaused",
+    type: "event",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+      {
+        internalType: "bytes32",
+        name: "callDataHash",
+        type: "bytes32",
+      },
+    ],
+    name: "cancelTimelockOp",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        internalType: "bytes4[]",
+        name: "selectors",
+        type: "bytes4[]",
+      },
+    ],
+    name: "clearTimelocks",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            components: [
+              {
+                internalType: "address",
+                name: "account",
+                type: "address",
+              },
+              {
+                internalType: "address",
+                name: "unlocker",
+                type: "address",
+              },
+              {
+                internalType: "bytes32",
+                name: "callDataHash",
+                type: "bytes32",
+              },
+              {
+                internalType: "uint256",
+                name: "deadline",
+                type: "uint256",
+              },
+              {
+                internalType: "bytes32",
+                name: "salt",
+                type: "bytes32",
+              },
+            ],
+            internalType: "struct TimelockApproval",
+            name: "approval",
+            type: "tuple",
+          },
+          {
+            internalType: "bytes",
+            name: "signature",
+            type: "bytes",
+          },
+        ],
+        internalType: "struct SignedTimelockApproval[]",
+        name: "approvals",
+        type: "tuple[]",
+      },
+      {
+        internalType: "bytes",
+        name: "innerCallData",
+        type: "bytes",
+      },
+    ],
+    name: "executeTimelockOp",
+    outputs: [
+      {
+        internalType: "bytes",
+        name: "",
+        type: "bytes",
+      },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+      {
+        internalType: "bytes32",
+        name: "callDataHash",
+        type: "bytes32",
+      },
+    ],
+    name: "scheduleTimelockOp",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "unlocker",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "delay",
+        type: "uint256",
+      },
+      {
+        internalType: "bytes4[]",
+        name: "selectors",
+        type: "bytes4[]",
+      },
+    ],
+    name: "setupTimelocks",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "ExternalCallSignerWasModified",
     type: "error",
   },
   {
@@ -451,19 +898,6 @@ export const accountLayerAbi = [
     anonymous: false,
     inputs: [
       {
-        indexed: false,
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-    ],
-    name: "Paused",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
         indexed: true,
         internalType: "address",
         name: "subAccount",
@@ -558,19 +992,6 @@ export const accountLayerAbi = [
       },
     ],
     name: "SubAccountOwnershipTransferred",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
-        internalType: "address",
-        name: "account",
-        type: "address",
-      },
-    ],
-    name: "Unpaused",
     type: "event",
   },
   {
@@ -1028,17 +1449,17 @@ export const accountLayerAbi = [
     inputs: [
       {
         internalType: "uint256",
-        name: "quoteId",
+        name: "",
         type: "uint256",
       },
       {
         internalType: "address",
-        name: "partyA",
+        name: "",
         type: "address",
       },
       {
         internalType: "address",
-        name: "partyB",
+        name: "",
         type: "address",
       },
     ],
@@ -1056,12 +1477,12 @@ export const accountLayerAbi = [
       },
       {
         internalType: "uint256",
-        name: "filledAmount",
+        name: "",
         type: "uint256",
       },
       {
         internalType: "uint256",
-        name: "closedPrice",
+        name: "",
         type: "uint256",
       },
       {
@@ -1084,37 +1505,37 @@ export const accountLayerAbi = [
     inputs: [
       {
         internalType: "uint256",
-        name: "quoteId",
+        name: "",
         type: "uint256",
       },
       {
         internalType: "uint256",
-        name: "amount",
+        name: "",
         type: "uint256",
       },
       {
         internalType: "address",
-        name: "partyA",
+        name: "",
         type: "address",
       },
       {
         internalType: "address",
-        name: "partyB",
+        name: "",
         type: "address",
       },
       {
         internalType: "uint256",
-        name: "symbolId",
+        name: "",
         type: "uint256",
       },
       {
         internalType: "address",
-        name: "affiliate",
+        name: "",
         type: "address",
       },
       {
         internalType: "uint8",
-        name: "feeType",
+        name: "",
         type: "uint8",
       },
     ],
@@ -1145,12 +1566,12 @@ export const accountLayerAbi = [
       },
       {
         internalType: "uint256",
-        name: "filledAmount",
+        name: "",
         type: "uint256",
       },
       {
         internalType: "uint256",
-        name: "openedPrice",
+        name: "",
         type: "uint256",
       },
       {
@@ -1160,7 +1581,7 @@ export const accountLayerAbi = [
       },
       {
         internalType: "address",
-        name: "partyB",
+        name: "",
         type: "address",
       },
     ],
@@ -1179,7 +1600,7 @@ export const accountLayerAbi = [
         type: "uint256",
       },
     ],
-    stateMutability: "view",
+    stateMutability: "pure",
     type: "function",
   },
   {
@@ -1190,6 +1611,40 @@ export const accountLayerAbi = [
         internalType: "bytes",
         name: "",
         type: "bytes",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "unlocker",
+        type: "address",
+      },
+      {
+        internalType: "uint256",
+        name: "minDelay",
+        type: "uint256",
+      },
+      {
+        internalType: "bytes4[]",
+        name: "selectors",
+        type: "bytes4[]",
+      },
+    ],
+    name: "allTimelockedBy",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool",
       },
     ],
     stateMutability: "view",
@@ -1525,7 +1980,7 @@ export const accountLayerAbi = [
           },
         ],
         internalType: "struct AffiliateSelectorConfig[]",
-        name: "",
+        name: "configs",
         type: "tuple[]",
       },
     ],
@@ -1741,6 +2196,78 @@ export const accountLayerAbi = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "address",
+        name: "account",
+        type: "address",
+      },
+      {
+        internalType: "bytes32",
+        name: "callDataHash",
+        type: "bytes32",
+      },
+    ],
+    name: "getSchedule",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "uint64",
+            name: "scheduledAt",
+            type: "uint64",
+          },
+          {
+            internalType: "uint32",
+            name: "nonce",
+            type: "uint32",
+          },
+        ],
+        internalType: "struct Schedule",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+      {
+        internalType: "bytes4",
+        name: "selector",
+        type: "bytes4",
+      },
+    ],
+    name: "getSelectorTimelock",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "unlocker",
+            type: "address",
+          },
+          {
+            internalType: "uint64",
+            name: "delay",
+            type: "uint64",
+          },
+        ],
+        internalType: "struct SelectorTimelock",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "getSigner",
     outputs: [
@@ -1939,7 +2466,7 @@ export const accountLayerAbi = [
           },
         ],
         internalType: "struct SubAccountDetail[]",
-        name: "",
+        name: "details",
         type: "tuple[]",
       },
     ],
@@ -2157,7 +2684,7 @@ export const accountLayerAbi = [
           },
         ],
         internalType: "struct VirtualAccountDetail[]",
-        name: "",
+        name: "details",
         type: "tuple[]",
       },
     ],
@@ -2191,6 +2718,71 @@ export const accountLayerAbi = [
       },
     ],
     name: "hasRole",
+    outputs: [
+      {
+        internalType: "bool",
+        name: "",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            internalType: "address",
+            name: "account",
+            type: "address",
+          },
+          {
+            internalType: "address",
+            name: "unlocker",
+            type: "address",
+          },
+          {
+            internalType: "bytes32",
+            name: "callDataHash",
+            type: "bytes32",
+          },
+          {
+            internalType: "uint256",
+            name: "deadline",
+            type: "uint256",
+          },
+          {
+            internalType: "bytes32",
+            name: "salt",
+            type: "bytes32",
+          },
+        ],
+        internalType: "struct TimelockApproval",
+        name: "approval",
+        type: "tuple",
+      },
+    ],
+    name: "hashTimelockApproval",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bytes32",
+        name: "approvalHash",
+        type: "bytes32",
+      },
+    ],
+    name: "isApprovalUsed",
     outputs: [
       {
         internalType: "bool",
@@ -2293,6 +2885,19 @@ export const accountLayerAbi = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "minTimelockDelay",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       {
         internalType: "address",
@@ -2368,12 +2973,57 @@ export const accountLayerAbi = [
   },
   {
     inputs: [],
+    name: "scheduleGracePeriod",
+    outputs: [
+      {
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "symmioFeeReceiver",
     outputs: [
       {
         internalType: "address",
         name: "",
         type: "address",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "timelockDomainSeparator",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "subAccount",
+        type: "address",
+      },
+    ],
+    name: "timelockNonce",
+    outputs: [
+      {
+        internalType: "uint32",
+        name: "",
+        type: "uint32",
       },
     ],
     stateMutability: "view",
@@ -3486,6 +4136,108 @@ export const accountLayerAbi = [
     anonymous: false,
     inputs: [
       {
+        indexed: false,
+        internalType: "uint256",
+        name: "minTimelockDelay",
+        type: "uint256",
+      },
+    ],
+    name: "MinTimelockDelayUpdated",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "pendingOwner",
+        type: "address",
+      },
+    ],
+    name: "OwnershipTransferCanceled",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "currentOwner",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "pendingOwner",
+        type: "address",
+      },
+    ],
+    name: "OwnershipTransferStarted",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "previousOwner",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "newOwner",
+        type: "address",
+      },
+    ],
+    name: "OwnershipTransferred",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "bytes32",
+        name: "role",
+        type: "bytes32",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "admin",
+        type: "address",
+      },
+    ],
+    name: "RoleAdminAdded",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "bytes32",
+        name: "role",
+        type: "bytes32",
+      },
+      {
+        indexed: false,
+        internalType: "address",
+        name: "admin",
+        type: "address",
+      },
+    ],
+    name: "RoleAdminRemoved",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: true,
         internalType: "bytes32",
         name: "role",
@@ -3561,6 +4313,19 @@ export const accountLayerAbi = [
       },
     ],
     name: "RoleRevoked",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: false,
+        internalType: "uint256",
+        name: "scheduleGracePeriod",
+        type: "uint256",
+      },
+    ],
+    name: "ScheduleGracePeriodUpdated",
     type: "event",
   },
   {
@@ -3668,6 +4433,24 @@ export const accountLayerAbi = [
   {
     inputs: [
       {
+        internalType: "bytes32",
+        name: "role",
+        type: "bytes32",
+      },
+      {
+        internalType: "address",
+        name: "admin",
+        type: "address",
+      },
+    ],
+    name: "addRoleAdmin",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "address",
         name: "affiliate",
         type: "address",
@@ -3718,6 +4501,24 @@ export const accountLayerAbi = [
   {
     inputs: [
       {
+        internalType: "bytes32",
+        name: "role",
+        type: "bytes32",
+      },
+      {
+        internalType: "address",
+        name: "admin",
+        type: "address",
+      },
+    ],
+    name: "removeRoleAdmin",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "address",
         name: "user",
         type: "address",
@@ -3742,6 +4543,19 @@ export const accountLayerAbi = [
       },
     ],
     name: "setAccountManagerImplementation",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "user",
+        type: "address",
+      },
+    ],
+    name: "setAdmin",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -3795,6 +4609,19 @@ export const accountLayerAbi = [
   {
     inputs: [
       {
+        internalType: "uint256",
+        name: "value",
+        type: "uint256",
+      },
+    ],
+    name: "setMinTimelockDelay",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "address",
         name: "user",
         type: "address",
@@ -3811,6 +4638,19 @@ export const accountLayerAbi = [
       },
     ],
     name: "setRoleAdmin",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "value",
+        type: "uint256",
+      },
+    ],
+    name: "setScheduleGracePeriod",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -3927,57 +4767,6 @@ export const accountLayerAbi = [
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "pendingOwner",
-        type: "address",
-      },
-    ],
-    name: "OwnershipTransferCanceled",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "currentOwner",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "pendingOwner",
-        type: "address",
-      },
-    ],
-    name: "OwnershipTransferStarted",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "previousOwner",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "newOwner",
-        type: "address",
-      },
-    ],
-    name: "OwnershipTransferred",
-    type: "event",
   },
   {
     inputs: [

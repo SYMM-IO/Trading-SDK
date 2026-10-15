@@ -66,7 +66,7 @@ export async function submitEnigmaInstantOpen(
     deadline,
     affiliate: affiliatesAddress,
     data: metadata,
-    upnlSig: getFakeSendQuoteMuonSignature(parameters.order.price),
+    upnlSig: getFakeSendQuoteMuonSignature(parameters.markPrice ?? parameters.order.price),
   };
 
   /**
@@ -84,7 +84,7 @@ export async function submitEnigmaInstantOpen(
     target: accountLayerAddress,
     callData: addMarginCallData,
     signerAccount: parameters.subAccountAddress,
-    deadline,
+    deadline: parameters.operationDeadline ?? deadline,
     salt: parameters.addMarginSalt,
   });
 
@@ -93,7 +93,7 @@ export async function submitEnigmaInstantOpen(
     target: symmioAddress,
     callData: sendQuoteCallData,
     signerAccount: parameters.subAccountAddress,
-    deadline,
+    deadline: parameters.operationDeadline ?? deadline,
     salt: parameters.sendQuoteSalt,
     flexFields: [{ ...sendQuoteUpnlSigFlexRange(sendQuoteCallData), authorizedFlexFiller: solver.address }],
   });
