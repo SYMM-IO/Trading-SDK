@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CommandSearch } from "./command-search";
+import { useHashArrival } from "./use-hash-arrival";
 
 /**
  * Header control that opens the app-wide command palette. Click the trigger or
@@ -9,10 +10,14 @@ import { CommandSearch } from "./command-search";
  * when the header has room and collapses to an icon-only button when it is
  * tight — driven by the header's `@container/header` width, so it reacts to the
  * magic sidebar push as well as the viewport.
+ *
+ * It also lands a page opened at a card's `#anchor` on that card, as a search hit
+ * would — the header mounts once per page load, which is exactly when that applies.
  */
 export function SearchLauncher() {
   const [open, setOpen] = useState(false);
   const [isMac, setIsMac] = useState(true);
+  useHashArrival();
 
   useEffect(() => {
     setIsMac(/mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent));

@@ -153,6 +153,73 @@
 }
 
 /**
+ * Arrival — the one mark a card gets when search or a shared link lands on it
+ * (set by `arrive-at-card.ts`). The card's top edge lights coral and a soft wash
+ * falls from it into the card, holds while the eye finds it, then fades.
+ *
+ * Every layer is drawn inside the card, as inset shadows and a background image:
+ * anything outside it is cut off by a clipping parent, such as a method group's
+ * `overflow-hidden` collapse wrapper. The shadow list ends with Tailwind's own
+ * shadow variables, so the card keeps its ring and shadow while the mark plays.
+ * The wash's reach is a fixed length, not a share of the card's height, so a
+ * tall card is lit like a short one. The three colors are registered so the
+ * keyframes can fade them.
+ */
+@property --card-arrival-ring {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@property --card-arrival-edge {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@property --card-arrival-light {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@keyframes card-arrival {
+  0%,
+  100% {
+    --card-arrival-ring: transparent;
+    --card-arrival-edge: transparent;
+    --card-arrival-light: transparent;
+  }
+  20%,
+  60% {
+    --card-arrival-ring: color-mix(in oklab, var(--primary) 50%, transparent);
+    --card-arrival-edge: var(--primary);
+    --card-arrival-light: color-mix(in oklab, var(--primary) 15%, transparent);
+  }
+}
+
+[data-slot="card"][data-arrived] {
+  box-shadow:
+    inset 0 0 0 1px var(--card-arrival-ring),
+    inset 0 2px 0 0 var(--card-arrival-edge),
+    var(--tw-inset-shadow),
+    var(--tw-inset-ring-shadow),
+    var(--tw-ring-offset-shadow),
+    var(--tw-ring-shadow),
+    var(--tw-shadow);
+  background-image: radial-gradient(130% 18rem at 50% 0%, var(--card-arrival-light), transparent 72%);
+  animation: card-arrival 1.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/**
+ * A card takes focus on arrival only so Tab continues inside it. It is not a
+ * control, so it draws no focus ring of its own.
+ */
+[data-slot="card"][tabindex="-1"]:focus {
+  outline: none;
+}
+
+/**
  * A coral gradient text sweep. Applied to the hero accent so the primary color
  * reads as *charged*, not flat — mirrors the landing site's `.text-sheen`.
  */
@@ -201,6 +268,14 @@
 
   .text-sheen {
     color: var(--primary);
+  }
+
+  /** The arrival mark holds still at its peak; the script clears it after a beat. */
+  [data-slot="card"][data-arrived] {
+    --card-arrival-ring: color-mix(in oklab, var(--primary) 50%, transparent);
+    --card-arrival-edge: var(--primary);
+    --card-arrival-light: color-mix(in oklab, var(--primary) 15%, transparent);
+    animation: none;
   }
 
   html {

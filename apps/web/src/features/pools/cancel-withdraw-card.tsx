@@ -19,7 +19,8 @@ import { SignInNote } from "./sign-in-note";
  *
  * Lists the connected wallet's still-`PENDING` withdrawals for the pool picked in
  * the section's shared picker ({@link usePoolScope}), read via
- * {@link usePoolTransactions}, and offers a Cancel on each. Canceling
+ * {@link usePoolTransactions} with the wallet, type and status filtered
+ * server-side, and offers a Cancel on each. Canceling
  * ({@link useCancelWithdraw}) `DELETE`s the withdrawal by its `transactionId`;
  * on success the shares return to the user's available balance, so the list
  * refetches.
@@ -36,17 +37,21 @@ export function CancelWithdrawCard() {
   const signedIn = accessToken !== null;
   const ready = signedIn && contractAddress.length > 0 && connectedAddress !== undefined;
 
+  /**
+   * Filtered server-side rather than on the client: a client filter only sees
+   * one page, so it would miss a pending withdrawal older than the newest rows.
+   */
   const transactions = usePoolTransactions({
-    marketAddress: contractAddress,
+    tokenAddress: contractAddress,
     walletAddress: connectedAddress,
+    transactionType: PoolTransactionType.WITHDRAW,
+    transactionStatus: PoolTransactionStatus.PENDING,
     query: { enabled: ready },
   });
 
   const cancel = useCancelWithdraw();
 
-  const pending = (transactions.data?.items ?? []).filter(
-    (tx) => tx.type === PoolTransactionType.WITHDRAW && tx.status === PoolTransactionStatus.PENDING,
-  );
+  const pending = transactions.data?.items ?? [];
 
   function onCancel(withdrawId: string) {
     if (accessToken === null) return;

@@ -48,7 +48,12 @@ export type GroupKey = "subaccounts" | "deposit" | "margin" | "withdraw" | "dele
 
 /** One registered method-exerciser card with its taxonomy. */
 export interface MethodEntry {
+  /** The method's name. Its card renders with the DOM id `method-<id>`, the anchor search lands on. */
   id: string;
+  /** The card's title, when it is not {@link MethodEntry.id} itself. */
+  title?: string;
+  /** One line on what the card does, written for a search result. */
+  summary: string;
   kind: "read" | "write";
   /** The ABI this method is called against, or `undefined` for solver/API reads. */
   abi?: AbiKey;
@@ -65,9 +70,17 @@ export interface MethodEntry {
  */
 export const METHOD_REGISTRY: readonly MethodEntry[] = [
   // AccountLayer — subaccounts
-  { id: "getSubAccount", kind: "read", abi: "account-layer", groups: ["subaccounts"], Component: ReadGetSubAccount },
+  {
+    id: "getSubAccount",
+    summary: "Read one subaccount by its address.",
+    kind: "read",
+    abi: "account-layer",
+    groups: ["subaccounts"],
+    Component: ReadGetSubAccount,
+  },
   {
     id: "getSubAccountVirtualNonce",
+    summary: "A subaccount's Virtual Account nonce, which seeds the next VA address.",
     kind: "read",
     abi: "account-layer",
     groups: ["subaccounts"],
@@ -75,6 +88,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getSubAccountsCountOfUser",
+    summary: "How many subaccounts an address owns.",
     kind: "read",
     abi: "account-layer",
     groups: ["subaccounts"],
@@ -82,6 +96,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getUserSubAccounts",
+    summary: "Every subaccount a user owns.",
     kind: "read",
     abi: "account-layer",
     groups: ["subaccounts"],
@@ -89,6 +104,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getUserSubAccountsAddresses",
+    summary: "Every subaccount address a user owns.",
     kind: "read",
     abi: "account-layer",
     groups: ["subaccounts"],
@@ -96,6 +112,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getVirtualAccount",
+    summary: "A Virtual Account's parent, market, isolation type and metadata.",
     kind: "read",
     abi: "account-layer",
     groups: ["positions"],
@@ -103,6 +120,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getVirtualAccountsAddressesOfSubAccount",
+    summary: "A subaccount's Virtual Account addresses.",
     kind: "read",
     abi: "account-layer",
     groups: ["subaccounts", "positions"],
@@ -110,6 +128,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getAccountBalanceOf",
+    summary: "A subaccount's balance on its SYMMIO core.",
     kind: "read",
     abi: "symmio-core",
     groups: ["subaccounts"],
@@ -117,6 +136,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getAccountBalanceInfo",
+    summary: "A subaccount's full balance breakdown on its SYMMIO core.",
     kind: "read",
     abi: "symmio-core",
     groups: ["subaccounts"],
@@ -124,6 +144,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getFeeForUser",
+    summary: "Open and close fee rates for an account and symbol.",
     kind: "read",
     abi: "symmio-core",
     groups: [],
@@ -131,6 +152,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getOnchainContractMarkets",
+    summary: "The markets registered on the SYMMIO core, page by page.",
     kind: "read",
     abi: "symmio-core",
     groups: [],
@@ -139,6 +161,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   // SYMMIO core — quotes & positions
   {
     id: "getPartyAOpenPositions",
+    summary: "A partyA's open positions.",
     kind: "read",
     abi: "symmio-core",
     groups: ["positions"],
@@ -146,6 +169,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getPartyAPendingQuotes",
+    summary: "A partyA's pending quote ids.",
     kind: "read",
     abi: "symmio-core",
     groups: ["positions"],
@@ -153,6 +177,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getQuote",
+    summary: "One quote by its id.",
     kind: "read",
     abi: "symmio-core",
     groups: ["positions"],
@@ -160,19 +185,23 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getFundingFeesOfPartyB",
+    summary: "A solver's accumulated funding state for one symbol.",
     kind: "read",
     abi: "symmio-core",
     groups: ["positions"],
     Component: ReadGetFundingFeesOfPartyB,
   },
   {
-    id: "quotePriceHistory",
+    id: "getQuotePriceHistory",
+    title: "getQuoteEventsByType",
+    summary: "A quote's open-price recomputes and funding ticks, newest first.",
     kind: "read",
     groups: ["positions"],
     Component: ReadQuotePriceHistory,
   },
   {
     id: "createSubAccounts",
+    summary: "Create a subaccount for the connected wallet.",
     kind: "write",
     abi: "account-layer",
     groups: ["subaccounts"],
@@ -180,6 +209,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "editAccountName",
+    summary: "Rename one of your subaccounts.",
     kind: "write",
     abi: "account-layer",
     groups: ["subaccounts"],
@@ -187,6 +217,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "deleteSubAccount",
+    summary: "Permanently delete one of your subaccounts.",
     kind: "write",
     abi: "account-layer",
     groups: ["subaccounts"],
@@ -195,6 +226,8 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   // InstantLayer — delegation
   {
     id: "delegationReads",
+    title: "delegations / isDelegationActive",
+    summary: "Delegation expiry and active status for an account, delegate and function.",
     kind: "read",
     abi: "instant-layer",
     groups: ["delegation"],
@@ -202,28 +235,59 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "grantDelegation",
+    summary: "Grant a delegate access to selected Instant Layer functions.",
     kind: "write",
     abi: "instant-layer",
     groups: ["delegation"],
     Component: WriteGrantDelegation,
   },
   // AccountLayer — deposits
-  { id: "depositForAccount", kind: "write", abi: "account-layer", groups: ["deposit"], Component: WriteDeposit },
+  {
+    id: "depositForAccount",
+    summary: "Deposit collateral into a subaccount.",
+    kind: "write",
+    abi: "account-layer",
+    groups: ["deposit"],
+    Component: WriteDeposit,
+  },
   {
     id: "depositAndAllocateForAccount",
+    summary: "Deposit collateral and allocate it as trading margin in one transaction.",
     kind: "write",
     abi: "account-layer",
     groups: ["deposit"],
     Component: WriteDepositAndAllocate,
   },
   // Balance history (analytics subgraph) — a deposit/withdraw read, not an ABI method
-  { id: "balanceHistory", kind: "read", groups: ["deposit", "withdraw"], Component: BalanceHistoryCard },
+  {
+    id: "balanceHistory",
+    title: "useBalanceHistory",
+    summary: "A subaccount's deposit and withdrawal history.",
+    kind: "read",
+    groups: ["deposit", "withdraw"],
+    Component: BalanceHistoryCard,
+  },
   // Transfer history (events subgraph) — internal transfers, not an ABI method
-  { id: "transferHistory", kind: "read", groups: ["transfers"], Component: TransfersCard },
+  {
+    id: "transferHistory",
+    title: "useTransferHistory",
+    summary: "A subaccount's internal margin transfers.",
+    kind: "read",
+    groups: ["transfers"],
+    Component: TransfersCard,
+  },
   // Collateral (ERC20)
-  { id: "approveCollateral", kind: "write", abi: "collateral", groups: ["deposit"], Component: WriteApproveCollateral },
+  {
+    id: "approveCollateral",
+    summary: "Approve the collateral token for the SYMMIO core, before a deposit.",
+    kind: "write",
+    abi: "collateral",
+    groups: ["deposit"],
+    Component: WriteApproveCollateral,
+  },
   {
     id: "getCollateralAllowance",
+    summary: "How much collateral an owner has approved the SYMMIO core to spend.",
     kind: "read",
     abi: "collateral",
     groups: ["deposit"],
@@ -231,22 +295,65 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getCollateralBalance",
+    summary: "An address's balance of the collateral token.",
     kind: "read",
     abi: "collateral",
     groups: ["deposit"],
     Component: ReadCollateralBalance,
   },
   // SYMMIO core + AccountLayer — margin
-  { id: "allocate", kind: "write", abi: "symmio-core", groups: ["margin"], Component: WriteAllocate },
-  { id: "deallocate", kind: "write", abi: "symmio-core", groups: ["margin"], Component: WriteDeallocate },
-  { id: "addMargin", kind: "write", abi: "account-layer", groups: ["margin"], Component: WriteAddMargin },
-  { id: "removeMargin", kind: "write", abi: "account-layer", groups: ["margin"], Component: WriteRemoveMargin },
+  {
+    id: "allocate",
+    summary: "Move available balance into trading margin.",
+    kind: "write",
+    abi: "symmio-core",
+    groups: ["margin"],
+    Component: WriteAllocate,
+  },
+  {
+    id: "deallocate",
+    summary: "Move trading margin back into available balance.",
+    kind: "write",
+    abi: "symmio-core",
+    groups: ["margin"],
+    Component: WriteDeallocate,
+  },
+  {
+    id: "addMargin",
+    summary: "Add margin to a Virtual Account from its parent subaccount.",
+    kind: "write",
+    abi: "account-layer",
+    groups: ["margin"],
+    Component: WriteAddMargin,
+  },
+  {
+    id: "removeMargin",
+    summary: "Remove margin from a Virtual Account.",
+    kind: "write",
+    abi: "account-layer",
+    groups: ["margin"],
+    Component: WriteRemoveMargin,
+  },
   // Muon oracle (off-chain API) — uPnL signature for removeMargin
-  { id: "getDeallocateUpnlSig", kind: "read", groups: ["margin"], Component: ReadDeallocateUpnlSig },
+  {
+    id: "getDeallocateUpnlSig",
+    summary: "The Muon uPnL signature that removing margin requires.",
+    kind: "read",
+    groups: ["margin"],
+    Component: ReadDeallocateUpnlSig,
+  },
   // SYMMIO core — withdraw system
-  { id: "initiateWithdraw", kind: "write", abi: "symmio-core", groups: ["withdraw"], Component: WriteInitiateWithdraw },
+  {
+    id: "initiateWithdraw",
+    summary: "Open a withdraw request for a subaccount.",
+    kind: "write",
+    abi: "symmio-core",
+    groups: ["withdraw"],
+    Component: WriteInitiateWithdraw,
+  },
   {
     id: "finalizeWithdrawRequest",
+    summary: "Pay out a withdraw request once its cooldown has passed.",
     kind: "write",
     abi: "symmio-core",
     groups: ["withdraw"],
@@ -254,6 +361,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "requestCancelWithdraw",
+    summary: "Cancel a pending withdraw request.",
     kind: "write",
     abi: "symmio-core",
     groups: ["withdraw"],
@@ -261,6 +369,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getPendingWithdrawRequests",
+    summary: "A subaccount's active withdraw requests.",
     kind: "read",
     abi: "symmio-core",
     groups: ["withdraw"],
@@ -268,6 +377,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getWithdrawRequests",
+    summary: "One withdraw request, by subaccount and request id.",
     kind: "read",
     abi: "symmio-core",
     groups: ["withdraw"],
@@ -275,6 +385,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getLastWithdrawRequestId",
+    summary: "A subaccount's most recent withdraw request id.",
     kind: "read",
     abi: "symmio-core",
     groups: ["withdraw"],
@@ -282,6 +393,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getWithdrawableTime",
+    summary: "The earliest time a withdrawal started now could be finalized.",
     kind: "read",
     abi: "symmio-core",
     groups: ["withdraw"],

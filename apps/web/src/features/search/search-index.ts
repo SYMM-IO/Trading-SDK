@@ -1,4 +1,4 @@
-import Fuse from "fuse.js";
+import Fuse, { type FuseResultMatch } from "fuse.js";
 import type { SearchEntry, SearchType } from "./search-entry";
 
 /**
@@ -28,14 +28,14 @@ export function createSearchIndex(entries: readonly SearchEntry[]): Fuse<SearchE
 }
 
 /**
- * Multiplicative relevance tilt per type. Methods lead — they are the actionable
- * core of the inspector — then the contract/flow pages that group them, then
+ * Multiplicative relevance tilt per type. Cards lead — they are the actionable
+ * core of every page — then the contract/flow pages that group them, then
  * navigation, with market/symbol data last unless a strong textual match pulls it
  * up. Tune by eye, not by formula — Fuse's score is an uncalibrated, non-linear
  * value. This mirrors the section order in `SEARCH_TYPE_META`.
  */
 const TYPE_TILT: Record<SearchType, number> = {
-  method: 0.3,
+  card: 0.3,
   contract: 0.15,
   flow: 0.12,
   route: 0.1,
@@ -55,6 +55,8 @@ export interface RankedEntry {
   score: number;
   titleMatches?: MatchRanges;
   subtitleMatches?: MatchRanges;
+  /** The keyword that matched best — an SDK hook, say — for a row to show why it matched. */
+  keywordMatch?: { value: string; ranges: MatchRanges };
 }
 
 /**
@@ -81,9 +83,43 @@ export function rankEntries(
       score: final,
       titleMatches: matches?.find((match) => match.key === "title")?.indices,
       subtitleMatches: matches?.find((match) => match.key === "subtitle")?.indices,
+      keywordMatch: bestKeywordMatch(matches, trimmed),
     };
   });
 
   ranked.sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title));
   return ranked.slice(0, limit);
+}
+
+/**
+ * The keyword that best explains a hit: the shortest one containing the query
+ * outright, else the one with the longest unbroken fuzzy run — scattered
+ * single-letter matches say little about why a hit matched.
+ */
+function bestKeywordMatch(matches: readonly FuseResultMatch[] | undefined, query: string): RankedEntry["keywordMatch"] {
+  const phrase = query.toLowerCase();
+  let best: RankedEntry["keywordMatch"];
+  let bestContainsQuery = false;
+  let bestRun = 0;
+
+  for (const match of matches ?? []) {
+    if (match.key !== "keywords" || !match.value) continue;
+
+    const at = match.value.toLowerCase().indexOf(phrase);
+    if (at !== -1) {
+      if (!bestContainsQuery || (best && match.value.length < best.value.length)) {
+        best = { value: match.value, ranges: [[at, at + phrase.length - 1]] };
+        bestContainsQuery = true;
+      }
+      continue;
+    }
+    if (bestContainsQuery) continue;
+
+    const run = Math.max(0, ...match.indices.map(([start, end]) => end - start + 1));
+    if (run > bestRun) {
+      bestRun = run;
+      best = { value: match.value, ranges: match.indices };
+    }
+  }
+  return best;
 }

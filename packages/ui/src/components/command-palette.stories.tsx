@@ -45,6 +45,9 @@ const ENTRIES: Entry[] = [
 function CommandPaletteStory() {
   const [open, setOpen] = useState(true);
   const [query, setQuery] = useState("");
+  /** Tracked through `onActiveChange`, so the footer can name what Enter opens. */
+  const [activeId, setActiveId] = useState<string | undefined>();
+  const active = ENTRIES.find((entry) => entry.id === activeId);
 
   const groups = useMemo<CommandPaletteGroup[]>(() => {
     const term = query.trim().toLowerCase();
@@ -81,12 +84,13 @@ function CommandPaletteStory() {
         onQueryChange={setQuery}
         groups={groups}
         onSelect={() => setOpen(false)}
+        onActiveChange={setActiveId}
         placeholder="Search pages, methods, markets…"
         emptyState="No matches."
         footer={
           <div className="flex gap-4">
             <span>↑↓ navigate</span>
-            <span>↵ open</span>
+            <span>↵ {active ? `open ${active.title}` : "open"}</span>
             <span>esc close</span>
           </div>
         }

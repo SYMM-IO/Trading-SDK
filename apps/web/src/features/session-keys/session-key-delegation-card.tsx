@@ -102,7 +102,7 @@ export function SessionKeyDelegationCard() {
       : undefined;
 
   return (
-    <Card data-testid="card-session-key-delegation">
+    <Card id="card-session-key-delegation" data-testid="card-session-key-delegation" className="scroll-mt-24">
       <CardHeader>
         <CardTitle>Gasless session-key authority</CardTitle>
         <CardDescription>

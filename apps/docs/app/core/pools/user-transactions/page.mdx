@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 # getUserTransactions
 
-Fetch the signed-in user's **transaction history** — their pool deposits and withdrawals across **every** pool, newest first, refunded deposits included. The authed, per-user counterpart to [`getPoolTransactions`](/core/pools/pool-transactions) (which is one pool, every LP).
+Fetch the signed-in user's **transaction history** — their pool deposits and withdrawals across **every** pool, newest first, refunded deposits included. The authed, per-user counterpart to [`getPoolTransactions`](/core/pools/pool-transactions) (which is public: every LP, one pool or every pool).
 
 ```ts
 import { getUserTransactions } from "@symmio/trading-core";
@@ -81,7 +81,7 @@ useQuery(getUserTransactionsQueryOptions(config, { accessToken }));
 
 ## Related
 
-- [`getPoolTransactions`](/core/pools/pool-transactions) — one pool's transactions (every LP, public).
+- [`getPoolTransactions`](/core/pools/pool-transactions) — public transactions for one pool or every pool (every LP).
 - [`getUserProfit`](/core/pools/user-profit) — the user's current LP position and balances.
 - [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this read requires.
 - [`useUserTransactions`](/react/pools#useusertransactions) — the React hook.

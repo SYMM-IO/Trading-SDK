@@ -72,7 +72,7 @@ export function NotificationsConsole() {
 
   return (
     <>
-      <Card className="animate-enter-up">
+      <Card id="method-watchNotifications" className="animate-enter-up scroll-mt-24">
         <CardHeader>
           <CardTitle>Subscription</CardTitle>
           <CardDescription>

@@ -2,13 +2,7 @@
 
 import { ResultError, ResultNote } from "@/components/result";
 import { POOL_OPEN_QUOTE_STATUSES, TpSlSearchOrderType, type ListingDepositChainId } from "@symmio/trading-core";
-import {
-  useListingMarketDetail,
-  usePoolQuotes,
-  usePoolTradeHistory,
-  usePoolTransactions,
-  useSearchTpSlOrders,
-} from "@symmio/trading-react";
+import { useListingMarketDetail, usePoolQuotes, usePoolTradeHistory, useSearchTpSlOrders } from "@symmio/trading-react";
 import { useState } from "react";
 import { MethodCard } from "../inspector/method-card";
 import { Segmented, type SegmentedOption } from "../integration/segmented";
@@ -57,6 +51,9 @@ const TAB_SOURCE: Record<DetailTab, string> = {
  * Every table here is pool-wide rather than account-scoped: these are all
  * traders' rows on the market, which is why no wallet connection is required and
  * why the account columns are shown at all.
+ *
+ * Deposits & withdrawals is the one table that reads its own data: the backend
+ * pages it, so each page is a request of its own ({@link PoolTransactionsTable}).
  */
 export function PoolDetailCard() {
   const { contractAddress, market, hasPool } = usePoolScope();
@@ -93,13 +90,7 @@ export function PoolDetailCard() {
     query: { enabled: hasPool && tab === "tradeHistory" },
   });
 
-  const transactions = usePoolTransactions({
-    marketAddress: contractAddress,
-    size: 100,
-    query: { enabled: hasPool && tab === "transactions" },
-  });
-
-  const error = detail.error ?? openQuotes.error ?? limitOrders.error ?? tradeHistory.error ?? transactions.error;
+  const error = detail.error ?? openQuotes.error ?? limitOrders.error ?? tradeHistory.error;
 
   return (
     <MethodCard
@@ -150,10 +141,7 @@ export function PoolDetailCard() {
                   <PoolTradeHistoryTable rows={tradeHistory.data?.rows ?? []} isPending={tradeHistory.isPending} />
                 ) : null}
                 {tab === "transactions" ? (
-                  <PoolTransactionsTable
-                    transactions={transactions.data?.items ?? []}
-                    isPending={transactions.isPending}
-                  />
+                  <PoolTransactionsTable key={contractAddress} tokenAddress={contractAddress} />
                 ) : null}
               </>
             )}

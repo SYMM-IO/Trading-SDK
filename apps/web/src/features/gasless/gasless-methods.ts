@@ -18,6 +18,8 @@ export interface GaslessMethodMeta {
   kind: "read" | "write";
   /** Secondary SDK symbols and terms the card also demonstrates, kept searchable. */
   aliases?: string[];
+  /** One line on what the card does, written for a search result. */
+  summary: string;
 }
 
 /**
@@ -28,6 +30,7 @@ export interface GaslessMethodMeta {
 export const GASLESS_METHODS: readonly GaslessMethodMeta[] = [
   {
     id: "gasless-service",
+    summary: "Whether this chain can relay gasless actions.",
     method: "supportsGaslessService",
     action: "useSupportsGaslessService",
     kind: "read",
@@ -35,6 +38,7 @@ export const GASLESS_METHODS: readonly GaslessMethodMeta[] = [
   },
   {
     id: "gasless-allowance",
+    summary: "The fee allowance the relayer may charge, and the approval that sets it.",
     method: "getOperationalFeeAllowance",
     action: "useOperationalFeeAllowance",
     kind: "write",
@@ -42,6 +46,7 @@ export const GASLESS_METHODS: readonly GaslessMethodMeta[] = [
   },
   {
     id: "gasless-batch",
+    summary: "Relay several actions as one atomic transaction, with one fee per payer.",
     method: "relayGaslessBatch",
     action: "useRelayGaslessBatch",
     kind: "write",
@@ -56,6 +61,7 @@ export const GASLESS_METHODS: readonly GaslessMethodMeta[] = [
   },
   {
     id: "gasless-request",
+    summary: "Follow one relayer request to its final status.",
     method: "useGaslessRequest",
     action: "getGaslessRequest",
     kind: "read",
@@ -63,6 +69,7 @@ export const GASLESS_METHODS: readonly GaslessMethodMeta[] = [
   },
   {
     id: "gasless-wallet-execute",
+    summary: "Run any contract call from your gasless wallet, with the relayer paying gas.",
     method: "gaslessWalletExecute",
     action: "useGaslessWalletExecute",
     kind: "write",
@@ -70,6 +77,7 @@ export const GASLESS_METHODS: readonly GaslessMethodMeta[] = [
   },
   {
     id: "gasless-deposit",
+    summary: "Bridge collateral to a gasless deposit address and settle it into a new account.",
     method: "getGaslessDepositPolicy",
     action: "useGaslessDepositPolicy",
     kind: "write",

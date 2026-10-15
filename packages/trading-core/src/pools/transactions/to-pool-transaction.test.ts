@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PoolTransactionStatus, PoolTransactionType } from "../types";
+import { ListingDepositChainId, PoolTransactionStatus, PoolTransactionType } from "../types";
 import {
   TransactionType,
   UserReadableTransactionStatus,
@@ -12,7 +12,7 @@ function makeRow(overrides: Partial<MarketTransaction> = {}): MarketTransaction 
   return {
     transaction_id: "3f0c7c1e-0f7a-4c02-9d5d-9d3d2a6f1a11",
     token_address: "0x800822d361335b4d5F352Dac293cA4128b5B605f",
-    chain_id: 8453,
+    chain_id: ListingDepositChainId.BASE,
     wallet_address: "0xf55534BBf9011ca7Ad84b804fdA9E7f4bE18Fe8A",
     amount: "14340638353162345849846",
     usdc_amount: "14340638353162345849846",
@@ -32,6 +32,8 @@ describe("toPoolTransaction", () => {
   it("maps identity, amounts and lifecycle in one pass", () => {
     expect(toPoolTransaction(makeRow())).toEqual({
       transactionId: "3f0c7c1e-0f7a-4c02-9d5d-9d3d2a6f1a11",
+      tokenAddress: "0x800822d361335b4d5F352Dac293cA4128b5B605f",
+      chainId: ListingDepositChainId.BASE,
       walletAddress: "0xf55534BBf9011ca7Ad84b804fdA9E7f4bE18Fe8A",
       amount: 14340638353162345849846n,
       usdcAmount: 14340638353162345849846n,
@@ -44,6 +46,25 @@ describe("toPoolTransaction", () => {
       status: PoolTransactionStatus.SUCCESS,
       time: 1772715579,
     });
+  });
+
+  it("names the row's own pool, so a row from an all-pools page stays attributable", () => {
+    const row = toPoolTransaction(
+      makeRow({
+        token_address: "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn",
+        chain_id: ListingDepositChainId.SOLANA,
+      }),
+    );
+
+    expect(row.tokenAddress).toBe("pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn");
+    expect(row.chainId).toBe(ListingDepositChainId.SOLANA);
+  });
+
+  it("reads every deposit chain the service reports as its ListingDepositChainId member", () => {
+    expect(toPoolTransaction(makeRow({ chain_id: ListingDepositChainId.ROBINHOOD })).chainId).toBe(
+      ListingDepositChainId.ROBINHOOD,
+    );
+    expect(toPoolTransaction(makeRow({ chain_id: ListingDepositChainId.ARC })).chainId).toBe(ListingDepositChainId.ARC);
   });
 
   it("collapses an absent amount to zero — a missing value and no money moved read the same", () => {
@@ -120,6 +141,35 @@ describe("toPoolTransactionPage", () => {
     expect(page.count).toBe(412);
     expect(page.items).toHaveLength(2);
     expect(page.count).not.toBe(page.items.length);
+  });
+
+  it("reads a page that spans every pool as marketAddress null, with each row naming its pool", () => {
+    const page = toPoolTransactionPage({
+      market_address: null,
+      count: 1658,
+      data: [
+        makeRow(),
+        makeRow({
+          token_address: "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn",
+          chain_id: ListingDepositChainId.SOLANA,
+        }),
+      ],
+    });
+
+    expect(page.marketAddress).toBeNull();
+    expect(page.items.map((row) => row.tokenAddress)).toEqual([
+      "0x800822d361335b4d5F352Dac293cA4128b5B605f",
+      "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn",
+    ]);
+  });
+
+  it("tolerates an envelope that omits market_address entirely", () => {
+    const page = toPoolTransactionPage({
+      count: 0,
+      data: [],
+    } as unknown as Parameters<typeof toPoolTransactionPage>[0]);
+
+    expect(page.marketAddress).toBeNull();
   });
 
   it("returns an empty page when the envelope carries no rows", () => {

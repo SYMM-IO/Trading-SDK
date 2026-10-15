@@ -13,7 +13,7 @@ const receipt = await cancelWithdraw(config, {
 });
 ```
 
-The `withdrawId` is the `transactionId` of a still-`PENDING` `withdraw` row from [`getPoolTransactions`](/core/pools/pool-transactions). On success the shares return to the user's available balance, so refetch [`getUserProfit`](/core/pools/user-profit) to see `availableLpAmount` rise and `pendingWithdrawLpAmount` fall.
+The `withdrawId` is the `transactionId` of a still-`PENDING` `withdraw` row from [`getPoolTransactions`](/core/pools/pool-transactions) — fetch exactly those rows with `walletAddress`, `transactionType: PoolTransactionType.WITHDRAW` and `transactionStatus: PoolTransactionStatus.PENDING`, filtered server-side. On success the shares return to the user's available balance, so refetch [`getUserProfit`](/core/pools/user-profit) to see `availableLpAmount` rise and `pendingWithdrawLpAmount` fall.
 
 <Callout type="info">
   This is a REST write against the listing backend, not a contract call, and it is **authed**: the `accessToken` from
