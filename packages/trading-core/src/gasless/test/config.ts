@@ -9,13 +9,15 @@ import type { DeepPartial } from "../../shared/types/properties";
  * Deterministic gasless block used across gasless tests: the staging gateway
  * origin and its multi-wallet GaslessLayer, under a neutral test instance key.
  * The partner `apiKey` exercises the keyed path; anonymous access is covered by
- * tests that drop it.
+ * tests that drop it. The status stream is off so status reads poll: the
+ * Arbitrum registry entry enables it, and streaming tests opt back in.
  */
 export const TEST_GASLESS: SymmioGaslessConfig = {
   url: "https://gaslessq-staging.symmio.foundation",
   protocolInstance: "arbitrum-42161-test",
   gaslessLayerAddress: "0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca",
   apiKey: "test-key",
+  statusStream: { enabled: false },
 };
 
 /** Chain every gasless test targets (the only 0.8.6 chain in the registry). */

@@ -20,14 +20,21 @@ type ChainOverrides = CreateConfigParameters["symmioConfig"];
  * (no `gaslessLayerAddress`) that used to inherit from that block, so
  * `createConfig` now rejects it with `GASLESS_OVERRIDE_INCOMPLETE`.
  *
+ * v4 — the staging InstantLayer moved, and Arbitrum ships a built-in production
+ * `gasless` block. A v3 blob from the staging preset pins the retired
+ * InstantLayer, so the rebase no longer recognises its deployment and drops its
+ * gateway — which now leaves staging contracts paired with the production
+ * gateway instead of with no gateway at all.
+ *
  * A moved **gasless endpoint** no longer needs a bump: every persisted chain is
- * rebased onto the deployment facts in `src/config/symmio-presets.ts` on load
+ * rebased onto the SDK registry or staging preset's deployment facts on load
  * and on every write (see {@link rebaseGaslessDeploymentFacts}), so a gateway
  * origin, protocol instance, GaslessLayer address or stream flag changed in
- * code reaches a returning browser on its next reload. Bump the key for a shape
- * change only.
+ * code reaches a returning browser on its next reload. A moved **InstantLayer**
+ * still needs one, because it is the key the rebase identifies a deployment by.
+ * Bump the key for a shape change or a moved InstantLayer only.
  */
-const STORAGE_KEY = "symmio.config.overrides.v3";
+const STORAGE_KEY = "symmio.config.overrides.v4";
 
 /**
  * Re-apply gasless deployment facts from code onto a set of chain overrides.
@@ -69,7 +76,7 @@ export function rebaseGaslessDeploymentFacts(overrides: ChainOverrides): ChainOv
       rebased[chainId] = chain;
       continue;
     }
-    /** A stored blob is `JSON.parse`d, so even a required block can be missing at runtime. */
+    /** Missing addresses inherit the SDK registry's production deployment. */
     const deployment = findGaslessDeployment(chainId, chain.addresses?.instantLayerAddress);
     if (!deployment) {
       if (!chain.gasless) {

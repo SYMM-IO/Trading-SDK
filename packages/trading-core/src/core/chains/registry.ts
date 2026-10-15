@@ -88,9 +88,28 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
   [SymmioSupportedChainId.ARBITRUM]: {
     chainId: SymmioSupportedChainId.ARBITRUM,
     contractsVersion: "0.8.6",
+    /**
+     * The production GaslessQ deployment, paired with the InstantLayer below
+     * (the GaslessLayer's `instantLayer()` returns it). There is deliberately
+     * no `execution` block: writes keep using the connected wallet until a call
+     * passes `gasless` or the consumer sets `execution.mode`.
+     */
+    gasless: {
+      url: "https://gaslessq.symmio.foundation",
+      /** Vendor-assigned instance key. Keep it verbatim: the gateway routes on it. */
+      protocolInstance: "arbitrum-42161-vibe",
+      gaslessLayerAddress: "0x8347953D80037b8d82827246f37EC7442AD188B4",
+      /**
+       * Declared ahead of the gateway's WebSocket rollout. Until the gateway
+       * accepts the handshake, a status wait stops dialing after a few failed
+       * attempts and polls over HTTP, so streaming starts without an SDK change
+       * once operators enable it.
+       */
+      statusStream: { enabled: true },
+    },
     addresses: {
       symmioAddress: "0x57331027091994FCb9c5Aec48ea92cEf0a93CF6A",
-      instantLayerAddress: "0x54c27E4bf1125391aA76e1D6497B069d91e179f6",
+      instantLayerAddress: "0xf4e8b150fdc756aca578f5a05811c1998c65c829",
       accountLayerAddress: "0x573310d1D6ec18cB21E1aB949414470D9bf5c24E",
       affiliatesAddress: "0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D",
       collateralAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
