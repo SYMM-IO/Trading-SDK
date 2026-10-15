@@ -1,5 +1,6 @@
 import { parseUnits } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { programDelegationReads, readFunctionNames } from "../../../shared/test/delegation-reads";
 import { mockConfig, TEST_USER } from "../../../shared/test/mock-config";
 import { PositionType } from "../../../symmio-contracts/symmio/types";
 import { instantOpenAuto } from "./instant-open-auto";
@@ -45,7 +46,8 @@ describe("instantOpenAuto", () => {
     "submits a fee-inclusive budget and delayed estimate without reading the balance for side %s",
     async (positionType) => {
       const { config, readContract, signTypedData } = mockConfig();
-      readContract.mockRejectedValue(new Error("Unexpected contract read"));
+      /** The signer owns the sub-account, so the delegation check stops after its two account reads. */
+      programDelegationReads(readContract, { owners: { [TEST_USER]: TEST_USER } });
       post.mockResolvedValue({ data: { temp_quote_id: 7 } });
       await expect(
         instantOpenAuto(config, {
@@ -55,9 +57,21 @@ describe("instantOpenAuto", () => {
           estimatedOpenPriceTimestamp: Date.now() - 120_000,
         }),
       ).resolves.toMatchObject({ success: true });
-      expect(readContract).not.toHaveBeenCalled();
+      expect(readFunctionNames(readContract)).toEqual(["getVirtualAccount", "getSubAccount"]);
       expect(signTypedData).toHaveBeenCalledTimes(2);
       expect(post).toHaveBeenCalledTimes(1);
     },
   );
+
+  it("forwards preflightDelegation: false through the prepare step, so nothing is read", async () => {
+    const { config, readContract, signTypedData } = mockConfig();
+    readContract.mockRejectedValue(new Error("Unexpected contract read"));
+    post.mockResolvedValue({ data: { temp_quote_id: 7 } });
+
+    await expect(instantOpenAuto(config, { ...params, preflightDelegation: false })).resolves.toMatchObject({
+      success: true,
+    });
+    expect(readContract).not.toHaveBeenCalled();
+    expect(signTypedData).toHaveBeenCalledTimes(2);
+  });
 });

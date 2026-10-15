@@ -81,24 +81,39 @@ close.mutate(prepared);
 
 ## `useInstantCloseBulk` / `useInstantCloseBulkAuto`
 
-Atomic close of multiple quotes. `Auto` fetches metadata per quote; the primitive expects pre-resolved bags.
+Close up to 100 positions in one solver call. `Auto` fetches metadata per order; the primitive expects pre-resolved bags.
 
 ```tsx
 const bulk = useInstantCloseBulkAuto();
 
 bulk.mutate({
   from: sessionKey,
-  subAccount,
-  virtualAccount,
-  closes: [
-    { quoteId: 42n, quantityToClose: "0.5" },
-    { quoteId: 43n, quantityToClose: "1.0" },
+  orders: [
+    {
+      partyA: vaA,
+      market: { id: 1 },
+      positionType: PositionType.LONG,
+      quoteId: 42n,
+      quantityToClose: "0.5",
+      slippage: 1,
+    },
+    {
+      partyA: vaB,
+      market: { id: 2 },
+      positionType: PositionType.SHORT,
+      quoteId: 43n,
+      quantityToClose: "1.0",
+      slippage: 1,
+    },
   ],
-  slippage: 1,
 });
 ```
 
-The solver may partially accept — inspect per-quote success flags in `mutation.data`.
+`mutation.data` is `{ count, success: true }` once the solver accepts the batch. A solver rejection fails the whole batch; retry with fewer orders.
+
+## Delegation preflight
+
+Every close hook — `useInstantCloseAuto`, `useLimitCloseAuto`, `useInstantClose`, the bulk pair, and [`useCloseQuoteGroup`](../../quotes#useclosequotegroup) — checks before signing that the key holds the `requestToClosePosition` delegation, on the VA's parent sub-account. A key without it fails with a `SymmioRequestError` whose `code` is `INSTANT_SIGNER_NOT_DELEGATED`, before anything is signed or sent (a group close reports it in its summary's `error`). Pass `preflightDelegation: false` when your UI already gates the close on delegation. See [Delegation preflight](../../../core/solvers/instant-close#delegation-preflight).
 
 ## Fees at close
 

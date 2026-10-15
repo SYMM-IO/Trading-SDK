@@ -2,10 +2,15 @@ import { decodeFunctionData, parseUnits, type Address } from "viem";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { SymmioSupportedChainId } from "../../../core/chains";
 import { SymmError } from "../../../shared/errors/symm-error";
-import { mockConfig } from "../../../shared/test/mock-config";
+import { delegationReads, programDelegationReads } from "../../../shared/test/delegation-reads";
+import { mockConfig, TEST_USER } from "../../../shared/test/mock-config";
 import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.6/symmio";
 import { PositionType } from "../../../symmio-contracts/symmio/types";
-import { SEND_QUOTE_SELECTOR, SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR } from "../shared/selectors";
+import {
+  ADD_MARGIN_TO_NEXT_VA_SELECTOR,
+  SEND_QUOTE_SELECTOR,
+  SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR,
+} from "../shared/selectors";
 import { instantOpen } from "./instant-open";
 import type { EnigmaInstantOpenResult, InstantOpenReturnType, RasaInstantOpenResult } from "./types";
 
@@ -235,5 +240,89 @@ describe("instantOpen — kind dispatch", () => {
     expectTypeOf<InstantOpenReturnType<"rasa">>().toEqualTypeOf<RasaInstantOpenResult>();
     expectTypeOf<InstantOpenReturnType<"enigma">>().toEqualTypeOf<EnigmaInstantOpenResult>();
     expectTypeOf<InstantOpenReturnType>().toEqualTypeOf<EnigmaInstantOpenResult | RasaInstantOpenResult>();
+  });
+});
+
+describe("instantOpen — delegation preflight", () => {
+  /** The stub wallet always signs as `TEST_USER`; owning the sub-account elsewhere makes it a delegate. */
+  const SUB_ACCOUNT_OWNER: Address = "0x0000000000000000000000000000000000000a11";
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    { contractsVersion: "0.8.6", openSelector: SEND_QUOTE_SELECTOR },
+    { contractsVersion: "0.8.5", openSelector: SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR },
+  ] as const)(
+    "checks the two Enigma operations it signs on a $contractsVersion chain",
+    async ({ contractsVersion, openSelector }) => {
+      const { config, readContract } = mockConfig({ contractsVersion });
+      programDelegationReads(readContract, { owners: { [SUB_ACCOUNT]: SUB_ACCOUNT_OWNER } });
+      postInstantTradeInstantOpen.mockResolvedValue({ data: { temp_quote_id: 7 } });
+
+      await instantOpen(config, params());
+
+      expect(delegationReads(readContract)).toEqual([
+        [SUB_ACCOUNT, TEST_USER, ADD_MARGIN_TO_NEXT_VA_SELECTOR],
+        [SUB_ACCOUNT, TEST_USER, openSelector],
+      ]);
+    },
+  );
+
+  it("throws INSTANT_SIGNER_NOT_DELEGATED before signing or posting when the Enigma signer lacks a selector", async () => {
+    const { config, readContract, signTypedData } = mockConfig();
+    programDelegationReads(readContract, {
+      owners: { [SUB_ACCOUNT]: SUB_ACCOUNT_OWNER },
+      isDelegationActive: (_delegator, _delegate, selector) => selector !== SEND_QUOTE_SELECTOR,
+    });
+
+    const open = instantOpen(config, params());
+
+    await expect(open).rejects.toMatchObject({ code: "INSTANT_SIGNER_NOT_DELEGATED" });
+    await expect(open).rejects.toThrowError(SEND_QUOTE_SELECTOR);
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(postInstantTradeInstantOpen).not.toHaveBeenCalled();
+  });
+
+  it("checks the Rasa quote-send it signs, and stops before signing or posting when it is missing", async () => {
+    const { config, readContract, signTypedData } = mockConfig();
+    programDelegationReads(readContract, {
+      owners: { [SUB_ACCOUNT]: SUB_ACCOUNT_OWNER },
+      isDelegationActive: () => false,
+    });
+    fetchMuonMock.mockResolvedValue(MUON_RAW);
+    instantRequestForQuoteWithSignatureInstantTradeOpenPost.mockResolvedValue({ data: RASA_RFQ });
+
+    await expect(instantOpen(config, params({ chainId: SymmioSupportedChainId.BASE }))).rejects.toMatchObject({
+      code: "INSTANT_SIGNER_NOT_DELEGATED",
+    });
+    expect(delegationReads(readContract)).toEqual([
+      [SUB_ACCOUNT, TEST_USER, SEND_QUOTE_WITH_AFFILIATE_AND_DATA_SELECTOR],
+    ]);
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(instantRequestForQuoteWithSignatureInstantTradeOpenPost).not.toHaveBeenCalled();
+  });
+
+  it("makes no delegation reads when the signer owns the sub-account", async () => {
+    const { config, readContract } = mockConfig();
+    programDelegationReads(readContract, { owners: { [SUB_ACCOUNT]: TEST_USER }, isDelegationActive: () => false });
+    postInstantTradeInstantOpen.mockResolvedValue({ data: { temp_quote_id: 7 } });
+
+    await expect(instantOpen(config, params())).resolves.toMatchObject({ success: true });
+    expect(delegationReads(readContract)).toEqual([]);
+  });
+
+  it("skips the check entirely with preflightDelegation: false", async () => {
+    const { config, readContract, signTypedData } = mockConfig();
+    programDelegationReads(readContract, {
+      owners: { [SUB_ACCOUNT]: SUB_ACCOUNT_OWNER },
+      isDelegationActive: () => false,
+    });
+    postInstantTradeInstantOpen.mockResolvedValue({ data: { temp_quote_id: 7 } });
+
+    await expect(instantOpen(config, params({ preflightDelegation: false }))).resolves.toMatchObject({ success: true });
+    expect(readContract).not.toHaveBeenCalled();
+    expect(signTypedData).toHaveBeenCalledTimes(2);
   });
 });

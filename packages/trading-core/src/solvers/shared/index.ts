@@ -5,5 +5,6 @@
  * instant-* slices lives here. Slice-specific shared lives under each slice's
  * own `shared/` folder.
  */
+export * from "./instant-delegation-preflight";
 export * from "./resolvers";
 export * from "./solver-close-fee";

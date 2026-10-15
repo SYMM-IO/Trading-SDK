@@ -282,7 +282,7 @@ Required = inputs only the caller can know (wallet, session key, trade intent). 
 
 ## `instantOpen`
 
-Sign the EIP-712 message with `config.getWalletClient({ from })` and POST it to the solver. **This is the low-latency primitive** — everything above (`prepareInstantOpenParams`) has already run; this step is just sign + network.
+Sign the EIP-712 message with `config.getWalletClient({ from })` and POST it to the solver. **This is the low-latency primitive** — everything above (`prepareInstantOpenParams`) has already run; this step is just sign + network, plus one delegation read when a session key signs (see [Delegation preflight](#delegation-preflight)).
 
 ```ts
 const result = await instantOpen(config, resolved);
@@ -313,9 +313,22 @@ The two solver kinds open positions differently, and `instantOpen` dispatches on
 
 Rasa's attestation is encoded _inside_ the signed calldata, so it cannot be cached or fetched afterwards — `instantOpen` fetches it for you on that path.
 
+### Delegation preflight
+
+`instantOpen` signs with whatever key `from` resolves to — usually a session key. Before it signs anything, it checks that the key holds an active [InstantLayer delegation](/core/instant-layer/grant-delegation) from the sub-account for every operation it is about to sign: `addMarginToNextVA` and the quote-send on Enigma, the quote-send alone on Rasa. A key without one fails right there with `INSTANT_SIGNER_NOT_DELEGATED`, before anything is signed or sent, instead of failing at the solver after the user tried to trade.
+
+- **Owner-signed opens skip the delegation reads.** The sub-account's owner needs no delegation; the check stops after reading the owner once per config.
+- **Session-key opens add one RPC round trip.** The per-selector reads run in parallel; the first open for an account also reads the account and its owner, which are then cached.
+- **Grant the trade set once** with [`grantDelegation`](/core/instant-layer/grant-delegation) and `getInstantTradeRequiredSelectors(config, { chainId })`.
+- **Skip the check** with `preflightDelegation: false` when your UI already gates the trade on delegation, for example with [`useAreDelegationsActive`](/react/instant-layer#usearedelegationsactive).
+
+It is the same check [gasless](/core/gasless) runs before relaying a session-key write, so a key is judged the same way on both paths.
+
 ### Parameters
 
-`InstantOpenParameters` — the resolved bag from `prepareInstantOpenParams`. Every field is a concrete value; no fetching happens here, apart from the Rasa Muon signature noted above.
+`InstantOpenParameters` — the resolved bag from `prepareInstantOpenParams`. Every field is a concrete value; no fetching happens here, apart from the Rasa Muon signature and the [delegation preflight](#delegation-preflight) noted above.
+
+`preflightDelegation` (default `true`) turns the delegation preflight off for one call. `prepareInstantOpenParams` passes it through, so `instantOpenAuto` and `limitOpenAuto` accept it too.
 
 On a `contractsVersion: "0.8.6"` chain the Enigma flow signs `sendQuote` carrying `solverFeeCaps` (`SolverFeeCaps` — 18-decimal rate caps the quote authorizes for the solver's open/close fees; the wizard fills the market minimums, falling back to a 1% default when the market publishes none and throwing `INVALID_SOLVER_FEE_CAP` on a malformed vendor string; omitting it on the primitive means zero caps, which a fee-charging solver rejects). On a `"0.8.5"` chain the flow signs the legacy `sendQuoteWithAffiliateAndData` and `solverFeeCaps` is ignored.
 
@@ -349,6 +362,7 @@ A rejection body in HTTP 200 throws `INSTANT_OPEN_REJECTED`, preserving the resp
 
 ### Errors
 
+- `INSTANT_SIGNER_NOT_DELEGATED` (`kind: "validation"`) when the signer lacks the delegation for an operation it would sign. The message names the signer, the sub-account and the missing selectors; nothing was signed or sent.
 - `INSTANT_OPEN_REJECTED`, `INSTANT_OPEN_INVALID_RESPONSE`, or `SEND_INSTANT_OPEN_FAILED` when submission fails.
 - Viem `UserRejectedRequestError` when the user dismisses the signature dialog.
 - `SymmError` (`kind: "config"`) when chain config is missing a solver URL.

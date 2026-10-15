@@ -90,6 +90,8 @@ corresponding live events; preserve polling as a fallback.
 `operationDeadline` and `deadline` are forwarded unchanged. Rejection bodies and missing
 IDs surface as normalized hook errors, retaining solver details in `error.responseData`.
 
+**Delegation preflight** — before signing, every open hook (`useInstantOpenAuto`, `useLimitOpenAuto`, `useInstantOpen`, `useInstantOpenWithTpSl`) checks that the signing key holds the InstantLayer delegation the open needs. A session key without it fails the mutation with a `SymmioRequestError` whose `code` is `INSTANT_SIGNER_NOT_DELEGATED`, before anything is signed or sent; prompt the user to grant the trade set ([`useGrantDelegation`](../../instant-layer#usegrantdelegation)). Pass `preflightDelegation: false` in the variables when your UI already gates the button on delegation, for example with [`useAreDelegationsActive`](../../instant-layer#usearedelegationsactive). See [Delegation preflight](../../../core/solvers/instant-open#delegation-preflight).
+
 ### `useLimitOpenAuto`
 
 The LIMIT-order variant — same one-line shape as `useInstantOpenAuto`, but the user's resting `price` is the trigger and the order writes a **pending on-chain quote** instead of filling immediately. Majors / [Rasa](../../rasa-solver) only; throws `UNSUPPORTED_BY_SOLVER` when the resolved solver has no limit support (gate the UI with [`useSupportsLimitOrder`](../#usesupportslimitorder)). Defaults the send deadline to 15 minutes. Funding is always a typed `initialMargin` here — the [full-balance `fund` mode](../../../core/solvers/instant-open#full-balance-funding-lowcap) is lowcap-only, and limit orders are majors-only.

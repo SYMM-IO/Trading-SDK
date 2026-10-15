@@ -2,6 +2,7 @@ import type { Address, Hex } from "viem";
 import type { SymmioSolverKind } from "../../../core/chains/types";
 import type { ChainIdParameter, Compute, FromParameter } from "../../../shared/types/properties";
 import type { PositionType } from "../../../symmio-contracts/symmio/types";
+import type { InstantDelegationPreflightParameter } from "../../shared/instant-delegation-preflight";
 import type { RasaInstantOpen } from "../get-instant-opens/types";
 import type {
   InstantOpenLockedParams,
@@ -23,7 +24,8 @@ import type {
  */
 export type InstantOpenParameters<K extends SymmioSolverKind = SymmioSolverKind> = Compute<
   ChainIdParameter &
-    FromParameter & {
+    FromParameter &
+    InstantDelegationPreflightParameter & {
       /** Which solver to open against. Omit to use the chain's default solver. */
       solverId?: K;
       /** Sub-account / partyA address — the `signerAccount.addr` the operation runs under. */

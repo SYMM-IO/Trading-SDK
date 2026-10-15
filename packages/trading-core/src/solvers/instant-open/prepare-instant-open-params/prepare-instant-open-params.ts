@@ -6,6 +6,7 @@ import type { Compute, WriteSolverParameter } from "../../../shared/types/proper
 import { decimalPriceToWei } from "../../../shared/utils/price";
 import type { FeeForUser } from "../../../symmio-contracts/symmio/actions/get-fee-for-user";
 import type { EnigmaSolverInfo } from "../../get-solver-info";
+import type { InstantDelegationPreflightParameter } from "../../shared/instant-delegation-preflight";
 import type { ApiLockedParamsBySymbolIdResponse } from "../../types/generated/enigma-solver";
 import type { InstantOpenParameters } from "../instant-open/types";
 import {
@@ -79,67 +80,69 @@ export interface FullBalanceFunding {
 
 /**
  * Fields shared by every {@link PrepareInstantOpenParameters} funding mode.
+ * `preflightDelegation` is forwarded to {@link InstantOpenParameters}.
  */
-type PrepareInstantOpenBaseParameters = WriteSolverParameter & {
-  /** Sub-account / partyA address. */
-  subAccountAddress: Address;
-  /** Market identification + optional pre-fetched precision metadata. */
-  market: InstantOpenMarketData;
-  /** Trade side. */
-  positionType: PositionType;
-  /** Position leverage (integer ≥ 1). */
-  leverage: number;
-  /**
-   * Slippage tolerance percent (e.g. `5` for 5%). **Required on majors
-   * (non-lowcap) solvers.** On a lowcap solver it may be omitted to
-   * auto-derive: the SDK dry-runs the sized order and sets the price bound
-   * to the estimated fill price plus 4% headroom (falling back to a flat 4%
-   * off mark when the estimate is unavailable).
-   */
-  slippage?: number;
-  /** Pre-fetched mark price as decimal string. When omitted, fetched via Enigma price service. */
-  markPrice?: string;
-  /**
-   * Pre-fetched solver estimated open (fill) price as decimal string —
-   * **lowcap/Enigma only**; ignored on any other solver kind. When omitted
-   * on a lowcap solver, fetched via `GET /estimated-price`. Pass `null` when
-   * an estimate was attempted but unavailable to skip fetching and use the fallback.
-   * Feeds the settlement-loss provision, the slippage gate, and (when `slippage` is
-   * omitted) the auto-slippage derivation.
-   */
-  estimatedOpenPrice?: string | null;
-  /** Optional estimate arrival time in epoch milliseconds. Accepted for compatibility; core does not use it. */
-  estimatedOpenPriceTimestamp?: number;
-  /**
-   * Pre-fetched solver locked params (matches `getLockedParams` return —
-   * `ApiLockedParamsBySymbolIdResponse`). When supplied with all four
-   * percent fields, the fetch is skipped.
-   */
-  lockedParamPercent?: ApiLockedParamsBySymbolIdResponse;
-  /**
-   * Pre-fetched on-chain fee rates (matches `getFeeForUser` return —
-   * `FeeForUser`). When omitted, fetched via `getFeeForUser`.
-   */
-  feeRates?: FeeForUser;
-  /**
-   * Pre-fetched solver static fees (matches `getSolverInfo` return) —
-   * **lowcap/Enigma only**; ignored on any other solver kind. When omitted on
-   * a lowcap solver, fetched via `getSolverInfo` (fail-soft: an unreachable
-   * `/info` prices both static legs at `"0"`). The flat USD legs ride the
-   * `addMargin` transfer like the rate-based solver fees.
-   */
-  solverInfo?: EnigmaSolverInfo;
-  /** Forwarded to {@link InstantOpenParameters}. */
-  uuid?: string;
-  /** Forwarded to {@link InstantOpenParameters}. */
-  addMarginSalt?: Hex;
-  /** Forwarded to {@link InstantOpenParameters}. */
-  sendQuoteSalt?: Hex;
-  /** Forwarded to {@link InstantOpenParameters}. */
-  deadline?: bigint;
-  /** Lowcap operation expiry, separate from quote expiry. Forwarded to instantOpen. */
-  operationDeadline?: bigint;
-};
+type PrepareInstantOpenBaseParameters = WriteSolverParameter &
+  InstantDelegationPreflightParameter & {
+    /** Sub-account / partyA address. */
+    subAccountAddress: Address;
+    /** Market identification + optional pre-fetched precision metadata. */
+    market: InstantOpenMarketData;
+    /** Trade side. */
+    positionType: PositionType;
+    /** Position leverage (integer ≥ 1). */
+    leverage: number;
+    /**
+     * Slippage tolerance percent (e.g. `5` for 5%). **Required on majors
+     * (non-lowcap) solvers.** On a lowcap solver it may be omitted to
+     * auto-derive: the SDK dry-runs the sized order and sets the price bound
+     * to the estimated fill price plus 4% headroom (falling back to a flat 4%
+     * off mark when the estimate is unavailable).
+     */
+    slippage?: number;
+    /** Pre-fetched mark price as decimal string. When omitted, fetched via Enigma price service. */
+    markPrice?: string;
+    /**
+     * Pre-fetched solver estimated open (fill) price as decimal string —
+     * **lowcap/Enigma only**; ignored on any other solver kind. When omitted
+     * on a lowcap solver, fetched via `GET /estimated-price`. Pass `null` when
+     * an estimate was attempted but unavailable to skip fetching and use the fallback.
+     * Feeds the settlement-loss provision, the slippage gate, and (when `slippage` is
+     * omitted) the auto-slippage derivation.
+     */
+    estimatedOpenPrice?: string | null;
+    /** Optional estimate arrival time in epoch milliseconds. Accepted for compatibility; core does not use it. */
+    estimatedOpenPriceTimestamp?: number;
+    /**
+     * Pre-fetched solver locked params (matches `getLockedParams` return —
+     * `ApiLockedParamsBySymbolIdResponse`). When supplied with all four
+     * percent fields, the fetch is skipped.
+     */
+    lockedParamPercent?: ApiLockedParamsBySymbolIdResponse;
+    /**
+     * Pre-fetched on-chain fee rates (matches `getFeeForUser` return —
+     * `FeeForUser`). When omitted, fetched via `getFeeForUser`.
+     */
+    feeRates?: FeeForUser;
+    /**
+     * Pre-fetched solver static fees (matches `getSolverInfo` return) —
+     * **lowcap/Enigma only**; ignored on any other solver kind. When omitted on
+     * a lowcap solver, fetched via `getSolverInfo` (fail-soft: an unreachable
+     * `/info` prices both static legs at `"0"`). The flat USD legs ride the
+     * `addMargin` transfer like the rate-based solver fees.
+     */
+    solverInfo?: EnigmaSolverInfo;
+    /** Forwarded to {@link InstantOpenParameters}. */
+    uuid?: string;
+    /** Forwarded to {@link InstantOpenParameters}. */
+    addMarginSalt?: Hex;
+    /** Forwarded to {@link InstantOpenParameters}. */
+    sendQuoteSalt?: Hex;
+    /** Forwarded to {@link InstantOpenParameters}. */
+    deadline?: bigint;
+    /** Lowcap operation expiry, separate from quote expiry. Forwarded to instantOpen. */
+    operationDeadline?: bigint;
+  };
 
 /**
  * Parameters for {@link prepareInstantOpenParams} and `instantOpenAuto`.
@@ -521,5 +524,6 @@ export async function prepareInstantOpenParams(
     sendQuoteSalt: parameters.sendQuoteSalt,
     deadline: parameters.deadline,
     operationDeadline: parameters.operationDeadline,
+    preflightDelegation: parameters.preflightDelegation,
   };
 }

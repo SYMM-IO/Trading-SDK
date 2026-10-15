@@ -412,8 +412,9 @@ async function resolveGate(config, ctx) {
 <Callout type="warning">
   **The delegation rung must check every selector, not just one.** A partial delegation passes an `open`-only check but
   fails on `close` or margin top-up later. Gate the trade form on _all_ of every selector in
-  [`getInstantTradeRequiredSelectors(config)`](/core/instant-layer/grant-delegation) being active — this is the #1
-  silent-open-failure (see [§4 Session key + delegation](/core/instant-layer/get-is-delegation-active)).
+  [`getInstantTradeRequiredSelectors(config)`](/core/instant-layer/grant-delegation) being active — otherwise the trade
+  fails with `INSTANT_SIGNER_NOT_DELEGATED` (see [§4 Session key +
+  delegation](/core/instant-layer/get-is-delegation-active)).
 </Callout>
 
 Two rungs are worth calling out because they have no dedicated read of their own:
@@ -703,9 +704,11 @@ A **session key** is a local keypair you generate once, **persist to durable sto
 The catch: the session key can only act on selectors the SubAccount has **delegated on-chain**. Delegation is a real contract write on the Instant Layer (`instantLayerAddress`); the hedger will happily accept a session-signed payload, but the on-chain anchor reverts if the matching selector isn't delegated. So delegation is a hard gate that sits between "collateral deposited" and "open position."
 
 <Callout type="warning">
-  **Missing delegation is the #1 silent-open-failure.** The hedger accepts the session-key payload and your spinner
-  completes, but the on-chain anchor reverts *after* the fact because the selector was never delegated. There is no
-  synchronous error to catch. Gate the trade form on `allActive === true` (below), not on the hedger POST resolving.
+  **Gate the trade form on delegation.** `instantOpen` and `instantClose` check it before signing and throw
+  `INSTANT_SIGNER_NOT_DELEGATED`, so a missing selector fails fast instead of reverting on-chain after the hedger
+  accepted the payload ([Delegation preflight](/core/solvers/instant-open#delegation-preflight)). Still gate the form on
+  `allActive === true` (below), so the user grants delegation before they try to trade rather than after a failed
+  attempt.
 </Callout>
 
 ### Selectors
@@ -1060,10 +1063,10 @@ The "Max" affordance is pure math — no read required. `calculateAvailableInsta
 Run `calculateTradeParams` then `validateInstantOpenAgainstMarket` before signing. Surface every violation (min notional, leverage bounds, notional cap) in the form so the user never submits a request the solver will reject.
 
 <Callout type="warning">
-  **Missing delegation is the #1 silent-open-failure.** The hedger accepts the session-key payload and returns a
-  `tempQuoteId`, but the on-chain anchor reverts if the required selector was never delegated — after your spinner ends.
-  Gate the trade form on `getIsDelegationActive` for every selector in `getInstantTradeRequiredSelectors(config)` (see
-  [Session key + delegation](#4-session-key--delegation)).
+  **Gate the form on delegation.** A session key missing a required selector makes `instantOpen` throw
+  `INSTANT_SIGNER_NOT_DELEGATED` before it signs anything. Gate the trade form on `getIsDelegationActive` for every
+  selector in `getInstantTradeRequiredSelectors(config)` so the user grants it first (see [Session key +
+  delegation](#4-session-key--delegation)).
 </Callout>
 
 Invalidate on open success: `getInstantOpensQueryKey` scoped `{ configKey }`. That is the only invalidation — the rest of the open's lifecycle (anchor, fill, settle) arrives over the notifications stream and is reconciled by `reconcileQuotes`, not by refetching.
@@ -1679,17 +1682,16 @@ Everything below is a hand-built equivalent of machinery `@symmio/trading-react`
 - [ ] TP/SL confirmed on the WS `report` frame (`state:"new"`), not on the POST 200.
 
 <Callout type="warning">
-  **Missing delegation is the #1 silent-open-failure.** The hedger accepts the session-key payload and your spinner
-  completes, but the on-chain anchor reverts afterward if the selector was never delegated. Gate the trade form on
-  `getIsDelegationActive` returning `true` for every selector in the chain's `getInstantTradeRequiredSelectors(config)`
-  set.
+  **Gate the form on delegation.** A session key missing a selector makes every open and close throw
+  `INSTANT_SIGNER_NOT_DELEGATED` before signing. Gate the trade form on `getIsDelegationActive` returning `true` for
+  every selector in the chain's `getInstantTradeRequiredSelectors(config)` set.
 </Callout>
 
 ## Pitfalls
 
 | Symptom                                                                                              | Cause                                                         | Fix                                                                                                                                                                                  |
 | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Open silently reverts after the spinner ends                                                         | Missing on-chain delegation for a required selector           | Gate on `getIsDelegationActive(config, { account, delegate, selector })` for every selector before enabling the open                                                                 |
+| Open or close throws `INSTANT_SIGNER_NOT_DELEGATED`                                                  | Missing on-chain delegation for a required selector           | Gate on `getIsDelegationActive(config, { account, delegate, selector })` for every selector before enabling the open                                                                 |
 | Approve succeeds but deposit reverts                                                                 | Approved the wrong spender                                    | `approveCollateral` must approve `symmioAddress` (the SYMMIO core), not the account layer                                                                                            |
 | TP/SL box empty after a successful POST                                                              | Flow resolved on the POST 200                                 | Wait for the `watchTpSlNotifications` `report` frame (`state:"new"`); the POST only flips the record to `"confirming"`                                                               |
 | Row flickers out then reappears mid-open                                                             | Optimistic-open cleared on `link` instead of on-chain arrival | Settle the optimistic entry only when the reconciled row carries `raw.onchain`                                                                                                       |

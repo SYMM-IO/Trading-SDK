@@ -1,4 +1,5 @@
 import { getSendQuoteUpnlSig } from "../../../../muon/send-quote-upnl-sig";
+import { assertInstantSignerDelegated } from "../../../shared/instant-delegation-preflight";
 import { toRasaInstantOpen } from "../../get-instant-opens/adapters/rasa-instant-opens";
 import { encodeSendQuoteWithAffiliateAndData } from "../../shared/calldata";
 import { sendRasaInstantOpen } from "../../shared/hedger-api";
@@ -22,6 +23,8 @@ import type { InstantOpenAdapterContext } from "./context";
  * nothing to delegate.
  *
  * @throws {SymmError} when the Muon attestation cannot be fetched.
+ * @throws {SymmError} `INSTANT_SIGNER_NOT_DELEGATED` when the signer lacks the
+ *   delegation for the operation, before it is signed.
  * @throws {SymmApiError} when the hedger request fails.
  * @internal
  */
@@ -63,6 +66,13 @@ export async function submitRasaInstantOpen(
     signerAccount: parameters.subAccountAddress,
     deadline,
     salt: parameters.sendQuoteSalt,
+  });
+
+  await assertInstantSignerDelegated(config, {
+    chainId: context.chainId,
+    action: "instantOpen",
+    operations: [sendQuoteOp],
+    enabled: parameters.preflightDelegation,
   });
 
   const sendQuote = await signAndFormatInstantOperation(config, {

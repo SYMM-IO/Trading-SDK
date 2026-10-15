@@ -1822,6 +1822,16 @@ export {
 } from "./solvers/shared/solver-close-fee";
 
 /**
+ * Instant-trade delegation check
+ * ------------------------------
+ * `instantOpen`, `instantClose` and `instantCloseBulk` (and the flows built on
+ * them) check before signing that the signer holds the InstantLayer delegation
+ * the operations need, and throw `INSTANT_SIGNER_NOT_DELEGATED` when it does
+ * not. `preflightDelegation: false` skips the check per call.
+ */
+export { type InstantDelegationPreflightParameter } from "./solvers/shared/instant-delegation-preflight";
+
+/**
  * InstantLayer v2 (lowcap) — Instant Close
  * ----------------------------------------
  * Lowcap instant-close flow: close-price math, calldata encoder for
