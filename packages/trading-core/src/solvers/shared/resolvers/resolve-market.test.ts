@@ -17,6 +17,8 @@ vi.mock("../../types/generated/rasa-solver", async (importOriginal) => {
   return { ...actual, getContractSymbolsContractSymbolsGet };
 });
 
+import { PositionType } from "../../../symmio-contracts/symmio/types";
+import { prepareInstantOpenParams } from "../../instant-open/prepare-instant-open-params/prepare-instant-open-params";
 import { resolveMarket } from "./resolve-market";
 
 const AFFILIATE = "0x000000000000000000000000000000000000aFF1";
@@ -96,6 +98,32 @@ describe("resolveMarket", () => {
     getContractSymbols.mockResolvedValue({ data: { symbols: [MARKET] } });
     const result = await resolveMarket(config, { marketId: 1 });
     expect(result).toEqual({ name: "BTCUSDT", pricePrecision: 2, quantityPrecision: 3 });
+  });
+
+  it("resolves disabled-market metadata and permits preparing an order", async () => {
+    getContractSymbolsContractSymbolsGet.mockResolvedValue({
+      data: { symbols: [{ ...RASA_MARKET, is_valid: false }] },
+    });
+    const selection = { chainId: SymmioSupportedChainId.BASE, solverId: "rasa" as const };
+    await expect(resolveMarket(multiSolverConfig, { ...selection, marketId: 1 })).resolves.toEqual({
+      name: "ETHUSDT",
+      pricePrecision: 7,
+      quantityPrecision: 8,
+    });
+    await expect(
+      prepareInstantOpenParams(multiSolverConfig, {
+        ...selection,
+        subAccountAddress: AFFILIATE,
+        market: { id: 1 },
+        positionType: PositionType.LONG,
+        initialMargin: "100",
+        leverage: 2,
+        slippage: 1,
+        markPrice: "100",
+        lockedParamPercent: { cva: "7", lf: "3", partyAmm: "90", partyBmm: "0" },
+        feeRates: { openFee: 0n, closeFee: 0n, isSet: true },
+      }),
+    ).resolves.toMatchObject({ marketId: 1, positionType: PositionType.LONG });
   });
 
   it("throws RESOLVE_MARKET_NOT_FOUND when no market matches", async () => {

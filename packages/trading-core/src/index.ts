@@ -1822,6 +1822,16 @@ export {
 } from "./solvers/shared/solver-close-fee";
 
 /**
+ * Instant-trade delegation check
+ * ------------------------------
+ * `instantOpen`, `instantClose` and `instantCloseBulk` (and the flows built on
+ * them) check before signing that the signer holds the InstantLayer delegation
+ * the operations need, and throw `INSTANT_SIGNER_NOT_DELEGATED` when it does
+ * not. `preflightDelegation: false` skips the check per call.
+ */
+export { type InstantDelegationPreflightParameter } from "./solvers/shared/instant-delegation-preflight";
+
+/**
  * InstantLayer v2 (lowcap) — Instant Close
  * ----------------------------------------
  * Lowcap instant-close flow: close-price math, calldata encoder for
@@ -2537,6 +2547,7 @@ export {
   ListingDepositChainId,
   ListingMarketStatus,
   MarketLockReason,
+  TokenPriceChain,
   addMarket,
   addMarketMutationOptions,
   authenticateListing,
@@ -2564,6 +2575,9 @@ export {
   getRetryListingInfo,
   getRetryListingInfoQueryKey,
   getRetryListingInfoQueryOptions,
+  getTokenPrice,
+  getTokenPriceQueryKey,
+  getTokenPriceQueryOptions,
   getUserListingMarkets,
   getUserListingMarketsQueryKey,
   getUserListingMarketsQueryOptions,
@@ -2602,6 +2616,7 @@ export {
   toRefundResult,
   toRetryListingInfo,
   toRetryListingResult,
+  toTokenPrice,
   toUserListingMarket,
   toUserListingMarketPage,
   toUserPoolProfit,
@@ -2658,6 +2673,12 @@ export {
   type GetRetryListingInfoQueryKey,
   type GetRetryListingInfoQueryOptions,
   type GetRetryListingInfoReturnType,
+  type GetTokenPriceData,
+  type GetTokenPriceOptions,
+  type GetTokenPriceParameters,
+  type GetTokenPriceQueryKey,
+  type GetTokenPriceQueryOptions,
+  type GetTokenPriceReturnType,
   type GetUserListingMarketsData,
   type GetUserListingMarketsOptions,
   type GetUserListingMarketsParameters,
@@ -2711,6 +2732,7 @@ export {
   type RetryListingParameters,
   type RetryListingResult,
   type RetryListingReturnType,
+  type TokenPrice,
   type UserListingMarket,
   type UserListingMarketPage,
   type UserPoolProfit,

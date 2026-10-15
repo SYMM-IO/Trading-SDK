@@ -70,4 +70,11 @@ describe("prepareInstantCloseParams", () => {
 
     expect(result.solverId).toBeUndefined();
   });
+
+  /** `instantCloseAuto` and `limitCloseAuto` reach `instantClose` only through this result. */
+  it("carries preflightDelegation into the returned InstantCloseParameters", async () => {
+    const result = await prepareInstantCloseParams(config, { ...PARAMS, preflightDelegation: false });
+
+    expect(result.preflightDelegation).toBe(false);
+  });
 });

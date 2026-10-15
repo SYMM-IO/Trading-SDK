@@ -19,11 +19,12 @@ function formatFixedPoint(raw: bigint): string {
 /**
  * Format a solver-fee field, which is `null` rather than `0n` when the event
  * recorded no fee at all — liquidation and ADL rows, and deployments indexed
- * before the fee existed. An em dash reads as "not recorded"; a formatted `0`
- * would claim the solver charged nothing.
+ * before the fee existed. Older persisted snapshots can omit the field entirely.
+ * An em dash reads as "not recorded"; a formatted `0` would claim the solver
+ * charged nothing.
  */
-function formatSolverFee(raw: bigint | null): string {
-  return raw === null ? "—" : formatFixedPoint(raw);
+function formatSolverFee(raw: bigint | null | undefined): string {
+  return raw == null ? "—" : formatFixedPoint(raw);
 }
 
 /** Human label for each close/liquidation event type. */

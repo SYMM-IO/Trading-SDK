@@ -70,15 +70,15 @@ When a billing account has spent its daily free operations and the deployment re
 
 ### Exact quotes and signed fee limits
 
-The GaslessLayer also exposes `simulateFeeQuote`, which runs the completed request through `eth_call` for an exact quote, and signed fee limits that cap an operation's fee inside its replay salt. The SDK wraps neither yet. The simulation executes the real relay as its caller, so it needs the relayer's own address and real signatures; the relayer already simulates every request before accepting it. The fee-limit check is not deployed on the staging GaslessLayer yet.
+The GaslessLayer also exposes `simulateFeeQuote`, which runs the completed request through `eth_call` for an exact quote, and signed fee limits that cap an operation's fee inside its replay salt. The SDK wraps neither yet. The simulation executes the real relay as its caller, so it needs the relayer's own address and real signatures; the relayer already simulates every request before accepting it. The fee-limit check is not deployed on the production or staging GaslessLayer yet.
 
 ### Empty revert data
 
 <Callout type="warning">
   **Multi-wallet GaslessLayer only.** A GaslessLayer proxy that has not been upgraded to the multi-wallet interface has
   no `previewFeeQuote`, so every quote against it reverts with empty data and throws
-  `GASLESS_LAYER_INTERFACE_UNSUPPORTED`. The production proxy `0x8347953D80037b8d82827246f37EC7442AD188B4` is in that
-  state until the vendor upgrades it.
+  `GASLESS_LAYER_INTERFACE_UNSUPPORTED`. Both Arbitrum deployments, production and staging, run the multi-wallet
+  interface.
 </Callout>
 
 An upgraded GaslessLayer also reverts with empty data when it cannot decode the batch, for example malformed wallet `execute` calldata. So on an empty revert the SDK makes one more read on the same address, quoting empty calldata. An upgraded GaslessLayer rejects that with `UnsupportedFeeQuoteCall`, which means the batch is at fault, and the SDK throws `GASLESS_FEE_QUOTE_REVERTED`. Another empty revert means the interface is missing, and the SDK throws `GASLESS_LAYER_INTERFACE_UNSUPPORTED`. If that second read fails for transport reasons, the SDK rethrows the original viem error unchanged.

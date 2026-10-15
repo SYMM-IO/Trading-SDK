@@ -1,6 +1,7 @@
 import { isAddressEqual, type Address, type Hex } from "viem";
 import type { Config } from "../core/config";
 import { getSubAccount } from "../symmio-contracts/account-layer/actions/get-sub-account";
+import { getVirtualAccount } from "../symmio-contracts/account-layer/actions/get-virtual-account";
 import { getIsDelegationActive } from "../symmio-contracts/instant-layer/actions/get-is-delegation-active";
 
 /**
@@ -55,6 +56,59 @@ export function getCachedGaslessAccountOwner(
      * error.
      */
     detail.isExists ? detail.owner : null,
+  );
+  cache.set(key, read);
+  read.catch(() => {
+    if (cache.get(key) === read) cache.delete(key);
+  });
+  return read;
+}
+
+/**
+ * One virtual-account read per (config, chainId, account).
+ *
+ * Cached for the config's lifetime on the same terms as {@link accountOwners}: a
+ * live virtual account never changes parent, and an address never moves between
+ * being a sub-account and a virtual account. The one way an entry goes stale —
+ * a virtual account deleted mid-session — costs a probe against the parent, never
+ * a wrong authorization: the contract re-resolves the account on execution.
+ */
+const delegatorAccounts = new WeakMap<Config, Map<string, Promise<Address>>>();
+
+/**
+ * The account a delegation over `account` is recorded and enforced under, read
+ * once per config lifetime.
+ *
+ * Mirrors the InstantLayer's canonical-delegator rule: a **live** virtual
+ * account resolves to its parent sub-account, and anything else — a sub-account,
+ * or a deleted virtual account — stays itself. Pass the result, not the raw
+ * account, to {@link findUndelegatedGaslessSelectors}: its owner read and its
+ * `isDelegationActive` probes both take a sub-account, and a virtual account
+ * there would skip the check entirely.
+ *
+ * The real promise is cached and dropped on rejection, like
+ * {@link getCachedGaslessAccountOwner}.
+ *
+ * @param config - The SDK config.
+ * @param chainId - The chain the account lives on.
+ * @param account - A sub-account or a virtual account.
+ * @returns The parent sub-account for a live virtual account, otherwise `account`.
+ *
+ * @internal
+ */
+export function getCachedDelegatorAccount(config: Config, chainId: number, account: Address): Promise<Address> {
+  let byAccount = delegatorAccounts.get(config);
+  if (!byAccount) {
+    byAccount = new Map();
+    delegatorAccounts.set(config, byAccount);
+  }
+  const cache = byAccount;
+  const key = `${chainId}:${account.toLowerCase()}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  const read = getVirtualAccount(config, { chainId, account }).then((detail) =>
+    detail.isExists ? detail.parentAccount : account,
   );
   cache.set(key, read);
   read.catch(() => {

@@ -74,6 +74,7 @@ const AUTHED_LISTING_QUERY_KEYS = new Set([
   "getDepositAddress",
   "getListingMarketConfig",
   "getRetryListingInfo",
+  "getTokenPrice",
   "getUserListingMarkets",
   "getUserProfit",
   "getUserRewardChart",

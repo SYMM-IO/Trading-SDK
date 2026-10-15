@@ -8,6 +8,7 @@ export default {
   "claim-history": "getClaimHistory",
   "user-transactions": "getUserTransactions",
   "deposit-address": "getDepositAddress",
+  "token-price": "getTokenPrice",
   "listing-status": "getListingStatus",
   "listing-config": "getListingConfig",
   "market-config": "getListingMarketConfig",

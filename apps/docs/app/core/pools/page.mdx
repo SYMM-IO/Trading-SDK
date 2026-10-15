@@ -97,6 +97,9 @@ Range filter bounds use the **same 18-decimal scale as the response**. A one-mil
   <MethodEntry name="getListingMarketConfig" href="/core/pools/market-config">
     The signed-in LP's own leverage and buyback opinion for one pool, next to the pool values in force. Authed.
   </MethodEntry>
+  <MethodEntry name="getTokenPrice" href="/core/pools/token-price">
+    A pre-listing USD price estimate for a token, by chain name and address. Authed, cached five minutes, rate-limited.
+  </MethodEntry>
 </MethodIndex>
 
 ## Pool detail
@@ -192,11 +195,15 @@ The mappers `getListingMarkets` runs on the way out. Reach for them only when yo
   <MethodEntry name="ListingMarket" href="/core/pools/listing-market-type">
     One catalog row, its trailing-window metrics, its lifecycle status, and the page envelope around it.
   </MethodEntry>
+  <MethodEntry name="TokenPriceChain" href="/core/pools/token-price#tokenpricechain">
+    The chains the token-price endpoint accepts, by vendor chain name — a different key space from
+    `ListingDepositChainId`.
+  </MethodEntry>
 </MethodIndex>
 
 ## Query options
 
-The catalog read ships a matching `getListingMarketsQueryOptions` factory and a `getListingMarketsQueryKey` builder for TanStack Query. The resolved chain config's fingerprint is folded into the key, so a `createConfig` override pointed at staging never reads production's cached catalog. See [`getListingMarkets`](/core/pools/get-listing-markets#query-options) for the exact call.
+The catalog read ships a matching `getListingMarketsQueryOptions` factory and a `getListingMarketsQueryKey` builder for TanStack Query. The resolved chain config's fingerprint is folded into the key, so a `createConfig` override pointed at staging never reads production's cached catalog. See [`getListingMarkets`](/core/pools/get-listing-markets#query-options) for the exact call. One read sets its own cache policy: [`getTokenPrice`](/core/pools/token-price#query-options) defaults `staleTime` and `gcTime` to five minutes to match the backend's cache and spare its rate limit.
 
 ## Errors
 
@@ -206,6 +213,8 @@ The catalog read ships a matching `getListingMarketsQueryOptions` factory and a 
 - `FETCH_LISTING_MARKET_CONFIG_FAILED` — the [market-config read](/core/pools/market-config) failed, with the same shape. It carries the `401` on a bad or expired bearer token, and a **`404`** where the read is not deployed on the pool's listing backend yet — treat that one as "opinion unknown", not as a blocking failure.
 - `UPDATE_LISTING_MARKET_CONFIG_FAILED` — the [market-config write](/core/pools/update-market-config) failed, with the same shape. It carries the `401` on a bad token, the `422` on a value outside the service's accepted leverage/buyback range, and the `429` when the rolling-24h `marketConfigUpdatesPerDay` cap is exhausted.
 - `MISSING_MARKET_CONFIG_VALUES` — a `SymmError` with `kind: "validation"`, thrown client-side before any request when `updateListingMarketConfig` is called with neither `maxLeverage` nor `buybackRatio`.
+- `FETCH_TOKEN_PRICE_FAILED` — the [pre-listing price read](/core/pools/token-price) failed, with the same shape. It carries the `401` on a bad or expired bearer token, the `422` on an address the service cannot resolve, and the `429` once the endpoint's rate limit is exhausted (`retryAfterMs` carries the wait when the service sends one).
+- `MISSING_ACCESS_TOKEN` / `UNSUPPORTED_TOKEN_PRICE_CHAIN` — `SymmError`s with `kind: "validation"`, thrown client-side before any request when `getTokenPrice` is called with an empty `accessToken` or a `chain` outside `TokenPriceChain`.
 
 ## Related
 

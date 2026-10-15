@@ -1,9 +1,11 @@
-import { decodeFunctionData } from "viem";
+import { decodeFunctionData, type Address } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmioSupportedChainId } from "../../../core/chains";
 import { createConfig } from "../../../core/config";
-import { mockConfig, TEST_AFFILIATE_ADDRESS, TEST_TYPED_SIGNATURE } from "../../../shared/test/mock-config";
+import { delegationReads, programDelegationReads } from "../../../shared/test/delegation-reads";
+import { mockConfig, TEST_AFFILIATE_ADDRESS, TEST_TYPED_SIGNATURE, TEST_USER } from "../../../shared/test/mock-config";
 import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.6/symmio";
+import { REQUEST_TO_CLOSE_POSITION_SELECTOR } from "../../instant-open/shared/selectors";
 import { instantCloseBulk, type InstantCloseBulkOrder } from "./instant-close-bulk";
 
 const { postInstantTradeInstantClose, instantRequestToCloseWithSignatureInstantTradeClosePost } = vi.hoisted(() => ({
@@ -117,5 +119,67 @@ describe("instantCloseBulk — signed order type", () => {
     expect(
       solverId === "enigma" ? instantRequestToCloseWithSignatureInstantTradeClosePost : postInstantTradeInstantClose,
     ).not.toHaveBeenCalled();
+  });
+});
+
+describe("instantCloseBulk — delegation preflight", () => {
+  /** Both `ORDERS` positions sit on virtual accounts of this one sub-account. */
+  const PARENT_SUB_ACCOUNT: Address = "0x0000000000000000000000000000000000005ab9";
+  const PARENT_OWNER: Address = "0x0000000000000000000000000000000000000a11";
+  const PARENTS: Record<Address, Address> = Object.fromEntries(
+    ORDERS.map((order) => [order.partyA, PARENT_SUB_ACCOUNT]),
+  );
+
+  beforeEach(() => {
+    postInstantTradeInstantClose.mockResolvedValue({ data: undefined });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("checks the shared parent sub-account once, before signing any order", async () => {
+    const { config, readContract, signTypedData } = mockConfig();
+    programDelegationReads(readContract, { parents: PARENTS, owners: { [PARENT_SUB_ACCOUNT]: PARENT_OWNER } });
+
+    await expect(instantCloseBulk(config, { orders: ORDERS })).resolves.toEqual({
+      count: ORDERS.length,
+      success: true,
+    });
+
+    expect(delegationReads(readContract)).toEqual([
+      [PARENT_SUB_ACCOUNT, TEST_USER, REQUEST_TO_CLOSE_POSITION_SELECTOR],
+    ]);
+    expect(signTypedData).toHaveBeenCalledTimes(ORDERS.length);
+    /** Every read lands before the first signature prompt. */
+    expect(Math.max(...readContract.mock.invocationCallOrder)).toBeLessThan(
+      Math.min(...signTypedData.mock.invocationCallOrder),
+    );
+  });
+
+  it("throws INSTANT_SIGNER_NOT_DELEGATED before signing any order or posting the batch", async () => {
+    const { config, readContract, signTypedData } = mockConfig();
+    programDelegationReads(readContract, {
+      parents: PARENTS,
+      owners: { [PARENT_SUB_ACCOUNT]: PARENT_OWNER },
+      isDelegationActive: () => false,
+    });
+
+    const close = instantCloseBulk(config, { orders: ORDERS });
+
+    await expect(close).rejects.toMatchObject({ code: "INSTANT_SIGNER_NOT_DELEGATED" });
+    await expect(close).rejects.toThrowError(`instantCloseBulk: signer ${TEST_USER}`);
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(postInstantTradeInstantClose).not.toHaveBeenCalled();
+  });
+
+  it("skips the check entirely with preflightDelegation: false", async () => {
+    const { config, readContract, signTypedData } = mockConfig();
+    programDelegationReads(readContract, { isDelegationActive: () => false });
+
+    await instantCloseBulk(config, { orders: ORDERS, preflightDelegation: false });
+
+    expect(readContract).not.toHaveBeenCalled();
+    expect(signTypedData).toHaveBeenCalledTimes(ORDERS.length);
   });
 });

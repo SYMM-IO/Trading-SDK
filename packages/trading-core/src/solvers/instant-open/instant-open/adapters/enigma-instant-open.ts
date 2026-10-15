@@ -1,4 +1,5 @@
 import { SymmError } from "../../../../shared/errors/symm-error";
+import { assertInstantSignerDelegated } from "../../../shared/instant-delegation-preflight";
 import {
   encodeAddMarginToNextVA,
   encodeSendQuote,
@@ -27,6 +28,8 @@ import type { InstantOpenAdapterContext } from "./context";
  * @throws {SymmError} `INSTANT_OPEN_MARGIN_REQUIRED` when `margin` is absent —
  *   reachable when the caller omitted `solverId` and the chain's default solver
  *   turned out to be Enigma.
+ * @throws {SymmError} `INSTANT_SIGNER_NOT_DELEGATED` when the signer lacks the
+ *   delegation for either operation, before anything is signed.
  * @throws {SymmApiError} when the hedger request fails.
  * @internal
  */
@@ -66,7 +69,7 @@ export async function submitEnigmaInstantOpen(
     deadline,
     affiliate: affiliatesAddress,
     data: metadata,
-    upnlSig: getFakeSendQuoteMuonSignature(parameters.order.price),
+    upnlSig: getFakeSendQuoteMuonSignature(parameters.markPrice ?? parameters.order.price),
   };
 
   /**
@@ -84,7 +87,7 @@ export async function submitEnigmaInstantOpen(
     target: accountLayerAddress,
     callData: addMarginCallData,
     signerAccount: parameters.subAccountAddress,
-    deadline,
+    deadline: parameters.operationDeadline ?? deadline,
     salt: parameters.addMarginSalt,
   });
 
@@ -93,9 +96,16 @@ export async function submitEnigmaInstantOpen(
     target: symmioAddress,
     callData: sendQuoteCallData,
     signerAccount: parameters.subAccountAddress,
-    deadline,
+    deadline: parameters.operationDeadline ?? deadline,
     salt: parameters.sendQuoteSalt,
     flexFields: [{ ...sendQuoteUpnlSigFlexRange(sendQuoteCallData), authorizedFlexFiller: solver.address }],
+  });
+
+  await assertInstantSignerDelegated(config, {
+    chainId: context.chainId,
+    action: "instantOpen",
+    operations: [addMarginOp, sendQuoteOp],
+    enabled: parameters.preflightDelegation,
   });
 
   const [addMargin, sendQuote] = await Promise.all([
