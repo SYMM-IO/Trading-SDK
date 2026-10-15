@@ -14,6 +14,8 @@ export type GetTradeVolumeParameters = Compute<
   ReadSolverParameter & {
     /** Solver market id (`symbol_id`) to read daily trade volume for. Required. */
     symbolId: number;
+    /** Omit rows with an absent volume field, or keep the existing zero fallback (default). Null still normalizes to zero. */
+    missingVolume?: "zero" | "omit";
   }
 >;
 
@@ -49,7 +51,7 @@ export async function getTradeVolume(
 ): Promise<GetTradeVolumeReturnType> {
   const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   assertSolverKind(solver, "enigma", "getTradeVolume");
-  return fetchTradeVolume(solver.url, parameters.symbolId);
+  return fetchTradeVolume(solver.url, parameters.symbolId, parameters.missingVolume);
 }
 
 /**
@@ -58,11 +60,18 @@ export async function getTradeVolume(
  *
  * @internal
  */
-async function fetchTradeVolume(baseURL: string, symbolId: number): Promise<SolverDailyVolume[]> {
+async function fetchTradeVolume(
+  baseURL: string,
+  symbolId: number,
+  missingVolume: GetTradeVolumeParameters["missingVolume"],
+): Promise<SolverDailyVolume[]> {
   try {
     const response = await getTradeVolumeSymbolId(symbolId, { baseURL });
     return Array.isArray(response.data)
-      ? response.data.filter((row) => row !== null && typeof row === "object").map(toSolverDailyVolume)
+      ? response.data
+          .filter((row) => row !== null && typeof row === "object")
+          .filter((row) => missingVolume !== "omit" || row.volume !== undefined)
+          .map(toSolverDailyVolume)
       : [];
   } catch (err) {
     if (err instanceof SymmError) throw err;

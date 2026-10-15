@@ -38,7 +38,16 @@ One `GET /trade-volume/{symbol_id}` against the chain's solver. This is the solv
   <Property name="solverId" type="string" optional>
     Target a specific solver on that chain. Defaults to the chain's default solver.
   </Property>
+  <Property name="missingVolume" type={'"zero" | "omit"'} optional>
+    Defaults to `"zero"`, preserving the existing fallback for absent volumes. Use `"omit"` to drop rows whose volume
+    field is absent. Explicit null still normalizes to zero, and real zero-volume days remain in the series. Query
+    factories and `useTradeVolume` accept the same option and include it in the cache key.
+  </Property>
 </Properties>
+
+```ts
+const observedDays = await getTradeVolume(config, { symbolId: 1, missingVolume: "omit" });
+```
 
 ## Returns
 

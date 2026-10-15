@@ -54,6 +54,7 @@ export function getTradeVolumeQueryOptions(config: Config, options: GetTradeVolu
         chainId: options.chainId,
         solverId: options.solverId,
         symbolId: options.symbolId,
+        missingVolume: options.missingVolume,
       }),
   };
 }

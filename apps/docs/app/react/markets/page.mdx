@@ -43,6 +43,11 @@ const { data } = useSymbols({
 
 See [`getSymbols`](/core/solvers#getsymbols) in core for the full parameter and `SolverSymbol` field reference. Two sibling Enigma-only reads ship alongside it — [`useTradeVolume`](/core/solvers#gettradevolume) (daily volume per market) and [`useRevenueRecords`](/core/solvers#getrevenuerecords) (cursor-paginated revenue).
 
+`useTradeVolume({ symbolId, missingVolume: "omit" })` can omit days with an absent
+volume field. Its default still fills absent volumes with zero; explicit zero and
+null values remain zero. The policy is part of the query key. See the
+[daily-volume parameter reference](/core/solvers/trade-volume#parameters).
+
 ## `useMarketInfo`
 
 Per-market figures from the solver's `/get_market_info` — the whole catalogue in one call. The response **diverges by solver**, so the result is a union discriminated on `data.kind`:
