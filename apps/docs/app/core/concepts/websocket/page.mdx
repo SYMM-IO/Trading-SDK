@@ -108,7 +108,7 @@ const config = createConfig({
 
 Every stream above is broadcast-only: connect, receive, filter client-side. The relayer's status WebSocket is a **command protocol**, so its watcher — [`watchGaslessRequest`](../../gasless/watch-gasless-request) — layers a few rules on the same socket primitives:
 
-- **It is opt-in per deployment.** The gateway serves it per protocol instance and keeps it disabled until operators enable it, so the SDK dials only when `gasless.statusStream.enabled` says so, and `supportsGaslessStatusStream` answers before you subscribe.
+- **It is opt-in per deployment.** The gateway serves it per protocol instance and keeps it disabled until operators enable it, so the SDK dials only when `gasless.statusStream.enabled` says so (Arbitrum's built-in production deployment does), and `supportsGaslessStatusStream` answers before you subscribe.
 - **Nothing is sent before `ready`.** The gateway greets each connection with `{"type":"ready","protocol_instance":…,"max_subscriptions":…}`; commands wait for it, and every later frame is checked against the configured instance.
 - **Commands are paced and single-flight**, because subscribe/unsubscribe share the caller's request quota — unlike a broadcast feed, which costs nothing after the handshake.
 - **Close codes carry policy.** Capacity and not-ready codes reconnect with backoff; `1008`, `1009`, `4001`, `4003` and `4004` stop the stream for the config instead of retrying into a wall.

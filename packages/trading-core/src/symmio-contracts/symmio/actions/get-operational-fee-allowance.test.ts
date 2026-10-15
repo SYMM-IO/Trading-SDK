@@ -33,8 +33,8 @@ describe("getOperationalFeeAllowance", () => {
   it("requires an explicit charger when the chain has no gasless block", async () => {
     const { config } = mockConfig();
 
-    await expect(getOperationalFeeAllowance(config, { payer: PAYER })).rejects.toThrowError(
-      /GASLESS_CHARGER_REQUIRED|charger/,
-    );
+    await expect(
+      getOperationalFeeAllowance(config, { chainId: SymmioSupportedChainId.BASE, payer: PAYER }),
+    ).rejects.toThrowError(/GASLESS_CHARGER_REQUIRED|charger/);
   });
 });

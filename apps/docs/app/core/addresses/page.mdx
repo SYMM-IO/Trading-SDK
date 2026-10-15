@@ -78,9 +78,10 @@ Every entry is a `SymmioChainConfig` — the fully-resolved settings for one cha
   <Property name="gasless" type="SymmioGaslessConfig" optional>
     The [GaslessQ relayer](/core/gasless) — `url`, `protocolInstance`, `gaslessLayerAddress`, plus the consumer's
     `execution` policy, an optional `statusStream` declaration, and an optional partner `apiKey` for server-side use
-    (access is anonymous without one, unless the deployment turns anonymous access off). **No chain ships a built-in
-    block** — a consumer supplies the whole block through a `createConfig` override, and a base-less override missing
-    `url` or `gaslessLayerAddress` throws `GASLESS_OVERRIDE_INCOMPLETE`.
+    (access is anonymous without one, unless the deployment turns anonymous access off). **Arbitrum ships the production
+    deployment**; execution remains opt-in. Base has no built-in block. On a chain without defaults, an override missing
+    `url` or `gaslessLayerAddress` throws `GASLESS_OVERRIDE_INCOMPLETE`. When switching to staging, override all deployment
+    fields and matching contract addresses together.
   </Property>
   <Property name="inventory" type="SymmioInventoryConfig" optional>
     The [inventory service](/core/inventory) — the custody backend behind the Pools, and a **different vendor** from
@@ -170,9 +171,14 @@ Two chains ship in the registry — each runs a different solver kind and produc
 - `priceService.type` — `"enigma"`
 - `listing.url` — `https://listing85.enigma.bz` (the Pools listing backend; host root, no `/v2`)
 - `inventory.url` — `https://inventory85.enigma.bz` (the custody backend behind the Pools; host root, no `/api`)
+- `gasless.url` — `https://gaslessq.symmio.foundation` (the production GaslessQ gateway origin; the SDK appends `/v1/instances/{protocolInstance}/{service}`)
+- `gasless.protocolInstance` — the production instance key the gateway routes on
+- `gasless.gaslessLayerAddress` — `0x8347953D80037b8d82827246f37EC7442AD188B4`
+- `gasless.statusStream` — `{ enabled: true }` (status reads poll over HTTP whenever the stream is unavailable)
 
 The only chain on the **perps-core (`"0.8.6"`) contracts generation**, and therefore the only one where
-[gasless](/core/gasless) can run at all — once a `gasless` block is supplied through an override.
+[gasless](/core/gasless) can run. It ships the production GaslessQ deployment, so `supportsGaslessService` is `true`
+here without an override; writes still go through the connected wallet until you opt in.
 
 ### Base (8453) — rasa / majors
 

@@ -47,14 +47,14 @@ describe("useSupportsGaslessService", () => {
     expect(result.current).toBe(false);
   });
 
-  it("reports false for Arbitrum with no override — the registry ships no gasless block", () => {
+  it("reports true for Arbitrum with no override — production comes from the registry", () => {
     const config = buildConfig(false);
 
     const { result } = renderHookWithProviders(() =>
       useSupportsGaslessService({ config, chainId: SymmioSupportedChainId.ARBITRUM }),
     );
 
-    expect(result.current).toBe(false);
+    expect(result.current).toBe(true);
   });
 
   it("reports false on a 0.8.5 chain even if a gasless block is forced onto it", () => {

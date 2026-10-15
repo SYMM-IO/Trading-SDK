@@ -23,7 +23,7 @@ const unwatch = watchGaslessRequest(config, {
 
 ## Availability
 
-The gateway serves status WebSockets per protocol instance, disabled by default, and a staging confirmation does not cover production. Declare it per deployment:
+The gateway serves status WebSockets per protocol instance, disabled by default, and a staging confirmation does not cover production. Arbitrum's built-in production deployment declares it already; set `statusStream: { enabled: false }` to poll instead. Declare it for any other deployment:
 
 ```ts
 gasless: {

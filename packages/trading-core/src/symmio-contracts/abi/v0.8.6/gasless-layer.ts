@@ -14,13 +14,15 @@
  * overloads.
  *
  * Verified on 2026-09-17 by read-only `eth_call` against the staging proxy
- * `0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca` (implementation
+ * `0x386EF97D913acf02B3C9452da4Cd4aaEc82eFBca` (then implementation
  * `0x640b404a0b2cC8D7F95b6356CC97e44639b91d64`, Arbitrum): `getGaslessWalletAddress`,
  * `walletOperationNonces`, `getWalletCreationFee`, `previewFeeQuote`, the 5-argument
  * `relayInstantBatch`, `instantLayer`, `collateralToken`, `depositFee` and
- * `minimumDeposit`. The production proxy `0x8347953D80037b8d82827246f37EC7442AD188B4`
- * still runs the pre-multi-wallet implementation and is **unsupported** until it is
- * upgraded: every multi-wallet signature reverts there with empty data.
+ * `minimumDeposit`. Re-checked on 2026-10-14 against the implementation bytecode
+ * behind both Arbitrum proxies — production `0x8347953D80037b8d82827246f37EC7442AD188B4`
+ * (implementation `0xe04b9f05a61d9e9b97bc4f5f7a0acef740f6a71d`) and staging (implementation
+ * `0xc891d8371cb5475c077a12cab857b9e798bae3b6`): both carry every function in this ABI
+ * except `initialize` and `relayNativeGasTopUp`, neither of which the SDK calls.
  *
  * @see Source of truth — the SYMMIO `perps-core` repo, pinned to the verified
  * commit: {@link https://github.com/SYMM-IO/perps-core/blob/b63ee55e4cfbbc6a9757d23212102d5572e5d829/abis/gaslessLayer.json}.
