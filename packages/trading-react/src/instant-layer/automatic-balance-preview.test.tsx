@@ -13,6 +13,7 @@ import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-ut
 const prepare = vi.hoisted(() => vi.fn());
 const fees = vi.hoisted(() => vi.fn());
 const estimate = vi.hoisted(() => vi.fn());
+const fetchEstimate = vi.hoisted(() => vi.fn());
 const lockedParams = vi.hoisted(() => vi.fn());
 const solverInfo = vi.hoisted(() => vi.fn());
 vi.mock("@symmio/trading-core", async (importOriginal) => {
@@ -28,6 +29,10 @@ vi.mock("@symmio/trading-core", async (importOriginal) => {
     getInstantOpenFeesQueryOptions: (...args: Parameters<typeof actual.getInstantOpenFeesQueryOptions>) => ({
       ...actual.getInstantOpenFeesQueryOptions(...args),
       queryFn: () => fees(args[1]),
+    }),
+    getEstimatedPriceQueryOptions: (...args: Parameters<typeof actual.getEstimatedPriceQueryOptions>) => ({
+      ...actual.getEstimatedPriceQueryOptions(...args),
+      queryFn: () => fetchEstimate(args[1]),
     }),
   };
 });
@@ -118,6 +123,7 @@ describe("automatic balance previews", () => {
     solverInfo.mockReset().mockReturnValue({});
     prepare.mockReset().mockResolvedValue(PREPARED);
     fees.mockReset().mockResolvedValue(FEES);
+    fetchEstimate.mockReset().mockResolvedValue({ estimatedPrice: "100.5" });
     estimate.mockReset().mockReturnValue({
       data: { estimatedPrice: "100.5" },
       isFetched: true,
@@ -127,7 +133,46 @@ describe("automatic balance previews", () => {
     lockedParams.mockReset().mockReturnValue({ data: { cva: "7", lf: "3", partyAmm: "90", partyBmm: "0" } });
   });
 
-  afterEach(() => onlineManager.setOnline(true));
+  afterEach(() => {
+    onlineManager.setOnline(true);
+    vi.useRealTimers();
+  });
+
+  it.each(["prepare", "fees"] as const)(
+    "leaves polling to the frontend and refreshes the shared estimate through %s",
+    async (preview) => {
+      const actual = await vi.importActual<typeof import("../estimated-price/use-estimated-price")>(
+        "../estimated-price/use-estimated-price",
+      );
+      estimate.mockImplementation(actual.useEstimatedPrice);
+      // Keep query notifications on real time while advancing only polling timers.
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+      const config = createPreviewConfig();
+      const { result } = renderHookWithProviders(() => ({
+        prepare: usePrepareInstantOpenParams({ ...params, config }),
+        fees: useInstantOpenFees({ ...params, config }),
+      }));
+      await vi.waitFor(() => expect(result.current.prepare.isReady && result.current.fees.isReady).toBe(true));
+      expect(fetchEstimate).toHaveBeenCalledTimes(1);
+
+      await act(async () => vi.advanceTimersByTimeAsync(60_000));
+      expect(fetchEstimate).toHaveBeenCalledTimes(1);
+
+      fetchEstimate.mockResolvedValueOnce({ estimatedPrice: "100.8" });
+      await act(async () => {
+        const refreshed = await result.current[preview].refetchEstimatedPrice({ throwOnError: true });
+        expect(refreshed.data?.estimatedPrice).toBe("100.8");
+      });
+      expect(fetchEstimate).toHaveBeenCalledTimes(2);
+      await vi.waitFor(() => {
+        expect(result.current.prepare.isReady && result.current.fees.isReady).toBe(true);
+        for (const action of [prepare, fees]) {
+          expect(action).toHaveBeenLastCalledWith(expect.objectContaining({ estimatedOpenPrice: "100.8" }));
+        }
+      });
+      expect(result.current.prepare.estimatedOpenPrice).toBe("100.8");
+    },
+  );
 
   it.each([true, false])("reports an over-balance margin synchronously, online=%s", (online) => {
     onlineManager.setOnline(online);

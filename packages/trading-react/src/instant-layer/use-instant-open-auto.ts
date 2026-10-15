@@ -45,9 +45,9 @@ export type UseInstantOpenAutoReturnType = UseMutationResult<
  * ```tsx
  * const { mutateAsync } = useInstantOpenAuto();
  * await mutateAsync({
- *   walletAddress, sessionKeyAddress, signTypedData,
- *   marketId: 1, positionType: "LONG",
- *   userInput: "100", leverage: 5, slippage: 1,
+ *   subAccountAddress, from: sessionKeyAddress,
+ *   market: { id: 1 }, positionType: PositionType.LONG,
+ *   fund: { mode: "full-balance", balance: "100" }, leverage: 5, slippage: 1,
  * });
  * ```
  */

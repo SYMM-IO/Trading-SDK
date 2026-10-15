@@ -147,7 +147,7 @@ Required = inputs only the caller can know (partyA, quote id, close intent). Opt
 
 ## `instantClose`
 
-Sign the EIP-712 message with `config.getWalletClient({ from })` and POST to the solver. **The low-latency primitive** — no fetching, just sign + network.
+Sign the EIP-712 message with `config.getWalletClient({ from })` and POST to the solver. **The low-latency primitive** — no fetching, just sign + network, plus one delegation read when a session key signs (see [Delegation preflight](#delegation-preflight)).
 
 ```ts
 const result = await instantClose(config, resolved);
@@ -163,16 +163,25 @@ const prepared = await prepareInstantCloseParams(config, uiInputs);
 const result = await instantClose(config, prepared);
 ```
 
+### Delegation preflight
+
+Before it signs, `instantClose` checks that the signing key holds an active `requestToClosePosition` [delegation](/core/instant-layer/grant-delegation). On Enigma `partyA` is a virtual account, and a VA has no delegations of its own: the InstantLayer enforces them on the VA's parent sub-account, so that is where the SDK checks too. A key without the delegation fails with `INSTANT_SIGNER_NOT_DELEGATED`, before anything is signed or sent.
+
+The sub-account's owner needs no delegation and skips the delegation reads. A session key adds one RPC round trip; the VA's parent and the owner are read once per config and cached. Pass `preflightDelegation: false` to skip the check when your UI already gates the close on delegation. It is the same check [gasless](/core/gasless) runs before relaying a session-key write.
+
 ### Parameters
 
-`InstantCloseParameters` — the resolved bag from `prepareInstantCloseParams`. Every field is a concrete value; no fetching happens here.
+`InstantCloseParameters` — the resolved bag from `prepareInstantCloseParams`. Every field is a concrete value; no fetching happens here apart from the [delegation preflight](#delegation-preflight).
+
+`preflightDelegation` (default `true`) turns the delegation preflight off for one call. `prepareInstantCloseParams` passes it through, so `instantCloseAuto` and `limitCloseAuto` accept it too.
 
 ### Returns
 
-Solver response — `{ success: true; tempCloseId?: string; ... }`. Consumers usually just wait for the WS `close` notification.
+`{ success: true }` once the solver accepts the close. Consumers usually just wait for the WS `close` notification.
 
 ### Errors
 
+- `INSTANT_SIGNER_NOT_DELEGATED` (`kind: "validation"`) when the signer lacks the `requestToClosePosition` delegation. The message names the signer, the sub-account and the selector; nothing was signed or sent.
 - Solver rejection surfaces as `SymmApiError`; inspect `responseData` for the reason.
 - Viem `UserRejectedRequestError` when the user dismisses the signature dialog.
 
@@ -227,22 +236,35 @@ The LIMIT-close resolver — same steps and inputs as [`prepareInstantCloseParam
 
 ## `instantCloseBulk` / `instantCloseBulkAuto`
 
-Atomic close of multiple quotes in one solver call. Same three-function split — the `Auto` wrapper is `prepare (each) + submit`.
+Close up to 100 positions in one solver call. Same three-function split — the `Auto` wrapper is `prepare (each) + submit`.
 
 ```ts
-await instantCloseBulkAuto(config, {
+const { count } = await instantCloseBulkAuto(config, {
   from: sessionKey,
-  subAccount,
-  virtualAccount,
-  closes: [
-    { quoteId: 42n, quantityToClose: "0.5" },
-    { quoteId: 43n, quantityToClose: "1.0" },
+  orders: [
+    {
+      partyA: vaA,
+      market: { id: 1 },
+      positionType: PositionType.LONG,
+      quoteId: 42n,
+      quantityToClose: "0.5",
+      slippage: 5,
+    },
+    {
+      partyA: vaB,
+      market: { id: 2 },
+      positionType: PositionType.SHORT,
+      quoteId: 43n,
+      quantityToClose: "1.0",
+      slippage: 5,
+    },
   ],
-  slippage: 5,
 });
 ```
 
-The solver may partially accept — the return value carries per-quote success flags. Consumers should surface partial results rather than treating the batch as all-or-nothing.
+Every order is signed by the same key. It resolves to `{ count, success: true }` once the solver accepts the batch; a solver rejection throws and covers the whole batch, so retry with fewer orders. Each close completes on its own WS `close` notification.
+
+The [delegation preflight](#delegation-preflight) runs once per sub-account, after every order is built and before any is signed: orders on several virtual accounts of one sub-account cost a single check. `preflightDelegation` (default `true`) sits on the batch parameters of both functions.
 
 For the low-latency bulk path, pre-resolve each per-quote bag via `prepareInstantCloseParams` (in parallel with `Promise.all`) then submit via `instantCloseBulk`.
 

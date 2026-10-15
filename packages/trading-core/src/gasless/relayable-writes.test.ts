@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { toFunctionSelector, type AbiFunction } from "viem";
 import { describe, expect, it } from "vitest";
+import {
+  INSTANT_TRADE_REQUIRED_SELECTORS,
+  LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS,
+  REQUEST_TO_CLOSE_POSITION_SELECTOR,
+} from "../solvers/instant-open/shared/selectors";
 import { instantLayerAbi } from "../symmio-contracts/abi/v0.8.6/instant-layer";
 import {
   GASLESS_RELAYABLE_FUNCTIONS,
@@ -124,6 +129,21 @@ describe("gasless selector sets", () => {
     expect(
       isGaslessRelayableSelector(GRANT_DELEGATION_SELECTOR.toUpperCase().replace("0X", "0x") as `0x${string}`),
     ).toBe(true);
+  });
+
+  /**
+   * Instant trades go to the solver, never the relayer. They share the
+   * delegation pre-flight with relayed writes, and that must not make any of
+   * their selectors relayable.
+   */
+  it("never relays an instant-trade selector", () => {
+    for (const selector of [
+      ...INSTANT_TRADE_REQUIRED_SELECTORS,
+      ...LEGACY_INSTANT_TRADE_REQUIRED_SELECTORS,
+      REQUEST_TO_CLOSE_POSITION_SELECTOR,
+    ]) {
+      expect(isGaslessRelayableSelector(selector), `${selector} must stay off the relayer`).toBe(false);
+    }
   });
 });
 

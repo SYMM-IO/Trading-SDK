@@ -287,6 +287,8 @@ The run plans the allocation with [`planGroupClose`](/core/quotes/plan-group-clo
 
 `close()` never rejects; inspect the returned summary. An infeasible plan comes back as `summary.planFailure` with nothing closed.
 
+When `from` is a session key, the run checks before signing that it holds the `requestToClosePosition` delegation; without it `summary.error` carries `code: "INSTANT_SIGNER_NOT_DELEGATED"` and nothing is closed. Pass `preflightDelegation: false` to skip the check when your UI already gates the close on delegation ([Delegation preflight](/core/solvers/instant-close#delegation-preflight)).
+
 For take profit and stop loss across the same grouped position, see [Grouped TP/SL](/react/tpsl#grouped-tpsl).
 
 ## `useOptimisticQuotesStore`

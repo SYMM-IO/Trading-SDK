@@ -3,6 +3,7 @@ import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, WriteSolverParameter } from "../../../shared/types/properties";
 import { toWeiBigInt } from "../../instant-open/shared/trade-math";
+import type { InstantDelegationPreflightParameter } from "../../shared/instant-delegation-preflight";
 import { resolveMarket, resolveMarkPrice } from "../../shared/resolvers";
 import type { InstantCloseParameters } from "../instant-close/instant-close";
 import { calculateClosePrice, clampClosePrecision } from "../shared/close-math";
@@ -13,29 +14,31 @@ import { type InstantCloseMarketData, type PositionType } from "../shared/types"
  *
  * Required = inputs only the caller can know (PartyA, quote id, trade
  * intent). Optional = anything derivable from solver / price-service reads.
- * Pre-fill an optional field to skip its fetch.
+ * Pre-fill an optional field to skip its fetch. `preflightDelegation` is
+ * forwarded to {@link InstantCloseParameters}.
  */
 export type PrepareInstantCloseParameters = Compute<
-  WriteSolverParameter & {
-    /** PartyA — the VA address that owns the position. */
-    partyA: Address;
-    /** Market identification + optional pre-fetched precision metadata. */
-    market: InstantCloseMarketData;
-    /** Side of the position being closed (LONG = sell, SHORT = buy). */
-    positionType: PositionType;
-    /** Quote id of the position. */
-    quoteId: bigint;
-    /** Quantity to close as decimal string (base-token units). */
-    quantityToClose: string;
-    /** Slippage tolerance percent (e.g. `5` for 5%). */
-    slippage: number;
-    /** Pre-fetched mark price as decimal string. When omitted, fetched via Enigma price service. */
-    markPrice?: string;
-    /** Forwarded to {@link InstantCloseParameters}. */
-    salt?: Hex;
-    /** Forwarded to {@link InstantCloseParameters}. */
-    deadline?: bigint;
-  }
+  WriteSolverParameter &
+    InstantDelegationPreflightParameter & {
+      /** PartyA — the VA address that owns the position. */
+      partyA: Address;
+      /** Market identification + optional pre-fetched precision metadata. */
+      market: InstantCloseMarketData;
+      /** Side of the position being closed (LONG = sell, SHORT = buy). */
+      positionType: PositionType;
+      /** Quote id of the position. */
+      quoteId: bigint;
+      /** Quantity to close as decimal string (base-token units). */
+      quantityToClose: string;
+      /** Slippage tolerance percent (e.g. `5` for 5%). */
+      slippage: number;
+      /** Pre-fetched mark price as decimal string. When omitted, fetched via Enigma price service. */
+      markPrice?: string;
+      /** Forwarded to {@link InstantCloseParameters}. */
+      salt?: Hex;
+      /** Forwarded to {@link InstantCloseParameters}. */
+      deadline?: bigint;
+    }
 >;
 
 /**
@@ -106,5 +109,6 @@ export async function prepareInstantCloseParams(
     },
     salt: parameters.salt,
     deadline: parameters.deadline,
+    preflightDelegation: parameters.preflightDelegation,
   };
 }

@@ -9,6 +9,7 @@ import {
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
+import type { UseEstimatedPriceReturnType } from "../estimated-price/use-estimated-price";
 import { useInstantOpenInputs } from "./use-instant-open-inputs";
 
 /**
@@ -36,6 +37,14 @@ export type UsePrepareInstantOpenParamsReturnType = UseQueryResult<
    * preview bit-for-bit.
    */
   estimatedOpenPrice: string | null | undefined;
+  /** Arrival time of the fetched estimate in epoch milliseconds. The frontend decides when to refresh or expire it. */
+  estimatedOpenPriceTimestamp: number | undefined;
+  /**
+   * Refetch the SDK-managed estimate on the frontend's schedule. Resolves when
+   * the estimate request finishes; use isReady to await preparation. A supplied
+   * estimatedOpenPrice still takes precedence over the fetched value.
+   */
+  refetchEstimatedPrice: UseEstimatedPriceReturnType["refetch"];
   /** Synchronous input error. Display before query.error; dependent queries stay disabled. */
   validationError: SymmioRequestError | undefined;
   /** True when all inputs and the current preparation have settled; gate submission on this. */
@@ -106,8 +115,10 @@ export function usePrepareInstantOpenParams(
 
   return {
     ...query,
+    refetchEstimatedPrice: inputs.refetchEstimatedPrice,
     validationError: inputs.validationError,
     estimatedOpenPrice: inputs.prefills.estimatedOpenPrice,
+    estimatedOpenPriceTimestamp: parameters.estimatedOpenPriceTimestamp ?? inputs.estimatedOpenPriceTimestamp,
     isReady: inputs.ready && query.isSuccess && !query.isFetching && !query.isPlaceholderData,
   };
 }

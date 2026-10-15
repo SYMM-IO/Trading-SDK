@@ -71,6 +71,7 @@ const cappedConfig = createConfig({
     [SymmioSupportedChainId.BASE]: {
       contractsVersion: "0.8.6",
       addresses: { affiliatesAddress: AFFILIATE },
+      solvers: config.getChainConfig(SymmioSupportedChainId.BASE).solvers,
     },
   },
 });
@@ -87,6 +88,20 @@ describe("prepareInstantOpenParams", () => {
     fetchOpenEstimatePrice.mockReset().mockResolvedValue(undefined);
     deriveAutoSlippage.mockReset().mockReturnValue(4);
   });
+
+  it.each([Date.now() - 120_000, Date.now() + 120_000, Number.NaN])(
+    "prepares the same order regardless of the estimate timestamp %s",
+    async (estimatedOpenPriceTimestamp) => {
+      resolveMarkPrice.mockResolvedValue("100");
+      const inputs = { ...PARAMS, estimatedOpenPrice: "100" };
+      const withoutTimestamp = await prepareInstantOpenParams(config, inputs);
+
+      await expect(prepareInstantOpenParams(config, { ...inputs, estimatedOpenPriceTimestamp })).resolves.toEqual(
+        withoutTimestamp,
+      );
+      expect(fetchOpenEstimatePrice).not.toHaveBeenCalled();
+    },
+  );
 
   /**
    * The defect this guards: every resolver feeds a value that is signed into the
@@ -111,16 +126,18 @@ describe("prepareInstantOpenParams", () => {
     expect(result.solverId).toBe("rasa");
   });
 
-  it("asks resolveMarket for the solver-fee caps on a v0.8.6 chain and converts them to 18-decimal wei", async () => {
+  it("preserves the published solver-fee caps even with variable and fixed opening fees", async () => {
     resolveMarket.mockResolvedValue({
       name: "BTCUSDT",
       pricePrecision: 2,
       quantityPrecision: 3,
       minOpenSolverFeeCap: "0.0005",
       minCloseSolverFeeCap: "0.0003",
+      hedgerFeeOpen: "0.002",
     });
+    resolveSolverInfo.mockResolvedValue({ staticSolverFeeOpen: "0.5", staticSolverFeeClose: "0" });
 
-    const result = await prepareInstantOpenParams(cappedConfig, PARAMS);
+    const result = await prepareInstantOpenParams(cappedConfig, { ...PARAMS, solverId: "enigma" });
 
     expect(resolveMarket).toHaveBeenCalledWith(cappedConfig, expect.objectContaining({ includeSolverFeeCaps: true }));
     expect(result.solverFeeCaps).toEqual({ openRateCap: 500000000000000n, closeRateCap: 300000000000000n });
@@ -377,8 +394,27 @@ describe("prepareInstantOpenParams", () => {
       expect(result.margin?.amount).toBe(100_000_000_000_000_000_000n);
       // Probe margin = locks 104 + settlement (2 × 10) 20 = 124, so the position
       // is rescaled by ~100/124 → quantity well below the naive 10 units.
-      expect(result.order.quantity).toBeLessThan(10_000_000_000_000_000_000n);
-      expect(result.order.quantity).toBeGreaterThan(8_000_000_000_000_000_000n);
+      expect(result.order.price).toBe(104_000_000_000_000_000_000n);
+      expect(result.order.quantity).toBe(8_050_000_000_000_000_000n);
+    });
+
+    it("keeps SHORT budget sizing at the buffered mark when the estimate is higher", async () => {
+      resolveMarkPrice.mockResolvedValue("100");
+
+      const result = await prepareInstantOpenParams(config, {
+        ...PARAMS_NO_MARGIN,
+        positionType: PositionType.SHORT,
+        leverage: 10,
+        slippage: 5,
+        estimatedOpenPrice: "103",
+        fund: { mode: "full-balance", balance: "100" },
+      });
+
+      // The original SHORT funding basis is mark × 1.01 = 101, so the
+      // factor 100 / 101 × 0.999 sizes 9.89 units on this quantity grid.
+      expect(result.margin?.amount).toBe(100_000_000_000_000_000_000n);
+      expect(result.order.price).toBe(95_000_000_000_000_000_000n);
+      expect(result.order.quantity).toBe(9_890_000_000_000_000_000n);
     });
 
     it("asks resolveMarket for the quote constraints only in full-balance mode", async () => {

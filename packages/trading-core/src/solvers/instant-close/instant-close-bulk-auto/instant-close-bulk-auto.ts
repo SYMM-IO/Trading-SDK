@@ -1,6 +1,7 @@
 import type { Address, Hex } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, WriteSolverParameter } from "../../../shared/types/properties";
+import type { InstantDelegationPreflightParameter } from "../../shared/instant-delegation-preflight";
 import {
   instantCloseBulk,
   type InstantCloseBulkOrder,
@@ -37,12 +38,14 @@ export interface InstantCloseBulkAutoOrder {
 }
 
 /**
- * Parameters for {@link instantCloseBulkAuto}.
+ * Parameters for {@link instantCloseBulkAuto}. `preflightDelegation` is
+ * forwarded to `instantCloseBulk`.
  */
 export type InstantCloseBulkAutoParameters = Compute<
-  WriteSolverParameter & {
-    orders: readonly InstantCloseBulkAutoOrder[];
-  }
+  WriteSolverParameter &
+    InstantDelegationPreflightParameter & {
+      orders: readonly InstantCloseBulkAutoOrder[];
+    }
 >;
 
 /**
@@ -99,6 +102,7 @@ export async function instantCloseBulkAuto(
     // Forward the resolved solver so a bulk close on a rasa chain hits its own
     // endpoint instead of falling back to the chain default.
     solverId: parameters.solverId,
+    preflightDelegation: parameters.preflightDelegation,
     orders: resolved,
   });
 }

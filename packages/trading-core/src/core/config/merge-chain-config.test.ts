@@ -225,7 +225,7 @@ describe("mergeChainConfig — contractsVersion", () => {
 
 describe("mergeChainConfig — gasless", () => {
   const ARBITRUM = SymmioSupportedChainId.ARBITRUM;
-  /** No chain in the registry ships a built-in gasless block. */
+  /** Base has no built-in gasless block. */
   const BASE_LESS = SymmioSupportedChainId.BASE;
   const GASLESS = {
     url: "https://gaslessq-staging.symmio.foundation",
@@ -242,33 +242,37 @@ describe("mergeChainConfig — gasless", () => {
     expect("gasless" in config.getChainConfig(BASE_LESS)).toBe(false);
   });
 
-  it("keeps the key absent on Arbitrum too when nothing configures the service", () => {
+  it("inherits Arbitrum's production service without enabling gasless execution", () => {
     const config = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: { [ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE } } },
     });
 
-    expect("gasless" in config.getChainConfig(ARBITRUM)).toBe(false);
+    expect(config.getChainConfig(ARBITRUM).gasless).toEqual(getBuiltInChainConfig(ARBITRUM).gasless);
+    expect(config.getChainConfig(ARBITRUM).gasless?.execution).toBeUndefined();
   });
 
-  it("throws GASLESS_OVERRIDE_INCOMPLETE for a partial Arbitrum override — there is no built-in block to inherit", () => {
-    expect(() =>
-      createConfig({
-        getClient: () => ({}) as PublicClient,
-        symmioConfig: {
-          [ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { url: "/api/gasless" } },
-        },
-      }),
-    ).toThrowError(/GASLESS_OVERRIDE_INCOMPLETE|gaslessLayerAddress/);
+  it("inherits the production deployment for an execution-only Arbitrum override", () => {
+    const config = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: {
+        [ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { execution: { mode: "gasless" } } },
+      },
+    });
+
+    expect(config.getChainConfig(ARBITRUM).gasless).toEqual({
+      ...getBuiltInChainConfig(ARBITRUM).gasless,
+      execution: { mode: "gasless" },
+    });
   });
 
   it("accepts a complete base-less override", () => {
     const config = createConfig({
       getClient: () => ({}) as PublicClient,
-      symmioConfig: { [ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { ...GASLESS } } },
+      symmioConfig: { [BASE_LESS]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { ...GASLESS } } },
     });
 
-    expect(config.getChainConfig(ARBITRUM).gasless).toEqual({
+    expect(config.getChainConfig(BASE_LESS).gasless).toEqual({
       url: GASLESS.url,
       protocolInstance: GASLESS.protocolInstance,
       gaslessLayerAddress: GASLESS.gaslessLayerAddress,
@@ -309,10 +313,29 @@ describe("mergeChainConfig — gasless", () => {
   it("leaves statusStream absent when no side declares it", () => {
     const config = createConfig({
       getClient: () => ({}) as PublicClient,
-      symmioConfig: { [ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { ...GASLESS } } },
+      symmioConfig: { [BASE_LESS]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { ...GASLESS } } },
     });
 
-    expect("statusStream" in (config.getChainConfig(ARBITRUM).gasless ?? {})).toBe(false);
+    expect("statusStream" in (config.getChainConfig(BASE_LESS).gasless ?? {})).toBe(false);
+  });
+
+  it("inherits the registry's statusStream unless the override turns it off", () => {
+    const inherited = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: { [ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { ...GASLESS } } },
+    });
+    const disabled = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: {
+        [ARBITRUM]: {
+          addresses: { affiliatesAddress: AFFILIATE },
+          gasless: { ...GASLESS, statusStream: { enabled: false } },
+        },
+      },
+    });
+
+    expect(inherited.getChainConfig(ARBITRUM).gasless?.statusStream).toEqual({ enabled: true });
+    expect(disabled.getChainConfig(ARBITRUM).gasless?.statusStream).toEqual({ enabled: false });
   });
 
   it("keeps a declared statusStream, with or without an origin", () => {
@@ -345,11 +368,11 @@ describe("mergeChainConfig — gasless", () => {
     const config = createConfig({
       getClient: () => ({}) as PublicClient,
       symmioConfig: {
-        [ARBITRUM]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { ...GASLESS, statusStream: {} } },
+        [BASE_LESS]: { addresses: { affiliatesAddress: AFFILIATE }, gasless: { ...GASLESS, statusStream: {} } },
       },
     });
 
-    expect("statusStream" in (config.getChainConfig(ARBITRUM).gasless ?? {})).toBe(false);
+    expect("statusStream" in (config.getChainConfig(BASE_LESS).gasless ?? {})).toBe(false);
   });
 
   it("throws GASLESS_OVERRIDE_INCOMPLETE for a statusStream origin with no enabled to inherit", () => {
@@ -357,7 +380,7 @@ describe("mergeChainConfig — gasless", () => {
       createConfig({
         getClient: () => ({}) as PublicClient,
         symmioConfig: {
-          [ARBITRUM]: {
+          [BASE_LESS]: {
             addresses: { affiliatesAddress: AFFILIATE },
             gasless: { ...GASLESS, statusStream: { origin: "https://gasless.example" } },
           },

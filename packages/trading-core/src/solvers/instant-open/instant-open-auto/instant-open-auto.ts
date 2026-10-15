@@ -17,10 +17,10 @@ import {
  *
  * @example
  * ```ts
- * const { tempQuoteId } = await instantOpenAuto(config, {
- *   subAccountAddress, sessionKeyAddress, signTypedData,
- *   marketId: 1, positionType: "LONG",
- *   userInput: "100", leverage: 5, slippage: 1,
+ * const result = await instantOpenAuto(config, {
+ *   subAccountAddress, from: sessionKeyAddress,
+ *   market: { id: 1 }, positionType: PositionType.LONG,
+ *   fund: { mode: "full-balance", balance: "100" }, leverage: 5, slippage: 1,
  * });
  * ```
  */

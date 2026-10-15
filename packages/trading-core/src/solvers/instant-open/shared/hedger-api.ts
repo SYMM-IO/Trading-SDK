@@ -48,7 +48,33 @@ export async function sendInstantOpen(
   const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   try {
     const response = await postInstantTradeInstantOpen(parameters.request, { baseURL: solver.url });
-    return response.data;
+    // Business rejections can arrive with HTTP 200; the generated success type
+    // does not describe those bodies. Never report acceptance without an id.
+    const body = response.data as ApiPostInstantOpenResponse & {
+      successful?: boolean | string;
+      error_code?: unknown;
+      error_message?: string;
+      error?: unknown;
+    };
+    const rejected =
+      body?.successful === false ||
+      body?.successful === "false" ||
+      body?.error_code != null ||
+      !!body?.error_message ||
+      !!body?.error;
+    const id = body?.temp_quote_id;
+    if (rejected || id == null || !/^-?\d+$/.test(String(id)) || BigInt(id) === 0n) {
+      throw new SymmApiError({
+        code: rejected ? "INSTANT_OPEN_REJECTED" : "INSTANT_OPEN_INVALID_RESPONSE",
+        message: body?.error_message || "The solver did not accept the instant-open request.",
+        status: response.status,
+        statusText: response.statusText,
+        responseData: response.data,
+        url: `${solver.url}/instant_trade/instant_open`,
+        method: "POST",
+      });
+    }
+    return body;
   } catch (err) {
     if (err instanceof SymmError) throw err;
 

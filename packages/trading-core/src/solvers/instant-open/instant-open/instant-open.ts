@@ -30,11 +30,17 @@ import type { InstantOpenParameters, InstantOpenReturnType } from "./types";
  * which case a missing `margin` on an Enigma chain throws
  * `INSTANT_OPEN_MARGIN_REQUIRED` rather than silently under-funding the trade.
  *
+ * Before signing, it checks that the signer holds the InstantLayer delegation
+ * for every operation it is about to sign (skip it with
+ * `preflightDelegation: false`). The sub-account's owner needs none.
+ *
  * @param config - The SDK config.
  * @param parameters - Final-wei order, locked params, and the target sub-account.
  * @returns The hedger's acknowledgement, discriminated on `kind`.
  * @throws {SymmError} when the chain or solver is unsupported, or a kind's
  *   required inputs are missing.
+ * @throws {SymmError} `INSTANT_SIGNER_NOT_DELEGATED` when the signer lacks the
+ *   delegation, before anything is signed.
  * @throws {SymmApiError} when the hedger request fails.
  *
  * @example

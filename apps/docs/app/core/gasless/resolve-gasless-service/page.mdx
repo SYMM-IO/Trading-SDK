@@ -10,7 +10,7 @@ import { resolveGaslessService } from "@symmio/trading-core";
 const { url, gaslessLayerAddress } = resolveGaslessService(config, { chainId });
 ```
 
-Two conditions must hold: the chain carries a `gasless` block (`SymmioGaslessConfig`), and its `contractsVersion` is `"0.8.6"` — the relayer supports only perps-core deployments, and backward compatibility with older contracts is intentionally unsupported. No chain ships a built-in block, so this is `false` until an override supplies one — Arbitrum (42161) is the only `"0.8.6"` chain; Base runs `"0.8.5"` contracts and resolves `GASLESS_UNSUPPORTED_CONTRACTS_VERSION` even with a block forced onto it. Consumers add the deployment and execution policy with a `createConfig` override (a full example lives on the [gasless overview](/core/gasless)).
+Two conditions must hold: the chain carries a `gasless` block (`SymmioGaslessConfig`), and its `contractsVersion` is `"0.8.6"` — the relayer supports only perps-core deployments, and backward compatibility with older contracts is intentionally unsupported. Arbitrum (42161) ships the production deployment in core's chain registry, so it resolves without an override. Base has no gasless block and runs `"0.8.5"` contracts; forcing a block onto it produces `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`. Gasless execution remains opt-in through a per-call flag or an execution-policy override (see the [gasless overview](/core/gasless)).
 
 <Callout type="info">
   The gateway serves anonymous clients by default, so a browser app whose Origin the deployment allows configures no
@@ -69,8 +69,8 @@ Only successful responses are checked. An error status surfaces as a plain `Symm
   </Property>
   <Property name="statusStream" type="SymmioGaslessStatusStreamConfig" optional>
     Whether this deployment serves the status WebSocket. Streams are optional and disabled by default at the gateway,
-    and each environment enables them separately, so declare the block only once the operators confirm it. Currently
-    informational: status reads still poll over HTTP, which stays available either way.
+    and each environment enables them separately, so declare the block only once the operators confirm it. Arbitrum's
+    production entry ships `{ enabled: true }`. Status reads fall back to HTTP polling, which stays available either way.
   </Property>
   <Property name="statusStream.enabled" type="boolean">
     `true` once streams are confirmed for this environment and protocol instance.

@@ -78,6 +78,13 @@ export interface CloseQuoteGroupParameters {
   /** Delegated session key to submit the closes from, when delegation is active. */
   from?: Address;
   /**
+   * Check that the signer holds the `requestToClosePosition` delegation before
+   * any close is signed. Defaults to `true`; a run that fails it reports
+   * `INSTANT_SIGNER_NOT_DELEGATED` in its summary's `error`. Pass `false` when
+   * your UI already gates the close on delegation.
+   */
+  preflightDelegation?: boolean;
+  /**
    * Account whose live notification stream reports the close fills — pass the
    * **sub-account** when closing Virtual Account quotes (the VA frames arrive
    * on its owning sub-account's stream). Defaults to the first child's
@@ -252,8 +259,16 @@ export function useCloseQuoteGroup(parameters: UseCloseQuoteGroupParameters = {}
         };
       }
 
-      const { group, targetQuantity, minAcceptableQuoteValue, slippage, markPrice, from, notificationsAccount } =
-        runParameters;
+      const {
+        group,
+        targetQuantity,
+        minAcceptableQuoteValue,
+        slippage,
+        markPrice,
+        from,
+        preflightDelegation,
+        notificationsAccount,
+      } = runParameters;
       const chainId = runParameters.chainId ?? connectedChainId;
 
       const candidates = toGroupCloseCandidates(group.quotes, minAcceptableQuoteValue);
@@ -302,6 +317,7 @@ export function useCloseQuoteGroup(parameters: UseCloseQuoteGroupParameters = {}
             };
           }),
           from,
+          preflightDelegation,
           chainId,
         });
       } catch (err) {

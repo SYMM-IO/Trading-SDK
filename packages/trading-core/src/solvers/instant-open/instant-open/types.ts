@@ -2,6 +2,7 @@ import type { Address, Hex } from "viem";
 import type { SymmioSolverKind } from "../../../core/chains/types";
 import type { ChainIdParameter, Compute, FromParameter } from "../../../shared/types/properties";
 import type { PositionType } from "../../../symmio-contracts/symmio/types";
+import type { InstantDelegationPreflightParameter } from "../../shared/instant-delegation-preflight";
 import type { RasaInstantOpen } from "../get-instant-opens/types";
 import type {
   InstantOpenLockedParams,
@@ -23,7 +24,8 @@ import type {
  */
 export type InstantOpenParameters<K extends SymmioSolverKind = SymmioSolverKind> = Compute<
   ChainIdParameter &
-    FromParameter & {
+    FromParameter &
+    InstantDelegationPreflightParameter & {
       /** Which solver to open against. Omit to use the chain's default solver. */
       solverId?: K;
       /** Sub-account / partyA address — the `signerAccount.addr` the operation runs under. */
@@ -40,6 +42,8 @@ export type InstantOpenParameters<K extends SymmioSolverKind = SymmioSolverKind>
       orderType?: SolverOrderType;
       /** Order-side values (`price`, `quantity`) — both 18-decimal-wei `bigint`. */
       order: InstantOpenOrder;
+      /** Mark price for the lowcap Muon placeholder, in 18-decimal wei. Defaults to order.price. */
+      markPrice?: bigint;
       /** Locked-margin breakdown (`cva`, `lf`, `partyAmm`, `partyBmm`) — all 18-decimal-wei `bigint`. */
       lockedParam: InstantOpenLockedParams;
       /**
@@ -69,6 +73,8 @@ export type InstantOpenParameters<K extends SymmioSolverKind = SymmioSolverKind>
       sendQuoteSalt?: Hex;
       /** Override the unix-seconds deadline (defaults to `now + 300s`). */
       deadline?: bigint;
+      /** Lowcap signed-operation expiry in unix seconds. Defaults to the quote deadline. */
+      operationDeadline?: bigint;
     }
 >;
 

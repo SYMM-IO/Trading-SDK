@@ -1,9 +1,11 @@
-import { decodeFunctionData } from "viem";
+import { decodeFunctionData, type Address } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmioSupportedChainId } from "../../../core/chains";
 import { createConfig } from "../../../core/config";
-import { mockConfig, TEST_AFFILIATE_ADDRESS, TEST_TYPED_SIGNATURE } from "../../../shared/test/mock-config";
+import { delegationReads, programDelegationReads } from "../../../shared/test/delegation-reads";
+import { mockConfig, TEST_AFFILIATE_ADDRESS, TEST_TYPED_SIGNATURE, TEST_USER } from "../../../shared/test/mock-config";
 import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.6/symmio";
+import { REQUEST_TO_CLOSE_POSITION_SELECTOR } from "../../instant-open/shared/selectors";
 import { ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET } from "../shared/types";
 import { instantClose, type InstantCloseParameters } from "./instant-close";
 
@@ -145,4 +147,63 @@ describe("instantClose — signed order type", () => {
       expect(message.replayAttackHeader.deadline).toBe(deadline);
     },
   );
+});
+
+describe("instantClose — delegation preflight", () => {
+  /** `PARAMETERS.partyA` is a virtual account; its delegation is enforced on this parent. */
+  const PARENT_SUB_ACCOUNT: Address = "0x0000000000000000000000000000000000005ab9";
+  const PARENT_OWNER: Address = "0x0000000000000000000000000000000000000a11";
+
+  beforeEach(() => {
+    postInstantTradeInstantClose.mockResolvedValue({ data: undefined });
+    instantRequestToCloseWithSignatureInstantTradeClosePost.mockResolvedValue({ data: { successful: true } });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("checks a virtual account's close against its parent sub-account", async () => {
+    const { config, readContract } = mockConfig();
+    programDelegationReads(readContract, {
+      parents: { [PARAMETERS.partyA]: PARENT_SUB_ACCOUNT },
+      owners: { [PARENT_SUB_ACCOUNT]: PARENT_OWNER },
+    });
+
+    await expect(instantClose(config, PARAMETERS)).resolves.toEqual({ success: true });
+    expect(delegationReads(readContract)).toEqual([
+      [PARENT_SUB_ACCOUNT, TEST_USER, REQUEST_TO_CLOSE_POSITION_SELECTOR],
+    ]);
+  });
+
+  it.each([
+    { solver: "enigma", chainId: undefined },
+    { solver: "rasa", chainId: SymmioSupportedChainId.BASE },
+  ] as const)("throws INSTANT_SIGNER_NOT_DELEGATED on $solver before signing or posting", async ({ chainId }) => {
+    const { config, readContract, signTypedData } = mockConfig();
+    programDelegationReads(readContract, {
+      parents: { [PARAMETERS.partyA]: PARENT_SUB_ACCOUNT },
+      owners: { [PARENT_SUB_ACCOUNT]: PARENT_OWNER },
+      isDelegationActive: () => false,
+    });
+
+    const close = instantClose(config, { ...PARAMETERS, chainId });
+
+    await expect(close).rejects.toMatchObject({ code: "INSTANT_SIGNER_NOT_DELEGATED" });
+    await expect(close).rejects.toThrowError(`instantClose: signer ${TEST_USER}`);
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(postInstantTradeInstantClose).not.toHaveBeenCalled();
+    expect(instantRequestToCloseWithSignatureInstantTradeClosePost).not.toHaveBeenCalled();
+  });
+
+  it("skips the check entirely with preflightDelegation: false", async () => {
+    const { config, readContract, signTypedData } = mockConfig();
+    programDelegationReads(readContract, { isDelegationActive: () => false });
+
+    await expect(instantClose(config, { ...PARAMETERS, preflightDelegation: false })).resolves.toEqual({
+      success: true,
+    });
+    expect(readContract).not.toHaveBeenCalled();
+    expect(signTypedData).toHaveBeenCalledOnce();
+  });
 });
