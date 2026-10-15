@@ -15,6 +15,7 @@ export default {
   inventory: "Inventory hooks",
   tpsl: "TP/SL hooks",
   markets: "Markets hooks",
+  "market-data": "Complete Market Reads",
   fees: "Fees hooks",
   margin: "Margin hooks",
   "price-service": "Price Service hooks",

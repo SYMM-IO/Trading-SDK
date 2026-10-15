@@ -15,11 +15,18 @@ export interface RawEnigmaPriceFrame {
 }
 
 /**
- * Normalized price tick the SDK delivers to consumers. Currently mirrors the
- * raw frame 1:1; reserved for future enrichment (e.g. funding rate, index
- * price) once the backend ships them.
+ * Normalized price tick from either broadcast or legacy single-symbol frames.
+ * Identity, index price and funding fields are present only when supplied by
+ * the feed; the SDK does not infer them from a potentially ambiguous ticker.
  */
 export interface EnigmaPriceTick {
+  /** Protocol identity when explicitly carried by the feed. */
+  symbolId?: number;
+  /** Display ticker for legacy single-symbol frames (not a unique identity). */
+  symbol?: string;
+  /** Optional index price and funding rate supplied by the feed. */
+  indexPrice?: string;
+  fundingRate?: string;
   /** Market symbol name (e.g. `"BTCUSDT"`). */
   name: string;
   /** Mark price as a decimal string. */

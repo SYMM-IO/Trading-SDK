@@ -2,6 +2,12 @@
 
 Subscribe to the chain's Enigma lowcap price-service WebSocket and receive live mark-price ticks.
 
+Both broadcast arrays and single-symbol frames are supported. Camel-case and
+snake-case mark/index/funding fields normalize to decimal strings; explicit
+symbol IDs and source timestamps survive normalization. Match unique internal
+names or symbol IDs rather than assuming display tickers are unique. Missing
+timestamps stay missing so the consumer can choose its fallback clock.
+
 The endpoint is **broadcast-only** — there is no subscribe message; every connected client receives the same ticks. The service pushes **batches** of [`EnigmaPriceTick`](/core/price-service/enigma-price-tick) — your `onPrices` handler is called once per push with every market that ticked. Watchers sharing the same `wsUrl` share one underlying socket (pooled per `wsUrl`); it reconnects with exponential backoff and closes only when the last watcher unwatches.
 
 This is a subscribe function, not a query — there are no query options. For a React binding, use the [`useEnigmaPrices`](/react/price-service) hook.

@@ -8,6 +8,11 @@ import type { EnigmaPriceTick } from "@symmio/trading-core";
 
 ## Fields
 
+Optional `symbolId` carries protocol identity. `symbol` is a display ticker,
+which is not unique. Optional `indexPrice` and `fundingRate` are decimal strings.
+Single-symbol frames normalize their ticker into `name` when no internal name
+was supplied. Both string and numeric wire prices are accepted.
+
 <Properties>
   <Property name="name" type="string">
     Market symbol name (e.g. `"BTCUSDT"`).

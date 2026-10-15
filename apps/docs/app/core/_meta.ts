@@ -10,6 +10,7 @@ export default {
   quotes: "Unified Quotes",
   margin: "Margin & Risk",
   solvers: "Solvers",
+  "market-data": "Complete Market Reads",
   pools: "Pools",
   inventory: "Inventory",
   tpsl: "TP/SL",

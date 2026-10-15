@@ -1,0 +1,135 @@
+# Complete Enigma market reads
+
+Use these actions for a market catalog keyed by protocol symbol ID, exact cap
+amounts, and token enrichment. Tickers are display labels and can collide.
+Existing ticker-based `getMarketInfo`, `getFundingInfo`, numeric cap APIs, and
+bigint `getListingMarkets` remain compatible.
+
+```ts
+import {
+  getAllSymbols,
+  getEnigmaMarketInfo,
+  getEnigmaFundingInfo,
+  getNotionalCapSnapshot,
+  getTokenMarketData,
+  getListingMarketSnapshot,
+} from "@symmio/trading-core";
+
+const parameters = { chainId: 42161, solverId: "enigma" } as const;
+const symbols = await getAllSymbols(config, parameters);
+const volumes = await getEnigmaMarketInfo(config, parameters);
+const funding = await getEnigmaFundingInfo(config, parameters);
+const caps = await getNotionalCapSnapshot(config, parameters);
+const tokenData = await getTokenMarketData(config, {
+  chainId: 42161,
+  tokens: [{ address: "0x0000000000000000000000000000000000000001", tokenChainId: "base" }],
+});
+const listings = await getListingMarketSnapshot(config, { chainId: 42161, limit: 100, isLocked: false });
+```
+
+## Deployment and query options
+
+The first four actions accept `chainId?` and `solverId?`, resolve the selected
+Enigma solver, and throw for another solver kind. Listing and enrichment accept
+the trading `chainId`; a token's `tokenChainId` is its DexScreener chain slug,
+which can differ from the trading chain. Configure separate SDK configs for
+deployments sharing a chain ID: solver URLs, chain-level `priceService`, and
+chain-level `listing.url` must match the intended deployment.
+
+Each action exports matching `getXQueryOptions(config, options)` and
+`getXQueryKey(options)` factories, plus `GetXParameters`, `GetXReturnType`,
+`GetXOptions`, `GetXData`, and `GetXQueryKey` types. Options accept `query` for
+consumer-owned polling/retries/staleness. Generated keys include the resolved
+deployment configuration. A different polling interval does not create a new
+data identity.
+
+```ts
+import { getNotionalCapSnapshotQueryOptions } from "@symmio/trading-core";
+const options = getNotionalCapSnapshotQueryOptions(config, {
+  chainId: 42161,
+  solverId: "enigma",
+  query: { staleTime: 5000, refetchInterval: 30000 },
+});
+```
+
+## Catalog and symbol-ID reads
+
+| Action                 | Endpoint             | Output                                                                                                                                        |
+| ---------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getAllSymbols`        | paginated `/symbols` | Complete ordered catalog; existing `SolverSymbol` fields, exact `maxNotionalValueDecimal`, `quoteCurrency`, optional `stateLong`/`stateShort` |
+| `getEnigmaMarketInfo`  | `/market-info`       | `Record<number, { tradingVolume: number; lifetimeValue: number }>`                                                                            |
+| `getEnigmaFundingInfo` | `/funding-info`      | `EnigmaSymbolFunding[]`                                                                                                                       |
+
+Catalog pagination uses the response count and actual returned row count, so
+short pages do not truncate the catalog. Repeated IDs and truncated pages reject
+instead of publishing an incomplete snapshot. `timeoutMs?` on `getAllSymbols`
+sets the per-page timeout (default 10000). Per-side states retain the solver's
+0/1/2/3 values; missing state stays unknown. Duplicate tickers remain distinct.
+
+`EnigmaSymbolFunding` contains `symbolId`, decimal-string `fundingRate`, and
+`nextFundingTime` in the service's timestamp units. Optional
+`nextFundingRateLong`, `nextFundingRateShort`, `accumulatedFundingRate` stay
+decimal strings; `epochDurationSeconds` is seconds. `fundingRate` prefers the
+next long rate, then the legacy funding rate. Use `projectFundingRate` for a
+linear daily/yearly projection, not a compounded APR.
+
+## Exact cap snapshots
+
+`getNotionalCapSnapshot` walks `/notional_cap` at a maximum page size of 100.
+`symbols` contains `DecimalNotionalCap` rows: `symbolId?`, `symbol`, `totalCap`,
+`used`, `availableToLong`, `availableToShort`, `openInterest`, optional `price`,
+`tokenBalance`, `usdcBalance`, and nullable `error`.
+
+Financial fields are **plain decimal strings**, not 1e18-scaled integers.
+`totalUsed?` and `totalOpenInterest?` sum per-page aggregates exactly, without
+binary floating-point conversion. If any page omits a total, that total remains
+unknown. Legacy bare arrays have no totals. A legacy ticker-only row gets a
+symbol ID only when the active catalog supplies one unique match; ambiguous
+rows keep an absent ID. Use `used` when displaying notional occupied by positions;
+do not substitute `openInterest` or a listing-service metric.
+
+## Token enrichment
+
+`getTokenMarketData` accepts `tokens: readonly MarketToken[]`, each with explicit
+`address` and `tokenChainId`. The SDK deduplicates tokens, batches requests at 30,
+and chooses the deepest-liquidity pool whose **base token and chain** match.
+Solana addresses remain case-sensitive. Quote-token matches are excluded.
+
+`TokenMarketData` always has `baseTokenAddress` and `chainId`. Optional fields:
+`imageUrl`, `websites` (`{url,label?}[]`), `socials` (`{url,type}[]`),
+`pairCreatedAt`, `dexScreenerUrl`, `pairAddress`, `dexId`, `priceUsd` (string),
+`marketCap`, `liquidity`, `volume24h`, `priceChange24h`, and `fdv` (numbers).
+Set `allowPartial: true` for optional enrichment that should retain successful
+batches when another batch fails. The default rejects on a batch failure.
+Missing figures stay missing. An icon can fall back to another matching pool;
+other fields come from the deepest pool. Unless `allowPartial` is enabled,
+HTTP failures reject so consumers can retain their metadata or cached fallback.
+
+## Exact listing snapshots
+
+`getListingMarketSnapshot` accepts the same search, chain, status, pagination,
+sort, and range-filter parameters as `getListingMarkets`, plus `isLocked?`.
+It returns `{ total, limit, offset, items: DecimalListingMarket[] }`.
+Token-chain filters serialize as repeated `chain_ids` keys. The lock filter is
+about new deposits; it does not imply disabled trading.
+
+Rows contain `contractAddress`, `chainId`, nullable `symbolId`, `tokenTicker`,
+`tokenName`, `maxLeverage`, nullable `listingTime` (seconds), `marketStatus`, and
+optional nullable `isLocked`. `ListingMarketDecimalMetrics` adds exact strings
+or null: `priceUsd`, `marketCap`, `vol24h`, `liquidity`, `tvl`, `openInterest`,
+`apr`, `apr1h`, `apr6h`, `apr24h`, `apr30d`, `apy24h`, `apy30d`, `apyLifetime`,
+`reward24h`, `reward30d`, `rewardLifetime`, `solverRevenue24h`,
+`solverRevenue30d`, `solverRevenueLifetime`, and the `tvlDrivenApy` and
+`priceDrivenApy` fields suffixed `1h`, `6h`, `24h`, `30d`, or `Lifetime`.
+
+No truncation, scale guessing, or aggregation is applied: USD metrics retain
+their service 1e18 scale; legacy `priceUsd` and percentage fields may be plain
+values. Explicit null and absent fields remain distinct. Choose your deployment's
+documented display convention at the UI boundary. The existing bigint listing
+reader remains unchanged.
+
+## Related
+
+- [Metadata](/core/price-service/metadata): batch address requests at 50.
+- [Price stream](/core/price-service/watch-enigma-prices): shared live prices.
+- [React bindings](/react/market-data): thin hooks with caller-owned cache policy.

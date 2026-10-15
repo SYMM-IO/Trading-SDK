@@ -16,24 +16,36 @@ export function parsePriceFrame(data: unknown): EnigmaPriceTick[] | null {
       return null;
     }
   }
-  if (!Array.isArray(parsed)) return null;
+  if (!Array.isArray(parsed) && (!parsed || typeof parsed !== "object")) return null;
 
   const ticks: EnigmaPriceTick[] = [];
-  for (const item of parsed) {
+  for (const item of Array.isArray(parsed) ? parsed : [parsed]) {
     if (!item || typeof item !== "object") continue;
     const raw = item as Record<string, unknown>;
-    if (typeof raw.name !== "string") continue;
+    const name = typeof raw.name === "string" ? raw.name : typeof raw.symbol === "string" ? raw.symbol : undefined;
+    if (name === undefined) continue;
+    const mark = raw.mark_price ?? raw.markPrice;
     let markPriceStr: string | null = null;
-    if (typeof raw.markPrice === "number" && Number.isFinite(raw.markPrice)) {
-      markPriceStr = String(raw.markPrice);
-    } else if (typeof raw.markPrice === "string" && raw.markPrice.length > 0) {
-      markPriceStr = raw.markPrice;
+    if (typeof mark === "number" && Number.isFinite(mark)) {
+      markPriceStr = String(mark);
+    } else if (typeof mark === "string" && mark.length > 0) {
+      markPriceStr = mark;
     }
     if (markPriceStr === null) continue;
-    const tick: EnigmaPriceTick = { name: raw.name, markPrice: markPriceStr };
-    if (typeof raw.time === "number" && Number.isFinite(raw.time)) tick.time = raw.time;
+    const tick: EnigmaPriceTick = { name, markPrice: markPriceStr };
+    const time = raw.timestamp ?? raw.time;
+    if (typeof time === "number" && Number.isFinite(time)) tick.time = time;
+    const symbolId = Number(raw.symbol_id ?? raw.symbolId);
+    if (Number.isSafeInteger(symbolId) && symbolId > 0) tick.symbolId = symbolId;
+    if (typeof raw.symbol === "string") tick.symbol = raw.symbol;
+    for (const [key, value] of [
+      ["indexPrice", raw.index_price ?? raw.indexPrice],
+      ["fundingRate", raw.funding_rate ?? raw.fundingRate],
+    ] as const) {
+      if (typeof value === "string" || (typeof value === "number" && Number.isFinite(value))) tick[key] = String(value);
+    }
     if (typeof raw.address === "string" && raw.address.length > 0) tick.address = raw.address;
     ticks.push(tick);
   }
-  return ticks;
+  return !Array.isArray(parsed) && ticks.length === 0 ? null : ticks;
 }

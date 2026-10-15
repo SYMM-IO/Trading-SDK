@@ -86,3 +86,6 @@ Both `symbolId` and `partyB` are required. A quote has no `partyB` until a solve
 - [Solvers](../solvers) — `useMarkets` also documented under the solvers slice.
 - [SYMMIO Contract](../symmio-contract) — on-chain contract reads, including pending funding per quote.
 - [Funding](../../core/concepts/funding) — the funding numbers, pair states, and sign conventions.
+  For Enigma deployments using symbol-ID `/market-info` and `/funding-info`, prefer
+  the [complete market hooks](/react/market-data). They also provide full `/symbols`
+  pagination while retaining duplicate ticker identities and per-side states.

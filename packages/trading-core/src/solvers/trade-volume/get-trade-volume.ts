@@ -61,7 +61,9 @@ export async function getTradeVolume(
 async function fetchTradeVolume(baseURL: string, symbolId: number): Promise<SolverDailyVolume[]> {
   try {
     const response = await getTradeVolumeSymbolId(symbolId, { baseURL });
-    return (response.data ?? []).map(toSolverDailyVolume);
+    return Array.isArray(response.data)
+      ? response.data.filter((row) => row !== null && typeof row === "object").map(toSolverDailyVolume)
+      : [];
   } catch (err) {
     if (err instanceof SymmError) throw err;
 

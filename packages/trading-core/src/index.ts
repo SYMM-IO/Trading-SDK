@@ -2950,3 +2950,70 @@ export {
 } from "./pools";
 
 export { validateInstantOpenBalanceFunding } from "./solvers/instant-open/shared/resolve-instant-open-sizing";
+
+// Symbol-ID market data and precise catalog snapshots.
+export {
+  getAllSymbols,
+  getAllSymbolsQueryKey,
+  getAllSymbolsQueryOptions,
+  type GetAllSymbolsData,
+  type GetAllSymbolsOptions,
+  type GetAllSymbolsParameters,
+  type GetAllSymbolsQueryKey,
+  type GetAllSymbolsReturnType,
+} from "./market-data/get-all-symbols";
+export {
+  getEnigmaFundingInfo,
+  getEnigmaFundingInfoQueryKey,
+  getEnigmaFundingInfoQueryOptions,
+  type GetEnigmaFundingInfoData,
+  type GetEnigmaFundingInfoOptions,
+  type GetEnigmaFundingInfoParameters,
+  type GetEnigmaFundingInfoQueryKey,
+  type GetEnigmaFundingInfoReturnType,
+} from "./market-data/get-enigma-funding-info";
+export type { EnigmaSymbolFunding } from "./market-data/get-enigma-funding-info";
+export {
+  getEnigmaMarketInfo,
+  getEnigmaMarketInfoQueryKey,
+  getEnigmaMarketInfoQueryOptions,
+  type GetEnigmaMarketInfoData,
+  type GetEnigmaMarketInfoOptions,
+  type GetEnigmaMarketInfoParameters,
+  type GetEnigmaMarketInfoQueryKey,
+  type GetEnigmaMarketInfoReturnType,
+} from "./market-data/get-enigma-market-info";
+export {
+  getListingMarketSnapshot,
+  getListingMarketSnapshotQueryKey,
+  getListingMarketSnapshotQueryOptions,
+  type DecimalListingMarket,
+  type GetListingMarketSnapshotData,
+  type GetListingMarketSnapshotOptions,
+  type GetListingMarketSnapshotParameters,
+  type GetListingMarketSnapshotQueryKey,
+  type GetListingMarketSnapshotReturnType,
+  type ListingMarketDecimalMetrics,
+} from "./market-data/get-listing-market-snapshot";
+export {
+  getNotionalCapSnapshot,
+  getNotionalCapSnapshotQueryKey,
+  getNotionalCapSnapshotQueryOptions,
+  type GetNotionalCapSnapshotData,
+  type GetNotionalCapSnapshotOptions,
+  type GetNotionalCapSnapshotParameters,
+  type GetNotionalCapSnapshotQueryKey,
+  type GetNotionalCapSnapshotReturnType,
+} from "./market-data/get-notional-cap-snapshot";
+export type { DecimalNotionalCap } from "./market-data/get-notional-cap-snapshot";
+export {
+  getTokenMarketData,
+  getTokenMarketDataQueryKey,
+  getTokenMarketDataQueryOptions,
+  type GetTokenMarketDataData,
+  type GetTokenMarketDataOptions,
+  type GetTokenMarketDataParameters,
+  type GetTokenMarketDataQueryKey,
+  type GetTokenMarketDataReturnType,
+} from "./market-data/get-token-market-data";
+export type { MarketToken, TokenMarketData } from "./market-data/get-token-market-data";

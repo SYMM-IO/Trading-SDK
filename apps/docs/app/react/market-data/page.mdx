@@ -1,0 +1,41 @@
+# Market data hooks
+
+These thin hooks bind the [complete market reads](/core/market-data) to the
+host's `SymmioProvider`, Wagmi chain and React Query cache. Pass `chainId`
+explicitly when the trading chain differs from the connected wallet chain.
+
+```tsx
+import {
+  useAllSymbols,
+  useEnigmaMarketInfo,
+  useEnigmaFundingInfo,
+  useNotionalCapSnapshot,
+  useTokenMarketData,
+  useListingMarketSnapshot,
+} from "@symmio/trading-react";
+
+function Markets() {
+  const symbols = useAllSymbols({ chainId: 42161 });
+  const marketInfo = useEnigmaMarketInfo({ chainId: 42161, query: { refetchInterval: 10000 } });
+  const funding = useEnigmaFundingInfo({ chainId: 42161, query: { refetchInterval: 30000 } });
+  const caps = useNotionalCapSnapshot({ chainId: 42161, query: { refetchInterval: 30000 } });
+  return <div>{symbols.data?.length ?? 0} markets</div>;
+}
+```
+
+| Hook                       | Parameters / return                                                                |
+| -------------------------- | ---------------------------------------------------------------------------------- |
+| `useAllSymbols`            | `UseAllSymbolsParameters` / `UseAllSymbolsReturnType`                              |
+| `useEnigmaMarketInfo`      | `UseEnigmaMarketInfoParameters` / `UseEnigmaMarketInfoReturnType`                  |
+| `useEnigmaFundingInfo`     | `UseEnigmaFundingInfoParameters` / `UseEnigmaFundingInfoReturnType`                |
+| `useNotionalCapSnapshot`   | `UseNotionalCapSnapshotParameters` / `UseNotionalCapSnapshotReturnType`            |
+| `useTokenMarketData`       | `UseTokenMarketDataParameters` / `UseTokenMarketDataReturnType`; `tokens` required |
+| `useListingMarketSnapshot` | `UseListingMarketSnapshotParameters` / `UseListingMarketSnapshotReturnType`        |
+
+Each parameter type is its corresponding core `GetXOptions` plus optional
+`config`. Each return type is `UseQueryResult<GetXReturnType, SymmioRequestError>`.
+All data shapes, identity, units, missing-value and pagination contracts are
+defined in [core](/core/market-data). Errors are normalized to
+`SymmioRequestError`; hooks do not add retries, polling, or invalidation policies.
+Use the `query` option for those policies. Keep price WebSocket subscriptions
+separate from order-confirmation notifications.

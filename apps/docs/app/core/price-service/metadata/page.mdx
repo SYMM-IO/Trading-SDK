@@ -39,3 +39,7 @@ useQuery(getEnigmaPriceServiceMetadataQueryOptions(config, { addresses: ["0x…"
 ```
 
 `GetEnigmaPriceServiceMetadataOptions` requires `addresses`; the factory does not accept missing inputs or validate them inside `queryFn`. The `getEnigmaPriceServiceMetadataQueryKey` builder still accepts partial inputs for cache matching and invalidation. Metadata changes slowly relative to prices, so a longer `staleTime` is usually fine.
+Keep requests at 50 addresses or fewer. To cover the complete catalog, read
+`getEnigmaPriceServiceSymbolsInfo` and batch its addresses; preserve absent values
+when combining results. Configure the chain-level price service for the selected
+deployment. [Token enrichment](/core/market-data) is a separate optional source.
