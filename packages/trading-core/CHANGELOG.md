@@ -1,5 +1,36 @@
 # @symmio/trading-core
 
+## 3.6.0
+
+### Minor Changes
+
+- 6740b84: **Instant trades check the signer's delegation before signing.** `instantOpen`, `instantClose` and `instantCloseBulk` — and every flow built on them (`instantOpenAuto`, `limitOpenAuto`, `instantCloseAuto`, `limitCloseAuto`, `instantCloseBulkAuto`, the React instant hooks and `useCloseQuoteGroup`) — now confirm that the signing key holds an active InstantLayer delegation for every operation it is about to sign. A key without one fails with `INSTANT_SIGNER_NOT_DELEGATED` (`kind: "validation"`) before anything is signed or sent to the solver, instead of the trade reverting on-chain after the solver accepted it.
+  - The check reuses the gasless relay's delegation pre-flight, so relayed writes and instant trades judge a session key the same way. A close signed under a virtual account is checked on the VA's parent sub-account, where the InstantLayer enforces delegations, and a bulk close is checked once per sub-account before any order is signed.
+  - The sub-account's owner needs no delegation: an owner-signed trade reads the owner once per config and skips the delegation reads. A session-key trade adds one RPC round trip.
+  - Pass `preflightDelegation: false` (new `InstantDelegationPreflightParameter`) to skip the check when your UI already gates the trade on delegation. The prepare functions, the auto, limit and bulk flows, the React instant hooks and `useCloseQuoteGroup` all forward it.
+  - A failed read during the check fails the trade instead of letting it through unchecked.
+  - Relay-vs-wallet routing and the grant-delegation flow are unchanged.
+
+- 8eecc55: **Pool transactions across every pool.** `getPoolTransactions` / `usePoolTransactions` now read the listing backend's deposit and withdrawal history across all pools, newest first, with optional server-side filters: `tokenAddress`, `marketChainId` (the chain the pool's token lives on), `walletAddress`, `transactionType` and `transactionStatus`. Every parameter is optional; with none, the page spans every pool. Each `PoolTransaction` now names its own pool (`tokenAddress`, `chainId`), and `PoolTransactionPage.marketAddress` is `null` on an unscoped page. The query key carries every filter, and the query factory forwards every parameter to the action.
+  - `marketAddress` is deprecated in favour of `tokenAddress`. It keeps working — the SDK sends it as `token_address`, `tokenAddress` wins when both are set, and both spellings share one cache entry.
+  - The default page `size` drops from 150 to 50. The listing backend now caps this endpoint's `size` at 50 and rejects anything larger with a `422`, so the old default failed on every deployment.
+  - The service fixes the order — newest first — and takes no sort parameter.
+  - `ListingDepositChainId` gains `ROBINHOOD` (4663) and `ARC` (5042), deposit chains the listing service already reports. An exhaustive `Record<ListingDepositChainId, …>` needs the two new keys.
+  - Code that builds `PoolTransaction` objects by hand (test fixtures, mocks) needs the new `tokenAddress` and `chainId` fields.
+
+- 184dae6: Add a pre-listing token price read — the Price Service's USD estimate for a token before (or regardless of whether) it is listed as a pool, from the listing backend's authed `POST /v2/market/token-price`.
+
+  `core` gains:
+  - `getTokenPrice` (plus `getTokenPriceQueryKey` / `getTokenPriceQueryOptions`) and its `TokenPrice` row — `{ price }`, USD per token as the service reports it. The read takes the listing bearer `accessToken`, the token's `chain` and its `tokenAddress`. The backend caches the figure for about five minutes and rate-limits the endpoint, so the query options default both `staleTime` and `gcTime` to five minutes; the same inputs inside that window are served from the cache with no refetch, and a `query` override wins.
+  - `TokenPriceChain` — the chains the endpoint accepts, by vendor chain **name** (`BASE`, `SOLANA`, `BSC`, `ARBITRUM_ONE`, `SONIC`, `ROBINHOOD`, `ARC`). It is a different key space from the numeric `ListingDepositChainId`; `ROBINHOOD` and `ARC` have no numeric twin.
+  - `toTokenPrice` — the mapper from the raw response.
+
+  `react` gains `useTokenPrice`, which stays idle until both the `accessToken` and the `tokenAddress` are non-empty and normalizes failures to `SymmioRequestError`.
+
+  **Errors** — an empty `accessToken` throws `MISSING_ACCESS_TOKEN` and a `chain` outside `TokenPriceChain` throws `UNSUPPORTED_TOKEN_PRICE_CHAIN`, both `kind: "validation"` and both before any request. A failed request is `FETCH_TOKEN_PRICE_FAILED`: a `401` on a bad or expired token, a `422` on an address the service cannot resolve, and a `429` once the rate limit is exhausted (`retryAfterMs` carries the wait when the service sends one).
+
+  **It is an estimate.** Render it with a `~`, never treat it as a mark or trade price, and do not poll for a fresher one.
+
 ## 3.5.0
 
 ### Minor Changes
