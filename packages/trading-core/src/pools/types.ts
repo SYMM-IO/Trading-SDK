@@ -92,6 +92,26 @@ export enum ListingDepositChainId {
 }
 
 /**
+ * Chains the listing backend's token-price endpoint accepts, keyed by the
+ * vendor's chain **name** — the `chain` input of `getTokenPrice`.
+ *
+ * This is a different key space from {@link ListingDepositChainId}: that enum
+ * is numeric (an EVM chain id, or the `0` sentinel for Solana) and names where
+ * a listing deposit lands; this one is a string name the price endpoint
+ * understands, and two of its members (`ROBINHOOD`, `ARC`) have no numeric
+ * twin at all. Do not cast between the two — pick the member explicitly.
+ */
+export enum TokenPriceChain {
+  BASE = "BASE",
+  SOLANA = "SOLANA",
+  BSC = "BSC",
+  ARBITRUM_ONE = "ARBITRUM_ONE",
+  SONIC = "SONIC",
+  ROBINHOOD = "ROBINHOOD",
+  ARC = "ARC",
+}
+
+/**
  * The same metric measured over each trailing window the listing service
  * reports.
  *
@@ -377,6 +397,20 @@ export interface MarketDepositAddress {
   tokenDecimal: number;
   /** The market's listing lifecycle status. */
   marketStatus: ListingMarketStatus;
+}
+
+/**
+ * A pre-listing price **estimate** for one token — the normalized result of
+ * the authed `/v2/market/token-price` endpoint, which asks the Price Service
+ * for a token that is not (yet) listed.
+ *
+ * The backend caches the figure for about five minutes and rate-limits the
+ * endpoint, so treat `price` as a display estimate, never as a mark or trade
+ * price: render it with a `~`, and do not poll for a fresher one.
+ */
+export interface TokenPrice {
+  /** USD per token, as the service reports it — a plain float, always `> 0`. */
+  price: number;
 }
 
 /**
