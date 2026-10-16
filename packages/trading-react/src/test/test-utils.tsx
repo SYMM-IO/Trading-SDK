@@ -5,6 +5,7 @@
 import {
   createConfig,
   type Config,
+  type SymmioExpressWithdrawConfig,
   type SymmioWalletClient,
   type WebSocketConstructor,
   type WebSocketLike,
@@ -97,6 +98,7 @@ export interface MockSymmioConfig {
 export function createMockSymmioConfig(opts?: {
   withWallet?: boolean;
   webSocketConstructor?: WebSocketConstructor;
+  expressWithdraw?: SymmioExpressWithdrawConfig;
 }): MockSymmioConfig {
   const readContract = vi.fn();
   const multicall = vi.fn();
@@ -117,6 +119,7 @@ export function createMockSymmioConfig(opts?: {
     symmioConfig: {
       [arbitrum.id]: {
         addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+        expressWithdraw: opts?.expressWithdraw,
       },
     },
     getClient: () => publicClient,

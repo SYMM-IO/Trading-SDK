@@ -28,7 +28,8 @@ export function ReadGetWithdrawRequest() {
   const validUser = isAddress(user) ? (user as Address) : undefined;
   const validRequestId = parseRequestId(requestId);
 
-  const query = useWithdrawRequest({ user: validUser, requestId: validRequestId });
+  /** Reads on "Read" only — typing a request id would otherwise fire a read per digit. */
+  const query = useWithdrawRequest({ user: validUser, requestId: validRequestId, query: { enabled: false } });
   const ready = Boolean(validUser) && validRequestId !== undefined;
 
   return (

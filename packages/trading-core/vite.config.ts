@@ -41,7 +41,7 @@ export default defineConfig({
        * Tests are not part of the public surface; excluding them keeps test-only
        * types and helpers out of the shipped declarations.
        */
-      exclude: ["**/*.test.ts", "**/test/**"],
+      exclude: ["**/*.test.ts", "**/test/**", "**/test-fixtures.ts"],
     }),
   ],
   build: {
@@ -144,7 +144,7 @@ export default defineConfig({
        * Test files and barrel `index.ts` re-exports aren't meaningful coverage
        * targets; excluding them keeps the report focused on real logic.
        */
-      exclude: ["src/**/*.test.ts", "src/**/index.ts"],
+      exclude: ["src/**/*.test.ts", "src/**/index.ts", "src/**/test-fixtures.ts"],
     },
   },
 });
