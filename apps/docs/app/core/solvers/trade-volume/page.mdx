@@ -112,3 +112,7 @@ The mapper this read runs on each row, exported for when you hold a raw response
 - [`getPoolRewardChart`](/core/pools/pool-reward-chart) — a pool page's rewards series, from the listing backend.
 - [`@symmio/trading-react`](/react/markets) — `useTradeVolume` is the React binding over this read.
 - [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.
+
+## Malformed observations
+
+Rows with missing/null/blank/non-numeric volume or an invalid timestamp are omitted by default. Valid `"0"` volume remains a real observation; decimal strings are retained without rounding. There is no `missingVolume` option. `useTradeVolume` and query factories inherit this policy with unchanged query keys.
