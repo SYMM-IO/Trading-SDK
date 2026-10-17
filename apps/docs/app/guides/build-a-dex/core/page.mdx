@@ -877,11 +877,11 @@ Gate the ticket against the cap before you let the user submit — `checkNotiona
 
 ### The header strip: funding
 
-`getFundingInfo` returns `MarketFundingInfo[]` for the symbols you pass (omit `symbols` for all). A positive rate receives funding, a negative rate pays. `projectFundingRate` projects the next accrual and `toMarketFundingInfo` shapes a row for the strip.
+`getFundingInfo` returns `MarketFundingInfo[]` for the symbol IDs you pass (omit `symbolIds` for all). A positive rate receives funding, a negative rate pays. `projectFundingRate` projects the next accrual and the returned rows are already normalized for the strip.
 
 ```ts
-const funding = await getFundingInfo(config, { symbols: ["BTCUSDT", "ETHUSDT"] });
-const rows = funding.map(toMarketFundingInfo);
+const funding = await getFundingInfo(config, { symbolIds: [1, 2] });
+const first = funding.find((row) => row.symbolId === 1);
 ```
 
 ### Live prices

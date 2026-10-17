@@ -15,9 +15,9 @@ import { useState } from "react";
 const ENIGMA_COLUMNS: DataTableColumn<MarketVolume>[] = [
   {
     id: "symbol",
-    header: "Market",
-    cell: (row) => row.symbol,
-    sortAccessor: (row) => row.symbol,
+    header: "Symbol ID",
+    cell: (row) => row.symbolId,
+    sortAccessor: (row) => row.symbolId,
     cellClassName: "text-foreground font-mono",
   },
   {
@@ -170,7 +170,7 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
     );
   }
 
-  const visible = data.markets.filter((row) => matches(row.symbol));
+  const visible = data.markets.filter((row) => matches(String(row.symbolId)));
   return (
     <div className="flex flex-col gap-4" data-testid={`${testId}-data`}>
       <div className="flex flex-wrap gap-6">
@@ -190,7 +190,7 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
           columns={ENIGMA_COLUMNS}
           data={visible}
           totalCount={data.markets.length}
-          getRowId={(row) => row.symbol}
+          getRowId={(row) => String(row.symbolId)}
           initialSort={{ columnId: "volume", direction: "desc" }}
           defaultPageSize={5}
           emptyMessage="No markets match this search."

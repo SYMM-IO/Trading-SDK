@@ -80,7 +80,7 @@ Next-epoch funding for **every** market in one call — pick a row by `symbol`. 
 
 ```ts
 const funding = useFundingInfo({ query: { refetchInterval: 30_000 } });
-const btc = funding.data?.find((f) => f.symbol === "BTCUSDT");
+const btc = funding.data?.find((f) => f.symbolId === 1);
 const pct = (btc?.nextFundingRateLong ?? 0) * 100; // long-side funding %
 ```
 

@@ -1,6 +1,6 @@
 /**
  * Next-epoch funding figures for one solver market, normalized from the
- * generated `/get_funding_info` response.
+ * generated `/funding-info` response.
  *
  * Funding is charged per epoch: the long side pays (or receives) at
  * {@link MarketFundingInfo.nextFundingRateLong} and the short side at
@@ -8,10 +8,12 @@
  * per-epoch decimal fractions the solver reports — multiply by `100` for a
  * percentage. A **positive** rate means that side *receives* funding; a
  * **negative** rate means it *pays*.
+ * @example
+ * const row: MarketFundingInfo = { symbolId: 117, nextFundingRateLong: 0.0001, nextFundingRateShort: -0.0001, nextFundingTime: 1783209600000, epochDurationSeconds: 43200 };
  */
 export interface MarketFundingInfo {
-  /** Market ticker and solver map key (e.g. `"BTCUSDT"`). */
-  symbol: string;
+  /** Stable solver symbol ID; join with getSymbols for names and tickers. */
+  symbolId: number;
   /**
    * Next funding rate for the long side, as a per-epoch decimal fraction
    * (`0.0001` = `0.01%`). Positive receives, negative pays.

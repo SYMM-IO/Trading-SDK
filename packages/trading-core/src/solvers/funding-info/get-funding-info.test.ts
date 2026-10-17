@@ -5,13 +5,13 @@ import { createConfig } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { ApiFundingInfoResponse } from "../types/generated/enigma-solver";
 
-const getGetFundingInfo = vi.hoisted(() => vi.fn());
+const requestFundingInfo = vi.hoisted(() => vi.fn());
 
 vi.mock("../types/generated/enigma-solver", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../types/generated/enigma-solver")>();
   return {
     ...actual,
-    getGetFundingInfo,
+    getFundingInfo: requestFundingInfo,
   };
 });
 
@@ -29,7 +29,7 @@ const config = createConfig({
 
 const SAMPLE_RESPONSE: { data: ApiFundingInfoResponse } = {
   data: {
-    BTCUSDT: {
+    1: {
       funding_rate_epoch_duration: 43200,
       next_funding_rate_long: "0.0001",
       next_funding_rate_short: "-0.0002",
@@ -40,18 +40,18 @@ const SAMPLE_RESPONSE: { data: ApiFundingInfoResponse } = {
 
 describe("getFundingInfo", () => {
   beforeEach(() => {
-    getGetFundingInfo.mockReset();
+    requestFundingInfo.mockReset();
   });
 
   it("requests the config's solver base URL and normalizes the market-keyed response", async () => {
-    getGetFundingInfo.mockResolvedValue(SAMPLE_RESPONSE);
+    requestFundingInfo.mockResolvedValue(SAMPLE_RESPONSE);
 
     const funding = await getFundingInfo(config, {});
 
-    expect(getGetFundingInfo).toHaveBeenCalledWith(undefined, expect.objectContaining({ baseURL: SOLVER_URL }));
+    expect(requestFundingInfo).toHaveBeenCalledWith(undefined, expect.objectContaining({ baseURL: SOLVER_URL }));
     expect(funding).toEqual([
       {
-        symbol: "BTCUSDT",
+        symbolId: 1,
         nextFundingRateLong: 0.0001,
         nextFundingRateShort: -0.0002,
         nextFundingTime: 1783209600000,
@@ -61,23 +61,23 @@ describe("getFundingInfo", () => {
   });
 
   it("forwards a symbols filter to the solver", async () => {
-    getGetFundingInfo.mockResolvedValue(SAMPLE_RESPONSE);
+    requestFundingInfo.mockResolvedValue(SAMPLE_RESPONSE);
 
-    await getFundingInfo(config, { symbols: ["BTCUSDT"] });
+    await getFundingInfo(config, { symbolIds: [1] });
 
-    expect(getGetFundingInfo).toHaveBeenCalledWith(
-      { symbols: ["BTCUSDT"] },
+    expect(requestFundingInfo).toHaveBeenCalledWith(
+      { symbol_ids: [1] },
       expect.objectContaining({ baseURL: SOLVER_URL }),
     );
   });
 
   it("returns an empty array when the solver reports no markets", async () => {
-    getGetFundingInfo.mockResolvedValue({ data: {} });
+    requestFundingInfo.mockResolvedValue({ data: {} });
     expect(await getFundingInfo(config, {})).toEqual([]);
   });
 
   it("wraps request failures in a SymmError", async () => {
-    getGetFundingInfo.mockRejectedValue(new Error("Network error"));
+    requestFundingInfo.mockRejectedValue(new Error("Network error"));
     await expect(getFundingInfo(config, {})).rejects.toBeInstanceOf(SymmError);
     await expect(getFundingInfo(config, {})).rejects.toThrow("Failed to fetch funding info");
   });

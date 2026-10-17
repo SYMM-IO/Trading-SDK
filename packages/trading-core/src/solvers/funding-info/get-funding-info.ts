@@ -2,27 +2,32 @@ import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
-import { getGetFundingInfo } from "../types/generated/enigma-solver";
+import { assertSolverKind } from "../assert-solver-kind";
+import { getFundingInfo as requestFundingInfo } from "../types/generated/enigma-solver";
 import { toMarketFundingInfo } from "./to-funding-info";
 import type { MarketFundingInfo } from "./types";
 
 /**
  * Parameters for {@link getFundingInfo}.
+ * @example const parameters: GetFundingInfoParameters = { chainId: 42161, symbolIds: [117, 185] };
  */
 export type GetFundingInfoParameters = Compute<
   ReadSolverParameter & {
-    /** Restrict the result to these market names. Omit to fetch every market (the endpoint default). */
-    symbols?: readonly string[];
+    /** Restrict the result to these symbol IDs. Omit to fetch every market (the endpoint default). */
+    symbolIds?: readonly number[];
   }
 >;
 
-/** Return type of {@link getFundingInfo}: one entry per market. */
+/**
+ * Funding observations keyed by stable symbol ID, with per-epoch fractional rates.
+ * @example const rows: GetFundingInfoReturnType = await getFundingInfo(config, { symbolIds: [117] });
+ */
 export type GetFundingInfoReturnType = MarketFundingInfo[];
 
 /**
- * Fetch per-market funding rates from the chain's solver `/get_funding_info`
+ * Fetch per-market funding rates from the chain's solver `/funding-info`
  * endpoint. Returns the next-epoch long/short funding rate, next funding time,
- * and epoch length for every market (or only the requested `symbols`). The
+ * and epoch length for every market (or only the requested `symbolIds`). The
  * solver base URL is resolved from `config` per call, so multiple chains never
  * clobber each other.
  *
@@ -30,7 +35,7 @@ export type GetFundingInfoReturnType = MarketFundingInfo[];
  * reports them (multiply by `100` for a percentage); no scaling is applied.
  *
  * @param config - The SDK config.
- * @param parameters - Optional chain id and `symbols` filter.
+ * @param parameters - Optional chain id and `symbolIds` filter.
  * @returns Normalized funding info, one {@link MarketFundingInfo} per market.
  * @throws {SymmApiError} when the API request fails.
  * @throws {SymmError} when the chain is unsupported.
@@ -38,7 +43,7 @@ export type GetFundingInfoReturnType = MarketFundingInfo[];
  * @example
  * ```ts
  * const funding = await getFundingInfo(config);
- * const btc = funding.find((f) => f.symbol === "BTCUSDT");
+ * const btc = funding.find((f) => f.symbolId === 1);
  * console.log(btc?.nextFundingRateLong); // 0.0001 → 0.01%
  * ```
  */
@@ -47,19 +52,24 @@ export async function getFundingInfo(
   parameters: GetFundingInfoParameters = {},
 ): Promise<GetFundingInfoReturnType> {
   const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
-  return fetchFundingInfo(solver.url, parameters.symbols);
+  assertSolverKind(solver, "enigma", "getFundingInfo");
+  return fetchFundingInfo(solver.url, parameters.symbolIds);
 }
 
 /**
- * Call the solver's `/get_funding_info` endpoint with a per-call base URL and
+ * Call the solver's `/funding-info` endpoint with a per-call base URL and
  * map the market-keyed response into the SDK's normalized array.
  *
  * @internal
  */
-async function fetchFundingInfo(baseURL: string, symbols?: readonly string[]): Promise<MarketFundingInfo[]> {
+async function fetchFundingInfo(baseURL: string, symbolIds?: readonly number[]): Promise<MarketFundingInfo[]> {
   try {
-    const response = await getGetFundingInfo(symbols ? { symbols: [...symbols] } : undefined, { baseURL });
-    return Object.entries(response.data).map(([symbol, raw]) => toMarketFundingInfo(symbol, raw));
+    const response = await requestFundingInfo(symbolIds ? { symbol_ids: [...symbolIds] } : undefined, { baseURL });
+    return Object.entries(response.data).flatMap(([key, raw]) => {
+      const symbolId = Number(key);
+      if (!Number.isSafeInteger(symbolId) || symbolId <= 0 || !raw || typeof raw !== "object") return [];
+      return [toMarketFundingInfo(symbolId, raw)];
+    });
   } catch (err) {
     if (err instanceof SymmError) throw err;
 

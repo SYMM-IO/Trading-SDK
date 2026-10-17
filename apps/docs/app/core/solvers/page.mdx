@@ -418,3 +418,17 @@ The lowcap trading flows live on their own pages:
 - [SYMMIO Contract](/core/symmio-contract) — on-chain reads. `getOnchainContractMarkets` is the contract-side analog to `getMarkets`.
 - [Unified Quotes](/core/quotes) — `PendingInstantOpen` / `PendingInstantClose` from `getInstantOpens` / `getInstantCloses` feed `reconcileQuotes`.
 - [Errors](/core/concepts/errors) — solver failures surface as `SymmApiError`.
+
+## Migration: Enigma market identity
+
+Enigma `getMarketInfo` / `useMarketInfo` now read `/market-info` and expose `MarketVolume.symbolId: number` instead of `symbol`. Rasa retains its existing ticker-based shape. Narrow on `kind` before accessing rows. Join Enigma IDs with `getSymbols` / `useSymbols` for display names; duplicate tickers remain distinct. Volumes remain float dollars.
+
+There is no per-market market-info endpoint or server filter. Read one shared query and select `data.markets.find(row => row.symbolId === selectedId)` locally.
+
+`getFundingInfo` / `useFundingInfo` use Enigma `/funding-info`. Replace `symbols: ["BTCUSDT"]` with `symbolIds: [1]`; `MarketFundingInfo.symbolId` replaces `symbol`. Omit the filter for all markets. The query key includes the ID filter and deployment; funding fractions, epoch seconds and funding timestamps are unchanged.
+
+```ts
+const info = await getMarketInfo(config, { solverId: "enigma" });
+const selected = info.markets.find((row) => row.symbolId === 1);
+const funding = await getFundingInfo(config, { symbolIds: [1] });
+```
