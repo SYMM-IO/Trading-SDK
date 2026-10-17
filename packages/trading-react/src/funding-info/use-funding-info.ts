@@ -24,14 +24,17 @@ export type UseFundingInfoReturnType = UseQueryResult<GetFundingInfoReturnType, 
 /**
  * Read per-market funding rates from the active chain's solver in one call.
  * Surfaces the next-epoch long/short funding rate, next funding time, and epoch
- * length for every market (or only the requested `symbols`).
+ * length for every market (or only the requested `symbolIds`).
  *
  * Does not poll by default; pass `query.refetchInterval` to opt into polling.
  *
+ * @param parameters - Deployment, optional config and query overrides.
+ * @returns Query state; Enigma rows identify markets by symbolId.
+ * @throws {SymmioRequestError} Action failures appear in the query error state.
  * @example
  * ```tsx
  * const { data } = useFundingInfo();
- * const btc = data?.find((f) => f.symbol === "BTCUSDT");
+ * const btc = data?.find((f) => f.symbolId === 1);
  * ```
  */
 export function useFundingInfo(parameters: UseFundingInfoParameters = {}): UseFundingInfoReturnType {

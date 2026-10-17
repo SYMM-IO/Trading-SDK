@@ -34,7 +34,7 @@ function horizonLabel(days: number): string {
 }
 
 /**
- * Solvers-page card for `/get_funding_info` — the next-epoch funding rate on
+ * Solvers-page card for `/funding-info` — the next-epoch funding rate on
  * each side (Long = Pump, Short = Dump), the next funding time, and the epoch
  * length for every market the solver lists. A positive rate receives funding, a
  * negative rate pays. Fetched on demand via the Refresh button (no
@@ -154,7 +154,7 @@ function ResultPanel({
     if (!rows) return [];
     const term = search.trim().toLowerCase();
     if (term.length === 0) return rows;
-    return rows.filter((row) => row.symbol.toLowerCase().includes(term));
+    return rows.filter((row) => String(row.symbolId).includes(term));
   }, [rows, search]);
 
   const columns = useMemo<DataTableColumn<FundingRow>[]>(() => buildColumns(days), [days]);
@@ -178,7 +178,7 @@ function ResultPanel({
       columns={columns}
       data={visible}
       totalCount={query.data.length}
-      getRowId={(row) => row.symbol}
+      getRowId={(row) => String(row.symbolId)}
       initialSort={{ columnId: "symbol", direction: "asc" }}
       defaultPageSize={5}
       emptyMessage="No markets match this search."
@@ -210,9 +210,9 @@ function buildColumns(days: number): DataTableColumn<FundingRow>[] {
   return [
     {
       id: "symbol",
-      header: "Market",
-      cell: (row) => row.symbol,
-      sortAccessor: (row) => row.symbol,
+      header: "Symbol ID",
+      cell: (row) => row.symbolId,
+      sortAccessor: (row) => row.symbolId,
       cellClassName: "text-foreground font-mono",
     },
     {

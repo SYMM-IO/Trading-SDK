@@ -22,11 +22,12 @@ export type GetMarketInfoParameters<K extends SymmioSolverKind = SymmioSolverKin
 export type GetMarketInfoReturnType<K extends SymmioSolverKind = SymmioSolverKind> = NormalizedMarketInfoByKind[K];
 
 /**
- * Fetch per-market info from the chain's solver `/get_market_info` endpoint,
+ * Fetch market info from Enigma `/market-info` or Rasa `/get_market_info`,
  * normalized to the {@link MarketInfo} union. The response diverges by solver
  * kind — **Enigma** returns per-market 24h volume + lifetime value plus aggregate
- * totals; **Rasa** returns per-market price / 24h change / volume / notional cap.
+ * totals keyed by symbol ID; **Rasa** returns per-market price / 24h change / volume / notional cap.
  * So **narrow on `kind`** before reading either side's rows.
+ * Enigma has no per-market route: select a symbol ID from this shared response.
  *
  * Pass a **literal** `solverId` to narrow the return to that solver's type; omit
  * it (default solver) to get the union.

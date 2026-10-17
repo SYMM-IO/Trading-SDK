@@ -45,9 +45,9 @@ See [`getSymbols`](/core/solvers#getsymbols) in core for the full parameter and 
 
 ## `useMarketInfo`
 
-Per-market figures from the solver's `/get_market_info` — the whole catalogue in one call. The response **diverges by solver**, so the result is a union discriminated on `data.kind`:
+Per-market figures from the solver's market-info endpoint (`/market-info` on Enigma, `/get_market_info` on Rasa) — the whole catalogue in one call. The response **diverges by solver**, so the result is a union discriminated on `data.kind`:
 
-- **Enigma** — `markets: MarketVolume[]` (`symbol`, `tradingVolume`, `lifetimeValue`) plus the aggregates `totalValue24h` and `totalLifetimeValue`.
+- **Enigma** — `markets: MarketVolume[]` (`symbolId`, `tradingVolume`, `lifetimeValue`) plus the aggregates `totalValue24h` and `totalLifetimeValue`.
 - **Rasa** — `markets: RasaMarketInfoRow[]` (`symbol`, `price`, `priceChangePercent`, `tradeVolume`, `notionalCap`) and **no** aggregate totals at all.
 
 ```ts
@@ -86,3 +86,17 @@ Both `symbolId` and `partyB` are required. A quote has no `partyB` until a solve
 - [Solvers](../solvers) — `useMarkets` also documented under the solvers slice.
 - [SYMMIO Contract](../symmio-contract) — on-chain contract reads, including pending funding per quote.
 - [Funding](../../core/concepts/funding) — the funding numbers, pair states, and sign conventions.
+
+## Migration: Enigma market identity
+
+Enigma `getMarketInfo` / `useMarketInfo` now read `/market-info` and expose `MarketVolume.symbolId: number` instead of `symbol`. Rasa retains its existing ticker-based shape. Narrow on `kind` before accessing rows. Join Enigma IDs with `getSymbols` / `useSymbols` for display names; duplicate tickers remain distinct. Volumes remain float dollars.
+
+There is no per-market market-info endpoint or server filter. Read one shared query and select `data.markets.find(row => row.symbolId === selectedId)` locally.
+
+`getFundingInfo` / `useFundingInfo` use Enigma `/funding-info`. Replace `symbols: ["BTCUSDT"]` with `symbolIds: [1]`; `MarketFundingInfo.symbolId` replaces `symbol`. Omit the filter for all markets. The query key includes the ID filter and deployment; funding fractions, epoch seconds and funding timestamps are unchanged.
+
+```tsx
+const info = useMarketInfo({ solverId: "enigma" });
+const selected = info.data?.markets.find((row) => row.symbolId === 1);
+const funding = useFundingInfo({ symbolIds: [1] });
+```

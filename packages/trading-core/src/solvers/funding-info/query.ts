@@ -7,7 +7,13 @@ import { getFundingInfo, type GetFundingInfoParameters, type GetFundingInfoRetur
 /** Data resolved by the {@link getFundingInfoQueryOptions} query. */
 export type GetFundingInfoData = GetFundingInfoReturnType;
 
-/** Build the TanStack Query key for {@link getFundingInfoQueryOptions}. */
+/**
+ * Build a funding cache key including the symbol-ID filter and deployment identity.
+ * @param options - Optional deployment and symbol IDs; query overrides are excluded.
+ * @returns A stable query-key tuple.
+ * @throws Does not throw for valid options.
+ * @example getFundingInfoQueryKey({ symbolIds: [117, 185] });
+ */
 export function getFundingInfoQueryKey(options: Compute<GetFundingInfoParameters & ConfigKeyParameter> = {}) {
   return ["getFundingInfo", filterQueryOptions(options)] as const;
 }
@@ -32,7 +38,8 @@ export type GetFundingInfoQueryOptions = SymmioQueryOptions<
  * Build TanStack Query options for {@link getFundingInfo}.
  *
  * @param config - The SDK config.
- * @param options - Query parameters (optional `chainId` / `symbols`) and TanStack overrides.
+ * @param options - Query parameters (optional `chainId` / `symbolIds`) and TanStack overrides.
+ * @throws {SymmError} When configuration cannot be resolved; the query function propagates action errors.
  * @returns Options to pass to `useQuery` / `queryClient.fetchQuery`.
  *
  * @example
@@ -52,6 +59,6 @@ export function getFundingInfoQueryOptions(
     }),
     enabled: options.query?.enabled ?? true,
     queryFn: () =>
-      getFundingInfo(config, { chainId: options.chainId, solverId: options.solverId, symbols: options.symbols }),
+      getFundingInfo(config, { chainId: options.chainId, solverId: options.solverId, symbolIds: options.symbolIds }),
   };
 }

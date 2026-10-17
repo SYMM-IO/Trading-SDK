@@ -375,15 +375,16 @@ Reference: `apps/web/src/features/integration/instant-open-flow.tsx` and `tpsl-f
 
 A trader expects the market header to carry a live stat strip alongside the mark price — **funding** and **available liquidity**. Each is one hook, polled so the strip stays fresh:
 
-- **Funding** — **[`useFundingInfo`](/react/solvers#usefundinginfo)** returns each market's next-epoch figures; match the row by the market's solver **`symbol`** field — **not** `name` or the route ticker, which can differ (`SymbolContractSymbol` carries both). You can also pass a `symbols` filter to fetch just the one market. Each row has `nextFundingRateLong` / `nextFundingRateShort` (per-epoch **decimal fractions** — `0.0001` = `0.01%`, so ×`100` for a percent), `nextFundingTime`, and `epochDurationSeconds`. **A positive rate means that side _receives_ funding; negative _pays_.** For a settlement countdown, read `nextFundingTime` — a **Unix timestamp in milliseconds**, but stay defensive about the unit (treat a value below `1e12` as seconds). It does not poll by default; pass `query.refetchInterval`.
+- **Funding** — **[`useFundingInfo`](/react/solvers#usefundinginfo)** returns each market's next-epoch figures; match the row by its numeric **`symbolId`**, so duplicate tickers remain distinct. You can also pass a `symbolIds` filter to fetch just the one market. Each row has `nextFundingRateLong` / `nextFundingRateShort` (per-epoch **decimal fractions** — `0.0001` = `0.01%`, so ×`100` for a percent), `nextFundingTime`, and `epochDurationSeconds`. **A positive rate means that side _receives_ funding; negative _pays_.** For a settlement countdown, read `nextFundingTime` — a **Unix timestamp in milliseconds**, but stay defensive about the unit (treat a value below `1e12` as seconds). It does not poll by default; pass `query.refetchInterval`.
 - **Liquidity** — **[`useNotionalCapBySymbolId`](/react/notional-cap#usenotionalcapbysymbolid)** returns `{ openInterest, availableToLong, availableToShort, totalCap, used }` for one market. **Available liquidity** is `availableToLong` / `availableToShort` (the notional the solver still allows to open per side); **open interest** is `openInterest`. Poll it with `DEFAULT_NOTIONAL_CAP_POLLING_MS`.
 
 ```tsx
-// Filter the fetch by the current market, and match by the market's solver
-// `symbol` field (which can differ from `name` / the route ticker).
-const funding = useFundingInfo({ symbols: [symbol], query: { refetchInterval: 30_000 } }).data?.find(
-  (f) => f.symbol === market.symbol,
-);
+// Filter the fetch by the current market ID.
+// Display names come from the symbol catalog.
+const funding = useFundingInfo({
+  symbolIds: [Number(market.symbol_id)],
+  query: { refetchInterval: 30_000 },
+}).data?.find((f) => f.symbolId === Number(market.symbol_id));
 const cap = useNotionalCapBySymbolId({
   symbolId: Number(market.symbol_id),
   query: { enabled: market.symbol_id != null, refetchInterval: DEFAULT_NOTIONAL_CAP_POLLING_MS },
