@@ -67,6 +67,7 @@ export interface ToSearchParamsInput {
   query?: string;
   chainIds?: readonly number[];
   marketStatus?: string;
+  isLocked?: boolean;
   limit?: number;
   offset?: number;
   sortBy?: string;
@@ -89,6 +90,7 @@ export function toSearchParams(input: ToSearchParamsInput): MarketSearchV2Market
   if (input.query !== undefined) params.query = input.query;
   if (input.chainIds !== undefined) params.chain_ids = [...input.chainIds];
   if (input.marketStatus !== undefined) params.market_status = input.marketStatus;
+  if (input.isLocked !== undefined) params.is_locked = input.isLocked;
   if (input.limit !== undefined) params.limit = input.limit;
   if (input.offset !== undefined) params.offset = input.offset;
   if (input.sortBy !== undefined) params.sort_by = input.sortBy;
