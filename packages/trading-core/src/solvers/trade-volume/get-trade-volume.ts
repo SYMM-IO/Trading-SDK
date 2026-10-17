@@ -23,7 +23,8 @@ export type GetTradeVolumeReturnType = SolverDailyVolume[];
 /**
  * Fetch the last N daily trade-volume rows for one market from the chain's
  * enigma solver `/trade-volume/{symbol_id}` endpoint. Rows are returned in
- * ascending day order. The solver base URL is resolved from `config` per call,
+ * ascending day order. Malformed rows (invalid timestamp or absent/non-numeric
+ * volume) are omitted, while genuine zero-volume observations are retained. The solver base URL is resolved from `config` per call,
  * so multiple chains never clobber each other.
  *
  * `/trade-volume/{symbol_id}` is an **Enigma-only** endpoint; the action asserts
@@ -61,7 +62,10 @@ export async function getTradeVolume(
 async function fetchTradeVolume(baseURL: string, symbolId: number): Promise<SolverDailyVolume[]> {
   try {
     const response = await getTradeVolumeSymbolId(symbolId, { baseURL });
-    return (response.data ?? []).map(toSolverDailyVolume);
+    return (Array.isArray(response.data) ? response.data : []).flatMap((raw) => {
+      const row = toSolverDailyVolume(raw);
+      return row ? [row] : [];
+    });
   } catch (err) {
     if (err instanceof SymmError) throw err;
 

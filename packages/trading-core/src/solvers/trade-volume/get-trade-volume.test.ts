@@ -51,12 +51,12 @@ describe("getTradeVolume", () => {
     ]);
   });
 
-  it('defaults a missing volume to "0" and keeps the ISO timestamp', async () => {
+  it("omits a missing volume instead of inventing zero", async () => {
     getTradeVolumeSymbolId.mockResolvedValue({ data: [{ timestamp: "2026-07-09T00:00:00Z" }] });
 
     const volume = await getTradeVolume(config, { symbolId: 1 });
 
-    expect(volume).toEqual([{ timestamp: "2026-07-09T00:00:00Z", volume: "0" }]);
+    expect(volume).toEqual([]);
   });
 
   it("returns an empty array when the solver reports no rows", async () => {
