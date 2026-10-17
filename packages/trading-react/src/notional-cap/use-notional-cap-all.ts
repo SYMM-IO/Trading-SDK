@@ -31,7 +31,7 @@ export type UseNotionalCapAllParameters = GetNotionalCapAllOptions &
 export type UseNotionalCapAllReturnType = UseQueryResult<GetNotionalCapAllReturnType, SymmioRequestError>;
 
 /**
- * Read every market's notional cap in one solver call. Surfaces the aggregate
+ * Read every market's notional cap across all solver pages. Surfaces the aggregate
  * `totalOpenInterest` / `totalUsed` plus the per-symbol rows.
  *
  * Polls every {@link DEFAULT_NOTIONAL_CAP_POLLING_MS} by default; pass
