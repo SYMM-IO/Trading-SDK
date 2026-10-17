@@ -128,6 +128,12 @@ It drives the create-pool form two ways: the recommended initial deposit is the 
 
 Every field is optional. The hook takes the core query options plus `config`.
 
+Pass `isLocked: false` for unlocked markets or `isLocked: true` for locked
+markets; omit it for both. This inventory flag is independent of `marketStatus`.
+The server filters before pagination, preserving matching totals and page sizes.
+Each lock-filter value has its own query cache entry. See the
+[core listing parameters](/core/pools/get-listing-markets#parameters).
+
 | Name       | Type             | Default                 | Notes                                                    |
 | ---------- | ---------------- | ----------------------- | -------------------------------------------------------- |
 | `chainId?` | `number`         | connected chain         | Which deployment's listing backend to read.              |
@@ -430,7 +436,7 @@ const { data, isPending, error } = useUserListingMarkets({
 });
 ```
 
-Everything about search, filtering, sorting, and pagination is identical to [`useListingMarkets`](#uselistingmarkets) — same parameters, same server-side model, same `placeholderData` advice for a table. Two things differ: the required token, and the extra per-row fields.
+Search, numeric filtering, sorting, and pagination follow [`useListingMarkets`](#uselistingmarkets) — the same server-side model and `placeholderData` advice for a table. The public catalog's `isLocked` parameter is not exposed on this authenticated read. This hook additionally requires a token and returns user-specific fields.
 
 ### It needs a token, and stays idle without one
 

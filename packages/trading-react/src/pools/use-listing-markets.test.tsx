@@ -87,6 +87,7 @@ describe("useListingMarkets", () => {
       useListingMarkets({
         config,
         search: "pepe",
+        isLocked: false,
         chainIds: [ListingDepositChainId.SOLANA],
         marketStatus: ListingMarketStatus.LISTED,
         sortBy: "tvl",
@@ -102,6 +103,7 @@ describe("useListingMarkets", () => {
       config,
       expect.objectContaining({
         search: "pepe",
+        isLocked: false,
         chainIds: [ListingDepositChainId.SOLANA],
         marketStatus: ListingMarketStatus.LISTED,
         sortBy: "tvl",
