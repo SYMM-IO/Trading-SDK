@@ -103,6 +103,11 @@ const impact = data
 
 `UseEstimatedPriceReturnType` also includes `isDebouncing`. While it is true, the quantity or price is still waiting for the debounce interval and cached data may describe previous inputs. Wait for both `!isDebouncing` and `!isFetching` before treating an estimate as current for submission.
 
+TanStack Query owns request cancellation: cancelling the query or removing its
+last observer aborts an in-flight estimate HTTP request. The hook accepts no
+separate signal and imposes no timeout. For imperative cancellation, use
+[`getEstimatedPrice`](/core/solvers#getestimatedprice) with an `AbortSignal`.
+
 ### `useSolverRevenue`
 
 What the solver **earned on one market**. `symbolId` is required: the current solver generation serves revenue per market only — the protocol-wide `/revenue` aggregate no longer exists. For a multi-market figure, mount one read per market and label the sum with the markets it covers.

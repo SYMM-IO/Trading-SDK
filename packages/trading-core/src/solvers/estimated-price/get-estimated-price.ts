@@ -29,6 +29,8 @@ export type GetEstimatedPriceParameters = Compute<
      * prices the fill relative to it.
      */
     price: string;
+    /** Cancels the underlying HTTP request; no timeout is imposed by default. */
+    signal?: AbortSignal;
   }
 >;
 
@@ -85,7 +87,7 @@ export async function getEstimatedPrice(
         entry: parameters.entry,
         price: parameters.price,
       },
-      { baseURL: solver.url },
+      { baseURL: solver.url, signal: parameters.signal },
     );
     return toEstimatedPrice(response.data);
   } catch (err) {

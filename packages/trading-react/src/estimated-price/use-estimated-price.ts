@@ -84,9 +84,9 @@ export function useEstimatedPrice(parameters: UseEstimatedPriceParameters): UseE
 
   const query = useQuery({
     ...options,
-    queryFn: async () => {
+    queryFn: async (context) => {
       try {
-        return await options.queryFn();
+        return await options.queryFn(context);
       } catch (err) {
         throw normalizeSymmError(err);
       }
