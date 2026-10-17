@@ -86,3 +86,9 @@ Both `symbolId` and `partyB` are required. A quote has no `partyB` until a solve
 - [Solvers](../solvers) — `useMarkets` also documented under the solvers slice.
 - [SYMMIO Contract](../symmio-contract) — on-chain contract reads, including pending funding per quote.
 - [Funding](../../core/concepts/funding) — the funding numbers, pair states, and sign conventions.
+
+## Complete symbol catalogs
+
+`getSymbols(config, {})` and `useSymbols()` retrieve all matching symbols in server order using 500-row pages when neither `limit` nor `offset` is supplied. All filters apply on every page. Supplying either pagination field requests one page (the server defaults an omitted limit to 100 and offset to zero). A failed later page rejects the read, rather than publishing a partial catalog.
+
+For the complete catalog, remove explicit `limit` and `offset` from existing calls. Existing query factories and hooks inherit this behavior without a new API.

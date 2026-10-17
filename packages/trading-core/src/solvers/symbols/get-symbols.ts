@@ -12,7 +12,7 @@ import type { SolverSymbol, SymbolStateFilter, SymbolValidityFilter } from "./ty
  */
 export type GetSymbolsParameters = Compute<
   ReadSolverParameter & {
-    /** Max rows to return (solver max 500, default 100). */
+    /** Explicit page size (solver max 500, default 100). Omit both limit and offset to read all pages. */
     limit?: number;
     /** Row offset for pagination (default 0). */
     offset?: number;
@@ -40,7 +40,8 @@ export type GetSymbolsReturnType = SolverSymbol[];
  * Fetch the tradable symbol catalogue from the chain's solver `/symbols`
  * endpoint. Returns a normalized {@link SolverSymbol} per row — id, name,
  * precisions, leverage, fees, and per-side trading state — filtered and paged by
- * the given `parameters`. The solver base URL is resolved from `config` per call,
+ * the given `parameters`. With neither `limit` nor `offset`, reads every page
+ * in server order. Supplying either retains explicit single-page behavior. The solver base URL is resolved from `config` per call,
  * so multiple chains never clobber each other.
  *
  * `/symbols` is an **Enigma-only** endpoint; the action asserts the resolved
@@ -62,7 +63,17 @@ export type GetSymbolsReturnType = SolverSymbol[];
 export async function getSymbols(config: Config, parameters: GetSymbolsParameters = {}): Promise<GetSymbolsReturnType> {
   const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   assertSolverKind(solver, "enigma", "getSymbols");
-  return fetchSymbols(solver.url, parameters);
+  if (parameters.limit !== undefined || parameters.offset !== undefined) {
+    return (await fetchSymbols(solver.url, parameters)).symbols;
+  }
+  const result: SolverSymbol[] = [];
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const page = await fetchSymbols(solver.url, { ...parameters, limit: pageSize, offset });
+    result.push(...page.symbols);
+    if (page.rawCount < pageSize) break;
+  }
+  return result;
 }
 
 /**
@@ -72,7 +83,10 @@ export async function getSymbols(config: Config, parameters: GetSymbolsParameter
  *
  * @internal
  */
-async function fetchSymbols(baseURL: string, parameters: GetSymbolsParameters): Promise<SolverSymbol[]> {
+async function fetchSymbols(
+  baseURL: string,
+  parameters: GetSymbolsParameters,
+): Promise<{ symbols: SolverSymbol[]; rawCount: number }> {
   try {
     const response = await requestSymbols(
       {
@@ -88,7 +102,8 @@ async function fetchSymbols(baseURL: string, parameters: GetSymbolsParameters): 
       },
       { baseURL },
     );
-    return toSolverSymbols(response.data.symbols ?? []);
+    const rows = response.data.symbols ?? [];
+    return { symbols: toSolverSymbols(rows), rawCount: rows.length };
   } catch (err) {
     if (err instanceof SymmError) throw err;
 
