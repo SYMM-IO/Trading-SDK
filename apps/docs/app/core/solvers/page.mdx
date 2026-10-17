@@ -366,6 +366,12 @@ const { estimatedPrice } = await getEstimatedPrice(config, {
 
 `getEstimatedPriceQueryOptions` / `getEstimatedPriceQueryKey` ship alongside for TanStack; the React layer wraps them as [`useEstimatedPrice`](/react/solvers#useestimatedprice).
 
+Imperative calls accept an optional `signal: AbortSignal`, for example
+`signal: AbortSignal.timeout(60_000)`. Cancellation stops the underlying HTTP
+request and rejects with the existing SDK error normalization. The SDK imposes
+no timeout when the signal is omitted. Query factories use TanStack's own signal
+instead of accepting one in their options; signals never enter the cache key.
+
 ### `calculatePriceImpact`
 
 Pure helper — signed **price-impact percent** of an estimated fill vs a reference price: `(estimated − reference) / reference × 100`. Returns `0` for a zero / non-finite reference. The UI colors it by side.
