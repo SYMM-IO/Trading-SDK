@@ -43,16 +43,18 @@ One `GET /trade-volume/{symbol_id}` against the chain's solver. This is the solv
 ## Returns
 
 <Returns type="Promise<SolverDailyVolume[]>">
-  One entry per day, ascending. An empty array means the market has not traded.
+  Valid daily observations, ascending. An empty array means there are no usable observations; this can also happen when
+  every returned row is malformed.
 </Returns>
 
 <Properties>
   <Property name="timestamp" type="string" required>
     The day bucket, as the ISO 8601 datetime string the solver reports (e.g. `"2026-07-09T00:00:00Z"`, midnight UTC).
-    Empty string when the solver omits it. ISO 8601 also sorts correctly as a plain string.
+    Rows with missing or invalid timestamps are omitted.
   </Property>
   <Property name="volume" type="string" required>
-    Notional traded that day, as the decimal string the solver reports (`"0"` when absent).
+    Notional traded that day, as the decimal string the solver reports. Missing, blank or non-numeric volumes are
+    omitted; a genuine `"0"` is retained.
   </Property>
 </Properties>
 
@@ -96,7 +98,16 @@ useQuery({
 
 ## toSolverDailyVolume
 
-The mapper this read runs on each row, exported for when you hold a raw response yourself — a proxy route, a fixture, a rehydrated payload. It fills an omitted `timestamp` with `""` and an omitted `volume` with `"0"`.
+The mapper this read runs on each row, exported for when you hold a raw response yourself — a proxy route, a fixture, a rehydrated payload. It returns `SolverDailyVolume | undefined`: malformed observations produce `undefined`, while valid timestamps and decimal strings pass through unchanged. Direct callers must handle the missing result before reading its fields.
+
+```ts
+import { toSolverDailyVolume } from "@symmio/trading-core";
+
+const row = toSolverDailyVolume({ timestamp: "2026-07-09T00:00:00Z", volume: "0" });
+if (row !== undefined) {
+  console.log(row.timestamp, row.volume);
+}
+```
 
 ## Throws
 
