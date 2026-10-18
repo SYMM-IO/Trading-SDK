@@ -88,7 +88,7 @@ Fetch the tradable symbol catalogue from the Enigma solver's `/symbols` endpoint
 ```ts
 import { getSymbols } from "@symmio/trading-core";
 
-// First page, the solver's default of 100 rows.
+// Complete matching catalog; pagination is handled internally.
 const symbols = await getSymbols(config, {});
 
 // Server-side filtering + pagination: enabled "BTC" symbols, 20 per page.
@@ -103,19 +103,19 @@ const page = await getSymbols(config, {
 
 **Parameters**
 
-| Name           | Type                                                      | Default           | Notes                                                |
-| -------------- | --------------------------------------------------------- | ----------------- | ---------------------------------------------------- |
-| `chainId`      | `number?`                                                 | config default    | Optional chain override.                             |
-| `solverId`     | `"enigma"?`                                               | default solver    | Must resolve to an `enigma` solver.                  |
-| `limit`        | `number?`                                                 | `100` (max `500`) | Page size.                                           |
-| `offset`       | `number?`                                                 | `0`               | Page offset for pagination.                          |
-| `symbolId`     | `number?`                                                 | —                 | Restrict to a single symbol id.                      |
-| `search`       | `string?`                                                 | —                 | Case-insensitive substring match on the symbol name. |
-| `asset`        | `string?`                                                 | —                 | Exact-match filter on the base asset.                |
-| `tokenAddress` | `string?`                                                 | —                 | Exact-match filter on the collateral token address.  |
-| `isValid`      | `"true" \| "false" \| "any"?`                             | `"true"`          | Validity filter; the solver defaults to valid-only.  |
-| `stateLong`    | `"disabled" \| "close_only" \| "open_only" \| "enabled"?` | —                 | Long-side trading-state filter.                      |
-| `stateShort`   | `"disabled" \| "close_only" \| "open_only" \| "enabled"?` | —                 | Short-side trading-state filter.                     |
+| Name           | Type                                                      | Default                             | Notes                                                |
+| -------------- | --------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------- |
+| `chainId`      | `number?`                                                 | config default                      | Optional chain override.                             |
+| `solverId`     | `"enigma"?`                                               | default solver                      | Must resolve to an `enigma` solver.                  |
+| `limit`        | `number?`                                                 | all pages (explicit page max `500`) | Page size.                                           |
+| `offset`       | `number?`                                                 | `0`                                 | Page offset for pagination.                          |
+| `symbolId`     | `number?`                                                 | —                                   | Restrict to a single symbol id.                      |
+| `search`       | `string?`                                                 | —                                   | Case-insensitive substring match on the symbol name. |
+| `asset`        | `string?`                                                 | —                                   | Exact-match filter on the base asset.                |
+| `tokenAddress` | `string?`                                                 | —                                   | Exact-match filter on the collateral token address.  |
+| `isValid`      | `"true" \| "false" \| "any"?`                             | `"true"`                            | Validity filter; the solver defaults to valid-only.  |
+| `stateLong`    | `"disabled" \| "close_only" \| "open_only" \| "enabled"?` | —                                   | Long-side trading-state filter.                      |
+| `stateShort`   | `"disabled" \| "close_only" \| "open_only" \| "enabled"?` | —                                   | Short-side trading-state filter.                     |
 
 **Returns** — `SolverSymbol[]`. Same camelCase, gap-filled shape as an `EnigmaMarket`, except `/symbols` reports trading state **per side** (`stateLong` / `stateShort`) instead of the single `state` on `getMarkets`.
 
@@ -430,3 +430,9 @@ const options = getNotionalCapPageQueryOptions(config, { limit: 100, offset: 100
 ```
 
 `GetNotionalCapPageParameters` describes paging inputs; `GetNotionalCapPageReturnType` / `GetNotionalCapPageData` describe the result. `GetNotionalCapPageOptions` adds query overrides. `getNotionalCapPageQueryKey` includes deployment, limit and offset; its type is `GetNotionalCapPageQueryKey`, and the factory returns `GetNotionalCapPageQueryOptions`. See [React hooks](/react/notional-cap).
+
+## Complete symbol catalogs
+
+`getSymbols(config, {})` and `useSymbols()` retrieve all matching symbols in server order using 500-row pages when neither `limit` nor `offset` is supplied. All filters apply on every page. Supplying either pagination field requests one page (the server defaults an omitted limit to 100 and offset to zero). A failed later page rejects the read, rather than publishing a partial catalog.
+
+For the complete catalog, remove explicit `limit` and `offset` from existing calls. Existing query factories and hooks inherit this behavior without a new API.

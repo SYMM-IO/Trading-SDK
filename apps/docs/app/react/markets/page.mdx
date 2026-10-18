@@ -86,3 +86,7 @@ Both `symbolId` and `partyB` are required. A quote has no `partyB` until a solve
 - [Solvers](../solvers) — `useMarkets` also documented under the solvers slice.
 - [SYMMIO Contract](../symmio-contract) — on-chain contract reads, including pending funding per quote.
 - [Funding](../../core/concepts/funding) — the funding numbers, pair states, and sign conventions.
+
+## Complete symbol catalogs
+
+`useSymbols()` reads the complete matching catalog when both `limit` and `offset` are omitted. Supplying either keeps single-page behavior. See [core pagination and failure semantics](/core/solvers#complete-symbol-catalogs).
