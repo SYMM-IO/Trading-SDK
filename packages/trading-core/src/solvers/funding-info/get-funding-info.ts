@@ -64,7 +64,11 @@ export async function getFundingInfo(
  */
 async function fetchFundingInfo(baseURL: string, symbolIds?: readonly number[]): Promise<MarketFundingInfo[]> {
   try {
-    const response = await requestFundingInfo(symbolIds ? { symbol_ids: [...symbolIds] } : undefined, { baseURL });
+    const response = await requestFundingInfo(symbolIds ? { symbol_ids: [...symbolIds] } : undefined, {
+      baseURL,
+      // The solver ignores Axios's default bracketed array keys (symbol_ids[]).
+      paramsSerializer: { indexes: null },
+    });
     return Object.entries(response.data).flatMap(([key, raw]) => {
       const symbolId = Number(key);
       if (!Number.isSafeInteger(symbolId) || symbolId <= 0 || !raw || typeof raw !== "object") return [];
