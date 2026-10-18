@@ -2,17 +2,16 @@ import type { ApiDailyTradeVolumeResponse } from "../types/generated/enigma-solv
 import type { SolverDailyVolume } from "./types";
 
 /**
- * Normalize a valid daily observation without inventing zero volume.
- * @param raw - Untrusted daily row from the solver.
- * @returns The original timestamp/decimal volume, or undefined for malformed rows.
- * @throws Does not throw for malformed input.
+ * Map one daily observation, preserving the existing missing-field defaults.
+ * This mapper does not validate rows; getTradeVolume filters malformed input first.
+ * @param raw - One raw daily-volume object from the solver.
+ * @returns A row with unchanged strings; missing timestamp/volume default to ""/"0".
+ * @throws Does not throw for inputs matching the declared type.
  * @example toSolverDailyVolume({ timestamp: "2026-10-17T00:00:00Z", volume: "0" });
  */
-export function toSolverDailyVolume(raw: ApiDailyTradeVolumeResponse): SolverDailyVolume | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const timestamp = raw.timestamp;
-  const volume = raw.volume;
-  if (typeof timestamp !== "string" || !timestamp.trim() || !Number.isFinite(Date.parse(timestamp))) return undefined;
-  if (typeof volume !== "string" || !volume.trim() || !Number.isFinite(Number(volume))) return undefined;
-  return { timestamp, volume };
+export function toSolverDailyVolume(raw: ApiDailyTradeVolumeResponse): SolverDailyVolume {
+  return {
+    timestamp: raw.timestamp ?? "",
+    volume: raw.volume ?? "0",
+  };
 }

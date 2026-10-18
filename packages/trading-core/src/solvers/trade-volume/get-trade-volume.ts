@@ -62,10 +62,8 @@ export async function getTradeVolume(
 async function fetchTradeVolume(baseURL: string, symbolId: number): Promise<SolverDailyVolume[]> {
   try {
     const response = await getTradeVolumeSymbolId(symbolId, { baseURL });
-    return (Array.isArray(response.data) ? response.data : []).flatMap((raw) => {
-      const row = toSolverDailyVolume(raw);
-      return row ? [row] : [];
-    });
+    const rows: unknown[] = Array.isArray(response.data) ? response.data : [];
+    return rows.filter(isValidDailyVolume).map(toSolverDailyVolume);
   } catch (err) {
     if (err instanceof SymmError) throw err;
 
@@ -80,4 +78,18 @@ async function fetchTradeVolume(baseURL: string, symbolId: number): Promise<Solv
       { cause: err instanceof Error ? err : undefined },
     );
   }
+}
+
+/** Validate wire observations before the public mapper applies its legacy defaults. */
+function isValidDailyVolume(raw: unknown): raw is SolverDailyVolume {
+  if (typeof raw !== "object" || raw === null || !("timestamp" in raw) || !("volume" in raw)) return false;
+  const { timestamp, volume } = raw;
+  return (
+    typeof timestamp === "string" &&
+    timestamp.trim().length > 0 &&
+    Number.isFinite(Date.parse(timestamp)) &&
+    typeof volume === "string" &&
+    volume.trim().length > 0 &&
+    Number.isFinite(Number(volume))
+  );
 }

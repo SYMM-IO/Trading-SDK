@@ -19,14 +19,21 @@ it("real action and query skip malformed rows while retaining true zero and exac
     expect(request.url).toBe("/trade-volume/12");
     return {
       data: [
+        valid[0],
         null,
         {},
         { timestamp },
         { timestamp, volume: null },
         { timestamp, volume: "" },
+        { timestamp, volume: "   " },
+        { timestamp, volume: 0 },
+        { timestamp, volume: false },
+        { timestamp, volume: "NaN" },
         { timestamp, volume: "Infinity" },
+        { timestamp: "", volume: "1" },
+        { timestamp: 0, volume: "1" },
         { timestamp: "bad", volume: "1" },
-        ...valid,
+        valid[1],
       ],
       status: 200,
       statusText: "OK",

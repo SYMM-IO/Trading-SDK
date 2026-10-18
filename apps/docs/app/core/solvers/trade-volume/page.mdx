@@ -98,15 +98,14 @@ useQuery({
 
 ## toSolverDailyVolume
 
-The mapper this read runs on each row, exported for when you hold a raw response yourself — a proxy route, a fixture, a rehydrated payload. It returns `SolverDailyVolume | undefined`: malformed observations produce `undefined`, while valid timestamps and decimal strings pass through unchanged. Direct callers must handle the missing result before reading its fields.
+The exported mapper retains its existing `SolverDailyVolume` return type and missing-field defaults: an omitted `timestamp` becomes `""`, and an omitted `volume` becomes `"0"`. Supplied strings pass through unchanged. It does not validate or omit observations. `getTradeVolume` validates each wire row before calling this mapper, so the action and its query/hook omit malformed observations without changing direct mapper callers.
 
 ```ts
 import { toSolverDailyVolume } from "@symmio/trading-core";
 
 const row = toSolverDailyVolume({ timestamp: "2026-07-09T00:00:00Z", volume: "0" });
-if (row !== undefined) {
-  console.log(row.timestamp, row.volume);
-}
+console.log(row.timestamp, row.volume);
+toSolverDailyVolume({}); // { timestamp: "", volume: "0" }
 ```
 
 ## Throws
