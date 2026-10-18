@@ -98,3 +98,7 @@ const info = useMarketInfo({ solverId: "enigma" });
 const selected = info.data?.markets.find((row) => row.symbolId === 1);
 const funding = useFundingInfo({ symbolIds: [1] });
 ```
+
+## Complete symbol catalogs
+
+`useSymbols()` reads the complete matching catalog when both `limit` and `offset` are omitted. Supplying either keeps single-page behavior. See [core pagination and failure semantics](/core/solvers#complete-symbol-catalogs).
