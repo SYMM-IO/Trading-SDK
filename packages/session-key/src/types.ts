@@ -34,7 +34,7 @@ export interface SessionKeyRecord {
 export interface SessionKeyState {
   /** Whether a valid session key account is currently loaded in memory. */
   isReady: boolean;
-  /** Whether the last loaded storage record was expired. */
+  /** Whether the loaded key has expired, including expiry observed during signing or a state read. */
   isExpired: boolean;
   /** Session key public address, when initialized. */
   publicAddress: Address | null;
@@ -111,8 +111,8 @@ export interface CreateSessionKeyManagerOptions {
   /** Default lifetime for newly generated/imported keys. Defaults to one year. */
   defaultTtlMs?: number;
   /**
-   * What `initialize` does when the storage adapter's `load` throws — a
-   * decryption failure, for example.
+   * What `initialize` does when storage loading or record validation fails —
+   * a decryption failure, for example. Restore-only `load` always throws.
    *
    * - `"rotate"` (default): remove the stored record and generate a new key.
    *   The new key holds no on-chain delegation, so the user has to authorize
@@ -124,6 +124,19 @@ export interface CreateSessionKeyManagerOptions {
   onLoadError?: "rotate" | "throw";
 }
 
+/** Lifetime of an imported key: a relative duration or its original absolute expiry. */
+export type SessionKeyImportOptions =
+  | {
+      /** Lifetime from import time, in milliseconds. Defaults to the manager's default lifetime. */
+      ttlMs?: number;
+      expiresAt?: never;
+    }
+  | {
+      /** Absolute expiry in milliseconds, preserved during device transfer. Must be in the future. */
+      expiresAt: number;
+      ttlMs?: never;
+    };
+
 /**
  * Session-key manager for loading, generating, signing, and destroying local keys.
  */
@@ -131,16 +144,37 @@ export interface SessionKeyManager {
   /**
    * Load an existing non-expired key for `owner`, or generate and persist a new
    * one. Concurrent calls for the same owner share one run, and every lifecycle
-   * call (`initialize`, `importPrivateKey`, `rotate`, `destroy`) runs after the
+   * call (`initialize`, `load`, `importPrivateKey`, `rotate`, `destroy`) runs after the
    * previous one settles. Starting a different lifecycle call immediately
    * revokes the in-memory signer; a still-running older call rejects with
    * `SessionKeyOperationSupersededError` instead of publishing stale key
    * material. After saving, the manager makes a best-effort check for a competing
-   * storage writer. A failing `load` follows the manager's `onLoadError`.
+   * storage writer. A storage read or record validation failure during initialize
+   * follows the manager's `onLoadError` policy.
    */
   initialize(owner: Address, options?: { ttlMs?: number }): Promise<SessionKeyState>;
-  /** Import an existing private key and persist it for `owner`, revoking the current in-memory signer immediately. */
-  importPrivateKey(owner: Address, privateKey: Hex, options?: { ttlMs?: number }): Promise<SessionKeyState>;
+  /**
+   * Restore a valid existing key without creating, rotating, or removing records.
+   * Missing or expired records return non-ready state; read or validation errors
+   * throw `SessionKeyLoadError`, regardless of `onLoadError`. Immediately revokes
+   * the previous in-memory signer. Prefer this for a device that cannot authorize
+   * replacement keys.
+   *
+   * @param owner - Wallet whose existing key should be restored.
+   * @returns A ready state, or a non-ready state for missing or expired storage.
+   * @example
+   * ```ts
+   * const restored = await manager.load(owner);
+   * if (!restored.isReady) showSessionRecovery();
+   * ```
+   */
+  load(owner: Address): Promise<SessionKeyState>;
+  /**
+   * Import a private key for `owner`. Pass `expiresAt` to preserve a transferred
+   * session's absolute expiry. Invalid inputs reject before revoking the current
+   * signer or writing storage; a valid import immediately revokes the signer.
+   */
+  importPrivateKey(owner: Address, privateKey: Hex, options?: SessionKeyImportOptions): Promise<SessionKeyState>;
   /** Replace any existing key for `owner` with a newly generated key, revoking the current signer immediately. */
   rotate(owner: Address, options?: { ttlMs?: number }): Promise<SessionKeyState>;
   /** Sign an arbitrary message with the loaded session key. */
@@ -149,7 +183,7 @@ export interface SessionKeyManager {
   signTypedData(parameters: SessionKeyTypedDataParameters): Promise<Hex>;
   /** Immediately clear the in-memory key. When `owner` is passed, also remove its stored key asynchronously. */
   destroy(owner?: Address): Promise<void>;
-  /** Return the current runtime state. */
+  /** Return the current runtime state as a frozen snapshot; accessors refresh local expiry. */
   getState(): SessionKeyState;
   /** Return whether a session key is currently ready in memory. */
   isReady(): boolean;
@@ -159,7 +193,8 @@ export interface SessionKeyManager {
    * Return the loaded session key as a viem account.
    *
    * This is the signer to hand to viem's `createWalletClient` or to an SDK
-   * wallet-client resolver. It is strictly preferred over
+   * wallet-client resolver. Captured accounts reject signing before and after
+   * asynchronous work if their lifecycle is replaced or the key expires. Prefer it over
    * {@link SessionKeyManager.getPrivateKey}: the raw private key never leaves
    * the manager, only its signing capability does.
    *
@@ -171,7 +206,7 @@ export interface SessionKeyManager {
    * }
    * ```
    *
-   * @returns The session key account, or `null` when no key is loaded.
+   * @returns The session key account, or `null` when no unexpired key is loaded.
    */
   getAccount(): LocalAccount | null;
   /**
@@ -179,7 +214,7 @@ export interface SessionKeyManager {
    *
    * Intended for explicit device-transfer/export flows only. For signing, use
    * {@link SessionKeyManager.getAccount} instead so the raw key never leaves
-   * the manager.
+   * the manager. A copied raw key cannot be revoked by this manager.
    *
    * @returns The raw private key, or `null` when no key is loaded.
    */

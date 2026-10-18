@@ -1,13 +1,13 @@
 import type { Address } from "viem";
 
 /**
- * Thrown by `SessionKeyManager.initialize` when the storage adapter's `load`
- * fails and the manager was created with `onLoadError: "throw"`.
+ * Thrown by `SessionKeyManager.load` when reading or validating a stored record
+ * fails, or by `initialize` when configured with `onLoadError: "throw"`.
  *
- * The stored record is left untouched and no key is loaded in memory, so the
- * app can retry (for example once a decryption key is available again) or ask
- * the user before replacing a key that may still hold an on-chain delegation.
- * The adapter's error is on `cause`.
+ * A restore failure leaves storage untouched and no key loaded in memory, so
+ * the app can retry once decryption is available. A post-save reconciliation
+ * failure can also throw this error; it does not undo the completed save.
+ * The underlying read or validation error is on `cause`.
  *
  * @example
  * ```ts
@@ -25,14 +25,15 @@ export class SessionKeyLoadError extends Error {
   readonly owner: Address;
 
   constructor(owner: Address, options?: ErrorOptions) {
-    super(`Could not load the stored session key for ${owner}. The stored record was left untouched.`, options);
+    super(`Could not load a valid stored session key for ${owner}.`, options);
     this.owner = owner;
   }
 }
 
 /**
  * Thrown when a newer lifecycle request replaces an `initialize`, import,
- * rotation, or manager-owned signing operation that was still running.
+ * rotation, or signing operation that was still running, including signing
+ * through an account captured earlier with `getAccount()`.
  *
  * The superseded operation never publishes or returns key material. Callers
  * should normally ignore this error and follow the newer lifecycle request.
@@ -50,10 +51,39 @@ export class SessionKeyOperationSupersededError extends Error {
   override readonly name = "SessionKeyOperationSupersededError";
 
   /** The operation that was replaced by a newer lifecycle request. */
-  readonly operation: "importPrivateKey" | "initialize" | "rotate" | "sign" | "signTypedData";
+  readonly operation:
+    | "importPrivateKey"
+    | "initialize"
+    | "load"
+    | "rotate"
+    | "sign"
+    | "signAuthorization"
+    | "signMessage"
+    | "signTransaction"
+    | "signTypedData";
 
   constructor(operation: SessionKeyOperationSupersededError["operation"]) {
     super(`Session-key ${operation} was superseded by a newer lifecycle operation.`);
     this.operation = operation;
+  }
+}
+
+/**
+ * Thrown when a manager or captured account tries to sign after local expiry.
+ * The persisted record is left untouched; restore or authorize a new session
+ * through the application's recovery flow.
+ */
+export class SessionKeyExpiredError extends Error {
+  override readonly name = "SessionKeyExpiredError";
+
+  /** Public address of the expired session key. */
+  readonly address: Address;
+  /** Expiry timestamp in milliseconds. */
+  readonly expiresAt: number;
+
+  constructor(address: Address, expiresAt: number) {
+    super(`Session key ${address} has expired.`);
+    this.address = address;
+    this.expiresAt = expiresAt;
   }
 }

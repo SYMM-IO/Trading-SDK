@@ -1,22 +1,31 @@
 import type { Address, Hex, LocalAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { SESSION_KEY_EXPIRY_MS } from "./constants";
-import { SessionKeyLoadError, SessionKeyOperationSupersededError } from "./errors";
+import { SessionKeyExpiredError, SessionKeyLoadError, SessionKeyOperationSupersededError } from "./errors";
+import { createSessionKeyAccount } from "./session-key-account";
+import {
+  resolveSessionKeyExpiry,
+  validateSessionKeyOwner,
+  validateSessionKeyPrivateKey,
+  validateSessionKeyRecord,
+} from "./session-key-record";
 import type {
   CreateSessionKeyManagerOptions,
+  SessionKeyImportOptions,
   SessionKeyManager,
   SessionKeyMaterial,
+  SessionKeyRecord,
   SessionKeySignature,
   SessionKeyState,
   SessionKeyTypedDataParameters,
 } from "./types";
 
-const EMPTY_STATE: SessionKeyState = {
+const EMPTY_STATE: SessionKeyState = Object.freeze({
   isReady: false,
   isExpired: false,
   publicAddress: null,
   expiresAt: null,
-};
+});
 
 /**
  * Generate a new EVM session key pair.
@@ -85,7 +94,7 @@ class DefaultSessionKeyManager implements SessionKeyManager {
   /** Incremented as soon as a new lifecycle request revokes the current key. */
   private lifecycleGeneration = 0;
   /**
-   * Tail of the lifecycle queue. Every `initialize`, `importPrivateKey`,
+   * Tail of the lifecycle queue. Every `initialize`, `load`, `importPrivateKey`,
    * `rotate` and `destroy` runs after the previous one settles, so two callers
    * can never interleave their storage reads and writes.
    */
@@ -97,9 +106,16 @@ class DefaultSessionKeyManager implements SessionKeyManager {
     this.defaultTtlMs = options.defaultTtlMs ?? SESSION_KEY_EXPIRY_MS;
     this.now = options.now ?? Date.now;
     this.onLoadError = options.onLoadError ?? "rotate";
+    resolveSessionKeyExpiry(0, this.defaultTtlMs);
   }
 
   initialize(owner: Address, options?: { ttlMs?: number }): Promise<SessionKeyState> {
+    try {
+      validateSessionKeyOwner(owner);
+      resolveSessionKeyExpiry(this.now(), this.defaultTtlMs, options);
+    } catch (error) {
+      return Promise.reject(error);
+    }
     const key = owner.toLowerCase();
     const pending = this.initializing.get(key);
     if (pending) return pending;
@@ -114,12 +130,32 @@ class DefaultSessionKeyManager implements SessionKeyManager {
     return run;
   }
 
-  importPrivateKey(owner: Address, privateKey: Hex, options?: { ttlMs?: number }): Promise<SessionKeyState> {
+  load(owner: Address): Promise<SessionKeyState> {
+    try {
+      validateSessionKeyOwner(owner);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const generation = this.beginLifecycleTransition();
+    return this.enqueue(async () => {
+      const record = await this.readRecord(owner, generation, "load");
+      if (record) this.setAccount(record, generation);
+      this.assertCurrentLifecycle(generation, "load");
+      return this.getState();
+    });
+  }
+
+  async importPrivateKey(owner: Address, privateKey: Hex, options?: SessionKeyImportOptions): Promise<SessionKeyState> {
+    validateSessionKeyOwner(owner);
+    validateSessionKeyPrivateKey(privateKey);
+    resolveSessionKeyExpiry(this.now(), this.defaultTtlMs, options);
     const generation = this.beginLifecycleTransition();
     return this.enqueue(() => this.persistAndLoad(owner, privateKey, generation, "importPrivateKey", options));
   }
 
-  rotate(owner: Address, options?: { ttlMs?: number }): Promise<SessionKeyState> {
+  async rotate(owner: Address, options?: { ttlMs?: number }): Promise<SessionKeyState> {
+    validateSessionKeyOwner(owner);
+    resolveSessionKeyExpiry(this.now(), this.defaultTtlMs, options);
     const generation = this.beginLifecycleTransition();
     return this.enqueue(() => this.persistAndLoad(owner, generatePrivateKey(), generation, "rotate", options));
   }
@@ -134,15 +170,20 @@ class DefaultSessionKeyManager implements SessionKeyManager {
   }
 
   async sign(message: string): Promise<SessionKeySignature> {
+    const generation = this.lifecycleGeneration;
+    this.assertCanSign(generation, "sign");
     const account = this.account;
     if (!account) {
       throw new Error("Session key not initialized.");
     }
 
-    const generation = this.lifecycleGeneration;
     const start = getNowForDuration();
-    const signature = await account.signMessage({ message });
-    this.assertCurrentLifecycle(generation, "sign");
+    let signature: Hex;
+    try {
+      signature = await account.signMessage({ message });
+    } finally {
+      this.assertCanSign(generation, "sign");
+    }
 
     return {
       signature,
@@ -152,26 +193,31 @@ class DefaultSessionKeyManager implements SessionKeyManager {
   }
 
   async signTypedData(parameters: SessionKeyTypedDataParameters): Promise<Hex> {
+    const generation = this.lifecycleGeneration;
+    this.assertCanSign(generation, "signTypedData");
     const account = this.account;
     if (!account) {
       throw new Error("Session key not initialized.");
     }
 
-    const generation = this.lifecycleGeneration;
-    const signature = await account.signTypedData(parameters as Parameters<PrivateKeyAccount["signTypedData"]>[0]);
-    this.assertCurrentLifecycle(generation, "signTypedData");
-    return signature;
+    try {
+      return await account.signTypedData(parameters as Parameters<PrivateKeyAccount["signTypedData"]>[0]);
+    } finally {
+      this.assertCanSign(generation, "signTypedData");
+    }
   }
 
   getState(): SessionKeyState {
+    this.expireAccount();
     return this.state;
   }
 
   isReady(): boolean {
-    return this.state.isReady;
+    return this.getState().isReady;
   }
 
   getAddress(): Address | null {
+    this.expireAccount();
     return this.account?.address ?? null;
   }
 
@@ -185,6 +231,7 @@ class DefaultSessionKeyManager implements SessionKeyManager {
    * @returns The session key account, or `null` when no key is loaded.
    */
   getAccount(): LocalAccount | null {
+    this.expireAccount();
     return this.account;
   }
 
@@ -197,6 +244,7 @@ class DefaultSessionKeyManager implements SessionKeyManager {
    * @returns The raw private key, or `null` when no key is loaded.
    */
   getPrivateKey(): Hex | null {
+    this.expireAccount();
     return this.rawPrivateKey;
   }
 
@@ -244,6 +292,42 @@ class DefaultSessionKeyManager implements SessionKeyManager {
     }
   }
 
+  private expireAccount(): void {
+    if (!this.state.isReady || this.state.expiresAt === null || this.state.expiresAt > this.now()) return;
+    this.account = null;
+    this.rawPrivateKey = null;
+    this.state = Object.freeze({ ...this.state, isReady: false, isExpired: true });
+    this.notify();
+  }
+
+  private assertCanSign(generation: number, operation: SessionKeyOperationSupersededError["operation"]): void {
+    this.assertCurrentLifecycle(generation, operation);
+    this.expireAccount();
+    // Expiry notification can itself start a lifecycle transition.
+    this.assertCurrentLifecycle(generation, operation);
+    if (this.state.isExpired && this.state.publicAddress && this.state.expiresAt !== null) {
+      throw new SessionKeyExpiredError(this.state.publicAddress, this.state.expiresAt);
+    }
+  }
+
+  private async readRecord(
+    owner: Address,
+    generation: number,
+    operation: SessionKeyOperationSupersededError["operation"],
+  ): Promise<SessionKeyRecord | null> {
+    this.assertCurrentLifecycle(generation, operation);
+    let record: SessionKeyRecord | null;
+    try {
+      record = await this.options.storage.load(owner);
+      if (record) validateSessionKeyRecord(owner, record);
+    } catch (cause) {
+      this.assertCurrentLifecycle(generation, operation);
+      throw new SessionKeyLoadError(owner, { cause });
+    }
+    this.assertCurrentLifecycle(generation, operation);
+    return record;
+  }
+
   /**
    * Load the stored key for `owner`, or generate and persist one. Runs inside
    * the lifecycle queue, so it calls {@link persistAndLoad} directly: going
@@ -255,14 +339,14 @@ class DefaultSessionKeyManager implements SessionKeyManager {
     options?: { ttlMs?: number },
   ): Promise<SessionKeyState> {
     this.assertCurrentLifecycle(generation, "initialize");
-    let loaded: Awaited<ReturnType<CreateSessionKeyManagerOptions["storage"]["load"]>> = null;
+    let loaded: SessionKeyRecord | null = null;
 
     try {
-      loaded = await this.options.storage.load(owner);
+      loaded = await this.readRecord(owner, generation, "initialize");
     } catch (error) {
       this.assertCurrentLifecycle(generation, "initialize");
       if (this.onLoadError === "throw") {
-        throw new SessionKeyLoadError(owner, { cause: error });
+        throw error;
       }
       await this.options.storage.remove(owner);
       this.assertCurrentLifecycle(generation, "initialize");
@@ -273,22 +357,10 @@ class DefaultSessionKeyManager implements SessionKeyManager {
       if (loaded.expiresAt <= this.now()) {
         await this.options.storage.remove(owner);
         this.assertCurrentLifecycle(generation, "initialize");
-        this.state = {
-          isReady: false,
-          isExpired: true,
-          publicAddress: loaded.address,
-          expiresAt: loaded.expiresAt,
-        };
-        this.notify();
         return this.persistAndLoad(owner, generatePrivateKey(), generation, "initialize", options);
       }
 
-      this.setAccount(loaded.privateKey, {
-        isReady: true,
-        isExpired: false,
-        publicAddress: loaded.address,
-        expiresAt: loaded.expiresAt,
-      });
+      this.setAccount(loaded, generation);
       this.assertCurrentLifecycle(generation, "initialize");
       return this.state;
     }
@@ -307,54 +379,61 @@ class DefaultSessionKeyManager implements SessionKeyManager {
     privateKey: Hex,
     generation: number,
     operation: SessionKeyOperationSupersededError["operation"],
-    options?: { ttlMs?: number },
+    options?: SessionKeyImportOptions,
   ): Promise<SessionKeyState> {
     this.assertCurrentLifecycle(generation, operation);
-    const account = privateKeyToAccount(privateKey);
+    const account = validateSessionKeyPrivateKey(privateKey);
     const createdAt = this.now();
-    const expiresAt = createdAt + (options?.ttlMs ?? this.defaultTtlMs);
+    const expiresAt = resolveSessionKeyExpiry(createdAt, this.defaultTtlMs, options);
 
-    await this.options.storage.save(owner, {
+    const record: SessionKeyRecord = {
       owner,
       privateKey,
       address: account.address,
       createdAt,
       expiresAt,
-    });
+    };
+    await this.options.storage.save(owner, record);
     this.assertCurrentLifecycle(generation, operation);
 
     const stored = await this.options.storage.getMetadata(owner);
     this.assertCurrentLifecycle(generation, operation);
-    if (stored && !isSameAddress(stored.address, account.address)) {
-      const winner = await this.options.storage.load(owner);
-      this.assertCurrentLifecycle(generation, operation);
+    if (
+      stored &&
+      (!isSameAddress(stored.address, account.address) ||
+        !isSameAddress(stored.owner, owner) ||
+        stored.createdAt !== createdAt ||
+        stored.expiresAt !== expiresAt)
+    ) {
+      const winner = await this.readRecord(owner, generation, operation);
       if (winner && isSameAddress(winner.address, stored.address)) {
-        this.setAccount(winner.privateKey, {
-          isReady: true,
-          isExpired: false,
-          publicAddress: winner.address,
-          expiresAt: winner.expiresAt,
-        });
+        this.setAccount(winner, generation);
         this.assertCurrentLifecycle(generation, operation);
         return this.state;
       }
+      throw new SessionKeyLoadError(owner, { cause: new Error("Stored session key changed during reconciliation.") });
     }
 
-    this.setAccount(privateKey, {
-      isReady: true,
-      isExpired: false,
-      publicAddress: account.address,
-      expiresAt,
-    });
+    this.setAccount(record, generation);
     this.assertCurrentLifecycle(generation, operation);
 
     return this.state;
   }
 
-  private setAccount(privateKey: Hex, state: SessionKeyState): void {
-    this.account = privateKeyToAccount(privateKey);
-    this.rawPrivateKey = privateKey;
-    this.state = state;
+  private setAccount(record: SessionKeyRecord, generation: number): void {
+    const expired = record.expiresAt <= this.now();
+    this.account = expired
+      ? null
+      : createSessionKeyAccount(privateKeyToAccount(record.privateKey), (operation) =>
+          this.assertCanSign(generation, operation),
+        );
+    this.rawPrivateKey = expired ? null : record.privateKey;
+    this.state = Object.freeze({
+      isReady: !expired,
+      isExpired: expired,
+      publicAddress: record.address,
+      expiresAt: record.expiresAt,
+    });
     this.notify();
   }
 

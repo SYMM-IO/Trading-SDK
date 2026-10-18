@@ -20,6 +20,11 @@ A session key is a **private key that can sign trades on the user's behalf**. Tr
 
 The manager exposes [`getPrivateKey()`](/session-key/manager) **only** for explicit device-transfer and export flows. Everywhere else, the key stays inside the manager.
 
+Accounts returned by `getAccount()` enforce lifecycle revocation and local expiry even when a consumer caches them.
+Exported raw private keys cannot be revoked by the manager. Application password locks, authentication, deployment
+selection, and cross-context identity checks remain the consumer's responsibility. Check those policies both before
+signing and before returning an asynchronous signature; a lock followed by an unlock must still cancel the earlier attempt.
+
 ## The storage boundary
 
 `@symmio/session-key` exports the storage interface only — you implement it:
@@ -36,15 +41,18 @@ interface SessionKeyStorage {
 <Properties>
   <Property name="load" type="(owner) => Promise<SessionKeyRecord | null>" required>
     Return the stored record for `owner`, or `null` if none. **Decrypt here** if you encrypted on `save`. If `load`
-    throws, the manager follows its [`onLoadError`](/session-key/manager) option: by default it removes the record and
-    generates a fresh key; with `"throw"` it keeps the record and rejects with `SessionKeyLoadError`.
+    throws, `initialize` follows its [`onLoadError`](/session-key/manager) option: by default it removes the record and
+    generates a fresh key; with `"throw"` it keeps the record and rejects with `SessionKeyLoadError`. The restore-only
+    `manager.load(owner)` always rejects failures and never calls `save` or `remove`. Its adapter must likewise avoid
+    deleting or replacing records during `load`.
   </Property>
   <Property name="save" type="(owner, record) => Promise<void>" required>
     Persist the record for `owner`. **Encrypt `record.privateKey` here** before it touches disk.
   </Property>
   <Property name="remove" type="(owner) => Promise<void>" required>
-    Delete the stored key for `owner`. Called on expiry, on `destroy(owner)`, and when `load` throws under the default
-    `onLoadError: "rotate"`. Rotation does **not** call `remove` — it overwrites the record via `save`.
+    Delete the stored key for `owner`. Called when `initialize` finds expiry, on `destroy(owner)`, and when `initialize`
+    cannot load under the default `onLoadError: "rotate"`. Rotation does **not** call `remove` — it overwrites the
+    record via `save`.
   </Property>
   <Property name="getMetadata" type="(owner) => Promise<SessionKeyMetadata | null>" required>
     Return the non-secret metadata (address, timestamps) for `owner` **without** loading the private key into memory —
@@ -55,7 +63,7 @@ interface SessionKeyStorage {
 The manager serializes lifecycle calls made through one manager instance. Its post-save metadata check can notice and
 adopt a competing writer, but it cannot make separate tabs or processes atomic: another writer can always land after the
 last read. If several contexts may create or rotate the same owner's key, serialize them in this adapter (for example
-with a storage transaction or a cross-context lock) and propagate external replacements to live managers.
+with a storage transaction or a cross-context lock covering the full read/create/save operation) and propagate external replacements to live managers.
 
 ## The record
 
@@ -83,9 +91,12 @@ interface SessionKeyMetadata {
 }
 ```
 
-## Key storage by owner, not by chain
+## Key storage scope
 
-Store one record per **owner address**, not per chain ID. A session key is a normal EVM key and can sign for the same owner across every supported chain; chain-specific authorization belongs in the contracts and the delegation layer, not in your storage keying.
+The adapter receives an **owner address**. A session key is a normal EVM key and can sign across chains, while contracts
+enforce its delegation. Applications can namespace adapters by deployment when they need separate identities or
+lifetimes. Capture that namespace when creating the adapter; a mutable network selection must not redirect an in-flight
+storage operation. A chain ID alone cannot separate two deployments on the same chain.
 
 ## A minimal (unencrypted) adapter
 
