@@ -128,12 +128,6 @@ It drives the create-pool form two ways: the recommended initial deposit is the 
 
 Every field is optional. The hook takes the core query options plus `config`.
 
-Pass `isLocked: false` for unlocked markets or `isLocked: true` for locked
-markets; omit it for both. This inventory flag is independent of `marketStatus`.
-The server filters before pagination, preserving matching totals and page sizes.
-Each lock-filter value has its own query cache entry. See the
-[core listing parameters](/core/pools/get-listing-markets#parameters).
-
 | Name       | Type             | Default                 | Notes                                                    |
 | ---------- | ---------------- | ----------------------- | -------------------------------------------------------- |
 | `chainId?` | `number`         | connected chain         | Which deployment's listing backend to read.              |
@@ -185,19 +179,20 @@ The catalog spans every listing the service knows about, at every lifecycle stag
 
 Every field is optional. The hook takes the core query options plus `config`.
 
-| Name            | Type                               | Default                 | Notes                                                                                                                                                                          |
-| --------------- | ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `search?`       | `string`                           | —                       | Free text, matched against contract address, ticker, and token name. Named `search` because the TanStack options bag already owns `query`; it goes out as `query` on the wire. |
-| `chainIds?`     | `readonly ListingDepositChainId[]` | —                       | Restrict to tokens **deposited** on these chains. An empty array is sent as no filter.                                                                                         |
-| `marketStatus?` | `ListingMarketStatus`              | —                       | One lifecycle status. `LISTED` is the tradable one.                                                                                                                            |
-| `limit?`        | `number`                           | service `20`            | Page size, `1`–`100`.                                                                                                                                                          |
-| `offset?`       | `number`                           | service `0`             | Row offset.                                                                                                                                                                    |
-| `sortBy?`       | `ListingMarketSortField`           | service order           | Server-side sort key — the service's own snake_case literals.                                                                                                                  |
-| `orderBy?`      | `"asc" \| "desc"`                  | service `"desc"`        | Sort direction.                                                                                                                                                                |
-| `filters?`      | `ListingMarketFilters`             | —                       | Inclusive `[min, max]` range filters. Bounds are 18-decimal `bigint`s; `listingTime` is Unix seconds.                                                                          |
-| `chainId?`      | `number`                           | connected chain         | Which deployment's listing backend to read.                                                                                                                                    |
-| `query?`        | `QueryParameter`                   | —                       | TanStack overrides — `enabled`, `placeholderData`, `staleTime`, `select`, …                                                                                                    |
-| `config?`       | `Config`                           | the config from context | Override the `SymmioProvider` config.                                                                                                                                          |
+| Name            | Type                               | Default                 | Notes                                                                                                                                                                                     |
+| --------------- | ---------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search?`       | `string`                           | —                       | Free text, matched against contract address, ticker, and token name. Named `search` because the TanStack options bag already owns `query`; it goes out as `query` on the wire.            |
+| `chainIds?`     | `readonly ListingDepositChainId[]` | —                       | Restrict to tokens **deposited** on these chains. An empty array is sent as no filter.                                                                                                    |
+| `marketStatus?` | `ListingMarketStatus`              | —                       | One lifecycle status. `LISTED` is the tradable one.                                                                                                                                       |
+| `isLocked?`     | `boolean`                          | —                       | Inventory lock filter: `true` for locked markets, `false` for unlocked; omit for both. Independent of `marketStatus`. Filtered server-side before paging, so `total` counts only matches. |
+| `limit?`        | `number`                           | service `20`            | Page size, `1`–`100`.                                                                                                                                                                     |
+| `offset?`       | `number`                           | service `0`             | Row offset.                                                                                                                                                                               |
+| `sortBy?`       | `ListingMarketSortField`           | service order           | Server-side sort key — the service's own snake_case literals.                                                                                                                             |
+| `orderBy?`      | `"asc" \| "desc"`                  | service `"desc"`        | Sort direction.                                                                                                                                                                           |
+| `filters?`      | `ListingMarketFilters`             | —                       | Inclusive `[min, max]` range filters. Bounds are 18-decimal `bigint`s; `listingTime` is Unix seconds.                                                                                     |
+| `chainId?`      | `number`                           | connected chain         | Which deployment's listing backend to read.                                                                                                                                               |
+| `query?`        | `QueryParameter`                   | —                       | TanStack overrides — `enabled`, `placeholderData`, `staleTime`, `select`, …                                                                                                               |
+| `config?`       | `Config`                           | the config from context | Override the `SymmioProvider` config.                                                                                                                                                     |
 
 ### Return type
 
