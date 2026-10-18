@@ -1546,7 +1546,7 @@ The catalogue is only the table. The figures a pools page puts **above** it — 
 | Figure                    | Hook                                                     | Served by                                           |
 | ------------------------- | -------------------------------------------------------- | --------------------------------------------------- |
 | Custodial TVL             | [`useInventoryTvl`](../inventory)                        | Inventory service — `/api/v1/markets/tvl-aggregate` |
-| Volume, 24h + lifetime    | [`useMarketInfo`](../markets#usemarketinfo)              | The solver — `/get_market_info`                     |
+| Volume, 24h + lifetime    | [`useMarketInfo`](../markets#usemarketinfo)              | Enigma solver — `/market-info`                      |
 | Open + available notional | [`useNotionalCapAll`](../notional-cap#usenotionalcapall) | The solver — `/notional_cap`                        |
 | Pool count                | [`useListingMarkets`](#uselistingmarkets) → `data.total` | Listing backend — `/v2/market/search`               |
 

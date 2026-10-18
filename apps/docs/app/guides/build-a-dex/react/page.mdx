@@ -399,8 +399,9 @@ cap?.openInterest; // open interest
 ```
 
 <Callout type="info">
-  `useFundingInfo` returns **all** markets, so call it once and reuse (TanStack dedupes it). `useNotionalCapBySymbolId`
-  is the same hook the trade form uses to gate order size — the header and the form share one cached query per market.
+  Without `symbolIds`, `useFundingInfo` returns all markets. Calls with the same deployment and ID filter share a cached
+  query; different filters have separate entries. `useNotionalCapBySymbolId` is the same hook the trade form uses to
+  gate order size — the header and the form share one cached query per market.
 </Callout>
 
 ## 6. Open a position

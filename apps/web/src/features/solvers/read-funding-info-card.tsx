@@ -38,7 +38,7 @@ function horizonLabel(days: number): string {
  * each side (Long = Pump, Short = Dump), the next funding time, and the epoch
  * length for every market the solver lists. A positive rate receives funding, a
  * negative rate pays. Fetched on demand via the Refresh button (no
- * auto-polling); the per-market table is searchable by symbol and carries a
+ * auto-polling); the per-market table is searchable by symbol ID and carries a
  * projected-funding column for a user-chosen horizon.
  */
 export function ReadFundingInfoCard() {
@@ -186,10 +186,10 @@ function ResultPanel({
         <SearchInput
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search market…"
+          placeholder="Search symbol ID…"
           containerClassName="flex-1"
           data-testid="funding-info-search"
-          aria-label="Search markets"
+          aria-label="Search symbol IDs"
         />
       }
     />

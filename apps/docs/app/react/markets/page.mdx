@@ -89,11 +89,9 @@ Both `symbolId` and `partyB` are required. A quote has no `partyB` until a solve
 
 ## Migration: Enigma market identity
 
-Enigma `getMarketInfo` / `useMarketInfo` now read `/market-info` and expose `MarketVolume.symbolId: number` instead of `symbol`. Rasa retains its existing ticker-based shape. Narrow on `kind` before accessing rows. Join Enigma IDs with `getSymbols` / `useSymbols` for display names; duplicate tickers remain distinct. Volumes remain float dollars.
+Enigma hooks now identify markets by `symbolId`; funding accepts `symbolIds` instead of ticker strings. Join with `useSymbols` for display names. Rasa keeps its existing shape. See the [core migration contract](/core/solvers#migration-enigma-market-identity) for endpoints, units and compatibility.
 
-There is no per-market market-info endpoint or server filter. Read one shared query and select `data.markets.find(row => row.symbolId === selectedId)` locally.
-
-`getFundingInfo` / `useFundingInfo` use Enigma `/funding-info`. Replace `symbols: ["BTCUSDT"]` with `symbolIds: [1]`; `MarketFundingInfo.symbolId` replaces `symbol`. Omit the filter for all markets. The query key includes the ID filter and deployment; funding fractions, epoch seconds and funding timestamps are unchanged.
+Select one market from the shared query; there is no per-market market-info request:
 
 ```tsx
 const info = useMarketInfo({ solverId: "enigma" });
