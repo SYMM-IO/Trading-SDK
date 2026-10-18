@@ -22,6 +22,9 @@
     "check-types": {
       "dependsOn": ["^build"]
     },
+    "@symmio/docs#check-types": {
+      "dependsOn": ["^build", "@symmio/docs#build"]
+    },
     "test": {
       "dependsOn": ["^build"],
       "outputs": []
