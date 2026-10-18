@@ -1,6 +1,6 @@
 import { PositionType } from "@symmio/trading-core";
 import { waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 
 const estimate = vi.hoisted(() => vi.fn().mockResolvedValue({ estimatedPrice: "100" }));
@@ -10,7 +10,7 @@ vi.mock("@symmio/trading-core", async (importOriginal) => {
     ...actual,
     getEstimatedPriceQueryOptions: (...args: Parameters<typeof actual.getEstimatedPriceQueryOptions>) => ({
       ...actual.getEstimatedPriceQueryOptions(...args),
-      queryFn: () => estimate(args[1]),
+      queryFn: (context?: { signal?: AbortSignal }) => estimate(args[1], context?.signal),
     }),
   };
 });
@@ -18,6 +18,30 @@ vi.mock("@symmio/trading-core", async (importOriginal) => {
 import { useEstimatedPrice } from "./use-estimated-price";
 
 describe("useEstimatedPrice readiness", () => {
+  beforeEach(() => {
+    estimate.mockReset().mockResolvedValue({ estimatedPrice: "100" });
+  });
+
+  it("passes the query signal through and aborts when the last observer unmounts", async () => {
+    estimate.mockImplementation(() => new Promise(() => {}));
+    const { config } = createMockSymmioConfig();
+    const { unmount } = renderHookWithProviders(() =>
+      useEstimatedPrice({
+        config,
+        symbolId: 1,
+        quantity: "1",
+        price: "100",
+        positionType: PositionType.LONG,
+        entry: "open",
+        debounceMs: 0,
+      }),
+    );
+    await waitFor(() => expect(estimate).toHaveBeenCalledOnce());
+    const signal = estimate.mock.calls[0]?.[1] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    unmount();
+    expect(signal.aborted).toBe(true);
+  });
   it("reports pending debounce even while the previous estimate is cached", async () => {
     const { config } = createMockSymmioConfig();
     const { result, rerender } = renderHookWithProviders(
@@ -40,7 +64,10 @@ describe("useEstimatedPrice readiness", () => {
     expect(result.current.data).toEqual({ estimatedPrice: "100" });
     await waitFor(() => expect(result.current.isDebouncing).toBe(false));
     await waitFor(() =>
-      expect(estimate).toHaveBeenLastCalledWith(expect.objectContaining({ quantity: "2", price: "101" })),
+      expect(estimate).toHaveBeenLastCalledWith(
+        expect.objectContaining({ quantity: "2", price: "101" }),
+        expect.any(AbortSignal),
+      ),
     );
   });
 });

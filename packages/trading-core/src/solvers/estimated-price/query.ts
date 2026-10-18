@@ -21,17 +21,17 @@ export type GetEstimatedPriceQueryKey = ReturnType<typeof getEstimatedPriceQuery
 
 /** Options accepted by {@link getEstimatedPriceQueryOptions}. */
 export type GetEstimatedPriceOptions = Compute<
-  GetEstimatedPriceParameters &
+  Omit<GetEstimatedPriceParameters, "signal"> &
     QueryParameter<GetEstimatedPriceData, Error, GetEstimatedPriceData, GetEstimatedPriceQueryKey>
 >;
 
 /** TanStack Query options returned by {@link getEstimatedPriceQueryOptions}. */
-export type GetEstimatedPriceQueryOptions = SymmioQueryOptions<
-  GetEstimatedPriceData,
-  Error,
-  GetEstimatedPriceData,
-  GetEstimatedPriceQueryKey
->;
+export type GetEstimatedPriceQueryOptions = Omit<
+  SymmioQueryOptions<GetEstimatedPriceData, Error, GetEstimatedPriceData, GetEstimatedPriceQueryKey>,
+  "queryFn"
+> & {
+  queryFn: (context?: { signal?: AbortSignal }) => Promise<GetEstimatedPriceData>;
+};
 
 /**
  * Build TanStack Query options for {@link getEstimatedPrice}. Disabled until
@@ -54,7 +54,7 @@ export function getEstimatedPriceQueryOptions(
       configKey: config.getChainConfigKey(options.chainId),
     }),
     enabled: (options.query?.enabled ?? true) && options.quantity.length > 0 && options.price.length > 0,
-    queryFn: () =>
+    queryFn: (context) =>
       getEstimatedPrice(config, {
         chainId: options.chainId,
         solverId: options.solverId,
@@ -63,6 +63,7 @@ export function getEstimatedPriceQueryOptions(
         positionType: options.positionType,
         entry: options.entry,
         price: options.price,
+        signal: context?.signal,
       }),
   };
 }
