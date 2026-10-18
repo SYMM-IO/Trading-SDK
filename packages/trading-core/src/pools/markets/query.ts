@@ -70,6 +70,7 @@ export function getListingMarketsQueryOptions(
         search: options.search,
         chainIds: options.chainIds,
         marketStatus: options.marketStatus,
+        isLocked: options.isLocked,
         limit: options.limit,
         offset: options.offset,
         sortBy: options.sortBy,
