@@ -1,0 +1,105 @@
+import { Callout } from "nextra/components";
+
+# getPartyAOpenPositionsBatch
+
+Read the open positions of **many** partyAs at once — typically every Virtual Account of a sub-account. The accounts are bundled into **multicalls of `batchSize`** (default 10), so ten accounts cost one `eth_call` instead of ten. Reach for it whenever you would otherwise call [`getPartyAOpenPositions`](/core/symmio-contract/get-party-a-open-positions) in a loop.
+
+```ts
+import { getPartyAOpenPositionsBatch } from "@symmio/trading-core";
+
+const results = await getPartyAOpenPositionsBatch(config, {
+  partyAs: virtualAccounts,
+  includeLiquidationStatus: true,
+});
+
+const quotes = results.flatMap((result) => (result.status === "success" && !result.isLiquidated ? result.quotes : []));
+```
+
+## One result per account
+
+Every input account gets exactly one entry back, in input order:
+
+- **`success`** — the account's `quotes` (the same structs `getPartyAOpenPositions` returns), `hasMore`, and — with `includeLiquidationStatus` — `isLiquidated`.
+- **`failure`** — that account's read reverted. The `error` is kept; **the other accounts are unaffected**.
+
+A transport or RPC failure (the multicall itself never reaches the chain) rejects the whole call.
+
+<Callout type="info">
+  `partyA` is echoed **exactly as you passed it** — no checksum rewrite — so results can be matched back to your own
+  keys. The same address (in any casing) with the same `start` is read once.
+</Callout>
+
+## Paging one account
+
+Each account pages on its own. A success with `hasMore: true` filled the whole page (`quotes.length === size`); read the next page for just that account by passing it with a `start`:
+
+```ts
+const [first] = await getPartyAOpenPositionsBatch(config, { partyAs: [va] });
+
+if (first.status === "success" && first.hasMore) {
+  await getPartyAOpenPositionsBatch(config, {
+    partyAs: [{ partyA: va, start: first.start + BigInt(first.quotes.length) }],
+  });
+}
+```
+
+<Callout type="warning">
+  A `start` **greater than** the account's position count reverts on-chain, so that entry comes back as a `failure`. A
+  `start` equal to the count returns an empty page.
+</Callout>
+
+## Liquidation status
+
+`includeLiquidationStatus: true` adds an [`isPartyALiquidated`](/core/symmio-contract/is-party-a-liquidated) read per account inside the same multicall. While it is `true` the account is frozen mid-liquidation and every action on its positions reverts — most UIs hide those positions. If only the flag's read fails, the account still succeeds with `isLiquidated: undefined` (unknown — never reported as `false`).
+
+## Parameters
+
+<Properties>
+  <Property name="partyAs" type="readonly (Address | { partyA: Address; start?: bigint })[]" required>
+    The accounts to read. A bare address reads from `0n`; an object carries that account's own pagination offset.
+  </Property>
+  <Property name="size" type="bigint" default="200n">
+    Maximum number of positions per account. Clamped on-chain to the number remaining after that account's `start`.
+  </Property>
+  <Property name="includeLiquidationStatus" type="boolean" default="false">
+    Also read each account's liquidation-in-progress flag, reported as `isLiquidated`.
+  </Property>
+  <Property name="batchSize" type="number" default="10">
+    Accounts per multicall; chunks run in parallel. A full 200-position read costs a lot of gas and one `eth_call` has a
+    gas cap, so keep it modest when accounts may hold many positions. Must be a positive integer — anything else throws
+    `SymmError` `INVALID_BATCH_SIZE`.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly PartyAOpenPositionsBatchResult[]">
+  One entry per input account, in input order. `PartyAOpenPositionsBatchSuccess` carries `partyA`, `start`, `quotes`,
+  `hasMore` and (when requested) `isLiquidated`; `PartyAOpenPositionsBatchFailure` carries `partyA`, `start` and
+  `error`. Narrow on `status`.
+</Returns>
+
+<Callout type="info">
+  The read uses the client's `multicall`, so the viem client's chain must define a Multicall3 address (every chain viem
+  ships does).
+</Callout>
+
+## Query options
+
+The query stays idle while `partyAs` is empty.
+
+```ts
+import { getPartyAOpenPositionsBatchQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getPartyAOpenPositionsBatchQueryOptions(config, { partyAs: virtualAccounts }));
+```
+
+## Related
+
+- [getPartyAOpenPositions](/core/symmio-contract/get-party-a-open-positions) — the single-account read.
+- [isPartyALiquidated](/core/symmio-contract/is-party-a-liquidated) — the liquidation flag on its own.
+- [React `usePartyAOpenPositionsBatch`](/react/symmio-contract#usepartyaopenpositionsbatch) — the hook form.

@@ -2,6 +2,8 @@
 
 Read the open positions (quotes past the open anchor) for a PartyA — a Virtual Account in the lowcap flow.
 
+Reading several accounts (e.g. every Virtual Account of a sub-account)? Prefer [`getPartyAOpenPositionsBatch`](/core/symmio-contract/get-party-a-open-positions-batch) — one multicall per chunk of accounts instead of one call each, with per-account failures and an optional liquidation flag.
+
 ```ts
 import { getPartyAOpenPositions } from "@symmio/trading-core";
 

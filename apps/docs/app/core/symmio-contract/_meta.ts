@@ -6,6 +6,8 @@ export default {
   "get-quote": "getQuote",
   "get-sub-account-quotes": "getSubAccountQuotes",
   "get-party-a-open-positions": "getPartyAOpenPositions",
+  "get-party-a-open-positions-batch": "getPartyAOpenPositionsBatch",
+  "is-party-a-liquidated": "isPartyALiquidated",
   "get-party-a-pending-quotes": "getPartyAPendingQuotes",
   "get-pending-quotes": "getPendingQuotes",
   "-- funding": { type: "separator", title: "Funding reads" },

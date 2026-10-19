@@ -1,0 +1,51 @@
+# isPartyALiquidated
+
+Read whether a partyA is **in liquidation** right now. Use it to hide or lock an account's positions while a liquidation runs — every action on them would revert.
+
+```ts
+import { isPartyALiquidated } from "@symmio/trading-core";
+
+const inLiquidation = await isPartyALiquidated(config, { partyA: virtualAccount });
+```
+
+## What the flag means
+
+The flag is a liquidation-**in-progress** marker, not a history of past liquidations:
+
+- It turns `true` when a liquidator starts the partyA's liquidation — the account was proven insolvent.
+- It goes back to `false` once that liquidation is settled and finalized.
+
+While it is `true` the account is frozen: solvers cannot fill or open against it and most partyA actions revert. Its quotes still show up in [`getPartyAOpenPositions`](/core/symmio-contract/get-party-a-open-positions), typically with status `LIQUIDATED_PENDING`.
+
+Reading many accounts? Pass `includeLiquidationStatus: true` to [`getPartyAOpenPositionsBatch`](/core/symmio-contract/get-party-a-open-positions-batch) instead — it reads the flag for every account inside the same multicall.
+
+## Parameters
+
+<Properties>
+  <Property name="partyA" type="Address" required>
+    The partyA to check — a Virtual Account (lowcap) or the sub-account itself (cross-margin).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="boolean">`true` while the partyA's liquidation is in progress.</Returns>
+
+## Query options
+
+The query is disabled until `partyA` is set.
+
+```ts
+import { isPartyALiquidatedQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(isPartyALiquidatedQueryOptions(config, { partyA }));
+```
+
+## Related
+
+- [getPartyAOpenPositionsBatch](/core/symmio-contract/get-party-a-open-positions-batch) — many accounts' positions and flags in one multicall.
+- [React `useIsPartyALiquidated`](/react/symmio-contract#useispartyaliquidated) — the hook form.

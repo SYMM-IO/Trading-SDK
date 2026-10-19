@@ -37,6 +37,12 @@ interface Props {
    * groups used purely to reach their VAs.
    */
   selectable?: "both" | "va";
+  /**
+   * Addresses already chosen outside the field — e.g. the list a multi-account
+   * input builds one pick at a time. Their rows are marked selected alongside
+   * the field's own value, and each subaccount counts its selected VAs.
+   */
+  selectedAddresses?: readonly string[];
 }
 
 type PartyAKind = "sub" | "va";
@@ -47,7 +53,8 @@ type PartyAKind = "sub" | "va";
  * groups, each row showing how many VAs it holds; expanding one reveals them so
  * the user can select the subaccount itself or any of its VAs. A pasted/typed
  * address is still accepted directly. Pass `selectable="va"` to restrict selection to
- * virtual accounts only (see {@link VirtualAccountField}).
+ * virtual accounts only (see {@link VirtualAccountField}), and `selectedAddresses`
+ * to mark accounts the caller already holds.
  */
 export function PartyAField({
   idPrefix,
@@ -59,6 +66,7 @@ export function PartyAField({
   invalid,
   owner,
   selectable = "both",
+  selectedAddresses,
 }: Props) {
   const { address } = useWalletAccount();
   const effectiveOwner = owner ?? address;
@@ -70,6 +78,13 @@ export function PartyAField({
   const [selected, setSelected] = useState<{ kind: PartyAKind; parent?: string } | null>(null);
 
   const term = search.trim().toLowerCase();
+  const selectedSet = useMemo(
+    () =>
+      new Set(
+        [value, ...(selectedAddresses ?? [])].map((addr) => addr.trim().toLowerCase()).filter((addr) => addr !== ""),
+      ),
+    [value, selectedAddresses],
+  );
   const subs = useMemo(() => subsQuery.data ?? [], [subsQuery.data]);
   const filtered = useMemo(
     () => (term ? subs.filter((sub) => `${sub.name} ${sub.accountAddress}`.toLowerCase().includes(term)) : subs),
@@ -174,7 +189,7 @@ export function PartyAField({
                     idPrefix={idPrefix}
                     name={sub.name || "Unnamed"}
                     subAccount={sub.accountAddress}
-                    value={value}
+                    selectedSet={selectedSet}
                     search={term}
                     selectable={selectable}
                     expanded={expanded.has(sub.accountAddress)}
@@ -213,7 +228,7 @@ function SubAccountGroup({
   idPrefix,
   name,
   subAccount,
-  value,
+  selectedSet,
   search,
   selectable,
   expanded,
@@ -223,16 +238,15 @@ function SubAccountGroup({
   idPrefix: string;
   name: string;
   subAccount: Address;
-  value: string;
+  selectedSet: ReadonlySet<string>;
   search: string;
   selectable: "both" | "va";
   expanded: boolean;
   onToggle: () => void;
   onSelect: (addr: string, kind: PartyAKind, parent?: string) => void;
 }) {
-  const normalizedValue = value.trim().toLowerCase();
-  const subSelected = subAccount.toLowerCase() === normalizedValue;
   const subSelectable = selectable === "both";
+  const subSelected = subSelectable && selectedSet.has(subAccount.toLowerCase());
 
   /**
    * Loaded for every visible row, not just the expanded one, so the row can
@@ -245,6 +259,7 @@ function SubAccountGroup({
     () => (search ? vas.filter((va) => va.toLowerCase().includes(search)) : vas),
     [vas, search],
   );
+  const selectedVaCount = vas.filter((va) => selectedSet.has(va.toLowerCase())).length;
 
   return (
     <div>
@@ -253,9 +268,13 @@ function SubAccountGroup({
           type="button"
           data-testid={subSelectable ? `${idPrefix}-sub-select` : `${idPrefix}-sub-expand`}
           data-sub-address={subAccount}
+          data-selected={subSelected || undefined}
           aria-expanded={subSelectable ? undefined : expanded}
           onClick={subSelectable ? () => onSelect(subAccount, "sub", name) : onToggle}
-          className="hover:bg-muted/60 focus-visible:bg-muted/60 flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition-colors outline-none"
+          className={cn(
+            "hover:bg-muted/60 focus-visible:bg-muted/60 flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition-colors outline-none",
+            subSelected && "bg-primary/8",
+          )}
         >
           <span className="flex min-w-0 items-center gap-2">
             <KindTag kind="sub" />
@@ -265,8 +284,13 @@ function SubAccountGroup({
             </span>
           </span>
           <span className="flex shrink-0 items-center gap-2">
-            <VaCount testId={`${idPrefix}-sub-va-count`} count={vaQuery.data?.length} loading={vaQuery.isLoading} />
-            {subSelectable && subSelected ? <CheckIcon className="text-primary size-4 shrink-0" /> : null}
+            <VaCount
+              testId={`${idPrefix}-sub-va-count`}
+              count={vaQuery.data?.length}
+              selected={selectedVaCount}
+              loading={vaQuery.isLoading}
+            />
+            {subSelected ? <CheckIcon className="text-primary size-4 shrink-0" /> : null}
           </span>
         </button>
 
@@ -308,7 +332,7 @@ function SubAccountGroup({
                 index={index}
                 va={va}
                 parentName={name}
-                selected={va.toLowerCase() === normalizedValue}
+                selected={selectedSet.has(va.toLowerCase())}
                 onSelect={onSelect}
               />
             ))
@@ -323,21 +347,34 @@ function SubAccountGroup({
  * VA-count badge on a subaccount row: answers "does this subaccount have
  * virtual accounts?" without expanding it. Tinted when the subaccount has VAs,
  * muted at zero, and a skeleton while the list is in flight; renders nothing
- * when the read failed (the expanded row surfaces the error).
+ * when the read failed (the expanded row surfaces the error). When some of the
+ * VAs are selected it reads `selected/total VA` in the primary tint, so a
+ * collapsed group still shows what it holds.
  */
-function VaCount({ testId, count, loading }: { testId: string; count?: number; loading: boolean }) {
+function VaCount({
+  testId,
+  count,
+  selected,
+  loading,
+}: {
+  testId: string;
+  count?: number;
+  selected: number;
+  loading: boolean;
+}) {
   if (loading) return <Skeleton className="bg-muted-foreground/15 h-4 w-9 rounded" />;
   if (count === undefined) return null;
   return (
     <span
       data-testid={testId}
       data-va-count={count}
+      data-va-selected={selected}
       className={cn(
         "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wider uppercase",
-        count > 0 ? "bg-info/10 text-info" : "text-muted-foreground/60",
+        selected > 0 ? "bg-primary/10 text-primary" : count > 0 ? "bg-info/10 text-info" : "text-muted-foreground/60",
       )}
     >
-      {count} VA
+      {selected > 0 ? `${selected}/${count}` : count} VA
     </span>
   );
 }
@@ -386,8 +423,12 @@ function VaRow({
       type="button"
       data-testid={`${idPrefix}-va-select`}
       data-va-address={va}
+      data-selected={selected || undefined}
       onClick={() => onSelect(va, "va", parentName)}
-      className="hover:bg-muted/60 focus-visible:bg-muted/60 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors outline-none"
+      className={cn(
+        "hover:bg-muted/60 focus-visible:bg-muted/60 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors outline-none",
+        selected && "bg-primary/8",
+      )}
     >
       <span className="flex min-w-0 items-baseline gap-2 leading-none">
         <KindTag kind="va" />
