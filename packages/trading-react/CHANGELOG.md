@@ -1,5 +1,29 @@
 # @symmio/trading-react
 
+## 4.0.0
+
+### Major Changes
+
+- d612261: BREAKING: Enigma getMarketInfo/useMarketInfo rows now expose symbolId instead of ticker symbol and read /market-info. Enigma getFundingInfo/useFundingInfo similarly read /funding-info and replace symbols:string[] with symbolIds:number[]. Rasa retains /get_funding_info, symbols:string[] and ticker-based rows. Funding rows now carry a kind discriminant; literal solverId narrows actions, queries and hooks. Join IDs with getSymbols for labels; select an individual market from the shared market-info query. Rasa market-info remains unchanged. Duplicate tickers now remain distinct markets.
+
+  Funding ID filters use repeated, unbracketed `symbol_ids` query parameters so the solver applies single- and multiple-market filters correctly.
+
+### Minor Changes
+
+- 87eb1a6: Fix `getNotionalCapAll` to fetch every 100-row page and sum page-only totals. Add `getNotionalCapPage`, its query options and `useNotionalCapPage` for explicit pagination. Numeric dollar amounts and missing-number defaults remain compatible.
+- d53c8ab: Expose optional `isLocked` on the existing listing-market action, query options and React hook. Forward both boolean values to the server and keep locked, unlocked and unfiltered pages in distinct cache entries without changing the default catalog.
+
+### Patch Changes
+
+- a9f6621: Allow imperative estimated-price reads to cancel their HTTP request with an optional AbortSignal. Forward TanStack Query cancellation through estimate queries and the React hook without including signals in cache identity or imposing a default timeout.
+- Updated dependencies [d612261]
+- Updated dependencies [87eb1a6]
+- Updated dependencies [a9f6621]
+- Updated dependencies [56f58f2]
+- Updated dependencies [d53c8ab]
+- Updated dependencies [e8b613e]
+  - @symmio/trading-core@4.0.0
+
 ## 3.4.0
 
 ### Minor Changes
