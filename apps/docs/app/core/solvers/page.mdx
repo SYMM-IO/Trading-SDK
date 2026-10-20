@@ -328,7 +328,7 @@ const cap = await getNotionalCapBySymbolId(config, { symbolId: 1n });
 
 ### `getNotionalCapAll`
 
-Batch — every market's cap in one call. Cheaper than looping `getNotionalCapBySymbolId`.
+Fetches every page in server order (100 rows per request), summing page-only `totalUsed` and `totalOpenInterest`. The returned `count` is the number of collected rows. Amounts remain float dollars; missing numeric fields retain the existing zero fallback. A failure on any page rejects the whole read. The live endpoint accepts at most 100 rows despite the generated spec's 500.
 
 ```ts
 import { getNotionalCapAll } from "@symmio/trading-core";
@@ -424,6 +424,18 @@ The lowcap trading flows live on their own pages:
 - [SYMMIO Contract](/core/symmio-contract) — on-chain reads. `getOnchainContractMarkets` is the contract-side analog to `getMarkets`.
 - [Unified Quotes](/core/quotes) — `PendingInstantOpen` / `PendingInstantClose` from `getInstantOpens` / `getInstantCloses` feed `reconcileQuotes`.
 - [Errors](/core/concepts/errors) — solver failures surface as `SymmApiError`.
+
+### `getNotionalCapPage`
+
+For a paginated table, request one page explicitly. Accepts optional `chainId`, `solverId`, `limit` (integer 1–100, default 100) and `offset` (non-negative integer, default 0). Returns `{ count, symbols, totalUsed, totalOpenInterest }`; totals cover only this page. Invalid pagination or an unsupported solver throws `SymmError`; transport failures throw `SymmApiError`.
+
+```ts
+import { getNotionalCapPage, getNotionalCapPageQueryOptions } from "@symmio/trading-core";
+const page = await getNotionalCapPage(config, { limit: 100, offset: 100 });
+const options = getNotionalCapPageQueryOptions(config, { limit: 100, offset: 100 });
+```
+
+`GetNotionalCapPageParameters` describes paging inputs; `GetNotionalCapPageReturnType` / `GetNotionalCapPageData` describe the result. `GetNotionalCapPageOptions` adds query overrides. `getNotionalCapPageQueryKey` includes deployment, limit and offset; its type is `GetNotionalCapPageQueryKey`, and the factory returns `GetNotionalCapPageQueryOptions`. See [React hooks](/react/notional-cap).
 
 ## Migration: Enigma market identity
 
