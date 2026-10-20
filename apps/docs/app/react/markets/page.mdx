@@ -45,9 +45,9 @@ See [`getSymbols`](/core/solvers#getsymbols) in core for the full parameter and 
 
 ## `useMarketInfo`
 
-Per-market figures from the solver's `/get_market_info` — the whole catalogue in one call. The response **diverges by solver**, so the result is a union discriminated on `data.kind`:
+Per-market figures from the solver's market-info endpoint (`/market-info` on Enigma, `/get_market_info` on Rasa) — the whole catalogue in one call. The response **diverges by solver**, so the result is a union discriminated on `data.kind`:
 
-- **Enigma** — `markets: MarketVolume[]` (`symbol`, `tradingVolume`, `lifetimeValue`) plus the aggregates `totalValue24h` and `totalLifetimeValue`.
+- **Enigma** — `markets: MarketVolume[]` (`symbolId`, `tradingVolume`, `lifetimeValue`) plus the aggregates `totalValue24h` and `totalLifetimeValue`.
 - **Rasa** — `markets: RasaMarketInfoRow[]` (`symbol`, `price`, `priceChangePercent`, `tradeVolume`, `notionalCap`) and **no** aggregate totals at all.
 
 ```ts
@@ -86,6 +86,18 @@ Both `symbolId` and `partyB` are required. A quote has no `partyB` until a solve
 - [Solvers](../solvers) — `useMarkets` also documented under the solvers slice.
 - [SYMMIO Contract](../symmio-contract) — on-chain contract reads, including pending funding per quote.
 - [Funding](../../core/concepts/funding) — the funding numbers, pair states, and sign conventions.
+
+## Migration: Enigma market identity
+
+Enigma hooks now identify markets by `symbolId`; funding accepts `symbolIds` instead of ticker strings. Join with `useSymbols` for display names. Rasa funding retains ticker rows and the `symbols` filter. Funding rows carry `kind`; pass a literal `solverId` or narrow each row on `kind`. See the [core migration contract](/core/solvers#migration-enigma-market-identity) for endpoints, units and compatibility.
+
+Select one market from the shared query; there is no per-market market-info request:
+
+```tsx
+const info = useMarketInfo({ solverId: "enigma" });
+const selected = info.data?.markets.find((row) => row.symbolId === 1);
+const funding = useFundingInfo({ solverId: "enigma", symbolIds: [1] });
+```
 
 ## Complete symbol catalogs
 

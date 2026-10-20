@@ -425,6 +425,22 @@ The lowcap trading flows live on their own pages:
 - [Unified Quotes](/core/quotes) — `PendingInstantOpen` / `PendingInstantClose` from `getInstantOpens` / `getInstantCloses` feed `reconcileQuotes`.
 - [Errors](/core/concepts/errors) — solver failures surface as `SymmApiError`.
 
+## Migration: Enigma market identity
+
+Enigma `getMarketInfo` / `useMarketInfo` now read `/market-info` and expose `MarketVolume.symbolId: number` instead of `symbol`. Rasa retains its existing ticker-based shape. Narrow on `kind` before accessing rows. Join Enigma IDs with `getSymbols` / `useSymbols` for display names; duplicate tickers remain distinct. Volumes remain float dollars.
+
+There is no per-market market-info endpoint or server filter. Read one shared query and select `data.markets.find(row => row.symbolId === selectedId)` locally.
+
+`getFundingInfo` / `useFundingInfo` dispatch by solver kind. For Enigma, they use `/funding-info`. Replace `symbols: ["BTCUSDT"]` with `symbolIds: [1]`; `EnigmaMarketFundingInfo.symbolId` replaces `symbol`. Rasa retains `/get_funding_info`, its `symbols` ticker filter and `RasaMarketFundingInfo.symbol`. Each row has a `kind` discriminant. Pass a literal `solverId` to narrow action/query/hook results, or narrow each row on `kind` when using the default solver. `MarketFundingInfo` is the row union; `NormalizedFundingInfoByKind` maps solver kinds to row types. Omit the filter for all markets. Using `symbols` on Enigma or `symbolIds` on Rasa throws `INVALID_FUNDING_FILTER` before a request. The query key includes the solver, both filter inputs and deployment; funding fractions, epoch seconds and funding timestamps are unchanged.
+
+```ts
+const info = await getMarketInfo(config, { solverId: "enigma" });
+const selected = info.markets.find((row) => row.symbolId === 1);
+const funding = await getFundingInfo(config, { solverId: "enigma", symbolIds: [1] });
+const rasa = await getFundingInfo(config, { chainId: 8453, solverId: "rasa", symbols: ["BTCUSDT"] });
+console.log(rasa[0]?.symbol);
+```
+
 ## Complete symbol catalogs
 
 `getSymbols(config, {})` and `useSymbols()` retrieve all matching symbols in server order using 500-row pages when neither `limit` nor `offset` is supplied. All filters apply on every page. Supplying either pagination field requests one page (the server defaults an omitted limit to 100 and offset to zero). A failed later page rejects the read, rather than publishing a partial catalog.

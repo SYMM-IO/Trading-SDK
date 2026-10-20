@@ -1,9 +1,9 @@
-import { getGetMarketInfo, type GetGetMarketInfo200 } from "../../types/generated/enigma-solver";
+import { getMarketInfo as requestMarketInfo, type GetMarketInfo200 } from "../../types/generated/enigma-solver";
 import type { EnigmaMarketInfo, MarketVolume } from "../types";
 
 /**
- * Top-level aggregate keys in Enigma's `/get_market_info` bag. Every other key is
- * a market name whose value is a `{ trading_volume, lifetime_value }` object.
+ * Top-level aggregate keys in Enigma's `/market-info` bag. Every other key is
+ * a symbol ID whose value is a `{ trading_volume, lifetime_value }` object.
  */
 const AGGREGATE_KEYS = new Set<string>(["total_value_24h", "total_lifetime_value"]);
 
@@ -19,17 +19,19 @@ function toNumber(value: unknown): number {
 }
 
 /**
- * Map Enigma's flat `/get_market_info` bag into {@link EnigmaMarketInfo},
+ * Map Enigma's flat `/market-info` bag into {@link EnigmaMarketInfo},
  * splitting the top-level aggregate totals from the per-market volume rows.
  */
-export function toEnigmaMarketInfo(raw: GetGetMarketInfo200): EnigmaMarketInfo {
+export function toEnigmaMarketInfo(raw: GetMarketInfo200): EnigmaMarketInfo {
   const markets: MarketVolume[] = [];
   for (const [key, value] of Object.entries(raw)) {
     if (AGGREGATE_KEYS.has(key)) continue;
     if (typeof value !== "object" || value === null) continue;
+    const symbolId = Number(key);
+    if (!Number.isSafeInteger(symbolId) || symbolId <= 0) continue;
     const entry = value as Record<string, unknown>;
     markets.push({
-      symbol: key,
+      symbolId,
       tradingVolume: toNumber(entry.trading_volume),
       lifetimeValue: toNumber(entry.lifetime_value),
     });
@@ -49,6 +51,6 @@ export function toEnigmaMarketInfo(raw: GetGetMarketInfo200): EnigmaMarketInfo {
  * @internal
  */
 export async function fetchEnigmaMarketInfo(baseURL: string): Promise<EnigmaMarketInfo> {
-  const response = await getGetMarketInfo({ baseURL });
+  const response = await requestMarketInfo({ baseURL });
   return toEnigmaMarketInfo(response.data);
 }

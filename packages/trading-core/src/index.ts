@@ -1202,6 +1202,7 @@ export {
   getFundingInfoQueryOptions,
   projectFundingRate,
   toMarketFundingInfo,
+  type EnigmaMarketFundingInfo,
   type GetFundingInfoData,
   type GetFundingInfoOptions,
   type GetFundingInfoParameters,
@@ -1209,7 +1210,9 @@ export {
   type GetFundingInfoQueryOptions,
   type GetFundingInfoReturnType,
   type MarketFundingInfo,
+  type NormalizedFundingInfoByKind,
   type ProjectFundingRateParameters,
+  type RasaMarketFundingInfo,
 } from "./solvers/funding-info";
 export {
   getRevenueRecords,

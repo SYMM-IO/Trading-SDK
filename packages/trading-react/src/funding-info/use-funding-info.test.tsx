@@ -14,7 +14,8 @@ import { useFundingInfo } from "./use-funding-info";
 
 const RESULT: GetFundingInfoReturnType = [
   {
-    symbol: "BTCUSDT",
+    kind: "enigma",
+    symbolId: 1,
     nextFundingRateLong: 0.0001,
     nextFundingRateShort: -0.0001,
     nextFundingTime: 1783209600000,
@@ -68,13 +69,10 @@ describe("useFundingInfo", () => {
     const { config } = createMockSymmioConfig();
     mockOptions(vi.fn().mockResolvedValue(RESULT));
 
-    renderHookWithProviders(() => useFundingInfo({ config, symbols: ["BTCUSDT", "ETHUSDT"] }));
+    renderHookWithProviders(() => useFundingInfo({ config, symbolIds: [1, 2] }));
 
     await waitFor(() => expect(getFundingInfoQueryOptions).toHaveBeenCalled());
-    expect(getFundingInfoQueryOptions).toHaveBeenCalledWith(
-      config,
-      expect.objectContaining({ symbols: ["BTCUSDT", "ETHUSDT"] }),
-    );
+    expect(getFundingInfoQueryOptions).toHaveBeenCalledWith(config, expect.objectContaining({ symbolIds: [1, 2] }));
   });
 
   it("normalizes a fetch failure to a SymmioRequestError", async () => {
