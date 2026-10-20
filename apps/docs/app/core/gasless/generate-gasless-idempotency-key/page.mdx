@@ -1,0 +1,40 @@
+import { Callout } from "nextra/components";
+
+# generateGaslessIdempotencyKey
+
+Create the idempotency key for **one user action**: a random UUID (122 random bits). Save it with the action before the first attempt, and pass it on every attempt of that action.
+
+```ts
+import { createSubAccounts, generateGaslessIdempotencyKey } from "@symmio/trading-core";
+
+const key = `create-subaccount:${generateGaslessIdempotencyKey()}`;
+await pendingActions.save({ key, inputs });
+
+await createSubAccounts(config, { ...inputs, gasless: { account: payer, idempotencyKey: key } });
+```
+
+While the service holds a key, it accepts that key at most once — so retrying a write under the same key cannot run the action twice. Every gasless submit takes one: `gasless.idempotencyKey` on a [relayable write](/core/gasless/relayable-writes), and an `idempotencyKey` parameter on [`relayGaslessBatch`](/core/gasless/relay-gasless-batch), [`relayInstantOperations`](/core/gasless/relay-instant-operations), [`relayGrantDelegation`](/core/gasless/relay-grant-delegation), [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) and both deposit settlements. Without one, the SDK generates a key per call.
+
+## Rules for a key
+
+- **One key per user action.** Reuse it for every attempt of that action — another signer after `GASLESS_SIGNER_NOT_DELEGATED`, or "Try again" after a reload. A new action gets a new key, even when its inputs are identical.
+- **Random.** A readable prefix of your own is fine (`create-subaccount:<key>`). Never build a key only from the action's inputs: two identical actions would merge into one, and anyone could predict the key.
+- **No secrets or personal data.** The service stores the key and returns it in every status response, and it can appear in logs.
+- **At most 128 characters**, and not blank. Anything else throws `GASLESS_IDEMPOTENCY_KEY_INVALID` before any prompt.
+
+<Callout type="info">
+  The full lifecycle — what to save, when a retry is safe, and how to settle an outcome that stays unknown — is in
+  [Recovering gasless writes](/core/gasless/recovering-writes).
+</Callout>
+
+## Parameters
+
+None.
+
+## Returns
+
+<Returns type="string">A new random key (a UUID).</Returns>
+
+## Throws
+
+Nothing. It reads `globalThis.crypto.randomUUID`, which every supported runtime provides.

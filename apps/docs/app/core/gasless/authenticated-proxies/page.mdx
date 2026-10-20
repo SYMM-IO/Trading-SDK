@@ -1,0 +1,37 @@
+import { Callout } from "nextra/components";
+
+# Authenticated proxies
+
+Point the chain's `gasless.url` at your own proxy when the gateway must not see browser traffic directly, or when every gasless request has to pass your authentication first. `gasless.getRequestHeaders` resolves fresh application credentials for each HTTP attempt. Your application owns authentication; the SDK owns the request body, retries and the relay lifecycle.
+
+## getRequestHeaders
+
+The callback receives a [`GaslessRequestContext`](/core/shared-types#gaslessrequestcontext) and runs before every HTTP GET or POST attempt, including the SDK's internal retries and an explicit [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request) replay.
+
+```ts
+import type { SymmioGaslessConfig } from "@symmio/trading-core";
+
+const proxyAuthentication: Pick<SymmioGaslessConfig, "getRequestHeaders"> = {
+  getRequestHeaders: async ({ chainId, service, method }) => {
+    await applicationSession.assertAccess({ chainId, service, write: method === "POST" });
+    return applicationSession.getHeaders();
+  },
+};
+```
+
+`applicationSession` is your authentication adapter. Headers merge case-insensitively with the configured ones: callback values override the `apiKey` authorization, while the SDK keeps its JSON `Accept` and POST `Content-Type` headers. Credentials never enter a request body, an error, or an [idempotency key](/core/gasless/recovering-writes).
+
+A rejection or an invalid header throws `GASLESS_REQUEST_HEADERS_FAILED` without sending that attempt and without retaining the application error. An earlier uncertain attempt stays `GASLESS_SUBMIT_UNCONFIRMED`, including when authentication fails during a replay.
+
+## What the proxy must do
+
+The callback covers HTTP only. It does not authenticate WebSockets or configure cross-origin cookies: pass `transport: "poll"` to [`confirmGaslessRequest`](/core/gasless/confirm-gasless-request) when every status read must go through your server. The proxy must expose the service's documented response shapes, keep deployment routing explicit, and keep the accepted request ids even when its own bookkeeping fails.
+
+<Callout type="warning">
+  A proxy must preserve submission uncertainty. A generic proxy failure after forwarding must not impersonate a gateway
+  refusal: the SDK treats a 503 carrying the gateway's top-level `error` field as not forwarded. Return an uncertain
+  service-style failure instead. An HTTP status or a lost response alone does not prove that a submitted request was
+  rejected.
+</Callout>
+
+A proxy changes where requests go, so it changes the deployment an idempotency key belongs to. [`getGaslessDeploymentKey`](/core/gasless/get-gasless-deployment-key) includes the service URL; a pending action saved against one proxy is not retried through another.

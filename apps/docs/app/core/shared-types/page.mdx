@@ -178,12 +178,16 @@ type Params = Compute<ChainIdParameter & { user: Address; size: bigint }>;
 
 Recursive `Partial`, but **arrays are leaves** — an overriding array replaces the original wholesale rather than being patched element-by-element. Used by `createConfig({ symmioConfig })`, where a consumer may override a single deeply-nested per-chain field.
 
+Functions also remain leaves, preserving the parameter and return types of callbacks such as `gasless.getRequestHeaders`.
+
 ```ts
-type DeepPartial<type> = type extends readonly unknown[]
+type DeepPartial<type> = type extends (...args: never[]) => unknown
   ? type
-  : type extends object
-    ? { [key in keyof type]?: DeepPartial<type[key]> }
-    : type;
+  : type extends readonly unknown[]
+    ? type
+    : type extends object
+      ? { [key in keyof type]?: DeepPartial<type[key]> }
+      : type;
 ```
 
 ### ExactPartial
@@ -195,6 +199,27 @@ type ExactPartial<type> = {
   [key in keyof type]?: type[key] | undefined;
 };
 ```
+
+## GaslessRequestContext
+
+The input to `SymmioGaslessConfig.getRequestHeaders`, exported from
+`@symmio/trading-core`. The SDK invokes the callback separately for each HTTP
+attempt so an application can refresh authentication between retries.
+
+```ts
+interface GaslessRequestContext {
+  chainId: number;
+  service: "operations" | "deposits";
+  method: "GET" | "POST";
+}
+```
+
+The callback returns `Readonly<Record<string, string>>` or a promise of it.
+`chainId` selects the request chain; applications must also bind their deployment
+and user identity because deployments can share a chain. `service` identifies
+the relay or settlement API, and `method` distinguishes reads from submission.
+See [authenticated proxies](/core/gasless/authenticated-proxies)
+for usage, header precedence and failure behavior.
 
 ## Write parameter helpers
 

@@ -310,3 +310,12 @@ On success, the hook invalidates every cached `useUserSubAccounts` query in the 
 #### Why this hook needs a connected wallet
 
 The hook reads `useSymmioWalletClient()` under the hood. If the user is disconnected or on the wrong chain, calling `mutate` throws a `SymmioRequestError` with `kind: "sdk"` before any contract call is made. UIs typically gate the button on `useWalletAccount().isOnExpectedChain` to avoid the error path entirely.
+
+## Account creation: recovery and cache ownership
+
+To make a relayed creation recoverable, pass `gasless.idempotencyKey` in the mutation variables — one key per user action, saved before calling — and call the mutation again with the same key after an unknown outcome. The hook forwards the key unchanged; your app keeps the pending record. See [Recovering gasless writes](/core/gasless/recovering-writes).
+
+On success, all owner variants of account-list, address-list and account-count
+queries are invalidated. The signing identity may be a session key or a host
+embedded wallet, so invalidation must not assume wagmi's connected address owns
+the new account. Application-specific balance caches remain the host's responsibility.

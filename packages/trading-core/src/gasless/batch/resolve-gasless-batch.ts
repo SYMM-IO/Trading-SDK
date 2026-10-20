@@ -47,6 +47,8 @@ export interface ResolvedGaslessWalletEntry {
   callData: Hex;
   /** The inner calls, for the delegation pre-flight. */
   walletCalls: readonly GaslessWalletCall[];
+  /** The signer requested by this entry; falls back to the batch's signer. */
+  from?: Address;
 }
 
 /** One batch entry, resolved and encoded, in relay order. @internal */
@@ -98,6 +100,7 @@ export function resolveGaslessBatchEntries(
           args: [call.walletCalls.map(toWalletCallTuple)],
         }),
         walletCalls: call.walletCalls,
+        ...(call.from !== undefined ? { from: call.from } : {}),
       };
     }
 

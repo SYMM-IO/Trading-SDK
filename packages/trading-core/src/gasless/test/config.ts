@@ -96,11 +96,13 @@ export function gaslessWriteTestConfig(
   readContract: Mock;
   writeContract: Mock;
   signTypedData: Mock;
+  getBlock: Mock;
 } {
   const readContract = vi.fn();
+  const getBlock = vi.fn().mockResolvedValue({ timestamp: 2_000_000_000n });
   const writeContract = vi.fn().mockResolvedValue(TEST_GASLESS_TX_HASH);
   const signTypedData = vi.fn().mockResolvedValue(TEST_GASLESS_SIGNATURE);
-  const publicClient = { readContract } as unknown as import("viem").PublicClient;
+  const publicClient = { readContract, getBlock } as unknown as import("viem").PublicClient;
   const clientFor = (signer: Address) =>
     ({
       account: {
@@ -131,5 +133,5 @@ export function gaslessWriteTestConfig(
     },
   });
 
-  return { config, readContract, writeContract, signTypedData };
+  return { config, readContract, writeContract, signTypedData, getBlock };
 }

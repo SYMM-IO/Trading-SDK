@@ -346,3 +346,69 @@ Until then the existing raw escape hatch — `querySubgraph(config, { document, 
 | 9   | Satellite infra: per-solver override, chain fallback (future)        | Some infra is genuinely shared, some genuinely is not                     |
 | 10  | `queryFn` arg lists are the hazard, not query keys                   | Keys spread options; `queryFn`s enumerate them                            |
 | 11  | Subgraph versioning **deferred**                                     | Unpinned endpoints + path-based codegen routing make it half a solution   |
+
+## 9. Contract write execution
+
+Named actions describe the contract call and their execution capabilities. The
+shared executor composes wallet submission and gasless submission. Action files
+must not repeat execution-mode resolution or re-enter the public action to switch
+signers or fall back to a wallet.
+
+- `src/transactions/execute-contract-write.ts` accepts a literal ABI, function name
+  and args once. The generic overload validates that tuple at the action's call
+  site. The implementation passes the same definition to encoding, simulation
+  and wallet submission; it never selects a different ABI. This adapter currently
+  accepts nonpayable functions. Native-value writes require their own explicit
+  handling rather than losing a value in the InstantLayer operation format.
+- `src/transactions/execute-write.ts` coordinates the relay capability with an
+  independent `submitWallet(from)` callback. A proxy or atomic batch can supply
+  different wallet and relay representations through this lower-level seam
+  without duplicating lifecycle logic.
+- `src/gasless/dispatch/resolve-gasless-write.ts` resolves per-call overrides,
+  config defaults, service/selector support and the billing account once. Wallet
+  execution does not need billing-account RPCs. `gasless.account` overrides the
+  action's explicit, subaccount, virtual-account or account-or-virtual-account
+  source. A caller-owned `gasless.idempotencyKey` makes the write strictly
+  gasless: the key is validated before any prompt, contradictory options throw,
+  the fallback is always `"error"`, and no branch resolves to the wallet path.
+- `src/gasless/dispatch/submit-gasless-write.ts` performs one gasless attempt:
+  gateway/delegation checks, nonce coordination, fee preflight, signing, submit
+  and broadcast tracking. It returns the broadcast hash or a proven refusal
+  carrying its acceptance state. Ambiguous submissions and other failures throw;
+  this component never sends a wallet transaction.
+
+The existing `maybeRelayAsGasless` helper is a bridge for actions that have not
+moved to the contract-write executor. It uses the same resolver and submission
+component and preserves its `Hash | null` contract.
+
+### Idempotency keys and recovery
+
+Recovery is consumer-owned. The SDK keeps no pending-action state across calls;
+it provides the pieces that make a consumer's retry safe:
+
+- **One key per user action.** Every submit entry point (the dispatcher,
+  `relayGaslessBatch`, `relayInstantOperations`, `relayGrantDelegation`,
+  `gaslessWalletExecute`, both settlements) resolves its key through
+  `src/gasless/idempotency-key.ts`: the caller's own key, validated, or a new
+  one. The service accepts a key at most once while it holds it, so a retry
+  under the same key — even one signed again — cannot run the action twice.
+- **Deadlines are fixed when a call starts**, before any nonce-lock wait or
+  prompt, so an attempt started at `T` can never execute after
+  `T + GASLESS_SIGNATURE_LIFETIME_SECONDS`. A consumer reconciles an unresolved
+  action from on-chain state once that point has passed.
+- **Same-key retries and nonce streams** (`src/gasless/nonce-lock.ts`). Each
+  pending submit records its idempotency key and, once accepted, its receipt. An
+  attempt under the same caller-owned key never waits for its own pending
+  submit: when this config saw it accepted, the attempt returns or follows that
+  request without signing; otherwise it signs from the on-chain nonce and lets
+  the service settle which attempt stands. Different keys keep the per-stream
+  serialization. A caller-keyed acceptance never raises the consumed-nonce
+  floor, because the service may have answered with an earlier request whose
+  nonce differs from the one just signed.
+- **Deployment scope.** A key protects an action only inside one deployment.
+  `getGaslessDeploymentKey` fingerprints the routing and contract identity
+  (never credentials or execution settings), so a consumer can refuse to retry
+  against a different deployment.
+
+The shared config identity must be preserved across all execution paths: nonce
+coordination and the in-session same-key state are scoped to it.

@@ -60,6 +60,11 @@ Pair it with [`GASLESS_SESSION_KEY_SELECTORS`](/core/gasless/relayable-writes) t
   <Property name="from" type="Address" optional>
     Signer override for the wallet-client resolver.
   </Property>
+  <Property name="idempotencyKey" type="string" optional>
+    Your key for one user action, 1–128 characters, from
+    [`generateGaslessIdempotencyKey`](/core/gasless/generate-gasless-idempotency-key). Reuse it on every attempt of that
+    action. Defaults to a key generated for this call alone.
+  </Property>
 </Properties>
 
 ## Returns
@@ -70,15 +75,16 @@ Pair it with [`GASLESS_SESSION_KEY_SELECTORS`](/core/gasless/relayable-writes) t
 </Returns>
 
 <Callout type="info">
-  **The idempotency key is minted per call, not a parameter.** Every call signs a fresh operation, so one key can only
-  ever describe one signature. It comes back on the receipt; replay a lost response with
-  [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request) rather than signing a new grant. See [idempotency
-  keys](/core/gasless/errors-and-fallback#idempotency-keys).
+  **Pass `idempotencyKey` to make the grant retryable.** A later call under the same key never waits for its own earlier
+  submit, returns that submit's receipt when this config saw it accepted, and is otherwise accepted by the service at
+  most once. The signature's deadline is fixed when the call starts. See [Recovering gasless
+  writes](/core/gasless/recovering-writes).
 </Callout>
 
 ## Throws
 
+- `SymmError("validation", "GASLESS_IDEMPOTENCY_KEY_INVALID")` — the key is blank or longer than 128 characters. Thrown before any read or prompt.
 - `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
 - `SymmApiError` with code `GASLESS_RELAY_SUBMIT_FAILED` on HTTP failure.
-- `SymmApiError` with code `GASLESS_SUBMIT_UNCONFIRMED` — the outcome could not be established; replay it with [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request).
+- `SymmApiError` with code `GASLESS_SUBMIT_UNCONFIRMED` — the outcome could not be established; call again under the same `idempotencyKey`, or replay it with [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request).
 - Everything the wallet-client resolver throws (`NO_WALLET_CLIENT`, a user's signature rejection).

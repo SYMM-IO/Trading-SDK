@@ -1,11 +1,14 @@
 import {
+  getActiveDelegationsQueryKey,
   getCollateralBalanceQueryKey,
+  getDelegationExpiryQueryKey,
   getGaslessDepositPolicyQueryKey,
   getGaslessWalletCreationFeeQueryKey,
   getGaslessWalletNonceQueryKey,
   getInstantLayerNonceQueryKey,
   getIsDelegationActiveQueryKey,
   getPartyAPendingQuotesQueryKey,
+  getPendingRevocationEtasQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getUserSubAccountsQueryKey,
 } from "@symmio/trading-core";
@@ -274,4 +277,39 @@ describe("invalidateGaslessBatchReads", () => {
     expect(isInvalidated(queryClient, walletNonce)).toBe(true);
     expect(isInvalidated(queryClient, withdrawals)).toBe(false);
   });
+
+  it.each(["grantDelegation", "grantDelegations"])(
+    "refreshes permissions and cleared revocations after %s",
+    (functionName) => {
+      const options = {
+        chainId: CHAIN,
+        configKey: CONFIG_KEY,
+        account: SUB_ACCOUNT,
+        delegator: { addr: SUB_ACCOUNT, isPartyB: false },
+        delegate: SESSION_KEY,
+        delegates: [SESSION_KEY],
+        selector: "0x12345678" as const,
+      };
+      const keys = [
+        delegation,
+        getDelegationExpiryQueryKey(options),
+        getActiveDelegationsQueryKey({ ...options, selectors: [[options.selector]] }),
+        getPendingRevocationEtasQueryKey({ ...options, selectors: [options.selector] }),
+      ];
+      const otherDeployment = getIsDelegationActiveQueryKey({ ...options, configKey: "other-deployment" });
+      const queryClient = seeded([...keys, otherDeployment]);
+      const info = {
+        account: { addr: SUB_ACCOUNT, isPartyB: false },
+        delegatedSigner: SESSION_KEY,
+        selectors: [options.selector],
+        expiryTimestamp: 4_000_000_000n,
+      };
+      invalidateGaslessBatchReads(queryClient, SCOPE, {
+        account: SUB_ACCOUNT,
+        calls: [{ functionName, args: [functionName === "grantDelegation" ? info : [info]] }],
+      });
+      for (const key of keys) expect(isInvalidated(queryClient, key)).toBe(true);
+      expect(isInvalidated(queryClient, otherDeployment)).toBe(false);
+    },
+  );
 });

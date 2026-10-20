@@ -1,5 +1,6 @@
 import {
   accountLayerAbi,
+  getActiveDelegationsQueryKey,
   getCollateralAllowanceQueryKey,
   getCollateralBalanceQueryKey,
   getDelegationExpiryQueryKey,
@@ -14,6 +15,7 @@ import {
   getPartyAOpenPositionsQueryKey,
   getPartyAPendingQuotesQueryKey,
   getPendingQuotesQueryKey,
+  getPendingRevocationEtasQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getQuotePendingFundingQueryKey,
   getQuoteQueryKey,
@@ -191,8 +193,11 @@ const DEPOSIT_WRITES: ReadonlySet<Hex> = new Set([
   selectorOf(accountLayerAbi as Abi, "depositAndAllocateForAccount"),
 ]);
 
-/** The one relayable write that grants a delegation. */
-const GRANT_DELEGATION = selectorOf(instantLayerAbi as Abi, "grantDelegation");
+/** Both owner-signed grant forms change permissions and clear pending revocations. */
+const GRANT_DELEGATIONS: ReadonlySet<Hex> = new Set([
+  selectorOf(instantLayerAbi as Abi, "grantDelegation"),
+  selectorOf(instantLayerAbi as Abi, "grantDelegations"),
+]);
 
 /**
  * Invalidate the reads a relayed gasless batch changed.
@@ -267,10 +272,12 @@ export function invalidateGaslessBatchReads(
     void queryClient.invalidateQueries({ predicate: predicateMatch(getCollateralBalanceQueryKey, scope) });
     void queryClient.invalidateQueries({ predicate: predicateMatch(getCollateralAllowanceQueryKey, scope) });
   }
-  if (selectors.has(GRANT_DELEGATION)) {
+  if (touches(GRANT_DELEGATIONS)) {
     /** Scoped by config only: one grant covers every selector it lists, for every delegate. */
     void queryClient.invalidateQueries({ predicate: predicateMatch(getIsDelegationActiveQueryKey, scope) });
     void queryClient.invalidateQueries({ predicate: predicateMatch(getDelegationExpiryQueryKey, scope) });
+    void queryClient.invalidateQueries({ predicate: predicateMatch(getActiveDelegationsQueryKey, scope) });
+    void queryClient.invalidateQueries({ predicate: predicateMatch(getPendingRevocationEtasQueryKey, scope) });
   }
 }
 

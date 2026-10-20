@@ -118,6 +118,7 @@ describe("getGaslessBatchFeeQuote", () => {
         { functionName: "allocate", args: [5n] },
         {
           walletId: 2n,
+          from: RECIPIENT,
           walletCalls: [{ target: USDC, abi: erc20Abi, functionName: "transfer", args: [RECIPIENT, 1n] }],
         },
       ],
@@ -134,6 +135,8 @@ describe("getGaslessBatchFeeQuote", () => {
     expect(signedOps[1]?.signerAccount).toEqual({ addr: ACCOUNT, isPartyB: false });
     expect(decodeFunctionData({ abi: gaslessWalletAbi, data: signedOps[1]!.callData }).functionName).toBe("execute");
     expect(walletIds).toEqual([0n, 2n]);
+    /** Explicit entry signers never require wallet resolution or authorization for a fee-only preview. */
+    expect(signedOps.every((operation) => operation.signer === zeroAddress)).toBe(true);
   });
 
   it("prices the same calls with byte-identical calldata every time", async () => {

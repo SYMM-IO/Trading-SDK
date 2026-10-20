@@ -8,7 +8,7 @@ import type { GaslessService } from "./types";
  */
 export const GASLESS_SUBMIT_UNCONFIRMED_CODE = "GASLESS_SUBMIT_UNCONFIRMED";
 
-/** Vendor code of a key already bound to a different wallet selection or workflow. */
+/** Vendor code of a key already bound to an earlier request with a different payload. */
 const GASLESS_IDEMPOTENCY_CONFLICT_CODE = "IDEMPOTENCY_KEY_CONFLICT";
 
 /**
@@ -135,13 +135,14 @@ export function getGaslessUnconfirmedSubmit(err: unknown): GaslessUnconfirmedSub
 
 /**
  * Whether an error is the gateway's `409 IDEMPOTENCY_KEY_CONFLICT` — the key
- * is already bound to a **different** wallet selection or workflow.
+ * is already bound to an earlier request whose payload differs from this one.
  *
- * It is a client bug, never a transport failure: the service refused to reuse
- * the key for a payload that is not the one it first saw. Mint a fresh key for
- * the new action; re-signing with the old key cannot succeed. It is also never
- * grounds for a wallet-paid retry, because the workflow the key does belong to
- * may still be executing.
+ * With a caller-owned key (one per user action, reused on every attempt) it
+ * means an earlier attempt of this action holds the key, and that attempt's
+ * outcome is unknown: it may be queued, executing, done or failed. Do not send
+ * the action again — not under this key, not under a new one, and never
+ * through the wallet. Keep the action pending and reconcile it once its last
+ * attempt can no longer execute (`GASLESS_SIGNATURE_LIFETIME_SECONDS`).
  *
  * @param err - Anything caught from a gasless submit, including an error a
  *   framework layer re-wrapped.
@@ -150,7 +151,7 @@ export function getGaslessUnconfirmedSubmit(err: unknown): GaslessUnconfirmedSub
  * @example
  * ```ts
  * if (isGaslessIdempotencyConflictError(err)) {
- *   // reconcile the workflow this key already created, then rebuild with a new key
+ *   // an earlier attempt holds the key: keep the action pending and reconcile it
  * }
  * ```
  */

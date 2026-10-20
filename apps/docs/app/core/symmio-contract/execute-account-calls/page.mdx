@@ -53,8 +53,9 @@ TanStack Mutation; it does not add cache invalidation or receipt confirmation.
 Wallet execution simulates the entire `_call` by default, then submits one
 transaction. An inner revert reverts the transaction. Gasless execution reuses
 the SDK dispatcher, including supported-selector and delegation checks. There is
-no automatic wallet fallback after a failed or uncertain relay. See
-[gasless recovery](/core/gasless/submit-persistence) and
+no automatic wallet fallback after a failed or uncertain relay. Pass
+`gasless.idempotencyKey` to make the calls retryable — see
+[Recovering gasless writes](/core/gasless/recovering-writes) and
 [gasless errors](/core/gasless/errors-and-fallback).
 
 Use [relayGaslessBatch](/core/gasless/relay-gasless-batch) when you need explicit

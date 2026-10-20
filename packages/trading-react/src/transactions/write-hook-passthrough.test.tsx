@@ -100,8 +100,10 @@ const AFFILIATE: Address = "0x000000000000000000000000000000000000aFF1";
  * The sentinels. `from` is an address no other fixture uses, so it can only
  * arrive by being forwarded. `gasless` is a full {@link GaslessWriteOptions}
  * bag rather than `true`: a hook that forwarded only a boolean would still drop
- * `fallback` / `account` / `broadcastTimeoutMs`, and the per-call bag is the
- * half consumers actually reach for.
+ * `fallback` / `account` / `broadcastTimeoutMs` / `idempotencyKey`, and the
+ * per-call bag is the half consumers actually reach for. (Core rejects a key
+ * combined with `fallback: "wallet"`, but core is stubbed here: forwarding is
+ * the only subject.)
  */
 const SENTINEL_FROM: Address = "0x000000000000000000000000000000000000F00D";
 const SENTINEL_GASLESS: GaslessWriteOptions = {
@@ -109,6 +111,7 @@ const SENTINEL_GASLESS: GaslessWriteOptions = {
   fallback: "wallet",
   account: ACCOUNT,
   broadcastTimeoutMs: 5_000,
+  idempotencyKey: "sentinel-action",
 };
 
 const UPNL_SIG: SingleUpnlSig = {

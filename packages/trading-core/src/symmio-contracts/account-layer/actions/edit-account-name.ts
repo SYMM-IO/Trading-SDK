@@ -1,10 +1,8 @@
-import { encodeFunctionData, type Address, type Hash } from "viem";
+import type { Address, Hash } from "viem";
 import type { Config } from "../../../core/config";
-import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-gasless";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
-import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
+import { executeContractWrite } from "../../../transactions/execute-contract-write";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
-import { simulateEditAccountName } from "./simulate-edit-account-name";
 
 /**
  * Parameters for {@link editAccountName}.
@@ -31,7 +29,7 @@ export type EditAccountNameReturnType = Hash;
  * Resolves the bound wallet client and `AccountLayer` address from `config`. The
  * bound EOA must equal the subaccount's on-chain `owner`.
  *
- * Dry-runs the call with {@link simulateEditAccountName} first unless
+ * Dry-runs wallet execution (including fallback) with `simulateContract` unless
  * `simulateBeforeWrite` is `false` (per-call, falling back to the config default).
  *
  * Relayable: pass `gasless` (or run the chain in `gasless.execution.mode`) to
@@ -54,46 +52,18 @@ export async function editAccountName(
   config: Config,
   parameters: EditAccountNameParameters,
 ): Promise<EditAccountNameReturnType> {
-  const { chainId, account, name, from } = parameters;
-
-  const { addresses } = config.getChainConfig(chainId);
-
-  /**
-   * Transparent gasless seam: the same AccountLayer calldata is signed as an
-   * InstantLayer operation and relayed. The renamed sub-account is its own
-   * billing/authority account. `null` means: proceed on the wallet path below,
-   * unchanged.
-   */
-  const relayed = await maybeRelayAsGasless(config, {
-    chainId,
-    from,
-    gasless: parameters.gasless,
-    signerAccount: account,
-    calls: [
-      {
-        target: addresses.accountLayerAddress,
-        callData: encodeFunctionData({
-          abi: accountLayerAbi,
-          functionName: "editAccountName",
-          args: [account, name],
-        }),
+  const chain = config.getChainConfig(parameters.chainId);
+  return executeContractWrite(
+    config,
+    { ...parameters, chainId: chain.chainId },
+    {
+      contract: {
+        address: chain.addresses.accountLayerAddress,
+        abi: accountLayerAbi,
+        functionName: "editAccountName",
+        args: [parameters.account, parameters.name],
       },
-    ],
-  });
-  if (relayed !== null) return relayed;
-
-  const walletClient = await config.getWalletClient({ chainId, from });
-
-  if (shouldSimulateBeforeWrite(config, parameters)) {
-    await simulateEditAccountName(config, { chainId, account, name, from: walletClient.account.address });
-  }
-
-  return walletClient.writeContract({
-    address: addresses.accountLayerAddress,
-    abi: accountLayerAbi,
-    functionName: "editAccountName",
-    args: [account, name],
-    account: walletClient.account,
-    chain: walletClient.chain,
-  });
+      relay: { billingAccount: { kind: "subaccount", account: parameters.account } },
+    },
+  );
 }

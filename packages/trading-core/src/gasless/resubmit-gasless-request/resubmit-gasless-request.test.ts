@@ -60,8 +60,8 @@ describe("resubmitGaslessRequest", () => {
     expect(post).toHaveBeenCalledTimes(1);
     const [path, body] = post.mock.calls[0] ?? [];
     expect(path).toBe("/gateway/relay-instant");
-    /** The same object reference: a rebuilt payload would be a different request under a bound key. */
-    expect(body).toBe(RELAY_BODY);
+    /** A protected copy preserves the exact JSON while excluding mutations during async reads/persistence. */
+    expect(JSON.stringify(body)).toBe(JSON.stringify(RELAY_BODY));
     expect(receipt).toMatchObject({
       requestId: "req-1",
       status: GaslessRequestStatus.QUEUED,

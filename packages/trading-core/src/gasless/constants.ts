@@ -22,3 +22,22 @@ export const GASLESS_WALLET_EXECUTE_SELECTOR = "0x3f707e6b" as const;
  * ```
  */
 export const GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR = "0x1dccecab" as const;
+
+/**
+ * The longest a signature made by an SDK gasless call stays valid: 20 minutes,
+ * counted from the moment the call starts. Every SDK call that signs a gasless
+ * operation fixes the deadline when it starts, so an attempt started at `T`
+ * (seconds) can no longer execute once the chain's latest block timestamp
+ * passes `T + GASLESS_SIGNATURE_LIFETIME_SECONDS`. Allow a minute of margin for
+ * the time between recording `T` and making the call.
+ *
+ * Gasless-wallet operations (`gaslessWalletExecute`) use a shorter lifetime, so
+ * this bound covers them too.
+ *
+ * @example
+ * ```ts
+ * const settledAt = lastAttemptStartedAtSeconds + GASLESS_SIGNATURE_LIFETIME_SECONDS + 60;
+ * if (latestBlock.timestamp > BigInt(settledAt)) await reconcile(action);
+ * ```
+ */
+export const GASLESS_SIGNATURE_LIFETIME_SECONDS = 20 * 60;

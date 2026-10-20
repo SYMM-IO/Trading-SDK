@@ -43,15 +43,15 @@ Writes that are not in this table (`approveCollateral`, `requestToRegisterAffili
 
 ## The dispatch, in order
 
-1. Resolve the mode: per-call `gasless` overrides `execution.mode`; the default is `"wallet"` (zero overhead).
+1. Resolve the mode: per-call `gasless` overrides `execution.mode`; the default is `"wallet"` (zero overhead). A caller-owned `gasless.idempotencyKey` makes the call strictly gasless — no wallet path and no automatic fallback.
 2. Cross-check the config once per chain: the GaslessLayer's `instantLayer()` must equal the chain's `instantLayerAddress`, or the relay refuses with `GASLESS_CONFIG_INCOHERENT` — a mismatched pairing would produce signatures the gateway rejects.
-3. Read the nonce and build the operations, serialized per [nonce stream](/core/gasless#nonce-streams) so concurrent relays cannot collide.
+3. Read the nonce and build the operations, serialized per [nonce stream](/core/gasless#nonce-streams) so concurrent relays cannot collide. The signature deadline was fixed when the call started: an attempt started at `T` can never execute after `T + GASLESS_SIGNATURE_LIFETIME_SECONDS` (20 minutes). A retry under the same caller-owned key does not wait for its own earlier submit — see [same-key retries](/core/gasless/recovering-writes#same-key-retries-and-nonce-streams).
 4. Quote the batch ([`getGaslessFeeQuote`](/core/gasless/get-gasless-fee-quote), every operation on wallet `0`) **before any signature prompt** (`preflightFee`, default on). The quote carries placeholder signatures, so it needs no prompt of its own:
    - an exhausted daily free quota stops with `GASLESS_FREE_QUOTA_EXHAUSTED`, or takes the wallet path under `fallback: "wallet"`, since nothing was signed;
    - a quote the contract rejects stops with `GASLESS_FEE_QUOTE_REVERTED`, and a GaslessLayer without the multi-wallet interface with `GASLESS_LAYER_INTERFACE_UNSUPPORTED`. Neither falls back, because the relay would fail the same way;
    - a quote read that fails for transport reasons does **not** block. Signing proceeds, and the relayer's simulation decides.
 5. Sign. A user's signature rejection propagates — there is no wallet fallback for "the user said no".
-6. Submit, then wait for broadcast (bounded by `broadcastTimeoutMs`) and return the hash. Pre-acceptance failures follow the `fallback` policy; post-202 there is no fallback — see [Errors & fallback](/core/gasless/errors-and-fallback).
+6. Submit, then wait for broadcast (bounded by `broadcastTimeoutMs`) and return the hash. Pre-acceptance failures follow the `fallback` policy (always `"error"` for a keyed call); post-202 there is no fallback — see [Errors & fallback](/core/gasless/errors-and-fallback).
 
 Lifecycle observers get every accepted request through `execution.onEvent` (`accepted` / `broadcast` / `terminal`) — persist it there so in-flight relays survive reloads. The `accepted` event is a `GaslessAcceptedRequest`, and carries everything needed to resume the workflow, not just the id:
 
@@ -125,13 +125,20 @@ Grant them with [`grantDelegation`](/core/instant-layer/grant-delegation) and `g
   <Property name="gasless.signal" type="AbortSignal" optional>
     Abort the broadcast wait — the accepted request keeps running server-side.
   </Property>
+  <Property name="gasless.idempotencyKey" type="string" optional>
+    Your key for one user action, 1–128 characters, from
+    [`generateGaslessIdempotencyKey`](/core/gasless/generate-gasless-idempotency-key). Save it before calling and reuse
+    it on every attempt of that action: while the service holds the key, it accepts the key at most once. The call
+    becomes strictly gasless — combining the key with `enabled: false` or `fallback: "wallet"` throws
+    `GASLESS_IDEMPOTENCY_KEY_INVALID` before any prompt. Omitted, the SDK generates a key per call.
+  </Property>
 </Properties>
 
 <Callout type="info">
-  There is no `gasless.idempotencyKey`: a relayed write signs a fresh operation on every call, so one key could only
-  ever describe one signature. The dispatcher mints it and puts it on the acceptance event and the receipt; replaying a
-  submit whose response was lost is [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request)'s job. See
-  [idempotency keys](/core/gasless/errors-and-fallback#idempotency-keys).
+  A keyed write is recoverable: after a timeout or a reload, call it again under the same key. [Recovering gasless
+  writes](/core/gasless/recovering-writes) covers what to save, how to read each outcome, and how to reconcile one that
+  stays unknown. The `accepted` event carries your key, so you can attach the request id to your record as soon as the
+  service accepts it.
 </Callout>
 
 <Callout type="info">

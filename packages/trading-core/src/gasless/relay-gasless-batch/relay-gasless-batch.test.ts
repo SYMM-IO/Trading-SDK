@@ -1,16 +1,22 @@
 import {
   HttpRequestError,
+  createWalletClient,
+  custom,
   decodeFunctionData,
   encodeFunctionData,
   erc20Abi,
+  recoverTypedDataAddress,
   toFunctionSelector,
   type Address,
   type Hex,
 } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { arbitrum } from "viem/chains";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmioSupportedChainId, getChainConfig } from "../../core/chains";
 import { gaslessWalletAbi } from "../../symmio-contracts/abi/v0.8.6/gasless-wallet";
 import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
+import { getGaslessBatchSelectors, type GaslessBatchCall } from "../batch/calls";
 import { GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR } from "../constants";
 import { GASLESS_RELAYABLE_WRITES } from "../relayable-writes";
 import {
@@ -70,6 +76,8 @@ function programReads(readContract: ReadContractMock, overrides?: Partial<Record
         : Promise.resolve(override);
     }
     switch (functionName) {
+      case "ownerOf":
+        return Promise.resolve(TEST_GASLESS_SIGNER);
       case "instantLayer":
         return Promise.resolve(ADDRESSES.instantLayerAddress);
       case "getSubAccount":
@@ -338,6 +346,68 @@ describe("relayGaslessBatch", () => {
     ).rejects.toMatchObject({ code: "GASLESS_NOT_CONFIGURED" });
     expect(signTypedData).not.toHaveBeenCalled();
   });
+
+  describe("caller-owned idempotency key", () => {
+    const CALLS = [{ functionName: "allocate", args: [5n] }] as const;
+
+    it("sends the key, and answers a same-key retry with the accepted receipt instead of more prompts", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+      programReads(readContract);
+      const batch = { chainId: GASLESS_TEST_CHAIN, account: SUB_ACCOUNT, calls: CALLS, idempotencyKey: "onboard-1" };
+
+      const first = await relayGaslessBatch(config, batch);
+      const retry = await relayGaslessBatch(config, batch);
+
+      expect(postedBody()).toMatchObject({ idempotencyKey: "onboard-1" });
+      expect(first.idempotencyKey).toBe("onboard-1");
+      expect(retry).toEqual(first);
+      expect(signTypedData).toHaveBeenCalledOnce();
+      expect(post).toHaveBeenCalledOnce();
+    });
+
+    it("signs again under a different key — a different action — after the first is accepted", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+      programReads(readContract);
+
+      await relayGaslessBatch(config, {
+        chainId: GASLESS_TEST_CHAIN,
+        account: SUB_ACCOUNT,
+        calls: CALLS,
+        idempotencyKey: "onboard-1",
+      });
+      /** The first request's nonce is now on-chain, so the second action signs past it. */
+      programReads(readContract, { nonces: 6n });
+      await relayGaslessBatch(config, {
+        chainId: GASLESS_TEST_CHAIN,
+        account: SUB_ACCOUNT,
+        calls: CALLS,
+        idempotencyKey: "onboard-2",
+      });
+
+      expect(signTypedData).toHaveBeenCalledTimes(2);
+      expect(post.mock.calls.map(([, body]) => (body as { idempotencyKey: string }).idempotencyKey)).toEqual([
+        "onboard-1",
+        "onboard-2",
+      ]);
+    });
+
+    it("rejects an invalid key before any read or prompt", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+      programReads(readContract);
+
+      await expect(
+        relayGaslessBatch(config, {
+          chainId: GASLESS_TEST_CHAIN,
+          account: SUB_ACCOUNT,
+          calls: CALLS,
+          idempotencyKey: " ",
+        }),
+      ).rejects.toMatchObject({ code: "GASLESS_IDEMPOTENCY_KEY_INVALID" });
+      expect(readContract).not.toHaveBeenCalled();
+      expect(signTypedData).not.toHaveBeenCalled();
+    });
+  });
+
   describe("mixed signers", () => {
     const GATEWAY = TEST_GASLESS.gaslessLayerAddress;
     const KEY_SIGNATURE = `0x${"ab".repeat(65)}` as Hex;
@@ -366,6 +436,200 @@ describe("relayGaslessBatch", () => {
         { functionName: "approveOperationalFee", args: [[GATEWAY], [1n]], from: SESSION_KEY },
       ] as const;
     }
+
+    it("submits real owner and session signatures under their respective signing domains", async () => {
+      // Public fixture keys; the HTTP client and all chain reads are mocked.
+      const owner = privateKeyToAccount(`0x${"11".repeat(32)}`);
+      const key = privateKeyToAccount(`0x${"22".repeat(32)}`);
+      const transport = custom({
+        request: async () => {
+          throw new Error("Unexpected wallet RPC");
+        },
+      });
+      const ownerClient = createWalletClient({ account: owner, chain: arbitrum, transport });
+      const keyClient = createWalletClient({ account: key, chain: arbitrum, transport });
+      const ownerSign = vi.spyOn(ownerClient, "signTypedData");
+      const keySign = vi.spyOn(keyClient, "signTypedData");
+      const { config, readContract } = gaslessWriteTestConfig();
+      programReads(readContract, {
+        ownerOf: owner.address,
+        getSubAccount: {
+          accountAddress: SUB_ACCOUNT,
+          owner: owner.address,
+          name: "Main",
+          isExists: true,
+          singleVAMode: false,
+          affiliate: SUB_ACCOUNT,
+          symmioCore: SUB_ACCOUNT,
+        },
+        isDelegationActive: false,
+      });
+      const walletCall = { from: key.address, walletId: 2n, walletCalls: [TRANSFER] };
+      await relayGaslessBatch(
+        {
+          ...config,
+          getWalletClient: async (parameters) => {
+            if (parameters?.from === owner.address) return ownerClient;
+            if (parameters?.from === key.address) return keyClient;
+            throw new Error("No default wallet");
+          },
+        },
+        {
+          account: SUB_ACCOUNT,
+          calls: [
+            {
+              from: owner.address,
+              functionName: "grantDelegation",
+              args: [
+                {
+                  account: { addr: SUB_ACCOUNT, isPartyB: false },
+                  delegatedSigner: key.address,
+                  selectors: getGaslessBatchSelectors([walletCall]),
+                  expiryTimestamp: 4_000_000_000n,
+                },
+              ],
+            },
+            walletCall,
+          ],
+        },
+      );
+      const body = postedBody();
+      const ownerData = ownerSign.mock.calls[0]![0];
+      const keyData = keySign.mock.calls[0]![0];
+      expect(ownerData.domain).toMatchObject({
+        name: "SymmioInstantLayer",
+        verifyingContract: ADDRESSES.instantLayerAddress,
+      });
+      expect(keyData.domain).toMatchObject({ name: "GaslessGateway", verifyingContract: GATEWAY });
+      expect(await recoverTypedDataAddress({ ...ownerData, signature: body.signatures[0] as Hex })).toBe(owner.address);
+      expect(await recoverTypedDataAddress({ ...keyData, signature: body.signatures[1] as Hex })).toBe(key.address);
+      expect(body.signedOps).toMatchObject([{ signer: owner.address }, { signer: key.address }]);
+      expect(body.userAddress).toBe(owner.address);
+    });
+
+    it.each([
+      ["named", { functionName: "allocate", args: [5n], from: SESSION_KEY }],
+      [
+        "raw",
+        { data: encodeFunctionData({ abi: symmioAbi, functionName: "allocate", args: [5n] }), from: SESSION_KEY },
+      ],
+      ["wallet", { walletId: 2n, walletCalls: [TRANSFER], from: SESSION_KEY }],
+    ] satisfies [string, GaslessBatchCall][])(
+      "routes an explicit %s signer ahead of the batch signer",
+      async (_, call) => {
+        const { config, readContract, signTypedData } = gaslessWriteTestConfig(undefined, {
+          signersByFrom: { [SESSION_KEY]: SESSION_KEY },
+        });
+        programReads(readContract);
+        await relayGaslessBatch(config, {
+          account: SUB_ACCOUNT,
+          from: TEST_GASLESS_SIGNER,
+          calls: [call, { functionName: "allocate", args: [1n] }],
+        });
+        expect(promptSigners(signTypedData)).toEqual([SESSION_KEY, TEST_GASLESS_SIGNER]);
+        expect(postedBody().signedOps).toMatchObject([{ signer: SESSION_KEY }, { signer: TEST_GASLESS_SIGNER }]);
+        expect((signTypedData.mock.calls[0]![0] as SignCall).domain.name).toBe(
+          "walletCalls" in call ? "GaslessGateway" : "SymmioInstantLayer",
+        );
+      },
+    );
+
+    it("inherits the batch signer for wallet entries and resolves each requested signer once", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig(undefined, {
+        signersByFrom: { [SESSION_KEY]: SESSION_KEY },
+      });
+      programReads(readContract);
+      const getWalletClient = vi.fn(config.getWalletClient);
+      await relayGaslessBatch(
+        { ...config, getWalletClient },
+        {
+          account: SUB_ACCOUNT,
+          from: SESSION_KEY,
+          calls: [{ walletCalls: [TRANSFER] }, { functionName: "allocate", args: [1n], from: SESSION_KEY }],
+        },
+      );
+      expect(getWalletClient).toHaveBeenCalledExactlyOnceWith({ chainId: GASLESS_TEST_CHAIN, from: SESSION_KEY });
+      expect(promptSigners(signTypedData)).toEqual([SESSION_KEY, SESSION_KEY]);
+    });
+
+    it("uses a preceding owner grant for a session-signed wallet entry without resolving a default wallet", async () => {
+      const { config, readContract, signTypedData, getBlock } = gaslessWriteTestConfig(undefined, {
+        signersByFrom: { [SESSION_KEY]: SESSION_KEY },
+        localSigners: [SESSION_KEY],
+      });
+      programReads(readContract, { isDelegationActive: false });
+      const walletCall = { walletId: 2n, walletCalls: [TRANSFER], from: SESSION_KEY };
+      const [grant] = onboardingCalls(getGaslessBatchSelectors([walletCall]));
+      const getWalletClient = vi.fn(async (parameters: Parameters<typeof config.getWalletClient>[0]) => {
+        if (!parameters?.from) throw new Error("No default wallet is connected");
+        return config.getWalletClient(parameters);
+      });
+      await relayGaslessBatch(
+        { ...config, getWalletClient },
+        {
+          account: SUB_ACCOUNT,
+          calls: [{ ...grant, from: TEST_GASLESS_SIGNER }, walletCall],
+        },
+      );
+      expect(getWalletClient.mock.calls.map(([parameters]) => parameters?.from)).toEqual([
+        TEST_GASLESS_SIGNER,
+        SESSION_KEY,
+      ]);
+      expect(promptSigners(signTypedData)).toEqual([SESSION_KEY, TEST_GASLESS_SIGNER]);
+      expect(postedBody().signedOps).toMatchObject([
+        {
+          signer: TEST_GASLESS_SIGNER,
+          flexFields: [],
+          maxUses: 1,
+          signerAccount: { addr: SUB_ACCOUNT, isPartyB: false },
+        },
+        { signer: SESSION_KEY, target: WALLET },
+      ]);
+      expect(getBlock).toHaveBeenCalledExactlyOnceWith({ blockTag: "latest" });
+      expect(readContract.mock.calls.some(([read]) => (read as StubRead).functionName === "isDelegationActive")).toBe(
+        false,
+      );
+    });
+
+    it("rejects a delegate-signed grant before collecting any signatures", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig(undefined, {
+        signersByFrom: { [SESSION_KEY]: SESSION_KEY },
+      });
+      programReads(readContract);
+      const [grant] = onboardingCalls([relayableSelector("allocate")]);
+      await expect(
+        relayGaslessBatch(config, {
+          account: SUB_ACCOUNT,
+          calls: [{ ...grant, from: SESSION_KEY }],
+        }),
+      ).rejects.toMatchObject({ code: "GASLESS_INVALID_DELEGATION_GRANT" });
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it("keeps delegation preflight optional while preserving per-entry signer routing", async () => {
+      const { config, readContract, signTypedData, getBlock } = gaslessWriteTestConfig(
+        { execution: { preflightDelegation: false } },
+        {
+          signersByFrom: { [SESSION_KEY]: SESSION_KEY },
+        },
+      );
+      programReads(readContract, { isDelegationActive: false });
+      await relayGaslessBatch(config, {
+        account: SUB_ACCOUNT,
+        calls: [
+          { functionName: "allocate", args: [1n] },
+          { walletCalls: [TRANSFER], from: SESSION_KEY },
+        ],
+      });
+      expect(promptSigners(signTypedData)).toEqual([TEST_GASLESS_SIGNER, SESSION_KEY]);
+      expect(getBlock).not.toHaveBeenCalled();
+      expect(
+        readContract.mock.calls.some(([read]) =>
+          ["isDelegationActive", "ownerOf"].includes((read as StubRead).functionName),
+        ),
+      ).toBe(false);
+    });
 
     it("signs each call with its own `from` and writes that signer into its operation", async () => {
       const { config, readContract, signTypedData } = gaslessWriteTestConfig(undefined, {

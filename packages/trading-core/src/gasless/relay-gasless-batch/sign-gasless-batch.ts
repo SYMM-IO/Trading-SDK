@@ -30,8 +30,8 @@ export interface SignGaslessBatchOperationsParameters {
  *   verifying contract is the GaslessLayer.
  *
  * Signers held in memory (a session key: a viem `local` account) sign first,
- * then each wallet prompt runs, both in relay order. A local signature cannot
- * be refused, so a failing one surfaces before the user spends a prompt. The
+ * then each wallet prompt runs, both in relay order. A local signing failure
+ * surfaces before the user spends a prompt. The
  * prompts run one after the other, so a rejected prompt stops the batch before
  * anything is submitted.
  *
@@ -79,7 +79,7 @@ export async function signGaslessBatchOperations(
   return signatures;
 }
 
-/** Whether a client signs in memory — no prompt, so it cannot be refused. */
+/** Whether a client signs in memory without a wallet prompt. */
 function isLocalSigner(walletClient: SymmioWalletClient): boolean {
   return walletClient.account.type === "local";
 }
