@@ -1,7 +1,7 @@
 # SDK follow-ups — gasless idempotency keys
 
 **Date:** 2026-10-20
-**Branch:** `feat/sdk-account-features`, commit `fd24309c` (not pushed)
+**Branch:** `feat/sdk-account-features` (commit `feat(gasless): add caller idempotency keys, authenticated transport and batch signers`)
 **Background:** `gasless-idempotency-keys-proposal.md` (the design) and `gaslessq-idempotency-test-report.md` (staging results)
 
 The feature is implemented and committed: caller-owned idempotency keys, recovery owned by the consumer, and helpers in the SDK. The staging tests confirmed the design: the same key always returns the request it is bound to, so a retry can never run twice. This document lists what is still missing or worth improving in the SDK.
