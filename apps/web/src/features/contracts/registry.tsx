@@ -134,6 +134,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getVirtualAccountsOfSubAccount",
+    summary: "A subaccount's Virtual Accounts with their market and isolation details.",
     kind: "read",
     abi: "account-layer",
     groups: ["subaccounts", "positions"],
@@ -141,6 +142,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getVirtualAccountsCountOfSubAccount",
+    summary: "How many Virtual Accounts a subaccount holds.",
     kind: "read",
     abi: "account-layer",
     groups: ["subaccounts", "positions"],
@@ -148,6 +150,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "getActiveVirtualAccountByKey",
+    summary: "The Virtual Account that holds a subaccount's position for a market and isolation type.",
     kind: "read",
     abi: "account-layer",
     groups: ["positions"],
@@ -286,6 +289,7 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
   },
   {
     id: "grantDelegations",
+    summary: "Grant Instant Layer access to several delegates in one call.",
     kind: "write",
     abi: "instant-layer",
     groups: ["delegation"],
