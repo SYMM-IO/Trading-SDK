@@ -50,6 +50,7 @@ export async function getInstantOpenQuoteId(
 ): Promise<GetInstantOpenQuoteIdReturnType> {
   const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   const baseURL = parameters.baseUrl ?? solver.url;
+
   try {
     const response = await getInstantQuoteIdTempQuoteId(parameters.tempQuoteId, { baseURL });
     return response.data?.quote_id ?? null;

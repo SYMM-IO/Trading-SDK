@@ -344,6 +344,21 @@ export interface SymmioInventoryConfig {
 }
 
 /**
+ * Chain-level configuration for the SYMMIO Express Withdraw service.
+ *
+ * The service is optional and deployment-specific: omit this block when a
+ * chain has no verified service/provider pairing. The service allows
+ * cross-origin requests, so a browser application points {@link url} straight
+ * at it, with no same-origin proxy.
+ */
+export interface SymmioExpressWithdrawConfig {
+  /** Service API root ending at `/v1`, e.g. `https://express-withdraw-staging.symmio.foundation/v1`. */
+  url: string;
+  /** ExpressProvider contract authorized for this deployment. */
+  providerAddress: Address;
+}
+
+/**
  * Failure policy for the transparent gasless execution mode, applied when the
  * relay definitively rejects a request **before** it is accepted (a 4xx, or a
  * pre-broadcast `rejected`).
@@ -587,6 +602,12 @@ export interface SymmioChainConfig {
    * resolve it with `resolveInventoryService`.
    */
   inventory?: SymmioInventoryConfig;
+  /**
+   * Optional Express Withdraw service and its matching on-chain provider.
+   * Resolve it with `resolveExpressWithdrawService` and gate user interfaces
+   * with `supportsExpressWithdrawService`.
+   */
+  expressWithdraw?: SymmioExpressWithdrawConfig;
   /**
    * Optional GaslessQ relayer service. Set on perps-core (`"0.8.6"`) chains
    * with a GaslessLayer deployment; omitted elsewhere. Resolve it with

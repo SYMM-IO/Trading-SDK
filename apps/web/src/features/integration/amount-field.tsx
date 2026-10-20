@@ -17,6 +17,8 @@ interface Props {
   /** Label for the Max source, e.g. "wallet" or "withdrawable". */
   maxLabel?: string;
   invalid?: boolean;
+  /** Disables the input and its Max action, e.g. while a submission is in flight. */
+  disabled?: boolean;
   testId?: string;
 }
 
@@ -34,6 +36,7 @@ export function AmountField({
   max,
   maxLabel = "available",
   invalid,
+  disabled,
   testId,
 }: Props) {
   const formattedMax = max !== undefined ? formatUsd(max, decimals) : undefined;
@@ -45,7 +48,13 @@ export function AmountField({
       hint={formattedMax ? `${formattedMax} ${maxLabel}` : undefined}
       action={
         max !== undefined && max > 0n ? (
-          <Button type="button" size="xs" variant="ghost" onClick={() => onChange(formatUsd(max, decimals))}>
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            disabled={disabled}
+            onClick={() => onChange(formatUsd(max, decimals))}
+          >
             Max
           </Button>
         ) : undefined
@@ -60,6 +69,7 @@ export function AmountField({
           placeholder="0.00"
           inputMode="decimal"
           aria-invalid={invalid}
+          disabled={disabled}
           className="pr-16 font-mono text-base tabular-nums"
         />
         <span className="text-muted-foreground pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-medium tracking-wide">

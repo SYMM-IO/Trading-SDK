@@ -180,6 +180,14 @@ export const STAGING_CHAIN_OVERRIDES = {
       url: "https://inventory85.enigma.bz",
     },
     /**
+     * The staging Express service. The browser calls it directly: it allows
+     * cross-origin requests from any origin, so there is no proxy hop.
+     */
+    expressWithdraw: {
+      url: "https://express-withdraw-staging.symmio.foundation/v1",
+      providerAddress: "0x573310D7b04fF21BB8628C69eE103dDF4922294A",
+    },
+    /**
      * The staging GaslessQ relayer, paired with the staging InstantLayer above.
      * Override every production deployment field together —
      * the endpoint facts come from {@link GASLESS_DEPLOYMENTS} so that this
