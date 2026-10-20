@@ -12,7 +12,7 @@ The feature is implemented and committed: caller-owned idempotency keys, recover
 | --- | ------------------------------------------------------- | ---------------------------- | --------------- |
 | 1   | Correct the docs to match the measured service behavior | Before release               | No              |
 | 2   | Verify the dedup behavior on production                 | Before release               | No              |
-| 3   | Housekeeping                                            | Before release               | No              |
+| 3   | Update the design proposal                              | Before release               | No              |
 | 4   | Detect a key reused for a different action              | High                         | Yes             |
 | 5   | Unit tests for the answers the service actually sends   | High                         | No              |
 | 6   | Opt-in check of the service's dedup behavior            | Medium                       | No              |
@@ -57,11 +57,13 @@ The feature is implemented and committed: caller-owned idempotency keys, recover
 
 **Done when.** The production results and the backend's answers are recorded in the proposal's release gate.
 
-### 3. Housekeeping
+### 3. Update the design proposal
 
-- **Update `gasless-idempotency-keys-proposal.md`.** Drop the "next slice: lookup by key" plan, because a retry under the same key already is the lookup. Record the measured facts and the release-gate status.
-- **Delete `.changeset/arbitrum-production-instant-layer.md`.** It repeats a note already released in `@symmio/trading-core` 3.4.1 (`fdb34ce`), so it was left out of the commit.
-- **Keep the internal documents out of the public repo**: the proposal, the test report and this file.
+**Why.** `gasless-idempotency-keys-proposal.md` still plans a "next slice: lookup by key". A retry under the same key already is the lookup.
+
+**What.** Drop that plan, and record the measured facts and the release-gate status in the proposal.
+
+**Done when.** The proposal matches the measured behavior and shows which release-gate items are confirmed.
 
 ## High
 
