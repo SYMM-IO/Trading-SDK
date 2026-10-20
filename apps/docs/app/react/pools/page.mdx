@@ -179,19 +179,20 @@ The catalog spans every listing the service knows about, at every lifecycle stag
 
 Every field is optional. The hook takes the core query options plus `config`.
 
-| Name            | Type                               | Default                 | Notes                                                                                                                                                                          |
-| --------------- | ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `search?`       | `string`                           | —                       | Free text, matched against contract address, ticker, and token name. Named `search` because the TanStack options bag already owns `query`; it goes out as `query` on the wire. |
-| `chainIds?`     | `readonly ListingDepositChainId[]` | —                       | Restrict to tokens **deposited** on these chains. An empty array is sent as no filter.                                                                                         |
-| `marketStatus?` | `ListingMarketStatus`              | —                       | One lifecycle status. `LISTED` is the tradable one.                                                                                                                            |
-| `limit?`        | `number`                           | service `20`            | Page size, `1`–`100`.                                                                                                                                                          |
-| `offset?`       | `number`                           | service `0`             | Row offset.                                                                                                                                                                    |
-| `sortBy?`       | `ListingMarketSortField`           | service order           | Server-side sort key — the service's own snake_case literals.                                                                                                                  |
-| `orderBy?`      | `"asc" \| "desc"`                  | service `"desc"`        | Sort direction.                                                                                                                                                                |
-| `filters?`      | `ListingMarketFilters`             | —                       | Inclusive `[min, max]` range filters. Bounds are 18-decimal `bigint`s; `listingTime` is Unix seconds.                                                                          |
-| `chainId?`      | `number`                           | connected chain         | Which deployment's listing backend to read.                                                                                                                                    |
-| `query?`        | `QueryParameter`                   | —                       | TanStack overrides — `enabled`, `placeholderData`, `staleTime`, `select`, …                                                                                                    |
-| `config?`       | `Config`                           | the config from context | Override the `SymmioProvider` config.                                                                                                                                          |
+| Name            | Type                               | Default                 | Notes                                                                                                                                                                                     |
+| --------------- | ---------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search?`       | `string`                           | —                       | Free text, matched against contract address, ticker, and token name. Named `search` because the TanStack options bag already owns `query`; it goes out as `query` on the wire.            |
+| `chainIds?`     | `readonly ListingDepositChainId[]` | —                       | Restrict to tokens **deposited** on these chains. An empty array is sent as no filter.                                                                                                    |
+| `marketStatus?` | `ListingMarketStatus`              | —                       | One lifecycle status. `LISTED` is the tradable one.                                                                                                                                       |
+| `isLocked?`     | `boolean`                          | —                       | Inventory lock filter: `true` for locked markets, `false` for unlocked; omit for both. Independent of `marketStatus`. Filtered server-side before paging, so `total` counts only matches. |
+| `limit?`        | `number`                           | service `20`            | Page size, `1`–`100`.                                                                                                                                                                     |
+| `offset?`       | `number`                           | service `0`             | Row offset.                                                                                                                                                                               |
+| `sortBy?`       | `ListingMarketSortField`           | service order           | Server-side sort key — the service's own snake_case literals.                                                                                                                             |
+| `orderBy?`      | `"asc" \| "desc"`                  | service `"desc"`        | Sort direction.                                                                                                                                                                           |
+| `filters?`      | `ListingMarketFilters`             | —                       | Inclusive `[min, max]` range filters. Bounds are 18-decimal `bigint`s; `listingTime` is Unix seconds.                                                                                     |
+| `chainId?`      | `number`                           | connected chain         | Which deployment's listing backend to read.                                                                                                                                               |
+| `query?`        | `QueryParameter`                   | —                       | TanStack overrides — `enabled`, `placeholderData`, `staleTime`, `select`, …                                                                                                               |
+| `config?`       | `Config`                           | the config from context | Override the `SymmioProvider` config.                                                                                                                                                     |
 
 ### Return type
 
@@ -430,7 +431,7 @@ const { data, isPending, error } = useUserListingMarkets({
 });
 ```
 
-Everything about search, filtering, sorting, and pagination is identical to [`useListingMarkets`](#uselistingmarkets) — same parameters, same server-side model, same `placeholderData` advice for a table. Two things differ: the required token, and the extra per-row fields.
+Search, numeric filtering, sorting, and pagination follow [`useListingMarkets`](#uselistingmarkets) — the same server-side model and `placeholderData` advice for a table. The public catalog's `isLocked` parameter is not exposed on this authenticated read. This hook additionally requires a token and returns user-specific fields.
 
 ### It needs a token, and stays idle without one
 
@@ -1546,7 +1547,7 @@ The catalogue is only the table. The figures a pools page puts **above** it — 
 | Figure                    | Hook                                                     | Served by                                           |
 | ------------------------- | -------------------------------------------------------- | --------------------------------------------------- |
 | Custodial TVL             | [`useInventoryTvl`](../inventory)                        | Inventory service — `/api/v1/markets/tvl-aggregate` |
-| Volume, 24h + lifetime    | [`useMarketInfo`](../markets#usemarketinfo)              | The solver — `/get_market_info`                     |
+| Volume, 24h + lifetime    | [`useMarketInfo`](../markets#usemarketinfo)              | Enigma solver — `/market-info`                      |
 | Open + available notional | [`useNotionalCapAll`](../notional-cap#usenotionalcapall) | The solver — `/notional_cap`                        |
 | Pool count                | [`useListingMarkets`](#uselistingmarkets) → `data.total` | Listing backend — `/v2/market/search`               |
 

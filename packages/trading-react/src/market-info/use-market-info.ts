@@ -36,6 +36,9 @@ export type UseMarketInfoReturnType<K extends SymmioSolverKind = SymmioSolverKin
  * Does not poll by default; pass `query.refetchInterval` to opt into polling.
  * Errors are normalized to {@link SymmioRequestError}.
  *
+ * @param parameters - Deployment, optional config and query overrides.
+ * @returns Query state; Enigma rows identify markets by symbolId.
+ * @throws {SymmioRequestError} Action failures appear in the query error state.
  * @example
  * ```tsx
  * const { data } = useMarketInfo();

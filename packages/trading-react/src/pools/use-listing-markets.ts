@@ -26,6 +26,8 @@ export type UseListingMarketsReturnType = UseQueryResult<GetListingMarketsReturn
  * parameter and the hook refetches under a new query key rather than filtering
  * an already-fetched page in the client. Pass
  * `marketStatus: ListingMarketStatus.LISTED` to see only tradable markets.
+ * Use `isLocked: false` for unlocked markets, `true` for locked markets, or
+ * omit it for both. The filter is included in the query key.
  *
  * Every money and rate field on a row is a `bigint` at `LISTING_VALUE_DECIMALS`
  * (18); `null` means the service reported no value, not zero. Errors are

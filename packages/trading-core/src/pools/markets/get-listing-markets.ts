@@ -38,6 +38,8 @@ export type GetListingMarketsParameters = Compute<
     chainIds?: readonly ListingDepositChainId[];
     /** Restrict to one lifecycle status. */
     marketStatus?: ListingMarketStatus;
+    /** Filter by inventory lock state. Omit for both; false explicitly requests unlocked markets. */
+    isLocked?: boolean;
     /** Page size, `1`–`100`. Service default `20`. */
     limit?: number;
     /** Row offset. Service default `0`. */
@@ -89,6 +91,7 @@ export async function getListingMarkets(
     query: parameters.search,
     chainIds: parameters.chainIds,
     marketStatus: parameters.marketStatus,
+    isLocked: parameters.isLocked,
     limit: parameters.limit,
     offset: parameters.offset,
     sortBy: parameters.sortBy,

@@ -53,6 +53,10 @@ function listedOnly(parameters: GetListingMarketsParameters): Promise<GetListing
   <Property name="marketStatus" type="ListingMarketStatus" optional>
     Restrict to one lifecycle status. Exactly one — the backend takes a single status, not a set.
   </Property>
+  <Property name="isLocked" type="boolean" optional>
+    Filter by inventory lock state: `true` for locked markets, `false` for unlocked markets. Omit to include both.
+    Independent of lifecycle status. Filtering happens on the server before pagination, so `total` counts only matches.
+  </Property>
   <Property name="limit" type="number" optional default="service 20">
     Page size, `1`–`100`. Omitted entirely when unset, so the backend applies its own default of `20`.
   </Property>
@@ -247,6 +251,22 @@ const page = await getListingMarkets(config, {
   offset: pageIndex * 25,
 });
 ```
+
+### Unlocked markets with server-side pagination
+
+```ts
+const page = await getListingMarkets(config, {
+  marketStatus: ListingMarketStatus.LISTED,
+  isLocked: false,
+  limit: 20,
+  offset: pageIndex * 20,
+});
+// page.total counts all matching unlocked markets, not just this page.
+```
+
+The query factory and React hook include `isLocked` in their cache keys. Locked,
+unlocked and unfiltered pages never share a cache entry. Omitting this parameter
+preserves the existing unfiltered behavior.
 
 ### A filter with an 18-decimal bound
 

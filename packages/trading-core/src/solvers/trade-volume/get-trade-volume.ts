@@ -3,7 +3,7 @@ import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { assertSolverKind } from "../assert-solver-kind";
-import { getTradeVolumeSymbolId } from "../types/generated/enigma-solver";
+import { getTradeVolumeSymbolId, type ApiDailyTradeVolumeResponse } from "../types/generated/enigma-solver";
 import { toSolverDailyVolume } from "./to-daily-volume";
 import type { SolverDailyVolume } from "./types";
 
@@ -23,7 +23,8 @@ export type GetTradeVolumeReturnType = SolverDailyVolume[];
 /**
  * Fetch the last N daily trade-volume rows for one market from the chain's
  * enigma solver `/trade-volume/{symbol_id}` endpoint. Rows are returned in
- * ascending day order. The solver base URL is resolved from `config` per call,
+ * ascending day order. Malformed rows (invalid timestamp or absent/non-numeric
+ * volume) are omitted, while genuine zero-volume observations are retained. The solver base URL is resolved from `config` per call,
  * so multiple chains never clobber each other.
  *
  * `/trade-volume/{symbol_id}` is an **Enigma-only** endpoint; the action asserts
@@ -61,7 +62,8 @@ export async function getTradeVolume(
 async function fetchTradeVolume(baseURL: string, symbolId: number): Promise<SolverDailyVolume[]> {
   try {
     const response = await getTradeVolumeSymbolId(symbolId, { baseURL });
-    return (response.data ?? []).map(toSolverDailyVolume);
+    const rows = Array.isArray(response.data) ? response.data : [];
+    return rows.filter(isValidDailyVolume).map(toSolverDailyVolume);
   } catch (err) {
     if (err instanceof SymmError) throw err;
 
@@ -76,4 +78,18 @@ async function fetchTradeVolume(baseURL: string, symbolId: number): Promise<Solv
       { cause: err instanceof Error ? err : undefined },
     );
   }
+}
+
+/** Validate wire observations before the public mapper applies its legacy defaults. */
+function isValidDailyVolume(raw: ApiDailyTradeVolumeResponse | null | undefined): raw is SolverDailyVolume {
+  const timestamp = raw?.timestamp;
+  const volume = raw?.volume;
+  return (
+    typeof timestamp === "string" &&
+    timestamp.trim().length > 0 &&
+    Number.isFinite(Date.parse(timestamp)) &&
+    typeof volume === "string" &&
+    volume.trim().length > 0 &&
+    Number.isFinite(Number(volume))
+  );
 }

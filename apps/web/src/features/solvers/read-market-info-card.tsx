@@ -15,9 +15,9 @@ import { useState } from "react";
 const ENIGMA_COLUMNS: DataTableColumn<MarketVolume>[] = [
   {
     id: "symbol",
-    header: "Market",
-    cell: (row) => row.symbol,
-    sortAccessor: (row) => row.symbol,
+    header: "Symbol ID",
+    cell: (row) => row.symbolId,
+    sortAccessor: (row) => row.symbolId,
     cellClassName: "text-foreground font-mono",
   },
   {
@@ -81,10 +81,11 @@ const RASA_COLUMNS: DataTableColumn<RasaMarketInfoRow>[] = [
 ];
 
 /**
- * Solvers-page card for `/get_market_info`. The response diverges by solver:
+ * Solvers-page card for Enigma `/market-info` and Rasa `/get_market_info`.
+ * The response diverges by solver:
  * Enigma returns 24h volume + lifetime value per market plus aggregate totals;
  * Rasa returns price / 24h change / volume / notional cap. Fetched on demand via
- * the Refresh button; the per-market table is searchable by symbol.
+ * the Refresh button; search uses symbol IDs on Enigma and tickers on Rasa.
  */
 export function ReadMarketInfoCard() {
   const query = useMarketInfo();
@@ -139,10 +140,10 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
     <SearchInput
       value={search}
       onChange={(event) => setSearch(event.target.value)}
-      placeholder="Search market…"
+      placeholder={data.kind === "enigma" ? "Search symbol ID…" : "Search market…"}
       containerClassName="flex-1"
       data-testid="market-info-search"
-      aria-label="Search markets"
+      aria-label={data.kind === "enigma" ? "Search symbol IDs" : "Search markets"}
     />
   );
   const matches = (symbol: string) => term.length === 0 || symbol.toLowerCase().includes(term);
@@ -170,7 +171,7 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
     );
   }
 
-  const visible = data.markets.filter((row) => matches(row.symbol));
+  const visible = data.markets.filter((row) => matches(String(row.symbolId)));
   return (
     <div className="flex flex-col gap-4" data-testid={`${testId}-data`}>
       <div className="flex flex-wrap gap-6">
@@ -190,7 +191,7 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
           columns={ENIGMA_COLUMNS}
           data={visible}
           totalCount={data.markets.length}
-          getRowId={(row) => row.symbol}
+          getRowId={(row) => String(row.symbolId)}
           initialSort={{ columnId: "volume", direction: "desc" }}
           defaultPageSize={5}
           emptyMessage="No markets match this search."

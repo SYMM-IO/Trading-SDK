@@ -2,12 +2,12 @@ import type { ApiDailyTradeVolumeResponse } from "../types/generated/enigma-solv
 import type { SolverDailyVolume } from "./types";
 
 /**
- * Map one raw `/trade-volume/{symbol_id}` row into the SDK's
- * {@link SolverDailyVolume}. The timestamp is the solver's ISO 8601 datetime
- * string, passed through unchanged; a missing timestamp or volume defaults to
- * `""` / `"0"`.
- *
- * @param raw - One raw daily-volume row from the solver.
+ * Map one daily observation, preserving the existing missing-field defaults.
+ * This mapper does not validate rows; getTradeVolume filters malformed input first.
+ * @param raw - One raw daily-volume object from the solver.
+ * @returns A row with unchanged strings; missing timestamp/volume default to ""/"0".
+ * @throws Does not throw for inputs matching the declared type.
+ * @example toSolverDailyVolume({ timestamp: "2026-10-17T00:00:00Z", volume: "0" });
  */
 export function toSolverDailyVolume(raw: ApiDailyTradeVolumeResponse): SolverDailyVolume {
   return {

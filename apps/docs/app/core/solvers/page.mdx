@@ -366,6 +366,12 @@ const { estimatedPrice } = await getEstimatedPrice(config, {
 
 `getEstimatedPriceQueryOptions` / `getEstimatedPriceQueryKey` ship alongside for TanStack; the React layer wraps them as [`useEstimatedPrice`](/react/solvers#useestimatedprice).
 
+Imperative calls accept an optional `signal: AbortSignal`, for example
+`signal: AbortSignal.timeout(60_000)`. Cancellation stops the underlying HTTP
+request and rejects with the existing SDK error normalization. The SDK imposes
+no timeout when the signal is omitted. Query factories use TanStack's own signal
+instead of accepting one in their options; signals never enter the cache key.
+
 ### `calculatePriceImpact`
 
 Pure helper — signed **price-impact percent** of an estimated fill vs a reference price: `(estimated − reference) / reference × 100`. Returns `0` for a zero / non-finite reference. The UI colors it by side.
@@ -430,6 +436,22 @@ const options = getNotionalCapPageQueryOptions(config, { limit: 100, offset: 100
 ```
 
 `GetNotionalCapPageParameters` describes paging inputs; `GetNotionalCapPageReturnType` / `GetNotionalCapPageData` describe the result. `GetNotionalCapPageOptions` adds query overrides. `getNotionalCapPageQueryKey` includes deployment, limit and offset; its type is `GetNotionalCapPageQueryKey`, and the factory returns `GetNotionalCapPageQueryOptions`. See [React hooks](/react/notional-cap).
+
+## Migration: Enigma market identity
+
+Enigma `getMarketInfo` / `useMarketInfo` now read `/market-info` and expose `MarketVolume.symbolId: number` instead of `symbol`. Rasa retains its existing ticker-based shape. Narrow on `kind` before accessing rows. Join Enigma IDs with `getSymbols` / `useSymbols` for display names; duplicate tickers remain distinct. Volumes remain float dollars.
+
+There is no per-market market-info endpoint or server filter. Read one shared query and select `data.markets.find(row => row.symbolId === selectedId)` locally.
+
+`getFundingInfo` / `useFundingInfo` dispatch by solver kind. For Enigma, they use `/funding-info`. Replace `symbols: ["BTCUSDT"]` with `symbolIds: [1]`; `EnigmaMarketFundingInfo.symbolId` replaces `symbol`. Rasa retains `/get_funding_info`, its `symbols` ticker filter and `RasaMarketFundingInfo.symbol`. Each row has a `kind` discriminant. Pass a literal `solverId` to narrow action/query/hook results, or narrow each row on `kind` when using the default solver. `MarketFundingInfo` is the row union; `NormalizedFundingInfoByKind` maps solver kinds to row types. Omit the filter for all markets. Using `symbols` on Enigma or `symbolIds` on Rasa throws `INVALID_FUNDING_FILTER` before a request. The query key includes the solver, both filter inputs and deployment; funding fractions, epoch seconds and funding timestamps are unchanged.
+
+```ts
+const info = await getMarketInfo(config, { solverId: "enigma" });
+const selected = info.markets.find((row) => row.symbolId === 1);
+const funding = await getFundingInfo(config, { solverId: "enigma", symbolIds: [1] });
+const rasa = await getFundingInfo(config, { chainId: 8453, solverId: "rasa", symbols: ["BTCUSDT"] });
+console.log(rasa[0]?.symbol);
+```
 
 ## Complete symbol catalogs
 
