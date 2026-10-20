@@ -47,3 +47,5 @@ Use this hook for an explicitly paginated table. It accepts `UseNotionalCapPageP
 import { useNotionalCapPage } from "@symmio/trading-react";
 const page = useNotionalCapPage({ chainId: 42161, limit: 100, offset: 100 });
 ```
+
+The console Solvers page includes separate `getNotionalCapAll` and `getNotionalCapPage` cards. The page card exposes limit/offset controls, per-page rows and page-only totals; the all-markets card shows aggregate totals.

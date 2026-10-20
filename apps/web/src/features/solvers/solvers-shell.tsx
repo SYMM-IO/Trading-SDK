@@ -26,6 +26,7 @@ import { ReadInstantOpensCard } from "./read-instant-opens-card";
 import { ReadLockedParams } from "./read-locked-params";
 import { ReadMarketInfoCard } from "./read-market-info-card";
 import { ReadNotionalCap } from "./read-notional-cap";
+import { ReadNotionalCapPage } from "./read-notional-cap-page";
 import { ReadNotionalCapTotals } from "./read-notional-cap-totals";
 import { ReadOpenInterest } from "./read-open-interest";
 import { ReadRevenueRecordsCard } from "./read-revenue-records-card";
@@ -99,8 +100,9 @@ export function SolversShell() {
       {/* Solver-exclusive reads: always shown, but each card only fires its
           query when its solver's chain is active (endpoints 404 on the other).
           Gating lives in the cards via `useSolverKindActive`. */}
-      <MethodGroup label="Enigma-only reads" count={6} fullWidth>
+      <MethodGroup label="Enigma-only reads" count={7} fullWidth>
         <ReadNotionalCapTotals />
+        <ReadNotionalCapPage />
         <EnigmaEstimatedPriceCard />
         <ReadSymbolsCard />
         <ReadTradeVolumeCard />
