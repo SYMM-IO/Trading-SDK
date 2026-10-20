@@ -104,8 +104,10 @@ The exported mapper retains its existing `SolverDailyVolume` return type and mis
 import { toSolverDailyVolume } from "@symmio/trading-core";
 
 const row = toSolverDailyVolume({ timestamp: "2026-07-09T00:00:00Z", volume: "0" });
-console.log(row.timestamp, row.volume);
-toSolverDailyVolume({}); // { timestamp: "", volume: "0" }
+console.log(row); // { timestamp: "2026-07-09T00:00:00Z", volume: "0" }
+
+const fallback = toSolverDailyVolume({});
+console.log(fallback); // { timestamp: "", volume: "0" }
 ```
 
 ## Throws

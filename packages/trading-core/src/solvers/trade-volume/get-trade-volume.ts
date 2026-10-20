@@ -3,7 +3,7 @@ import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { assertSolverKind } from "../assert-solver-kind";
-import { getTradeVolumeSymbolId } from "../types/generated/enigma-solver";
+import { getTradeVolumeSymbolId, type ApiDailyTradeVolumeResponse } from "../types/generated/enigma-solver";
 import { toSolverDailyVolume } from "./to-daily-volume";
 import type { SolverDailyVolume } from "./types";
 
@@ -62,7 +62,7 @@ export async function getTradeVolume(
 async function fetchTradeVolume(baseURL: string, symbolId: number): Promise<SolverDailyVolume[]> {
   try {
     const response = await getTradeVolumeSymbolId(symbolId, { baseURL });
-    const rows: unknown[] = Array.isArray(response.data) ? response.data : [];
+    const rows = Array.isArray(response.data) ? response.data : [];
     return rows.filter(isValidDailyVolume).map(toSolverDailyVolume);
   } catch (err) {
     if (err instanceof SymmError) throw err;
@@ -81,9 +81,9 @@ async function fetchTradeVolume(baseURL: string, symbolId: number): Promise<Solv
 }
 
 /** Validate wire observations before the public mapper applies its legacy defaults. */
-function isValidDailyVolume(raw: unknown): raw is SolverDailyVolume {
-  if (typeof raw !== "object" || raw === null || !("timestamp" in raw) || !("volume" in raw)) return false;
-  const { timestamp, volume } = raw;
+function isValidDailyVolume(raw: ApiDailyTradeVolumeResponse | null | undefined): raw is SolverDailyVolume {
+  const timestamp = raw?.timestamp;
+  const volume = raw?.volume;
   return (
     typeof timestamp === "string" &&
     timestamp.trim().length > 0 &&
