@@ -382,6 +382,7 @@ A trader expects the market header to carry a live stat strip alongside the mark
 // Filter the fetch by the current market ID.
 // Display names come from the symbol catalog.
 const funding = useFundingInfo({
+  solverId: "enigma",
   symbolIds: [Number(market.symbol_id)],
   query: { refetchInterval: 30_000 },
 }).data?.find((f) => f.symbolId === Number(market.symbol_id));

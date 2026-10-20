@@ -76,10 +76,10 @@ const oi = useOpenInterestBySymbolId({ symbolId: 1n });
 
 ### `useFundingInfo`
 
-Next-epoch funding for **every** market in one call — pick a row by numeric `symbolId`, or pass `symbolIds` to filter the request. Each row is `{ symbolId, nextFundingRateLong, nextFundingRateShort, nextFundingTime, epochDurationSeconds }`. Join IDs with `useSymbols` for display names; tickers are not unique. The rates are per-epoch **decimal fractions** (`0.0001` = `0.01%`, ×`100` for a percent); a **positive** rate _receives_ funding, a **negative** rate _pays_. `nextFundingTime` is a Unix timestamp in **milliseconds** (guard `< 1e12` as seconds). Does not poll by default — pass `query.refetchInterval`.
+Next-epoch funding for **every** market in one call. Enigma uses numeric `symbolId` and the `symbolIds` filter; Rasa retains ticker `symbol` and the `symbols` filter. Each row carries `kind`; a literal `solverId` narrows the hook data type. See the [core compatibility contract](/core/solvers#migration-enigma-market-identity). Each Enigma row is `{ kind: "enigma", symbolId, nextFundingRateLong, nextFundingRateShort, nextFundingTime, epochDurationSeconds }`. Join IDs with `useSymbols` for display names; tickers are not unique. The rates are per-epoch **decimal fractions** (`0.0001` = `0.01%`, ×`100` for a percent); a **positive** rate _receives_ funding, a **negative** rate _pays_. `nextFundingTime` is a Unix timestamp in **milliseconds** (guard `< 1e12` as seconds). Does not poll by default — pass `query.refetchInterval`.
 
 ```ts
-const funding = useFundingInfo({ query: { refetchInterval: 30_000 } });
+const funding = useFundingInfo({ solverId: "enigma", query: { refetchInterval: 30_000 } });
 const btc = funding.data?.find((f) => f.symbolId === 1);
 const pct = (btc?.nextFundingRateLong ?? 0) * 100; // long-side funding %
 ```

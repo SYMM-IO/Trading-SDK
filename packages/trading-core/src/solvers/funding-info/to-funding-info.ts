@@ -1,6 +1,6 @@
 import { toFiniteNumber } from "@symmio/utils/number";
 import type { ApiFundingInfoResponse } from "../types/generated/enigma-solver";
-import type { MarketFundingInfo } from "./types";
+import type { EnigmaMarketFundingInfo } from "./types";
 
 /** One market's raw entry from `ApiFundingInfoResponse` (the map value). */
 type RawFundingInfo = ApiFundingInfoResponse[string];
@@ -16,8 +16,9 @@ type RawFundingInfo = ApiFundingInfoResponse[string];
  * @example
  * toMarketFundingInfo(12, { next_funding_rate_long: "0.001", next_funding_time: 1783209600000 });
  */
-export function toMarketFundingInfo(symbolId: number, raw: RawFundingInfo): MarketFundingInfo {
+export function toMarketFundingInfo(symbolId: number, raw: RawFundingInfo): EnigmaMarketFundingInfo {
   return {
+    kind: "enigma",
     symbolId,
     nextFundingRateLong: toFiniteNumber(raw.next_funding_rate_long),
     nextFundingRateShort: toFiniteNumber(raw.next_funding_rate_short),

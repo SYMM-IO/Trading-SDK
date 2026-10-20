@@ -89,14 +89,14 @@ Both `symbolId` and `partyB` are required. A quote has no `partyB` until a solve
 
 ## Migration: Enigma market identity
 
-Enigma hooks now identify markets by `symbolId`; funding accepts `symbolIds` instead of ticker strings. Join with `useSymbols` for display names. Rasa keeps its existing shape. See the [core migration contract](/core/solvers#migration-enigma-market-identity) for endpoints, units and compatibility.
+Enigma hooks now identify markets by `symbolId`; funding accepts `symbolIds` instead of ticker strings. Join with `useSymbols` for display names. Rasa funding retains ticker rows and the `symbols` filter. Funding rows carry `kind`; pass a literal `solverId` or narrow each row on `kind`. See the [core migration contract](/core/solvers#migration-enigma-market-identity) for endpoints, units and compatibility.
 
 Select one market from the shared query; there is no per-market market-info request:
 
 ```tsx
 const info = useMarketInfo({ solverId: "enigma" });
 const selected = info.data?.markets.find((row) => row.symbolId === 1);
-const funding = useFundingInfo({ symbolIds: [1] });
+const funding = useFundingInfo({ solverId: "enigma", symbolIds: [1] });
 ```
 
 ## Complete symbol catalogs

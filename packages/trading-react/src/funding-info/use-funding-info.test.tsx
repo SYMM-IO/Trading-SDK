@@ -14,6 +14,7 @@ import { useFundingInfo } from "./use-funding-info";
 
 const RESULT: GetFundingInfoReturnType = [
   {
+    kind: "enigma",
     symbolId: 1,
     nextFundingRateLong: 0.0001,
     nextFundingRateShort: -0.0001,

@@ -44,7 +44,7 @@ it("uses the generated ID endpoints and retains distinct IDs even when tickers m
     { symbolId: 34, tradingVolume: 20, lifetimeValue: 0 },
   ]);
   expect(market.totalValue24h).toBe(30);
-  const query = getFundingInfoQueryOptions(config, { symbolIds: [12, 34] });
+  const query = getFundingInfoQueryOptions(config, { solverId: "enigma", symbolIds: [12, 34] });
   expect(query.queryKey).not.toEqual(getFundingInfoQueryOptions(config, { symbolIds: [12] }).queryKey);
   expect((await query.queryFn()).map((row) => [row.symbolId, row.nextFundingRateLong])).toEqual([
     [12, 0.001],

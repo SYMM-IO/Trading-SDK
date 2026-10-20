@@ -32,7 +32,7 @@ describe.each(["action", "query"] as const)("funding %s request serialization", 
       };
     };
     const { config } = mockConfig();
-    const parameters = { symbolIds };
+    const parameters = { solverId: "enigma" as const, symbolIds };
     const result = await (entryPoint === "action"
       ? getFundingInfo(config, parameters)
       : getFundingInfoQueryOptions(config, parameters).queryFn());

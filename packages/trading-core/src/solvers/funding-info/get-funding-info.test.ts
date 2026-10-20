@@ -51,6 +51,7 @@ describe("getFundingInfo", () => {
     expect(requestFundingInfo).toHaveBeenCalledWith(undefined, expect.objectContaining({ baseURL: SOLVER_URL }));
     expect(funding).toEqual([
       {
+        kind: "enigma",
         symbolId: 1,
         nextFundingRateLong: 0.0001,
         nextFundingRateShort: -0.0002,
