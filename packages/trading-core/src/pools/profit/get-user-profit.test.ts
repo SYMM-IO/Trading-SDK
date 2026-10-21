@@ -49,6 +49,22 @@ describe("getUserProfit", () => {
     );
 
     expect(profit).toEqual({
+      tvl: null,
+      apy30d: null,
+      apyLifetime: null,
+      buybackRatio: null,
+      activeLps: null,
+      age: null,
+      longPositionAmount: null,
+      longPositionValue: null,
+      longPositionAvgOpenPrice: null,
+      longPositionUpnl: null,
+      shortPositionAmount: null,
+      shortPositionValue: null,
+      shortPositionAvgOpenPrice: null,
+      shortPositionUpnl: null,
+      totalUsdcInPool: null,
+      totalTokenInPool: null,
       userBalanceInTokens: 1000000000000000000n,
       userBalanceInUsdc: 2500000000000000000n,
       claimableReward: 300000000000000000n,

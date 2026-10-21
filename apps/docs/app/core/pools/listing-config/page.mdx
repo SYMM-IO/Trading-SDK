@@ -95,3 +95,7 @@ useQuery(getListingConfigQueryOptions(config));
 - [`getListingMarkets`](/core/pools/get-listing-markets) — the public catalog, and the definition of the 18-decimal value contract these USDC figures share.
 - [`useListingConfig`](/react/pools#uselistingconfig) — the React hook.
 - [Pools](/core/pools) — the slice overview.
+
+## Legacy deposit floors and missing fields
+
+`recommendedDepositUsdc` and `minimumDepositUsdc` retain nullable configured values. When legacy initial-deposit names are present, `legacyUniversalDepositFloorUsdc` keeps the separate universal floor; do not confuse it with the initial listing requirement. `maxLeverageBounds` retains the configured minimum/maximum. `reportedListingFeeUsdc`, `reportedMarketConfigUpdatesPerDay`, `reportedProfitClaimsPerDay`, and `reportedProtocolRewardSharePercent` retain unknown versus zero independently of the older defaulted fields.

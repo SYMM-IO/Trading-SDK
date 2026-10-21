@@ -178,3 +178,7 @@ Each row is a `PoolPosition`:
 
 - [Pool detail tables](/core/pools/pool-detail-tables) — how this fits with the other four reads.
 - [React: `useListingMarketDetail`](/react/pools#uselistingmarketdetail).
+
+## Missing values during rollout
+
+`reportedTotalTokenInPool`, `reportedTotalUsdcInPool`, and `reportedMaintenanceFees` retain missing values as null alongside the older defaulted amount fields. The APY lifetime window accepts legacy `apy_all_time`; `legacyLifetimeReward` retains the plain-USD legacy fallback and is used only after current reward fields.

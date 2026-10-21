@@ -19,7 +19,7 @@
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -56,6 +56,14 @@ function fail(label, detail) {
 }
 
 function run(cmd, args, opts = {}) {
+  // pnpm's Windows launcher is a .cmd file; use the invoking CLI without a shell.
+  if (process.platform === "win32" && cmd === "pnpm" && process.env.npm_execpath) {
+    return spawnSync(process.execPath, [process.env.npm_execpath, ...args], {
+      encoding: "utf8",
+      cwd: repoRoot,
+      ...opts,
+    });
+  }
   return spawnSync(cmd, args, { encoding: "utf8", cwd: repoRoot, ...opts });
 }
 
@@ -125,7 +133,7 @@ function verifyConfigTarball({ pkgJson, tarball }) {
     fail(`tar ${pkgJson.name}`, listed.stderr);
     return;
   }
-  const contents = new Set(listed.stdout.split("\n"));
+  const contents = new Set(listed.stdout.split(/\r?\n/));
   const missing = (pkgJson.files ?? []).filter((f) => !contents.has(`package/${f}`));
   if (!contents.has("package/package.json")) missing.push("package.json");
   if (missing.length) fail(`files ${pkgJson.name}`, `missing from tarball: ${missing.join(", ")}`);
@@ -174,7 +182,13 @@ function verifyConsumer(packed, consumerDir) {
 
 function finish(tmp) {
   if (failures.length === 0) {
-    if (tmp) rmSync(tmp, { recursive: true, force: true });
+    if (tmp) {
+      const target = resolve(tmp);
+      if (dirname(target) !== resolve(tmpdir()) || !basename(target).startsWith("symm-verify-")) {
+        throw new Error("Refusing to remove a path outside the package verification temporary directory");
+      }
+      rmSync(target, { recursive: true, force: true });
+    }
     console.log("\n✅ verify-packages: all checks passed.");
     process.exit(0);
   }

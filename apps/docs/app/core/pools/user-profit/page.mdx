@@ -108,3 +108,7 @@ The rest of the factory's types are exported too: `GetUserProfitData` is what th
 - [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this read requires.
 - [`useUserProfit`](/react/pools#useuserprofit) — the React hook.
 - [Pools](/core/pools) — the slice overview.
+
+## Full statistics snapshots
+
+The normalized response additionally retains nullable TVL, APY, buyback ratio, active LP count, age, pool token/collateral totals, and long/short size/value/entry/uPNL snapshot fields. Amounts are 18-decimal bigints; `buybackRatio` is a whole percentage. Use [balance/statistics selectors](/core/pools/calculations) rather than duplicating pending-LP arithmetic. A failed read remains unknown; do not treat it as a zero position.

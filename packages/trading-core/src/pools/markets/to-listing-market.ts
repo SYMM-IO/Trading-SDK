@@ -125,8 +125,37 @@ function toApyWindows(raw: MarketSearchItem, prefix: string): ListingApyWindows 
  * @param raw - One row of the service's `/v2/market/search` response.
  * @returns The normalized market.
  */
-export function toListingMarket(raw: MarketSearchItem): ListingMarket {
+export function toListingMarket(
+  raw: MarketSearchItem & {
+    price_usd?: string | null;
+    apy_24h?: string | null;
+    apy_30d?: string | null;
+    apy_lifetime?: string | null;
+    reward_30d?: string | null;
+    reward_lifetime?: string | null;
+    solver_revenue_24h?: string | null;
+    solver_revenue_30d?: string | null;
+    solver_revenue_lifetime?: string | null;
+  },
+): ListingMarket {
   return {
+    reportedPercentages: {
+      apr: raw.apr ?? null,
+      apr24h: raw.apr_24h ?? null,
+      apr30d: raw.apr_30d ?? null,
+      apy24h: raw.apy_24h ?? null,
+      apy30d: raw.apy_30d ?? null,
+      apyLifetime: raw.apy_lifetime ?? null,
+    },
+    priceUsd: raw.price_usd ?? null,
+    apy24h: toListingValue(raw.apy_24h),
+    apy30d: toListingValue(raw.apy_30d),
+    apyLifetime: toListingValue(raw.apy_lifetime),
+    reward30d: toListingValue(raw.reward_30d),
+    rewardLifetime: toListingValue(raw.reward_lifetime),
+    solverRevenue24h: toListingValue(raw.solver_revenue_24h),
+    solverRevenue30d: toListingValue(raw.solver_revenue_30d),
+    solverRevenueLifetime: toListingValue(raw.solver_revenue_lifetime),
     contractAddress: raw.contract_address,
     chainId: raw.chain_id as ListingDepositChainId,
     symbolId: raw.symbol_id ?? null,

@@ -1,0 +1,26 @@
+# Maintenance and supplemental reads
+
+`getPoolMaintenanceFees(config, { chainId?, tokenContractAddress, depositChain, limit?, offset? })` reads public maintenance-sale history. It returns `PoolMaintenanceFees` with `total` and `items`. Each `PoolMaintenanceFee` contains raw 18-decimal `tokenAmount`/`usdcAmount`, a Unix-seconds `timestamp`, and nullable `transactionHash`.
+
+The transport's millisecond timestamp is normalized once. Do not divide the SDK timestamp again.
+
+```ts
+import { getPoolMaintenanceFees, type Config } from "@symmio/trading-core";
+export async function maintenance(config: Config, mint: string) {
+  return getPoolMaintenanceFees(config, {
+    chainId: 42161,
+    tokenContractAddress: mint,
+    depositChain: 0,
+    limit: 20,
+    offset: 0,
+  });
+}
+```
+
+Use `getPoolMaintenanceFeesQueryOptions` / `getPoolMaintenanceFeesQueryKey` for TanStack queries, or [usePoolMaintenanceFees](/react/pools#token-validation-and-maintenance).
+
+## Supplemental reads
+
+- `getPoolTransactionRange(config, parameters)` accepts the existing pool-transaction filters and a wider `size`; it issues pages of at most 50 and retains the requested offset. It returns the normal pool transaction page.
+- `getPoolClaim(config, { chainId?, accessToken, claimRequestId })` reads one claim by UUID and returns `PoolClaim`, including wallet/market identifiers when supplied.
+- `getPoolMarketData(config, { chainId?, addresses })` reads the legacy public pools metrics map. Values retain nullable `marketCap` and `apr` as raw 18-decimal bigints.

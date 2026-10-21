@@ -54,8 +54,8 @@ describe("getPoolTradeHistory", () => {
     const { config } = mockConfig();
     const post = vi.spyOn(axios, "post");
 
-    await expect(getPoolTradeHistory(config, { symbolId: null })).resolves.toEqual({ rows: [] });
-    await expect(getPoolTradeHistory(config, { symbolId: undefined })).resolves.toEqual({ rows: [] });
+    await expect(getPoolTradeHistory(config, { symbolId: null })).resolves.toEqual({ rows: [], quotes: [] });
+    await expect(getPoolTradeHistory(config, { symbolId: undefined })).resolves.toEqual({ rows: [], quotes: [] });
     expect(post).not.toHaveBeenCalled();
   });
 
@@ -63,7 +63,7 @@ describe("getPoolTradeHistory", () => {
     const { config } = mockConfig();
     const post = vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { quoteEvents: [EVENT] } } });
 
-    const { rows } = await getPoolTradeHistory(config, { symbolId: 149 });
+    const { rows, quotes } = await getPoolTradeHistory(config, { symbolId: 149 });
 
     expect(post).toHaveBeenCalledTimes(1);
     const [url] = post.mock.calls[0] as unknown as [string];
@@ -79,6 +79,10 @@ describe("getPoolTradeHistory", () => {
     expect(rows[0]!.quoteId).toBe(8232n);
     /** The event's own snapshot, not the quote's final `closedAmount`. */
     expect(rows[0]!.closedAmount).toBe(1000000000000000000n);
+    expect(quotes[0]!.closedAmount).toBe(1000000000000000000n);
+    expect(quotes[0]!.averageClosedPrice).toBe(2000000000000000000n);
+    expect(quotes[0]!.quantity).toBe(2000000000000000000n);
+    expect(rows[0]!.eventId).toBe("0xevent-1");
   });
 
   it("defaults closeType to All, first to 50, skip to 0 and orderDirection to desc", async () => {
@@ -116,6 +120,6 @@ describe("getPoolTradeHistory", () => {
     const { config } = mockConfig();
     vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { quoteEvents: null } } });
 
-    await expect(getPoolTradeHistory(config, { symbolId: 149 })).resolves.toEqual({ rows: [] });
+    await expect(getPoolTradeHistory(config, { symbolId: 149 })).resolves.toEqual({ rows: [], quotes: [] });
   });
 });

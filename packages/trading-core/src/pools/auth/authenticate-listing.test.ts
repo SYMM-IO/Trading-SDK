@@ -1,4 +1,5 @@
 import type { Account, PublicClient } from "viem";
+import { createSiweMessage } from "viem/siwe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
 import { createConfig, type SymmioWalletClient } from "../../core/config";
@@ -32,6 +33,8 @@ const SIWE_PARAMS = {
   statement: "Sign in to Pools",
 };
 
+const SIWE_MESSAGE = createSiweMessage({ ...SIWE_PARAMS, version: "1", issuedAt: new Date(SIWE_PARAMS.issuedAt) });
+
 /** Build a config whose wallet client exposes a `signMessage` spy. */
 function makeConfigWithSigner() {
   const signMessage = vi.fn().mockResolvedValue(SIGNATURE);
@@ -52,15 +55,67 @@ function makeConfigWithSigner() {
 }
 
 describe("authenticateListing", () => {
+  it("rejects an expired prefetched challenge before signing or exchanging tokens", async () => {
+    const { config, signMessage } = makeConfigWithSigner();
+    const expirationTime = "2020-01-01T00:00:00.000Z";
+    const params = { ...SIWE_PARAMS, expirationTime };
+    const message = createSiweMessage({
+      ...params,
+      version: "1",
+      issuedAt: new Date(params.issuedAt),
+      expirationTime: new Date(expirationTime),
+    });
+    await expect(
+      authenticateListing(config, {
+        chainId: 42161,
+        domain: params.domain,
+        uri: params.uri,
+        signInMessage: { message, params },
+      }),
+    ).rejects.toMatchObject({ code: "LISTING_CHALLENGE_EXPIRED" });
+    expect(signMessage).not.toHaveBeenCalled();
+    expect(loginV2AuthLoginPost).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     getSignInMessageV2AuthSignInMessageGet.mockReset();
     loginV2AuthLoginPost.mockReset();
   });
 
+  it("uses a prefetched challenge without fetching a second nonce", async () => {
+    const { config, signMessage } = makeConfigWithSigner();
+    loginV2AuthLoginPost.mockResolvedValue({ data: { accessToken: "TOKEN", tokenType: "bearer" } });
+    await authenticateListing(config, {
+      chainId: 42161,
+      domain: SIWE_PARAMS.domain,
+      uri: SIWE_PARAMS.uri,
+      signInMessage: { message: SIWE_MESSAGE, params: SIWE_PARAMS },
+    });
+    expect(getSignInMessageV2AuthSignInMessageGet).not.toHaveBeenCalled();
+    expect(signMessage).toHaveBeenCalledWith(expect.objectContaining({ message: SIWE_MESSAGE }));
+  });
+
+  it.each([
+    { address: "0x0000000000000000000000000000000000000001" },
+    { domain: "other.example" },
+    { uri: "https://other.example" },
+  ])("rejects a stale prefetched challenge before prompting the wallet: %o", async (changes) => {
+    const { config, signMessage } = makeConfigWithSigner();
+    await expect(
+      authenticateListing(config, {
+        chainId: 42161,
+        domain: SIWE_PARAMS.domain,
+        uri: SIWE_PARAMS.uri,
+        signInMessage: { message: SIWE_MESSAGE, params: { ...SIWE_PARAMS, ...changes } },
+      }),
+    ).rejects.toMatchObject({ code: "LISTING_CHALLENGE_MISMATCH" });
+    expect(signMessage).not.toHaveBeenCalled();
+    expect(loginV2AuthLoginPost).not.toHaveBeenCalled();
+  });
+
   it("runs the full SIWE flow: fetch, sign, then login for a bearer token", async () => {
     const { config, account, signMessage } = makeConfigWithSigner();
     getSignInMessageV2AuthSignInMessageGet.mockResolvedValue({
-      data: { message: "SIWE-STRING", params: SIWE_PARAMS },
+      data: { message: SIWE_MESSAGE, params: SIWE_PARAMS },
     });
     loginV2AuthLoginPost.mockResolvedValue({ data: { accessToken: "TOKEN123", tokenType: "bearer" } });
 
@@ -70,7 +125,7 @@ describe("authenticateListing", () => {
       statement: "Sign in to Pools",
     });
 
-    expect(signMessage).toHaveBeenCalledWith({ account, message: "SIWE-STRING" });
+    expect(signMessage).toHaveBeenCalledWith({ account, message: SIWE_MESSAGE });
     expect(loginV2AuthLoginPost).toHaveBeenCalledWith(
       {
         message: {

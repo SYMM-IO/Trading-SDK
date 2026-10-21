@@ -35,6 +35,8 @@ export const LISTING_MARKET_CONFIG_BOUNDS = {
  * `ListingMarketDetail.buybackRatio` and `ListingMarketDetail.maxLeverage` use.
  */
 export interface ListingMarketConfig {
+  /** Server-published inclusive leverage limits, when available. */
+  maxLeverageBounds?: { minimum: number; maximum: number } | null;
   /**
    * The market's token contract address, echoed back by the service — an EVM
    * `0x…` address, or a Solana base58 address for a Solana-deposited listing.

@@ -1,0 +1,31 @@
+# Token enrichment
+
+Optional DEX, Jupiter, pump.fun, and GeckoTerminal reads are independent. Their failures must not prevent listing or balance reads. Callers choose refresh intervals and share their existing cache.
+
+| Export                    | Input and result                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `getPoolDexData`          | Exact token address → pairs array or null                                                                           |
+| `getPoolDexDataBatch`     | Address array → map keyed by exact provider token address; batches of 30, successful batches survive a failed batch |
+| `getPoolJupiterPrices`    | Solana mint array → map of finite positive USD prices; batches of 50                                                |
+| `getPoolPumpData`         | Mint array and optional proxy URL → map containing graduation state; batches of 50                                  |
+| `getPoolGeckoMarketCaps`  | Chain/address/network targets → map of positive cap or FDV, grouped by network and batched at 30                    |
+| `poolEnrichmentKey`       | Chain/address identity; preserves Solana case and folds EVM case                                                    |
+| `getPoolEnrichmentNeeds`  | DEX availability and token network → Jupiter/pump/Gecko eligibility; Gecko waits for a DEX answer                   |
+| `selectPoolDexPair`       | Highest-liquidity priced pair, or highest-liquidity pair                                                            |
+| `selectPoolEnrichment`    | `PoolEnrichmentSources` → optional `dexScreener`, `markPriceUsd`, `marketCapUsd`                                    |
+| `selectPoolDetailDexData` | Priced pair by liquidity, first-pair fallback, first image → `PoolDexEnrichment`                                    |
+| `getPoolTokenDexStats`    | Deepest pair's cap/price and total pair liquidity; cap is never summed                                              |
+
+`PoolEnrichmentSources` accepts independent `pairs`, `metadataDexId`, `pumpComplete`, `jupiterPrice`, `metadataPrice`, `geckoMarketCap`, `markPrice`, and optional existing `current` detail data. Catalog image identity and price selection are independent. A DEX price wins over Jupiter, which wins over metadata. The live mark is a separate preferred price input for [calculations](/core/pools/calculations).
+
+```ts
+import { getPoolDexData, selectPoolEnrichment } from "@symmio/trading-core";
+export async function enrichToken(address: string) {
+  const { pairs } = await getPoolDexData(address);
+  return selectPoolEnrichment({ pairs: pairs ?? [] });
+}
+```
+
+Keep Solana mint case intact when sending provider requests. These functions return unformatted values and create no subscriptions.
+
+For batch DEX reads, an empty array means the token was successfully queried but has no pairs. A missing map entry means its batch failed. Pass `dexLoaded: results.has(address)` to `getPoolEnrichmentNeeds` so a provider outage does not trigger Gecko requests for the entire catalog.

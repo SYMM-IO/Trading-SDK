@@ -142,3 +142,9 @@ Exported as `GetListingSignInMessageParameters`.
 - [`resolveListingService`](/core/pools/resolve-listing-service) — the availability gate every auth call runs first.
 - [Pools](/core/pools) — the slice overview.
 - [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.
+
+## Prefetched challenges
+
+Pass an SDK-issued `signInMessage` to `authenticateListing` to reuse a challenge fetched before the user's signing gesture. The SDK validates the signed text and structured params against the actual wallet and requested domain/URI, including nonce, chain, timestamps and statement. A mismatch raises `LISTING_CHALLENGE_MISMATCH` before signing; an expired challenge raises `LISTING_CHALLENGE_EXPIRED`. Optional `expirationTime` is retained in the exchange. The SDK still owns the token exchange; consumers should not post a second login themselves.
+
+Bind async completion to the wallet and deployment that started it. Discard it when either changes. Listing SIWE uses the actual wallet, not a trading session-key signer.

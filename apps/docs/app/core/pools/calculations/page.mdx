@@ -1,0 +1,67 @@
+# Pool calculations
+
+Pure selectors return unformatted values. Keep sorting, filtering, labels, locale formatting and scope visibility in the consumer. Raw protocol/listing amounts use 18 decimals; rates and source-specific plain values are documented by each input type.
+
+## Balances and statistics
+
+- `getPoolBalanceBreakdown(profit)` returns `PoolBalanceBreakdown`: total, pending and available token/collateral legs, LP bigints and fractions.
+- `getPoolBalanceUsd(profit, priceUsd)` values both legs; a missing position returns null and an unpriced token contributes only collateral.
+- `selectPoolShareFraction(sharePercent, userUsdc?, totalUsdc?)` prefers the reported whole-percent share, then a same-snapshot collateral ratio.
+- `scalePoolAmountByShare(value, fraction)` retains unknown ownership and non-finite inputs as null.
+- `projectPoolProfitOperation(profit, kind, amount)` projects pending LP/rewards from raw mutation variables. It does not imply settlement.
+- `getPoolStatistics(input: GetPoolStatisticsParameters)` resolves listing/detail/hedger/reward precedence and derives the balance split and pending valuation. `PoolStatisticsSnapshot` and `PoolStatisticsDetail` describe the optional source fields. Supply shareFraction 1 for the pool, the LP fraction for ownership, or null when unknown. Omit the pool-wide pending queue in an ownership view.
+- `sumPoolPendingWithdrawals(rows)` counts only pending withdrawals and returns `PoolPendingWithdrawalTotals` in human units. `getPoolPendingWithdrawalUsd(pending, priceUsd)` values both legs.
+- `getPoolPortfolioTotals(positions, rewardPositions, claimableRewards)` returns balances, priced lifetime deposits, collateral-leg weighted APR, ROI, historical rewards and the first top-earner index. Inputs are `PoolPortfolioTotalPosition` and `PoolPortfolioRewardPosition`; all values are human units. Use the full portfolio and separately preserve unknown-read UI states.
+
+```ts
+import { getPoolStatistics } from "@symmio/trading-core";
+const stats = getPoolStatistics({
+  shareFraction: 1,
+  detail: { tvl: "3040000000000000000", totalToken: "4000000000000000000", totalUsdc: "0" },
+  priceUsd: 0.75,
+  pending: { count: 1, tokenAmount: 4, usdcAmount: 0 },
+});
+// stats.pendingUsd === 3.04; stats.tokenAfterPending === 0
+```
+
+Pending valuation uses the token price implied by the same detail balance snapshot before considering the live price. Listing TVL may be newer but must not be mixed into the detail balance split.
+
+## Metrics
+
+`parsePoolMetric`, `parseScaledPoolMetric`, `parseMixedPoolMetric`, and `parsePoolPercent` accept `PoolMetricValue` and retain missing/invalid values as undefined. Mixed fields support the existing rollout scaling heuristic; use explicit scaled parsing for amounts.
+
+Catalog `ListingMarket.reportedPercentages` and batch `PoolMarketData.reportedApr` preserve exact APR/APY strings, including fractional plain percentages from legacy deployments. Pass these to `parsePoolPercent`; the existing bigint rate fields retain their original fixed-point contract.
+
+`selectPoolPriceUsd(sources: PoolPriceSources)` prefers live mark, listing rollout price, then DEX/fallback price. `selectPoolMarketCapUsd(externalCap, listingCap, dexCap)` prefers the external cap when supplied, then the listing and DEX values.
+
+## Quote calculations
+
+`PoolQuoteCalculationInput` accepts raw 18-decimal bigints or numeric strings and timestamps in seconds. It accepts a `PoolQuote` returned by `getPoolQuotes` directly. `PoolOpenQuoteVaBalance` contains unscaled collateral amounts; `PoolOpenQuoteLiquidationContext` supplies same-market quotes, a mark and VA balances.
+
+- `getPoolOpenQuoteEntryPrice`
+- `getPoolOpenQuoteQuantity`
+- `getPoolOpenQuoteLeverage`
+- `getPoolOpenQuoteOpenedAt`
+- `getPoolOpenQuotePositionValue`
+- `getPoolOpenQuoteUpnl`
+- `getPoolOpenQuoteRoePercent`
+- `getPoolOpenQuoteLiquidationPrice`
+
+Entry price prefers actual open, then initial open, then requested open. Quantity subtracts closed amount. Leverage uses the signed lock split before price-based reconstruction. The percent beside uPNL is return on notional; leverage gates availability but never multiplies that percent. Liquidation uses the VA collateral snapshot when available, then remaining party-A margin, then leverage. These are estimates, not settlement instructions.
+
+## Deposit history
+
+`PoolDepositHistoryInput` contains optional raw-amount history buckets. Lifetime deposits do not represent a current position.
+
+- `getPoolEffectiveDepositWei`
+- `getPoolEffectiveDepositTokens`
+- `getPoolRefundableDepositTokens`
+- `getPoolCurrentDepositTokens`
+- `getPoolUncreditedDepositTokens`
+- `getPoolCurrentDepositUsd`
+- `getPoolUserOrPoolDepositUsd`
+- `getPoolRefundedTokens`
+- `isPoolFullyRefunded`
+
+These selectors separate settled, pending, uncredited, refundable and already-refunded amounts. USD selectors price token units before summing. The user-or-pool selector falls back to pool history only when the user history contributes no current deposit.
+`selectPoolMetricUsd(listing, fallback, preferFallback?)` selects a raw 18-decimal listing metric or plain live metric. Volume passes `true` to prefer the hedger; TVL and open interest prefer listing. A known zero remains zero.

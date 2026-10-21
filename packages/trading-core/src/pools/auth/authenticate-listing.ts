@@ -1,4 +1,5 @@
 import { isAxiosError } from "axios";
+import { parseSiweMessage } from "viem/siwe";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute, FromParameter } from "../../shared/types/properties";
@@ -6,7 +7,7 @@ import { resolveListingService } from "../resolve-listing";
 import { loginV2AuthLoginPost } from "../types/generated/listing-backend";
 import { getListingSignInMessage } from "./get-sign-in-message";
 import { toCustomSiweMessage, toListingAuthToken } from "./to-siwe";
-import type { ListingAuthToken } from "./types";
+import type { ListingAuthToken, ListingSignInMessage } from "./types";
 
 /**
  * Parameters for {@link authenticateListing}.
@@ -23,6 +24,8 @@ export type AuthenticateListingParameters = Compute<
       uri: string;
       /** Optional human-readable statement to embed in the message. */
       statement?: string;
+      /** SDK-issued challenge fetched before the user's signing gesture. Must match the wallet and origin. */
+      signInMessage?: ListingSignInMessage;
     }
 >;
 
@@ -64,13 +67,46 @@ export async function authenticateListing(
   const walletClient = await config.getWalletClient({ chainId: parameters.chainId, from: parameters.from });
   const address = walletClient.account.address;
 
-  const signIn = await getListingSignInMessage(config, {
-    chainId: parameters.chainId,
-    address,
-    domain: parameters.domain,
-    uri: parameters.uri,
-    statement: parameters.statement,
-  });
+  const signIn =
+    parameters.signInMessage ??
+    (await getListingSignInMessage(config, {
+      chainId: parameters.chainId,
+      address,
+      domain: parameters.domain,
+      uri: parameters.uri,
+      statement: parameters.statement,
+    }));
+
+  const signedFields = parseSiweMessage(signIn.message);
+  if (
+    signIn.params.address.toLowerCase() !== address.toLowerCase() ||
+    signIn.params.domain !== parameters.domain ||
+    signIn.params.uri !== parameters.uri ||
+    signedFields.address?.toLowerCase() !== address.toLowerCase() ||
+    signedFields.domain !== parameters.domain ||
+    signedFields.uri !== parameters.uri ||
+    signedFields.chainId !== signIn.params.chainId ||
+    signedFields.nonce !== signIn.params.nonce ||
+    signedFields.version !== signIn.params.version ||
+    signedFields.statement !== signIn.params.statement ||
+    signedFields.issuedAt?.getTime() !== Date.parse(signIn.params.issuedAt) ||
+    (signedFields.expirationTime?.getTime() ?? null) !==
+      (signIn.params.expirationTime ? Date.parse(signIn.params.expirationTime) : null)
+  ) {
+    throw new SymmError(
+      "validation",
+      "LISTING_CHALLENGE_MISMATCH",
+      "The listing challenge does not match the signing wallet and origin.",
+    );
+  }
+
+  if (signedFields.expirationTime && signedFields.expirationTime.getTime() <= Date.now()) {
+    throw new SymmError(
+      "validation",
+      "LISTING_CHALLENGE_EXPIRED",
+      "The listing challenge has expired. Request a fresh challenge.",
+    );
+  }
 
   const signature = await walletClient.signMessage({
     account: walletClient.account,
