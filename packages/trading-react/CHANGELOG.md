@@ -1,5 +1,16 @@
 # @symmio/trading-react
 
+## 4.1.0
+
+### Minor Changes
+
+- 6a7f9af: Add `getPartyAOpenPositionsBatch` (query options + `usePartyAOpenPositionsBatch`): read the open positions of many partyAs in chunked multicalls, one result per account (per-account failures isolated, per-account `start` paging with `hasMore`), with an optional per-account liquidation flag. Add `isPartyALiquidated` (query options + `useIsPartyALiquidated`): whether a partyA's liquidation is in progress.
+
+### Patch Changes
+
+- Updated dependencies [6a7f9af]
+  - @symmio/trading-core@4.1.0
+
 ## 4.0.0
 
 ### Major Changes
