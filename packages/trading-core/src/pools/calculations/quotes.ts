@@ -1,5 +1,5 @@
 /** Numeric protocol input; amounts use 18 decimals and timestamps use seconds. */
-type PoolQuoteNumeric = string | number | null | undefined;
+type PoolQuoteNumeric = string | number | bigint | null | undefined;
 /** Minimal portable quote fields used by pool calculations. */
 export interface PoolQuoteCalculationInput {
   quantity?: PoolQuoteNumeric;
@@ -19,7 +19,7 @@ export interface PoolQuoteCalculationInput {
 }
 function fromWei(value: PoolQuoteNumeric): number {
   if (value == null || value === "") return 0;
-  const parsed = typeof value === "string" ? parseFloat(value) : value;
+  const parsed = typeof value === "string" ? parseFloat(value) : Number(value);
   return Number.isNaN(parsed) ? 0 : parsed / 1e18;
 }
 /** Virtual account balances, in unscaled collateral units. */
@@ -38,7 +38,7 @@ export type PoolOpenQuoteLiquidationContext = {
   vaBalances?: Readonly<Record<string, PoolOpenQuoteVaBalance>>;
 };
 
-function positiveWei(value: string | number | null | undefined): number | undefined {
+function positiveWei(value: PoolQuoteNumeric): number | undefined {
   const parsed = fromWei(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }

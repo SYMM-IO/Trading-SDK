@@ -41,6 +41,23 @@ function makeRow(overrides: Partial<MarketSearchItem> = {}): MarketSearchItem {
 }
 
 describe("toListingValue", () => {
+  it("retains fractional plain and scaled reported percentages without changing bigint fields", () => {
+    const result = toListingMarket({
+      ...makeRow({ apr: "12.75", apr_24h: "0", apr_30d: null }),
+      apy_24h: "-0.125",
+      apy_30d: "12750000000000000000",
+    });
+    expect(result.reportedPercentages).toEqual({
+      apr: "12.75",
+      apr24h: "0",
+      apr30d: null,
+      apy24h: "-0.125",
+      apy30d: "12750000000000000000",
+      apyLifetime: null,
+    });
+    expect(result.apr).toBe(12n);
+    expect(result.apy30d).toBe(12750000000000000000n);
+  });
   it("parses an 18-decimal string without losing precision", () => {
     expect(toListingValue("8262743000000000000000000")).toBe(8262743000000000000000000n);
   });

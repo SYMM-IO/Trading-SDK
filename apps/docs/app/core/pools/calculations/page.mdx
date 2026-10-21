@@ -30,11 +30,13 @@ Pending valuation uses the token price implied by the same detail balance snapsh
 
 `parsePoolMetric`, `parseScaledPoolMetric`, `parseMixedPoolMetric`, and `parsePoolPercent` accept `PoolMetricValue` and retain missing/invalid values as undefined. Mixed fields support the existing rollout scaling heuristic; use explicit scaled parsing for amounts.
 
+Catalog `ListingMarket.reportedPercentages` preserves exact APR/APY strings, including fractional plain percentages from legacy deployments. Pass these to `parsePoolPercent`; the existing bigint rate fields retain their original fixed-point contract.
+
 `selectPoolPriceUsd(sources: PoolPriceSources)` prefers live mark, listing rollout price, then DEX/fallback price. `selectPoolMarketCapUsd(externalCap, listingCap, dexCap)` prefers the external cap when supplied, then the listing and DEX values.
 
 ## Quote calculations
 
-`PoolQuoteCalculationInput` accepts raw 18-decimal numeric strings and timestamps in seconds. `PoolOpenQuoteVaBalance` contains unscaled collateral amounts; `PoolOpenQuoteLiquidationContext` supplies same-market quotes, a mark and VA balances.
+`PoolQuoteCalculationInput` accepts raw 18-decimal bigints or numeric strings and timestamps in seconds. It accepts a `PoolQuote` returned by `getPoolQuotes` directly. `PoolOpenQuoteVaBalance` contains unscaled collateral amounts; `PoolOpenQuoteLiquidationContext` supplies same-market quotes, a mark and VA balances.
 
 - `getPoolOpenQuoteEntryPrice`
 - `getPoolOpenQuoteQuantity`

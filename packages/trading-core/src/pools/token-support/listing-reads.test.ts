@@ -55,6 +55,14 @@ describe("listing validation and maintenance reads", () => {
       price: "0.000000000123456789",
     });
   });
+  it("rejects metadata errors returned with HTTP 200 without fabricating token metadata", async () => {
+    requests.metadata.mockResolvedValue({ data: { error_code: 26, error_message: "Unsupported token" } });
+    await expect(getListingTokenMetadata(config, parameters)).rejects.toMatchObject({
+      status: 200,
+      responseData: { error_code: 26 },
+      message: "Unsupported token",
+    });
+  });
   it("preserves maintenance amounts and converts milliseconds exactly once", async () => {
     requests.maintenance.mockResolvedValue({
       data: {

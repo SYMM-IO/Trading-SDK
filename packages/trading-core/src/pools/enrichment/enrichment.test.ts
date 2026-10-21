@@ -4,6 +4,7 @@ import { getPoolDexDataBatch } from "./dex";
 import { getPoolGeckoMarketCaps } from "./gecko";
 import { getPoolJupiterPrices } from "./jupiter";
 import { getPoolPumpData } from "./pump";
+import { getPoolEnrichmentNeeds } from "./select-enrichment";
 
 afterEach(() => vi.restoreAllMocks());
 describe("pool enrichment transport", () => {
@@ -24,6 +25,24 @@ describe("pool enrichment transport", () => {
     });
     expect(await getPoolJupiterPrices(["MintA", "MintB"])).toEqual(new Map([["MintA", 0.01]]));
     expect(get.mock.calls[0]?.[1]?.params).toEqual({ ids: "MintA,MintB" });
+  });
+  it("distinguishes failed DEX batches from successful unindexed tokens for Gecko eligibility", async () => {
+    vi.spyOn(axios, "get")
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({ data: { pairs: null } });
+    const failed = Array.from({ length: 30 }, (_, i) => `Mint${i}`);
+    const result = await getPoolDexDataBatch([...failed, "UnindexedMint"]);
+    const eligible = [...failed, "UnindexedMint"].filter(
+      (address) =>
+        getPoolEnrichmentNeeds({
+          isSolana: true,
+          dexLoaded: result.has(address),
+          pairs: result.get(address),
+          geckoSupported: true,
+        }).gecko,
+    );
+    expect(eligible).toEqual(["UnindexedMint"]);
+    expect(result.get("UnindexedMint")).toEqual([]);
   });
   it("uses the configured pump proxy, preserving pre-graduation results", async () => {
     const get = vi.spyOn(axios, "get").mockResolvedValue({ data: { MintA: { complete: false } } });

@@ -19,7 +19,7 @@ export async function validateToken(config: Config, accessToken: string, mint: s
 
 Metadata returns `ListingTokenMetadata`: exact `tokenContractAddress`, `depositChain`, `tokenName`, nullable `tokenTicker`, nullable token `decimals`, and nullable plain-decimal string `price`. A missing price is unknown.
 
-Support returns `true` on acceptance. A response containing a numeric `error_code`, even with HTTP 200, rejects with `SymmApiError` and preserves `responseData`. Inspect the backend error code to distinguish unsupported tokens from infrastructure failures; a timeout is never an unsupported result.
+Support returns `true` on acceptance. Both metadata and support reject a response containing a numeric `error_code`, even with HTTP 200, with `SymmApiError` and preserve `responseData`. Inspect the backend error code to distinguish unsupported tokens from infrastructure failures; a timeout is never an unsupported result.
 
 Query factories: `getListingTokenMetadataQueryOptions`, `getListingTokenMetadataQueryKey`, `checkListingTokenSupportQueryOptions`, and `checkListingTokenSupportQueryKey`. The options types add `query` to the action parameters; execution is disabled without a token or address. Deployment configuration participates in cache identity.
 

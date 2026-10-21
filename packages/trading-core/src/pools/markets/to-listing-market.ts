@@ -139,6 +139,14 @@ export function toListingMarket(
   },
 ): ListingMarket {
   return {
+    reportedPercentages: {
+      apr: raw.apr ?? null,
+      apr24h: raw.apr_24h ?? null,
+      apr30d: raw.apr_30d ?? null,
+      apy24h: raw.apy_24h ?? null,
+      apy30d: raw.apy_30d ?? null,
+      apyLifetime: raw.apy_lifetime ?? null,
+    },
     priceUsd: raw.price_usd ?? null,
     apy24h: toListingValue(raw.apy_24h),
     apy30d: toListingValue(raw.apy_30d),

@@ -5,12 +5,15 @@ import {
   getListingTokenMetadata,
   getPoolDexDataBatch,
   getPoolMaintenanceFees,
+  getPoolOpenQuoteEntryPrice,
+  getPoolOpenQuoteQuantity,
   getPoolPortfolio,
   getPoolPortfolioTotals,
   getPoolStatistics,
   selectPoolMetricUsd,
   type Config,
   type ListingSignInMessage,
+  type PoolQuote,
 } from "@symmio/trading-core";
 import { beginPoolOptimisticUpdate, type PoolOptimisticClient } from "@symmio/trading-react";
 import { useListingTokenMetadata, useListingTokenSupport, usePoolMaintenanceFees } from "@symmio/trading-react/pools";
@@ -37,3 +40,8 @@ export function projectPool(client: PoolOptimisticClient) {
 }
 
 void [useListingTokenMetadata, useListingTokenSupport, usePoolMaintenanceFees];
+
+/** Selectors must accept the SDK's own normalized read result. */
+export function quoteMetrics(quote: PoolQuote) {
+  return { entry: getPoolOpenQuoteEntryPrice(quote), remaining: getPoolOpenQuoteQuantity(quote) };
+}

@@ -44,6 +44,20 @@ export async function getListingTokenMetadata(
       { contract_address: parameters.tokenContractAddress, chain: parameters.depositChain },
       { baseURL, headers: { Authorization: `Bearer ${parameters.accessToken}` } },
     );
+    if (typeof data === "object" && data !== null && "error_code" in data && typeof data.error_code === "number") {
+      throw new SymmApiError({
+        code: "GET_LISTING_TOKEN_METADATA_FAILED",
+        message:
+          "error_message" in data && typeof data.error_message === "string"
+            ? data.error_message
+            : "Token metadata lookup failed",
+        status: 200,
+        statusText: "OK",
+        responseData: data,
+        url: baseURL + "/v2/market/token-meta-data",
+        method: "GET",
+      });
+    }
     return {
       tokenContractAddress: data.token_contract_address,
       depositChain: data.chain,

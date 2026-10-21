@@ -150,6 +150,17 @@ export interface ListingApyWindows extends ListingTrailingWindows {
  * means the service reported no value, which is distinct from zero.
  */
 export interface ListingMarket {
+  /** Exact reported rates for deployments returning plain percentages as well as
+   * 18-decimal rates. Use parsePoolPercent to interpret these without truncating
+   * fractional plain percentages; existing bigint fields retain their contract. */
+  reportedPercentages?: {
+    apr: string | null;
+    apr24h: string | null;
+    apr30d: string | null;
+    apy24h: string | null;
+    apy30d: string | null;
+    apyLifetime: string | null;
+  };
   /** Rollout price, kept as a string because services used both plain and scaled units. */
   priceUsd?: string | null;
   /** Legacy headline APY, 18-decimal percentage. */
