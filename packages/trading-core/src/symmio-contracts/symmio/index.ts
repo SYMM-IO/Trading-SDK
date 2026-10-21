@@ -30,6 +30,8 @@ export * from "./actions/simulate-request-cancel-withdraw";
 export * from "./actions/withdraw";
 export * from "./actions/withdraw-auto";
 export * from "./get-funding-fees-of-party-b";
+export * from "./get-party-a-open-positions-batch";
+export * from "./is-party-a-liquidated";
 export * from "./parts";
 export * from "./query/allocate";
 export * from "./query/approve-operational-fee";

@@ -614,7 +614,9 @@ export {
  * SYMMIO Core quote reads
  * -----------------------
  * On-chain reads of quotes and open positions from the SYMMIO core diamond.
- * `getPartyAOpenPositions` returns full {@link Quote} structs; `getPartyAPendingQuotes`
+ * `getPartyAOpenPositions` returns full {@link Quote} structs;
+ * `getPartyAOpenPositionsBatch` reads many partyAs in chunked multicalls (with the
+ * optional `isPartyALiquidated` flag per account); `getPartyAPendingQuotes`
  * returns pending quote ids to hydrate one-by-one with `getQuote`.
  */
 export {
@@ -625,6 +627,9 @@ export {
   getCoolDownsOfMAQueryKey,
   getCoolDownsOfMAQueryOptions,
   getPartyAOpenPositions,
+  getPartyAOpenPositionsBatch,
+  getPartyAOpenPositionsBatchQueryKey,
+  getPartyAOpenPositionsBatchQueryOptions,
   getPartyAOpenPositionsQueryKey,
   getPartyAOpenPositionsQueryOptions,
   getPartyAPendingQuotes,
@@ -636,12 +641,21 @@ export {
   getQuote,
   getQuoteQueryKey,
   getQuoteQueryOptions,
+  isPartyALiquidated,
+  isPartyALiquidatedQueryKey,
+  isPartyALiquidatedQueryOptions,
   type GetCoolDownsOfMAData,
   type GetCoolDownsOfMAOptions,
   type GetCoolDownsOfMAParameters,
   type GetCoolDownsOfMAQueryKey,
   type GetCoolDownsOfMAQueryOptions,
   type GetCoolDownsOfMAReturnType,
+  type GetPartyAOpenPositionsBatchData,
+  type GetPartyAOpenPositionsBatchOptions,
+  type GetPartyAOpenPositionsBatchParameters,
+  type GetPartyAOpenPositionsBatchQueryKey,
+  type GetPartyAOpenPositionsBatchQueryOptions,
+  type GetPartyAOpenPositionsBatchReturnType,
   type GetPartyAOpenPositionsData,
   type GetPartyAOpenPositionsOptions,
   type GetPartyAOpenPositionsParameters,
@@ -666,7 +680,17 @@ export {
   type GetQuoteQueryKey,
   type GetQuoteQueryOptions,
   type GetQuoteReturnType,
+  type IsPartyALiquidatedData,
+  type IsPartyALiquidatedOptions,
+  type IsPartyALiquidatedParameters,
+  type IsPartyALiquidatedQueryKey,
+  type IsPartyALiquidatedQueryOptions,
+  type IsPartyALiquidatedReturnType,
   type LockedValues,
+  type PartyAOpenPositionsBatchAccount,
+  type PartyAOpenPositionsBatchFailure,
+  type PartyAOpenPositionsBatchResult,
+  type PartyAOpenPositionsBatchSuccess,
   type Quote,
 } from "./symmio-contracts/symmio";
 

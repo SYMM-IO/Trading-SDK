@@ -460,8 +460,10 @@ export {
  * Quote hooks
  * -----------
  * Read open positions and quotes from the SYMMIO core. `usePartyAOpenPositions`
- * returns full `Quote` structs; `usePartyAPendingQuotes` returns pending quote
- * ids to hydrate with `useQuote`. `useManagedQuotes` orchestrates every source
+ * returns full `Quote` structs; `usePartyAOpenPositionsBatch` reads many partyAs
+ * in chunked multicalls (per-account success/failure, optional liquidation flag);
+ * `useIsPartyALiquidated` reads one partyA's liquidation-in-progress flag;
+ * `usePartyAPendingQuotes` returns pending quote ids to hydrate with `useQuote`. `useManagedQuotes` orchestrates every source
  * (on-chain reads fanned out across the sub-account's Virtual Accounts + hedger
  * instant-ops + live notifications) into one reconciled, lifecycle-tagged table,
  * seeded by the optimistic `useOptimisticQuotesStore`. Import the `UnifiedQuote`
@@ -487,10 +489,12 @@ export {
   useForceCloseEligibility,
   useForceCloseParams,
   useGroupedQuotes,
+  useIsPartyALiquidated,
   useLimitOrders,
   useManagedQuotes,
   useOptimisticQuotesStore,
   usePartyAOpenPositions,
+  usePartyAOpenPositionsBatch,
   usePartyAPendingQuotes,
   useQuote,
   useQuoteEventsByType,
@@ -542,10 +546,14 @@ export {
   type UseForceCloseReturnType,
   type UseGroupedQuotesParameters,
   type UseGroupedQuotesResult,
+  type UseIsPartyALiquidatedParameters,
+  type UseIsPartyALiquidatedReturnType,
   type UseLimitOrdersParameters,
   type UseLimitOrdersReturnType,
   type UseManagedQuotesParameters,
   type UseManagedQuotesResult,
+  type UsePartyAOpenPositionsBatchParameters,
+  type UsePartyAOpenPositionsBatchReturnType,
   type UsePartyAOpenPositionsParameters,
   type UsePartyAOpenPositionsReturnType,
   type UsePartyAPendingQuotesParameters,

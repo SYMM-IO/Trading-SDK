@@ -8,6 +8,7 @@ import { ReadDelegationReads } from "../inspector/read-delegation-reads";
 import { ReadFeeForUser } from "../inspector/read-fee-for-user";
 import { ReadGetFundingFeesOfPartyB } from "../inspector/read-get-funding-fees-of-party-b";
 import { ReadGetPartyAOpenPositions } from "../inspector/read-get-party-a-open-positions";
+import { ReadGetPartyAOpenPositionsBatch } from "../inspector/read-get-party-a-open-positions-batch";
 import { ReadGetPartyAPendingQuotes } from "../inspector/read-get-party-a-pending-quotes";
 import { ReadGetQuote } from "../inspector/read-get-quote";
 import { ReadGetSubAccount } from "../inspector/read-get-sub-account";
@@ -18,6 +19,7 @@ import { ReadGetUserSubAccountsAddresses } from "../inspector/read-get-user-sub-
 import { ReadGetVirtualAccount } from "../inspector/read-get-virtual-account";
 import { ReadGetVirtualAccountsAddressesOfSubAccount } from "../inspector/read-get-virtual-accounts-addresses-of-sub-account";
 import { ReadGetWithdrawRequest } from "../inspector/read-get-withdraw-request";
+import { ReadIsPartyALiquidated } from "../inspector/read-is-party-a-liquidated";
 import { ReadLastWithdrawRequestId } from "../inspector/read-last-withdraw-request-id";
 import { ReadOnchainContractMarkets } from "../inspector/read-onchain-contract-markets";
 import { ReadPendingWithdrawRequests } from "../inspector/read-pending-withdraw-requests";
@@ -166,6 +168,22 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     abi: "symmio-core",
     groups: ["positions"],
     Component: ReadGetPartyAOpenPositions,
+  },
+  {
+    id: "getPartyAOpenPositionsBatch",
+    summary: "Open positions of many subaccounts and VAs in chunked multicalls.",
+    kind: "read",
+    abi: "symmio-core",
+    groups: ["positions"],
+    Component: ReadGetPartyAOpenPositionsBatch,
+  },
+  {
+    id: "isPartyALiquidated",
+    summary: "Whether a partyA's liquidation is in progress.",
+    kind: "read",
+    abi: "symmio-core",
+    groups: ["positions"],
+    Component: ReadIsPartyALiquidated,
   },
   {
     id: "getPartyAPendingQuotes",

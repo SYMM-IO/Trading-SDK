@@ -18,6 +18,8 @@ import {
   useQuote,
   useSubAccountQuotes,
   usePartyAOpenPositions,
+  usePartyAOpenPositionsBatch,
+  useIsPartyALiquidated,
   usePartyAPendingQuotes,
   useOnchainContractMarkets,
   useAccountLiquidationPrice,
@@ -70,8 +72,34 @@ const quotes = useSubAccountQuotes({
 Open positions (anchored) for a PartyA (Virtual Account).
 
 ```ts
-const open = usePartyAOpenPositions({ partyA, offset: 0n, size: 50n });
+const open = usePartyAOpenPositions({ partyA, start: 0n, size: 50n });
 ```
+
+### `usePartyAOpenPositionsBatch`
+
+Open positions for **many** PartyAs — e.g. every Virtual Account of a sub-account — in chunked multicalls (10 accounts per `eth_call` by default). One entry per account, in input order: a `success` with `quotes` and `hasMore`, or a `failure` for an account whose read reverted; one bad account never fails the others. Pass `includeLiquidationStatus` to also read each account's liquidation flag in the same multicall. Idle while `partyAs` is empty.
+
+```ts
+const { data } = usePartyAOpenPositionsBatch({
+  partyAs: virtualAccounts,
+  includeLiquidationStatus: true,
+});
+const quotes = data?.flatMap((r) => (r.status === "success" && !r.isLiquidated ? r.quotes : [])) ?? [];
+```
+
+Page a single account that came back with `hasMore` by passing it as `{ partyA, start }`. The hook is not live — invalidate it with `getPartyAOpenPositionsBatchQueryKey` when your app learns a position changed. Full semantics: [`getPartyAOpenPositionsBatch`](/core/symmio-contract/get-party-a-open-positions-batch).
+
+**Returns** — `UseQueryResult<readonly PartyAOpenPositionsBatchResult[], SymmioRequestError>`.
+
+### `useIsPartyALiquidated`
+
+Whether a PartyA is in liquidation right now — `true` from the moment a liquidator starts it until it is finalized. While `true` the account is frozen and actions on its positions revert. Disabled until `partyA` is set. See [`isPartyALiquidated`](/core/symmio-contract/is-party-a-liquidated).
+
+```ts
+const { data: inLiquidation } = useIsPartyALiquidated({ partyA: virtualAccount });
+```
+
+**Returns** — `UseQueryResult<boolean, SymmioRequestError>`.
 
 ### `usePartyAPendingQuotes`
 
