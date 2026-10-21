@@ -3,14 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createConfig } from "../../core/config";
 import { TEST_AFFILIATE_ADDRESS } from "../../shared/test/mock-config";
 import { getPoolMaintenanceFees } from "../maintenance-fees/get-pool-maintenance-fees";
+import { getPoolMarketData } from "../market-data/get-pool-market-data";
 import { getListingTokenMetadata } from "../token-metadata/get-listing-token-metadata";
 import { checkListingTokenSupport } from "./check-listing-token-support";
 
-const requests = vi.hoisted(() => ({ support: vi.fn(), metadata: vi.fn(), maintenance: vi.fn() }));
+const requests = vi.hoisted(() => ({ support: vi.fn(), metadata: vi.fn(), maintenance: vi.fn(), marketData: vi.fn() }));
 vi.mock("../types/generated/listing-backend", () => ({
   checkTokenSupportV2MarketTokenSupportGet: requests.support,
   getTokenMetaDataV2MarketTokenMetaDataGet: requests.metadata,
   getMaintenanceFeeRecordsV2MarketMaintenanceFeesGet: requests.maintenance,
+  getPoolsV2PoolsGet: requests.marketData,
 }));
 
 const config = createConfig({
@@ -23,6 +25,20 @@ const parameters = { chainId: 42161, depositChain: 0, tokenContractAddress: "Cas
 
 describe("listing validation and maintenance reads", () => {
   beforeEach(() => vi.resetAllMocks());
+  it("retains fractional batch rates and unknown values without changing exact address keys", async () => {
+    requests.marketData.mockResolvedValue({
+      data: {
+        ExactMint: { market_cap: "123000000000000000000", apr: "12.75" },
+        UnknownMint: { market_cap: null, apr: null },
+      },
+    });
+    await expect(
+      getPoolMarketData(config, { chainId: 42161, addresses: ["ExactMint", "UnknownMint"] }),
+    ).resolves.toEqual({
+      ExactMint: { marketCap: 123000000000000000000n, apr: 12n, reportedApr: "12.75" },
+      UnknownMint: { marketCap: null, apr: null, reportedApr: null },
+    });
+  });
   it("does not confuse an HTTP-200 unsupported-token body with support", async () => {
     requests.support.mockResolvedValue({ data: { error_code: 26, error_message: "Unsupported token" } });
     await expect(checkListingTokenSupport(config, parameters)).rejects.toMatchObject({

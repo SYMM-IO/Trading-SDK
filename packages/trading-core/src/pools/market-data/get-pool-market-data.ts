@@ -10,6 +10,8 @@ import { getPoolsV2PoolsGet } from "../types/generated/listing-backend";
 export interface PoolMarketData {
   marketCap: bigint | null;
   apr: bigint | null;
+  /** Exact rate for legacy responses using plain fractional percentages. */
+  reportedApr: string | null;
 }
 /** Deployment and exact token addresses for the legacy batch metrics read. */
 export type GetPoolMarketDataParameters = ChainIdParameter & { addresses: readonly string[] };
@@ -25,7 +27,7 @@ export async function getPoolMarketData(
     return Object.fromEntries(
       Object.entries(data).map(([address, value]) => [
         address,
-        { marketCap: toListingValue(value.market_cap), apr: toListingValue(value.apr) },
+        { marketCap: toListingValue(value.market_cap), apr: toListingValue(value.apr), reportedApr: value.apr ?? null },
       ]),
     );
   } catch (error) {
