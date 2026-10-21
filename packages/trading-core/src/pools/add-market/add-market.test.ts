@@ -65,6 +65,10 @@ describe("addMarket", () => {
     );
 
     expect(pool).toEqual({
+      isTax: null,
+      userWhitelistTax: null,
+      additionalChains: null,
+      cexList: null,
       tokenContractAddress: "0xToken",
       userAddress: "0xUser",
       tokenName: "Symmio",

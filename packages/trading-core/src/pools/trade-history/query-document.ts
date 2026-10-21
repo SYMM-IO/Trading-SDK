@@ -35,6 +35,22 @@ export const PoolQuoteEventsDocument = graphql(`
       blockNumber
       transaction
       quote {
+        id
+        timestamp
+        blockNumber
+        timestampSendQuote
+        timestampOpenPosition
+        initialOpenedPrice
+        closedPrice
+        marketPrice
+        tradingFee
+        closeFee
+        leverage
+        initialCva
+        initialPartyAmm
+        initialLf
+        userPaidFunding
+        userReceivedFunding
         quoteId
         quoteStatus
         positionType
@@ -45,6 +61,7 @@ export const PoolQuoteEventsDocument = graphql(`
         partyB
         subAccount {
           id
+          owner
         }
         quantity
         openedPrice

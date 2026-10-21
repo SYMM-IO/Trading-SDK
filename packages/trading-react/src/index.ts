@@ -1335,3 +1335,12 @@ export {
   type UseSettleGaslessDepositNewAccountReturnType,
   type UseSupportsGaslessServiceParameters,
 } from "./gasless";
+export {
+  beginPoolOptimisticUpdate,
+  type PoolOptimisticClient,
+  type PoolOptimisticPatch,
+  type PoolOptimisticUpdate,
+} from "./pools/optimistic-update";
+export { useListingTokenMetadata, type UseListingTokenMetadataParameters } from "./pools/use-listing-token-metadata";
+export { useListingTokenSupport, type UseListingTokenSupportParameters } from "./pools/use-listing-token-support";
+export { usePoolMaintenanceFees, type UsePoolMaintenanceFeesParameters } from "./pools/use-pool-maintenance-fees";

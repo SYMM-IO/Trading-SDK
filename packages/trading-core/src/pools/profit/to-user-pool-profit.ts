@@ -13,9 +13,9 @@ import type { LPTokenProfitSchema } from "../types/generated/listing-backend";
  * 18-decimal `bigint`. Running it through `toListingValue` like the others would
  * truncate the value to its integer part (`0n`).
  *
- * Every field is defaulted to `0n` when the service omits it or sends an empty
- * value — a missing figure on this per-user read means "nothing here", so zero is
- * the right collapse (unlike the catalog rows, where absent stays `null`).
+ * Core position fields retain their existing `0n` defaults. Supplemental market
+ * snapshots (TVL, APY, position metrics and totals) retain absence as `null` so
+ * callers can distinguish an unknown rollout field from a measured zero.
  *
  * `availableLpAmount` is **derived**, not a wire field: the LP shares free to
  * withdraw are the user's shares minus what is already queued
@@ -25,11 +25,47 @@ import type { LPTokenProfitSchema } from "../types/generated/listing-backend";
  * @param raw - The endpoint's `/v2/profit/{token_contract_address}` response body.
  * @returns The normalized user pool profit.
  */
-export function toUserPoolProfit(raw: LPTokenProfitSchema): UserPoolProfit {
+export function toUserPoolProfit(
+  raw: LPTokenProfitSchema & {
+    tvl?: string | null;
+    apy_30d?: string | null;
+    long_position_amount?: string | null;
+    long_position_value?: string | null;
+    long_position_avg_open_price?: string | null;
+    long_position_upnl?: string | null;
+    short_position_amount?: string | null;
+    short_position_value?: string | null;
+    short_position_avg_open_price?: string | null;
+    short_position_upnl?: string | null;
+    apy_lifetime?: string | null;
+    apy_all_time?: string | null;
+    total_usdc_in_pool?: string | null;
+    total_token_in_pool?: string | null;
+    buyback_ratio?: string | number | null;
+    active_lps?: number | null;
+    age?: number | null;
+  },
+): UserPoolProfit {
   const userLpAmount = toListingValue(raw.user_lp_amount) ?? 0n;
   const pendingWithdrawLpAmount = toListingValue(raw.pending_withdraw_lp_amount) ?? 0n;
 
   return {
+    tvl: toListingValue(raw.tvl),
+    apy30d: toListingValue(raw.apy_30d),
+    longPositionAmount: toListingValue(raw.long_position_amount),
+    longPositionValue: toListingValue(raw.long_position_value),
+    longPositionAvgOpenPrice: toListingValue(raw.long_position_avg_open_price),
+    longPositionUpnl: toListingValue(raw.long_position_upnl),
+    shortPositionAmount: toListingValue(raw.short_position_amount),
+    shortPositionValue: toListingValue(raw.short_position_value),
+    shortPositionAvgOpenPrice: toListingValue(raw.short_position_avg_open_price),
+    shortPositionUpnl: toListingValue(raw.short_position_upnl),
+    apyLifetime: toListingValue(raw.apy_lifetime ?? raw.apy_all_time),
+    buybackRatio: raw.buyback_ratio == null ? null : Number(raw.buyback_ratio),
+    activeLps: raw.active_lps ?? null,
+    age: raw.age ?? null,
+    totalUsdcInPool: toListingValue(raw.total_usdc_in_pool),
+    totalTokenInPool: toListingValue(raw.total_token_in_pool),
     userBalanceInTokens: toListingValue(raw.user_balance_in_tokens) ?? 0n,
     userBalanceInUsdc: toListingValue(raw.user_balance_in_usdc) ?? 0n,
     claimableReward: parseListingValue(raw.claimable_reward) ?? 0n,

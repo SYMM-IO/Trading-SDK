@@ -63,6 +63,19 @@ export type PoolQuotesQuery = {
     liquidatePrice: string | null;
     timestamp: string;
     blockNumber: string;
+    timestampSendQuote: string | null;
+    timestampOpenPosition: string | null;
+    closedPrice: string | null;
+    marketPrice: string | null;
+    tradingFee: string;
+    closeFee: string;
+    leverage: string | null;
+    initialCva: string;
+    initialPartyAmm: string | null;
+    initialLf: string;
+    userPaidFunding: string | null;
+    userReceivedFunding: string | null;
+    subAccount: { id: string; owner: string } | null;
   }>;
 };
 
@@ -85,6 +98,22 @@ export type PoolQuoteEventsQuery = {
     blockNumber: string;
     transaction: string;
     quote: {
+      id: string;
+      timestamp: string;
+      blockNumber: string;
+      timestampSendQuote: string | null;
+      timestampOpenPosition: string | null;
+      initialOpenedPrice: string | null;
+      closedPrice: string | null;
+      marketPrice: string | null;
+      tradingFee: string;
+      closeFee: string;
+      leverage: string | null;
+      initialCva: string;
+      initialPartyAmm: string | null;
+      initialLf: string;
+      userPaidFunding: string | null;
+      userReceivedFunding: string | null;
       quoteId: string;
       quoteStatus: number | null;
       positionType: number | null;
@@ -102,7 +131,7 @@ export type PoolQuoteEventsQuery = {
       quantityToClose: string | null;
       liquidateAmount: string | null;
       liquidatePrice: string | null;
-      subAccount: { id: string } | null;
+      subAccount: { id: string; owner: string } | null;
     };
   }>;
 };
@@ -267,6 +296,22 @@ export const PoolQuotesDocument = new TypedDocumentString(`
     liquidatePrice
     timestamp
     blockNumber
+    timestampSendQuote
+    timestampOpenPosition
+    subAccount {
+      id
+      owner
+    }
+    closedPrice
+    marketPrice
+    tradingFee
+    closeFee
+    leverage
+    initialCva
+    initialPartyAmm
+    initialLf
+    userPaidFunding
+    userReceivedFunding
   }
 }
     `) as unknown as TypedDocumentString<PoolQuotesQuery, PoolQuotesQueryVariables>;
@@ -287,6 +332,22 @@ export const PoolQuoteEventsDocument = new TypedDocumentString(`
     blockNumber
     transaction
     quote {
+      id
+      timestamp
+      blockNumber
+      timestampSendQuote
+      timestampOpenPosition
+      initialOpenedPrice
+      closedPrice
+      marketPrice
+      tradingFee
+      closeFee
+      leverage
+      initialCva
+      initialPartyAmm
+      initialLf
+      userPaidFunding
+      userReceivedFunding
       quoteId
       quoteStatus
       positionType
@@ -297,6 +358,7 @@ export const PoolQuoteEventsDocument = new TypedDocumentString(`
       partyB
       subAccount {
         id
+        owner
       }
       quantity
       openedPrice

@@ -132,3 +132,7 @@ Rows are scoped by the pool's `symbolId` **and** by `source` — the SYMMIO diam
 
 - [Pool detail tables](/core/pools/pool-detail-tables) — the other four reads.
 - [React: `usePoolQuotes`](/react/pools#usepoolquotes).
+
+## Quote metrics and ownership
+
+`PoolQuote` retains `timestampSendQuote`, `timestampOpenPosition`, `ownerAddress`, `closedPrice`, `marketPrice`, `tradingFee`, `closeFee`, `leverage`, signed `initialCva`/`initialPartyAmm`/`initialLf`, and paid/received funding. Timestamps use seconds, monetary/rate protocol fields use raw 18-decimal bigints, and unavailable fields stay null. Use the original open timestamp instead of the mutable last-action timestamp for position age.

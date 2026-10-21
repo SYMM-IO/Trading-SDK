@@ -8,7 +8,9 @@ import type {
   PoolQuoteEventsQuery,
   PoolQuoteEventsQueryVariables,
 } from "../../symmio-subgraph/types/generated/analytics/graphql";
+import { toPoolQuote } from "../quotes/to-pool-quote";
 import { resolvePoolSource } from "../resolve-pool-source";
+import type { PoolQuote } from "../types";
 import { PoolQuoteEventsDocument } from "./query-document";
 
 /** Page size when the caller does not specify one. */
@@ -39,6 +41,8 @@ export type GetPoolTradeHistoryParameters = Compute<
 export interface GetPoolTradeHistoryReturnType {
   /** The decoded, snapshot-applied history rows (one per close/liquidation event). */
   rows: QuoteHistoryRow[];
+  /** Full quote fields with each event snapshot applied, aligned with rows. */
+  quotes: PoolQuote[];
 }
 
 /**
@@ -78,7 +82,7 @@ export async function getPoolTradeHistory(
     orderDirection = "desc",
   } = parameters;
 
-  if (symbolId === null || symbolId === undefined) return { rows: [] };
+  if (symbolId === null || symbolId === undefined) return { rows: [], quotes: [] };
 
   const data = await querySubgraph<PoolQuoteEventsQuery, PoolQuoteEventsQueryVariables>(config, {
     chainId,
@@ -93,5 +97,18 @@ export async function getPoolTradeHistory(
     },
   });
 
-  return { rows: (data.quoteEvents ?? []).map(toQuoteHistoryRow) };
+  const rows = (data.quoteEvents ?? []).map(toQuoteHistoryRow);
+  const quotes = (data.quoteEvents ?? []).map((event, index) => {
+    const snapshot = rows[index]!;
+    return {
+      ...toPoolQuote(event.quote),
+      quoteStatus: snapshot.quoteStatus,
+      openedPrice: snapshot.openedPrice,
+      closedAmount: snapshot.closedAmount,
+      averageClosedPrice: snapshot.avgClosedPrice,
+      liquidateAmount: snapshot.liquidateAmount,
+      liquidatePrice: snapshot.liquidatePrice,
+    };
+  });
+  return { rows, quotes };
 }

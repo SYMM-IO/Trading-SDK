@@ -1,0 +1,26 @@
+# Token validation
+
+Validate a token before creating a pool. The deployment `chainId` selects the listing service; `depositChain` selects the token's network. Solana uses `0`, and its mint address is case sensitive.
+
+`getListingTokenMetadata(config, parameters)` and `checkListingTokenSupport(config, parameters)` take `{ chainId?, tokenContractAddress, depositChain, accessToken }`. They do not sign or store authentication tokens.
+
+```ts
+import { getListingTokenMetadata, checkListingTokenSupport, type Config } from "@symmio/trading-core";
+
+export async function validateToken(config: Config, accessToken: string, mint: string) {
+  const parameters = { chainId: 42161, depositChain: 0, tokenContractAddress: mint, accessToken };
+  const [metadata, supported] = await Promise.all([
+    getListingTokenMetadata(config, parameters),
+    checkListingTokenSupport(config, parameters),
+  ]);
+  return { metadata, supported };
+}
+```
+
+Metadata returns `ListingTokenMetadata`: exact `tokenContractAddress`, `depositChain`, `tokenName`, nullable `tokenTicker`, nullable token `decimals`, and nullable plain-decimal string `price`. A missing price is unknown.
+
+Support returns `true` on acceptance. A response containing a numeric `error_code`, even with HTTP 200, rejects with `SymmApiError` and preserves `responseData`. Inspect the backend error code to distinguish unsupported tokens from infrastructure failures; a timeout is never an unsupported result.
+
+Query factories: `getListingTokenMetadataQueryOptions`, `getListingTokenMetadataQueryKey`, `checkListingTokenSupportQueryOptions`, and `checkListingTokenSupportQueryKey`. The options types add `query` to the action parameters; execution is disabled without a token or address. Deployment configuration participates in cache identity.
+
+React: [useListingTokenMetadata and useListingTokenSupport](/react/pools#token-validation-and-maintenance).

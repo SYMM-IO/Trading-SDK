@@ -1718,3 +1718,15 @@ A `send_quote` order opens a quote when a trigger fires, which is a different me
 - [Pool detail tables](../../core/pools/pool-detail-tables) — the framework-agnostic reads behind the five tables, and which backend fills each.
 - [`searchTpSlOrders`](../../core/tpsl/search-tpsl-orders) — the limit-orders read, and why omitting `account` is what scopes it to a pool.
 - [Errors](../errors) — `SymmioRequestError`, its `kind`, and the `code` a failed listing read carries.
+
+## Token validation and maintenance
+
+`useListingTokenMetadata` and `useListingTokenSupport` accept their core option types plus optional `config`. Both require the listing access token, deployment chain and token deposit chain/address. They disable private requests without authentication and normalize SDK errors. `usePoolMaintenanceFees` accepts public pool identity and pagination. Their exported parameter aliases are `UseListingTokenMetadataParameters`, `UseListingTokenSupportParameters`, and `UsePoolMaintenanceFeesParameters`.
+
+See [validation](/core/pools/token-validation) and [maintenance](/core/pools/maintenance) for units, return values and error handling.
+
+## Composable optimistic state
+
+`beginPoolOptimisticUpdate(client, patches)` accepts a structural `PoolOptimisticClient` and `PoolOptimisticPatch[]` (each patch has `queryKey` and `apply(current)`). It returns `PoolOptimisticUpdate` with `commit()` and `rollback()`. Cancel affected reads first; derive patches from mutation variables before submission. Each failed operation removes only its own projection, including when another operation has already succeeded. A newer server snapshot wins over an old projection.
+
+Commit after accepted submission and invalidate only the affected query families/identities. Acceptance of a withdrawal is not on-chain settlement. This helper modifies existing host queries and creates no second SDK read cache.

@@ -59,3 +59,7 @@ That makes summing the rows correct, and makes reading a single row as "the quot
 
 - [Pool detail tables](/core/pools/pool-detail-tables) — the other four reads.
 - [React: `usePoolTradeHistory`](/react/pools#usepooltradehistory).
+
+## Complete event quote snapshots
+
+The result also includes `quotes: PoolQuote[]`, aligned with `rows`. Each quote includes full fee/owner/lock fields, overlaid with that close event's immutable amount, entry/close price, liquidation values and status. Pair a quote with its corresponding row's `eventId`, `closedAt` and solver fees; never replace those with the current quote's cumulative close state.

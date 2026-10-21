@@ -16,6 +16,8 @@ describe("toPoolClaim", () => {
   it("maps a record, scaling the plain-decimal amount up to a 1e18 bigint", () => {
     expect(toPoolClaim({ ...RECORD })).toEqual({
       claimRequestId: "claim-123",
+      walletId: "wallet-uuid",
+      marketId: "market-uuid",
       accountAddress: "0xSubAccount",
       amount: 37699391270769714n,
       transactionHash: "0xabc",
