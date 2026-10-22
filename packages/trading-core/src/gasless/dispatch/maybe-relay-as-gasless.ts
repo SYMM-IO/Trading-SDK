@@ -348,7 +348,7 @@ export async function maybeRelayAsGasless(
   if (submitted === "wallet") return null;
   const { receipt, owner } = submitted;
 
-  fireGaslessEvent(events, {
+  const accepted = {
     type: "accepted",
     requestId: receipt.requestId,
     service: "operations",
@@ -358,7 +358,13 @@ export async function maybeRelayAsGasless(
     idempotencyKey: receipt.idempotencyKey,
     owner,
     walletIds: receipt.walletIds,
-  });
+  } as const;
+  fireGaslessEvent(events, accepted);
+  try {
+    void Promise.resolve(options.onAccepted?.(accepted)).catch(() => undefined);
+  } catch {
+    // The request already exists. An observer must never make it appear rejected.
+  }
 
   const record = await waitForGaslessRequest(config, {
     chainId,

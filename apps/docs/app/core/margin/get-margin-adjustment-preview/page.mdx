@@ -1,0 +1,61 @@
+# getMarginAdjustmentPreview
+
+Read and simulate an existing Virtual Account margin transfer. The SDK verifies
+the master wallet's subaccount ownership, its configured deployment diamond and
+the VA's parent, then composes raw
+balances, the complete open book, pending funding, Muon, close fees, a relay fee
+quote and an AccountLayer dry-run. It never submits a transaction.
+
+```ts
+import { getMarginAdjustmentPreview } from "@symmio/trading-core";
+
+const preview = await getMarginAdjustmentPreview(config, {
+  chainId: 42161,
+  owner,
+  signer,
+  subAccount,
+  virtualAccount,
+  direction: "remove",
+  amount: 5_000000000000000000n,
+  mark: { price: 100_000000000000000000n, updatedAt: Date.now() },
+  maxPriceAgeMs: 30_000,
+  closeFeeReserveBufferBps: 10,
+});
+```
+
+Supply the feed's actual observation time; rendering a cached mark does not make
+it fresh. Every monetary input and output is a bigint in 18-decimal Core units.
+
+| Parameter                               | Meaning                                                                                                 |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `chainId`                               | Required deployment chain; the config identifies its contracts and endpoints.                           |
+| `owner`, `subAccount`, `virtualAccount` | On-chain ownership chain, checked before financial reads.                                               |
+| `signer`                                | Relay signer. The raw AccountLayer simulation runs as the verified owner.                               |
+| `direction`, `amount`                   | `add` or `remove`, and a nonnegative core-18 amount. Zero reads limits without simulating a zero write. |
+| `mark`, `maxPriceAgeMs`                 | Timestamped live mark and freshness policy. Missing, stale or invalid marks reject.                     |
+| `closeFeeReserveBufferBps`              | Extra reserve on platform plus static solver close fees. Ten basis points adds 0.1% to the fee reserve. |
+
+`MarginAdjustmentPreview` returns `availableToAdd`, `maxRemovable`,
+`currentMargin`, `resultingMargin`, `parentBalance`, `resultingParentBalance`,
+`balance`, `closeFeeReserve`, `currentRisk`, `resultingRisk`, `feeQuote`,
+`simulation`, `upnlSig`, `snapshotIdentity` and `observedAt`.
+
+`simulation` is `success`, `not-requested` (zero amount), or `out-of-bounds`.
+Out-of-bounds amounts have no resulting projection. Read, fee and simulation
+failures reject; unavailable data is never returned as zero. The book is read in
+one call and a capacity-sized result is rejected rather than treated as complete.
+
+Removal retains locked and pending PartyA margin, the signed-uPnL solvency cap,
+unpaid funding and the buffered close reserve. Muon uPnL already includes pending
+funding; it is not charged a second time. Relay fees charged to the parent's Core
+balance reduce its add limit and resulting collateral. The quote is an estimate;
+relay delegation checks and relay simulation remain authoritative.
+
+Fetch again immediately before submission. Pass the returned removal signature
+to `removeMargin`, with `gasless: { enabled: true, fallback: 'error', account:
+subAccount }`. Never treat a preview or a broadcast hash as confirmation.
+
+`getMarginAdjustmentPreviewQueryOptions(config, parameters)` and
+`getMarginAdjustmentPreviewQueryKey(parameters)` provide serializable TanStack
+keys covering amount, identity, mark and the config fingerprint. They introduce
+no polling interval. See [React margin hooks](/react/margin).

@@ -701,6 +701,27 @@ describe("transparent gasless dispatch", () => {
     expect((events[0] as { idempotencyKey?: string }).idempotencyKey).toEqual(expect.any(String));
   });
 
+  it("correlates this call before broadcast and ignores acceptance observer errors", async () => {
+    const events: string[] = [];
+    const { config, readContract } = gaslessWriteTestConfig({
+      execution: { mode: "gasless", onEvent: (event: { type: string }) => events.push(event.type) },
+    });
+    programReads(readContract);
+    programRelaySuccess();
+    const accepted = vi.fn((request) => {
+      expect(request.requestId).toBe("req-1");
+      expect(events).toEqual(["accepted"]);
+      throw new Error("consumer observer failed");
+    });
+    await initiateWithdraw(config, {
+      account: SUB_ACCOUNT,
+      parts: PARTS,
+      gasless: { enabled: true, fallback: "error", onAccepted: accepted },
+    });
+    expect(accepted).toHaveBeenCalledOnce();
+    expect(events).toEqual(["accepted", "broadcast"]);
+  });
+
   it("tracks the request under the billing sub-account's owner, not the signing key", async () => {
     const { config, readContract } = gaslessWriteTestConfig(
       { execution: { mode: "gasless" } },

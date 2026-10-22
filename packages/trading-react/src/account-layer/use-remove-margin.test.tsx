@@ -1,4 +1,5 @@
 import { getChainConfig, SymmioSupportedChainId, type SingleUpnlSig } from "@symmio/trading-core";
+import { QueryClient } from "@tanstack/react-query";
 import { act } from "@testing-library/react";
 import type { Address } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -28,6 +29,20 @@ const UPNL_SIG: SingleUpnlSig = {
 };
 
 describe("useRemoveMargin", () => {
+  it("can leave reconciliation to streams without success invalidations", async () => {
+    const { config, writeContract } = createMockSymmioConfig();
+    writeContract.mockResolvedValueOnce(TEST_TX_HASH);
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(
+      () => useRemoveMargin({ config, waitForReceipt: false, invalidateOnSuccess: false }),
+      { queryClient },
+    );
+    await act(async () => {
+      await result.current.mutateAsync({ virtualAccount: VIRTUAL_ACCOUNT, amount: AMOUNT, upnlSig: UPNL_SIG });
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+  });
   afterEach(() => {
     getDeallocateUpnlSig.mockReset();
   });

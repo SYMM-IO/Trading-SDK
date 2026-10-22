@@ -17,7 +17,10 @@ import { predicateMatch } from "../utils";
 /**
  * Parameters for {@link useAddMargin}.
  */
-export type UseAddMarginParameters = WriteParameters;
+export type UseAddMarginParameters = WriteParameters & {
+  /** Invalidate balance reads on success. Disable for stream-owned reconciliation. Defaults to true. */
+  invalidateOnSuccess?: boolean;
+};
 
 /** Result returned by the {@link useAddMargin} mutation. */
 export type AddMarginResult = WriteResult;
@@ -60,6 +63,7 @@ export function useAddMargin(parameters: UseAddMarginParameters = {}): UseAddMar
       }
     },
     onSuccess: (_result, variables) => {
+      if (parameters.invalidateOnSuccess === false) return;
       const partial = { account: variables.virtualAccount };
       void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceInfoQueryKey, partial) });
       void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceOfQueryKey, partial) });

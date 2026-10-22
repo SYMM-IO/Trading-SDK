@@ -1,7 +1,8 @@
 import { getChainConfig, SymmioSupportedChainId } from "@symmio/trading-core";
+import { QueryClient } from "@tanstack/react-query";
 import { act } from "@testing-library/react";
 import type { Address } from "viem";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_TX_HASH } from "../test/test-utils";
 import { useAddMargin } from "./use-add-margin";
 
@@ -10,6 +11,20 @@ const VIRTUAL_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const AMOUNT = 50_000000000000000000n;
 
 describe("useAddMargin", () => {
+  it("can leave reconciliation to streams without success invalidations", async () => {
+    const { config, writeContract } = createMockSymmioConfig();
+    writeContract.mockResolvedValueOnce(TEST_TX_HASH);
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(
+      () => useAddMargin({ config, waitForReceipt: false, invalidateOnSuccess: false }),
+      { queryClient },
+    );
+    await act(async () => {
+      await result.current.mutateAsync({ virtualAccount: VIRTUAL_ACCOUNT, amount: AMOUNT });
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+  });
   it("rejects with kind 'sdk' when no wallet is connected, without writing", async () => {
     const { config, writeContract } = createMockSymmioConfig({ withWallet: false });
 

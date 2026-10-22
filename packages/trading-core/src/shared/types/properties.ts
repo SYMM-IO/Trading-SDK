@@ -6,6 +6,7 @@
  */
 import type { Address } from "viem";
 import type { SymmioSolverKind } from "../../core/chains/types";
+import type { GaslessAcceptedRequest } from "../../gasless/types";
 
 /**
  * Flatten an intersection of object types into a single, readable object type.
@@ -114,6 +115,8 @@ export type WriteContractParameter = ChainIdParameter & FromParameter & Simulate
  * `resubmitGaslessRequest` is what replays a submit whose response was lost.
  */
 export interface GaslessWriteOptions {
+  /** Observes this call's acceptance before broadcast. Observer errors are ignored. */
+  onAccepted?: (request: GaslessAcceptedRequest) => void;
   /** Force this call onto (`true`) or off (`false`) the gasless relay, overriding the config default. */
   enabled?: boolean;
   /**

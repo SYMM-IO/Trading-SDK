@@ -407,3 +407,7 @@ const priceChanges = (data?.rows ?? []).filter((r) => r.newPrice !== undefined);
 - [Notifications](../notifications) — the WS stream `useManagedQuotes` subscribes to.
 - [Instant Open](../solvers/instant-open) / [Instant Close](../solvers/instant-close) — mutations that push into `useOptimisticQuotesStore`.
 - [Stores](../concepts/stores) — how `useOptimisticQuotesStore` fits into the wider Zustand pattern.
+
+## Per-position liquidation state
+
+[`usePositionLiquidationState`](../margin) accepts a complete VA snapshot and timestamped mark. It expires stale marks without starting another polling loop. Every quote sharing a VA uses that entire liquidation domain. Unknown data must not be rendered as healthy. A price crossing cannot assert a completed liquidation; supply the authoritative flag separately.

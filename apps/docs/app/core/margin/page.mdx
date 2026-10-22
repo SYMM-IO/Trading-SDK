@@ -36,6 +36,11 @@ The **price** at which liquidation happens is a separate question with different
 
 ## Calculations
 
+- [Position liquidation state](/core/margin/calculate-position-liquidation-state):
+  complete VA book, pending locks, funding and timestamped marks.
+- [Margin adjustment preview](/core/margin/get-margin-adjustment-preview):
+  verified ownership, limits, fees and simulation before a gasless transfer.
+
 <MethodIndex kind="read">
   <MethodEntry name="calculateMarginRisk" href="/core/margin/calculate-margin-risk">
     Fold one account's balance fields and unrealized PnL into its margin, equity, liquidation cushion and solvency flag.
