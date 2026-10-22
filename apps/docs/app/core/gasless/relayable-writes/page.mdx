@@ -138,3 +138,9 @@ Grant them with [`grantDelegation`](/core/instant-layer/grant-delegation) and `g
   transaction, a couple of seconds pass before the hash exists, `simulateBeforeWrite` is skipped (the relayer simulates
   instead), and the fee comes from SYMMIO collateral rather than native gas.
 </Callout>
+
+## Observe acceptance for one call
+
+Pass `gasless: { enabled: true, fallback: "error", onAccepted(request) { /* persist request.requestId */ } }` to correlate acceptance with a local operation before broadcast. The observer runs alongside the configuration observer. Synchronous exceptions and rejected observer promises cannot fail an already accepted write.
+
+Persist identity before observing `confirmGaslessRequest`. Acceptance and broadcast are not terminal success. A timeout or transport failure can leave an accepted request unconfirmed: resume status observation rather than sending the write again. No request ID after an ambiguous HTTP submission requires separate recovery; do not infer rejection.

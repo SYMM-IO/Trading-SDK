@@ -284,3 +284,9 @@ On success, the hook invalidates every cached `useUserSubAccounts` query in the 
 #### Why this hook needs a connected wallet
 
 The hook reads `useSymmioWalletClient()` under the hood. If the user is disconnected or on the wrong chain, calling `mutate` throws a `SymmioRequestError` with `kind: "sdk"` before any contract call is made. UIs typically gate the button on `useWalletAccount().isOnExpectedChain` to avoid the error path entirely.
+
+## Margin settlement without automatic invalidation
+
+Margin writes default to invalidating balance queries after success. Applications that reconcile from relay events can use `useAddMargin({ invalidateOnSuccess: false })` and `useRemoveMargin({ invalidateOnSuccess: false })`. Forward the full mutation variables, including `gasless`. Acceptance and broadcast are pending states; use `confirmGaslessRequest` for terminal confirmation.
+
+Use [margin previews](../margin) for SDK-derived limits, fees and liquidation projections. The low-level simulations return no financial preview.

@@ -1343,3 +1343,10 @@ export {
   type UseSettleGaslessDepositNewAccountReturnType,
   type UseSupportsGaslessServiceParameters,
 } from "./gasless";
+export {
+  useMarginAdjustmentPreview,
+  usePositionLiquidationState,
+  type UseMarginAdjustmentPreviewParameters,
+  type UseMarginAdjustmentPreviewReturnType,
+  type UsePositionLiquidationStateParameters,
+} from "./margin";

@@ -1,0 +1,50 @@
+# calculatePositionLiquidationState
+
+Calculate one position's risk using its entire Virtual Account liquidation
+domain. This pure bigint function combines the existing liquidation-price and
+margin-risk primitives with exact mark-priced PnL. It performs no network reads.
+
+```ts
+import { calculatePositionLiquidationState } from "@symmio/trading-core";
+
+const risk = calculatePositionLiquidationState({
+  positionId,
+  account: virtualAccount,
+  positions: completeVaBook,
+  complete: true,
+  balance: rawBalance,
+  unpaidFundingDebt,
+  liquidated: authoritativeLiquidation,
+  mark: { price: rawMark, updatedAt: feedObservedAt },
+  nowMs: Date.now(),
+  maxPriceAgeMs: 30_000,
+  warningThresholdBps: 2500,
+});
+```
+
+Every `LiquidationPosition` supplies `id`, `account`, `symbolId`, `positionType`,
+`quantity`, `closedAmount` (optional) and `openedPrice`. Use raw Core-18 values,
+the **whole** open book and the raw, unadjusted `AccountBalanceInfo`. Pass gross
+unpaid funding debt separately; never pre-deduct it from that balance.
+
+`PositionLiquidationState` returns:
+
+| Field              | Meaning                                                                                                          |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `status`           | `ready`, `unknown`, `stale`, or authoritative `liquidated`.                                                      |
+| `liquidationPrice` | Raw price, absent when unavailable. Zero means no positive price boundary.                                       |
+| `metrics`          | Display cushion including pending CVA/LF and unpaid funding once.                                                |
+| `isAtRisk`         | Buffer below the warning threshold (default 25%), or a reached/crossed price boundary.                           |
+| `isLiquidatable`   | Strict negative remaining protocol cushion from the supplied mark and funding estimate; equality alone is false. |
+| `isLiquidated`     | Authoritative flag/status only. Price crossing cannot establish completed liquidation.                           |
+
+Quotes sharing a VA share its full collateral domain; collateral is never
+allocated independently to each visible quote. Mixed markets/directions,
+duplicate ids, invalid quantities/prices, missing inputs, incomplete books and
+empty post-close VAs return `unknown`. Expired or future-dated marks return
+`stale`. Neither state asserts fresh health or risk. Authoritative liquidation
+survives missing/stale price data.
+
+This is a mark-based estimate, not a liquidation transaction or oracle proof.
+For automatic freshness expiry in React, use
+[`usePositionLiquidationState`](/react/margin#usepositionliquidationstate).

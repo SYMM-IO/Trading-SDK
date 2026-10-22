@@ -19,7 +19,10 @@ import { predicateMatch } from "../utils";
 /**
  * Parameters for {@link useRemoveMargin}.
  */
-export type UseRemoveMarginParameters = WriteParameters;
+export type UseRemoveMarginParameters = WriteParameters & {
+  /** Invalidate balance reads on success. Disable for stream-owned reconciliation. Defaults to true. */
+  invalidateOnSuccess?: boolean;
+};
 
 /**
  * Variables for the {@link useRemoveMargin} mutation: the core action's inputs
@@ -90,6 +93,7 @@ export function useRemoveMargin(parameters: UseRemoveMarginParameters = {}): Use
       }
     },
     onSuccess: (_result, variables) => {
+      if (parameters.invalidateOnSuccess === false) return;
       const partial = { account: variables.virtualAccount };
       void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceInfoQueryKey, partial) });
       void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceOfQueryKey, partial) });

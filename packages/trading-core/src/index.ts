@@ -2068,7 +2068,20 @@ export {
  * which liquidation happens is `calculateLiquidationPrice` (exported with the
  * quotes above).
  */
-export { calculateMarginRisk, type CalculateMarginRiskInputs, type MarginRiskMetrics } from "./margin";
+export {
+  calculateMarginRisk,
+  calculatePositionLiquidationState,
+  getMarginAdjustmentPreview,
+  getMarginAdjustmentPreviewQueryKey,
+  getMarginAdjustmentPreviewQueryOptions,
+  type CalculateMarginRiskInputs,
+  type CalculatePositionLiquidationStateParameters,
+  type GetMarginAdjustmentPreviewParameters,
+  type LiquidationPosition,
+  type MarginAdjustmentPreview,
+  type MarginRiskMetrics,
+  type PositionLiquidationState,
+} from "./margin";
 
 /**
  * Subgraph layer (GraphQL)

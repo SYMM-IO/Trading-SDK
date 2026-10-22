@@ -2,6 +2,39 @@ import { Callout } from "nextra/components";
 
 # Margin hooks
 
+## useMarginAdjustmentPreview
+
+Wraps [the core preview](/core/margin/get-margin-adjustment-preview). Pass the
+same required parameters plus optional `config` and `enabled`. Returns a
+TanStack `UseQueryResult<MarginAdjustmentPreview, SymmioRequestError>` and
+`isFresh`, which becomes false when the mark expires even if the feed goes quiet.
+Do not display cached figures as current when `isFresh` is false or the query
+failed. It has no independent polling interval or previous-key placeholder.
+
+```tsx
+const preview = useMarginAdjustmentPreview({ ...parameters, config, enabled: isOpen });
+const canSubmit = preview.isFresh && !preview.isFetching && preview.data?.simulation === "success";
+```
+
+Fetch a fresh preview before calling `useAddMargin` or `useRemoveMargin`. Set
+`invalidateOnSuccess: false` on those hooks when an operation-scoped stream
+reconciler owns optimistic state. Their default remains `true`.
+
+## usePositionLiquidationState
+
+Accepts [the core risk inputs](/core/margin/calculate-position-liquidation-state)
+except `nowMs`. It supplies the clock and schedules mark expiry; it makes no RPC
+calls and starts no account polling loop. Feed complete snapshots from the
+application's shared read pipeline. Return type: `PositionLiquidationState`.
+
+```tsx
+const risk = usePositionLiquidationState({ ...snapshot, maxPriceAgeMs: 30_000 });
+return <span>{risk.status === "ready" ? String(risk.liquidationPrice) : "—"}</span>;
+```
+
+Keep styles and removal timing in the application. A price crossing is a risk
+signal; only an authoritative flag/status can disable actions as liquidated.
+
 Derived helpers for how much margin a trade can spend.
 
 **Every hook on this page is a [derived read](../concepts/hook-pattern#reads)** — it composes other reads and a pure calculation; it does not hit a new endpoint of its own.
