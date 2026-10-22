@@ -22,6 +22,11 @@
     "check-types": {
       "dependsOn": ["^build"]
     },
+    "@symmio/docs#build": {
+      "dependsOn": ["^build", "@symmio/trading-core#build", "@symmio/trading-react#build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".next/**", "!.next/cache/**", "public/_pagefind/**"]
+    },
     "@symmio/docs#check-types": {
       "dependsOn": ["^build", "@symmio/docs#build"]
     },

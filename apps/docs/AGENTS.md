@@ -19,6 +19,7 @@ The bar is "a third-party developer can integrate the SDK without reading the so
 - **Use Nextra's full feature set.** Categorize topics, use callouts, tabs, code groups, cross-links, anchored headings — whatever makes the reference clearer. Do not settle for a flat list of pages.
 - **Organize semantically.** Group pages by domain (provider, wallet, trading, accounts, etc.), not by file layout.
 - **Keep examples runnable.** Code samples should compile against the current public API. Update them when the API changes.
+- **Verify docs with the SDK build graph.** Run `pnpm exec turbo run build --filter=@symmio/docs` from the repository root. Compilable examples resolve core/React source through TypeScript paths; their transitive package imports still need generated declarations. Keep the explicit SDK build dependencies in `turbo.json` so docs-only builds produce those artifacts and SDK changes invalidate the docs cache. Verify build changes in an isolated checkout without existing `dist` output or ancestor SDK packages.
 - **Mirror the SDK split.** Documentation for framework-agnostic APIs lives under the `core` section. Documentation for React hooks/providers lives under the `react` section. Do not duplicate prose across both — link instead.
 - **Do not document private or internal APIs** unless the user explicitly asks.
 
