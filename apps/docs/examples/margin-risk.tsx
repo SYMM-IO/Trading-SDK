@@ -3,13 +3,13 @@ import {
   getMarginAdjustmentPreview,
   type Config,
   type GetMarginAdjustmentPreviewParameters,
-} from "../../../packages/trading-core/src/index";
+} from "@symmio/trading-core";
 import {
   useAddMargin,
   useMarginAdjustmentPreview,
   usePositionLiquidationState,
   type UsePositionLiquidationStateParameters,
-} from "../../../packages/trading-react/src/index";
+} from "@symmio/trading-react";
 
 /** Compilable example: the host application supplies verified identity and marks. */
 export function MarginRiskExample({

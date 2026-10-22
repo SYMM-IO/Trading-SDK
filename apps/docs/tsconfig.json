@@ -5,7 +5,9 @@
     "noUncheckedSideEffectImports": false,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@symmio/trading-core": ["../../packages/trading-core/src/index.ts"],
+      "@symmio/trading-react": ["../../packages/trading-react/src/index.ts"]
     }
   },
   "include": [
