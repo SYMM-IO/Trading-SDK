@@ -3,6 +3,7 @@
 import {
   getAccountBalanceInfoQueryKey,
   getAccountBalanceOfQueryKey,
+  getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getWithdrawableTimeQueryKey,
   SymmError,
@@ -119,7 +120,15 @@ export function useWithdraw(parameters: UseWithdrawParameters = {}): UseWithdraw
         throw normalizeSymmError(err);
       }
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      /** Broadcast-only callers own confirmation and the later batch refresh. */
+      if (result.receipt) {
+        void queryClient.invalidateQueries({
+          predicate: predicateMatch(getPendingWithdrawRequestsBatchQueryKey, {
+            configKey: config.getChainConfigKey(resolvedChainId),
+          }),
+        });
+      }
       const account = parameters.account;
       if (!account) return;
 

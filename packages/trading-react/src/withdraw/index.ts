@@ -2,6 +2,7 @@ export * from "./use-finalize-withdraw-request";
 export * from "./use-initiate-withdraw";
 export * from "./use-last-withdraw-request-id";
 export * from "./use-pending-withdraw-requests";
+export * from "./use-pending-withdraw-requests-batch";
 export * from "./use-request-cancel-withdraw";
 export * from "./use-simulate-finalize-withdraw-request";
 export * from "./use-simulate-initiate-withdraw";

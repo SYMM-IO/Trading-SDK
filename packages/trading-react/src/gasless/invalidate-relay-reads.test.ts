@@ -9,6 +9,7 @@ import {
   getIsDelegationActiveQueryKey,
   getPartyAPendingQuotesQueryKey,
   getPendingRevocationEtasQueryKey,
+  getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getUserSubAccountsQueryKey,
 } from "@symmio/trading-core";
@@ -216,7 +217,13 @@ describe("invalidateGaslessBatchReads", () => {
     account: SUB_ACCOUNT,
     configKey: CONFIG_KEY,
   });
-  const ALL = [nonce, withdrawals, pendingQuotes, subAccounts, delegation, walletNonce];
+  const batches = getPendingWithdrawRequestsBatchQueryKey({
+    users: [SUB_ACCOUNT, OTHER_OWNER],
+    pageSize: 2n,
+    configKey: CONFIG_KEY,
+  });
+  const otherBatch = getPendingWithdrawRequestsBatchQueryKey({ users: [SUB_ACCOUNT], configKey: "other-deployment" });
+  const ALL = [batches, otherBatch, nonce, withdrawals, pendingQuotes, subAccounts, delegation, walletNonce];
 
   it("refreshes the account's nonce and the domains its calls touched — and only those", () => {
     const queryClient = seeded(ALL);
@@ -231,6 +238,8 @@ describe("invalidateGaslessBatchReads", () => {
 
     expect(isInvalidated(queryClient, nonce)).toBe(true);
     expect(isInvalidated(queryClient, withdrawals)).toBe(true);
+    expect(isInvalidated(queryClient, batches)).toBe(true);
+    expect(isInvalidated(queryClient, otherBatch)).toBe(false);
     expect(isInvalidated(queryClient, pendingQuotes)).toBe(false);
     expect(isInvalidated(queryClient, subAccounts)).toBe(false);
     expect(isInvalidated(queryClient, delegation)).toBe(false);

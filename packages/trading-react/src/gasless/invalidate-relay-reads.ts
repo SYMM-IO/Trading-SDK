@@ -16,6 +16,7 @@ import {
   getPartyAPendingQuotesQueryKey,
   getPendingQuotesQueryKey,
   getPendingRevocationEtasQueryKey,
+  getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getQuotePendingFundingQueryKey,
   getQuoteQueryKey,
@@ -240,6 +241,7 @@ export function invalidateGaslessBatchReads(
   if (touches(WITHDRAW_WRITES)) {
     for (const queryKey of [
       getPendingWithdrawRequestsQueryKey,
+      getPendingWithdrawRequestsBatchQueryKey,
       getLastWithdrawRequestIdQueryKey,
       getWithdrawableTimeQueryKey,
       getWithdrawRequestsQueryKey,
