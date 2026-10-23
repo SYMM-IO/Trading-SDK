@@ -34,6 +34,7 @@ export * from "./execute-account-calls";
 export * from "./get-deallocate-debounce-time";
 export * from "./get-funding-fees-of-party-b";
 export * from "./get-party-a-open-positions-batch";
+export * from "./get-pending-withdraw-requests-batch";
 export * from "./get-withdraw-cooldown-of";
 export * from "./is-party-a-liquidated";
 export * from "./parts";
