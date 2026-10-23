@@ -30,4 +30,5 @@ export default {
   "create-classic-withdraw-part": "createClassicWithdrawPart",
   "get-last-withdraw-request-id": "getLastWithdrawRequestId",
   "get-pending-withdraw-requests": "getPendingWithdrawRequests",
+  "get-pending-withdraw-requests-batch": "getPendingWithdrawRequestsBatch",
 };

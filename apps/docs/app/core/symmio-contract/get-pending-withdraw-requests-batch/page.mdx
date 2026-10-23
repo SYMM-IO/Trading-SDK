@@ -1,0 +1,71 @@
+# getPendingWithdrawRequestsBatch
+
+Read every pending-withdrawal page for each distinct subaccount. Empty or sparse
+pages do not stop pagination: each user's last observed request ID bounds the
+scan. A failed page rejects the complete read, so callers never receive a partial
+list as a successful result.
+
+```ts
+import { getPendingWithdrawRequestsBatch } from "@symmio/trading-core";
+import { arbitrum } from "viem/chains";
+
+const pending = await getPendingWithdrawRequestsBatch(config, {
+  users: subAccounts,
+  chainId: arbitrum.id,
+  pageSize: 200n,
+});
+```
+
+## Parameters
+
+<Properties>
+  <Property name="users" type="readonly Address[]" required>
+    Subaccounts to scan. Duplicate and case-equivalent addresses are read once. An empty list returns `[]` without RPC
+    reads.
+  </Property>
+  <Property name="pageSize" type="bigint" default="200n">
+    Number of request IDs per page, from `1n` to `200n` inclusive.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Chain override. Omit to use the SDK config's default chain.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly PendingWithdrawRequestsForUser[]">
+  <Property name="user" type="Address">
+    Lowercase subaccount address. Groups are sorted by normalized address.
+  </Property>
+  <Property name="requests" type="readonly WithdrawRequest[]">
+    All active requests found through the last ID observed at the beginning of this user's scan, including an empty
+    array when none exist. See the [single-range read](/core/symmio-contract/get-pending-withdraw-requests#returns) for
+    the request fields. Requests created after the last-ID read are included by a later refresh.
+  </Property>
+</Returns>
+
+Pages for all users are fetched concurrently. The page size bounds each RPC's
+ID range; it does not limit concurrent RPC calls.
+
+## Query options
+
+```ts
+import { getPendingWithdrawRequestsBatchQueryOptions } from "@symmio/trading-core";
+import { arbitrum } from "viem/chains";
+
+const options = getPendingWithdrawRequestsBatchQueryOptions(config, {
+  users: subAccounts,
+  chainId: arbitrum.id,
+});
+```
+
+`getPendingWithdrawRequestsBatchQueryOptions` and
+`getPendingWithdrawRequestsBatchQueryKey` preserve the deployment's config scope
+and normalize user ordering, case and duplicates. Empty users disable automatic
+query execution. Action, result, data, options and key types are exported from
+the package root.
+
+## Related
+
+- [`usePendingWithdrawRequestsBatch`](/react/withdraw#usependingwithdrawrequestsbatch) — React query hook.
+- [`getPendingWithdrawRequests`](/core/symmio-contract/get-pending-withdraw-requests) — read one ID range.

@@ -85,3 +85,7 @@ useQuery(getPendingWithdrawRequestsQueryOptions(config, { user }));
 ```
 
 For account timing before initiation, use [getWithdrawCooldownOf](/core/symmio-contract/get-withdraw-cooldown-of). For an explicit atomic sequence of core writes, use [executeAccountCalls](/core/symmio-contract/execute-account-calls).
+
+For complete lists across several users, prefer
+[`getPendingWithdrawRequestsBatch`](/core/symmio-contract/get-pending-withdraw-requests-batch).
+A single range can be empty even when later ranges contain active requests.

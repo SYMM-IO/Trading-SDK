@@ -20,6 +20,7 @@ import {
   // Reads
   useLastWithdrawRequestId,
   usePendingWithdrawRequests,
+  usePendingWithdrawRequestsBatch,
   useWithdrawRequest,
   useWithdrawableTime,
   // Writes
@@ -98,6 +99,38 @@ Every queued (not yet claimable) request for an account.
 ```ts
 const pending = usePendingWithdrawRequests({ account });
 ```
+
+### `usePendingWithdrawRequestsBatch`
+
+Read complete pending-withdrawal lists across several subaccounts. The hook uses
+SDK config/chain selection, normalized errors and standard TanStack query state.
+No read starts automatically for an empty `users` array.
+
+```tsx
+import { usePendingWithdrawRequestsBatch } from "@symmio/trading-react";
+import { arbitrum } from "viem/chains";
+const pending = usePendingWithdrawRequestsBatch({
+  users: subAccounts,
+  chainId: arbitrum.id,
+  query: { refetchInterval: 15_000 },
+});
+// pending.data: readonly { user: Address; requests: readonly WithdrawRequest[] }[]
+```
+
+It accepts `UsePendingWithdrawRequestsBatchParameters` and returns
+`UsePendingWithdrawRequestsBatchReturnType`. Pass `config` only for an intentional
+override. `pageSize` defaults to `200n` (range `1n`–`200n`). Duplicate users are
+read once, every page is scanned even if earlier pages contain no active requests,
+and any failed page makes the query fail instead of publishing a partial result.
+Display mapping, sorting requests, polling cadence and product cache policy remain
+with the consumer. See the [core batch read](/core/symmio-contract/get-pending-withdraw-requests-batch)
+for the complete input/output contract.
+
+Withdrawal write hooks refresh batch queries after a successful receipt. With
+`waitForReceipt: false`, the write returns at broadcast and does not refresh the
+batch query. The caller must confirm the transaction and invalidate
+`getPendingWithdrawRequestsBatchQueryKey` in the affected config scope afterward.
+An immediate broadcast-time read could still return the old on-chain list.
 
 ### `useWithdrawRequest`
 
