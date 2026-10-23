@@ -1,5 +1,6 @@
 export * from "./use-account-balance-info";
 export * from "./use-account-balance-of";
+export * from "./use-active-virtual-account-by-key";
 export * from "./use-add-margin";
 export * from "./use-affiliate-state";
 export * from "./use-allocate";
@@ -31,3 +32,5 @@ export * from "./use-user-sub-accounts";
 export * from "./use-user-sub-accounts-addresses";
 export * from "./use-virtual-account";
 export * from "./use-virtual-accounts-addresses-of-sub-account";
+export * from "./use-virtual-accounts-count-of-sub-account";
+export * from "./use-virtual-accounts-of-sub-account";

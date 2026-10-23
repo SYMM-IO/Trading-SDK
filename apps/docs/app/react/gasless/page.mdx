@@ -115,6 +115,8 @@ set. `status` is a cadence input, not cache identity — it never enters the que
 
 A `202` is the point of no return: never re-submit the same intent through the wallet afterwards.
 
+Every relay hook forwards `idempotencyKey` (and every relayable write hook forwards `gasless.idempotencyKey`) to core unchanged. Give each user action its own key, save it before calling, and call the mutation again with the same key after an unknown outcome — see [Recovering gasless writes](/core/gasless/recovering-writes).
+
 ### Confirmation
 
 Every relay hook takes the same options.
@@ -225,7 +227,9 @@ await batch.mutateAsync({
 });
 ```
 
-Each call is signed on its own — the protocol has no batch signature — so a browser wallet prompts once per call, while a session key passed as `from` signs silently once it holds [`getGaslessBatchSelectors(calls)`](/core/gasless/get-gasless-batch-selectors). Every call is a known relayable write, so unlike `useRelayInstantOperations` the hook knows which reads the batch changed and refreshes them. Show the price first with [`useGaslessBatchFeeQuote`](#usegaslessbatchfeequote).
+Each entry accepts `from`, including `{ walletCalls, walletId, from }`. It falls back to the batch's `from`, then the configured wallet; an all-explicit batch needs no default wallet. Local keys sign first, then browser wallets prompt for their entries. An earlier owner grant can authorize a later session-signed write or wallet entry; see [mixing signers](/core/gasless/relay-gasless-batch#mixing-signers).
+
+Derive [`getGaslessBatchSelectors(delegateCalls)`](/core/gasless/get-gasless-batch-selectors) separately from each delegate's calls. After confirmation, the hook refreshes the domains touched by the batch. Both grant forms refresh individual delegation status and expiry, aggregate active delegations, and pending revocation timestamps, since granting clears pending revocations. Show the price first with [`useGaslessBatchFeeQuote`](#usegaslessbatchfeequote), which never resolves signers or checks authorization.
 
 ### `useRelayInstantOperations`
 
@@ -414,6 +418,21 @@ approve.mutate({ account: subAccount, amounts: [parseUnits("5", 18)] });
 ```
 
 A relay's acceptance receipt (`accepted.paidFee`, `accepted.remainingFeeAllowance`, each `bigint | null` — the parser keeps an acceptance whose amounts are missing rather than losing its request id) holds the service's acceptance-time figures, not the charge. `remainingFeeAllowance` can read `2^256 − 1` while the Core approval is bounded, so show the allowance from `useOperationalFeeAllowance` instead. See [`relayInstantOperations`](/core/gasless/relay-instant-operations#returns) and the [units reference](/core/concepts/balance-model#core-18-decimal-units).
+
+### `useApproveOperationalFeeAllowance`
+
+The same approval without touching the charger's fee multiplier: the diamond's two-argument `approveOperationalFee`.
+Use it when a multiplier set elsewhere must survive, or when the signer is a session key whose delegation holds only
+this function's selector. Pass `from` and `gasless: true` to have the key sign and the relayer submit it. Invalidates
+the allowance read after the receipt, like `useApproveOperationalFee`. Wraps
+[`approveOperationalFeeAllowance`](/core/gasless/approve-operational-fee-allowance).
+
+```tsx
+import { parseUnits } from "viem";
+
+const approve = useApproveOperationalFeeAllowance();
+approve.mutate({ account: subAccount, amounts: [parseUnits("5", 18)], from: sessionKey, gasless: true });
+```
 
 ## Gasless wallet & deposits
 

@@ -106,12 +106,6 @@ export type WriteContractParameter = ChainIdParameter & FromParameter & Simulate
 
 /**
  * Per-call overrides for the transparent gasless execution mode.
- *
- * @remarks
- * There is deliberately no `idempotencyKey`: a relayed write signs a fresh
- * operation on every call, so one key can only ever describe one signature.
- * The dispatcher mints it, puts it on the acceptance event and the receipt, and
- * `resubmitGaslessRequest` is what replays a submit whose response was lost.
  */
 export interface GaslessWriteOptions {
   /** Force this call onto (`true`) or off (`false`) the gasless relay, overriding the config default. */
@@ -132,6 +126,43 @@ export interface GaslessWriteOptions {
   broadcastTimeoutMs?: number;
   /** Abort the relay wait (the accepted request keeps running server-side). */
   signal?: AbortSignal;
+  /**
+   * Your key for one user action: 1–128 characters, from
+   * `generateGaslessIdempotencyKey`. Save it with the action's recovery context
+   * before calling. While the service holds the key, a call under it is
+   * accepted at most once, so after an unknown outcome you may call the same
+   * write again with the same key, inside your retry window. A repeat whose
+   * earlier attempt was accepted either follows that request or throws
+   * `409 IDEMPOTENCY_KEY_CONFLICT` (`isGaslessIdempotencyConflictError`); the
+   * earlier attempt's outcome is then still unknown. Use a new key for every
+   * new user action, even when the inputs are identical.
+   *
+   * A key makes the call strictly gasless: it never takes the wallet path and
+   * never falls back to it, whatever the chain's `execution` defaults say.
+   * Combining it with `enabled: false` or `fallback: "wallet"` throws
+   * `GASLESS_IDEMPOTENCY_KEY_INVALID` before any prompt. Decide the wallet path
+   * yourself with `isConfirmedGaslessRefusalError`.
+   *
+   * Omitted, the SDK creates one key per call, as before.
+   *
+   * @example
+   * ```ts
+   * const key = generateGaslessIdempotencyKey();
+   * await pendingActions.save({ key, ...recoveryContext });
+   * await createSubAccounts(config, { ...inputs, gasless: { account: payer, idempotencyKey: key } });
+   * ```
+   */
+  idempotencyKey?: string;
+}
+
+/**
+ * Optional caller-owned idempotency key for a gasless submit. Same contract as
+ * {@link GaslessWriteOptions.idempotencyKey}. Omitted, one key is generated per
+ * call.
+ */
+export interface GaslessIdempotencyKeyParameter {
+  /** Your key for one user action: 1–128 characters, from `generateGaslessIdempotencyKey`. */
+  idempotencyKey?: string;
 }
 
 /**
@@ -178,12 +209,15 @@ export type ExactPartial<type> = {
  * Recursive `Partial`. Used for per-chain config overrides passed to
  * {@link createConfig}, where a consumer may override a single nested address.
  *
- * Arrays are treated as leaves: an array-valued field stays optional but its
+ * Functions retain their callable signatures. Arrays are treated as leaves:
+ * an array-valued field stays optional but its
  * element type is left untouched (no `| undefined` is injected into items), so
  * an overriding array is replaced wholesale rather than partially patched.
  */
-export type DeepPartial<type> = type extends readonly unknown[]
+export type DeepPartial<type> = type extends (...args: never[]) => unknown
   ? type
-  : type extends object
-    ? { [key in keyof type]?: DeepPartial<type[key]> }
-    : type;
+  : type extends readonly unknown[]
+    ? type
+    : type extends object
+      ? { [key in keyof type]?: DeepPartial<type[key]> }
+      : type;

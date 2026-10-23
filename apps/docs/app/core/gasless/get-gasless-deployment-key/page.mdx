@@ -1,0 +1,46 @@
+import { Callout } from "nextra/components";
+
+# getGaslessDeploymentKey
+
+A non-secret fingerprint of the gasless deployment a call goes to. Store it with a pending action, and compare it before any retry.
+
+```ts
+import { getGaslessDeploymentKey } from "@symmio/trading-core";
+
+// When the action starts:
+await pendingActions.save({ key, deploymentKey: getGaslessDeploymentKey(config, { chainId }), ...inputs });
+
+// Before every retry:
+if (getGaslessDeploymentKey(config, { chainId }) !== action.deploymentKey) {
+  return reconcile(action); // never sign again against another deployment
+}
+```
+
+An [idempotency key](/core/gasless/generate-gasless-idempotency-key) only protects an action inside one deployment: the service deduplicates keys per protocol instance and service. Between two attempts, an app can change its configuration — another environment, another gateway URL or proxy, upgraded contracts. A retry sent there is a fresh request that the earlier key does not protect. Comparing fingerprints catches that before anything is signed.
+
+The fingerprint covers the chain, the contracts version, the resolved service URL, the protocol instance, and the GaslessLayer, SYMMIO, AccountLayer and InstantLayer addresses. Credentials, request headers and execution settings never take part, so rotating an API key or switching `execution.mode` does not change it.
+
+<Callout type="info">
+  The value is stable for one configuration under one SDK version. If an SDK upgrade changes it, a pending action is
+  reconciled instead of retried — the safe direction.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="chainId" type="number" optional>
+    The chain to fingerprint. Defaults to the config's `defaultChainId`.
+  </Property>
+  <Property name="service" type='"operations" | "deposits"' optional default='"operations"'>
+    The sub-service the action is submitted to. Relays use `"operations"`; deposit settlements use `"deposits"`.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="string">A stable fingerprint of that deployment and service.</Returns>
+
+## Throws
+
+- `SymmError` with code `GASLESS_NOT_CONFIGURED` — the chain has no gasless block.
+- `SymmError` with code `GASLESS_UNSUPPORTED_CONTRACTS_VERSION` — the chain does not run perps-core 0.8.6.

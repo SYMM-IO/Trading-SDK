@@ -3,6 +3,9 @@
  * `dist` file that is declared in `exports` but missing from the tarball: the type check
  * passes (the `.d.ts` is present) while the runtime import throws ERR_MODULE_NOT_FOUND.
  * Run from the generated consumer directory (see scripts/verify-packages/verify-packages.mjs).
+ *
+ * Do not check individual exports here (`typeof mod.someFn`, export-name lists). Add or
+ * remove a specifier only when a package or subpath export is added or removed.
  */
 const specs = [
   "@symmio/trading-core",

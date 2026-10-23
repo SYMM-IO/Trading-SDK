@@ -5,6 +5,7 @@ import {
   getAccountBalanceInfoQueryKey,
   getAccountBalanceOfQueryKey,
   getDeallocateUpnlSig,
+  getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getWithdrawableTimeQueryKey,
   type DeallocateAndInitiateWithdrawParameters,
@@ -103,7 +104,15 @@ export function useDeallocateAndInitiateWithdraw(
         throw normalizeSymmError(err);
       }
     },
-    onSuccess: (_result, variables) => {
+    onSuccess: (result, variables) => {
+      /** Broadcast-only callers own confirmation and the later batch refresh. */
+      if (result.receipt) {
+        void queryClient.invalidateQueries({
+          predicate: predicateMatch(getPendingWithdrawRequestsBatchQueryKey, {
+            configKey: config.getChainConfigKey(variables.chainId ?? chainId),
+          }),
+        });
+      }
       const balancePartial = { account: variables.account };
       void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceInfoQueryKey, balancePartial) });
       void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceOfQueryKey, balancePartial) });

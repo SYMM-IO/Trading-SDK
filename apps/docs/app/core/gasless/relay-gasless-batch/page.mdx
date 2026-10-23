@@ -33,10 +33,10 @@ The target contract of a write is never passed: it is resolved from the encoded 
 ## What happens
 
 1. Every call is encoded and checked — nothing touches the network or the wallet yet.
-2. A session key's delegations are checked before any prompt (`execution.preflightDelegation`, on by default). A missing selector throws `GASLESS_SIGNER_NOT_DELEGATED`, naming what to grant.
+2. Every signer's delegations are checked in execution order before any prompt (`execution.preflightDelegation`, on by default). A valid owner-signed grant earlier in the same batch authorizes later write and wallet entries. A missing selector throws `GASLESS_SIGNER_NOT_DELEGATED`, naming the signer and what to grant. Invalid grants throw `GASLESS_INVALID_DELEGATION_GRANT`.
 3. Fresh nonces are read and sequenced **per stream**: the account's InstantLayer nonces for the writes, each wallet id's own nonces for its wallet entries.
 4. The batch is priced on-chain (`execution.preflightFee`, on by default) — the same preview [`getGaslessBatchFeeQuote`](/core/gasless/get-gasless-batch-fee-quote) returns. A quote the contract refuses throws before any prompt; a quote that fails for transport reasons does not block, because the relayer simulates the full transaction anyway.
-5. Each operation is signed, in order.
+5. Each operation is signed by its call's signer. In-memory signers such as a session key sign first, then each wallet prompt runs in relay order.
 6. One request carries them all, with one wallet id per operation — `0` for every write.
 
 <Callout type="info">
@@ -70,15 +70,108 @@ await relayGaslessBatch(config, { account: subAccount, calls, from: sessionKey }
 ```
 
 <Callout type="warning">
-  A batch that contains `grantDelegation` must be signed by the account's owner. The InstantLayer rejects a
+  A `grantDelegation` or `grantDelegations` call must be signed by the account's owner. The InstantLayer rejects a
   delegate-signed grant, so no delegation makes it relayable by a session key.
 </Callout>
+
+## Mixing signers
+
+Give any entry its own `from` to have a different signer sign it; entries without one use the batch's `from`, or the
+configured wallet. Combined with a grant earlier in the same batch, that is the **one-signature setup**: the owner signs
+the grant, and the key it authorizes signs the rest without a prompt.
+
+```ts
+import { relayGaslessBatch } from "@symmio/trading-core";
+import { parseUnits } from "viem";
+
+const account = { addr: subAccount, isPartyB: false };
+
+await relayGaslessBatch(config, {
+  account: subAccount,
+  calls: [
+    // Owner-signed: the one wallet prompt.
+    {
+      functionName: "grantDelegations",
+      args: [
+        [
+          { account, delegatedSigner: sessionKey, selectors: sessionKeySelectors, expiryTimestamp },
+          { account, delegatedSigner: tpslExecutor, selectors: tradingSelectors, expiryTimestamp },
+        ],
+      ],
+    },
+    // Signed by the key the grant above authorizes: no prompt.
+    {
+      functionName: "approveOperationalFee",
+      args: [[gaslessLayerAddress], [parseUnits("5", 18)]],
+      from: sessionKey,
+    },
+  ],
+});
+```
+
+- **Preflight validates grants before counting them.** The signer must own the operation account, every grant must
+  name that exact PartyA account, the delegate must differ from the owner, and selectors must be nonempty. Expiry
+  must be later than the latest block timestamp. A valid grant covers only subsequent entries, including wallet
+  entries that require both the execution sentinel and their inner selectors. Delegation reads use the live virtual
+  account's parent; deleted virtual accounts do not inherit the parent's permissions.
+- **In-memory signers sign first.** A signer whose wallet client holds a viem `local` account, such as a session key,
+  signs without a wallet prompt, so its signatures are made first. A local failure then surfaces before the user
+  spends the prompt. The signatures are still sent in relay order.
+- **Every entry supports `from`.** The signer resolves as `entry.from`, then the batch's `from`, then the configured
+  default wallet. Each requested signer is resolved once. When all entries have an explicit signer, no default wallet
+  is needed. The GaslessWallet contract remains the executor of its inner calls, regardless of which key signs.
+- **Build each key's selectors from the calls it signs.** [`getGaslessBatchSelectors`](/core/gasless/get-gasless-batch-selectors)
+  lists every call's selector, so pass it only the calls that key signs.
+- The `approveOperationalFee` named here is the diamond's two-argument function: see
+  [`approveOperationalFeeAllowance`](/core/gasless/approve-operational-fee-allowance) for when to use it rather than
+  `approveOperationalFeeWithMultiplier`.
+
+An owner grant can also authorize a session-signed wallet operation in the same batch:
+
+```ts
+import { getGaslessBatchSelectors, relayGaslessBatch, type GaslessBatchCall } from "@symmio/trading-core";
+import { erc20Abi } from "viem";
+
+const sessionCalls: GaslessBatchCall[] = [
+  {
+    from: sessionKey,
+    walletId: 1n,
+    walletCalls: [{ target: usdc, abi: erc20Abi, functionName: "transfer", args: [recipient, amount] }],
+  },
+];
+
+await relayGaslessBatch(config, {
+  account: subAccount,
+  calls: [
+    {
+      from: owner,
+      functionName: "grantDelegation",
+      args: [
+        {
+          account: { addr: subAccount, isPartyB: false },
+          delegatedSigner: sessionKey,
+          selectors: getGaslessBatchSelectors(sessionCalls),
+          expiryTimestamp,
+        },
+      ],
+    },
+    ...sessionCalls,
+  ],
+});
+```
+
+Preflight checks current authority; it does not simulate every state change inside a batch. The relayer simulation
+and contracts remain authoritative, including if ownership, expiry, or revocation changes before execution. Setting
+`execution.preflightDelegation: false` skips these SDK authorization reads and grant checks. The separate fee preview
+stays read-only and never resolves signers or checks authorization.
 
 ## Nonces and concurrency
 
 The batch takes every nonce stream it signs on at once, so a concurrent relay on any of them — a transparent write, a `gaslessWalletExecute`, another batch — waits for it instead of signing the same nonce. As with every relay, the streams are released at the `202`, and the next caller waits for the signed nonces lazily. See [nonce streams](/core/gasless#nonce-streams).
 
-The idempotency key is minted per call, because every call signs fresh operations. Replay a submit whose response was lost with [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request), never by signing the batch again.
+The signatures' deadline is fixed when the call starts, so an attempt started at `T` can never execute after `T + GASLESS_SIGNATURE_LIFETIME_SECONDS` (20 minutes).
+
+Pass `idempotencyKey` — one per user action — to make the batch retryable. A later call under the same key never waits for its own earlier submit, returns that submit's receipt when this config saw it accepted, and is otherwise accepted by the service at most once. Without a key, one is generated for this call alone; replay a submit whose response was lost with [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request), never by signing the batch again under a new key. See [Recovering gasless writes](/core/gasless/recovering-writes).
 
 <Callout type="warning">
   A `202` is the **point of no return**: the workflow exists server-side and may execute even if polling later fails.
@@ -105,6 +198,9 @@ The idempotency key is minted per call, because every call signs fresh operation
   <Property name="calls[].walletCalls" type="readonly GaslessWalletCall[]">
     Calls the owner's GaslessWallet makes, each raw `{ target, data }` or `{ target, abi, functionName, args }`.
   </Property>
+  <Property name="calls[].from" type="Address" optional>
+    Who signs this entry, including a wallet entry. Defaults to the batch's `from`, then the configured wallet. See [mixing signers](#mixing-signers).
+  </Property>
   <Property name="calls[].walletId" type="bigint" optional default="0n">
     Which of the owner's GaslessWallets runs a `walletCalls` entry. Range `0n` through `2^256 - 1`.
   </Property>
@@ -117,6 +213,11 @@ The idempotency key is minted per call, because every call signs fresh operation
   </Property>
   <Property name="from" type="Address" optional>
     The signer to resolve the wallet client with — a session key, for example.
+  </Property>
+  <Property name="idempotencyKey" type="string" optional>
+    Your key for one user action, 1–128 characters, from
+    [`generateGaslessIdempotencyKey`](/core/gasless/generate-gasless-idempotency-key). Reuse it on every attempt of that
+    action. Defaults to a key generated for this call alone.
   </Property>
   <Property name="chainId" type="number" optional>
     Target chain id. Defaults to the config's `defaultChainId`.
@@ -133,11 +234,13 @@ The idempotency key is minted per call, because every call signs fresh operation
 
 ## Throws
 
+- `SymmError("validation", "GASLESS_IDEMPOTENCY_KEY_INVALID")`: the key is blank or longer than 128 characters. Thrown before any network call.
 - `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.
 - `SymmError("validation", "GASLESS_EMPTY_BATCH")`, `("validation", "GASLESS_NOT_RELAYABLE")` or `("validation", "GASLESS_WALLET_ID_INVALID")`: thrown before any network call.
 - Viem's encoding error when an ABI-level call's arguments do not encode.
 - `SymmError("config", "GASLESS_CONFIG_INCOHERENT")`: the GaslessLayer verifies another InstantLayer than the chain config signs for.
-- `SymmError("validation", "GASLESS_SIGNER_NOT_DELEGATED")`: a session key is missing a selector. Grant `getGaslessBatchSelectors(calls)` on `account`.
+- `SymmError("validation", "GASLESS_SIGNER_NOT_DELEGATED")`: a non-owner signer is missing a selector that no earlier grant in the batch covers. The message names each signer and its missing selectors.
+- `SymmError("validation", "GASLESS_INVALID_DELEGATION_GRANT")`: preflight rejects a grant's signer, account, PartyB flag, self-delegation, expiry, or empty entries/selectors. The message identifies the entry and reason.
 - `SymmError("api", "GASLESS_FREE_QUOTA_EXHAUSTED")`, `("validation", "GASLESS_FEE_QUOTE_REVERTED")` or `("config", "GASLESS_LAYER_INTERFACE_UNSUPPORTED")` from the fee pre-flight, before any prompt.
 - `SymmError("api", "GASLESS_NONCE_STREAM_BUSY")`: an earlier relay on one of the batch's nonce streams is still unaccounted for.
 - `SymmApiError` with code `GASLESS_RELAY_SUBMIT_FAILED` on HTTP failure, and `GASLESS_SUBMIT_UNCONFIRMED` when the outcome could not be established — replay it with `resubmitGaslessRequest`.

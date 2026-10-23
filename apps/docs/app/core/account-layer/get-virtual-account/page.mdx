@@ -1,0 +1,68 @@
+# getVirtualAccount
+
+Read one Virtual Account's (VA) detail struct: its market, parent and isolation type. The mapping is fixed when the VA is created, so the result is safe to cache indefinitely.
+
+```ts
+import { getVirtualAccount } from "@symmio/trading-core";
+
+const detail = await getVirtualAccount(config, { account: vaAddress });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="account" type="Address" required>
+    The VA address.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="VirtualAccountDetail">
+  <Property name="accountAddress" type="Address">
+    The VA's own address — the on-chain `partyA` of the positions it holds.
+  </Property>
+  <Property name="parentAccount" type="Address">
+    The subaccount that created the VA.
+  </Property>
+  <Property name="symbolId" type="bigint">
+    Market the VA trades.
+  </Property>
+  <Property name="isExists" type="boolean">
+    `true` once the VA exists on-chain.
+  </Property>
+  <Property name="metadata" type="Hex">
+    Opaque per-VA metadata blob, or `0x`.
+  </Property>
+  <Property name="isolationType" type="VirtualAccountIsolationType">
+    `VIRTUAL_ACCOUNT_ISOLATION_TYPE`: `0` POSITION, `1` MARKET, `2` MARKET_LONG, `3` MARKET_SHORT. MARKET_LONG and
+    MARKET_SHORT pin the side. Note that `2` means MARKET_DIRECTION on a *subaccount*'s `SubAccountIsolationType`.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getVirtualAccountQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getVirtualAccountQueryOptions(config, { account: vaAddress }));
+```
+
+## Raw ABI
+
+For consumers that want to call viem directly:
+
+```ts
+import { accountLayerAbi } from "@symmio/trading-core";
+
+await publicClient.readContract({
+  abi: accountLayerAbi,
+  address: accountLayerAddress,
+  functionName: "getVirtualAccount",
+  args: [vaAddress],
+});
+```

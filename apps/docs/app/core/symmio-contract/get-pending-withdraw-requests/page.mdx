@@ -1,6 +1,6 @@
 # getPendingWithdrawRequests
 
-Read the queued (not yet claimable) withdraw requests for a subaccount. Scans a range of request ids and returns only the non-terminal ones found.
+Read the non-terminal withdraw requests for a subaccount, including requests that are already claimable. Scans a range of request ids and returns only the non-terminal ones found.
 
 ```ts
 import { getPendingWithdrawRequests } from "@symmio/trading-core";
@@ -83,3 +83,9 @@ import { useQuery } from "@tanstack/react-query";
 
 useQuery(getPendingWithdrawRequestsQueryOptions(config, { user }));
 ```
+
+For account timing before initiation, use [getWithdrawCooldownOf](/core/symmio-contract/get-withdraw-cooldown-of). For an explicit atomic sequence of core writes, use [executeAccountCalls](/core/symmio-contract/execute-account-calls).
+
+For complete lists across several users, prefer
+[`getPendingWithdrawRequestsBatch`](/core/symmio-contract/get-pending-withdraw-requests-batch).
+A single range can be empty even when later ranges contain active requests.

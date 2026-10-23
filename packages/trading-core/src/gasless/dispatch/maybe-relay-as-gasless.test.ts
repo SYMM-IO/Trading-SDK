@@ -19,6 +19,7 @@ import { depositForAccount } from "../../symmio-contracts/account-layer/actions/
 import { SubAccountIsolationType } from "../../symmio-contracts/account-layer/types";
 import { deallocateAndInitiateWithdraw } from "../../symmio-contracts/symmio/actions/deallocate-and-initiate-withdraw";
 import { initiateWithdraw } from "../../symmio-contracts/symmio/actions/initiate-withdraw";
+import { executeAccountCalls } from "../../symmio-contracts/symmio/execute-account-calls";
 import { createClassicWithdrawPart } from "../../symmio-contracts/symmio/parts";
 import { parseGaslessErrorDetail } from "../errors";
 import { GASLESS_RELAYABLE_WRITES, isGaslessRelayableSelector } from "../relayable-writes";
@@ -162,7 +163,12 @@ function programRelaySuccess(): void {
 /** The relay body the assertions below read back out of the mocked POST. */
 interface RelayBody {
   operationType: string;
-  signedOps: { signer: string; signerAccount: { addr: string }; replayAttackHeader: { nonce: number } }[];
+  signedOps: {
+    callData: Hex;
+    signer: string;
+    signerAccount: { addr: string };
+    replayAttackHeader: { nonce: number };
+  }[];
   signatures: string[];
 }
 
@@ -283,6 +289,29 @@ describe("transparent gasless dispatch", () => {
     expect(body.signedOps).toHaveLength(2);
     expect(body.signedOps.map((op) => op.replayAttackHeader.nonce)).toEqual([6, 7]);
     expect(body.signatures).toHaveLength(2);
+  });
+
+  it("routes named atomic account calls through the dispatcher in one signed batch", async () => {
+    const { config, readContract, writeContract } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
+    programReads(readContract);
+    programRelaySuccess();
+    expect(
+      await executeAccountCalls(config, {
+        account: SUB_ACCOUNT,
+        calls: [
+          { functionName: "initiateWithdraw", args: [PARTS, false, "0x1234"] },
+          { functionName: "finalizeWithdrawRequest", args: [SUB_ACCOUNT, 42n] },
+        ],
+      }),
+    ).toBe(RELAY_TX_HASH);
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(writeContract).not.toHaveBeenCalled();
+    const body = post.mock.calls[0]![1] as RelayBody;
+    expect(body.signedOps.map((op) => op.replayAttackHeader.nonce)).toEqual([6, 7]);
+    expect(body.signedOps.map((op) => decodeFunctionData({ abi: symmioAbi, data: op.callData }).functionName)).toEqual([
+      "initiateWithdraw",
+      "finalizeWithdrawRequest",
+    ]);
   });
 
   it("resolves a margin write's billing account to the VA's parent sub-account", async () => {
@@ -699,6 +728,202 @@ describe("transparent gasless dispatch", () => {
       walletIds: [0n],
     });
     expect((events[0] as { idempotencyKey?: string }).idempotencyKey).toEqual(expect.any(String));
+  });
+
+  describe("caller-owned idempotency key", () => {
+    const NETWORK_FAILURE = {
+      isAxiosError: true,
+      message: "socket hang up",
+      config: { url: "/gateway/relay-instant" },
+    };
+
+    it("relays a keyed write under the caller's key, even when the chain runs in wallet mode", async () => {
+      const { config, readContract, writeContract } = gaslessWriteTestConfig();
+      programReads(readContract);
+      programRelaySuccess();
+
+      const hash = await initiateWithdraw(config, {
+        account: SUB_ACCOUNT,
+        parts: PARTS,
+        gasless: { idempotencyKey: "action-1" },
+      });
+
+      expect(hash).toBe(RELAY_TX_HASH);
+      expect((post.mock.calls[0]?.[1] as { idempotencyKey: string }).idempotencyKey).toBe("action-1");
+      expect(writeContract).not.toHaveBeenCalled();
+    });
+
+    it("reuses the caller's key on the once-only resend after an ambiguous failure", async () => {
+      vi.useFakeTimers();
+      const { config, readContract } = gaslessWriteTestConfig();
+      programReads(readContract);
+      programRelaySuccess();
+      const succeed = post.getMockImplementation()!;
+      post.mockRejectedValueOnce(NETWORK_FAILURE).mockImplementation(succeed);
+
+      const pending = initiateWithdraw(config, {
+        account: SUB_ACCOUNT,
+        parts: PARTS,
+        gasless: { idempotencyKey: "action-1" },
+      });
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      await expect(pending).resolves.toBe(RELAY_TX_HASH);
+      const keys = post.mock.calls.map(([, body]) => (body as { idempotencyKey: string }).idempotencyKey);
+      expect(keys).toEqual(["action-1", "action-1"]);
+    });
+
+    it("never falls back to the wallet, whatever the chain's fallback default says", async () => {
+      const { config, readContract, writeContract } = gaslessWriteTestConfig({
+        execution: { mode: "gasless", fallback: "wallet" },
+      });
+      programReads(readContract);
+      post.mockRejectedValue({
+        isAxiosError: true,
+        message: "conflict",
+        response: { status: 409, statusText: "Conflict", data: { detail: { code: "FEE_POLICY_WOULD_REVERT" } } },
+        config: { url: "/gateway/relay-instant", method: "post" },
+      });
+
+      await expect(
+        initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS, gasless: { idempotencyKey: "action-1" } }),
+      ).rejects.toMatchObject({ code: "GASLESS_RELAY_SUBMIT_FAILED" });
+      expect(writeContract).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { label: "enabled: false", gasless: { idempotencyKey: "action-1", enabled: false } },
+      { label: 'fallback: "wallet"', gasless: { idempotencyKey: "action-1", fallback: "wallet" as const } },
+      { label: "an empty key", gasless: { idempotencyKey: "" } },
+      { label: "a key longer than 128 characters", gasless: { idempotencyKey: "k".repeat(129) } },
+    ])("rejects $label before any read or prompt", async ({ gasless }) => {
+      const { config, readContract, signTypedData, writeContract } = gaslessWriteTestConfig({
+        execution: { mode: "gasless" },
+      });
+      programReads(readContract);
+
+      await expect(initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS, gasless })).rejects.toMatchObject({
+        code: "GASLESS_IDEMPOTENCY_KEY_INVALID",
+      });
+      expect(readContract).not.toHaveBeenCalled();
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+      expect(writeContract).not.toHaveBeenCalled();
+    });
+
+    it("refuses a keyed write whose calldata is not relayable instead of taking the wallet path", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+      programReads(readContract);
+      const transfer: GaslessDispatchCall = {
+        target: SUB_ACCOUNT,
+        callData: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [SUB_ACCOUNT, 1n] }),
+      };
+
+      await expect(
+        maybeRelayAsGasless(config, {
+          gasless: { idempotencyKey: "action-1" },
+          signerAccount: SUB_ACCOUNT,
+          calls: [transfer],
+        }),
+      ).rejects.toMatchObject({ code: "GASLESS_NOT_RELAYABLE" });
+      expect(signTypedData).not.toHaveBeenCalled();
+    });
+
+    it("fixes the signature deadline when the call starts, not when it signs", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-19T12:00:00Z"));
+      const startedAt = Math.floor(Date.now() / 1000);
+      const { config, readContract } = gaslessWriteTestConfig();
+      /** The fee quote takes a minute to answer, so signing happens a minute after the call started. */
+      programReads(readContract, {
+        previewFeeQuote: () => new Promise((resolve) => setTimeout(() => resolve(rawFeeQuote(SUB_ACCOUNT)), 60_000)),
+      });
+      programRelaySuccess();
+
+      const pending = initiateWithdraw(config, {
+        account: SUB_ACCOUNT,
+        parts: PARTS,
+        gasless: { idempotencyKey: "action-1" },
+      });
+      await vi.advanceTimersByTimeAsync(61_000);
+      await pending;
+
+      const body = post.mock.calls[0]?.[1] as { signedOps: { replayAttackHeader: { deadline: number } }[] };
+      expect(body.signedOps[0]?.replayAttackHeader.deadline).toBe(startedAt + 20 * 60);
+    });
+
+    it("signs again at once under the same key after an unconfirmed submit, with no nonce-stream wait", async () => {
+      vi.useFakeTimers();
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+      programReads(readContract);
+      post.mockRejectedValue(NETWORK_FAILURE);
+
+      const first = initiateWithdraw(config, {
+        account: SUB_ACCOUNT,
+        parts: PARTS,
+        gasless: { idempotencyKey: "action-1" },
+      }).catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(await first).toMatchObject({ code: "GASLESS_SUBMIT_UNCONFIRMED" });
+      const promptsBefore = signTypedData.mock.calls.length;
+
+      programRelaySuccess();
+      const retry = initiateWithdraw(config, {
+        account: SUB_ACCOUNT,
+        parts: PARTS,
+        gasless: { idempotencyKey: "action-1" },
+      });
+      /** No two-minute nonce-stream wait: the retry is sent within the first poll interval. */
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(retry).resolves.toBe(RELAY_TX_HASH);
+      expect(signTypedData.mock.calls.length).toBeGreaterThan(promptsBefore);
+      const bodies = post.mock.calls.map(([, body]) => body as RelayBody & { idempotencyKey: string });
+      expect(bodies.at(-1)?.idempotencyKey).toBe("action-1");
+      /** The lost attempt never consumed its nonce, so the retry signs the same one and fills that gap. */
+      expect(bodies.at(-1)?.signedOps[0]?.replayAttackHeader.nonce).toBe(
+        bodies[0]?.signedOps[0]?.replayAttackHeader.nonce,
+      );
+    });
+
+    it("follows a request this config saw accepted under the same key, without signing again", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig({
+        execution: { queuedPollMs: 5, submittedPollMs: 5, broadcastTimeoutMs: 50 },
+      });
+      programReads(readContract);
+      post.mockResolvedValue({
+        headers: HEADERS,
+        data: { request_id: "req-1", status: "queued", paid_fee: "0", remaining_fee_allowance: "0" },
+      });
+      /** Accepted, but not yet broadcast when the first call stops waiting. */
+      get.mockResolvedValue({
+        headers: HEADERS,
+        data: {
+          id: "req-1",
+          user_address: TEST_GASLESS_SIGNER,
+          operation_type: "initiateWithdraw",
+          payload: {},
+          status: "queued",
+          tx_hash: null,
+        },
+      });
+
+      await expect(
+        initiateWithdraw(config, { account: SUB_ACCOUNT, parts: PARTS, gasless: { idempotencyKey: "action-1" } }),
+      ).rejects.toMatchObject({ code: "GASLESS_BROADCAST_TIMEOUT" });
+      const promptsBefore = signTypedData.mock.calls.length;
+
+      programRelaySuccess();
+      const hash = await initiateWithdraw(config, {
+        account: SUB_ACCOUNT,
+        parts: PARTS,
+        gasless: { idempotencyKey: "action-1" },
+      });
+
+      expect(hash).toBe(RELAY_TX_HASH);
+      expect(signTypedData.mock.calls.length).toBe(promptsBefore);
+      expect(post).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("tracks the request under the billing sub-account's owner, not the signing key", async () => {

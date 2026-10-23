@@ -75,6 +75,11 @@ export interface GaslessWriteTestConfigOptions {
    * counts stay observable across signers.
    */
   signersByFrom?: Readonly<Record<Address, Address>>;
+  /**
+   * Signers whose wallet client holds a viem `local` account — an in-memory
+   * key such as a session key — instead of the default `json-rpc` one.
+   */
+  localSigners?: readonly Address[];
 }
 
 /**
@@ -91,14 +96,21 @@ export function gaslessWriteTestConfig(
   readContract: Mock;
   writeContract: Mock;
   signTypedData: Mock;
+  getBlock: Mock;
 } {
   const readContract = vi.fn();
+  const getBlock = vi.fn().mockResolvedValue({ timestamp: 2_000_000_000n });
   const writeContract = vi.fn().mockResolvedValue(TEST_GASLESS_TX_HASH);
   const signTypedData = vi.fn().mockResolvedValue(TEST_GASLESS_SIGNATURE);
-  const publicClient = { readContract } as unknown as import("viem").PublicClient;
+  const publicClient = { readContract, getBlock } as unknown as import("viem").PublicClient;
   const clientFor = (signer: Address) =>
     ({
-      account: { address: signer, type: "json-rpc" },
+      account: {
+        address: signer,
+        type: options?.localSigners?.some((local) => local.toLowerCase() === signer.toLowerCase())
+          ? "local"
+          : "json-rpc",
+      },
       chain: { id: GASLESS_TEST_CHAIN },
       writeContract,
       signTypedData,
@@ -121,5 +133,5 @@ export function gaslessWriteTestConfig(
     },
   });
 
-  return { config, readContract, writeContract, signTypedData };
+  return { config, readContract, writeContract, signTypedData, getBlock };
 }

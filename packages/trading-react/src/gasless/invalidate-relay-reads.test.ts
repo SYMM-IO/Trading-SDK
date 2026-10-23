@@ -1,11 +1,15 @@
 import {
+  getActiveDelegationsQueryKey,
   getCollateralBalanceQueryKey,
+  getDelegationExpiryQueryKey,
   getGaslessDepositPolicyQueryKey,
   getGaslessWalletCreationFeeQueryKey,
   getGaslessWalletNonceQueryKey,
   getInstantLayerNonceQueryKey,
   getIsDelegationActiveQueryKey,
   getPartyAPendingQuotesQueryKey,
+  getPendingRevocationEtasQueryKey,
+  getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getUserSubAccountsQueryKey,
 } from "@symmio/trading-core";
@@ -213,7 +217,13 @@ describe("invalidateGaslessBatchReads", () => {
     account: SUB_ACCOUNT,
     configKey: CONFIG_KEY,
   });
-  const ALL = [nonce, withdrawals, pendingQuotes, subAccounts, delegation, walletNonce];
+  const batches = getPendingWithdrawRequestsBatchQueryKey({
+    users: [SUB_ACCOUNT, OTHER_OWNER],
+    pageSize: 2n,
+    configKey: CONFIG_KEY,
+  });
+  const otherBatch = getPendingWithdrawRequestsBatchQueryKey({ users: [SUB_ACCOUNT], configKey: "other-deployment" });
+  const ALL = [batches, otherBatch, nonce, withdrawals, pendingQuotes, subAccounts, delegation, walletNonce];
 
   it("refreshes the account's nonce and the domains its calls touched — and only those", () => {
     const queryClient = seeded(ALL);
@@ -228,6 +238,8 @@ describe("invalidateGaslessBatchReads", () => {
 
     expect(isInvalidated(queryClient, nonce)).toBe(true);
     expect(isInvalidated(queryClient, withdrawals)).toBe(true);
+    expect(isInvalidated(queryClient, batches)).toBe(true);
+    expect(isInvalidated(queryClient, otherBatch)).toBe(false);
     expect(isInvalidated(queryClient, pendingQuotes)).toBe(false);
     expect(isInvalidated(queryClient, subAccounts)).toBe(false);
     expect(isInvalidated(queryClient, delegation)).toBe(false);
@@ -274,4 +286,39 @@ describe("invalidateGaslessBatchReads", () => {
     expect(isInvalidated(queryClient, walletNonce)).toBe(true);
     expect(isInvalidated(queryClient, withdrawals)).toBe(false);
   });
+
+  it.each(["grantDelegation", "grantDelegations"])(
+    "refreshes permissions and cleared revocations after %s",
+    (functionName) => {
+      const options = {
+        chainId: CHAIN,
+        configKey: CONFIG_KEY,
+        account: SUB_ACCOUNT,
+        delegator: { addr: SUB_ACCOUNT, isPartyB: false },
+        delegate: SESSION_KEY,
+        delegates: [SESSION_KEY],
+        selector: "0x12345678" as const,
+      };
+      const keys = [
+        delegation,
+        getDelegationExpiryQueryKey(options),
+        getActiveDelegationsQueryKey({ ...options, selectors: [[options.selector]] }),
+        getPendingRevocationEtasQueryKey({ ...options, selectors: [options.selector] }),
+      ];
+      const otherDeployment = getIsDelegationActiveQueryKey({ ...options, configKey: "other-deployment" });
+      const queryClient = seeded([...keys, otherDeployment]);
+      const info = {
+        account: { addr: SUB_ACCOUNT, isPartyB: false },
+        delegatedSigner: SESSION_KEY,
+        selectors: [options.selector],
+        expiryTimestamp: 4_000_000_000n,
+      };
+      invalidateGaslessBatchReads(queryClient, SCOPE, {
+        account: SUB_ACCOUNT,
+        calls: [{ functionName, args: [functionName === "grantDelegation" ? info : [info]] }],
+      });
+      for (const key of keys) expect(isInvalidated(queryClient, key)).toBe(true);
+      expect(isInvalidated(queryClient, otherDeployment)).toBe(false);
+    },
+  );
 });

@@ -40,3 +40,7 @@ The SDK ships several packages. The two that matter are `@symmio/trading-react` 
 - Core-only DEX guide (no React): https://doc.trading-sdk.symm.io/guides/build-a-dex/core
 - Errors: https://doc.trading-sdk.symm.io/core/concepts/errors
 - Session keys: https://doc.trading-sdk.symm.io/session-key
+
+## Complete pending withdrawals across accounts
+
+Use `usePendingWithdrawRequestsBatch({ users, chainId, pageSize: 200n })` in React to read all pages for multiple subaccounts. It normalizes user ordering, case and duplicates; an empty list disables automatic reads, and any failed page rejects the whole query. Requests are grouped by user. Raw core: `getPendingWithdrawRequestsBatch`. Reference: https://doc.trading-sdk.symm.io/core/symmio-contract/get-pending-withdraw-requests-batch and https://doc.trading-sdk.symm.io/react/withdraw#usependingwithdrawrequestsbatch

@@ -1,6 +1,9 @@
 /** Shared by both deposit writes, which fail for the same reason. */
 const DEPOSIT_REASON = "a deposit pulls USDC from your wallet itself, which a session key is never granted";
 
+/** Shared by both delegation grants, which fail for the same reason. */
+const GRANT_REASON = "only the account owner can grant, and the InstantLayer rejects a key-signed grant";
+
 /**
  * Relayable writes a session key can never sign here, each with the reason its
  * card shows on the disabled key control.
@@ -28,7 +31,12 @@ const SESSION_KEY_BLOCKED_WRITES: ReadonlyMap<string, string> = new Map([
   ["depositAndAllocateForAccount", DEPOSIT_REASON],
   ["createSubAccounts", "account creation cannot be confined to one account, so it is never delegated"],
   ["deleteSubAccount", "deleting the account would destroy the delegation the key signs under"],
-  ["grantDelegation", "only the account owner can grant, and the InstantLayer rejects a key-signed grant"],
+  ["grantDelegation", GRANT_REASON],
+  ["grantDelegations", GRANT_REASON],
+  [
+    "approveOperationalFeeAllowance",
+    "session keys are granted approveOperationalFeeWithMultiplier, not this two-argument approval",
+  ],
 ]);
 
 /**

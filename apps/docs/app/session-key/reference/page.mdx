@@ -13,17 +13,67 @@ The runtime interface returned by [`createSessionKeyManager`](/session-key/manag
 ```ts
 interface CreateSessionKeyManagerOptions {
   storage: SessionKeyStorage;
-  defaultTtlMs?: number; // default: SESSION_KEY_EXPIRY_MS (one year)
   now?: () => number; // default: Date.now
+  defaultTtlMs?: number; // default: SESSION_KEY_EXPIRY_MS (one year)
+  onLoadError?: "rotate" | "throw"; // default: "rotate"
 }
 ```
+
+### `SessionKeyLoadError`
+
+```ts
+class SessionKeyLoadError extends Error {
+  readonly owner: Address; // whose stored key could not be loaded; the adapter's error is on `cause`
+}
+```
+
+Thrown on restore or record validation failure. See [the manager](/session-key/manager#sessionkeyloaderror).
+
+### `SessionKeyImportOptions`
+
+```ts
+type SessionKeyImportOptions = { ttlMs?: number; expiresAt?: never } | { expiresAt: number; ttlMs?: never };
+```
+
+Pass an absolute `expiresAt` in milliseconds to preserve a transferred session's lifetime. Without options, import uses
+the manager's default TTL. Invalid or conflicting lifetimes reject before changing state or storage.
+
+### `SessionKeyExpiredError`
+
+```ts
+class SessionKeyExpiredError extends Error {
+  readonly address: Address;
+  readonly expiresAt: number; // ms since epoch
+}
+```
+
+Thrown when a manager or captured account attempts to sign after local expiry, including expiry during signing.
+
+### `SessionKeyOperationSupersededError`
+
+```ts
+class SessionKeyOperationSupersededError extends Error {
+  readonly operation:
+    | "importPrivateKey"
+    | "initialize"
+    | "load"
+    | "rotate"
+    | "sign"
+    | "signAuthorization"
+    | "signMessage"
+    | "signTransaction"
+    | "signTypedData";
+}
+```
+
+Thrown when a newer lifecycle request revokes an operation that was still running. See [the manager](/session-key/manager#sessionkeyoperationsupersedederror).
 
 ### `SessionKeyState`
 
 ```ts
 interface SessionKeyState {
   isReady: boolean; // valid key currently in memory
-  isExpired: boolean; // last loaded record was expired
+  isExpired: boolean; // loaded key has expired
   publicAddress: Address | null;
   expiresAt: number | null; // ms since epoch
 }

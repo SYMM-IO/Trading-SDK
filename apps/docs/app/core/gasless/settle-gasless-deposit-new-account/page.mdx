@@ -68,15 +68,17 @@ One `POST {depositBase}/deposit-settlements/new-account`, carrying `owner` and a
   </Property>
   <Property name="accountData" type="GaslessDepositAccountData" required>
     Creation data for the new sub-account: `name` (1–64 chars), `isolationType`, `singleVAMode`, optional `metadata`
-    hex. `isolationType` and `singleVAMode` are deliberately **required** — they are product decisions (the lowcap flow
-    uses `MARKET_DIRECTION` with `singleVAMode: true`; majors differ) and the service-side defaults would be silently
-    wrong for either product. There is no `symmioCore` field — the gateway overwrites it with its configured core.
+    hex. A hooked affiliate rejects the default `0x`; build `metadata` with
+    [`encodeSubAccountHookMetadata`](/core/account-layer/encode-sub-account-hook-metadata). `isolationType` and
+    `singleVAMode` are deliberately **required** — they are product decisions (the lowcap flow uses `MARKET_DIRECTION`
+    with `singleVAMode: true`; majors differ) and the service-side defaults would be silently wrong for either product.
+    There is no `symmioCore` field — the gateway overwrites it with its configured core.
   </Property>
   <Property name="idempotencyKey" type="string" optional>
-    Stable retry key; defaults to a random UUID. **One key per settlement attempt**: reuse it only to replay a submit
-    whose response was lost, and mint a fresh one after any terminal status or any change to the wallet selection — or
-    the service answers `409 IDEMPOTENCY_KEY_CONFLICT`. See [idempotency
-    keys](/core/gasless/errors-and-fallback#idempotency-keys).
+    Your key for one **user action** (1–128 characters); defaults to a random UUID per call. Resubmitting under it
+    returns the existing record. A settlement that reached a terminal status is over, so settling again is a new action
+    with a new key. A settlement carries no signature deadline: its outcome is bounded by the deposit wallet's balance
+    instead. See [Recovering gasless writes](/core/gasless/recovering-writes).
   </Property>
   <Property name="metadata" type="Record<string, unknown>" optional>
     Non-secret client correlation data stored with the request.

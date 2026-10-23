@@ -73,6 +73,8 @@ Where anonymous access is on, a partner `apiKey` only raises those limits. A dep
   fallback](/core/gasless/errors-and-fallback#reading-the-vendor-detail).
 </Callout>
 
+For an authenticated application proxy, configure `getRequestHeaders` to supply fresh credentials for each HTTP attempt. The application owns authentication; the SDK owns the request body, retries and relay lifecycle. See [authenticated proxies](/core/gasless/authenticated-proxies).
+
 ## The request lifecycle
 
 Every relay submit is fire-and-forget: it returns HTTP 202 with a `request_id`, and the record is the only source of truth afterwards. Follow it with [`confirmGaslessRequest`](/core/gasless/confirm-gasless-request), which resolves only on `succeeded`. React consumers get that for free — every relay hook confirms by default.
@@ -85,6 +87,8 @@ queued → rejected
 `submitted` means a transaction hash exists — it is **not** success; only `succeeded` is. Poll [`getGaslessRequest`](/core/gasless/get-gasless-request) until `isGaslessRequestTerminal(status)` (a jittered 1–2 s while queued, 3–5 s after submitted), or await [`waitForGaslessRequest`](/core/gasless/wait-for-gasless-request) in plain code. **A 202 is the point of no return** — the relayed transaction may execute even if your polling fails, so never re-submit the same intent through the wallet; the only safe wallet retry is a definitive pre-broadcast rejection (see [Errors & fallback](/core/gasless/errors-and-fallback)).
 
 There is no list-by-wallet endpoint: persist each `requestId` (with its service and protocol instance) if users must resume polling after a reload. The transparent mode surfaces them through the `execution.onEvent` observer.
+
+To make a write recoverable after a timeout or a reload, give each user action its own `idempotencyKey`, save it before calling, and retry under the same key: the service accepts a key at most once. [Recovering gasless writes](/core/gasless/recovering-writes) walks through the whole lifecycle.
 
 ### Streaming instead of polling
 
@@ -172,6 +176,9 @@ The service exposes no read endpoints: wallet addresses, deposit policy, fee quo
   <MethodEntry name="resolveGaslessService" href="/core/gasless/resolve-gasless-service">
     Resolve the chain's gasless block; `supportsGaslessService` is the non-throwing gate.
   </MethodEntry>
+  <MethodEntry name="Authenticated proxies" href="/core/gasless/authenticated-proxies">
+    Resolve fresh application credentials for every gasless HTTP attempt.
+  </MethodEntry>
 </MethodIndex>
 
 <MethodIndex kind="read">
@@ -226,6 +233,9 @@ The service exposes no read endpoints: wallet addresses, deposit policy, fee quo
   <MethodEntry name="approveOperationalFee" href="/core/gasless/approve-operational-fee">
     Grant the fee charger its allowance, as the paying sub-account.
   </MethodEntry>
+  <MethodEntry name="approveOperationalFeeAllowance" href="/core/gasless/approve-operational-fee-allowance">
+    Set the charger's allowance without touching the fee multiplier.
+  </MethodEntry>
   <MethodEntry name="settleGaslessDepositNewAccount" href="/core/gasless/settle-gasless-deposit-new-account">
     Sweep the deposit address into a new wallet-owned sub-account.
   </MethodEntry>
@@ -238,6 +248,15 @@ The service exposes no read endpoints: wallet addresses, deposit policy, fee quo
 </MethodIndex>
 
 <MethodIndex kind="type">
+  <MethodEntry name="Recovering gasless writes" href="/core/gasless/recovering-writes">
+    Caller-owned idempotency keys: save, retry under the same key, reconcile.
+  </MethodEntry>
+  <MethodEntry name="generateGaslessIdempotencyKey" href="/core/gasless/generate-gasless-idempotency-key">
+    Create a random key for one user action.
+  </MethodEntry>
+  <MethodEntry name="getGaslessDeploymentKey" href="/core/gasless/get-gasless-deployment-key">
+    Fingerprint the deployment a key belongs to, to check before any retry.
+  </MethodEntry>
   <MethodEntry name="getGaslessBatchSelectors" href="/core/gasless/get-gasless-batch-selectors">
     The selector set a session key needs to relay a gasless batch.
   </MethodEntry>

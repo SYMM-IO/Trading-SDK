@@ -39,10 +39,10 @@ Like the new-account settlement, this reads `getGaslessWalletAddress(owner, wall
     The existing wallet-owned sub-account to credit; ownership is verified by the gateway.
   </Property>
   <Property name="idempotencyKey" type="string" optional>
-    Stable retry key; defaults to a random UUID. **One key per settlement attempt**: reuse it only to replay a submit
-    whose response was lost, and mint a fresh one after any terminal status or any change to the wallet selection — or
-    the service answers `409 IDEMPOTENCY_KEY_CONFLICT`. See [idempotency
-    keys](/core/gasless/errors-and-fallback#idempotency-keys).
+    Your key for one **user action** (1–128 characters); defaults to a random UUID per call. Resubmitting under it
+    returns the existing record. A settlement that reached a terminal status is over, so settling again is a new action
+    with a new key. A settlement carries no signature deadline: its outcome is bounded by the deposit wallet's balance
+    instead. See [Recovering gasless writes](/core/gasless/recovering-writes).
   </Property>
   <Property name="chainId" type="number" optional>
     Target chain id. Defaults to the config's `defaultChainId`.

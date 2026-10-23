@@ -5,11 +5,7 @@ import { BoolBadge } from "@/components/bool-badge";
 import { DataList, DataRow } from "@/components/data-list";
 import { ResultError, ResultNote } from "@/components/result";
 import { DataRowsSkeleton } from "@/components/skeletons";
-import {
-  VIRTUAL_ACCOUNT_ISOLATION_TYPE,
-  useVirtualAccount,
-  type VirtualAccountIsolationType,
-} from "@symmio/trading-react";
+import { useVirtualAccount } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { Button } from "@symmio/ui/components/button";
 import { Spinner } from "@symmio/ui/components/spinner";
@@ -17,6 +13,7 @@ import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { MethodCard } from "./method-card";
 import { PartyAField } from "./party-a-field";
+import { labelForIsolation } from "./virtual-account-isolation";
 
 /**
  * Read a single Virtual Account's on-chain detail (parent subaccount, market
@@ -111,19 +108,4 @@ function ResultPanel({ testId, query }: { testId: string; query: ReturnType<type
       />
     </DataList>
   );
-}
-
-function labelForIsolation(isolation: VirtualAccountIsolationType): string {
-  switch (isolation) {
-    case VIRTUAL_ACCOUNT_ISOLATION_TYPE.POSITION:
-      return "POSITION";
-    case VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET:
-      return "MARKET";
-    case VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_LONG:
-      return "MARKET_LONG";
-    case VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_SHORT:
-      return "MARKET_SHORT";
-    default:
-      return "UNKNOWN";
-  }
 }

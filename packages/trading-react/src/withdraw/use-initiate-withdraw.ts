@@ -2,6 +2,7 @@
 
 import {
   getLastWithdrawRequestIdQueryKey,
+  getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getWithdrawableTimeQueryKey,
   initiateWithdrawMutationOptions,
@@ -66,7 +67,15 @@ export function useInitiateWithdraw(parameters: UseInitiateWithdrawParameters = 
         throw normalizeSymmError(err);
       }
     },
-    onSuccess: (_result, variables) => {
+    onSuccess: (result, variables) => {
+      /** Broadcast-only callers own confirmation and the later batch refresh. */
+      if (result.receipt) {
+        void queryClient.invalidateQueries({
+          predicate: predicateMatch(getPendingWithdrawRequestsBatchQueryKey, {
+            configKey: config.getChainConfigKey(variables.chainId ?? chainId),
+          }),
+        });
+      }
       const partial = { user: variables.account };
       void queryClient.invalidateQueries({ predicate: predicateMatch(getPendingWithdrawRequestsQueryKey, partial) });
       void queryClient.invalidateQueries({ predicate: predicateMatch(getLastWithdrawRequestIdQueryKey, partial) });

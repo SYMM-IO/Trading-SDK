@@ -107,6 +107,7 @@ function mergeGasless(
 
   const protocolInstance = override.protocolInstance ?? base?.protocolInstance;
   const apiKey = override.apiKey ?? base?.apiKey;
+  const getRequestHeaders = override.getRequestHeaders ?? base?.getRequestHeaders;
   const statusStream = mergeGaslessStatusStream(chainId, base?.statusStream, override.statusStream);
 
   return {
@@ -115,6 +116,7 @@ function mergeGasless(
       gaslessLayerAddress,
       ...(protocolInstance !== undefined ? { protocolInstance } : {}),
       ...(apiKey !== undefined ? { apiKey } : {}),
+      ...(getRequestHeaders !== undefined ? { getRequestHeaders } : {}),
       ...(statusStream ? { statusStream } : {}),
       ...(execution ? { execution } : {}),
     },

@@ -1,8 +1,9 @@
 import type { Address } from "viem";
 import type { Config } from "../../core/config";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { ChainIdParameter, Compute, GaslessIdempotencyKeyParameter } from "../../shared/types/properties";
 import { getGaslessWalletAddress } from "../get-gasless-wallet-address/get-gasless-wallet-address";
-import { generateGaslessIdempotencyKey, postGaslessSubmit, resolveGaslessHttp } from "../http";
+import { postGaslessSubmit, resolveGaslessHttp } from "../http";
+import { resolveGaslessIdempotencyKey } from "../idempotency-key";
 import { assertGaslessDepositWallet, toGaslessDepositReceipt } from "../to-gasless-deposit-receipt";
 import type { GaslessDepositSubmitReceipt } from "../types";
 import { assertGaslessWalletId, toGaslessWalletIdWire } from "../wallet-id";
@@ -15,31 +16,21 @@ const SETTLE_EXISTING_ACCOUNT_PATH = "/deposit-settlements/existing-account";
  * Parameters for {@link settleGaslessDepositExistingAccount}.
  */
 export type SettleGaslessDepositExistingAccountParameters = Compute<
-  ChainIdParameter & {
-    /**
-     * Owner of the GaslessWallet whose deposit address is being settled — an
-     * owner address, never a GaslessWallet address.
-     */
-    owner: Address;
-    /**
-     * Which of the owner's GaslessWallets to sweep. Defaults to `0n`, the
-     * original wallet. Each id has its own deposit address and balance.
-     */
-    walletId?: bigint;
-    /** The existing wallet-owned sub-account to credit; the gateway verifies ownership. */
-    subAccount: Address;
-    /**
-     * Stable retry key; defaults to a random UUID.
-     *
-     * **One key per settlement attempt.** Reuse it only to replay a submit
-     * whose response was lost — the service then returns the existing record.
-     * A **completed** settlement's key must never be reused: mint a fresh one
-     * after any terminal status, and after any change to the wallet selection,
-     * or the service answers `409 IDEMPOTENCY_KEY_CONFLICT`
-     * (`isGaslessIdempotencyConflictError`).
-     */
-    idempotencyKey?: string;
-  }
+  ChainIdParameter &
+    GaslessIdempotencyKeyParameter & {
+      /**
+       * Owner of the GaslessWallet whose deposit address is being settled — an
+       * owner address, never a GaslessWallet address.
+       */
+      owner: Address;
+      /**
+       * Which of the owner's GaslessWallets to sweep. Defaults to `0n`, the
+       * original wallet. Each id has its own deposit address and balance.
+       */
+      walletId?: bigint;
+      /** The existing wallet-owned sub-account to credit; the gateway verifies ownership. */
+      subAccount: Address;
+    }
 >;
 
 /** Return type of {@link settleGaslessDepositExistingAccount}. */
@@ -55,9 +46,16 @@ export type SettleGaslessDepositExistingAccountReturnType = GaslessDepositSubmit
  * with `service: "deposits"`. The wallet's deterministic address is read before
  * the submit and checked against the acceptance.
  *
+ * `idempotencyKey` is one key per **user action** (default: a random UUID per
+ * call). Resubmitting under it returns the existing record; a settlement that
+ * reached a terminal status is over, so settling again is a new action with a
+ * new key. A settlement carries no signature deadline: its outcome is bounded by
+ * the deposit wallet's balance instead.
+ *
  * @param config - The SDK config.
- * @param parameters - Owner, optional wallet id, target sub-account, retry key.
+ * @param parameters - Owner, optional wallet id, target sub-account, idempotency key.
  * @returns The acceptance receipt; persist `requestId`.
+ * @throws {SymmError} `GASLESS_IDEMPOTENCY_KEY_INVALID` for a blank key or one longer than 128 characters.
  * @throws {SymmError} `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`.
  * @throws {SymmError} `GASLESS_WALLET_ID_INVALID` for a wallet id outside the `uint256` range.
  * @throws {SymmApiError} `GASLESS_SETTLEMENT_SUBMIT_FAILED` on HTTP failure.
@@ -82,7 +80,7 @@ export async function settleGaslessDepositExistingAccount(
   const { chainId, owner, subAccount } = parameters;
   const walletId = assertGaslessWalletId(parameters.walletId ?? 0n);
   const context = resolveGaslessHttp(config, { chainId, service: "deposits" });
-  const idempotencyKey = parameters.idempotencyKey ?? generateGaslessIdempotencyKey();
+  const idempotencyKey = resolveGaslessIdempotencyKey(parameters.idempotencyKey);
 
   const body: GaslessWireExistingAccountSettlementRequest = {
     idempotencyKey,

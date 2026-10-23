@@ -31,6 +31,13 @@ await manager.initialize("0xYourWalletAddress");
 const { signature } = await manager.sign("Authorize SYMMIO session");
 ```
 
+Use `manager.load(owner)` when a device must only restore an existing key. It never generates, removes, or replaces
+records. Import transferred keys with `{ expiresAt }` to retain their absolute expiry in milliseconds.
+
+`manager.getAccount()` returns a viem signing capability that rejects after lifecycle changes or expiry, including
+signatures in flight. Password locks, encryption, deployment scoping, and coordination between storage writers stay
+in the consuming app. A raw private key exported for transfer cannot be revoked by the manager.
+
 See the [full API reference](https://doc.trading-sdk.symm.io/session-key) for the complete manager surface, storage interface, and transfer-payload helpers.
 
 ## License

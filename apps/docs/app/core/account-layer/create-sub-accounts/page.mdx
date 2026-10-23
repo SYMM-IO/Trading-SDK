@@ -2,17 +2,18 @@ import { Callout } from "nextra/components";
 
 # createSubAccounts
 
-Create one or more subaccounts under an affiliate. The signing wallet becomes the `owner` of every subaccount created.
+Create one or more subaccounts under an affiliate. A direct wallet transaction creates them for that wallet;
+a gasless operation creates them for the billing account's owner, including when a delegated session key signs.
 
 ```ts
-import { createSubAccounts, SubAccountIsolationType } from "@symmio/trading-core";
+import { createSubAccounts, encodeSubAccountHookMetadata, SubAccountIsolationType } from "@symmio/trading-core";
 
 const hash = await createSubAccounts(config, {
   affiliate: "0xaff...",
   accountsData: [
     {
       name: "Main",
-      metadata: "0x",
+      metadata: encodeSubAccountHookMetadata({ partyBToBind: solverAddress }),
       symmioCore: "0xcore...",
       isolationType: SubAccountIsolationType.MARKET,
       singleVAMode: true,
@@ -25,11 +26,18 @@ The created addresses are deterministic and returned by the contract call, but t
 transaction is mined — take them from the `SubAccountCreated` events on the receipt, or refetch
 [`getUserSubAccounts`](/core/account-layer/get-user-sub-accounts).
 
+## Hook metadata
+
+The affiliate's `onAccountCreation` hook receives each entry's `metadata` and decides its encoding. A hooked affiliate
+rejects a blob it cannot decode, the empty `"0x"` included, and the whole call reverts with `HookFailed`. Build the blob
+with [`encodeSubAccountHookMetadata`](/core/account-layer/encode-sub-account-hook-metadata), passing the chain's solver
+as `partyBToBind`. Its referral code is global and single-use, so never reuse a fixed one.
+
 ## Relaying it without gas
 
-`createSubAccounts` relays like any other [relayable write](/core/gasless/relayable-writes), and the accounts still
-belong to the signing wallet: the relayer scopes the AccountLayer call to the owner, so the contract resolves the
-creator to your EOA rather than to the relayer.
+`createSubAccounts` relays like any other [relayable write](/core/gasless/relayable-writes). The relayer scopes the
+AccountLayer call to the billing account's owner. That owner receives the new accounts even when a delegated
+session key signs the operation.
 
 ```ts
 const hash = await createSubAccounts(config, {
@@ -64,7 +72,8 @@ const hash = await createSubAccounts(config, {
     Optional chain override.
   </Property>
   <Property name="simulateBeforeWrite" type="boolean" optional>
-    Dry-run via `simulateContract` first (defaults to the config's setting, itself `true` by default).
+    Dry-run wallet execution via `simulateContract` first, including wallet fallback (defaults to the config's setting,
+    itself `true` by default).
   </Property>
   <Property name="gasless" type="boolean | GaslessWriteOptions" optional>
     Relay this write through the [gasless execution mode](/core/gasless/relayable-writes) instead of the wallet.
@@ -74,4 +83,23 @@ const hash = await createSubAccounts(config, {
 
 ## Returns
 
-<Returns type="Hash">The broadcast tx hash.</Returns>
+<Returns type="Hash">The broadcast tx hash. The caller waits for the receipt.</Returns>
+
+## Recovering an interrupted creation
+
+A relayed creation can end without a clear answer — a lost response, a closed page, a timed-out wait. Give each user action its own `gasless.idempotencyKey`, save it before calling, and call again under the same key: the service accepts the key at most once, so the account is never created twice.
+
+```ts
+import { createSubAccounts, generateGaslessIdempotencyKey } from "@symmio/trading-core";
+
+const key = generateGaslessIdempotencyKey();
+await pendingActions.save({ key, affiliate, accountsData, payer });
+
+const hash = await createSubAccounts(config, {
+  affiliate,
+  accountsData,
+  gasless: { account: payer, idempotencyKey: key },
+});
+```
+
+A key makes the call strictly gasless: it never falls back to the wallet on its own. [Recovering gasless writes](/core/gasless/recovering-writes) covers the full lifecycle — what to save, how to read each outcome, and how to reconcile one that stays unknown.

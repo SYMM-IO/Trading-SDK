@@ -9,6 +9,7 @@ const { post } = vi.hoisted(() => ({ post: vi.fn() }));
 vi.mock("../../types/generated/enigma-solver", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../types/generated/enigma-solver")>()),
   postInstantTradeInstantOpen: post,
+  getInfo: vi.fn().mockResolvedValue({ data: {} }),
 }));
 const params = {
   solverId: "enigma",

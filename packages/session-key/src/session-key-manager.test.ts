@@ -1,6 +1,7 @@
 import { isAddress, recoverMessageAddress, recoverTypedDataAddress, type Address } from "viem";
 import { mainnet } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SessionKeyLoadError, SessionKeyOperationSupersededError } from "./errors";
 import { createSessionKey, createSessionKeyManager, sessionKeyFromPrivateKey } from "./session-key-manager";
 import type { SessionKeyMetadata, SessionKeyRecord, SessionKeyStorage, SessionKeyTypedDataParameters } from "./types";
 
@@ -304,6 +305,209 @@ describe("session key manager", () => {
 
     expect(rotated.publicAddress).not.toBe(first.publicAddress);
     expect(storage.raw.get(OWNER.toLowerCase())?.address).toBe(rotated.publicAddress);
+  });
+});
+
+describe("session key manager lifecycle guarantees", () => {
+  it("shares one initialize between concurrent callers, generating a single key", async () => {
+    const storage = createMemorySessionKeyStorage();
+    const save = vi.spyOn(storage, "save");
+    const manager = createSessionKeyManager({ storage });
+
+    const [first, second] = await Promise.all([manager.initialize(OWNER), manager.initialize(OWNER)]);
+
+    expect(first.publicAddress).toBe(second.publicAddress);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(storage.raw.get(OWNER.toLowerCase())?.address).toBe(first.publicAddress);
+  });
+
+  it("adopts a competing key it observes before publishing its own", async () => {
+    const shared = createMemorySessionKeyStorage();
+    const otherTab = createSessionKey();
+    const racing: SessionKeyStorage = {
+      ...shared,
+      async save(owner, record) {
+        await shared.save(owner, record);
+        /** Another tab stores its own key right after this one. */
+        await shared.save(owner, { ...record, privateKey: otherTab.privateKey, address: otherTab.address });
+      },
+    };
+    const manager = createSessionKeyManager({ storage: racing });
+
+    const state = await manager.initialize(OWNER);
+
+    expect(state.publicAddress).toBe(otherTab.address);
+    expect(manager.getAddress()).toBe(otherTab.address);
+  });
+
+  it('keeps the stored record and rejects when load fails under `onLoadError: "throw"`', async () => {
+    const save = vi.fn();
+    const remove = vi.fn();
+    const failing: SessionKeyStorage = {
+      async load() {
+        throw new Error("Cannot decrypt.");
+      },
+      save,
+      remove,
+      async getMetadata() {
+        return null;
+      },
+    };
+    const manager = createSessionKeyManager({ storage: failing, onLoadError: "throw" });
+
+    const failure = manager.initialize(OWNER);
+
+    await expect(failure).rejects.toBeInstanceOf(SessionKeyLoadError);
+    await expect(failure).rejects.toMatchObject({
+      owner: OWNER,
+      cause: expect.objectContaining({ message: "Cannot decrypt." }),
+    });
+    expect(remove).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+    expect(manager.isReady()).toBe(false);
+  });
+
+  it("does not leave the previous owner's key usable when the next owner's load fails", async () => {
+    const storage = createMemorySessionKeyStorage();
+    const failsForOther: SessionKeyStorage = {
+      ...storage,
+      async load(owner) {
+        if (owner === OTHER_OWNER) throw new Error("Cannot decrypt.");
+        return storage.load(owner);
+      },
+    };
+    const manager = createSessionKeyManager({ storage: failsForOther, onLoadError: "throw" });
+    await manager.initialize(OWNER);
+
+    const failure = manager.initialize(OTHER_OWNER);
+
+    expect(manager.getAddress()).toBeNull();
+    await expect(failure).rejects.toBeInstanceOf(SessionKeyLoadError);
+    expect(manager.getAddress()).toBeNull();
+    expect(manager.getState().isReady).toBe(false);
+  });
+
+  it("keeps running queued calls after one of them fails", async () => {
+    const storage = createMemorySessionKeyStorage();
+    const failsOnce: SessionKeyStorage = {
+      ...storage,
+      load: vi.fn().mockRejectedValueOnce(new Error("Cannot decrypt.")).mockImplementation(storage.load),
+    };
+    const manager = createSessionKeyManager({ storage: failsOnce, onLoadError: "throw" });
+
+    await expect(manager.initialize(OWNER)).rejects.toBeInstanceOf(SessionKeyLoadError);
+    const rotated = await manager.rotate(OWNER);
+
+    expect(rotated.publicAddress).toBe(storage.raw.get(OWNER.toLowerCase())?.address);
+    expect(manager.getAddress()).toBe(rotated.publicAddress);
+  });
+
+  it("revokes the in-memory signer synchronously when destroy is called", async () => {
+    const storage = createMemorySessionKeyStorage();
+    const manager = createSessionKeyManager({ storage });
+    await manager.initialize(OWNER);
+
+    const destroying = manager.destroy();
+
+    expect(manager.getAccount()).toBeNull();
+    expect(manager.getAddress()).toBeNull();
+    expect(manager.getPrivateKey()).toBeNull();
+    expect(manager.isReady()).toBe(false);
+    await destroying;
+  });
+
+  it("does not return a signature when the signer is revoked while signing", async () => {
+    const storage = createMemorySessionKeyStorage();
+    const manager = createSessionKeyManager({ storage });
+    await manager.initialize(OWNER);
+    const account = manager.getAccount()!;
+    const signMessage = account.signMessage.bind(account);
+    let markSigningStarted!: () => void;
+    let releaseSigning!: () => void;
+    const signingStarted = new Promise<void>((resolve) => {
+      markSigningStarted = resolve;
+    });
+    const signingGate = new Promise<void>((resolve) => {
+      releaseSigning = resolve;
+    });
+    vi.spyOn(account, "signMessage").mockImplementation(async (parameters) => {
+      markSigningStarted();
+      await signingGate;
+      return signMessage(parameters);
+    });
+
+    const signing = manager.sign("revoke while signing");
+    await signingStarted;
+    const destroying = manager.destroy();
+    releaseSigning();
+
+    await expect(signing).rejects.toMatchObject({
+      operation: "sign",
+      name: "SessionKeyOperationSupersededError",
+    });
+    await destroying;
+  });
+
+  it("revokes the previous owner as soon as another initialize starts", async () => {
+    const storage = createMemorySessionKeyStorage();
+    const originalLoad = storage.load.bind(storage);
+    let releaseLoad!: () => void;
+    const loadGate = new Promise<void>((resolve) => {
+      releaseLoad = resolve;
+    });
+    const delayed: SessionKeyStorage = {
+      ...storage,
+      async load(owner) {
+        if (owner === OTHER_OWNER) await loadGate;
+        return originalLoad(owner);
+      },
+    };
+    const manager = createSessionKeyManager({ storage: delayed });
+    await manager.initialize(OWNER);
+
+    const switching = manager.initialize(OTHER_OWNER);
+
+    expect(manager.getAddress()).toBeNull();
+    expect(manager.getAccount()).toBeNull();
+    releaseLoad();
+    const next = await switching;
+    expect(manager.getAddress()).toBe(next.publicAddress);
+  });
+
+  it("prevents an older initialize from publishing after destroy", async () => {
+    const storage = createMemorySessionKeyStorage();
+    const originalLoad = storage.load.bind(storage);
+    let markLoadStarted!: () => void;
+    let releaseLoad!: () => void;
+    const loadStarted = new Promise<void>((resolve) => {
+      markLoadStarted = resolve;
+    });
+    const loadGate = new Promise<void>((resolve) => {
+      releaseLoad = resolve;
+    });
+    const delayed: SessionKeyStorage = {
+      ...storage,
+      async load(owner) {
+        markLoadStarted();
+        await loadGate;
+        return originalLoad(owner);
+      },
+    };
+    const manager = createSessionKeyManager({ storage: delayed });
+    const initialization = manager.initialize(OWNER);
+    await loadStarted;
+
+    const destroying = manager.destroy();
+    releaseLoad();
+
+    await expect(initialization).rejects.toMatchObject({
+      operation: "initialize",
+      name: "SessionKeyOperationSupersededError",
+    });
+    await expect(initialization).rejects.toBeInstanceOf(SessionKeyOperationSupersededError);
+    await destroying;
+    expect(manager.getAddress()).toBeNull();
+    expect(storage.raw.size).toBe(0);
   });
 });
 

@@ -5,8 +5,11 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
-import { encodeSubAccountHookMetadata } from "@/lib/subaccount-metadata";
-import { SubAccountIsolationType, type SubAccountCreationData } from "@symmio/trading-core";
+import {
+  encodeSubAccountHookMetadata,
+  SubAccountIsolationType,
+  type SubAccountCreationData,
+} from "@symmio/trading-core";
 import {
   useCreateSubAccounts,
   useSimulateCreateSubAccounts,

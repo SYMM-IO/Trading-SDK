@@ -22,21 +22,23 @@ await grantDelegation(config, {
 await relayGaslessBatch(config, { account: subAccount, calls, from: sessionKey });
 ```
 
-Grant the set on the batch's `account`: the InstantLayer checks a write's selector there, and the GaslessLayer checks a wallet entry's sentinel and inner selectors on the same account (a virtual account's parent). The result is lowercased and de-duplicated in first-seen order, because `grantDelegation` rejects a duplicate-bearing array.
+Grant the set on the batch's `account`: both execution paths check delegated permissions on the canonical account, which is a live virtual account's parent. The result is lowercased and de-duplicated in first-seen order.
+
+For a mixed-signer batch, pass only the calls that the particular delegate signs. This helper collects selectors from every supplied call; it does not resolve `from` or group permissions by signer. For example, keep `sessionCalls` separate when building the batch, derive `getGaslessBatchSelectors(sessionCalls)`, then include those calls with `from: sessionKey` after the owner's grant.
 
 Selectors come from the **encoded** calldata, so an overloaded ABI resolves to the function that will actually run — and a named call is encoded against the SDK's own ABI for the relayable write of that name.
 
 <Callout type="warning">
-  A batch containing `grantDelegation` must be owner-signed whatever this returns: the InstantLayer rejects a
-  delegate-signed grant. And the set is scoped to the batch — a key granted `transfer` can send the wallet's whole
-  balance to any recipient, because delegations bind selectors, not arguments. Grant the narrowest batch you can.
+  Each `grantDelegation` or `grantDelegations` entry must be owner-signed: the InstantLayer rejects a delegate-signed
+  grant. Other entries can use their own signers. A key granted `transfer` can send the wallet's whole balance to any
+  recipient, because delegations bind selectors, not arguments. Grant the narrowest batch you can.
 </Callout>
 
 ## Parameters
 
 <Properties>
   <Property name="calls" type="readonly GaslessBatchCall[]" required>
-    The batch, in any order and any of the call forms.
+    The calls signed by this delegate, in any order and any of the call forms.
   </Property>
 </Properties>
 

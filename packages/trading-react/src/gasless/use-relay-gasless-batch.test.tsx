@@ -39,7 +39,7 @@ const VARIABLES: RelayGaslessBatchVariables = {
   account: SUB_ACCOUNT,
   calls: [
     { functionName: "allocate", args: [5n] },
-    { walletId: 2n, walletCalls: [{ target: USDC, data: "0xa9059cbb" }] },
+    { walletId: 2n, walletCalls: [{ target: USDC, data: "0xa9059cbb" }], from: SESSION_KEY },
   ],
 };
 
@@ -63,6 +63,7 @@ describe("useRelayGaslessBatch", () => {
       from: SESSION_KEY,
       operationType: "onboarding",
       metadata: { source: "test" },
+      idempotencyKey: "onboard-1",
     };
 
     await result.current.mutateAsync(variables);

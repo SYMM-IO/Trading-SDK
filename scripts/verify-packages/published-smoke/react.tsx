@@ -1,8 +1,13 @@
 /**
- * Resolves `@symmio/trading-react`'s root entry and all eleven named subpath exports
+ * Resolves `@symmio/trading-react`'s root entry and every named subpath export
  * under `moduleResolution: nodenext`, and exercises the React types via `react-jsx`.
  * These subpaths are the ones that previously shipped a `.d.ts` with no `.js`
  * twin, so this file is the regression guard for that defect.
+ *
+ * Do not add feature checks here: no named types, hooks, fields or usage
+ * examples for new APIs. Unit tests in the owning package cover API shapes; here
+ * they only duplicate them and fail CI's `verify-packages` step on every rename.
+ * Edit this file only when a package or subpath export is added or removed (see README.md).
  */
 import * as react from "@symmio/trading-react";
 import * as accountLayer from "@symmio/trading-react/account-layer";
