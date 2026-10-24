@@ -2988,6 +2988,11 @@ export {
   assemblePoolPortfolio,
   getPoolBalanceBreakdown,
   getPoolBalanceUsd,
+  getPoolDepositPreview,
+  getPoolHistoryAmounts,
+  getPoolPendingQuoteMetrics,
+  getPoolTradeHistoryMetrics,
+  getPoolWithdrawalPreview,
   parseMixedPoolMetric,
   parsePoolMetric,
   parsePoolPercent,
@@ -3001,11 +3006,14 @@ export {
   sumPoolDepositHistory,
   type PoolBalanceBreakdown,
   type PoolDepositHistory,
+  type PoolDepositPreviewInput,
   type PoolMetricValue,
   type PoolPortfolioDeposit,
   type PoolPortfolioEntry,
   type PoolPortfolioMarket,
   type PoolPriceSources,
+  type PoolTradeHistoryCalculationInput,
+  type PoolWithdrawalPreviewInput,
 } from "./pools/calculations";
 export { getPoolClaim, type GetPoolClaimParameters } from "./pools/claim-history";
 export {

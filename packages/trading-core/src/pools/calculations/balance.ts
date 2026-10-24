@@ -8,6 +8,7 @@ export interface PoolBalanceBreakdown {
   pendingUsdc: number;
   hasPending: boolean;
   availableRatio: number;
+  pendingRatio: number;
   totalToken: number;
   totalUsdc: number;
   availableLpRaw: bigint;
@@ -35,6 +36,7 @@ export function getPoolBalanceBreakdown(
     pendingUsdc: totalUsdc * pendingRatio,
     hasPending: pendingLpRaw > 0n,
     availableRatio,
+    pendingRatio,
     totalToken,
     totalUsdc,
     availableLpRaw,

@@ -3,13 +3,18 @@ import {
   authenticateListing,
   checkListingTokenSupport,
   getListingTokenMetadata,
+  getPoolDepositPreview,
   getPoolDexDataBatch,
+  getPoolHistoryAmounts,
   getPoolMaintenanceFees,
   getPoolOpenQuoteEntryPrice,
   getPoolOpenQuoteQuantity,
+  getPoolPendingQuoteMetrics,
   getPoolPortfolio,
   getPoolPortfolioTotals,
   getPoolStatistics,
+  getPoolTradeHistoryMetrics,
+  getPoolWithdrawalPreview,
   selectPoolMetricUsd,
   type Config,
   type ListingSignInMessage,
@@ -43,5 +48,13 @@ void [useListingTokenMetadata, useListingTokenSupport, usePoolMaintenanceFees];
 
 /** Selectors must accept the SDK's own normalized read result. */
 export function quoteMetrics(quote: PoolQuote) {
-  return { entry: getPoolOpenQuoteEntryPrice(quote), remaining: getPoolOpenQuoteQuantity(quote) };
+  return {
+    entry: getPoolOpenQuoteEntryPrice(quote),
+    remaining: getPoolOpenQuoteQuantity(quote),
+    pending: getPoolPendingQuoteMetrics(quote),
+    history: getPoolTradeHistoryMetrics(quote),
+    withdrawal: getPoolWithdrawalPreview({ balance: null, percent: 100 }),
+    deposit: getPoolDepositPreview({}),
+    totals: getPoolHistoryAmounts([1n]),
+  };
 }

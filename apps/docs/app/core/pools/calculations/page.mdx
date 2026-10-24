@@ -26,7 +26,46 @@ const stats = getPoolStatistics({
 
 Pending valuation uses the token price implied by the same detail balance snapshot before considering the live price. Listing TVL may be newer but must not be mixed into the detail balance split.
 
-## Metrics
+## Detail previews and history amounts
+
+These pure selectors add no requests or cache. Import them from `@symmio/trading-core`.
+
+| Selector                                                                              | Inputs and result                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getPoolWithdrawalPreview({ balance, percent, tokenPriceUsd })`                       | `balance` is the four raw balance/LP fields accepted by `getPoolBalanceBreakdown`. `percent` must be an integer from 0 to 100. Returns `{ lpAmount, tokenAmount, usdcAmount, valueUsd }`, all 18-decimal bigints. LP sizing floors; 100% uses the entire available LP. Estimated legs retain the selected percentage before LP rounding. A missing price values only USDC; missing balance returns zeros. |
+| `getPoolDepositPreview({ minimumUsd, tokenPriceUsd, baselineTokens, currentTokens })` | USD minimum and price are plain numbers; baseline/current token amounts are 18-decimal bigints. Returns optional `minimumTokens` in human token units and optional `addedTokens` as a bigint. Unknown/nonpositive price leaves the minimum unavailable. Missing baseline/current stays unavailable; a decrease returns zero added tokens.                                                                 |
+| `getPoolHistoryAmounts(amounts: readonly bigint[])`                                   | Returns `{ total: bigint, cumulative: bigint[] }` in the input units. Pass the already-filtered, ordered range. Empty input returns zero/empty; signed values and dust are retained.                                                                                                                                                                                                                      |
+
+`PoolBalanceBreakdown.pendingRatio` exposes the existing pending-LP / total-LP fraction (zero for no LP), independently of the token leg. It does not clamp an over-pending ledger.
+
+```ts
+import { getPoolWithdrawalPreview, getPoolDepositPreview, getPoolHistoryAmounts } from "@symmio/trading-core";
+const unit = 10n ** 18n;
+const preview = getPoolWithdrawalPreview({
+  balance: {
+    userLpAmount: 4n * unit,
+    pendingWithdrawLpAmount: unit,
+    userBalanceInTokens: 8n * unit,
+    userBalanceInUsdc: 16n * unit,
+  },
+  percent: 50,
+  tokenPriceUsd: 2,
+});
+// preview.lpAmount === 1_500_000_000_000_000_000n; preview.valueUsd === 12n * unit
+const deposit = getPoolDepositPreview({
+  minimumUsd: 10,
+  tokenPriceUsd: 2,
+  baselineTokens: unit,
+  currentTokens: 2n * unit,
+});
+// deposit.minimumTokens === 5; deposit.addedTokens === unit
+const history = getPoolHistoryAmounts([unit, 1n, -unit]);
+// history.total === 1n; history.cumulative === [unit, unit + 1n, 1n]
+```
+
+Previews describe estimates or observed balances, never submission acceptance or settlement.
+
+## Metric parsing
 
 `parsePoolMetric`, `parseScaledPoolMetric`, `parseMixedPoolMetric`, and `parsePoolPercent` accept `PoolMetricValue` and retain missing/invalid values as undefined. Mixed fields support the existing rollout scaling heuristic; use explicit scaled parsing for amounts.
 
