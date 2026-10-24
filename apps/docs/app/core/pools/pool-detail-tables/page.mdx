@@ -64,7 +64,32 @@ The distinction is load-bearing: the lowcap solver declares `limitOrder: false`,
   </MethodEntry>
 </MethodIndex>
 
-## Related
+## Pending orders and realized history values
+
+`getPoolPendingQuoteMetrics(quote: PoolQuoteCalculationInput)` returns `{ quantity, price, notional }` as 18-decimal bigints. The requested price takes precedence over the opened price; explicitly supplied zero is retained, while absent/empty fields fall back.
+
+`getPoolTradeHistoryMetrics(quote: PoolTradeHistoryCalculationInput)` returns `{ quantity, closePrice, tradeValue, platformFee, realizedPnl }` as 18-decimal bigints. Pass an immutable event snapshot from the history read. Closed quantity takes precedence over full quantity, and average close price over close price, retaining explicit zero. Opening fees use the full position quantity and positive initial fill price (otherwise opened price); closing fees use the event quantity and price. Realized PnL composes the shared quote primitive and keeps 18-decimal precision. Neither selector mutates the quote or reads current market prices.
+
+```ts
+import { getPoolPendingQuoteMetrics, getPoolTradeHistoryMetrics } from "@symmio/trading-core";
+const unit = 10n ** 18n;
+const pending = getPoolPendingQuoteMetrics({ quantity: 2n * unit, requestedOpenPrice: 100n * unit });
+// pending.notional === 200n * unit
+const history = getPoolTradeHistoryMetrics({
+  quantity: 2n * unit,
+  closedAmount: unit,
+  openedPrice: 100n * unit,
+  averageClosedPrice: 120n * unit,
+  tradingFee: unit / 1000n,
+  closeFee: unit / 500n,
+  positionType: "0",
+});
+// history.platformFee === 440_000_000_000_000_000n; history.realizedPnl === 20n * unit
+```
+
+Wallet-filtered transaction views may require listing authentication at the application boundary even though the underlying pool transaction transport is public. Reuse the listing session, cancel old observers and discard completions after wallet/token/deployment switches.
+
+## Further reading
 
 - [Pools overview](/core/pools) — the catalog these tables hang off.
 - [`searchTpSlOrders`](/core/tpsl/search-tpsl-orders) — the limit-orders read.

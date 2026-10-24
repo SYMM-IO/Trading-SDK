@@ -14,6 +14,7 @@ describe("pool balance characterization", () => {
       totalLpRaw: 100n,
       availableLpRaw: 60n,
       availableRatio: 0.6,
+      pendingRatio: 0.4,
       totalToken: 3,
       totalUsdc: 0.000000536,
       availableToken: 1.8 - Number.EPSILON,
