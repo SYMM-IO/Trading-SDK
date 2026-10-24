@@ -1,0 +1,156 @@
+import { Callout } from "nextra/components";
+
+# getSubgraphQuotes
+
+The analytics subgraph's `Quote` entities, as indexed. Reach for it when you need what the subgraph tracks per quote — the funding index and last payment time, the settled funding totals, the lifecycle timestamps — for many quotes in one request, or for quotes long closed.
+
+```ts
+import { getSubgraphQuotes } from "@symmio/trading-core";
+
+const { rows, hasMore } = await getSubgraphQuotes(config, {
+  quoteIds: [7334n],
+  source: diamond,
+});
+```
+
+<Callout type="info">
+  **Indexed, not live.** These rows are the subgraph's copy of each quote, and they lag the chain. For the live on-chain
+  struct read [`getQuote`](/core/symmio-contract/get-quote); for the reconciled quote a trading UI renders, see [Unified
+  quotes](/core/quotes).
+</Callout>
+
+Every filter is optional and applied only when passed; an empty list filter reads nothing. One call returns one page — see [Filters and paging](/core/subgraph#filters-and-paging) for the shared rules and for paging by cursor.
+
+## Parameters
+
+<Properties>
+  <Property name="quoteIds" type="readonly bigint[]" optional>
+    On-chain quote ids. Pass `source` with them when one subgraph indexes several diamonds, whose quote ids can collide.
+  </Property>
+  <Property name="source" type="Address" optional>
+    The deployment's diamond address (the subgraph's `source`).
+  </Property>
+  <Property name="partyAs" type="readonly Address[]" optional>
+    Owning accounts (`partyA`).
+  </Property>
+  <Property name="first" type="number" default="1000">
+    Page size, 1–1000.
+  </Property>
+  <Property name="skip" type="number" default="0">
+    Rows to skip. The Graph rejects values above 5000.
+  </Property>
+  <Property name="orderBy" type='"timestamp" | "id"' default="timestamp">
+    Sort field. `"timestamp"` is the entity timestamp.
+  </Property>
+  <Property name="orderDirection" type='"asc" | "desc"' default="desc">
+    Sort direction.
+  </Property>
+  <Property name="idGt" type="string" optional>
+    Cursor: only quotes whose `id` sorts after this one.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetSubgraphQuotesReturnType">
+  <Property name="rows" type="SubgraphQuoteRow[]">
+    The decoded quotes of this page.
+  </Property>
+  <Property name="hasMore" type="boolean">
+    `true` when the page came back full, so another page may exist.
+  </Property>
+</Returns>
+
+### `SubgraphQuoteRow`
+
+Amounts and prices are 18-decimal wei `bigint`. A `null` marks a field the subgraph has not indexed for this quote — never read it as zero.
+
+<Returns type="SubgraphQuoteRow">
+  <Property name="id" type="string">
+    Subgraph entity id, `<quoteId>-<source>` — use it as an `idGt` cursor.
+  </Property>
+  <Property name="source" type="Address">
+    Diamond address the quote was indexed from.
+  </Property>
+  <Property name="quoteId" type="bigint">
+    On-chain quote id.
+  </Property>
+  <Property name="quoteStatus" type="QuoteStatus | null">
+    Lifecycle status.
+  </Property>
+  <Property name="partyA" type="Address">
+    PartyA — the SubAccount or Virtual Account.
+  </Property>
+  <Property name="partyB" type="Address | null">
+    PartyB, the solver.
+  </Property>
+  <Property name="symbolId" type="number | null">
+    Market id.
+  </Property>
+  <Property name="symbol" type="string | null">
+    Market ticker.
+  </Property>
+  <Property name="positionType" type="PositionType | null">
+    Long or short.
+  </Property>
+  <Property name="quantity" type="bigint | null">
+    Quote quantity.
+  </Property>
+  <Property name="fillAmount" type="bigint | null">
+    Filled quantity.
+  </Property>
+  <Property name="closedAmount" type="bigint | null">
+    Quantity closed so far.
+  </Property>
+  <Property name="openedPrice" type="bigint | null">
+    Current open price.
+  </Property>
+  <Property name="accumulatedPaidFunding" type="bigint | null">
+    Funding index the quote has paid through — signed, and an index, not an amount. See [Funding](/core/concepts/funding#accumulatedpaidfunding-is-a-baseline-not-money).
+  </Property>
+  <Property name="lastFundingPaymentTimestamp" type="number | null">
+    Last funding payment, unix seconds.
+  </Property>
+  <Property name="userPaidFunding" type="bigint | null">
+    Cumulative funding PartyA paid.
+  </Property>
+  <Property name="userReceivedFunding" type="bigint | null">
+    Cumulative funding PartyA received.
+  </Property>
+  <Property name="timestampSendQuote" type="number | null">
+    When the quote was sent, unix seconds.
+  </Property>
+  <Property name="timestampOpenPosition" type="number | null">
+    When the position opened, unix seconds.
+  </Property>
+  <Property name="timestampFullyClose" type="number | null">
+    When the position fully closed, unix seconds.
+  </Property>
+  <Property name="timestamp" type="number">
+    Entity timestamp, unix seconds.
+  </Property>
+  <Property name="blockNumber" type="bigint">
+    Block number of the last update.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getSubgraphQuotesQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getSubgraphQuotesQueryOptions(config, { quoteIds: [7334n], source: diamond }));
+```
+
+The query is disabled while `quoteIds` or `partyAs` is an empty array.
+
+## Related
+
+- [`getQuote`](/core/symmio-contract/get-quote) — the live on-chain struct.
+- [`getQuoteFunding`](/core/subgraph/get-quote-funding) — just the settled funding totals, with `missingQuoteIds` for indexing lag.
+- [`getQuoteFundingSettlements`](/core/subgraph/get-quote-funding-settlements) — each settlement that moved those totals.
+- [React `useSubgraphQuotes`](/react/subgraph#usesubgraphquotes) — the hook over this action.

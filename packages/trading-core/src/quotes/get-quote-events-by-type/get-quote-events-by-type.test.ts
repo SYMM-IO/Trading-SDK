@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { PublicClient } from "viem";
+import { getAddress, type PublicClient } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
 import { createConfig } from "../../core/config";
@@ -61,8 +61,14 @@ describe("getQuoteEventsByType", () => {
     expect(url).toBe(ANALYTICS_URL);
     expect(body.query).toContain("QuoteEventsForQuoteByType");
     expect(body.variables).toEqual({
-      quoteId: "7334",
-      typeIn: [QuoteEventType.SettleUpnl, QuoteEventType.ChargeFundingRate, QuoteEventType.ChargeAccumulatedFundingFee],
+      where: {
+        quoteId: "7334",
+        type_in: [
+          QuoteEventType.SettleUpnl,
+          QuoteEventType.ChargeFundingRate,
+          QuoteEventType.ChargeAccumulatedFundingFee,
+        ],
+      },
       first: 10,
       skip: 20,
       orderDirection: "asc",
@@ -109,5 +115,19 @@ describe("getQuoteEventsByType", () => {
 
     expect(result.rows).toHaveLength(1);
     expect(result.hasMore).toBe(false);
+  });
+
+  it("reads every event type, unfiltered, when types is omitted, and pins the diamond only when passed", async () => {
+    const post = vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { quoteEvents: [] } } });
+    const diamond = getAddress("0x8a0ed5b4cec4b0c4e1f7c8d9e3a2b1f0c9d8e7f6");
+
+    await getQuoteEventsByType(config, { quoteId: 7334n });
+    await getQuoteEventsByType(config, { quoteId: 7334n, types: ["OPEN_POSITION"], source: diamond });
+
+    const wheres = post.mock.calls.map((call) => (call[1] as { variables: { where: unknown } }).variables.where);
+    expect(wheres).toEqual([
+      { quoteId: "7334" },
+      { quoteId: "7334", type_in: ["OPEN_POSITION"], source: diamond.toLowerCase() },
+    ]);
   });
 });

@@ -1,0 +1,125 @@
+# getMarginTransfers
+
+Margin moved between a SubAccount and its Virtual Accounts, from the analytics subgraph's `marginTransfers` collection. Reach for it to see how much margin an open transaction put into its Virtual Account, how much came back on close, or to audit one Virtual Account's margin over time.
+
+```ts
+import { getMarginTransfers, MarginTransferType } from "@symmio/trading-core";
+
+// The margin each open transaction put into its Virtual Account.
+const { rows, hasMore } = await getMarginTransfers(config, {
+  types: [MarginTransferType.Add],
+  transactions: [openTransaction],
+});
+```
+
+Every filter is optional and applied only when passed; an empty list filter reads nothing. One call returns one page — see [Filters and paging](/core/subgraph#filters-and-paging) for the shared rules and for paging by cursor.
+
+## Parameters
+
+<Properties>
+  <Property name="source" type="Address" optional>
+    The deployment's diamond address (the subgraph's `source`).
+  </Property>
+  <Property name="types" type="readonly MarginTransferType[]" optional>
+    Transfer types to include. The `MarginTransfer` entity records `Add` (`ADD`), `Remove` (`REMOVE`), and
+    `EmergencyRecover` (`EMERGENCY_RECOVER`); a raw type string this release does not name is accepted too.
+  </Property>
+  <Property name="transactions" type="readonly Hex[]" optional>
+    Transactions the transfers happened in — for example a position's open or close transaction.
+  </Property>
+  <Property name="virtualAccounts" type="readonly Address[]" optional>
+    Virtual Accounts the margin moved into or out of.
+  </Property>
+  <Property name="subAccounts" type="readonly Address[]" optional>
+    SubAccounts that own those Virtual Accounts.
+  </Property>
+  <Property name="startTime" type="number" optional>
+    Lower bound on the block timestamp (unix seconds, inclusive).
+  </Property>
+  <Property name="endTime" type="number" optional>
+    Upper bound on the block timestamp (unix seconds, inclusive).
+  </Property>
+  <Property name="first" type="number" default="1000">
+    Page size, 1–1000.
+  </Property>
+  <Property name="skip" type="number" default="0">
+    Rows to skip. The Graph rejects values above 5000.
+  </Property>
+  <Property name="orderBy" type='"timestamp" | "id"' default="timestamp">
+    Sort field.
+  </Property>
+  <Property name="orderDirection" type='"asc" | "desc"' default="desc">
+    Sort direction.
+  </Property>
+  <Property name="idGt" type="string" optional>
+    Cursor: only transfers whose `id` sorts after this one.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetMarginTransfersReturnType">
+  <Property name="rows" type="MarginTransferRow[]">
+    The decoded transfers of this page.
+  </Property>
+  <Property name="hasMore" type="boolean">
+    `true` when the page came back full, so another page may exist.
+  </Property>
+</Returns>
+
+### `MarginTransferRow`
+
+<Returns type="MarginTransferRow">
+  <Property name="id" type="string">
+    Subgraph entity id — stable; use it as a row key or `idGt` cursor.
+  </Property>
+  <Property name="type" type="MarginTransferType | string">
+    Transfer direction. A type this release does not name passes through as its raw string.
+  </Property>
+  <Property name="virtualAccount" type="Address">
+    The Virtual Account the margin moved into or out of.
+  </Property>
+  <Property name="subAccount" type="Address">
+    The SubAccount that owns the Virtual Account.
+  </Property>
+  <Property name="amount" type="bigint">
+    Amount moved, 18-decimal wei.
+  </Property>
+  <Property name="source" type="Address">
+    Diamond address the transfer was indexed from.
+  </Property>
+  <Property name="timestamp" type="number">
+    Block timestamp, unix seconds.
+  </Property>
+  <Property name="blockNumber" type="bigint">
+    Block number.
+  </Property>
+  <Property name="transaction" type="Hex">
+    Transaction hash.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getMarginTransfersQueryOptions, MarginTransferType } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(
+  getMarginTransfersQueryOptions(config, {
+    types: [MarginTransferType.Add],
+    transactions: [openTransaction],
+  }),
+);
+```
+
+The query is disabled while any list filter (`types`, `transactions`, `virtualAccounts`, `subAccounts`) is an empty array.
+
+## Related
+
+- [`getBalanceHistory`](/core/subgraph/get-balance-history) — deposits and withdraws; its `internalTransfers` mode shows the margin-transfer legs among them.
+- [`getQuoteHistory`](/core/subgraph/get-quote-history) — each row's `sendQuoteTransaction` is the quote's open transaction, ready to pass as `transactions`.
+- [React `useMarginTransfers`](/react/subgraph#usemargintransfers) — the hook over this action.

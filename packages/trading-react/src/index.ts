@@ -512,6 +512,7 @@ export {
   useRequestToCancelCloseRequest,
   useRequestToCancelQuote,
   useSubgraphQuery,
+  useSubgraphQuotes,
   type CloseQuoteGroupParameters,
   type CloseQuoteGroupStatus,
   type CloseQuoteGroupStep,
@@ -589,6 +590,8 @@ export {
   type UseRequestToCancelQuoteReturnType,
   type UseSubgraphQueryParameters,
   type UseSubgraphQueryReturnType,
+  type UseSubgraphQuotesParameters,
+  type UseSubgraphQuotesReturnType,
 } from "./quotes";
 
 /**
@@ -606,6 +609,32 @@ export {
   type UseAvailableInstantOpenMarginParameters,
   type UseAvailableInstantOpenMarginReturnType,
 } from "./margin";
+
+/**
+ * Subgraph entity reads
+ * ---------------------
+ * Thin hooks over core's entity reads: `useMarginTransfers` (margin moved
+ * between a SubAccount and its Virtual Accounts), `useLiquidationDetails` (one
+ * entity per PartyA liquidation), `useQuoteFundingSettlements` and
+ * `useFundingIndexCheckpoints` (the raw inputs of a per-epoch funding
+ * timeline). Every filter is optional and applied only when passed; each call
+ * returns one page (`rows` + `hasMore`). Import `MarginTransferType`,
+ * `SubgraphPageParameters` and the row types from `@symmio/trading-core`.
+ */
+export {
+  useFundingIndexCheckpoints,
+  useQuoteFundingSettlements,
+  type UseFundingIndexCheckpointsParameters,
+  type UseFundingIndexCheckpointsReturnType,
+  type UseQuoteFundingSettlementsParameters,
+  type UseQuoteFundingSettlementsReturnType,
+} from "./funding";
+export {
+  useLiquidationDetails,
+  type UseLiquidationDetailsParameters,
+  type UseLiquidationDetailsReturnType,
+} from "./liquidation";
+export { useMarginTransfers, type UseMarginTransfersParameters, type UseMarginTransfersReturnType } from "./margin";
 
 /**
  * Balance history hooks

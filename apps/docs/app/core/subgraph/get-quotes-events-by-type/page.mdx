@@ -1,6 +1,6 @@
 # getQuotesEventsByType
 
-Batched sibling of [`getQuoteEventsByType`](/core/subgraph/get-quote-events-by-type): decoded subgraph events for **many** quotes in one round-trip, filtered to specific event types. This is what a grouped position reaches for — one request covers every child quote instead of one request per leg.
+Batched sibling of [`getQuoteEventsByType`](/core/subgraph/get-quote-events-by-type): decoded subgraph events for **many** quotes in one round-trip, optionally filtered to specific event types. This is what a grouped position reaches for — one request covers every child quote instead of one request per leg.
 
 ```ts
 import { FUNDING_HISTORY_EVENT_TYPES, getQuotesEventsByType } from "@symmio/trading-core";
@@ -23,9 +23,13 @@ Two consequences for paging:
 
 Each row carries its own `quoteId`, so a caller that wants a per-position breakdown groups by that field client-side.
 
-## Event-type presets
+## Event types
 
-`types` takes any subset of `QuoteEventType`. Two presets ship with the SDK:
+`types` takes any `QuoteSubgraphEventType`, exactly as on [`getQuoteEventsByType`](/core/subgraph/get-quote-events-by-type#event-types): the `QuoteEventType` and `QuoteCloseEventType` values, or any other type string the subgraph emits (`"OPEN_POSITION"`, `"QUOTE_ADJUSTED"`, …). Each row's `type` narrows to the types you pass. Omit `types` to read every event on the quotes; an empty array reads nothing.
+
+### Presets
+
+Two presets ship with the SDK:
 
 - **`PRICE_HISTORY_EVENT_TYPES`** — everything that moves a quote's open price: `SettleUpnl`, `ChargeFundingRate`, `ChargeAccumulatedFundingFee`.
 - **`FUNDING_HISTORY_EVENT_TYPES`** — the funding subset: `ChargeFundingRate` and `ChargeAccumulatedFundingFee`. It drops `SettleUpnl` (an open-price recompute that settles no funding) and keeps exactly the two events that carry `fundingPaid` / `fundingReceived` / `rate` in their metadata.
@@ -39,10 +43,14 @@ Which of the two a quote produces depends on its pair: `CHARGE_ACCUMULATED_FUNDI
     On-chain quote ids to read events for. Order is irrelevant — rows come back merged. An empty array returns an empty
     page **without** issuing a request.
   </Property>
-  <Property name="types" type="readonly QuoteEventType[]" required>
+  <Property name="types" type="readonly QuoteSubgraphEventType[]" optional>
     Event types to include — `SettleUpnl` (`SETTLE_UPNL`), `ChargeFundingRate` (`CHARGE_FUNDING_RATE`),
-    `ChargeAccumulatedFundingFee` (`CHARGE_ACCUMULATED_FUNDING_FEE`), or one of the presets above. An empty array
-    returns an empty page **without** issuing a request.
+    `ChargeAccumulatedFundingFee` (`CHARGE_ACCUMULATED_FUNDING_FEE`), one of the presets above, or any other subgraph
+    type string. Omit to read every type; an empty array returns an empty page **without** issuing a request.
+  </Property>
+  <Property name="source" type="Address" optional>
+    The deployment's diamond address (the subgraph's `source`). Omit to match the quote ids on any deployment the
+    subgraph indexes; pass it when one subgraph indexes several diamonds, whose quote ids can collide.
   </Property>
   <Property name="first" type="number" default="1000">
     Page size across the whole batch, not per quote id. The subgraph caps it at `1000`, and omitting it asks for that
@@ -61,12 +69,12 @@ Which of the two a quote produces depends on its pair: `CHARGE_ACCUMULATED_FUNDI
 
 ## Returns
 
-<Returns type="GetQuotesEventsByTypeReturnType">
-  <Property name="rows" type="QuoteEventRow[]">
-    The decoded event rows for every requested quote id, merged and sorted by `timestamp` server-side. Same row shape as
-    the single-quote action — each carries `quoteId`, `type`, `timestamp`, and the decoded metadata fields
-    (`fundingPaid`, `fundingReceived`, `rate`, `newPrice`, `prevPrice`, …) whenever the underlying JSON held them. All
-    amounts are 18-decimal wei `bigint`.
+<Returns type="GetQuotesEventsByTypeReturnType<TType>">
+  <Property name="rows" type="QuoteEventRow<TType>[]">
+    The decoded event rows for every requested quote id, merged and sorted by `timestamp` server-side, `type` narrowed
+    to the requested `types`. Same row shape as the single-quote action — each carries `quoteId`, `type`, `timestamp`,
+    and the decoded metadata fields (`fundingPaid`, `fundingReceived`, `rate`, `newPrice`, `prevPrice`, …) whenever the
+    underlying JSON held them. All amounts are 18-decimal wei `bigint`.
   </Property>
   <Property name="hasMore" type="boolean">
     `true` when the page came back full (`rows.length === first`) — fetch the next page by advancing `skip`.
@@ -95,7 +103,7 @@ useQuery(
 );
 ```
 
-The query is **disabled** until at least one quote id _and_ one event type are supplied. `getQuotesEventsByTypeQueryKey` stringifies the `bigint` ids and sorts them ascending, so passing the same ids in a different order shares one cache entry (the caller's array is never mutated).
+The query is **disabled** until at least one quote id is supplied, and while `types` is an empty array; omitting `types` reads every type. `getQuotesEventsByTypeQueryKey` stringifies the `bigint` ids and sorts them ascending, so passing the same ids in a different order shares one cache entry (the caller's array is never mutated).
 
 ## Related
 

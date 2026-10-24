@@ -123,6 +123,10 @@ What differs between the generations is how the contract keeps the pair's state:
 - **Dust-level differences.** Because the two generations fold differently, the exact integers can differ by rounding dust. Treat both as the same quantity.
 - **One v0.8.5-only revert.** With accumulated funding active on a v0.8.5 chain, a quote whose legacy funding was prepaid into a later epoch makes `getQuoteFundingDebts` revert. That fails the batch, and so the whole `getQuotePendingFunding` call. The SDK does not work around it; the viem error passes through.
 
+## Per-epoch funding history
+
+The subgraph also exposes the raw inputs of a per-epoch funding timeline: [`getQuoteFundingSettlements`](/core/subgraph/get-quote-funding-settlements) returns each settlement on a quote — amounts, the funding index before and after, the epochs paid through — and [`getFundingIndexCheckpoints`](/core/subgraph/get-funding-index-checkpoints) returns the (symbol, partyB) pair's funding-rate index over time. The SDK returns both as indexed and does not combine them: building the timeline from them is the consumer's job.
+
 ## Related
 
 - [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding) — pending funding for a batch of quotes.
@@ -130,6 +134,7 @@ What differs between the generations is how the contract keeps the pair's state:
 - [`getQuoteFunding`](/core/subgraph/get-quote-funding) — settled funding totals from the subgraph.
 - [`aggregateGroupFunding`](/core/quotes/aggregate-group-funding) — settled funding folded over a grouped position.
 - [`getQuotesEventsByType`](/core/subgraph/get-quotes-events-by-type) — the per-charge settled timeline.
+- [`getQuoteFundingSettlements`](/core/subgraph/get-quote-funding-settlements) / [`getFundingIndexCheckpoints`](/core/subgraph/get-funding-index-checkpoints) — raw settlements and index checkpoints for a per-epoch timeline.
 - [React funding hooks](/react/symmio-contract#funding) — `useQuotesPendingFunding` / `useQuotePendingFunding`.
 - [Margin & risk](/core/margin) — where uPnL, and so funding, meets the liquidation test.
 - [Balance Model](/core/concepts/balance-model) — where `allocatedBalance` sits among the account balances.
