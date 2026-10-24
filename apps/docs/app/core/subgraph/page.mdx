@@ -1,6 +1,8 @@
+import { Callout } from "nextra/components";
+
 # Subgraph
 
-Historical on-chain data — quote history, funding, balance history, transfers — lives in **GraphQL subgraphs** synced to the SYMMIO contracts. Each chain has **two subgraphs**, each indexing a different subset of contracts and events:
+Historical on-chain data — quote history, funding, balance history, transfers, margin moves, liquidations — lives in **GraphQL subgraphs** synced to the SYMMIO contracts. Each chain has **two subgraphs**, each indexing a different subset of contracts and events:
 
 - **`analytics`** — aggregated / derived data. Balance changes over time, quote-level events keyed by quote id, funding accruals, position snapshots. This is what a trading UI usually wants: pre-shaped rows ready to render.
 - **`events`** — raw on-chain event log. `internalTransfers`, deposit / withdraw / allocate events straight from the contract. Use when you need untouched provenance (audit trails, custom analytics, reconciliation against on-chain reads).
@@ -18,20 +20,45 @@ Historical on-chain data — quote history, funding, balance history, transfers 
   </MethodEntry>
 </MethodIndex>
 
-## Quote history
+## Margin & liquidation
+
+<MethodIndex kind="read">
+  <MethodEntry name="getMarginTransfers" href="/core/subgraph/get-margin-transfers">
+    Margin moved between a SubAccount and its Virtual Accounts, by type, transaction, account, or time.
+  </MethodEntry>
+  <MethodEntry name="getLiquidationDetails" href="/core/subgraph/get-liquidation-details">
+    One entity per PartyA liquidation: locked and paid CVA / LF, deficit, fee, and per-PartyB settlement amounts.
+  </MethodEntry>
+</MethodIndex>
+
+## Quotes & events
 
 <MethodIndex kind="read">
   <MethodEntry name="getQuoteHistory" href="/core/subgraph/get-quote-history">
-    Terminal (close / liquidation) events for a sub-account's quotes.
+    Terminal (close / liquidation) events for a set of accounts' quotes, with the quote's indexed fields.
   </MethodEntry>
   <MethodEntry name="getQuoteEventsByType" href="/core/subgraph/get-quote-events-by-type">
-    Decoded events for one quote, filtered to specific event types.
+    Decoded events for one quote, optionally filtered to specific event types.
   </MethodEntry>
   <MethodEntry name="getQuotesEventsByType" href="/core/subgraph/get-quotes-events-by-type">
     The batched form — decoded events for many quotes, merged and time-sorted server-side into one page.
   </MethodEntry>
+  <MethodEntry name="getSubgraphQuotes" href="/core/subgraph/get-subgraph-quotes">
+    The indexed `Quote` entities — funding index, settled funding totals, lifecycle timestamps.
+  </MethodEntry>
+</MethodIndex>
+
+## Funding
+
+<MethodIndex kind="read">
   <MethodEntry name="getQuoteFunding" href="/core/subgraph/get-quote-funding">
     Funding totals (paid / received / net) for a batch of quotes.
+  </MethodEntry>
+  <MethodEntry name="getQuoteFundingSettlements" href="/core/subgraph/get-quote-funding-settlements">
+    Every funding settlement on a quote: amounts, funding index before and after, epochs paid through.
+  </MethodEntry>
+  <MethodEntry name="getFundingIndexCheckpoints" href="/core/subgraph/get-funding-index-checkpoints">
+    The funding-rate index of a market and PartyB over time.
   </MethodEntry>
 </MethodIndex>
 
@@ -42,6 +69,78 @@ Historical on-chain data — quote history, funding, balance history, transfers 
     Issue an arbitrary GraphQL query against a configured subgraph.
   </MethodEntry>
 </MethodIndex>
+
+## Filters and paging
+
+The reads share one set of rules for filters, paging, and missing values.
+
+<Callout type="info">
+  **A filter is applied only when you pass it.** Leave a filter out and the read covers everything it would have
+  narrowed — every account, every market, every deployment. Pass an **empty array** to a list filter and the read
+  matches nothing: it returns an empty result without issuing a request, and its query options stay `enabled: false`. A
+  few filters are required (`quoteIds` on the funding totals, `accounts` on balance history); each page marks them.
+</Callout>
+
+An omitted filter is left out of the GraphQL `where` object entirely, not sent as `null` — graph-node rejects a `null` filter (`symbolId_in: null` fails with "Non-list value passed to `_in` filter"). Addresses and hashes are lowercased before they are sent, because the subgraph stores `Bytes` lowercase; pass checksummed values freely.
+
+### `source` — the deployment
+
+Most reads take an optional `source`: the diamond address the subgraph indexed the row from. One subgraph can index several diamonds, and their quote ids can collide. Pass `source` to scope a read to one deployment; omit it to read every deployment the subgraph indexes. Rows carry their own `source`, checksummed.
+
+### Entity reads return one page
+
+[`getMarginTransfers`](/core/subgraph/get-margin-transfers), [`getLiquidationDetails`](/core/subgraph/get-liquidation-details), [`getSubgraphQuotes`](/core/subgraph/get-subgraph-quotes), [`getQuoteFundingSettlements`](/core/subgraph/get-quote-funding-settlements), and [`getFundingIndexCheckpoints`](/core/subgraph/get-funding-index-checkpoints) each return one `SubgraphPage<TRow>` per call — `{ rows, hasMore }` — and share the paging parameters of `SubgraphPageParameters`:
+
+<Properties>
+  <Property name="first" type="number" default="1000">
+    Page size, an integer from 1 to 1000 (`SUBGRAPH_MAX_PAGE_SIZE`). Anything else throws a `SymmError` (`kind:
+    "validation"`, `code: "INVALID_SUBGRAPH_PAGE_SIZE"`) before any request.
+  </Property>
+  <Property name="skip" type="number" default="0">
+    Rows to skip. A negative value throws `INVALID_SUBGRAPH_SKIP`. The Graph rejects values above 5000, so page deep
+    reads by cursor instead.
+  </Property>
+  <Property name="orderBy" type='"timestamp" | "id"' default="timestamp">
+    Sort field.
+  </Property>
+  <Property name="orderDirection" type='"asc" | "desc"' default="desc">
+    Sort direction.
+  </Property>
+  <Property name="idGt" type="string" optional>
+    Cursor filter (`id_gt`): only entities whose `id` sorts after this one.
+  </Property>
+</Properties>
+
+`hasMore` is `true` when the page came back full (`rows.length === first`), so another page may exist — the next one can still be empty. The SDK never loops for you.
+
+### Paging by cursor
+
+For a read longer than a few pages, page by cursor: sort by `id` ascending and pass the last row's `id` as `idGt`. A cursor has no ceiling; `skip` stops at 5000.
+
+```ts
+import { getQuoteFundingSettlements, type QuoteFundingSettlementRow } from "@symmio/trading-core";
+
+const settlements: QuoteFundingSettlementRow[] = [];
+let idGt: string | undefined;
+
+for (;;) {
+  const { rows, hasMore } = await getQuoteFundingSettlements(config, {
+    partyAs: [subAccount],
+    orderBy: "id",
+    orderDirection: "asc",
+    idGt,
+  });
+  settlements.push(...rows);
+  if (!hasMore) break;
+  idGt = rows.at(-1)?.id;
+}
+```
+
+Cursor pages come back in `id` order. Sort by `timestamp` yourself once the rows are in if you need a timeline.
+
+### Missing values are `null`
+
+A field the subgraph has not indexed for a row — an older deployment, an entity written before the field existed — decodes to `null`, never to `0n` or `0`. Treat `null` as "not recorded" and render it that way: a zero would claim a value the subgraph never had.
 
 ## Endpoints
 
@@ -69,4 +168,5 @@ Every action ships a matching `…QueryOptions` factory and `…QueryKey` builde
 
 - [SYMMIO Contract](/core/symmio-contract) — live on-chain state; pair with the subgraph for history.
 - [Unified quotes](/core/quotes) — `getQuoteHistory` / `getQuoteFunding` decorate the reconciled row.
+- [Funding](/core/concepts/funding) — which funding number each read returns, and how it is signed.
 - [Errors](/core/concepts/errors) — subgraph failures surface as `SymmApiError` / `SymmError`.

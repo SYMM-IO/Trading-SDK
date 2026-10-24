@@ -1,14 +1,10 @@
 import type { Hex } from "viem";
+import { toBigIntOrZero } from "../../symmio-subgraph/subgraph-decode";
 import type { QuoteEventsForQuoteByTypeQuery } from "../../symmio-subgraph/types/generated/analytics/graphql";
-import { QuoteEventType, type QuoteEventRow } from "./types";
+import type { QuoteEventRow, QuoteEventType, QuoteSubgraphEventType } from "./types";
 
 /** A single `quoteEvents` row as returned by the events query. */
 export type RawQuoteEventNode = QuoteEventsForQuoteByTypeQuery["quoteEvents"][number];
-
-/** Parse a wei string to `bigint`, defaulting null/undefined to `0n`. */
-function toBigInt(value: string | null | undefined): bigint {
-  return value ? BigInt(value) : 0n;
-}
 
 /** Read a wei field from the metadata snapshot as a `bigint`, or `undefined` when absent / unparsable. */
 function optionalWei(value: unknown): bigint | undefined {
@@ -37,12 +33,14 @@ function parseMetadata(raw: string | null): Record<string, unknown> | null {
  * `metadata` JSON varies per event type — every recognized field is decoded and
  * placed on the typed row; missing fields stay `undefined`.
  */
-export function toQuoteEventRow(row: RawQuoteEventNode): QuoteEventRow {
+export function toQuoteEventRow<TType extends QuoteSubgraphEventType = QuoteEventType>(
+  row: RawQuoteEventNode,
+): QuoteEventRow<TType> {
   const metadata = parseMetadata(row.metadata);
   return {
     eventId: row.id,
-    quoteId: toBigInt(row.quoteId),
-    type: row.type as QuoteEventType,
+    quoteId: toBigIntOrZero(row.quoteId),
+    type: row.type as TType,
     timestamp: Number(row.timestamp),
     blockNumber: row.blockNumber ? BigInt(row.blockNumber) : undefined,
     transaction: row.transaction ? (row.transaction as Hex) : undefined,

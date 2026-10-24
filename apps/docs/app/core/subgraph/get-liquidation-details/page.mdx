@@ -1,0 +1,148 @@
+import { Callout } from "nextra/components";
+
+# getLiquidationDetails
+
+One entity per PartyA liquidation, from the analytics subgraph's `liquidationDetails` collection: the CVA, LF, and maintenance margin locked when it started, the CVA and LF it paid out, the account's uPnL, deficit, and liquidation fee, and the settlement amounts per PartyB. Reach for it to explain a liquidated position — what the account lost and where it went.
+
+```ts
+import { getLiquidationDetails } from "@symmio/trading-core";
+
+const { rows, hasMore } = await getLiquidationDetails(config, {
+  source: diamond,
+  partyAs: [virtualAccount],
+});
+```
+
+Every filter is optional and applied only when passed; an empty list filter reads nothing. One call returns one page — see [Filters and paging](/core/subgraph#filters-and-paging) for the shared rules and for paging by cursor.
+
+<Callout type="info">
+  **Time means `liquidationTimestamp` here.** `startTime`, `endTime`, and `orderBy: "timestamp"` all use the moment the
+  liquidation started, not the entity's own `timestamp`.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="source" type="Address" optional>
+    The deployment's diamond address (the subgraph's `source`).
+  </Property>
+  <Property name="partyAs" type="readonly Address[]" optional>
+    The liquidated accounts (`partyA`) — a SubAccount, or a Virtual Account under Virtual Account isolation.
+  </Property>
+  <Property name="startTime" type="number" optional>
+    Lower bound on `liquidationTimestamp` (unix seconds, inclusive).
+  </Property>
+  <Property name="endTime" type="number" optional>
+    Upper bound on `liquidationTimestamp` (unix seconds, inclusive).
+  </Property>
+  <Property name="first" type="number" default="1000">
+    Page size, 1–1000.
+  </Property>
+  <Property name="skip" type="number" default="0">
+    Rows to skip. The Graph rejects values above 5000.
+  </Property>
+  <Property name="orderBy" type='"timestamp" | "id"' default="timestamp">
+    Sort field. `"timestamp"` sorts on `liquidationTimestamp`.
+  </Property>
+  <Property name="orderDirection" type='"asc" | "desc"' default="desc">
+    Sort direction.
+  </Property>
+  <Property name="idGt" type="string" optional>
+    Cursor: only liquidations whose `id` sorts after this one.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetLiquidationDetailsReturnType">
+  <Property name="rows" type="LiquidationDetailRow[]">
+    The decoded liquidations of this page.
+  </Property>
+  <Property name="hasMore" type="boolean">
+    `true` when the page came back full, so another page may exist.
+  </Property>
+</Returns>
+
+### `LiquidationDetailRow`
+
+Amounts are 18-decimal wei `bigint`. A `null` marks a field the subgraph has not indexed for this liquidation — never read it as zero.
+
+<Returns type="LiquidationDetailRow">
+  <Property name="id" type="string">
+    Subgraph entity id — stable; use it as a row key or `idGt` cursor.
+  </Property>
+  <Property name="source" type="Address">
+    Diamond address the liquidation was indexed from.
+  </Property>
+  <Property name="partyA" type="Address">
+    The liquidated account.
+  </Property>
+  <Property name="liquidationId" type="bigint">
+    Protocol liquidation id.
+  </Property>
+  <Property name="liquidationType" type="number">
+    Protocol liquidation type, as indexed.
+  </Property>
+  <Property name="liquidationTimestamp" type="number">
+    When the liquidation started, unix seconds.
+  </Property>
+  <Property name="timestamp" type="number | null">
+    Entity timestamp, unix seconds.
+  </Property>
+  <Property name="lockedCva" type="bigint | null">
+    CVA locked when the liquidation started.
+  </Property>
+  <Property name="lockedLf" type="bigint | null">
+    LF locked when the liquidation started.
+  </Property>
+  <Property name="lockedPartyAmm" type="bigint | null">
+    PartyA maintenance margin locked when the liquidation started.
+  </Property>
+  <Property name="paidCva" type="bigint | null">
+    CVA paid out by the liquidation.
+  </Property>
+  <Property name="paidLf" type="bigint | null">
+    LF paid out by the liquidation.
+  </Property>
+  <Property name="upnl" type="bigint">
+    The account's uPnL at liquidation.
+  </Property>
+  <Property name="deficit" type="bigint">
+    Deficit left by the liquidation.
+  </Property>
+  <Property name="liquidationFee" type="bigint">
+    Liquidation fee.
+  </Property>
+  <Property name="settled" type="boolean">
+    Whether the liquidation has been settled.
+  </Property>
+  <Property name="fullyLiquidated" type="boolean">
+    Whether every position was liquidated.
+  </Property>
+  <Property name="settlementExpectedAmounts" type="bigint[] | null">
+    Settlement amounts expected per PartyB.
+  </Property>
+  <Property name="settlementActualAmounts" type="bigint[] | null">
+    Settlement amounts actually paid per PartyB.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getLiquidationDetailsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getLiquidationDetailsQueryOptions(config, { source: diamond, partyAs: [virtualAccount] }));
+```
+
+The query is disabled while `partyAs` is an empty array.
+
+## Related
+
+- [`getQuoteHistory`](/core/subgraph/get-quote-history) — `closeType: QuoteCloseType.Liquidated` lists the liquidated quotes themselves.
+- [Margin & risk](/core/margin) — the liquidation test the account failed.
+- [React `useLiquidationDetails`](/react/subgraph#useliquidationdetails) — the hook over this action.

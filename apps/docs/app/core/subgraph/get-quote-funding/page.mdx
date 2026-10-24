@@ -16,7 +16,13 @@ const { rows, missingQuoteIds } = await getQuoteFunding(config, {
 
 <Properties>
   <Property name="quoteIds" type="readonly bigint[]" required>
-    On-chain quote ids to read funding for.
+    On-chain quote ids to read funding for. Any length — the action chunks the list into requests of at most 1000 ids
+    and merges the responses. An empty array returns empty results without a request.
+  </Property>
+  <Property name="source" type="Address" optional>
+    The deployment's diamond address (the subgraph's `source`). Omit to match each quote id on any deployment the
+    subgraph indexes. Pass it when one subgraph indexes several diamonds, whose quote ids can collide — otherwise one id
+    can return a row per diamond.
   </Property>
   <Property name="chainId" type="number" optional>
     Optional chain override.
@@ -38,3 +44,9 @@ import { useQuery } from "@tanstack/react-query";
 
 useQuery(getQuoteFundingQueryOptions(config, { quoteIds: [42n] }));
 ```
+
+## Related
+
+- [`getQuoteFundingSettlements`](/core/subgraph/get-quote-funding-settlements) — the individual settlements behind these totals.
+- [`getSubgraphQuotes`](/core/subgraph/get-subgraph-quotes) — the same totals with the rest of the indexed quote.
+- [Funding](/core/concepts/funding) — settled vs pending, and the sign convention.

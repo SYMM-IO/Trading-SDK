@@ -73,7 +73,9 @@ const history = await getBalanceHistory(config, {
     under the default `internalTransfers: "exclude"`.
   </Property>
   <Property name="marginTransferType" type="MarginTransferType | null">
-    The margin-transfer kind (`ADD` / `REMOVE` / `AUTO_RETURN`) when `isInternalTransfer` is `true`; otherwise `null`.
+    The margin-transfer kind (`ADD` / `REMOVE` / `AUTO_RETURN` / `EMERGENCY_RECOVER`) when `isInternalTransfer` is
+    `true`; otherwise `null`. For the margin transfers themselves, see
+    [`getMarginTransfers`](/core/subgraph/get-margin-transfers).
   </Property>
 </Returns>
 
