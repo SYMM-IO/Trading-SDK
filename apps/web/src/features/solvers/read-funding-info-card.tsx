@@ -34,11 +34,11 @@ function horizonLabel(days: number): string {
 }
 
 /**
- * Solvers-page card for `/get_funding_info` — the next-epoch funding rate on
+ * Solvers-page card for Enigma `/funding-info` and Rasa `/get_funding_info` — the next-epoch funding rate on
  * each side (Long = Pump, Short = Dump), the next funding time, and the epoch
  * length for every market the solver lists. A positive rate receives funding, a
  * negative rate pays. Fetched on demand via the Refresh button (no
- * auto-polling); the per-market table is searchable by symbol and carries a
+ * auto-polling); the per-market table is searchable by symbol ID or ticker and carries a
  * projected-funding column for a user-chosen horizon.
  */
 export function ReadFundingInfoCard() {
@@ -154,7 +154,11 @@ function ResultPanel({
     if (!rows) return [];
     const term = search.trim().toLowerCase();
     if (term.length === 0) return rows;
-    return rows.filter((row) => row.symbol.toLowerCase().includes(term));
+    return rows.filter((row) =>
+      String(row.kind === "enigma" ? row.symbolId : row.symbol)
+        .toLowerCase()
+        .includes(term),
+    );
   }, [rows, search]);
 
   const columns = useMemo<DataTableColumn<FundingRow>[]>(() => buildColumns(days), [days]);
@@ -178,7 +182,7 @@ function ResultPanel({
       columns={columns}
       data={visible}
       totalCount={query.data.length}
-      getRowId={(row) => row.symbol}
+      getRowId={(row) => String(row.kind === "enigma" ? row.symbolId : row.symbol)}
       initialSort={{ columnId: "symbol", direction: "asc" }}
       defaultPageSize={5}
       emptyMessage="No markets match this search."
@@ -186,10 +190,10 @@ function ResultPanel({
         <SearchInput
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search market…"
+          placeholder="Search symbol ID or ticker…"
           containerClassName="flex-1"
           data-testid="funding-info-search"
-          aria-label="Search markets"
+          aria-label="Search symbol IDs or tickers"
         />
       }
     />
@@ -211,8 +215,8 @@ function buildColumns(days: number): DataTableColumn<FundingRow>[] {
     {
       id: "symbol",
       header: "Market",
-      cell: (row) => row.symbol,
-      sortAccessor: (row) => row.symbol,
+      cell: (row) => (row.kind === "enigma" ? row.symbolId : row.symbol),
+      sortAccessor: (row) => (row.kind === "enigma" ? row.symbolId : row.symbol),
       cellClassName: "text-foreground font-mono",
     },
     {

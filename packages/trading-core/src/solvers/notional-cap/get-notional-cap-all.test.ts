@@ -61,7 +61,10 @@ describe("getNotionalCapAll", () => {
 
     const all = await getNotionalCapAll(config, {});
 
-    expect(getNotionalCap).toHaveBeenCalledWith(undefined, expect.objectContaining({ baseURL: SOLVER_URL }));
+    expect(getNotionalCap).toHaveBeenCalledWith(
+      { limit: 100, offset: 0 },
+      expect.objectContaining({ baseURL: SOLVER_URL }),
+    );
     expect(all.count).toBe(2);
     expect(all.totalOpenInterest).toBe(1500);
     expect(all.totalUsed).toBe(900);
@@ -83,7 +86,7 @@ describe("getNotionalCapAll", () => {
 
     const all = await getNotionalCapAll(config, {});
 
-    expect(all).toMatchObject({ count: 3, totalOpenInterest: 2500, totalUsed: 1200, symbols: [] });
+    expect(all).toMatchObject({ count: 0, totalOpenInterest: 2500, totalUsed: 1200, symbols: [] });
   });
 
   it("returns zeroed totals and no symbols when the solver omits them", async () => {
@@ -107,6 +110,7 @@ describe("getNotionalCapAll", () => {
     getNotionalCap.mockRejectedValue(new Error("Network error"));
 
     await expect(getNotionalCapAll(config, {})).rejects.toBeInstanceOf(SymmError);
+    await expect(getNotionalCapAll(config, {})).rejects.toMatchObject({ code: "FETCH_NOTIONAL_CAP_ALL_FAILED" });
     await expect(getNotionalCapAll(config, {})).rejects.toThrow("Failed to fetch notional caps");
   });
 

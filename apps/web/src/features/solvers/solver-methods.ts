@@ -103,6 +103,14 @@ export const SOLVER_METHODS: readonly SolverMethodMeta[] = [
     summary: "One quote feed from on-chain positions and pending instant orders.",
   },
   {
+    id: "method-getNotionalCapPage",
+    method: "getNotionalCapPage",
+    action: "useNotionalCapPage",
+    kind: "read",
+    section: "Enigma-only reads",
+    summary: "One page of caps with limit, offset and page-only totals.",
+  },
+  {
     id: "method-getNotionalCapAll",
     method: "getNotionalCapAll",
     action: "useNotionalCapAll",

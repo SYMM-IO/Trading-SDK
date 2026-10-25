@@ -1,12 +1,13 @@
 /**
- * 24h volume figures for one **Enigma** market, normalized from `/get_market_info`.
+ * 24h volume figures for one **Enigma** market, normalized from `/market-info`.
  *
  * Every numeric field is a plain JavaScript `number` in the **dollar units the
  * solver already reports** — no decimal scaling. `1234` here means $1,234.
+ * @example const row: MarketVolume = { symbolId: 117, tradingVolume: 1234, lifetimeValue: 5678 };
  */
 export interface MarketVolume {
-  /** Market ticker and solver map key (e.g. `"BTCUSDT"`). */
-  symbol: string;
+  /** Stable solver symbol ID; join with getSymbols for names and tickers. */
+  symbolId: number;
   /** Rolling 24-hour trading volume for the market (dollars). */
   tradingVolume: number;
   /** Cumulative lifetime traded value for the market (dollars). */

@@ -9,11 +9,12 @@
 export interface SolverDailyVolume {
   /**
    * The day bucket, as the ISO 8601 datetime string the solver reports (e.g.
-   * `"2026-07-09T00:00:00Z"`, midnight UTC on the bucket's day). Empty string
-   * when the solver omits it. Parse with `new Date(timestamp)` to render;
+   * `"2026-07-09T00:00:00Z"`, midnight UTC on the bucket's day). getTradeVolume
+   * omits rows with missing or invalid timestamps; direct toSolverDailyVolume
+   * calls retain the empty-string fallback. Parse with `new Date(timestamp)` to render;
    * ISO 8601 also sorts correctly as a plain string.
    */
   timestamp: string;
-  /** Notional traded that day, as the decimal string the solver reports (`"0"` when absent). */
+  /** Decimal volume, unchanged. getTradeVolume omits missing values; direct mapper calls default them to "0". */
   volume: string;
 }

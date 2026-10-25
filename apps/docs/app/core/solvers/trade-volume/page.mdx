@@ -43,16 +43,18 @@ One `GET /trade-volume/{symbol_id}` against the chain's solver. This is the solv
 ## Returns
 
 <Returns type="Promise<SolverDailyVolume[]>">
-  One entry per day, ascending. An empty array means the market has not traded.
+  Valid daily observations, ascending. An empty array means there are no usable observations; this can also happen when
+  every returned row is malformed.
 </Returns>
 
 <Properties>
   <Property name="timestamp" type="string" required>
     The day bucket, as the ISO 8601 datetime string the solver reports (e.g. `"2026-07-09T00:00:00Z"`, midnight UTC).
-    Empty string when the solver omits it. ISO 8601 also sorts correctly as a plain string.
+    Rows with missing or invalid timestamps are omitted.
   </Property>
   <Property name="volume" type="string" required>
-    Notional traded that day, as the decimal string the solver reports (`"0"` when absent).
+    Notional traded that day, as the decimal string the solver reports. Missing, blank or non-numeric volumes are
+    omitted; a genuine `"0"` is retained.
   </Property>
 </Properties>
 
@@ -96,7 +98,17 @@ useQuery({
 
 ## toSolverDailyVolume
 
-The mapper this read runs on each row, exported for when you hold a raw response yourself — a proxy route, a fixture, a rehydrated payload. It fills an omitted `timestamp` with `""` and an omitted `volume` with `"0"`.
+The exported mapper retains its existing `SolverDailyVolume` return type and missing-field defaults: an omitted `timestamp` becomes `""`, and an omitted `volume` becomes `"0"`. Supplied strings pass through unchanged. It does not validate or omit observations. `getTradeVolume` validates each wire row before calling this mapper, so the action and its query/hook omit malformed observations without changing direct mapper callers.
+
+```ts
+import { toSolverDailyVolume } from "@symmio/trading-core";
+
+const row = toSolverDailyVolume({ timestamp: "2026-07-09T00:00:00Z", volume: "0" });
+console.log(row); // { timestamp: "2026-07-09T00:00:00Z", volume: "0" }
+
+const fallback = toSolverDailyVolume({});
+console.log(fallback); // { timestamp: "", volume: "0" }
+```
 
 ## Throws
 
@@ -112,3 +124,7 @@ The mapper this read runs on each row, exported for when you hold a raw response
 - [`getPoolRewardChart`](/core/pools/pool-reward-chart) — a pool page's rewards series, from the listing backend.
 - [`@symmio/trading-react`](/react/markets) — `useTradeVolume` is the React binding over this read.
 - [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.
+
+## Malformed observations
+
+Rows with missing/null/blank/non-numeric volume or an invalid timestamp are omitted by default. Valid `"0"` volume remains a real observation; decimal strings are retained without rounding. There is no `missingVolume` option. `useTradeVolume` and query factories inherit this policy with unchanged query keys.

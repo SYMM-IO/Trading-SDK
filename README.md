@@ -74,6 +74,8 @@ All commands run from the repo root and fan out through Turborepo:
 
 Scope any of them to one package with `pnpm --filter @symmio/trading-core test`, or run it from that package's directory.
 
+The docs typecheck waits for its own build in Turbo. Both `next build` and `next typegen` write to `apps/docs/.next`, so running them concurrently can delete route types while they are being generated. Use `pnpm exec turbo run check-types --filter=@symmio/docs` to preserve this ordering; do not run the direct docs typecheck alongside a docs build.
+
 Lefthook runs Prettier, ESLint, and type-checks pre-commit, and commitlint on the message — commits follow [Conventional Commits](https://www.conventionalcommits.org/).
 
 ### Verifying published output
