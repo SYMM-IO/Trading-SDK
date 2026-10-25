@@ -38,6 +38,34 @@ describe("resolveSubgraphPage", () => {
     expect(() => resolveSubgraphPage({ first: 1.5 })).toThrow(/first must be/);
     expect(() => resolveSubgraphPage({ skip: -1 })).toThrow(/skip must be/);
   });
+
+  it("sorts by id ascending when an idGt cursor is passed without a sort", () => {
+    expect(resolveSubgraphPage({ idGt: "cursor-1" })).toEqual({
+      first: SUBGRAPH_MAX_PAGE_SIZE,
+      skip: 0,
+      orderBy: "id",
+      orderDirection: "asc",
+    });
+    expect(resolveSubgraphPage({ idGt: "cursor-1", orderBy: "id", orderDirection: "asc" })).toMatchObject({
+      orderBy: "id",
+      orderDirection: "asc",
+    });
+  });
+
+  it.each([
+    ["the timestamp sort", { orderBy: "timestamp" }],
+    ["a descending id sort", { orderBy: "id", orderDirection: "desc" }],
+    ["a descending direction alone", { orderDirection: "desc" }],
+    ["a timestamp sort with an ascending direction", { orderBy: "timestamp", orderDirection: "asc" }],
+  ] as const)("rejects an idGt cursor with %s, which would drop or repeat rows", (_label, sort) => {
+    let error: unknown;
+    try {
+      resolveSubgraphPage({ idGt: "cursor-1", ...sort });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toMatchObject({ kind: "validation", code: "INVALID_SUBGRAPH_CURSOR" });
+  });
 });
 
 describe("toSubgraphPage", () => {

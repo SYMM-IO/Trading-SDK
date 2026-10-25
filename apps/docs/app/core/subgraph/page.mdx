@@ -101,13 +101,15 @@ Most reads take an optional `source`: the diamond address the subgraph indexed t
     reads by cursor instead.
   </Property>
   <Property name="orderBy" type='"timestamp" | "id"' default="timestamp">
-    Sort field.
+    Sort field. Defaults to `"id"` when `idGt` is set.
   </Property>
   <Property name="orderDirection" type='"asc" | "desc"' default="desc">
-    Sort direction.
+    Sort direction. Defaults to `"asc"` when `idGt` is set.
   </Property>
   <Property name="idGt" type="string" optional>
-    Cursor filter (`id_gt`): only entities whose `id` sorts after this one.
+    Cursor filter (`id_gt`): only entities whose `id` sorts after this one. Pages correctly only in ascending `id`
+    order, so it switches the default sort to `id` ascending; passing any other `orderBy` / `orderDirection` with it
+    throws `INVALID_SUBGRAPH_CURSOR` before any request.
   </Property>
 </Properties>
 
@@ -116,6 +118,8 @@ Most reads take an optional `source`: the diamond address the subgraph indexed t
 ### Paging by cursor
 
 For a read longer than a few pages, page by cursor: sort by `id` ascending and pass the last row's `id` as `idGt`. A cursor has no ceiling; `skip` stops at 5000.
+
+The cursor only works in ascending `id` order. Ids are built from transaction hashes, so they do not follow time: under a `timestamp` sort an `id_gt` cursor silently skips every later page's rows whose id happens to sort lower, and under a descending `id` sort it returns the same top rows forever. The SDK therefore sorts by `id` ascending whenever `idGt` is set and you pass no sort, and throws a `SymmError` (`kind: "validation"`, `code: "INVALID_SUBGRAPH_CURSOR"`) if you pass any other sort with it.
 
 ```ts
 import { getQuoteFundingSettlements, type QuoteFundingSettlementRow } from "@symmio/trading-core";

@@ -17,11 +17,17 @@ export interface SubgraphPageParameters {
   first?: number;
   /** Rows to skip. The Graph rejects values above 5000. @default 0 */
   skip?: number;
-  /** Sort field. @default "timestamp" */
+  /** Sort field. @default "timestamp", or "id" when `idGt` is set */
   orderBy?: "timestamp" | "id";
-  /** Sort direction. @default "desc" */
+  /** Sort direction. @default "desc", or "asc" when `idGt` is set */
   orderDirection?: "asc" | "desc";
-  /** Cursor filter (`id_gt`): only entities whose `id` sorts after this one. */
+  /**
+   * Cursor filter (`id_gt`): only entities whose `id` sorts after this one. It
+   * pages correctly only in ascending `id` order — ids do not follow time, so
+   * under any other sort it drops or repeats rows. Setting it makes the sort
+   * default to `id` ascending; passing any other `orderBy` / `orderDirection`
+   * with it throws `INVALID_SUBGRAPH_CURSOR`.
+   */
   idGt?: string;
 }
 
@@ -42,15 +48,22 @@ export interface ResolvedSubgraphPage {
 }
 
 /**
- * Apply the paging defaults and validate `first`.
+ * Apply the paging defaults and validate them. With an `idGt` cursor the sort
+ * defaults to `id` ascending, the only order a cursor pages through correctly.
  *
  * @param parameters - The caller's paging parameters.
  * @returns Paging values ready to send as query variables.
- * @throws {SymmError} (`kind: "validation"`) when `first` is not an integer in 1–1000
- *   or `skip` is negative.
+ * @throws {SymmError} (`kind: "validation"`) when `first` is not an integer in 1–1000,
+ *   `skip` is negative, or `idGt` is passed with a sort other than `id` ascending.
  */
 export function resolveSubgraphPage(parameters: SubgraphPageParameters): ResolvedSubgraphPage {
-  const { first = SUBGRAPH_MAX_PAGE_SIZE, skip = 0, orderBy = "timestamp", orderDirection = "desc" } = parameters;
+  const cursor = parameters.idGt !== undefined;
+  const {
+    first = SUBGRAPH_MAX_PAGE_SIZE,
+    skip = 0,
+    orderBy = cursor ? "id" : "timestamp",
+    orderDirection = cursor ? "asc" : "desc",
+  } = parameters;
   if (!Number.isInteger(first) || first < 1 || first > SUBGRAPH_MAX_PAGE_SIZE) {
     throw new SymmError(
       "validation",
@@ -63,6 +76,13 @@ export function resolveSubgraphPage(parameters: SubgraphPageParameters): Resolve
       "validation",
       "INVALID_SUBGRAPH_SKIP",
       `skip must be a non-negative integer; received ${skip}.`,
+    );
+  }
+  if (cursor && (orderBy !== "id" || orderDirection !== "asc")) {
+    throw new SymmError(
+      "validation",
+      "INVALID_SUBGRAPH_CURSOR",
+      `idGt pages correctly only with orderBy "id" and orderDirection "asc"; received orderBy "${orderBy}" and orderDirection "${orderDirection}". Omit both to sort by id ascending.`,
     );
   }
   return { first, skip, orderBy, orderDirection };

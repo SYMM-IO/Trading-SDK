@@ -100,6 +100,28 @@ describe("getMarginTransfers", () => {
     });
   });
 
+  it("sorts an idGt cursor by id ascending when no sort is passed", async () => {
+    const post = mockEntities("marginTransfers", []);
+
+    await getMarginTransfers(config, { idGt: "cursor-1" });
+
+    expect(requestBody(post).variables).toMatchObject({
+      where: { id_gt: "cursor-1" },
+      orderBy: "id",
+      orderDirection: "asc",
+    });
+  });
+
+  it("rejects an idGt cursor under the timestamp sort before any request", async () => {
+    const post = mockEntities("marginTransfers", []);
+
+    await expect(getMarginTransfers(config, { idGt: "cursor-1", orderBy: "timestamp" })).rejects.toMatchObject({
+      kind: "validation",
+      code: "INVALID_SUBGRAPH_CURSOR",
+    });
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["types", { types: [] }],
     ["transactions", { transactions: [] }],

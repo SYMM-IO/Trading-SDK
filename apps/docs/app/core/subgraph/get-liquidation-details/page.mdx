@@ -42,13 +42,14 @@ Every filter is optional and applied only when passed; an empty list filter read
     Rows to skip. The Graph rejects values above 5000.
   </Property>
   <Property name="orderBy" type='"timestamp" | "id"' default="timestamp">
-    Sort field. `"timestamp"` sorts on `liquidationTimestamp`.
+    Sort field. `"timestamp"` sorts on `liquidationTimestamp`. Defaults to `"id"` when `idGt` is set.
   </Property>
   <Property name="orderDirection" type='"asc" | "desc"' default="desc">
-    Sort direction.
+    Sort direction. Defaults to `"asc"` when `idGt` is set.
   </Property>
   <Property name="idGt" type="string" optional>
-    Cursor: only liquidations whose `id` sorts after this one.
+    Cursor: only liquidations whose `id` sorts after this one. Sorts by `id` ascending unless a sort is passed; any
+    other sort throws `INVALID_SUBGRAPH_CURSOR`. See [Paging by cursor](/core/subgraph#paging-by-cursor).
   </Property>
   <Property name="chainId" type="number" optional>
     Optional chain override.

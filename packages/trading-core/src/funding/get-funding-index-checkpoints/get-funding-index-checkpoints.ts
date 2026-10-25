@@ -48,7 +48,8 @@ export type GetFundingIndexCheckpointsReturnType = SubgraphPage<FundingIndexChec
  * @param config - The SDK config.
  * @param parameters - Optional filters, paging, sort, chain id.
  * @returns One page of decoded checkpoints.
- * @throws {SymmError} when the chain has no analytics subgraph, or `first` / `skip` is out of range.
+ * @throws {SymmError} when the chain has no analytics subgraph, `first` / `skip` is out of range, or `idGt`
+ *   is passed with a sort other than `id` ascending (`INVALID_SUBGRAPH_CURSOR`).
  * @throws {SymmApiError} when the subgraph request fails.
  *
  * @example
