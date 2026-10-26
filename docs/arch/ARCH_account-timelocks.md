@@ -15,6 +15,11 @@ guides live in `apps/docs/app/core/account-layer/timelocks/`.
   account. The SDK derives all 22 policy selectors from its pinned contract ABIs.
 - Approval issuance is single-use and never automatically retried. An execution
   failure after issuance retains the approval for consumer-owned reconciliation.
+- Public approval expiry uses chain time, including a fresh read after issuance.
+  Response validation or time-read failure retains the untrusted response for recovery;
+  it never silently requests a replacement or executes an unchecked approval.
+- Early-withdrawal React errors retain the underlying classification and the recovery
+  wrapper together. Mined reverts keep their receipt and transaction-error subclass.
 - Submission uses the shared gasless dispatcher. An omitted `gasless` option inherits
   execution configuration; explicit false selects wallet submission. Early withdrawal
   requires the owner execution signer independently of who pays gas.

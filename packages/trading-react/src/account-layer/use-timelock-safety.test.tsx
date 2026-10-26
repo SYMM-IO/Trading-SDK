@@ -1,11 +1,16 @@
 import {
+  EarlyWithdrawExecutionError,
   getTimelockPolicyQueryKey,
+  SymmApiError,
+  type EarlyWithdrawParameters,
   type EarlyWithdrawResult,
   type TimelockApprovalCapability,
 } from "@symmio/trading-core";
 import { QueryClient } from "@tanstack/react-query";
+import { UserRejectedRequestError } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_EOA, TEST_TX_HASH } from "../test/test-utils";
+import { TransactionRevertedError } from "../transactions";
 import { useScheduleTimelockOp } from "./use-timelock";
 import { useEarlyWithdraw, useSetupTimelockPolicy } from "./use-timelock-policy";
 
@@ -74,10 +79,88 @@ function clientWithRetries() {
   return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: 2, retryDelay: 0 } } });
 }
 
+function withdrawalParameters(): EarlyWithdrawParameters {
+  return { account: VA, capability, withdrawal: { method: "withdraw" as const, amount: 5n }, deadline: 2_000_000_000n };
+}
+
 describe("timelock mutation safety", () => {
   beforeEach(() => {
     early.mockReset();
     setup.mockReset();
+  });
+  it("preserves the mined revert type and recovery data without invalidating balances or retrying", async () => {
+    const { config, waitForTransactionReceipt } = createMockSymmioConfig();
+    early.mockResolvedValue(submitted);
+    waitForTransactionReceipt.mockResolvedValue({ status: "reverted", transactionHash: TEST_TX_HASH });
+    const queryClient = clientWithRetries();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHookWithProviders(() => useEarlyWithdraw({ config }), { queryClient });
+    const failure = await result.current.mutateAsync(withdrawalParameters()).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(TransactionRevertedError);
+    expect(failure).toMatchObject({
+      kind: "contract-revert",
+      code: "TRANSACTION_REVERTED",
+      hash: TEST_TX_HASH,
+      receipt: { status: "reverted" },
+      cause: { approval: submitted.approval, callData: submitted.callData, hash: TEST_TX_HASH },
+    });
+    expect(early).toHaveBeenCalledOnce();
+    expect(waitForTransactionReceipt).toHaveBeenCalledOnce();
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it.each(["submission", "confirmation"] as const)(
+    "preserves a relay rejection during %s with its recovery context",
+    async (stage) => {
+      const { config, waitForTransactionReceipt } = createMockSymmioConfig();
+      const responseData = { requestId: "relay-id", status: "rejected" };
+      const relayError = new SymmApiError({
+        code: "GASLESS_RELAY_REJECTED",
+        message: "Relay rejected",
+        status: 400,
+        statusText: "Bad Request",
+        responseData,
+        url: "https://relay.example",
+        method: "POST",
+      });
+      if (stage === "submission")
+        early.mockRejectedValue(new EarlyWithdrawExecutionError(submitted.approval, submitted.callData, relayError));
+      else {
+        early.mockResolvedValue(submitted);
+        waitForTransactionReceipt.mockRejectedValue(relayError);
+      }
+      const { result } = renderHookWithProviders(() => useEarlyWithdraw({ config }), {
+        queryClient: clientWithRetries(),
+      });
+      await expect(result.current.mutateAsync(withdrawalParameters())).rejects.toMatchObject({
+        kind: "api",
+        code: "GASLESS_RELAY_REJECTED",
+        status: 400,
+        responseData,
+        cause: { approval: submitted.approval, callData: submitted.callData, cause: relayError },
+      });
+      expect(early).toHaveBeenCalledOnce();
+      expect(waitForTransactionReceipt).toHaveBeenCalledTimes(stage === "submission" ? 0 : 1);
+    },
+  );
+
+  it("keeps wallet rejection classified while retaining the issued approval", async () => {
+    const { config } = createMockSymmioConfig();
+    early.mockRejectedValue(
+      new EarlyWithdrawExecutionError(
+        submitted.approval,
+        submitted.callData,
+        new UserRejectedRequestError(new Error("Rejected")),
+      ),
+    );
+    const { result } = renderHookWithProviders(() => useEarlyWithdraw({ config }), {
+      queryClient: clientWithRetries(),
+    });
+    await expect(result.current.mutateAsync(withdrawalParameters())).rejects.toMatchObject({
+      kind: "user-rejected",
+      cause: { approval: submitted.approval, callData: submitted.callData },
+    });
+    expect(early).toHaveBeenCalledOnce();
   });
   it("does not repeat issuance after a receipt timeout, even with global retries", async () => {
     const { config, waitForTransactionReceipt } = createMockSymmioConfig();

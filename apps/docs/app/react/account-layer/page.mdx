@@ -367,6 +367,11 @@ async function withdraw() {
 All timelock writes disable automatic retries even when the application sets a global
 mutation retry default. A confirmation error retains the approval and hash in
 `error.cause` (`EarlyWithdrawExecutionError`); do not repeat issuance.
+The error keeps the underlying `kind` and `code`: relay failures remain `api`, and
+mined reverts remain `TransactionRevertedError` with `kind: "contract-revert"`,
+`code: "TRANSACTION_REVERTED"`, `hash` and `receipt`. Wallet rejection remains
+`user-rejected`; an unclassified timeout remains `unknown`. Recovery context stays
+in `cause` without replacing the failure classification.
 
 See [core policy](../../core/account-layer/timelocks/policy) for indexing semantics and
 [core withdrawal](../../core/account-layer/timelocks/approval) for parameter descriptions.

@@ -48,11 +48,23 @@ transport. A transport error with status 0 is ambiguous, not proof of solver rej
 
 ## Reconcile instead of repeating writes
 
+- `requestTimelockApproval` checks response expiry against the selected chain's latest
+  block timestamp, not the device clock. A response validation failure retains the
+  raw response in `SymmApiError.responseData` (`TIMELOCK_APPROVAL_RESPONSE_MISMATCH`).
+  If the post-response chain read fails, the code is `TIMELOCK_APPROVAL_TIME_UNAVAILABLE`
+  and `cause` retains that read error. No approval is requested again automatically.
+  These locally generated errors have status `0` and an empty URL because a custom
+  provider need not expose HTTP metadata; status `0` alone does not imply a lost response.
+  The retained response is **not a validated approval**: verify its account, unlocker,
+  calldata hash and on-chain expiry before any execution. Do not log its signature
+  to third-party telemetry or request a replacement blindly.
 - `TimelockSetupConfirmationError.hash` identifies a submitted setup whose receipt or
   policy reread failed. Recover that hash; do not configure again blindly.
 - `EarlyWithdrawExecutionError.approval` and `.callData` retain an issued approval
   after storage/submission failure. The React hook also retains `.hash` when receipt
-  confirmation fails. Access the original error through the normalized error's `cause`.
+  confirmation fails. Access this recovery wrapper through the normalized error's `cause`;
+  its own `cause` holds the underlying failure. `useEarlyWithdraw` preserves the original
+  normalized error kind and code, including relay failures and mined reverts.
 - The fallback schedule is separate from a Core withdrawal. Query its stored state,
   and reconcile pending transactions, before executing or cancelling.
 - For instant opens, persist [`PreparedInstantOpen`](../../../solvers/instant-open#prepared-submission)

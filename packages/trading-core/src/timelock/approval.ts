@@ -12,7 +12,7 @@ import {
 } from "viem";
 import type { Config } from "../core/config";
 import { parseRetryAfterMs } from "../shared/errors/retry-after";
-import { SymmError } from "../shared/errors/symm-error";
+import { SymmApiError, SymmError } from "../shared/errors/symm-error";
 import { readHttpHeader } from "../shared/utils/http-header";
 import { SIGNED_OPERATION_TYPES, signSignedOperation } from "../solvers/instant-open/shared/eip712";
 import { buildSignedOperation, generateSalt } from "../solvers/instant-open/shared/operations";
@@ -274,7 +274,9 @@ export async function prepareTimelockApprovalRequest(
 
 /**
  * Request exactly one approval and validate the security-critical response.
- * This function deliberately has no automatic retry.
+ * Expiry uses the selected chain's latest block, not the device clock.
+ * Response validation failures retain the untrusted response in `SymmApiError.responseData`.
+ * This function deliberately has no automatic retry, including after a chain-time read failure.
  */
 export async function requestTimelockApproval(
   config: Config,
@@ -283,7 +285,11 @@ export async function requestTimelockApproval(
   const prepared = await prepareTimelockApprovalRequest(config, parameters);
   const response = await parameters.provider.requestApproval(prepared.request, { signal: parameters.signal });
   if (!record(response))
-    throw new SymmError("api", "TIMELOCK_APPROVAL_RESPONSE_MISMATCH", "The provider returned no valid approval.");
+    throw approvalResponseError(
+      response,
+      "TIMELOCK_APPROVAL_RESPONSE_MISMATCH",
+      "The provider returned no valid approval.",
+    );
   if ("code" in response || "error_code" in response || "error_category" in response || "error_message" in response) {
     throw new TimelockSolverError({
       code: "TIMELOCK_APPROVAL_INVALID_RESPONSE",
@@ -304,7 +310,6 @@ export async function requestTimelockApproval(
   } catch {
     approvalDeadline = 0n;
   }
-  const now = BigInt(Math.floor(Date.now() / 1_000));
   if (
     !isAddress(response.account, { strict: false }) ||
     !isAddress(response.unlocker, { strict: false }) ||
@@ -314,15 +319,36 @@ export async function requestTimelockApproval(
     !validHex(response.approval_hash, 32) ||
     !Number.isSafeInteger(response.remaining_approvals) ||
     response.remaining_approvals < 0 ||
-    approvalDeadline <= now ||
+    approvalDeadline <= 0n ||
     !isAddressEqual(response.account, parameters.rootAccount) ||
     !isAddressEqual(response.unlocker, parameters.capability.unlocker) ||
     response.call_data_hash.toLowerCase() !== expectedHash.toLowerCase()
   ) {
-    throw new SymmError(
-      "api",
+    throw approvalResponseError(
+      response,
       "TIMELOCK_APPROVAL_RESPONSE_MISMATCH",
       "Timelock approval response does not match the requested root account, unlocker, or calldata.",
+    );
+  }
+  let now: bigint;
+  try {
+    const block = await config
+      .getClient({ chainId: Number(parameters.capability.requestDomain.chainId) })
+      .getBlock({ blockTag: "latest" });
+    now = block.timestamp;
+  } catch (cause) {
+    throw approvalResponseError(
+      response,
+      "TIMELOCK_APPROVAL_TIME_UNAVAILABLE",
+      "Approval was returned but chain time could not be checked. Retain the response and reconcile before retrying.",
+      cause,
+    );
+  }
+  if (approvalDeadline <= now) {
+    throw approvalResponseError(
+      response,
+      "TIMELOCK_APPROVAL_RESPONSE_MISMATCH",
+      "The returned timelock approval has expired according to chain time. Reconcile before requesting another approval.",
     );
   }
   return {
@@ -340,6 +366,21 @@ export async function requestTimelockApproval(
     remainingApprovals: response.remaining_approvals,
     request: prepared,
   };
+}
+
+function approvalResponseError(response: unknown, code: string, message: string, cause?: unknown): SymmApiError {
+  return new SymmApiError({
+    code,
+    message,
+    // Custom providers do not expose HTTP metadata. Do not invent a status or URL.
+    status: 0,
+    statusText: "Unknown",
+    url: "",
+    method: "POST",
+    responseData: response,
+    cause:
+      cause === undefined ? undefined : cause instanceof Error ? cause : new Error("Chain time read failed", { cause }),
+  });
 }
 
 /**

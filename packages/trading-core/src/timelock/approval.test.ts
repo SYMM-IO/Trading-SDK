@@ -1,6 +1,6 @@
 import axios from "axios";
 import { decodeFunctionData, keccak256, type Address, type Hex } from "viem";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SymmioSupportedChainId } from "../core/chains";
 import { SymmApiError } from "../shared/errors/symm-error";
 import { mockConfig, TEST_TYPED_SIGNATURE, TEST_USER } from "../shared/test/mock-config";
@@ -12,6 +12,7 @@ import {
   requestTimelockApproval,
   requestTimelockApprovalMutationOptions,
   type TimelockApprovalCapability,
+  type TimelockApprovalResponse,
 } from "./approval";
 
 const ACCOUNT: Address = "0x2222222222222222222222222222222222222222";
@@ -43,7 +44,83 @@ function rig() {
   return { ...result, getBlock };
 }
 
+function approvalResponse(): TimelockApprovalResponse {
+  return {
+    account: ROOT,
+    unlocker: UNLOCKER,
+    call_data_hash: keccak256(CALL_DATA),
+    deadline: "1900000060",
+    salt: SALT,
+    signature: TEST_TYPED_SIGNATURE,
+    approval_hash: APPROVAL_HASH,
+    remaining_approvals: 2,
+  };
+}
+
+function approvalParameters(
+  config: ReturnType<typeof mockConfig>["config"],
+  provider: { requestApproval: () => Promise<TimelockApprovalResponse> },
+) {
+  return {
+    account: ACCOUNT,
+    rootAccount: ROOT,
+    callData: CALL_DATA,
+    capability: capability(config),
+    deadline: 1_900_000_300n,
+    provider,
+  };
+}
+
 describe("timelock approval workflow", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each([-120, 120])("accepts a chain-valid approval with device clock skew of %s seconds", async (skew) => {
+    vi.spyOn(Date, "now").mockReturnValue((1_900_000_000 + skew) * 1000);
+    const { config } = rig();
+    const response = approvalResponse();
+    const provider = { requestApproval: vi.fn().mockResolvedValue(response) };
+    const result = await requestTimelockApproval(config, approvalParameters(config, provider));
+    expect(result.signedApproval.approval.deadline).toBe(1_900_000_060n);
+    expect(result.signedApproval.signature).toBe(response.signature);
+    expect(provider.requestApproval).toHaveBeenCalledOnce();
+  });
+
+  it.each([1_900_000_060n, 1_900_000_061n])(
+    "retains an approval expired at chain time %s even with a slow device clock",
+    async (timestamp) => {
+      vi.spyOn(Date, "now").mockReturnValue(1_899_999_880_000);
+      const { config, getBlock } = rig();
+      getBlock
+        .mockResolvedValueOnce({ timestamp: 1_900_000_000n })
+        .mockResolvedValueOnce({ timestamp: 1_900_000_000n })
+        .mockResolvedValue({ timestamp });
+      const response = approvalResponse();
+      const provider = { requestApproval: vi.fn().mockResolvedValue(response) };
+      await expect(requestTimelockApproval(config, approvalParameters(config, provider))).rejects.toMatchObject({
+        code: "TIMELOCK_APPROVAL_RESPONSE_MISMATCH",
+        responseData: response,
+      });
+      expect(provider.requestApproval).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("retains the issued response if reading chain time fails without requesting another approval", async () => {
+    const { config, getBlock } = rig();
+    const rpcError = new Error("RPC unavailable");
+    getBlock
+      .mockResolvedValueOnce({ timestamp: 1_900_000_000n })
+      .mockResolvedValueOnce({ timestamp: 1_900_000_000n })
+      .mockRejectedValue(rpcError);
+    const response = approvalResponse();
+    const provider = { requestApproval: vi.fn().mockResolvedValue(response) };
+    await expect(requestTimelockApproval(config, approvalParameters(config, provider))).rejects.toMatchObject({
+      code: "TIMELOCK_APPROVAL_TIME_UNAVAILABLE",
+      responseData: response,
+      cause: rpcError,
+    });
+    expect(provider.requestApproval).toHaveBeenCalledOnce();
+  });
+
   it("disables mutation retries even when an application has retry defaults", () => {
     const { config } = rig();
     expect(requestTimelockApprovalMutationOptions(config).retry).toBe(false);
@@ -143,7 +220,7 @@ describe("timelock approval workflow", () => {
     });
 
     expect(provider.requestApproval).toHaveBeenCalledOnce();
-    expect(getBlock).toHaveBeenCalledTimes(2);
+    expect(getBlock).toHaveBeenCalledTimes(3);
     expect(result.signedApproval.approval).toMatchObject({
       account: ROOT,
       unlocker: UNLOCKER,

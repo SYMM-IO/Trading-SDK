@@ -30,10 +30,10 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
-import type { SymmioRequestError } from "../errors/symmio-request-error";
+import { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
-import { resolveWriteResult, type WriteParameters, type WriteResult } from "../transactions";
+import { resolveWriteResult, TransactionRevertedError, type WriteParameters, type WriteResult } from "../transactions";
 import { invalidateAccountBalances } from "../utils/invalidate-account-balances";
 import { predicateMatch } from "../utils/predicate-match";
 
@@ -93,6 +93,7 @@ export type EarlyWithdrawWriteResult = EarlyWithdrawResult & WriteResult;
 
 /**
  * Obtain one approval and execute a withdrawal. Defaults to receipt confirmation; never automatically retries.
+ * Failures keep their normalized classification and issued-approval recovery context in `cause`.
  * @param parameters - Config and standard receipt controls.
  * @returns Mutation with the approval, hash and confirmed receipt (unless explicitly disabled).
  * @example const withdrawal = useEarlyWithdraw();
@@ -119,7 +120,7 @@ export function useEarlyWithdraw(
           throw new EarlyWithdrawExecutionError(submitted.approval, submitted.callData, error, submitted.hash);
         }
       } catch (error) {
-        throw normalizeSymmError(error);
+        throw normalizeEarlyWithdrawError(error);
       }
     },
     onSuccess: (result, variables) => {
@@ -138,4 +139,17 @@ export function useEarlyWithdraw(
       }
     },
   });
+}
+
+function normalizeEarlyWithdrawError(error: unknown): SymmioRequestError {
+  if (!(error instanceof EarlyWithdrawExecutionError)) return normalizeSymmError(error);
+  const underlying = normalizeSymmError(error.cause);
+  if (underlying instanceof TransactionRevertedError) {
+    // Preserve the SDK's mined-revert subclass without mutating the original
+    // cause or creating a cycle through the recovery wrapper.
+    const reverted = new TransactionRevertedError({ hash: underlying.hash, receipt: underlying.receipt });
+    reverted.cause = error;
+    return reverted;
+  }
+  return new SymmioRequestError({ ...underlying, message: underlying.message, cause: error });
 }
