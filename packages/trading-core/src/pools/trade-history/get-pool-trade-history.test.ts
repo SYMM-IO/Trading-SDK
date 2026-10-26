@@ -19,6 +19,11 @@ const EVENT = {
   blockNumber: "1",
   transaction: "0xdead",
   quote: {
+    id: "quote-8232",
+    timestamp: "1782000000",
+    blockNumber: "1",
+    tradingFee: "7",
+    closeFee: "11",
     quoteId: "8232",
     quoteStatus: 7,
     positionType: 0,
@@ -36,7 +41,7 @@ const EVENT = {
     quantityToClose: "0",
     liquidateAmount: null,
     liquidatePrice: null,
-    subAccount: { id: SUB },
+    subAccount: { id: SUB, owner: SUB },
   },
 };
 
@@ -81,6 +86,11 @@ describe("getPoolTradeHistory", () => {
     expect(rows[0]!.closedAmount).toBe(1000000000000000000n);
     expect(quotes[0]!.closedAmount).toBe(1000000000000000000n);
     expect(quotes[0]!.averageClosedPrice).toBe(2000000000000000000n);
+    expect(quotes[0]!.liquidatePrice).toBeNull();
+    expect(quotes[0]!.liquidateAmount).toBeNull();
+    expect(quotes[0]!.quantityToClose).toBe(1000000000000000000n);
+    expect(quotes[0]!.tradingFee).toBe(7n);
+    expect(quotes[0]!.ownerAddress).toBe(SUB);
     expect(quotes[0]!.quantity).toBe(2000000000000000000n);
     expect(rows[0]!.eventId).toBe("0xevent-1");
   });
@@ -94,6 +104,31 @@ describe("getPoolTradeHistory", () => {
     const { variables } = requestBody(post) as unknown as { variables: { typeIn: string[]; [k: string]: unknown } };
     expect(variables.typeIn).toHaveLength(7);
     expect(variables).toMatchObject({ first: 50, skip: 0, orderDirection: "desc" });
+  });
+  it("keeps an explicitly reported zero distinct from an absent snapshot", async () => {
+    const { config } = mockConfig();
+    vi.spyOn(axios, "post").mockResolvedValue({
+      data: {
+        data: {
+          quoteEvents: [
+            { ...EVENT, metadata: JSON.stringify({ amount: "0", closePrice: "0" }) },
+            { ...EVENT, id: "absent", metadata: "{}" },
+          ],
+        },
+      },
+    });
+    const { quotes } = await getPoolTradeHistory(config, { symbolId: 149 });
+    expect(quotes[0]).toMatchObject({
+      closedAmount: 0n,
+      quantityToClose: 0n,
+      averageClosedPrice: 0n,
+      liquidatePrice: null,
+    });
+    expect(quotes[1]).toMatchObject({
+      closedAmount: 2000000000000000000n,
+      averageClosedPrice: 2n,
+      liquidatePrice: null,
+    });
   });
 
   it("maps a close-type filter to its event types", async () => {

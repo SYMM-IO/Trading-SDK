@@ -63,3 +63,7 @@ That makes summing the rows correct, and makes reading a single row as "the quot
 ## Complete event quote snapshots
 
 The result also includes `quotes: PoolQuote[]`, aligned with `rows`. Each quote includes full fee/owner/lock fields, overlaid with that close event's immutable amount, entry/close price, liquidation values and status. Pair a quote with its corresponding row's `eventId`, `closedAt` and solver fees; never replace those with the current quote's cumulative close state.
+
+## Event quote snapshots
+
+The quotes array aligns with rows. It overlays each event's close amount (including quantityToClose) and prices without converting absent values to zero. tradingFee and closeFee are cumulative quote-level totals, repeated across a quote's events; never sum them as per-event fees.

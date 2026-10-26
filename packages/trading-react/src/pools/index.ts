@@ -1,4 +1,3 @@
-export * from "./optimistic-update";
 export * from "./use-add-market";
 export * from "./use-authenticate-listing";
 export * from "./use-cancel-withdraw";
@@ -14,8 +13,12 @@ export * from "./use-listing-status";
 export * from "./use-listing-token-metadata";
 export * from "./use-listing-token-support";
 export * from "./use-pool-maintenance-fees";
+export * from "./use-pool-open-positions";
+export * from "./use-pool-portfolio";
+export * from "./use-pool-position";
 export * from "./use-pool-quotes";
 export * from "./use-pool-reward-chart";
+export * from "./use-pool-statistics";
 export * from "./use-pool-total-reward";
 export * from "./use-pool-trade-history";
 export * from "./use-pool-transactions";

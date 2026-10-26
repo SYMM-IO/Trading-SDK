@@ -2,7 +2,7 @@ import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter } from "../../shared/types/properties";
-import { toListingValue } from "../markets/to-listing-market";
+import { toListingPercent, toListingValue } from "../markets/to-listing-market";
 import { resolveListingService } from "../resolve-listing";
 import { getPoolsV2PoolsGet } from "../types/generated/listing-backend";
 
@@ -10,8 +10,6 @@ import { getPoolsV2PoolsGet } from "../types/generated/listing-backend";
 export interface PoolMarketData {
   marketCap: bigint | null;
   apr: bigint | null;
-  /** Exact rate for legacy responses using plain fractional percentages. */
-  reportedApr: string | null;
 }
 /** Deployment and exact token addresses for the legacy batch metrics read. */
 export type GetPoolMarketDataParameters = ChainIdParameter & { addresses: readonly string[] };
@@ -27,7 +25,7 @@ export async function getPoolMarketData(
     return Object.fromEntries(
       Object.entries(data).map(([address, value]) => [
         address,
-        { marketCap: toListingValue(value.market_cap), apr: toListingValue(value.apr), reportedApr: value.apr ?? null },
+        { marketCap: toListingValue(value.market_cap), apr: toListingPercent(value.apr) },
       ]),
     );
   } catch (error) {

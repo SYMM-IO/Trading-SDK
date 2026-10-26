@@ -99,10 +99,10 @@ export function parseListingValue(raw: string | null | undefined): bigint | null
 function toTrailingWindows(raw: MarketSearchItem, prefix: string): ListingTrailingWindows {
   const row = raw as unknown as Record<string, string | null | undefined>;
   return {
-    h1: toListingValue(row[`${prefix}_1h`]),
-    h6: toListingValue(row[`${prefix}_6h`]),
-    h24: toListingValue(row[`${prefix}_24h`]),
-    d30: toListingValue(row[`${prefix}_30d`]),
+    h1: toListingPercent(row[`${prefix}_1h`]),
+    h6: toListingPercent(row[`${prefix}_6h`]),
+    h24: toListingPercent(row[`${prefix}_24h`]),
+    d30: toListingPercent(row[`${prefix}_30d`]),
   };
 }
 
@@ -111,7 +111,7 @@ function toApyWindows(raw: MarketSearchItem, prefix: string): ListingApyWindows 
   const row = raw as unknown as Record<string, string | null | undefined>;
   return {
     ...toTrailingWindows(raw, prefix),
-    lifetime: toListingValue(row[`${prefix}_lifetime`]),
+    lifetime: toListingPercent(row[`${prefix}_lifetime`]),
   };
 }
 
@@ -139,18 +139,10 @@ export function toListingMarket(
   },
 ): ListingMarket {
   return {
-    reportedPercentages: {
-      apr: raw.apr ?? null,
-      apr24h: raw.apr_24h ?? null,
-      apr30d: raw.apr_30d ?? null,
-      apy24h: raw.apy_24h ?? null,
-      apy30d: raw.apy_30d ?? null,
-      apyLifetime: raw.apy_lifetime ?? null,
-    },
     priceUsd: raw.price_usd ?? null,
-    apy24h: toListingValue(raw.apy_24h),
-    apy30d: toListingValue(raw.apy_30d),
-    apyLifetime: toListingValue(raw.apy_lifetime),
+    apy24h: toListingPercent(raw.apy_24h),
+    apy30d: toListingPercent(raw.apy_30d),
+    apyLifetime: toListingPercent(raw.apy_lifetime),
     reward30d: toListingValue(raw.reward_30d),
     rewardLifetime: toListingValue(raw.reward_lifetime),
     solverRevenue24h: toListingValue(raw.solver_revenue_24h),
@@ -168,7 +160,7 @@ export function toListingMarket(
     liquidity: toListingValue(raw.liquidity),
     openInterest: toListingValue(raw.open_interest),
     reward24h: toListingValue(raw.reward_24h),
-    apr: toListingValue(raw.apr),
+    apr: toListingPercent(raw.apr),
     aprByWindow: toTrailingWindows(raw, "apr"),
     tvlDrivenApy: toApyWindows(raw, "tvl_driven_apy"),
     priceDrivenApy: toApyWindows(raw, "price_driven_apy"),
@@ -195,4 +187,11 @@ export function toListingMarketPage(raw: PaginationResponseMarketSearchItem): Li
     offset: raw.offset ?? 0,
     items: (raw.items ?? []).map(toListingMarket),
   };
+}
+
+/** Normalize rollout-era plain percentages and fixed-point percentages to 18 decimals. */
+export function toListingPercent(raw: string | null | undefined): bigint | null {
+  if (raw == null || raw.trim() === "" || !Number.isFinite(Number(raw))) return null;
+  // Compatibility boundary: older listing deployments report large fixed-point rates.
+  return Math.abs(Number(raw)) > 1_000_000 ? toListingValue(raw) : parseListingValue(raw);
 }

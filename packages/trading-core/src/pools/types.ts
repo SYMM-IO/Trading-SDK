@@ -150,17 +150,6 @@ export interface ListingApyWindows extends ListingTrailingWindows {
  * means the service reported no value, which is distinct from zero.
  */
 export interface ListingMarket {
-  /** Exact reported rates for deployments returning plain percentages as well as
-   * 18-decimal rates. Use parsePoolPercent to interpret these without truncating
-   * fractional plain percentages; existing bigint fields retain their contract. */
-  reportedPercentages?: {
-    apr: string | null;
-    apr24h: string | null;
-    apr30d: string | null;
-    apy24h: string | null;
-    apy30d: string | null;
-    apyLifetime: string | null;
-  };
   /** Rollout price, kept as a string because services used both plain and scaled units. */
   priceUsd?: string | null;
   /** Legacy headline APY, 18-decimal percentage. */
@@ -912,10 +901,10 @@ export interface ListingDepositChain {
  * config ({@link ListingConfig.rateLimits}).
  */
 export interface ListingRateLimits {
-  /** Max successful market-config updates per user+market in a rolling 24h window. */
-  marketConfigUpdatesPerDay: number;
-  /** Max successful profit claims per user+market in a rolling 24h window. */
-  profitClaimsPerDay: number;
+  /** Max successful market-config updates per user+market in a rolling 24h window; null when unknown. */
+  marketConfigUpdatesPerDay: number | null;
+  /** Max successful profit claims per user+market in a rolling 24h window; null when unknown. */
+  profitClaimsPerDay: number | null;
 }
 
 /**
@@ -979,9 +968,9 @@ export interface PoolQuote {
   closedPrice?: bigint | null;
   /** marketPrice: raw 18-decimal protocol value, null when not indexed. */
   marketPrice?: bigint | null;
-  /** tradingFee: raw 18-decimal protocol value, null when not indexed. */
+  /** Cumulative trading fee for the entire quote, in 18-decimal units; not a per-event fee. Null when not indexed. */
   tradingFee?: bigint | null;
-  /** closeFee: raw 18-decimal protocol value, null when not indexed. */
+  /** Cumulative close fee for the entire quote, in 18-decimal units; do not sum repeated history snapshots. Null when not indexed. */
   closeFee?: bigint | null;
   /** leverage: raw 18-decimal protocol value, null when not indexed. */
   leverage?: bigint | null;

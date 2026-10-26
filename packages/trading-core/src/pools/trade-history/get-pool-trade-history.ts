@@ -1,5 +1,5 @@
 import type { Config } from "../../core/config";
-import { closeTypeToEventTypes } from "../../quotes/get-quote-history/close-type";
+import { closeTypeToEventTypes, LIQUIDATION_EVENT_TYPES } from "../../quotes/get-quote-history/close-type";
 import { toQuoteHistoryRow } from "../../quotes/get-quote-history/to-history-row";
 import { QuoteCloseType, type QuoteHistoryRow } from "../../quotes/get-quote-history/types";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
@@ -100,15 +100,38 @@ export async function getPoolTradeHistory(
   const rows = (data.quoteEvents ?? []).map(toQuoteHistoryRow);
   const quotes = (data.quoteEvents ?? []).map((event, index) => {
     const snapshot = rows[index]!;
+    const quote = toPoolQuote(event.quote);
+    let metadata: Record<string, unknown> = {};
+    try {
+      const parsed: unknown = JSON.parse(event.metadata ?? "{}");
+      if (parsed && typeof parsed === "object") metadata = parsed as Record<string, unknown>;
+    } catch {
+      /* Missing snapshot keeps the nullable quote fields. */
+    }
+    const amount = snapshotWei(metadata.amount);
+    const closePrice = snapshotWei(metadata.closePrice);
+    const isLiquidation = LIQUIDATION_EVENT_TYPES.has(snapshot.closeEventType);
     return {
-      ...toPoolQuote(event.quote),
+      ...quote,
       quoteStatus: snapshot.quoteStatus,
-      openedPrice: snapshot.openedPrice,
-      closedAmount: snapshot.closedAmount,
-      averageClosedPrice: snapshot.avgClosedPrice,
-      liquidateAmount: snapshot.liquidateAmount,
-      liquidatePrice: snapshot.liquidatePrice,
+      openedPrice: snapshotWei(metadata.openedPrice) ?? quote.openedPrice,
+      closedAmount: amount ?? quote.closedAmount,
+      quantityToClose: amount ?? quote.quantityToClose,
+      averageClosedPrice: closePrice ?? quote.averageClosedPrice,
+      liquidateAmount: (isLiquidation ? amount : null) ?? quote.liquidateAmount,
+      liquidatePrice: (isLiquidation ? closePrice : null) ?? quote.liquidatePrice,
     };
   });
   return { rows, quotes };
+}
+
+function snapshotWei(value: unknown): bigint | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  try {
+    const amount = BigInt(value);
+    return amount >= 0n ? amount : null;
+  } catch {
+    return null;
+  }
 }

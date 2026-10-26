@@ -58,7 +58,7 @@ Both fields are optional — with neither, the config's default chain and that c
     `depositChain` you pass to `addMarket`.
   </Property>
   <Property name="rateLimits" type="ListingRateLimits">
-    The rolling-24h client mutation limits: `{ marketConfigUpdatesPerDay: number; profitClaimsPerDay: number }` — max
+    The rolling-24h client mutation limits: `{ marketConfigUpdatesPerDay: number | null; profitClaimsPerDay: number | null }` — max
     successful market-config updates and profit claims per user+market per day.
   </Property>
   <Property name="protocolRewardSharePercent" type="number">
@@ -98,4 +98,8 @@ useQuery(getListingConfigQueryOptions(config));
 
 ## Legacy deposit floors and missing fields
 
-`recommendedDepositUsdc` and `minimumDepositUsdc` retain nullable configured values. When legacy initial-deposit names are present, `legacyUniversalDepositFloorUsdc` keeps the separate universal floor; do not confuse it with the initial listing requirement. `maxLeverageBounds` retains the configured minimum/maximum. `reportedListingFeeUsdc`, `reportedMarketConfigUpdatesPerDay`, `reportedProfitClaimsPerDay`, and `reportedProtocolRewardSharePercent` retain unknown versus zero independently of the older defaulted fields.
+`recommendedDepositUsdc` and `minimumDepositUsdc` retain nullable configured values. When legacy initial-deposit names are present, `legacyUniversalDepositFloorUsdc` keeps the separate universal floor; do not confuse it with the initial listing requirement. `maxLeverageBounds` retains the configured minimum/maximum. `reportedListingFeeUsdc` and `reportedProtocolRewardSharePercent` retain unknown versus zero independently of the older defaulted fields. The compatibility aliases `reportedMarketConfigUpdatesPerDay` and `reportedProfitClaimsPerDay` match the corresponding nullable `rateLimits` fields; prefer `rateLimits` for new consumers.
+
+## Legacy deployments
+
+Both minimumInitialDepositUsdc/minimumDepositUsdc and recommendedInitialDepositUsdc/recommendedDepositUsdc honor the legacy initial-deposit keys. The legacy universal top-up floor remains separate in legacyUniversalDepositFloorUsdc. Missing rate limits are null, not zero (zero is a known limit); show an unknown state and let the backend enforce writes.

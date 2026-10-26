@@ -35,8 +35,8 @@ describe("listing validation and maintenance reads", () => {
     await expect(
       getPoolMarketData(config, { chainId: 42161, addresses: ["ExactMint", "UnknownMint"] }),
     ).resolves.toEqual({
-      ExactMint: { marketCap: 123000000000000000000n, apr: 12n, reportedApr: "12.75" },
-      UnknownMint: { marketCap: null, apr: null, reportedApr: null },
+      ExactMint: { marketCap: 123000000000000000000n, apr: 12750000000000000000n },
+      UnknownMint: { marketCap: null, apr: null },
     });
   });
   it("does not confuse an HTTP-200 unsupported-token body with support", async () => {

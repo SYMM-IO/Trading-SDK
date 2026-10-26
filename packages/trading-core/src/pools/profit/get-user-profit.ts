@@ -21,6 +21,8 @@ export type GetUserProfitParameters = Compute<
      * yields a `401`.
      */
     accessToken: string;
+    /** Optional authenticated wallet cache scope. Supply it consistently in all private read hooks; it is not sent to the endpoint. */
+    userAddress?: string;
     /**
      * The pool's token contract address — the id that addresses a single market
      * in the listing API. An EVM `0x…` address, or a Solana base58 address for a

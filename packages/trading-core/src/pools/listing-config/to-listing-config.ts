@@ -52,8 +52,8 @@ export function toListingConfig(
       ? { minimum: bounds.minimum, maximum: bounds.maximum }
       : null;
   const rateLimits: ListingRateLimits = {
-    marketConfigUpdatesPerDay: raw.rate_limits?.market_config_updates_per_day ?? 0,
-    profitClaimsPerDay: raw.rate_limits?.profit_claims_per_day ?? 0,
+    marketConfigUpdatesPerDay: raw.rate_limits?.market_config_updates_per_day ?? null,
+    profitClaimsPerDay: raw.rate_limits?.profit_claims_per_day ?? null,
   };
 
   return {
@@ -65,8 +65,8 @@ export function toListingConfig(
     reportedMarketConfigUpdatesPerDay: raw.rate_limits?.market_config_updates_per_day ?? null,
     reportedProfitClaimsPerDay: raw.rate_limits?.profit_claims_per_day ?? null,
     reportedProtocolRewardSharePercent: raw.protocol_reward_share_percent ?? null,
-    recommendedInitialDepositUsdc: toListingValue(raw.recommended_deposit_usdc) ?? 0n,
-    minimumInitialDepositUsdc: toListingValue(raw.minimum_deposit_usdc) ?? 0n,
+    recommendedInitialDepositUsdc: recommendedDepositUsdc ?? 0n,
+    minimumInitialDepositUsdc: minimumDepositUsdc ?? 0n,
     listingFeeUsdc: toListingValue(raw.listing_fee_usdc) ?? 0n,
     supportedDepositChains: (raw.supported_deposit_chains ?? []).map(toListingDepositChain),
     rateLimits,

@@ -145,6 +145,8 @@ Exported as `GetListingSignInMessageParameters`.
 
 ## Prefetched challenges
 
-Pass an SDK-issued `signInMessage` to `authenticateListing` to reuse a challenge fetched before the user's signing gesture. The SDK validates the signed text and structured params against the actual wallet and requested domain/URI, including nonce, chain, timestamps and statement. A mismatch raises `LISTING_CHALLENGE_MISMATCH` before signing; an expired challenge raises `LISTING_CHALLENGE_EXPIRED`. Optional `expirationTime` is retained in the exchange. The SDK still owns the token exchange; consumers should not post a second login themselves.
+Pass an SDK-issued `signInMessage` to reuse a challenge fetched before signing. A cached challenge for another wallet, deployment, origin or statement, or one past its expiry, is discarded and fetched again. Fresh backend challenges are signed as issued: empty statements and backend URI normalization do not trigger local rejection. The backend validates signatures, nonces and expiry. The SDK owns the token exchange.
+
+`getListingSignInMessageQueryOptions(config, options)` and `getListingSignInMessageQueryKey` identify a challenge by deployment configuration, wallet, domain, URI and statement. Options use `GetListingSignInMessageOptions`; required action inputs stay required. React consumers should use `useAuthenticateListing({ prefetchChallenge: true })` instead of managing this lifecycle themselves.
 
 Bind async completion to the wallet and deployment that started it. Discard it when either changes. Listing SIWE uses the actual wallet, not a trading session-key signer.

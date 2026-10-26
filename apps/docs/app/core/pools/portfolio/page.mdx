@@ -1,18 +1,38 @@
-# Complete portfolio assembly
+# Pool portfolio
 
-`getPoolPortfolio(config, parameters)` returns the complete user portfolio before presentation filters or pagination. Parameters are `GetPoolPortfolioParameters`: deployment, access token, optional catalog sort/range filters. It reuses listing and transaction actions; it creates no separate cache.
+`getPoolPortfolio(config, parameters)` assembles holdings, reads their profit and detail, and returns positions, totals and explicit read gaps. Apply search, chain filters and pagination to the resulting entries. Unfunded non-listed catalog rows do not create holdings.
+
+## Example
 
 ```ts
 import { getPoolPortfolio, type Config } from "@symmio/trading-core";
-export async function portfolio(config: Config, accessToken: string) {
-  return getPoolPortfolio(config, { chainId: 42161, accessToken });
+export async function portfolio(config: Config, accessToken: string, userAddress: string) {
+  return getPoolPortfolio(config, { chainId: 42161, accessToken, userAddress, rewardDays: 30 });
 }
 ```
 
-The action pages listed rows in groups of 100, loads four non-listed statuses as best-effort status lookups, and reads up to 1,000 deposit records in groups of 100. A non-listed catalog row cannot create a holding: only a deposit-backed entry is included. Listed order is retained. Apply chain/search/status presentation filters after this assembly.
+## Parameters
 
-`assemblePoolPortfolio(markets, nonListed, deposits)` performs the same assembly over already available inputs. Its generic `PoolPortfolioEntry<M, D>` preserves the source `market` or `deposit`, the resolved `marketStatus`, and optional `history`. `PoolPortfolioMarket` and `PoolPortfolioDeposit` specify minimal identities/amounts; extra consumer fields pass through. `PoolPortfolioTransaction` adds catalog identity to a normalized user transaction.
+`GetPoolPortfolioParameters` requires accessToken and userAddress. Optional chainId selects the deployment independently of deposit chains. sortBy/orderBy retain backend catalog ordering. rewardDays selects 1–30 days (default 30). prices accepts `PoolPortfolioPrice[]`: tokenContractAddress, depositChain, priceUsd.
 
-`sumPoolDepositHistory(deposits)` returns `PoolDepositHistory` with pending/transferred/refund/rejected/success bigints at 18 decimals. Legacy deposit spellings are accepted; `decimals` describes the input amount's scale, defaulting to 18. EVM identities are folded, Solana identities retain case.
+## Result
 
-See [portfolio totals and deposit calculations](/core/pools/calculations). Missing profit requests must remain unknown in consumer UI; portfolio assembly cannot infer a current balance from cumulative deposits.
+`PoolPortfolio` / `GetPoolPortfolioReturnType` returns entries (`PoolPortfolioPosition[]`) with the same stake fields as [position](/core/pools/position), plus tokenName, tokenTicker and APR. The flat totals are totalBalanceUsd, totalDepositedUsd, claimableRewardUsd, claimedRewardUsd, rewardWindowUsd, averageApr and roiPercent.
+
+ROI compares only positions with a known balance, deposit and price on both sides. An unpriced position's known collateral can contribute to totalBalanceUsd, but not to ROI. A zero comparable deposit produces null ROI. Failed profit reads remain visible as unknown stakes.
+
+Each catalog/status and deposit stream requests up to ten pages of 100. Pagination advances by the number of returned rows, including when the service caps a page below the requested size. Repeated pages stop paging. `gaps: PoolReadGap[]` identifies failed, repeated or truncated sources. A later-page failure retains earlier rows; incomplete history never replaces authoritative deposited amounts. Authentication failures still throw. Unknown lifecycle status stays null. Solana case aliases join only when the catalog mapping is unambiguous; outgoing requests preserve the canonical spelling.
+
+Incomplete catalog or deposit sources make whole-portfolio balance, deposit and claimed/claimable totals null. Entries remain available with their known values. Average APR and ROI describe the available comparable subset; inspect gaps before presenting them as complete-portfolio metrics. Ambiguous Solana aliases are reported as `ambiguous-address` gaps rather than assigned to another exact catalog identity.
+
+## Projection and queries
+
+`calculatePoolPortfolio(input: CalculatePoolPortfolioParameters)` accepts SDK listed/nonListed rows, deposits, per-pool profit/detail snapshots, optional prices, a reward snapshot, and gaps unchanged. It returns the same PoolPortfolio; React uses this projection after observing the individual sources.
+
+`getPoolPortfolioQueryOptions(config, options: GetPoolPortfolioOptions)` and `getPoolPortfolioQueryKey` provide the core query contract. The key excludes accessToken and includes userAddress and deployment configuration.
+
+## Units and ownership
+
+Token, collateral and LP amounts are bigint at 18 decimals. USD and percentage projections are unformatted numbers. Unknown values are null. The SDK does not contact third-party token-data providers; pass an external price when available. Keep formatting, filtering and sorting in the consumer.
+
+The corresponding React hook composes existing SDK queries; it does not cache the aggregate separately. Core query factories are available for non-React consumers. Do not mount both a composed core query and its React hook for the same screen.
