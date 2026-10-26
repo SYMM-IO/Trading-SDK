@@ -50,4 +50,22 @@ describe("useSolverInfo", () => {
       expect.objectContaining({ chainId: expect.any(Number) }),
     );
   });
+  it("exposes deployment timelock metadata without changing the existing fee fields", async () => {
+    const { config } = createMockSymmioConfig();
+    const timelockApproval = {
+      unlocker: "0x2222222222222222222222222222222222222222",
+      minTimelockDelaySeconds: 600,
+      validitySeconds: 60,
+      requestDomain: {
+        name: "SymmioTimelockApprovalRequest",
+        version: "1",
+        chainId: "42161",
+        verifyingContract: config.getChainConfig().addresses.accountLayerAddress,
+      },
+    };
+    mockOptions(vi.fn().mockResolvedValue({ staticSolverFeeOpen: "0.5", timelockApproval }));
+    const { result } = renderHookWithProviders(() => useSolverInfo({ config }));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual({ staticSolverFeeOpen: "0.5", timelockApproval });
+  });
 });

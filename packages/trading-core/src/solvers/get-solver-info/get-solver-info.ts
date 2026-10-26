@@ -2,16 +2,20 @@ import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
+import type { TimelockApprovalCapability } from "../../timelock/approval";
 import { assertSolverKind } from "../assert-solver-kind";
 import { getInfo } from "../types/generated/enigma-solver";
+import { parseTimelockInfo } from "./parse-timelock-info";
 
 /**
- * Static solver-fee configuration from the Enigma-only `GET /info` endpoint.
+ * Solver fees and optional deployment timelock capability from Enigma `GET /info`.
  *
  * A flat camelCase mirror of the wire shape; amounts are USD decimal strings
  * exactly as the solver reports them.
  */
 export interface EnigmaSolverInfo {
+  /** Deployment-specific timelock configuration; omitted by deployments without this capability. */
+  timelockApproval?: TimelockApprovalCapability;
   /**
    * Configured USD amount charged per instant open, before signed fee-cap
    * adjustments. `undefined` when the solver omits it.
@@ -36,7 +40,7 @@ export type GetSolverInfoReturnType = EnigmaSolverInfo;
  *
  * @param config - The SDK config.
  * @param parameters - Optional chain/solver.
- * @returns The solver's static fee configuration ({@link EnigmaSolverInfo}).
+ * @returns Static fees and optional validated timelock capability ({@link EnigmaSolverInfo}).
  * @throws {SymmError} `UNSUPPORTED_BY_SOLVER` when the resolved solver is not an `enigma` solver.
  * @throws {SymmApiError} when the API request fails.
  */
@@ -48,7 +52,9 @@ export async function getSolverInfo(
   assertSolverKind(solver, "enigma", "getSolverInfo");
   try {
     const response = await getInfo({ baseURL: solver.url });
+    const timelockApproval = parseTimelockInfo(response.data, config.getChainConfig(parameters.chainId));
     return {
+      ...(timelockApproval ? { timelockApproval } : {}),
       staticSolverFeeOpen: response.data.static_solver_fee_open,
       staticSolverFeeClose: response.data.static_solver_fee_close,
     };

@@ -1,3 +1,4 @@
+import type { TimelockErrorDetails } from "@symmio/trading-core";
 import type { SymmioNormalizedErrorKind } from "./types";
 
 /**
@@ -5,6 +6,8 @@ import type { SymmioNormalizedErrorKind } from "./types";
  * the discriminator-specific fields the UI cares about.
  */
 export interface SymmioRequestErrorOptions {
+  /** Normalized timelock solver fields, when this is a typed timelock API error. */
+  timelock?: TimelockErrorDetails;
   kind: SymmioNormalizedErrorKind;
   message: string;
   /** SDK error code (e.g., "FETCH_MARKETS_FAILED", "UNSUPPORTED_CHAIN"). */
@@ -43,6 +46,8 @@ export interface SymmioRequestErrorOptions {
  * if (error) return <GenericError message={error.message} />;
  */
 export class SymmioRequestError extends Error {
+  /** Structured timelock error fields without parsing the free-form diagnostic body. */
+  readonly timelock?: TimelockErrorDetails;
   override readonly name = "SymmioRequestError";
   /** Classification used by the UI to branch on this failure. */
   readonly kind: SymmioNormalizedErrorKind;
@@ -74,6 +79,7 @@ export class SymmioRequestError extends Error {
   constructor(options: SymmioRequestErrorOptions) {
     super(options.message, { cause: options.cause });
     this.kind = options.kind;
+    this.timelock = options.timelock;
     this.code = options.code;
     this.status = options.status;
     this.responseData = options.responseData;

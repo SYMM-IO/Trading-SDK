@@ -41,6 +41,17 @@ export type InitiateWithdrawParameters = Compute<
 /** Return type of {@link initiateWithdraw}: the submitted transaction hash. */
 export type InitiateWithdrawReturnType = Hash;
 
+/** Encode the canonical raw Core calldata bound by a timelock approval or schedule. */
+export function encodeInitiateWithdrawCall(
+  parameters: Pick<InitiateWithdrawParameters, "parts" | "speedUp" | "providerData">,
+): Hex {
+  return encodeFunctionData({
+    abi: symmioAbi,
+    functionName: "initiateWithdraw",
+    args: [parameters.parts, parameters.speedUp ?? false, parameters.providerData ?? "0x"],
+  });
+}
+
 /**
  * Open a withdraw request for a subaccount.
  *
@@ -78,11 +89,7 @@ export async function initiateWithdraw(
 ): Promise<InitiateWithdrawReturnType> {
   const { chainId, account, parts, speedUp = false, providerData = "0x" } = parameters;
 
-  const data = encodeFunctionData({
-    abi: symmioAbi,
-    functionName: "initiateWithdraw",
-    args: [parts, speedUp, providerData],
-  });
+  const data = encodeInitiateWithdrawCall({ parts, speedUp, providerData });
 
   return callAsSubAccount(config, {
     account,

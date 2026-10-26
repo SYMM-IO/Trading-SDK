@@ -7,6 +7,7 @@ import { getInstantLayerNonce } from "../../symmio-contracts/instant-layer/actio
 import { assertGaslessGatewayCoherence } from "../assert-gateway-coherence";
 import { GASLESS_SIGNATURE_LIFETIME_SECONDS } from "../constants";
 import { findUndelegatedGaslessSelectors, getCachedGaslessAccountOwner } from "../delegation-preflight";
+import { getEffectiveInstantSelectors } from "../effective-instant-selectors";
 import { fireGaslessEvent, toGaslessRecordBody } from "../events";
 import { isConfirmedGaslessFeeLimitError, isConfirmedGaslessUnavailableError } from "../fallback";
 import { isGaslessFreeQuotaExhaustedError } from "../get-gasless-fee-quote/fee-quote-errors";
@@ -76,7 +77,7 @@ export async function submitGaslessWrite(
       chainId,
       signer: walletClient.account.address,
       signerAccount: resolvedSignerAccount,
-      selectors: calls.map((call) => call.callData.slice(0, 10).toLowerCase() as Hex),
+      selectors: calls.flatMap((call) => getEffectiveInstantSelectors(call.callData)),
     });
     if (missing.length > 0) {
       return {

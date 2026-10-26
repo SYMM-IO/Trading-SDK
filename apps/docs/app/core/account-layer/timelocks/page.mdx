@@ -1,0 +1,185 @@
+import { Callout } from "nextra/components";
+
+# Account timelocks
+
+AccountLayer timelocks protect selected operations with one of two authorization paths:
+
+- **Approval path:** an application-defined approval provider signs the exact raw operation calldata, then the operation executes immediately.
+- **Scheduled fallback:** the root account schedules the exact raw operation calldata, waits for the configured delay, then executes it without an approval.
+
+The SDK is provider-neutral. It accepts an injected capability, approval transport
+and read-only indexing observer. Its default adapter uses the selected solver's
+`/info` and standard `POST /timelock-approval`; custom providers need not use those URLs.
+Amounts are `bigint` in deployed contract units; timestamps and delays are Unix seconds
+and seconds, respectively. No action automatically selects the delayed fallback.
+
+<Callout type="warning">
+  Timelock policy and schedules belong to the **root subaccount**. The operation itself may target that root or one of
+  its Virtual Accounts. Resolve the root with `resolveTimelockRootAccount` before setup, scheduling, cancellation, or
+  execution when using low-level actions. `getTimelockPolicy`, `setupTimelockPolicy` and `earlyWithdraw` resolve the
+  root automatically.
+</Callout>
+
+## Configure the policy
+
+Choose the greater of AccountLayer's minimum and the approval provider's advertised minimum. Instant opens require all selectors in `INSTANT_OPEN_TIMELOCK_SELECTORS`; `_call` is intentionally excluded.
+
+```ts
+import { getTimelockPolicy, setupTimelockPolicy } from "@symmio/trading-core";
+
+const policy = await getTimelockPolicy(config, { account, chainId });
+// policy.selectors lists every missing, wrong-unlocker or short-delay policy.
+if (!policy.ready) {
+  const setup = await setupTimelockPolicy(config, { account, chainId });
+  // Receipt is confirmed. Indexing remains "unknown" without an observer.
+  if (!setup.policy.ready || setup.indexing !== "indexed") {
+    // Stop here until the application's read-only indexing check confirms readiness.
+    throw new Error("Wait for confirmed policy and solver indexing before approval");
+  }
+}
+```
+
+Wait for setup confirmation and provider indexing before requesting an approval.
+Supply an optional `indexer.getStatus(policy, receipt)` only if the provider exposes
+reliable read-only evidence. There is no invented polling endpoint and an approval
+request must never serve as an indexing probe. Without such evidence the result is
+`unknown`, not ready-by-assumption. Re-check policy against fresh metadata when the
+provider raises its minimum. See the [policy reference](./policy).
+
+## Early withdrawal
+
+After setup and indexing, use `earlyWithdraw` for `withdraw`, `withdrawTo` or
+`initiateWithdraw`. It checks the relevant selector, requests exactly one approval,
+then executes with the **owner as execution signer**. The submission route inherits
+the shared SDK execution configuration unless `gasless` is explicitly set to `true`
+or `false`. A delegate may sign the approval request via `approvalSigner`; that does
+not change the execution owner.
+
+```ts
+import { earlyWithdraw } from "@symmio/trading-core";
+
+const { timestamp } = await config.getClient({ chainId }).getBlock();
+const submitted = await earlyWithdraw(config, {
+  account,
+  chainId,
+  withdrawal: { method: "withdraw", amount: 1_000_000n },
+  deadline: timestamp + 300n,
+  onApproval: persistApproval, // Application storage; serialize bigint explicitly.
+});
+const receipt = await config.getClient({ chainId }).waitForTransactionReceipt({ hash: submitted.hash });
+if (receipt.status !== "success") throw new Error("Withdrawal reverted");
+```
+
+The core result is a submission, not confirmation. For `initiateWithdraw`, a successful
+receipt confirms initiation only; Core cooldown/finalization still applies. If issuance
+succeeds but storage or execution fails, `EarlyWithdrawExecutionError` retains the
+approval and raw calldata. Reconcile/reuse that approval instead of obtaining another.
+See [approval and early-withdrawal reference](./approval).
+
+## Approval path
+
+The approval signs the canonical **raw operation calldata**. For a Core withdrawal, that means the encoded Core call such as `initiateWithdraw`, not its hash and not the AccountLayer `_call` wrapper.
+
+```ts
+import {
+  createHttpTimelockApprovalProvider,
+  encodeTimelockedCoreCall,
+  executeTimelockOp,
+  requestTimelockApproval,
+} from "@symmio/trading-core";
+
+const provider = createHttpTimelockApprovalProvider({ baseUrl: approvalServiceUrl });
+const result = await requestTimelockApproval(config, {
+  chainId,
+  provider,
+  capability,
+  account, // root or VA that the raw Core call operates on
+  rootAccount: root,
+  callData: rawCoreCallData,
+  deadline: requestDeadline,
+});
+
+await executeTimelockOp(config, {
+  chainId,
+  account: root,
+  innerCallData: encodeTimelockedCoreCall(account, rawCoreCallData),
+  approvals: [result.signedApproval],
+  gasless: false, // Owner-wallet route; opt into relay only when the deployment supports it.
+});
+```
+
+`requestTimelockApproval` performs exactly one provider request and validates the returned account, unlocker, calldata hash, signature fields, and deadline. Its mutation options disable retries even when a global TanStack retry policy exists.
+
+<Callout type="warning">
+  Do not automatically retry an ambiguous approval request. A timeout can happen after the provider issued an approval;
+  another POST can create a second approval and consume another approval slot. A definite rejection may start a new
+  primary attempt according to the application's policy.
+</Callout>
+
+For a custom service, implement `TimelockApprovalProvider`. `createHttpTimelockApprovalProvider` is only a convenience adapter for the standard `POST /timelock-approval` shape.
+
+## Scheduled fallback
+
+Schedule only when the approval provider is unavailable or the application has reconciled an ambiguous outcome. The calldata used to schedule, inspect, cancel, and later execute must stay identical.
+
+```ts
+import {
+  cancelTimelockOp,
+  encodeTimelockedCoreCall,
+  executeTimelockOp,
+  getTimelockScheduleState,
+  scheduleTimelockOp,
+} from "@symmio/trading-core";
+
+const hash = await scheduleTimelockOp(config, {
+  chainId,
+  account: root,
+  callData: rawCoreCallData,
+  gasless: false,
+});
+const receipt = await config.getClient({ chainId }).waitForTransactionReceipt({ hash });
+if (receipt.status !== "success") throw new Error("Schedule reverted");
+
+const schedule = await getTimelockScheduleState(config, {
+  chainId,
+  account: root,
+  callData: rawCoreCallData,
+});
+const { timestamp: now } = await config.getClient({ chainId }).getBlock();
+const isReady =
+  schedule.readyAt !== null && schedule.expiresAt !== null && now >= schedule.readyAt && now <= schedule.expiresAt;
+
+if (isReady) {
+  await executeTimelockOp(config, {
+    chainId,
+    account: root,
+    innerCallData: encodeTimelockedCoreCall(account, rawCoreCallData),
+    approvals: [],
+    gasless: false,
+  });
+}
+
+// Alternatively, while it is still in its delay period:
+if (schedule.readyAt !== null && now < schedule.readyAt) {
+  await cancelTimelockOp(config, {
+    chainId,
+    account: root,
+    callData: rawCoreCallData,
+    gasless: false,
+  });
+}
+```
+
+`getTimelockScheduleState` derives `readyAt` and `expiresAt` from the on-chain schedule, selector policy, and grace period. Compare them with the current time to render or enforce the execution window. The AccountLayer delay is independent of a Core withdrawal cooldown; completing the timelock does not skip any later Core waiting period.
+
+## Gasless execution
+
+The timelock writes accept the normal SDK `gasless` option. When the SDK relays a wrapped Core call, delegation is checked against the immediate inner AccountLayer operation (`_call`), not the outer `executeTimelockOp` wrapper. If gasless dispatch is unavailable, normal SDK wallet fallback rules apply and the user must have native gas.
+
+## Errors
+
+Provider HTTP failures preserve the response status, provider error code/body, and
+`Retry-After` in `TimelockApprovalHttpError`. `TimelockSolverError.details` exposes typed
+codes 3700–3713 and category/detail fallback for unknown codes. A missing or zero code
+never makes an error response successful. See the [error reference](./errors),
+[execution reference](./execution) and [React hooks](../../../react/account-layer#account-timelocks).

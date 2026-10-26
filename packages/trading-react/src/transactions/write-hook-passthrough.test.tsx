@@ -29,6 +29,8 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "approveOperationalFeeAllowanceMutationOptions",
     "approveOperationalFeeMutationOptions",
     "cancelRegistrationMutationOptions",
+    "cancelTimelockOpMutationOptions",
+    "clearTimelocksMutationOptions",
     "createSubAccountsMutationOptions",
     "deallocateAndInitiateWithdrawMutationOptions",
     "deallocateMutationOptions",
@@ -36,6 +38,8 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "depositAndAllocateForAccountMutationOptions",
     "depositForAccountMutationOptions",
     "editAccountNameMutationOptions",
+    "earlyWithdrawMutationOptions",
+    "executeTimelockOpMutationOptions",
     "finalizeRevokeDelegationMutationOptions",
     "finalizeWithdrawRequestMutationOptions",
     "forceCancelCloseRequestMutationOptions",
@@ -50,6 +54,8 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "requestToCancelCloseRequestMutationOptions",
     "requestToCancelQuoteMutationOptions",
     "requestToRegisterAffiliateMutationOptions",
+    "scheduleTimelockOpMutationOptions",
+    "setupTimelocksMutationOptions",
     "withdrawAutoMutationOptions",
     "withdrawWithExpressMutationOptions",
   ],
@@ -75,6 +81,14 @@ import { useDepositAndAllocate } from "../account-layer/use-deposit-and-allocate
 import { useEditAccountName } from "../account-layer/use-edit-account-name";
 import { useRemoveMargin } from "../account-layer/use-remove-margin";
 import { useRequestToRegisterAffiliate } from "../account-layer/use-request-to-register-affiliate";
+import {
+  useCancelTimelockOp,
+  useClearTimelocks,
+  useExecuteTimelockOp,
+  useScheduleTimelockOp,
+  useSetupTimelocks,
+} from "../account-layer/use-timelock";
+import { useEarlyWithdraw } from "../account-layer/use-timelock-policy";
 import { useApproveCollateral } from "../collateral/use-approve-collateral";
 import { useApproveOperationalFee } from "../gasless/use-approve-operational-fee";
 import { useApproveOperationalFeeAllowance } from "../gasless/use-approve-operational-fee-allowance";
@@ -234,6 +248,53 @@ const PROBES: Probe<never>[] = [
     acceptsGasless: true,
     useWrite: (config) => useEditAccountName({ config, waitForReceipt: false }),
     variables: { account: ACCOUNT, name: "probe" },
+  }),
+  probe({
+    file: "account-layer/use-timelock.ts",
+    name: "useSetupTimelocks",
+    acceptsGasless: true,
+    useWrite: (config) => useSetupTimelocks({ config, waitForReceipt: false }),
+    variables: {
+      account: ACCOUNT,
+      unlocker: VIRTUAL_ACCOUNT,
+      delay: 600n,
+      selectors: ["0x12345678" as Hex],
+    },
+  }),
+  probe({
+    file: "account-layer/use-timelock-policy.ts",
+    name: "useEarlyWithdraw",
+    acceptsGasless: true,
+    useWrite: (config) => useEarlyWithdraw({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, withdrawal: { method: "withdraw", amount: 1n }, deadline: 2_000_000_000n },
+  }),
+  probe({
+    file: "account-layer/use-timelock.ts",
+    name: "useClearTimelocks",
+    acceptsGasless: true,
+    useWrite: (config) => useClearTimelocks({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, selectors: ["0x12345678" as Hex] },
+  }),
+  probe({
+    file: "account-layer/use-timelock.ts",
+    name: "useScheduleTimelockOp",
+    acceptsGasless: true,
+    useWrite: (config) => useScheduleTimelockOp({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, callData: "0x12345678" as Hex },
+  }),
+  probe({
+    file: "account-layer/use-timelock.ts",
+    name: "useCancelTimelockOp",
+    acceptsGasless: true,
+    useWrite: (config) => useCancelTimelockOp({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, callData: "0x12345678" as Hex },
+  }),
+  probe({
+    file: "account-layer/use-timelock.ts",
+    name: "useExecuteTimelockOp",
+    acceptsGasless: true,
+    useWrite: (config) => useExecuteTimelockOp({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, innerCallData: "0x12345678" as Hex, approvals: [] },
   }),
   probe({
     file: "account-layer/use-remove-margin.ts",
@@ -442,7 +503,7 @@ function discoverWriteHooks(): string[] {
 
 describe("the probe table covers every write hook", () => {
   it("has a row for each hook that resolves a write result", () => {
-    expect(discoverWriteHooks()).toEqual(PROBES.map((row) => row.file).sort());
+    expect(discoverWriteHooks()).toEqual([...new Set(PROBES.map((row) => row.file))].sort());
   });
 
   /**

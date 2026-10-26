@@ -1,0 +1,94 @@
+# Timelock execution and fallback reference
+
+These low-level AccountLayer APIs accept a **root** account; resolve a VA with
+`resolveTimelockRootAccount` first. All actions import from `@symmio/trading-core`.
+Writes return a transaction `Hash`, not a receipt. Their parameters include normal
+SDK chain, `from`, simulation and `gasless` controls. None automatically retries.
+Wallet execution rejects a chain mismatch before simulation or broadcast.
+
+`encodeInitiateWithdrawCall({ parts, speedUp?, providerData? }): Hex` builds the raw
+Core calldata for scheduling or approval. `parts` is `readonly WithdrawReceiverPart[]`;
+defaults are `speedUp: false` and `providerData: "0x"`. The encoder does not sign or submit.
+
+## Writes
+
+| Function             | Parameters                                                                                                                               | Contract effect                                                                                                                 |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `setupTimelocks`     | `SetupTimelocksParameters`: `account`, `unlocker`, `delay: bigint`, `selectors: readonly Hex[]`, optional `providerMinimumDelay: bigint` | Sets policy after checking contract/provider minimum. Use `setupTimelockPolicy` for root resolution, defaults and confirmation. |
+| `clearTimelocks`     | `ClearTimelocksParameters`: `account`, `selectors`                                                                                       | Removes those selector policies.                                                                                                |
+| `scheduleTimelockOp` | `ScheduleTimelockOpParameters`: `account`, `callData: Hex`                                                                               | Schedules `keccak256(rawCallData)`; does not execute withdrawal.                                                                |
+| `cancelTimelockOp`   | `CancelTimelockOpParameters`: same fields as schedule                                                                                    | Cancels that calldata hash's schedule; does not cancel an already executed Core withdrawal.                                     |
+| `executeTimelockOp`  | `ExecuteTimelockOpParameters`: `account`, `innerCallData: Hex`, optional `approvals: readonly SignedTimelockApproval[]`                  | Executes an AccountLayer call using approvals or a mature schedule.                                                             |
+
+Every function has signature `(config, parameters) → Promise<Hash>`.
+For Core calls use `encodeTimelockedCoreCall(originalAccount, rawCoreCall)` as
+`innerCallData`; for AccountLayer calls pass raw calldata directly. Never schedule
+the `_call` wrapper hash when authorizing its inner Core operation.
+
+```ts
+import {
+  scheduleTimelockOp,
+  getTimelockScheduleState,
+  executeTimelockOp,
+  encodeTimelockedCoreCall,
+} from "@symmio/trading-core";
+const hash = await scheduleTimelockOp(config, { account: root, callData, gasless: false });
+const receipt = await config.getClient().waitForTransactionReceipt({ hash });
+if (receipt.status !== "success") throw new Error("Schedule reverted");
+
+const state = await getTimelockScheduleState(config, { account: root, callData });
+const { timestamp } = await config.getClient().getBlock();
+if (state.readyAt !== null && state.expiresAt !== null && timestamp >= state.readyAt && timestamp <= state.expiresAt) {
+  await executeTimelockOp(config, {
+    account: root,
+    innerCallData: encodeTimelockedCoreCall(originalAccount, callData),
+    approvals: [],
+    gasless: false,
+  });
+}
+```
+
+Persist the raw calldata and transaction/recovery identity in application storage.
+Re-read state before execution; contracts remain authoritative if policy or schedule
+changes after a read. Core cooldown is independent and may require later finalization.
+A rejection from the solver is not permission to bypass it: fallback selection and
+reconciliation of unknown requests are explicit consumer decisions.
+
+## State and approval reads
+
+| Function                         | Parameters → result                                                                                                                                                                       |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getTimelockSchedule`            | `(config, GetTimelockScheduleParameters)` with root `account`, raw `callData`, optional `chainId` → `Promise<TimelockSchedule>`.                                                          |
+| `getTimelockScheduleGracePeriod` | `(config, { chainId? }?) → Promise<bigint>` seconds.                                                                                                                                      |
+| `getTimelockScheduleState`       | `(config, GetTimelockScheduleStateParameters) → Promise<TimelockScheduleState>`. Extends schedule inputs with optional `operationCallData` for selector lookup, defaulting to `callData`. |
+| `hashTimelockApproval`           | `(config, { approval: TimelockApproval, chainId? }) → Promise<Hex>`; contract's canonical approval digest.                                                                                |
+| `isTimelockApprovalUsed`         | `(config, { approvalHash: Hex, chainId? }) → Promise<boolean>`.                                                                                                                           |
+
+`TimelockSchedule` is `{ scheduledAt: bigint, nonce: number }` (the nonce is uint32).
+`TimelockScheduleState` contains `callDataHash`, `schedule`, `policy: SelectorTimelock`,
+`gracePeriod`, `readyAt` and `expiresAt`. The last two are `bigint | null`, null when
+there is no schedule, otherwise `scheduledAt + policy.delay` and `readyAt + gracePeriod`.
+
+`TimelockApproval` is `{ account, unlocker, callDataHash, deadline: bigint, salt }`.
+`SignedTimelockApproval` is `{ approval: TimelockApproval, signature: Hex }`.
+Check receipt/consumption before reusing an issued approval; expiry or use is not an
+instruction to issue another automatically.
+
+## Query and mutation helpers
+
+`getTimelockScheduleStateQueryOptions(config, options: GetTimelockScheduleStateOptions)`
+returns `GetTimelockScheduleStateQueryOptions`. Options combine required state inputs
+with standard `query` overrides. `getTimelockScheduleStateQueryKey(options?)` returns
+`GetTimelockScheduleStateQueryKey` and accepts partial state inputs plus `configKey`.
+
+These helpers return TanStack mutation options for their corresponding write inputs:
+
+- `setupTimelocksMutationOptions(config)`
+- `clearTimelocksMutationOptions(config)`
+- `scheduleTimelockOpMutationOptions(config)`
+- `cancelTimelockOpMutationOptions(config)`
+- `executeTimelockOpMutationOptions(config)`
+
+All set `retry: false`, including receipt errors when used by the React wrappers.
+The [React timelock hooks](../../../../react/account-layer#account-timelocks) wait for receipts
+by default and invalidate affected policy, schedule and balance data on confirmation.

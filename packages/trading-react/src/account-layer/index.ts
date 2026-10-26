@@ -28,6 +28,8 @@ export * from "./use-simulate-remove-margin";
 export * from "./use-sub-account";
 export * from "./use-sub-account-virtual-nonce";
 export * from "./use-sub-accounts-count-of-user";
+export * from "./use-timelock";
+export * from "./use-timelock-policy";
 export * from "./use-user-sub-accounts";
 export * from "./use-user-sub-accounts-addresses";
 export * from "./use-virtual-account";

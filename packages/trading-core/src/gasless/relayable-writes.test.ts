@@ -172,6 +172,11 @@ describe("every relayable write has a real seam", () => {
   /** Writes whose action does not live under its target's action directory. */
   const ACTION_PATH_OVERRIDES: Record<string, string> = {
     forceClosePosition: "solvers/force-close/force-close-position.ts",
+    setupTimelocks: "symmio-contracts/account-layer/actions/timelock.ts",
+    clearTimelocks: "symmio-contracts/account-layer/actions/timelock.ts",
+    scheduleTimelockOp: "symmio-contracts/account-layer/actions/timelock.ts",
+    cancelTimelockOp: "symmio-contracts/account-layer/actions/timelock.ts",
+    executeTimelockOp: "symmio-contracts/account-layer/actions/timelock.ts",
   };
 
   function actionSourcePath(write: GaslessRelayableWrite): string {

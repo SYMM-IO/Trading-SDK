@@ -220,9 +220,15 @@ import { getSolverInfo } from "@symmio/trading-core";
 const info = await getSolverInfo(config);
 info.staticSolverFeeOpen; // "0.5"  — USD per instant open
 info.staticSolverFeeClose; // "0.25" — USD per instant close (incl. partial closes)
+info.timelockApproval; // Optional deployment capability, not a selector allowlist.
 ```
 
 A rasa-kind solver has no `/info` endpoint, so the read fails before the wire with `UNSUPPORTED_BY_SOLVER` rather than a vendor 404. A request that goes out and fails throws `SymmApiError` with code `FETCH_SOLVER_INFO_FAILED`. Ships the matching `getSolverInfoQueryOptions` / `getSolverInfoQueryKey` factories; the React binding is [`useSolverInfo`](/react/solvers#usesolverinfo).
+
+`timelockApproval?: TimelockApprovalCapability` exposes the advertised unlocker,
+minimum delay, public approval lifetime and EIP-712 request domain. Missing metadata
+keeps the fee-only result unchanged; malformed or wrong-deployment metadata fails with
+`INVALID_TIMELOCK_METADATA`. See [timelock metadata](../account-layer/timelocks/policy).
 
 The instant fee previews consume these legs: [`getInstantOpenFees`](/core/solvers/instant-open#fee-preview--getinstantopenfees) reports the open leg as `staticSolverFeeOpen`, and `prepareInstantOpenParams` funds it through the `addMargin` amount (full-balance sizing carves it off the balance before the linear solve). The static **close** leg is not funded at open — the contract charges it at close from the position, and [`getInstantCloseFees`](/core/solvers/instant-close#fee-preview--getinstantclosefees) reports it as `staticSolverFeeClose` (see [Fees at close](/core/solvers/instant-close#fees-at-close)). Pass a pre-fetched result as `solverInfo` to skip the fetch in either preview.
 

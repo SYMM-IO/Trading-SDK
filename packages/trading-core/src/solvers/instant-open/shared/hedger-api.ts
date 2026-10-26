@@ -2,6 +2,7 @@ import { isAxiosError } from "axios";
 import type { Config } from "../../../core/config";
 import { SymmApiError, SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, ReadSolverParameter } from "../../../shared/types/properties";
+import { TimelockSolverError, parseTimelockErrorDetails } from "../../../timelock/errors";
 import {
   postInstantTradeInstantOpen,
   type ApiPostInstantOpenResponse,
@@ -53,6 +54,8 @@ export async function sendInstantOpen(
     const body = response.data as ApiPostInstantOpenResponse & {
       successful?: boolean | string;
       error_code?: unknown;
+      code?: unknown;
+      error_category?: unknown;
       error_message?: string;
       error?: unknown;
     };
@@ -60,11 +63,17 @@ export async function sendInstantOpen(
       body?.successful === false ||
       body?.successful === "false" ||
       body?.error_code != null ||
+      body?.code != null ||
+      body?.error_category != null ||
       !!body?.error_message ||
       !!body?.error;
     const id = body?.temp_quote_id;
     if (rejected || id == null || !/^-?\d+$/.test(String(id)) || BigInt(id) === 0n) {
-      throw new SymmApiError({
+      const ErrorType =
+        parseTimelockErrorDetails(body).knownCode || (body && "error_category" in body)
+          ? TimelockSolverError
+          : SymmApiError;
+      throw new ErrorType({
         code: rejected ? "INSTANT_OPEN_REJECTED" : "INSTANT_OPEN_INVALID_RESPONSE",
         message: body?.error_message || "The solver did not accept the instant-open request.",
         status: response.status,
@@ -79,6 +88,11 @@ export async function sendInstantOpen(
     if (err instanceof SymmError) throw err;
 
     if (isAxiosError(err)) {
+      const details = parseTimelockErrorDetails(err.response?.data);
+      if (details.knownCode || details.errorCategory !== "unknown") {
+        const error = SymmApiError.fromAxios(err, { code: "SEND_INSTANT_OPEN_FAILED", baseURL: solver.url });
+        throw new TimelockSolverError({ ...error, cause: err });
+      }
       throw SymmApiError.fromAxios(err, {
         code: "SEND_INSTANT_OPEN_FAILED",
         baseURL: solver.url,

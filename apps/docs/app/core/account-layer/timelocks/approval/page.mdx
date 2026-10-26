@@ -1,0 +1,143 @@
+# Approvals and early withdrawal
+
+Public approvals authorize exact raw calldata once. Neither the SDK nor an injected
+transport may automatically repeat issuance after a timeout. Import from
+`@symmio/trading-core`; see the [setup guide](.) before requesting approval.
+
+## `earlyWithdraw`
+
+```ts
+earlyWithdraw(config, parameters: EarlyWithdrawParameters): Promise<EarlyWithdrawResult>
+```
+
+Required inputs are `account`, `deadline: bigint` (request expiry, Unix seconds) and
+`withdrawal: EarlyWithdrawalCall`. The withdrawal union is:
+
+```ts
+type EarlyWithdrawalCall =
+  | { method: "withdraw"; amount: bigint }
+  | { method: "withdrawTo"; recipient: Address; amount: bigint }
+  | { method: "initiateWithdraw"; parts: readonly WithdrawReceiverPart[]; speedUp?: boolean; providerData?: Hex };
+```
+
+Optional inputs: `chainId`, `solverId`, injected `capability`, injected `provider`,
+`approvalSigner`, `signal`, `onApproval`, and normal wallet/simulation/gasless controls.
+`approvalSigner` selects the owner or an active delegated approval signer; `from`
+selects the execution signer, which must be the root's owner. When `gasless` is omitted,
+the shared SDK execution configuration selects the route. `gasless: true` requests
+relay submission; `gasless: false` selects direct wallet submission. Relay execution
+requires a compatible service and the normal InstantLayer authorization. The shared
+fallback rules remain unchanged; an ambiguous relay result never triggers a second wallet submission.
+
+The action checks policy and owner before issuance, requests one approval for the raw
+Core call, optionally awaits `onApproval(approval)` for durable persistence, then calls
+`executeTimelockOp([approval], _call(originalAccount, [rawCall]))`. It does not schedule
+fallback or finalize a Core withdrawal automatically.
+
+`EarlyWithdrawResult` contains `hash`, `rootAccount`, `callData` and `approval`.
+Always inspect the receipt. After issuance, storage/submission failure throws
+`EarlyWithdrawExecutionError` with `approval`, `callData`, `cause`, and optionally
+`hash` (when the React hook has a submitted hash and confirmation fails).
+
+```ts
+import { earlyWithdraw, EarlyWithdrawExecutionError } from "@symmio/trading-core";
+try {
+  const result = await earlyWithdraw(config, {
+    account,
+    withdrawal: { method: "withdrawTo", recipient, amount },
+    deadline,
+    onApproval: persistApproval,
+  });
+  await trackTransaction(result.hash);
+} catch (error) {
+  if (error instanceof EarlyWithdrawExecutionError) {
+    await reconcileIssuedApproval(error.approval, error.hash);
+  }
+  throw error;
+}
+```
+
+`earlyWithdrawMutationOptions(config)` returns TanStack mutation options accepting
+`EarlyWithdrawParameters`, with `retry: false`. Do not override that setting.
+
+## Prepare and request a public approval
+
+```ts
+prepareTimelockApprovalRequest(config, parameters: PrepareTimelockApprovalRequestParameters)
+  : Promise<PreparedTimelockApprovalRequest>
+
+requestTimelockApproval(config, parameters: RequestTimelockApprovalParameters)
+  : Promise<ValidatedTimelockApproval>
+```
+
+Preparation inputs: `account` (original execution account), `callData: Hex` (raw,
+unwrapped Core or direct AccountLayer call), `capability`, `deadline: bigint`, and
+optional `chainId`, `from`, `salt`. Omit `salt` to generate cryptographically random
+bytes. The domain and wallet chain must match the selected deployment; deadline must
+remain in the future and no more than one hour ahead, including after wallet signing.
+
+Preparation signs but does not POST. `PreparedTimelockApprovalRequest` holds
+`operation` (bigint representation) and `request` (JSON-safe body).
+`TIMELOCK_APPROVAL_REQUEST_TYPES` exports the exact EIP-712 schema including `FlexField`
+when `flexFields` is empty. Do not reorder fields or substitute the InstantLayer domain.
+
+Request inputs extend preparation with `provider`, expected `rootAccount`, and optional
+`signal`. The function prepares, issues **one** request and validates account, unlocker,
+calldata hash, signature shapes and expiry before returning. Errors never submit a tx.
+
+`ValidatedTimelockApproval` contains `signedApproval: SignedTimelockApproval`,
+`approvalHash: Hex`, `remainingApprovals: number`, and the prepared `request`.
+`requestTimelockApprovalMutationOptions(config)` uses the same inputs and disables retries.
+
+```ts
+import { requestTimelockApproval, encodeTimelockedCoreCall, executeTimelockOp } from "@symmio/trading-core";
+const issued = await requestTimelockApproval(config, {
+  account,
+  rootAccount: root,
+  callData: rawCallData,
+  capability,
+  provider,
+  deadline,
+});
+const hash = await executeTimelockOp(config, {
+  account: root,
+  approvals: [issued.signedApproval],
+  innerCallData: encodeTimelockedCoreCall(account, rawCallData),
+  gasless: false,
+});
+```
+
+`encodeTimelockedCoreCall(account: Address, callData: Hex): Hex` encodes `_call` with
+one raw Core call. AccountLayer operations instead pass their original calldata as
+`innerCallData` without this wrapper. Both request and execution must use identical
+raw bytes. No extra approval is necessary for an unprotected selector; every protected
+operation in a batch needs its own authorization. The SDK does not assume a provider
+permits issuing several simultaneous approvals.
+
+## Provider interface and HTTP adapter
+
+`TimelockApprovalProvider` is an injectable interface:
+
+```ts
+requestApproval(request: TimelockApprovalRequestPayload, options?: { signal?: AbortSignal })
+  : Promise<TimelockApprovalResponse>
+```
+
+`TimelockApprovalRequestPayload` contains `signature` and `signedOperation`:
+`signer`, `target`, raw `callData`, `signerAccount: { addr, isPartyB: false }`, empty
+`flexFields`, `maxUses: "1"`, and `replayAttackHeader: { nonce, deadline, salt }`.
+Integers in the JSON request are decimal strings; do not convert bigint amounts to numbers.
+
+`TimelockApprovalResponse` contains `account`, `unlocker`, `call_data_hash`, `deadline`
+(number or decimal string), `salt`, `signature`, `approval_hash`, `remaining_approvals`.
+
+`createHttpTimelockApprovalProvider({ baseUrl, client?, headers? })` returns a provider
+for standard `POST /timelock-approval`. `client` is an optional Axios instance and
+`headers` supports deployment authentication. Ensure injected clients/interceptors
+do not automatically retry POSTs. HTTP/transport failures preserve the original
+body and status in [`TimelockApprovalHttpError`](../errors).
+
+```ts
+import { createHttpTimelockApprovalProvider } from "@symmio/trading-core";
+const provider = createHttpTimelockApprovalProvider({ baseUrl: deploymentApprovalUrl });
+```

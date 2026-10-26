@@ -305,9 +305,9 @@ The two solver kinds open positions differently, and `instantOpen` dispatches on
 
 |                    | **Enigma** (lowcap)                                                                   | **Rasa** (majors)                                                                   |
 | ------------------ | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Operations signed  | **two** — `addMarginToNextVA` on the AccountLayer, then `sendQuote` on the diamond    | **one** — `sendQuote` on the diamond                                                |
-| Margin model       | funds a fresh **virtual account** in the same batch                                   | **cross-margin** — no VA, no `addMargin`                                            |
-| `margin` parameter | **required**                                                                          | ignored                                                                             |
+| Operations signed  | `sendQuote`, plus `addMarginToNextVA` when `margin` is present                        | **one** — `sendQuote` on the diamond                                                |
+| Margin model       | optionally funds the next **virtual account** in the same request                     | **cross-margin** — no VA, no `addMargin`                                            |
+| `margin` parameter | optional; omission submits only `sendQuote`                                           | ignored                                                                             |
 | Muon signature     | a **placeholder**, with its calldata region delegated to the solver via a `FlexField` | a **live** `uPnl_A_withSymbolPrice` attestation, fetched immediately before signing |
 | Endpoint           | `/instant_trade/instant_open`                                                         | `/instant_trade/open`                                                               |
 
@@ -323,24 +323,32 @@ fixes the root account, unlocker, inner-calldata hash, deadline and salt. Only t
 approval fields, ABI offsets and inner calldata cannot be changed by that filler.
 The canonical signature range starts at byte 352 after the function selector.
 
-The approval deadline uses the latest chain timestamp plus the advertised approval
-validity. It is independent of the quote and operation deadlines. Submission checks
-the chain time again after signing and rejects an approval with less than 30 seconds
-remaining instead of sending it. Retrying prepares a fresh approval and signatures.
+`marginApprovalDeadline` controls the embedded approval deadline, in Unix seconds.
+It defaults to `operationDeadline ?? quoteDeadline` and must be positive, fit int64,
+and leave at least 30 seconds. It is **independent** of `/info`'s `validity_seconds`,
+which applies only to public `POST /timelock-approval` responses. Submission checks
+the signed quote, both operation deadlines and the embedded approval against chain
+time after signing; every deadline must still have at least 30 seconds remaining.
+After an ambiguous POST, reconcile the existing request; do not automatically create
+a new salt, signature or order. See [prepared submission](#prepared-submission).
 
-Before signing, `allTimelockedBy` must confirm the solver's published approvable
-selector set against its advertised unlocker and minimum delay. These are account
+Before signing, `allTimelockedBy` must confirm the SDK's ABI-derived 22-selector
+set against the advertised unlocker and minimum delay. `/info` does not supply a
+selector allowlist. Wrapped margin requires a **root sub-account**, not a VA;
+both signed operations keep that root. These are account
 timelocks, separate from InstantLayer session-key delegation. The SDK does not
 configure them or request an approval from `/timelock-approval`. Owner approval of
 a timelock setup belongs in a separate account-management flow. The solver still
 checks admission conditions such as unresolved schedules and live approvals.
 
-| Error code                                    | Meaning                                                                                                               |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `INSTANT_OPEN_TIMELOCK_POLICY_REQUIRED`       | Required account timelocks are absent, use another unlocker, or have insufficient delay; nothing is signed or posted. |
-| `INVALID_INSTANT_OPEN_TIMELOCK_METADATA`      | Advertised metadata is malformed or names another chain/AccountLayer.                                                 |
-| `FETCH_INSTANT_OPEN_TIMELOCK_METADATA_FAILED` | Solver requirements could not be fetched; submission stops.                                                           |
-| `INSTANT_OPEN_TIMELOCK_APPROVAL_EXPIRED`      | Signing left less than 30 seconds of approval validity; prepare a fresh order.                                        |
+| Error code                                    | Meaning                                                                                                                          |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `INSTANT_OPEN_TIMELOCK_POLICY_REQUIRED`       | Required account timelocks are absent, use another unlocker, or have insufficient delay; nothing is signed or posted.            |
+| `INVALID_INSTANT_OPEN_TIMELOCK_METADATA`      | Advertised metadata is malformed or names another chain/AccountLayer.                                                            |
+| `FETCH_INSTANT_OPEN_TIMELOCK_METADATA_FAILED` | Solver requirements could not be fetched; submission stops.                                                                      |
+| `INSTANT_OPEN_TIMELOCK_APPROVAL_EXPIRED`      | Signing left less than 30 seconds of approval validity; prepare a fresh order.                                                   |
+| `INSTANT_OPEN_ROOT_ACCOUNT_REQUIRED`          | Wrapped instant margin was requested for a virtual account; use its root.                                                        |
+| `INSTANT_OPEN_DEADLINE_EXPIRED`               | A signed quote, operation or approval is too close to expiry to submit. Reconcile any earlier POST before creating a new intent. |
 
 The delegation check still authorizes the fixed inner `addMarginToNextVA` selector,
 not the wrapper. `preflightDelegation: false` skips only delegation reads; it never
@@ -352,9 +360,47 @@ Enigma v0.8.5 and Rasa retain their existing encoding. See the
 [staging solver specification](https://arb-staging.enigma.bz/api/swagger/doc.json)
 and [AccountLayer timelock semantics](https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/docs/v0.8.6/pages/accountlayer-timelock.html).
 
+### Prepared submission
+
+`prepareInstantOpen(config, parameters: InstantOpenParameters): Promise<PreparedInstantOpen>`
+signs an Enigma request **without posting it**. This is different from
+`prepareInstantOpenParams`, which resolves trading inputs without signing.
+
+`submitPreparedInstantOpen(config, { prepared }): Promise<EnigmaInstantOpenResult>`
+sends those exact signed bytes once. It never obtains another signature, changes a
+salt, or requests a public approval. `SubmitPreparedInstantOpenParameters` contains
+only `prepared: PreparedInstantOpen`.
+
+```ts
+import { prepareInstantOpen, submitPreparedInstantOpen } from "@symmio/trading-core";
+
+const signed = await prepareInstantOpen(config, resolvedParameters);
+// Persist before POST using the application's durable storage.
+await savePendingRequest(JSON.stringify(signed));
+const admitted = await submitPreparedInstantOpen(config, { prepared: signed });
+// Admission is not a transaction receipt or proof that a position opened.
+```
+
+`PreparedInstantOpen` contains `kind`, `chainId`, `deploymentKey`, `solverId`,
+`request` (signed sendQuote and optional addMargin), and `timelock`. It is JSON-safe
+and can be restored without converting numeric strings into numbers. Treat the
+entire object as immutable, including its UUID and recovery identity. Submission
+copies it before asynchronous work and rejects a different deployment. Applications
+must validate restored data and reconcile the original order's status before any
+explicit retransmission. An expired request cannot be refreshed by editing it.
+
+The prepared API currently supports the Enigma wire protocol; unsupported solver
+protocols fail before signing. Existing Rasa `instantOpen` behavior is unchanged.
+Core does not prescribe storage, UI, retry intervals or automatic fallback.
+Existing instant-open convenience hooks retain their previous mutation retry behavior.
+For recoverable requests, compose the prepared API in an application mutation with
+`retry: false`; do not allow a global retry policy to rerun the prepare/sign builder.
+Timelock admission errors retain their raw response and expose
+[`TimelockSolverError.details`](../../account-layer/timelocks/errors).
+
 ### Delegation preflight
 
-`instantOpen` signs with whatever key `from` resolves to — usually a session key. Before it signs anything, it checks that the key holds an active [InstantLayer delegation](/core/instant-layer/grant-delegation) from the sub-account for every operation it is about to sign: `addMarginToNextVA` and the quote-send on Enigma, the quote-send alone on Rasa. A key without one fails right there with `INSTANT_SIGNER_NOT_DELEGATED`, before anything is signed or sent, instead of failing at the solver after the user tried to trade.
+`instantOpen` signs with whatever key `from` resolves to — usually a session key. Before it signs anything, it checks that the key holds an active [InstantLayer delegation](/core/instant-layer/grant-delegation) from the sub-account for every operation it is about to sign: the quote-send, plus `addMarginToNextVA` on Enigma only when `margin` is present. A key without one fails right there with `INSTANT_SIGNER_NOT_DELEGATED`, before anything is signed or sent, instead of failing at the solver after the user tried to trade.
 
 - **Owner-signed opens skip the delegation reads.** The sub-account's owner needs no delegation; the check stops after reading the owner once per config.
 - **Session-key opens add one RPC round trip.** The per-selector reads run in parallel; the first open for an account also reads the account and its owner, which are then cached.
@@ -385,7 +431,7 @@ Opening fee amounts do not increase this cap. See the contract documentation for
 [solver fee caps](https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/docs/v0.8.6/pages/solver-fees.html)
 and [execution-price fees](https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/docs/v0.8.6/pages/market-open-fee-execution-price.html).
 
-Passing a literal `solverId` binds the generic and narrows the return type. Omitting it lets the chain's `defaultSolverId` decide at runtime — in which case a missing `margin` on an Enigma chain throws `INSTANT_OPEN_MARGIN_REQUIRED` rather than silently under-funding the trade.
+Passing a literal `solverId` binds the generic and narrows the return type. Omitting it lets the chain's `defaultSolverId` decide at runtime. On Enigma, omitting `margin` intentionally submits only `sendQuote`; no zero-value margin operation is added.
 
 ### Returns
 

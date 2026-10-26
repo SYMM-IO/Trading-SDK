@@ -85,6 +85,26 @@ export const GASLESS_RELAYABLE_WRITES: ReadonlyMap<Hex, GaslessRelayableWrite> =
   [selectorFromAbi(accountLayerAbi as Abi, "addMargin"), { target: "accountLayer", operationType: "addMargin" }],
   [selectorFromAbi(accountLayerAbi as Abi, "removeMargin"), { target: "accountLayer", operationType: "removeMargin" }],
   [
+    selectorFromAbi(accountLayerAbi as Abi, "setupTimelocks"),
+    { target: "accountLayer", operationType: "setupTimelocks" },
+  ],
+  [
+    selectorFromAbi(accountLayerAbi as Abi, "clearTimelocks"),
+    { target: "accountLayer", operationType: "clearTimelocks" },
+  ],
+  [
+    selectorFromAbi(accountLayerAbi as Abi, "scheduleTimelockOp"),
+    { target: "accountLayer", operationType: "scheduleTimelockOp" },
+  ],
+  [
+    selectorFromAbi(accountLayerAbi as Abi, "cancelTimelockOp"),
+    { target: "accountLayer", operationType: "cancelTimelockOp" },
+  ],
+  [
+    selectorFromAbi(accountLayerAbi as Abi, "executeTimelockOp"),
+    { target: "accountLayer", operationType: "executeTimelockOp" },
+  ],
+  [
     selectorFromAbi(accountLayerAbi as Abi, "createSubAccounts"),
     { target: "accountLayer", operationType: "createSubAccounts" },
   ],

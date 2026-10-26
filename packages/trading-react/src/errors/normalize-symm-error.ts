@@ -1,4 +1,4 @@
-import { SymmApiError, SymmError } from "@symmio/trading-core";
+import { SymmApiError, SymmError, TimelockSolverError } from "@symmio/trading-core";
 import {
   BaseError,
   ContractFunctionRevertedError,
@@ -32,6 +32,7 @@ export function normalizeSymmError(err: unknown): SymmioRequestError {
       code: err.code,
       status: err.status,
       responseData: err.responseData,
+      timelock: err instanceof TimelockSolverError ? err.details : undefined,
       retryAfterMs: err.retryAfterMs,
       cause: err,
     });

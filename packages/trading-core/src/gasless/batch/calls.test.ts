@@ -46,6 +46,22 @@ describe("gaslessBatchCallData", () => {
 });
 
 describe("getGaslessBatchSelectors", () => {
+  it("uses the immediate inner AccountLayer selector for executeTimelockOp", () => {
+    const coreCall = encodeFunctionData({ abi: symmioAbi, functionName: "allocate", args: [9n] });
+    const innerCall = encodeFunctionData({
+      abi: accountLayerAbi,
+      functionName: "_call",
+      args: [VIRTUAL_ACCOUNT, [coreCall]],
+    });
+    const wrappedCall = encodeFunctionData({
+      abi: accountLayerAbi,
+      functionName: "executeTimelockOp",
+      args: [[], innerCall],
+    });
+
+    expect(getGaslessBatchSelectors([{ data: wrappedCall }])).toEqual([toFunctionSelector("_call(address,bytes[])")]);
+  });
+
   it("lists each write's selector, then the wallet sentinel and inner selectors, de-duplicated and lowercased", () => {
     const allocateData = encodeFunctionData({ abi: symmioAbi, functionName: "allocate", args: [9n] });
     const transferData = encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [RECIPIENT, 1n] });
