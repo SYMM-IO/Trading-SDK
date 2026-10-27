@@ -64,7 +64,28 @@ The distinction is load-bearing: the lowcap solver declares `limitOrder: false`,
   </MethodEntry>
 </MethodIndex>
 
-## Related
+## Pending orders and realized history values
+
+[`getPoolQuotes`](/core/pools/pool-quotes) returns pending-order `orderPrice` and `orderNotional` directly on each quote. Requested price takes precedence over opened price; explicitly supplied zero is retained. Missing inputs stay null.
+
+[`getPoolTradeHistory`](/core/pools/pool-trade-history) returns `closeQuantity`, `closePrice`, `tradeValue`, `openFee`, `closeFee`, `platformFee` and `realizedPnl` directly on each event row. Monetary values are 18-decimal bigints or null when unavailable. Each row receives only its proportional opening-fee share, and liquidation rows have no closing fee. Normal, force, emergency and ADL closes retain their closing fees. Raw quote fee fields are rates; row fee fields are amounts.
+
+```ts
+import { getPoolQuotes, getPoolTradeHistory, type Config } from "@symmio/trading-core";
+export async function detailTables(config: Config, symbolId: number) {
+  const [{ quotes }, { rows }] = await Promise.all([
+    getPoolQuotes(config, { symbolId }),
+    getPoolTradeHistory(config, { symbolId }),
+  ]);
+  return { pendingNotionals: quotes.map((quote) => quote.orderNotional), history: rows };
+}
+```
+
+Wallet-filtered transaction views may require listing authentication at the application boundary even though the underlying pool transaction transport is public. Reuse the listing session, cancel old observers and discard completions after wallet/token/deployment switches.
+
+There are no standalone detail selectors to compose after these reads. Withdrawal previews belong to the [position projection](/core/pools/position#withdrawal-preview). Chart range selection, running sums and deposit minimum/balance-delta estimates remain consumer-owned.
+
+## Further reading
 
 - [Pools overview](/core/pools) — the catalog these tables hang off.
 - [`searchTpSlOrders`](/core/tpsl/search-tpsl-orders) — the limit-orders read.

@@ -5,6 +5,17 @@ import { calculateQuoteUpnl } from "./calculate-quote-upnl";
 const ONE = 10n ** 18n;
 
 describe("calculateQuoteUpnl", () => {
+  it.each([PositionType.LONG, PositionType.SHORT])("retains a one-wei price delta for side %s", (positionType) => {
+    const result = calculateQuoteUpnl({
+      markPrice: "1.000000000000000001",
+      positionType,
+      quantity: ONE,
+      closedAmount: 0n,
+      openedPrice: ONE,
+      leverage: "1",
+    });
+    expect(result.upnl).toBe(positionType === PositionType.LONG ? "0.000000000000000001" : "-0.000000000000000001");
+  });
   it("computes LONG upnl: openQty × (mark − open) × +1", () => {
     const { upnl, upnlPercent } = calculateQuoteUpnl({
       markPrice: "0.09",

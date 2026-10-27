@@ -10,6 +10,10 @@ export interface PoolPortfolioPrice {
 }
 /** Flat portfolio row. Stake fields have exactly the position read's semantics. */
 export interface PoolPortfolioPosition extends PoolPositionData {
+  tokenContractAddress: string;
+  depositChain: number;
+  /** Original normalized catalog snapshot, including rates, flags and ownership metadata. */
+  market: UserListingMarket | null;
   tokenName: string | null;
   tokenTicker: string | null;
   apr: number | null;
@@ -25,6 +29,12 @@ export interface PoolPortfolio {
   averageApr: number | null;
   /** ROI over the same fully priced positions on both sides. Null when no comparable deposits exist. */
   roiPercent: number | null;
+  /** Partial known-value totals; consult totalBalanceUsd/totalDepositedUsd for source completeness. */
+  knownBalanceUsd: number;
+  knownDepositedUsd: number;
+  knownValueRoiPercent: number | null;
+  /** Historical claimed plus claimable rewards, including positions no longer held. */
+  lifetimeRewardsUsd: number | null;
   gaps: PoolReadGap[];
 }
 /** Normalized reads for portfolio assembly; no wire strings or generated vendor types. */
@@ -35,11 +45,13 @@ export interface CalculatePoolPortfolioParameters {
   positions: readonly {
     tokenContractAddress: string;
     depositChain: number;
-    profit: UserPoolProfit | null;
+    profit: Partial<UserPoolProfit> | null;
     detail: ListingMarketDetail | null;
   }[];
   prices?: readonly PoolPortfolioPrice[];
   reward: bigint | null;
+  /** Optional complete historical reward ledger. Values include any consumer optimistic projection. */
+  rewardPositions?: readonly { claimed: bigint | null; claimable: bigint | null }[];
   gaps?: readonly PoolReadGap[];
 }
 
@@ -95,6 +107,7 @@ export function calculatePoolPortfolio(input: CalculatePoolPortfolioParameters):
       depositChain: identity.chain,
       detail: source?.detail ?? null,
       profit: source?.profit ?? null,
+      userSharePercentage: market?.userSharePercentage,
       deposits: input.deposits == null ? null : (groups.get(id) ?? []),
       depositsComplete: !gaps.some((gap) => gap.source === "deposits"),
       priceUsd: price?.priceUsd,
@@ -105,6 +118,9 @@ export function calculatePoolPortfolio(input: CalculatePoolPortfolioParameters):
         source?.profit?.userDepositedTokenAmount ?? market?.userDeposit ?? position.depositedToken;
     return {
       ...position,
+      tokenContractAddress: identity.address,
+      depositChain: identity.chain,
+      market: market ?? null,
       marketStatus: market?.marketStatus ?? position.marketStatus,
       symbolId: market?.symbolId ?? position.symbolId,
       tokenName: market?.tokenName ?? groups.get(id)?.[0]?.tokenName ?? null,
@@ -136,6 +152,24 @@ export function calculatePoolPortfolio(input: CalculatePoolPortfolioParameters):
     holdingsComplete && entries.every((row) => row[field] != null)
       ? units(entries.reduce((sum, row) => sum + row[field]!, 0n))
       : null;
+  const knownBalanceUsd = entries.reduce((sum, row) => sum + (row.balanceUsd ?? 0), 0);
+  const knownDepositedUsd = entries.reduce(
+    (sum, row) => sum + (units(row.depositedToken) ?? 0) * (row.priceUsd ?? 0),
+    0,
+  );
+  const rewardPositions = input.rewardPositions;
+  const claimed =
+    rewardPositions == null
+      ? sumReward("claimedReward")
+      : rewardPositions.every((row) => row.claimed != null)
+        ? units(rewardPositions.reduce((sum, row) => sum + row.claimed!, 0n))
+        : null;
+  const claimable =
+    rewardPositions == null
+      ? sumReward("claimableReward")
+      : rewardPositions.every((row) => row.claimable != null)
+        ? units(rewardPositions.reduce((sum, row) => sum + row.claimable!, 0n))
+        : null;
   return {
     entries,
     totalBalanceUsd: allKnown ? entries.reduce((sum, row) => sum + row.balanceUsd!, 0) : null,
@@ -145,6 +179,11 @@ export function calculatePoolPortfolio(input: CalculatePoolPortfolioParameters):
         : null,
     claimableRewardUsd: sumReward("claimableReward"),
     claimedRewardUsd: sumReward("claimedReward"),
+    lifetimeRewardsUsd: claimed == null || claimable == null ? null : claimed + claimable,
+    knownBalanceUsd,
+    knownDepositedUsd,
+    knownValueRoiPercent:
+      knownDepositedUsd > 0 ? ((knownBalanceUsd - knownDepositedUsd) / knownDepositedUsd) * 100 : null,
     rewardWindowUsd: units(input.reward),
     averageApr: weight > 0 ? weightedApr / weight : null,
     roiPercent: deposits > 0 ? ((balance - deposits) / deposits) * 100 : null,

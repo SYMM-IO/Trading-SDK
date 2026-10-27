@@ -29,6 +29,8 @@ const RESULT: GetPoolQuotesReturnType = {
       quantityToClose: 0n,
       openedPrice: 1n,
       requestedOpenPrice: 1n,
+      orderPrice: 1n,
+      orderNotional: 1n,
       averageClosedPrice: 0n,
       closePrice: 0n,
       initialOpenedPrice: 1n,

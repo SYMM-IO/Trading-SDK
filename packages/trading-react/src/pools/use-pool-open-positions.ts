@@ -79,6 +79,7 @@ export function usePoolOpenPositions(parameters: UsePoolOpenPositionsParameters)
             quotes: quotes.items,
             balances,
             priceUsd: parameters.priceUsd,
+            allowQuoteLockEstimate: parameters.allowQuoteLockEstimate,
             complete: !quotes.gaps.length,
             gaps,
           })

@@ -42,6 +42,35 @@ const profit: UserPoolProfit = {
   claimedReward: 0n,
 };
 describe("position hook composition", () => {
+  it("recalculates withdrawal selection without refetching shared sources", async () => {
+    const { config } = createMockSymmioConfig();
+    const queryClient = createTestQueryClient();
+    let withdrawalPercent = 50;
+    let userSharePercentage = 3.2;
+    const { result, rerender } = renderHookWithProviders(
+      () =>
+        usePoolPosition({
+          config,
+          accessToken: "secret",
+          userAddress: "wallet",
+          tokenContractAddress: "Mint",
+          depositChain: 0,
+          withdrawalPercent,
+          userSharePercentage,
+        }),
+      { queryClient },
+    );
+    await waitFor(() => expect(result.current.data?.withdrawalLpAmount).toBe(1n));
+    expect(result.current.data?.shareFraction).toBe(0.032);
+    withdrawalPercent = 100;
+    userSharePercentage = 0;
+    rerender();
+    await waitFor(() => expect(result.current.data?.withdrawalLpAmount).toBe(2n));
+    expect(result.current.data?.shareFraction).toBe(0);
+    expect(reads.profit).toHaveBeenCalledTimes(1);
+    expect(reads.detail).toHaveBeenCalledTimes(1);
+    expect(reads.deposits).toHaveBeenCalledTimes(1);
+  });
   beforeEach(() => {
     vi.resetAllMocks();
     reads.profit.mockResolvedValue(profit);

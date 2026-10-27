@@ -249,8 +249,8 @@ export interface ListingMarketPage {
 export interface UserListingMarket extends ListingMarket {
   /** The user's current deposit into this pool, in USD (18-dec bigint). `null` when the deposit address exists but nothing has been deposited yet. */
   userDeposit: bigint | null;
-  /** The user's share of the pool, as a percentage number (not 18-dec scaled). */
-  userSharePercentage: number;
+  /** The user's share in whole percent (not 18-dec scaled); null when absent or non-finite. */
+  userSharePercentage: number | null;
   /** The user's accrued revenue from this pool, in USD (18-dec bigint), or `null` when absent. */
   userRevenue: bigint | null;
 }
@@ -968,9 +968,9 @@ export interface PoolQuote {
   closedPrice?: bigint | null;
   /** marketPrice: raw 18-decimal protocol value, null when not indexed. */
   marketPrice?: bigint | null;
-  /** Cumulative trading fee for the entire quote, in 18-decimal units; not a per-event fee. Null when not indexed. */
+  /** Open-fee rate at 18 decimals (1e18 = 100%), not a charged amount. Null when not indexed. */
   tradingFee?: bigint | null;
-  /** Cumulative close fee for the entire quote, in 18-decimal units; do not sum repeated history snapshots. Null when not indexed. */
+  /** Close-fee rate at 18 decimals (1e18 = 100%), not a charged amount. Null when not indexed. */
   closeFee?: bigint | null;
   /** leverage: raw 18-decimal protocol value, null when not indexed. */
   leverage?: bigint | null;

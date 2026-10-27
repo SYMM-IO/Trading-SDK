@@ -11,6 +11,7 @@ import type {
 import { toPoolQuote } from "../quotes/to-pool-quote";
 import { resolvePoolSource } from "../resolve-pool-source";
 import type { PoolQuote } from "../types";
+import { calculateHistoryMetrics } from "./calculate-history-metrics";
 import { PoolQuoteEventsDocument } from "./query-document";
 
 /** Page size when the caller does not specify one. */
@@ -40,9 +41,27 @@ export type GetPoolTradeHistoryParameters = Compute<
 /** Return type of {@link getPoolTradeHistory}. */
 export interface GetPoolTradeHistoryReturnType {
   /** The decoded, snapshot-applied history rows (one per close/liquidation event). */
-  rows: QuoteHistoryRow[];
+  rows: PoolTradeHistoryRow[];
   /** Full quote fields with each event snapshot applied, aligned with rows. */
   quotes: PoolQuote[];
+}
+
+/** One immutable close event with derived 18-decimal amounts. Missing calculation inputs yield null. */
+export interface PoolTradeHistoryRow extends QuoteHistoryRow {
+  /** This event's closed/liquidated quantity, otherwise the available quote quantity. */
+  closeQuantity: bigint | null;
+  /** Event execution price; liquidation uses its own price rather than an earlier average close. */
+  closePrice: bigint | null;
+  /** Event quantity times execution price, in collateral units. */
+  tradeValue: bigint | null;
+  /** Opening-fee share attributed to this event's quantity, floored independently per row. */
+  openFee: bigint | null;
+  /** Event closing fee; zero for liquidation, charged for normal, force, emergency and ADL closes. */
+  closeFee: bigint | null;
+  /** openFee + closeFee; excludes solver, funding and liquidation fees. */
+  platformFee: bigint | null;
+  /** Gross realized PnL before fees, from the shared quote primitive. */
+  realizedPnl: bigint | null;
 }
 
 /**
@@ -122,7 +141,7 @@ export async function getPoolTradeHistory(
       liquidatePrice: (isLiquidation ? closePrice : null) ?? quote.liquidatePrice,
     };
   });
-  return { rows, quotes };
+  return { rows: rows.map((row, index) => ({ ...row, ...calculateHistoryMetrics(quotes[index]!) })), quotes };
 }
 
 function snapshotWei(value: unknown): bigint | null {

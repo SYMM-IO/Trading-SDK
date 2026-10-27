@@ -1758,6 +1758,8 @@ export function Stake({
 
 See [portfolio](/core/pools/portfolio), [position](/core/pools/position), [statistics](/core/pools/statistics) and [open positions](/core/pools/open-positions) for source precedence and exact result fields. Third-party enrichment and consumer optimistic state remain outside the SDK; no public cache-patching helper is provided.
 
+`usePoolPosition` also accepts optional `withdrawalPercent` (an integer from 0 through 100). Its data includes nullable `withdrawalLpAmount`, `withdrawalTokenAmount`, `withdrawalUsdcAmount` and `withdrawalValueUsd`, all 18-decimal bigints, plus `pendingRatio`. Changing this percentage recalculates the projection without another source request. `usePoolQuotes` and `usePoolTradeHistory` expose their core reads' derived order and event metrics directly; no extra hook or calculation cache is needed.
+
 ## Prefetch a listing challenge
 
 `useAuthenticateListing({ prefetchChallenge: true, chainId, from?, domain?, uri?, statement?, config? })` fetches once a signing wallet and origin are available. Prefetch defaults to false. Browser origin uses an SSR-safe external-store snapshot; server rendering never reads window. Use from for an injected signing account.

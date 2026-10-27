@@ -32,8 +32,8 @@ function deposit(amount: bigint, status = PoolTransactionStatus.SUCCESS): UserTr
 }
 describe("position projection", () => {
   it("takes normalized SDK reads directly", () => {
-    expectTypeOf<CalculatePoolPositionParameters["profit"]>().toEqualTypeOf<UserPoolProfit | null>();
-    expectTypeOf<CalculatePoolPositionParameters["detail"]>().toEqualTypeOf<ListingMarketDetail | null>();
+    expectTypeOf<UserPoolProfit | null>().toExtend<CalculatePoolPositionParameters["profit"]>();
+    expectTypeOf<ListingMarketDetail | null>().toExtend<CalculatePoolPositionParameters["detail"]>();
     expectTypeOf<CalculatePoolPositionParameters["deposits"]>().toEqualTypeOf<readonly UserTransaction[] | null>();
   });
   it("adds wei exactly beyond Number precision and recognizes a full refund", () => {

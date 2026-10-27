@@ -37,6 +37,24 @@ function requestBody(post: ReturnType<typeof vi.spyOn>, index = 0) {
 }
 
 describe("getPoolQuotes", () => {
+  it("returns pending-order metrics without losing zero or unknown values", async () => {
+    const { config } = mockConfig();
+    vi.spyOn(axios, "post").mockResolvedValue({
+      data: {
+        data: {
+          quotes: [
+            { ...ROW, requestedOpenPrice: "0", openedPrice: "10000000000000000000" },
+            { ...ROW, requestedOpenPrice: "", openedPrice: "10000000000000000000" },
+            { ...ROW, requestedOpenPrice: null, openedPrice: null },
+          ],
+        },
+      },
+    });
+    const { quotes } = await getPoolQuotes(config, { symbolId: 149 });
+    expect(quotes[0]).toMatchObject({ orderPrice: 0n, orderNotional: 0n });
+    expect(quotes[1]).toMatchObject({ orderPrice: 10n ** 19n, orderNotional: 10n ** 19n });
+    expect(quotes[2]).toMatchObject({ orderPrice: null, orderNotional: null });
+  });
   afterEach(() => {
     vi.restoreAllMocks();
   });

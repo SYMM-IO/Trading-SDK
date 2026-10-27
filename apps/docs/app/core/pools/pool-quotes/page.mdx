@@ -55,7 +55,9 @@ Rows are scoped by the pool's `symbolId` **and** by `source` — the SYMMIO diam
 
 ## Returns
 
-`{ quotes: PoolQuote[] }`. Amounts and prices are `bigint` at 18 decimals — the **protocol's** scale, which happens to match the listing backend's but is a separate thing. `null` means the subgraph had no value for that field.
+`{ quotes: PoolQuoteBookEntry[] }`. Each entry extends `PoolQuote` with `orderPrice` and `orderNotional`, both `bigint | null` at 18 decimals. Requested price takes precedence over opened price; explicit zero is retained. Notional uses the full requested quantity. Missing required inputs yield null. These fields describe requested orders, not the remaining marked value of open positions.
+
+Amounts and prices use the **protocol's** scale, which happens to match the listing backend's but is a separate thing. `null` means the subgraph had no value for that field.
 
 <Properties>
   <Property name="id" type="string">

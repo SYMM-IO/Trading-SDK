@@ -20,6 +20,10 @@ import {
 export type GetPoolStatisticsParameters = GetListingMarketDetailParameters & {
   priceUsd?: number;
   listing?: CalculatePoolStatisticsParameters["listing"];
+  /** Existing ledger fraction and display-snapshot fallbacks; no additional reads. */
+  shareFraction?: number | null;
+  apy30dFallback?: bigint | null;
+  buybackRatioFallback?: number | null;
 } & (
     | { scope?: "pool"; accessToken?: never; userAddress?: never }
     | { scope: "user"; accessToken: string; userAddress: string }

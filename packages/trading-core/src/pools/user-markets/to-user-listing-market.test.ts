@@ -43,6 +43,10 @@ function makeRow(overrides: Partial<UserMarketSearchItem> = {}): UserMarketSearc
 }
 
 describe("toUserListingMarket", () => {
+  it("distinguishes an unreadable ledger percentage from explicit zero", () => {
+    expect(toUserListingMarket(makeRow({ user_share_percentage: Number.NaN })).userSharePercentage).toBeNull();
+    expect(toUserListingMarket(makeRow({ user_share_percentage: 0 })).userSharePercentage).toBe(0);
+  });
   it("maps the base market fields via toListingMarket", () => {
     const market = toUserListingMarket(makeRow());
 
