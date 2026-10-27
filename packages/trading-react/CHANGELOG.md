@@ -1,5 +1,24 @@
 # @symmio/trading-react
 
+## 4.1.0
+
+### Minor Changes
+
+- ab47eb9: Make subgraph reads filter flexibly: every filter is optional and applied only when passed, sent as one typed `where` object so an omitted filter is absent rather than null (an empty list still reads nothing).
+  - `getQuoteHistory`: `subAccounts` is optional; new `source` (diamond) and `marketIds` filters. `QuoteHistoryRow` adds the quote's raw indexed fields (`initialOpenedPrice`, `tradingFee`, `closeFee`, initial and live locked values, `leverage`, `marketPrice`, `closedPrice`, send/open timestamps), `source`, `subAccountOwner`, `sendQuoteTransaction` and the undecoded `openPositionMetadata`. `getPoolTradeHistory` rows carry the same fields.
+  - `getQuoteFunding`: optional `source` filter.
+  - `getQuoteEventsByType` / `getQuotesEventsByType`: `types` is optional and accepts any subgraph event type (`QuoteSubgraphEventType`), with row types narrowed to what is passed; optional `source` filter.
+  - New entity reads with query options and React hooks: `getMarginTransfers` (`useMarginTransfers`), `getLiquidationDetails` (`useLiquidationDetails`), `getSubgraphQuotes` (`useSubgraphQuotes`), `getQuoteFundingSettlements` (`useQuoteFundingSettlements`) and `getFundingIndexCheckpoints` (`useFundingIndexCheckpoints`). Each returns one `SubgraphPage` (`rows`, `hasMore`) and pages by `first` / `skip` or the `idGt` cursor. An `idGt` cursor sorts by `id` ascending unless a sort is passed, and any other sort throws `INVALID_SUBGRAPH_CURSOR`, since the cursor drops or repeats rows under it.
+  - `MarginTransferType` gains `EmergencyRecover`.
+
+- 6a7f9af: Add `getPartyAOpenPositionsBatch` (query options + `usePartyAOpenPositionsBatch`): read the open positions of many partyAs in chunked multicalls, one result per account (per-account failures isolated, per-account `start` paging with `hasMore`), with an optional per-account liquidation flag. Add `isPartyALiquidated` (query options + `useIsPartyALiquidated`): whether a partyA's liquidation is in progress.
+
+### Patch Changes
+
+- Updated dependencies [ab47eb9]
+- Updated dependencies [6a7f9af]
+  - @symmio/trading-core@4.1.0
+
 ## 4.0.0
 
 ### Major Changes
