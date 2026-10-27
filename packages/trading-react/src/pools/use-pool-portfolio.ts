@@ -23,6 +23,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 import { usePoolPages } from "./use-pool-pages";
+import { retryPoolRead, usePoolReadQueue } from "./use-pool-read-queue";
 import { useUserTotalReward } from "./use-user-total-reward";
 
 /** Full portfolio controls; filtering and pagination belong after this hook. */
@@ -61,6 +62,7 @@ function useCatalog(parameters: UsePoolPortfolioParameters, marketStatus: Listin
  * @returns Full holdings and totals, with per-source gaps and loading/error state.
  */
 export function usePoolPortfolio(parameters: UsePoolPortfolioParameters) {
+  const run = usePoolReadQueue();
   const config = useSymmioConfig(parameters),
     connected = useSymmioChainId();
   const chainId = parameters.chainId ?? connected;
@@ -113,27 +115,33 @@ export function usePoolPortfolio(parameters: UsePoolPortfolioParameters) {
     prices: parameters.prices,
   };
   const ready = enabled && !deposits.isLoading && !catalogs.some((source) => source.isLoading);
-  const rows = ready ? calculatePoolPortfolio({ ...source, positions: [] }).entries : [];
+  const rows = ready
+    ? calculatePoolPortfolio({ ...source, positions: [] }).entries.filter(
+        (row) => row.hasDeposit === true && row.totalLp !== 0n,
+      )
+    : [];
   const profits = useQueries({
-    queries: rows.map((row) =>
-      getUserProfitQueryOptions(config, {
+    queries: rows.map((row) => {
+      const options = getUserProfitQueryOptions(config, {
         chainId,
         accessToken: parameters.accessToken,
         tokenContractAddress: row.tokenContractAddress,
         userAddress: parameters.userAddress,
-        query: { enabled, refetchInterval: parameters.refetchInterval },
-      }),
-    ),
+        query: { enabled, refetchInterval: parameters.refetchInterval, retry: retryPoolRead },
+      });
+      return { ...options, queryFn: ({ signal }: { signal: AbortSignal }) => run(() => options.queryFn(), signal) };
+    }),
   });
   const details = useQueries({
-    queries: rows.map((row) =>
-      getListingMarketDetailQueryOptions(config, {
+    queries: rows.map((row) => {
+      const options = getListingMarketDetailQueryOptions(config, {
         chainId,
         tokenContractAddress: row.tokenContractAddress,
         depositChain: row.depositChain,
-        query: { enabled, refetchInterval: parameters.refetchInterval },
-      }),
-    ),
+        query: { enabled, refetchInterval: parameters.refetchInterval, retry: retryPoolRead },
+      });
+      return { ...options, queryFn: ({ signal }: { signal: AbortSignal }) => run(() => options.queryFn(), signal) };
+    }),
   });
   const positions = rows.map((row, index) => {
     if (profits[index]?.error)

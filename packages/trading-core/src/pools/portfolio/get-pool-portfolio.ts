@@ -7,6 +7,7 @@ import { ListingMarketStatus, PoolTransactionType } from "../types";
 import { getUserListingMarkets, type GetUserListingMarketsParameters } from "../user-markets/get-user-listing-markets";
 import { getUserTransactions } from "../user-transactions/get-user-transactions";
 import { calculatePoolPortfolio, type PoolPortfolio, type PoolPortfolioPrice } from "./calculate-pool-portfolio";
+import { createPositionReader } from "./read-positions";
 
 /** Full portfolio inputs. Filter after assembly; userAddress scopes private query caches. */
 export type GetPoolPortfolioParameters = Pick<
@@ -103,31 +104,27 @@ export async function getPoolPortfolio(config: Config, parameters: GetPoolPortfo
     gaps,
     prices: parameters.prices,
   };
-  const holdings = calculatePoolPortfolio({ ...sources, positions: [] }).entries;
-  const positions = [];
-  for (let offset = 0; offset < holdings.length; offset += 8) {
-    positions.push(
-      ...(await Promise.all(
-        holdings.slice(offset, offset + 8).map(async (row) => {
-          const tokenContractAddress = row.tokenContractAddress;
-          const [profit, detail] = await Promise.all([
-            readOptional(
-              () => getUserProfit(config, { chainId, accessToken, tokenContractAddress }),
-              gaps,
-              "profit",
-              tokenContractAddress,
-            ),
-            readOptional(
-              () => getListingMarketDetail(config, { chainId, tokenContractAddress, depositChain: row.depositChain }),
-              gaps,
-              "detail",
-              tokenContractAddress,
-            ),
-          ]);
-          return { tokenContractAddress, depositChain: row.depositChain, profit, detail };
-        }),
-      )),
-    );
-  }
+  const holdings = calculatePoolPortfolio({ ...sources, positions: [] }).entries.filter(
+    (row) => row.hasDeposit === true && row.totalLp !== 0n,
+  );
+  const readPosition = createPositionReader(gaps);
+  const positions = await Promise.all(
+    holdings.map(async (row) => {
+      const tokenContractAddress = row.tokenContractAddress;
+      const [profit, detail] = await Promise.all([
+        readPosition(
+          () => getUserProfit(config, { chainId, accessToken, tokenContractAddress }),
+          "profit",
+          tokenContractAddress,
+        ),
+        readPosition(
+          () => getListingMarketDetail(config, { chainId, tokenContractAddress, depositChain: row.depositChain }),
+          "detail",
+          tokenContractAddress,
+        ),
+      ]);
+      return { tokenContractAddress, depositChain: row.depositChain, profit, detail };
+    }),
+  );
   return calculatePoolPortfolio({ ...sources, positions });
 }

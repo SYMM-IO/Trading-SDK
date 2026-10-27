@@ -1,6 +1,13 @@
 import { units, type PoolReadGap } from "../composition";
+import { emptyPoolProfit } from "../empty-pool-profit";
 import { calculatePoolPosition, type PoolPositionData } from "../position/calculate-pool-position";
-import type { ListingMarketDetail, UserListingMarket, UserPoolProfit, UserTransaction } from "../types";
+import {
+  ListingMarketStatus,
+  type ListingMarketDetail,
+  type UserListingMarket,
+  type UserPoolProfit,
+  type UserTransaction,
+} from "../types";
 
 /** Pool identity and an optional third-party price, supplied by the consumer. */
 export interface PoolPortfolioPrice {
@@ -14,6 +21,8 @@ export interface PoolPortfolioPosition extends PoolPositionData {
   depositChain: number;
   /** Original normalized catalog snapshot, including rates, flags and ownership metadata. */
   market: UserListingMarket | null;
+  /** Positive deposit observed in history or catalog; null when incomplete history cannot establish absence. */
+  hasDeposit: boolean | null;
   tokenName: string | null;
   tokenTicker: string | null;
   apr: number | null;
@@ -88,7 +97,7 @@ export function calculatePoolPortfolio(input: CalculatePoolPortfolioParameters):
     groups.set(id, [...(groups.get(id) ?? []), row]);
   }
   const identities = new Map(
-    input.listed.map((row) => [
+    [...input.listed, ...input.nonListed.filter((row) => (row.userDeposit ?? 0n) > 0n)].map((row) => [
       key(row.contractAddress, row.chainId),
       { address: row.contractAddress, chain: row.chainId },
     ]),
@@ -102,11 +111,15 @@ export function calculatePoolPortfolio(input: CalculatePoolPortfolioParameters):
     const market = markets.get(id);
     const source = input.positions.find((row) => key(row.tokenContractAddress, row.depositChain) === id);
     const price = input.prices?.find((row) => key(row.tokenContractAddress, row.depositChain) === id);
+    const depositsComplete = input.deposits != null && !gaps.some((gap) => gap.source === "deposits");
+    const hasDeposit = (market?.userDeposit ?? 0n) > 0n || (groups.get(id) ?? []).some((row) => row.amount > 0n);
+    const noPosition =
+      (market != null && market.marketStatus !== ListingMarketStatus.LISTED) || (depositsComplete && !hasDeposit);
     const position = calculatePoolPosition({
       tokenContractAddress: identity.address,
       depositChain: identity.chain,
       detail: source?.detail ?? null,
-      profit: source?.profit ?? null,
+      profit: source?.profit ?? (noPosition ? emptyPoolProfit() : null),
       userSharePercentage: market?.userSharePercentage,
       deposits: input.deposits == null ? null : (groups.get(id) ?? []),
       depositsComplete: !gaps.some((gap) => gap.source === "deposits"),
@@ -121,6 +134,7 @@ export function calculatePoolPortfolio(input: CalculatePoolPortfolioParameters):
       tokenContractAddress: identity.address,
       depositChain: identity.chain,
       market: market ?? null,
+      hasDeposit: hasDeposit ? true : depositsComplete ? false : null,
       marketStatus: market?.marketStatus ?? position.marketStatus,
       symbolId: market?.symbolId ?? position.symbolId,
       tokenName: market?.tokenName ?? groups.get(id)?.[0]?.tokenName ?? null,
@@ -174,8 +188,9 @@ export function calculatePoolPortfolio(input: CalculatePoolPortfolioParameters):
     entries,
     totalBalanceUsd: allKnown ? entries.reduce((sum, row) => sum + row.balanceUsd!, 0) : null,
     totalDepositedUsd:
-      holdingsComplete && entries.every((row) => row.depositedToken != null && row.priceUsd != null)
-        ? entries.reduce((sum, row) => sum + units(row.depositedToken)! * row.priceUsd!, 0)
+      holdingsComplete &&
+      entries.every((row) => row.depositedToken != null && (row.depositedToken === 0n || row.priceUsd != null))
+        ? entries.reduce((sum, row) => sum + units(row.depositedToken)! * (row.priceUsd ?? 0), 0)
         : null,
     claimableRewardUsd: sumReward("claimableReward"),
     claimedRewardUsd: sumReward("claimedReward"),

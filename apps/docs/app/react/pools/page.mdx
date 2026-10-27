@@ -1758,6 +1758,8 @@ export function Stake({
 
 See [portfolio](/core/pools/portfolio), [position](/core/pools/position), [statistics](/core/pools/statistics) and [open positions](/core/pools/open-positions) for source precedence and exact result fields. Third-party enrichment and consumer optimistic state remain outside the SDK; no public cache-patching helper is provided.
 
+`usePoolPortfolio` skips profit/detail queries for known non-listed or unfunded rows while retaining their history. Its profit/detail query functions share a five-request limit per mounted hook, including polling and manual refresh. Each failed per-row query retries once, except HTTP 401/403. The hook retains the existing primitive query keys and data shapes, so other pool hooks share these caches. Queued reads whose query was canceled do not start a request. The exact profit HTTP 404/code 22 response becomes a zero LP position; other failures remain errors and gaps, as described in the portfolio reference.
+
 `usePoolPosition` also accepts optional `withdrawalPercent` (an integer from 0 through 100). Its data includes nullable `withdrawalLpAmount`, `withdrawalTokenAmount`, `withdrawalUsdcAmount` and `withdrawalValueUsd`, all 18-decimal bigints, plus `pendingRatio`. Changing this percentage recalculates the projection without another source request. `usePoolQuotes` and `usePoolTradeHistory` expose their core reads' derived order and event metrics directly; no extra hook or calculation cache is needed.
 
 ## Prefetch a listing challenge

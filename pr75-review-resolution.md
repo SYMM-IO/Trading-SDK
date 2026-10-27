@@ -92,3 +92,33 @@ Self-review: all findings in the matrix have code, removal or documented-contrac
 4. Check CI again after an authorized push. This local implementation does not claim to fix the separately observed pkg-pr-new preview publication failure.
 
 No SDK release, deployment or Jira change was made. GitHub review comments have not been posted or marked resolved by this local implementation.
+
+## P30 follow-up and main merge — 2026-10-27
+
+Reference: [P30 review feedback](https://github.com/SYMM-IO/Trading-SDK/pull/75#issuecomment-6442496695).
+
+Updated the PR from head `41d30c0868d8b46c72acfd989f032e1d3b5013e0`, preserving the merged pool-detail work from #77, with main `d0ecf9dc7516b723730665f92e5b3d4025c0af70`. The earlier uncommitted SDK compatibility checkout and companion app checkout were preserved separately.
+
+The merge retains main's expanded subgraph fields and the pool-specific immutable history metrics. GraphQL output was regenerated from the combined query sources. `PoolTradeHistoryRow.closeFee` remains the derived event amount; the underlying rate stays on the aligned quote. The demo history table consumes the pool row type.
+
+P30 is addressed in the existing portfolio and profit APIs:
+
+- Known non-listed pools keep deposit/refund history and zero LP stake. Listed rows without deposits also contribute zero without profit/detail requests.
+- Portfolio rows expose `hasDeposit`: positive observed history or catalog deposit, confirmed absence, or unknown when history is incomplete. Both core and React use this projection to select reads, without duplicating financial or address-matching logic.
+- Only profit HTTP 404 with numeric backend code 22 becomes a zero LP position. Code 21, other 404s, 429, 5xx and transport failures remain errors.
+- Combined profit/detail concurrency is capped at five per core call or mounted portfolio hook. Each failed per-row read retries once, excluding 401/403. React polling and manual refresh use the same queue and primitive cache keys. Canceled queued queries do not start stale requests.
+- Tests cover funded/refunded mixtures, exact 404 versus 500 classification, unfunded request suppression, partial history, transient recovery, authentication failures, core and React concurrency, primitive cache sharing, manual refresh and queued cancellation.
+
+Verification used Node 24.16.0 and pnpm 10.10.0 in the isolated update checkout:
+
+| Check                                                                | Result                                                                                                            |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Full core unit suite                                                 | 3,697 passed across 515 files.                                                                                    |
+| Full React unit suite                                                | 946 passed across 220 files.                                                                                      |
+| Workspace lint and typechecks                                        | All 26 tasks passed, including required package builds and docs production build (352 routes, 346 pages indexed). |
+| React Doctor 0.4.2, changed React files against the original PR head | Zero errors or warnings; scoring and telemetry disabled.                                                          |
+| Changed-file Prettier and Git whitespace checks                      | Passed.                                                                                                           |
+
+`pnpm verify-packages` also passed: all package tarballs passed publint/attw, and a fresh consumer passed strict NodeNext typechecking and runtime imports of all entrypoints.
+
+The React suite emitted the existing mocked-network 503 and happy-dom teardown messages and exited successfully. The docs build emitted existing nested-worktree root and Git timestamp warnings. Live authenticated backend reproduction, publication and downstream published-release verification remain separate delivery steps.

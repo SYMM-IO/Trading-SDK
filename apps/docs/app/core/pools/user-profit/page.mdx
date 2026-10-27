@@ -24,6 +24,8 @@ The result is a [`UserPoolProfit`](#returns) — one pool, one wallet. Where [`g
 
 ## No solver id
 
+An HTTP 404 response with backend error code 22 (`Market not listed`) returns a zero LP position: balances, shares, deposited amount and rewards are `0n`. Supplemental market metrics remain absent. Other errors, including HTTP 404/code 21 (`Market not found`), 429, 5xx and transport failures, still throw. The standalone action does not retry; composed portfolio reads retry failed per-pool reads once, excluding 401/403.
+
 Pool listing is **chain-level** — one listing backend is served per chain — so `getUserProfit` takes only an optional `chainId` and **no `solverId`**. Pass a `chainId` to read a specific deployment's listing backend; omit it to use the config's default chain.
 
 ## The access token and the token address
