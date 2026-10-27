@@ -16,6 +16,11 @@ Checks, per file:
   - with --layers: every change section also has "**Before vs after this PR:**"
     (or "**Before vs after these changes:**" for local changes) in layer A and
     "before and after" in layer C;
+  - see it in apps/web, in every mode: every `### P<n> ·` problem has a
+    "**See it in apps/web:**" note (in layer C with --layers) with a status
+    (Seen in apps/web / Steps from the code, not run / Not visible in
+    apps/web); every Low bullet and every fast "Worth a closer look" item
+    has a "See it:" clause;
   - a local-changes report (title "# Local Changes Review") has a
     "## Ready for a PR?" section and "Snapshot", "Intent" and "Excluded"
     header rows.
@@ -50,6 +55,9 @@ BEFORE_AFTER_A = re.compile(r"\*\*Before vs after (this PR|these changes):\*\*")
 LOCAL_TITLE = re.compile(r"^# Local Changes Review", re.M)
 LOCAL_READY = re.compile(r"^## Ready for a PR\?\s*$", re.M)
 LOCAL_HEADER_ROWS = ("Snapshot", "Intent", "Excluded")
+SEE_IT_NOTE = "**See it in apps/web:**"
+SEE_IT_STATUSES = ("Seen in apps/web", "Steps from the code, not run", "Not visible in apps/web")
+FAST_WORTH_A_LOOK = re.compile(r"^## Worth a closer look\s*$", re.M)
 
 
 def has_before_after_row(section: str) -> bool:
@@ -138,6 +146,25 @@ def check(path: str, layers: bool) -> list[str]:
         header_row = TABLE_ROW.search(body, fast.end())
         if not header_row or "Before" not in header_row.group(0) or "After" not in header_row.group(0):
             errors.append('"What changes" table has no Before and After columns')
+
+    # See it in apps/web, in every mode.
+    for ident, section in sections(body, PROBLEM_HEADING):
+        note_in = layer_text(section, "C") if layers else section
+        if SEE_IT_NOTE not in note_in:
+            where = " in layer C" if layers else ""
+            errors.append(f"problem {ident} has no \"{SEE_IT_NOTE}\" note{where}")
+        elif not any(status in note_in for status in SEE_IT_STATUSES):
+            errors.append(f"problem {ident}: apps/web note has no status ({' / '.join(SEE_IT_STATUSES)})")
+    for line in re.findall(r"^- \*\*P\d+ · Low[^*]*\*\*.*$", body, re.M):
+        if "see it:" not in line.lower():
+            errors.append(f"Low bullet without a \"See it:\" clause: {line[:60]}…")
+    worth = FAST_WORTH_A_LOOK.search(body)
+    if worth:
+        rest = body[worth.end():]
+        nxt = re.search(r"^## ", rest, re.M)
+        for item in re.findall(r"^\d+\. .*$", rest[: nxt.start()] if nxt else rest, re.M):
+            if "see it:" not in item.lower():
+                errors.append(f"\"Worth a closer look\" item without a \"See it:\" clause: {item[:60]}…")
 
     if LOCAL_TITLE.search(body):
         if not LOCAL_READY.search(body):
