@@ -20,7 +20,7 @@ That is deliberate: a pool page shows the pool's book, not the visitor's. It has
 
 - **No wallet is required.** None of these reads needs a connected account, so the tables render for an anonymous visitor.
 - **The account column matters.** `partyA` / `walletAddress` differs row to row, so showing it is not decoration — without it the rows are ambiguous.
-- **They are not the account-scoped reads.** [`getQuoteHistory`](/core/quotes/get-quote-history) and `getSubAccountQuotes` answer "what does _this_ account hold"; these answer "what is on _this_ market". Reaching for the wrong one gives an empty table or someone else's data.
+- **They are not the account-scoped reads.** [`getQuoteHistory`](/core/subgraph/get-quote-history) and `getSubAccountQuotes` answer "what does _this_ account hold"; these answer "what is on _this_ market". Reaching for the wrong one gives an empty table or someone else's data.
 
 <Callout type="info">
   The subgraph reads scope by the pool's `symbolId` **and** by `source` — the SYMMIO diamond the quotes were opened

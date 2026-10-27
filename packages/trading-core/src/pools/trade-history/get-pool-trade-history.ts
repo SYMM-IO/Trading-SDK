@@ -47,7 +47,7 @@ export interface GetPoolTradeHistoryReturnType {
 }
 
 /** One immutable close event with derived 18-decimal amounts. Missing calculation inputs yield null. */
-export interface PoolTradeHistoryRow extends QuoteHistoryRow {
+export interface PoolTradeHistoryRow extends Omit<QuoteHistoryRow, "closeFee"> {
   /** This event's closed/liquidated quantity, otherwise the available quote quantity. */
   closeQuantity: bigint | null;
   /** Event execution price; liquidation uses its own price rather than an earlier average close. */

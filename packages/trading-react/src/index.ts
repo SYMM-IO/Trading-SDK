@@ -460,8 +460,10 @@ export {
  * Quote hooks
  * -----------
  * Read open positions and quotes from the SYMMIO core. `usePartyAOpenPositions`
- * returns full `Quote` structs; `usePartyAPendingQuotes` returns pending quote
- * ids to hydrate with `useQuote`. `useManagedQuotes` orchestrates every source
+ * returns full `Quote` structs; `usePartyAOpenPositionsBatch` reads many partyAs
+ * in chunked multicalls (per-account success/failure, optional liquidation flag);
+ * `useIsPartyALiquidated` reads one partyA's liquidation-in-progress flag;
+ * `usePartyAPendingQuotes` returns pending quote ids to hydrate with `useQuote`. `useManagedQuotes` orchestrates every source
  * (on-chain reads fanned out across the sub-account's Virtual Accounts + hedger
  * instant-ops + live notifications) into one reconciled, lifecycle-tagged table,
  * seeded by the optimistic `useOptimisticQuotesStore`. Import the `UnifiedQuote`
@@ -487,10 +489,12 @@ export {
   useForceCloseEligibility,
   useForceCloseParams,
   useGroupedQuotes,
+  useIsPartyALiquidated,
   useLimitOrders,
   useManagedQuotes,
   useOptimisticQuotesStore,
   usePartyAOpenPositions,
+  usePartyAOpenPositionsBatch,
   usePartyAPendingQuotes,
   useQuote,
   useQuoteEventsByType,
@@ -508,6 +512,7 @@ export {
   useRequestToCancelCloseRequest,
   useRequestToCancelQuote,
   useSubgraphQuery,
+  useSubgraphQuotes,
   type CloseQuoteGroupParameters,
   type CloseQuoteGroupStatus,
   type CloseQuoteGroupStep,
@@ -542,10 +547,14 @@ export {
   type UseForceCloseReturnType,
   type UseGroupedQuotesParameters,
   type UseGroupedQuotesResult,
+  type UseIsPartyALiquidatedParameters,
+  type UseIsPartyALiquidatedReturnType,
   type UseLimitOrdersParameters,
   type UseLimitOrdersReturnType,
   type UseManagedQuotesParameters,
   type UseManagedQuotesResult,
+  type UsePartyAOpenPositionsBatchParameters,
+  type UsePartyAOpenPositionsBatchReturnType,
   type UsePartyAOpenPositionsParameters,
   type UsePartyAOpenPositionsReturnType,
   type UsePartyAPendingQuotesParameters,
@@ -581,6 +590,8 @@ export {
   type UseRequestToCancelQuoteReturnType,
   type UseSubgraphQueryParameters,
   type UseSubgraphQueryReturnType,
+  type UseSubgraphQuotesParameters,
+  type UseSubgraphQuotesReturnType,
 } from "./quotes";
 
 /**
@@ -598,6 +609,32 @@ export {
   type UseAvailableInstantOpenMarginParameters,
   type UseAvailableInstantOpenMarginReturnType,
 } from "./margin";
+
+/**
+ * Subgraph entity reads
+ * ---------------------
+ * Thin hooks over core's entity reads: `useMarginTransfers` (margin moved
+ * between a SubAccount and its Virtual Accounts), `useLiquidationDetails` (one
+ * entity per PartyA liquidation), `useQuoteFundingSettlements` and
+ * `useFundingIndexCheckpoints` (the raw inputs of a per-epoch funding
+ * timeline). Every filter is optional and applied only when passed; each call
+ * returns one page (`rows` + `hasMore`). Import `MarginTransferType`,
+ * `SubgraphPageParameters` and the row types from `@symmio/trading-core`.
+ */
+export {
+  useFundingIndexCheckpoints,
+  useQuoteFundingSettlements,
+  type UseFundingIndexCheckpointsParameters,
+  type UseFundingIndexCheckpointsReturnType,
+  type UseQuoteFundingSettlementsParameters,
+  type UseQuoteFundingSettlementsReturnType,
+} from "./funding";
+export {
+  useLiquidationDetails,
+  type UseLiquidationDetailsParameters,
+  type UseLiquidationDetailsReturnType,
+} from "./liquidation";
+export { useMarginTransfers, type UseMarginTransfersParameters, type UseMarginTransfersReturnType } from "./margin";
 
 /**
  * Balance history hooks

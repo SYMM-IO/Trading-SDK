@@ -127,4 +127,45 @@ export interface QuoteHistoryRow {
   transaction?: Hex;
   /** Raw event `metadata` JSON string, preserved for power users. */
   rawMetadata: string | null;
+  /** Diamond address the event was indexed from (the subgraph's `source`). */
+  source: Address;
+  /**
+   * The quote's own `closedPrice`, as indexed — not snapshot-overlaid. Prefer
+   * {@link QuoteHistoryRow.avgClosedPrice} for this event's close price.
+   */
+  closedPrice: bigint | null;
+  /** The fill price before any `SETTLE_UPNL` moved the open price; `null` when not indexed. */
+  initialOpenedPrice: bigint | null;
+  /** Market price when the quote was sent; `null` when not indexed. */
+  marketPrice: bigint | null;
+  /** Platform (trading) fee rate the quote was sent with (18-decimal fraction). */
+  tradingFee: bigint;
+  /** Platform close fee rate the quote was sent with (18-decimal fraction). */
+  closeFee: bigint;
+  /** Quote leverage as indexed (18-decimal); `null` when not indexed. */
+  leverage: bigint | null;
+  /** Live locked CVA (shrinks on partial close); `null` when not indexed. */
+  cva: bigint | null;
+  /** Live locked LF (shrinks on partial close); `null` when not indexed. */
+  lf: bigint | null;
+  /** CVA the quote was sent with. */
+  initialCva: bigint;
+  /** LF the quote was sent with. */
+  initialLf: bigint;
+  /** PartyA maintenance margin the quote was sent with; `null` when not indexed. */
+  initialPartyAmm: bigint | null;
+  /** When the quote was sent (unix seconds); `null` when not indexed. */
+  timestampSendQuote: number | null;
+  /** When the position opened (unix seconds); `null` when not indexed. */
+  timestampOpenPosition: number | null;
+  /** Owner of the quote's SubAccount, or `null` when the quote has none (cross-margin). */
+  subAccountOwner: Address | null;
+  /** Transaction of the quote's `SEND_QUOTE` event (its open transaction), or `null`. */
+  sendQuoteTransaction: Hex | null;
+  /**
+   * Raw `metadata` of the quote's `OPEN_POSITION` events — at most 1000, the
+   * subgraph's page ceiling — undecoded. Decoding (e.g. the solver fees paid at
+   * open) and judging whether the list is complete are the consumer's choice.
+   */
+  openPositionMetadata: readonly (string | null)[];
 }

@@ -1,22 +1,36 @@
 # getQuoteHistory
 
-Terminal (close / liquidation) events for a set of sub-accounts' quotes. Each row is a single immutable `QuoteEvent` with its per-event `metadata` snapshot overlaid onto the (otherwise mutable) quote it belongs to — so a quote closed across several partial closes produces several distinct history rows.
+Terminal (close / liquidation) events for a set of accounts' quotes. Each row is a single immutable `QuoteEvent` with its per-event `metadata` snapshot overlaid onto the (otherwise mutable) quote it belongs to — so a quote closed across several partial closes produces several distinct history rows. Each row also carries the quote's own indexed fields — fees, CVA / LF, leverage, open timestamps, the open transaction — so a history table needs no second read.
 
 ```ts
 import { getQuoteHistory } from "@symmio/trading-core";
 
-const history = await getQuoteHistory(config, {
+const { rows } = await getQuoteHistory(config, {
   subAccounts: [subAccount],
   first: 100,
 });
 ```
 
+Every account, deployment, and market filter is optional and applied only when passed — see [Filters and paging](/core/subgraph#filters-and-paging). Omit `subAccounts` to read every account's history, for example a deployment-wide feed scoped by `source` and `marketIds`.
+
 ## Parameters
 
 <Properties>
-  <Property name="subAccounts" type="readonly Address[]" required>
+  <Property name="subAccounts" type="readonly Address[]" optional>
     The accounts whose history to read — a SubAccount and/or its Virtual Accounts. The query filters on the quote's
-    `subAccount`, so pass every account that may own the relevant quotes. An empty array reads nothing.
+    `subAccount` (or `partyA`, see `isolationType`), so pass every account that may own the relevant quotes. Omit to
+    read every account's history; an empty array reads nothing.
+  </Property>
+  <Property name="isolationType" type="SubAccountIsolationType" optional>
+    Picks the account filter field. `CUSTOM` (cross-margin) filters on the quote's `partyA`, because cross-margin quotes
+    carry no `subAccount` on the subgraph; `MARKET` / `MARKET_DIRECTION` (and the default) filter on the quote's
+    `subAccount`. Every account in one call must share it.
+  </Property>
+  <Property name="source" type="Address" optional>
+    The deployment's diamond address (`quote_.source`). Omit to read every deployment the subgraph indexes.
+  </Property>
+  <Property name="marketIds" type="readonly number[]" optional>
+    Market ids to read (`quote_.symbolId_in`). Omit for every market; an empty array reads nothing.
   </Property>
   <Property name="closeType" type="QuoteCloseType" default="All">
     Close-type filter: `All`, `Closed` (`FILL_CLOSE`), `ForceClosed`, `EmergencyClosed`, `AdlClosed`, or `Liquidated`.
@@ -43,12 +57,159 @@ const history = await getQuoteHistory(config, {
 
 ## Returns
 
-<Returns type="readonly QuoteHistoryRow[]">
-  Chronologically ordered history rows. Each is a terminal `QuoteEvent` (its `type` is one of the `QuoteCloseEventType`
-  values) with the event's immutable `metadata` snapshot overlaid onto the quote's fields, so partial closes read as
-  separate rows with the amounts they closed. See [Unified quotes](/core/quotes) for the reconciled quote model these
-  rows decorate.
+<Returns type="GetQuoteHistoryReturnType">
+  <Property name="rows" type="QuoteHistoryRow[]">
+    History rows in event-timestamp order. Each is a terminal `QuoteEvent` (its `closeEventType` is one of the
+    `QuoteCloseEventType` values) with the event's immutable `metadata` snapshot overlaid onto the quote's fields, so
+    partial closes read as separate rows with the amounts they closed. See [Unified quotes](/core/quotes) for the
+    reconciled quote model these rows decorate.
+  </Property>
 </Returns>
+
+## Row fields
+
+All amounts and prices are raw `bigint` in 18-decimal fixed point, the same scale as the on-chain [`Quote`](/core/symmio-contract/get-quote) read. Enum fields are decoded.
+
+### The event and its snapshot
+
+These fields describe the close itself. Where the event's `metadata` snapshot carries a value (`amount`, `closePrice`, `openedPrice`), it wins over the quote's mutable value.
+
+<Returns type="QuoteHistoryRow">
+  <Property name="eventId" type="string">
+    Id of the underlying immutable `QuoteEvent` — use it as the row key.
+  </Property>
+  <Property name="closeEventType" type="QuoteCloseEventType">
+    The close or liquidation event that produced the row (`FILL_CLOSE`, `LIQUIDATE_PARTY_A`, …).
+  </Property>
+  <Property name="closedAt" type="number">
+    Event block timestamp, unix seconds.
+  </Property>
+  <Property name="quoteStatus" type="QuoteStatus">
+    Lifecycle status, forced to `CLOSED` / `LIQUIDATED` from the event type.
+  </Property>
+  <Property name="openedPrice" type="bigint">
+    Open price, snapshot-overlaid when the event carried one.
+  </Property>
+  <Property name="avgClosedPrice" type="bigint">
+    Average close price, overlaid with this event's close price — the price to show for this close.
+  </Property>
+  <Property name="closedAmount" type="bigint">
+    Amount closed by this event (snapshot `amount`).
+  </Property>
+  <Property name="quantityToClose" type="bigint">
+    Quantity of the close request this event settled.
+  </Property>
+  <Property name="liquidateAmount" type="bigint">
+    Liquidated amount — set only on liquidation rows.
+  </Property>
+  <Property name="liquidatePrice" type="bigint">
+    Liquidation price — set only on liquidation rows.
+  </Property>
+  <Property name="solverFee / staticSolverFee / totalSolverFee" type="bigint | null">
+    The solver fees this event charged — see [Solver fees](#solver-fees).
+  </Property>
+  <Property name="blockNumber" type="bigint | undefined">
+    Block number of the event, when available.
+  </Property>
+  <Property name="transaction" type="Hex | undefined">
+    Transaction hash of the event, when available.
+  </Property>
+  <Property name="rawMetadata" type="string | null">
+    The event's raw `metadata` JSON.
+  </Property>
+  <Property name="source" type="Address">
+    Diamond address the event was indexed from (the subgraph's `source`).
+  </Property>
+</Returns>
+
+### The quote, as indexed
+
+These come from the quote entity, not the event snapshot, so every row of the same quote carries the same values. A `null` means the subgraph has not indexed the field for this quote — never read it as zero.
+
+<Returns type="QuoteHistoryRow">
+  <Property name="quoteId" type="bigint">
+    Protocol quote id.
+  </Property>
+  <Property name="marketId" type="number">
+    Market id (`symbolId`).
+  </Property>
+  <Property name="symbol" type="string | null">
+    Market ticker resolved by the subgraph, when known.
+  </Property>
+  <Property name="positionType" type="PositionType">
+    Long or short.
+  </Property>
+  <Property name="orderType" type="OrderType">
+    Limit or market order (open side).
+  </Property>
+  <Property name="quantity" type="bigint">
+    Total quote quantity.
+  </Property>
+  <Property name="requestedOpenPrice" type="bigint">
+    Price partyA originally requested to open at.
+  </Property>
+  <Property name="initialOpenedPrice" type="bigint | null">
+    The fill price before any `SETTLE_UPNL` moved the open price.
+  </Property>
+  <Property name="marketPrice" type="bigint | null">
+    Market price when the quote was sent.
+  </Property>
+  <Property name="closedPrice" type="bigint | null">
+    The quote's own `closedPrice`, as indexed — **not** snapshot-overlaid. For this event's close price use
+    `avgClosedPrice`.
+  </Property>
+  <Property name="tradingFee" type="bigint">
+    Platform (trading) fee rate the quote was sent with, as an 18-decimal fraction.
+  </Property>
+  <Property name="closeFee" type="bigint">
+    Platform close fee rate the quote was sent with, as an 18-decimal fraction.
+  </Property>
+  <Property name="leverage" type="bigint | null">
+    Quote leverage as indexed (18-decimal).
+  </Property>
+  <Property name="cva" type="bigint | null">
+    Live locked CVA — shrinks on a partial close.
+  </Property>
+  <Property name="lf" type="bigint | null">
+    Live locked LF — shrinks on a partial close.
+  </Property>
+  <Property name="initialCva" type="bigint">
+    CVA the quote was sent with.
+  </Property>
+  <Property name="initialLf" type="bigint">
+    LF the quote was sent with.
+  </Property>
+  <Property name="initialPartyAmm" type="bigint | null">
+    PartyA maintenance margin the quote was sent with.
+  </Property>
+  <Property name="timestampSendQuote" type="number | null">
+    When the quote was sent, unix seconds.
+  </Property>
+  <Property name="timestampOpenPosition" type="number | null">
+    When the position opened, unix seconds.
+  </Property>
+  <Property name="partyA" type="Address">
+    The SubAccount or Virtual Account that owns the quote.
+  </Property>
+  <Property name="partyB" type="Address | null">
+    The solver, or `null` when absent.
+  </Property>
+  <Property name="subAccount" type="Address | null">
+    The account-layer SubAccount, or `null` when absent (cross-margin quotes carry none).
+  </Property>
+  <Property name="subAccountOwner" type="Address | null">
+    Owner of the quote's SubAccount, or `null` when the quote has none.
+  </Property>
+  <Property name="sendQuoteTransaction" type="Hex | null">
+    Transaction of the quote's `SEND_QUOTE` event — its open transaction.
+  </Property>
+  <Property name="openPositionMetadata" type="readonly (string | null)[]">
+    Raw, undecoded `metadata` of the quote's `OPEN_POSITION` events — see [Open-position
+    metadata](#open-position-metadata).
+  </Property>
+</Returns>
+
+[`getPoolTradeHistory`](/core/pools/pool-trade-history) returns the same `QuoteHistoryRow`, so pool rows carry every field above too.
 
 ## Solver fees
 
@@ -78,6 +239,14 @@ const { solverFees } = JSON.parse(row.rawMetadata ?? "{}");
 // [["SOLVER_FEE", "659102399999999"], ["STATIC_SOLVER_FEE", "100000000000000000"]]
 ```
 
+## Open-position metadata
+
+`openPositionMetadata` holds the raw `metadata` string of each `OPEN_POSITION` event on the quote, up to 1000 (the subgraph's page ceiling). The SDK does not decode it and does not judge whether the list is complete: a quote with exactly 1000 entries may have more. Parse what you need — for example the solver fees paid at open:
+
+```ts
+const opens = row.openPositionMetadata.map((raw) => (raw ? JSON.parse(raw) : null));
+```
+
 ## Query options
 
 ```ts
@@ -86,3 +255,12 @@ import { useQuery } from "@tanstack/react-query";
 
 useQuery(getQuoteHistoryQueryOptions(config, { subAccounts: [subAccount] }));
 ```
+
+The query is disabled while `subAccounts` or `marketIds` is an empty array.
+
+## Related
+
+- [`getPoolTradeHistory`](/core/pools/pool-trade-history) — the same rows for every trader on one pool's market.
+- [`getQuoteEventsByType`](/core/subgraph/get-quote-events-by-type) — any other event type of one quote, `OPEN_POSITION` included.
+- [`getSubgraphQuotes`](/core/subgraph/get-subgraph-quotes) — the indexed quote entity itself, closed or not.
+- [React `useQuoteHistory`](/react/subgraph#usequotehistory) — the hook over this action.

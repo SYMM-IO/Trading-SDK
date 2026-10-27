@@ -5,6 +5,7 @@ import { ORDERBOOK_CARDS } from "../orderbook/orderbook-cards";
 import { POOLS_CARDS } from "../pools/pools-cards";
 import { PRICE_SERVICE_CARDS } from "../price-service/price-service-cards";
 import { SESSION_KEY_CARDS } from "../session-keys/session-key-cards";
+import { SUBGRAPH_CARDS } from "../subgraph/subgraph-cards";
 import type { SearchCardMeta } from "./search-card-meta";
 
 /**
@@ -27,4 +28,5 @@ export const CARD_CATALOG: Record<Exclude<NavHref, RegistryHref>, readonly Searc
   "/orderbook": ORDERBOOK_CARDS,
   "/config": CONFIG_CARDS,
   "/session-keys": SESSION_KEY_CARDS,
+  "/subgraph": SUBGRAPH_CARDS,
 };

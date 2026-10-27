@@ -28,6 +28,8 @@ const quote = {
   closeFee: String(ONE / 500n),
   timestamp: "100",
   blockNumber: "1",
+  sendQuoteEvents: [],
+  openPositionEvents: [],
 };
 function event(id: string, amount: bigint, price: bigint, type = QuoteCloseEventType.FillClose) {
   return {
@@ -36,6 +38,7 @@ function event(id: string, amount: bigint, price: bigint, type = QuoteCloseEvent
     quoteId: "1",
     timestamp: id === "first" ? "100" : "200",
     blockNumber: "1",
+    source: "0x1111111111111111111111111111111111111111",
     metadata: JSON.stringify({ amount: String(amount), closePrice: String(price) }),
     quote,
   };

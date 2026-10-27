@@ -18,6 +18,7 @@ const EVENT = {
   quoteId: "8232",
   blockNumber: "1",
   transaction: "0xdead",
+  source: "0x8a0ed5b4cec4b0c4e1f7c8d9e3a2b1f0c9d8e7f6",
   quote: {
     id: "quote-8232",
     timestamp: "1782000000",
@@ -42,6 +43,19 @@ const EVENT = {
     liquidateAmount: null,
     liquidatePrice: null,
     subAccount: { id: SUB, owner: SUB },
+    closedPrice: null,
+    initialOpenedPrice: "1",
+    marketPrice: null,
+    leverage: null,
+    cva: null,
+    lf: null,
+    initialCva: "0",
+    initialLf: "0",
+    initialPartyAmm: null,
+    timestampSendQuote: null,
+    timestampOpenPosition: null,
+    sendQuoteEvents: [],
+    openPositionEvents: [],
   },
 };
 

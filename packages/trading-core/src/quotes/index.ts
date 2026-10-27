@@ -8,6 +8,7 @@ export * from "./get-quote-history";
 export * from "./get-quote-pending-funding";
 export * from "./get-quotes-events-by-type";
 export * from "./get-sub-account-quotes";
+export * from "./get-subgraph-quotes";
 export * from "./grouping";
 export * from "./liquidation";
 export * from "./open-price";
