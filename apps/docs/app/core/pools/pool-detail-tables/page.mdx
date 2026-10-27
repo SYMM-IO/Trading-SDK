@@ -66,28 +66,24 @@ The distinction is load-bearing: the lowcap solver declares `limitOrder: false`,
 
 ## Pending orders and realized history values
 
-`getPoolPendingQuoteMetrics(quote: PoolQuoteCalculationInput)` returns `{ quantity, price, notional }` as 18-decimal bigints. The requested price takes precedence over the opened price; explicitly supplied zero is retained, while absent/empty fields fall back.
+[`getPoolQuotes`](/core/pools/pool-quotes) returns pending-order `orderPrice` and `orderNotional` directly on each quote. Requested price takes precedence over opened price; explicitly supplied zero is retained. Missing inputs stay null.
 
-`getPoolTradeHistoryMetrics(quote: PoolTradeHistoryCalculationInput)` returns `{ quantity, closePrice, tradeValue, platformFee, realizedPnl }` as 18-decimal bigints. Pass an immutable event snapshot from the history read. Closed quantity takes precedence over full quantity, and average close price over close price, retaining explicit zero. Opening fees use the full position quantity and positive initial fill price (otherwise opened price); closing fees use the event quantity and price. Realized PnL composes the shared quote primitive and keeps 18-decimal precision. Neither selector mutates the quote or reads current market prices.
+[`getPoolTradeHistory`](/core/pools/pool-trade-history) returns `closeQuantity`, `closePrice`, `tradeValue`, `openFee`, `closeFee`, `platformFee` and `realizedPnl` directly on each event row. Monetary values are 18-decimal bigints or null when unavailable. Each row receives only its proportional opening-fee share, and liquidation rows have no closing fee. Normal, force, emergency and ADL closes retain their closing fees. Raw quote fee fields are rates; row fee fields are amounts.
 
 ```ts
-import { getPoolPendingQuoteMetrics, getPoolTradeHistoryMetrics } from "@symmio/trading-core";
-const unit = 10n ** 18n;
-const pending = getPoolPendingQuoteMetrics({ quantity: 2n * unit, requestedOpenPrice: 100n * unit });
-// pending.notional === 200n * unit
-const history = getPoolTradeHistoryMetrics({
-  quantity: 2n * unit,
-  closedAmount: unit,
-  openedPrice: 100n * unit,
-  averageClosedPrice: 120n * unit,
-  tradingFee: unit / 1000n,
-  closeFee: unit / 500n,
-  positionType: "0",
-});
-// history.platformFee === 440_000_000_000_000_000n; history.realizedPnl === 20n * unit
+import { getPoolQuotes, getPoolTradeHistory, type Config } from "@symmio/trading-core";
+export async function detailTables(config: Config, symbolId: number) {
+  const [{ quotes }, { rows }] = await Promise.all([
+    getPoolQuotes(config, { symbolId }),
+    getPoolTradeHistory(config, { symbolId }),
+  ]);
+  return { pendingNotionals: quotes.map((quote) => quote.orderNotional), history: rows };
+}
 ```
 
 Wallet-filtered transaction views may require listing authentication at the application boundary even though the underlying pool transaction transport is public. Reuse the listing session, cancel old observers and discard completions after wallet/token/deployment switches.
+
+There are no standalone detail selectors to compose after these reads. Withdrawal previews belong to the [position projection](/core/pools/position#withdrawal-preview). Chart range selection, running sums and deposit minimum/balance-delta estimates remain consumer-owned.
 
 ## Further reading
 

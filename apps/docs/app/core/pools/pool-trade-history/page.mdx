@@ -20,7 +20,7 @@ const { rows } = await getPoolTradeHistory(config, { symbolId: 1, first: 25 });
 
 Rows come from the immutable `quoteEvents` collection with each event's frozen `metadata` snapshot overlaid. A quote closed across three partial closes therefore yields **three** rows, each showing the size and price of _that_ close rather than the quote's final state.
 
-That makes summing the rows correct, and makes reading a single row as "the quote" wrong.
+Use the event metric fields for history totals; full-quote fields remain repeated context, not values to sum across events.
 
 ## Parameters
 
@@ -48,7 +48,22 @@ That makes summing the rows correct, and makes reading a single row as "the quot
 
 ## Returns
 
-`{ rows: QuoteHistoryRow[] }` — the same row type as [`getQuoteHistory`](/core/quotes/get-quote-history), decoded by the same mapper, so a history table can render either read without branching. That includes the per-event [solver fees](/core/subgraph/get-quote-history#solver-fees) (`solverFee`, `staticSolverFee`, `totalSolverFee`).
+`{ rows: PoolTradeHistoryRow[], quotes: PoolQuote[] }`. Each row extends the `QuoteHistoryRow` returned by [`getQuoteHistory`](/core/quotes/get-quote-history), including per-event [solver fees](/core/subgraph/get-quote-history#solver-fees). Pool rows additionally contain these flat `bigint | null` fields, at 18 decimals:
+
+| Field                     | Meaning                                                            |
+| ------------------------- | ------------------------------------------------------------------ |
+| closeQuantity, closePrice | Event close/liquidation size and execution price                   |
+| tradeValue                | Event quantity times price, scaled to 18 decimals                  |
+| openFee                   | Opening-fee share attributed to this event's closed quantity       |
+| closeFee                  | Event close fee; zero for liquidation                              |
+| platformFee               | openFee + closeFee, excluding solver, funding and liquidation fees |
+| realizedPnl               | Gross realized PnL before fees, from the shared quote primitive    |
+
+Missing required inputs yield null. Explicit zero snapshots stay zero. Normal-close quantity falls back from event/closed amount to full quantity; price falls back from average closed price to closed price. Liquidations use liquidation quantity and price; an unknown liquidation price never falls back to an earlier close's average.
+
+The opening fee uses the event quantity and positive initial fill price, otherwise opened price. Two one-token closes of a two-token position therefore allocate half the opening fee to each row. Independently floored shares may sum to less than the full fee by fewer raw wei than the number of rows. This is an attribution of an already-paid opening fee, not a new charge at close.
+
+Normal, force, emergency and ADL closes include closing fees. All three liquidation event types omit them. The immutable snapshot is applied before deriving metrics; consumers do not need a separate selector call.
 
 ## Throws
 
@@ -63,3 +78,13 @@ That makes summing the rows correct, and makes reading a single row as "the quot
 ## Complete event quote snapshots
 
 The result also includes `quotes: PoolQuote[]`, aligned with `rows`. Each quote includes full fee/owner/lock fields, overlaid with that close event's immutable amount, entry/close price, liquidation values and status. Pair a quote with its corresponding row's `eventId`, `closedAt` and solver fees; never replace those with the current quote's cumulative close state.
+
+The quote's `tradingFee` and `closeFee` are fee **rates** at 18 decimals, not cumulative charged amounts. The row's `openFee` and `closeFee` are derived amounts. Keep these distinct when pairing a row and quote.
+
+```ts
+import { getPoolTradeHistory, type Config } from "@symmio/trading-core";
+export async function historyFees(config: Config) {
+  const { rows } = await getPoolTradeHistory(config, { symbolId: 1, first: 25 });
+  return rows.map(({ eventId, openFee, closeFee, platformFee }) => ({ eventId, openFee, closeFee, platformFee }));
+}
+```

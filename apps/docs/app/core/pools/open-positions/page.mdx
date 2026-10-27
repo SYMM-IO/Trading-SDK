@@ -1,0 +1,32 @@
+# Pool open positions
+
+`getPoolOpenPositions(config, parameters)` reads the open book and deduplicates account-balance reads before applying shared quote calculations.
+
+```ts
+import { getPoolOpenPositions, type Config } from "@symmio/trading-core";
+export function positions(config: Config, symbolId: number, priceUsd: number) {
+  return getPoolOpenPositions(config, { chainId: 42161, symbolId, priceUsd });
+}
+```
+
+## Parameters and result
+
+`GetPoolOpenPositionsParameters` requires symbolId (null/undefined means no book). chainId, orderDirection and priceUsd are optional. It reads at most ten 100-row pages, then consumers filter/page the entries.
+
+`PoolOpenPositions` / `GetPoolOpenPositionsReturnType` returns entries and gaps. Each entry retains PoolQuote fields and adds remainingQuantity, entryPrice, positionValueUsd, leverageMultiplier, upnlUsd, priceChangePercent, liquidationPrice and openedAt.
+
+priceChangePercent is the **unleveraged directional price move**, preserving the pool-table meaning. It is not leveraged return on margin. Quote PnL/leverage and account liquidation reuse the SDK's existing primitives. `calculateLiquidationPrice` accepts optional pendingLockedCVA/pendingLockedLF (default 0n), so pending collateral reservations reduce available margin.
+
+An explicitly reported leverage wins. When it is absent, the pool table retains its legacy integer inference: use `100 × initialLf / initialMargin` when LF is known and positive; otherwise use the shared leverage primitive for settled/requested price candidates and choose the candidate closest to an integer before rounding. Missing margin inputs produce null. `openedAt` uses the first positive open, send, or quote timestamp.
+
+Unknown marks produce null PnL and position value. A missing balance, incomplete book or mixed-side account produces null liquidationPrice instead of a fabricated estimate. This pool-level estimate assumes the account's positions are isolated to this market; it is not a general cross-market account risk calculation.
+
+## Projection and queries
+
+`calculatePoolOpenPositions(input: CalculatePoolOpenPositionsParameters)` accepts PoolQuote[] and normalized AccountBalanceInfo by lowercase account address, plus price, completeness and gaps. `getPoolOpenPositionsQueryOptions(config, options: GetPoolOpenPositionsOptions)` and `getPoolOpenPositionsQueryKey` supply the core query contract.
+
+## Units and ownership
+
+Token, collateral and LP amounts are bigint at 18 decimals. USD and percentage projections are unformatted numbers. Unknown values are null. The SDK does not contact third-party token-data providers; pass an external price when available. Keep formatting, filtering and sorting in the consumer.
+
+The corresponding React hook composes existing SDK queries; it does not cache the aggregate separately. Core query factories are available for non-React consumers. Do not mount both a composed core query and its React hook for the same screen.

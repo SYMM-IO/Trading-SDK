@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 # withdrawLp
 
-Use [`getPoolWithdrawalPreview`](/core/pools/calculations#detail-previews-and-history-amounts) to size available LP and estimate both legs before submission. Acceptance queues a withdrawal; it does not establish settlement.
+Use the optional `withdrawalPercent` on the [pool position API](/core/pools/position#withdrawal-preview) to size available LP and estimate both legs before submission. Acceptance queues a withdrawal; it does not establish settlement.
 
 Queue a **withdrawal of LP shares** from a single pool — the authed write behind a pool's "withdraw" action. You pass the amount of LP to withdraw, the pool's token contract address, and the destination the liquidity is sent to; the listing backend records the request and moves those shares into the pool's pending-withdrawal queue.
 

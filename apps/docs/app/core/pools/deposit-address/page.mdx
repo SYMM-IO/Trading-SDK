@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 # getDepositAddress
 
-Use [`getPoolDepositPreview`](/core/pools/calculations#detail-previews-and-history-amounts) for minimum-token estimates and observed deposit increases. A wallet receipt confirms transfer progress, not LP credit; retain listing confirmation/polling to establish progress.
+Minimum-token estimates and observed balance increases are consumer calculations. Preserve unknown prices and baselines instead of showing zero. A wallet receipt confirms transfer progress, not LP credit; retain listing confirmation/polling to establish progress.
 
 Return (or create) the signed-in user's **deposit wallet for a single market** — the authed get-or-create behind a pool's "deposit" action. It returns the address the user sends funds to in order to deposit into the market's pool, together with the market's token contract address, the user it belongs to, the deposit chain, the token's decimals, and the market's listing status.
 

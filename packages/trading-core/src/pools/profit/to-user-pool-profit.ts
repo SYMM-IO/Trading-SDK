@@ -1,4 +1,4 @@
-import { parseListingValue, toListingValue } from "../markets/to-listing-market";
+import { parseListingValue, toListingPercent, toListingValue } from "../markets/to-listing-market";
 import type { UserPoolProfit } from "../types";
 import type { LPTokenProfitSchema } from "../types/generated/listing-backend";
 
@@ -51,7 +51,7 @@ export function toUserPoolProfit(
 
   return {
     tvl: toListingValue(raw.tvl),
-    apy30d: toListingValue(raw.apy_30d),
+    apy30d: toListingPercent(raw.apy_30d),
     longPositionAmount: toListingValue(raw.long_position_amount),
     longPositionValue: toListingValue(raw.long_position_value),
     longPositionAvgOpenPrice: toListingValue(raw.long_position_avg_open_price),
@@ -60,7 +60,7 @@ export function toUserPoolProfit(
     shortPositionValue: toListingValue(raw.short_position_value),
     shortPositionAvgOpenPrice: toListingValue(raw.short_position_avg_open_price),
     shortPositionUpnl: toListingValue(raw.short_position_upnl),
-    apyLifetime: toListingValue(raw.apy_lifetime ?? raw.apy_all_time),
+    apyLifetime: toListingPercent(raw.apy_lifetime ?? raw.apy_all_time),
     buybackRatio: raw.buyback_ratio == null ? null : Number(raw.buyback_ratio),
     activeLps: raw.active_lps ?? null,
     age: raw.age ?? null,

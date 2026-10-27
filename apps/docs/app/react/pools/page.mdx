@@ -1725,8 +1725,43 @@ A `send_quote` order opens a quote when a trigger fires, which is a different me
 
 See [validation](/core/pools/token-validation) and [maintenance](/core/pools/maintenance) for units, return values and error handling.
 
-## Composable optimistic state
+## Composed pool reads
 
-`beginPoolOptimisticUpdate(client, patches)` accepts a structural `PoolOptimisticClient` and `PoolOptimisticPatch[]` (each patch has `queryKey` and `apply(current)`). It returns `PoolOptimisticUpdate` with `commit()` and `rollback()`. Cancel affected reads first; derive patches from mutation variables before submission. Each failed operation removes only its own projection, including when another operation has already succeeded. A newer server snapshot wins over an old projection.
+Use `usePoolPortfolio`, `usePoolPosition`, `usePoolStatistics` and `usePoolOpenPositions` for complete projections. Their Use…Parameters types extend the corresponding core read parameters with optional config, enabled and refetchInterval (number or false). Their Use…ReturnType aliases expose data, isLoading, isFetching, error and refetch. Each result contains explicit source gaps.
 
-Commit after accepted submission and invalidate only the affected query families/identities. Acceptance of a withdrawal is not on-chain settlement. This helper modifies existing host queries and creates no second SDK read cache.
+These hooks compose the existing query keys and retain each source's original cache shape. They do not create an aggregate cache. Changes from withdraw/claim/cancel invalidate the same underlying reads. For private sources, pass the authenticated userAddress consistently to these hooks and any standalone useUserProfit/useUserTransactions/useUserListingMarkets hooks mounted beside them. Changing the bearer token alone does not identify a different user. Clear private queries on logout and do not pass the previous user's token after a wallet switch.
+
+Their composed `refetch()` respects `enabled` and authentication gates. Personal statistics never refresh the pool-wide withdrawal queue. Pagination retains earlier rows when a later page fails and reports the incomplete source in `gaps`.
+
+```tsx
+import { usePoolPosition } from "@symmio/trading-react/pools";
+export function Stake({
+  accessToken,
+  userAddress,
+  tokenContractAddress,
+}: {
+  accessToken: string;
+  userAddress: string;
+  tokenContractAddress: string;
+}) {
+  const position = usePoolPosition({
+    chainId: 42161,
+    depositChain: 0,
+    accessToken,
+    userAddress,
+    tokenContractAddress,
+    refetchInterval: 30_000,
+  });
+  return <span>{position.data?.availableLp?.toString() ?? "Unknown"}</span>;
+}
+```
+
+See [portfolio](/core/pools/portfolio), [position](/core/pools/position), [statistics](/core/pools/statistics) and [open positions](/core/pools/open-positions) for source precedence and exact result fields. Third-party enrichment and consumer optimistic state remain outside the SDK; no public cache-patching helper is provided.
+
+`usePoolPosition` also accepts optional `withdrawalPercent` (an integer from 0 through 100). Its data includes nullable `withdrawalLpAmount`, `withdrawalTokenAmount`, `withdrawalUsdcAmount` and `withdrawalValueUsd`, all 18-decimal bigints, plus `pendingRatio`. Changing this percentage recalculates the projection without another source request. `usePoolQuotes` and `usePoolTradeHistory` expose their core reads' derived order and event metrics directly; no extra hook or calculation cache is needed.
+
+## Prefetch a listing challenge
+
+`useAuthenticateListing({ prefetchChallenge: true, chainId, from?, domain?, uri?, statement?, config? })` fetches once a signing wallet and origin are available. Prefetch defaults to false. Browser origin uses an SSR-safe external-store snapshot; server rendering never reads window. Use from for an injected signing account.
+
+The hook adds `challenge: ListingSignInMessage | undefined` to its mutation result. mutate({}) consumes it once, discards it after either success or failure, and fetches a replacement. Wallet/deployment/origin/statement changes select a different challenge. Expiring challenges refresh before expiration. Failed prefetch falls back to fetching during the mutation. Per-call overrides remain supported; the core action rejects cached-context reuse by fetching afresh, not by blocking sign-in.

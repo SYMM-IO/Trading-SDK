@@ -1,60 +1,133 @@
 import type { Config } from "../../core/config";
-import { assemblePoolPortfolio, type PoolPortfolioEntry } from "../calculations/portfolio";
-import { ListingMarketStatus, PoolTransactionType, type UserListingMarket, type UserTransaction } from "../types";
+import { readOptional, readPages, type PoolReadGap } from "../composition";
+import { getListingMarketDetail } from "../market-detail/get-listing-market-detail";
+import { getUserProfit } from "../profit/get-user-profit";
+import { getUserTotalReward } from "../rewards/get-user-total-reward";
+import { ListingMarketStatus, PoolTransactionType } from "../types";
 import { getUserListingMarkets, type GetUserListingMarketsParameters } from "../user-markets/get-user-listing-markets";
 import { getUserTransactions } from "../user-transactions/get-user-transactions";
+import { calculatePoolPortfolio, type PoolPortfolio, type PoolPortfolioPrice } from "./calculate-pool-portfolio";
 
-/** Portfolio filters apply to the listed search. Client presentation filters and pagination follow full assembly. */
-export type GetPoolPortfolioParameters = Omit<GetUserListingMarketsParameters, "limit" | "offset" | "marketStatus">;
-/** A normalized deposit with its portfolio identity. */
-export type PoolPortfolioTransaction = UserTransaction & { contractAddress: string };
-/** Complete portfolio entries before display filtering. */
-export type GetPoolPortfolioReturnType = PoolPortfolioEntry<UserListingMarket, PoolPortfolioTransaction>[];
+/** Full portfolio inputs. Filter after assembly; userAddress scopes private query caches. */
+export type GetPoolPortfolioParameters = Pick<
+  GetUserListingMarketsParameters,
+  "chainId" | "accessToken" | "sortBy" | "orderBy"
+> & {
+  userAddress: string;
+  /** Reward window, 1–30 days. Defaults to 30. */
+  rewardDays?: number;
+  prices?: readonly PoolPortfolioPrice[];
+};
+/** Portfolio entries, totals and explicit gaps. */
+export type GetPoolPortfolioReturnType = PoolPortfolio;
 
-/** Read all listed user rows, status lookups and up to 1,000 deposit records, preserving the established request budget. */
-export async function getPoolPortfolio(
-  config: Config,
-  parameters: GetPoolPortfolioParameters,
-): Promise<GetPoolPortfolioReturnType> {
-  async function search(options: GetUserListingMarketsParameters) {
-    const first = await getUserListingMarkets(config, { ...options, offset: 0, limit: 100 });
-    const items = [...first.items];
-    while (items.length < first.total) {
-      const next = await getUserListingMarkets(config, { ...options, offset: items.length, limit: 100 });
-      if (!next.items.length) break;
-      items.push(...next.items);
-    }
-    return items;
-  }
-  async function deposits() {
-    const options = {
-      chainId: parameters.chainId,
-      accessToken: parameters.accessToken,
-      transactionType: PoolTransactionType.DEPOSIT,
-      size: 100,
-    };
-    const first = await getUserTransactions(config, options);
-    const items = [...first.items];
-    while (items.length < first.count && items.length < 1000) {
-      const next = await getUserTransactions(config, { ...options, start: items.length });
-      if (!next.items.length) break;
-      items.push(...next.items);
-    }
-    return items.map((item) => ({ ...item, contractAddress: item.tokenAddress }));
-  }
-  const [listed, nonListed, transactions] = await Promise.all([
-    search(parameters),
+/** Read a bounded portfolio before client filters. Each source is capped at ten pages.
+ * @param config - SDK configuration.
+ * @param parameters - Authenticated user, optional ordering and external prices.
+ * @returns Positions and totals with failed, repeated or truncated source information.
+ */
+export async function getPoolPortfolio(config: Config, parameters: GetPoolPortfolioParameters): Promise<PoolPortfolio> {
+  const gaps: PoolReadGap[] = [];
+  const { chainId, accessToken, sortBy, orderBy } = parameters;
+  const statuses = [
+    ListingMarketStatus.LISTED,
+    ListingMarketStatus.UNDER_REVIEW,
+    ListingMarketStatus.REJECTED,
+    ListingMarketStatus.DELISTED,
+    ListingMarketStatus.WAITING_FOR_DEPOSIT,
+  ];
+  const [catalog, deposits, reward] = await Promise.all([
     Promise.all(
-      [
-        ListingMarketStatus.UNDER_REVIEW,
-        ListingMarketStatus.REJECTED,
-        ListingMarketStatus.DELISTED,
-        ListingMarketStatus.WAITING_FOR_DEPOSIT,
-      ].map((marketStatus) =>
-        search({ chainId: parameters.chainId, accessToken: parameters.accessToken, marketStatus }).catch(() => []),
+      statuses.map((marketStatus) =>
+        readOptional(
+          () =>
+            readPages(
+              async (offset) => {
+                const page = await getUserListingMarkets(config, {
+                  chainId,
+                  accessToken,
+                  sortBy,
+                  orderBy,
+                  marketStatus,
+                  offset,
+                  limit: 100,
+                });
+                return { items: page.items, total: page.total };
+              },
+              (row) => `${row.chainId}:${row.contractAddress}`,
+              gaps,
+              marketStatus,
+            ),
+          gaps,
+          marketStatus,
+        ),
       ),
     ),
-    deposits(),
+    readOptional(
+      () =>
+        readPages(
+          async (start) => {
+            const page = await getUserTransactions(config, {
+              chainId,
+              accessToken,
+              transactionType: PoolTransactionType.DEPOSIT,
+              start,
+              size: 100,
+            });
+            return { items: page.items, total: page.count };
+          },
+          (row) => row.transactionId,
+          gaps,
+          "deposits",
+        ),
+      gaps,
+      "deposits",
+    ),
+    readOptional(
+      () =>
+        getUserTotalReward(config, {
+          chainId,
+          accessToken,
+          userAddress: parameters.userAddress,
+          days: parameters.rewardDays ?? 30,
+        }),
+      gaps,
+      "rewards",
+    ),
   ]);
-  return assemblePoolPortfolio(listed, nonListed.flat(), transactions);
+  const sources = {
+    listed: catalog[0] ?? [],
+    nonListed: catalog.slice(1).flatMap((rows) => rows ?? []),
+    deposits,
+    reward,
+    gaps,
+    prices: parameters.prices,
+  };
+  const holdings = calculatePoolPortfolio({ ...sources, positions: [] }).entries;
+  const positions = [];
+  for (let offset = 0; offset < holdings.length; offset += 8) {
+    positions.push(
+      ...(await Promise.all(
+        holdings.slice(offset, offset + 8).map(async (row) => {
+          const tokenContractAddress = row.tokenContractAddress;
+          const [profit, detail] = await Promise.all([
+            readOptional(
+              () => getUserProfit(config, { chainId, accessToken, tokenContractAddress }),
+              gaps,
+              "profit",
+              tokenContractAddress,
+            ),
+            readOptional(
+              () => getListingMarketDetail(config, { chainId, tokenContractAddress, depositChain: row.depositChain }),
+              gaps,
+              "detail",
+              tokenContractAddress,
+            ),
+          ]);
+          return { tokenContractAddress, depositChain: row.depositChain, profit, detail };
+        }),
+      )),
+    );
+  }
+  return calculatePoolPortfolio({ ...sources, positions });
 }

@@ -1,60 +1,90 @@
-/** The Pools integration must be usable from packed declarations, without vendor types. */
 import {
-  authenticateListing,
-  checkListingTokenSupport,
-  getListingTokenMetadata,
-  getPoolDepositPreview,
-  getPoolDexDataBatch,
-  getPoolHistoryAmounts,
-  getPoolMaintenanceFees,
-  getPoolOpenQuoteEntryPrice,
-  getPoolOpenQuoteQuantity,
-  getPoolPendingQuoteMetrics,
+  calculatePoolOpenPositions,
+  calculatePoolPortfolio,
+  calculatePoolPosition,
+  calculatePoolStatistics,
+  getListingSignInMessageQueryOptions,
+  getPoolOpenPositions,
+  getPoolOpenPositionsQueryOptions,
   getPoolPortfolio,
-  getPoolPortfolioTotals,
+  getPoolPortfolioQueryOptions,
+  getPoolPosition,
+  getPoolPositionQueryOptions,
+  getPoolQuotes,
   getPoolStatistics,
-  getPoolTradeHistoryMetrics,
-  getPoolWithdrawalPreview,
-  selectPoolMetricUsd,
+  getPoolStatisticsQueryOptions,
+  getPoolTradeHistory,
   type Config,
-  type ListingSignInMessage,
+  type ListingMarketDetail,
   type PoolQuote,
+  type PoolQuoteBookEntry,
+  type PoolTradeHistoryRow,
+  type UserPoolProfit,
+  type UserTransaction,
 } from "@symmio/trading-core";
-import { beginPoolOptimisticUpdate, type PoolOptimisticClient } from "@symmio/trading-react";
-import { useListingTokenMetadata, useListingTokenSupport, usePoolMaintenanceFees } from "@symmio/trading-react/pools";
-
-export function poolReads(config: Config, accessToken: string, signInMessage: ListingSignInMessage) {
-  const token = { chainId: 42161, depositChain: 0, tokenContractAddress: "ExactSolanaMint", accessToken };
+import {
+  useAuthenticateListing,
+  usePoolOpenPositions,
+  usePoolPortfolio,
+  usePoolPosition,
+  usePoolStatistics,
+} from "@symmio/trading-react/pools";
+export function reads(config: Config, accessToken: string, userAddress: string) {
+  const pool = { chainId: 42161, tokenContractAddress: "ExactMint", depositChain: 0, accessToken, userAddress };
   return [
-    getListingTokenMetadata(config, token),
-    checkListingTokenSupport(config, token),
-    getPoolMaintenanceFees(config, token),
-    getPoolPortfolio(config, { chainId: 42161, accessToken }),
-    getPoolDexDataBatch([token.tokenContractAddress]),
-    authenticateListing(config, { chainId: 42161, domain: "app.example", uri: "https://app.example", signInMessage }),
+    getPoolPortfolio(config, { chainId: 42161, accessToken, userAddress }),
+    getPoolPosition(config, { ...pool, withdrawalPercent: 100 }),
+    getPoolStatistics(config, { ...pool, scope: "user" }),
+    getPoolOpenPositions(config, { chainId: 42161, symbolId: 1, priceUsd: 2 }),
   ];
 }
-
-export function projectPool(client: PoolOptimisticClient) {
-  const projection = beginPoolOptimisticUpdate(client, [{ queryKey: ["existing-pool"], apply: (current) => current }]);
-  projection.rollback();
-  const stats = getPoolStatistics({ shareFraction: null });
-  const totals = getPoolPortfolioTotals([], [], []);
-  const metric: number | undefined = selectPoolMetricUsd(undefined, 0);
-  return { stats, totals, metric };
+export function projections(
+  detail: ListingMarketDetail,
+  profit: UserPoolProfit,
+  deposits: UserTransaction[],
+  quotes: PoolQuote[],
+) {
+  return [
+    calculatePoolPosition({
+      tokenContractAddress: detail.tokenContractAddress,
+      depositChain: detail.depositChain,
+      detail,
+      profit,
+      deposits,
+      withdrawalPercent: 50,
+    }),
+    calculatePoolStatistics({
+      detail,
+      profit,
+      scope: "user",
+      pending: [],
+      rewards: [],
+      notionalCap: null,
+      marketInfo: null,
+    }),
+    calculatePoolOpenPositions({ quotes, balances: {}, priceUsd: 2 }),
+  ];
 }
+void [
+  usePoolPortfolio,
+  usePoolPosition,
+  usePoolStatistics,
+  usePoolOpenPositions,
+  useAuthenticateListing,
+  getListingSignInMessageQueryOptions,
+  calculatePoolPortfolio,
+  getPoolPortfolioQueryOptions,
+  getPoolPositionQueryOptions,
+  getPoolStatisticsQueryOptions,
+  getPoolOpenPositionsQueryOptions,
+];
 
-void [useListingTokenMetadata, useListingTokenSupport, usePoolMaintenanceFees];
-
-/** Selectors must accept the SDK's own normalized read result. */
-export function quoteMetrics(quote: PoolQuote) {
-  return {
-    entry: getPoolOpenQuoteEntryPrice(quote),
-    remaining: getPoolOpenQuoteQuantity(quote),
-    pending: getPoolPendingQuoteMetrics(quote),
-    history: getPoolTradeHistoryMetrics(quote),
-    withdrawal: getPoolWithdrawalPreview({ balance: null, percent: 100 }),
-    deposit: getPoolDepositPreview({}),
-    totals: getPoolHistoryAmounts([1n]),
-  };
+/** Verify derived read types and exact position amounts from a packed external consumer. */
+export async function detailMetrics(config: Config) {
+  const { quotes } = await getPoolQuotes(config, { symbolId: 1 });
+  const { rows } = await getPoolTradeHistory(config, { symbolId: 1 });
+  const quote: PoolQuoteBookEntry | undefined = quotes[0];
+  const row: PoolTradeHistoryRow | undefined = rows[0];
+  const amounts: (bigint | null | undefined)[] = [quote?.orderNotional, row?.openFee, row?.closeFee, row?.realizedPnl];
+  return amounts;
 }

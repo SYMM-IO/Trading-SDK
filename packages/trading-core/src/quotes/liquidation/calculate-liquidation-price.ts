@@ -32,6 +32,10 @@ export interface CalculateLiquidationPriceInputs {
   lockedCVA: bigint;
   /** Account's locked LF, from `balanceInfoOfPartyA(account)`. */
   lockedLF: bigint;
+  /** CVA reserved by pending positions; defaults to zero for existing callers. */
+  pendingLockedCVA?: bigint;
+  /** Liquidation fees reserved by pending positions; defaults to zero. */
+  pendingLockedLF?: bigint;
 }
 
 /**
@@ -39,7 +43,7 @@ export interface CalculateLiquidationPriceInputs {
  * 18-decimal-wei collateral units. Aggregates the account's active positions:
  *
  * ```
- * freeBalance   = allocatedBalance − lockedCVA − lockedLF
+ * freeBalance   = allocatedBalance − lockedCVA − lockedLF − pendingLockedCVA − pendingLockedLF
  * openQty_i     = quantity_i − closedAmount_i
  * totalQty      = Σ openQty_i
  * totalNotional = Σ (openQty_i × openedPrice_i)
@@ -74,7 +78,12 @@ export function calculateLiquidationPrice(inputs: CalculateLiquidationPriceInput
   }
   if (totalQty === 0n) return 0n;
 
-  const freeBalance = inputs.allocatedBalance - inputs.lockedCVA - inputs.lockedLF;
+  const freeBalance =
+    inputs.allocatedBalance -
+    inputs.lockedCVA -
+    inputs.lockedLF -
+    (inputs.pendingLockedCVA ?? 0n) -
+    (inputs.pendingLockedLF ?? 0n);
   const numerator =
     inputs.positionType === PositionType.LONG ? totalNotional - freeBalance : totalNotional + freeBalance;
 

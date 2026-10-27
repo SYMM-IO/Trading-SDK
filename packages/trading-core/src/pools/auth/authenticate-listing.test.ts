@@ -55,27 +55,6 @@ function makeConfigWithSigner() {
 }
 
 describe("authenticateListing", () => {
-  it("rejects an expired prefetched challenge before signing or exchanging tokens", async () => {
-    const { config, signMessage } = makeConfigWithSigner();
-    const expirationTime = "2020-01-01T00:00:00.000Z";
-    const params = { ...SIWE_PARAMS, expirationTime };
-    const message = createSiweMessage({
-      ...params,
-      version: "1",
-      issuedAt: new Date(params.issuedAt),
-      expirationTime: new Date(expirationTime),
-    });
-    await expect(
-      authenticateListing(config, {
-        chainId: 42161,
-        domain: params.domain,
-        uri: params.uri,
-        signInMessage: { message, params },
-      }),
-    ).rejects.toMatchObject({ code: "LISTING_CHALLENGE_EXPIRED" });
-    expect(signMessage).not.toHaveBeenCalled();
-    expect(loginV2AuthLoginPost).not.toHaveBeenCalled();
-  });
   beforeEach(() => {
     getSignInMessageV2AuthSignInMessageGet.mockReset();
     loginV2AuthLoginPost.mockReset();
@@ -88,9 +67,24 @@ describe("authenticateListing", () => {
       chainId: 42161,
       domain: SIWE_PARAMS.domain,
       uri: SIWE_PARAMS.uri,
+      statement: SIWE_PARAMS.statement,
       signInMessage: { message: SIWE_MESSAGE, params: SIWE_PARAMS },
     });
     expect(getSignInMessageV2AuthSignInMessageGet).not.toHaveBeenCalled();
+    expect(signMessage).toHaveBeenCalledWith(expect.objectContaining({ message: SIWE_MESSAGE }));
+  });
+
+  it("checks the default deployment when no chain override is passed", async () => {
+    const { config, signMessage } = makeConfigWithSigner();
+    getSignInMessageV2AuthSignInMessageGet.mockResolvedValue({ data: { message: SIWE_MESSAGE, params: SIWE_PARAMS } });
+    loginV2AuthLoginPost.mockResolvedValue({ data: { accessToken: "TOKEN", tokenType: "bearer" } });
+    await authenticateListing(config, {
+      domain: SIWE_PARAMS.domain,
+      uri: SIWE_PARAMS.uri,
+      statement: SIWE_PARAMS.statement,
+      signInMessage: { message: "another deployment", params: { ...SIWE_PARAMS, chainId: 1 } },
+    });
+    expect(getSignInMessageV2AuthSignInMessageGet).toHaveBeenCalledOnce();
     expect(signMessage).toHaveBeenCalledWith(expect.objectContaining({ message: SIWE_MESSAGE }));
   });
 
@@ -98,20 +92,33 @@ describe("authenticateListing", () => {
     { address: "0x0000000000000000000000000000000000000001" },
     { domain: "other.example" },
     { uri: "https://other.example" },
-  ])("rejects a stale prefetched challenge before prompting the wallet: %o", async (changes) => {
+    { expirationTime: "2020-01-01T00:00:00Z" },
+    { statement: "Different statement" },
+  ])("fetches a fresh challenge for a stale prefetched context: %o", async (changes) => {
     const { config, signMessage } = makeConfigWithSigner();
-    await expect(
-      authenticateListing(config, {
-        chainId: 42161,
-        domain: SIWE_PARAMS.domain,
-        uri: SIWE_PARAMS.uri,
-        signInMessage: { message: SIWE_MESSAGE, params: { ...SIWE_PARAMS, ...changes } },
-      }),
-    ).rejects.toMatchObject({ code: "LISTING_CHALLENGE_MISMATCH" });
-    expect(signMessage).not.toHaveBeenCalled();
-    expect(loginV2AuthLoginPost).not.toHaveBeenCalled();
+    getSignInMessageV2AuthSignInMessageGet.mockResolvedValue({ data: { message: SIWE_MESSAGE, params: SIWE_PARAMS } });
+    loginV2AuthLoginPost.mockResolvedValue({ data: { accessToken: "TOKEN", tokenType: "bearer" } });
+    await authenticateListing(config, {
+      chainId: 42161,
+      domain: SIWE_PARAMS.domain,
+      uri: SIWE_PARAMS.uri,
+      statement: SIWE_PARAMS.statement,
+      signInMessage: { message: "old", params: { ...SIWE_PARAMS, ...changes } },
+    });
+    expect(getSignInMessageV2AuthSignInMessageGet).toHaveBeenCalledOnce();
+    expect(signMessage).toHaveBeenCalledWith(expect.objectContaining({ message: SIWE_MESSAGE }));
+    expect(loginV2AuthLoginPost).toHaveBeenCalledOnce();
   });
 
+  it("signs a fresh backend challenge with empty statement and normalized URI", async () => {
+    const { config, signMessage } = makeConfigWithSigner();
+    const params = { ...SIWE_PARAMS, statement: "", uri: SIWE_PARAMS.uri + "/" };
+    const message = createSiweMessage({ ...params, version: "1", issuedAt: new Date(params.issuedAt) });
+    getSignInMessageV2AuthSignInMessageGet.mockResolvedValue({ data: { message, params } });
+    loginV2AuthLoginPost.mockResolvedValue({ data: { accessToken: "TOKEN", tokenType: "bearer" } });
+    await authenticateListing(config, { domain: SIWE_PARAMS.domain, uri: SIWE_PARAMS.uri });
+    expect(signMessage).toHaveBeenCalledWith(expect.objectContaining({ message }));
+  });
   it("runs the full SIWE flow: fetch, sign, then login for a bearer token", async () => {
     const { config, account, signMessage } = makeConfigWithSigner();
     getSignInMessageV2AuthSignInMessageGet.mockResolvedValue({

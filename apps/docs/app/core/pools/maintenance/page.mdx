@@ -24,3 +24,5 @@ Use `getPoolMaintenanceFeesQueryOptions` / `getPoolMaintenanceFeesQueryKey` for 
 - `getPoolTransactionRange(config, parameters)` accepts the existing pool-transaction filters and a wider `size`; it issues pages of at most 50 and retains the requested offset. It returns the normal pool transaction page.
 - `getPoolClaim(config, { chainId?, accessToken, claimRequestId })` reads one claim by UUID and returns `PoolClaim`, including wallet/market identifiers when supplied.
 - `getPoolMarketData(config, { chainId?, addresses })` reads the legacy public pools metrics map. Values retain nullable `marketCap` and `apr` as raw 18-decimal bigints.
+
+Batch APR is a single normalized 18-decimal percentage: a backend value of 12.75 becomes 12750000000000000000n. Format with formatUnits(apr, 18); do not multiply the result by 100. Null remains unknown.

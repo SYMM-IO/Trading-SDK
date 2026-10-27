@@ -1,5 +1,5 @@
 import type { Config } from "../../core/config";
-import { closeTypeToEventTypes } from "../../quotes/get-quote-history/close-type";
+import { closeTypeToEventTypes, LIQUIDATION_EVENT_TYPES } from "../../quotes/get-quote-history/close-type";
 import { toQuoteHistoryRow } from "../../quotes/get-quote-history/to-history-row";
 import { QuoteCloseType, type QuoteHistoryRow } from "../../quotes/get-quote-history/types";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
@@ -11,6 +11,7 @@ import type {
 import { toPoolQuote } from "../quotes/to-pool-quote";
 import { resolvePoolSource } from "../resolve-pool-source";
 import type { PoolQuote } from "../types";
+import { calculateHistoryMetrics } from "./calculate-history-metrics";
 import { PoolQuoteEventsDocument } from "./query-document";
 
 /** Page size when the caller does not specify one. */
@@ -40,9 +41,27 @@ export type GetPoolTradeHistoryParameters = Compute<
 /** Return type of {@link getPoolTradeHistory}. */
 export interface GetPoolTradeHistoryReturnType {
   /** The decoded, snapshot-applied history rows (one per close/liquidation event). */
-  rows: QuoteHistoryRow[];
+  rows: PoolTradeHistoryRow[];
   /** Full quote fields with each event snapshot applied, aligned with rows. */
   quotes: PoolQuote[];
+}
+
+/** One immutable close event with derived 18-decimal amounts. Missing calculation inputs yield null. */
+export interface PoolTradeHistoryRow extends QuoteHistoryRow {
+  /** This event's closed/liquidated quantity, otherwise the available quote quantity. */
+  closeQuantity: bigint | null;
+  /** Event execution price; liquidation uses its own price rather than an earlier average close. */
+  closePrice: bigint | null;
+  /** Event quantity times execution price, in collateral units. */
+  tradeValue: bigint | null;
+  /** Opening-fee share attributed to this event's quantity, floored independently per row. */
+  openFee: bigint | null;
+  /** Event closing fee; zero for liquidation, charged for normal, force, emergency and ADL closes. */
+  closeFee: bigint | null;
+  /** openFee + closeFee; excludes solver, funding and liquidation fees. */
+  platformFee: bigint | null;
+  /** Gross realized PnL before fees, from the shared quote primitive. */
+  realizedPnl: bigint | null;
 }
 
 /**
@@ -100,15 +119,38 @@ export async function getPoolTradeHistory(
   const rows = (data.quoteEvents ?? []).map(toQuoteHistoryRow);
   const quotes = (data.quoteEvents ?? []).map((event, index) => {
     const snapshot = rows[index]!;
+    const quote = toPoolQuote(event.quote);
+    let metadata: Record<string, unknown> = {};
+    try {
+      const parsed: unknown = JSON.parse(event.metadata ?? "{}");
+      if (parsed && typeof parsed === "object") metadata = parsed as Record<string, unknown>;
+    } catch {
+      /* Missing snapshot keeps the nullable quote fields. */
+    }
+    const amount = snapshotWei(metadata.amount);
+    const closePrice = snapshotWei(metadata.closePrice);
+    const isLiquidation = LIQUIDATION_EVENT_TYPES.has(snapshot.closeEventType);
     return {
-      ...toPoolQuote(event.quote),
+      ...quote,
       quoteStatus: snapshot.quoteStatus,
-      openedPrice: snapshot.openedPrice,
-      closedAmount: snapshot.closedAmount,
-      averageClosedPrice: snapshot.avgClosedPrice,
-      liquidateAmount: snapshot.liquidateAmount,
-      liquidatePrice: snapshot.liquidatePrice,
+      openedPrice: snapshotWei(metadata.openedPrice) ?? quote.openedPrice,
+      closedAmount: amount ?? quote.closedAmount,
+      quantityToClose: amount ?? quote.quantityToClose,
+      averageClosedPrice: closePrice ?? quote.averageClosedPrice,
+      liquidateAmount: (isLiquidation ? amount : null) ?? quote.liquidateAmount,
+      liquidatePrice: (isLiquidation ? closePrice : null) ?? quote.liquidatePrice,
     };
   });
-  return { rows, quotes };
+  return { rows: rows.map((row, index) => ({ ...row, ...calculateHistoryMetrics(quotes[index]!) })), quotes };
+}
+
+function snapshotWei(value: unknown): bigint | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  try {
+    const amount = BigInt(value);
+    return amount >= 0n ? amount : null;
+  } catch {
+    return null;
+  }
 }
