@@ -29,6 +29,12 @@ guides live in `apps/docs/app/core/account-layer/timelocks/`.
   the public approval endpoint. Prepared submission preserves signed bytes and salts.
 - UI steps, persistent storage, automatic fallback selection and recovery policy stay
   with the consumer. Existing order-mutation retry defaults are not changed.
+- Policy-change assessment stays in core: `getTimelockPolicyChange` reports weakening,
+  exact setup bytes, current unlockers and the longest affected delay from a policy report.
+  Setup reports a typed authorization error before wallet resolution unless the exact
+  change already has a mature schedule. It never obtains approvals or schedules on its own.
+- Public approval signatures are opaque, byte-aligned hex (EOA or EIP-1271), not always
+  65 bytes. The contract checks validity. The instant-open placeholder remains 65 bytes.
 
 ## File map
 

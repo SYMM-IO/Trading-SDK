@@ -78,6 +78,93 @@ Without an observer, indexing is `unknown`. An observer failure returns the conf
 receipt plus `indexingError`; do not repeat setup. Confirmation/reread failure throws
 `TimelockSetupConfirmationError` retaining the submitted `hash` and `cause`.
 
+## `getTimelockPolicyChange`
+
+```ts
+getTimelockPolicyChange(policy: TimelockPolicyReport, parameters?: { delay?: bigint }): TimelockPolicyChange
+```
+
+This pure helper assesses the proposed setup from an existing policy report. It makes no
+network requests and needs no wallet. The proposed unlocker comes from the report's
+capability; delay still defaults to `max(providerMinimum, contractMinimum)`.
+It rejects an explicit delay below that minimum.
+
+New locks, unchanged locks and increases with the same unlocker need no policy-change
+authorization. Shortening an existing delay or replacing its unlocker needs the **current**
+unlocker's approval, or a schedule for the exact setup calldata. The helper does not
+silently preserve a longer delay or choose a recovery route.
+
+`TimelockPolicyChange` contains:
+
+| Field                                       | Meaning                                                                                              |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `account`, `unlocker`, `delay`, `selectors` | Exact proposed root setup, with delay in seconds.                                                    |
+| `callData`                                  | Encoded `setupTimelocks` call to authorize; never a withdrawal or `_call` wrapper.                   |
+| `requiresAuthorization`                     | Whether the proposed setup weakens any existing locks. Does not indicate schedule readiness.         |
+| `affectedSelectors`                         | Every weakened selector with its current `unlocker` and `delay`.                                     |
+| `requiredUnlockers`                         | Distinct current unlockers. Each must authorize the exact setup calldata to avoid waiting.           |
+| `scheduleDelaySeconds`                      | Longest affected current delay when no approvals are supplied; zero if no authorization is required. |
+
+```ts
+import { getTimelockPolicy, getTimelockPolicyChange } from "@symmio/trading-core";
+
+const policy = await getTimelockPolicy(config, { account });
+const change = getTimelockPolicyChange(policy);
+// Present change.requiresAuthorization and change.scheduleDelaySeconds to the user.
+// No signing, scheduling, or approval request has happened.
+```
+
+`setupTimelockPolicy` checks these requirements before obtaining a wallet. If authorization
+is required, it reads the schedule for this exact setup and the current grace period and
+chain time. An absent, immature or expired schedule raises
+`TimelockPolicyChangeAuthorizationError`, with code
+`TIMELOCK_POLICY_CHANGE_AUTHORIZATION_REQUIRED`, the `change`, and `readyAt`/`expiresAt`
+in Unix seconds (both null if no valid schedule exists). Nothing is automatically submitted
+or retried. A mature schedule allows the existing setup action to proceed; execution is
+allowed at both window boundaries. The contract remains authoritative if state changes
+between the reads and execution.
+
+The consumer chooses whether to schedule, obtain approvals or stop. Scheduling uses
+`scheduleTimelockOp(config, { account: change.account, callData: change.callData })`.
+After confirmation and the required delay, use the **same** setup arguments or
+`executeTimelockOp` with that exact `innerCallData` and no approvals. Policies changed
+meanwhile can invalidate the schedule; do not substitute freshly encoded, different setup
+calldata for the scheduled bytes. For policy changes, the waiting time comes from the
+affected old locks, not the selector policy for `setupTimelocks` itself.
+
+Approvals, when available, are supplied explicitly to `executeTimelockOp` with
+`innerCallData: change.callData`. Do not assume the public withdrawal approval endpoint
+supports policy-change calldata; the documented 22-selector allowlist does not include
+`setupTimelocks`. This SDK never probes it or selects a route automatically.
+
+React's `useSetupTimelockPolicy` preserves the error code and keeps the original
+`TimelockPolicyChangeAuthorizationError` in `error.cause`; the hook does not choose a UI flow.
+
+## `assertTimelockPolicyChangeReady`
+
+```ts
+assertTimelockPolicyChangeReady(config, parameters: {
+  chainId?: number;
+  change: TimelockPolicyChange;
+}): Promise<void>
+```
+
+For consumers composing their own setup batch or wallet fallback, this read-only
+guard applies the same schedule checks as `setupTimelockPolicy`. First obtain a fresh
+policy report and derive its change. Supply the same chain used for that report.
+It resolves immediately when no authorization is required. Otherwise it reads the
+exact schedule, grace period and chain time, resolving only within the execution
+window or throwing `TimelockPolicyChangeAuthorizationError`. RPC failures propagate.
+It never signs, requests an approval, schedules, or submits. Execution can still fail
+if the policy or execution window changes after the check.
+
+```ts
+import { assertTimelockPolicyChangeReady } from "@symmio/trading-core";
+
+await assertTimelockPolicyChangeReady(config, { chainId, change });
+// Now compose the batch with change.callData, preserving its exact bytes.
+```
+
 ## Constants and low-level policy reads
 
 | Export                                          | Inputs → output                                                                                                                                           |

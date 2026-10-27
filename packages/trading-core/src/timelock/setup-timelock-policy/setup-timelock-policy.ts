@@ -7,6 +7,7 @@ import {
   type GetTimelockPolicyParameters,
   type TimelockPolicyReport,
 } from "../get-timelock-policy/get-timelock-policy";
+import { assertTimelockPolicyChangeReady, getTimelockPolicyChange } from "../policy-change";
 
 /** Indexing is separate from confirmation. Unknown is mandatory when the provider exposes no reliable observation. */
 export type TimelockIndexingStatus = "indexed" | "pending" | "unknown";
@@ -49,6 +50,8 @@ export class TimelockSetupConfirmationError extends Error {
  * @param config - Chain, wallet and optional relay configuration.
  * @param parameters - Account/provider, optional increased delay and read-only indexing observer.
  * @returns Confirmed policy with honest indexing status; no automatic approval request or retry.
+ * @throws {TimelockPolicyChangeAuthorizationError} If existing locks are weakened without a mature schedule.
+ * @remarks Approvals for policy changes use explicit executeTimelockOp composition; this action never requests them.
  * @example const result = await setupTimelockPolicy(config, { account, gasless: true });
  */
 export async function setupTimelockPolicy(
@@ -56,11 +59,13 @@ export async function setupTimelockPolicy(
   parameters: SetupTimelockPolicyParameters,
 ): Promise<TimelockSetupResult> {
   const policy = await getTimelockPolicy(config, parameters);
+  const change = getTimelockPolicyChange(policy, parameters);
+  await assertTimelockPolicyChangeReady(config, { chainId: parameters.chainId, change });
   const hash = await setupTimelocks(config, {
     ...parameters,
     account: policy.rootAccount,
     unlocker: policy.capability.unlocker,
-    delay: parameters.delay ?? policy.requiredDelay,
+    delay: change.delay,
     providerMinimumDelay: policy.requiredDelay,
     selectors: policy.selectors.map((item) => item.selector),
   });

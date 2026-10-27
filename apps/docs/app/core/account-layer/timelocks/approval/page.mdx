@@ -85,6 +85,14 @@ Request inputs extend preparation with `provider`, expected `rootAccount`, and o
 `signal`. The function prepares, issues **one** request and validates account, unlocker,
 calldata hash, signature shapes and expiry before returning. Errors never submit a tx.
 
+The signature must be byte-aligned hex, but it is not restricted to 65 bytes.
+EOA signatures and arbitrary EIP-1271 contract signatures (including empty bytes when
+accepted by that contract) pass through unchanged. Validation here checks response binding
+and byte encoding, not cryptographic signature validity. AccountLayer validates the
+signature during simulation/execution; a malformed or invalid approval must not trigger
+an automatic replacement approval request. The 65-byte placeholder required by the
+separate instant-open margin wrapper is unchanged.
+
 `ValidatedTimelockApproval` contains `signedApproval: SignedTimelockApproval`,
 `approvalHash: Hex`, `remainingApprovals: number`, and the prepared `request`.
 `requestTimelockApprovalMutationOptions(config)` uses the same inputs and disables retries.

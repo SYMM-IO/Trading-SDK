@@ -170,7 +170,7 @@ export interface RequestTimelockApprovalParameters extends PrepareTimelockApprov
   signal?: AbortSignal;
 }
 
-/** Verified response bound to the exact requested account, provider and calldata. */
+/** Response fields bound to the requested account, provider and calldata. Signature validity is checked on-chain. */
 export interface ValidatedTimelockApproval {
   signedApproval: SignedTimelockApproval;
   approvalHash: Hex;
@@ -275,6 +275,7 @@ export async function prepareTimelockApprovalRequest(
 /**
  * Request exactly one approval and validate the security-critical response.
  * Expiry uses the selected chain's latest block, not the device clock.
+ * Signature bytes are preserved without a fixed length; the execution contract verifies EOA/EIP-1271 validity.
  * Response validation failures retain the untrusted response in `SymmApiError.responseData`.
  * This function deliberately has no automatic retry, including after a chain-time read failure.
  */
@@ -315,7 +316,10 @@ export async function requestTimelockApproval(
     !isAddress(response.unlocker, { strict: false }) ||
     !validHex(response.call_data_hash, 32) ||
     !validHex(response.salt, 32) ||
-    !validHex(response.signature, 65) ||
+    // EIP-1271 unlockers accept arbitrary bytes, including empty signatures.
+    // Only validate byte encoding here; the contract verifies signature validity.
+    typeof response.signature !== "string" ||
+    !/^0x(?:[0-9a-fA-F]{2})*$/.test(response.signature) ||
     !validHex(response.approval_hash, 32) ||
     !Number.isSafeInteger(response.remaining_approvals) ||
     response.remaining_approvals < 0 ||

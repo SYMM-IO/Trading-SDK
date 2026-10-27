@@ -2,6 +2,7 @@ import {
   EarlyWithdrawExecutionError,
   getTimelockPolicyQueryKey,
   SymmApiError,
+  TimelockPolicyChangeAuthorizationError,
   type EarlyWithdrawParameters,
   type EarlyWithdrawResult,
   type TimelockApprovalCapability,
@@ -209,6 +210,33 @@ describe("timelock mutation safety", () => {
     expect(queryClient.getQueryState(rootKey)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(vaKey)?.isInvalidated).toBe(true);
     expect(setup).toHaveBeenCalledOnce();
+  });
+  it("preserves policy-change requirements without retrying or invalidating confirmed state", async () => {
+    const { config } = createMockSymmioConfig();
+    const queryClient = clientWithRetries();
+    const key = getTimelockPolicyQueryKey({ account: VA, configKey: config.getChainConfigKey() });
+    queryClient.setQueryData(key, { ready: true });
+    const error = new TimelockPolicyChangeAuthorizationError(
+      {
+        account: ROOT,
+        unlocker: TEST_EOA,
+        delay: 600n,
+        selectors: ["0x2e1a7d4d"],
+        callData: "0x12345678",
+        requiresAuthorization: true,
+        affectedSelectors: [{ selector: "0x2e1a7d4d", unlocker: TEST_EOA, delay: 1200n }],
+        requiredUnlockers: [TEST_EOA],
+        scheduleDelaySeconds: 1200n,
+      },
+      null,
+      null,
+    );
+    setup.mockRejectedValue(error);
+    const { result } = renderHookWithProviders(() => useSetupTimelockPolicy({ config }), { queryClient });
+    const failure = await result.current.mutateAsync({ account: VA, capability }).catch((reason: unknown) => reason);
+    expect(failure).toMatchObject({ kind: "sdk", code: "TIMELOCK_POLICY_CHANGE_AUTHORIZATION_REQUIRED", cause: error });
+    expect(setup).toHaveBeenCalledOnce();
+    expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
   });
   it("does not invalidate policy as confirmed when receipt waiting is disabled", async () => {
     const { config, waitForTransactionReceipt } = createMockSymmioConfig();

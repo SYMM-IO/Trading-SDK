@@ -74,6 +74,33 @@ function approvalParameters(
 describe("timelock approval workflow", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it.each(["0x", "0x1234", `0x${"12".repeat(64)}`, `0x${"ab".repeat(128)}`] as Hex[])(
+    "preserves arbitrary EIP-1271 signature bytes %s without claiming cryptographic validity",
+    async (signature) => {
+      const { config, writeContract } = rig();
+      const response = { ...approvalResponse(), signature };
+      const provider = { requestApproval: vi.fn().mockResolvedValue(response) };
+      const result = await requestTimelockApproval(config, approvalParameters(config, provider));
+      expect(result.signedApproval.signature).toBe(signature);
+      expect(provider.requestApproval).toHaveBeenCalledOnce();
+      expect(writeContract).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([undefined, null, 12, "1234", "0x123", "0xzz"])(
+    "rejects malformed signature bytes %s retaining the response",
+    async (signature) => {
+      const { config } = rig();
+      const response = { ...approvalResponse(), signature };
+      const provider = { requestApproval: vi.fn().mockResolvedValue(response) };
+      await expect(requestTimelockApproval(config, approvalParameters(config, provider))).rejects.toMatchObject({
+        code: "TIMELOCK_APPROVAL_RESPONSE_MISMATCH",
+        responseData: response,
+      });
+      expect(provider.requestApproval).toHaveBeenCalledOnce();
+    },
+  );
+
   it.each([-120, 120])("accepts a chain-valid approval with device clock skew of %s seconds", async (skew) => {
     vi.spyOn(Date, "now").mockReturnValue((1_900_000_000 + skew) * 1000);
     const { config } = rig();

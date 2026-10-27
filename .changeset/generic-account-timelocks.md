@@ -14,3 +14,5 @@ Refresh timelock policy and schedule reads after successful React gasless batche
 Allow gasless batches to use an explicit shorter signature deadline, rejecting invalid or expired authorization before submission while preserving the default lifetime.
 
 Share wrapped-operation cache effects with direct timelock execution hooks. Confirmed sub-account deletion refreshes account lists and details; failed or unconfirmed execution does not refresh them. Preserve existing submission, approval, and gasless behavior.
+
+Expose policy-change authorization requirements before setup, including exact calldata, affected existing unlockers and the no-approval schedule delay. Report missing or unusable authorization without prompting a wallet; preserve execution through an already mature schedule. Accept byte-encoded EIP-1271 approval signatures without imposing an EOA signature length.
