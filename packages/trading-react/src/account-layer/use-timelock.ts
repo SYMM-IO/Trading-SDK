@@ -4,16 +4,11 @@ import {
   cancelTimelockOpMutationOptions,
   clearTimelocksMutationOptions,
   executeTimelockOpMutationOptions,
-  getLastWithdrawRequestIdQueryKey,
-  getPendingWithdrawRequestsBatchQueryKey,
-  getPendingWithdrawRequestsQueryKey,
   getSelectorTimelockQueryKey,
   getSelectorTimelockQueryOptions,
   getTimelockPolicyQueryKey,
   getTimelockScheduleStateQueryKey,
   getTimelockScheduleStateQueryOptions,
-  getWithdrawableTimeQueryKey,
-  getWithdrawRequestsQueryKey,
   requestTimelockApprovalMutationOptions,
   scheduleTimelockOpMutationOptions,
   setupTimelocksMutationOptions,
@@ -38,12 +33,13 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
+import type { Hex } from "viem";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
+import { invalidateTimelockExecutionReads } from "../gasless/invalidate-relay-reads";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 import { resolveWriteResult, type WriteParameters, type WriteResult } from "../transactions";
-import { invalidateAccountBalances } from "../utils/invalidate-account-balances";
 import { predicateMatch } from "../utils/predicate-match";
 
 type TimelockMutationFactory<T> = (config: Config) => {
@@ -51,7 +47,7 @@ type TimelockMutationFactory<T> = (config: Config) => {
   mutationFn: (variables: T) => Promise<`0x${string}`>;
 };
 
-function useTimelockMutation<T extends { chainId?: number }>(
+function useTimelockMutation<T extends { chainId?: number; innerCallData?: Hex }>(
   factory: TimelockMutationFactory<T>,
   parameters: WriteParameters,
   invalidate: "policy" | "schedule" | "execution",
@@ -96,15 +92,8 @@ function useTimelockMutation<T extends { chainId?: number }>(
       });
       if (invalidate !== "execution") return;
 
-      invalidateAccountBalances(queryClient, scope);
-      for (const queryKey of [
-        getPendingWithdrawRequestsQueryKey,
-        getPendingWithdrawRequestsBatchQueryKey,
-        getLastWithdrawRequestIdQueryKey,
-        getWithdrawableTimeQueryKey,
-        getWithdrawRequestsQueryKey,
-      ]) {
-        void queryClient.invalidateQueries({ predicate: predicateMatch(queryKey, scope) });
+      if (variables.innerCallData) {
+        invalidateTimelockExecutionReads(queryClient, scope, variables.innerCallData);
       }
     },
   });
@@ -166,6 +155,8 @@ export function useCancelTimelockOp(
 
 /**
  * Execute a timelocked AccountLayer call with an approval or mature schedule.
+ * After confirmation, refresh the inner operation's affected reads, including
+ * account lists and details for `deleteSubAccount`. No approval is requested automatically.
  *
  * @param parameters - Receipt waiting and optional config controls.
  * @returns A mutation whose variables carry inner AccountLayer calldata and optional approvals.

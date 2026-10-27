@@ -421,7 +421,25 @@ async function executeApproved() {
 }
 ```
 
-The read hooks require their identifying inputs instead of silently disabling on missing values. After a confirmed write, the mutation hooks invalidate the affected policy or schedule reads; confirmed execution also invalidates balances and withdrawal reads.
+The read hooks require their identifying inputs instead of silently disabling on missing values. After a confirmed write, the mutation hooks invalidate the affected policy or schedule reads. Confirmed execution refreshes balances and the inner operation's affected reads, using the same domain rules as gasless batches. For example, a wrapped withdrawal refreshes withdrawal reads, while `deleteSubAccount` refreshes account lists, addresses, counts, and account details. Other deployment caches are unchanged. A rejected, reverted, or unconfirmed execution does not trigger these refreshes.
+
+#### Deleting a timelocked sub-account
+
+Use the existing approval and execution hooks for a protected deletion. Encode
+`deleteSubAccount(subAccount)` with `accountLayerAbi`; send that raw calldata to
+`useRequestTimelockApproval`, then pass it unchanged as `innerCallData` to
+`useExecuteTimelockOp` with the returned signed approval. This is an AccountLayer
+call, so do **not** wrap it in `_call`. Use the root account for approval and
+execution authority. A previously scheduled deletion can instead execute with
+empty approvals once its delay has matured and before its grace period expires.
+
+These hooks do not choose a fallback or request a second approval automatically.
+Normal deletion restrictions still apply; a timelock approval does not bypass
+balance, position, ownership, or virtual-account checks. The execution action
+simulates the full wrapper by default before wallet submission; relay submission
+continues to use the shared gasless pipeline. Only a successful receipt means the
+deletion completed. The unwrapped `useDeleteSubAccount` hook remains unchanged;
+it does not acquire timelock approvals on the caller's behalf.
 
 The approval hook never retries the provider POST. Treat a timeout as ambiguous unless the provider offers an explicit reconciliation mechanism. See the full [core workflow](/core/account-layer/timelocks) for root-versus-VA handling, fallback scheduling, independent Core cooldown, and gasless delegation.
 
