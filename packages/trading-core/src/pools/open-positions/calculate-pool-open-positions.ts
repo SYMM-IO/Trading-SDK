@@ -36,7 +36,8 @@ export interface CalculatePoolOpenPositionsParameters {
 export function calculatePoolOpenPositions<TQuote extends Partial<PoolQuote>>(
   input: Omit<CalculatePoolOpenPositionsParameters, "quotes"> & { quotes: readonly TQuote[] },
 ) {
-  const price = input.priceUsd != null && Number.isFinite(input.priceUsd) && input.priceUsd > 0 ? input.priceUsd : null;
+  const price =
+    input.priceUsd != null && Number.isFinite(input.priceUsd) && input.priceUsd >= 0 ? input.priceUsd : null;
   const entries = input.quotes.map((quote) => {
     const openedPrice =
       [quote.openedPrice, quote.initialOpenedPrice, quote.requestedOpenPrice].find(
@@ -49,9 +50,10 @@ export function calculatePoolOpenPositions<TQuote extends Partial<PoolQuote>>(
           ? quote.quantity - quote.closedAmount
           : 0n;
     const leverage = poolLeverage(quote, openedPrice);
-    const positionType = Number(quote.positionType) === PositionType.SHORT ? PositionType.SHORT : PositionType.LONG;
+    const positionType =
+      quote.positionType === PositionType.SHORT || quote.positionType === PositionType.LONG ? quote.positionType : null;
     const pnl =
-      price == null || openedPrice == null || quantity == null
+      price == null || openedPrice == null || quantity == null || positionType == null
         ? null
         : calculateQuoteUpnl({
             markPrice: String(price),
@@ -74,6 +76,7 @@ export function calculatePoolOpenPositions<TQuote extends Partial<PoolQuote>>(
     );
     const accountLiquidation =
       balance &&
+      positionType != null &&
       input.complete !== false &&
       compatible &&
       accountQuotes.length > 0 &&
@@ -81,7 +84,7 @@ export function calculatePoolOpenPositions<TQuote extends Partial<PoolQuote>>(
         ? calculateLiquidationPrice({ ...balance, positions, positionType })
         : null;
     const lockEstimate =
-      input.allowQuoteLockEstimate && openedPrice != null && quantity != null && quantity > 0n
+      input.allowQuoteLockEstimate && positionType != null && openedPrice != null && quantity != null && quantity > 0n
         ? quoteLockLiquidation(quote, openedPrice, leverage, positionType)
         : null;
     const liquidationPrice = accountLiquidation ?? lockEstimate;

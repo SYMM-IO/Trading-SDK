@@ -58,6 +58,70 @@ const profit: UserPoolProfit = {
 };
 
 describe("portfolio review regressions", () => {
+  it("projects catalog-only deposits consistently and preserves actual history precedence", () => {
+    const input = {
+      listed: [market()],
+      nonListed: [],
+      deposits: [],
+      positions: [],
+      reward: 0n,
+      prices: [{ tokenContractAddress: "Mint", depositChain: 0, priceUsd: 2 }],
+    };
+    expect(calculatePoolPortfolio(input).entries[0]).toMatchObject({
+      depositedToken: 5n * wei,
+      currentDepositToken: 5n * wei,
+      currentDepositUsd: 10,
+      refundableToken: 5n * wei,
+      depositHistory: { success: 5n * wei },
+    });
+    expect(
+      calculatePoolPortfolio({
+        ...input,
+        listed: [],
+        nonListed: [{ ...market(), marketStatus: ListingMarketStatus.REJECTED }],
+      }).entries[0],
+    ).toMatchObject({
+      totalLp: 0n,
+      depositedToken: 5n * wei,
+      currentDepositToken: 5n * wei,
+    });
+    const positions = [{ tokenContractAddress: "Mint", depositChain: 0, detail: null, profit }];
+    expect(calculatePoolPortfolio({ ...input, positions }).entries[0]).toMatchObject({
+      depositedToken: 10n * wei,
+      currentDepositToken: 10n * wei,
+      currentDepositUsd: 20,
+    });
+    expect(
+      calculatePoolPortfolio({ ...input, positions, deposits: [deposit("Mint", PoolTransactionStatus.REFUND)] })
+        .entries[0],
+    ).toMatchObject({
+      depositedToken: 0n,
+      currentDepositToken: 0n,
+      refundedToken: 5n * wei,
+    });
+    expect(
+      calculatePoolPortfolio({ ...input, gaps: [{ source: "deposits", reason: "truncated" }] }).entries[0],
+    ).toMatchObject({
+      depositHistory: null,
+      currentDepositToken: null,
+      refundableToken: null,
+    });
+  });
+  it.each([true, false])(
+    "keeps a failed profit unknown despite cached profit or an inferred empty position (%s)",
+    (cached) => {
+      const result = calculatePoolPortfolio({
+        listed: [{ ...market(), userDeposit: 0n }],
+        nonListed: [],
+        deposits: [],
+        reward: 0n,
+        positions: cached ? [{ tokenContractAddress: "Mint", depositChain: 0, detail: null, profit }] : [],
+        gaps: [{ source: "profit", tokenContractAddress: "Mint", reason: "failed" }],
+      });
+      expect(result).toMatchObject({ totalBalanceUsd: null, claimableRewardUsd: null, claimedRewardUsd: null });
+      expect(result.entries[0]).toMatchObject({ totalLp: null, balanceUsd: null, claimableReward: null });
+    },
+  );
   it("retains catalog and complete history while separating partial values from complete totals", () => {
     const listed = market();
     const result = calculatePoolPortfolio({

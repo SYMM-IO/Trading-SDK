@@ -122,3 +122,29 @@ Verification used Node 24.16.0 and pnpm 10.10.0 in the isolated update checkout:
 `pnpm verify-packages` also passed: all package tarballs passed publint/attw, and a fresh consumer passed strict NodeNext typechecking and runtime imports of all entrypoints.
 
 The React suite emitted the existing mocked-network 503 and happy-dom teardown messages and exited successfully. The docs build emitted existing nested-worktree root and Git timestamp warnings. Live authenticated backend reproduction, publication and downstream published-release verification remain separate delivery steps.
+
+## Comprehensive post-merge review — 2026-10-27
+
+Reviewed PR head `cd7bc3a4bd531c6bcdb4496e7e162855ea68afd1` against main `d0ecf9dc7516b723730665f92e5b3d4025c0af70`, including P30, the merged pool-detail changes, authentication, normalized read contracts, grouped calculations, shared query composition, write passthrough, history snapshots, documentation and package exports.
+
+Found and resolved:
+
+| Finding                                                                                                                                   | Resolution and regression coverage                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Catalog-only deposits changed `depositedToken` after the position projection, leaving current deposit, USD and refundable fields at zero. | Seed the existing history projection from successful profit, then catalog amounts when complete history has no rows for that pool. Cover listed and non-listed pools, real refund-history precedence and incomplete-history nulls. |
+| A failed React profit refresh retained cached profit, so the portfolio could still report complete numeric balance/reward totals.         | A failed per-pool profit gap makes the profit unknown, including inferred zero positions. Cover cached and empty snapshots plus React success → failure → recovery, retaining unrelated refund history.                            |
+| Core queued requests continued submitting after a portfolio call had rejected with 401/403.                                               | Stop queued reads and retries within that call after authentication fails. Cover 401, 403, authentication failure during a retry and a fresh independent call. Already active requests may finish.                                 |
+| A zero mark was treated as missing; partial quotes without a side silently became long positions.                                         | Accept finite nonnegative marks. Require an explicit valid side for directional PnL and account/quote-lock liquidation. Cover zero marks for both sides and a missing side with otherwise usable balance/value inputs.             |
+
+The initial focused core run reproduced eight failing assertions across these cases before the fixes. No new public exports, cache layers or dependencies were added. Reference documentation and a release changeset describe the corrected behavior.
+
+Final verification uses Node 24.16.0 and pnpm 10.10.0:
+
+- Full core suite: **3,706 tests passed in 516 files**.
+- Full React suite: **947 tests passed in 220 files**. Existing mocked-network 503 and happy-dom teardown diagnostics remain; the suite exited successfully.
+- Workspace lint and typechecks: **26 tasks passed**, including package builds and the docs production build with 346 indexed pages.
+- React Doctor 0.4.2 against `origin/main`: **zero errors or warnings**, with scoring and telemetry disabled.
+- `pnpm verify-packages`: **passed** for all package tarballs, publint/attw, a fresh consumer installation, strict NodeNext typechecking and runtime imports of every entrypoint.
+- Changed-file Prettier and Git whitespace checks: **passed**.
+
+This review does not claim live backend, wallet-transfer or downstream published-release verification. The original dirty SDK compatibility checkout and companion app checkout remain untouched. On the reviewed starting commit, GitHub Actions lint/types/build/test/coverage, package verification and package-preview publication all passed; Vercel project checks reported missing deployment permission.

@@ -151,6 +151,31 @@ describe("portfolio hook composition", () => {
     expect(reads.detail).toHaveBeenCalledTimes(2);
   });
 
+  it("marks cached profit unknown after a failed refresh and restores it on recovery", async () => {
+    const { params, queryClient } = setup();
+    const { result } = renderHookWithProviders(() => usePoolPortfolio(params), { queryClient });
+    await waitFor(() => expect(result.current.data?.totalBalanceUsd).toBe(2));
+    reads.profit.mockRejectedValue(failure(500));
+    await act(async () => {
+      await result.current.refetch();
+    });
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.data).toMatchObject({
+      totalBalanceUsd: null,
+      claimableRewardUsd: null,
+      claimedRewardUsd: null,
+    });
+    expect(result.current.data?.entries.find((row) => row.tokenContractAddress === "Refunded")?.fullyRefunded).toBe(
+      true,
+    );
+    reads.profit.mockResolvedValue(profit);
+    await act(async () => {
+      await result.current.refetch();
+    });
+    await waitFor(() => expect(result.current.data?.totalBalanceUsd).toBe(2));
+    expect(result.current.error).toBeNull();
+  });
+
   it.each([500, 429, 401, 403])("preserves failure %s, with only non-auth failures retried", async (status) => {
     reads.profit.mockRejectedValue(failure(status));
     const { params, queryClient } = setup();

@@ -24,6 +24,32 @@ const balance = {
   pendingLockedLF: wei,
 } as AccountBalanceInfo;
 describe("composed open positions", () => {
+  it.each([0, 1])("values an explicit zero mark for side %s", (positionType) => {
+    expect(
+      calculatePoolOpenPositions({ quotes: [{ ...quote, positionType }], balances: {}, priceUsd: 0 }).entries[0],
+    ).toMatchObject({
+      positionValueUsd: 0,
+      upnlUsd: positionType === 0 ? -6 : 6,
+      priceChangePercent: positionType === 0 ? -100 : 100,
+    });
+  });
+  it("does not invent a side for a partial quote", () => {
+    const partial = { ...quote, positionType: undefined };
+    expect(
+      calculatePoolOpenPositions({
+        quotes: [partial],
+        balances: { "0xabc": balance },
+        priceUsd: 3,
+        allowQuoteLockEstimate: true,
+      }).entries[0],
+    ).toMatchObject({
+      positionValueUsd: 9,
+      upnlUsd: null,
+      priceChangePercent: null,
+      liquidationPrice: null,
+      liquidationSource: null,
+    });
+  });
   it("preserves fractional notional percentages before presentation rounding", () => {
     const row = calculatePoolOpenPositions({
       quotes: [{ ...quote, openedPrice: 2800000000000000n }],

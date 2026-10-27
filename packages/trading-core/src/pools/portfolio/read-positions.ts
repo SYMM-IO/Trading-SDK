@@ -4,6 +4,7 @@ import { readOptional, type PoolReadGap } from "../composition";
 export function createPositionReader(gaps: PoolReadGap[]) {
   let active = 0;
   const waiting: (() => void)[] = [];
+  let authenticationError: unknown;
   return async function readPosition<T>(read: () => Promise<T>, source: string, address: string): Promise<T | null> {
     if (active >= 5) await new Promise<void>((resolve) => waiting.push(resolve));
     else active++;
@@ -11,6 +12,7 @@ export function createPositionReader(gaps: PoolReadGap[]) {
       return await readOptional(
         async () => {
           try {
+            if (authenticationError) throw authenticationError;
             return await read();
           } catch (error) {
             if (
@@ -18,9 +20,23 @@ export function createPositionReader(gaps: PoolReadGap[]) {
               typeof error === "object" &&
               "status" in error &&
               (error.status === 401 || error.status === 403)
-            )
+            ) {
+              authenticationError = error;
               throw error;
-            return read();
+            }
+            if (authenticationError) throw authenticationError;
+            try {
+              return await read();
+            } catch (retryError) {
+              if (
+                retryError &&
+                typeof retryError === "object" &&
+                "status" in retryError &&
+                (retryError.status === 401 || retryError.status === 403)
+              )
+                authenticationError = retryError;
+              throw retryError;
+            }
           }
         },
         gaps,

@@ -115,20 +115,30 @@ export function calculatePoolPortfolio(input: CalculatePoolPortfolioParameters):
     const hasDeposit = (market?.userDeposit ?? 0n) > 0n || (groups.get(id) ?? []).some((row) => row.amount > 0n);
     const noPosition =
       (market != null && market.marketStatus !== ListingMarketStatus.LISTED) || (depositsComplete && !hasDeposit);
+    const positionGaps = gaps.filter(
+      (gap) => gap.tokenContractAddress != null && key(gap.tokenContractAddress, identity.chain) === id,
+    );
+    // React retains cached data after a failed refetch. A failed snapshot cannot establish a known stake.
+    const profitFailed = positionGaps.some((gap) => gap.source === "profit" && gap.reason === "failed");
+    const profit = profitFailed ? null : (source?.profit ?? (noPosition ? emptyPoolProfit() : null));
+    const deposited = (profitFailed ? undefined : source?.profit?.userDepositedTokenAmount) ?? market?.userDeposit;
     const position = calculatePoolPosition({
       tokenContractAddress: identity.address,
       depositChain: identity.chain,
       detail: source?.detail ?? null,
-      profit: source?.profit ?? (noPosition ? emptyPoolProfit() : null),
+      profit,
       userSharePercentage: market?.userSharePercentage,
       deposits: input.deposits == null ? null : (groups.get(id) ?? []),
       depositsComplete: !gaps.some((gap) => gap.source === "deposits"),
+      // Seed the projection, so every derived amount uses the same authoritative fallback.
+      depositHistory:
+        depositsComplete && !groups.has(id) && deposited != null
+          ? { pending: 0n, transferred: 0n, success: deposited, rejected: 0n, refund: 0n }
+          : undefined,
       priceUsd: price?.priceUsd,
-      gaps: gaps.filter((gap) => gap.tokenContractAddress === identity.address),
+      gaps: positionGaps,
     });
-    if (!groups.has(id))
-      position.depositedToken =
-        source?.profit?.userDepositedTokenAmount ?? market?.userDeposit ?? position.depositedToken;
+    if (!groups.has(id)) position.depositedToken = deposited ?? position.depositedToken;
     return {
       ...position,
       tokenContractAddress: identity.address,

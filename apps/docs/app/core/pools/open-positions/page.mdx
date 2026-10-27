@@ -21,6 +21,8 @@ An explicitly reported leverage wins. When it is absent, the pool table retains 
 
 Unknown marks produce null PnL and position value. `entryValueUsd` separately values the remaining quantity at its entry price. By default, a missing balance, incomplete book or mixed-side account produces null liquidationPrice. This pool-level estimate assumes the account's positions are isolated to this market; it is not a general cross-market account risk calculation.
 
+An explicit zero mark is a known price: remaining position value is zero and directional PnL is still calculated. A partial quote without a valid long/short side keeps PnL, directional percentage and both liquidation estimates null; its non-directional value can still be calculated.
+
 Set `allowQuoteLockEstimate: true` on the calculator, read or hook to retain the historical quote-lock fallback. `liquidationSource` identifies `"account"`, `"quote-lock"`, or null. A valid live-account result always wins. The fallback uses initial party-A maintenance margin per original token quantity; if absent, it uses entry price and inferred leverage. Long prices are clamped at zero. It never constructs a fictitious account balance and is not an account-wide liquidation guarantee.
 
 ## Projection and queries
