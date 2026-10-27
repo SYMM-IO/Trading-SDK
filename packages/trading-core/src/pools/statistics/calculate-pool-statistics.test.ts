@@ -19,8 +19,8 @@ function detail(): ListingMarketDetail {
 const sources = { detail: null, pending: null, rewards: null, notionalCap: null, marketInfo: null };
 describe("composed statistics", () => {
   it("accepts source reads unchanged and preserves independent source precedence", () => {
-    expectTypeOf<CalculatePoolStatisticsParameters["detail"]>().toEqualTypeOf<ListingMarketDetail | null>();
-    expectTypeOf<CalculatePoolStatisticsParameters["pending"]>().toEqualTypeOf<readonly PoolTransaction[] | null>();
+    expectTypeOf<ListingMarketDetail | null>().toExtend<CalculatePoolStatisticsParameters["detail"]>();
+    expectTypeOf<readonly PoolTransaction[] | null>().toExtend<CalculatePoolStatisticsParameters["pending"]>();
     const result = calculatePoolStatistics({
       ...sources,
       scope: "user",

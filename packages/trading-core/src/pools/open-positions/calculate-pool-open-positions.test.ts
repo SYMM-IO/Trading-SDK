@@ -24,6 +24,37 @@ const balance = {
   pendingLockedLF: wei,
 } as AccountBalanceInfo;
 describe("composed open positions", () => {
+  it("preserves fractional notional percentages before presentation rounding", () => {
+    const row = calculatePoolOpenPositions({
+      quotes: [{ ...quote, openedPrice: 2800000000000000n }],
+      balances: {},
+      priceUsd: 0.0027,
+    }).entries[0]!;
+    expect(row.priceChangePercent).toBeCloseTo(-3.57142857142857, 10);
+  });
+  it("labels opt-in lock estimates and retains live account precedence", () => {
+    const sources = { quotes: [quote], balances: {}, allowQuoteLockEstimate: true };
+    expect(calculatePoolOpenPositions(sources).entries[0]).toMatchObject({
+      liquidationPrice: wei,
+      liquidationSource: "quote-lock",
+      entryValueUsd: 6,
+    });
+    expect(calculatePoolOpenPositions({ ...sources, balances: { "0xabc": balance } }).entries[0]).toMatchObject({
+      liquidationPrice: (5n * wei) / 3n,
+      liquidationSource: "account",
+    });
+    expect(
+      calculatePoolOpenPositions({ ...sources, quotes: [{ ...quote, positionType: 1 }] }).entries[0]?.liquidationPrice,
+    ).toBe(3n * wei);
+    expect(
+      calculatePoolOpenPositions({ ...sources, quotes: [{ ...quote, initialPartyAmm: 0n }] }).entries[0]
+        ?.liquidationPrice,
+    ).toBe(wei);
+    expect(
+      calculatePoolOpenPositions({ quotes: [{ timestamp: 123 }], balances: {}, allowQuoteLockEstimate: true })
+        .entries[0],
+    ).toMatchObject({ liquidationPrice: null, liquidationSource: null, openedAt: 123, remainingQuantity: null });
+  });
   it("retains the pool table's leverage inference and timestamp precedence", () => {
     const row = calculatePoolOpenPositions({
       quotes: [
@@ -47,9 +78,9 @@ describe("composed open positions", () => {
     expect(fallback.leverageMultiplier).toBe(2);
   });
   it("accepts normalized bigint quotes and preserves the unleveraged table percentage", () => {
-    expectTypeOf<CalculatePoolOpenPositionsParameters["quotes"]>().toEqualTypeOf<readonly PoolQuote[]>();
-    expectTypeOf<CalculatePoolOpenPositionsParameters["balances"]>().toEqualTypeOf<
-      Readonly<Record<string, AccountBalanceInfo | null>>
+    expectTypeOf<readonly PoolQuote[]>().toExtend<CalculatePoolOpenPositionsParameters["quotes"]>();
+    expectTypeOf<Readonly<Record<string, AccountBalanceInfo | null>>>().toExtend<
+      CalculatePoolOpenPositionsParameters["balances"]
     >();
     const row = calculatePoolOpenPositions({ quotes: [quote], balances: { "0xabc": balance }, priceUsd: 2.5 })
       .entries[0]!;

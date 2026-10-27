@@ -19,11 +19,15 @@ priceChangePercent is the **unleveraged directional price move**, preserving the
 
 An explicitly reported leverage wins. When it is absent, the pool table retains its legacy integer inference: use `100 × initialLf / initialMargin` when LF is known and positive; otherwise use the shared leverage primitive for settled/requested price candidates and choose the candidate closest to an integer before rounding. Missing margin inputs produce null. `openedAt` uses the first positive open, send, or quote timestamp.
 
-Unknown marks produce null PnL and position value. A missing balance, incomplete book or mixed-side account produces null liquidationPrice instead of a fabricated estimate. This pool-level estimate assumes the account's positions are isolated to this market; it is not a general cross-market account risk calculation.
+Unknown marks produce null PnL and position value. `entryValueUsd` separately values the remaining quantity at its entry price. By default, a missing balance, incomplete book or mixed-side account produces null liquidationPrice. This pool-level estimate assumes the account's positions are isolated to this market; it is not a general cross-market account risk calculation.
+
+Set `allowQuoteLockEstimate: true` on the calculator, read or hook to retain the historical quote-lock fallback. `liquidationSource` identifies `"account"`, `"quote-lock"`, or null. A valid live-account result always wins. The fallback uses initial party-A maintenance margin per original token quantity; if absent, it uses entry price and inferred leverage. Long prices are clamped at zero. It never constructs a fictitious account balance and is not an account-wide liquidation guarantee.
 
 ## Projection and queries
 
 `calculatePoolOpenPositions(input: CalculatePoolOpenPositionsParameters)` accepts PoolQuote[] and normalized AccountBalanceInfo by lowercase account address, plus price, completeness and gaps. `getPoolOpenPositionsQueryOptions(config, options: GetPoolOpenPositionsOptions)` and `getPoolOpenPositionsQueryKey` supply the core query contract.
+
+The pure calculator also accepts partial normalized quote snapshots and preserves their input fields. Missing calculation inputs produce null metrics. Network reads continue returning complete normalized quotes. Compute the full quote set before consumer pagination so live account calculations include all known positions.
 
 ## Units and ownership
 

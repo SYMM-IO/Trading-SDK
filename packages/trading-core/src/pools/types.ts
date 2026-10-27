@@ -249,8 +249,8 @@ export interface ListingMarketPage {
 export interface UserListingMarket extends ListingMarket {
   /** The user's current deposit into this pool, in USD (18-dec bigint). `null` when the deposit address exists but nothing has been deposited yet. */
   userDeposit: bigint | null;
-  /** The user's share of the pool, as a percentage number (not 18-dec scaled). */
-  userSharePercentage: number;
+  /** The user's share in whole percent (not 18-dec scaled); null when absent or non-finite. */
+  userSharePercentage: number | null;
   /** The user's accrued revenue from this pool, in USD (18-dec bigint), or `null` when absent. */
   userRevenue: bigint | null;
 }

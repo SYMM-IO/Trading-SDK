@@ -64,3 +64,33 @@ The self-review covers the entire incremental diff against target `d22a3eb`, inc
 The reviewed content is the complete 24-file incremental tree carried by this merge commit, relative to `d22a3eb`; the final commit SHA is recorded in the PR description. The review report itself is the only content added after execution of the code checks. No dependency manifests or lockfiles changed. Release blockers remain parent review/merge, compatible publication, downstream app migration and published-mode/stage verification.
 
 No merge of the PR, publication, deployment, app dependency change or live wallet transaction is authorized or performed by this response.
+
+## Consumer compatibility follow-up — 2026-10-27
+
+The user subsequently requested adapting app PR #686 and explicitly approved compatibility extensions to the existing position, portfolio, statistics and open-position groups. The previous section describes the earlier SDK-only delivery; this follow-up includes the coordinated app adaptation.
+
+The app's inherited parent still used APIs removed by the grouped redesign. Actual consumer regression tests demonstrated missing backend ownership precedence, complete deposit/refund buckets, catalog metadata, historical reward totals, statistics fallbacks and quote-lock liquidation estimates. The implementation extends the existing groups rather than restoring scalar exports or mounting additional aggregate reads.
+
+| Group          | Addition and preserved behavior                                                                                                                                                                                                    | Alternative rejected                                                                                |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Position       | Partial normalized cached snapshots; complete deposit-history buckets and current/uncredited/refundable valuations; explicit ledger percentage before same-profit USDC ratio; unknown metadata when scoped snapshots omit identity | Fabricating profit/detail/identity fields, or duplicating LP/refund arithmetic in the app           |
+| Portfolio      | Original catalog metadata and complete history on entries; known-value totals distinct from completeness-gated totals; historical lifetime reward ledger separate from active-entry rewards                                        | Extra per-pool reads, discarding catalog fields, or assembling monetary totals in UI                |
+| Statistics     | Explicit ownership, normalized partial sources, rate/reward/config fallbacks, pending totals and balance valuations                                                                                                                | Reintroducing standalone selectors or changing source precedence and zero/unknown behavior          |
+| Open positions | Entry-value fallback and opt-in quote-lock liquidation with explicit source; live account result wins; unrounded notional percentage                                                                                               | Fictitious account collateral, silently losing historical fallback, or rounding before presentation |
+
+Network identities/authentication remain required. Partial snapshots are a pure-calculator input only. No new hooks, dependencies, caches or requests were added. The app retains third-party enrichment, query-key ownership, optimistic operation bookkeeping, deposit estimates and ordered running sums under the parent's approved boundary. Shared SDK write hooks and the explicitly approved targeted-refresh exception remain in use.
+
+Review found and fixed two further compatibility issues: the existing uPNL percentage helper rounded the pool table's notional percentage too early, and historical reward rows must not replace active-position claimable totals. The pool projection now exposes the unrounded percentage, and historical reward inputs affect lifetime rewards only. Shared uPNL arithmetic also preserves one-wei price differences before converting at presentation. Two partial-close rows retain distinct event keys, quantities, prices and allocated opening fees in the app.
+
+Verification for this follow-up is recorded below and supersedes earlier app-compatibility limitations only where explicitly tested. Published readiness and real-wallet settlement remain unverified.
+
+### Follow-up verification (2026-10-27)
+
+The approved compatibility extensions were reviewed across the full incremental diff against `d22a3eb05b2304a6a866ec3af09705901f0c72d9`, including every app consumer, public type, React pass-through, documentation example and packed consumer. Confirmed findings fixed: preserve unrounded position price-change percentages; subtract/multiply raw uPnL inputs before numeric conversion; keep lifetime reward ledgers separate from active claimable totals; and preserve absent/non-finite backend LP share as unknown while retaining explicit zero.
+
+- Full core: 498 files / 3,565 tests passed; final affected suites: 103 files / 572 tests passed. The subsequently added catalogue missing-share case passed with its seven-test suite.
+- Full React: 211 files / 923 tests passed. An initial filesystem-scan timeout passed on rerun with a 30-second test budget. Existing happy-dom teardown diagnostics remain visible in the successful run.
+- Core and React typechecks, lint, builds, documentation production build, and `pnpm verify-packages` passed. Packed verification includes publint, attw, a fresh external consumer, NodeNext typing and runtime entrypoints.
+- App integration uses these projections in PR #686; its own final results and release blockers belong in that PR and its Pools integration record.
+
+This is a self-review; independent review was not run. No unresolved actionable findings remain in the reviewed SDK changes. Publication, live settlement QA and published-mode app readiness are not established by local linking. No parent branch was changed.

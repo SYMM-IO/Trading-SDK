@@ -9,7 +9,7 @@ import { calculatePoolOpenPositions, type PoolOpenPositions } from "./calculate-
 export type GetPoolOpenPositionsParameters = Pick<
   GetPoolQuotesParameters,
   "chainId" | "symbolId" | "orderDirection"
-> & { priceUsd?: number };
+> & { priceUsd?: number; allowQuoteLockEstimate?: boolean };
 /** Result of getPoolOpenPositions. */
 export type GetPoolOpenPositionsReturnType = PoolOpenPositions;
 
@@ -59,6 +59,7 @@ export async function getPoolOpenPositions(
     quotes,
     balances,
     priceUsd: parameters.priceUsd,
+    allowQuoteLockEstimate: parameters.allowQuoteLockEstimate,
     complete: !gaps.some((gap) => gap.source === "quotes"),
     gaps,
   });

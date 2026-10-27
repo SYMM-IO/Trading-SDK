@@ -103,9 +103,10 @@ A `UserListingMarket` extends [`ListingMarket`](/core/pools/listing-market-type)
     The user's current deposit into this pool, in USD as a `bigint` at `LISTING_VALUE_DECIMALS` (18). `null` when the
     deposit address exists but nothing has been deposited yet — **`null` is not `0`**; render it as a dash.
   </Property>
-  <Property name="userSharePercentage" type="number">
-    The user's share of the pool, as a plain percentage `number` (`12.5` means `12.5%`) — **not** 18-decimal scaled and
-    not a ratio. Format it directly, without `formatUnits`.
+  <Property name="userSharePercentage" type="number | null">
+    Null when the backend percentage is absent or non-finite; explicit zero remains zero. The user's share of the pool,
+    as a plain percentage `number` (`12.5` means `12.5%`) — **not** 18-decimal scaled and not a ratio. Format it
+    directly, without `formatUnits`.
   </Property>
   <Property name="userRevenue" type="bigint | null">
     The user's accrued revenue from this pool, in USD as a `bigint` at `LISTING_VALUE_DECIMALS` (18), or `null` when the

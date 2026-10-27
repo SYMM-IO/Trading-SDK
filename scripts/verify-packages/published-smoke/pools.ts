@@ -16,6 +16,7 @@ import {
   getPoolTradeHistory,
   type Config,
   type ListingMarketDetail,
+  type PoolDepositHistory,
   type PoolQuote,
   type PoolQuoteBookEntry,
   type PoolTradeHistoryRow,
@@ -37,6 +38,30 @@ export function reads(config: Config, accessToken: string, userAddress: string) 
     getPoolStatistics(config, { ...pool, scope: "user" }),
     getPoolOpenPositions(config, { chainId: 42161, symbolId: 1, priceUsd: 2 }),
   ];
+}
+
+export function cachedSnapshots(depositHistory: PoolDepositHistory) {
+  const position = calculatePoolPosition({
+    detail: null,
+    profit: { userBalanceInUsdc: 1n },
+    deposits: null,
+    depositHistory,
+    userSharePercentage: 3.2,
+  });
+  const lifecycle: bigint | null = position.currentDepositToken;
+  const portfolio = calculatePoolPortfolio({
+    listed: [],
+    nonListed: [],
+    positions: [],
+    deposits: null,
+    reward: null,
+    rewardPositions: [{ claimed: 1n, claimable: 2n }],
+  });
+  const known: number = portfolio.knownBalanceUsd;
+  const quote = calculatePoolOpenPositions({ quotes: [{ timestamp: 1 }], balances: {}, allowQuoteLockEstimate: true })
+    .entries[0];
+  const source: "account" | "quote-lock" | null | undefined = quote?.liquidationSource;
+  return { lifecycle, known, source };
 }
 export function projections(
   detail: ListingMarketDetail,

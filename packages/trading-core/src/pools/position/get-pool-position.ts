@@ -16,6 +16,8 @@ export type GetPoolPositionParameters = GetListingMarketDetailParameters & {
   priceUsd?: number;
   /** Optional integer percentage (0–100) for the position's exact withdrawal preview. */
   withdrawalPercent?: number;
+  /** Existing catalog LP-ledger ownership, in whole percent. No extra catalog request is made. */
+  userSharePercentage?: number | null;
 };
 /** Result of getPoolPosition. */
 export type GetPoolPositionReturnType = PoolPositionData;

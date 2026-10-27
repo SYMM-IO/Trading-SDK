@@ -58,6 +58,36 @@ const profit: UserPoolProfit = {
 };
 
 describe("portfolio review regressions", () => {
+  it("retains catalog and complete history while separating partial values from complete totals", () => {
+    const listed = market();
+    const result = calculatePoolPortfolio({
+      listed: [listed],
+      nonListed: [],
+      deposits: [deposit()],
+      positions: [
+        {
+          tokenContractAddress: "Mint",
+          depositChain: 0,
+          detail: null,
+          profit: { ...profit, userBalanceInUsdc: 2n * wei },
+        },
+      ],
+      reward: null,
+      rewardPositions: [{ claimed: 7n * wei, claimable: 3n * wei }],
+    });
+    expect(result.entries[0]?.market).toBe(listed);
+    expect(result.entries[0]?.depositHistory?.success).toBe(5n * wei);
+    expect(result).toMatchObject({
+      knownBalanceUsd: 2,
+      knownDepositedUsd: 0,
+      totalDepositedUsd: null,
+      knownValueRoiPercent: null,
+      lifetimeRewardsUsd: 10,
+      claimableRewardUsd: 1,
+      claimedRewardUsd: 2,
+    });
+    expect(result.entries[0]?.valuationComplete).toBe(false);
+  });
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.catalog.mockResolvedValue({ items: [], total: 0 });

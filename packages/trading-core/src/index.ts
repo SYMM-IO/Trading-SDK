@@ -3067,7 +3067,7 @@ export {
 } from "./pools/open-positions";
 export type { PoolOpenPositions } from "./pools/open-positions";
 export type { PoolPortfolio, PoolPortfolioPosition, PoolPortfolioPrice } from "./pools/portfolio";
-export type { PoolPositionData } from "./pools/position";
+export type { PoolDepositHistory, PoolPositionData } from "./pools/position";
 export type { PoolStatistics } from "./pools/statistics";
 
 export {

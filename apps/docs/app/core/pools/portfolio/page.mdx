@@ -29,6 +29,12 @@ Incomplete catalog or deposit sources make whole-portfolio balance, deposit and 
 
 `calculatePoolPortfolio(input: CalculatePoolPortfolioParameters)` accepts SDK listed/nonListed rows, deposits, per-pool profit/detail snapshots, optional prices, a reward snapshot, and gaps unchanged. It returns the same PoolPortfolio; React uses this projection after observing the individual sources.
 
+Each entry retains its original normalized catalog as `market: UserListingMarket | null` and complete `depositHistory` buckets. Catalog ownership is passed to the position calculator. Profit snapshots may be partial; absent fields remain unknown.
+
+`knownBalanceUsd` and `knownDepositedUsd` sum the available values independently, and `knownValueRoiPercent` compares those partial totals (null without positive known deposits). They preserve partial-value displays but must not be labelled complete-portfolio totals. The existing `roiPercent` still uses a matched, fully priced subset.
+
+Optional `rewardPositions: readonly { claimed: bigint | null; claimable: bigint | null }[]` supplies a complete historical reward ledger, including fully withdrawn positions. It supplies `lifetimeRewardsUsd`; consumers may pass their existing optimistic projections. An unknown leg makes that lifetime total unknown. The existing claimed/claimable totals still describe the returned entries. Without a historical ledger, lifetime rewards sum the entries' claimed and claimable totals. No additional network request is introduced.
+
 `getPoolPortfolioQueryOptions(config, options: GetPoolPortfolioOptions)` and `getPoolPortfolioQueryKey` provide the core query contract. The key excludes accessToken and includes userAddress and deployment configuration.
 
 ## Units and ownership
