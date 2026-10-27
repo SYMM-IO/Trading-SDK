@@ -2090,6 +2090,16 @@ export {
 } from "./symmio-subgraph";
 
 /**
+ * Subgraph entity reads: shared paging
+ * ------------------------------------
+ * The entity reads (`getMarginTransfers`, `getLiquidationDetails`,
+ * `getSubgraphQuotes`, `getQuoteFundingSettlements`, `getFundingIndexCheckpoints`)
+ * take optional filters — each applied only when passed — plus these paging
+ * parameters, and return one {@link SubgraphPage} per call.
+ */
+export { SUBGRAPH_MAX_PAGE_SIZE, type SubgraphPage, type SubgraphPageParameters } from "./symmio-subgraph";
+
+/**
  * Quote history (subgraph)
  * ------------------------
  * `getQuoteHistory` reads a subaccount's closed/liquidated quotes from the
@@ -2140,6 +2150,7 @@ export {
   type GetQuoteEventsByTypeQueryOptions,
   type GetQuoteEventsByTypeReturnType,
   type QuoteEventRow,
+  type QuoteSubgraphEventType,
   type RawQuoteEventNode,
 } from "./quotes";
 
@@ -2196,6 +2207,106 @@ export {
   type QuoteFundingData,
   type RawQuoteFundingRow,
 } from "./quotes";
+
+/**
+ * Subgraph quotes
+ * ---------------
+ * `getSubgraphQuotes` reads the analytics subgraph's `Quote` entities as indexed
+ * (funding index, settled funding totals, lifecycle timestamps) — not the live
+ * on-chain struct, which `getQuote` reads.
+ */
+export {
+  getSubgraphQuotes,
+  getSubgraphQuotesQueryKey,
+  getSubgraphQuotesQueryOptions,
+  toSubgraphQuoteRow,
+  type GetSubgraphQuotesData,
+  type GetSubgraphQuotesOptions,
+  type GetSubgraphQuotesParameters,
+  type GetSubgraphQuotesQueryKey,
+  type GetSubgraphQuotesQueryOptions,
+  type GetSubgraphQuotesReturnType,
+  type RawSubgraphQuoteRow,
+  type SubgraphQuoteRow,
+} from "./quotes";
+
+/**
+ * Funding settlements and index checkpoints (subgraph)
+ * ----------------------------------------------------
+ * `getQuoteFundingSettlements` reads each funding settlement of a quote;
+ * `getFundingIndexCheckpoints` reads the funding-rate index of a market and
+ * PartyB over time. Together they are the raw inputs of a per-epoch funding
+ * timeline; building that timeline is the consumer's.
+ */
+export {
+  getFundingIndexCheckpoints,
+  getFundingIndexCheckpointsQueryKey,
+  getFundingIndexCheckpointsQueryOptions,
+  getQuoteFundingSettlements,
+  getQuoteFundingSettlementsQueryKey,
+  getQuoteFundingSettlementsQueryOptions,
+  toFundingIndexCheckpointRow,
+  toQuoteFundingSettlementRow,
+  type FundingIndexCheckpointRow,
+  type GetFundingIndexCheckpointsData,
+  type GetFundingIndexCheckpointsOptions,
+  type GetFundingIndexCheckpointsParameters,
+  type GetFundingIndexCheckpointsQueryKey,
+  type GetFundingIndexCheckpointsQueryOptions,
+  type GetFundingIndexCheckpointsReturnType,
+  type GetQuoteFundingSettlementsData,
+  type GetQuoteFundingSettlementsOptions,
+  type GetQuoteFundingSettlementsParameters,
+  type GetQuoteFundingSettlementsQueryKey,
+  type GetQuoteFundingSettlementsQueryOptions,
+  type GetQuoteFundingSettlementsReturnType,
+  type QuoteFundingSettlementRow,
+  type RawFundingIndexCheckpointRow,
+  type RawQuoteFundingSettlementRow,
+} from "./funding";
+
+/**
+ * Margin transfers (subgraph)
+ * ---------------------------
+ * `getMarginTransfers` reads margin moved between a SubAccount and its Virtual
+ * Accounts, typed by {@link MarginTransferType} (exported with balance history),
+ * filterable by transaction, account, deployment and time.
+ */
+export {
+  getMarginTransfers,
+  getMarginTransfersQueryKey,
+  getMarginTransfersQueryOptions,
+  toMarginTransferRow,
+  type GetMarginTransfersData,
+  type GetMarginTransfersOptions,
+  type GetMarginTransfersParameters,
+  type GetMarginTransfersQueryKey,
+  type GetMarginTransfersQueryOptions,
+  type GetMarginTransfersReturnType,
+  type MarginTransferRow,
+  type RawMarginTransferRow,
+} from "./margin";
+
+/**
+ * Liquidation details (subgraph)
+ * ------------------------------
+ * `getLiquidationDetails` reads one entity per PartyA liquidation: locked and
+ * paid CVA/LF and the per-PartyB settlement amounts.
+ */
+export {
+  getLiquidationDetails,
+  getLiquidationDetailsQueryKey,
+  getLiquidationDetailsQueryOptions,
+  toLiquidationDetailRow,
+  type GetLiquidationDetailsData,
+  type GetLiquidationDetailsOptions,
+  type GetLiquidationDetailsParameters,
+  type GetLiquidationDetailsQueryKey,
+  type GetLiquidationDetailsQueryOptions,
+  type GetLiquidationDetailsReturnType,
+  type LiquidationDetailRow,
+  type RawLiquidationDetailRow,
+} from "./liquidation";
 
 /**
  * Quote pending funding (on-chain)

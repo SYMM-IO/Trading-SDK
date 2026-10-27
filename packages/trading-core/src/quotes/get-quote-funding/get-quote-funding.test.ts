@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { PublicClient } from "viem";
+import { getAddress, type PublicClient } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
 import { createConfig } from "../../core/config";
@@ -19,7 +19,7 @@ const config = createConfig({
 /** The GraphQL POST body the subgraph transport sends for `QuotesFunding`. */
 interface FundingRequestBody {
   query: string;
-  variables: { ids: string[]; first: number };
+  variables: { where: { quoteId_in: string[]; source?: string }; first: number };
 }
 
 function fundingRow(quoteId: string, paid: string | null, received: string | null): RawQuoteFundingRow {
@@ -31,9 +31,10 @@ function mockQuotes(quotes: RawQuoteFundingRow[]) {
   return vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { quotes } } });
 }
 
-/** Read the `QuotesFunding` variables out of one recorded `axios.post` call. */
-function requestVariables(call: unknown[]): FundingRequestBody["variables"] {
-  return (call[1] as FundingRequestBody).variables;
+/** Read the `QuotesFunding` variables out of one recorded `axios.post` call, ids flattened. */
+function requestVariables(call: unknown[]): { ids: string[]; first: number; source?: string } {
+  const { where, first } = (call[1] as FundingRequestBody).variables;
+  return { ids: where.quoteId_in, first, source: where.source };
 }
 
 /** `count` consecutive quote ids, so a batch can exceed the per-request ceiling. */
@@ -48,8 +49,8 @@ function makeQuoteIds(count: number, start = 7000n): bigint[] {
  */
 function mockPagedQuotes(omitted: ReadonlySet<string> = new Set()) {
   return vi.spyOn(axios, "post").mockImplementation(async (_url: string, body?: unknown) => {
-    const { ids, first } = (body as FundingRequestBody).variables;
-    const quotes = ids
+    const { where, first } = (body as FundingRequestBody).variables;
+    const quotes = where.quoteId_in
       .filter((id) => !omitted.has(id))
       .slice(0, first)
       .map((id) => fundingRow(id, "1000000000000000000", "0"));
@@ -78,7 +79,7 @@ describe("getQuoteFunding", () => {
     const [url, body] = post.mock.calls[0]! as [string, FundingRequestBody];
     expect(url).toBe(ANALYTICS_URL);
     expect(body.query).toContain("QuotesFunding");
-    expect(body.variables).toEqual({ ids: ["7334"], first: QUOTES_FUNDING_MAX_IDS_PER_REQUEST });
+    expect(body.variables).toEqual({ where: { quoteId_in: ["7334"] }, first: QUOTES_FUNDING_MAX_IDS_PER_REQUEST });
 
     expect(result.rows).toEqual([
       {
@@ -162,8 +163,8 @@ describe("getQuoteFunding", () => {
       maxInFlight = Math.max(maxInFlight, inFlight);
       await Promise.resolve();
       inFlight -= 1;
-      const { ids } = (body as FundingRequestBody).variables;
-      return { data: { data: { quotes: ids.map((id) => fundingRow(id, "0", "0")) } } };
+      const { where } = (body as FundingRequestBody).variables;
+      return { data: { data: { quotes: where.quoteId_in.map((id) => fundingRow(id, "0", "0")) } } };
     });
 
     await getQuoteFunding(config, { quoteIds: makeQuoteIds(QUOTES_FUNDING_MAX_IDS_PER_REQUEST * 3) });
@@ -181,5 +182,17 @@ describe("getQuoteFunding", () => {
     expect(post).toHaveBeenCalledTimes(2);
     expect(result.missingQuoteIds).toEqual(missing);
     expect(result.rows).toHaveLength(quoteIds.length - missing.length);
+  });
+
+  it("filters by the lowercased diamond on every chunk only when a source is passed", async () => {
+    const post = mockPagedQuotes();
+    const diamond = getAddress("0x8a0ed5b4cec4b0c4e1f7c8d9e3a2b1f0c9d8e7f6");
+
+    await getQuoteFunding(config, { quoteIds: makeQuoteIds(QUOTES_FUNDING_MAX_IDS_PER_REQUEST + 1), source: diamond });
+    await getQuoteFunding(config, { quoteIds: [7334n] });
+
+    const sources = post.mock.calls.map((call) => requestVariables(call).source);
+    expect(sources).toEqual([diamond.toLowerCase(), diamond.toLowerCase(), undefined]);
+    expect((post.mock.calls[2]![1] as FundingRequestBody).variables.where).not.toHaveProperty("source");
   });
 });

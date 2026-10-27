@@ -3,24 +3,29 @@ import type { Config } from "../../core/config";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { SubAccountIsolationType } from "../../symmio-contracts/account-layer/types";
 import { querySubgraph } from "../../symmio-subgraph/query-subgraph";
-import type { QuoteEventsForHistoryQuery } from "../../symmio-subgraph/types/generated/analytics/graphql";
+import { compactWhere, hasEmptyListFilter, lowercaseList, stringList } from "../../symmio-subgraph/subgraph-filters";
+import type { Quote_Filter, QuoteEvent_Filter } from "../../symmio-subgraph/types/generated/analytics/graphql";
 import { closeTypeToEventTypes } from "./close-type";
 import { QuoteEventsForHistoryDocument } from "./query-document";
 import { toQuoteHistoryRow } from "./to-history-row";
 import { QuoteCloseType, type QuoteHistoryRow } from "./types";
 
 /**
- * The history query to run for a subaccount's isolation type. Cross-margin
- * (`CUSTOM`) quotes carry **no** `subAccount` on the subgraph, so they must be
- * filtered by `partyA` (which equals the subaccount address); VA isolation
- * (`MARKET` / `MARKET_DIRECTION`) filters by the quote's `subAccount`. The `partyA`
- * variant is derived from the canonical document by swapping its single filter
- * field, so both share one selection and one result type (the `$subAccounts`
- * variable simply feeds whichever field is active).
+ * The `quote_` filter for the requested accounts, deployment and markets.
+ * Cross-margin (`CUSTOM`) quotes carry **no** `subAccount` on the subgraph, so
+ * their accounts filter `partyA` (which equals the subaccount address); VA
+ * isolation (`MARKET` / `MARKET_DIRECTION`) filters the quote's `subAccount`.
+ * Each filter is present only when the caller passed it.
  */
-function historyDocumentFor(isolationType: SubAccountIsolationType | undefined): string {
-  const document = QuoteEventsForHistoryDocument.toString();
-  return isolationType === SubAccountIsolationType.CUSTOM ? document.replace("subAccount_in", "partyA_in") : document;
+function quoteFilterFor(parameters: GetQuoteHistoryParameters): Quote_Filter {
+  const accounts = lowercaseList(parameters.subAccounts);
+  const isCrossMargin = parameters.isolationType === SubAccountIsolationType.CUSTOM;
+  return compactWhere<Quote_Filter>({
+    subAccount_in: isCrossMargin ? undefined : accounts,
+    partyA_in: isCrossMargin ? accounts : undefined,
+    source: parameters.source?.toLowerCase(),
+    symbolId_in: stringList(parameters.marketIds),
+  });
 }
 
 /** Default page size when `first` is omitted. */
@@ -35,11 +40,12 @@ export type GetQuoteHistoryParameters = Compute<
   ChainIdParameter & {
     /**
      * The accounts whose history to read — a SubAccount and/or its Virtual
-     * Accounts. Pass every account that may own the relevant quotes. Required; an
-     * empty array reads nothing. All accounts in one call must share the
-     * `isolationType` below (they select the same filter field).
+     * Accounts. Pass every account that may own the relevant quotes. Omit to read
+     * every account's history; an empty array reads nothing. All accounts in one
+     * call must share the `isolationType` below (they select the same filter
+     * field).
      */
-    subAccounts: readonly Address[];
+    subAccounts?: readonly Address[];
     /**
      * The subaccount's isolation type, which picks the subgraph filter field:
      * `CUSTOM` (cross-margin) filters by `partyA` because those quotes carry no
@@ -47,6 +53,13 @@ export type GetQuoteHistoryParameters = Compute<
      * quote's `subAccount`. Omit for VA-isolation reads.
      */
     isolationType?: SubAccountIsolationType;
+    /**
+     * The deployment's diamond address (the subgraph's `source`). Omit to read
+     * every deployment the subgraph indexes.
+     */
+    source?: Address;
+    /** Market ids (`symbolId`) to read. Omit for every market; an empty array reads nothing. */
+    marketIds?: readonly number[];
     /** Close-type filter. @default QuoteCloseType.All */
     closeType?: QuoteCloseType;
     /** Page size. @default 50 */
@@ -74,11 +87,13 @@ export interface GetQuoteHistoryReturnType {
  *
  * Each row is one terminal event with its frozen `metadata` snapshot overlaid, so
  * a quote closed across multiple partial closes yields multiple, individually
- * accurate rows (see {@link "toQuoteHistoryRow"}). Filtering by close type, time
- * range, and pagination all happen server-side.
+ * accurate rows (see {@link "toQuoteHistoryRow"}). Filtering by account,
+ * deployment, market, close type, time range, and pagination all happen
+ * server-side. Account, deployment and market filters are optional and applied
+ * only when passed.
  *
  * @param config - The SDK config.
- * @param parameters - Accounts, optional close-type filter, pagination, time range, sort, chain id.
+ * @param parameters - Optional accounts, deployment, markets, close type, pagination, time range, sort, chain id.
  * @returns The history rows.
  * @throws {SymmError} when the chain is unsupported or has no analytics subgraph.
  * @throws {SymmApiError} when the subgraph request fails.
@@ -87,6 +102,7 @@ export interface GetQuoteHistoryReturnType {
  * ```ts
  * const { rows } = await getQuoteHistory(config, {
  *   subAccounts: ["0xsub…"],
+ *   source: "0xdiamond…",
  *   closeType: QuoteCloseType.Liquidated,
  *   first: 10,
  * });
@@ -99,7 +115,7 @@ export async function getQuoteHistory(
   const {
     chainId,
     subAccounts,
-    isolationType,
+    marketIds,
     closeType = QuoteCloseType.All,
     first = DEFAULT_PAGE_SIZE,
     skip = 0,
@@ -108,20 +124,20 @@ export async function getQuoteHistory(
     orderDirection = "desc",
   } = parameters;
 
-  if (subAccounts.length === 0) return { rows: [] };
+  if (hasEmptyListFilter(subAccounts, marketIds)) return { rows: [] };
 
-  const data = await querySubgraph<QuoteEventsForHistoryQuery>(config, {
+  const quoteFilter = quoteFilterFor(parameters);
+  const where = compactWhere<QuoteEvent_Filter>({
+    type_in: closeTypeToEventTypes[closeType] as string[],
+    timestamp_gte: startTime.toString(),
+    timestamp_lte: endTime.toString(),
+    quote_: Object.keys(quoteFilter).length > 0 ? quoteFilter : undefined,
+  });
+
+  const data = await querySubgraph(config, {
     chainId,
-    document: historyDocumentFor(isolationType),
-    variables: {
-      typeIn: closeTypeToEventTypes[closeType] as string[],
-      subAccounts: subAccounts.map((account) => account.toLowerCase()),
-      first,
-      skip,
-      orderDirection,
-      startDate: startTime.toString(),
-      endDate: endTime.toString(),
-    },
+    document: QuoteEventsForHistoryDocument,
+    variables: { where, first, skip, orderDirection },
   });
 
   return { rows: data.quoteEvents.map(toQuoteHistoryRow) };

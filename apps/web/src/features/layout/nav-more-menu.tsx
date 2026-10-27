@@ -16,6 +16,7 @@ import { useId, useState, type ReactElement, type SVGProps } from "react";
 /** Per-route glyphs for the secondary destinations, keyed by href. */
 const ICONS: Record<SecondaryNavHref, (props: SVGProps<SVGSVGElement>) => ReactElement> = {
   "/contracts": LayersIcon,
+  "/subgraph": SubgraphIcon,
   "/solvers": SolverIcon,
   "/price-service": PriceIcon,
   "/candles": CandlesIcon,
@@ -262,6 +263,26 @@ function KeyIcon(props: SVGProps<SVGSVGElement>) {
     >
       <circle cx="7.5" cy="15.5" r="4.5" />
       <path d="m10.8 12.2 9-9M16 6.5 19 9.5M18.5 4 21 6.5" />
+    </svg>
+  );
+}
+
+function SubgraphIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      <circle cx="6" cy="6" r="2.5" />
+      <circle cx="18" cy="9" r="2.5" />
+      <circle cx="9" cy="18" r="2.5" />
+      <path d="M8.4 6.8 15.6 8.2M16.6 11.1 10.6 16.1M6.7 8.4l1.6 7.2" />
     </svg>
   );
 }

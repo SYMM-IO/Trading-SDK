@@ -48,6 +48,8 @@ export enum MarginTransferType {
   Remove = "REMOVE",
   /** Margin automatically returned to the SubAccount (e.g. on close / deallocate). */
   AutoReturn = "AUTO_RETURN",
+  /** Margin recovered from a Virtual Account by the emergency path. */
+  EmergencyRecover = "EMERGENCY_RECOVER",
 }
 
 /**

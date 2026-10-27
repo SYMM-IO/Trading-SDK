@@ -19,6 +19,11 @@ import {
   useQuoteGroupFundingHistory,
   useDepositHistory,
   useWithdrawHistory,
+  useMarginTransfers,
+  useLiquidationDetails,
+  useSubgraphQuotes,
+  useQuoteFundingSettlements,
+  useFundingIndexCheckpoints,
 } from "@symmio/trading-react";
 ```
 
@@ -71,18 +76,18 @@ Filtered projections of the balance history for the two most common UI needs.
 
 ### `useQuoteHistory`
 
-Terminal (close / liquidation) events for a set of **accounts**, newest first. Keyed on `subAccounts` — not on a quote id — because the subgraph filters history by the quote's owning account. Pass the parent SubAccount and, when the positions are isolated, its Virtual Accounts.
+Terminal (close / liquidation) events for a set of **accounts**, newest first. Filtered by `subAccounts` — not by a quote id — because the subgraph filters history by the quote's owning account. Pass the parent SubAccount and, when the positions are isolated, its Virtual Accounts. Every account, deployment (`source`), and market (`marketIds`) filter is optional; omit `subAccounts` to read every account, and an empty array keeps the query disabled.
 
 ```ts
 const { data } = useQuoteHistory({ subAccounts: [subAccount], first: 100 });
 const rows = data?.rows ?? [];
 ```
 
-Each row also carries the solver fees that close charged — `solverFee`, `staticSolverFee`, and `totalSolverFee`, all `bigint | null`. They are `null` on liquidation and ADL rows and on deployments indexed before the fee was recorded; see [solver fees](/core/subgraph/get-quote-history#solver-fees).
+Each row also carries the solver fees that close charged — `solverFee`, `staticSolverFee`, and `totalSolverFee`, all `bigint | null`. They are `null` on liquidation and ADL rows and on deployments indexed before the fee was recorded; see [solver fees](/core/subgraph/get-quote-history#solver-fees). The quote's indexed fields — fees, CVA / LF, leverage, open timestamps, `sendQuoteTransaction`, raw `openPositionMetadata` — ride along on every row; see [the quote, as indexed](/core/subgraph/get-quote-history#the-quote-as-indexed).
 
 ### `useQuoteEventsByType`
 
-Non-terminal events for **one** quote, filtered to the `QuoteEventType`s you ask for → `{ rows, hasMore }`. The indexed types are `SettleUpnl` (open-price recompute), `ChargeFundingRate`, and `ChargeAccumulatedFundingFee`; two presets ship with the SDK — `PRICE_HISTORY_EVENT_TYPES` (all three, the open-price timeline) and `FUNDING_HISTORY_EVENT_TYPES` (the two funding charges only).
+Non-terminal events for **one** quote, filtered to the `QuoteEventType`s you ask for → `{ rows, hasMore }`. Unlike the core action, the hook **requires** `types` and takes only `QuoteEventType` values; pass `source` to scope it to one deployment. To read any other subgraph event type (`OPEN_POSITION`, `QUOTE_ADJUSTED`, …) or every type at once, use core [`getQuoteEventsByType`](/core/subgraph/get-quote-events-by-type#event-types). The indexed types are `SettleUpnl` (open-price recompute), `ChargeFundingRate`, and `ChargeAccumulatedFundingFee`; two presets ship with the SDK — `PRICE_HISTORY_EVENT_TYPES` (all three, the open-price timeline) and `FUNDING_HISTORY_EVENT_TYPES` (the two funding charges only).
 
 ```ts
 import { FUNDING_HISTORY_EVENT_TYPES } from "@symmio/trading-core";
@@ -159,6 +164,57 @@ for (const row of data?.rows ?? []) {
 Returns a TanStack `UseQueryResult<{ rows: QuoteEventRow[]; hasMore: boolean }, SymmioRequestError>`. Paging is over the **merged** stream, not per quote id: pass `first` / `skip` and keep going while `data.hasMore` is `true`. Omitting `first` asks for the 1000-row ceiling the subgraph enforces, so an un-paged call loads the whole timeline unless the group has more ticks than one request can return. Pass `orderDirection: "asc"` for an oldest-first timeline. The query stays disabled while the group has no on-chain children.
 
 `CHARGE_ACCUMULATED_FUNDING_FEE` rows appear only for pairs on accumulated funding, and legacy pairs produce `CHARGE_FUNDING_RATE` rows — see [Funding › Pair states](../../core/concepts/funding#pair-states). Do not assume every row is one type.
+
+## Entity reads
+
+Five thin hooks over core's subgraph entity reads. Each takes the core action's parameters — every filter optional and applied only when passed — plus TanStack `query` overrides and an optional `config`; `chainId` defaults to the connected chain. Each returns `UseQueryResult<{ rows, hasMore }, SymmioRequestError>` for **one page**, and stays disabled while a list filter is an empty array. Paging, cursors, and `null` semantics are shared: see [Filters and paging](/core/subgraph#filters-and-paging). Import `MarginTransferType`, `SubgraphPageParameters`, and the row types from `@symmio/trading-core`.
+
+### `useMarginTransfers`
+
+Margin moved between a SubAccount and its Virtual Accounts. Parameters and row fields: [`getMarginTransfers`](/core/subgraph/get-margin-transfers).
+
+```ts
+import { MarginTransferType } from "@symmio/trading-core";
+
+const { data } = useMarginTransfers({
+  types: [MarginTransferType.Add],
+  transactions: openTransactions,
+});
+```
+
+### `useLiquidationDetails`
+
+One entity per PartyA liquidation; time filters and `orderBy: "timestamp"` use `liquidationTimestamp`. Parameters and row fields: [`getLiquidationDetails`](/core/subgraph/get-liquidation-details).
+
+```ts
+const { data } = useLiquidationDetails({ source: diamond, partyAs: [virtualAccount] });
+```
+
+### `useSubgraphQuotes`
+
+The indexed `Quote` entities — not the live struct, which [`useQuote`](../symmio-contract#usequote) reads. Parameters and row fields: [`getSubgraphQuotes`](/core/subgraph/get-subgraph-quotes).
+
+```ts
+const { data } = useSubgraphQuotes({ quoteIds: [quote.quoteId], source: diamond });
+```
+
+### `useQuoteFundingSettlements`
+
+Each funding settlement on a quote. Parameters and row fields: [`getQuoteFundingSettlements`](/core/subgraph/get-quote-funding-settlements).
+
+```ts
+const { data } = useQuoteFundingSettlements({ quoteIds: [quote.quoteId], orderDirection: "asc" });
+```
+
+### `useFundingIndexCheckpoints`
+
+The funding-rate index of a market and PartyB over time. Parameters and row fields: [`getFundingIndexCheckpoints`](/core/subgraph/get-funding-index-checkpoints).
+
+```ts
+const { data } = useFundingIndexCheckpoints({ marketIds: [42], partyBs: [solver], startTime: openedAt });
+```
+
+Together with `useQuoteFundingSettlements`, these are the raw inputs of a per-epoch funding timeline; building the timeline is yours — see [Funding](../../core/concepts/funding#per-epoch-funding-history).
 
 ## Related
 
