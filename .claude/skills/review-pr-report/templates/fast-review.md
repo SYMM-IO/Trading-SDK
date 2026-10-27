@@ -31,7 +31,7 @@
 
 Spotted while skimming. **Not checked**: each one may turn out to be fine.
 
-1. **<Short label>.** <What looked risky, and why, in one or two sentences.> Before: <…>; after: <…>. (`path/to/file.ts`)
+1. **<Short label>.** <What looked risky, and why, in one or two sentences.> Before: <…>; after: <…>. See it: <`/route` → action (not checked) / not visible in apps/web (why)>. (`path/to/file.ts`)
 2. <…>
 
 ## What this review did not do

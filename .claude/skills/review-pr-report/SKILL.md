@@ -32,16 +32,16 @@ Pick the mode from the request. If none is named, use **medium**.
 
 What each mode does:
 
-|                        | fast                                                             | medium                                                                         | high                                                         |
-| ---------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| Steps run (below)      | 1, 2 (skim), 7, 9, 10; local changes also run the extra lenses   | 1–7, 9, 10 (lighter, see each step)                                            | all                                                          |
-| Reading                | PR description, file list, skim of the biggest or riskiest files | full code of the risky areas, compared with main                               | every changed file, plus the reference app and contract docs |
-| Agents                 | none                                                             | none under ~1,500 changed lines; otherwise at most 2, read-only, no tests      | one per area (usually 3–4)                                   |
-| Problem hunt           | only what is obvious while skimming                              | the lenses in step 3, on the risky areas                                       | every lens on every area                                     |
-| Verification           | none; items marked **Not checked**                               | read the exact code and compare with main; no reproduction tests               | also scratch reproduction tests                              |
-| Test suites            | none                                                             | touched packages only, if they already run in this checkout in about 2 minutes | all touched packages, plus `check-types` and `lint`          |
-| Problems in the report | up to 5 "worth a closer look" items                              | Medium and above in detail; Low items as one-line bullets                      | every severity, each with A/B/C layers                       |
-| Optional files         | —                                                                | —                                                                              | SDK-boundary review, author feedback (when asked)            |
+|                        | fast                                                             | medium                                                                           | high                                                         |
+| ---------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Steps run (below)      | 1, 2 (skim), 7, 9, 10; local changes also run the extra lenses   | 1–7, 9, 10 (lighter, see each step)                                              | all                                                          |
+| Reading                | PR description, file list, skim of the biggest or riskiest files | full code of the risky areas, compared with main                                 | every changed file, plus the reference app and contract docs |
+| Agents                 | none                                                             | none under ~1,500 changed lines; otherwise at most 2, read-only, no tests        | one per area (usually 3–4)                                   |
+| Problem hunt           | only what is obvious while skimming                              | the lenses in step 3, on the risky areas                                         | every lens on every area                                     |
+| Verification           | none; items marked **Not checked**                               | read the exact code and compare with main; no reproduction tests                 | also scratch reproduction tests                              |
+| Test suites            | none                                                             | touched packages only, if they already run in this checkout in about 2 minutes   | all touched packages, plus `check-types` and `lint`          |
+| Problems in the report | up to 5 "worth a closer look" items, each with a "See it" clause | Medium and above in detail with the apps/web note; Low items as one-line bullets | every severity, each with A/B/C layers and the apps/web note |
+| Optional files         | —                                                                | —                                                                                | SDK-boundary review, author feedback (when asked)            |
 
 Rules for every mode:
 
@@ -49,6 +49,7 @@ Rules for every mode:
 - **Say the target, the mode and the expected time at the start** ("Medium review of your local changes (branch commits + uncommitted), about 12 minutes"), so the user can stop a wrong choice early.
 - **Label every finding with how it was checked.** Fast and medium never claim "reproduced".
 - **Always show before and after.** Every change area and every problem shows, side by side, what existed before the PR and what the PR makes it. Use a table with `Before` and `After` columns. Never leave it out, in any mode or any document. See [Before and after, always](#before-and-after-always).
+- **Show how to see each problem in apps/web.** Every problem says where and how to reproduce it in the running app, or why it cannot be seen there. See [See it in apps/web](#see-it-in-appsweb).
 - **Upgrade instead of restarting.** When the user says "go deeper" or "go high" after a fast or medium review, reuse what was already read, keep the problem IDs, and rewrite the same file in the richer template.
 
 ## Before and after, always
@@ -78,6 +79,48 @@ The user asked for this on the PR #77 review (Oct 2026). Sections that described
 Author feedback and the SDK-boundary review follow the same rule: every item has a table with `Before` and `After` columns.
 
 The checker script in step 9 fails a section that has no row containing both `Before` and `After`.
+
+## See it in apps/web
+
+Every problem says how a reader can reproduce it and see it in `apps/web`, the SDK's reference app. The user asked for this in Oct 2026. A problem the reader can see on screen is easier to accept, and easier to re-test after the fix.
+
+**Find the real screen. Never guess one.**
+
+1. Find who calls the defective code: `grep -rn "<export name>" apps/web/src` (usually a hook from `@symmio/trading-react`).
+2. Follow the imports up to a page. Routes are the folders under `apps/web/src/app/` (`apps/web/src/app/pools/page.tsx` is `/pools`); pages are thin wrappers around `apps/web/src/features/*`.
+3. Quote buttons, tabs and fields exactly as the source writes them, and cite the component's `path:line`.
+
+**When no page reaches the code,** the status is **Not visible in apps/web**. Say why (groundwork that apps/web does not call yet; it needs a vendor failure or a chain state the app cannot create; only other frontends hit it), then give the closest way to see it: the scratch test and its command (high), a few lines that call the SDK function, or the `apps/docs` page that demos it.
+
+**The note** goes under each problem as "**See it in apps/web:**":
+
+1. **Setup:** which code to run (PR: `gh pr checkout <n>` or the review worktree; local changes: the developer's checkout as it is), the SDK rebuild when `packages/*` changed, and the wallet and account state needed (for example "an account with one open position on Arbitrum").
+2. **Steps:** the route, then the actions, numbered.
+3. **You see:** the wrong result, and where: on screen, in the DevTools Console, or in the DevTools Network tab (request URL and count).
+4. **On `<base>`:** what the same steps show before the change, or "the same" for a problem that already existed.
+5. **Status:** **Seen in apps/web** (the reviewer ran the steps), **Steps from the code, not run**, or **Not visible in apps/web**. Never write "Seen" for steps that were not run.
+
+**Running apps/web** (facts every note can rely on):
+
+```sh
+pnpm exec turbo run build --filter="@symmio/web^..."   # apps/web reads the SDK from dist: rebuild after any packages/* change
+pnpm --filter @symmio/web dev                          # then open http://localhost:3001 (localhost, not 127.0.0.1)
+```
+
+- Restart the dev server after a rebuild.
+- **Read-only flows without a real wallet:** start the dev server with `NEXT_PUBLIC_E2E_MODE=1 NEXT_PUBLIC_E2E_ACCOUNT_ADDRESS=<address>`, then click **Connect Wallet**. The app then offers only a mock connector that reports `<address>` as connected. Pick an address that has the state the problem needs.
+- **Write flows** (open, close, deposit, any transaction): the mock cannot sign, so they need a real browser wallet (the app's normal `injected` connector). Say so in Setup.
+
+**Per mode:**
+
+| Mode            | The note                                                                                                                                                                                                                                                                   |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| fast            | One clause per "worth a closer look" item: `See it: <route> → <action> (not checked)` or `See it: not visible in apps/web (<why>)`. The route comes from a grep only.                                                                                                      |
+| medium          | Every Medium+ problem has the full note, usually **Steps from the code, not run**. Every Low bullet has one clause: `See it: <route> → <action>` or `See it: not visible in apps/web (<why>)`.                                                                             |
+| high            | Every problem has the full note in layer C. For High problems in read-only flows, run the steps when the app runs here (a browser tool, or a throwaway Playwright script outside the repo) and mark them **Seen in apps/web**; otherwise **Steps from the code, not run**. |
+| author feedback | Every item has the full note, copied from the review.                                                                                                                                                                                                                      |
+
+SDK-boundary items are about where logic lives, not about runtime behavior, so they need no note.
 
 ## Local changes
 
@@ -220,6 +263,7 @@ Add these to step 3 in every mode. They are cheap: most come from `git status --
   - **Likely, not verified:** say what would verify it;
   - **Not checked:** spotted while skimming (fast).
 - **Never invent anything:** UI elements, call arguments, numbers, or the purpose of a feature. If a fact needs a network call you did not make, write "not checked".
+- **Write the apps/web note** for each finding ([See it in apps/web](#see-it-in-appsweb)): find the screen from the code, never from memory, and label its status.
 - **Re-check every number at the end:** counts, durations, file totals, line numbers.
 - **Input from another review:**
   - read its tests before running them;
@@ -268,19 +312,19 @@ Per mode:
   - a header;
   - "In one paragraph";
   - a table of areas with `Before` and `After` columns, and whether the change is visible today;
-  - up to 5 "worth a closer look" items, each **Not checked**;
+  - up to 5 "worth a closer look" items, each **Not checked**, each with a `See it:` clause;
   - "what this review did not do".
 - **medium** ([template](templates/medium-review.md)), about 150–350 lines:
   - a header with the verdict and counts, then "In short";
   - a short glossary;
   - Part 1, the changes: an overview table plus one short block per area, each with a before/after table;
-  - Part 2, the problems: an overview table, then a compact block per Medium+ problem (What goes wrong / Where / Before vs after / Example / Fix / Checked), and Low items as one-line bullets that keep their IDs and say "before …; after …" (`- **P9 · Low** — label: before …; after ….`);
+  - Part 2, the problems: an overview table, then a compact block per Medium+ problem (What goes wrong / Where / Before vs after / Example / See it in apps/web / Fix / Checked), and Low items as one-line bullets that keep their IDs, say "before …; after …" and end with a `See it:` clause (`- **P9 · Low** — label: before …; after …. See it: /pools → ….`);
   - the checks run, and the next steps.
 - **high** ([template](templates/full-review.md)), the full report:
   - **three layers for every change (Part 1) and every problem (Part 2):**
     - **A. Summary for managers:** what users or the business notice, in plain words, why it happens in one sentence, and the decision needed. For a change, this layer has the plain-words "**Before vs after this PR:**" table, ending with a "What the user sees" row.
     - **B. Technical view:** where in the code, the root cause, and a before/after table with `path:line` on both sides, against the base (or the app's old code when the logic is ported).
-    - **C. Details:** for a change, a "**The same inputs, before and after:**" table; for a problem, a step-by-step example, the fix, a test to add, and how it was checked.
+    - **C. Details:** for a change, a "**The same inputs, before and after:**" table; for a problem, a step-by-step example, "**See it in apps/web:**", the fix, a test to add, and how it was checked.
   - **an overview table at the start of Part 1 and Part 2,** with anchor links, so a manager can stop after the tables.
 
 ## 8. The optional documents
@@ -297,7 +341,7 @@ Per mode:
   - only High, Medium and Medium/Low items, plus any boundary items the user names;
   - technical only, with no manager layer;
   - opens with thanks and what is good, then the merge blocker and a summary table;
-  - each item has Where / What goes wrong / Before vs after (a table) / Example / Suggested fix / Test to add / Confidence;
+  - each item has Where / What goes wrong / Before vs after (a table) / Example / See it in apps/web / Suggested fix / Test to add / Confidence;
   - items that share a fix are merged, and the merges are stated;
   - the IDs from the review are kept, with a note that some are skipped.
 
@@ -317,6 +361,7 @@ The script checks:
 - that every `#anchor` link resolves;
 - that a header "Problems found" count matches the problem headings;
 - **before and after, in every mode:** every `### <n>.<n>` change, every `### P<n> ·` problem and every boundary item (`### P1 —`, `### B1 —`, `### R1 —`) has a table row with both `Before` and `After`; every Low bullet says "before" and "after"; a fast review's "What changes" table has `Before` and `After` columns;
+- **see it in apps/web, in every mode:** every `### P<n> ·` problem has "**See it in apps/web:**" (in layer C with `--layers`) and a status; every Low bullet and every fast "worth a closer look" item has a `See it:` clause;
 - with `--layers` (high): every `### P<n> ·` and `### <n>.<n>` section has A/B/C, and every change section has "**Before vs after this PR:**" (local changes: "**Before vs after these changes:**") in A and "before and after" in C;
 - a local-changes report (title `# Local Changes Review`) has a "Ready for a PR?" section and "Snapshot", "Intent" and "Excluded" header rows.
 
@@ -328,7 +373,8 @@ Keep the reply short:
 
 - link the file, and name the mode and the time it took;
 - the verdict and the merge blocker (medium and high); for local changes, "Ready for a PR / Ready after fixes / Not ready" and the "Before commit" items;
-- the top three problems, or the top "worth a closer look" items (fast);
+- the top three problems, or the top "worth a closer look" items (fast), each with the route where it shows in apps/web;
+- which problems were **Seen in apps/web** and which have steps that were not run;
 - the counts by severity (medium and high);
 - what was not run or not verified;
 - for local changes: the scope, the snapshot, and any excluded files.

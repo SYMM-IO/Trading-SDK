@@ -21,17 +21,18 @@ Title: `# Local Changes Review — <branch> (<scope>)`. Fast mode adds `(fast)` 
 
 ## 2. Change the wording
 
-| In the template                                       | For local changes                                                        |
-| ----------------------------------------------------- | ------------------------------------------------------------------------ |
-| "this PR", "the PR"                                   | "these changes"                                                          |
-| "**Before vs after this PR:**" (high, layer A)        | "**Before vs after these changes:**"                                     |
-| "Before (`origin/main`)", "Before (`<base ref>`)"     | "Before (`<base sha>`)"                                                  |
-| "After (this PR)"                                     | "After (these changes)"                                                  |
-| Verdict "Merge / Merge after fixes / Do not merge"    | "Ready for a PR / Ready after fixes / Not ready"                         |
-| "When to fix": "Before merge", "In this PR"           | "Before commit" (breaks the build or loses work), "Before PR", "Later"   |
-| "New in this PR, or pre-existing?"                    | "New in these changes, or already on the base?"                          |
-| "How it was compared" commit table (high)             | Only the branch commits in the scope; drop the table when there are none |
-| Next steps / Part 4 rows "Before merge", "In this PR" | "Before commit", "Before PR", "Later"                                    |
+| In the template                                        | For local changes                                                          |
+| ------------------------------------------------------ | -------------------------------------------------------------------------- |
+| "this PR", "the PR"                                    | "these changes"                                                            |
+| "**Before vs after this PR:**" (high, layer A)         | "**Before vs after these changes:**"                                       |
+| "Before (`origin/main`)", "Before (`<base ref>`)"      | "Before (`<base sha>`)"                                                    |
+| "After (this PR)"                                      | "After (these changes)"                                                    |
+| Verdict "Merge / Merge after fixes / Do not merge"     | "Ready for a PR / Ready after fixes / Not ready"                           |
+| "When to fix": "Before merge", "In this PR"            | "Before commit" (breaks the build or loses work), "Before PR", "Later"     |
+| "New in this PR, or pre-existing?"                     | "New in these changes, or already on the base?"                            |
+| "How it was compared" commit table (high)              | Only the branch commits in the scope; drop the table when there are none   |
+| "**See it in apps/web:**" Setup "`gh pr checkout <n>`" | "your checkout as it is" (rebuild the SDK first when `packages/*` changed) |
+| Next steps / Part 4 rows "Before merge", "In this PR"  | "Before commit", "Before PR", "Later"                                      |
 
 ## 3. Add "Ready for a PR?"
 

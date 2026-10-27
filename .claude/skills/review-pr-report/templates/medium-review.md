@@ -78,6 +78,14 @@ Severity:
 2. <What happens>
 3. <What should happen>
 
+**See it in apps/web:**
+
+- **Setup:** <PR: `gh pr checkout <n>` / local: your checkout as it is>; <`pnpm exec turbo run build --filter="@symmio/web^..."` when `packages/*` changed>; `pnpm --filter @symmio/web dev`; <wallet: real wallet for writes, or `NEXT_PUBLIC_E2E_MODE=1 NEXT_PUBLIC_E2E_ACCOUNT_ADDRESS=<address>` for read-only>; <account state needed>.
+- **Steps:** open `http://localhost:3001/<route>` (`apps/web/src/features/<…>.tsx:<line>`) → <action, quoting the exact label> → <…>.
+- **You see:** <the wrong result, and where: screen / Console / Network (request URL, count)>.
+- **On `<base>`:** <what the same steps show before the change, or "the same" (pre-existing)>.
+- **Status:** <Seen in apps/web / Steps from the code, not run / Not visible in apps/web: <why>, and instead: <scratch test command, SDK snippet or docs page>>.
+
 **Fix:** <the smallest correct change, and where else the same pattern exists>.
 
 **Checked:** <Checked in code / Confirmed by the docs / Likely, not verified (and what would verify it)>.
@@ -86,7 +94,7 @@ Severity:
 
 ### Also noticed (Low, not detailed)
 
-- **P<n> · Low** — <label>: <one sentence>; before <…>, after <…>. `path/to/file.ts:<line>`
+- **P<n> · Low** — <label>: <one sentence>; before <…>, after <…>. See it: <`/route` → action / not visible in apps/web (why)>. `path/to/file.ts:<line>`
 - <…>
 
 ---
