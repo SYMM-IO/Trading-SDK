@@ -322,6 +322,7 @@ For local changes, every mode except fast also runs `pnpm exec prettier --check 
 Write `pr-review-<branch-slug>.md` (local changes: `local-review-<branch-slug>.md`) from the mode's template. For local changes, apply [templates/local-changes.md](templates/local-changes.md) on top: its header, its wording, and the "Ready for a PR?" table. Rules for every mode:
 
 - **Self-contained.** A reader who knows nothing about the PR needs only this file. Explain every domain term the first time it appears. Medium and high include a glossary.
+- **Explain the feature first.** When the PR adds or changes a feature the reader may not know, medium and high open with "What this PR is about" right after the header: the feature, why it exists, a user's journey, what the PR does and does not do. Every later section can then refer to it.
 - **Explanation before tables.** Each area starts with **What it is:**, and each problem with **The problem:** and **Why it happens:** ([Explain first](#explain-first)). Add a table only when it is clearer than a sentence.
 - **Short sentences, one idea per bullet.** Use numbered steps for sequences and bold for the key word.
 - **Say whether each change is visible in the real app today** or is groundwork.
