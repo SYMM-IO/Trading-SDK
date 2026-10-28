@@ -43,8 +43,10 @@ const { signature } = await manager.sign("hello");
   <Property name="initialize(owner, options?)" type="Promise<SessionKeyState>">
     Load an existing non-expired key for `owner`, or generate and persist a new one. If the stored key is expired it is
     removed and a fresh one is generated (auto-rotate); a `load` that throws follows `onLoadError`. `options.ttlMs`
-    overrides the default lifetime for a freshly generated key. Starting another lifecycle operation before this one
-    settles revokes the in-memory signer and makes this call reject with `SessionKeyOperationSupersededError`.
+    overrides the default lifetime for a freshly generated key. When that owner's key is already loaded and not expired,
+    it resolves the current state at once without reading storage or revoking anything, so it is safe to call on every
+    mount. Starting another lifecycle operation before this one settles revokes the in-memory signer and makes this call
+    reject with `SessionKeyOperationSupersededError`.
   </Property>
   <Property name="load(owner)" type="Promise<SessionKeyState>">
     Restore an existing key without creating, deleting, or replacing records. Missing records return empty state;
@@ -107,6 +109,10 @@ const { signature } = await manager.sign("hello");
 - **One call at a time.** `initialize`, `load`, `importPrivateKey`, `rotate` and `destroy` run one after another on a manager, so
   their storage reads and writes never interleave. Concurrent `initialize(owner)` calls for the same owner share one
   run, so two components mounting together load or generate **one** key.
+- **Calling `initialize` again is free.** For an owner whose key is already loaded and not expired, `initialize(owner)`
+  returns the current state without starting a new operation. Accounts from `getAccount()` and signatures already in
+  progress are unaffected. A different owner, an expired key, or a key replaced by `rotate`/`importPrivateKey` still
+  starts over.
 - **Revoked before queued work.** Starting a different lifecycle operation immediately clears the in-memory account,
   private key and ready state. An older operation that was still waiting on storage cannot publish after that point; it
   rejects with [`SessionKeyOperationSupersededError`](#sessionkeyoperationsupersedederror) instead.

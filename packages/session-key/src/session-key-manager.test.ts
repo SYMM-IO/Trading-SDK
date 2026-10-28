@@ -1,4 +1,4 @@
-import { isAddress, recoverMessageAddress, recoverTypedDataAddress, type Address } from "viem";
+import { getAddress, isAddress, recoverMessageAddress, recoverTypedDataAddress, type Address } from "viem";
 import { mainnet } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionKeyLoadError, SessionKeyOperationSupersededError } from "./errors";
@@ -319,6 +319,72 @@ describe("session key manager lifecycle guarantees", () => {
     expect(first.publicAddress).toBe(second.publicAddress);
     expect(save).toHaveBeenCalledTimes(1);
     expect(storage.raw.get(OWNER.toLowerCase())?.address).toBe(first.publicAddress);
+  });
+
+  it("keeps the loaded signer when initialize runs again for the same owner", async () => {
+    const storage = createMemorySessionKeyStorage();
+    const manager = createSessionKeyManager({ storage });
+    const first = await manager.initialize(OWNER);
+    const account = manager.getAccount()!;
+    const load = vi.spyOn(storage, "load");
+    const snapshots: (Address | null)[] = [];
+    manager.subscribe(() => snapshots.push(manager.getSnapshot()));
+
+    const again = await manager.initialize(getAddress(OWNER));
+
+    expect(again).toEqual(first);
+    expect(snapshots).toEqual([]);
+    expect(load).not.toHaveBeenCalled();
+    const signature = await account.signMessage({ message: "still loaded" });
+    expect(await recoverMessageAddress({ message: "still loaded", signature })).toBe(first.publicAddress);
+  });
+
+  it("lets a signature in progress finish when initialize runs again for the same owner", async () => {
+    const storage = createMemorySessionKeyStorage();
+    const manager = createSessionKeyManager({ storage });
+    const state = await manager.initialize(OWNER);
+    const account = manager.getAccount()!;
+    const signTypedData = account.signTypedData.bind(account);
+    let markSigningStarted!: () => void;
+    let releaseSigning!: () => void;
+    const signingStarted = new Promise<void>((resolve) => {
+      markSigningStarted = resolve;
+    });
+    const signingGate = new Promise<void>((resolve) => {
+      releaseSigning = resolve;
+    });
+    vi.spyOn(account, "signTypedData").mockImplementation(async (parameters) => {
+      markSigningStarted();
+      await signingGate;
+      return signTypedData(parameters);
+    });
+
+    const signing = manager.signTypedData(TYPED_DATA);
+    await signingStarted;
+    await manager.initialize(OWNER);
+    releaseSigning();
+
+    const signature = await signing;
+    expect(await recoverTypedDataAddress({ ...TYPED_DATA, primaryType: "Session", signature })).toBe(
+      state.publicAddress,
+    );
+  });
+
+  it("starts over when initialize runs again after the loaded key expired", async () => {
+    const storage = createMemorySessionKeyStorage();
+    let now = 1_000;
+    const manager = createSessionKeyManager({ storage, now: () => now, defaultTtlMs: 1_000 });
+    const first = await manager.initialize(OWNER);
+    const account = manager.getAccount()!;
+    now = 2_000;
+
+    const next = await manager.initialize(OWNER);
+
+    expect(next.isReady).toBe(true);
+    expect(next.publicAddress).not.toBe(first.publicAddress);
+    await expect(account.signMessage({ message: "expired" })).rejects.toBeInstanceOf(
+      SessionKeyOperationSupersededError,
+    );
   });
 
   it("adopts a competing key it observes before publishing its own", async () => {
