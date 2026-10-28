@@ -42,6 +42,35 @@ describe("complete pending-withdrawal batches", () => {
     });
     await expect(getPendingWithdrawRequestsBatch(config, { users: [A] })).rejects.toThrow("RPC unavailable");
   });
+  it("keeps at most six reads in flight across users and pages", async () => {
+    const { config, readContract } = mockConfig();
+    let inFlight = 0;
+    let peak = 0;
+    readContract.mockImplementation(async ({ functionName, args }) => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      inFlight -= 1;
+      if (functionName === "getLastWithdrawRequestId") return 40n;
+      return [{ id: args[1] }];
+    });
+    const result = await getPendingWithdrawRequestsBatch(config, { users: [A, B], pageSize: 1n });
+    expect(peak).toBe(6);
+    expect(readContract).toHaveBeenCalledTimes(82);
+    expect(result.map(({ requests }) => requests.length)).toEqual([40, 40]);
+  });
+  it("starts no new read after the first failure", async () => {
+    const { config, readContract } = mockConfig();
+    readContract.mockImplementation(async ({ functionName, args }) => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (functionName === "getLastWithdrawRequestId") return 40n;
+      if (args[1] === 1n) throw new Error("429 Too Many Requests");
+      return [];
+    });
+    await expect(getPendingWithdrawRequestsBatch(config, { users: [A], pageSize: 1n })).rejects.toThrow("429");
+    /** The last-ID read plus the first six pages; the other 34 pages never reach the RPC. */
+    expect(readContract).toHaveBeenCalledTimes(7);
+  });
   it.each([0n, -1n, 201n])("rejects page size %s", async (pageSize) => {
     const { config, readContract } = mockConfig();
     await expect(getPendingWithdrawRequestsBatch(config, { users: [A], pageSize })).rejects.toMatchObject({
