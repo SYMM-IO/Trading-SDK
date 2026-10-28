@@ -1,11 +1,11 @@
 ---
 name: review-pr-report
-description: Review a PR, a branch, or the developer's current local changes (uncommitted, staged, or everything not yet on main) and write the result to a Markdown file. Three modes — fast (a few minutes, what the PR changes), medium (default, about 10–15 minutes, changes plus checked Medium+ problems) and high (about 30–40 minutes, full self-contained report in three layers — summary for managers → technical view → details — with reproduced findings, plus optional SDK-boundary and author-feedback files). Use when the user asks to review a PR or branch, to review "my changes", "current changes" or "what I implemented" before committing or opening a PR, to "find problems in this PR", or wants a review doc to read or send to the author. Cross-tool (Claude Code, Codex, Cursor) — plain Markdown.
+description: Review a PR, a branch, or the developer's current local changes (uncommitted, staged, or everything not yet on main) and write the result to a Markdown file. Three modes — fast (a few minutes, what the PR changes), medium (default, about 10–15 minutes, changes plus checked Medium+ problems) and high (about 30–40 minutes, full self-contained report in three layers — summary for managers → technical view → details — with reproduced findings, plus optional SDK-boundary and author-feedback files). Every section explains the feature or the problem in plain words first and uses a before/after table only where it helps. Use when the user asks to review a PR or branch, to review "my changes", "current changes" or "what I implemented" before committing or opening a PR, to "find problems in this PR", or wants a review doc to read or send to the author. Cross-tool (Claude Code, Codex, Cursor) — plain Markdown.
 ---
 
 # Review a PR or local changes and write the report
 
-Playbook for turning "review this branch" or "review my changes" into a Markdown document that a reader can understand **without opening any other file**. The method was built on the `feat/sdk-account-features` and PR #75 reviews (Oct 2026).
+Playbook for turning "review this branch" or "review my changes" into a Markdown document that a reader can understand **without opening any other file**, and where each feature and each problem is clear from its first paragraph. The method was built on the `feat/sdk-account-features` and PR #75 reviews (Oct 2026).
 
 ## Targets
 
@@ -48,37 +48,57 @@ Rules for every mode:
 - **Always write the report to a Markdown file.** Never answer with the review only in chat.
 - **Say the target, the mode and the expected time at the start** ("Medium review of your local changes (branch commits + uncommitted), about 12 minutes"), so the user can stop a wrong choice early.
 - **Label every finding with how it was checked.** Fast and medium never claim "reproduced".
-- **Always show before and after.** Every change area and every problem shows, side by side, what existed before the PR and what the PR makes it. Use a table with `Before` and `After` columns. Never leave it out, in any mode or any document. See [Before and after, always](#before-and-after-always).
+- **Explain first, compare only when it helps.** Every change area opens by explaining what the feature is; every problem opens by telling what goes wrong and why, in plain words, before any table. A before/after table is a tool, not a requirement: use one only when it makes a change clearer, and at most one per section. See [Explain first, compare only when it helps](#explain-first-compare-only-when-it-helps).
 - **Show how to see each problem in apps/web.** Every problem says where and how to reproduce it in the running app, or why it cannot be seen there. See [See it in apps/web](#see-it-in-appsweb).
 - **Upgrade instead of restarting.** When the user says "go deeper" or "go high" after a fast or medium review, reuse what was already read, keep the problem IDs, and rewrite the same file in the richer template.
 
-## Before and after, always
+## Explain first, compare only when it helps
 
-The user asked for this on the PR #77 review (Oct 2026). Sections that described only the new code, or showed "before" only as code in layer B, were hard to follow.
+The user asked for this on the PR #79 review (Oct 2026), and it replaces the earlier "before and after, always" rule from PR #77. That review gave every section three before/after tables, one per layer, and most of them said "did not exist" on the Before side. The reader could not tell what the feature was or what the problem really was. The tables pushed the explanation out.
 
-**What "before" is.** Pick the first that applies, and name it above the table:
+### Explain first
 
-1. **The code existed in the SDK:** the base ref (`origin/main`, or the parent branch of a stacked PR), with `path:line`.
-2. **The PR ports logic from an app:** the app's old code at the PR's stated parent commit, with `path:line`. Read it with `git show <sha>:<path>`, never from a newer branch.
-3. **Nothing existed:** write "did not exist", then say what apps or users did instead (for example "each app summed floats inline"). An empty column is not allowed.
+Every section opens with an explanation in plain words, before any table. A table supports the text; it never replaces it.
 
-**What the table must show:**
+- **A change area** opens with **What it is:**. Explain the feature to someone who has never heard of it: what it is, why it exists, who uses it and how it works. When the feature has steps, add a short numbered flow ("1. The owner locks 22 functions to the solver. 2. …"). Then **What this PR adds:**, in words; the API names go in the technical layer.
+- **A problem** opens with **The problem:**. Tell it as a short story with no code words: what the user or the app is trying to do, what happens, and what should happen. Then **Why it happens:**, the mechanism in one to three plain sentences. A reader who stops after these two paragraphs must understand the problem. Only then come the code location, the example and the fix.
+- **Define each term in the sentence where it first appears** ("the unlocker, the solver's address that may approve a locked call early, …"), even when the glossary has it.
+- **A title states the defect in plain words.** "Withdraw fails after the account turns on timelocks" beats "`TimelockOpNotApprovedOrScheduled` on `_call`".
 
-- **Behavior, not only code.** Each row is one aspect: who computes it, which rule, units, edge cases.
-- **A final "What the user sees" row** in plain-words tables. When nothing changes for users, write **"The same"** in bold. That is a finding in itself: the PR moved logic and did not change the result.
-- **Old mistakes that carry over.** When the old code had a bug that the PR keeps, the After cell says "still …" and links the problem.
+### Compare only when it helps
 
-**Per mode:**
+A before/after table is worth it when the reader would otherwise have to guess what changed. Use one when:
 
-| Mode   | Change areas (Part 1)                                                                                                                                                                                                                            | Problems (Part 2)                                                                                              |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| fast   | The "What changes" table has `Before` and `After` columns (from the description and the skim; write "not checked" where it is a guess)                                                                                                           | Each "worth a closer look" item says "before: …; after: …"                                                     |
-| medium | Each area has one before/after table, plain words, with `path:line` in the cells                                                                                                                                                                 | Each Medium+ problem has a before/after table; each Low bullet says "before …; after …"                        |
-| high   | **A:** a "**Before vs after this PR:**" plain-words table. **B:** a before/after code table with `path:line` on both sides. **C:** a "**The same inputs, before and after:**" table that runs one set of inputs through the old and the new code | **B:** a table with `Before` and `After` columns; add columns such as `Protocol` or `Suggested` when they help |
+- the PR changes behavior that already existed: a result, a rule, an API shape, an error;
+- a problem is a regression: it worked on the base and breaks with this PR, or the PR drops a guard;
+- the PR ports logic from an app, and the port differs from the original.
 
-Author feedback and the SDK-boundary review follow the same rule: every item has a table with `Before` and `After` columns.
+Skip it when:
 
-The checker script in step 9 fails a section that has no row containing both `Before` and `After`.
+- **the feature is new.** Write one sentence instead: "Before this PR the SDK had no way to do this; apps called the contract by hand.";
+- **the problem is in new code.** Say "New in this PR." on the **Where** line;
+- **most Before cells would say "did not exist", "none" or "no API".** That table carries no information;
+- **the table would repeat the text above it**, or there is only one difference. One sentence is clearer: "Before, an open without margin was refused; now it goes through without the policy check."
+
+When a table is used:
+
+- **At most one before/after table per section** (one change area or one problem), in the layer where it helps most, usually the technical view. Never one per layer.
+- **Name the "before" above the table:** the base ref (`origin/main`, or the parent branch of a stacked PR), or, when the PR ports logic from an app, the app's old code at the PR's stated parent commit (`git show <sha>:<path>`, never a newer branch).
+- **Rows are behavior, not code.** One aspect per row: who computes it, which rule, units, edge cases. Add a "What the user sees" row only when the user sees something different, or when "**The same**" for users is itself the finding.
+- **Old mistakes that carry over:** when the old code had a bug that the PR keeps, the After cell says "still …" and links the problem.
+
+### Per mode
+
+| Mode            | Change areas (Part 1)                                                                                                                                                            | Problems (Part 2)                                                                                                                       |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| fast            | The "What changes" table says, per area, what it is and what changes, in plain words                                                                                             | Each "worth a closer look" item says what looked wrong in one or two plain sentences                                                    |
+| medium          | **What it is:** → **What this PR adds:** → an optional before/after table                                                                                                        | **The problem:** → **Why it happens:** → Where → an optional before/after table → Example; each Low bullet is one plain sentence        |
+| high            | **A:** **What it is:**, **What this PR adds:**, value, status. **B:** where the code is, plus an optional before/after table. **C:** an example of what happens now, docs, tests | **A:** **The problem:**, **Why it happens:**, risk, decision. **B:** where, root cause, an optional before/after table. **C:** the rest |
+| author feedback | —                                                                                                                                                                                | **The problem:** → **Why it happens:** (technical, for the author) → Where → an optional before/after table → the rest                  |
+
+The SDK-boundary review follows the same rule: a "where it lives" table only when the logic moved.
+
+The checker script in step 9 fails a section whose explanation does not come before its first table, a section with more than one before/after table, and a before/after table whose Before cells mostly say "did not exist".
 
 ## See it in apps/web
 
@@ -211,7 +231,7 @@ Add these to step 3 in every mode. They are cheap: most come from `git status --
 
 1. Group the work into 5–10 **areas by feature**, not by package (for example "session keys", "gasless retry keys", "new reads").
    - **fast:** derive the areas from the file list and the PR description (for local changes, the intent). Skim only the biggest or riskiest files, and stop there.
-2. For each area, read the code, its JSDoc, the `apps/docs` pages, the changesets and the tests. Get the old version with `git show origin/main:<path>` (local changes: `git show <base>:<path>`, and the new version from disk) and note **before vs after** for every area; the report needs it ([Before and after, always](#before-and-after-always)).
+2. For each area, read the code, its JSDoc, the `apps/docs` pages, the changesets and the tests. First make sure you can explain the feature in plain words: what it is, why it exists, and how it works step by step. The report opens every area with that explanation. Get the old version with `git show origin/main:<path>` (local changes: `git show <base>:<path>`, and the new version from disk) and note what really changed. You need it to spot regressions, even when the report does not show a before/after table ([Explain first, compare only when it helps](#explain-first-compare-only-when-it-helps)).
    - When the PR ports logic from an app, also read the app's old code at the PR's stated parent commit (`git show <sha>:<path>`), and note its `path:line`. That old code is the "before".
    - **medium:** read fully only the risky areas: public API, money and amount math, auth and signing, concurrency, network and vendor calls. Skim the rest.
 3. Note what users of the real app see **today**, as opposed to groundwork that only other apps or later work will use.
@@ -302,7 +322,8 @@ For local changes, every mode except fast also runs `pnpm exec prettier --check 
 Write `pr-review-<branch-slug>.md` (local changes: `local-review-<branch-slug>.md`) from the mode's template. For local changes, apply [templates/local-changes.md](templates/local-changes.md) on top: its header, its wording, and the "Ready for a PR?" table. Rules for every mode:
 
 - **Self-contained.** A reader who knows nothing about the PR needs only this file. Explain every domain term the first time it appears. Medium and high include a glossary.
-- **Short sentences, one idea per bullet.** Use numbered steps for sequences, tables for before/after, and bold for the key word.
+- **Explanation before tables.** Each area starts with **What it is:**, and each problem with **The problem:** and **Why it happens:** ([Explain first](#explain-first)). Add a table only when it is clearer than a sentence.
+- **Short sentences, one idea per bullet.** Use numbered steps for sequences and bold for the key word.
 - **Say whether each change is visible in the real app today** or is groundwork.
 - **Anchors use GitHub slugs:** lowercase, drop punctuation, spaces become hyphens. `### P3 · Medium — Key reuse` becomes `#p3--medium--key-reuse`.
 
@@ -311,20 +332,20 @@ Per mode:
 - **fast** ([template](templates/fast-review.md)), about 40–100 lines:
   - a header;
   - "In one paragraph";
-  - a table of areas with `Before` and `After` columns, and whether the change is visible today;
+  - a table of areas: what each one is and what changes, in plain words, and whether the change is visible today;
   - up to 5 "worth a closer look" items, each **Not checked**, each with a `See it:` clause;
   - "what this review did not do".
 - **medium** ([template](templates/medium-review.md)), about 150–350 lines:
   - a header with the verdict and counts, then "In short";
   - a short glossary;
-  - Part 1, the changes: an overview table plus one short block per area, each with a before/after table;
-  - Part 2, the problems: an overview table, then a compact block per Medium+ problem (What goes wrong / Where / Before vs after / Example / See it in apps/web / Fix / Checked), and Low items as one-line bullets that keep their IDs, say "before …; after …" and end with a `See it:` clause (`- **P9 · Low** — label: before …; after …. See it: /pools → ….`);
+  - Part 1, the changes: an overview table plus one short block per area (What it is / What this PR adds / an optional before/after table / status);
+  - Part 2, the problems: an overview table, then a compact block per Medium+ problem (The problem / Why it happens / Where / an optional before/after table / Example / See it in apps/web / Fix / Checked), and Low items as one-line bullets that keep their IDs, say what goes wrong in one plain sentence and end with a `See it:` clause (`- **P9 · Low** — label: <one plain sentence>. See it: /pools → ….`);
   - the checks run, and the next steps.
 - **high** ([template](templates/full-review.md)), the full report:
   - **three layers for every change (Part 1) and every problem (Part 2):**
-    - **A. Summary for managers:** what users or the business notice, in plain words, why it happens in one sentence, and the decision needed. For a change, this layer has the plain-words "**Before vs after this PR:**" table, ending with a "What the user sees" row.
-    - **B. Technical view:** where in the code, the root cause, and a before/after table with `path:line` on both sides, against the base (or the app's old code when the logic is ported).
-    - **C. Details:** for a change, a "**The same inputs, before and after:**" table; for a problem, a step-by-step example, "**See it in apps/web:**", the fix, a test to add, and how it was checked.
+    - **A. Summary for managers:** for a change, **What it is:** (the feature explained, with a numbered flow when it has steps) and **What this PR adds:**; for a problem, **The problem:** (the story) and **Why it happens:**. Then the business value or risk, and the decision needed. No tables in this layer: a manager reads prose here, and the overview table at the start of the Part already gives the summary.
+    - **B. Technical view:** where in the code, the root cause, and at most one before/after table, only when the PR changes existing behavior or the problem is a regression.
+    - **C. Details:** for a change, an **Example:** of what happens now, step by step (with the old result only where it differs and matters), docs and tests; for a problem, a step-by-step example, "**See it in apps/web:**", the fix, a test to add, and how it was checked.
   - **an overview table at the start of Part 1 and Part 2,** with anchor links, so a manager can stop after the tables.
 
 ## 8. The optional documents
@@ -336,12 +357,12 @@ Per mode:
   - the opposite direction, logic every frontend needs that lives only in the app (R…);
   - a "clean" list of good examples;
   - a summary table;
-  - every P, B and R item has a before/after table (where the logic lived, or what it hardcoded, before and after the PR).
+  - every P, B and R item opens with **What it is:**; it has a "where it lives" before/after table only when the logic moved (from an app into the SDK, or the reverse).
 - **Author feedback** (PR target only, from a medium or high review, [template](templates/author-feedback.md)):
   - only High, Medium and Medium/Low items, plus any boundary items the user names;
   - technical only, with no manager layer;
   - opens with thanks and what is good, then the merge blocker and a summary table;
-  - each item has Where / What goes wrong / Before vs after (a table) / Example / See it in apps/web / Suggested fix / Test to add / Confidence;
+  - each item has The problem / Why it happens / Where / an optional before/after table (regressions only) / Example / See it in apps/web / Suggested fix / Test to add / Confidence;
   - items that share a fix are merged, and the merges are stated;
   - the IDs from the review are kept, with a note that some are skipped.
 
@@ -360,9 +381,10 @@ The script checks:
 
 - that every `#anchor` link resolves;
 - that a header "Problems found" count matches the problem headings;
-- **before and after, in every mode:** every `### <n>.<n>` change, every `### P<n> ·` problem and every boundary item (`### P1 —`, `### B1 —`, `### R1 —`) has a table row with both `Before` and `After`; every Low bullet says "before" and "after"; a fast review's "What changes" table has `Before` and `After` columns;
+- **explain first, in every mode:** every `### <n>.<n>` change has "**What it is:**", every `### P<n> ·` problem has "**The problem:**" and "**Why it happens:**", and each comes before the section's first table;
+- **tables only where they help, in every mode:** a change, problem or boundary section has at most one before/after table (a header row naming both `Before` and `After`), and no before/after table may have two thirds or more of its Before cells saying "did not exist", "none", "no API" or similar;
 - **see it in apps/web, in every mode:** every `### P<n> ·` problem has "**See it in apps/web:**" (in layer C with `--layers`) and a status; every Low bullet and every fast "worth a closer look" item has a `See it:` clause;
-- with `--layers` (high): every `### P<n> ·` and `### <n>.<n>` section has A/B/C, and every change section has "**Before vs after this PR:**" (local changes: "**Before vs after these changes:**") in A and "before and after" in C;
+- with `--layers` (high): every `### P<n> ·` and `### <n>.<n>` section has A/B/C, and the explanation ("**What it is:**" or "**The problem:**") is in layer A;
 - a local-changes report (title `# Local Changes Review`) has a "Ready for a PR?" section and "Snapshot", "Intent" and "Excluded" header rows.
 
 Fix everything it reports.
@@ -384,7 +406,7 @@ Offer, in one line, the next mode up ("medium/high would also check X") and to p
 ## Follow-up requests this skill expects
 
 - **"Go deeper" / "go high":** upgrade in place, as described in [Modes](#modes).
-- **"I don't understand section X":** rewrite only that section in the A/B/C layers first, and apply them everywhere only after the user approves.
+- **"I don't understand section X" / "too many tables" / "confusing":** rewrite that section explanation-first: the feature or the problem as a plain story, then why, then the rest. Cut every table that a sentence can replace. Show the rewritten section, and apply the same rewrite everywhere only after the user approves.
 - **"Explain item Y" or "how should a caller handle Z":** answer in chat with `path:line` references. Do not edit the documents unless asked.
 - **"Check this other review":** follow the "Input from another review" rule in step 4, then update the counts, the overview tables, the plan, and the cross-links.
 - **"Make a file for the author":** follow step 8 for the author feedback file.

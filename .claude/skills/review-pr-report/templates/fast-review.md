@@ -17,11 +17,11 @@
 
 ## What changes
 
-"Before" is `<the base ref, or the app's old code at <sha>>`. Where nothing existed, write "did not exist" and what apps did instead. Mark a guess "(not checked)".
+Plain words, one row per area. Mark a guess "(not checked)".
 
-| Area   | Before                       | After                       | Visible to app users today? | Main files     |
-| ------ | ---------------------------- | --------------------------- | --------------------------- | -------------- |
-| <Area> | <plain words: how it worked> | <plain words: how it works> | <Yes: … / No (groundwork)>  | `path/to/dir/` |
+| Area   | What it is, and what this PR changes                                                                                   | Visible to app users today? | Main files     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------- | --------------------------- | -------------- |
+| <Area> | <One or two sentences: what the feature is, then what the PR adds or changes; for a change to existing behavior, how.> | <Yes: … / No (groundwork)>  | `path/to/dir/` |
 
 <Terms a reader may not know, one line each, only if needed:>
 
@@ -31,7 +31,7 @@
 
 Spotted while skimming. **Not checked**: each one may turn out to be fine.
 
-1. **<Short label>.** <What looked risky, and why, in one or two sentences.> Before: <…>; after: <…>. See it: <`/route` → action (not checked) / not visible in apps/web (why)>. (`path/to/file.ts`)
+1. **<Short label>.** <What looked wrong, and why, in one or two plain sentences.> See it: <`/route` → action (not checked) / not visible in apps/web (why)>. (`path/to/file.ts`)
 2. <…>
 
 ## What this review did not do
