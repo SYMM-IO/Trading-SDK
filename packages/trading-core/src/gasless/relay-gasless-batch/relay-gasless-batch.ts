@@ -1,4 +1,4 @@
-import { zeroAddress, type Address } from "viem";
+import type { Address } from "viem";
 import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import type {
@@ -216,9 +216,7 @@ export async function relayGaslessBatch(
     identities?.ownerWallet ??
     (checkedOwner === undefined
       ? await getCachedGaslessAccountOwner(config, chainId, account).catch(() => null)
-      : checkedOwner === zeroAddress
-        ? null
-        : checkedOwner) ??
+      : checkedOwner) ??
     signer;
 
   const instantKey = instantSelectors.length > 0 ? gaslessInstantNonceStreamKey(chainId, account) : null;

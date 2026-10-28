@@ -1,11 +1,10 @@
 import { decodeFunctionData, isAddressEqual, toFunctionSelector, type Address, type Hex } from "viem";
 import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
-import { accountLayerAbi } from "../../symmio-contracts/abi/v0.8.6/account-layer";
 import { instantLayerAbi } from "../../symmio-contracts/abi/v0.8.6/instant-layer";
-import { getVirtualAccount } from "../../symmio-contracts/account-layer/actions/get-virtual-account";
 import { getIsDelegationActive } from "../../symmio-contracts/instant-layer/actions/get-is-delegation-active";
 import type { ResolvedGaslessBatchEntry } from "../batch/resolve-gasless-batch";
+import { getCachedDelegatorAccount, getCachedGaslessAccountOwner } from "../delegation-preflight";
 import { getGaslessWalletExecuteSelectors } from "../gasless-wallet-execute/selectors";
 import type { GaslessWalletIdentities } from "../resolve-wallet-identities";
 
@@ -19,11 +18,18 @@ const GRANT_SELECTORS: ReadonlySet<Hex> = new Set(
 /**
  * Check each entry against the authority available at its execution position.
  * Valid owner grants extend authority only for subsequent entries. On-chain
- * delegation reads are deduplicated by signer and selector.
+ * delegation reads are deduplicated by signer and selector; the owner and
+ * canonical-account reads are cached per config, so a repeat batch on the same
+ * account adds none.
+ *
+ * An account the AccountLayer knows no owner for — not created yet, deleted, or
+ * on another chain — skips the instant-entry checks: every signer would look
+ * like a delegate, so the contract's own error is the accurate one. Wallet
+ * entries are still checked against the wallet owner, which a bare EOA has.
  *
  * @param config - The SDK config.
  * @param parameters - Chain, operation account, aligned entries/signers, and any resolved wallet identities.
- * @returns The account's current owner, without the GaslessWallet bare-account fallback.
+ * @returns The account's AccountLayer owner, or `null` when it has none. Never the GaslessWallet bare-account fallback.
  * @throws {SymmError} For an invalid grant or missing delegation, before signing.
  * @internal
  */
@@ -36,22 +42,12 @@ export async function preflightBatchDelegations(
     entrySigners: readonly Address[];
     identities: GaslessWalletIdentities | null;
   },
-): Promise<Address> {
+): Promise<Address | null> {
   const { chainId, account, entries, entrySigners, identities } = parameters;
   const client = config.getClient({ chainId });
-  const { addresses } = config.getChainConfig(chainId);
-  const [owner, canonicalAccount] = await Promise.all([
-    client.readContract({
-      address: addresses.accountLayerAddress,
-      abi: accountLayerAbi,
-      functionName: "ownerOf",
-      args: [account],
-    }),
-    identities?.canonicalAccount ??
-      getVirtualAccount(config, { chainId, account }).then((detail) =>
-        detail.isExists ? detail.parentAccount : account,
-      ),
-  ]);
+  /** A live virtual account's owner is its parent's, so the owner is read on the canonical account. */
+  const canonicalAccount = identities?.canonicalAccount ?? (await getCachedDelegatorAccount(config, chainId, account));
+  const owner = await getCachedGaslessAccountOwner(config, chainId, canonicalAccount);
   const granted = new Map<string, Set<Hex>>();
   const required = new Map<string, { signer: Address; selectors: Set<Hex> }>();
   let blockTimestamp: bigint | undefined;
@@ -59,6 +55,7 @@ export async function preflightBatchDelegations(
   for (const [index, entry] of entries.entries()) {
     const signer = entrySigners[index]!;
     if (entry.type === "instant" && GRANT_SELECTORS.has(entry.selector)) {
+      if (owner === null) throw invalidGrant(index, `${account} has no AccountLayer owner to sign it`);
       if (!isAddressEqual(signer, owner)) throw invalidGrant(index, "only the account owner can sign a grant");
       const decoded = decodeFunctionData({ abi: instantLayerAbi, data: entry.callData });
       const infos =
@@ -87,7 +84,7 @@ export async function preflightBatchDelegations(
     }
 
     const entryOwner = entry.type === "wallet" ? identities!.ownerWallet : owner;
-    if (isAddressEqual(signer, entryOwner)) continue;
+    if (entryOwner === null || isAddressEqual(signer, entryOwner)) continue;
     const selectors = entry.type === "wallet" ? getGaslessWalletExecuteSelectors(entry.walletCalls) : [entry.selector];
     const key = signer.toLowerCase();
     const group = required.get(key) ?? { signer, selectors: new Set<Hex>() };
