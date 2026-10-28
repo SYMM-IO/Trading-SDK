@@ -20,6 +20,20 @@
 - **Main risk:** <the worst problem in one sentence, or "none found">.
 - **Before merge:** <the one or two things to do or decide>.
 
+## What this PR is about
+
+<Explain the feature before anything else, for a reader who has never heard of it. Plain words; define each term in the sentence.>
+
+**The feature:** <What it is and how it works, in two to five sentences. A numbered list when it has steps or alternatives.>
+
+**Why it exists now:** <The rule, request or problem that makes it needed, as stated by the code, the docs or the vendor. Never guess a motive.>
+
+**A user's journey:** <Numbered steps of how a user goes through it end to end.>
+
+**What this PR does:** <One or two sentences, pointing to the Part 1 areas (1.1, 1.2, …).>
+
+**What it does not do:** <The gaps a reader should know first, linking the problems.>
+
 ## Glossary
 
 | Term       | Meaning                                                  |
