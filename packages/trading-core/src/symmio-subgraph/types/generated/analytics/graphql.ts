@@ -4210,6 +4210,19 @@ export type PoolQuotesQuery = {
     liquidatePrice: string | null;
     timestamp: string;
     blockNumber: string;
+    timestampSendQuote: string | null;
+    timestampOpenPosition: string | null;
+    closedPrice: string | null;
+    marketPrice: string | null;
+    tradingFee: string;
+    closeFee: string;
+    leverage: string | null;
+    initialCva: string;
+    initialPartyAmm: string | null;
+    initialLf: string;
+    userPaidFunding: string | null;
+    userReceivedFunding: string | null;
+    subAccount: { id: string; owner: string } | null;
   }>;
 };
 
@@ -4233,6 +4246,11 @@ export type PoolQuoteEventsQuery = {
     transaction: string;
     source: string;
     quote: {
+      id: string;
+      timestamp: string;
+      blockNumber: string;
+      userPaidFunding: string | null;
+      userReceivedFunding: string | null;
       quoteId: string;
       quoteStatus: number | null;
       positionType: number | null;
@@ -4600,6 +4618,22 @@ export const PoolQuotesDocument = new TypedDocumentString(`
     liquidatePrice
     timestamp
     blockNumber
+    timestampSendQuote
+    timestampOpenPosition
+    subAccount {
+      id
+      owner
+    }
+    closedPrice
+    marketPrice
+    tradingFee
+    closeFee
+    leverage
+    initialCva
+    initialPartyAmm
+    initialLf
+    userPaidFunding
+    userReceivedFunding
   }
 }
     `) as unknown as TypedDocumentString<PoolQuotesQuery, PoolQuotesQueryVariables>;
@@ -4621,6 +4655,11 @@ export const PoolQuoteEventsDocument = new TypedDocumentString(`
     transaction
     source
     quote {
+      id
+      timestamp
+      blockNumber
+      userPaidFunding
+      userReceivedFunding
       quoteId
       quoteStatus
       positionType

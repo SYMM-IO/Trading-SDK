@@ -1,4 +1,4 @@
-import { toListingValue } from "../markets/to-listing-market";
+import { toListingPercent, toListingValue } from "../markets/to-listing-market";
 import {
   MarketLockReason,
   PoolPositionSide,
@@ -35,12 +35,13 @@ function toMarketLockReason(raw: string): MarketLockReason {
  */
 function toWindows(raw: GetMarketResponseSchema, prefix: string): ListingApyWindows {
   const row = raw as unknown as Record<string, string | null | undefined>;
+  const parse = prefix.includes("apy") ? toListingPercent : toListingValue;
   return {
-    h1: toListingValue(row[`${prefix}_1h`]),
-    h6: toListingValue(row[`${prefix}_6h`]),
-    h24: toListingValue(row[`${prefix}_24h`]),
-    d30: toListingValue(row[`${prefix}_30d`]),
-    lifetime: toListingValue(row[`${prefix}_lifetime`]),
+    h1: parse(row[`${prefix}_1h`]),
+    h6: parse(row[`${prefix}_6h`]),
+    h24: parse(row[`${prefix}_24h`]),
+    d30: parse(row[`${prefix}_30d`]),
+    lifetime: parse(row[`${prefix}_lifetime`]),
   };
 }
 
@@ -78,9 +79,24 @@ function toPosition(
  * @param raw - The raw market-detail response body.
  * @returns The normalized pool detail.
  */
-export function toListingMarketDetail(raw: GetMarketResponseSchema): ListingMarketDetail {
+export function toListingMarketDetail(
+  raw: GetMarketResponseSchema & {
+    apy_all_time?: string | null;
+    lifetime_reward?: string | null;
+    buy_back_ratio?: number;
+  },
+): ListingMarketDetail {
   return {
     tokenContractAddress: raw.token_contract_address,
+    reportedTotalTokenInPool: toListingValue(raw.total_token_in_pool),
+    reportedTotalUsdcInPool: toListingValue(raw.total_usdc_in_pool),
+    reportedMaintenanceFees: toListingValue(raw.maintenance_fees),
+    legacyLifetimeReward: raw.lifetime_reward ?? null,
+    isTax: raw.is_tax ?? null,
+    userWhitelistTax: raw.user_whitelist_tax ?? null,
+    additionalChains: raw.additional_chains ?? null,
+    mainPool: raw.main_pool ?? null,
+    cexList: raw.cex_list ?? null,
     depositChain: raw.deposit_chain as ListingDepositChainId,
     tokenName: raw.token_name,
     tokenTicker: raw.token_ticker ?? null,
@@ -90,7 +106,7 @@ export function toListingMarketDetail(raw: GetMarketResponseSchema): ListingMark
     isLocked: raw.is_locked ?? false,
     lockReasons: (raw.lock_reasons ?? []).map(toMarketLockReason),
     maxLeverage: raw.max_leverage,
-    buybackRatio: raw.buyback_ratio,
+    buybackRatio: raw.buyback_ratio ?? raw.buy_back_ratio,
     listingTime: raw.listing_time ?? null,
     age: raw.age ?? null,
     activeLps: raw.active_lps,
@@ -100,7 +116,7 @@ export function toListingMarketDetail(raw: GetMarketResponseSchema): ListingMark
     maintenanceFees: toRequiredValue(raw.maintenance_fees),
     rewards: toWindows(raw, "reward"),
     solverRevenue: toWindows(raw, "solver_revenue"),
-    apy: toWindows(raw, "apy"),
+    apy: { ...toWindows(raw, "apy"), lifetime: toListingPercent(raw.apy_lifetime ?? raw.apy_all_time) },
     tvlDrivenApy: toWindows(raw, "tvl_driven_apy"),
     priceDrivenApy: toWindows(raw, "price_driven_apy"),
     longPosition: toPosition(

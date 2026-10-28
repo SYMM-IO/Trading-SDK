@@ -55,7 +55,15 @@ export type GetPoolQuotesParameters = Compute<
 /** Return type of {@link getPoolQuotes}. */
 export interface GetPoolQuotesReturnType {
   /** The pool's quote rows for the requested statuses. */
-  quotes: PoolQuote[];
+  quotes: PoolQuoteBookEntry[];
+}
+
+/** A normalized quote with requested-order metrics, in 18-decimal units; unknown inputs stay null. */
+export interface PoolQuoteBookEntry extends PoolQuote {
+  /** Requested price, otherwise opened price; an explicitly reported zero is retained. */
+  orderPrice: bigint | null;
+  /** Full requested quantity times orderPrice, scaled to 18 decimals. */
+  orderNotional: bigint | null;
 }
 
 /**
@@ -114,5 +122,15 @@ export async function getPoolQuotes(
     },
   });
 
-  return { quotes: data.quotes.map(toPoolQuote) };
+  return {
+    quotes: data.quotes.map((row) => {
+      const quote = toPoolQuote(row);
+      const orderPrice = quote.requestedOpenPrice ?? quote.openedPrice;
+      return {
+        ...quote,
+        orderPrice,
+        orderNotional: quote.quantity == null || orderPrice == null ? null : (quote.quantity * orderPrice) / 10n ** 18n,
+      };
+    }),
+  };
 }

@@ -33,6 +33,8 @@ export interface ListingSiweParams {
   nonce: string;
   /** Human-readable assertion the user signs. */
   statement: string;
+  /** Optional SIWE expiry, echoed unchanged in the exchange. */
+  expirationTime?: string;
 }
 
 /**

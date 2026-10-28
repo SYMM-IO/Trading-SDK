@@ -39,6 +39,11 @@ export const PoolQuoteEventsDocument = graphql(`
       transaction
       source
       quote {
+        id
+        timestamp
+        blockNumber
+        userPaidFunding
+        userReceivedFunding
         quoteId
         quoteStatus
         positionType

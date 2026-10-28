@@ -14,6 +14,7 @@ describe("toListingMarketConfig", () => {
         buyback_ratio: 50,
       }),
     ).toEqual({
+      maxLeverageBounds: null,
       tokenContractAddress: "0x800822d361335b4d5F352Dac293cA4128b5B605f",
       depositChain: ListingDepositChainId.HYPER_EVM,
       userMaxLeverage: 10,

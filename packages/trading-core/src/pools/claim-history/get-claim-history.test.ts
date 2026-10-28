@@ -48,6 +48,8 @@ describe("getClaimHistory", () => {
       items: [
         {
           claimRequestId: "claim-1",
+          walletId: "w",
+          marketId: "m",
           accountAddress: "0xSubAccount",
           amount: 5_300_000_000_000_000_000n,
           transactionHash: "0xabc",

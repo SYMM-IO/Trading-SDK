@@ -2,6 +2,7 @@ import { isAxiosError } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import { emptyPoolProfit } from "../empty-pool-profit";
 import { resolveListingService } from "../resolve-listing";
 import type { UserPoolProfit } from "../types";
 import { getProfitByTokenV2ProfitTokenContractAddressGet } from "../types/generated/listing-backend";
@@ -21,6 +22,8 @@ export type GetUserProfitParameters = Compute<
      * yields a `401`.
      */
     accessToken: string;
+    /** Optional authenticated wallet cache scope. Supply it consistently in all private read hooks; it is not sent to the endpoint. */
+    userAddress?: string;
     /**
      * The pool's token contract address — the id that addresses a single market
      * in the listing API. An EVM `0x…` address, or a Solana base58 address for a
@@ -44,6 +47,8 @@ export type GetUserProfitReturnType = UserPoolProfit;
  * is not uniform: most fields are 1e18-scaled integers, but `claimable_reward`
  * arrives in plain decimal units and is scaled up (see `toUserPoolProfit`).
  * Enigma-only.
+ * HTTP 404 with backend error code 22 (Market not listed) confirms no LP position
+ * and returns zero stake fields. Other failures remain errors; this action does not retry.
  *
  * @param config - The SDK config.
  * @param parameters - The bearer token and the pool's token contract address.
@@ -77,6 +82,9 @@ export async function getUserProfit(
     if (err instanceof SymmError) throw err;
 
     if (isAxiosError(err)) {
+      // This exact response describes an existing market without an LP position.
+      // Other 404s (including code 21), transport and server errors stay errors.
+      if (err.response?.status === 404 && err.response.data?.error_code === 22) return emptyPoolProfit();
       throw SymmApiError.fromAxios(err, { code: "FETCH_USER_PROFIT_FAILED", baseURL });
     }
 

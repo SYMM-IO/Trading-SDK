@@ -22,8 +22,17 @@ import type { SearchUserTransactionsResult, UserTransactionItem } from "../types
  * @param raw - One row of the user-transactions response.
  * @returns The normalized transaction.
  */
-export function toUserTransaction(raw: UserTransactionItem): UserTransaction {
+export function toUserTransaction(
+  raw: UserTransactionItem & {
+    token_amount?: string | null;
+    usdc_amount?: string | null;
+    refund_transaction_hash?: string | null;
+  },
+): UserTransaction {
   return {
+    tokenAmount: toListingValue(raw.token_amount),
+    usdcAmount: toListingValue(raw.usdc_amount),
+    refundTransactionHash: raw.refund_transaction_hash ?? null,
     transactionId: raw.transaction_id,
     type: raw.transaction_type as unknown as PoolTransactionType,
     status: raw.transaction_status as unknown as PoolTransactionStatus,

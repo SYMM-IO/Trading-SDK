@@ -27,7 +27,7 @@ export function toUserListingMarket(raw: UserMarketSearchItem): UserListingMarke
   return {
     ...toListingMarket(raw as unknown as MarketSearchItem),
     userDeposit: toListingValue(raw.user_deposit),
-    userSharePercentage: raw.user_share_percentage,
+    userSharePercentage: Number.isFinite(raw.user_share_percentage) ? raw.user_share_percentage : null,
     userRevenue: toListingValue(raw.user_revenue),
   };
 }

@@ -1,0 +1,32 @@
+# Pool statistics
+
+`getPoolStatistics(config, parameters)` combines public detail, pending withdrawals, reward chart, notional cap and market info. User scope also reads authenticated profit.
+
+```ts
+import { getPoolStatistics, type Config } from "@symmio/trading-core";
+export function statistics(config: Config, tokenContractAddress: string) {
+  return getPoolStatistics(config, { chainId: 42161, depositChain: 0, tokenContractAddress, scope: "pool" });
+}
+```
+
+## Parameters and result
+
+`GetPoolStatisticsParameters` requires tokenContractAddress/depositChain. scope defaults to pool; user scope additionally requires accessToken/userAddress. chainId selects the deployment. priceUsd is an optional external price. An optional existing ListingMarket snapshot supplies catalog-first headline metrics without an additional search request.
+
+`PoolStatistics` / `GetPoolStatisticsReturnType` returns TVL, openInterest, availableLong/Short, volume24h/lifetimeVolume, apy30d/apyLifetime, rewards24h/rewards30d/lifetimeRewards, maintenanceTotal, buybackRatio and maxLeverage. It also returns tokenAmount/usdcAmount, tokenUsdValue, priceUsd, pendingToken/pendingUsdc/pendingUsd/pendingCount, tokenAfterPending, tvlAfterPending, tokenPercent and gaps.
+
+Pending withdrawal totals use integer amounts and price the token leg from the same balance snapshot when possible. User scope never subtracts the pool-wide withdrawal queue. Missing ownership hides scaled amounts while preserving rates. The newest reward point is selected by timestamp, not array position. Pending history is bounded to ten 50-row pages; incomplete history produces unknown pending totals.
+
+## Projection and queries
+
+`calculatePoolStatistics(input: CalculatePoolStatisticsParameters)` accepts normalized detail, pending transactions, rewards, notional cap, market info and optional profit/catalog snapshots. `getPoolStatisticsQueryOptions(config, options: GetPoolStatisticsOptions)` and `getPoolStatisticsQueryKey` supply the core query contract.
+
+Partial normalized snapshots are supported. Optional `shareFraction` overrides ratio derivation for user scope; explicit null keeps ownership unknown. `apy30dFallback` is an 18-decimal whole-percent rate, and `buybackRatioFallback` uses the detail field's units. These options also pass through reads and hooks. Rate precedence is catalog APR, supplied fallback, catalog APY, then detail APY; rates are never ownership-scaled. Rewards prefer the newest chart point, then detail, then catalog; lifetime rewards finally accept the detail's human-unit legacy reward. Explicit zero wins over later sources.
+
+Pure calculations can consume `pendingTotals: { count; tokenAmount; usdcAmount }` from an existing complete queue, with nullable 18-decimal bigint legs. User scope ignores this pool-wide queue. `totalUsd` is the combined detail balance, and `tokenAfterPendingUsd` values its remaining token leg. Without a price, `pendingUsd` includes known collateral only and `pendingValuationComplete` is false unless the token leg is zero. Missing legs remain null.
+
+## Units and ownership
+
+Token, collateral and LP amounts are bigint at 18 decimals. USD and percentage projections are unformatted numbers. Unknown values are null. The SDK does not contact third-party token-data providers; pass an external price when available. Keep formatting, filtering and sorting in the consumer.
+
+The corresponding React hook composes existing SDK queries; it does not cache the aggregate separately. Core query factories are available for non-React consumers. Do not mount both a composed core query and its React hook for the same screen.

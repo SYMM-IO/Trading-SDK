@@ -3014,6 +3014,8 @@ export {
   type ListingMarketDetail,
   type PoolPosition,
   type PoolQuote,
+  type PoolQuoteBookEntry,
+  type PoolTradeHistoryRow,
   type PoolTransaction,
   type PoolTransactionPage,
 } from "./pools";
@@ -3119,4 +3121,93 @@ export {
   type UserPoolRewardChart,
 } from "./pools";
 
+export { getPoolClaim, type GetPoolClaimParameters } from "./pools/claim-history";
+export {
+  getPoolMaintenanceFees,
+  getPoolMaintenanceFeesQueryKey,
+  getPoolMaintenanceFeesQueryOptions,
+  type GetPoolMaintenanceFeesOptions,
+  type GetPoolMaintenanceFeesParameters,
+  type GetPoolMaintenanceFeesReturnType,
+  type PoolMaintenanceFees,
+} from "./pools/maintenance-fees";
+export { getPoolMarketData, type GetPoolMarketDataParameters, type PoolMarketData } from "./pools/market-data";
+export {
+  getListingTokenMetadata,
+  getListingTokenMetadataQueryKey,
+  getListingTokenMetadataQueryOptions,
+  type GetListingTokenMetadataOptions,
+  type GetListingTokenMetadataParameters,
+  type GetListingTokenMetadataReturnType,
+  type ListingTokenMetadata,
+} from "./pools/token-metadata";
+export {
+  checkListingTokenSupport,
+  checkListingTokenSupportQueryKey,
+  checkListingTokenSupportQueryOptions,
+  type CheckListingTokenSupportOptions,
+  type CheckListingTokenSupportParameters,
+  type CheckListingTokenSupportReturnType,
+} from "./pools/token-support";
+export { getPoolTransactionRange } from "./pools/transactions";
 export { validateInstantOpenBalanceFunding } from "./solvers/instant-open/shared/resolve-instant-open-sizing";
+
+export {
+  calculatePoolPortfolio,
+  getPoolPortfolio,
+  getPoolPortfolioQueryKey,
+  getPoolPortfolioQueryOptions,
+  type CalculatePoolPortfolioParameters,
+  type GetPoolPortfolioOptions,
+  type GetPoolPortfolioParameters,
+  type GetPoolPortfolioQueryKey,
+  type GetPoolPortfolioReturnType,
+} from "./pools/portfolio";
+
+export {
+  calculatePoolPosition,
+  getPoolPosition,
+  getPoolPositionQueryKey,
+  getPoolPositionQueryOptions,
+  type CalculatePoolPositionParameters,
+  type GetPoolPositionOptions,
+  type GetPoolPositionParameters,
+  type GetPoolPositionQueryKey,
+  type GetPoolPositionReturnType,
+} from "./pools/position";
+
+export {
+  calculatePoolStatistics,
+  getPoolStatistics,
+  getPoolStatisticsQueryKey,
+  getPoolStatisticsQueryOptions,
+  type CalculatePoolStatisticsParameters,
+  type GetPoolStatisticsOptions,
+  type GetPoolStatisticsParameters,
+  type GetPoolStatisticsQueryKey,
+  type GetPoolStatisticsReturnType,
+} from "./pools/statistics";
+
+export type { PoolReadGap } from "./pools/composition";
+export {
+  calculatePoolOpenPositions,
+  getPoolOpenPositions,
+  getPoolOpenPositionsQueryKey,
+  getPoolOpenPositionsQueryOptions,
+  type CalculatePoolOpenPositionsParameters,
+  type GetPoolOpenPositionsOptions,
+  type GetPoolOpenPositionsParameters,
+  type GetPoolOpenPositionsQueryKey,
+  type GetPoolOpenPositionsReturnType,
+} from "./pools/open-positions";
+export type { PoolOpenPositions } from "./pools/open-positions";
+export type { PoolPortfolio, PoolPortfolioPosition, PoolPortfolioPrice } from "./pools/portfolio";
+export type { PoolDepositHistory, PoolPositionData } from "./pools/position";
+export type { PoolStatistics } from "./pools/statistics";
+
+export {
+  getListingSignInMessageQueryKey,
+  getListingSignInMessageQueryOptions,
+  type GetListingSignInMessageOptions,
+  type GetListingSignInMessageQueryKey,
+} from "./pools/auth/query";
