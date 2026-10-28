@@ -24,6 +24,24 @@ function makeConfig(overrides: Partial<ClientConfigResponse> = {}): ClientConfig
 }
 
 describe("toListingConfig", () => {
+  it("preserves the separate legacy universal floor", () => {
+    const value = toListingConfig({
+      minimum_initial_deposit_usdc: "3750000000000000000",
+      minimum_deposit_usdc: "1000000000000000000",
+      recommended_initial_deposit_usdc: "5000000000000000000",
+    });
+    expect(value.minimumDepositUsdc).toBe(3750000000000000000n);
+    expect(value.legacyUniversalDepositFloorUsdc).toBe(1000000000000000000n);
+    expect(value.recommendedDepositUsdc).toBe(5000000000000000000n);
+  });
+  it("retains missing values and rejects inverted leverage bounds", () => {
+    const value = toListingConfig({ max_leverage_bounds: { minimum: 20, maximum: 5 } });
+    expect(value.minimumDepositUsdc).toBeNull();
+    expect(value.reportedListingFeeUsdc).toBeNull();
+    expect(value.reportedProfitClaimsPerDay).toBeNull();
+    expect(value.maxLeverageBounds).toBeNull();
+    expect(value.supportedDepositChains).toEqual([]);
+  });
   it("parses the three usdc strings into 18-decimal bigints", () => {
     const cfg = toListingConfig(makeConfig());
 

@@ -24,6 +24,10 @@ describe("toCreatedPool", () => {
     };
 
     expect(toCreatedPool(raw)).toEqual({
+      isTax: false,
+      userWhitelistTax: false,
+      additionalChains: [56],
+      cexList: ["Binance"],
       tokenContractAddress: "0xToken",
       userAddress: "0xUser",
       tokenName: "Symmio",

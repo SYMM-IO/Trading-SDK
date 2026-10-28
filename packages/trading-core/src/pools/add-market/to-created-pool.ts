@@ -16,6 +16,10 @@ import type { CreatedPool } from "./types";
  */
 export function toCreatedPool(raw: AddMarketDepositResponseSchemaV2): CreatedPool {
   return {
+    isTax: raw.is_tax ?? null,
+    userWhitelistTax: raw.user_whitelist_tax ?? null,
+    additionalChains: raw.additional_chains ?? null,
+    cexList: raw.cex_list ?? null,
     tokenContractAddress: raw.token_contract_address,
     userAddress: raw.user_address,
     tokenName: raw.token_name,

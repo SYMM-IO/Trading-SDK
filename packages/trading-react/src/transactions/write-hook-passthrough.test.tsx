@@ -494,6 +494,7 @@ const SOURCE_ROOT = join(import.meta.dirname, "..");
 
 function discoverWriteHooks(): string[] {
   return readdirSync(SOURCE_ROOT, { recursive: true, encoding: "utf8" })
+    .map((entry) => entry.split("\\").join("/"))
     .filter((entry) => entry.endsWith(".ts") || entry.endsWith(".tsx"))
     .filter((entry) => !entry.includes(".test.") && !entry.startsWith("transactions/resolve-write-result"))
     .filter((entry) => readFileSync(join(SOURCE_ROOT, entry), "utf8").includes("resolveWriteResult("))

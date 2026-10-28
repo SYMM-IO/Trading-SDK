@@ -65,6 +65,7 @@ export function getQuoteFundingQueryOptions(
       configKey: config.getChainConfigKey(options.chainId),
     }),
     enabled: (options.query?.enabled ?? true) && options.quoteIds.length > 0,
-    queryFn: () => getQuoteFunding(config, { chainId: options.chainId, quoteIds: options.quoteIds }),
+    queryFn: () =>
+      getQuoteFunding(config, { chainId: options.chainId, quoteIds: options.quoteIds, source: options.source }),
   };
 }

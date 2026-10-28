@@ -16,8 +16,11 @@ import type { ListingMarketConfig } from "./types";
  * @param raw - The service's `/v2/market/config` response body.
  * @returns The normalized market config.
  */
-export function toListingMarketConfig(raw: UpdateMarketConfigResponseSchema): ListingMarketConfig {
+export function toListingMarketConfig(
+  raw: UpdateMarketConfigResponseSchema & { max_leverage_bounds?: { minimum: number; maximum: number } | null },
+): ListingMarketConfig {
   return {
+    maxLeverageBounds: raw.max_leverage_bounds ?? null,
     tokenContractAddress: raw.token_contract_address,
     depositChain: raw.deposit_chain as ListingDepositChainId,
     userMaxLeverage: raw.user_max_leverage ?? null,

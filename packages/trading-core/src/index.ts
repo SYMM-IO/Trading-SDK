@@ -2250,6 +2250,16 @@ export {
 } from "./symmio-subgraph";
 
 /**
+ * Subgraph entity reads: shared paging
+ * ------------------------------------
+ * The entity reads (`getMarginTransfers`, `getLiquidationDetails`,
+ * `getSubgraphQuotes`, `getQuoteFundingSettlements`, `getFundingIndexCheckpoints`)
+ * take optional filters — each applied only when passed — plus these paging
+ * parameters, and return one {@link SubgraphPage} per call.
+ */
+export { SUBGRAPH_MAX_PAGE_SIZE, type SubgraphPage, type SubgraphPageParameters } from "./symmio-subgraph";
+
+/**
  * Quote history (subgraph)
  * ------------------------
  * `getQuoteHistory` reads a subaccount's closed/liquidated quotes from the
@@ -2300,6 +2310,7 @@ export {
   type GetQuoteEventsByTypeQueryOptions,
   type GetQuoteEventsByTypeReturnType,
   type QuoteEventRow,
+  type QuoteSubgraphEventType,
   type RawQuoteEventNode,
 } from "./quotes";
 
@@ -2356,6 +2367,106 @@ export {
   type QuoteFundingData,
   type RawQuoteFundingRow,
 } from "./quotes";
+
+/**
+ * Subgraph quotes
+ * ---------------
+ * `getSubgraphQuotes` reads the analytics subgraph's `Quote` entities as indexed
+ * (funding index, settled funding totals, lifecycle timestamps) — not the live
+ * on-chain struct, which `getQuote` reads.
+ */
+export {
+  getSubgraphQuotes,
+  getSubgraphQuotesQueryKey,
+  getSubgraphQuotesQueryOptions,
+  toSubgraphQuoteRow,
+  type GetSubgraphQuotesData,
+  type GetSubgraphQuotesOptions,
+  type GetSubgraphQuotesParameters,
+  type GetSubgraphQuotesQueryKey,
+  type GetSubgraphQuotesQueryOptions,
+  type GetSubgraphQuotesReturnType,
+  type RawSubgraphQuoteRow,
+  type SubgraphQuoteRow,
+} from "./quotes";
+
+/**
+ * Funding settlements and index checkpoints (subgraph)
+ * ----------------------------------------------------
+ * `getQuoteFundingSettlements` reads each funding settlement of a quote;
+ * `getFundingIndexCheckpoints` reads the funding-rate index of a market and
+ * PartyB over time. Together they are the raw inputs of a per-epoch funding
+ * timeline; building that timeline is the consumer's.
+ */
+export {
+  getFundingIndexCheckpoints,
+  getFundingIndexCheckpointsQueryKey,
+  getFundingIndexCheckpointsQueryOptions,
+  getQuoteFundingSettlements,
+  getQuoteFundingSettlementsQueryKey,
+  getQuoteFundingSettlementsQueryOptions,
+  toFundingIndexCheckpointRow,
+  toQuoteFundingSettlementRow,
+  type FundingIndexCheckpointRow,
+  type GetFundingIndexCheckpointsData,
+  type GetFundingIndexCheckpointsOptions,
+  type GetFundingIndexCheckpointsParameters,
+  type GetFundingIndexCheckpointsQueryKey,
+  type GetFundingIndexCheckpointsQueryOptions,
+  type GetFundingIndexCheckpointsReturnType,
+  type GetQuoteFundingSettlementsData,
+  type GetQuoteFundingSettlementsOptions,
+  type GetQuoteFundingSettlementsParameters,
+  type GetQuoteFundingSettlementsQueryKey,
+  type GetQuoteFundingSettlementsQueryOptions,
+  type GetQuoteFundingSettlementsReturnType,
+  type QuoteFundingSettlementRow,
+  type RawFundingIndexCheckpointRow,
+  type RawQuoteFundingSettlementRow,
+} from "./funding";
+
+/**
+ * Margin transfers (subgraph)
+ * ---------------------------
+ * `getMarginTransfers` reads margin moved between a SubAccount and its Virtual
+ * Accounts, typed by {@link MarginTransferType} (exported with balance history),
+ * filterable by transaction, account, deployment and time.
+ */
+export {
+  getMarginTransfers,
+  getMarginTransfersQueryKey,
+  getMarginTransfersQueryOptions,
+  toMarginTransferRow,
+  type GetMarginTransfersData,
+  type GetMarginTransfersOptions,
+  type GetMarginTransfersParameters,
+  type GetMarginTransfersQueryKey,
+  type GetMarginTransfersQueryOptions,
+  type GetMarginTransfersReturnType,
+  type MarginTransferRow,
+  type RawMarginTransferRow,
+} from "./margin";
+
+/**
+ * Liquidation details (subgraph)
+ * ------------------------------
+ * `getLiquidationDetails` reads one entity per PartyA liquidation: locked and
+ * paid CVA/LF and the per-PartyB settlement amounts.
+ */
+export {
+  getLiquidationDetails,
+  getLiquidationDetailsQueryKey,
+  getLiquidationDetailsQueryOptions,
+  toLiquidationDetailRow,
+  type GetLiquidationDetailsData,
+  type GetLiquidationDetailsOptions,
+  type GetLiquidationDetailsParameters,
+  type GetLiquidationDetailsQueryKey,
+  type GetLiquidationDetailsQueryOptions,
+  type GetLiquidationDetailsReturnType,
+  type LiquidationDetailRow,
+  type RawLiquidationDetailRow,
+} from "./liquidation";
 
 /**
  * Quote pending funding (on-chain)
@@ -3063,6 +3174,8 @@ export {
   type ListingMarketDetail,
   type PoolPosition,
   type PoolQuote,
+  type PoolQuoteBookEntry,
+  type PoolTradeHistoryRow,
   type PoolTransaction,
   type PoolTransactionPage,
 } from "./pools";
@@ -3168,6 +3281,35 @@ export {
   type UserPoolRewardChart,
 } from "./pools";
 
+export { getPoolClaim, type GetPoolClaimParameters } from "./pools/claim-history";
+export {
+  getPoolMaintenanceFees,
+  getPoolMaintenanceFeesQueryKey,
+  getPoolMaintenanceFeesQueryOptions,
+  type GetPoolMaintenanceFeesOptions,
+  type GetPoolMaintenanceFeesParameters,
+  type GetPoolMaintenanceFeesReturnType,
+  type PoolMaintenanceFees,
+} from "./pools/maintenance-fees";
+export { getPoolMarketData, type GetPoolMarketDataParameters, type PoolMarketData } from "./pools/market-data";
+export {
+  getListingTokenMetadata,
+  getListingTokenMetadataQueryKey,
+  getListingTokenMetadataQueryOptions,
+  type GetListingTokenMetadataOptions,
+  type GetListingTokenMetadataParameters,
+  type GetListingTokenMetadataReturnType,
+  type ListingTokenMetadata,
+} from "./pools/token-metadata";
+export {
+  checkListingTokenSupport,
+  checkListingTokenSupportQueryKey,
+  checkListingTokenSupportQueryOptions,
+  type CheckListingTokenSupportOptions,
+  type CheckListingTokenSupportParameters,
+  type CheckListingTokenSupportReturnType,
+} from "./pools/token-support";
+export { getPoolTransactionRange } from "./pools/transactions";
 export { validateInstantOpenBalanceFunding } from "./solvers/instant-open/shared/resolve-instant-open-sizing";
 
 /**
@@ -3208,3 +3350,63 @@ export {
   type GetWithdrawCooldownOfQueryOptions,
   type GetWithdrawCooldownOfReturnType,
 } from "./symmio-contracts/symmio";
+
+export {
+  calculatePoolPortfolio,
+  getPoolPortfolio,
+  getPoolPortfolioQueryKey,
+  getPoolPortfolioQueryOptions,
+  type CalculatePoolPortfolioParameters,
+  type GetPoolPortfolioOptions,
+  type GetPoolPortfolioParameters,
+  type GetPoolPortfolioQueryKey,
+  type GetPoolPortfolioReturnType,
+} from "./pools/portfolio";
+
+export {
+  calculatePoolPosition,
+  getPoolPosition,
+  getPoolPositionQueryKey,
+  getPoolPositionQueryOptions,
+  type CalculatePoolPositionParameters,
+  type GetPoolPositionOptions,
+  type GetPoolPositionParameters,
+  type GetPoolPositionQueryKey,
+  type GetPoolPositionReturnType,
+} from "./pools/position";
+
+export {
+  calculatePoolStatistics,
+  getPoolStatistics,
+  getPoolStatisticsQueryKey,
+  getPoolStatisticsQueryOptions,
+  type CalculatePoolStatisticsParameters,
+  type GetPoolStatisticsOptions,
+  type GetPoolStatisticsParameters,
+  type GetPoolStatisticsQueryKey,
+  type GetPoolStatisticsReturnType,
+} from "./pools/statistics";
+
+export type { PoolReadGap } from "./pools/composition";
+export {
+  calculatePoolOpenPositions,
+  getPoolOpenPositions,
+  getPoolOpenPositionsQueryKey,
+  getPoolOpenPositionsQueryOptions,
+  type CalculatePoolOpenPositionsParameters,
+  type GetPoolOpenPositionsOptions,
+  type GetPoolOpenPositionsParameters,
+  type GetPoolOpenPositionsQueryKey,
+  type GetPoolOpenPositionsReturnType,
+} from "./pools/open-positions";
+export type { PoolOpenPositions } from "./pools/open-positions";
+export type { PoolPortfolio, PoolPortfolioPosition, PoolPortfolioPrice } from "./pools/portfolio";
+export type { PoolDepositHistory, PoolPositionData } from "./pools/position";
+export type { PoolStatistics } from "./pools/statistics";
+
+export {
+  getListingSignInMessageQueryKey,
+  getListingSignInMessageQueryOptions,
+  type GetListingSignInMessageOptions,
+  type GetListingSignInMessageQueryKey,
+} from "./pools/auth/query";

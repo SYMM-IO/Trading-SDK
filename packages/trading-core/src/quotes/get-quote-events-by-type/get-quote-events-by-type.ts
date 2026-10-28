@@ -1,9 +1,12 @@
+import type { Address } from "viem";
 import type { Config } from "../../core/config";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { querySubgraph } from "../../symmio-subgraph/query-subgraph";
+import { compactWhere, hasEmptyListFilter, toSubgraphPage } from "../../symmio-subgraph/subgraph-filters";
+import type { QuoteEvent_Filter } from "../../symmio-subgraph/types/generated/analytics/graphql";
 import { QuoteEventsForQuoteByTypeDocument } from "./query-document";
 import { toQuoteEventRow } from "./to-quote-event-row";
-import { type QuoteEventRow, type QuoteEventType } from "./types";
+import type { QuoteEventRow, QuoteEventType, QuoteSubgraphEventType } from "./types";
 
 /** Default page size when `first` is omitted. */
 export const DEFAULT_QUOTE_EVENTS_BY_TYPE_PAGE_SIZE = 50;
@@ -11,12 +14,21 @@ export const DEFAULT_QUOTE_EVENTS_BY_TYPE_PAGE_SIZE = 50;
 /**
  * Parameters for {@link getQuoteEventsByType}.
  */
-export type GetQuoteEventsByTypeParameters = Compute<
+export type GetQuoteEventsByTypeParameters<TType extends QuoteSubgraphEventType = QuoteSubgraphEventType> = Compute<
   ChainIdParameter & {
     /** On-chain quote id to read events for. */
     quoteId: bigint;
-    /** Event types to include. Use {@link PRICE_HISTORY_EVENT_TYPES}, etc. */
-    types: readonly QuoteEventType[];
+    /**
+     * Event types to include — e.g. {@link PRICE_HISTORY_EVENT_TYPES}, or any
+     * subgraph type such as `"OPEN_POSITION"`. Omit to read every type; an empty
+     * array reads nothing. The rows' `type` narrows to what is passed.
+     */
+    types?: readonly TType[];
+    /**
+     * The deployment's diamond address (the subgraph's `source`). Omit to match
+     * the quote id on any deployment the subgraph indexes.
+     */
+    source?: Address;
     /** Page size. @default 50 */
     first?: number;
     /** Page offset. @default 0 */
@@ -27,21 +39,21 @@ export type GetQuoteEventsByTypeParameters = Compute<
 >;
 
 /** Return type of {@link getQuoteEventsByType}. */
-export interface GetQuoteEventsByTypeReturnType {
+export interface GetQuoteEventsByTypeReturnType<TType extends QuoteSubgraphEventType = QuoteEventType> {
   /** The decoded event rows. */
-  rows: QuoteEventRow[];
+  rows: QuoteEventRow<TType>[];
   /** `true` when the page came back full — caller should fetch the next page. */
   hasMore: boolean;
 }
 
 /**
- * Read a single quote's non-terminal events (open-price recompute, funding
- * charges) from the analytics subgraph, filtered to the requested event types.
- * The action does no event-type interpretation beyond decoding the metadata JSON
- * — pass {@link PRICE_HISTORY_EVENT_TYPES} for the price-history list.
+ * Read a single quote's events from the analytics subgraph, optionally filtered
+ * to the requested event types and deployment. The action does no event-type
+ * interpretation beyond decoding the metadata JSON — pass
+ * {@link PRICE_HISTORY_EVENT_TYPES} for the price-history list.
  *
  * @param config - The SDK config.
- * @param parameters - Quote id, types, pagination, sort, optional chain id.
+ * @param parameters - Quote id, optional types and diamond, pagination, sort, optional chain id.
  * @returns The decoded rows plus a `hasMore` flag.
  * @throws {SymmError} when the chain is unsupported or has no analytics subgraph.
  * @throws {SymmApiError} when the subgraph request fails.
@@ -54,33 +66,39 @@ export interface GetQuoteEventsByTypeReturnType {
  * });
  * ```
  */
-export async function getQuoteEventsByType(
+export async function getQuoteEventsByType<TType extends QuoteSubgraphEventType = QuoteSubgraphEventType>(
   config: Config,
-  parameters: GetQuoteEventsByTypeParameters,
-): Promise<GetQuoteEventsByTypeReturnType> {
+  parameters: GetQuoteEventsByTypeParameters<TType>,
+): Promise<GetQuoteEventsByTypeReturnType<TType>> {
   const {
     chainId,
     quoteId,
     types,
+    source,
     first = DEFAULT_QUOTE_EVENTS_BY_TYPE_PAGE_SIZE,
     skip = 0,
     orderDirection = "desc",
   } = parameters;
 
-  if (types.length === 0) return { rows: [], hasMore: false };
+  if (hasEmptyListFilter(types)) return { rows: [], hasMore: false };
 
   const data = await querySubgraph(config, {
     chainId,
     document: QuoteEventsForQuoteByTypeDocument,
     variables: {
-      quoteId: quoteId.toString(),
-      typeIn: types as string[],
+      where: compactWhere<QuoteEvent_Filter>({
+        quoteId: quoteId.toString(),
+        type_in: types as string[] | undefined,
+        source: source?.toLowerCase(),
+      }),
       first,
       skip,
       orderDirection,
     },
   });
 
-  const rows = data.quoteEvents.map(toQuoteEventRow);
-  return { rows, hasMore: rows.length === first };
+  return toSubgraphPage(
+    data.quoteEvents.map((row) => toQuoteEventRow<TType>(row)),
+    first,
+  );
 }

@@ -1,0 +1,52 @@
+# Pool portfolio
+
+`getPoolPortfolio(config, parameters)` assembles holdings, reads their profit and detail, and returns positions, totals and explicit read gaps. Apply search, chain filters and pagination to the resulting entries. Unfunded non-listed catalog rows do not create holdings.
+
+## Example
+
+```ts
+import { getPoolPortfolio, type Config } from "@symmio/trading-core";
+export async function portfolio(config: Config, accessToken: string, userAddress: string) {
+  return getPoolPortfolio(config, { chainId: 42161, accessToken, userAddress, rewardDays: 30 });
+}
+```
+
+## Parameters
+
+`GetPoolPortfolioParameters` requires accessToken and userAddress. Optional chainId selects the deployment independently of deposit chains. sortBy/orderBy retain backend catalog ordering. rewardDays selects 1–30 days (default 30). prices accepts `PoolPortfolioPrice[]`: tokenContractAddress, depositChain, priceUsd.
+
+## Result
+
+`PoolPortfolio` / `GetPoolPortfolioReturnType` returns entries (`PoolPortfolioPosition[]`) with the same stake fields as [position](/core/pools/position), plus tokenName, tokenTicker and APR. The flat totals are totalBalanceUsd, totalDepositedUsd, claimableRewardUsd, claimedRewardUsd, rewardWindowUsd, averageApr and roiPercent.
+
+ROI compares only positions with a known balance, deposit and price on both sides. An unpriced position's known collateral can contribute to totalBalanceUsd, but not to ROI. A zero comparable deposit produces null ROI. Failed profit reads remain visible as unknown stakes.
+
+A per-pool failed profit gap overrides cached profit values and inferred zero positions. Balance and reward totals remain unknown until that read recovers; deposit history remains available. If complete history has no rows for a pool, its deposited amount falls back to the successful profit snapshot, then the catalog deposit. This fallback seeds the history projection before calculating current deposits, USD values and refundable amounts. Actual history always wins, and incomplete history never receives synthetic complete buckets.
+
+Known non-listed pools have no LP position. Their deposit, rejection and refund history stays in the portfolio, with zero LP balance and rewards. Listed rows with no positive deposit in complete history or the catalog also have zero stake. Neither group triggers profit or detail requests. Each entry's `hasDeposit` is true when any positive deposit is observed in history or the catalog, false when complete history establishes absence, and null when incomplete history cannot establish absence. Reads require positive deposit evidence. Without it, an incomplete deposit source leaves the stake unknown instead of inventing zero. Funded non-listed catalog rows are retained even when their deposit history is unavailable.
+
+Per-pool profit and detail reads share a limit of five concurrent requests per portfolio call. A failed read is retried once; HTTP 401/403 failures are never retried. Only a profit endpoint HTTP 404 with backend error code 22 (`Market not listed`) is a confirmed zero position. Other 404s, 429s, server errors and transport failures remain failed gaps after the retry. A zero deposited amount does not require a token price to contribute zero to the deposited total.
+
+In the core portfolio call, an authentication failure also stops queued per-pool requests and retries; already active requests may finish. A new portfolio call starts a fresh queue.
+
+Each catalog/status and deposit stream requests up to ten pages of 100. Pagination advances by the number of returned rows, including when the service caps a page below the requested size. Repeated pages stop paging. `gaps: PoolReadGap[]` identifies failed, repeated or truncated sources. A later-page failure retains earlier rows; incomplete history never replaces authoritative deposited amounts. Authentication failures still throw. Unknown lifecycle status stays null. Solana case aliases join only when the catalog mapping is unambiguous; outgoing requests preserve the canonical spelling.
+
+Incomplete catalog or deposit sources make whole-portfolio balance, deposit and claimed/claimable totals null. Entries remain available with their known values. Average APR and ROI describe the available comparable subset; inspect gaps before presenting them as complete-portfolio metrics. Ambiguous Solana aliases are reported as `ambiguous-address` gaps rather than assigned to another exact catalog identity.
+
+## Projection and queries
+
+`calculatePoolPortfolio(input: CalculatePoolPortfolioParameters)` accepts SDK listed/nonListed rows, deposits, per-pool profit/detail snapshots, optional prices, a reward snapshot, and gaps unchanged. It returns the same PoolPortfolio; React uses this projection after observing the individual sources.
+
+Each entry retains its original normalized catalog as `market: UserListingMarket | null` and complete `depositHistory` buckets. Catalog ownership is passed to the position calculator. Profit snapshots may be partial; absent fields remain unknown.
+
+`knownBalanceUsd` and `knownDepositedUsd` sum the available values independently, and `knownValueRoiPercent` compares those partial totals (null without positive known deposits). They preserve partial-value displays but must not be labelled complete-portfolio totals. The existing `roiPercent` still uses a matched, fully priced subset.
+
+Optional `rewardPositions: readonly { claimed: bigint | null; claimable: bigint | null }[]` supplies a complete historical reward ledger, including fully withdrawn positions. It supplies `lifetimeRewardsUsd`; consumers may pass their existing optimistic projections. An unknown leg makes that lifetime total unknown. The existing claimed/claimable totals still describe the returned entries. Without a historical ledger, lifetime rewards sum the entries' claimed and claimable totals. No additional network request is introduced.
+
+`getPoolPortfolioQueryOptions(config, options: GetPoolPortfolioOptions)` and `getPoolPortfolioQueryKey` provide the core query contract. The key excludes accessToken and includes userAddress and deployment configuration.
+
+## Units and ownership
+
+Token, collateral and LP amounts are bigint at 18 decimals. USD and percentage projections are unformatted numbers. Unknown values are null. The SDK does not contact third-party token-data providers; pass an external price when available. Keep formatting, filtering and sorting in the consumer.
+
+The corresponding React hook composes existing SDK queries; it does not cache the aggregate separately. Core query factories are available for non-React consumers. Do not mount both a composed core query and its React hook for the same screen.

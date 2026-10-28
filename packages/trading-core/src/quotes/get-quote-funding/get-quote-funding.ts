@@ -1,6 +1,9 @@
+import type { Address } from "viem";
 import type { Config } from "../../core/config";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { querySubgraph } from "../../symmio-subgraph/query-subgraph";
+import { compactWhere, stringList } from "../../symmio-subgraph/subgraph-filters";
+import type { Quote_Filter } from "../../symmio-subgraph/types/generated/analytics/graphql";
 import { QuotesFundingDocument } from "./query-document";
 import { toQuoteFundingRow } from "./to-funding-row";
 import type { QuoteFundingData } from "./types";
@@ -22,6 +25,12 @@ export type GetQuoteFundingParameters = Compute<
   ChainIdParameter & {
     /** On-chain quote ids to read. */
     quoteIds: readonly bigint[];
+    /**
+     * The deployment's diamond address (the subgraph's `source`). Omit to match a
+     * quote id on any deployment the subgraph indexes; pass it when one subgraph
+     * indexes several diamonds, whose quote ids can collide.
+     */
+    source?: Address;
   }
 >;
 
@@ -68,7 +77,7 @@ function chunkQuoteIds(quoteIds: readonly bigint[]): bigint[][] {
  * indexing lag.
  *
  * @param config - The SDK config.
- * @param parameters - Quote ids and optional chain id.
+ * @param parameters - Quote ids, optional diamond (`source`), optional chain id.
  * @returns Funding rows (merged across all internal requests) plus the input ids
  *   the subgraph did not return, computed across the full input set.
  * @throws {SymmError} when the chain has no analytics subgraph.
@@ -76,14 +85,17 @@ function chunkQuoteIds(quoteIds: readonly bigint[]): bigint[][] {
  *
  * @example
  * ```ts
- * const { rows, missingQuoteIds } = await getQuoteFunding(config, { quoteIds: [7334n, 7335n] });
+ * const { rows, missingQuoteIds } = await getQuoteFunding(config, {
+ *   quoteIds: [7334n, 7335n],
+ *   source: "0xdiamond…",
+ * });
  * ```
  */
 export async function getQuoteFunding(
   config: Config,
   parameters: GetQuoteFundingParameters,
 ): Promise<GetQuoteFundingReturnType> {
-  const { chainId, quoteIds } = parameters;
+  const { chainId, quoteIds, source } = parameters;
 
   if (quoteIds.length === 0) return { rows: [], missingQuoteIds: [] };
 
@@ -92,7 +104,13 @@ export async function getQuoteFunding(
       querySubgraph(config, {
         chainId,
         document: QuotesFundingDocument,
-        variables: { ids: batch.map((id) => id.toString()), first: QUOTES_FUNDING_MAX_IDS_PER_REQUEST },
+        variables: {
+          where: compactWhere<Quote_Filter>({
+            quoteId_in: stringList(batch),
+            source: source?.toLowerCase(),
+          }),
+          first: QUOTES_FUNDING_MAX_IDS_PER_REQUEST,
+        },
       }),
     ),
   );

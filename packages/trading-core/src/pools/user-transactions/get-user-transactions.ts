@@ -28,6 +28,8 @@ export type GetUserTransactionsParameters = Compute<
      * `401`.
      */
     accessToken: string;
+    /** Optional authenticated wallet cache scope. Supply it consistently in all private read hooks; it is not sent to the endpoint. */
+    userAddress?: string;
     /** Narrow to deposits or withdrawals only. Omit for both. */
     transactionType?: PoolTransactionType;
     /** Narrow to one status (e.g. only pending). Omit for all statuses. */

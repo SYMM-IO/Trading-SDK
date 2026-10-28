@@ -63,14 +63,18 @@ export function calculateQuotePnl(inputs: CalculateQuotePnlInputs): CalculateQuo
     return { pnl: "0", pnlPercent: "0" };
   }
 
-  const pnl = closedAmount * (closedPrice - openedPrice) * sideSign;
+  const pnlExact = formatUnits(
+    (inputs.closedAmount * (inputs.closedPrice - inputs.openedPrice) * BigInt(sideSign)) / 10n ** 18n,
+    WEI_DECIMALS,
+  );
+  const pnl = Number(pnlExact);
   if (!Number.isFinite(pnl)) return { pnl: "0", pnlPercent: "0" };
 
   if (openedPrice <= 0 || !Number.isFinite(leverage)) {
-    return { pnl: String(pnl), pnlPercent: "0" };
+    return { pnl: pnlExact, pnlPercent: "0" };
   }
   const pnlPercent = (pnl / closedAmount / openedPrice) * leverage * 100;
-  if (!Number.isFinite(pnlPercent)) return { pnl: String(pnl), pnlPercent: "0" };
+  if (!Number.isFinite(pnlPercent)) return { pnl: pnlExact, pnlPercent: "0" };
 
-  return { pnl: String(pnl), pnlPercent: pnlPercent.toFixed(2) };
+  return { pnl: pnlExact, pnlPercent: pnlPercent.toFixed(2) };
 }

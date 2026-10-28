@@ -40,6 +40,14 @@ describe("getListingConfig", () => {
 
     expect(getClientConfigV2ConfigsGet).toHaveBeenCalledWith({ baseURL: LISTING_URL });
     expect(cfg).toEqual({
+      recommendedDepositUsdc: 500000000000000000000n,
+      minimumDepositUsdc: 450000000000000000000n,
+      legacyUniversalDepositFloorUsdc: null,
+      reportedListingFeeUsdc: 25000000000000000000n,
+      maxLeverageBounds: null,
+      reportedMarketConfigUpdatesPerDay: 5,
+      reportedProfitClaimsPerDay: 3,
+      reportedProtocolRewardSharePercent: 20,
       recommendedInitialDepositUsdc: 500000000000000000000n,
       minimumInitialDepositUsdc: 450000000000000000000n,
       listingFeeUsdc: 25000000000000000000n,

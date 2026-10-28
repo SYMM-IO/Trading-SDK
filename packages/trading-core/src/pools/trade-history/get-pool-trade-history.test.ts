@@ -18,7 +18,13 @@ const EVENT = {
   quoteId: "8232",
   blockNumber: "1",
   transaction: "0xdead",
+  source: "0x8a0ed5b4cec4b0c4e1f7c8d9e3a2b1f0c9d8e7f6",
   quote: {
+    id: "quote-8232",
+    timestamp: "1782000000",
+    blockNumber: "1",
+    tradingFee: "7",
+    closeFee: "11",
     quoteId: "8232",
     quoteStatus: 7,
     positionType: 0,
@@ -36,7 +42,20 @@ const EVENT = {
     quantityToClose: "0",
     liquidateAmount: null,
     liquidatePrice: null,
-    subAccount: { id: SUB },
+    subAccount: { id: SUB, owner: SUB },
+    closedPrice: null,
+    initialOpenedPrice: "1",
+    marketPrice: null,
+    leverage: null,
+    cva: null,
+    lf: null,
+    initialCva: "0",
+    initialLf: "0",
+    initialPartyAmm: null,
+    timestampSendQuote: null,
+    timestampOpenPosition: null,
+    sendQuoteEvents: [],
+    openPositionEvents: [],
   },
 };
 
@@ -54,8 +73,8 @@ describe("getPoolTradeHistory", () => {
     const { config } = mockConfig();
     const post = vi.spyOn(axios, "post");
 
-    await expect(getPoolTradeHistory(config, { symbolId: null })).resolves.toEqual({ rows: [] });
-    await expect(getPoolTradeHistory(config, { symbolId: undefined })).resolves.toEqual({ rows: [] });
+    await expect(getPoolTradeHistory(config, { symbolId: null })).resolves.toEqual({ rows: [], quotes: [] });
+    await expect(getPoolTradeHistory(config, { symbolId: undefined })).resolves.toEqual({ rows: [], quotes: [] });
     expect(post).not.toHaveBeenCalled();
   });
 
@@ -63,7 +82,7 @@ describe("getPoolTradeHistory", () => {
     const { config } = mockConfig();
     const post = vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { quoteEvents: [EVENT] } } });
 
-    const { rows } = await getPoolTradeHistory(config, { symbolId: 149 });
+    const { rows, quotes } = await getPoolTradeHistory(config, { symbolId: 149 });
 
     expect(post).toHaveBeenCalledTimes(1);
     const [url] = post.mock.calls[0] as unknown as [string];
@@ -79,6 +98,15 @@ describe("getPoolTradeHistory", () => {
     expect(rows[0]!.quoteId).toBe(8232n);
     /** The event's own snapshot, not the quote's final `closedAmount`. */
     expect(rows[0]!.closedAmount).toBe(1000000000000000000n);
+    expect(quotes[0]!.closedAmount).toBe(1000000000000000000n);
+    expect(quotes[0]!.averageClosedPrice).toBe(2000000000000000000n);
+    expect(quotes[0]!.liquidatePrice).toBeNull();
+    expect(quotes[0]!.liquidateAmount).toBeNull();
+    expect(quotes[0]!.quantityToClose).toBe(1000000000000000000n);
+    expect(quotes[0]!.tradingFee).toBe(7n);
+    expect(quotes[0]!.ownerAddress).toBe(SUB);
+    expect(quotes[0]!.quantity).toBe(2000000000000000000n);
+    expect(rows[0]!.eventId).toBe("0xevent-1");
   });
 
   it("defaults closeType to All, first to 50, skip to 0 and orderDirection to desc", async () => {
@@ -90,6 +118,31 @@ describe("getPoolTradeHistory", () => {
     const { variables } = requestBody(post) as unknown as { variables: { typeIn: string[]; [k: string]: unknown } };
     expect(variables.typeIn).toHaveLength(7);
     expect(variables).toMatchObject({ first: 50, skip: 0, orderDirection: "desc" });
+  });
+  it("keeps an explicitly reported zero distinct from an absent snapshot", async () => {
+    const { config } = mockConfig();
+    vi.spyOn(axios, "post").mockResolvedValue({
+      data: {
+        data: {
+          quoteEvents: [
+            { ...EVENT, metadata: JSON.stringify({ amount: "0", closePrice: "0" }) },
+            { ...EVENT, id: "absent", metadata: "{}" },
+          ],
+        },
+      },
+    });
+    const { quotes } = await getPoolTradeHistory(config, { symbolId: 149 });
+    expect(quotes[0]).toMatchObject({
+      closedAmount: 0n,
+      quantityToClose: 0n,
+      averageClosedPrice: 0n,
+      liquidatePrice: null,
+    });
+    expect(quotes[1]).toMatchObject({
+      closedAmount: 2000000000000000000n,
+      averageClosedPrice: 2n,
+      liquidatePrice: null,
+    });
   });
 
   it("maps a close-type filter to its event types", async () => {
@@ -116,6 +169,6 @@ describe("getPoolTradeHistory", () => {
     const { config } = mockConfig();
     vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { quoteEvents: null } } });
 
-    await expect(getPoolTradeHistory(config, { symbolId: 149 })).resolves.toEqual({ rows: [] });
+    await expect(getPoolTradeHistory(config, { symbolId: 149 })).resolves.toEqual({ rows: [], quotes: [] });
   });
 });

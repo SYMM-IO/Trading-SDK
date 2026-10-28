@@ -80,6 +80,13 @@ const cards: Record<Exclude<NavHref, "/">, Omit<LinkCardProps, "href" | "index">
     description: "Inspect the chain config the app resolves from @symmio/trading-react — addresses, solver, subgraphs.",
     icon: <SlidersIcon />,
   },
+  "/subgraph": {
+    eyebrow: "Subgraph",
+    title: "Subgraph reads",
+    description:
+      "Run any SDK subgraph read with the filters and params you choose, and inspect each row it returns — no wallet needed.",
+    icon: <GraphIcon />,
+  },
 };
 
 export function HomePanel() {
@@ -132,6 +139,23 @@ function ArrowIcon() {
         strokeWidth="1.75"
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function GraphIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
+      <circle cx="6" cy="6" r="2.5" stroke="currentColor" strokeWidth="1.75" />
+      <circle cx="18" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.75" />
+      <circle cx="9" cy="18" r="2.5" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M8.4 6.8 15.6 8.2M16.6 11.1 10.6 16.1M6.7 8.4l1.6 7.2"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        opacity="0.55"
       />
     </svg>
   );

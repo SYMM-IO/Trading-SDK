@@ -33,6 +33,8 @@ export type GetUserListingMarketsParameters = Compute<
      * yields a `401`.
      */
     accessToken: string;
+    /** Optional authenticated wallet cache scope. Supply it consistently in all private read hooks; it is not sent to the endpoint. */
+    userAddress?: string;
     /**
      * Free-text search, matched against contract address, ticker, and token
      * name.

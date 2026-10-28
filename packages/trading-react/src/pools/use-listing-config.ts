@@ -19,6 +19,7 @@ export type UseListingConfigParameters = GetListingConfigOptions & ConfigParamet
 export type UseListingConfigReturnType = UseQueryResult<ListingConfig, SymmioRequestError>;
 
 /**
+ * Missing rate limits remain null; legacy initial-deposit fields retain their actual minimum.
  * Read the listing service's **public** client configuration — the data a
  * create-pool UI must show a user before they list a token: the recommended and
  * minimum initial deposits, the listing fee, the supported deposit chains, the
