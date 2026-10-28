@@ -33,20 +33,33 @@ type GaslessDispatchSubmit =
   | { receipt: GaslessSubmitReceipt; owner: Address }
   | Extract<GaslessWriteResult, { kind: "refused" }>;
 
+/**
+ * The least signature lifetime worth asking the user to sign for: room for the
+ * prompt and for the relayer to land it. Below this the attempt stops unsigned.
+ */
+const GASLESS_MIN_SIGNING_WINDOW_SECONDS = 60;
+
 /** Sign and submit one resolved relay attempt. Refusals carry acceptance state; this function never submits a wallet transaction. @internal */
 export async function submitGaslessWrite(
   config: Config,
   write: ResolvedGaslessWrite,
-  from?: Address,
+  attempt: {
+    /** The signer to resolve, as the write's `from`. */
+    from?: Address;
+    /** When the user's action started (ms since epoch), from `getGaslessAttemptStart` or the seam's first line. */
+    startedAtMs: number;
+  },
 ): Promise<GaslessWriteResult> {
   const { chainId, gasless, options, execution, account: resolvedSignerAccount, operationType, calls } = write;
+  const { from, startedAtMs } = attempt;
 
   /**
-   * Fixed when the attempt starts, before any lock wait or prompt: an attempt
-   * started at `T` can never execute after `T + GASLESS_SIGNATURE_LIFETIME_SECONDS`,
-   * which is what lets a caller reconcile an unresolved action on a known date.
+   * Counted from when the user's action started, before any read, lock wait or
+   * prompt: an attempt started at `T` can never execute after
+   * `T + GASLESS_SIGNATURE_LIFETIME_SECONDS`, which is what lets a caller
+   * reconcile an unresolved action on a known date.
    */
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + GASLESS_SIGNATURE_LIFETIME_SECONDS);
+  const deadline = BigInt(Math.floor(startedAtMs / 1000) + GASLESS_SIGNATURE_LIFETIME_SECONDS);
 
   /**
    * One key per user action. A caller-owned key is reused on every attempt of
@@ -144,6 +157,24 @@ export async function submitGaslessWrite(
          * proceeds.
          */
       }
+    }
+
+    /**
+     * The reads before this point count against the lifetime. When they used
+     * nearly all of it (a stalled tab, a slow RPC), the signature could not land
+     * after the prompt, so stop with nothing signed.
+     */
+    const remainingSeconds = Number(deadline) - Math.floor(Date.now() / 1000);
+    if (remainingSeconds < GASLESS_MIN_SIGNING_WINDOW_SECONDS) {
+      return {
+        kind: "refused",
+        accepted: false,
+        error: new SymmError(
+          "validation",
+          "GASLESS_SIGNATURE_WINDOW_EXPIRED",
+          `Gasless: this write started at ${new Date(startedAtMs).toISOString()} and its signature would expire in ${Math.max(remainingSeconds, 0)}s, too soon to sign and land it. Nothing was signed or sent; call the write again to start a new attempt.`,
+        ),
+      };
     }
 
     /** EIP-712 prompts — a user rejection propagates unwrapped, with no fallback. */

@@ -154,6 +154,8 @@ async function canReconcile(action: PendingCreation): Promise<boolean> {
 
 Compare with the chain's time, not the device clock: the contract checks the deadline against the block timestamp.
 
+The lifetime counts from when the SDK call starts, including any reads it makes before signing — a virtual account's parent, a Muon signature, a quote. A slow read shortens the window the user has to sign; it never moves the deadline past `lastAttemptStartedAt + GASLESS_SIGNATURE_LIFETIME_SECONDS`. When the reads leave less than a minute, the call stops before any prompt with `GASLESS_SIGNATURE_WINDOW_EXPIRED`; nothing was signed, so start a new attempt.
+
 ## Retry window
 
 A retry is protected only while the service still holds the key. Measure a window from `firstAttemptAt`, and retry only inside it. The window must end at least one signature lifetime (20 minutes) before the service's key retention does — ask your deployment for its retention. For example, with keys retained for 7 days, a 24-hour window leaves ample margin:

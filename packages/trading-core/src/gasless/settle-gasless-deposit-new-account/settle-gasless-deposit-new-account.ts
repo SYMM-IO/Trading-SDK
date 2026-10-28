@@ -30,8 +30,9 @@ export interface GaslessDepositAccountData {
   /** Whether the account runs in single-VA mode — a product decision, choose explicitly. */
   singleVAMode: boolean;
   /**
-   * Metadata forwarded to the affiliate's `onAccountCreation` hook. Defaults to `0x`, which a hooked affiliate
-   * rejects with `HookFailed`; build it with `encodeSubAccountHookMetadata`.
+   * Metadata forwarded unchanged to the affiliate's `onAccountCreation` hook, which decides its encoding; a blob the
+   * hook rejects fails the settlement with `HookFailed`. Defaults to `0x`. For the chains' default affiliates, build it
+   * with `encodeSubAccountHookMetadata`.
    */
   metadata?: Hex;
 }

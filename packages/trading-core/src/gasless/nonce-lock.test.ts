@@ -613,6 +613,62 @@ describe("gasless pending-nonce guard", () => {
     await expect(readGaslessStreamNonce(config, STREAM, async () => 5n, "action-2")).resolves.toBe(6n);
     await expect(readGaslessStreamNonce(config, STREAM, async () => 5n)).resolves.toBe(6n);
   });
+
+  describe("after a caller-keyed success", () => {
+    const SUCCESS_TX = `0x${"ab".repeat(32)}` as const;
+
+    it("waits for this RPC to see the transaction before another action reads the nonce", async () => {
+      vi.useFakeTimers();
+      const { config, getTransactionReceipt } = gaslessTestConfig();
+      await submitAccepted(config, { signedNonce: 6n, deadline: deadlineIn(600), callerKey: "action-1" });
+      waitForGaslessRequest.mockResolvedValue(
+        operationRequestFixture({ status: GaslessRequestStatus.SUCCEEDED, txHash: SUCCESS_TX }),
+      );
+      /** The relayer's node has the block; this RPC still trails it. */
+      let rpcNonce = 5n;
+      getTransactionReceipt.mockRejectedValue(new Error("Transaction receipt could not be found"));
+
+      let settled = false;
+      const pending = readGaslessStreamNonce(config, STREAM, async () => rpcNonce, "action-2");
+      const markSettled = () => {
+        settled = true;
+      };
+      void pending.then(markSettled, markSettled);
+      await vi.advanceTimersByTimeAsync(3_000);
+      /** Not nonce 5: that would make the next action sign 6, which the success already spent. */
+      expect(settled).toBe(false);
+      expect(getTransactionReceipt).toHaveBeenCalledWith({ hash: SUCCESS_TX });
+
+      /** The RPC catches up: the receipt and the consumed nonce arrive together. */
+      rpcNonce = 6n;
+      getTransactionReceipt.mockResolvedValue({ status: "success" });
+      await vi.advanceTimersByTimeAsync(1_500);
+
+      /** The next action signs 7. */
+      await expect(pending).resolves.toBe(6n);
+    });
+
+    it("throws GASLESS_NONCE_STREAM_BUSY, and keeps blocking, while this RPC never sees the transaction", async () => {
+      vi.useFakeTimers();
+      const { config, getTransactionReceipt } = gaslessTestConfig();
+      await submitAccepted(config, { signedNonce: 6n, deadline: deadlineIn(600), callerKey: "action-1" });
+      waitForGaslessRequest.mockResolvedValue(
+        operationRequestFixture({ status: GaslessRequestStatus.SUCCEEDED, txHash: SUCCESS_TX }),
+      );
+      getTransactionReceipt.mockRejectedValue(new Error("Transaction receipt could not be found"));
+
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const pending = readGaslessStreamNonce(config, STREAM, async () => 5n, "action-2");
+        const assertion = expect(pending).rejects.toMatchObject({ code: "GASLESS_NONCE_STREAM_BUSY" });
+        await vi.advanceTimersByTimeAsync(121_000);
+        await assertion;
+      }
+
+      /** Once the RPC has the receipt, the stream is free again. */
+      getTransactionReceipt.mockResolvedValue({ status: "success" });
+      await expect(readGaslessStreamNonce(config, STREAM, async () => 5n, "action-2")).resolves.toBe(5n);
+    });
+  });
 });
 
 describe("blocksGaslessNonceStream", () => {

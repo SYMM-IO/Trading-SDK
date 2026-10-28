@@ -26,10 +26,13 @@ export const GASLESS_WALLET_EXECUTION_SENTINEL_SELECTOR = "0x1dccecab" as const;
 /**
  * The longest a signature made by an SDK gasless call stays valid: 20 minutes,
  * counted from the moment the call starts. Every SDK call that signs a gasless
- * operation fixes the deadline when it starts, so an attempt started at `T`
- * (seconds) can no longer execute once the chain's latest block timestamp
- * passes `T + GASLESS_SIGNATURE_LIFETIME_SECONDS`. Allow a minute of margin for
- * the time between recording `T` and making the call.
+ * operation fixes the deadline when it starts, before any read it makes first
+ * (a virtual account's parent, a Muon signature, a quote), so an attempt
+ * started at `T` (seconds) can no longer execute once the chain's latest block
+ * timestamp passes `T + GASLESS_SIGNATURE_LIFETIME_SECONDS`. Allow a minute of
+ * margin for the time between recording `T` and making the call. A call whose
+ * reads leave less than a minute of that lifetime stops before any prompt with
+ * `GASLESS_SIGNATURE_WINDOW_EXPIRED`.
  *
  * Gasless-wallet operations (`gaslessWalletExecute`) use a shorter lifetime, so
  * this bound covers them too.

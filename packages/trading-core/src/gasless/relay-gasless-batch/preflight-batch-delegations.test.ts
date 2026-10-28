@@ -1,6 +1,7 @@
-import { erc20Abi, toFunctionSelector, zeroAddress, type Address, type Hex } from "viem";
+import { encodeFunctionData, erc20Abi, toFunctionSelector, zeroAddress, type Address, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 import { getChainConfig } from "../../core/chains";
+import { accountLayerAbi } from "../../symmio-contracts/abi/v0.8.6/account-layer";
 import { getGaslessBatchSelectors, type GaslessBatchCall } from "../batch/calls";
 import { resolveGaslessBatchEntries } from "../batch/resolve-gasless-batch";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS_SIGNER as OWNER, gaslessWriteTestConfig } from "../test/config";
@@ -44,7 +45,17 @@ function fixture(options: { account?: Address; liveVirtualAccount?: boolean; own
   const canonicalAccount = options.liveVirtualAccount ? ACCOUNT : account;
   const owner = options.owner ?? OWNER;
   readContract.mockImplementation(async ({ functionName }: { functionName: string }) => {
-    if (functionName === "ownerOf") return owner;
+    /** An unknown account reads back as not existing, with a zero owner. */
+    if (functionName === "getSubAccount")
+      return {
+        accountAddress: canonicalAccount,
+        owner,
+        name: "Main",
+        isExists: owner !== zeroAddress,
+        singleVAMode: false,
+        affiliate: zeroAddress,
+        symmioCore: zeroAddress,
+      };
     if (functionName === "getVirtualAccount")
       return {
         accountAddress: account,
@@ -101,10 +112,42 @@ describe("batch delegation preflight", () => {
 
   it("does not mistake the bare-account wallet owner fallback for grant authority", async () => {
     const { check } = fixture({ owner: zeroAddress });
-    await expect(check([wallet], [ACCOUNT])).resolves.toBe(zeroAddress);
+    await expect(check([wallet], [ACCOUNT])).resolves.toBeNull();
     await expect(check([grant(), wallet], [ACCOUNT, KEY])).rejects.toMatchObject({
       code: "GASLESS_INVALID_DELEGATION_GRANT",
+      message: expect.stringContaining("has no AccountLayer owner"),
     });
+  });
+
+  it("skips instant-entry checks for an account with no AccountLayer owner", async () => {
+    const { check, readContract } = fixture({ owner: zeroAddress });
+    await expect(check([allocate], [OWNER])).resolves.toBeNull();
+    await expect(check([allocate, allocate], [KEY, OTHER_KEY])).resolves.toBeNull();
+    expect(readContract.mock.calls.some(([read]) => read.functionName === "isDelegationActive")).toBe(false);
+  });
+
+  it("still checks wallet entries for an account with no AccountLayer owner", async () => {
+    const { check } = fixture({ owner: zeroAddress });
+    await expect(check([allocate, wallet], [KEY, KEY])).rejects.toMatchObject({
+      code: "GASLESS_SIGNER_NOT_DELEGATED",
+    });
+  });
+
+  it("reads the owner and the canonical account once per config across batches", async () => {
+    const { check, readContract } = fixture();
+    await expect(check([allocate], [OWNER])).resolves.toBe(OWNER);
+    await expect(check([allocate], [OWNER])).resolves.toBe(OWNER);
+    const reads = readContract.mock.calls.map(([read]) => read.functionName);
+    expect(reads.filter((name) => name === "getSubAccount")).toHaveLength(1);
+    expect(reads.filter((name) => name === "getVirtualAccount")).toHaveLength(1);
+  });
+
+  it.each([true, false])("reads the owner on the canonical account (live=%s)", async (liveVirtualAccount) => {
+    const { check, readContract } = fixture({ account: VIRTUAL_ACCOUNT, liveVirtualAccount });
+    await expect(check([allocate], [OWNER])).resolves.toBe(OWNER);
+    expect(readContract.mock.calls.find(([read]) => read.functionName === "getSubAccount")?.[0].args).toEqual([
+      liveVirtualAccount ? ACCOUNT : VIRTUAL_ACCOUNT,
+    ]);
   });
 
   it("accepts duplicate selectors and a zero delegate as the contract does", async () => {
@@ -114,6 +157,31 @@ describe("batch delegation preflight", () => {
     );
     await expect(check([grant(grantInfo({ delegatedSigner: zeroAddress }))], [OWNER])).resolves.toBe(OWNER);
   });
+
+  it.each([true, false])(
+    "checks the inner timelock permission on the virtual account's parent (active=%s)",
+    async (active) => {
+      const { check, readContract } = fixture({ account: VIRTUAL_ACCOUNT, liveVirtualAccount: true, active });
+      const innerCall = encodeFunctionData({
+        abi: accountLayerAbi,
+        functionName: "_call",
+        args: [VIRTUAL_ACCOUNT, []],
+      });
+      const data = encodeFunctionData({
+        abi: accountLayerAbi,
+        functionName: "executeTimelockOp",
+        args: [[], innerCall],
+      });
+      const result = check([{ data }], [KEY]);
+      if (active) await expect(result).resolves.toBe(OWNER);
+      else await expect(result).rejects.toMatchObject({ code: "GASLESS_SIGNER_NOT_DELEGATED" });
+      expect(readContract.mock.calls.find(([read]) => read.functionName === "getSubAccount")?.[0].args).toEqual([
+        ACCOUNT,
+      ]);
+      const probes = readContract.mock.calls.filter(([read]) => read.functionName === "isDelegationActive");
+      expect(probes.map(([read]) => read.args)).toEqual([[ACCOUNT, KEY, toFunctionSelector("_call(address,bytes[])")]]);
+    },
+  );
 
   it("uses one block timestamp for multiple grants", async () => {
     const { check, getBlock } = fixture();
@@ -156,7 +224,7 @@ describe("batch delegation preflight", () => {
     expect(probes.map(([read]) => read.args)).toEqual(
       getGaslessBatchSelectors([allocate, wallet]).map((selector) => [ACCOUNT, KEY, selector]),
     );
-    expect(readContract.mock.calls.filter(([read]) => read.functionName === "ownerOf")).toHaveLength(1);
+    expect(readContract.mock.calls.filter(([read]) => read.functionName === "getSubAccount")).toHaveLength(1);
     expect(getBlock).not.toHaveBeenCalled();
   });
 

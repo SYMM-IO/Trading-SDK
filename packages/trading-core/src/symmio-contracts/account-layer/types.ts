@@ -201,10 +201,10 @@ export interface SubAccountCreationData {
    */
   name: string;
   /**
-   * Metadata blob forwarded to the affiliate's `onAccountCreation` hook, which
-   * decides its encoding. Build it with `encodeSubAccountHookMetadata`: a hooked
-   * affiliate rejects an empty blob with `HookFailed`, so `"0x"` is only right
-   * for an affiliate without a hook.
+   * Metadata blob forwarded unchanged to the affiliate's `onAccountCreation`
+   * hook, which decides its encoding; a blob the hook rejects reverts the
+   * creation with `HookFailed`. For the chains' default affiliates, build it
+   * with `encodeSubAccountHookMetadata`.
    */
   metadata: Hex;
   /**

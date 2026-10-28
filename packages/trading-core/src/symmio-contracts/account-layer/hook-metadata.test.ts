@@ -37,8 +37,29 @@ describe("encodeSubAccountHookMetadata", () => {
     });
   });
 
-  it("returns 0x when there is no PartyB to bind", () => {
+  it("keeps a referral code when there is no PartyB to bind", () => {
+    expect(decode(encodeSubAccountHookMetadata({ rflCode: "alice" }))).toEqual({
+      rflCode: "alice",
+      referrerTokenId: 0n,
+      partyBToBind: zeroAddress,
+    });
+    expect(decode(encodeSubAccountHookMetadata({ rflCode: "alice", partyBToBind: zeroAddress }))).toEqual({
+      rflCode: "alice",
+      referrerTokenId: 0n,
+      partyBToBind: zeroAddress,
+    });
+  });
+
+  it("keeps a referrer on its own", () => {
+    expect(decode(encodeSubAccountHookMetadata({ referrerTokenId: 7n }))).toEqual({
+      rflCode: "",
+      referrerTokenId: 7n,
+      partyBToBind: zeroAddress,
+    });
+  });
+
+  it("returns 0x only when every field is empty", () => {
     expect(encodeSubAccountHookMetadata({})).toBe("0x");
-    expect(encodeSubAccountHookMetadata({ rflCode: "alice", partyBToBind: zeroAddress })).toBe("0x");
+    expect(encodeSubAccountHookMetadata({ rflCode: "", referrerTokenId: 0n, partyBToBind: zeroAddress })).toBe("0x");
   });
 });

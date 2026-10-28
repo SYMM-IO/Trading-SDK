@@ -5,6 +5,7 @@ import type { ChainIdParameter } from "../../../shared/types/properties";
 import { getLastWithdrawRequestId } from "../actions/get-last-withdraw-request-id";
 import { getPendingWithdrawRequests } from "../actions/get-pending-withdraw-requests";
 import type { WithdrawRequest } from "../types";
+import { createConcurrencyLimiter } from "./limit-concurrency";
 
 /** Parameters for a complete pending-withdrawal scan across subaccounts. */
 export type GetPendingWithdrawRequestsBatchParameters = ChainIdParameter & {
@@ -25,10 +26,15 @@ export interface PendingWithdrawRequestsForUser {
 /** Complete per-user results, ordered by normalized user address. */
 export type GetPendingWithdrawRequestsBatchReturnType = readonly PendingWithdrawRequestsForUser[];
 
+/** The most RPC reads the batch keeps in flight, across every user and page. */
+const MAX_READS_IN_FLIGHT = 6;
+
 /**
  * Read all pending-withdrawal pages for each distinct subaccount. Empty/sparse
  * pages never terminate the scan: the last request ID bounds its ranges.
  * A failed page rejects the whole read rather than reporting incomplete funds.
+ * At most 6 reads are in flight at once, so a long scan does not trip an RPC
+ * rate limit, and no new read starts after the first failure.
  * @param config - SDK configuration and read client.
  * @param parameters - Users, optional chain and bounded page size.
  * @returns One result per distinct user, including users with no requests.
@@ -46,22 +52,26 @@ export async function getPendingWithdrawRequestsBatch(
     throw new SymmError("validation", "INVALID_WITHDRAW_USER", "users must contain valid addresses");
 
   const normalized = [...new Set(users.map((user) => user.toLowerCase() as Address))].sort();
+  /** One budget for every read in the batch, so a long scan never bursts the RPC. */
+  const read = createConcurrencyLimiter(MAX_READS_IN_FLIGHT);
 
   return Promise.all(
     normalized.map(async (user) => {
-      const last = await getLastWithdrawRequestId(config, { chainId, user });
+      const last = await read(() => getLastWithdrawRequestId(config, { chainId, user }));
       const pages: Promise<readonly WithdrawRequest[]>[] = [];
 
       for (let start = 1n; start <= last; start += pageSize) {
         const remaining = last - start + 1n;
 
         pages.push(
-          getPendingWithdrawRequests(config, {
-            user,
-            start,
-            chainId,
-            size: remaining < pageSize ? remaining : pageSize,
-          }),
+          read(() =>
+            getPendingWithdrawRequests(config, {
+              user,
+              start,
+              chainId,
+              size: remaining < pageSize ? remaining : pageSize,
+            }),
+          ),
         );
       }
       return { user, requests: (await Promise.all(pages)).flat() };

@@ -85,6 +85,8 @@ export function createSessionKeyManager(options: CreateSessionKeyManagerOptions)
 
 class DefaultSessionKeyManager implements SessionKeyManager {
   private account: PrivateKeyAccount | null = null;
+  /** Owner of the loaded key record; `null` when none is loaded. */
+  private owner: Address | null = null;
   private rawPrivateKey: Hex | null = null;
   private state: SessionKeyState = EMPTY_STATE;
   private listeners = new Set<() => void>();
@@ -119,6 +121,12 @@ class DefaultSessionKeyManager implements SessionKeyManager {
     const key = owner.toLowerCase();
     const pending = this.initializing.get(key);
     if (pending) return pending;
+    /**
+     * The owner's key is already loaded and valid: keep it. Starting a new
+     * lifecycle here would revoke accounts callers already hold, including
+     * one that is signing right now.
+     */
+    if (this.owner?.toLowerCase() === key && this.getState().isReady) return Promise.resolve(this.state);
 
     const generation = this.beginLifecycleTransition();
     const run = this.enqueue(() => this.initializeNow(owner, generation, options));
@@ -281,6 +289,7 @@ class DefaultSessionKeyManager implements SessionKeyManager {
   private clearAccount(): void {
     if (this.account === null && this.rawPrivateKey === null && this.state === EMPTY_STATE) return;
     this.account = null;
+    this.owner = null;
     this.rawPrivateKey = null;
     this.state = EMPTY_STATE;
     this.notify();
@@ -427,6 +436,7 @@ class DefaultSessionKeyManager implements SessionKeyManager {
       : createSessionKeyAccount(privateKeyToAccount(record.privateKey), (operation) =>
           this.assertCanSign(generation, operation),
         );
+    this.owner = record.owner;
     this.rawPrivateKey = expired ? null : record.privateKey;
     this.state = Object.freeze({
       isReady: !expired,

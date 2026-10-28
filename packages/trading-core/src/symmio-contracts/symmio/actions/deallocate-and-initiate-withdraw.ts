@@ -1,5 +1,6 @@
 import { encodeFunctionData, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "../../../core/config";
+import { withGaslessAttemptStart } from "../../../gasless/dispatch/attempt-start";
 import { getDeallocateUpnlSig } from "../../../muon/deallocate-upnl-sig/get-deallocate-upnl-sig";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
@@ -105,6 +106,8 @@ export async function deallocateAndInitiateWithdraw(
   parameters: DeallocateAndInitiateWithdrawParameters,
 ): Promise<DeallocateAndInitiateWithdrawReturnType> {
   const { chainId, account, amount, parts, speedUp = false, providerData = "0x", from } = parameters;
+  /** The Muon fetch below counts against the gasless signature lifetime. */
+  const gasless = withGaslessAttemptStart(parameters.gasless);
 
   const upnlSig = parameters.upnlSig ?? (await getDeallocateUpnlSig(config, { virtualAccount: account, chainId }));
 
@@ -127,6 +130,6 @@ export async function deallocateAndInitiateWithdraw(
     chainId,
     from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
-    gasless: parameters.gasless,
+    gasless,
   });
 }

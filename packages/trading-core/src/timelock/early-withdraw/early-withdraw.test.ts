@@ -99,11 +99,10 @@ describe("early withdrawal", () => {
         : writeContract.mock.calls[0]![0];
       if (relayed) {
         expect(writeContract).not.toHaveBeenCalled();
-        expect(submitGaslessWrite).toHaveBeenCalledExactlyOnceWith(
-          config,
-          expect.objectContaining({ account: ROOT }),
-          TEST_USER,
-        );
+        expect(submitGaslessWrite).toHaveBeenCalledExactlyOnceWith(config, expect.objectContaining({ account: ROOT }), {
+          from: TEST_USER,
+          startedAtMs: expect.any(Number),
+        });
       } else {
         expect(submitGaslessWrite).not.toHaveBeenCalled();
         expect(writeContract).toHaveBeenCalledOnce();

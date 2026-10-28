@@ -143,7 +143,10 @@ export type SessionKeyImportOptions =
 export interface SessionKeyManager {
   /**
    * Load an existing non-expired key for `owner`, or generate and persist a new
-   * one. Concurrent calls for the same owner share one run, and every lifecycle
+   * one. When that owner's key is already loaded and not expired, it resolves
+   * the current state at once: nothing is read, nothing is revoked, and accounts
+   * from `getAccount()` keep signing, so calling it on every mount is safe.
+   * Concurrent calls for the same owner share one run, and every lifecycle
    * call (`initialize`, `load`, `importPrivateKey`, `rotate`, `destroy`) runs after the
    * previous one settles. Starting a different lifecycle call immediately
    * revokes the in-memory signer; a still-running older call rejects with

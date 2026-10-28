@@ -44,8 +44,10 @@ const pending = await getPendingWithdrawRequestsBatch(config, {
   </Property>
 </Returns>
 
-Pages for all users are fetched concurrently. The page size bounds each RPC's
-ID range; it does not limit concurrent RPC calls.
+Pages for all users are fetched concurrently, with at most 6 RPC reads in flight
+at once across the whole batch, so a long scan does not trip an RPC rate limit.
+The page size bounds each RPC's ID range. After the first failed read, no new read
+starts and the batch rejects with that error.
 
 ## Query options
 

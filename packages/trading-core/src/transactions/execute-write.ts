@@ -1,11 +1,17 @@
 import type { Address, Hash } from "viem";
 import type { Config } from "../core/config";
+import { getGaslessAttemptStart } from "../gasless/dispatch/attempt-start";
 import { resolveGaslessWrite } from "../gasless/dispatch/resolve-gasless-write";
 import { submitGaslessWrite } from "../gasless/dispatch/submit-gasless-write";
 import type { GaslessBillingAccount, GaslessDispatchCall } from "../gasless/dispatch/types";
 import type { GaslessWriteParameter, WriteContractParameter } from "../shared/types/properties";
 
-/** Action-specific relay capabilities. An omitted capability stays disabled. @internal */
+/**
+ * Action-specific relay capabilities. An omitted `relay` keeps the action on
+ * the wallet, and refuses a write that demands gasless (a caller-owned key, or
+ * `enabled: true` without a wallet fallback) with `GASLESS_NOT_RELAYABLE`.
+ * @internal
+ */
 export interface WriteExecutionCapabilities {
   relay?: { billingAccount: GaslessBillingAccount };
 }
@@ -31,16 +37,20 @@ export async function executeWrite(
   parameters: WriteContractParameter & GaslessWriteParameter,
   write: WriteExecution,
 ): Promise<Hash> {
-  const relay = write.relay
-    ? await resolveGaslessWrite(config, {
-        ...parameters,
-        calls: write.calls,
-        billingAccount: write.relay.billingAccount,
-      })
-    : null;
+  /** Before any read: the billing-account lookup below counts against the signature lifetime. */
+  const startedAtMs = getGaslessAttemptStart(parameters.gasless) ?? Date.now();
+  /**
+   * Resolved even without a relay capability: a keyed or explicitly gasless
+   * write must be refused before any wallet is resolved, never sent through it.
+   */
+  const relay = await resolveGaslessWrite(config, {
+    ...parameters,
+    calls: write.calls,
+    billingAccount: write.relay?.billingAccount ?? null,
+  });
   if (!relay) return write.submitWallet(parameters.from);
 
-  const result = await submitGaslessWrite(config, relay, parameters.from);
+  const result = await submitGaslessWrite(config, relay, { from: parameters.from, startedAtMs });
   if (result.kind === "broadcast") return result.hash;
   if (relay.fallback === "wallet") return write.submitWallet(parameters.from);
   throw result.error;

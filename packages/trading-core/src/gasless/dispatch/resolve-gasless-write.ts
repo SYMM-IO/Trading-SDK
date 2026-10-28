@@ -1,7 +1,7 @@
 import type { Hex } from "viem";
 import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
-import type { GaslessWriteParameter } from "../../shared/types/properties";
+import type { GaslessWriteOptions, GaslessWriteParameter } from "../../shared/types/properties";
 import { getVirtualAccount } from "../../symmio-contracts/account-layer/actions/get-virtual-account";
 import { resolveGaslessIdempotencyKey } from "../idempotency-key";
 import { GASLESS_RELAYABLE_WRITES } from "../relayable-writes";
@@ -9,24 +9,21 @@ import { resolveGaslessService, supportsGaslessService } from "../resolve-gasles
 import type { GaslessBillingAccount, GaslessDispatchCall, ResolvedGaslessWrite } from "./types";
 
 /**
- * Resolve execution policy and billing identity without resolving or prompting a wallet. Null selects wallet execution.
+ * Normalize a write's `gasless` parameter and validate its caller-owned key.
+ * Every path that could reach the wallet runs this first, so a bad key never
+ * slips through on a write that turns out not to relay.
  *
- * A caller-owned `gasless.idempotencyKey` makes the write strictly gasless: it
- * never resolves to `null` and its fallback is always `"error"`, whatever the
- * chain's `execution` defaults say. A retry under that key must never reach the
- * wallet while an earlier attempt may still run.
+ * @param raw - The write's `gasless` parameter, verbatim.
+ * @returns The options bag, and whether it carries a caller-owned key.
+ * @throws {SymmError} `GASLESS_IDEMPOTENCY_KEY_INVALID` for a blank or over-long key, or a key combined with
+ *   `enabled: false` or `fallback: "wallet"`.
  *
  * @internal
  */
-export async function resolveGaslessWrite(
-  config: Config,
-  parameters: GaslessWriteParameter & {
-    chainId?: number;
-    calls: readonly GaslessDispatchCall[];
-    billingAccount: GaslessBillingAccount;
-  },
-): Promise<ResolvedGaslessWrite | null> {
-  const raw = parameters.gasless;
+export function resolveGaslessWriteOptions(raw: GaslessWriteParameter["gasless"]): {
+  options: GaslessWriteOptions;
+  keyed: boolean;
+} {
   const options = typeof raw === "boolean" ? { enabled: raw } : (raw ?? {});
   const keyed = options.idempotencyKey !== undefined;
   if (keyed) {
@@ -39,6 +36,33 @@ export async function resolveGaslessWrite(
       );
     }
   }
+  return { options, keyed };
+}
+
+/**
+ * Resolve execution policy and billing identity without resolving or prompting a wallet. Null selects wallet execution.
+ *
+ * A caller-owned `gasless.idempotencyKey` makes the write strictly gasless: it
+ * never resolves to `null` and its fallback is always `"error"`, whatever the
+ * chain's `execution` defaults say. A retry under that key must never reach the
+ * wallet while an earlier attempt may still run.
+ *
+ * A `billingAccount` of `null` marks an action with no relay path. It follows
+ * the rule for calldata the relay cannot carry: a keyed write, or an explicit
+ * `enabled: true` without a wallet fallback, throws `GASLESS_NOT_RELAYABLE`;
+ * anything else resolves to `null` and takes the wallet.
+ *
+ * @internal
+ */
+export async function resolveGaslessWrite(
+  config: Config,
+  parameters: GaslessWriteParameter & {
+    chainId?: number;
+    calls: readonly GaslessDispatchCall[];
+    billingAccount: GaslessBillingAccount | null;
+  },
+): Promise<ResolvedGaslessWrite | null> {
+  const { options, keyed } = resolveGaslessWriteOptions(parameters.gasless);
   const chainId = config.getChainConfig(parameters.chainId).chainId;
   /** A keyed write reports the precise configuration/version error instead of falling to the wallet. */
   const supported = keyed || supportsGaslessService(config, { chainId });
@@ -55,16 +79,18 @@ export async function resolveGaslessWrite(
   const writes = parameters.calls.map((call) =>
     GASLESS_RELAYABLE_WRITES.get(call.callData.slice(0, 10).toLowerCase() as Hex),
   );
-  if (writes.some((write) => write === undefined)) {
+  const source = parameters.billingAccount;
+  if (source === null || writes.some((write) => write === undefined)) {
     if (!keyed && (options.enabled !== true || fallback === "wallet")) return null;
     throw new SymmError(
       "validation",
       "GASLESS_NOT_RELAYABLE",
-      "Gasless: this write's calldata is not relayable through the gasless service.",
+      source === null
+        ? "Gasless: this write has no gasless relay path. Drop `gasless` to send it through the wallet."
+        : "Gasless: this write's calldata is not relayable through the gasless service.",
     );
   }
 
-  const source = parameters.billingAccount;
   let account = options.account;
   if (!account && source.kind === "subaccount") account = source.account;
   if (!account && (source.kind === "virtual-account" || source.kind === "account-or-virtual-account")) {
