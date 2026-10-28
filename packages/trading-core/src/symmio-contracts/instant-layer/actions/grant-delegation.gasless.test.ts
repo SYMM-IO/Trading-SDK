@@ -90,6 +90,30 @@ describe("grantDelegation — gasless seam", () => {
     expect(maybeRelayAsGasless).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { label: "a key alone", gasless: { idempotencyKey: "action-1" }, code: "GASLESS_PARTYB_UNSUPPORTED" },
+    { label: "a blank key", gasless: { idempotencyKey: "" }, code: "GASLESS_IDEMPOTENCY_KEY_INVALID" },
+    {
+      label: "a key with enabled: false",
+      gasless: { idempotencyKey: "action-1", enabled: false },
+      code: "GASLESS_IDEMPOTENCY_KEY_INVALID",
+    },
+    {
+      label: 'a key with fallback: "wallet"',
+      gasless: { idempotencyKey: "action-1", fallback: "wallet" as const },
+      code: "GASLESS_IDEMPOTENCY_KEY_INVALID",
+    },
+  ])("refuses a PartyB grant with $label before any wallet call", async ({ gasless, code }) => {
+    const { config, simulateContract, writeContract } = mockConfig();
+
+    await expect(
+      grantDelegation(config, { ...GRANT, account: { addr: ACCOUNT, isPartyB: true }, gasless }),
+    ).rejects.toMatchObject({ code });
+    expect(maybeRelayAsGasless).not.toHaveBeenCalled();
+    expect(simulateContract).not.toHaveBeenCalled();
+    expect(writeContract).not.toHaveBeenCalled();
+  });
+
   it("lets a PartyB grant take the wallet path when gasless was never demanded", async () => {
     const { config, writeContract } = mockConfig();
 

@@ -197,6 +197,43 @@ describe("shared contract write execution", () => {
     expect(post.mock.calls[0]![1].signedOps[0]).toMatchObject(calls[0]!);
   });
 
+  describe("without a relay capability", () => {
+    const calls = [{ target: ACCOUNT, callData: "0x12345678" }] as const;
+
+    it.each([
+      { label: "a key alone", gasless: { idempotencyKey: "action-1" }, code: "GASLESS_NOT_RELAYABLE" },
+      { label: "a blank key", gasless: { idempotencyKey: "" }, code: "GASLESS_IDEMPOTENCY_KEY_INVALID" },
+      {
+        label: "a key with enabled: false",
+        gasless: { idempotencyKey: "action-1", enabled: false },
+        code: "GASLESS_IDEMPOTENCY_KEY_INVALID",
+      },
+      {
+        label: 'a key with fallback: "wallet"',
+        gasless: { idempotencyKey: "action-1", fallback: "wallet" as const },
+        code: "GASLESS_IDEMPOTENCY_KEY_INVALID",
+      },
+      { label: "gasless: true", gasless: true, code: "GASLESS_NOT_RELAYABLE" },
+    ])("refuses $label before any wallet call", async ({ gasless, code }) => {
+      const { config } = gaslessWriteTestConfig();
+      const submitWallet = vi.fn();
+
+      await expect(executeWrite(config, { gasless }, { calls, submitWallet })).rejects.toMatchObject({ code });
+      expect(submitWallet).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { label: "a write without gasless", gasless: undefined },
+      { label: 'enabled: true with fallback: "wallet"', gasless: { enabled: true, fallback: "wallet" as const } },
+    ])("sends $label through the wallet", async ({ gasless }) => {
+      const { config } = gaslessWriteTestConfig();
+      const submitWallet = vi.fn().mockResolvedValue(TEST_GASLESS_TX_HASH);
+
+      await expect(executeWrite(config, { gasless }, { calls, submitWallet })).resolves.toBe(TEST_GASLESS_TX_HASH);
+      expect(submitWallet).toHaveBeenCalledOnce();
+    });
+  });
+
   it("checks function names and argument tuples against the literal ABI", () => {
     const { config } = mockConfig();
     const contract = { address: ACCOUNT, abi: accountLayerAbi } as const;
