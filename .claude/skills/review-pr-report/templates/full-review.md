@@ -2,11 +2,11 @@
 
 > Self-contained review. You should not need to open any other file to understand what this PR does and what is wrong with it. Every term is explained in the [Glossary](#0-glossary) first.
 >
-> **How each section is written.** Every change (Part 1) and every problem (Part 2) has three layers. Read only as deep as you need:
+> **How each section is written.** Every change (Part 1) starts by explaining what the feature is. Every problem (Part 2) starts by telling what goes wrong and why. Then three layers; read only as deep as you need:
 >
-> - **A. Summary for managers:** what changes for users and the business, in plain words.
-> - **B. Technical view:** where it is in the code, and before vs after.
-> - **C. Details:** examples, edge cases, docs, tests.
+> - **A. Summary for managers:** the feature or the problem in plain words, and what it means for users and the business.
+> - **B. Technical view:** where it is in the code, and how it works (or fails).
+> - **C. Details:** an example, how to see it in apps/web, the fix, docs and tests.
 
 |                      |                                                                                                      |
 | -------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -69,14 +69,14 @@ Read this first if any of these words are unfamiliar.
 
 #### A. Summary for managers
 
-**Background.** <What this part of the product is, in one or two plain sentences.>
+**What it is:** <Explain the feature to someone who has never heard of it: what it is, why it exists, who uses it. Two to five plain sentences, no code names. Define each new term in the sentence where it first appears.>
 
-**Before vs after this PR:**
+<When the feature has steps, a short numbered flow:>
 
-|                    | Before this PR                                   | After this PR                                   |
-| ------------------ | ------------------------------------------------ | ----------------------------------------------- |
-| <aspect, plain>    | <what apps or users had or did; "did not exist"> | <what they have or do now; "still …" + P# link> |
-| What the user sees | <…>                                              | <… or **The same.**>                            |
+1. <First step, in product words.>
+2. <…>
+
+**What this PR adds:** <What the SDK now offers, in words. For a new feature, one sentence on how apps managed before ("Before this PR the SDK had no way to do this; apps called the contract by hand."). For a change to something that existed, say what changes and what users notice.>
 
 **Business value:** <why a user or the business cares, in one or two sentences>.
 
@@ -90,22 +90,27 @@ Read this first if any of these words are unfamiliar.
 
 #### B. Technical view
 
-"Before" is `<the base ref, or the app's old code at <sha>>`; "after" is this PR.
+**Where:**
 
-| Area     | Before (`path:line`) | After (this PR, `path:line`) |
-| -------- | -------------------- | ---------------------------- |
-| <aspect> | <…>                  | <…>                          |
+- <Piece, in a few words>: `path/to/file.ts:<line>`.
+- <…>
+
+<How the pieces work together, in two to four sentences, with code names.>
+
+<Only when this PR changes behavior that already existed and a comparison is clearer than a sentence, add ONE before/after table. "Before" is `<the base ref, or the app's old code at <sha>>`. Skip it for a new feature; most Before cells saying "did not exist" means the table is not needed.>
+
+|          | Before (`<base ref>`, `path:line`) | After (this PR, `path:line`) |
+| -------- | ---------------------------------- | ---------------------------- |
+| <aspect> | <…>                                | <…>                          |
 
 **New public exports:** `<list>`.
 
 #### C. Details
 
-**The same inputs, before and after:**
+**Example:** <One concrete case, step by step: the inputs, and what happens now. Mention the old result only where it differs and the difference matters.>
 
-| Inputs              | Before       | After        |
-| ------------------- | ------------ | ------------ |
-| <one concrete case> | <old result> | <new result> |
-| <an edge case>      | <old result> | <new result> |
+1. <…>
+2. <…>
 
 **Docs:** <pages added or changed>.
 
@@ -133,26 +138,29 @@ Severity scale:
 | ----------------------------- | -------------------------- | ----------- | -------- | ---------------- |
 | [P1](#p1--high--<title-slug>) | <…>                        | <…>         | High     | **Before merge** |
 
-### P1 · High — <Title that states the defect>
+### P1 · High — <Title that states the defect in plain words>
 
 #### A. Summary for managers
 
-- **What users see:** <the visible symptom>.
-- **Why:** <one sentence, no code words>.
+**The problem:** <Tell it as a short story, with no code words: what the user or the app is trying to do, what happens, and what should happen. Two to four sentences. A reader who stops here must understand the problem.>
+
+**Why it happens:** <The mechanism in one to three plain sentences.>
+
+- **Who notices:** <which users, in which flow, how often>.
 - **Business risk:** <impact, and how likely it is>.
 - **Decision:** <fix before merge / in this PR / soon / cleanup>, and why.
 
 #### B. Technical view
 
-**Where:** `path/to/file.ts:<lines>`.
+**Where:** `path/to/file.ts:<lines>`. <New in this PR / pre-existing / moved from `<path>`.>
 
-**Root cause:** <precise mechanism>.
+**Root cause:** <precise mechanism, with code names>.
+
+<Only for a regression (it worked on the base and breaks now) or a changed behavior, add ONE before/after table. Skip it for a bug in new code. Add columns such as `Protocol` or `Suggested` when they help.>
 
 |            | Before (`<base ref or the app's old code>`) | After (this PR) |
 | ---------- | ------------------------------------------- | --------------- |
 | <behavior> | <…>                                         | <…>             |
-
-Add columns such as `Protocol` or `Suggested` when they help. Never drop `Before` or `After`.
 
 #### C. Details
 

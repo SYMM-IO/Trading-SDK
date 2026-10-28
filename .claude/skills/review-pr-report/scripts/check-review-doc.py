@@ -8,14 +8,15 @@ Checks, per file:
   - a header row "Problems found | N (a High · b Medium · c Low)" matches the
     problem headings plus "- **P<n> · Low** —" bullets (Medium/Low counts as
     Medium; Low/Medium and Low (design) count as Low);
-  - before and after, in every mode: every `### <n>.<n>` change, every
-    `### P<n> ·` problem and every boundary item (`### P1 —`, `### B1 —`,
-    `### R1 —`) has a table row naming both `Before` and `After`; every Low
-    bullet says "before" and "after"; a fast review's "What changes" table has
-    `Before` and `After` columns;
-  - with --layers: every change section also has "**Before vs after this PR:**"
-    (or "**Before vs after these changes:**" for local changes) in layer A and
-    "before and after" in layer C;
+  - explain first, in every mode: every `### <n>.<n>` change has
+    "**What it is:**", every `### P<n> ·` problem has "**The problem:**" and
+    "**Why it happens:**", and every boundary item (`### P1 —`, `### B1 —`,
+    `### R1 —`) has "**What it is:**"; each comes before the section's first
+    table (and, with --layers, sits in layer A);
+  - tables only where they help, in every mode: a change, problem or boundary
+    section has at most one before/after table (a header row naming both
+    Before and After), and no before/after table has two thirds or more of
+    its Before cells saying "did not exist", "none", "no API" or similar;
   - see it in apps/web, in every mode: every `### P<n> ·` problem has a
     "**See it in apps/web:**" note (in layer C with --layers) with a status
     (Seen in apps/web / Steps from the code, not run / Not visible in
@@ -47,21 +48,21 @@ CHANGE_HEADING = re.compile(r"^### (\d+\.\d+) ", re.M)
 # SDK-boundary items: "### P1 — …", "### B1 — …", "### R1 — …" (no severity dot).
 BOUNDARY_HEADING = re.compile(r"^### ([PBR]\d+) — ", re.M)
 HEADER_COUNT = re.compile(r"Problems found\**\s*\|\s*(\d+)\s*\((\d+) High · (\d+) Medium · (\d+) Low\)")
-# A Markdown table row that names both sides of the comparison.
-TABLE_ROW = re.compile(r"^\|.*$", re.M)
-FAST_CHANGES = re.compile(r"^## What changes\s*$", re.M)
-# Layer A of a change: "this PR" for a PR review, "these changes" for local changes.
-BEFORE_AFTER_A = re.compile(r"\*\*Before vs after (this PR|these changes):\*\*")
+TABLE_SEPARATOR = re.compile(r"^\|(\s*:?-{3,}:?\s*\|)+\s*$")
+# A Before cell that carries no information: the feature is new, so a table is not needed.
+EMPTY_BEFORE = re.compile(
+    r"^(did not exist|does not exist|didn't exist|not exist|none|no api|n/a|nothing|not available|[—–-])(\b|$|[.;,:])",
+    re.I,
+)
 LOCAL_TITLE = re.compile(r"^# Local Changes Review", re.M)
 LOCAL_READY = re.compile(r"^## Ready for a PR\?\s*$", re.M)
 LOCAL_HEADER_ROWS = ("Snapshot", "Intent", "Excluded")
 SEE_IT_NOTE = "**See it in apps/web:**"
 SEE_IT_STATUSES = ("Seen in apps/web", "Steps from the code, not run", "Not visible in apps/web")
 FAST_WORTH_A_LOOK = re.compile(r"^## Worth a closer look\s*$", re.M)
-
-
-def has_before_after_row(section: str) -> bool:
-    return any("Before" in row and "After" in row for row in TABLE_ROW.findall(section))
+WHAT_IT_IS = "**What it is:**"
+THE_PROBLEM = "**The problem:**"
+WHY_IT_HAPPENS = "**Why it happens:**"
 
 
 def layer_text(section: str, name: str) -> str:
@@ -107,6 +108,84 @@ def sections(text: str, pattern: re.Pattern[str]) -> list[tuple[str, str]]:
     return out
 
 
+def cells(row: str) -> list[str]:
+    """Split a Markdown table row on unescaped pipes."""
+    parts = re.split(r"(?<!\\)\|", row.strip())
+    return [part.strip() for part in parts[1:-1]]
+
+
+def tables(section: str) -> list[tuple[list[str], list[list[str]]]]:
+    """Return (header cells, body rows) for each Markdown table in the section."""
+    lines = section.splitlines()
+    out: list[tuple[list[str], list[list[str]]]] = []
+    i = 0
+    while i < len(lines) - 1:
+        if lines[i].startswith("|") and TABLE_SEPARATOR.match(lines[i + 1].strip()):
+            header = cells(lines[i])
+            rows: list[list[str]] = []
+            i += 2
+            while i < len(lines) and lines[i].startswith("|"):
+                rows.append(cells(lines[i]))
+                i += 1
+            out.append((header, rows))
+        else:
+            i += 1
+    return out
+
+
+def before_after_tables(section: str) -> list[tuple[int, list[list[str]]]]:
+    """Return (Before column index, body rows) for each table whose header names Before and After."""
+    out: list[tuple[int, list[list[str]]]] = []
+    for header, rows in tables(section):
+        before = next((i for i, cell in enumerate(header) if "Before" in cell), None)
+        if before is not None and any("After" in cell for cell in header):
+            out.append((before, rows))
+    return out
+
+
+def empty_before_share(before: int, rows: list[list[str]]) -> float:
+    values = [row[before] for row in rows if len(row) > before]
+    if not values:
+        return 0.0
+    empty = sum(1 for value in values if EMPTY_BEFORE.match(value.replace("*", "").replace("`", "").strip()))
+    return empty / len(values)
+
+
+def first_table_at(section: str) -> int:
+    match = re.search(r"^\|", section, re.M)
+    return match.start() if match else len(section)
+
+
+def check_explained(kind: str, ident: str, section: str, labels: tuple[str, ...], layers: bool) -> list[str]:
+    """The explanation labels exist, come before the first table, and (with layers) sit in layer A."""
+    errors: list[str] = []
+    table_at = first_table_at(section)
+    layer_a = layer_text(section, "A") if layers else section
+    for label in labels:
+        at = section.find(label)
+        if at < 0:
+            errors.append(f'{kind} {ident} has no "{label}" explanation')
+        elif at > table_at:
+            errors.append(f'{kind} {ident}: "{label}" comes after a table; explain first')
+        elif layers and label not in layer_a:
+            errors.append(f'{kind} {ident}: "{label}" is not in layer A')
+    return errors
+
+
+def check_tables(kind: str, ident: str, section: str) -> list[str]:
+    """At most one before/after table, and never one whose Before side is mostly empty."""
+    errors: list[str] = []
+    found = before_after_tables(section)
+    if len(found) > 1:
+        errors.append(f"{kind} {ident} has {len(found)} before/after tables; keep at most one, where it helps")
+    for before, rows in found:
+        if empty_before_share(before, rows) >= 2 / 3:
+            errors.append(
+                f'{kind} {ident}: before/after table whose Before cells mostly say "did not exist"; write one sentence instead'
+            )
+    return errors
+
+
 def check(path: str, layers: bool) -> list[str]:
     text = open(path, encoding="utf-8").read()
     body = CODE_BLOCK.sub("", text)
@@ -127,25 +206,17 @@ def check(path: str, layers: bool) -> list[str]:
                 missing = [layer for layer in ("A", "B", "C") if f"#### {layer}." not in section]
                 if missing:
                     errors.append(f"{kind} {ident} missing layer(s) {', '.join(missing)}")
-        for ident, section in sections(body, CHANGE_HEADING):
-            if not BEFORE_AFTER_A.search(layer_text(section, "A")):
-                errors.append(f"change {ident}: layer A has no \"**Before vs after this PR / these changes:**\" table")
-            if "before and after" not in layer_text(section, "C").lower():
-                errors.append(f"change {ident}: layer C has no \"The same inputs, before and after\" table")
 
-    # Before and after, in every mode.
-    for kind, pattern in (("change", CHANGE_HEADING), ("problem", PROBLEM_HEADING), ("boundary item", BOUNDARY_HEADING)):
-        for ident, section in sections(body, pattern):
-            if not has_before_after_row(section):
-                errors.append(f"{kind} {ident} has no before/after table (a table row naming both Before and After)")
-    for line in re.findall(r"^- \*\*P\d+ · Low[^*]*\*\*.*$", body, re.M):
-        if "before" not in line.lower() or "after" not in line.lower():
-            errors.append(f"Low bullet without before/after: {line[:60]}…")
-    fast = FAST_CHANGES.search(body)
-    if fast:
-        header_row = TABLE_ROW.search(body, fast.end())
-        if not header_row or "Before" not in header_row.group(0) or "After" not in header_row.group(0):
-            errors.append('"What changes" table has no Before and After columns')
+    # Explain first, and tables only where they help, in every mode.
+    for ident, section in sections(body, CHANGE_HEADING):
+        errors += check_explained("change", ident, section, (WHAT_IT_IS,), layers)
+        errors += check_tables("change", ident, section)
+    for ident, section in sections(body, PROBLEM_HEADING):
+        errors += check_explained("problem", ident, section, (THE_PROBLEM, WHY_IT_HAPPENS), layers)
+        errors += check_tables("problem", ident, section)
+    for ident, section in sections(body, BOUNDARY_HEADING):
+        errors += check_explained("boundary item", ident, section, (WHAT_IT_IS,), False)
+        errors += check_tables("boundary item", ident, section)
 
     # See it in apps/web, in every mode.
     for ident, section in sections(body, PROBLEM_HEADING):

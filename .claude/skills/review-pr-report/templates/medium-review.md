@@ -36,14 +36,15 @@
 
 ### 1.1 <Area name>
 
-<Two to four plain sentences: what this part of the product is, what was missing or wrong before, and what the PR changes. End with the business value.>
+**What it is:** <Explain the feature to someone who has never heard of it: what it is, why it exists, who uses it, and how it works. Two to five plain sentences. Add a short numbered flow when it has steps. Define each new term in the sentence.>
 
-"Before" is `<the base ref, or the app's old code at <sha>>`. Where nothing existed, write "did not exist" and what apps did instead.
+**What this PR adds:** <In words. For a new feature, one sentence on how apps managed before. For a change to something that existed, what changes. End with the business value.>
 
-|                    | Before                       | After (this PR)             |
-| ------------------ | ---------------------------- | --------------------------- |
-| <aspect>           | <how it worked, `path:line`> | <how it works, `path:line`> |
-| What the user sees | <…>                          | <… or **The same.**>        |
+<Only when this PR changes behavior that already existed and a comparison is clearer than a sentence, add ONE before/after table. "Before" is `<the base ref, or the app's old code at <sha>>`. Skip it for a new feature.>
+
+|          | Before (`<base ref>`)        | After (this PR)             |
+| -------- | ---------------------------- | --------------------------- |
+| <aspect> | <how it worked, `path:line`> | <how it works, `path:line`> |
 
 - **New public API:** `<names>` (or "none").
 - **Status:** <used by the real app today, or groundwork>.
@@ -62,11 +63,15 @@ Severity:
 | ----------------------------- | -------------------------- | ----------- | -------- | ---------------- |
 | [P1](#p1--high--<title-slug>) | <…>                        | <…>         | High     | **Before merge** |
 
-### P1 · High — <Title that states the defect>
+### P1 · High — <Title that states the defect in plain words>
 
-**What goes wrong:** <two or three plain sentences: the symptom a user or developer sees, and why it happens.>
+**The problem:** <Tell it as a short story, with no code words: what the user or the app is trying to do, what happens, and what should happen. Two to four sentences.>
 
-**Where:** `path/to/file.ts:<lines>`. <The root cause in one sentence. New in this PR, or pre-existing?>
+**Why it happens:** <The mechanism in one to three plain sentences.>
+
+**Where:** `path/to/file.ts:<lines>`. <The root cause with code names, in one sentence. New in this PR, or pre-existing?>
+
+<Only for a regression (it worked on the base and breaks now) or a changed behavior, add ONE before/after table. Skip it for a bug in new code.>
 
 |            | Before (`<base ref>`) | After (this PR) |
 | ---------- | --------------------- | --------------- |
@@ -94,7 +99,7 @@ Severity:
 
 ### Also noticed (Low, not detailed)
 
-- **P<n> · Low** — <label>: <one sentence>; before <…>, after <…>. See it: <`/route` → action / not visible in apps/web (why)>. `path/to/file.ts:<line>`
+- **P<n> · Low** — <label>: <one plain sentence: what goes wrong, and when>. See it: <`/route` → action / not visible in apps/web (why)>. `path/to/file.ts:<line>`
 - <…>
 
 ---
