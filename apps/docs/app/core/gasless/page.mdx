@@ -130,6 +130,8 @@ The service forwards signed nonces; it never reserves, replaces or repairs them.
 
 The lock is released at the `202`, not at broadcast — holding it until a relay lands would stall every later write behind one slow request. Instead the SDK remembers what it signed on that stream, and the **next** caller waits for it: for the pending request to reach any terminal status (a failed one frees the nonce again), or for the on-chain nonce to move past it, bounded by the signature's own deadline and at most two minutes. If neither happens in that budget — which is what an unconfirmed submit looks like — it throws `GASLESS_NONCE_STREAM_BUSY` rather than signing a nonce that is probably already in flight.
 
+A `succeeded` request is the relayer's node's view, and a public RPC can trail it by a few blocks. After a write under your own `gasless.idempotencyKey` succeeds, the next caller on that stream therefore waits until your RPC returns the transaction's receipt before it reads the nonce, so it never signs the nonce that write just spent. If the receipt does not appear within the same budget, it throws `GASLESS_NONCE_STREAM_BUSY`; retry once the RPC has caught up.
+
 A submit that _fails_ is remembered the same way whenever it leaves the nonce spendable: an ambiguous transport failure (no response, or a 5xx), where the service may still have accepted the batch, and a `202` whose body carried no `request_id` (`GASLESS_ACCEPTANCE_INVALID`), where it certainly did and only the handle was lost. Any other rejection accepted nothing, so it frees the nonce immediately.
 
 <Callout type="warning">

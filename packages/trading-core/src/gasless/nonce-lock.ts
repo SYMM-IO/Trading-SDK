@@ -1,3 +1,4 @@
+import type { Hash } from "viem";
 import type { Config } from "../core/config";
 import { SymmError } from "../shared/errors/symm-error";
 import { isGaslessAcceptedInstanceMismatchError } from "./http";
@@ -152,6 +153,7 @@ interface GaslessPendingNonce {
    * Whether a `succeeded` outcome may raise the stream's consumed-nonce floor.
    * `false` for a caller-owned key: the service may answer a repeat with the
    * earlier request under that key, whose nonce is not the one just signed.
+   * The next read then waits for this RPC to see the transaction instead.
    */
   raisesFloor: boolean;
   /** The acceptance receipt, once the service accepted the submit. */
@@ -205,6 +207,38 @@ function raiseConsumedFloor(config: Config, key: string, nonce: bigint): void {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Wait until this config's RPC returns the receipt of a transaction the
+ * relayer reported `succeeded`, so a nonce read after it reflects that block.
+ * A failed receipt read counts as "not yet": the RPC is either behind or
+ * briefly unreachable, and both are settled by looking again.
+ *
+ * @param config - The SDK config.
+ * @param chainId - The chain the transaction mined on.
+ * @param hash - The successful transaction.
+ * @param budgetEndsAt - When to stop looking (ms since epoch).
+ * @returns `true` once the receipt is visible, `false` when the budget ends first.
+ */
+async function waitForReceiptOnRpc(
+  config: Config,
+  chainId: number,
+  hash: Hash,
+  budgetEndsAt: number,
+): Promise<boolean> {
+  const client = config.getClient({ chainId });
+  for (;;) {
+    try {
+      await client.getTransactionReceipt({ hash });
+      return true;
+    } catch {
+      /** Not visible on this RPC yet; poll again while the budget lasts. */
+    }
+    const remainingMs = budgetEndsAt - Date.now();
+    if (remainingMs <= 0) return false;
+    await sleep(Math.min(GASLESS_NONCE_STREAM_POLL_MS, remainingMs));
+  }
 }
 
 /**
@@ -401,7 +435,10 @@ export function getGaslessPendingAcceptance(
  * stream; the relayer simulates the next submit against its own node, which
  * already has the block. A submit under a caller-owned key never raises that
  * floor: the service may have answered it with an earlier request under the
- * key, whose nonce is not the one recorded here.
+ * key, whose nonce is not the one recorded here. Its success instead makes the
+ * read wait until this RPC returns the successful transaction's receipt, so the
+ * nonce it reads includes that block; when the budget runs out first, the read
+ * throws rather than return a nonce it knows may be spent.
  *
  * An attempt under the **same** caller-owned key as the pending submit does not
  * wait for it. Both carry one key, and the service accepts a key at most once,
@@ -414,7 +451,8 @@ export function getGaslessPendingAcceptance(
  * @param idempotencyKey - The attempt's caller-owned idempotency key, when it has one.
  * @returns The consumed nonce to sign from (sign `+ 1n`).
  * @throws {SymmError} `GASLESS_NONCE_STREAM_BUSY` when the budget runs out with a signature
- *   still unaccounted for — signing now would collide with it.
+ *   still unaccounted for — signing now would collide with it — or before this RPC has seen a
+ *   caller-keyed success, whose spent nonce it would still report as free.
  *
  * @internal
  */
@@ -472,8 +510,20 @@ export async function readGaslessStreamNonce(
        * a `failed` transaction that mines late costs one rejection, never a
        * double run.
        */
-      if (terminal.status === GaslessRequestStatus.SUCCEEDED && pending.raisesFloor) {
-        raiseConsumedFloor(config, key, pending.signedNonce);
+      if (terminal.status === GaslessRequestStatus.SUCCEEDED) {
+        if (pending.raisesFloor) {
+          raiseConsumedFloor(config, key, pending.signedNonce);
+        } else if (
+          terminal.txHash !== null &&
+          !(await waitForReceiptOnRpc(config, pending.chainId, terminal.txHash, budgetEndsAt))
+        ) {
+          /** The record stays, so the next caller waits for the receipt too instead of signing a spent nonce. */
+          throw new SymmError(
+            "api",
+            "GASLESS_NONCE_STREAM_BUSY",
+            `Gasless: request ${terminal.requestId} succeeded in transaction ${terminal.txHash}, but this RPC has not returned its receipt yet, so its nonce is stale. Signing now would reuse a spent nonce — retry once the RPC has caught up.`,
+          );
+        }
       }
       clearGaslessPendingNonce(config, key);
       return await readFloored();
