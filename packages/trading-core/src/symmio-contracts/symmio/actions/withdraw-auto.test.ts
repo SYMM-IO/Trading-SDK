@@ -2,6 +2,7 @@ import type { Address, PublicClient } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SymmioSupportedChainId } from "../../../core/chains";
 import { createConfig } from "../../../core/config";
+import { getGaslessAttemptStart } from "../../../gasless/dispatch/attempt-start";
 import { mockConfig, TEST_AFFILIATE_ADDRESS, TEST_TX_HASH } from "../../../shared/test/mock-config";
 import { SubAccountIsolationType } from "../../account-layer/types";
 import { withdrawAuto } from "./withdraw-auto";
@@ -22,6 +23,7 @@ describe("withdrawAuto", () => {
   afterEach(() => {
     getSubAccount.mockReset();
     withdraw.mockReset();
+    vi.useRealTimers();
   });
 
   it("routes a CUSTOM subaccount to the deallocate path with the scaled 18-dec amount", async () => {
@@ -143,6 +145,32 @@ describe("withdrawAuto", () => {
       config,
       expect.objectContaining({ speedUp: true, providerData: "0x1234", chainId: config.defaultChainId }),
     );
+  });
+
+  it("dates the gasless signature from when withdrawAuto started, before its reads", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-26T12:00:00Z"));
+    const startedAtMs = Date.now();
+    const { config } = mockConfig();
+    getSubAccount.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => setTimeout(() => resolve({ isolationType: SubAccountIsolationType.MARKET }), 60_000)),
+    );
+    withdraw.mockResolvedValueOnce(TEST_TX_HASH);
+    const gasless = { idempotencyKey: "action-1" };
+
+    const pending = withdrawAuto(config, {
+      account: SUB_ACCOUNT,
+      amount: COLLATERAL_AMOUNT,
+      receiver: RECEIVER,
+      gasless,
+    });
+    await vi.advanceTimersByTimeAsync(60_000);
+    await pending;
+
+    const forwarded = (withdraw.mock.calls[0]![1] as { gasless: object }).gasless;
+    expect(forwarded).toEqual(gasless);
+    expect(getGaslessAttemptStart(forwarded)).toBe(startedAtMs);
   });
 
   it("rejects collateral decimals Core cannot hold before dispatching anything", async () => {

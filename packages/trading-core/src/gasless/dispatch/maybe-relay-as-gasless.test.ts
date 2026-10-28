@@ -21,6 +21,7 @@ import { deallocateAndInitiateWithdraw } from "../../symmio-contracts/symmio/act
 import { initiateWithdraw } from "../../symmio-contracts/symmio/actions/initiate-withdraw";
 import { executeAccountCalls } from "../../symmio-contracts/symmio/execute-account-calls";
 import { createClassicWithdrawPart } from "../../symmio-contracts/symmio/parts";
+import { GASLESS_SIGNATURE_LIFETIME_SECONDS } from "../constants";
 import { parseGaslessErrorDetail } from "../errors";
 import { GASLESS_RELAYABLE_WRITES, isGaslessRelayableSelector } from "../relayable-writes";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS_SIGNER, TEST_GASLESS_TX_HASH, gaslessWriteTestConfig } from "../test/config";
@@ -31,11 +32,13 @@ import { maybeRelayAsGasless, type GaslessDispatchCall } from "./maybe-relay-as-
 
 const post = vi.hoisted(() => vi.fn());
 const get = vi.hoisted(() => vi.fn());
+const getDeallocateUpnlSig = vi.hoisted(() => vi.fn());
 
 vi.mock("axios", () => ({
   default: { post, get },
   isAxiosError: (err: unknown) => Boolean((err as { isAxiosError?: boolean })?.isAxiosError),
 }));
+vi.mock("../../muon/deallocate-upnl-sig/get-deallocate-upnl-sig", () => ({ getDeallocateUpnlSig }));
 
 const SUB_ACCOUNT = "0x3333333333333333333333333333333333333333" as const;
 const VIRTUAL_ACCOUNT = "0x4444444444444444444444444444444444444444" as const;
@@ -947,6 +950,115 @@ describe("transparent gasless dispatch", () => {
     /** Ordinary InstantLayer operations always relay from wallet 0, one explicit id per op. */
     expect(body.walletIds).toEqual(["0", "0"]);
   });
+  describe("signature lifetime", () => {
+    const LIVE_VIRTUAL_ACCOUNT = {
+      accountAddress: VIRTUAL_ACCOUNT,
+      parentAccount: SUB_ACCOUNT,
+      symbolId: 1n,
+      isExists: true,
+    };
+
+    function signedDeadline(): number | undefined {
+      const body = post.mock.calls[0]?.[1] as { signedOps: { replayAttackHeader: { deadline: number } }[] };
+      return body.signedOps[0]?.replayAttackHeader.deadline;
+    }
+
+    function startAt(): number {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-26T12:00:00Z"));
+      return Math.floor(Date.now() / 1000);
+    }
+
+    it("counts a slow virtual-account lookup against the lifetime", async () => {
+      const startedAt = startAt();
+      const { config, readContract } = gaslessWriteTestConfig();
+      programReads(readContract, {
+        getVirtualAccount: () => new Promise((resolve) => setTimeout(() => resolve(LIVE_VIRTUAL_ACCOUNT), 120_000)),
+      });
+      programRelaySuccess();
+
+      const pending = addMargin(config, {
+        virtualAccount: VIRTUAL_ACCOUNT,
+        amount: 1n,
+        gasless: { idempotencyKey: "action-1" },
+      });
+      await vi.advanceTimersByTimeAsync(121_000);
+      await pending;
+
+      expect(signedDeadline()).toBe(startedAt + GASLESS_SIGNATURE_LIFETIME_SECONDS);
+    });
+
+    it("counts a slow Muon fetch inside the action against the lifetime", async () => {
+      const startedAt = startAt();
+      const { config, readContract } = gaslessWriteTestConfig();
+      programReads(readContract);
+      programRelaySuccess();
+      getDeallocateUpnlSig.mockImplementationOnce(
+        () => new Promise((resolve) => setTimeout(() => resolve(UPNL_SIG), 120_000)),
+      );
+
+      const pending = deallocateAndInitiateWithdraw(config, {
+        account: SUB_ACCOUNT,
+        amount: 1_000_000_000_000_000_000n,
+        parts: PARTS,
+        gasless: { idempotencyKey: "action-1" },
+      });
+      await vi.advanceTimersByTimeAsync(121_000);
+      await pending;
+
+      expect(signedDeadline()).toBe(startedAt + GASLESS_SIGNATURE_LIFETIME_SECONDS);
+    });
+
+    it("stops before any prompt when the reads used up the lifetime", async () => {
+      startAt();
+      const { config, readContract, signTypedData, writeContract } = gaslessWriteTestConfig();
+      programReads(readContract, {
+        getVirtualAccount: () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve(LIVE_VIRTUAL_ACCOUNT), GASLESS_SIGNATURE_LIFETIME_SECONDS * 1_000),
+          ),
+      });
+      programRelaySuccess();
+
+      const pending = addMargin(config, {
+        virtualAccount: VIRTUAL_ACCOUNT,
+        amount: 1n,
+        gasless: { idempotencyKey: "action-1" },
+      }).catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(GASLESS_SIGNATURE_LIFETIME_SECONDS * 1_000 + 1_000);
+
+      expect(await pending).toMatchObject({ code: "GASLESS_SIGNATURE_WINDOW_EXPIRED" });
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+      expect(writeContract).not.toHaveBeenCalled();
+    });
+
+    it("lets an unkeyed write with a wallet fallback take the wallet once the lifetime is used up", async () => {
+      startAt();
+      const { config, readContract, signTypedData, writeContract } = gaslessWriteTestConfig();
+      programReads(readContract, {
+        getVirtualAccount: () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve(LIVE_VIRTUAL_ACCOUNT), GASLESS_SIGNATURE_LIFETIME_SECONDS * 1_000),
+          ),
+      });
+      programRelaySuccess();
+
+      const pending = addMargin(config, {
+        virtualAccount: VIRTUAL_ACCOUNT,
+        amount: 1n,
+        simulateBeforeWrite: false,
+        gasless: { enabled: true, fallback: "wallet" },
+      });
+      await vi.advanceTimersByTimeAsync(GASLESS_SIGNATURE_LIFETIME_SECONDS * 1_000 + 1_000);
+
+      await expect(pending).resolves.toBe(TEST_GASLESS_TX_HASH);
+      expect(signTypedData).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+      expect(writeContract).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("delegation pre-flight", () => {
     it("skips every delegation read when the signer is the sub-account's owner", async () => {
       const { config, readContract, signTypedData } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });

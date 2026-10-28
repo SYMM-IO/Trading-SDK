@@ -1,5 +1,6 @@
 import type { Address, Hash } from "viem";
 import type { Config } from "../core/config";
+import { getGaslessAttemptStart } from "../gasless/dispatch/attempt-start";
 import { resolveGaslessWrite } from "../gasless/dispatch/resolve-gasless-write";
 import { submitGaslessWrite } from "../gasless/dispatch/submit-gasless-write";
 import type { GaslessBillingAccount, GaslessDispatchCall } from "../gasless/dispatch/types";
@@ -31,6 +32,8 @@ export async function executeWrite(
   parameters: WriteContractParameter & GaslessWriteParameter,
   write: WriteExecution,
 ): Promise<Hash> {
+  /** Before any read: the billing-account lookup below counts against the signature lifetime. */
+  const startedAtMs = getGaslessAttemptStart(parameters.gasless) ?? Date.now();
   const relay = write.relay
     ? await resolveGaslessWrite(config, {
         ...parameters,
@@ -40,7 +43,7 @@ export async function executeWrite(
     : null;
   if (!relay) return write.submitWallet(parameters.from);
 
-  const result = await submitGaslessWrite(config, relay, parameters.from);
+  const result = await submitGaslessWrite(config, relay, { from: parameters.from, startedAtMs });
   if (result.kind === "broadcast") return result.hash;
   if (relay.fallback === "wallet") return write.submitWallet(parameters.from);
   throw result.error;

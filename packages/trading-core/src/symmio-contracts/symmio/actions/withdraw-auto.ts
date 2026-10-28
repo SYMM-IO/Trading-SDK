@@ -1,5 +1,6 @@
 import type { Address, Hash, Hex } from "viem";
 import type { Config } from "../../../core/config";
+import { withGaslessAttemptStart } from "../../../gasless/dispatch/attempt-start";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { collateralToCore18 } from "../../../shared/utils/core-units";
 import { getSubAccount } from "../../account-layer/actions/get-sub-account";
@@ -109,6 +110,8 @@ export async function withdrawAuto(
   parameters: WithdrawAutoParameters,
 ): Promise<WithdrawAutoReturnType> {
   const chainId = parameters.chainId ?? config.defaultChainId;
+  /** The reads below, and the Muon fetch inside `withdraw`, count against the gasless signature lifetime. */
+  const gasless = withGaslessAttemptStart(parameters.gasless);
 
   // Use the caller-supplied isolation type when present (the React layer reads it
   // from cache); otherwise fetch the subaccount to resolve it.
@@ -137,6 +140,6 @@ export async function withdrawAuto(
     chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
-    gasless: parameters.gasless,
+    gasless,
   });
 }

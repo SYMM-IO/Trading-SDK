@@ -1,5 +1,6 @@
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import type { Config } from "../../../core/config";
+import { withGaslessAttemptStart } from "../../../gasless/dispatch/attempt-start";
 import { getDeallocateUpnlSig } from "../../../muon/deallocate-upnl-sig/get-deallocate-upnl-sig";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
@@ -75,6 +76,8 @@ export type DeallocateReturnType = Hash;
  */
 export async function deallocate(config: Config, parameters: DeallocateParameters): Promise<DeallocateReturnType> {
   const { chainId, account, amount } = parameters;
+  /** The Muon fetch below counts against the gasless signature lifetime. */
+  const gasless = withGaslessAttemptStart(parameters.gasless);
 
   const upnlSig =
     parameters.upnlSig ?? (await getDeallocateUpnlSig(config, { virtualAccount: parameters.account, chainId }));
@@ -91,6 +94,6 @@ export async function deallocate(config: Config, parameters: DeallocateParameter
     chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
-    gasless: parameters.gasless,
+    gasless,
   });
 }
