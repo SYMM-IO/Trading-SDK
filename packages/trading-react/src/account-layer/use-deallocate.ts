@@ -5,6 +5,8 @@ import {
   getAccountBalanceInfoQueryKey,
   getAccountBalanceOfQueryKey,
   getDeallocateUpnlSig,
+  getWithdrawCooldownOfQueryKey,
+  getWithdrawableTimeQueryKey,
   type DeallocateParameters,
   type SingleUpnlSig,
 } from "@symmio/trading-core";
@@ -44,11 +46,12 @@ export type UseDeallocateReturnType = UseMutationResult<DeallocateResult, Symmio
  * fresh Muon uPnL signature** (the contract requires it to prove the subaccount
  * stays solvent) immediately before submitting, unless you pass one as `upnlSig`.
  * The connected wallet must own the subaccount. On success, the subaccount's
- * balance reads are invalidated.
+ * balance, withdraw-cooldown and withdrawable-time reads are invalidated.
  *
  * @remarks
- * Subject to the on-chain deallocate debounce — submitting too soon after a prior
- * deallocate reverts. That (and an insolvent result, or a stale signature) is
+ * Subject to the on-chain deallocate debounce — submitting before
+ * `withdrawCooldownOf + debounce` reverts (read both with
+ * {@link useWithdrawCooldownOf} and {@link useDeallocateDebounceTime}). That (and an insolvent result, or a stale signature) is
  * surfaced as a normalized {@link SymmioRequestError}; enabling `simulateBeforeWrite`
  * catches it as a dry-run before anything is signed.
  *
@@ -90,6 +93,11 @@ export function useDeallocate(parameters: UseDeallocateParameters = {}): UseDeal
       const partial = { account: variables.account };
       void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceInfoQueryKey, partial) });
       void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceOfQueryKey, partial) });
+
+      /** A deallocation stamps the account's cooldown timestamp, which also moves its withdrawable time. */
+      const timing = { user: variables.account };
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getWithdrawCooldownOfQueryKey, timing) });
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getWithdrawableTimeQueryKey, timing) });
     },
   });
 }

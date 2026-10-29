@@ -24,6 +24,7 @@ import {
   getSubAccountsCountOfUserQueryKey,
   getUserSubAccountsAddressesQueryKey,
   getUserSubAccountsQueryKey,
+  getWithdrawCooldownOfQueryKey,
   getWithdrawRequestsQueryKey,
   getWithdrawableTimeQueryKey,
   instantLayerAbi,
@@ -172,6 +173,9 @@ const WITHDRAW_WRITES: ReadonlySet<Hex> = new Set([
   selectorOf(symmioAbi as Abi, "finalizeWithdrawRequest"),
 ]);
 
+/** Relayable writes that stamp the account's cooldown timestamp, which also moves its withdrawable time. */
+const DEALLOCATE_WRITES: ReadonlySet<Hex> = new Set([selectorOf(symmioAbi as Abi, "deallocate")]);
+
 /** Relayable writes that change a quote or an open position. */
 const QUOTE_WRITES: ReadonlySet<Hex> = new Set([
   selectorOf(symmioAbi as Abi, "requestToCancelQuote"),
@@ -246,6 +250,11 @@ export function invalidateGaslessBatchReads(
       getWithdrawableTimeQueryKey,
       getWithdrawRequestsQueryKey,
     ]) {
+      void queryClient.invalidateQueries({ predicate: predicateMatch(queryKey, scope) });
+    }
+  }
+  if (touches(DEALLOCATE_WRITES)) {
+    for (const queryKey of [getWithdrawCooldownOfQueryKey, getWithdrawableTimeQueryKey]) {
       void queryClient.invalidateQueries({ predicate: predicateMatch(queryKey, scope) });
     }
   }

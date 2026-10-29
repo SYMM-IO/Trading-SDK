@@ -397,9 +397,11 @@ export {
  * --------------
  * The request-based withdraw flow: initiate / cancel / finalize mutations (the
  * write wrappers hide the AccountLayer `_call` proxying) plus the read views for
- * pending requests, ids, and the withdrawable time.
+ * pending requests, ids, the withdrawable time, and the raw deallocation timing
+ * inputs (`useWithdrawCooldownOf`, `useDeallocateDebounceTime`).
  */
 export {
+  useDeallocateDebounceTime,
   useFinalizeWithdrawRequest,
   useInitiateWithdraw,
   useLastWithdrawRequestId,
@@ -410,11 +412,14 @@ export {
   useSimulateInitiateWithdraw,
   useSimulateRequestCancelWithdraw,
   useWithdraw,
+  useWithdrawCooldownOf,
   useWithdrawRequest,
   useWithdrawableTime,
   type FinalizeWithdrawRequestResult,
   type InitiateWithdrawResult,
   type RequestCancelWithdrawResult,
+  type UseDeallocateDebounceTimeParameters,
+  type UseDeallocateDebounceTimeReturnType,
   type UseFinalizeWithdrawRequestParameters,
   type UseFinalizeWithdrawRequestReturnType,
   type UseInitiateWithdrawParameters,
@@ -433,6 +438,8 @@ export {
   type UseSimulateInitiateWithdrawReturnType,
   type UseSimulateRequestCancelWithdrawParameters,
   type UseSimulateRequestCancelWithdrawReturnType,
+  type UseWithdrawCooldownOfParameters,
+  type UseWithdrawCooldownOfReturnType,
   type UseWithdrawParameters,
   type UseWithdrawRequestParameters,
   type UseWithdrawRequestReturnType,

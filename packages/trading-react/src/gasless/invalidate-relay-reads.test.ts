@@ -12,6 +12,8 @@ import {
   getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getUserSubAccountsQueryKey,
+  getWithdrawableTimeQueryKey,
+  getWithdrawCooldownOfQueryKey,
 } from "@symmio/trading-core";
 import { QueryClient, type QueryKey } from "@tanstack/react-query";
 import { arbitrum } from "viem/chains";
@@ -273,6 +275,37 @@ describe("invalidateGaslessBatchReads", () => {
     /** One grant covers every selector it lists, so every delegation read is refreshed. */
     expect(isInvalidated(queryClient, delegation)).toBe(true);
     expect(isInvalidated(queryClient, withdrawals)).toBe(false);
+  });
+
+  it("refreshes the cooldown and withdrawable-time reads only when the batch deallocates", () => {
+    const cooldown = getWithdrawCooldownOfQueryKey({ chainId: CHAIN, user: SUB_ACCOUNT, configKey: CONFIG_KEY });
+    const withdrawableTime = getWithdrawableTimeQueryKey({ chainId: CHAIN, user: SUB_ACCOUNT, configKey: CONFIG_KEY });
+    const deallocate = {
+      functionName: "deallocate",
+      args: [
+        5n,
+        {
+          reqId: "0x1234",
+          timestamp: 1n,
+          upnl: 0n,
+          gatewaySignature: "0xabcd",
+          sigs: { signature: 1n, owner: OWNER, nonce: OTHER_OWNER },
+        },
+      ],
+    } as const;
+
+    const withoutDeallocate = seeded([cooldown, withdrawableTime]);
+    invalidateGaslessBatchReads(withoutDeallocate, SCOPE, {
+      account: SUB_ACCOUNT,
+      calls: [{ functionName: "allocate", args: [5n] }],
+    });
+    expect(isInvalidated(withoutDeallocate, cooldown)).toBe(false);
+    expect(isInvalidated(withoutDeallocate, withdrawableTime)).toBe(false);
+
+    const withDeallocate = seeded([cooldown, withdrawableTime]);
+    invalidateGaslessBatchReads(withDeallocate, SCOPE, { account: SUB_ACCOUNT, calls: [deallocate] });
+    expect(isInvalidated(withDeallocate, cooldown)).toBe(true);
+    expect(isInvalidated(withDeallocate, withdrawableTime)).toBe(true);
   });
 
   it("refreshes a GaslessWallet entry's nonce under the batch's account", () => {

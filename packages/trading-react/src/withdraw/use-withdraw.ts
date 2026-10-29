@@ -6,6 +6,7 @@ import {
   getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getWithdrawableTimeQueryKey,
+  getWithdrawCooldownOfQueryKey,
   SymmError,
   withdrawAutoMutationOptions,
   type WithdrawAutoParameters,
@@ -67,7 +68,7 @@ export type UseWithdrawReturnType = UseMutationResult<WithdrawResult, SymmioRequ
  * scale anything.
  *
  * On success, the subaccount's balance reads (`balanceInfo`, `balanceOf`) and its
- * pending-requests / withdrawable-time reads are invalidated.
+ * pending-requests / withdrawable-time / withdraw-cooldown reads are invalidated.
  *
  * @remarks
  * On the `CUSTOM` path the SDK fetches a fresh Muon uPnL signature for the
@@ -142,6 +143,10 @@ export function useWithdraw(parameters: UseWithdrawParameters = {}): UseWithdraw
       });
       void queryClient.invalidateQueries({
         predicate: predicateMatch(getWithdrawableTimeQueryKey, withdrawPartial),
+      });
+      /** The `CUSTOM` path deallocates first, which stamps the cooldown timestamp. */
+      void queryClient.invalidateQueries({
+        predicate: predicateMatch(getWithdrawCooldownOfQueryKey, withdrawPartial),
       });
     },
   });

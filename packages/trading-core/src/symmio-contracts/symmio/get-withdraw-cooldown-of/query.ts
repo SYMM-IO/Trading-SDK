@@ -1,5 +1,5 @@
 import type { Config } from "../../../core/config";
-import type { Compute, ConfigKeyParameter } from "../../../shared/types/properties";
+import type { Compute, ConfigKeyParameter, ExactPartial } from "../../../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../../../shared/types/query";
 import { filterQueryOptions } from "../../../shared/utils/query";
 import {
@@ -14,10 +14,16 @@ export type GetWithdrawCooldownOfData = GetWithdrawCooldownOfReturnType;
 /**
  * Build the query key for {@link getWithdrawCooldownOf}.
  *
+ * Every field is optional so a partial key can match a whole family of reads
+ * when invalidating (for example every chain's read for one `user`); the query
+ * options still require `user`.
+ *
  * @param options - Action parameters and optional deployment cache scope.
  * @returns A stable query key.
  */
-export function getWithdrawCooldownOfQueryKey(options: Compute<GetWithdrawCooldownOfParameters & ConfigKeyParameter>) {
+export function getWithdrawCooldownOfQueryKey(
+  options: Compute<ExactPartial<GetWithdrawCooldownOfParameters> & ConfigKeyParameter> = {},
+) {
   return ["getWithdrawCooldownOf", filterQueryOptions(options)] as const;
 }
 
