@@ -1,27 +1,37 @@
+import type { Address } from "viem";
 import type { Config } from "../../core/config";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { querySubgraph } from "../../symmio-subgraph/query-subgraph";
+import {
+  compactWhere,
+  hasEmptyListFilter,
+  stringList,
+  SUBGRAPH_MAX_PAGE_SIZE,
+  toSubgraphPage,
+} from "../../symmio-subgraph/subgraph-filters";
+import type { QuoteEvent_Filter } from "../../symmio-subgraph/types/generated/analytics/graphql";
 import { toQuoteEventRow } from "../get-quote-events-by-type/to-quote-event-row";
-import type { QuoteEventRow, QuoteEventType } from "../get-quote-events-by-type/types";
+import type { QuoteEventRow, QuoteEventType, QuoteSubgraphEventType } from "../get-quote-events-by-type/types";
 import { QuoteEventsForQuotesByTypeDocument } from "./query-document";
-
-/**
- * Largest page The Graph will serve, and what this action sends when `first` is
- * omitted — asking below the ceiling would truncate an un-paged caller, and
- * leaving `first` out of the query entirely makes The Graph silently fall back
- * to 100.
- */
-const MAX_PAGE_SIZE = 1000;
 
 /**
  * Parameters for {@link getQuotesEventsByType}.
  */
-export type GetQuotesEventsByTypeParameters = Compute<
+export type GetQuotesEventsByTypeParameters<TType extends QuoteSubgraphEventType = QuoteSubgraphEventType> = Compute<
   ChainIdParameter & {
     /** On-chain quote ids to read events for. Order is irrelevant — rows come back merged. */
     quoteIds: readonly bigint[];
-    /** Event types to include. Use {@link FUNDING_HISTORY_EVENT_TYPES}, etc. */
-    types: readonly QuoteEventType[];
+    /**
+     * Event types to include — e.g. {@link FUNDING_HISTORY_EVENT_TYPES}, or any
+     * subgraph type such as `"OPEN_POSITION"`. Omit to read every type; an empty
+     * array reads nothing. The rows' `type` narrows to what is passed.
+     */
+    types?: readonly TType[];
+    /**
+     * The deployment's diamond address (the subgraph's `source`). Omit to match
+     * the quote ids on any deployment the subgraph indexes.
+     */
+    source?: Address;
     /**
      * Page size across the whole batch, not per quote id. The subgraph caps it at
      * 1000, and omitting it asks for that ceiling — one round-trip returns as much
@@ -37,22 +47,22 @@ export type GetQuotesEventsByTypeParameters = Compute<
 >;
 
 /** Return type of {@link getQuotesEventsByType}. */
-export interface GetQuotesEventsByTypeReturnType {
+export interface GetQuotesEventsByTypeReturnType<TType extends QuoteSubgraphEventType = QuoteEventType> {
   /**
    * The decoded event rows for every requested quote id, already merged and
    * sorted by `timestamp` server-side (newest first unless `orderDirection` says
    * otherwise). Each row carries its own `quoteId`, so a caller that needs a
    * per-quote view groups by that field.
    */
-  rows: QuoteEventRow[];
+  rows: QuoteEventRow<TType>[];
   /** `true` when the page came back full — caller should fetch the next page. */
   hasMore: boolean;
 }
 
 /**
- * Batched sibling of `getQuoteEventsByType`: read the non-terminal events
- * (open-price recompute, funding charges) of **many** quotes from the analytics
- * subgraph in one round-trip, filtered to the requested event types.
+ * Batched sibling of `getQuoteEventsByType`: read the events of **many** quotes
+ * from the analytics subgraph in one round-trip, optionally filtered to the
+ * requested event types and deployment.
  *
  * The subgraph does the merge: rows for all `quoteIds` come back interleaved and
  * sorted by `timestamp`, newest first by default, and `first` / `skip` page over
@@ -76,7 +86,7 @@ export interface GetQuotesEventsByTypeReturnType {
  * The action does no event-type interpretation beyond decoding the metadata JSON.
  *
  * @param config - The SDK config.
- * @param parameters - Quote ids, types, pagination, sort, optional chain id.
+ * @param parameters - Quote ids, optional types and diamond, pagination, sort, optional chain id.
  * @returns The decoded rows plus a `hasMore` flag.
  * @throws {SymmError} when the chain is unsupported or has no analytics subgraph.
  * @throws {SymmApiError} when the subgraph request fails.
@@ -89,26 +99,41 @@ export interface GetQuotesEventsByTypeReturnType {
  * });
  * ```
  */
-export async function getQuotesEventsByType(
+export async function getQuotesEventsByType<TType extends QuoteSubgraphEventType = QuoteSubgraphEventType>(
   config: Config,
-  parameters: GetQuotesEventsByTypeParameters,
-): Promise<GetQuotesEventsByTypeReturnType> {
-  const { chainId, quoteIds, types, first = MAX_PAGE_SIZE, skip = 0, orderDirection = "desc" } = parameters;
+  parameters: GetQuotesEventsByTypeParameters<TType>,
+): Promise<GetQuotesEventsByTypeReturnType<TType>> {
+  // `first` defaults to the ceiling: asking below it would truncate an un-paged
+  // caller, and leaving it out of the query makes The Graph fall back to 100.
+  const {
+    chainId,
+    quoteIds,
+    types,
+    source,
+    first = SUBGRAPH_MAX_PAGE_SIZE,
+    skip = 0,
+    orderDirection = "desc",
+  } = parameters;
 
-  if (quoteIds.length === 0 || types.length === 0) return { rows: [], hasMore: false };
+  if (hasEmptyListFilter(quoteIds, types)) return { rows: [], hasMore: false };
 
   const data = await querySubgraph(config, {
     chainId,
     document: QuoteEventsForQuotesByTypeDocument,
     variables: {
-      quoteIds: quoteIds.map((id) => id.toString()),
-      typeIn: types as string[],
+      where: compactWhere<QuoteEvent_Filter>({
+        quoteId_in: stringList(quoteIds),
+        type_in: types as string[] | undefined,
+        source: source?.toLowerCase(),
+      }),
       first,
       skip,
       orderDirection,
     },
   });
 
-  const rows = data.quoteEvents.map(toQuoteEventRow);
-  return { rows, hasMore: rows.length === first };
+  return toSubgraphPage(
+    data.quoteEvents.map((row) => toQuoteEventRow<TType>(row)),
+    first,
+  );
 }

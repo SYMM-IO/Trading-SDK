@@ -1,13 +1,9 @@
+import { toBigIntOrZero } from "../../symmio-subgraph/subgraph-decode";
 import type { QuotesFundingQuery } from "../../symmio-subgraph/types/generated/analytics/graphql";
 import type { QuoteFundingData } from "./types";
 
 /** A single `quotes` row as returned by the funding query. */
 export type RawQuoteFundingRow = QuotesFundingQuery["quotes"][number];
-
-/** Parse a wei string to `bigint`, defaulting null/undefined to `0n`. */
-function toBigInt(value: string | null | undefined): bigint {
-  return value ? BigInt(value) : 0n;
-}
 
 /**
  * Build a {@link QuoteFundingData} from one raw subgraph `quotes` row.
@@ -15,10 +11,10 @@ function toBigInt(value: string | null | undefined): bigint {
  * earned funding.
  */
 export function toQuoteFundingRow(row: RawQuoteFundingRow): QuoteFundingData {
-  const paid = toBigInt(row.userPaidFunding);
-  const received = toBigInt(row.userReceivedFunding);
+  const paid = toBigIntOrZero(row.userPaidFunding);
+  const received = toBigIntOrZero(row.userReceivedFunding);
   return {
-    quoteId: toBigInt(row.quoteId),
+    quoteId: toBigIntOrZero(row.quoteId),
     paid,
     received,
     netReceived: received - paid,

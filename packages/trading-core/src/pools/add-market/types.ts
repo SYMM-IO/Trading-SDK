@@ -11,6 +11,14 @@ import type { ListingDepositChainId, ListingMarketStatus } from "../types";
  * `addMarket` returns the accepted application, not live pool metrics.
  */
 export interface CreatedPool {
+  /** Token transfer-tax flag, when reported. */
+  isTax?: boolean | null;
+  /** Whitelist status, when reported. */
+  userWhitelistTax?: boolean | null;
+  /** Other supported deposit chains. */
+  additionalChains?: number[] | null;
+  /** Exchange listings, when reported. */
+  cexList?: string[] | null;
   /**
    * The submitted token's contract address on {@link CreatedPool.depositChain}.
    *

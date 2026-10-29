@@ -19,6 +19,41 @@ const LISTING_URL = getChainConfig(SymmioSupportedChainId.ARBITRUM).listing?.url
 const TOKEN_ADDRESS = "0x000000000000000000000000000000000000dEaD";
 
 describe("getUserProfit", () => {
+  it("returns a known zero LP position only for HTTP 404 / Market not listed (22)", async () => {
+    const { config } = mockConfig();
+    getProfitByTokenV2ProfitTokenContractAddressGet.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 404, data: { error_code: 22 } },
+    });
+    await expect(
+      getUserProfit(config, { accessToken: "t", tokenContractAddress: TOKEN_ADDRESS }),
+    ).resolves.toMatchObject({
+      userLpAmount: 0n,
+      userBalanceInTokens: 0n,
+      userBalanceInUsdc: 0n,
+      claimableReward: 0n,
+      claimedReward: 0n,
+    });
+  });
+
+  it.each([
+    [404, 21],
+    [404, undefined],
+    [500, 22],
+    [429, 22],
+    [401, 22],
+    [403, 22],
+    [0, undefined],
+  ])("preserves failure status %s / code %s instead of inventing an empty position", async (status, errorCode) => {
+    const { config } = mockConfig();
+    getProfitByTokenV2ProfitTokenContractAddressGet.mockRejectedValue({
+      isAxiosError: true,
+      response: { status, data: { error_code: errorCode } },
+    });
+    await expect(
+      getUserProfit(config, { accessToken: "t", tokenContractAddress: TOKEN_ADDRESS }),
+    ).rejects.toMatchObject({ status });
+  });
   beforeEach(() => {
     getProfitByTokenV2ProfitTokenContractAddressGet.mockReset();
   });
@@ -49,6 +84,22 @@ describe("getUserProfit", () => {
     );
 
     expect(profit).toEqual({
+      tvl: null,
+      apy30d: null,
+      apyLifetime: null,
+      buybackRatio: null,
+      activeLps: null,
+      age: null,
+      longPositionAmount: null,
+      longPositionValue: null,
+      longPositionAvgOpenPrice: null,
+      longPositionUpnl: null,
+      shortPositionAmount: null,
+      shortPositionValue: null,
+      shortPositionAvgOpenPrice: null,
+      shortPositionUpnl: null,
+      totalUsdcInPool: null,
+      totalTokenInPool: null,
       userBalanceInTokens: 1000000000000000000n,
       userBalanceInUsdc: 2500000000000000000n,
       claimableReward: 300000000000000000n,

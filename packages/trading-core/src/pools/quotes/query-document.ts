@@ -48,6 +48,22 @@ export const PoolQuotesDocument = graphql(`
       liquidatePrice
       timestamp
       blockNumber
+      timestampSendQuote
+      timestampOpenPosition
+      subAccount {
+        id
+        owner
+      }
+      closedPrice
+      marketPrice
+      tradingFee
+      closeFee
+      leverage
+      initialCva
+      initialPartyAmm
+      initialLf
+      userPaidFunding
+      userReceivedFunding
     }
   }
 `);

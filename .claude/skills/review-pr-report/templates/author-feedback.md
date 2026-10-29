@@ -1,0 +1,103 @@
+# Review feedback — `<branch>`
+
+Thanks for this PR. <One or two sentences on what it adds and what is good about it: design choices, docs, tests.>
+
+This file lists the problems I'd like you to look at. It covers every High, Medium and Medium/Low problem from my review<, plus …>. Low items (docs wording, conventions, small performance issues) are left out and can be handled separately.
+
+|                   |                                                                            |
+| ----------------- | -------------------------------------------------------------------------- |
+| **Branch**        | `<branch>` at `<sha>`                                                      |
+| **Compared with** | `origin/main` at `<sha>` (<why this base>)                                 |
+| **Scope**         | `<n>` commits · `<n>` files · about +`<n>` / −`<n>` lines                  |
+| **In this file**  | `<a>` High · `<b>` Medium · `<c>` Medium/Low<, `<d>` SDK-boundary item(s)> |
+| **Merge blocker** | **`<P#>`.** <What needs a decision, and by when.>                          |
+
+The IDs match my full review, so some numbers are skipped.<Merged items, each with the reason, for example: "P6 also covers the PartyB path (P21 in the full review)">
+
+## Summary
+
+| ID                            | Severity | Problem | Suggested timing |
+| ----------------------------- | -------- | ------- | ---------------- |
+| [P1](#p1--high--<title-slug>) | High     | <…>     | **Before merge** |
+
+Each item below has: the problem, why it happens, where it is, an example, a suggested fix, a test to add, and how sure I am. A before/after table appears only where the PR changed behavior that worked before.
+
+---
+
+## High
+
+### P1 · High — <Title that states the defect>
+
+**The problem:** <What goes wrong, from the caller's or the user's side, in two or three sentences.>
+
+**Why it happens:** <The precise mechanism, written for the author, who knows the code.>
+
+**Where:**
+
+- `path/to/file.ts:<lines>` (<symbol>)
+
+<Only for a regression (it worked on `origin/main` and breaks now) or a changed behavior, add ONE before/after table. Skip it for a bug in new code.>
+
+|            | Before (`origin/main`) | After (this PR) |
+| ---------- | ---------------------- | --------------- |
+| <behavior> | <…>                    | <…>             |
+
+**Example:**
+
+1. <…>
+2. <…>
+
+**See it in apps/web:**
+
+- **Setup:** <PR: `gh pr checkout <n>` / local: your checkout as it is>; <`pnpm exec turbo run build --filter="@symmio/web^..."` when `packages/*` changed>; `pnpm --filter @symmio/web dev`; <wallet: real wallet for writes, or `NEXT_PUBLIC_E2E_MODE=1 NEXT_PUBLIC_E2E_ACCOUNT_ADDRESS=<address>` for read-only>; <account state needed>.
+- **Steps:** open `http://localhost:3001/<route>` (`apps/web/src/features/<…>.tsx:<line>`) → <action, quoting the exact label> → <…>.
+- **You see:** <the wrong result, and where: screen / Console / Network (request URL, count)>.
+- **On `<base>`:** <what the same steps show before the change, or "the same" (pre-existing)>.
+- **Status:** <Seen in apps/web / Steps from the code, not run / Not visible in apps/web: <why>, and instead: <scratch test command, SDK snippet or docs page>>.
+
+**Suggested fix:**
+
+- <…>
+
+**Test to add:** <scenario → expected result>.
+
+**Confidence:** <Confirmed / Confirmed by the docs / Likely, not verified>. <How: the code read, or the scratch test and its result.>
+
+---
+
+## Medium
+
+<same item shape>
+
+---
+
+## Medium/Low
+
+<same item shape>
+
+---
+
+## SDK boundary
+
+### B1 · SDK boundary — <Title>
+
+**Where:** `path/to/file.ts`.
+
+**What it is:** <what the code fixes in place, and why a frontend may want to choose it>.
+
+| Hardcoded | Value | Problem | Suggested change |
+| --------- | ----- | ------- | ---------------- |
+| <…>       | <…>   | <…>     | <…>              |
+
+What is already right: <the part that is correctly left to the app or to the SDK>.
+
+**Confidence:** <…>.
+
+---
+
+## How this was checked
+
+- **Code:** <compared with `origin/main` at `<sha>`; contract docs used>.
+- **Scratch tests:** <which items were reproduced; mocks only, outside the repo>.
+- **Test suites:** <one line per package>.
+- **Not run:** <lint, check-types, builds>, and anything reported by others but not re-run.

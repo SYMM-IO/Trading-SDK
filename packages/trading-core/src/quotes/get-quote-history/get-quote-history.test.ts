@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { PublicClient } from "viem";
+import { getAddress, type PublicClient } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
 import { createConfig } from "../../core/config";
@@ -28,6 +28,7 @@ const EVENT = {
   quoteId: "8232",
   blockNumber: "1",
   transaction: "0xdead",
+  source: "0x8a0ed5b4cec4b0c4e1f7c8d9e3a2b1f0c9d8e7f6",
   quote: {
     quoteId: "8232",
     quoteStatus: 7,
@@ -46,9 +47,41 @@ const EVENT = {
     quantityToClose: "0",
     liquidateAmount: null,
     liquidatePrice: null,
-    subAccount: { id: SUB.toLowerCase() },
+    subAccount: { id: SUB.toLowerCase(), owner: SUB.toLowerCase() },
+    closedPrice: null,
+    initialOpenedPrice: "1",
+    marketPrice: null,
+    tradingFee: "0",
+    closeFee: "0",
+    leverage: null,
+    cva: null,
+    lf: null,
+    initialCva: "0",
+    initialLf: "0",
+    initialPartyAmm: null,
+    timestampSendQuote: "1781999000",
+    timestampOpenPosition: null,
+    sendQuoteEvents: [{ transaction: "0xopen" }],
+    openPositionEvents: [],
   },
 };
+
+/** Checksummed diamond; the action lowercases it for the `source` filter. */
+const DIAMOND = getAddress("0x8a0ed5b4cec4b0c4e1f7c8d9e3a2b1f0c9d8e7f6");
+
+interface HistoryRequestBody {
+  query: string;
+  variables: {
+    where: Record<string, unknown> & { quote_?: Record<string, unknown> };
+    first: number;
+    skip: number;
+    orderDirection: string;
+  };
+}
+
+function requestBody(call: unknown[]): HistoryRequestBody {
+  return call[1] as HistoryRequestBody;
+}
 
 describe("getQuoteHistory", () => {
   afterEach(() => {
@@ -79,13 +112,15 @@ describe("getQuoteHistory", () => {
     expect(url).toBe(ANALYTICS_URL);
     expect(body.query).toContain("QuoteEventsForHistory");
     expect(body.variables).toEqual({
-      typeIn: ["LIQUIDATE_PARTY_A", "LIQUIDATE_PARTY_B", "LIQUIDATE_CLEARING_HOUSE"],
-      subAccounts: [SUB.toLowerCase()],
+      where: {
+        type_in: ["LIQUIDATE_PARTY_A", "LIQUIDATE_PARTY_B", "LIQUIDATE_CLEARING_HOUSE"],
+        timestamp_gte: "5",
+        timestamp_lte: "99",
+        quote_: { subAccount_in: [SUB.toLowerCase()] },
+      },
       first: 10,
       skip: 20,
       orderDirection: "asc",
-      startDate: "5",
-      endDate: "99",
     });
 
     expect(result.rows).toHaveLength(1);
@@ -97,14 +132,12 @@ describe("getQuoteHistory", () => {
     const post = vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { quoteEvents: [] } } });
     await getQuoteHistory(config, { subAccounts: [SUB] });
 
-    const { variables } = post.mock.calls[0]![1] as {
-      variables: { typeIn: string[]; orderDirection: string; first: number; startDate: string; endDate: string };
-    };
-    expect(variables.typeIn).toHaveLength(7);
+    const { variables } = requestBody(post.mock.calls[0]!);
+    expect(variables.where.type_in).toHaveLength(7);
     expect(variables.orderDirection).toBe("desc");
     expect(variables.first).toBe(50);
-    expect(variables.startDate).toBe("0");
-    expect(variables.endDate).toBe("2000000000");
+    expect(variables.where.timestamp_gte).toBe("0");
+    expect(variables.where.timestamp_lte).toBe("2000000000");
   });
 
   it("filters by the quote's subAccount for VA isolation (default and MARKET / MARKET_DIRECTION)", async () => {
@@ -114,9 +147,7 @@ describe("getQuoteHistory", () => {
     await getQuoteHistory(config, { subAccounts: [SUB], isolationType: SubAccountIsolationType.MARKET_DIRECTION });
 
     for (const call of post.mock.calls) {
-      const { query } = call[1] as { query: string };
-      expect(query).toContain("subAccount_in");
-      expect(query).not.toContain("partyA_in");
+      expect(requestBody(call).variables.where.quote_).toEqual({ subAccount_in: [SUB.toLowerCase()] });
     }
   });
 
@@ -125,11 +156,36 @@ describe("getQuoteHistory", () => {
 
     const result = await getQuoteHistory(config, { subAccounts: [SUB], isolationType: SubAccountIsolationType.CUSTOM });
 
-    const { query, variables } = post.mock.calls[0]![1] as { query: string; variables: Record<string, unknown> };
-    expect(query).toContain("partyA_in");
-    expect(query).not.toContain("subAccount_in");
-    // Still feeds the same `$subAccounts` variable and decodes with the same result shape.
-    expect(variables.subAccounts).toEqual([SUB.toLowerCase()]);
+    expect(requestBody(post.mock.calls[0]!).variables.where.quote_).toEqual({ partyA_in: [SUB.toLowerCase()] });
     expect(result.rows).toHaveLength(1);
+  });
+
+  it("adds the deployment and market filters on the quote only when passed", async () => {
+    const post = vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { quoteEvents: [] } } });
+
+    await getQuoteHistory(config, { subAccounts: [SUB], source: DIAMOND, marketIds: [149, 150] });
+
+    expect(requestBody(post.mock.calls[0]!).variables.where.quote_).toEqual({
+      subAccount_in: [SUB.toLowerCase()],
+      source: DIAMOND.toLowerCase(),
+      symbolId_in: ["149", "150"],
+    });
+  });
+
+  it("sends no quote filter at all when no account, deployment or market is passed", async () => {
+    const post = vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { quoteEvents: [] } } });
+
+    await getQuoteHistory(config, {});
+
+    const { where } = requestBody(post.mock.calls[0]!).variables;
+    // Graph-node rejects a null filter, so an omitted one must be absent, not empty.
+    expect(where).not.toHaveProperty("quote_");
+    expect(Object.values(where)).not.toContain(undefined);
+  });
+
+  it("returns [] and skips the network when marketIds is an empty array", async () => {
+    const post = vi.spyOn(axios, "post");
+    expect(await getQuoteHistory(config, { subAccounts: [SUB], marketIds: [] })).toEqual({ rows: [] });
+    expect(post).not.toHaveBeenCalled();
   });
 });

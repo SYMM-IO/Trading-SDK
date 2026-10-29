@@ -1,0 +1,81 @@
+# Pool position
+
+`getPoolPosition(config, parameters)` reads one user's profit, deposit history and public pool detail. Portfolio entries use the same `calculatePoolPosition` projection.
+
+```ts
+import { getPoolPosition, type Config } from "@symmio/trading-core";
+export function position(config: Config, accessToken: string, userAddress: string, tokenContractAddress: string) {
+  return getPoolPosition(config, {
+    chainId: 42161,
+    depositChain: 0,
+    tokenContractAddress,
+    accessToken,
+    userAddress,
+    priceUsd: 2,
+    withdrawalPercent: 50,
+  });
+}
+```
+
+## Parameters and result
+
+`GetPoolPositionParameters` requires tokenContractAddress, depositChain, accessToken and userAddress; chainId, priceUsd and withdrawalPercent are optional. Deposit chain 0 is Solana, not the deployment chain. `withdrawalPercent` must be an integer from 0 through 100; invalid values throw `RangeError`.
+
+`PoolPositionData` / `GetPoolPositionReturnType` is flat:
+
+| Fields                                                                                                   | Meaning                                                                                     |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| tokenContractAddress, depositChain, marketStatus, symbolId                                               | Pool identity and known lifecycle                                                           |
+| totalToken, totalUsdc, availableToken, availableUsdc, pendingToken, pendingUsdc                          | Exact 18-decimal amounts; split by LP shares with integer arithmetic                        |
+| totalLp, availableLp, pendingLp                                                                          | Raw shares                                                                                  |
+| pendingRatio                                                                                             | Pending LP / total LP, using the same clamped ledger; zero with no LP, null without profit  |
+| withdrawalLpAmount, withdrawalTokenAmount, withdrawalUsdcAmount, withdrawalValueUsd                      | Optional preview; all four are 18-decimal bigints, null without a selection or profit       |
+| depositedToken, pendingDepositToken, rejectedDepositToken, refundedToken, refundableToken, fullyRefunded | Deposit lifecycle; unknown when required history is incomplete                              |
+| claimableReward, claimedReward                                                                           | Raw reward amounts                                                                          |
+| shareFraction, priceUsd, balanceUsd, valuationComplete                                                   | Ownership and valuation; balanceUsd includes known collateral when a token price is missing |
+| gaps                                                                                                     | Failed, repeated or truncated sources                                                       |
+
+Deposit paging is bounded to ten 100-row pages. A partial history cannot mark a refund complete. Missing profit is unknown, not a zero position. available + pending preserves the original integer balance exactly.
+
+## Projection and queries
+
+`calculatePoolPosition(input: CalculatePoolPositionParameters)` accepts ListingMarketDetail, UserPoolProfit and UserTransaction arrays directly, together with identity, price, completeness and gaps. `getPoolPositionQueryOptions(config, options: GetPoolPositionOptions)` and `getPoolPositionQueryKey` expose the composed core query. Private keys use userAddress, never the bearer token.
+
+The pure calculator also accepts partial normalized detail/profit snapshots. Omitted monetary fields stay unknown; they are not filled with zero. For already-scoped cached snapshots, omit both identity fields together (the result identity is null). Supplying only one throws `TypeError`. Network reads and hooks still require both identity fields and authentication.
+
+`userSharePercentage` is an optional whole-percent LP-ledger value (`3.2` means 3.2%). It wins over the USDC ratio, including an explicit zero. Otherwise the ratio uses profit's same-snapshot `totalUsdcInPool`, then detail's total; unavailable ownership remains null. `getPoolPosition` and `usePoolPosition` accept this existing catalog value without requesting the catalog again.
+
+The calculator accepts optional `depositHistory: PoolDepositHistory | null` containing complete `pending`, `transferred`, `success`, `rejected` and `refund` bigint buckets. When supplied, these replace transaction rows. `depositsComplete: false` makes history-derived fields unknown. The result exposes those buckets, `currentDepositToken` (success + transferred + pending), `uncreditedDepositToken` (pending + rejected − refund, clamped at zero), `currentDepositUsd`, and `refundableValueUsd`. USD history estimates are null without a price. `availableRatio` complements `pendingRatio`; `pendingValueUsd` retains known collateral when token price is missing.
+
+```ts
+import { calculatePoolPosition, type PoolDepositHistory } from "@symmio/trading-core";
+export function scopedDeposit(history: PoolDepositHistory, priceUsd?: number) {
+  return calculatePoolPosition({
+    detail: null,
+    profit: null,
+    deposits: null,
+    depositHistory: history,
+    priceUsd,
+  });
+}
+```
+
+## Units and ownership
+
+Token, collateral and LP amounts are bigint at 18 decimals. USD and percentage projections are unformatted numbers, except `withdrawalValueUsd`, which is a bigint at 18 decimals. Unknown values are null. The SDK does not contact third-party token-data providers; pass an external price when available. Keep formatting, filtering and sorting in the consumer.
+
+The corresponding React hook composes existing SDK queries; it does not cache the aggregate separately. Core query factories are available for non-React consumers. Do not mount both a composed core query and its React hook for the same screen.
+
+## Withdrawal preview
+
+Pass the optional percentage to `calculatePoolPosition`, `getPoolPosition` or `usePoolPosition`. LP sizing floors integer division; 100% retains all available LP dust. Token and collateral estimates use the selected share before LP rounding. An unavailable price values only the USDC leg; `valuationComplete` still describes the underlying position's price coverage. These estimates do not establish acceptance or settlement.
+
+```ts
+import { calculatePoolPosition, type CalculatePoolPositionParameters } from "@symmio/trading-core";
+export function halfWithdrawal(input: CalculatePoolPositionParameters) {
+  const stake = calculatePoolPosition({ ...input, withdrawalPercent: 50 });
+  return stake.withdrawalLpAmount; // bigint | null, with 18 decimals
+}
+```
+
+Changing the percentage in the composed React hook recalculates from existing source data without requesting it again. Deposit minimum estimates, observed balance deltas and chart running sums belong to the consumer; no standalone deposit-preview or history-sum helper is exported.

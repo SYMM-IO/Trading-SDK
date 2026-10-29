@@ -33,6 +33,7 @@ export const secondaryNavGroups = [
     label: "Protocol",
     links: [
       { href: "/contracts", label: "Contracts", description: "Live reads & writes per method" },
+      { href: "/subgraph", label: "Subgraph", description: "Query the SDK's subgraph reads" },
       { href: "/muon", label: "Muon API", description: "Oracle signatures for writes" },
       { href: "/config", label: "Config", description: "Resolved SYMMIO chain config" },
     ],

@@ -27,6 +27,9 @@ const ITEM: UserTransactionItem = {
 describe("toUserTransaction", () => {
   it("maps a row, treating amount as a 1e18 integer and preserving enum values", () => {
     expect(toUserTransaction({ ...ITEM })).toEqual({
+      tokenAmount: null,
+      usdcAmount: null,
+      refundTransactionHash: null,
       transactionId: "tx-1",
       type: PoolTransactionType.WITHDRAW,
       status: PoolTransactionStatus.PENDING,

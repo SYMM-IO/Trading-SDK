@@ -150,6 +150,24 @@ export interface ListingApyWindows extends ListingTrailingWindows {
  * means the service reported no value, which is distinct from zero.
  */
 export interface ListingMarket {
+  /** Rollout price, kept as a string because services used both plain and scaled units. */
+  priceUsd?: string | null;
+  /** Legacy headline APY, 18-decimal percentage. */
+  apy24h?: bigint | null;
+  /** Legacy 30-day APY, 18-decimal percentage. */
+  apy30d?: bigint | null;
+  /** Lifetime APY, 18-decimal percentage. */
+  apyLifetime?: bigint | null;
+  /** 30-day rewards in USD at 18 decimals. */
+  reward30d?: bigint | null;
+  /** Lifetime rewards in USD at 18 decimals. */
+  rewardLifetime?: bigint | null;
+  /** 24-hour solver revenue in USD at 18 decimals. */
+  solverRevenue24h?: bigint | null;
+  /** 30-day solver revenue in USD at 18 decimals. */
+  solverRevenue30d?: bigint | null;
+  /** Lifetime solver revenue in USD at 18 decimals. */
+  solverRevenueLifetime?: bigint | null;
   /**
    * The listed token's contract address on {@link ListingMarket.chainId}.
    *
@@ -231,8 +249,8 @@ export interface ListingMarketPage {
 export interface UserListingMarket extends ListingMarket {
   /** The user's current deposit into this pool, in USD (18-dec bigint). `null` when the deposit address exists but nothing has been deposited yet. */
   userDeposit: bigint | null;
-  /** The user's share of the pool, as a percentage number (not 18-dec scaled). */
-  userSharePercentage: number;
+  /** The user's share in whole percent (not 18-dec scaled); null when absent or non-finite. */
+  userSharePercentage: number | null;
   /** The user's accrued revenue from this pool, in USD (18-dec bigint), or `null` when absent. */
   userRevenue: bigint | null;
 }
@@ -259,6 +277,38 @@ export interface UserListingMarketPage {
  * figure is normalized to `0n`, not `null`.
  */
 export interface UserPoolProfit {
+  /** Legacy service pool snapshot; null when the newer profit endpoint omits it. */
+  tvl?: bigint | null;
+  /** Legacy 30-day APY snapshot, 18-decimal percent. */
+  apy30d?: bigint | null;
+  /** Legacy lifetime APY snapshot, 18-decimal percent. */
+  apyLifetime?: bigint | null;
+  /** Legacy whole-percent buyback setting. */
+  buybackRatio?: number | null;
+  /** Legacy active LP count. */
+  activeLps?: number | null;
+  /** Legacy pool age in seconds. */
+  age?: number | null;
+  /** Legacy long-side size at 18 decimals. */
+  longPositionAmount?: bigint | null;
+  /** Legacy long-side USD value at 18 decimals. */
+  longPositionValue?: bigint | null;
+  /** Legacy long-side average entry price at 18 decimals. */
+  longPositionAvgOpenPrice?: bigint | null;
+  /** Legacy long-side unrealized PnL at 18 decimals. */
+  longPositionUpnl?: bigint | null;
+  /** Legacy short-side size at 18 decimals. */
+  shortPositionAmount?: bigint | null;
+  /** Legacy short-side USD value at 18 decimals. */
+  shortPositionValue?: bigint | null;
+  /** Legacy short-side average entry price at 18 decimals. */
+  shortPositionAvgOpenPrice?: bigint | null;
+  /** Legacy short-side unrealized PnL at 18 decimals. */
+  shortPositionUpnl?: bigint | null;
+  /** Pool USDC total reported by older services; null when omitted. */
+  totalUsdcInPool?: bigint | null;
+  /** Pool token total at 18 decimals; null when omitted. */
+  totalTokenInPool?: bigint | null;
   /** LP balance valued in the pool's token units, 18-dec bigint. */
   userBalanceInTokens: bigint;
   /** LP balance valued in USDC, 18-dec bigint USD. */
@@ -310,6 +360,10 @@ export interface PoolClaimResult {
  * they address rows in the backend, not anything a consumer renders.
  */
 export interface PoolClaim {
+  /** Service wallet identity, retained for history correlation. */
+  walletId?: string;
+  /** Service market identity, retained for history correlation. */
+  marketId?: string;
   /** Claim id — reference it to look the claim up in the service. */
   claimRequestId: string;
   /** Sub-account address that received the claimed USDC. */
@@ -620,6 +674,24 @@ export interface PoolPosition {
  * remaining token and USDC balances with `tvl` fixed at zero.
  */
 export interface ListingMarketDetail {
+  /** Token amount reported by the backend, retaining missing versus zero. */
+  reportedTotalTokenInPool?: bigint | null;
+  /** Collateral amount reported by the backend, retaining missing versus zero. */
+  reportedTotalUsdcInPool?: bigint | null;
+  /** Maintenance amount reported by the backend, retaining missing versus zero. */
+  reportedMaintenanceFees?: bigint | null;
+  /** Legacy lifetime reward in plain USD; used only after current reward fields. */
+  legacyLifetimeReward?: string | null;
+  /** Whether the token has transfer tax; null when not reported. */
+  isTax?: boolean | null;
+  /** Whether the listing wallet is tax-whitelisted. */
+  userWhitelistTax?: boolean | null;
+  /** Other chains where the token is listed. */
+  additionalChains?: number[] | null;
+  /** Primary pool identifier when supplied. */
+  mainPool?: string | null;
+  /** Centralized exchange listings. */
+  cexList?: string[] | null;
   /** The pool's token contract address — its id in the listing API. */
   tokenContractAddress: string;
   /** Chain the token lives on and its listing deposit was made on. */
@@ -762,6 +834,12 @@ export interface PoolTransactionPage {
  * (`tokenAddress`, `chainId`).
  */
 export interface UserTransaction {
+  /** Token payout when reported; absence is not a zero payout. */
+  tokenAmount?: bigint | null;
+  /** USDC payout when reported; absence is not a zero payout. */
+  usdcAmount?: bigint | null;
+  /** Hash of a separate refund leg, when reported. */
+  refundTransactionHash?: string | null;
   /** Backend id for the transaction. */
   transactionId: string;
   /** Deposit or withdrawal. */
@@ -823,10 +901,10 @@ export interface ListingDepositChain {
  * config ({@link ListingConfig.rateLimits}).
  */
 export interface ListingRateLimits {
-  /** Max successful market-config updates per user+market in a rolling 24h window. */
-  marketConfigUpdatesPerDay: number;
-  /** Max successful profit claims per user+market in a rolling 24h window. */
-  profitClaimsPerDay: number;
+  /** Max successful market-config updates per user+market in a rolling 24h window; null when unknown. */
+  marketConfigUpdatesPerDay: number | null;
+  /** Max successful profit claims per user+market in a rolling 24h window; null when unknown. */
+  profitClaimsPerDay: number | null;
 }
 
 /**
@@ -839,6 +917,22 @@ export interface ListingRateLimits {
  * `formatUnits(value, LISTING_VALUE_DECIMALS)` at the display edge.
  */
 export interface ListingConfig {
+  /** Actual server limit, retaining absence separately from the legacy zero default. */
+  reportedMarketConfigUpdatesPerDay?: number | null;
+  /** Actual server claim limit, retaining absence separately from zero. */
+  reportedProfitClaimsPerDay?: number | null;
+  /** Reported whole-percent revenue share, or null when unknown. */
+  reportedProtocolRewardSharePercent?: number | null;
+  /** Recommended deposit, or null when not reported (supports legacy config responses). */
+  recommendedDepositUsdc?: bigint | null;
+  /** Initial/deposit floor, distinct from the legacy universal top-up floor. */
+  minimumDepositUsdc?: bigint | null;
+  /** Older services' separate universal floor; null on the current schema. */
+  legacyUniversalDepositFloorUsdc?: bigint | null;
+  /** Fee without an invented zero when the service omitted it. */
+  reportedListingFeeUsdc?: bigint | null;
+  /** Inclusive accepted leverage range; null when missing or invalid. */
+  maxLeverageBounds?: { minimum: number; maximum: number } | null;
   /** Recommended initial USDC deposit to start a listing, USD at LISTING_VALUE_DECIMALS (18) as a bigint. */
   recommendedInitialDepositUsdc: bigint;
   /** Minimum accepted initial USDC deposit after slippage, USD 18-dec bigint. */
@@ -864,6 +958,32 @@ export interface ListingConfig {
 export interface PoolQuote {
   /** Subgraph row id (`{quoteId}-{source}`); stable, use as a table key. */
   id: string;
+  /** Original submission timestamp in seconds, when indexed. */
+  timestampSendQuote?: number | null;
+  /** Opening fill timestamp in seconds, when indexed. */
+  timestampOpenPosition?: number | null;
+  /** Owner wallet of the subaccount, when indexed. */
+  ownerAddress?: string | null;
+  /** closedPrice: raw 18-decimal protocol value, null when not indexed. */
+  closedPrice?: bigint | null;
+  /** marketPrice: raw 18-decimal protocol value, null when not indexed. */
+  marketPrice?: bigint | null;
+  /** Open-fee rate at 18 decimals (1e18 = 100%), not a charged amount. Null when not indexed. */
+  tradingFee?: bigint | null;
+  /** Close-fee rate at 18 decimals (1e18 = 100%), not a charged amount. Null when not indexed. */
+  closeFee?: bigint | null;
+  /** leverage: raw 18-decimal protocol value, null when not indexed. */
+  leverage?: bigint | null;
+  /** initialCva: raw 18-decimal protocol value, null when not indexed. */
+  initialCva?: bigint | null;
+  /** initialPartyAmm: raw 18-decimal protocol value, null when not indexed. */
+  initialPartyAmm?: bigint | null;
+  /** initialLf: raw 18-decimal protocol value, null when not indexed. */
+  initialLf?: bigint | null;
+  /** userPaidFunding: raw 18-decimal protocol value, null when not indexed. */
+  userPaidFunding?: bigint | null;
+  /** userReceivedFunding: raw 18-decimal protocol value, null when not indexed. */
+  userReceivedFunding?: bigint | null;
   /** Protocol quote id. */
   quoteId: bigint;
   /** Raw `QuoteStatus` ordinal as the subgraph reports it. */

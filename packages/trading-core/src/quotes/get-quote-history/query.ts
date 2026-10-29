@@ -2,6 +2,7 @@ import type { Config } from "../../core/config";
 import type { Compute, ConfigKeyParameter } from "../../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../../shared/types/query";
 import { filterQueryOptions } from "../../shared/utils/query";
+import { hasEmptyListFilter } from "../../symmio-subgraph/subgraph-filters";
 import { getQuoteHistory, type GetQuoteHistoryParameters, type GetQuoteHistoryReturnType } from "./get-quote-history";
 
 /** Data resolved by the {@link getQuoteHistoryQueryOptions} query. */
@@ -38,8 +39,9 @@ export type GetQuoteHistoryQueryOptions = SymmioQueryOptions<
 
 /**
  * Build TanStack Query options for {@link getQuoteHistory}. Pass
- * `query.refetchInterval` to poll; the query is disabled until at least one
- * `subAccount` is supplied.
+ * `query.refetchInterval` to poll. The query is disabled while `subAccounts` or
+ * `marketIds` is an empty array (it would match nothing); omitting either reads
+ * without that filter.
  *
  * @param config - The SDK config.
  * @param options - Query parameters and TanStack overrides.
@@ -65,12 +67,14 @@ export function getQuoteHistoryQueryOptions(
       ...options,
       configKey: config.getChainConfigKey(options.chainId),
     }),
-    enabled: (options.query?.enabled ?? true) && options.subAccounts.length > 0,
+    enabled: (options.query?.enabled ?? true) && !hasEmptyListFilter(options.subAccounts, options.marketIds),
     queryFn: () =>
       getQuoteHistory(config, {
         chainId: options.chainId,
         subAccounts: options.subAccounts,
         isolationType: options.isolationType,
+        source: options.source,
+        marketIds: options.marketIds,
         closeType: options.closeType,
         first: options.first,
         skip: options.skip,

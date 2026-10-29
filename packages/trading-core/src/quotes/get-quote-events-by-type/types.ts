@@ -1,4 +1,5 @@
 import type { Hex } from "viem";
+import type { QuoteCloseEventType } from "../get-quote-history/types";
 
 /**
  * Subgraph `QuoteEvent.type` values for non-terminal events that touch a quote's
@@ -44,19 +45,30 @@ export const FUNDING_HISTORY_EVENT_TYPES: readonly QuoteEventType[] = [
 ];
 
 /**
+ * Any subgraph `QuoteEvent.type`. The known values ({@link QuoteEventType},
+ * {@link QuoteCloseEventType}) autocomplete; every other value the subgraph
+ * emits (`SEND_QUOTE`, `OPEN_POSITION`, `QUOTE_ADJUSTED`, …) passes through as a
+ * string, so a read is never limited to the types this release names.
+ */
+export type QuoteSubgraphEventType = QuoteEventType | QuoteCloseEventType | (string & {});
+
+/**
  * One decoded `QuoteEvent` row. `type` identifies which event family this row
  * belongs to (price update vs funding charge); the decoded metadata fields are
  * present whenever the underlying JSON carried them.
  *
  * All amount and price fields are 18-decimal-wei `bigint`.
  */
-export interface QuoteEventRow {
+export interface QuoteEventRow<TType extends QuoteSubgraphEventType = QuoteEventType> {
   /** Subgraph `QuoteEvent.id` (stable; use as the React key). */
   eventId: string;
   /** On-chain quote id this row belongs to. */
   quoteId: bigint;
-  /** Event-type discriminant — tells the UI which fields it cares about. */
-  type: QuoteEventType;
+  /**
+   * Event-type discriminant — tells the UI which fields it cares about. Narrowed
+   * to the types the read asked for.
+   */
+  type: TType;
   /** Event block timestamp in seconds. */
   timestamp: number;
   /** Block number, when available. */

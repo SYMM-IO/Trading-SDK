@@ -31,3 +31,4 @@ export * from "./use-quotes-pending-funding";
 export * from "./use-request-to-cancel-close-request";
 export * from "./use-request-to-cancel-quote";
 export * from "./use-subgraph-query";
+export * from "./use-subgraph-quotes";

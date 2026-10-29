@@ -178,3 +178,7 @@ const pool = await mutateAsync({
 - [`useAddMarket`](/react/pools#useaddmarket) — the React hook.
 - [DexScreener token API](https://api.dexscreener.com/latest/dex/tokens/) — token name, price, market cap, and liquidity to preview a token before listing it (`/latest/dex/tokens/<token_address>`).
 - [Pools](/core/pools) — the slice overview.
+
+## Pre-submit reads
+
+Use [token validation](/core/pools/token-validation), [listing config](/core/pools/listing-config), and [weekly limits](/core/pools/weekly-limit) before submission. Keep deployment `chainId` separate from token `depositChain`. `CreatedPool` retains optional `isTax`, `userWhitelistTax`, `additionalChains` and `cexList`; a missing deposit wallet must be resolved with `getDepositAddress` before sending funds. Wallet transfers remain consumer-owned.

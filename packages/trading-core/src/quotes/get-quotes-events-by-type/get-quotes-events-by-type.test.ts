@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { PublicClient } from "viem";
+import { getAddress, type PublicClient } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../core/chains";
 import { createConfig } from "../../core/config";
@@ -75,8 +75,10 @@ describe("getQuotesEventsByType", () => {
     expect(url).toBe(ANALYTICS_URL);
     expect(body.query).toContain("QuoteEventsForQuotesByType");
     expect(body.variables).toEqual({
-      quoteIds: ["7334", "7335"],
-      typeIn: [QuoteEventType.ChargeFundingRate, QuoteEventType.ChargeAccumulatedFundingFee],
+      where: {
+        quoteId_in: ["7334", "7335"],
+        type_in: [QuoteEventType.ChargeFundingRate, QuoteEventType.ChargeAccumulatedFundingFee],
+      },
       first: 10,
       skip: 20,
       orderDirection: "asc",
@@ -132,5 +134,28 @@ describe("getQuotesEventsByType", () => {
 
     expect(result.rows).toHaveLength(1);
     expect(result.hasMore).toBe(false);
+  });
+
+  it("reads every event type when types is omitted, and narrows row types to the ones passed", async () => {
+    const post = vi.spyOn(axios, "post").mockResolvedValue({
+      data: { data: { quoteEvents: [makeNode({ type: "QUOTE_ADJUSTED", metadata: null })] } },
+    });
+    const diamond = getAddress("0x8a0ed5b4cec4b0c4e1f7c8d9e3a2b1f0c9d8e7f6");
+
+    const all = await getQuotesEventsByType(config, { quoteIds: [7334n] });
+    await getQuotesEventsByType(config, {
+      quoteIds: [7334n],
+      types: ["FILL_CLOSE", "QUOTE_ADJUSTED"],
+      source: diamond,
+    });
+
+    const wheres = post.mock.calls.map((call) => (call[1] as { variables: { where: unknown } }).variables.where);
+    expect(wheres).toEqual([
+      { quoteId_in: ["7334"] },
+      { quoteId_in: ["7334"], type_in: ["FILL_CLOSE", "QUOTE_ADJUSTED"], source: diamond.toLowerCase() },
+    ]);
+    // An unlisted subgraph type passes through untouched, with its raw metadata.
+    expect(all.rows[0]!.type).toBe("QUOTE_ADJUSTED");
+    expect(all.rows[0]!.rawMetadata).toBeNull();
   });
 });
